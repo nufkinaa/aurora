@@ -1,0 +1,1102 @@
+/* ---------- Top navigation ---------- */
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-h);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 var(--page-x);
+  z-index: 100;
+  /* A top scrim (cheap gradient) instead of a live backdrop-filter blur —
+     blur would repaint the whole nav strip every scroll frame on a TV GPU. */
+  background: linear-gradient(
+    to bottom,
+    rgba(8, 9, 16, 0.9),
+    rgba(8, 9, 16, 0)
+  );
+  transition:
+    background var(--t-med) var(--ease),
+    box-shadow var(--t-med) var(--ease);
+}
+.nav.solid {
+  background: rgba(10, 11, 20, 0.97);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  margin-right: 20px;
+  border-radius: var(--radius-s);
+  padding: 6px 10px;
+}
+.nav-logo .logo-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: conic-gradient(from 210deg, #6c58ff, #b76cff, #4ea3ff, #6c58ff);
+  box-shadow: 0 0 18px rgba(124, 100, 255, 0.55);
+}
+
+.nav-item {
+  padding: 8px 16px;
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition:
+    color var(--t-fast),
+    background var(--t-fast),
+    box-shadow var(--t-fast);
+  white-space: nowrap;
+}
+.nav-item:hover {
+  color: var(--text);
+}
+.nav-item.active {
+  color: var(--text);
+  background: var(--surface);
+}
+.nav-item:focus {
+  color: #0b0c14;
+  background: #fff;
+  box-shadow: var(--focus-ring);
+}
+
+.nav-spacer {
+  flex: 1;
+}
+
+.nav-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 14px 5px 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition:
+    background var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.nav-profile:hover {
+  background: var(--surface-hover);
+}
+.nav-profile:focus {
+  box-shadow: var(--focus-ring);
+}
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 26px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+  background: var(--surface);
+  /* Hairline inner ring gives glass buttons a defined edge on dark art */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  transition:
+    transform var(--t-fast) var(--ease),
+    background var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.btn:hover {
+  background: var(--surface-hover);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 8px 22px rgba(0, 0, 0, 0.35);
+}
+.btn:focus {
+  box-shadow: var(--focus-ring);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.btn-primary {
+  /* Soft top-light: reads as a physical white key, not a flat fill */
+  background: linear-gradient(to bottom, #ffffff 0%, #eceef7 100%);
+  color: #0b0c14;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38);
+}
+.btn-primary:hover {
+  background: linear-gradient(to bottom, #ffffff 0%, #e0e3f0 100%);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.48);
+}
+/* Play / Stream only. Must sit after `.btn:focus` — same specificity, so order
+   is what decides. Every other focusable is unchanged. */
+.btn-primary:focus {
+  box-shadow: var(--focus-ring-light);
+}
+
+/* A soft bright head drifting round that violet ring. It is painted OVER
+   --focus-ring-light, filling exactly the same 3–7px band, so it replaces the
+   ring's look without replacing its job: if the mask or the registered property
+   isn't supported, the plain violet underneath is still the focus cue and
+   nothing below has to change. */
+@property --btn-orbit {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes btn-orbit {
+  to {
+    --btn-orbit: 360deg;
+  }
+}
+@supports ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+  .btn-primary {
+    position: relative;
+  }
+  .btn-primary:focus::after {
+    content: "";
+    position: absolute;
+    /* -7px out with 4px of padding puts the ring between 3px and 7px from the
+       button — the same band --focus-ring-light draws, so the white edge stays
+       untouched. Both ends of the gradient are the same colour, or the head
+       would jump as it wraps past 360°. */
+    inset: -7px;
+    padding: 4px;
+    border-radius: inherit;
+    background: conic-gradient(
+      from var(--btn-orbit),
+      #cfc7ff 0deg,
+      var(--accent) 25deg,
+      var(--accent-strong) 90deg,
+      var(--accent-strong) 270deg,
+      var(--accent) 335deg,
+      #cfc7ff 360deg
+    );
+    /* Keep the padding band, drop the middle: a ring that follows the pill's
+       curve, which a border-radius'd border can't do with a gradient. */
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    animation: btn-orbit 3.2s linear(0 0%, 0.6 43.75%, 1 100%) infinite;
+    pointer-events: none;
+  }
+}
+/* Infinite, so it has to be switched off outright rather than sped up to
+   0.01ms — see the note in base.css. The gradient still paints as a ring. */
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary:focus::after {
+    animation: none !important;
+  }
+}
+
+.btn-icon {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.btn.small {
+  padding: 9px 18px;
+  font-size: 0.9rem;
+}
+
+/* ---------- Cards ---------- */
+.card {
+  position: relative;
+  border-radius: var(--radius);
+  /* NOT overflow:hidden. The focus aura is a pseudo-element that has to reach
+     outside the card, and overflow:hidden ate it. Only three children ever
+     touch the corners — the poster, the shade and the fallback — and each
+     inherits the radius instead; everything else (label, progress, tags,
+     remove) is inset well clear of them. */
+  background: var(--bg-raised);
+  flex-shrink: 0;
+  transition:
+    transform var(--t-med) var(--ease),
+    box-shadow var(--t-med) var(--ease);
+  cursor: pointer;
+}
+/* tvOS-style focus: the poster lifts toward you inside a white aura. The
+   hairline edge is still the 10-foot cue — the glow is what makes it read as
+   picked up rather than merely outlined. --card-aura, so every card surface
+   (grid, rows, Continue Watching, search) glows the same. */
+.card:hover,
+.card:focus {
+  transform: scale(1.055) translateY(-3px);
+  box-shadow: var(--card-aura);
+  z-index: 5;
+}
+/* The grain. tvOS's focus glow isn't a clean gaussian — it has a fine noise to
+   it, which is most of why theirs reads as light and a plain box-shadow reads as
+   a sticker. So: fractal noise from an inline SVG filter, screened over the
+   box-shadow glow and masked to fade out before the layer's own edge.
+   z-index -1 puts it behind the card's background, so it shows ONLY in the ring
+   outside the artwork — but still after the box-shadow in paint order, which is
+   what lets it texture the glow rather than sit under it. */
+/* The halo. Its shape is the CARD'S OWN SILHOUETTE, blurred — not a gradient
+   approximating one, which is what made earlier versions lopsided: a
+   radial-gradient is an ellipse, so on a 2:3 poster the light landed at a
+   different distance on the long sides than the short ones and died completely
+   in the corners. A Gaussian blur is isotropic, so blurring the card's rounded
+   rectangle gives light that is equal on all four sides and turns the corners
+   properly — which is what the tvOS one does.
+   The geometry: the box reaches `reach` past the card, and padding of the same
+   amount pulls the CONTENT box back to exactly the card's footprint.
+   background-clip: content-box then paints white over just that footprint, with
+   the corner radius working out to the card's own. Keeping the blur inside the
+   border box this way is what lets the noise mask apply to it — mask-clip is
+   border-box, so a blur spilling past that edge would simply be cut off. */
+.card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: calc(-1.1 * var(--card-aura-reach));
+  padding: var(--card-aura-reach);
+  border-radius: calc(var(--radius) + var(--card-aura-reach));
+  background-color: rgba(255, 255, 255, 0.92);
+  background-clip: content-box;
+  filter: blur(13px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-med) var(--ease);
+  /* Grayscale fractal noise, tiled, masking the halo so the light is speckled
+     rather than a clean gaussian. High baseFrequency + a single octave is what
+     makes it read as fine grain; lower frequencies or more octaves turn it into
+     clouds, which is smoke, not light. No radial shaping — the mask covers the
+     whole layer evenly, so the grain is as uniform as the light under it. */
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.9' intercept='0.45'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.9' intercept='0.45'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)'/%3E%3C/svg%3E");
+  -webkit-mask-size: 100px 100px;
+  mask-size: 100px 100px;
+}
+.card:hover::before,
+.card:focus::before {
+  opacity: 0.55;
+}
+/* The art brightens with it — a flat poster inside a bright halo looks like a
+   sticker on a lightbox. */
+.card:hover .card-poster,
+.card:focus .card-poster {
+  filter: brightness(1.06) saturate(1.04);
+}
+
+.card-poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  transition: filter var(--t-med) var(--ease);
+}
+
+.card.poster {
+  width: 176px;
+  aspect-ratio: 2 / 3;
+}
+.card.wide {
+  width: 300px;
+  aspect-ratio: 16 / 9;
+}
+
+.card-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: linear-gradient(160deg, #1b1d31, #101120);
+  border-radius: inherit;
+  font-size: 1rem;
+}
+
+.card-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(5, 6, 12, 0.92) 0%, transparent 45%);
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity var(--t-fast);
+  pointer-events: none;
+}
+.card:hover .card-shade,
+.card:focus .card-shade,
+.card.wide .card-shade,
+/* Any card carrying a label needs the scrim at rest, not just on hover: a poster
+   already has the show's name set large across its own bottom third, so a label
+   printed straight onto it collides with the artwork's own title. */
+.card.has-label .card-shade {
+  opacity: 1;
+}
+
+.card-label {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.card-sub {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.card-progress {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 8px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+  pointer-events: none;
+}
+.card-progress > div {
+  height: 100%;
+  background: var(--progress);
+  border-radius: 2px;
+}
+.card-progress ~ .card-label {
+  bottom: 20px;
+}
+
+.card-new {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 3px 9px;
+  border-radius: 7px;
+  background: var(--accent-strong);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(108, 88, 255, 0.5);
+}
+
+/* Corner tags. One visual language, two questions: where a title comes from
+   ("STREAM", left) and what it is ("SERIES"/"FILM", right, on home's mixed rows).
+   Opposite corners so a streamable series can wear both without them stacking. */
+.card-tag {
+  position: absolute;
+  top: 10px;
+  padding: 3px 8px;
+  border-radius: 7px;
+  background: rgba(6, 8, 16, 0.72);
+  color: #cbd2e6;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+.card-tag.stream {
+  left: 10px;
+}
+/* The kind tag answers a different kind of question from "STREAM", so it is
+   allowed a hue where that one stays grey: the icon and the word are tinted, the
+   pill itself keeps the same dark glass. Tinting the whole pill would put two
+   coloured blocks on every poster on the page. */
+.card-tag.kind {
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.card-tag.kind svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+}
+.card-tag.kind.film {
+  color: var(--kind-film);
+  border-color: rgba(240, 198, 126, 0.32);
+}
+.card-tag.kind.series {
+  color: var(--kind-series);
+  border-color: rgba(127, 209, 232, 0.32);
+}
+
+.card-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  font-size: 0.85rem;
+  font-weight: 800;
+  opacity: 0;
+  transition:
+    opacity var(--t-fast),
+    background var(--t-fast);
+  cursor: pointer;
+}
+.card:hover .card-remove,
+.card:focus .card-remove {
+  opacity: 1;
+}
+.card-remove:hover {
+  background: rgba(220, 60, 60, 0.9);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+/* The age rating sits in the same row as 720P and CC but is not the same kind
+   of fact — those describe the file, this describes the content — so it gets the
+   brighter of the two treatments to stop it being read as another codec tag.
+   Same box, so the row still lines up. */
+.badge-age {
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+
+/* ---------- Rows (horizontal shelves) ---------- */
+.row {
+  margin-top: 22px;
+  /* Anchor for the nudge arrows. */
+  position: relative;
+}
+.row-title {
+  font-size: var(--fs-row);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin-bottom: 14px;
+  padding: 0 var(--page-x);
+}
+.row-scroller {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  /* overflow-x:auto forces overflow-y to auto, so this box CLIPS vertically —
+     which sheared the top and bottom off the focus aura. The padding is sized
+     from --card-aura-reach plus the ~12px the card gains from scaling up and
+     lifting; the negative margin cancels the same amount again, so the row's
+     spacing on the page is unchanged. Grow both together or the glow gets a
+     flat edge. */
+  padding: calc(var(--card-aura-reach) + 12px) var(--page-x)
+    calc(var(--card-aura-reach) + 28px);
+  /* Extra below: the lift shadow is offset downward (0 18px 36px), so it hangs
+     further under the card than the halo reaches in any other direction.
+     Nets out to the original 10px above / 16px below. */
+  margin: calc(-2px - var(--card-aura-reach)) 0
+    calc(-12px - var(--card-aura-reach));
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.row-scroller::-webkit-scrollbar {
+  display: none;
+}
+
+/* Row nudge arrows (see public/js/rowArrows.js).
+ *
+ * Hidden by default and revealed on hover, so a page at rest is still just its
+ * artwork. `--row-nav-y` and `--row-nav-x` are measured from the first card by
+ * the script: the scroller's own box carries several rems of asymmetric padding
+ * to keep the focus aura from being clipped, so centring on it would sit these
+ * noticeably low.
+ *
+ * Only for pointers. Touch scrolls by swiping and the keyboard scrolls the row as
+ * focus moves along it, so on those this is a control in the way of the content —
+ * hence the pointer query, and `tabindex="-1"` so tabbing never lands here. */
+.row-nav {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) and (min-width: 861px) {
+  .row-nav {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    top: var(--row-nav-y, 50%);
+    transform: translateY(-50%);
+    /* Above a hovered card (which lifts itself to 5) — the card nearest each edge
+       is exactly the one that would otherwise grow over the arrow you are
+       reaching for, and its aura is wide enough to swallow it. */
+    z-index: 8;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    color: var(--text);
+    background: rgba(16, 16, 22, 0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity var(--t-fast),
+      transform var(--t-fast),
+      background var(--t-fast);
+  }
+  .row-nav.prev {
+    left: var(--row-nav-x, 0px);
+  }
+  .row-nav.next {
+    right: var(--row-nav-x, 0px);
+  }
+  .row-nav svg {
+    width: 24px;
+    height: 24px;
+  }
+  /* Revealed only where there is something past that edge to reach — the
+     can-prev / can-next classes are maintained from the scroll position.
+     Keyed to hover and to the arrow's OWN focus, not :focus-within: a card taking
+     focus would otherwise pop up two buttons that tabbing cannot reach, on a row
+     the focus manager is already scrolling for you. */
+  .row.can-prev:hover .row-nav.prev,
+  .row.can-prev .row-nav.prev:focus,
+  .row.can-next:hover .row-nav.next,
+  .row.can-next .row-nav.next:focus {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .row-nav:hover {
+    background: rgba(28, 28, 38, 0.9);
+    transform: translateY(-50%) scale(1.08);
+  }
+  .row-nav:active {
+    transform: translateY(-50%) scale(0.96);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .row-nav {
+    transition: none;
+  }
+  .row-nav:hover,
+  .row-nav:active {
+    transform: translateY(-50%);
+  }
+}
+
+/* ---------- Grid (browse pages) ---------- */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 18px 18px;
+  padding: 22px var(--page-x) 40px;
+}
+.grid .card.poster {
+  width: 100%;
+}
+
+/* ---------- Toasts ---------- */
+#toasts {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 360px;
+  padding: 13px 18px;
+  border-radius: var(--radius);
+  background: rgba(20, 22, 34, 0.98);
+  border: 1px solid var(--line);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  font-size: 0.92rem;
+  font-weight: 600;
+  animation: toast-in var(--t-med) var(--ease);
+  transition:
+    opacity 0.4s,
+    transform 0.4s;
+}
+.toast.hide {
+  opacity: 0;
+  transform: translateX(24px);
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ---------- Modal ---------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 5, 9, 0.82);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fade-in var(--t-fast);
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.modal {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  padding: 28px;
+  max-width: 520px;
+  width: calc(100% - 48px);
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+  animation: modal-in var(--t-med) var(--ease);
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.modal h2 {
+  font-size: 1.4rem;
+  margin-bottom: 18px;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- Download picker ---------- */
+.dl-picker-sub {
+  margin: -12px 0 18px;
+  color: var(--text-dim);
+  font-size: 0.92rem;
+}
+/* A title can carry a dozen alternative tracks — the list scrolls on its own so
+   Cancel and Download never slide off the bottom of the dialog. */
+.dl-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
+  /* Breathing room so the scroll container doesn't crop a row's focus ring. */
+  padding: 4px;
+  margin: -4px;
+}
+.dl-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0 0;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+/* Sentence case against the uppercase heading it sits in, so the switch reads
+   as a control rather than as part of the label. */
+.dl-picker-all {
+  padding: 4px 8px;
+  border-radius: 6px;
+  text-transform: none;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.dl-picker-all:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+.dl-picker-all:focus {
+  box-shadow: var(--focus-ring);
+}
+.dl-opt {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+  transition:
+    background var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.dl-opt:hover {
+  background: var(--surface-hover);
+}
+.dl-opt:focus {
+  box-shadow: var(--focus-ring);
+}
+.dl-opt-box {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 2px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Unchecked, the tick is still there holding the box's size — it just can't
+     be seen, so ticking one doesn't nudge the row. */
+  color: transparent;
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    color var(--t-fast);
+}
+.dl-opt-box svg {
+  width: 14px;
+  height: 14px;
+}
+.dl-opt[aria-checked="true"] .dl-opt-box {
+  background: #fff;
+  border-color: #fff;
+  color: #0b0c14;
+}
+.dl-opt-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.dl-opt-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dl-opt-meta {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.dl-picker-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+.dl-picker-actions .btn {
+  white-space: nowrap;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+.field label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  margin-bottom: 7px;
+}
+.field input[type="text"],
+.field input[type="password"] {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transition:
+    border-color var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.field input[type="password"] {
+  margin-top: 8px;
+}
+.field input[type="text"]:focus,
+.field input[type="password"]:focus {
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15);
+}
+.pw-error {
+  color: #ff7a7a;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-top: 8px;
+}
+.pw-error.hidden {
+  display: none;
+}
+/* Explanatory line under a field (e.g. why a new profile needs a password) */
+.field-hint {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  margin-top: 8px;
+}
+
+/* "Your profile is waiting for approval" confirmation, after a new-profile
+   request. Centred and roomy — it's a message, not a form. */
+.request-sent {
+  text-align: center;
+}
+.request-sent-emoji {
+  font-size: 2.6rem;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+.request-sent h2 {
+  margin: 0 0 10px;
+}
+.request-sent p {
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  margin: 0 0 8px;
+}
+.request-sent .field-hint {
+  margin-top: 12px;
+}
+
+/* Lock badge on a password-protected profile tile */
+.profile-lock {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  font-size: 0.9rem;
+  background: var(--bg);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Your-profile row in Preferences */
+.pref-profile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 640px;
+}
+.pref-profile .big-avatar.small {
+  width: 56px;
+  height: 56px;
+  font-size: 1.6rem;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pref-profile-name {
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+/* ---------- Settings rows (Preferences) ---------- */
+.pref-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 720px;
+}
+.pref-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.pref-item:last-child {
+  border-bottom: 0;
+}
+.pref-item-text {
+  flex: 1;
+  min-width: 0;
+}
+.pref-item-label {
+  font-weight: 700;
+}
+.pref-item-note {
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+  line-height: 1.45;
+  margin-top: 3px;
+}
+.pref-item-value {
+  flex-shrink: 0;
+  min-width: 132px;
+  justify-content: center;
+}
+
+/* ---------- Menu (popover list, e.g. subtitles) ---------- */
+.menu {
+  position: absolute;
+  min-width: 240px;
+  max-height: 46vh;
+  overflow-y: auto;
+  background: rgba(20, 22, 34, 0.98);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
+  z-index: 60;
+}
+.menu-title {
+  padding: 8px 12px 4px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 12px;
+  border-radius: var(--radius-s);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
+}
+.menu-item:hover,
+.menu-item:focus {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.menu-item.active {
+  color: var(--text);
+}
+.menu-item.active::before {
+  content: "✓";
+  font-weight: 800;
+}
+.menu-item:not(.active)::before {
+  content: "";
+  width: 13px;
+}
+.menu-item .tag {
+  margin-left: auto;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+/* Subtitle-timing nudge row in the CC menu */
+.sub-sync {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 6px;
+}
+.sub-sync button {
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.sub-sync button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.sub-sync button:focus {
+  box-shadow: var(--focus-ring);
+  color: var(--text);
+}
+.sub-sync .tag {
+  min-width: 44px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ---------- Empty state ---------- */
+.empty {
+  padding: 90px var(--page-x);
+  text-align: center;
+  color: var(--text-dim);
+}
+.empty .glyph {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}

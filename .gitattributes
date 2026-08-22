@@ -1,0 +1,6 @@
+# Windows batch files MUST keep CRLF. cmd.exe mis-parses an LF-only .bat —
+# it drops the first characters of lines, producing errors like
+# "'tlocal' is not recognized as an internal or external command" from
+# `setlocal`. This bit the TV build script once already.
+*.bat text eol=crlf
+*.cmd text eol=crlf

@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aurora · Admin</title>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <style>
+    /* ---------- layout ---------- */
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 32px var(--page-x) 90px; }
+    .head { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+    .head h1 { font-size: 1.5rem; font-weight: 900; letter-spacing: -0.01em; }
+    .head .logo-mark { width: 30px; height: 30px; border-radius: 9px;
+      background: conic-gradient(from 210deg, #6c58ff, #b76cff, #4ea3ff, #6c58ff); }
+    .head .actions { margin-left: auto; display: flex; gap: 10px; }
+
+    .tabs { display: flex; gap: 6px; margin-bottom: 26px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    .tab { padding: 10px 16px; font-weight: 800; font-size: 0.95rem; color: var(--text-dim);
+      border-bottom: 2px solid transparent; cursor: pointer; background: none; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+    .pane { display: none; }
+    .pane.active { display: block; }
+
+    /* ---------- tiles & cards ---------- */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 26px; }
+    .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 15px 16px; }
+    .stat .v { font-size: 1.55rem; font-weight: 900; }
+    .stat .k { font-size: 0.74rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+    .stat .sub { font-size: 0.78rem; color: var(--text-faint); margin-top: 3px; }
+
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-bottom: 22px; }
+    .card > h2, section > h2 { font-size: 1.05rem; font-weight: 800; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .card > h2 .note, section > h2 .note { font-size: 0.8rem; font-weight: 600; color: var(--text-faint); }
+    section { margin-bottom: 30px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    @media (max-width: 980px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    /* ---------- charts ---------- */
+    .chart { position: relative; }
+    .chart svg { display: block; width: 100%; }
+    .chart .empty { color: var(--text-faint); padding: 30px 0; text-align: center; font-size: 0.9rem; }
+    .legend { display: flex; gap: 16px; margin-bottom: 8px; font-size: 0.8rem; color: var(--text-dim); font-weight: 700; }
+    .legend .chip { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+    #viz-tip { position: fixed; z-index: 50; pointer-events: none; background: rgba(13, 14, 24, 0.96);
+      border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; font-size: 0.8rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5); display: none; max-width: 320px; }
+    #viz-tip .t { font-weight: 800; margin-bottom: 4px; }
+    #viz-tip .row { display: flex; align-items: center; gap: 7px; color: var(--text-dim); padding: 1px 0; }
+    #viz-tip .row b { color: var(--text); margin-left: auto; padding-left: 14px; }
+    #viz-tip .chip { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+
+    .heatmap { display: grid; gap: 2px; font-size: 0.68rem; color: var(--text-faint); }
+    .heatmap .cell { border-radius: 3px; aspect-ratio: auto; height: 22px; min-width: 0; }
+    .heatmap .cell:hover { outline: 1px solid rgba(255,255,255,0.6); }
+    .heatmap .lab { display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; height: 22px; }
+    .heatmap .lab-h { text-align: center; padding-top: 4px; }
+
+    .hbars .hrow { display: grid; grid-template-columns: minmax(120px, 260px) 1fr 90px; gap: 12px; align-items: center;
+      padding: 5px 0; font-size: 0.88rem; }
+    .hbars .hlabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hbars .htrack { height: 14px; border-radius: 4px; background: rgba(255,255,255,0.04); overflow: hidden; }
+    .hbars .hfill { height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; }
+    .hbars .hval { color: var(--text-dim); font-variant-numeric: tabular-nums; text-align: right; }
+    .hbars .hrow:hover .hlabel { color: var(--accent); }
+
+    /* ---------- live cards ---------- */
+    .now-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+    .now-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 15px; }
+    .now-card .who { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+    .now-card .avatar { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center;
+      justify-content: center; font-size: 1.1rem; background: var(--surface-hover); flex: none; }
+    .now-card .name { font-weight: 800; }
+    .now-card .meta { font-size: 0.78rem; color: var(--text-faint); }
+    .now-card .title { font-weight: 700; font-size: 0.95rem; margin-bottom: 9px; }
+    .now-card .prog { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; margin-bottom: 6px; }
+    .now-card .prog i { display: block; height: 100%; background: var(--progress); border-radius: 999px; }
+    .now-card .times { display: flex; justify-content: space-between; font-size: 0.76rem; color: var(--text-dim);
+      font-variant-numeric: tabular-nums; margin-bottom: 10px; }
+    .now-card .row-actions { display: flex; gap: 8px; }
+
+    /* ---------- tables & misc ---------- */
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 9px 12px; color: var(--text-faint); font-size: 0.72rem;
+      text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--line); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+    tr:hover td { background: rgba(255,255,255,0.03); }
+    td.num { font-variant-numeric: tabular-nums; }
+    .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--surface); font-size: 0.76rem; font-weight: 700; }
+    .pill.live { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+    .pill.warn { background: rgba(240, 177, 50, 0.14); color: #f0b132; }
+    .mini { padding: 6px 12px; border-radius: 8px; background: var(--surface); font-size: 0.8rem; font-weight: 700; }
+    .mini:hover { background: var(--surface-hover); }
+    .mini.danger { color: #ff7a7a; }
+    .muted { color: var(--text-faint); }
+    .bar-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .bar-row input, .bar-row select { padding: 10px 14px; border-radius: var(--radius-s); background: var(--surface);
+      border: 1px solid var(--line); color: var(--text); }
+    .bar-row input { flex: 1; min-width: 160px; }
+    .empty-note { color: var(--text-faint); padding: 16px 4px; }
+    .range-chips { display: flex; gap: 6px; }
+    .range-chips button { padding: 6px 14px; border-radius: 999px; background: var(--surface); font-weight: 700; font-size: 0.82rem; }
+    .range-chips button.active { background: var(--accent-strong); color: #fff; }
+    /* Server log viewer */
+    .log-list { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.78rem; line-height: 1.5;
+      max-height: 62vh; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; background: #0d0e15; }
+    .log-row { display: flex; gap: 10px; padding: 3px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); white-space: pre-wrap; word-break: break-word; }
+    .log-row:last-child { border-bottom: 0; }
+    .log-time { color: var(--text-faint); flex: 0 0 auto; }
+    .log-lvl { flex: 0 0 46px; font-weight: 800; }
+    .log-info  .log-lvl { color: #6f7a96; }
+    .log-warn  { background: rgba(245,197,66,0.06); }
+    .log-warn  .log-lvl { color: #f5c542; }
+    .log-error { background: rgba(255,122,122,0.08); }
+    .log-error .log-lvl { color: #ff7a7a; }
+    .log-msg { flex: 1 1 auto; }
+    .mini-prog { display: inline-block; width: 70px; height: 5px; border-radius: 999px; background: rgba(255,255,255,0.08);
+      vertical-align: middle; margin-right: 8px; overflow: hidden; }
+    .mini-prog i { display: block; height: 100%; background: var(--progress); }
+    .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; font-size: 0.9rem; }
+    .kv dt { color: var(--text-faint); }
+    .ok { color: #4ade80; font-weight: 700; }
+    .bad { color: #ff7a7a; font-weight: 700; }
+    .table-scroll { overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <span class="logo-mark"></span>
+      <h1>Aurora Admin</h1>
+      <div class="actions">
+        <button class="btn small" id="rescan">Rescan library</button>
+        <button class="btn small" id="clear-caches">Clear caches</button>
+        <a class="btn small" href="/">Open app</a>
+      </div>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="live">Live</button>
+      <button class="tab" data-tab="analytics">Analytics</button>
+      <button class="tab" data-tab="history">History</button>
+      <button class="tab" data-tab="profiles">Profiles</button>
+      <button class="tab" data-tab="server">Server</button>
+      <button class="tab" data-tab="downloads">Downloads</button>
+      <button class="tab" data-tab="moderation">Moderation</button>
+      <button class="tab" data-tab="logs">Logs</button>
+    </div>
+
+    <!-- ================= LOGS ================= -->
+    <div class="pane" id="pane-logs">
+      <section>
+        <h2>Server log <span class="note" id="log-stats"></span></h2>
+        <div class="bar-row" style="align-items:center;flex-wrap:wrap">
+          <div class="range-chips" id="log-levels">
+            <button data-level="all" class="active">All</button>
+            <button data-level="warn">Warnings + errors</button>
+            <button data-level="error">Errors only</button>
+            <button data-level="info">Info</button>
+          </div>
+          <input type="text" id="log-search" placeholder="Filter text (e.g. silo, superseded, ffmpeg)…" style="flex:1;min-width:220px" />
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--text-dim)">
+            <input type="checkbox" id="log-live" checked style="width:auto" /> Live
+          </label>
+          <button class="btn small" id="log-clear">Clear</button>
+        </div>
+        <div class="log-list" id="log-list"></div>
+        <div class="empty-note hidden" id="log-empty">Nothing matches that filter.</div>
+      </section>
+    </div>
+
+    <!-- ================= OVERVIEW ================= -->
+    <div class="pane active" id="pane-overview">
+      <div class="stats" id="ov-stats"></div>
+      <div class="card">
+        <h2>Viewers — last 24 hours <span class="note">30-second samples</span></h2>
+        <div class="chart" id="ov-viewers"></div>
+      </div>
+      <section>
+        <h2>Watching right now</h2>
+        <div class="now-grid" id="ov-now"></div>
+        <div class="empty-note hidden" id="ov-now-empty">Nobody is watching anything right now.</div>
+      </section>
+      <div class="card">
+        <h2>Top titles — last 7 days <span class="note">by watch time</span></h2>
+        <div class="hbars" id="ov-top"></div>
+      </div>
+    </div>
+
+    <!-- ================= LIVE ================= -->
+    <div class="pane" id="pane-live">
+      <section>
+        <h2>Now playing <span class="pill live" id="live-watch-count">0</span></h2>
+        <div class="now-grid" id="live-now"></div>
+        <div class="empty-note hidden" id="live-now-empty">Nobody is watching anything right now.</div>
+      </section>
+      <section>
+        <h2>All connected <span class="pill" id="client-count">0</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Profile</th><th>IP</th><th>Device</th><th>Doing</th><th>Connected</th><th></th></tr></thead>
+          <tbody id="clients"></tbody>
+        </table></div>
+        <div class="empty-note hidden" id="clients-empty">Nobody is connected.</div>
+      </section>
+      <section>
+        <h2>Broadcast a message</h2>
+        <div class="bar-row">
+          <input type="text" id="broadcast-input" placeholder="Message shown to every connected viewer…" />
+          <button class="btn small btn-primary" id="broadcast-btn">Send</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================= ANALYTICS ================= -->
+    <div class="pane" id="pane-analytics">
+      <div class="bar-row" style="align-items:center">
+        <div class="range-chips" id="range-chips">
+          <button data-days="7">7 days</button>
+          <button data-days="14" class="active">14 days</button>
+          <button data-days="30">30 days</button>
+          <button data-days="90">90 days</button>
+        </div>
+      </div>
+      <div class="stats" id="an-stats"></div>
+      <div class="card">
+        <h2>Watch time per day</h2>
+        <div class="chart" id="an-daily"></div>
+      </div>
+      <div class="card">
+        <h2>When people watch <span class="note">watch time by weekday × hour</span></h2>
+        <div id="an-heatmap"></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>Watch time by profile</h2>
+          <div class="hbars" id="an-profiles"></div>
+        </div>
+        <div class="card">
+          <h2>Watch time by device</h2>
+          <div class="hbars" id="an-devices"></div>
+          <div style="height:14px"></div>
+          <div class="hbars" id="an-os"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Top titles <span class="note">plays · unique viewers · average completion</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>#</th><th>Title</th><th>Watch time</th><th>Plays</th><th>Viewers</th><th>Avg completion</th><th>Last played</th></tr></thead>
+          <tbody id="an-titles"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h2>Viewers <span class="note">by IP address</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>IP</th><th>Profiles</th><th>Devices</th><th>Watch time</th><th>Plays</th><th>Last seen</th></tr></thead>
+          <tbody id="an-viewers"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ================= HISTORY ================= -->
+    <div class="pane" id="pane-history">
+      <section>
+        <h2>Watch sessions
+          <span class="note">every play: who, what, when, how long, how far</span>
+          <button class="mini danger" id="clear-sessions" style="margin-left:auto">Clear</button>
+        </h2>
+        <div class="bar-row">
+          <input type="text" id="sess-q" placeholder="Filter by title…" />
+          <select id="sess-profile"><option value="">All profiles</option></select>
+        </div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Started</th><th>Profile</th><th>Title</th><th>Device</th><th>IP</th><th>Watched</th><th>Progress</th></tr></thead>
+          <tbody id="sessions"></tbody>
+        </table></div>
+      </section>
+      <section>
+        <h2>Legacy watch history <button class="mini danger" id="clear-history" style="margin-left:auto">Clear</button></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>When</th><th>Profile</th><th>IP</th><th>Content</th><th>Plays</th></tr></thead>
+          <tbody id="history"></tbody>
+        </table></div>
+      </section>
+      <section>
+        <h2>Connection log</h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>When</th><th>Event</th><th>IP</th><th>Device</th><th>Profile</th></tr></thead>
+          <tbody id="log"></tbody>
+        </table></div>
+      </section>
+    </div>
+
+    <!-- ================= PROFILES ================= -->
+    <div class="pane" id="pane-profiles">
+      <section>
+        <h2>Waiting for approval <span class="pill" id="req-count">0</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Asked</th><th>Profile</th><th>Real name</th><th>Note</th><th>From</th><th></th></tr></thead>
+          <tbody id="profile-requests"></tbody>
+        </table></div>
+        <div class="empty-note" id="req-empty">No one is waiting for approval.</div>
+      </section>
+      <section>
+        <h2>Devices &amp; IPs per profile <span class="note">who has been getting in</span></h2>
+        <div id="profile-access"></div>
+        <div class="empty-note hidden" id="access-empty">No profile has been entered yet.</div>
+      </section>
+      <div class="now-grid" id="profiles-grid"></div>
+    </div>
+
+    <!-- ================= SERVER ================= -->
+    <div class="pane" id="pane-server">
+      <div class="stats" id="sv-stats"></div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>Server memory — last 24 hours</h2>
+          <div class="chart" id="sv-mem"></div>
+        </div>
+        <div class="card">
+          <h2>Torrent throughput — last 24 hours</h2>
+          <div class="chart" id="sv-net"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Active torrents</h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Name</th><th>Progress</th><th>Peers</th><th>↓ Speed</th><th>↑ Speed</th><th>Size</th></tr></thead>
+          <tbody id="sv-torrents"></tbody>
+        </table></div>
+        <div class="empty-note hidden" id="sv-torrents-empty">No active torrents.</div>
+      </div>
+      <div class="card">
+        <h2>Environment</h2>
+        <dl class="kv" id="sv-env"></dl>
+      </div>
+    </div>
+
+    <!-- ================= DOWNLOADS ================= -->
+    <div class="pane" id="pane-downloads">
+      <section>
+        <h2>Disk space <span class="note">where downloads land</span></h2>
+        <div class="now-grid" id="disk-bars"></div>
+      </section>
+      <section>
+        <h2>Pending approval <span class="pill warn" id="dl-pending-count">0</span>
+          <span class="note">downloads normally start on their own — these are held back because the disk is running low</span>
+        </h2>
+        <div class="now-grid" id="dl-pending"></div>
+        <div class="empty-note hidden" id="dl-pending-empty">Nothing is waiting for approval — there's enough disk space, so requests start by themselves.</div>
+      </section>
+      <section>
+        <h2>Active &amp; finished</h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Title</th><th>Quality</th><th>Size</th><th>Progress</th><th>Speed</th><th>Peers</th><th>Status</th><th></th></tr></thead>
+          <tbody id="dl-jobs"></tbody>
+        </table></div>
+        <div class="empty-note hidden" id="dl-jobs-empty">Nothing downloaded yet.</div>
+      </section>
+      <section>
+        <h2>Library <span class="note">delete titles to free up disk space — removes the files permanently</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Title</th><th>Type</th><th>Size</th><th></th></tr></thead>
+          <tbody id="lib-items"></tbody>
+        </table></div>
+      </section>
+    </div>
+
+    <!-- ================= MODERATION ================= -->
+    <div class="pane" id="pane-moderation">
+      <section>
+        <h2>Requests</h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>When</th><th>Type</th><th>Title</th><th>From</th><th>Status</th><th></th></tr></thead>
+          <tbody id="requests"></tbody>
+        </table></div>
+      </section>
+      <section>
+        <h2>Banned IPs</h2>
+        <div class="bar-row">
+          <input type="text" id="ban-ip" placeholder="IP address" style="max-width:220px" />
+          <input type="text" id="ban-reason" placeholder="Reason (optional)" />
+          <button class="btn small" id="ban-btn">Ban</button>
+        </div>
+        <table><tbody id="bans"></tbody></table>
+      </section>
+    </div>
+  </div>
+
+  <div id="viz-tip"></div>
+  <div id="toasts"></div>
+
+  <script>
+    "use strict";
+    // ---------- utilities ----------
+    const $ = (s) => document.querySelector(s);
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    // Admin password — kept in memory ONLY (no cookie, no storage, not in the
+    // URL), so a page refresh clears it and the prompt returns. Attached to
+    // every admin request as the X-Admin-Password header.
+    let ADMIN_PW = null;
+    const adminFetch = (url, opts = {}) => {
+      const headers = { ...(opts.headers || {}) };
+      if (ADMIN_PW) headers["X-Admin-Password"] = ADMIN_PW;
+      return fetch(url, { ...opts, headers });
+    };
+    const json = (url, opts) => adminFetch(url, opts).then((r) => r.json());
+    const post = (url, body) => json(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+
+    const ago = (iso) => {
+      if (!iso) return "—";
+      const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+      if (s < 60) return s + "s ago";
+      if (s < 3600) return Math.floor(s / 60) + "m ago";
+      if (s < 86400) return Math.floor(s / 3600) + "h ago";
+      return Math.floor(s / 86400) + "d ago";
+    };
+    const fmtDur = (sec) => {
+      sec = Math.round(sec || 0);
+      if (sec < 60) return sec + "s";
+      const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+      if (h > 0) return `${h}h ${m}m`;
+      return `${m}m`;
+    };
+    const fmtClock = (sec) => {
+      sec = Math.max(0, Math.round(sec || 0));
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+      return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0");
+    };
+    const fmtBytes = (b) => {
+      b = b || 0;
+      if (b >= 1 << 30) return (b / (1 << 30)).toFixed(1) + " GB";
+      if (b >= 1 << 20) return (b / (1 << 20)).toFixed(1) + " MB";
+      if (b >= 1 << 10) return Math.round(b / 1024) + " KB";
+      return b + " B";
+    };
+    const fmtSpeed = (bps) => (bps >= 1 << 20 ? (bps / (1 << 20)).toFixed(1) + " MB/s" : Math.round((bps || 0) / 1024) + " KB/s");
+    const fmtWhen = (iso) => {
+      const d = new Date(iso);
+      const today = new Date(); const yd = new Date(Date.now() - 86400000);
+      const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+      const hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      if (sameDay(d, today)) return "Today " + hm;
+      if (sameDay(d, yd)) return "Yesterday " + hm;
+      return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + hm;
+    };
+    const fmtDay = (dk) => {
+      const [y, m, d] = dk.split("-").map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString([], { month: "short", day: "numeric" });
+    };
+    const toast = (msg) => {
+      const t = document.createElement("div");
+      t.className = "toast"; t.textContent = msg;
+      $("#toasts").append(t);
+      setTimeout(() => t.classList.add("hide"), 3200);
+      setTimeout(() => t.remove(), 3800);
+    };
+    const fmtUptime = (sec) => {
+      const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+      return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+    };
+
+    // ---------- chart kit (validated dark palette) ----------
+    const C = {
+      s1: "#3987e5", s2: "#d95926", s3: "#199e70", s4: "#c98500",
+      grid: "rgba(255,255,255,0.07)", axis: "rgba(255,255,255,0.16)",
+      ink: "#9aa1b5", inkFaint: "#616880",
+    };
+    const tip = $("#viz-tip");
+    const showTip = (x, y, html) => {
+      tip.innerHTML = html;
+      tip.style.display = "block";
+      const r = tip.getBoundingClientRect();
+      tip.style.left = Math.min(x + 14, innerWidth - r.width - 10) + "px";
+      tip.style.top = Math.max(8, Math.min(y + 14, innerHeight - r.height - 10)) + "px";
+    };
+    const hideTip = () => (tip.style.display = "none");
+    const tipRow = (color, name, val) =>
+      `<div class="row"><span class="chip" style="background:${color}"></span>${esc(name)}<b>${esc(val)}</b></div>`;
+
+    const niceTicks = (max, n = 3) => {
+      if (max <= 0) return [0, 1];
+      const raw = max / n;
+      const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+      const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) || raw;
+      const ticks = [];
+      for (let v = 0; v <= max + step * 0.001; v += step) ticks.push(v);
+      return ticks;
+    };
+
+    // Multi-series time line chart with crosshair + tooltip.
+    // series: [{name, color, points: [{t, v}]}], fmtV
+    function lineChart(el, series, { fmtV = String, height = 200 } = {}) {
+      const host = typeof el === "string" ? $(el) : el;
+      const hasData = series.some((s) => s.points.length > 1);
+      if (!hasData) { host.innerHTML = `<div class="empty">Not enough data yet — check back soon.</div>`; return; }
+      const W = Math.max(320, host.clientWidth || 600), H = height;
+      const P = { l: 46, r: 10, t: 10, b: 22 };
+      const t0 = Math.min(...series.map((s) => s.points[0].t));
+      const t1 = Math.max(...series.map((s) => s.points[s.points.length - 1].t));
+      const vmax = Math.max(1, ...series.flatMap((s) => s.points.map((p) => p.v)));
+      const ticks = niceTicks(vmax);
+      const ymax = ticks[ticks.length - 1];
+      const X = (t) => P.l + ((t - t0) / Math.max(1, t1 - t0)) * (W - P.l - P.r);
+      const Y = (v) => H - P.b - (v / ymax) * (H - P.t - P.b);
+
+      let g = "";
+      for (const v of ticks) {
+        g += `<line x1="${P.l}" y1="${Y(v)}" x2="${W - P.r}" y2="${Y(v)}" stroke="${C.grid}" stroke-width="1"/>` +
+             `<text x="${P.l - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="${C.inkFaint}">${esc(fmtV(v))}</text>`;
+      }
+      const nx = 5;
+      for (let i = 0; i <= nx; i++) {
+        const t = t0 + ((t1 - t0) * i) / nx;
+        g += `<text x="${X(t)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="${C.inkFaint}">${new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</text>`;
+      }
+      let paths = "";
+      series.forEach((s, i) => {
+        const d = s.points.map((p, j) => (j ? "L" : "M") + X(p.t).toFixed(1) + " " + Y(p.v).toFixed(1)).join(" ");
+        if (i === 0) {
+          const area = d + ` L ${X(s.points[s.points.length - 1].t).toFixed(1)} ${Y(0)} L ${X(s.points[0].t).toFixed(1)} ${Y(0)} Z`;
+          paths += `<path d="${area}" fill="${s.color}" opacity="0.10"/>`;
+        }
+        paths += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`;
+      });
+
+      const legend = series.length > 1
+        ? `<div class="legend">${series.map((s) => `<span><span class="chip" style="background:${s.color}"></span>${esc(s.name)}</span>`).join("")}</div>`
+        : "";
+      host.innerHTML = legend +
+        `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${g}${paths}` +
+        `<line id="xh" x1="0" y1="${P.t}" x2="0" y2="${H - P.b}" stroke="rgba(255,255,255,0.35)" stroke-width="1" style="display:none"/>` +
+        series.map((s, i) => `<circle id="dot${i}" r="3.5" fill="${s.color}" stroke="#0b0c14" stroke-width="1.5" style="display:none"/>`).join("") +
+        `</svg>`;
+
+      const svg = host.querySelector("svg");
+      const xh = svg.querySelector("#xh");
+      svg.addEventListener("mousemove", (e) => {
+        const rect = svg.getBoundingClientRect();
+        const t = t0 + ((e.clientX - rect.left) / rect.width * W - P.l) / (W - P.l - P.r) * (t1 - t0);
+        if (t < t0 || t > t1) { hideTip(); xh.style.display = "none"; return; }
+        let rows = "";
+        series.forEach((s, i) => {
+          let best = s.points[0];
+          for (const p of s.points) if (Math.abs(p.t - t) < Math.abs(best.t - t)) best = p;
+          const dot = svg.querySelector("#dot" + i);
+          dot.setAttribute("cx", X(best.t)); dot.setAttribute("cy", Y(best.v));
+          dot.style.display = "";
+          rows += tipRow(s.color, s.name, fmtV(best.v));
+        });
+        xh.setAttribute("x1", X(t)); xh.setAttribute("x2", X(t));
+        xh.style.display = "";
+        showTip(e.clientX, e.clientY, `<div class="t">${new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>` + rows);
+      });
+      svg.addEventListener("mouseleave", () => {
+        hideTip(); xh.style.display = "none";
+        series.forEach((_, i) => (svg.querySelector("#dot" + i).style.display = "none"));
+      });
+    }
+
+    // Vertical bar chart: bars = [{label, v, tipHtml}]
+    function barChart(el, bars, { fmtV = String, color = C.s1, height = 200 } = {}) {
+      const host = typeof el === "string" ? $(el) : el;
+      if (!bars.length || bars.every((b) => !b.v)) { host.innerHTML = `<div class="empty">No plays in this range.</div>`; return; }
+      const W = Math.max(320, host.clientWidth || 600), H = height;
+      const P = { l: 46, r: 10, t: 10, b: 22 };
+      const vmax = Math.max(1, ...bars.map((b) => b.v));
+      const ticks = niceTicks(vmax);
+      const ymax = ticks[ticks.length - 1];
+      const Y = (v) => H - P.b - (v / ymax) * (H - P.t - P.b);
+      const bw = (W - P.l - P.r) / bars.length;
+      const gap = Math.min(6, Math.max(2, bw * 0.18));
+
+      let g = "";
+      for (const v of ticks) {
+        g += `<line x1="${P.l}" y1="${Y(v)}" x2="${W - P.r}" y2="${Y(v)}" stroke="${C.grid}"/>` +
+             `<text x="${P.l - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="${C.inkFaint}">${esc(fmtV(v))}</text>`;
+      }
+      const labelEvery = Math.ceil(bars.length / 10);
+      let rects = "";
+      bars.forEach((b, i) => {
+        const x = P.l + i * bw + gap / 2, w = Math.max(1, bw - gap);
+        if (i % labelEvery === 0) {
+          g += `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle" font-size="11" fill="${C.inkFaint}">${esc(b.label)}</text>`;
+        }
+        if (b.v <= 0) return; // no mark for empty days
+        const y = Math.min(Y(b.v), Y(0) - 2);
+        const r = Math.min(4, (Y(0) - y) / 2, w / 2); // rounded data-end that degrades on tiny bars
+        rects += `<path data-i="${i}" d="M${x} ${Y(0)} V${y + r} Q${x} ${y} ${x + r} ${y} H${x + w - r} Q${x + w} ${y} ${x + w} ${y + r} V${Y(0)} Z" fill="${color}"/>`;
+      });
+      host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${g}${rects}</svg>`;
+      const svg = host.querySelector("svg");
+      svg.addEventListener("mousemove", (e) => {
+        const el2 = e.target.closest("[data-i]");
+        if (!el2) return hideTip();
+        const b = bars[+el2.dataset.i];
+        showTip(e.clientX, e.clientY, b.tipHtml || `<div class="t">${esc(b.label)}</div>` + tipRow(color, "Value", fmtV(b.v)));
+      });
+      svg.addEventListener("mouseleave", hideTip);
+    }
+
+    // Weekday × hour heatmap (sequential blue on dark: magnitude = brightness)
+    function heatmap(el, matrix) {
+      const host = typeof el === "string" ? $(el) : el;
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const max = Math.max(1, ...matrix.flat());
+      if (!matrix.flat().some((v) => v > 0)) { host.innerHTML = `<div class="empty">No plays in this range.</div>`; return; }
+      let html = `<div class="heatmap" style="grid-template-columns: 44px repeat(24, 1fr)">`;
+      html += `<div></div>`;
+      for (let h = 0; h < 24; h++) html += `<div class="lab-h">${h % 3 === 0 ? h : ""}</div>`;
+      for (let d = 0; d < 7; d++) {
+        html += `<div class="lab">${days[d]}</div>`;
+        for (let h = 0; h < 24; h++) {
+          const v = matrix[d][h];
+          const a = v > 0 ? 0.10 + 0.90 * Math.sqrt(v / max) : 0;
+          html += `<div class="cell" data-d="${d}" data-h="${h}" style="background:${v > 0 ? `rgba(57,135,229,${a.toFixed(3)})` : "rgba(255,255,255,0.03)"}"></div>`;
+        }
+      }
+      html += `</div>`;
+      host.innerHTML = html;
+      host.querySelector(".heatmap").addEventListener("mousemove", (e) => {
+        const c = e.target.closest(".cell");
+        if (!c) return hideTip();
+        const v = matrix[+c.dataset.d][+c.dataset.h];
+        showTip(e.clientX, e.clientY,
+          `<div class="t">${days[+c.dataset.d]} ${c.dataset.h}:00–${+c.dataset.h + 1}:00</div>` +
+          tipRow(C.s1, "Watch time", fmtDur(v)));
+      });
+      host.querySelector(".heatmap").addEventListener("mouseleave", hideTip);
+    }
+
+    // Horizontal labeled bars: rows = [{label, v, right, tipHtml}]
+    function hbars(el, rows, { color = C.s1, fmtV = fmtDur, empty = "Nothing yet." } = {}) {
+      const host = typeof el === "string" ? $(el) : el;
+      if (!rows.length) { host.innerHTML = `<div class="empty-note">${esc(empty)}</div>`; return; }
+      const max = Math.max(1, ...rows.map((r) => r.v));
+      host.innerHTML = rows.map((r, i) => `
+        <div class="hrow" data-i="${i}">
+          <div class="hlabel" title="${esc(r.label)}">${esc(r.label)}</div>
+          <div class="htrack"><div class="hfill" style="width:${(100 * r.v / max).toFixed(1)}%;background:${color}"></div></div>
+          <div class="hval">${esc(r.right != null ? r.right : fmtV(r.v))}</div>
+        </div>`).join("");
+      // Property assignment (not addEventListener) so re-renders replace the
+      // handler instead of stacking duplicates on the persistent host node.
+      host.onmousemove = (e) => {
+        const row = e.target.closest(".hrow");
+        if (!row) return hideTip();
+        const r = rows[+row.dataset.i];
+        if (r.tipHtml) showTip(e.clientX, e.clientY, r.tipHtml); else hideTip();
+      };
+      host.onmouseleave = hideTip;
+    }
+
+    // ---------- shared renderers ----------
+    const deviceIcon = (d) => (d === "TV" ? "📺" : d === "Mobile" ? "📱" : "💻");
+
+    const nowCard = (c) => {
+      const pct = c.mediaDuration > 0 ? Math.min(100, (100 * c.position) / c.mediaDuration) : null;
+      return `
+        <div class="now-card">
+          <div class="who">
+            <div class="avatar">${deviceIcon(c.device?.device)}</div>
+            <div>
+              <div class="name">${esc(c.profile || "No profile")}</div>
+              <div class="meta">${esc(c.device?.device || "?")} · ${esc(c.device?.browser || "?")} · ${esc(c.device?.os || "?")} · ${esc(c.ip)}</div>
+            </div>
+          </div>
+          <div class="title">▶ ${esc(c.details || "…")}</div>
+          ${pct != null ? `
+            <div class="prog"><i style="width:${pct.toFixed(1)}%"></i></div>
+            <div class="times"><span>${fmtClock(c.position)}</span><span>${Math.round(pct)}%</span><span>${fmtClock(c.mediaDuration)}</span></div>`
+            : `<div class="times"><span class="muted">no progress reported yet</span></div>`}
+          <div class="row-actions">
+            <span class="pill">${esc(ago(c.connectedAt))}</span>
+            <span style="flex:1"></span>
+            <button class="mini" onclick="kick('${esc(c.id)}')">Kick</button>
+            <button class="mini danger" onclick="banIp('${esc(c.ip)}')">Ban</button>
+          </div>
+        </div>`;
+    };
+
+    const renderNowGrids = (clients) => {
+      const watching = clients.filter((c) => c.activity === "Watching");
+      for (const [grid, empty] of [["#ov-now", "#ov-now-empty"], ["#live-now", "#live-now-empty"]]) {
+        $(grid).innerHTML = watching.map(nowCard).join("");
+        $(empty).classList.toggle("hidden", watching.length > 0);
+      }
+      $("#live-watch-count").textContent = watching.length;
+    };
+
+    // ---------- overview ----------
+    async function loadOverview() {
+      const o = await json("/api/admin/overview");
+      $("#ov-stats").innerHTML = [
+        [o.watchingNow, "watching now"],
+        [o.currentClients, "connected"],
+        [fmtDur(o.today.watchSec), "watch time · 24h"],
+        [o.today.plays, "plays · 24h"],
+        [o.peakConcurrent, "peak concurrent"],
+        [o.totalConnections, "total visits"],
+        [o.movieCount, "movies"],
+        [o.showCount, "shows"],
+        [o.episodeCount, "episodes"],
+        [fmtUptime((Date.now() - o.startedAt) / 1000), "uptime"],
+      ].map(([v, k]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("");
+    }
+
+    async function loadTimeseries() {
+      const ts = await json("/api/admin/timeseries");
+      const pts = ts.ring || [];
+      lineChart("#ov-viewers", [
+        { name: "Connected", color: C.s1, points: pts.map((p) => ({ t: p.t, v: p.clients })) },
+        { name: "Watching", color: C.s2, points: pts.map((p) => ({ t: p.t, v: p.watching })) },
+      ], { fmtV: (v) => String(Math.round(v)) });
+      // Server tab charts share the same ring
+      lineChart("#sv-mem", [
+        { name: "RSS", color: C.s3, points: pts.map((p) => ({ t: p.t, v: p.memMB })) },
+      ], { fmtV: (v) => Math.round(v) + " MB" });
+      lineChart("#sv-net", [
+        { name: "Download", color: C.s1, points: pts.map((p) => ({ t: p.t, v: p.downKBs })) },
+        { name: "Upload", color: C.s2, points: pts.map((p) => ({ t: p.t, v: p.upKBs })) },
+      ], { fmtV: (v) => (v >= 1024 ? (v / 1024).toFixed(1) + " MB/s" : Math.round(v) + " KB/s") });
+    }
+
+    async function loadOverviewTop() {
+      const a = await json("/api/admin/analytics?days=7");
+      hbars("#ov-top", a.topTitles.slice(0, 10).map((t) => ({
+        label: t.content, v: t.watchSec,
+        tipHtml: `<div class="t">${esc(t.content)}</div>` +
+          tipRow(C.s1, "Watch time", fmtDur(t.watchSec)) +
+          tipRow(C.s2, "Plays", t.plays) +
+          tipRow(C.s3, "Viewers", t.viewers),
+      })), { empty: "No plays in the last 7 days." });
+    }
+
+    // ---------- live ----------
+    async function loadClients() {
+      const clients = await json("/api/admin/clients");
+      renderNowGrids(clients);
+      $("#client-count").textContent = clients.length;
+      $("#clients-empty").classList.toggle("hidden", clients.length > 0);
+      $("#clients").innerHTML = clients.map((c) => `
+        <tr>
+          <td>${esc(c.profile || "—")}</td>
+          <td>${esc(c.ip)}</td>
+          <td>${deviceIcon(c.device?.device)} ${esc(c.device?.device)} · ${esc(c.device?.browser)} · ${esc(c.device?.os)}</td>
+          <td>${esc(c.activity)}${c.details ? " · <span class='muted'>" + esc(c.details) + "</span>" : ""}</td>
+          <td class="muted">${esc(ago(c.connectedAt))}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="mini" onclick="kick('${esc(c.id)}')">Kick</button>
+            <button class="mini danger" onclick="banIp('${esc(c.ip)}')">Ban</button>
+          </td>
+        </tr>`).join("");
+    }
+
+    // ---------- analytics ----------
+    let analyticsDays = 14;
+    async function loadAnalytics() {
+      const a = await json("/api/admin/analytics?days=" + analyticsDays);
+      $("#an-stats").innerHTML = [
+        [fmtDur(a.totals.watchSec), "watch time"],
+        [a.totals.plays, "plays"],
+        [a.totals.uniqueTitles, "distinct titles"],
+        [a.totals.uniqueViewers, "viewers (IPs)"],
+        [fmtDur(a.totals.watchSec / Math.max(1, a.days)), "avg per day"],
+      ].map(([v, k]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("");
+
+      barChart("#an-daily", a.byDay.map((d) => ({
+        label: fmtDay(d.day), v: d.watchSec,
+        tipHtml: `<div class="t">${fmtDay(d.day)}</div>` +
+          tipRow(C.s1, "Watch time", fmtDur(d.watchSec)) +
+          tipRow(C.s2, "Plays", d.plays),
+      })), { fmtV: (v) => fmtDur(v) });
+
+      heatmap("#an-heatmap", a.heatmap);
+
+      hbars("#an-profiles", a.byProfile.map((p) => ({
+        label: p.name, v: p.watchSec,
+        tipHtml: `<div class="t">${esc(p.name)}</div>` +
+          tipRow(C.s1, "Watch time", fmtDur(p.watchSec)) +
+          tipRow(C.s2, "Plays", p.plays) +
+          tipRow(C.s3, "Distinct titles", p.titles) +
+          tipRow(C.s4, "Last seen", ago(p.lastSeen)),
+      })));
+      hbars("#an-devices", a.byDevice.map((d) => ({ label: deviceIcon(d.name) + " " + d.name, v: d.watchSec })), { color: C.s2 });
+      hbars("#an-os", a.byOs.map((d) => ({ label: d.name, v: d.watchSec })), { color: C.s3 });
+
+      $("#an-titles").innerHTML = a.topTitles.length ? a.topTitles.map((t, i) => `
+        <tr>
+          <td class="muted num">${i + 1}</td>
+          <td>${esc(t.content)}</td>
+          <td class="num">${fmtDur(t.watchSec)}</td>
+          <td class="num">${t.plays}</td>
+          <td class="num">${t.viewers}</td>
+          <td class="num">${t.avgCompletion != null ? Math.round(t.avgCompletion * 100) + "%" : "—"}</td>
+          <td class="muted">${ago(t.lastPlayed)}</td>
+        </tr>`).join("") : `<tr><td colspan="7" class="empty-note">No plays in this range.</td></tr>`;
+
+      $("#an-viewers").innerHTML = a.byViewer.length ? a.byViewer.map((v) => `
+        <tr>
+          <td>${esc(v.ip)}</td>
+          <td>${esc(v.profiles.join(", ") || "—")}</td>
+          <td>${esc(v.devices.join(", "))}</td>
+          <td class="num">${fmtDur(v.watchSec)}</td>
+          <td class="num">${v.plays}</td>
+          <td class="muted">${ago(v.lastSeen)}</td>
+        </tr>`).join("") : `<tr><td colspan="6" class="empty-note">No viewers in this range.</td></tr>`;
+    }
+
+    // ---------- history ----------
+    async function loadSessions() {
+      const q = encodeURIComponent($("#sess-q").value.trim());
+      const p = encodeURIComponent($("#sess-profile").value);
+      const sess = await json(`/api/admin/sessions?limit=300&q=${q}&profile=${p}`);
+      $("#sessions").innerHTML = sess.length ? sess.map((s) => {
+        const pct = s.duration > 0 && s.position != null ? Math.min(100, (100 * s.position) / s.duration) : null;
+        return `
+        <tr>
+          <td class="muted" style="white-space:nowrap">${fmtWhen(s.startedAt)}</td>
+          <td>${esc(s.profile || "—")}</td>
+          <td>${esc(s.content)} ${s.live ? '<span class="pill live">LIVE</span>' : ""}</td>
+          <td>${deviceIcon(s.device?.device)} ${esc(s.device?.os || "?")}</td>
+          <td class="muted">${esc(s.ip)}</td>
+          <td class="num">${fmtDur(s.watchedSec)}</td>
+          <td style="white-space:nowrap">${pct != null
+            ? `<span class="mini-prog"><i style="width:${pct.toFixed(0)}%"></i></span><span class="muted num">${Math.round(pct)}%</span>`
+            : '<span class="muted">—</span>'}</td>
+        </tr>`;
+      }).join("") : `<tr><td colspan="7" class="empty-note">No sessions recorded yet.</td></tr>`;
+    }
+
+    async function loadSessionProfiles() {
+      const profs = await json("/api/profiles");
+      const sel = $("#sess-profile");
+      const cur = sel.value;
+      sel.innerHTML = `<option value="">All profiles</option>` +
+        profs.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join("");
+      sel.value = cur;
+    }
+
+    async function loadHistory() {
+      const h = await json("/api/admin/watch-history");
+      $("#history").innerHTML = h.length
+        ? h.slice(0, 60).map((e) => `<tr><td class="muted">${ago(e.lastSeen || e.timestamp)}</td><td>${esc(e.profile || "—")}</td><td>${esc(e.ip)}</td><td>${esc(e.content)}</td><td class="num">${e.count || 1}</td></tr>`).join("")
+        : `<tr><td colspan="5" class="empty-note">Empty.</td></tr>`;
+    }
+
+    async function loadLog() {
+      const log = await json("/api/admin/log");
+      $("#log").innerHTML = log.slice(0, 60).map((e) => `
+        <tr><td class="muted">${ago(e.timestamp)}</td>
+        <td><span class="pill${e.event === "connected" ? " live" : ""}">${esc(e.event)}</span></td>
+        <td>${esc(e.ip)}</td><td>${esc(e.device ? e.device.device + " · " + e.device.os : "")}</td>
+        <td>${esc(e.profile || "—")}</td></tr>`).join("");
+    }
+
+    // ---------- server log viewer ----------
+    // Reads the in-process console buffer (src/lib/logbuffer.js), which tags every
+    // line with its REAL level — pm2's files put warn and error in the same stream,
+    // so filtering them apart there would be guesswork.
+    let logLevel = "all";
+
+    const fmtLogTime = (t) => {
+      const d = new Date(t);
+      const p = (n) => String(n).padStart(2, "0");
+      return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+    };
+
+    async function loadLogs() {
+      const q = $("#log-search").value.trim();
+      const params = new URLSearchParams({ level: logLevel, limit: "400" });
+      if (q) params.set("q", q);
+      let data;
+      try {
+        data = await json("/api/admin/logs?" + params);
+      } catch { return; } // a transient failure must not kill the live tail
+      const { entries, counts, stats } = data;
+
+      $("#log-stats").textContent =
+        `${counts.all} lines held${stats.dropped ? " · " + stats.dropped + " older lines dropped" : ""}` +
+        ` · ${counts.warn} warnings · ${counts.error} errors`;
+
+      for (const b of $("#log-levels").children) {
+        const lv = b.dataset.level;
+        const n = lv === "warn" ? counts.warn + counts.error : counts[lv];
+        // Remember the base label once, then always rebuild from it — appending
+        // to the live text (or stripping it back off with a regex) makes the
+        // counts pile up every refresh.
+        if (!b.dataset.label) b.dataset.label = b.textContent.trim();
+        b.textContent = `${b.dataset.label} (${n})`;
+      }
+
+      $("#log-empty").classList.toggle("hidden", entries.length > 0);
+      // esc() on the message: a log line can contain anything (a torrent name, a
+      // filesystem path, an error from a remote peer) and must never be parsed
+      // as markup by this page.
+      $("#log-list").innerHTML = entries.map((e) => `
+        <div class="log-row log-${e.level}">
+          <span class="log-time">${fmtLogTime(e.t)}</span>
+          <span class="log-lvl">${e.level.toUpperCase()}</span>
+          <span class="log-msg">${esc(e.msg)}</span>
+        </div>`).join("");
+    }
+
+    $("#log-levels").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-level]");
+      if (!b) return;
+      logLevel = b.dataset.level;
+      for (const x of $("#log-levels").children) x.classList.toggle("active", x === b);
+      loadLogs();
+    });
+
+    // Debounced so typing doesn't fire a request per keystroke.
+    let logSearchTimer = null;
+    $("#log-search").addEventListener("input", () => {
+      clearTimeout(logSearchTimer);
+      logSearchTimer = setTimeout(loadLogs, 250);
+    });
+
+    $("#log-live").addEventListener("change", () => loadLogs());
+
+    $("#log-clear").addEventListener("click", async () => {
+      // Only the in-memory buffer — pm2's files on disk are untouched.
+      if (!confirm("Clear the log shown here? pm2's log files on disk are untouched.")) return;
+      await adminFetch("/api/admin/logs/clear", { method: "POST" });
+      loadLogs();
+    });
+
+    // ---------- new-profile approval ----------
+    // Nobody can create a profile directly any more: the gate files a request
+    // and it only becomes real when it's approved here.
+    async function loadProfileRequests() {
+      const reqs = await json("/api/admin/profile-requests");
+      $("#req-count").textContent = reqs.length;
+      $("#req-count").classList.toggle("live", reqs.length > 0);
+      $("#req-empty").classList.toggle("hidden", reqs.length > 0);
+      $("#profile-requests").innerHTML = reqs.map((r) => `
+        <tr>
+          <td class="muted">${ago(new Date(r.requestedAt).toISOString())}</td>
+          <td>${esc(r.avatar || "🙂")} <strong>${esc(r.name)}</strong></td>
+          <td>${esc(r.realName || "—")}</td>
+          <td class="muted">${esc(r.note || "—")}</td>
+          <td class="muted">${esc(r.ip)}${r.device ? " · " + esc(r.device.device + " / " + r.device.os) : ""}</td>
+          <td style="white-space:nowrap">
+            <button class="mini" data-req-ok="${esc(r.id)}" data-req-name="${esc(r.name)}">Approve</button>
+            <button class="mini danger" data-req-no="${esc(r.id)}" data-req-name="${esc(r.name)}">Reject</button>
+          </td>
+        </tr>`).join("");
+    }
+
+    $("#profile-requests").addEventListener("click", async (e) => {
+      const ok = e.target.closest("[data-req-ok]");
+      const no = e.target.closest("[data-req-no]");
+      const btn = ok || no;
+      if (!btn) return;
+      const name = btn.dataset.reqName;
+      // Rejecting throws the request (and its password) away for good.
+      if (no && !confirm(`Reject the profile request for "${name}"?`)) return;
+      btn.disabled = true;
+      const id = ok ? ok.dataset.reqOk : no.dataset.reqNo;
+      const r = await adminFetch(`/api/admin/profile-requests/${encodeURIComponent(id)}/${ok ? "approve" : "reject"}`, { method: "POST" });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        toast(err.error || "Failed");
+        btn.disabled = false;
+        return;
+      }
+      toast(ok ? `Approved "${name}" — they can sign in now` : `Rejected "${name}"`);
+      loadProfileRequests();
+      loadProfiles();
+      loadProfileAccess();
+    });
+
+    // ---------- devices & IPs per profile ----------
+    async function loadProfileAccess() {
+      const rows = await json("/api/admin/profile-access");
+      const withDevices = rows.filter((p) => p.devices.length);
+      $("#access-empty").classList.toggle("hidden", withDevices.length > 0);
+      $("#profile-access").innerHTML = withDevices.map((p) => `
+        <div class="card" style="margin-bottom:12px">
+          <h2 style="font-size:0.95rem">
+            ${esc(p.avatar || "🙂")} ${esc(p.name)}${p.realName ? ` <span class="note">${esc(p.realName)}</span>` : ""}
+            ${p.flags.map((f) => `<span class="pill" style="color:#ffcf6a">${esc(f)}</span>`).join(" ")}
+          </h2>
+          <div class="table-scroll"><table>
+            <thead><tr><th>IP</th><th>Device</th><th>Entries</th><th>Failed</th><th>First</th><th>Last</th><th>Flags</th><th></th></tr></thead>
+            <tbody>${p.devices.map((d) => `
+              <tr${d.banned ? ' style="opacity:0.55"' : ""}>
+                <td>${esc(d.ip)}</td>
+                <td class="muted">${esc(d.device ? `${d.device.device} / ${d.device.os} / ${d.device.browser}` : "—")}</td>
+                <td>${d.count}</td>
+                <td${d.fails ? ' style="color:#ff7a7a"' : ""}>${d.fails || 0}</td>
+                <td class="muted">${ago(new Date(d.first).toISOString())}</td>
+                <td class="muted">${ago(new Date(d.last).toISOString())}</td>
+                <td>${d.flags.map((f) => `<span class="pill" style="color:#ffcf6a">${esc(f)}</span>`).join(" ") || '<span class="muted">—</span>'}</td>
+                <td style="white-space:nowrap">${d.banned
+                  ? `<button class="mini" data-unban-ip="${esc(d.ip)}">Unban</button>`
+                  : `<button class="mini danger" data-ban-ip="${esc(d.ip)}" data-ban-profile="${esc(p.name)}">Ban IP</button>`}</td>
+              </tr>`).join("")}</tbody>
+          </table></div>
+        </div>`).join("");
+    }
+
+    // Ban / unban straight from the device row — same endpoints the Moderation
+    // tab uses, so the IP lands in the one existing ban list (and gets kicked).
+    $("#profile-access").addEventListener("click", async (e) => {
+      const ban = e.target.closest("[data-ban-ip]");
+      const unban = e.target.closest("[data-unban-ip]");
+      const btn = ban || unban;
+      if (!btn) return;
+      const ip = ban ? ban.dataset.banIp : unban.dataset.unbanIp;
+      if (ban && !confirm(`Ban ${ip}?\n\nIt loses access to the whole server, not just "${ban.dataset.banProfile}".`)) return;
+      btn.disabled = true;
+      const r = await adminFetch(`/api/admin/${ban ? "ban" : "unban"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(ban ? { ip, reason: `Flagged on profile "${ban.dataset.banProfile}"` } : { ip }),
+      });
+      if (!r.ok) {
+        // The server refuses to ban the address you're administering from —
+        // say why, or it just looks broken.
+        const err = await r.json().catch(() => ({}));
+        toast(err.error || "Failed");
+        btn.disabled = false;
+        return;
+      }
+      toast(`${ban ? "Banned" : "Unbanned"} ${ip}`);
+      loadProfileAccess();
+    });
+
+    // ---------- profiles ----------
+    async function loadProfiles() {
+      const profs = await json("/api/admin/profiles");
+      $("#profiles-grid").innerHTML = profs.map((p) => `
+        <div class="now-card"${p.locked ? ' style="opacity:0.6"' : ""}>
+          <div class="who">
+            <div class="avatar" style="background:${esc(p.color)}22">${esc(p.avatar || "🙂")}</div>
+            <div>
+              <div class="name">${esc(p.name)}${p.locked ? ' <span class="pill" style="color:#ff7a7a">locked</span>' : ""}${p.hasPassword ? " 🔒" : ""}</div>
+              <div class="meta">${p.realName ? esc(p.realName) + " · " : ""}${p.started} started · ${p.finished} finished · ${p.watchlistCount} in watchlist</div>
+            </div>
+          </div>
+          ${p.inProgress.length ? p.inProgress.map((ip) => {
+            const pct = ip.duration > 0 ? Math.min(100, (100 * ip.position) / ip.duration) : 0;
+            return `
+              <div class="title" style="font-size:0.85rem;margin-bottom:4px">${esc(ip.title)}</div>
+              <div class="prog" style="margin-bottom:4px"><i style="width:${pct.toFixed(0)}%"></i></div>
+              <div class="times"><span>${fmtClock(ip.position)} / ${fmtClock(ip.duration)}</span><span class="muted">${ago(new Date(ip.updatedAt).toISOString())}</span></div>`;
+          }).join("") : `<div class="muted" style="font-size:0.85rem">Nothing in progress.</div>`}
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="mini" data-prof-lock="${esc(p.id)}" data-prof-locked="${p.locked ? 1 : 0}" data-prof-name="${esc(p.name)}">${p.locked ? "Unlock" : "Lock"}</button>
+            <button class="mini danger" data-prof-del="${esc(p.id)}" data-prof-name="${esc(p.name)}">Delete</button>
+          </div>
+        </div>`).join("");
+    }
+
+    // Lock/unlock + delete actions on the profile cards. Lock is reversible so
+    // it acts immediately; delete wipes watch state, so it gets a hard confirm.
+    $("#profiles-grid").addEventListener("click", async (e) => {
+      const lockBtn = e.target.closest("[data-prof-lock]");
+      if (lockBtn) {
+        const locking = lockBtn.dataset.profLocked !== "1";
+        lockBtn.disabled = true;
+        const r = await adminFetch(`/api/admin/profiles/${lockBtn.dataset.profLock}/lock`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ locked: locking }),
+        });
+        if (!r.ok) { toast("Failed to update profile"); lockBtn.disabled = false; return; }
+        toast(`${locking ? "Locked" : "Unlocked"} "${lockBtn.dataset.profName}"`);
+        loadProfiles();
+        return;
+      }
+      const delBtn = e.target.closest("[data-prof-del]");
+      if (delBtn) {
+        const name = delBtn.dataset.profName;
+        if (!confirm(`Delete profile "${name}"?\n\nThis permanently removes its watch progress, watchlist and ratings.`)) return;
+        delBtn.disabled = true;
+        delBtn.textContent = "Deleting…";
+        const r = await adminFetch(`/api/admin/profiles/${delBtn.dataset.profDel}`, { method: "DELETE" });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          toast(err.error || "Failed to delete profile");
+          delBtn.disabled = false;
+          delBtn.textContent = "Delete";
+          return;
+        }
+        toast(`Deleted "${name}"`);
+        loadProfiles();
+      }
+    });
+
+    // ---------- server ----------
+    async function loadServer() {
+      const s = await json("/api/admin/server");
+      $("#sv-stats").innerHTML = [
+        [fmtBytes(s.memory.rss), "memory (rss)"],
+        [fmtBytes(s.memory.heapUsed), "heap used"],
+        [fmtBytes(s.memory.systemFree), "system free"],
+        [fmtUptime(s.uptimeSec), "uptime"],
+        [s.torrents.length, "active torrents"],
+        [s.torrents.reduce((n, t) => n + t.peers, 0), "peers"],
+        [fmtSpeed(s.torrents.reduce((n, t) => n + t.downloadSpeed, 0)), "↓ now"],
+        [fmtSpeed(s.torrents.reduce((n, t) => n + t.uploadSpeed, 0)), "↑ now"],
+      ].map(([v, k]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("");
+
+      $("#sv-torrents-empty").classList.toggle("hidden", s.torrents.length > 0);
+      $("#sv-torrents").innerHTML = s.torrents.map((t) => `
+        <tr>
+          <td style="max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.name)}">${esc(t.name)}${
+            t.quiesced ? ' <span class="pill" title="Fully downloaded — peer discovery stopped, served from disk">idle · complete</span>' : ""}</td>
+          <td style="white-space:nowrap">${(() => {
+            // Prefer the progress of the file actually being streamed. The
+            // whole-torrent figure counts partly-arrived pieces and, on a
+            // torrent scoped to one file of a pack, can never reach 100%.
+            const p = t.fileProgress != null ? t.fileProgress : t.progress;
+            const label = t.fileProgress != null ? " of file" : "";
+            return `<span class="mini-prog"><i style="width:${(p * 100).toFixed(0)}%"></i></span>` +
+              `<span class="muted num" title="${esc(t.fileName || t.name || "")}">${(p * 100).toFixed(0)}%${label}</span>`;
+          })()}</td>
+          <td class="num">${t.peers}</td>
+          <td class="num">${fmtSpeed(t.downloadSpeed)}</td>
+          <td class="num">${fmtSpeed(t.uploadSpeed)}</td>
+          <td class="num">${fmtBytes(t.length)}</td>
+        </tr>`).join("");
+
+      const yn = (b) => (b ? '<span class="ok">available</span>' : '<span class="bad">missing</span>');
+      $("#sv-env").innerHTML = `
+        <dt>Node</dt><dd>${esc(s.node)}</dd>
+        <dt>Platform</dt><dd>${esc(s.platform)} · ${esc(s.hostname)} · ${s.cpus} cores</dd>
+        <dt>System memory</dt><dd>${fmtBytes(s.memory.systemTotal - s.memory.systemFree)} used of ${fmtBytes(s.memory.systemTotal)}</dd>
+        <dt>ffmpeg</dt><dd>${yn(s.tools.ffmpeg)}</dd>
+        <dt>Subtitle OCR</dt><dd>${yn(s.tools.ocr)}</dd>
+        <dt>aria2 <span class="note">download engine</span></dt>
+        <dd>${yn(s.tools.aria2)}${s.tools.aria2
+          ? ` <span class="muted" title="${esc(s.tools.aria2Path || "")}">${esc((s.tools.aria2Path || "").split(/[\\/]/).pop() || "")}</span>`
+          : ' <span class="muted">downloads can\'t run — install it with <code>winget install aria2.aria2</code></span>'}</dd>
+        <dt>Torrents</dt><dd>${s.tools.torrentsEnabled ? '<span class="ok">enabled</span>' : '<span class="bad">disabled</span>'}</dd>
+        <dt>Online metadata</dt><dd>${s.tools.onlineMetadata ? '<span class="ok">enabled</span>' : '<span class="bad">disabled</span>'}</dd>`;
+    }
+
+    // ---------- moderation ----------
+    async function loadRequests() {
+      const reqs = await json("/api/requests");
+      $("#requests").innerHTML = reqs.length
+        ? reqs.map((r) => `
+          <tr>
+            <td class="muted">${ago(r.at)}</td>
+            <td>${r.type === "show" ? "📺" : "🎬"}</td>
+            <td>${esc(r.title)}${r.note ? " · <span class='muted'>" + esc(r.note) + "</span>" : ""}</td>
+            <td>${esc(r.profile || "—")}</td>
+            <td><span class="pill${r.status === "added" ? " live" : r.status === "pending" ? " warn" : ""}">${esc(r.status)}</span></td>
+            <td style="text-align:right;white-space:nowrap">
+              ${r.status === "pending" ? `
+                <button class="mini" onclick="setRequest('${esc(r.id)}','added')">Added</button>
+                <button class="mini danger" onclick="setRequest('${esc(r.id)}','declined')">Decline</button>` : `
+                <button class="mini danger" onclick="deleteRequest('${esc(r.id)}')">Remove</button>`}
+            </td>
+          </tr>`).join("")
+        : `<tr><td colspan="6" class="empty-note">No requests.</td></tr>`;
+    }
+
+    async function loadBans() {
+      const bans = await json("/api/admin/bans");
+      const entries = Object.entries(bans);
+      $("#bans").innerHTML = entries.length
+        ? entries.map(([ip, b]) => `<tr><td>${esc(ip)}</td><td class="muted">${esc(b.reason || "")} · ${ago(b.at)}</td>
+            <td style="text-align:right"><button class="mini" onclick="unban('${esc(ip)}')">Unban</button></td></tr>`).join("")
+        : `<tr><td class="empty-note">No banned IPs.</td></tr>`;
+    }
+
+    // ---------- downloads ----------
+    const DL_STATUS_PILL = { pending: "warn", approved: "warn", downloading: "live", done: "live" };
+    // The tail of a download is hash-verifying the store and then copying a few
+    // GB into the library. Both used to show as "downloading" at ~100% with no
+    // speed, which reads as hung — say which one it is instead.
+    const phaseLabel = (j) => {
+      if (j.status !== "downloading" || !j.phase || j.phase === "downloading") return j.status;
+      if (j.phase === "copying" && j.copyProgress != null) {
+        return `copying ${Math.round(j.copyProgress * 100)}%`;
+      }
+      return j.phase;
+    };
+    async function loadDownloads() {
+      const jobs = await json("/api/downloads");
+      const pending = jobs.filter((j) => j.status === "pending");
+      $("#dl-pending-count").textContent = pending.length;
+      $("#dl-pending-empty").classList.toggle("hidden", pending.length > 0);
+      $("#dl-pending").innerHTML = pending.map((j) => `
+        <div class="now-card">
+          <div class="who">
+            <div class="avatar">${j.type === "show" ? "📺" : "🎬"}</div>
+            <div>
+              <div class="name">${esc(j.label || j.title)}</div>
+              <div class="meta">${esc(j.quality || "?")} · ${fmtBytes(j.sizeBytes)}${j.provider ? " · " + esc(j.provider) : ""} · ${ago(j.at)}</div>
+              ${j.holdReason ? `<div class="meta" style="color:#f87171">${esc(j.holdReason)}</div>` : ""}
+            </div>
+          </div>
+          <div class="row-actions">
+            <button class="btn small btn-primary" onclick="approveDownload('${esc(j.id)}')">Approve anyway</button>
+            <span style="flex:1"></span>
+            <button class="mini danger" onclick="declineDownload('${esc(j.id)}')">Decline</button>
+          </div>
+        </div>`).join("");
+
+      const rest = jobs.filter((j) => j.status !== "pending");
+      $("#dl-jobs-empty").classList.toggle("hidden", rest.length > 0);
+      $("#dl-jobs").innerHTML = rest.map((j) => {
+        const pct = Math.round((j.progress || 0) * 100);
+        const canCancel = ["approved", "downloading"].includes(j.status);
+        return `
+        <tr>
+          <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}</td>
+          <td>${esc(j.quality || "—")}</td>
+          <td class="num">${fmtBytes(j.sizeBytes)}</td>
+          <td style="white-space:nowrap"><span class="mini-prog"><i style="width:${pct}%"></i></span><span class="muted num">${pct}%</span></td>
+          <td class="num">${j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "—"}</td>
+          <td class="num">${j.status === "downloading" ? j.peers : "—"}</td>
+          <td><span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(phaseLabel(j))}</span>${j.error ? " <span class='muted' title='" + esc(j.error) + "'>" + esc(j.error.slice(0, 40)) + "</span>" : ""}</td>
+          <td style="text-align:right;white-space:nowrap">
+            ${canCancel ? `<button class="mini danger" onclick="cancelDownload('${esc(j.id)}')">Cancel</button>` : ""}
+            ${j.status === "error" ? `<button class="mini" onclick="approveDownload('${esc(j.id)}')">Retry</button>` : ""}
+            <button class="mini" onclick="removeDownload('${esc(j.id)}')">Remove</button>
+          </td>
+        </tr>`;
+      }).join("");
+    }
+
+    // ---------- disk + library management ----------
+    async function loadDisk() {
+      // The endpoint used to return a bare array; tolerate both so this page
+      // works against a server that hasn't been restarted yet.
+      const res = await json("/api/admin/disk");
+      const disks = Array.isArray(res) ? res : res.disks || [];
+      const minFreePct = Array.isArray(res) ? 0 : res.minFreePct || 0;
+      $("#disk-bars").innerHTML = disks.map((d) => {
+        if (d.total == null) {
+          return `<div class="now-card"><div class="name">${esc(d.root)}</div><div class="meta">size unavailable</div></div>`;
+        }
+        const used = d.total - d.free;
+        const pct = Math.min(100, Math.round((used / d.total) * 100));
+        const freePct = (d.free / d.total) * 100;
+        // Below the gate, download requests stop starting on their own and queue
+        // up for approval instead — that's the number to watch here.
+        const gated = minFreePct > 0 && freePct < minFreePct;
+        const low = gated || d.free < 30e9 || pct > 90; // running out — read as a warning
+        return `<div class="now-card">
+          <div class="name" style="margin-bottom:8px">${esc(d.root)}</div>
+          <span class="mini-prog" style="width:100%"><i style="width:${pct}%${low ? ";background:#f87171" : ""}"></i></span>
+          <div class="meta" style="margin-top:6px${low ? ";color:#f87171;font-weight:700" : ""}">${fmtBytes(d.free)} free of ${fmtBytes(d.total)} (${pct}% used)</div>
+          ${minFreePct > 0 ? `<div class="meta" style="margin-top:4px">${gated
+            ? `⚠ under ${minFreePct}% free — new downloads wait for your approval`
+            : `downloads auto-start while above ${minFreePct}% free`}</div>` : ""}
+        </div>`;
+      }).join("");
+    }
+
+    async function loadLibraryList() {
+      const lib = await json("/api/admin/library");
+      const items = [...lib.movies, ...lib.shows].sort((a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0));
+      $("#lib-items").innerHTML = items.length ? items.map((i) => `
+        <tr>
+          <td style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(i.title)}">${esc(i.title)}${i.year ? ` <span class="muted">(${i.year})</span>` : ""}</td>
+          <td>${i.type === "show" ? `📺 ${i.episodeCount || 0} ep` : "🎬 movie"}</td>
+          <td class="num">${fmtBytes(i.sizeBytes)}</td>
+          <td style="text-align:right"><button class="mini danger" data-del-type="${esc(i.type)}" data-del-id="${esc(i.id)}" data-del-title="${esc(i.title)}">Delete</button></td>
+        </tr>`).join("") : `<tr><td class="empty-note">Library is empty.</td></tr>`;
+    }
+
+    $("#lib-items").addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-del-id]");
+      if (!btn) return;
+      const { delType, delId, delTitle } = btn.dataset;
+      if (!confirm(`Delete "${delTitle}" from disk?\n\nThis permanently removes the ${delType === "show" ? "whole show folder (all episodes)" : "movie folder"}. It cannot be undone.`)) return;
+      btn.disabled = true;
+      btn.textContent = "Deleting…";
+      const r = await adminFetch(`/api/admin/library/${delType}/${delId}`, { method: "DELETE" });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || data.error) {
+        btn.disabled = false;
+        btn.textContent = "Delete";
+        return toast(data.error || "Delete failed");
+      }
+      toast(`Deleted "${delTitle}"`);
+      loadDisk(); loadLibraryList(); loadOverview();
+    });
+
+    // ---------- actions ----------
+    window.approveDownload = async (id) => { await post(`/api/admin/downloads/${id}/approve`); toast("Download approved"); loadDownloads(); };
+    window.declineDownload = async (id) => { await post(`/api/admin/downloads/${id}/decline`); toast("Download declined"); loadDownloads(); };
+    window.cancelDownload = async (id) => { await post(`/api/admin/downloads/${id}/cancel`); toast("Download canceled"); loadDownloads(); };
+    window.removeDownload = async (id) => { await adminFetch(`/api/admin/downloads/${id}`, { method: "DELETE" }); loadDownloads(); };
+    window.setRequest = async (id, status) => { await post(`/api/admin/requests/${id}/status`, { status }); toast("Request " + status); loadRequests(); };
+    window.deleteRequest = async (id) => { await adminFetch(`/api/admin/requests/${id}`, { method: "DELETE" }); loadRequests(); };
+    window.kick = async (id) => { await post("/api/admin/kick/" + id); toast("Kicked"); loadClients(); };
+    window.banIp = async (ip) => { await post("/api/admin/ban", { ip }); toast("Banned " + ip); loadClients(); loadBans(); };
+    window.unban = async (ip) => { await post("/api/admin/unban", { ip }); toast("Unbanned " + ip); loadBans(); };
+
+    $("#rescan").onclick = async () => { await post("/api/admin/rescan"); toast("Rescan started"); setTimeout(loadOverview, 1500); };
+    $("#clear-caches").onclick = async () => { await post("/api/admin/clear-caches"); toast("Caches cleared"); };
+    $("#clear-history").onclick = async () => { await post("/api/admin/watch-history/clear"); toast("History cleared"); loadHistory(); };
+    $("#clear-sessions").onclick = async () => { await post("/api/admin/sessions/clear"); toast("Sessions cleared"); loadSessions(); loadAnalytics(); };
+    $("#ban-btn").onclick = async () => {
+      const ip = $("#ban-ip").value.trim();
+      if (!ip) return;
+      await post("/api/admin/ban", { ip, reason: $("#ban-reason").value.trim() });
+      $("#ban-ip").value = ""; $("#ban-reason").value = "";
+      toast("Banned " + ip); loadBans();
+    };
+    $("#broadcast-btn").onclick = async () => {
+      const message = $("#broadcast-input").value.trim();
+      if (!message) return;
+      await post("/api/admin/broadcast", { message });
+      $("#broadcast-input").value = "";
+      toast("Broadcast sent");
+    };
+
+    let sessTimer = null;
+    $("#sess-q").addEventListener("input", () => { clearTimeout(sessTimer); sessTimer = setTimeout(loadSessions, 250); });
+    $("#sess-profile").addEventListener("change", loadSessions);
+
+    $("#range-chips").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-days]");
+      if (!b) return;
+      analyticsDays = +b.dataset.days;
+      for (const x of $("#range-chips").children) x.classList.toggle("active", x === b);
+      loadAnalytics();
+    });
+
+    // ---------- tabs ----------
+    const tabLoaders = {
+      overview: () => { loadOverview(); loadTimeseries(); loadOverviewTop(); },
+      live: () => loadClients(),
+      analytics: () => loadAnalytics(),
+      history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
+      profiles: () => { loadProfileRequests(); loadProfileAccess(); loadProfiles(); },
+      server: () => { loadServer(); loadTimeseries(); },
+      downloads: () => { loadDownloads(); loadDisk(); loadLibraryList(); },
+      moderation: () => { loadRequests(); loadBans(); },
+      logs: () => loadLogs(),
+    };
+    let activeTab = "overview";
+    const showTab = (name) => {
+      if (!tabLoaders[name]) name = "overview";
+      activeTab = name;
+      for (const t of $("#tabs").children) t.classList.toggle("active", t.dataset.tab === name);
+      for (const p of document.querySelectorAll(".pane")) p.classList.toggle("active", p.id === "pane-" + name);
+      history.replaceState(null, "", "#" + name);
+      tabLoaders[name]();
+    };
+    $("#tabs").addEventListener("click", (e) => {
+      const b = e.target.closest(".tab");
+      if (b) showTab(b.dataset.tab);
+    });
+
+    // ---------- live updates ----------
+    let analyticsRefresh = null;
+    function connectWs() {
+      try {
+        const ws = new WebSocket((location.protocol === "https:" ? "wss:" : "ws:") + "//" + location.host);
+        // pw travels in the message (page memory), not a cookie or the URL.
+        ws.onopen = () => ws.send(JSON.stringify({ type: "admin_subscribe", pw: ADMIN_PW }));
+        ws.onmessage = (e) => {
+          const data = JSON.parse(e.data);
+          if (["client_connected", "client_disconnected", "client_update"].includes(data.type)) {
+            loadClients();
+            if (activeTab === "overview") loadOverview();
+          } else if (data.type === "watch_history_update") {
+            // Throttled: analytics recompute is cheap but no need to hammer it
+            if (!analyticsRefresh) {
+              analyticsRefresh = setTimeout(() => {
+                analyticsRefresh = null;
+                if (activeTab === "analytics") loadAnalytics();
+                if (activeTab === "history") { loadSessions(); loadHistory(); }
+                if (activeTab === "overview") loadOverviewTop();
+              }, 4000);
+            }
+          } else if (data.type === "request_new" || data.type === "request_update") {
+            if (activeTab === "moderation") loadRequests();
+            if (data.type === "request_new") toast("New request: " + (data.request?.title || ""));
+          } else if (data.type === "download_new" || data.type === "download_update") {
+            if (activeTab === "downloads") loadDownloads();
+            if (data.type === "download_new") toast("New download request: " + (data.job?.title || ""));
+          }
+        };
+        ws.onclose = () => setTimeout(connectWs, 5000);
+      } catch {}
+    }
+
+    // Periodic refreshers for the visible tab (only once authed)
+    setInterval(() => {
+      if (!ADMIN_PW || document.hidden) return;
+      if (activeTab === "overview") { loadOverview(); loadTimeseries(); }
+      if (activeTab === "server") { loadServer(); loadTimeseries(); }
+      if (activeTab === "history") loadLog();
+    }, 30000);
+    setInterval(() => {
+      if (!ADMIN_PW || document.hidden) return;
+      if (activeTab === "server") loadServer();
+      if (activeTab === "downloads") loadDownloads();
+    }, 8000);
+
+    // Live tail. Guarded the same way as the refreshers above: only the tab
+    // that's open, and never while the browser window is hidden.
+    setInterval(() => {
+      if (!ADMIN_PW || document.hidden) return;
+      if (activeTab === "logs" && $("#log-live").checked) loadLogs();
+    }, 2000);
+
+    // Re-render charts on resize (they draw at container width)
+    let resizeT = null;
+    addEventListener("resize", () => {
+      clearTimeout(resizeT);
+      resizeT = setTimeout(() => tabLoaders[activeTab] && tabLoaders[activeTab](), 250);
+    });
+
+    // ---------- password gate ----------
+    // Boot the panel only after the password is entered. It's held in memory
+    // (ADMIN_PW) and never persisted, so a refresh returns to this prompt.
+    function boot() {
+      showTab(location.hash.replace("#", "") || "overview");
+      connectWs();
+    }
+
+    function requirePassword() {
+      const overlay = document.createElement("div");
+      overlay.style.cssText = "position:fixed;inset:0;background:#0b0c14;display:grid;place-items:center;z-index:99999";
+      overlay.innerHTML =
+        `<form style="text-align:center;font-family:system-ui">` +
+        `<h2 style="font-weight:800;color:#eee;margin:0 0 16px">Aurora Admin</h2>` +
+        `<input type="password" placeholder="Password" autocomplete="off" autofocus ` +
+        `style="padding:12px 16px;border-radius:10px;border:1px solid #333;background:#151722;color:#fff;font-size:1rem;outline:none">` +
+        `<div><button style="margin-top:14px;padding:10px 24px;border-radius:10px;border:0;background:#e05f2c;color:#fff;font-weight:700;font-size:1rem;cursor:pointer">Enter</button></div>` +
+        `<p class="pw-err" style="color:#ff7a7a;margin-top:12px;visibility:hidden">Wrong password</p>` +
+        `</form>`;
+      document.body.appendChild(overlay);
+      const form = overlay.querySelector("form");
+      const input = overlay.querySelector("input");
+      const err = overlay.querySelector(".pw-err");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const pw = input.value;
+        if (!pw) return;
+        // Verify against a real admin endpoint before booting.
+        let ok = false;
+        try { ok = (await fetch("/api/admin/overview", { headers: { "X-Admin-Password": pw } })).ok; } catch {}
+        if (ok) {
+          ADMIN_PW = pw;
+          overlay.remove();
+          boot();
+        } else {
+          err.style.visibility = "visible";
+          input.value = "";
+          input.focus();
+        }
+      });
+    }
+
+    requirePassword();
+  </script>
+</body>
+</html>

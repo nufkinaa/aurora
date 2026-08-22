@@ -1,0 +1,14 @@
+{
+  "port": 4000,
+  "adminName": "the admin",
+  "libraries": {
+    "movies": ["C:\\Media\\Movies"],
+    "shows": ["C:\\Media\\Shows"]
+  },
+  "scanIntervalMinutes": 10,
+  "autoOcrSubtitles": true,
+  "downloadMinFreePercent": 10,
+  "notifications": {
+    "ntfy": { "topic": "pick-any-random-string-and-subscribe-to-it" }
+  }
+}

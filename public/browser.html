@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aurora · Browser</title>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <style>
+    body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    .bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px var(--page-x);
+      background: var(--glass);
+      box-shadow: 0 1px 0 var(--line);
+    }
+    .bar .nav-btn {
+      width: 40px; height: 40px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--surface); font-size: 1rem; font-weight: 800;
+    }
+    .bar .nav-btn:hover { background: var(--surface-hover); }
+    .bar input {
+      flex: 1; padding: 11px 18px; border-radius: 999px;
+      background: var(--surface); border: 1px solid var(--line);
+      font-size: 0.95rem;
+    }
+    .bar input:focus { border-color: rgba(255,255,255,0.4); }
+    .quick { display: flex; gap: 8px; padding: 10px var(--page-x); }
+    .quick button { padding: 7px 16px; border-radius: 999px; background: var(--surface); font-size: 0.85rem; font-weight: 700; }
+    .quick button:hover { background: var(--surface-hover); }
+    iframe { flex: 1; border: none; background: #fff; }
+    .start {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+    }
+    .start .logo-mark { width: 60px; height: 60px; border-radius: 18px;
+      background: conic-gradient(from 210deg, #6c58ff, #b76cff, #4ea3ff, #6c58ff); }
+    .start p { color: var(--text-dim); }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <button class="nav-btn" id="back" title="Back">←</button>
+    <button class="nav-btn" id="fwd" title="Forward">→</button>
+    <button class="nav-btn" id="reload" title="Reload">↻</button>
+    <input type="text" id="url" placeholder="Search or enter address…" autofocus />
+    <a class="nav-btn" href="/" title="Back to Aurora" style="text-decoration:none">✕</a>
+  </div>
+  <div class="quick">
+    <button data-url="https://www.google.com">Google</button>
+    <button data-url="https://www.youtube.com">YouTube</button>
+    <button data-url="https://www.wikipedia.org">Wikipedia</button>
+    <button data-url="https://duckduckgo.com">DuckDuckGo</button>
+  </div>
+  <div class="start" id="start">
+    <span class="logo-mark"></span>
+    <h2>Aurora Browser</h2>
+    <p>Pages load through the server — handy on TVs without a real browser.</p>
+  </div>
+  <iframe id="frame" class="hidden" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+
+  <script>
+    const frame = document.getElementById("frame");
+    const urlInput = document.getElementById("url");
+    const start = document.getElementById("start");
+    const stack = [];
+    let pos = -1;
+
+    const normalize = (raw) => {
+      raw = raw.trim();
+      if (!raw) return null;
+      if (/^https?:\/\//i.test(raw)) return raw;
+      if (/^[\w-]+(\.[\w-]+)+/.test(raw)) return "https://" + raw;
+      return "https://www.google.com/search?q=" + encodeURIComponent(raw);
+    };
+
+    const go = (url, push = true) => {
+      if (!url) return;
+      start.classList.add("hidden");
+      frame.classList.remove("hidden");
+      frame.src = "/proxy?url=" + encodeURIComponent(url);
+      urlInput.value = url;
+      if (push) {
+        stack.splice(pos + 1);
+        stack.push(url);
+        pos = stack.length - 1;
+      }
+    };
+
+    urlInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") go(normalize(urlInput.value));
+    });
+    document.getElementById("back").onclick = () => { if (pos > 0) go(stack[--pos], false); };
+    document.getElementById("fwd").onclick = () => { if (pos < stack.length - 1) go(stack[++pos], false); };
+    document.getElementById("reload").onclick = () => { if (pos >= 0) go(stack[pos], false); };
+    document.querySelectorAll(".quick button").forEach((b) => (b.onclick = () => go(b.dataset.url)));
+
+    // The proxy injects a click handler that posts navigation intents up
+    window.addEventListener("message", (e) => {
+      if (e.data && e.data.type === "navigate" && typeof e.data.url === "string") {
+        go(e.data.url);
+      }
+    });
+  </script>
+</body>
+</html>

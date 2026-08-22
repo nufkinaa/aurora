@@ -1,0 +1,90 @@
+/* Aurora design tokens — deep-space base (HBO Max) with glassy, restrained
+   chrome and big confident type (Apple TV). */
+:root {
+  /* Canvas */
+  --bg: #0b0c14;
+  --bg-raised: #131523;
+  /* Static two-gradient wash. Still used by the profile gate, which paints its
+     own full-screen background. The page background is the layered, drifting
+     version in base.css. */
+  --bg-wash: radial-gradient(120% 90% at 70% -20%, rgba(93, 78, 214, 0.22), transparent 60%),
+             radial-gradient(80% 60% at 0% 0%, rgba(43, 108, 176, 0.12), transparent 55%);
+  /* Ambient blooms behind every page. Two, deliberately: one warm-violet high
+     up, one cooler low down, so there is ambient light at the BOTTOM of the
+     viewport too — the old wash put both gradients above the fold, which left
+     the lower two-thirds of every screen a flat fill.
+     Alphas deliberately close to that old wash: the point is to read as more
+     alive, not more purple. The motion and the grain do that work. */
+  --wash-hi: rgba(96, 80, 220, 0.24);
+  --wash-lo: rgba(48, 112, 184, 0.17);
+
+  /* Surfaces & lines */
+  --surface: rgba(255, 255, 255, 0.06);
+  --surface-hover: rgba(255, 255, 255, 0.11);
+  --line: rgba(255, 255, 255, 0.09);
+  --glass: rgba(13, 14, 24, 0.72);
+
+  /* Text */
+  --text: #f3f4f8;
+  --text-dim: #9aa1b5;
+  --text-faint: #616880;
+
+  /* Accent — used sparingly */
+  --accent: #8b7bff;
+  --accent-strong: #6c58ff;
+  --progress: #8b7bff;
+
+  /* Film vs series, on home's mixed rows. One warm and one cool, because warm
+     against cool is the difference the eye catches before it reads either word.
+     Desaturated on purpose: these sit on top of poster art, and the accent above
+     stays the only loud colour on the page. */
+  --kind-film: #f0c67e;
+  --kind-series: #7fd1e8;
+
+  /* Focus (10-foot UI) */
+  /* Tighter drop-shadow (smaller blur radius) — big blurs are costly to
+     re-composite on every focus move on a TV GPU. The 3px ring is the cue. */
+  --focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.95), 0 10px 24px rgba(0, 0, 0, 0.5);
+  /* For the white primary buttons (Play / Stream) only. A white ring on a white
+     button is invisible, so those get violet, held 3px off the edge with the page
+     background filling the gap — the box-shadow version of outline-offset, so the
+     violet never touches the white. Everything else keeps --focus-ring. */
+  --focus-ring-light: 0 0 0 3px var(--bg), 0 0 0 7px var(--accent),
+    0 10px 24px rgba(0, 0, 0, 0.5);
+  /* Poster/thumbnail focus — the tvOS treatment: a hairline edge, then white
+     light bleeding outward in two falloffs, over a deep lift shadow. Two glow
+     layers is the whole trick; one reads as a border, three costs a TV GPU more
+     than it's worth. Kept as a token so every card surface glows identically.
+     --card-aura-reach is how far the light actually travels, in px: any scroller
+     that clips its overflow needs at least that much vertical padding or it
+     shears the glow off. Keep the two in step.
+     The white halo itself is NOT here — it's the blurred pseudo-element in
+     components.css, because a halo made of box-shadow can't carry grain. This
+     is only the hairline edge and the lift. */
+  --card-aura-reach: 38px;
+  --card-aura: 0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 18px 36px rgba(0, 0, 0, 0.6);
+
+  /* Shape */
+  --radius-s: 8px;
+  --radius: 12px;
+  --radius-l: 18px;
+
+  /* Type scale */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display",
+          "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --fs-hero: clamp(2.4rem, 4.5vw, 4.2rem);
+  --fs-title: clamp(1.5rem, 2.4vw, 2.2rem);
+  --fs-row: 1.25rem;
+  --fs-body: 1rem;
+  --fs-small: 0.85rem;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --t-fast: 160ms;
+  --t-med: 280ms;
+
+  /* Layout */
+  --page-x: clamp(24px, 4.5vw, 64px);
+  --nav-h: 68px;
+}

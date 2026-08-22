@@ -1,0 +1,2499 @@
+/* ---------- Hero billboard (home) ---------- */
+.hero {
+  position: relative;
+  min-height: 76vh;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 var(--page-x) 56px;
+  overflow: hidden;
+  /* Horizontal drags are the hero's own gesture (swipe between titles);
+     vertical must still scroll the page. */
+  touch-action: pan-y;
+}
+/* The artwork DISSOLVES at the bottom rather than being cut off there.
+   It used to be hidden instead: .hero-fade painted opaque --bg over the last 2%
+   of the hero, which covered the clipped image edge. That worked while the page
+   was a flat fill. It stopped working the moment the background gained drifting
+   blooms and grain, because those layers live BEHIND the hero — so the opaque
+   strip was the one band on the page with no ambient light in it, and the join
+   read as a horizon line. Nothing opaque is painted now; the image fades to
+   alpha zero and the same fixed layers show through above and below the join.
+
+   Stops are in the layer's own (pre-transform) box, which is the hero plus the
+   40px inset — NOT the hero. Measured across real home-hero heights (76vh at
+   several viewports) the hero's bottom edge lands at 0.91-0.93 of that box, so
+   finishing at 0.87 clears the clip with room to spare while keeping the
+   artwork present through the title and buttons. Finishing much earlier is a
+   real mistake, not a safe margin: at 0.78 the image was gone from the lower
+   third and the hero just looked dim. */
+:root {
+  --hero-dissolve: linear-gradient(to bottom, #000 70%, rgba(0, 0, 0, 0.45) 81%, transparent 87%);
+}
+.hero-backdrop {
+  position: absolute;
+  inset: -40px;
+  background-size: cover;
+  background-position: center 20%;
+  filter: blur(42px) saturate(1.25) brightness(0.55);
+  transform: scale(1.15);
+  transition:    opacity 0.75s var(--ease),    filter 0.6s;
+  -webkit-filter: blur(42px) saturate(1.25) brightness(0.55);
+  -webkit-mask-image: var(--hero-dissolve);
+  mask-image: var(--hero-dissolve);
+}
+/* The home billboard stacks TWO backdrops and cross-fades between them —
+   `transition: background-image` animates nothing, so one layer could only
+   hard-cut, which is what made the movie→show swap read as a glitch. Only
+   those layers opt into starting invisible: every other page (movie, show and
+   Discover detail heroes) renders a single backdrop that must simply be there.
+   Defaulting all .hero-backdrop to opacity 0 blanked those pages. */
+/* Home's two cross-fading layers take their art as custom properties rather than
+   a fixed background-image, so a media query can choose between them (see the
+   portrait rule below). Landscape backdrop on top, poster underneath as the
+   fallback for titles that have no backdrop at all. */
+.hero-backdrop.fade {
+  opacity: 0;
+  background-image: var(--hero-art, none), var(--hero-poster, none);
+}
+.hero-backdrop.fade.on {
+  opacity: 1;
+}
+/* Real video-frame backdrops stay sharp - just dimmed for legibility */
+.hero-backdrop.sharp {
+  filter: saturate(1.1) brightness(0.62);
+  transform: scale(1.03);
+}
+/* Real landscape artwork (stream titles): keep the dreamy feel but let the
+   art actually read — a whisper of blur instead of the poster's heavy wash */
+.hero-backdrop.art {
+  filter: blur(2px) saturate(1.12) brightness(0.58);
+  transform: scale(1.05);
+  -webkit-filter: blur(2px) saturate(1.12) brightness(0.58);
+  /* Focus pull, restarted per rotation from home.js: starts on a whisper of blur
+     and eases to fully sharp ~4.5s in. Deliberately shorter than the 9s dwell —
+     `forwards` holds it sharp for the rest of the slot, so the longer the dwell
+     the more of it is spent on a clear image. */
+  animation: hero-art-focus 5.5s ease-out forwards;
+}
+@keyframes hero-art-focus {
+  0% { filter: blur(2px) saturate(1.12) brightness(0.58); }
+  82%, 100% { filter: blur(0px) saturate(1.12) brightness(0.58); }
+}
+/* Scrolled past the hero (rows overlapping it): hold a steady depth-of-field
+   blur instead of the focus pull. The base 0.6s filter transition eases the
+   handover both ways. */
+.hero.scrolled .hero-backdrop.art {
+  animation: none;
+  filter: blur(3px) saturate(1.12) brightness(0.58);
+  -webkit-filter: blur(3px) saturate(1.12) brightness(0.58);
+}
+/* Portrait phone: show the POSTER, not the landscape backdrop. `background-size:
+   cover` on 16:9 art in a tall frame crops to a sliver of someone's shoulder,
+   while the poster was composed for exactly this shape. Turn the phone sideways
+   and the backdrop is back — the query re-evaluates on its own, no re-render,
+   because both images are sitting there as variables. Relies on source order
+   over .art/.sharp (equal specificity, and this comes later). */
+@media (max-width: 900px) and (orientation: portrait) {
+  .hero-backdrop.fade {
+    background-image: var(--hero-poster, none);
+    /* Not `top`: that frames the poster's own title lettering directly above the
+       hero's <h1>, printing the name twice. A third of the way down lands on the
+       artwork instead. */
+    background-position: center 34%;
+    /* Portrait art filling a portrait frame has earned a sharper treatment than
+       the heavy wash it gets when standing in for a missing backdrop. */
+    filter: saturate(1.08) brightness(0.56);
+    -webkit-filter: saturate(1.08) brightness(0.56);
+    transform: scale(1.02);
+    animation: none;
+  }
+}
+/* The scrim keeps the title legible over the art, so it has to stay through the
+   text — but it must be gone by the bottom edge, or IT becomes the horizon
+   instead of the image. No opaque stop any more, and the whole scrim (both the
+   vertical dim and the left-hand wedge) is masked out toward the bottom.
+   The mask is eased over four stops rather than a straight 74%->100% ramp. A
+   linear ramp meeting zero leaves a kink in the brightness curve, and a kink is
+   exactly what the eye picks out as an edge — it was visible on a large screen
+   wherever the join happened to sit under the brighter part of the bloom.
+   Lighter overall than the original too: it used to reach fully opaque, which
+   it no longer needs to do now that the artwork dissolves on its own. */
+.hero-fade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to top,
+      rgba(11, 12, 20, 0.34) 0%,
+      rgba(11, 12, 20, 0.3) 42%,
+      rgba(11, 12, 20, 0.22) 100%
+    ),
+    linear-gradient(to right, rgba(11, 12, 20, 0.66), transparent 58%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 62%, rgba(0, 0, 0, 0.72) 78%,
+    rgba(0, 0, 0, 0.3) 91%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 62%, rgba(0, 0, 0, 0.72) 78%,
+    rgba(0, 0, 0, 0.3) 91%, transparent 100%);
+}
+.hero-inner {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 48px;
+  width: 100%;
+}
+.hero-info {
+  flex: 1;
+  max-width: 640px;
+}
+.hero-kicker {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+.hero-title {
+  font-size: var(--fs-hero);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.04;
+  margin-bottom: 14px;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
+.hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-dim);
+  font-weight: 600;
+  margin-bottom: 26px;
+}
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.hero-poster {
+  width: 240px;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-l);
+  object-fit: cover;
+  box-shadow: 0 30px 80px -45px rgba(0, 0, 0, 0.65);
+  flex-shrink: 0;
+}
+/* Title change: text + poster slide in from the direction of travel, so
+   forward/back reads as movement instead of a content swap. */
+@keyframes hero-slide-next {
+  from { opacity: 0; transform: translate3d(52px, 0, 0); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes hero-slide-prev {
+  from { opacity: 0; transform: translate3d(-52px, 0, 0); }
+  to   { opacity: 1; transform: none; }
+}
+.hero-info.slide-next,
+.hero-poster.slide-next {
+  animation: hero-slide-next 0.5s var(--ease) both;
+}
+.hero-info.slide-prev,
+.hero-poster.slide-prev {
+  animation: hero-slide-prev 0.5s var(--ease) both;
+}
+/* The poster trails the text slightly — the pair reads as one card moving. */
+.hero-poster.slide-next,
+.hero-poster.slide-prev {
+  animation-delay: 0.06s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-info.slide-next,
+  .hero-info.slide-prev,
+  .hero-poster.slide-next,
+  .hero-poster.slide-prev {
+    animation: none;
+  }
+  .hero-backdrop.art {
+    animation: none;
+  }
+}
+
+.hero-dots {
+  position: absolute;
+  right: var(--page-x);
+  bottom: 22px;
+  display: flex;
+  gap: 2px;
+}
+/* A bare 8px dot is not a touch target — the button around it is. */
+.hero-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.hero-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  transition:
+    background var(--t-fast),
+    transform var(--t-fast);
+}
+.hero-dots span.on {
+  background: #fff;
+  transform: scale(1.2);
+}
+
+@media (max-width: 900px) {
+  .hero-poster {
+    display: none;
+  }
+  .hero {
+    min-height: 60vh;
+  }
+}
+
+.hero-synopsis {
+  max-width: 560px;
+  color: var(--text-dim);
+  font-size: 0.98rem;
+  line-height: 1.55;
+  margin-bottom: 26px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.rating-star {
+  color: #f5c542;
+  font-weight: 800;
+}
+
+/* Your 1–5 star rating on detail pages */
+.detail-rate {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.detail-rate-label {
+  color: var(--text-faint);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.star-rating {
+  display: inline-flex;
+  gap: 2px;
+}
+.star-rating .star {
+  font-size: 1.4rem;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.22);
+  padding: 2px 3px;
+  border-radius: 6px;
+  transition:
+    color var(--t-fast),
+    transform var(--t-fast);
+}
+.star-rating .star.on {
+  color: #f5c542;
+}
+.star-rating .star:hover {
+  transform: scale(1.15);
+}
+.star-rating .star:focus {
+  box-shadow: var(--focus-ring);
+  color: #f5c542;
+}
+
+/* Preferences note */
+.pref-note {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  padding: 0 var(--page-x);
+  max-width: 640px;
+  margin: -4px 0 10px;
+}
+
+.detail-synopsis {
+  max-width: 640px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin-bottom: 24px;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.genre-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.chip {
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  white-space: nowrap;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.chip:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.chip.on {
+  background: #fff;
+  color: #0b0c14;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.chip:focus {
+  box-shadow: var(--focus-ring);
+}
+.chip.static {
+  cursor: default;
+  border-color: var(--line);
+  background: transparent;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px var(--page-x) 16px;
+}
+/* ---------- Browse: categories + filter tools ----------
+   The filter bar used to be one wrapped wall of ~30 chips. It is now two calm
+   lines: the categories you switch between constantly, then the narrowing
+   controls (20 genres behind one dropdown). */
+.cat-row {
+  display: flex;
+  gap: 8px;
+  /* The vertical padding is load-bearing: this strip scrolls horizontally, and
+     without room around the pills their focus ring gets clipped by that
+     overflow — the same trick .row-scroller uses on the home rows. */
+  padding: 8px var(--page-x);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.cat-row::-webkit-scrollbar { display: none; }
+/* Same active treatment as every other chip on the site (white fill, dark text)
+   rather than an underline of its own — one focus/selected language throughout. */
+.cat-pill {
+  flex: none;
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-faint);
+  white-space: nowrap;
+  transition: color var(--t-fast), background var(--t-fast), box-shadow var(--t-fast);
+}
+.cat-pill:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+.cat-pill.on {
+  background: #fff;
+  color: #0b0c14;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.cat-pill:focus {
+  box-shadow: var(--focus-ring);
+}
+
+.filter-bar.tools {
+  padding: 2px var(--page-x) 6px;
+  gap: 10px;
+}
+.picker-btn {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  transition: background var(--t-fast), box-shadow var(--t-fast);
+}
+.picker-btn:hover { background: var(--surface-hover); }
+.picker-btn:focus { box-shadow: var(--focus-ring); }
+.picker-label { color: var(--text-faint); font-weight: 600; }
+.picker-caret { color: var(--text-faint); font-size: 0.7rem; }
+.picker-btn.set { border-color: rgba(255, 255, 255, 0.35); }
+
+.tool-note {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  font-weight: 600;
+  align-self: center;
+}
+
+/* Divides one either/or group of chips from the next (My List: status, kind,
+   where). Evenly spaced chips otherwise read as one long list of toggles. */
+.chip-sep {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--line);
+}
+
+/* ---------- Genre dropdown ----------
+   Fixed-positioned and parented to <body>: the filter strip scrolls sideways on
+   a phone, and a nested panel would be clipped by that overflow. */
+.dropdown-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 290;
+}
+.dropdown {
+  position: fixed;
+  z-index: 291;
+  max-height: min(340px, 60vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.6);
+  animation: dropdown-in var(--t-fast) var(--ease);
+}
+@keyframes dropdown-in {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+.dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.dropdown-item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.dropdown-item.on {
+  color: var(--text);
+  font-weight: 800;
+}
+/* Inset so the ring can't be clipped by the panel's own scroll overflow. */
+.dropdown-item:focus {
+  box-shadow: inset 0 0 0 2px #fff;
+  color: var(--text);
+}
+
+/* Placeholders while a category or genre is being fetched, sized like the
+   posters that replace them so the grid doesn't jump. */
+.grid-skel {
+  aspect-ratio: 2 / 3;
+  width: 100%;
+}
+
+/* ---------- Browse header ---------- */
+.browse-head {
+  padding: calc(var(--nav-h) + 42px) var(--page-x) 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+.browse-head h1 {
+  font-size: var(--fs-title);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+.browse-head .count {
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+/* ---------- Search ---------- */
+.search-wrap {
+  padding: calc(var(--nav-h) + 42px) var(--page-x) 10px;
+}
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 22px;
+  transition:
+    border-color var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.search-box:focus-within {
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+.search-box svg {
+  width: 22px;
+  height: 22px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.search-box input {
+  flex: 1;
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+.search-box input::placeholder {
+  color: var(--text-faint);
+}
+
+/* ---------- Details ---------- */
+.detail-hero {
+  position: relative;
+  padding: calc(var(--nav-h) + 60px) var(--page-x) 44px;
+  display: flex;
+  gap: 44px;
+  align-items: flex-end;
+  overflow: hidden;
+}
+.detail-hero .hero-backdrop {
+  filter: blur(60px) saturate(1.2) brightness(0.4);
+  /* Its own dissolve stops. This hero is content-height (measured 776-838px vs
+     the home hero's ~500-760), so the fixed 40px inset is a much smaller share
+     of the layer and the bottom edge lands at ~0.94 rather than ~0.92. Keep the
+     dissolve in the last ~15%: the poster and the whole info column sit low
+     here, and fading the backdrop out any earlier drains the page — it read as
+     nearly black behind the cover. */
+  --hero-dissolve: linear-gradient(to bottom, #000 80%, rgba(0, 0, 0, 0.5) 88%, transparent 92%);
+}
+/* Likewise the scrim: the poster and the info column sit low in this hero, so
+   it has to survive further down than on the home billboard. */
+.detail-hero .hero-fade {
+  -webkit-mask-image: linear-gradient(to bottom, #00000073 82%, rgb(0 0 0 / 11%) 93%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #00000073 82%, rgb(0 0 0 / 11%) 93%, transparent 100%);
+}
+.detail-hero .hero-backdrop.sharp {
+  filter: saturate(1.05) brightness(0.42);
+}
+.detail-poster {
+  position: relative;
+  width: 220px;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-l);
+  object-fit: cover;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.6);
+  flex-shrink: 0;
+}
+.detail-info {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.detail-title {
+  font-size: var(--fs-title);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin-bottom: 10px;
+  text-shadow: 0 3px 24px rgba(0, 0, 0, 0.45);
+}
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-dim);
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+.detail-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 760px) {
+  .detail-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 24px;
+  }
+  .detail-poster {
+    width: 150px;
+  }
+}
+
+/* Season pills */
+.season-bar {
+  display: flex;
+  gap: 10px;
+  padding: 26px var(--page-x) 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.season-bar::-webkit-scrollbar {
+  display: none;
+}
+.season-pill {
+  padding: 9px 20px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.season-pill:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.season-pill.active {
+  background: #fff;
+  color: #0b0c14;
+}
+.season-pill:focus {
+  box-shadow: var(--focus-ring);
+}
+/* Whole-season actions, held together at the far end of the bar so that one of
+   them disappearing doesn't drag the other back across the row. */
+.season-bar-trailing {
+  display: flex;
+  gap: 10px;
+}
+
+/* Episode list */
+.episode-list {
+  padding: 18px var(--page-x);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.episode-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.episode-wrap .episode {
+  flex: 1;
+  /* Without this the row can't shrink below its text's min-content width, and
+     on a phone the buttons beside it get pushed off the screen edge. */
+  min-width: 0;
+}
+/* Square buttons riding alongside an episode row (download, mark watched) */
+.ep-action {
+  width: 48px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.ep-action svg {
+  width: 20px;
+  height: 20px;
+}
+.ep-action:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.ep-action:focus {
+  box-shadow: var(--focus-ring);
+}
+.ep-action.on {
+  color: #4ade80;
+}
+.episode {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition:
+    background var(--t-fast),
+    transform var(--t-fast),
+    box-shadow var(--t-fast);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.episode:hover {
+  background: var(--surface-hover);
+}
+.episode:focus {
+  box-shadow: var(--focus-ring);
+  transform: scale(1.01);
+}
+.episode-num {
+  width: 44px;
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: var(--text-faint);
+  text-align: center;
+  flex-shrink: 0;
+}
+.episode-body {
+  flex: 1;
+  min-width: 0;
+}
+.episode-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-weight: 700;
+}
+/* Same rule as .source-title: the title text gives way, the badge stays. */
+.episode-title > :not(.episode-name) {
+  flex: none;
+}
+.episode-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Runtime and badges hold their ground; the synopsis is what gives way, so a
+   downloaded episode's row stays the same height as an undownloaded one. */
+.ep-dur {
+  white-space: nowrap;
+}
+.ep-overview {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.episode-sub {
+  font-size: 0.83rem;
+  color: var(--text-dim);
+  display: flex;
+  min-width: 0;
+  gap: 10px;
+  align-items: center;
+  margin-top: 3px;
+}
+.episode-bar {
+  width: 130px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.episode-bar > div {
+  height: 100%;
+  background: var(--progress);
+}
+.episode-play {
+  color: var(--text-dim);
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+}
+
+/* Air dates. Cinemeta lists episodes from the moment they are announced, so a
+   season can hold three kinds of row at once and each has to read differently at
+   a glance: aired (plain date), dated but still to come, and announced with no
+   date yet. */
+.ep-air {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ep-air.upcoming,
+.ep-air.tba {
+  color: var(--text-faint);
+}
+.ep-air.tba {
+  font-style: italic;
+}
+/* Nothing to open and nothing to play, so the row stops behaving like a button:
+   no pointer, no hover lift, and out of the tab order (it has no `focusable`
+   class and carries `disabled`). It stays legible — the point is to tell you the
+   episode is coming, not to hide it. */
+.episode.unaired {
+  cursor: default;
+  opacity: 0.55;
+}
+.episode.unaired:hover {
+  background: var(--surface);
+}
+
+/* ---------- Stream source rows (Discover full-page detail) ---------- */
+.sources-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 40px;
+  max-width: 900px;
+}
+
+/* Quality filter bar above the sources list */
+.source-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.source-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.source-filter:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.source-filter.active {
+  background: #fff;
+  color: #0b0c14;
+  border-color: #fff;
+}
+.source-filter:focus {
+  box-shadow: var(--focus-ring);
+}
+.source-filter-count {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text-faint);
+}
+.source-filter.active .source-filter-count {
+  background: rgba(0, 0, 0, 0.12);
+  color: #0b0c14;
+}
+.source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.source-row-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.source-row-wrap .source-row {
+  flex: 1;
+  min-width: 0;
+}
+.source-dl {
+  flex: none;
+  /* Wide enough for a progress ring with a percentage inside it — at 54px the
+     ring and the number were fighting for the same few pixels. */
+  width: 84px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background var(--t-fast),
+    box-shadow var(--t-fast),
+    color var(--t-fast),
+    transform var(--t-fast);
+}
+/* The torrent rows' button draws a glyph at font size; the owned row's draws an
+   icon, which needs saying out loud or it fills the 84px button. */
+.source-dl svg {
+  width: 22px;
+  height: 22px;
+}
+.source-dl:hover,
+.source-dl:focus {
+  background: var(--surface-hover);
+  box-shadow: var(--focus-ring);
+  color: var(--text);
+  transform: scale(1.03);
+}
+.source-dl.on {
+  color: var(--accent);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.source-dl.done {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.4);
+  cursor: default;
+}
+.source-dl.failed {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.45);
+}
+/* Live download progress: a ring around the percentage, so the button reports
+   what the server is doing instead of showing a sand-clock forever. */
+.source-dl {
+  position: relative;
+}
+.dl-face {
+  position: relative;
+  z-index: 1;
+  font-variant-numeric: tabular-nums;
+}
+.source-dl.has-ring .dl-face {
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+/* "Working on it": three bouncing dots. A static ⋯ next to a 0% that hasn't
+   moved for twenty seconds reads as a frozen button — motion is the whole
+   point, so this is the one place an animation earns its keep. */
+.dl-face.dl-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.dl-face.dl-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.4;
+  animation: dl-dot-bounce 1.05s infinite ease-in-out;
+}
+.dl-face.dl-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.dl-face.dl-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes dl-dot-bounce {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  35% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+/* Someone who asked for less motion still gets the state, just without the hop. */
+@media (prefers-reduced-motion: reduce) {
+  .dl-face.dl-dots i {
+    animation: dl-dot-fade 1.4s infinite ease-in-out;
+  }
+  @keyframes dl-dot-fade {
+    0%, 70%, 100% { opacity: 0.35; }
+    35% { opacity: 1; }
+  }
+}
+.dl-ring {
+  display: none;
+}
+.source-dl.has-ring .dl-ring {
+  display: block;
+  position: absolute;
+  /* A circle centred in the button, not stretched to its corners. */
+  width: 44px;
+  height: 44px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--accent, #60a5fa) calc(var(--dl-pct, 0) * 1%),
+    rgba(255, 255, 255, 0.14) 0
+  );
+  /* Punch the middle out so it reads as a ring, not a pie. */
+  -webkit-mask: radial-gradient(farthest-side, transparent 63%, #000 65%);
+  mask: radial-gradient(farthest-side, transparent 63%, #000 65%);
+  transition: background var(--t-fast);
+}
+
+.source-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transition:
+    background var(--t-fast),
+    box-shadow var(--t-fast),
+    transform var(--t-fast);
+}
+.source-row:hover,
+.source-row:focus {
+  background: var(--surface-hover);
+  box-shadow: var(--focus-ring);
+  transform: scale(1.01);
+}
+.source-quality {
+  width: 58px;
+  flex-shrink: 0;
+  text-align: center;
+  padding: 6px 0;
+  border-radius: 8px;
+  border: 1px solid;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+.source-info {
+  flex: 1;
+  min-width: 0;
+}
+/* Badges have to survive a long release name: the NAME ellipsizes, they don't
+   (they used to get cut off, which is how a "✓ DOWNLOADED · ★ BEST" row lost
+   its BEST). */
+.source-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.source-title > :not(.source-name) {
+  flex: none;
+}
+.source-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.source-meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 3px;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.source-seeds.good {
+  color: #4ade80;
+}
+.source-seeds.ok {
+  color: #fbbf24;
+}
+.source-seeds.low {
+  color: #ff7a7a;
+}
+.source-provider {
+  opacity: 0.7;
+}
+.source-cam {
+  margin-left: 8px;
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #ff7a7a;
+  border: 1px solid rgba(255, 122, 122, 0.4);
+  border-radius: 4px;
+  padding: 0 5px;
+  vertical-align: middle;
+}
+/* Multi-movie collection torrent: weak swarms, slow starts — down-ranked */
+.source-pack {
+  margin-left: 8px;
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 4px;
+  padding: 0 5px;
+  vertical-align: middle;
+}
+.source-best {
+  margin-left: 8px;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #0b0c14;
+  background: #f5c542;
+  border-radius: 4px;
+  padding: 1px 6px;
+  vertical-align: middle;
+}
+.source-last {
+  margin-left: 8px;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #0b0c14;
+  background: #60a5fa;
+  border-radius: 4px;
+  padding: 1px 6px;
+  vertical-align: middle;
+}
+/* "You already have this." Filled green, same weight as ★ BEST, because it
+   outranks every torrent below it. */
+.source-owned {
+  margin-left: 8px;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #0b0c14;
+  background: #4ade80;
+  border-radius: 4px;
+  padding: 1px 6px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+/* Download in flight (or waiting on the admin) — informative, not a trophy */
+.source-getting {
+  margin-left: 8px;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  border-radius: 4px;
+  padding: 0 5px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+/* The owned row itself, and any source row already saved to the library */
+.source-row.owned {
+  border-color: rgba(74, 222, 128, 0.45);
+  background: linear-gradient(90deg, rgba(74, 222, 128, 0.12), var(--surface) 60%);
+}
+.source-quality.owned-chip {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.4);
+  background: rgba(74, 222, 128, 0.12);
+}
+.owned-note {
+  color: #4ade80;
+  font-weight: 600;
+}
+/* Downloaded episode in the Discover episode list */
+.episode.owned {
+  border-left: 3px solid #4ade80;
+}
+.source-langs {
+  letter-spacing: 0.04em;
+}
+
+/* Load-more button under browse grids */
+.load-more-host {
+  display: flex;
+  justify-content: center;
+  padding: 8px var(--page-x) 48px;
+}
+.load-more {
+  min-width: 220px;
+  justify-content: center;
+}
+/* Fetching: the button stays focusable (a remote shouldn't lose its place) but
+   reads as busy rather than pressable. */
+.load-more.busy {
+  color: var(--text-dim);
+}
+.load-more.busy:hover {
+  transform: none;
+}
+.source-hint {
+  color: var(--text-faint);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin-bottom: 12px;
+  max-width: 760px;
+}
+/* Already-downloaded note above the stream sources */
+.source-hint.owned {
+  color: #4ade80;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+/* Download call-to-action: has to catch the eye between the hints and rows */
+.dl-callout {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 760px;
+  margin: 4px 0 16px;
+  padding: 14px 18px;
+  border-radius: var(--radius-l, 14px);
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  background: linear-gradient(100deg, rgba(96, 165, 250, 0.16), rgba(192, 132, 252, 0.10));
+  box-shadow: 0 0 22px rgba(96, 165, 250, 0.12);
+}
+.dl-callout-icon {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #dbeafe;
+  background: rgba(96, 165, 250, 0.28);
+  border-radius: 50%;
+}
+.dl-callout-title {
+  font-weight: 800;
+  font-size: 0.95rem;
+  margin-bottom: 3px;
+}
+.dl-callout-sub {
+  color: var(--text-dim, #b6bdcf);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+/* Post-request confirmation sheet */
+.dl-confirm {
+  text-align: center;
+  max-width: 460px;
+}
+.dl-confirm-emoji {
+  font-size: 2.6rem;
+  margin-bottom: 8px;
+}
+.dl-confirm-title {
+  margin: 0 0 10px;
+}
+.dl-confirm-sub {
+  color: var(--text-dim, #b6bdcf);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  margin: 0 0 18px;
+}
+.source-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+}
+.source-tag {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 2px 6px;
+}
+
+/* Cast line + sources section on the full detail page */
+.detail-cast {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+.detail-cast .cast-label {
+  color: var(--text-faint);
+  font-weight: 700;
+}
+.source-play {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+}
+.source-play svg {
+  width: 15px;
+  height: 15px;
+}
+.source-row:focus .source-play {
+  background: #fff;
+  color: #0b0c14;
+}
+
+.sources-loading,
+.sources-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-dim);
+  padding: 18px 4px;
+  font-size: 0.9rem;
+}
+.mini-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ---------- Request list ---------- */
+
+/* Extras (downloads) */
+.extra-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-weight: 600;
+}
+.extra-row .size {
+  color: var(--text-faint);
+  font-size: 0.85rem;
+  margin-left: auto;
+}
+
+/* Discover storefront */
+.disc-tag {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 3px 9px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  pointer-events: none;
+}
+.disc-tag.have {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+  border-color: transparent;
+}
+
+/* ---------- Profiles gate ---------- */
+.profiles-gate {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 34px;
+  padding: 6vh var(--page-x) 8vh;
+  background: var(--bg-wash);
+}
+/* Auto margins instead of justify-content: center — a 50-profile grid taller
+   than the viewport must scroll from its real top, and flex centering clips
+   the overflowing edge in every engine. */
+.profiles-gate > :first-child { margin-top: auto; }
+.profiles-gate > :last-child { margin-bottom: auto; }
+
+.profiles-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+}
+.profiles-gate h1 {
+  font-size: clamp(1.8rem, 3.4vw, 2.8rem);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+/* Name search — same glassy pill language as the rest of the chrome */
+.profiles-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(400px, 100%);
+  padding: 0 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.profiles-search:focus-within {
+  background: var(--surface-hover);
+  border-color: transparent;
+  box-shadow: var(--focus-ring);
+}
+.profiles-search-icon {
+  display: flex;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.profiles-search-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.profiles-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+}
+.profiles-search input::placeholder { color: var(--text-faint); }
+.profiles-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.profiles-body {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+.profiles-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.profiles-section-label {
+  align-self: center;
+  font-size: var(--fs-small);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.profiles-none {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 40px 0;
+}
+.profiles-row {
+  display: flex;
+  gap: 26px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.profile-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  border-radius: var(--radius-l);
+  transition:
+    transform var(--t-med) var(--ease),
+    background var(--t-fast),
+    box-shadow var(--t-med);
+}
+.profile-tile:hover,
+.profile-tile:focus {
+  transform: scale(1.07);
+  background: var(--surface);
+  box-shadow: var(--focus-ring);
+}
+.profile-tile .big-avatar {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  border-radius: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 52px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 16px 40px rgba(0, 0, 0, 0.45);
+}
+.profile-tile .name {
+  font-weight: 700;
+  color: var(--text-dim);
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-tile:hover .name,
+.profile-tile:focus .name {
+  color: var(--text);
+}
+/* "Add profile" reads as an action, not a person */
+.profile-tile.add .big-avatar {
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 40px;
+  box-shadow: inset 0 0 0 2px var(--line);
+}
+.profile-tile.add:hover .big-avatar,
+.profile-tile.add:focus .big-avatar {
+  color: var(--text);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+/* Big household: smaller tiles so ~50 fit without endless scrolling */
+.profiles-gate.compact .profiles-row { gap: 12px; }
+.profiles-gate.compact .profile-tile { padding: 12px; gap: 10px; }
+.profiles-gate.compact .profile-tile .big-avatar {
+  width: 78px;
+  height: 78px;
+  border-radius: 20px;
+  font-size: 36px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 10px 24px rgba(0, 0, 0, 0.4);
+}
+.profiles-gate.compact .profile-tile .name {
+  font-size: 0.88rem;
+  max-width: 96px;
+}
+.profiles-gate.compact .profile-tile.add .big-avatar { font-size: 30px; }
+
+.avatar-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.avatar-pick button {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  font-size: 22px;
+  background: var(--surface);
+  transition:
+    background var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.avatar-pick button:hover {
+  background: var(--surface-hover);
+}
+.avatar-pick button.on,
+.avatar-pick button:focus {
+  box-shadow: 0 0 0 2px #fff;
+}
+.color-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.color-pick button {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  transition:
+    box-shadow var(--t-fast),
+    transform var(--t-fast);
+}
+.color-pick button.on,
+.color-pick button:focus {
+  box-shadow: 0 0 0 3px #fff;
+  transform: scale(1.1);
+}
+
+/* ---------- Player ---------- */
+.player {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 200;
+}
+.player video {
+  width: 100%;
+  height: 100%;
+}
+.player.hide-cursor {
+  cursor: none;
+}
+
+/* Torrent badge in player */
+.torrent-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* Vignette instead of a flat wash — the poster art breathes through */
+  background: radial-gradient(
+    ellipse at center,
+    rgba(8, 9, 16, 0.72) 0%,
+    rgba(4, 5, 10, 0.94) 100%
+  );
+  z-index: 5;
+  text-align: center;
+  padding: 24px;
+}
+.torrent-status .spinner {
+  width: 46px;
+  height: 46px;
+}
+.torrent-status-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.torrent-status-sub {
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.torrent-badge {
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-top: 4px;
+  display: inline-block;
+}
+
+.player-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 26px 36px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), transparent);
+  transition:
+    opacity var(--t-med),
+    transform var(--t-med) var(--ease);
+}
+.player-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+}
+.player-subtitle {
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.player-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 22px 36px 28px;
+  /* Deeper, longer fade — controls float on the picture instead of sitting
+     on a visible gradient edge */
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.88) 0%,
+    rgba(0, 0, 0, 0.45) 55%,
+    transparent 100%
+  );
+  transition:
+    opacity var(--t-med),
+    transform var(--t-med) var(--ease);
+}
+.player.controls-hidden .player-top,
+.player.controls-hidden .player-bottom {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+}
+.player.controls-hidden .player-top {
+  transform: translateY(-6px);
+}
+
+/* Scrubber */
+.scrubber {
+  position: relative;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  border-radius: 8px;
+  /* Dragging the timeline must never turn into a page pan/zoom on touch —
+     without this, mobile browsers cancel the pointer stream mid-drag. */
+  touch-action: none;
+}
+.scrubber-track {
+  position: relative;
+  width: 100%;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+  transition: height var(--t-fast);
+}
+.scrubber:hover .scrubber-track,
+.scrubber:focus .scrubber-track {
+  height: 8px;
+}
+.scrubber:focus {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85);
+}
+.scrubber-buffer {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: rgba(255, 255, 255, 0.25);
+}
+.scrubber-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: #fff;
+  border-radius: 3px;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+}
+.scrubber-time {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  margin-top: 6px;
+}
+/* Buffered % sits centred between the two timestamps; fades in only while
+   the video is still filling. */
+.scrubber-time .buffer-pct {
+  color: var(--text-faint);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.pbtn {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition:
+    background var(--t-fast),
+    transform var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.pbtn svg {
+  width: 26px;
+  height: 26px;
+}
+.pbtn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  transform: scale(1.07);
+}
+.pbtn:active {
+  transform: scale(0.96);
+}
+.pbtn:focus {
+  background: #fff;
+  color: #000;
+  box-shadow: 0 6px 26px rgba(0, 0, 0, 0.5);
+}
+.pbtn.big svg {
+  width: 34px;
+  height: 34px;
+}
+.player-spacer {
+  flex: 1;
+}
+
+/* Accelerating-skip indicator */
+.skip-indicator {
+  position: absolute;
+  top: 50%;
+  right: 12%;
+  transform: translateY(-50%) scale(0.9);
+  font-size: 2rem;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 999px;
+  padding: 12px 28px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 150ms,
+    transform 150ms;
+  font-variant-numeric: tabular-nums;
+}
+.skip-indicator.left {
+  right: auto;
+  left: 12%;
+}
+.skip-indicator.on {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+/* Scrubber hover tooltip */
+.scrub-tip {
+  position: absolute;
+  bottom: 26px;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Volume */
+.vol-group {
+  display: flex;
+  align-items: center;
+}
+.vol-slider {
+  width: 0;
+  opacity: 0;
+  transition:
+    width var(--t-med) var(--ease),
+    opacity var(--t-med);
+  accent-color: #fff;
+  cursor: pointer;
+}
+.vol-group:hover .vol-slider,
+.vol-group:focus-within .vol-slider {
+  width: 90px;
+  opacity: 1;
+  margin-right: 8px;
+}
+@media (hover: none) {
+  .vol-slider {
+    width: 90px;
+    opacity: 1;
+  }
+}
+
+/* Shortcuts overlay */
+.shortcut-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.shortcut-row kbd {
+  min-width: 92px;
+  text-align: center;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+.shortcut-row span {
+  color: var(--text-dim);
+  font-size: 0.92rem;
+}
+
+/* Center flash (play/pause/seek feedback) */
+.player-flash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+}
+.player-flash svg {
+  width: 44px;
+  height: 44px;
+  color: #fff;
+}
+.player-flash.go {
+  animation: flash 0.5s ease-out;
+}
+@keyframes flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+}
+
+/* Up Next card */
+/* "Skip intro" — floats above the control bar and OUTSIDE .player-bottom, so
+   it stays pressable while the controls are auto-hidden (that's the point:
+   one press, no chrome). Same corner as .upnext; the two never coexist —
+   intros live in the first minutes, Up Next in the last. */
+.player .skip-intro {
+  position: absolute;
+  right: 40px;
+  bottom: 130px;
+  z-index: 4;
+  background: rgba(12, 13, 20, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.player .skip-intro:hover,
+.player .skip-intro:focus {
+  background: #fff;
+  color: #000;
+}
+
+.upnext {
+  position: absolute;
+  right: 36px;
+  bottom: 120px;
+  width: 320px;
+  background: rgba(16, 18, 28, 0.97);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  padding: 16px;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.6);
+  animation: toast-in var(--t-med) var(--ease);
+}
+.upnext .k {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.upnext .t {
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.upnext-actions {
+  display: flex;
+  gap: 8px;
+}
+.upnext .btn {
+  padding: 9px 16px;
+  font-size: 0.88rem;
+}
+.upnext .ring {
+  position: relative;
+  display: inline-block;
+  margin-right: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Loading spinner */
+.spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Games ---------- */
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 14px var(--page-x) 30px;
+}
+.game-card {
+  position: relative;
+  border-radius: var(--radius);
+  padding: 22px 18px;
+  background: linear-gradient(
+    150deg,
+    var(--surface),
+    rgba(255, 255, 255, 0.02)
+  );
+  border: 1px solid var(--line);
+  text-align: left;
+  transition:
+    transform var(--t-med) var(--ease),
+    box-shadow var(--t-med),
+    background var(--t-fast);
+}
+.game-card:hover,
+.game-card:focus {
+  transform: scale(1.045);
+  box-shadow: var(--focus-ring);
+  background: var(--surface-hover);
+}
+.game-card .g-icon {
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+.game-card .g-name {
+  font-weight: 800;
+  margin-bottom: 2px;
+}
+.game-card .g-desc {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+.game-card .g-score {
+  margin-top: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.game-stage {
+  position: fixed;
+  inset: 0;
+  background: #05060c;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+}
+.game-head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px var(--page-x);
+  background: var(--glass);
+  box-shadow: 0 1px 0 var(--line);
+}
+.game-head .title {
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+.game-head .score {
+  color: var(--accent);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.game-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+#game-canvas {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--radius);
+}
+.game-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: rgba(5, 6, 12, 0.82);
+  text-align: center;
+  padding: 24px;
+}
+.game-overlay h2 {
+  font-size: 2rem;
+  font-weight: 900;
+}
+.game-overlay p {
+  color: var(--text-dim);
+  max-width: 420px;
+}
+
+.name-input-modal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 6, 12, 0.85);
+  z-index: 10;
+}
+
+.leaderboard-entry {
+  display: flex;
+  gap: 12px;
+  padding: 8px 14px;
+  border-radius: var(--radius-s);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.leaderboard-entry:nth-child(odd) {
+  background: var(--surface);
+}
+.leaderboard-rank {
+  color: var(--accent);
+  font-weight: 800;
+  width: 34px;
+}
+.leaderboard-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.leaderboard-score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+.leaderboard-empty {
+  color: var(--text-faint);
+  padding: 10px 14px;
+  text-align: center;
+}
+
+/* ---------- Pick For Me (AI recommender) ---------- */
+/* Aiming at the Apple TV / HBO Max feel: one calm glass surface, generous
+   spacing, and controls that read as physical objects you move rather than
+   buttons you hunt for. */
+
+/* A cinematic wash behind the top of the screen, so an empty Pick For Me isn't
+   a flat rectangle of nothing before any results exist. */
+.pfm { position: relative; }
+.pfm::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 560px;
+  background:
+    radial-gradient(78% 120% at 18% -12%, rgba(139, 123, 255, 0.2), transparent 62%),
+    radial-gradient(68% 110% at 88% -4%, rgba(108, 88, 255, 0.13), transparent 60%);
+  pointer-events: none;
+}
+.pfm > * { position: relative; }
+
+/* The nav is position:fixed, so every screen has to clear it itself. */
+.pfm-head { padding: calc(var(--nav-h) + 52px) var(--page-x) 0; }
+.pfm-head h1 {
+  margin: 0;
+  font-size: clamp(2rem, 3.6vw, 3.1rem);
+  letter-spacing: -0.022em;
+  line-height: 1.05;
+}
+.pfm-sub {
+  color: var(--text-dim);
+  max-width: 56ch;
+  line-height: 1.55;
+  font-size: 1.02rem;
+  margin: 12px 0 0;
+}
+
+/* ---- the ask panel ---- */
+.pfm-box {
+  margin: 26px var(--page-x) 0;
+  padding: 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.032));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-l);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(18px) saturate(1.2);
+}
+.pfm-ask { display: flex; gap: 12px; align-items: stretch; }
+.pfm-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 1.15rem;
+  padding: 17px 20px;
+  transition:
+    border-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+.pfm-input::placeholder { color: var(--text-faint); }
+.pfm-input:focus {
+  outline: none;
+  background: rgba(0, 0, 0, 0.55);
+  border-color: rgba(139, 123, 255, 0.75);
+  box-shadow: 0 0 0 4px rgba(139, 123, 255, 0.16);
+}
+.pfm-go {
+  flex: 0 0 auto;
+  padding: 0 30px;
+  border: 0;
+  border-radius: 14px;
+  color: #fff;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 10px 26px rgba(108, 88, 255, 0.34);
+  transition:
+    transform var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease),
+    opacity var(--t-fast) var(--ease);
+}
+.pfm-go:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 32px rgba(108, 88, 255, 0.44); }
+.pfm-go:active:not(:disabled) { transform: translateY(0) scale(0.985); }
+.pfm-go:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
+
+/* ---- one control, one click: pressing anywhere flips Movies <-> Shows ---- */
+/* The thumb slides across, so the change registers peripherally without having
+   to read either label. Its width is 50% minus the 4px inset, which is exactly
+   how far translateX(100%) moves it — the two ends line up with the padding. */
+.pfm-switch {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  width: 236px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.42);
+  font: inherit;
+  cursor: pointer;
+}
+.pfm-switch-thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  height: calc(100% - 8px);
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 6px 18px rgba(108, 88, 255, 0.4);
+  transition: transform var(--t-med) var(--ease);
+}
+.pfm-switch[aria-checked="true"] .pfm-switch-thumb { transform: translateX(100%); }
+.pfm-switch-opt {
+  position: relative;
+  padding: 11px 0;
+  text-align: center;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--text-dim);
+  user-select: none;
+  transition: color var(--t-med) var(--ease);
+}
+.pfm-switch-opt.on { color: #fff; }
+
+/* ---- taste pills ---- */
+.pfm-tune {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 30px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.pfm-tune-group { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.pfm-tune-label {
+  color: var(--text-faint);
+  font-size: 0.71rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.pfm-pill {
+  padding: 8px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.855rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.pfm-pill:hover { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+.pfm-pill.on {
+  background: rgba(139, 123, 255, 0.2);
+  border-color: rgba(139, 123, 255, 0.62);
+  color: #fff;
+}
+
+/* ---- example vibes, deliberately outside the panel to keep it uncluttered ---- */
+.pfm-examples {
+  display: flex;
+  align-items: baseline;
+  gap: 4px 14px;
+  flex-wrap: wrap;
+  padding: 16px var(--page-x) 0;
+}
+.pfm-examples-label {
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.pfm-example {
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.87rem;
+  padding: 3px 0;
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.pfm-example:hover { color: #fff; border-bottom-color: rgba(139, 123, 255, 0.6); }
+
+/* ---- waiting. This takes several seconds, so it gets real estate ---- */
+.pfm-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 56px var(--page-x) 10px;
+  text-align: center;
+}
+.pfm-wait-msg {
+  font-size: clamp(1.35rem, 2.1vw, 1.9rem);
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: var(--text);
+}
+/* Each message fades up as it arrives, so a swap reads as progress rather than
+   a flicker. Re-triggered from JS by restarting the animation. */
+@keyframes pfm-fade-up { from { opacity: 0; transform: translateY(7px); } }
+.pfm-wait-msg.in { animation: pfm-fade-up 420ms var(--ease); }
+.pfm-wait-bar {
+  width: min(430px, 60vw);
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.pfm-wait-bar::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: 38%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: pfm-sweep 1.5s var(--ease) infinite;
+}
+@keyframes pfm-sweep { from { transform: translateX(-105%); } to { transform: translateX(370%); } }
+.pfm-wait-hint { color: var(--text-faint); font-size: 0.87rem; }
+/* Poster-shaped placeholders in the real grid, so results land into a layout
+   that already has their shape instead of shoving the page around. */
+.pfm-skel { aspect-ratio: 2 / 3; border-radius: var(--radius); }
+
+/* ---- results ---- */
+/* These sit in the site's own .grid. A bespoke copy of it was the whole reason
+   these cards came out a different size from every other screen's: the width
+   override that makes a poster fill its cell lives on `.grid .card.poster`, so
+   outside .grid the cards fell back to their fixed 176px inside a 150px cell. */
+/* A little wider than the stock grid. Same card component, same proportions —
+   but each cell also carries a sentence, and at the stock 160px a reason ran to
+   six lines while its neighbour ran to two, leaving the rows visibly ragged.
+   Two classes deep on purpose: responsive.css narrows `.grid` to 136px columns
+   and loads after this file, so a single-class selector lost to it and every
+   reason on the page ended up clipped. */
+.pfm .pfm-results {
+  padding-top: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(188px, 1fr));
+}
+.pfm-pick { display: flex; flex-direction: column; gap: 10px; }
+.pfm-why {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  padding-left: 10px;
+  /* A hint of the accent so the AI's words read as commentary, not metadata. */
+  border-left: 2px solid rgba(139, 123, 255, 0.55);
+  /* Three lines, so every row lines up. The server asks for reasons that fit in
+     three, and the full text is on the element's title for the rare overflow. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pfm-status {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+  padding: 22px var(--page-x) 0;
+}
+
+@media (max-width: 720px) {
+  .pfm-ask { flex-wrap: wrap; }
+  .pfm-input { font-size: 1.05rem; padding: 15px 17px; }
+  /* .pfm-ask is a full-width block, so the button can stretch across it. The
+     switch cannot: it sits in a shrink-to-fit flex group, so a percentage width
+     there collapsed it until the two labels printed on top of each other. Its
+     fixed 236px fits comfortably at this width anyway. */
+  .pfm-go { width: 100%; padding: 15px 0; }
+}

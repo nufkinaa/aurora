@@ -1,0 +1,33 @@
+# Secrets & machine-specific config — never commit these
+.env
+config.json
+
+# Runtime state (caches, JSON stores, aria2 session)
+data/
+
+# Dependencies
+node_modules/
+
+# Old/backup APK builds (the published build public/aurora-tv.apk IS tracked)
+public/aurora-tv-webview-backup.apk
+dist/
+
+# Signing keys
+*.keystore
+!tv-native/android/app/debug.keystore
+
+# Legacy WebView TV app build output
+tv-app/build/
+
+# Internal working notes & screenshots (not part of the public project)
+.shots/
+docs/TV-APP-HANDOFF.md
+docs/TV-APP-PLAN.md
+tv-native/HANDOFF.md
+tv-native/PLAYBACK.md
+tv-native/PLAYER-REWRITE.md
+tv-native/RULES.md
+tv-native/TASKS.md
+tv-native/SPEC/
+tv-native/docs-shots/
+tv-native/.shots/

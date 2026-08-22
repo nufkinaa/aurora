@@ -1,0 +1,267 @@
+/* ---------------------------------------------------------------------------
+   Responsive layer: phones & tablets.
+   Aurora's core layout targets TV/desktop; this file (loaded last) adapts the
+   same structure for small touch screens instead of forking any markup.
+   Breakpoints: ≤900px tablet, ≤860px nav collapse, ≤600px phone.
+--------------------------------------------------------------------------- */
+
+/* ---------- Tablet (≤ 900px) ---------- */
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+  }
+}
+
+/* ---------- Top nav: swipeable strip once items can't all fit ---------- */
+@media (max-width: 860px) {
+  .nav {
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+  .nav > * {
+    flex: none;
+  }
+  .nav-logo {
+    margin-right: 4px;
+    padding: 6px;
+  }
+  .nav-logo span:not(.logo-mark) {
+    display: none; /* keep the gradient mark, drop the wordmark */
+  }
+  .nav-item {
+    padding: 8px 12px;
+  }
+  .nav-spacer {
+    width: 4px;
+  }
+  #nav-profile-name {
+    display: none; /* avatar alone identifies the profile */
+  }
+  .nav-profile {
+    padding: 5px 6px;
+  }
+
+  /* Swipe affordance: fade the edge where items are clipped off-screen
+     (classes maintained by main.js from the strip's scroll position) */
+  .nav.clip-right {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
+  }
+  .nav.clip-left {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 48px);
+    mask-image: linear-gradient(to right, transparent, #000 48px);
+  }
+  .nav.clip-left.clip-right {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+  }
+}
+
+/* ---------- Phones (≤ 600px) ---------- */
+@media (max-width: 600px) {
+  :root {
+    --page-x: 16px;
+    --nav-h: 56px;
+    --fs-hero: clamp(1.8rem, 9vw, 2.4rem);
+  }
+
+  .hero {
+    padding-bottom: 56px;
+  }
+  .hero-inner {
+    gap: 0;
+  }
+  /* The dots sat bottom-right, which at 375px put them on top of the Details
+     button (they overlapped it by 8px). Centred below the actions instead, with
+     the hero's extra bottom padding keeping the two apart. */
+  .hero-dots {
+    left: 0;
+    right: 0;
+    bottom: 10px;
+    justify-content: center;
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    gap: 14px 12px;
+  }
+
+  .row-scroller {
+    gap: 10px;
+  }
+
+  /* Browse on a phone: the title takes the line, the count sits under it, and
+     the filter tools become one swipeable strip instead of wrapping to three. */
+  .browse-head {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  /* Title and Surprise share the first line; the count drops below rather than
+     being squeezed into a three-line column between them. */
+  .browse-head .count {
+    flex-basis: 100%;
+    order: 3;
+  }
+  .filter-bar.tools {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    /* Room for the 3px focus ring, which this scroller would otherwise clip. */
+    padding: 6px var(--page-x) 8px;
+  }
+  .filter-bar.tools::-webkit-scrollbar {
+    display: none;
+  }
+  .filter-bar.tools > * {
+    flex: none;
+  }
+
+  /* Detail page: tighter hero, full-width action buttons wrap already */
+  .detail-poster {
+    width: 120px;
+  }
+
+  /* Profile gate: fit 3 tiles per row on a phone (4 when compact) */
+  .profiles-row {
+    gap: 14px;
+  }
+  .profile-tile {
+    padding: 10px;
+    gap: 10px;
+  }
+  .profile-tile .big-avatar {
+    width: 84px;
+    height: 84px;
+    border-radius: 20px;
+    font-size: 40px;
+  }
+  .profile-tile .name {
+    font-size: 0.9rem;
+    max-width: 92px;
+  }
+  .profiles-gate.compact .profile-tile .big-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    font-size: 30px;
+  }
+  .profiles-gate.compact .profile-tile .name {
+    font-size: 0.8rem;
+    max-width: 74px;
+  }
+
+  /* Source rows: keep the download button reachable but slimmer */
+  /* Narrow screens still need room for the progress ring + percentage. */
+  .source-dl {
+    width: 62px;
+  }
+  .source-dl.has-ring .dl-ring {
+    width: 38px;
+    height: 38px;
+  }
+  /* Give the release name the room it needs: on a phone the padding, the gap
+     and a play chevron were eating two thirds of the row, leaving "How I M…". */
+  .source-row {
+    gap: 10px;
+    padding: 10px;
+  }
+  .source-row .source-play {
+    display: none; /* the whole row is the play button here */
+  }
+  .source-quality {
+    min-width: 42px;
+    padding: 2px 4px;
+    font-size: 0.62rem;
+  }
+  .source-meta {
+    gap: 8px;
+  }
+
+  /* Episode rows: same squeeze, same cure — but this row carries far more than a
+     source row, and on a 390px screen it showed it. Measured before this block:
+     the row itself got 245px (two 48px action buttons ride beside it), of which
+     the number took 44 and the "✓ DOWNLOADED" badge another 96 because it is
+     `flex: none` — leaving 58px for the title, so "Who Are You?" rendered as
+     "Who …" while the synopsis collapsed to zero width and the play chevron to
+     nothing at all.
+
+     The cure is to drop what is duplicated elsewhere in the row rather than to
+     shrink everything until nothing is legible. */
+  .episode {
+    gap: 10px;
+    padding: 12px 10px;
+  }
+  .episode .episode-play {
+    display: none;
+  }
+  .ep-action {
+    width: 44px;
+  }
+  /* Two digits never needed 44px. */
+  .episode-num {
+    width: 22px;
+    font-size: 1rem;
+  }
+  /* The green left border on .episode.owned is the same green as this badge and
+     says the same thing, so the words are 96px spent twice. */
+  .episode-title .source-owned {
+    display: none;
+  }
+  /* CC and Watched: the first is a detail nobody scans a phone list for, and the
+     second is already the green tick sitting at the end of the row. */
+  .episode-sub .badge {
+    display: none;
+  }
+  /* Was rendering at zero width regardless — the date and runtime are what this
+     line is for on a phone. */
+  .episode-sub .ep-overview {
+    display: none;
+  }
+
+  /* Player: the control row (8 buttons + volume) overflows 375px at 52px
+     per button — shrink the chrome, not the tap logic */
+  .player-top {
+    padding: 14px 16px;
+  }
+  .player-bottom {
+    padding: 14px 16px 18px;
+  }
+  .player-controls {
+    gap: 2px;
+  }
+  .pbtn {
+    width: 42px;
+    height: 42px;
+  }
+  .pbtn svg {
+    width: 22px;
+    height: 22px;
+  }
+  .pbtn.big svg {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+/* ---------- Touch devices (any width) ---------- */
+@media (hover: none) {
+  /* Hover-revealed affordances must be always-visible on touch */
+  .card-remove {
+    opacity: 1;
+  }
+}
+
+/* Phones hold the hardware volume rocker — the on-screen volume group only
+   crowds the control row there. Tablets/desktops keep it. */
+@media (hover: none) and (max-width: 600px) {
+  .vol-group {
+    display: none;
+  }
+}

@@ -1,0 +1,6 @@
+<resources>
+    <!-- Must stay in sync with `colors.bg` in src/theme.ts. This is the window
+         background, so it's what the viewer sees during the cold-start window
+         and anywhere a screen doesn't paint over it. -->
+    <color name="aurora_bg">#0b0c14</color>
+</resources>

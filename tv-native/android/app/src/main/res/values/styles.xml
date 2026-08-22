@@ -1,0 +1,22 @@
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <!-- Customize your theme here. -->
+        <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <!-- The window background is drawn under everything and then covered
+             completely, so by default every screen paid for an extra full-screen
+             fill. Measured with `debug.hwui.overdraw`: the home screen was 4x+
+             overdraw everywhere and the GPU was burning 9ms of a 16.7ms frame
+             budget, which is what actually made the app feel heavy — the CPU side
+             was only 3.3ms.
+
+             It has to be a real colour, not @null: the system draws this during
+             the cold-start window before React mounts, so @null gives a black
+             flash. Aurora's page background keeps the launch seamless. Each
+             screen's own root background was dropped to match, so this one
+             shows through instead. -->
+        <item name="android:windowBackground">@color/aurora_bg</item>
+    </style>
+
+</resources>

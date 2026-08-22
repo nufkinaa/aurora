@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "aurora",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server.js"],
+      "port": 4000
+    },
+    {
+      "name": "aurora-attach",
+      "url": "http://localhost:4000"
+    }
+  ]
+}

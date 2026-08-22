@@ -1,0 +1,164 @@
+// Aurora boot: profile gate -> router -> screens.
+import "./focus.js";
+import { $, el } from "./ui.js";
+import { route, startRouter, navigate } from "./router.js";
+import { state, loadProfiles, setProfile, savedToken } from "./state.js";
+import { api, setAuthToken } from "./api.js";
+import { connect } from "./ws.js";
+import { renderHome } from "./screens/home.js";
+import { renderMovies, renderShows, renderMyList } from "./screens/browse.js";
+import { renderSearch } from "./screens/search.js";
+import { renderDetail } from "./screens/discover-detail.js";
+import { renderPlayer } from "./screens/player.js";
+import { renderGames } from "./screens/games.js";
+import { renderRequests } from "./screens/requests.js";
+import { renderPreferences } from "./screens/preferences.js";
+import { renderPickForMe } from "./screens/pickforme.js";
+import { showProfileGate } from "./screens/profiles.js";
+import { showShortcutsOverlay } from "./screens/shortcuts.js";
+
+route("/", renderHome);
+route("/movies", renderMovies);
+route("/shows", renderShows);
+route("/list", renderMyList);
+route("/search", renderSearch);
+route("/games", renderGames);
+// One detail page for everything — a title looks the same whether it is on
+// disk, streamable, or both (see screens/discover-detail.js).
+route("/movie/:id", (root, p) => renderDetail(root, { source: "library", type: "movie", id: p.id }));
+route("/show/:id", (root, p) => renderDetail(root, { source: "library", type: "show", id: p.id }));
+route("/play/:id", renderPlayer);
+route("/requests", renderRequests); // no longer in nav; kept for deep links
+route("/discover/:type/:id", (root, p) => renderDetail(root, { source: "discover", type: p.type, id: p.id }));
+route("/preferences", renderPreferences);
+route("/pick", renderPickForMe);
+
+// "?" anywhere opens the keyboard shortcuts overlay
+document.addEventListener("keydown", (e) => {
+  if (e.key === "?" && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || "")) {
+    showShortcutsOverlay();
+  }
+});
+
+const paintProfileChip = () => {
+  if (!state.profile) return;
+  $("#nav-avatar").textContent = state.profile.avatar;
+  $("#nav-avatar").style.background = state.profile.color;
+  $("#nav-profile-name").textContent = state.profile.name;
+};
+
+// Nav turns solid once scrolled past the hero's top edge
+window.addEventListener("scroll", () => {
+  $("#nav").classList.toggle("solid", window.scrollY > 24);
+}, { passive: true });
+$("#nav").classList.add("solid");
+
+// On narrow screens the nav is a swipeable strip. Fade the clipped edge so
+// it's visible that more items exist, and nudge it once so the swipe is
+// discoverable without knowing.
+{
+  const nav = $("#nav");
+  const paintEdges = () => {
+    nav.classList.toggle("clip-right", nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 4);
+    nav.classList.toggle("clip-left", nav.scrollLeft > 4);
+  };
+  nav.addEventListener("scroll", paintEdges, { passive: true });
+  window.addEventListener("resize", paintEdges);
+  paintEdges();
+
+  // One-time peek: scroll a little and back so the strip visibly moves
+  if (nav.scrollWidth > nav.clientWidth && !localStorage.getItem("aurora-nav-hinted")) {
+    localStorage.setItem("aurora-nav-hinted", "1");
+    setTimeout(() => {
+      nav.scrollTo({ left: 90, behavior: "smooth" });
+      setTimeout(() => nav.scrollTo({ left: 0, behavior: "smooth" }), 650);
+    }, 900);
+  }
+}
+
+// Back behaves like a TV app: leave sub-pages toward home, never exit blindly.
+// Overlays (player, game stage, modals, profile gate) own Back themselves -
+// they carry .ui-overlay, and this handler registered first can't rely on
+// their preventDefault, so it checks the DOM instead.
+document.addEventListener("ui-back", (e) => {
+  const hash = location.hash || "#/";
+  if (hash.startsWith("#/play/")) return; // the player owns Back
+  if (document.querySelector(".ui-overlay")) return;
+  e.preventDefault();
+  if (hash === "#/" || hash === "") return;
+  if (history.length > 1) history.back();
+  else navigate("#/");
+});
+
+$("#nav-profile").addEventListener("click", () => {
+  showProfileGate(() => {
+    paintProfileChip();
+    navigate("#/");
+    // force re-render if already home
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  });
+});
+
+const boot = async () => {
+  connect();
+
+  try {
+    await loadProfiles();
+  } catch {
+    document.getElementById("app").append(
+      el("div", { class: "empty", style: { paddingTop: "30vh" } },
+        el("div", { class: "glyph" }, "📡"),
+        "Can't reach the Aurora server."
+      )
+    );
+    return;
+  }
+
+  const start = () => {
+    paintProfileChip();
+    startRouter(document.getElementById("app"));
+  };
+
+  // Enter a profile without the gate when we safely can: password-free ones
+  // freely, and protected ones if this browser session still holds a valid
+  // unlock token (survives reloads, not a browser restart).
+  const enterProtectedWithToken = async (p) => {
+    const tok = savedToken(p.id);
+    if (!tok) return false;
+    setAuthToken(tok);
+    try {
+      await api.profileState(p.id); // 200 = token still valid
+      await setProfile(p, tok);
+      start();
+      return true;
+    } catch {
+      setAuthToken(null);
+      return false;
+    }
+  };
+
+  // Admin-locked profiles never auto-enter — back to the gate, where the tile
+  // shows as locked.
+  const p = state.profile || (state.profiles.length === 1 ? state.profiles[0] : null);
+  if (p && p.locked) {
+    showProfileGate(start);
+  } else if (p && !p.hasPassword) {
+    await setProfile(p);
+    start();
+  } else if (p && p.hasPassword && (await enterProtectedWithToken(p))) {
+    // entered via saved session token
+  } else {
+    showProfileGate(start);
+  }
+};
+
+boot();
+
+// The AI tab only exists when the server has an AI key configured.
+// Failure here is silent by design: no key, no tab, nothing else changes.
+api
+  .aiStatus()
+  .then((s) => {
+    if (s && s.enabled) document.getElementById("nav-pick")?.classList.remove("hidden");
+  })
+  .catch(() => {});
