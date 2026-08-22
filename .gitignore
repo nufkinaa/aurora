@@ -23,6 +23,7 @@ tv-app/build/
 .shots/
 docs/TV-APP-HANDOFF.md
 docs/TV-APP-PLAN.md
+docs/dev-plan/
 tv-native/HANDOFF.md
 tv-native/PLAYBACK.md
 tv-native/PLAYER-REWRITE.md
