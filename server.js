@@ -106,6 +106,27 @@ app.use((req, res, next) => {
   next();
 });
 
+// authMode "required" is the internet-facing posture (nufurora.com): every
+// data and stream route needs a session, not just the profile-parameterized
+// ones — an open /api/library or /stream/* would hand the whole catalog and
+// the videos themselves to anyone who finds the port. Sessionless holes are
+// an explicit allowlist: health, auth itself, and non-secret display config.
+// Admin surfaces pass on their own X-Admin-Password check, and the static
+// shell stays open (the login screen needs its HTML/JS/CSS). Registered only
+// in required mode — open and hybrid behave exactly as before this existed.
+if (config.AUTH_MODE === "required") {
+  const authz = require("./src/lib/authz");
+  const OPEN_PATHS = /^\/api\/(ping|me|server-info|auth\/)/;
+  app.use((req, res, next) => {
+    if (!/^\/(api|stream|avatars)\//.test(req.path)) return next();
+    if (OPEN_PATHS.test(req.path)) return next();
+    if (authz.sessionFor(req)) return next();
+    if (realtime.isAdmin(req)) return next();
+    res.status(401).json({ error: "sign in first", signinRequired: true });
+  });
+}
+
+app.use(require("./src/routes/auth"));
 app.use(require("./src/routes/api"));
 app.use(require("./src/routes/profiles"));
 app.use(require("./src/routes/stream"));
@@ -206,6 +227,17 @@ ocr.events.on("job", (job) => {
 
 // Resume any downloads that were mid-flight when the server last stopped.
 require("./src/media/downloads").resume();
+
+// Sign-in rollout (prompt 10): the moment authMode leaves "open", make sure
+// every existing profile has an account to log in with. Idempotent — already-
+// migrated profiles are skipped — and it backs up profiles.json first.
+if (config.AUTH_MODE !== "open") {
+  const migrated = require("./src/users").migrateFromProfiles();
+  console.log(
+    `[auth] mode=${config.AUTH_MODE}` +
+      (migrated.length ? ` — migrated ${migrated.length} profile(s) to accounts:\n  ${migrated.join("\n  ")}` : ""),
+  );
+}
 
 // Initial scan + periodic rescan
 scanner.scan();

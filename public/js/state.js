@@ -14,6 +14,8 @@ export const state = {
   ws: null,
   pendingItems: {},     // id -> item handed to the player without a server round-trip
   adminName: "the admin", // what UI copy calls whoever runs the server (configurable)
+  authMode: "open",     // "open" | "hybrid" | "required" (from /api/me at boot)
+  user: null,           // signed-in account {id, username, name, profileIds, hasGoogle} or null
 };
 
 export const loadProfiles = async () => {

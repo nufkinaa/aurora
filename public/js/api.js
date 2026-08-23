@@ -90,6 +90,20 @@ export const api = {
   },
 
   serverInfo: () => json("/api/server-info"),
+
+  // ---- sign-in (prompt 10). The session rides an HttpOnly cookie the browser
+  // sends by itself — nothing to attach client-side.
+  me: () => json("/api/me"),
+  login: (username, password) => post("/api/auth/login", { username, password }),
+  logout: () => post("/api/auth/logout", {}),
+  signupRequest: (fields) => post("/api/auth/signup", fields),
+  accountSessions: () => json("/api/auth/sessions"),
+  revokeSession: (key) => json(`/api/auth/sessions/${encodeURIComponent(key)}`, { method: "DELETE" }),
+  changeAccountPassword: (currentPassword, newPassword) =>
+    post("/api/auth/password", { currentPassword, newPassword }),
+  googleStart: () => post("/api/auth/google/start", {}),
+  googlePoll: (pollId) => post("/api/auth/google/poll", { pollId }),
+  googleLink: (pollId) => post("/api/auth/google/link", { pollId }),
   suggest: (q, type, limit) =>
     json(`/api/search/suggest?q=${encodeURIComponent(q)}${type ? `&type=${type}` : ""}${limit ? `&limit=${limit}` : ""}`),
   intro: (key) => json(`/api/intro/${encodeURIComponent(key)}`),

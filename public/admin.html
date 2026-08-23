@@ -339,6 +339,20 @@
         </table></div>
         <div class="empty-note" id="req-empty">No one is waiting for approval.</div>
       </section>
+      <section id="auth-section" class="hidden">
+        <h2>Account requests <span class="pill" id="signup-count">0</span> <span class="note">sign-in accounts — approved people log in with these</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Asked</th><th>Username</th><th>Real name</th><th>Note</th><th>From</th><th></th></tr></thead>
+          <tbody id="signup-requests"></tbody>
+        </table></div>
+        <div class="empty-note" id="signup-empty">No account requests waiting.</div>
+        <h2 style="margin-top:18px">Accounts <span class="note">who can sign in, and which profiles each one owns</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Username</th><th>Name</th><th>Profiles</th><th>Password</th><th>Google</th><th></th></tr></thead>
+          <tbody id="accounts-table"></tbody>
+        </table></div>
+        <div class="empty-note hidden" id="accounts-empty">No accounts yet — they appear when signup requests are approved (or when the profile migration runs).</div>
+      </section>
       <section>
         <h2>Devices &amp; IPs per profile <span class="note">who has been getting in</span></h2>
         <div id="profile-access"></div>
@@ -1093,6 +1107,124 @@
       loadProfileAccess();
     });
 
+    // ---------- sign-in accounts (prompt 10) ----------
+    // The whole section stays hidden while authMode is "open" and nothing
+    // account-shaped exists yet, so the panel doesn't advertise a system
+    // that isn't switched on.
+    async function loadAuth() {
+      let mode = "open";
+      try { mode = (await json("/api/server-info")).authMode || "open"; } catch {}
+      let pending = [];
+      let accounts = [];
+      let profs = [];
+      try { pending = (await json("/api/admin/signups")).pending || []; } catch {}
+      try { accounts = (await json("/api/admin/users")).users || []; } catch {}
+      try { profs = await json("/api/admin/profiles"); } catch {}
+      const show = mode !== "open" || pending.length > 0 || accounts.length > 0;
+      $("#auth-section").classList.toggle("hidden", !show);
+      if (!show) return;
+
+      $("#signup-count").textContent = pending.length;
+      $("#signup-count").classList.toggle("live", pending.length > 0);
+      $("#signup-empty").classList.toggle("hidden", pending.length > 0);
+      $("#signup-requests").innerHTML = pending.map((r) => `
+        <tr>
+          <td class="muted">${ago(new Date(r.requestedAt).toISOString())}</td>
+          <td><strong>@${esc(r.username)}</strong></td>
+          <td>${esc(r.name || "—")}</td>
+          <td class="muted">${esc(r.note || "—")}</td>
+          <td class="muted">${esc(r.ip || "?")}${r.device ? " · " + esc((r.device.device || "?") + " / " + (r.device.os || "?")) : ""}</td>
+          <td style="white-space:nowrap">
+            <button class="mini" data-signup-ok="${esc(r.id)}" data-signup-name="${esc(r.username)}">Approve</button>
+            <button class="mini danger" data-signup-no="${esc(r.id)}" data-signup-name="${esc(r.username)}">Reject</button>
+          </td>
+        </tr>`).join("");
+
+      // Accounts: each profile renders as a toggle chip — highlighted means
+      // this account owns it. One click flips it and saves.
+      $("#accounts-empty").classList.toggle("hidden", accounts.length > 0);
+      $("#accounts-table").innerHTML = accounts.map((u) => `
+        <tr>
+          <td><strong>@${esc(u.username)}</strong>${u.migrated ? ' <span class="note">migrated</span>' : ""}</td>
+          <td>${esc(u.name || "—")}</td>
+          <td>${profs.map((p) => `
+            <button class="mini" style="margin:1px${u.profileIds.includes(p.id) ? ";background:var(--accent,#8b7bff);color:#fff" : ";opacity:0.55"}"
+              data-acct-prof="${esc(p.id)}" data-acct-id="${esc(u.id)}">${esc(p.avatar || "")} ${esc(p.name)}</button>`).join("")}</td>
+          <td>${u.hasPassword
+            ? `🔒 <button class="mini" data-acct-pw="${esc(u.id)}" data-acct-name="${esc(u.username)}">Reset</button>`
+            : `<span class="pill warn">NO PASSWORD</span> <button class="mini" data-acct-pw="${esc(u.id)}" data-acct-name="${esc(u.username)}">Set one</button>`}</td>
+          <td>${u.hasGoogle ? "✅" : '<span class="muted">—</span>'}</td>
+          <td><button class="mini danger" data-acct-del="${esc(u.id)}" data-acct-name="${esc(u.username)}">Delete</button></td>
+        </tr>`).join("");
+      // stash for the toggle handler
+      loadAuth._accounts = accounts;
+    }
+
+    $("#signup-requests").addEventListener("click", async (e) => {
+      const ok = e.target.closest("[data-signup-ok]");
+      const no = e.target.closest("[data-signup-no]");
+      const btn = ok || no;
+      if (!btn) return;
+      const name = btn.dataset.signupName;
+      if (no && !confirm(`Reject the account request for "@${name}"?`)) return;
+      btn.disabled = true;
+      const id = ok ? ok.dataset.signupOk : no.dataset.signupNo;
+      const r = await adminFetch(`/api/admin/signups/${encodeURIComponent(id)}/${ok ? "approve" : "reject"}`, { method: "POST" });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        toast(err.error || "Failed");
+        btn.disabled = false;
+        return;
+      }
+      toast(ok ? `Approved @${name} — now give them their profiles below` : `Rejected @${name}`);
+      loadAuth();
+      loadBadges();
+    });
+
+    $("#accounts-table").addEventListener("click", async (e) => {
+      const pw = e.target.closest("[data-acct-pw]");
+      if (pw) {
+        const val = prompt(`New password for @${pw.dataset.acctName} (4+ characters):`);
+        if (!val) return;
+        const r = await adminFetch(`/api/admin/users/${encodeURIComponent(pw.dataset.acctPw)}/password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newPassword: val }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          return toast(err.error || "Failed");
+        }
+        toast(`Password set for @${pw.dataset.acctName} — go tell them in person, don't text it`);
+        loadAuth();
+        return;
+      }
+      const del = e.target.closest("[data-acct-del]");
+      if (del) {
+        if (!confirm(`Delete the account "@${del.dataset.acctName}"? Their profiles stay — only the sign-in goes.`)) return;
+        const r = await adminFetch(`/api/admin/users/${encodeURIComponent(del.dataset.acctDel)}`, { method: "DELETE" });
+        if (!r.ok) return toast("Failed");
+        toast(`Deleted @${del.dataset.acctName}`);
+        loadAuth();
+        return;
+      }
+      const chip = e.target.closest("[data-acct-prof]");
+      if (!chip) return;
+      const acct = (loadAuth._accounts || []).find((u) => u.id === chip.dataset.acctId);
+      if (!acct) return;
+      const pid = chip.dataset.acctProf;
+      const next = acct.profileIds.includes(pid)
+        ? acct.profileIds.filter((x) => x !== pid)
+        : [...acct.profileIds, pid];
+      const r = await adminFetch(`/api/admin/users/${encodeURIComponent(acct.id)}/profiles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileIds: next }),
+      });
+      if (!r.ok) return toast("Failed");
+      loadAuth();
+    });
+
     // ---------- profiles ----------
     async function loadProfiles() {
       const profs = await json("/api/admin/profiles");
@@ -1214,7 +1346,7 @@
         const put = (id, n) => { $(id).textContent = n > 0 ? String(n) : ""; };
         put("#badge-moderation", counts.requests);
         put("#badge-downloads", counts.downloads);
-        put("#badge-profiles", profReqs.length);
+        put("#badge-profiles", profReqs.length + (counts.signups || 0));
       } catch {}
     }
 
@@ -1526,7 +1658,7 @@
       live: () => loadClients(),
       analytics: () => loadAnalytics(),
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
-      profiles: () => { loadProfileRequests(); loadProfileAccess(); loadProfiles(); },
+      profiles: () => { loadProfileRequests(); loadProfileAccess(); loadProfiles(); loadAuth(); },
       server: () => { loadServer(); loadTimeseries(); loadUpdateCheck(); },
       downloads: () => { loadDownloads(); loadDisk(); loadLibraryList(); loadLimits(); },
       moderation: () => { loadRequests(); loadBans(); loadIntros(); },

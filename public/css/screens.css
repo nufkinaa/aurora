@@ -2911,3 +2911,105 @@
      fixed 236px fits comfortably at this width anyway. */
   .pfm-go { width: 100%; padding: 15px 0; }
 }
+
+/* ---------- Sign-in (prompt 10) ---------- */
+/* Shown instead of the profile wall when the server requires accounts. Same
+   composition as .profiles-gate: a quiet wash, one focused card. */
+.login-gate {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  padding: 6vh var(--page-x) 8vh;
+  background: var(--bg-wash);
+}
+.login-brand { text-align: center; }
+.login-logo {
+  font-size: clamp(2.6rem, 6vw, 4rem);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  background: linear-gradient(100deg, var(--accent), #b76cff 35%, #4ea3ff 65%, var(--accent));
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: greet-shine 8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .login-logo { animation: none; } }
+.login-tag { color: var(--text-faint); margin-top: 2px; }
+
+.login-card {
+  width: min(400px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 14px);
+  padding: 26px 24px;
+  display: flex;
+  flex-direction: column;
+}
+.login-card h2 { margin: 0 0 14px; }
+.login-card .field { margin: 0 0 10px; }
+.login-card input { width: 100%; }
+.login-sub { color: var(--text-faint); font-size: 0.9rem; margin: -6px 0 14px; }
+.login-submit { margin-top: 6px; width: 100%; }
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-faint);
+  font-size: 0.85rem;
+  margin: 16px 0 12px;
+}
+.login-divider::before,
+.login-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+.login-google-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.g-mark {
+  font-weight: 900;
+  background: linear-gradient(45deg, #4285f4 0 25%, #ea4335 25% 50%, #fbbc05 50% 75%, #34a853 75%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.login-google-steps { text-align: center; color: var(--text-soft, var(--text)); line-height: 1.5; margin-top: 14px; }
+.login-google-code {
+  font-size: 1.9rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-align: center;
+  margin: 12px 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+.login-google-wait { color: var(--text-faint); font-size: 0.85rem; text-align: center; }
+.login-google { display: flex; flex-direction: column; align-items: center; }
+.login-google .btn { align-self: center; }
+
+.login-foot { margin-top: 18px; text-align: center; color: var(--text-faint); font-size: 0.92rem; }
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.link-btn:hover { opacity: 0.85; }
+
+/* Account section in Preferences (prompt 10) */
+.account-devices { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.account-device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.account-pw-form { margin: 10px 0; max-width: 340px; }
+.account-pw-form .field { margin-bottom: 8px; }

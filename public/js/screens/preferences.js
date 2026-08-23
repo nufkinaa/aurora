@@ -309,6 +309,92 @@ export const renderPreferences = async (root) => {
       })),
   );
 
+  // ---------- account (sign-in) section — only when the server runs accounts ----------
+  const accountSection = () => {
+    const u = state.user;
+    const body = el("div", { class: "pref-list page-pad" });
+
+    // devices signed in to this account, with per-session revoke
+    const devices = el("div", { class: "account-devices" });
+    const paintDevices = async () => {
+      devices.innerHTML = "";
+      let rows = [];
+      try { rows = (await api.accountSessions()).sessions || []; } catch { return; }
+      const ago = (t) => {
+        const m = Math.floor((Date.now() - t) / 60000);
+        if (m < 2) return "just now";
+        if (m < 60) return `${m} min ago`;
+        if (m < 48 * 60) return `${Math.floor(m / 60)}h ago`;
+        return `${Math.floor(m / 1440)} days ago`;
+      };
+      // device arrives as {browser, os, device} (realtime.parseDevice)
+      const deviceLabel = (d) =>
+        d && typeof d === "object"
+          ? [d.device, d.browser, d.os].filter((x) => x && x !== "Other").join(" · ") || "Unknown device"
+          : d || "Unknown device";
+      for (const s of rows) {
+        devices.append(el("div", { class: "account-device" },
+          el("div", { style: { flex: "1" } },
+            el("div", {}, `${deviceLabel(s.device)}${s.current ? " — this one" : ""}`),
+            el("div", { class: "pref-note", style: { padding: 0, margin: 0 } }, `last seen ${ago(s.lastSeenAt)}`)),
+          !s.current && el("button", {
+            class: "btn small focusable",
+            onclick: async () => {
+              try { await api.revokeSession(s.key); paintDevices(); toast("Signed that device out"); }
+              catch { toast("Couldn't sign it out", "⚠️"); }
+            },
+          }, "Sign out"),
+        ));
+      }
+    };
+    paintDevices();
+
+    const changePassword = () => {
+      const cur = el("input", { type: "password", class: "focusable", placeholder: "Current password", autocomplete: "current-password" });
+      const nw = el("input", { type: "password", class: "focusable", placeholder: "New password (4+ chars)", autocomplete: "new-password" });
+      const err = el("div", { class: "pw-error hidden" });
+      const form = el("div", { class: "account-pw-form" },
+        el("div", { class: "field" }, cur),
+        el("div", { class: "field" }, nw),
+        err,
+        el("div", { style: { display: "flex", gap: "10px" } },
+          el("button", {
+            class: "btn btn-primary small focusable",
+            onclick: async () => {
+              err.classList.add("hidden");
+              try {
+                await api.changeAccountPassword(cur.value, nw.value);
+                form.remove();
+                toast("Password changed", "🔒");
+              } catch (e) {
+                err.textContent = e.message || "That didn't work.";
+                err.classList.remove("hidden");
+              }
+            },
+          }, "Save"),
+          el("button", { class: "btn small focusable", onclick: () => form.remove() }, "Cancel")),
+      );
+      body.append(form);
+      cur.focus();
+    };
+
+    body.append(
+      el("div", { class: "pref-note", style: { padding: 0 } },
+        `Signed in as `, el("strong", {}, `@${u.username}`), u.name && u.name !== u.username ? ` (${u.name})` : ""),
+      el("div", { style: { display: "flex", gap: "10px", flexWrap: "wrap", margin: "10px 0" } },
+        el("button", { class: "btn small focusable", onclick: changePassword }, "Change password"),
+        el("button", {
+          class: "btn small focusable",
+          onclick: async () => {
+            try { await api.logout(); } catch {}
+            location.reload(); // boot lands on the sign-in screen
+          },
+        }, "Sign out")),
+      devices,
+    );
+    return body;
+  };
+
   paint();
   screen.append(
     el("div", { class: "browse-head" },
@@ -317,6 +403,9 @@ export const renderPreferences = async (root) => {
     ),
     el("div", { class: "pref-grid" },
       profileSection,
+      state.authMode !== "open" && state.user &&
+        section("Account", "The sign-in that owns this profile — sessions last 90 days per device.",
+          accountSection()),
       section("Appearance", "Yours alone — follows this profile to every device.",
         appearanceSection()),
       section("Your home page", "Reorder or hide the rows on Home. New kinds of rows appear at the end. The TV follows this order too.",

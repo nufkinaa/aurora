@@ -5,6 +5,7 @@ const profiles = require("../profiles");
 const scanner = require("../media/scanner");
 const realtime = require("../realtime");
 const telemetry = require("../telemetry");
+const authz = require("../lib/authz");
 
 const router = express.Router();
 
@@ -26,6 +27,12 @@ const gate = (req, res, next) => {
   // (unapproved) profile's state readable, and let anyone grow profiles.json one
   // junk key at a time. No profile, no access.
   if (!profiles.exists(id)) return res.status(404).json({ error: "Not found" });
+  // authMode "required": the request must carry a session that OWNS this
+  // profile (open/hybrid: profileAllowed is always true — legacy flows intact).
+  // The profile password below stays as an optional second layer.
+  if (!authz.profileAllowed(req, id)) {
+    return res.status(401).json({ error: "sign in first", signinRequired: true });
+  }
   if (profiles.isLocked(id)) return res.status(403).json({ error: "locked by admin" });
   if (!profiles.isProtected(id)) return next();
   if (profiles.tokenValid(id, req.get("X-Profile-Token"))) return next();
@@ -33,11 +40,31 @@ const gate = (req, res, next) => {
 };
 
 router.get("/api/profiles", (req, res) => {
-  res.json(profiles.publicList());
+  // The profile wall, mode-aware (prompt 10):
+  //   open     — everyone sees every profile (today's behavior)
+  //   hybrid   — no session: [] (the wall is hidden; old TV builds render an
+  //              empty picker instead of crashing). With a session: only the
+  //              account's own profiles.
+  //   required — no session: 401 (new clients show the login screen); with a
+  //              session: only the account's own profiles.
+  if (config.AUTH_MODE === "open") return res.json(profiles.publicList());
+  const s = authz.sessionFor(req);
+  if (!s) {
+    if (config.AUTH_MODE === "required") {
+      return res.status(401).json({ error: "sign in first", signinRequired: true });
+    }
+    return res.json([]);
+  }
+  res.json(profiles.publicList().filter((p) => (s.user.profileIds || []).includes(p.id)));
 });
 
 // Verify a password and get an access token (no-op token for open profiles).
 router.post("/api/profiles/:id/unlock", async (req, res) => {
+  // required mode: unlocking someone else's profile needs their session, not
+  // just their profile password
+  if (!authz.profileAllowed(req, req.params.id)) {
+    return res.status(401).json({ error: "sign in first", signinRequired: true });
+  }
   const result = await profiles.unlock(req.params.id, (req.body || {}).password);
   if (result.error) {
     const status =
@@ -89,6 +116,11 @@ router.post("/api/profiles/:id/password", async (req, res) => {
 // A real name is required: it's the only thing that lets the admin tell who is
 // actually asking. (Profiles that predate this flow keep working as they are.)
 router.post("/api/profiles", async (req, res) => {
+  // required mode: new watch profiles are requested by signed-in people
+  // (account signup is the separate /api/auth/signup flow)
+  if (config.AUTH_MODE === "required" && !authz.sessionFor(req)) {
+    return res.status(401).json({ error: "sign in first", signinRequired: true });
+  }
   const body = req.body || {};
   const password = typeof body.password === "string" ? body.password : "";
   if (password.length < MIN_PASSWORD) {

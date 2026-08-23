@@ -64,8 +64,19 @@ const listEntry = (i) => {
 };
 
 // Non-secret display config the client needs before a profile is picked.
+// authMode tells the client whether to boot into the login screen; google
+// says whether a "Sign in with Google" button should exist at all.
+// The admin's real name is member data: once accounts are on, pre-session
+// callers get the generic fallback instead (spec: "pre-auth, NO endpoint
+// leaks member data" — this route was called out by name).
 router.get("/api/server-info", (req, res) => {
-  res.json({ adminName: require("../config").ADMIN_NAME });
+  const config = require("../config");
+  const authed = config.AUTH_MODE === "open" || !!require("../lib/authz").sessionFor(req);
+  res.json({
+    adminName: authed ? config.ADMIN_NAME : "the admin",
+    authMode: config.AUTH_MODE,
+    google: !!process.env.GOOGLE_CLIENT_ID,
+  });
 });
 
 router.get("/api/library", (req, res) => {
@@ -85,7 +96,12 @@ router.get("/api/item/:id", (req, res) => {
   // profile's stored play-item (keeps transcode URLs, title, poster, season/
   // episode, resume). Falls back to the bare stub below if nothing is stored.
   if (id.startsWith("torrent|")) {
-    const stored = req.query.profile ? profiles.getStreamItem(req.query.profile, id) : null;
+    // required mode: a profile's stored play-item (what they were watching)
+    // is personal — only its owner's session may rebuild it
+    const stored =
+      req.query.profile && require("../lib/authz").profileAllowed(req, req.query.profile)
+        ? profiles.getStreamItem(req.query.profile, id)
+        : null;
     if (stored) return res.json({ ...stored, subtitles: stored.subtitles || [] });
     const [, infoHash, fileIdx] = id.split("|");
     const idx = parseInt(fileIdx, 10) || 0;
@@ -265,8 +281,19 @@ router.get("/api/home", (req, res) => {
   // (Continue Watching, My List, ratings, liked genres) require a valid unlock
   // token. Admin-locked profiles never personalize. Otherwise serve the
   // generic (non-personalized) home instead.
+  //
+  // authMode notes: the route stays 200 without a session in open AND hybrid —
+  // old TV builds health-check this exact URL and treat non-ok as "server
+  // dead" (findings/auth.md §5). In required mode a session is demanded (the
+  // updated clients resolve via /api/ping instead), and a profile that the
+  // session's account doesn't own degrades to the generic home, same as a
+  // wrong profile-token does today.
+  if (require("../config").AUTH_MODE === "required" && !require("../lib/authz").sessionFor(req)) {
+    return res.status(401).json({ error: "sign in first", signinRequired: true });
+  }
   const profileId =
     reqProfile &&
+    require("../lib/authz").profileAllowed(req, reqProfile) &&
     !profiles.isLocked(reqProfile) &&
     (!profiles.isProtected(reqProfile) || profiles.tokenValid(reqProfile, req.get("X-Profile-Token")))
       ? reqProfile

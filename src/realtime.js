@@ -60,6 +60,10 @@ const broadcastAll = (data) => {
   if (!wss) return;
   const msg = JSON.stringify(data);
   wss.clients.forEach((ws) => {
+    // authMode "required": broadcasts can carry member data (download_update
+    // has title names), so unauthenticated sockets don't get them. ws.authed
+    // is stamped at upgrade time in attach(). Open/hybrid: everyone, as ever.
+    if (config.AUTH_MODE === "required" && !ws.authed && !ws.isAdmin) return;
     if (ws.readyState === WebSocket.OPEN) ws.send(msg);
   });
 };
@@ -221,6 +225,16 @@ const attach = (server) => {
 
   wss.on("connection", (ws, req) => {
     const ip = clientIp(req);
+
+    // Session check at upgrade time (browsers send cookies on same-origin WS
+    // upgrades; the TV can set X-Session). Only broadcastAll consults it, and
+    // only in authMode "required" — see the note there. Lazy require: authz
+    // pulls users→profiles, and realtime loads very early at boot.
+    try {
+      ws.authed = !!require("./lib/authz").sessionFor(req);
+    } catch {
+      ws.authed = false;
+    }
 
     if (bans.data[ip]) {
       ws.send(JSON.stringify({ type: "banned", reason: bans.data[ip].reason || "" }));

@@ -17,6 +17,7 @@ import { renderWrapped } from "./screens/wrapped.js";
 import { renderTaste } from "./screens/taste.js";
 import { renderPickForMe } from "./screens/pickforme.js";
 import { showProfileGate } from "./screens/profiles.js";
+import { showLoginScreen } from "./screens/login.js";
 import { showShortcutsOverlay } from "./screens/shortcuts.js";
 import { initAurora } from "./aurora.js";
 import { initScreensaver } from "./screensaver.js";
@@ -152,6 +153,19 @@ $("#nav-profile").addEventListener("click", () => {
 
 const boot = async () => {
   connect();
+
+  // Sign-in comes before the profile wall when the server requires it
+  // (authMode hybrid/required). On an "open" server — today's default — this
+  // resolves instantly and nothing about boot changes. A throw here (older
+  // server without /api/me) is treated as open.
+  try {
+    const me = await api.me();
+    state.authMode = me.authMode || "open";
+    state.user = me.user || null;
+    if (state.authMode !== "open" && !state.user) {
+      state.user = await showLoginScreen();
+    }
+  } catch {}
 
   try {
     await loadProfiles();

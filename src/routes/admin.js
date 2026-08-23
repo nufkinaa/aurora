@@ -510,7 +510,11 @@ router.get("/api/admin/pending-counts", (req, res) => {
       .list()
       .filter((j) => j.status === "pending").length;
   } catch {}
-  res.json({ requests, downloads });
+  let signups = 0;
+  try {
+    signups = require("../users").pendingList().length;
+  } catch {}
+  res.json({ requests, downloads, signups });
 });
 
 // Skip-intro marks manager: list everything the household has marked, with

@@ -155,6 +155,17 @@ module.exports = {
   DOWNLOAD_MIN_FREE_PERCENT:
     typeof userConfig.downloadMinFreePercent === "number" ? userConfig.downloadMinFreePercent : 10,
   NOTIFICATIONS: userConfig.notifications || {},
+  // Sign-in rollout switch (prompt 10). THE escape hatch: one config line +
+  // restart moves between modes, in either direction.
+  //   "open"     — today's behavior, no accounts anywhere (default)
+  //   "hybrid"   — accounts exist; pre-session /api/profiles returns [] (the
+  //                wall is hidden) but legacy profile-token flows and old TV
+  //                builds keep working end-to-end
+  //   "required" — every profile-parameterized read needs a session that
+  //                owns the profile; flip only after the TV ships a login
+  AUTH_MODE: ["open", "hybrid", "required"].includes(userConfig.authMode)
+    ? userConfig.authMode
+    : "open",
   FFMPEG,
   FFPROBE,
   TESSERACT,
