@@ -954,6 +954,40 @@
   max-width: 900px;
 }
 
+/* The compact sources box: bounded height, quality filters as a fixed
+   header, rows scrolling inside — the list used to run the whole page. */
+.source-box {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: min(50vh, 560px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg-raised);
+  padding: 10px;
+}
+.source-box .source-filters {
+  margin-bottom: 10px;
+}
+.source-box .source-list {
+  overflow-y: auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  /* room so a focused row's ring isn't sheared by the scroll clip */
+  padding: 4px;
+  scroll-padding-block: 56px;
+}
+/* the ★ BEST row stays put while the rest scrolls under it */
+.source-box .best-pinned {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-raised);
+  border-radius: 12px;
+  /* mask the flex gap so scrolling rows don't peek around the pinned row */
+  box-shadow: 0 0 0 6px var(--bg-raised);
+}
+
 /* Quality filter bar above the sources list */
 .source-filters {
   display: flex;

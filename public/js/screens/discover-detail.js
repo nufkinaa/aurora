@@ -724,6 +724,8 @@ const loadSources = async (
               ? () => navigate(`#/play/${owned.id}`)
               : onPlay;
           const row = sourceRow(s, play, onDownload, job);
+          // the ★ BEST pick stays visible while the list scrolls in its box
+          if (s.recommended) row.classList.add("best-pinned");
           rows.set(key, row);
           return row;
         }),
@@ -788,8 +790,9 @@ const loadSources = async (
               ),
             ),
           ]),
-      buildFilterBar(streams, renderList),
-      listHost,
+      // The compact box (elia: "a small box, not kilometres down the page"):
+      // filters are its non-scrolling header, the rows scroll inside it.
+      el("div", { class: "source-box" }, buildFilterBar(streams, renderList), listHost),
     );
     renderList(streams);
   } catch {
