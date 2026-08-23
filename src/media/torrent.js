@@ -874,6 +874,34 @@ const _readyTorrent = (infoHash) =>
 // settled the fresh stream sees the full bitfield and flows immediately. For
 // genuinely starved swarms the periodic recreate is harmless churn.
 const { PassThrough } = require("stream");
+// Give the swarm a REAL readahead target around the playhead. webtorrent's
+// own stream iterator marks at most TWO pieces critical ahead of a read
+// (min(1MB/pieceLength, 2) — which rounds to ZERO for the 4MB pieces of
+// typical movie releases), so a seek into cold territory crawled forward one
+// piece at a time. A critical flag lets a faster wire hotswap-steal a slow
+// wire's in-flight blocks for that piece — the "fetch HERE now" nudge a
+// playhead needs. Upstream never clears _critical flags, but a flag on a
+// completed piece is inert; the window is clamped to the requested range so
+// no marks land outside what a read will actually select (inert flags on a
+// pack's NEIGHBORING files would be permanent).
+const READAHEAD_BYTES = 8 * 1024 * 1024;
+const markCriticalWindow = (t, file, fromByte, lastByte) => {
+  try {
+    if (!t || t.done || !t.pieceLength || !t.pieces || !t.pieces.length) return;
+    const abs = file.offset + fromByte;
+    const pFrom = Math.floor(abs / t.pieceLength);
+    // Byte budget, piece-count cap, inclusive range: count pieces = window.
+    const count = Math.min(Math.ceil(READAHEAD_BYTES / t.pieceLength), 16);
+    const pTo = Math.min(
+      pFrom + count - 1,
+      Math.floor((file.offset + lastByte) / t.pieceLength),
+      t.pieces.length - 1,
+    );
+    if (pFrom > pTo) return;
+    t.critical(pFrom, pTo);
+  } catch {}
+};
+
 const recoveringStream = (file, { start = 0, end, torrent: t } = {}) => {
   const last = end === undefined ? file.length - 1 : end;
   const wanted = last - start + 1; // exactly what the caller promised its client
@@ -971,6 +999,9 @@ const recoveringStream = (file, { start = 0, end, torrent: t } = {}) => {
         // from the swarm.
       }
     } catch {}
+    // Every (re)spawned swarm read re-anchors the critical window at its
+    // current offset — initial seeks and mid-range heals alike.
+    markCriticalWindow(t, file, start + sent, last);
     try {
       inner = file.createReadStream({ start: start + sent, end: last });
     } catch (err) {

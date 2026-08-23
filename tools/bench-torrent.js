@@ -120,6 +120,8 @@ const benchAria2 = async () => {
     "--enable-rpc", `--rpc-listen-port=${port}`, "--rpc-secret=bench",
     "--rpc-listen-all=false", `--dir=${tmp}`, "--file-allocation=none",
     "--seed-time=0", "--enable-dht=true", "--bt-enable-lpd=false",
+    `--dht-file-path=${path.join(tmp, "dht.dat")}`,
+    `--stop-with-process=${process.pid}`, // no orphan if this script dies
     "--max-connection-per-server=8", "--quiet",
   ], { stdio: "ignore" });
   try {
@@ -163,7 +165,10 @@ const benchAria2 = async () => {
     }
   } finally {
     try { proc.kill(); } catch {}
-    setTimeout(() => { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} }, 1500);
+    // AWAITED: a fire-and-forget timer is discarded by process.exit and
+    // leaked the downloaded file into %TEMP% on every run (review finding).
+    await new Promise((r) => setTimeout(r, 1500));
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
   }
 };
 
