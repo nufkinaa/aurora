@@ -1,17 +1,19 @@
-// Aurora borealis for the nav's empty stretch — the real structure, not
-// stylized blobs (elia's ask): curtains with a bright green lower edge,
-// rays thinning upward through teal into a violet fringe, slow folds
-// rippling through. CSS gradients can't fold; this tiny canvas can.
+// Aurora borealis for the nav's empty stretch, matched to elia's reference
+// footage (an Iceland timelapse): flowing BANDS of saturated green — bright
+// core, soft feathered edges, a diffuse veil hanging below, thickness and
+// length that swell and taper, curls that come and go. One to three bands
+// share the sky, each on its own randomized schedule, so no two sessions
+// (or minutes) look alike.
 //
-// Cost discipline: the canvas is ~600×64, painting is capped at 30fps and
-// runs ONLY while the lights are visible (nav solid, tab in front) — the
-// MutationObserver on the nav's class starts/stops the loop. Reduced
-// motion gets a single still frame. No assets, no network.
+// Cost discipline: painted at half resolution (~300×34) and browser-upscaled
+// for the glow, capped at 30fps, and the loop runs ONLY while the lights are
+// visible (nav solid, tab in front) — a MutationObserver on the nav's class
+// starts/stops it. Reduced motion gets a single still frame. No assets.
 const RAMP_H = 64;
 
-// One 1px-wide vertical color ramp per curtain. Columns are drawn by
-// scaling this strip with drawImage, so no gradient objects are allocated
-// per frame (that churn is what makes naive canvas effects slow).
+// One 1px-wide vertical color ramp per band (its cross-section, top→bottom).
+// Columns are drawn by scaling this strip with drawImage, so no gradient
+// objects are allocated per frame.
 const makeRamp = (stops) => {
   const c = document.createElement("canvas");
   c.width = 1;
@@ -24,60 +26,52 @@ const makeRamp = (stops) => {
   return c;
 };
 
+const rand = (a, b) => a + Math.random() * (b - a);
+
+// Cross-section: faint blue whisper above, bright core just above the
+// middle, then a LONG diffuse green veil below — the reference's bands have
+// real body under the core, not a hard edge.
+const makeBandRamp = (strength) =>
+  makeRamp([
+    [0, "rgba(120, 160, 255, 0)"],
+    [0.12, `rgba(110, 160, 255, ${0.08 * strength})`],
+    [0.3, `rgba(60, 235, 150, ${0.4 * strength})`],
+    [0.44, `rgba(140, 255, 190, ${0.9 * strength})`], // the bright core
+    [0.62, `rgba(60, 225, 150, ${0.5 * strength})`],
+    [0.82, `rgba(35, 180, 130, ${0.24 * strength})`], // the veil below
+    [1, "rgba(20, 150, 115, 0)"],
+  ]);
+
+// Each band gets its own random personality at page load.
+const makeBand = () => ({
+  ramp: makeBandRamp(rand(0.8, 1.05)),
+  speed: rand(0.24, 0.4) * (Math.random() < 0.5 ? -1 : 1),
+  meander: rand(0.0022, 0.0038), // centerline wander frequency
+  mAmp: rand(0.18, 0.28),
+  curlF: rand(0.008, 0.013), // the tighter random curls
+  thick: rand(0.55, 0.8), // of the strip's height
+  yOff: rand(-0.08, 0.08),
+  phase: rand(0, Math.PI * 2),
+  presF: rand(0.045, 0.085), // how often it appears/disappears
+  presOff: rand(0, Math.PI * 2),
+  lenF: rand(0.03, 0.06), // how its span drifts and stretches
+  lenOff: rand(0, Math.PI * 2),
+  alpha: rand(1.4, 1.8), // compensates the stack of ≤1 envelopes below
+});
+
 export const initAurora = (canvas) => {
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   const nav = canvas.closest(".nav");
   const calm = matchMedia("(prefers-reduced-motion: reduce)");
 
-  // Matched to elia's reference footage (Iceland timelapse): the aurora
-  // there is not vertical curtains but a BAND — a river of saturated green
-  // flowing diagonally, bright core low in its cross-section, soft
-  // feathered edges, thickness swelling and tapering along its length.
-  // Each ramp is one band's vertical cross-section (top → bottom).
-  const BANDS = [
-    {
-      ramp: makeRamp([
-        [0, "rgba(120, 160, 255, 0)"],
-        [0.16, "rgba(110, 160, 255, 0.08)"],
-        [0.4, "rgba(60, 235, 150, 0.4)"],
-        [0.62, "rgba(130, 255, 185, 0.85)"], // the bright core, below middle
-        [0.78, "rgba(50, 215, 140, 0.42)"],
-        [1, "rgba(20, 150, 115, 0)"],
-      ]),
-      speed: 0.14,
-      meander: 0.003, // how the band's centerline wanders
-      mAmp: 0.24,
-      thick: 0.62, // of the strip's height
-      tVar: 0.4, // thickness swell along the length
-      phase: 0,
-      alpha: 1.1,
-    },
-    {
-      // a fainter, thinner echo band drifting the other way
-      ramp: makeRamp([
-        [0, "rgba(110, 150, 255, 0)"],
-        [0.35, "rgba(50, 210, 150, 0.22)"],
-        [0.6, "rgba(90, 245, 175, 0.42)"],
-        [1, "rgba(25, 150, 120, 0)"],
-      ]),
-      speed: -0.09,
-      meander: 0.0021,
-      mAmp: 0.3,
-      thick: 0.38,
-      tVar: 0.5,
-      phase: 2.2,
-      alpha: 0.7,
-    },
-  ];
+  const BANDS = [makeBand(), makeBand(), makeBand()];
 
   let raf = null;
   let last = 0;
-  // Painted at 1/3 resolution and upscaled by the browser's smoothing —
-  // that interpolation IS the glow: hard 1px columns become soft 3px rays,
-  // exactly the diffuse look photographs of the real thing have. (Crisp
-  // full-res columns read as a bar chart.) Also a 9× cheaper frame.
-  const DOWN = 3;
+  // Half resolution: enough interpolation to glow, crisp enough to read as
+  // light rather than blur (1/3 looked low-res per elia).
+  const DOWN = 2;
   const size = () => {
     const w = Math.max(1, Math.round(canvas.clientWidth / DOWN));
     const h = Math.max(1, Math.round(canvas.clientHeight / DOWN));
@@ -87,34 +81,64 @@ export const initAurora = (canvas) => {
     }
   };
 
-  const paint = (t) => {
+  const paint = (t, still = false) => {
     size();
     const W = canvas.width;
     const H = canvas.height;
+    const cw = W * DOWN; // strip width in CSS pixels (the wave math's unit)
     ctx.clearRect(0, 0, W, H);
-    for (const b of BANDS) {
+    // Presence: each band fades in, lives a while, fades away on its own
+    // slow clock — the sky holds one to three at any moment, and the
+    // brightest is lifted so it never goes completely empty (elia: 1–3).
+    const presences = BANDS.map((b) =>
+      Math.min(1, Math.max(0, 1.6 * Math.sin(t * b.presF + b.presOff) + 0.35)),
+    );
+    const top = Math.max(...presences);
+    if (top < 0.45) presences[presences.indexOf(top)] = 0.45;
+    for (let bi = 0; bi < BANDS.length; bi++) {
+      const b = BANDS[bi];
+      let presence = presences[bi];
+      if (still && bi === 0) presence = Math.max(presence, 0.8);
+      if (presence < 0.04) continue;
+
+      // Dynamic span: the band's center and length both drift, so it
+      // stretches across the sky, shrinks to a short arc, wanders sideways.
+      const center = cw * (0.5 + 0.3 * Math.sin(t * b.lenF + b.lenOff));
+      const halfLen =
+        cw * (0.3 + 0.18 * Math.sin(t * b.lenF * 0.73 + b.lenOff * 1.9));
+
       const s = t * b.speed;
+      // Curls flare up and die down over time — the tight kinks real bands
+      // throw when they're active.
+      const curlAmp =
+        0.12 * Math.max(0, Math.sin(t * 0.19 + b.phase * 2.3));
+
       for (let x = 0; x < W; x++) {
-        const cx = x * DOWN; // the wave math lives in CSS pixels
-        // The band's centerline meanders across the strip — a slow wave
-        // whose phase is itself waved, so the path arcs and doubles back
-        // instead of repeating (this is the "river" of the footage).
+        const cx = x * DOWN;
+        const u = (cx - center) / halfLen;
+        if (u < -1 || u > 1) continue;
+        // flat through the middle, soft only at the actual ends
+        const endTaper = Math.sqrt(1 - u * u);
+
+        // Centerline: slow meander (phase itself waved, so arcs never
+        // repeat) + the occasional tighter curl riding on top.
         const yC =
           H *
           (0.5 +
+            b.yOff +
             b.mAmp *
-              Math.sin(cx * b.meander + s * 0.6 + b.phase + 1.8 * Math.sin(cx * b.meander * 0.31 + s * 0.2)));
-        // Thickness swells and tapers along the length; where it pinches
-        // toward zero the band fades into wisps like the reference's tails.
-        const swell =
-          0.62 + 0.38 * Math.sin(cx * 0.0017 + s * 0.45 + b.phase * 1.6);
-        const th = H * b.thick * swell;
+              Math.sin(
+                cx * b.meander + s * 0.9 + b.phase + 1.8 * Math.sin(cx * b.meander * 0.31 + s * 0.3),
+              ) +
+            curlAmp * Math.sin(cx * b.curlF + s * 1.6 + b.phase * 3));
+
+        const swell = 0.6 + 0.4 * Math.sin(cx * 0.0017 + s * 0.7 + b.phase * 1.6);
+        const th = H * b.thick * swell * (0.5 + 0.5 * endTaper);
         if (th < 1) continue;
-        // Brightness flows along the band independently of thickness, with
-        // a whisper of fine streak texture riding on top.
-        const flow = 0.55 + 0.45 * Math.sin(cx * 0.0023 + s * 0.7 + b.phase);
-        const streak = 0.9 + 0.1 * Math.sin(cx * 0.05 + s * 1.3);
-        const bright = flow * swell * streak;
+
+        const flow = 0.7 + 0.3 * Math.sin(cx * 0.0023 + s + b.phase);
+        const streak = 0.9 + 0.1 * Math.sin(cx * 0.05 + s * 1.8);
+        const bright = flow * swell * streak * endTaper * presence;
         if (bright < 0.04) continue;
         ctx.globalAlpha = Math.min(1, Math.pow(bright, 1.25) * b.alpha + 0.03);
         ctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, x, yC - th / 2, 1, th);
@@ -137,7 +161,7 @@ export const initAurora = (canvas) => {
   const kick = () => {
     if (!visible()) return; // opacity fade hides the last frame anyway
     if (calm.matches) {
-      paint(4); // one still frame mid-sway
+      paint(4, true); // one still frame, at least one band guaranteed
       return;
     }
     if (raf == null) raf = requestAnimationFrame(loop);
