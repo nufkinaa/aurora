@@ -1,4 +1,14 @@
-# Aurora
+<p align="center">
+  <img src="docs/media/banner.svg" alt="Aurora" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/nufkinaa/aurora/actions/workflows/ci.yml"><img src="https://github.com/nufkinaa/aurora/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-38b26c" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/node-%E2%89%A520-8b7bff" alt="Node 20+">
+  <img src="https://img.shields.io/badge/dependencies-4-37d4a0" alt="4 runtime dependencies">
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-4ec3c9" alt="PRs welcome"></a>
+</p>
 
 **A personal streaming platform, served straight from your PC to every screen in the house.**
 
@@ -7,6 +17,17 @@ Aurora exists because the "family movie server" experience is usually a compromi
 And when something isn't in your library, Aurora can find a source for it, stream it while it downloads, and — if you approve — file it permanently into the library, cover art and subtitles included.
 
 > **Aurora is built for a private LAN.** Most APIs have no authentication by design — it trusts your household the way a shared bookshelf does. Keep the server behind your firewall; the boot banner warns you if your network address doesn't look private.
+
+---
+
+## Screenshots
+
+| | |
+|:---:|:---:|
+| ![Home](docs/screenshots/home.png) | ![Title page](docs/screenshots/detail.png) |
+| *Home — hero billboard, personalized rows* | *One page per title — on disk, streamable, or both* |
+| ![Browse](docs/screenshots/browse.png) | <img src="docs/screenshots/mobile.png" alt="Mobile" width="46%"> |
+| *Browse — your library and the whole catalog together* | *Every screen works on a phone* |
 
 ---
 
@@ -102,7 +123,7 @@ Without ffmpeg, playback of browser-friendly files still works, but there's no t
 
 ---
 
-## Under the hood
+## Architecture
 
 **Server** — plain Node + Express, four runtime dependencies, no build step. The frontend is vanilla ES modules and CSS; the TV-browser experience is a homemade spatial-navigation engine (`public/js/focus.js`) that maps D-pad input to DOM focus.
 
@@ -129,6 +150,27 @@ Aurora trusts the network it runs on, so the network is the security boundary:
 ## Legal
 
 Aurora is a media *player and organizer* for your own files. The torrent integration (via the public Torrentio index) is provided for retrieving content you have the right to access — public-domain and freely licensed media, or personal copies of media you own. What you stream or download with it is your responsibility, and the laws on this differ by country. The authors don't host, index, or endorse any content.
+
+## Roadmap
+
+What's being worked on next, roughly in order:
+
+- **A much faster torrent engine** — measured overhaul of buffering and seek latency, including an aria2-assisted "turbo" stream path
+- **Search worth 2026** — instant autocomplete, typo tolerance, one card per title everywhere
+- **Speed & resilience** — server-cached artwork, lazy loading, graceful behavior on bad connections
+- **Personalization** — themes and accent colors, custom avatars, reorderable home rows, kids profiles, letterboxd import
+- **Real recommendations** — a per-profile taste model that can explain every pick
+- **Accounts & sign-in** — a proper login instead of the profile wall
+
+Ideas and votes welcome in [issues](https://github.com/nufkinaa/aurora/issues).
+
+## Contributing
+
+Small codebase, no build step, four dependencies — easy to dive into. Start
+with [CONTRIBUTING.md](CONTRIBUTING.md); bug reports with reproduction steps
+are as valuable as patches. Security reports go through
+[SECURITY.md](SECURITY.md), and everyone here follows the
+[code of conduct](CODE_OF_CONDUCT.md).
 
 ## Development
 
@@ -157,7 +199,7 @@ test/                  node:test suites
 data/                  caches + JSON stores (gitignored)
 ```
 
-Issues and PRs welcome. If you're setting up your own instance and something in these docs doesn't survive contact with reality, that's a bug too — open an issue.
+If you're setting up your own instance and something in these docs doesn't survive contact with reality, that's a bug too — open an issue.
 
 ## License
 

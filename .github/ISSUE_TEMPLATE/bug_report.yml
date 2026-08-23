@@ -1,0 +1,45 @@
+name: "🐛 Bug report"
+description: Something is broken or behaving wrong
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - "🎬 Playback (player, seeking, subtitles)"
+        - "🌊 Torrent streaming / sources"
+        - "⬇️ Downloads (aria2, download-to-library)"
+        - "🖥️ Web UI (home, browse, detail, search)"
+        - "📱 Mobile browser"
+        - "📺 Android TV app (tv-native)"
+        - "🛠️ Admin panel"
+        - "🔌 Server / setup / scanning"
+        - "Other"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+      placeholder: |
+        1. Opened a show's detail page
+        2. Pressed the second source
+        3. Player spun forever with "Connecting to peers…"
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS the server runs on, Node version, device/browser you watched from, and the file/codec if playback-related.
+      placeholder: "Server: Windows 11, Node 22. Watching from: iPhone Safari. File: HEVC 10-bit MKV."
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Server log / console output
+      description: Relevant lines from the server console (or /admin → Logs) and the browser console, if any.
+      render: text

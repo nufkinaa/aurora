@@ -1,0 +1,32 @@
+name: "✨ Feature request"
+description: An idea that would make Aurora better
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the itch?
+      description: The situation where Aurora let you down or made you work too hard — the problem matters more than the solution.
+      placeholder: "Every evening I want to keep watching a show on my phone from where the TV left off, but…"
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - "🎬 Playback"
+        - "🌊 Torrents / sources"
+        - "⬇️ Downloads"
+        - "🖥️ Web UI"
+        - "📱 Mobile"
+        - "📺 Android TV app"
+        - "🛠️ Admin"
+        - "🔌 Server"
+        - "Other"
