@@ -2,7 +2,7 @@
 
 ## Aurora's security model, honestly stated
 
-Aurora is designed for a **trusted private LAN**. Library browsing, streaming,
+Aurora is designed for a **trusted private LAN** (It can be used with offLan networks of course). Library browsing, streaming,
 and download requests are deliberately unauthenticated — the network boundary
 (your firewall) is the security boundary. The admin panel is always
 password-gated, the built-in web proxy refuses private/local addresses, and
