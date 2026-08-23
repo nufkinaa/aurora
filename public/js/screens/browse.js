@@ -241,7 +241,7 @@ export const dropdown = (anchor, options, current, onPick) => {
     if (anchor.isConnected) anchor.focus({ preventScroll: true });
   };
   const onBack = (e) => { e.preventDefault(); close(); };
-  const panel = el("div", { class: "dropdown" },
+  const panel = el("div", { class: "dropdown ui-overlay" },
     ...options.map((o) => el("button", {
       class: `dropdown-item focusable ${o.value === current ? "on" : ""}`,
       onclick: () => { close(); if (o.value !== current) onPick(o.value); },

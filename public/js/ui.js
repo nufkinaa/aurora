@@ -132,6 +132,9 @@ export const restoreScrollY = (y) => {
   const tick = () => {
     if (stop) return;
     window.scrollTo(0, y);
+    // On TV-class engines body is the real scroll container and
+    // window.scrollTo alone is a silent no-op (see focus.js) — write both.
+    document.body.scrollTop = y;
     const at = window.scrollY || document.body.scrollTop || 0;
     if (Math.abs(at - y) > 4 && tries++ < 40) setTimeout(tick, 50);
     else give();
@@ -260,8 +263,14 @@ export const toast = (message, icon = "ℹ️", action = null) => {
   );
   toastRoot.append(node);
   // A WebSocket burst (several downloads finishing, OCR ticks) used to stack
-  // a whole column; three is plenty — drop the oldest.
-  while (toastRoot.childElementCount > 3) toastRoot.firstElementChild.remove();
+  // a whole column; three is plenty — drop the oldest, but never sacrifice a
+  // live Undo toast for a status blurb.
+  while (toastRoot.childElementCount > 3) {
+    const victim =
+      [...toastRoot.children].find((n) => !n.classList.contains("has-action")) ||
+      toastRoot.firstElementChild;
+    victim.remove();
+  }
   setTimeout(() => node.classList.add("hide"), 5200);
   setTimeout(() => node.remove(), 5800);
 };

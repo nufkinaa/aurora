@@ -1660,19 +1660,32 @@ export const renderDetail = async (root, { source, type, id }) => {
   // rebuilding the list), and an Undo that restores each episode's previous
   // state, so accidentally clearing a watched season is one tap back.
   if (state.profile && (lib || imdbId)) {
-    const applyBatch = async (rows, want) => {
-      markSeasonPill.disabled = true;
-      const before = markSeasonPill.textContent;
-      markSeasonPill.textContent = "Working…";
-      await Promise.allSettled(
-        rows.map(({ r, watched }) => setWatched(r, watched, true)),
+    // The progress row behind one episode (shared by renderEpisodes) — the
+    // undo snapshot needs position/duration, not just the boolean, or a
+    // half-watched episode loses its resume point to the round-trip.
+    const epProgress = (r) =>
+      r.local
+        ? progressFor(r.local.id)
+        : episodeProgressFor(imdbId, r.season, r.episode) ||
+          progressFor(streamProgressKey(imdbId, r.season, r.episode));
+    const epRestore = async (r, snap) => {
+      const id = r.local ? r.local.id : streamProgressKey(imdbId, r.season, r.episode);
+      await api.saveProgress(
+        state.profile.id,
+        id,
+        snap.position,
+        snap.duration,
+        r.local ? undefined : { imdbId, season: r.season, episode: r.episode, title: view.title },
       );
+    };
+    const applyBatch = async (ops) => {
+      if (markSeasonPill.disabled) return; // an Undo tap can't race a running batch
+      markSeasonPill.disabled = true;
+      markSeasonPill.textContent = "Working…";
+      await Promise.allSettled(ops.map((f) => f()));
       await refreshProgress();
-      renderEpisodes();
+      renderEpisodes(); // recomputes the real label
       markSeasonPill.disabled = false;
-      if (markSeasonPill.textContent === "Working…")
-        markSeasonPill.textContent = before;
-      return want;
     };
     markSeasonPill = el(
       "button",
@@ -1684,18 +1697,35 @@ export const renderDetail = async (root, { source, type, id }) => {
             seasons.find((s) => s.number === activeSeason) || seasons[0];
           const airStates = resolveAirStates(season.episodes);
           const rows = season.episodes.filter((_, i) => airStates[i] === "aired");
-          const prev = rows.map((r) => ({ r, watched: isWatchedRow(r) }));
+          const prev = rows.map((r) => {
+            const p = epProgress(r);
+            return {
+              r,
+              watched: isWatchedRow(r),
+              snap: p && p.duration ? { position: p.position, duration: p.duration } : null,
+            };
+          });
           const target = !rows.every(isWatchedRow);
-          await applyBatch(
-            prev.filter((p) => p.watched !== target).map(({ r }) => ({ r, watched: target })),
-            target,
-          );
+          const changed = prev.filter((p) => p.watched !== target);
+          await applyBatch(changed.map(({ r }) => () => setWatched(r, target, true)));
           toast(
             target
               ? `Season ${season.number} marked watched`
               : `Season ${season.number} marked unwatched`,
             "✅",
-            { label: "Undo", onClick: () => applyBatch(prev.filter((p) => p.watched !== target), null) },
+            {
+              label: "Undo",
+              onClick: () =>
+                applyBatch(
+                  changed.map(({ r, watched, snap }) => () =>
+                    watched
+                      ? setWatched(r, true, true)
+                      : snap
+                        ? epRestore(r, snap) // half-watched: resume point back
+                        : setWatched(r, false, true),
+                  ),
+                ),
+            },
           );
         },
       },

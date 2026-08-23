@@ -212,16 +212,18 @@ export const continueRow = (title, items, profileId, api) => {
                   label: "Undo",
                   onClick: async () => {
                     try {
-                      // Stream cards lose their stored meta with the clear —
-                      // send it along again so the row rebuilds whole.
-                      const meta = item.imdbId
-                        ? {
-                            imdbId: item.imdbId,
-                            season: item.season,
-                            episode: item.episode,
-                            title: item.title,
-                          }
-                        : undefined;
+                      // A stream card's clear deletes its WHOLE stored
+                      // play-item (streamItems row: cover, videoUrl,
+                      // transcodeBase…), not just progress — undo must send
+                      // the full item back or the rebuilt card is a zombie
+                      // with no id/poster/URL that can never be removed.
+                      const isStream =
+                        typeof item.id === "string" && item.id.startsWith("torrent|");
+                      let meta;
+                      if (isStream) {
+                        const { progress, upNext, ...rest } = item;
+                        meta = rest;
+                      }
                       await api.saveProgress(profileId, item.id, prev.position, prev.duration, meta);
                       if (parent && parent.isConnected) parent.insertBefore(node, anchor && anchor.isConnected ? anchor : null);
                     } catch {

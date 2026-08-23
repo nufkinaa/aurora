@@ -47,11 +47,14 @@ const paintProfileChip = () => {
   $("#nav-profile-name").textContent = state.profile.name;
 };
 
-// Nav turns solid once scrolled past the hero's top edge
-window.addEventListener("scroll", () => {
-  $("#nav").classList.toggle("solid", window.scrollY > 24);
-}, { passive: true });
-$("#nav").classList.add("solid");
+// Nav turns solid once scrolled past the hero's top edge. The initial state
+// runs through the same rule — it used to force .solid at boot, which kept
+// the chrome (and now the aurora's absence) wrong until the first scroll.
+const paintNavSolid = () =>
+  $("#nav").classList.toggle("solid", (window.scrollY || document.body.scrollTop || 0) > 24);
+window.addEventListener("scroll", paintNavSolid, { passive: true });
+window.addEventListener("hashchange", () => setTimeout(paintNavSolid, 0));
+paintNavSolid();
 
 // Live download pill: after requesting a download and leaving the page there
 // was zero feedback until you wandered back. One global subscription feeds a
