@@ -1,7 +1,7 @@
 // Discover: browse trending or search the whole catalogue, then open a title
 // on its own full-page detail screen (#/discover/:type/:id) to stream it.
 // Personal use, private network.
-import { el, icons, debounce } from "../ui.js";
+import { el, icons, debounce, posterImg } from "../ui.js";
 import { navigate } from "../router.js";
 import { api } from "../api.js";
 import { attachRowArrows } from "../rowArrows.js";
@@ -30,7 +30,7 @@ const discoverCard = (item) =>
     onclick: () => navigate(`#/discover/${item.type === "show" ? "series" : "movie"}/${item.imdbId || item.id}`),
   },
     item.poster
-      ? el("img", { class: "card-poster", src: item.poster, loading: "lazy", decoding: "async", alt: "" })
+      ? posterImg(item.poster, item.title)
       : el("div", { class: "card-fallback" }, item.title),
     el("div", { class: "card-shade" }),
     item.inLibrary && el("span", { class: "disc-tag have" }, "IN LIBRARY"),

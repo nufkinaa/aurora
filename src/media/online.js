@@ -14,6 +14,7 @@ const store = new JsonStore(path.join(config.DATA_DIR, "online-metadata.json"), 
 const POSTER_DIR = path.join(config.CACHE_DIR, "posters");
 
 const RETRY_FAILED_MS = 7 * 24 * 3600 * 1000;
+const RETRY_POSTER_MS = 24 * 3600 * 1000; // failed poster downloads retry daily
 
 const keyFor = (type, title) => `${type}|${title.toLowerCase().trim()}`;
 
@@ -51,16 +52,38 @@ const fetchJson = async (url, attempt = 0) => {
 };
 
 // Download an image once; serve it locally afterwards.
+// A poster is an image or it is nothing: this used to write whatever a 200
+// answered with (HTML error pages, truncated bodies) and the existsSync
+// short-circuit then served it FOREVER — one of the grey-tile mechanisms.
+// Now the bytes are sniffed (magic numbers + minimum size), written
+// atomically, and the cached file is re-validated whenever this runs again
+// for the same URL. (Entries written before 2026-08-23 whose poster field is
+// already set are never re-fetched — the client's onerror fallback covers
+// them; a disk audit found zero poisoned files in the existing cache.)
+const { MIN_IMAGE_BYTES, magicOk, validImageFile } = require("../lib/imgcheck");
 const cachePoster = async (url) => {
   if (!url) return null;
+  // Historical: every cached poster is named .jpg whatever its real format —
+  // validation sniffs bytes, never the extension.
   const name = crypto.createHash("md5").update(url).digest("hex") + ".jpg";
   const file = path.join(POSTER_DIR, name);
-  if (fs.existsSync(file)) return name;
+  if (fs.existsSync(file)) {
+    if (validImageFile(file)) return name;
+    try {
+      fs.unlinkSync(file); // poisoned cache entry — refetch below
+    } catch {}
+  }
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
     if (!res.ok) return null;
+    const type = String(res.headers.get("content-type") || "");
+    if (type && !/^image\//i.test(type)) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length < MIN_IMAGE_BYTES || !magicOk(buf)) return null;
     fs.mkdirSync(POSTER_DIR, { recursive: true });
-    fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+    const tmp = `${file}.tmp`;
+    fs.writeFileSync(tmp, buf);
+    fs.renameSync(tmp, file); // atomic — never a half-written poster
     return name;
   } catch {
     return null;
@@ -200,12 +223,38 @@ const enrich = async (items) => {
   if (running || !config.ONLINE_METADATA) return;
   running = true;
   let fetched = 0;
+  // Poster retries are bounded per pass: enrich() runs on every scan, so a
+  // large backlog of dead posters must never hold `running` (and new-title
+  // metadata) hostage for the whole pass.
+  let posterRetries = 0;
 
   for (const item of items) {
     const key = keyFor(item.type, item.title);
     const existing = store.data[key];
     if (existing) {
-      if (!existing.failed) continue;
+      if (!existing.failed) {
+        // Metadata is fine but the poster download failed at the time —
+        // retry it daily instead of leaving the tile grey forever (the URL
+        // is kept for exactly this).
+        if (
+          !existing.poster &&
+          existing.posterUrl &&
+          posterRetries++ < 10 &&
+          Date.now() - (existing.posterFailedAt || 0) > RETRY_POSTER_MS
+        ) {
+          const poster = await cachePoster(existing.posterUrl);
+          if (poster) {
+            existing.poster = poster;
+            delete existing.posterFailedAt;
+            fetched++;
+          } else {
+            existing.posterFailedAt = Date.now();
+          }
+          store.save();
+          await sleep(900);
+        }
+        continue;
+      }
       if (Date.now() - existing.fetchedAt < RETRY_FAILED_MS) continue;
     }
 
@@ -217,7 +266,10 @@ const enrich = async (items) => {
 
       if (meta) {
         meta.poster = await cachePoster(meta.posterUrl);
-        delete meta.posterUrl;
+        // Keep the URL when the poster couldn't be fetched, so the daily
+        // retry above has something to work with.
+        if (meta.poster) delete meta.posterUrl;
+        else meta.posterFailedAt = Date.now();
         store.data[key] = { ...meta, fetchedAt: Date.now() };
         fetched++;
       } else {

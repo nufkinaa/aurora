@@ -182,6 +182,21 @@ const orderRows = (rows) =>
     })
     .map((entry) => entry.row);
 
+// Tiny seeded PRNG (mulberry32) + a (profile, day) seed for the home page's
+// sampled rows — see the `random:` note at the hero.select call.
+const mulberry32 = (seed) => () => {
+  seed |= 0;
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+const dailyRandom = (profileId) => {
+  let h = Math.floor(Date.now() / 86400000);
+  for (const c of String(profileId || "")) h = (h * 31 + c.charCodeAt(0)) | 0;
+  return mulberry32(h);
+};
+
 // Composed home screen for a profile: hero + rows. Blends your downloaded
 // library with streamable (Discover) titles and personalises by star ratings,
 // liked genres, and watch history. Stays fast: streamable data comes from the
@@ -267,6 +282,11 @@ router.get("/api/home", (req, res) => {
     likedGenres,
     progress,
     streamItems: profileId ? profiles.getStreamItems(profileId) : {},
+    // Seeded per (profile, day): the billboard sampling stays varied but is
+    // byte-stable within a day — a Math.random draw made every /api/home
+    // response unique, so Express's ETag never matched and the full body
+    // re-downloaded on every single visit (measured: zero 304s, ever).
+    random: dailyRandom(profileId),
   });
 
   const rows = [];
@@ -435,11 +455,32 @@ router.get("/api/home", (req, res) => {
           const { seasons, subtitles, audio, video, extras, ...rest } = i;
           return rest;
         }
-      : listEntry;
+      : cardStrip;
   res.json({
-    hero: heroItems.map(strip),
-    rows: orderRows(rows).map((r) => ({ ...r, items: r.items.map(strip) })),
+    hero: heroItems.map((i) => strip(i, { synopsis: true })),
+    rows: orderRows(rows).map((r) => ({ ...r, items: r.items.map((i) => strip(i)) })),
   });
 });
+
+// Card-sized entries for the web's home rows. Measured 2026-08-23: the
+// default response was 367.5 KB raw, of which 140 KB was `subtitles` arrays,
+// 78 KB full synopses and ~90 KB player-only URLs — none of it rendered by a
+// card (the detail page and the player both fetch /api/item themselves).
+// Torrent resume entries are the exception and pass through WHOLE: their
+// stored play-meta is the only copy the player can resume a stream from.
+// The hero keeps its synopsis — it's the one place home prints one.
+// (tv-native's ?slim=1 shape above is untouched.)
+const cardStrip = (i, { synopsis = false } = {}) => {
+  if (!i) return i;
+  if (typeof i.id === "string" && i.id.startsWith("torrent|")) return i;
+  const {
+    seasons, subtitles, audio, video, extras, files,
+    url, videoUrl, downloadUrl, hlsUrl, transcodeBase, transcodeV,
+    synopsis: syn,
+    ...rest
+  } = i;
+  if (synopsis && syn) rest.synopsis = syn;
+  return rest;
+};
 
 module.exports = router;

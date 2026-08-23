@@ -1,7 +1,7 @@
 // Shared pieces of the detail page: the hero block and the library-side
 // "My List" button. The page itself lives in discover-detail.js, which serves
 // library titles and streamable titles as one screen.
-import { el, icons, resBadge, toast } from "../ui.js";
+import { el, icons, resBadge, toast, posterImg, artUrl } from "../ui.js";
 import { api } from "../api.js";
 import { state } from "../state.js";
 import { starRating } from "../components.js";
@@ -44,13 +44,13 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null } = {}) => 
         class: `hero-backdrop ${item.backdrop ? "sharp" : ""}`,
         style: {
           backgroundImage: item.backdrop
-            ? `url("${item.backdrop}"), url("${item.cover}")`
-            : `url("${item.cover}")`,
+            ? `url("${artUrl(item.backdrop)}"), url("${artUrl(item.cover)}")`
+            : `url("${artUrl(item.cover)}")`,
         },
       }),
     el("div", { class: "hero-fade" }),
     item.cover
-      ? el("img", { class: "detail-poster", src: item.cover, alt: "" })
+      ? posterImg(item.cover, item.title, "detail-poster", "detail-poster card-fallback")
       : el("div", { class: "detail-poster card-fallback" }, item.title),
     el("div", { class: "detail-info" },
       el("div", { class: "hero-kicker" }, item.type === "show" ? "Series" : "Film"),

@@ -8,8 +8,22 @@ export const setAuthToken = (t) => { authToken = t || null; };
 const withToken = (headers = {}) =>
   authToken ? { ...headers, "X-Profile-Token": authToken } : headers;
 
-const json = async (url, options = {}) => {
-  const res = await fetch(url, { ...options, headers: withToken(options.headers) });
+const json = async (url, options = {}, attempt = 0) => {
+  let res;
+  try {
+    res = await fetch(url, { ...options, headers: withToken(options.headers) });
+  } catch (err) {
+    // A network blip (flaky wifi, server restarting). GETs are idempotent —
+    // retry twice with a breath between instead of failing the screen.
+    // HTTP error statuses are NOT retried here: some are meaningful signals
+    // (the transcode probe's 504 means "not ready", not "try again").
+    const method = (options.method || "GET").toUpperCase();
+    if (method === "GET" && attempt < 2) {
+      await new Promise((r) => setTimeout(r, 600 * (attempt + 1) + Math.random() * 300));
+      return json(url, options, attempt + 1);
+    }
+    throw err;
+  }
   if (!res.ok) {
     // Surface the server's own `error` when it sent one: routes reject with a
     // message written for the viewer ("that name is already taken"), which is

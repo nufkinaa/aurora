@@ -1,5 +1,5 @@
 // Shared UI pieces: media cards and horizontal rows.
-import { el, icons, fmtDuration, toast } from "./ui.js";
+import { el, icons, fmtDuration, toast, posterImg } from "./ui.js";
 import { navigate } from "./router.js";
 import { state, progressFor, ratingFor } from "./state.js";
 import { api } from "./api.js";
@@ -119,7 +119,7 @@ export const card = (item, { wide = false, onRemove = null, showKind = false } =
       onclick: () => openItem(item),
     },
     item.cover
-      ? el("img", { class: "card-poster", src: item.cover, loading: "lazy", decoding: "async", alt: "" })
+      ? posterImg(item.cover, item.title)
       : el("div", { class: "card-fallback" }, item.title),
     el("div", { class: "card-shade" }),
     item.source === "stream" && el("span", { class: "card-tag stream" }, "STREAM"),

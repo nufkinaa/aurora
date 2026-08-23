@@ -119,6 +119,112 @@ router.get("/img/still/:id", async (req, res) => {
   }
 });
 
+// ---------- external artwork proxy-cache ----------
+// Discover posters/backdrops hotlink external CDNs — measured 2026-08-23:
+// ~319 unique posters per home load, all from one host, at 200–650ms each.
+// That's the dominant real-world cold-load cost, and every CDN hiccup was a
+// grey tile. Fetch once, keep on disk, serve at LAN speed forever after.
+// STRICT allow-list — this must never become another open proxy (the /proxy
+// SSRF lesson): exact host match, https only, bytes sniffed before caching.
+const EXT_IMG_HOSTS = new Set([
+  "image.tmdb.org",
+  "images.metahub.space",
+  "live.metahub.space",
+  "static.tvmaze.com",
+]);
+const EXT_IMG_DIR = path.join(require("../config").CACHE_DIR, "posters-web");
+const MAX_EXT_IMAGES = 4000; // count cap; the byte cap below bounds each file
+const MAX_EXT_IMAGE_BYTES = 6 * 1024 * 1024; // backdrops can be big; originals aren't welcome
+const { MIN_IMAGE_BYTES, magicOk, sniffMime, validImageFile, readHead } = require("../lib/imgcheck");
+const crypto = require("crypto");
+try { fs.mkdirSync(EXT_IMG_DIR, { recursive: true }); } catch {}
+// Sweep with HYSTERESIS, every 100th write only: a per-write readdir+stat of
+// a 4000-entry dir would run synchronously on the same event loop that
+// serves video ranges — and at the cap it would run on EVERY write forever.
+// Trimming down to cap-400 means a full dir walk at most once per 400 writes.
+let extImgWrites = 0;
+const extImgSweep = () => {
+  try {
+    const entries = fs.readdirSync(EXT_IMG_DIR);
+    if (entries.length <= MAX_EXT_IMAGES) return;
+    entries
+      .map((f) => ({ f, m: fs.statSync(path.join(EXT_IMG_DIR, f)).mtimeMs }))
+      .sort((a, b) => a.m - b.m)
+      .slice(0, entries.length - (MAX_EXT_IMAGES - 400))
+      .forEach(({ f }) => { try { fs.unlinkSync(path.join(EXT_IMG_DIR, f)); } catch {} });
+  } catch {}
+};
+const extImgInflight = new Map(); // url -> promise (a row of 20 cards must fetch once)
+// Negative cache: without it a CDN hiccup turns one home load (~300 distinct
+// posters, each with a client-side retry) into waves of 15s upstream fetches.
+const extImgFails = new Map(); // url -> failedAt
+const EXT_FAIL_TTL = 5 * 60 * 1000;
+const extAllowed = (u) => {
+  try {
+    return u.startsWith("https://") && EXT_IMG_HOSTS.has(new URL(u).host);
+  } catch {
+    return false;
+  }
+};
+const fetchExtImage = (url, file) => {
+  let p = extImgInflight.get(url);
+  if (p) return p;
+  p = (async () => {
+    // Redirects are validated hop-by-hop against the same allow-list — an
+    // open redirect on a CDN must not turn this into a fetch of anything.
+    let target = url;
+    let res = null;
+    for (let hop = 0; hop < 3; hop++) {
+      res = await fetch(target, { signal: AbortSignal.timeout(15000), redirect: "manual" });
+      if (res.status < 300 || res.status >= 400) break;
+      const loc = new URL(res.headers.get("location") || "", target).href;
+      if (!extAllowed(loc)) throw new Error("redirect off allow-list");
+      target = loc;
+      res = null;
+    }
+    if (!res || !res.ok) throw new Error(`upstream ${res ? res.status : "redirect loop"}`);
+    const len = parseInt(res.headers.get("content-length") || "0", 10);
+    if (len > MAX_EXT_IMAGE_BYTES) throw new Error("image too large");
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MAX_EXT_IMAGE_BYTES) throw new Error("image too large");
+    if (buf.length < MIN_IMAGE_BYTES || !magicOk(buf)) throw new Error("not an image");
+    const tmp = `${file}.tmp`;
+    fs.writeFileSync(tmp, buf);
+    fs.renameSync(tmp, file);
+    if (++extImgWrites % 100 === 0) extImgSweep();
+    return file;
+  })();
+  extImgInflight.set(url, p);
+  const done = () => extImgInflight.delete(url);
+  p.then(done, done);
+  p.then(
+    () => extImgFails.delete(url),
+    () => {
+      if (extImgFails.size > 2000) extImgFails.clear();
+      extImgFails.set(url, Date.now());
+    },
+  );
+  return p;
+};
+router.get("/img/ext", async (req, res) => {
+  const url = String(req.query.u || "");
+  if (!extAllowed(url)) return res.status(403).send("host not allowed");
+  const file = path.join(EXT_IMG_DIR, crypto.createHash("md5").update(url).digest("hex") + ".img");
+  try {
+    if (!validImageFile(file)) {
+      const failedAt = extImgFails.get(url) || 0;
+      if (Date.now() - failedAt < EXT_FAIL_TTL) throw new Error("recently failed");
+      await fetchExtImage(url, file);
+    }
+    const head = readHead(file);
+    res.setHeader("Content-Type", head ? sniffMime(head) : "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=604800");
+    res.sendFile(file);
+  } catch {
+    res.status(502).send("artwork unavailable");
+  }
+});
+
 // Downloaded metadata posters (cached on disk by src/media/online.js)
 router.get("/img/meta/:name", (req, res) => {
   const online = require("../media/online");

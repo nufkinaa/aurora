@@ -1,5 +1,5 @@
 // Home: rotating hero billboard + shelves (Continue Watching, My List, ...)
-import { el, icons, fmtDuration, resBadge } from "../ui.js";
+import { el, icons, fmtDuration, resBadge, artUrl } from "../ui.js";
 import { api } from "../api.js";
 import { state } from "../state.js";
 import { shelfRow, continueRow, openItem } from "../components.js";
@@ -58,7 +58,16 @@ export const renderHome = async (root) => {
     ];
     let front = 0;
     const info = el("div", { class: "hero-info" });
-    const posterImg = el("img", { class: "hero-poster", alt: "", decoding: "async" });
+    const heroPoster = el("img", {
+      class: "hero-poster",
+      alt: "",
+      decoding: "async",
+      // Above the fold and the page's visual anchor — beat the lazy cards.
+      fetchpriority: "high",
+      // A failed poster hides rather than showing a broken-image glyph over
+      // the billboard; the next rotation's src assignment un-hides it.
+      onerror: function () { this.style.visibility = "hidden"; },
+    });
     // Dots are real buttons now, so they're tappable on a phone (a bare 8px
     // span is not a touch target). `go` is defined below — only called on tap.
     const dots = el("div", { class: "hero-dots" },
@@ -69,13 +78,6 @@ export const renderHome = async (root) => {
         }, el("span", { class: i === 0 ? "on" : "" }))
       )
     );
-
-    // Re-trigger a CSS animation on an element that may already be running it.
-    const restartAnimation = (node) => {
-      node.style.animation = "none";
-      void node.offsetWidth;
-      node.style.animation = "";
-    };
 
     // `dir`: 1 = moving forward (slide in from the right), -1 = backward,
     // 0 = first paint (no slide).
@@ -93,22 +95,22 @@ export const renderHome = async (root) => {
       // wants the poster, everything else the landscape art (see the
       // orientation: portrait rule in screens.css). Setting background-image
       // here instead would freeze that choice until the next rotation.
-      incoming.style.setProperty("--hero-art", item.backdrop ? `url("${item.backdrop}")` : "none");
-      incoming.style.setProperty("--hero-poster", `url("${item.cover}")`);
-      // Art backdrops run a per-rotation focus pull (blur 2px -> 0, reaching
-      // sharp ~1s before the next title lands) — restart it for this title.
-      restartAnimation(incoming);
+      incoming.style.setProperty("--hero-art", item.backdrop ? `url("${artUrl(item.backdrop)}")` : "none");
+      incoming.style.setProperty("--hero-poster", `url("${artUrl(item.cover)}")`);
+      // The focus pull lives on the ::after veil, keyed to `.on` — toggling
+      // the class across rotations restarts it, no forced reflow needed.
       incoming.classList.add("on");
       if (incoming !== layers[front]) {
         layers[front].classList.remove("on");
         front = 1 - front;
       }
 
-      posterImg.src = item.cover;
+      heroPoster.src = artUrl(item.cover);
+      heroPoster.style.visibility = "visible";
       // Slide the text + poster in from the direction of travel.
       if (dir !== 0) {
         const cls = dir > 0 ? "slide-next" : "slide-prev";
-        for (const node of [info, posterImg]) {
+        for (const node of [info, heroPoster]) {
           node.classList.remove("slide-next", "slide-prev");
           void node.offsetWidth;
           node.classList.add(cls);
@@ -165,9 +167,13 @@ export const renderHome = async (root) => {
       show(next, dir ?? (next > idx ? 1 : -1));
     };
 
+    let pastHero = false; // set by the scroll handler below
     heroTimer = setInterval(() => {
-      // don't rotate while the user is interacting with hero buttons, or just
-      // after they moved it themselves
+      // Don't rotate while the user is interacting with hero buttons or just
+      // moved it themselves — and don't burn image decodes + cross-fades when
+      // nobody can see it (background tab, or scrolled down into the rows;
+      // the TV app had exactly this bug and it re-rendered the world).
+      if (document.hidden || pastHero) return;
       if (Date.now() < holdUntil) return;
       if (!info.contains(document.activeElement)) show((idx + 1) % count, 1);
     }, HERO_DWELL_MS);
@@ -176,7 +182,7 @@ export const renderHome = async (root) => {
       layers[0],
       layers[1],
       el("div", { class: "hero-fade" }),
-      el("div", { class: "hero-inner" }, info, posterImg),
+      el("div", { class: "hero-inner" }, info, heroPoster),
       dots
     );
     screen.append(heroEl);
@@ -207,17 +213,35 @@ export const renderHome = async (root) => {
       }, { passive: true });
     }
 
-    // Scrolled past the hero but it's still peeking? Hold a steady 3px blur
-    // (reads as depth-of-field behind the rows) instead of the focus pull.
+    // Scrolled past the hero but it's still peeking? Hold the depth-of-field
+    // veil (see .hero.scrolled in screens.css) instead of the focus pull.
     // body is the real scroll container here, so listen to scroll wherever it
     // happens (capture — scroll events don't bubble) and read both scrollers.
+    // rAF-coalesced, with the hero height cached: the old version read
+    // offsetHeight (a forced layout) on EVERY scroll event.
+    let heroH = 0;
+    const measureHero = () => { heroH = heroEl.offsetHeight || 0; };
+    let scrollQueued = false;
     const onHeroScroll = () => {
-      const h = heroEl.offsetHeight || 0;
-      const y = window.scrollY || document.body.scrollTop || 0;
-      heroEl.classList.toggle("scrolled", y > h * 0.2);
+      if (scrollQueued) return;
+      scrollQueued = true;
+      requestAnimationFrame(() => {
+        scrollQueued = false;
+        const y = window.scrollY || document.body.scrollTop || 0;
+        // Two different thresholds on purpose: the depth-of-field veil kicks
+        // in early (rows overlapping), but rotation only pauses once the hero
+        // is genuinely out of view — at 0.2 it still fills most of the screen.
+        heroEl.classList.toggle("scrolled", y > heroH * 0.2);
+        pastHero = y > heroH * 0.9;
+      });
     };
+    measureHero();
     document.addEventListener("scroll", onHeroScroll, { passive: true, capture: true });
-    cleanups.push(() => document.removeEventListener("scroll", onHeroScroll, { capture: true }));
+    window.addEventListener("resize", measureHero);
+    cleanups.push(() => {
+      document.removeEventListener("scroll", onHeroScroll, { capture: true });
+      window.removeEventListener("resize", measureHero);
+    });
   } else {
     screen.append(
       el("div", { class: "empty", style: { paddingTop: "180px" } },

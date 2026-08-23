@@ -68,6 +68,48 @@ export const icons = {
   volumeOff: svg('<path d="M3 9v6h4l5 5V4L7 9H3zm18.5 3-2.2-2.2-1.4 1.4 2.2 2.2-2.2 2.2 1.4 1.4 2.2-2.2 2.2 2.2 1.4-1.4-2.2-2.2 2.2-2.2-1.4-1.4-2.2 2.2z" transform="scale(0.92)"/>'),
 };
 
+// Route external artwork through the server's disk cache (/img/ext): repeat
+// loads become LAN-instant and browsing survives a flaky internet. Local
+// /img/... URLs and unknown hosts pass through untouched — the server
+// enforces the same allow-list.
+const PROXY_ART_HOSTS = new Set([
+  "image.tmdb.org",
+  "images.metahub.space",
+  "live.metahub.space",
+  "static.tvmaze.com",
+]);
+export const artUrl = (u) => {
+  if (!u || typeof u !== "string" || !u.startsWith("https://")) return u;
+  try {
+    if (PROXY_ART_HOSTS.has(new URL(u).host))
+      return "/img/ext?u=" + encodeURIComponent(u);
+  } catch {}
+  return u;
+};
+
+// A poster <img> that can never strand a grey tile. Browsers never retry a
+// failed image on their own, so one transient CDN hiccup used to leave a
+// blank card until the next full render (elia's grey-poster report). One
+// cache-busted retry covers the transient case; a second failure swaps in
+// the same titled fallback tile the no-artwork path uses.
+export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-fallback") => {
+  src = artUrl(src);
+  const img = el("img", { class: cls, src, loading: "lazy", decoding: "async", alt: "" });
+  let retried = false;
+  img.onerror = () => {
+    if (!retried) {
+      retried = true;
+      setTimeout(() => {
+        if (img.isConnected)
+          img.src = src + (src.includes("?") ? "&" : "?") + "r=" + Date.now();
+      }, 1500);
+      return;
+    }
+    img.replaceWith(el("div", { class: fallbackCls }, title || ""));
+  };
+  return img;
+};
+
 export const fmtDuration = (seconds) => {
   if (!seconds || seconds <= 0) return "";
   const h = Math.floor(seconds / 3600);
