@@ -5,6 +5,7 @@ const express = require("express");
 const torrent = require("../media/torrent");
 const transcode = require("../media/torrent-transcode");
 const config = require("../config");
+const perf = require("../lib/perf");
 
 const router = express.Router();
 
@@ -19,12 +20,17 @@ router.get("/api/torrents/sources", async (req, res) => {
   try {
     const { type = "movie", title = "", year, season, episode } = req.query;
     if (!title.trim()) return res.json({ streams: [] });
+    const t0 = Date.now();
     const result = await torrent.getSources(
       type,
       title.trim(),
       year ? parseInt(year, 10) : null,
       season ? parseInt(season, 10) : null,
       episode ? parseInt(episode, 10) : null
+    );
+    // <60ms is a cache hit; anything slower is Torrentio/Cinemeta on the wire.
+    console.log(
+      `[perf] sources "${title.trim().slice(0, 40)}" ${Date.now() - t0}ms (${(result.streams || []).length} streams)`,
     );
     res.json(result);
   } catch (err) {
@@ -148,7 +154,10 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
     // hls.js's own playlist refreshes never do). Only that may re-create an
     // offset we just retired — see `retired` in torrent-transcode.js.
     const seek = req.query.seek === "1";
+    const t0 = Date.now();
     const dir = await transcode.ensure(file, absPath, req.params.infoHash, fileIdx, vcodec, ss, seek);
+    // Timing for deliberate viewer seeks only — playlist refreshes are noise.
+    if (seek) perf.event(req.params.infoHash, "seek_playlist_ready", Date.now() - t0, { ss });
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.join(dir, "index.m3u8"));
@@ -171,12 +180,14 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/:file", (req, res) => {
 // Stream a video file from a torrent by file index, with range support.
 // GET /stream/torrent/:infoHash/:fileIdx
 router.get("/stream/torrent/:infoHash/:fileIdx", async (req, res) => {
+  perf.mark(req.params.infoHash, "stream_req");
   let t;
   try {
     t = await torrent.readyTorrent(req.params.infoHash);
   } catch (err) {
     return res.status(504).send("Torrent not ready: " + err.message);
   }
+  perf.mark(req.params.infoHash, "stream_torrent_ready");
 
   // Everything below runs AFTER the await, so a synchronous throw here (e.g.
   // createReadStream on a torrent evicted between ready and now) rejects the

@@ -10,6 +10,7 @@
 const fs = require("fs");
 const path = require("path");
 const { JsonStore } = require("../lib/jsonstore");
+const perf = require("../lib/perf");
 const config = require("../config");
 const scanner = require("./scanner");
 
@@ -116,6 +117,7 @@ setInterval(() => {
       if (removing.get(hash) === p) removing.delete(hash);
     });
     torrentAccess.delete(hash);
+    perf.flush(hash, `evict-${why}`);
     console.log(`[torrent] evicted ${why} ${hash.slice(0, 8)}…`);
   };
   // 1) idle eviction — and stop peer discovery on anything already complete
@@ -641,11 +643,18 @@ const _readyTorrent = (infoHash) =>
           console.log(
             `[torrent] add ${infoHash.slice(0, 8)}… (${announce.length} trackers)`,
           );
-          t.on("ready", () =>
+          perf.mark(infoHash, "add", { trackers: announce.length });
+          t.once("metadata", () => perf.mark(infoHash, "metadata"));
+          t.once("wire", () => perf.mark(infoHash, "first_peer"));
+          t.on("ready", () => {
+            perf.mark(infoHash, "ready", {
+              files: t.files.length,
+              peersAtReady: t.numPeers,
+            });
             console.log(
               `[torrent] ${infoHash.slice(0, 8)}… ready, ${t.files.length} files, ${t.numPeers} peers`,
-            ),
-          );
+            );
+          });
           // Fully downloaded: stop hunting for peers and serve from disk. Deferred
           // a tick so webtorrent finishes its own 'done' bookkeeping (it calls
           // discovery.complete() right after this event) before we silence
@@ -924,6 +933,7 @@ const removeTorrent = (infoHash) =>
     const cl = clientInstance;
     const t = cl && cl.torrents.find((x) => x.infoHash === infoHash);
     if (!t) return resolve(false);
+    perf.flush(infoHash, "removed");
     const p = new Promise((done) => {
       try {
         cl.remove(infoHash, { destroyStore: true }, (err) => {
