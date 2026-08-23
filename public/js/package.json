@@ -1,0 +1,4 @@
+{
+  "type": "module",
+  "//": "The browser JS tree IS ES modules. This marker is for Node, not the browser: the test suite dynamically imports ui.js, and without it Node 20 treats .js here as CommonJS and dies on `export` (Node 22.7+ auto-detects and masked the problem locally — the CI node-20 job was the only place it surfaced)."
+}
