@@ -9,6 +9,7 @@ import { card } from "../components.js";
 import { deviceDownloadedAt } from "../downloadPicker.js";
 import { pushScope, popScope } from "../focus.js";
 import { attachSuggest } from "../suggest.js";
+import { navigate } from "../router.js";
 
 import * as narrator from "../narrator.js";
 // Imported as `dice`: `surprise` is already a destructured option name in
@@ -93,7 +94,19 @@ const myListScreen = (items) => {
     gridHost.innerHTML = "";
     if (shown.length === 0) {
       gridHost.append(
-        el("div", { class: "empty", style: { gridColumn: "1/-1" } }, "Nothing matches. Try fewer filters?"),
+        el("div", { class: "empty", style: { gridColumn: "1/-1" } },
+          "Nothing matches.",
+          el("button", {
+            class: "btn small focusable",
+            style: { marginTop: "12px" },
+            onclick: () => {
+              genre = "";
+              for (const f of chipDefs) picked[f.group] = null;
+              paint();
+              applyFilters();
+            },
+          }, "Clear filters"),
+        ),
       );
       return;
     }
@@ -145,7 +158,12 @@ const myListScreen = (items) => {
     screen.append(
       el("div", { class: "empty" },
         el("div", { class: "glyph" }, "🍿"),
-        "My List is empty. Hit + on anything that catches your eye."),
+        "My List is empty. Hit + on anything that catches your eye.",
+        el("div", { style: { marginTop: "14px", display: "flex", gap: "10px", justifyContent: "center" } },
+          el("button", { class: "btn small focusable", onclick: () => navigate("#/movies") }, "Browse Movies"),
+          el("button", { class: "btn small focusable", onclick: () => navigate("#/shows") }, "Browse Shows"),
+        ),
+      ),
     );
     return screen;
   }

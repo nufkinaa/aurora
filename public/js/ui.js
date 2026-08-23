@@ -94,7 +94,12 @@ export const artUrl = (u) => {
 // the same titled fallback tile the no-artwork path uses.
 export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-fallback") => {
   src = artUrl(src);
-  const img = el("img", { class: cls, src, loading: "lazy", decoding: "async", alt: "" });
+  const img = el("img", { class: cls + " img-fade", src, loading: "lazy", decoding: "async", alt: "" });
+  // Fade in on decode instead of popping. Cached images can be complete
+  // before this handler attaches — reveal immediately then.
+  const reveal = () => img.classList.add("img-in");
+  img.onload = reveal;
+  if (img.complete && img.naturalWidth > 0) reveal();
   let retried = false;
   img.onerror = () => {
     if (!retried) {

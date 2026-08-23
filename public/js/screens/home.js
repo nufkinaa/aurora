@@ -168,7 +168,12 @@ export const renderHome = async (root) => {
     };
 
     let pastHero = false; // set by the scroll handler below
-    heroTimer = setInterval(() => {
+    // Reduced-motion means no self-rotating billboard at all — its slide
+    // keyframes are already disabled in CSS, which left a hard CUT every
+    // 9s: more jarring than the motion the user asked to avoid. The dots
+    // still switch it manually.
+    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    heroTimer = calm ? null : setInterval(() => {
       // Don't rotate while the user is interacting with hero buttons or just
       // moved it themselves — and don't burn image decodes + cross-fades when
       // nobody can see it (background tab, or scrolled down into the rows;

@@ -112,6 +112,14 @@ ul, ol { list-style: none; }
 
 .hidden { display: none !important; }
 
+/* Android Chrome paints a grey flash rectangle on every tap without this;
+   all interactive elements carry their own :active/:focus states. */
+html { -webkit-tap-highlight-color: transparent; }
+
+/* Posters fade in as they decode instead of popping (class set by posterImg) */
+.img-fade { opacity: 0; transition: opacity 240ms var(--ease); }
+.img-fade.img-in { opacity: 1; }
+
 /* Skeleton shimmer */
 .skeleton {
   background: linear-gradient(100deg,
@@ -130,5 +138,10 @@ ul, ol { list-style: none; }
      scale(1.13) to scale(1.00) in 120ms. These have to be switched off
      outright, not sped up. The gradients still paint, untransformed, which is a
      perfectly good static wash. */
-  html::before, html::after { animation: none !important; }
+  html::before, html::after,
+  .skeleton,
+  .pfm-wait-bar::after { animation: none !important; }
+  /* Spinners are essential status — keep them turning, just steady and slow
+     instead of the 0.01ms strobe the blanket rule would produce. */
+  .mini-spinner, .spinner { animation-duration: 1.2s !important; }
 }

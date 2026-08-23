@@ -808,6 +808,12 @@ const loadSources = async (
         "div",
         { class: "sources-empty" },
         "Couldn't reach the source provider.",
+        el("button", {
+          class: "btn small focusable",
+          style: { marginLeft: "12px" },
+          onclick: () =>
+            loadSources(host, { type, imdbId, year, season, episode, owned }, onPlay, onDownload),
+        }, "Try again"),
       ),
     );
   }
