@@ -121,6 +121,8 @@ export const card = (item, { wide = false, onRemove = null, showKind = false } =
         ? `${item.title}, season ${newEp.season} episode ${newEp.episode}` +
           (waiting ? `, ${waiting} new episodes` : "")
         : item.title,
+      // the recommender's honesty: hover a recommended card and it says WHY
+      ...(item.why ? { title: item.why } : {}),
       onclick: () => openItem(item),
     },
     item.cover

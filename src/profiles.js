@@ -347,10 +347,19 @@ const rowPrefs = (id) => {
   return (p && p.rows) || null;
 };
 
+// Monotonic per-profile stamp, bumped whenever a taste signal changes — the
+// recommender caches its model against this, so a fresh rating reshapes the
+// rows on the next home load without recomputing per request.
+const signalStamps = new Map();
+const bumpSignals = (profileId) =>
+  signalStamps.set(profileId, (signalStamps.get(profileId) || 0) + 1);
+const signalsStamp = (profileId) => signalStamps.get(profileId) || 0;
+
 // Taste signals: titles the person SAID they love (the onboarding picker).
 // Stronger than inferred signals; prompt 9's recommender consumes these
 // alongside likedGenres. Bounded and validated — stored forever.
 const setLikedTitles = (profileId, list) => {
+  bumpSignals(profileId);
   const state = stateFor(profileId);
   state.likedTitles = (Array.isArray(list) ? list : [])
     .filter((t) => t && typeof t === "object") // a null entry must not 500 the route
@@ -457,6 +466,7 @@ const streamTitleProgress = (profileId) =>
 
 // `item` is a local id string or a stream ref object (see entryKey).
 const toggleWatchlist = (profileId, item, add) => {
+  bumpSignals(profileId);
   const state = stateFor(profileId);
   // Adds dedupe on the EXACT stored key only — an identity twin in the OTHER
   // form is welcome, because each form carries keys the other lacks (the
@@ -480,6 +490,7 @@ const toggleWatchlist = (profileId, item, add) => {
 
 // 1..5 stars; 0/null clears the rating.
 const setRating = (profileId, itemId, stars) => {
+  bumpSignals(profileId);
   const state = stateFor(profileId);
   const n = Math.round(Number(stars) || 0);
   if (n >= 1 && n <= 5) state.ratings[itemId] = n;
@@ -717,6 +728,7 @@ module.exports = {
   rowPrefs,
   setLikedTitles,
   getLikedTitles,
+  signalsStamp,
   remove,
   setProgress,
   getProgress,

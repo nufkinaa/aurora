@@ -197,13 +197,20 @@ const ROW_ORDER = [
 // Sorted by rank, then by where it already was — so the unnamed rows keep their
 // existing sequence instead of being shuffled by an unstable comparison.
 const orderRows = (rows, prefs = null) => {
+  // "because-<imdbId>" rows are generated per profile; by default they sit
+  // right after Recommended (their sibling), not dumped at the end.
+  const rankOf = (id) => {
+    const r = ROW_ORDER.indexOf(id);
+    if (r !== -1) return r;
+    if (id.startsWith("because-")) {
+      const rec = ROW_ORDER.indexOf("recommended");
+      return rec === -1 ? ROW_ORDER.length : rec + 0.5;
+    }
+    return ROW_ORDER.length;
+  };
   const byDefault = rows
-    .map((row, at) => ({ row, at, rank: ROW_ORDER.indexOf(row.id) }))
-    .sort((a, b) => {
-      const ra = a.rank === -1 ? ROW_ORDER.length : a.rank;
-      const rb = b.rank === -1 ? ROW_ORDER.length : b.rank;
-      return ra - rb || a.at - b.at;
-    })
+    .map((row, at) => ({ row, at, rank: rankOf(row.id) }))
+    .sort((a, b) => a.rank - b.rank || a.at - b.at)
     .map((entry) => entry.row);
   if (!prefs) return byDefault;
   // Per-profile composition. Rules that keep every consumer honest:
@@ -361,20 +368,49 @@ router.get("/api/home", (req, res) => {
     });
     if (fresh.length > 0) rows.push({ id: "new-episodes", title: "New Episodes", items: fresh });
 
-    // Recommended for You — discovery, ranked by the same taste model as the
-    // billboard (see hero.recommend for why the old version recommended things
-    // you had already watched, downloaded or listed).
-    const rec = hero.recommend({
-      local,
-      streamAll,
-      ratings,
-      likedGenres,
-      progress,
-      streamItems: profiles.getStreamItems(profileId),
-      watchlist: profiles.getWatchlist(profileId),
-      exclude: heroItems,
-    });
-    if (rec.length >= 4) rows.push({ id: "recommended", title: "Recommended for You", items: rec });
+    // Recommended for You — the taste model (prompt 9): explainable, per
+    // person, built from what they DID. Cold start (a profile with few
+    // signals) falls back to the old genre-tally recommender — never worse
+    // than today.
+    let tasteRows = null;
+    try {
+      const streamItems = profiles.getStreamItems(profileId);
+      const seen = new Set();
+      for (const [id, row] of Object.entries(progress)) {
+        if (row.position > 0 || row.finished) {
+          seen.add(id);
+          const sm = streamItems[id];
+          if (sm && sm.imdbId) seen.add(sm.imdbId);
+        }
+      }
+      for (const e of profiles.getWatchlist(profileId)) {
+        seen.add(typeof e === "string" ? e : e.imdbId);
+      }
+      tasteRows = require("../media/taste").homeRecommendations({
+        profileId,
+        candidates: [...streamAll, ...local],
+        seen,
+        exclude: heroItems,
+      });
+    } catch {}
+    if (tasteRows && tasteRows.forYou.length >= 4) {
+      rows.push({ id: "recommended", title: "Recommended for You", items: tasteRows.forYou });
+      for (const b of tasteRows.because) {
+        rows.push({ id: `because-${b.anchor.imdbId}`, title: `Because you loved ${b.anchor.title}`, items: b.items });
+      }
+    } else {
+      const rec = hero.recommend({
+        local,
+        streamAll,
+        ratings,
+        likedGenres,
+        progress,
+        streamItems: profiles.getStreamItems(profileId),
+        watchlist: profiles.getWatchlist(profileId),
+        exclude: heroItems,
+      });
+      if (rec.length >= 4) rows.push({ id: "recommended", title: "Recommended for You", items: rec });
+    }
 
     const list = profiles.watchlistItems(profileId);
     if (list.length > 0) rows.push({ id: "mylist", title: "My List", items: list });

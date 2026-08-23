@@ -125,6 +125,22 @@ const genreFallback = async (type, imdbId) => {
   return { items, source: "genre" };
 };
 
+// Sync, cache-only read for the recommender: the taste model must NEVER
+// block /api/home on network, so it consumes only rows that already exist.
+// `type` is "movie" | "series" (the same key similar() writes).
+const similarCached = (type, imdbId) => {
+  const hit = store.data.rows[`${type}|${imdbId}`];
+  return hit && Array.isArray(hit.items) ? hit.items : null;
+};
+
+// Fire-and-forget population for the recommender's anchors: fills the cache
+// in the background so the NEXT home render has rows to read. Silent on
+// failure — a missing row just means no "because you loved" candidates yet.
+const warmSimilar = (type, imdbId, tmdbHint) => {
+  if (similarCached(type, imdbId)) return;
+  similar(type, imdbId, tmdbHint).catch(() => {});
+};
+
 const similar = async (type, imdbId, tmdbHint) => {
   const key = `${type}|${imdbId}`;
   const hit = store.data.rows[key];
@@ -169,4 +185,4 @@ const similar = async (type, imdbId, tmdbHint) => {
   return result;
 };
 
-module.exports = { similar, _internals: { mapItems, genreFallback, tmdbIdFor } };
+module.exports = { similar, similarCached, warmSimilar, _internals: { mapItems, genreFallback, tmdbIdFor } };
