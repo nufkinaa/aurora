@@ -61,3 +61,87 @@ test("editWithin: bounds, transposition, and budget honesty", () => {
   assert.ok(!editWithin("dune", "duel", 1)); // that's 2 edits
   assert.ok(!editWithin("abc", "abcdef", 1)); // length gap beats budget
 });
+
+// ---------- the always-recommend fill (elia: 4–10 when we can) ----------
+const { _setEntries } = si._internals;
+const mk = (title, year, type, genres, rating, inLibrary = false) =>
+  entryForFull({ title, year, type, genres, rating, poster: "/p.jpg", cover: "/c.jpg", imdbId: "tt0" + title.length }, inLibrary);
+const entryForFull = si._internals.entryFor;
+
+test("a half-typed year no longer zeroes the query: 'arrival 2'", () => {
+  assert.ok(score("arrival 2", "Arrival") >= 80, "year rides along as a word");
+});
+
+test("most-of-the-words tier: one dud word doesn't kill the rest", () => {
+  _setEntries([mk("Arrival", 2016, "movie", ["Sci-Fi"], 7.9)]);
+  const out = si.suggest("arrival zzzz");
+  assert.equal(out.length, 1);
+  assert.equal(out[0].title, "Arrival");
+});
+
+test("related fill: <4 real matches tops up with same-genre picks, labeled", () => {
+  _setEntries([
+    mk("Arrival", 2016, "movie", ["Sci-Fi", "Drama"], 7.9, true),
+    mk("Interstellar", 2014, "movie", ["Sci-Fi"], 8.7),
+    mk("Dune", 2021, "movie", ["Sci-Fi"], 8.0),
+    mk("Moon", 2009, "movie", ["Sci-Fi"], 7.8),
+    mk("Superbad", 2007, "movie", ["Comedy"], 7.6), // shares nothing — stays out
+    mk("Severance", 2022, "show", ["Sci-Fi"], 8.7), // wrong type for the anchor
+  ]);
+  const out = si.suggest("arrival");
+  assert.equal(out[0].title, "Arrival");
+  assert.ok(!out[0].relatedTo, "the real match is not labeled related");
+  const related = out.slice(1);
+  assert.ok(related.length >= 3, "filled to at least 4 total");
+  assert.ok(related.every((s) => s.relatedTo === "Arrival"), "fill rows carry the label");
+  assert.ok(related.every((s) => s.type === "movie"), "fill stays the anchor's kind");
+  assert.equal(related[0].title, "Interstellar", "best-rated shared-genre first");
+  assert.ok(!out.some((s) => s.title === "Superbad"), "no shared genre → no fill");
+});
+
+test("suggest type filter: the Shows page never suggests a movie", () => {
+  _setEntries([
+    mk("Arrival", 2016, "movie", ["Sci-Fi"], 7.9),
+    mk("Dark", 2017, "show", ["Sci-Fi"], 8.7),
+  ]);
+  assert.deepEqual(si.suggest("ar", { type: "show" }).map((s) => s.title), ["Dark"]);
+});
+
+test("suggest caps at 10 even when asked for more", () => {
+  _setEntries(Array.from({ length: 30 }, (_, i) => mk("Star Movie " + i, 2000 + i, "movie", ["Action"], 5)));
+  assert.ok(si.suggest("star", { limit: 99 }).length <= 10);
+});
+
+test("a bare digit prefix never matches the catalog through years", () => {
+  // the year token joins word matching ONLY alongside a real word — "20"
+  // alone must not score every 20xx title at tier 80
+  assert.equal(score("20", "Arrival"), 0);
+  _setEntries([
+    mk("Arrival", 2016, "movie", ["Sci-Fi"], 7.9),
+    mk("Dune", 2021, "movie", ["Sci-Fi"], 8.0),
+    mk("2012", 2009, "movie", ["Action"], 5.8), // digit TITLE still findable
+  ]);
+  assert.deepEqual(si.suggest("20").map((s) => s.title), ["2012"]);
+});
+
+test("limit truncation of plentiful matches never triggers the related fill", () => {
+  _setEntries(Array.from({ length: 12 }, (_, i) => mk("Star Movie " + i, 2000 + i, "movie", ["Action"], 5)));
+  const out = si.suggest("star", { limit: 2 });
+  assert.equal(out.length, 2, "exactly the asked-for count");
+  assert.ok(out.every((s) => !s.relatedTo), "no fabricated related rows");
+});
+
+test("the related fill respects a small limit", () => {
+  _setEntries([
+    mk("Arrival", 2016, "movie", ["Sci-Fi"], 7.9),
+    mk("Interstellar", 2014, "movie", ["Sci-Fi"], 8.7),
+    mk("Dune", 2021, "movie", ["Sci-Fi"], 8.0),
+    mk("Moon", 2009, "movie", ["Sci-Fi"], 7.8),
+  ]);
+  assert.ok(si.suggest("arrival", { limit: 2 }).length <= 2);
+});
+
+test("garbage still returns nothing — no anchor, no fill", () => {
+  _setEntries([mk("Arrival", 2016, "movie", ["Sci-Fi"], 7.9)]);
+  assert.equal(si.suggest("zzqqxxy").length, 0);
+});

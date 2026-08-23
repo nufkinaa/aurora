@@ -115,7 +115,12 @@ router.get("/api/item/:id", (req, res) => {
 router.get("/api/search/suggest", (req, res) => {
   const q = String(req.query.q || "").slice(0, 80);
   if (!q.trim()) return res.json({ suggestions: [] });
-  res.json({ suggestions: require("../media/searchindex").suggest(q) });
+  res.json({
+    suggestions: require("../media/searchindex").suggest(q, {
+      limit: req.query.limit,
+      type: req.query.type, // movies/shows pages suggest their own kind only
+    }),
+  });
 });
 
 router.get("/api/search", (req, res) => {

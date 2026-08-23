@@ -569,14 +569,25 @@
 }
 
 /* ---------- Search ---------- */
-/* Instant search suggestions — a flat stacked list under the box (not an
-   overlay: simpler, and vertical stacking is what the D-pad walks best). */
+/* Instant search suggestions — in-flow under the box (not an overlay:
+   simpler, and plain buttons are what the D-pad walks best). On wide
+   screens the rows flow into columns so the whole width gets used instead
+   of a lone 640px strip beside a wall of empty space. */
 .suggest-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: 6px 10px;
   padding: 0 var(--page-x) 10px;
-  max-width: 640px;
+}
+/* the "More like X" label introducing the related-titles fill */
+.suggest-divider {
+  grid-column: 1 / -1;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 6px 4px 0;
 }
 .suggest-item {
   display: flex;

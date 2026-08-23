@@ -8,6 +8,7 @@ import { api } from "../api.js";
 import { card } from "../components.js";
 import { deviceDownloadedAt } from "../downloadPicker.js";
 import { pushScope, popScope } from "../focus.js";
+import { attachSuggest } from "../suggest.js";
 
 import * as narrator from "../narrator.js";
 // Imported as `dice`: `surprise` is already a destructured option name in
@@ -541,7 +542,12 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
     el("div", { class: "search-box", html: icons.search }));
   searchWrap.querySelector(".search-box").append(input);
 
-  screen.append(head, searchWrap, catRow, tools, gridHost, moreHost);
+  // Same instant-suggestions dropdown as the Search screen, filtered to this
+  // page's kind — typing here suggests only movies on Movies, shows on Shows.
+  const suggestHost = el("div", { class: "suggest-list hidden" });
+  attachSuggest(input, suggestHost, { type });
+
+  screen.append(head, searchWrap, suggestHost, catRow, tools, gridHost, moreHost);
   paintCats();
   paintTools();
 

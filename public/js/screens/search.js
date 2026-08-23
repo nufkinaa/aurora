@@ -1,9 +1,10 @@
 // Instant search: typo-tolerant suggestions as you type, then full results.
-import { el, icons, debounce, posterImg } from "../ui.js";
+import { el, icons, debounce } from "../ui.js";
 import { api } from "../api.js";
 import { state, loadLibrary } from "../state.js";
 import { navigate } from "../router.js";
 import { card } from "../components.js";
+import { attachSuggest, suggestHref } from "../suggest.js";
 
 const recents = {
   get: () => {
@@ -34,56 +35,16 @@ export const renderSearch = async (root) => {
   });
 
   // ---------- instant suggestions ----------
-  // The typo-tolerant index answers in ~a millisecond server-side, so this
-  // can run on a tighter debounce than the full search. Rows are plain
-  // focusable buttons stacked vertically — the D-pad walks them naturally.
-  const openSuggestion = (s) => {
-    suggestHost.classList.add("hidden");
-    recents.add(s.title);
-    if (s.inLibrary && s.id) {
-      navigate(s.type === "show" ? `#/show/${s.id}` : `#/movie/${s.id}`);
-    } else if (s.imdbId) {
-      navigate(`#/discover/${s.type === "show" ? "series" : "movie"}/${s.imdbId}`);
-    }
-  };
-  let suggestToken = 0;
-  let suggestSquelched = false; // Enter/Escape said "stay hidden"
-  const runSuggest = debounce(async () => {
-    if (suggestSquelched) return; // a queued debounce tick outlives the keydown
-    const q = input.value.trim();
-    if (q.length < 2) {
-      suggestHost.classList.add("hidden");
-      suggestHost.innerHTML = "";
-      return;
-    }
-    const token = ++suggestToken;
-    let suggestions = [];
-    try {
-      ({ suggestions } = await api.suggest(q));
-    } catch {}
-    if (token !== suggestToken || input.value.trim() !== q) return;
-    suggestHost.innerHTML = "";
-    if (!suggestions.length) {
-      suggestHost.classList.add("hidden");
-      return;
-    }
-    suggestHost.append(
-      ...suggestions.slice(0, 5).map((s) =>
-        el(
-          "button",
-          { class: "suggest-item focusable", onclick: () => openSuggestion(s) },
-          s.cover
-            ? posterImg(s.cover, s.title, "suggest-thumb", "suggest-thumb")
-            : el("span", { class: "suggest-thumb" }),
-          el("span", { class: "suggest-title" }, s.title),
-          el("span", { class: "suggest-meta" },
-            [s.year, s.type === "show" ? "Series" : "Film"].filter(Boolean).join(" · ")),
-          s.inLibrary && el("span", { class: "disc-tag have" }, "IN LIBRARY"),
-        ),
-      ),
-    );
-    suggestHost.classList.remove("hidden");
-  }, 120);
+  // Shared dropdown (suggest.js) — same one the Movies/Shows pages use.
+  // Rows are plain focusable buttons in a width-filling grid; the D-pad
+  // walks them geometrically. Picking one remembers the TITLE as a recent.
+  attachSuggest(input, suggestHost, {
+    onPick: (s) => {
+      recents.add(s.title);
+      const href = suggestHref(s);
+      if (href) navigate(href);
+    },
+  });
 
   const paintRecents = () => {
     recentHost.innerHTML = "";
@@ -171,20 +132,7 @@ export const renderSearch = async (root) => {
     }
   }, 180);
 
-  input.addEventListener("input", () => {
-    suggestSquelched = false; // fresh typing re-arms suggestions
-    runSuggest();
-    run();
-  });
-  // Enter = "I'm committing to the full results" and Escape = "get out of my
-  // way" — both dismiss the dropdown so it doesn't sit on top of the grid.
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === "Escape") {
-      suggestSquelched = true; // also stops the already-queued debounce tick
-      suggestToken++; // cancel any in-flight suggest reply
-      suggestHost.classList.add("hidden");
-    }
-  });
+  input.addEventListener("input", () => run());
 
   const screen = el("div", { class: "screen" },
     el("div", { class: "search-wrap" },
