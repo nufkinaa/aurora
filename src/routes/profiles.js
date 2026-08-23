@@ -233,4 +233,40 @@ router.get("/api/profiles/:id/watchlist", gate, (req, res) => {
   res.json({ items: profiles.watchlistItems(req.params.id) });
 });
 
+// Aurora Wrapped: this profile's viewing, aggregated from the telemetry
+// sessions (ring buffer — the payload carries `since` so the UI never
+// pretends it's a full year), plus started/finished counts from progress
+// and best-effort genre attribution through the library.
+router.get("/api/profiles/:id/wrapped", gate, (req, res) => {
+  const p = profiles.list().find((x) => x.id === req.params.id);
+  const w = telemetry.wrappedFor(p.name);
+  if (w.empty) return res.json({ empty: true });
+
+  // genres: match the watched titles against the library, weight by seconds
+  const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const genreOf = new Map();
+  for (const item of scanner.allItems()) genreOf.set(norm(item.title), item.genres || []);
+  const genreSec = new Map();
+  for (const t of w.titlesFull || []) {
+    for (const g of genreOf.get(norm(t.name)) || []) {
+      genreSec.set(g, (genreSec.get(g) || 0) + t.sec);
+    }
+  }
+  w.topGenres = [...genreSec.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([name, sec]) => ({ name, sec }));
+  delete w.titlesFull;
+
+  // commitment issues: how many shows were started vs actually finished
+  const progress = profiles.getProgress(req.params.id);
+  let started = 0;
+  let finished = 0;
+  for (const row of Object.values(progress)) {
+    if (row.finished) finished++;
+    else if (row.position > 0) started++;
+  }
+  w.started = started;
+  w.finished = finished;
+  res.json(w);
+});
+
 module.exports = router;

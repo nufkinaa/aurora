@@ -104,6 +104,7 @@ export const api = {
   createProfile: (fields) => post("/api/profiles", fields),
   // Seconds watched today — only the narrator's "you've been at this a while" uses it.
   todayWatchTime: (id) => json(`/api/profiles/${encodeURIComponent(id)}/today`),
+  wrapped: (id) => json(`/api/profiles/${id}/wrapped`),
   updateProfile: (id, fields) =>
     json(`/api/profiles/${id}`, {
       method: "PUT",

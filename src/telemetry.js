@@ -287,6 +287,80 @@ const analytics = (days = 14) => {
   };
 };
 
+// ---------- Aurora Wrapped: one profile's viewing, aggregated ----------
+// Honesty note baked into the payload: the session store is a ring buffer of
+// MAX_SESSIONS, so `since` is the oldest surviving session — the UI says
+// "since <date>", never "this year".
+const wrappedFor = (profileName) => {
+  const mine = sessions.data.filter((s) => s.profile === profileName && s.watchedSec > 0);
+  if (!mine.length) return { empty: true };
+
+  const dayKey = (iso) => new Date(iso).toLocaleDateString("sv"); // YYYY-MM-DD, local
+  const byDay = new Map();
+  const byTitle = new Map();
+  const byWeekday = Array(7).fill(0);
+  const byDevice = new Map();
+  let totalSec = 0;
+  let lateNightSessions = 0; // starting between midnight and 5am
+  let latestFinishHour = null; // {hour, title}
+  let longest = null;
+  let oldest = mine[0].startedAt;
+
+  for (const s of mine) {
+    if (s.startedAt < oldest) oldest = s.startedAt;
+    totalSec += s.watchedSec;
+    byDay.set(dayKey(s.startedAt), (byDay.get(dayKey(s.startedAt)) || 0) + s.watchedSec);
+    // shows log as "Title · S1 E2" — fold episodes into their show
+    const title = String(s.content || "").replace(/\s*·\s*S\d+\s*E\d+.*$/i, "").trim() || "?";
+    byTitle.set(title, (byTitle.get(title) || 0) + s.watchedSec);
+    const started = new Date(s.startedAt);
+    byWeekday[started.getDay()] += s.watchedSec;
+    const dev = (s.device && s.device.device) || "?";
+    byDevice.set(dev, (byDevice.get(dev) || 0) + s.watchedSec);
+    if (started.getHours() < 5) lateNightSessions++;
+    const finish = new Date(started.getTime() + s.watchedSec * 1000);
+    const fh = finish.getHours();
+    if (fh < 6 && (latestFinishHour == null || ((fh + 24) % 24) > latestFinishHour.hour)) {
+      latestFinishHour = { hour: fh, title };
+    }
+    if (!longest || s.watchedSec > longest.watchedSec) {
+      longest = { title, watchedSec: s.watchedSec, at: s.startedAt };
+    }
+  }
+
+  // longest run of consecutive days with ANY watching
+  const days = [...byDay.keys()].sort();
+  let streak = 1;
+  let bestStreak = days.length ? 1 : 0;
+  for (let i = 1; i < days.length; i++) {
+    const gap = (new Date(days[i]) - new Date(days[i - 1])) / 86400000;
+    streak = gap === 1 ? streak + 1 : 1;
+    if (streak > bestStreak) bestStreak = streak;
+  }
+  let biggestDay = null;
+  for (const [day, sec] of byDay) if (!biggestDay || sec > biggestDay.sec) biggestDay = { day, sec };
+
+  const top = (m, n) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n)
+    .map(([name, sec]) => ({ name, sec }));
+
+  return {
+    since: oldest,
+    totalSec,
+    plays: mine.length,
+    distinctTitles: byTitle.size,
+    topTitles: top(byTitle, 5),
+    titlesFull: top(byTitle, 500), // for route-side genre attribution; stripped from the response
+    topWeekday: byWeekday.indexOf(Math.max(...byWeekday)),
+    byDevice: top(byDevice, 3),
+    biggestDay,
+    bestStreak,
+    lateNightSessions,
+    latestFinish: latestFinishHour,
+    longestSession: longest,
+    activeDays: byDay.size,
+  };
+};
+
 module.exports = {
   sessions,
   hourly,
@@ -297,5 +371,6 @@ module.exports = {
   closeSession,
   analytics,
   todayWatchSec,
+  wrappedFor,
   SAMPLE_MS,
 };

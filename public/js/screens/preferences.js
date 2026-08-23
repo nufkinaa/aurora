@@ -155,6 +155,12 @@ export const renderPreferences = async (root) => {
         onclick: () => profileModal(state.profile, async () => { await loadProfiles(); navigate("#/preferences"); window.dispatchEvent(new HashChangeEvent("hashchange")); }),
       })
     ),
+    el("div", { class: "page-pad", style: { marginTop: "6px" } },
+      el("button", {
+        class: "btn small focusable",
+        html: "<span>🌌 Your Aurora Wrapped — stats & roasts</span>",
+        onclick: () => navigate("#/wrapped"),
+      })),
     // ---- Appearance (theme + accent follow the profile to every device) ----
     el("h2", { class: "row-title", style: { marginTop: "18px" } }, "Appearance"),
     el("p", { class: "pref-note" }, "Yours alone — follows this profile to every device."),

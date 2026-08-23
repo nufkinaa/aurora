@@ -261,6 +261,23 @@ export const renderHome = async (root) => {
   }
 
   // ----- rows -----
+  // Time-aware greeting (elia's pick): tiny, warm, changes with the clock.
+  if (state.profile) {
+    const h = new Date().getHours();
+    const day = new Date().getDay();
+    const part = h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+    const extra =
+      h < 5 ? " — one more episode, then bed. Deal?"
+      : day === 5 && h >= 17 ? " — Friday movie night?"
+      : day === 6 && h >= 11 ? " — the couch is calling."
+      : "";
+    screen.append(el("div", { class: "home-greeting" },
+      part === "Up late" ? "Up late, " : part + ", ",
+      el("b", {}, state.profile.name),
+      (part === "Up late" ? "?" : "") + extra,
+    ));
+  }
+
   const rowsHost = el("div");
   screen.append(rowsHost);
 
