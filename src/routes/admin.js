@@ -70,7 +70,9 @@ router.get("/api/admin/logs", (req, res) => {
       level: typeof level === "string" ? level : "all",
       q: typeof q === "string" ? q : "",
       sinceId: parseInt(sinceId, 10) || 0,
-      limit: Math.min(1000, Math.max(1, parseInt(limit, 10) || 400)),
+      // clamp to the buffer's own capacity (1500) — the download button asks
+      // for everything, and a lower clamp silently dropped the oldest third
+      limit: Math.min(1500, Math.max(1, parseInt(limit, 10) || 400)),
     }),
     counts: logbuffer.counts(),
     stats: logbuffer.stats(),
@@ -491,6 +493,108 @@ router.post("/api/admin/clear-caches", (req, res) => {
   metadata.clearCache();
   subtitles.clearCache();
   res.json({ ok: true });
+});
+
+// ---------- prompt 7: operator capabilities ----------
+
+// Pending work at a glance (badges on the admin tabs): title requests
+// awaiting an answer + download jobs awaiting approval.
+router.get("/api/admin/pending-counts", (req, res) => {
+  let requests = 0;
+  let downloads = 0;
+  try {
+    requests = require("./requests").pendingCount();
+  } catch {}
+  try {
+    downloads = require("../media/downloads")
+      .list()
+      .filter((j) => j.status === "pending").length;
+  } catch {}
+  res.json({ requests, downloads });
+});
+
+// Skip-intro marks manager: list everything the household has marked, with
+// enough context to recognize a bad one, and delete it. (The user-facing
+// POST /api/intro/:key stays unauthenticated on purpose — same household
+// trust model as watch progress; the admin page is where mistakes get fixed.)
+router.get("/api/admin/intros", (req, res) => {
+  const intros = require("../lib/introstore");
+  const items = Object.entries(intros.data).map(([key, range]) => {
+    let title = null;
+    if (key.startsWith("show:")) {
+      const show = scanner.findById(key.slice(5));
+      title = show ? show.title : null;
+    }
+    return { key, start: range.start, end: range.end, title };
+  });
+  res.json({ intros: items });
+});
+
+router.delete("/api/admin/intros/:key", (req, res) => {
+  const intros = require("../lib/introstore");
+  if (!Object.hasOwn(intros.data, req.params.key)) return res.status(404).json({ error: "Not found" });
+  delete intros.data[req.params.key];
+  intros.save();
+  res.json({ ok: true });
+});
+
+// Update checker: read-only, cached an hour, silent when offline. ?force=1
+// refreshes the cache (the button in the Server tab).
+router.get("/api/admin/update-check", async (req, res) => {
+  const result = await require("../lib/updatecheck").check(req.query.force === "1");
+  res.json(result);
+});
+
+// aria2 global speed caps. GET reports the EFFECTIVE daemon values when it
+// runs (plus what's persisted); POST validates, persists (so every future
+// daemon spawn re-applies), and applies live when the daemon is up.
+const ARIA2_LIMIT = /^\d{1,9}[KM]?$/i; // aria2 format: 0=unlimited, 500K, 5M, bytes
+router.get("/api/admin/aria2-limits", async (req, res) => {
+  const aria2 = require("../media/aria2");
+  const settings = require("../lib/settings");
+  const out = {
+    available: aria2.available(),
+    running: aria2.running(),
+    saved: {
+      download: String(settings.data.aria2MaxDownload || "0"),
+      upload: String(settings.data.aria2MaxUpload || "0"),
+    },
+    effective: null,
+  };
+  if (out.running) {
+    try {
+      const opts = await aria2.getGlobalOptions();
+      out.effective = {
+        download: opts["max-overall-download-limit"],
+        upload: opts["max-overall-upload-limit"],
+        downloadSpeed: null,
+      };
+    } catch {}
+  }
+  res.json(out);
+});
+
+router.post("/api/admin/aria2-limits", async (req, res) => {
+  const aria2 = require("../media/aria2");
+  const settings = require("../lib/settings");
+  const download = String((req.body && req.body.download) ?? "0").trim().toUpperCase();
+  const upload = String((req.body && req.body.upload) ?? "0").trim().toUpperCase();
+  if (!ARIA2_LIMIT.test(download) || !ARIA2_LIMIT.test(upload)) {
+    return res.status(400).json({ error: "limits look like 0 (unlimited), 500K or 5M" });
+  }
+  settings.data.aria2MaxDownload = download;
+  settings.data.aria2MaxUpload = upload;
+  settings.save();
+  let applied = false;
+  if (aria2.running()) {
+    try {
+      await aria2.setGlobalLimits({ download, upload });
+      applied = true;
+    } catch {}
+  }
+  // Not running = nothing to throttle right now; ensure() re-applies the
+  // persisted values on the next spawn, so "saved" is the honest answer.
+  res.json({ ok: true, saved: { download, upload }, applied });
 });
 
 module.exports = router;

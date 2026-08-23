@@ -32,6 +32,12 @@
     .stat .sub { font-size: 0.78rem; color: var(--text-faint); margin-top: 3px; }
 
     .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-bottom: 22px; }
+    /* Admin cards are panels, not posters: neutralize the site's tvOS focus
+       aura (components.css .card:hover lifts + glows + paints a blurred halo
+       pseudo-element) — it bled onto every admin panel on hover (elia). */
+    .card:hover, .card:focus { transform: none; box-shadow: none; z-index: auto; }
+    .card::before, .card::after { display: none; }
+    .card { cursor: default; }
     .card > h2, section > h2 { font-size: 1.05rem; font-weight: 800; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .card > h2 .note, section > h2 .note { font-size: 0.8rem; font-weight: 600; color: var(--text-faint); }
     section { margin-bottom: 30px; }
@@ -125,6 +131,34 @@
     .ok { color: #4ade80; font-weight: 700; }
     .bad { color: #ff7a7a; font-weight: 700; }
     .table-scroll { overflow-x: auto; }
+
+    /* Pending-work badges on the tab labels */
+    .tbadge { display: inline-block; min-width: 18px; text-align: center; padding: 1px 6px; margin-left: 6px;
+      border-radius: 999px; background: #e05f2c; color: #fff; font-size: 0.7rem; font-weight: 800; vertical-align: 1px; }
+    .tbadge:empty { display: none; }
+
+    /* ---------- phones (≤ 700px): the panel elia actually moderates from ---------- */
+    @media (max-width: 700px) {
+      .wrap { padding: 18px 14px 70px; }
+      .head h1 { font-size: 1.2rem; }
+      .head .actions { margin-left: 0; width: 100%; }
+      .head .actions .btn { flex: 1; justify-content: center; }
+      /* One scrollable strip instead of a three-row wrap; sticky so switching
+         tabs doesn't mean scrolling back to the top. */
+      .tabs { flex-wrap: nowrap; overflow-x: auto; position: sticky; top: 0; z-index: 30;
+        background: var(--bg, #0b0c14); scrollbar-width: none; -webkit-overflow-scrolling: touch;
+        margin-left: -14px; margin-right: -14px; padding: 0 14px; }
+      .tabs::-webkit-scrollbar { display: none; }
+      .tab { min-height: 44px; white-space: nowrap; flex: none; }
+      .mini { min-height: 40px; min-width: 44px; }
+      .range-chips button { min-height: 38px; }
+      .stats { grid-template-columns: repeat(auto-fit, minmax(124px, 1fr)); gap: 9px; }
+      .stat .v { font-size: 1.25rem; }
+      table { font-size: 0.82rem; }
+      th, td { padding: 8px 8px; }
+      .card { padding: 13px; }
+      .bar-row input, .bar-row select { min-height: 44px; }
+    }
   </style>
 </head>
 <body>
@@ -144,10 +178,10 @@
       <button class="tab" data-tab="live">Live</button>
       <button class="tab" data-tab="analytics">Analytics</button>
       <button class="tab" data-tab="history">History</button>
-      <button class="tab" data-tab="profiles">Profiles</button>
-      <button class="tab" data-tab="server">Server</button>
-      <button class="tab" data-tab="downloads">Downloads</button>
-      <button class="tab" data-tab="moderation">Moderation</button>
+      <button class="tab" data-tab="profiles">Profiles<span class="tbadge" id="badge-profiles"></span></button>
+      <button class="tab" data-tab="server">Server<span class="tbadge" id="badge-server"></span></button>
+      <button class="tab" data-tab="downloads">Downloads<span class="tbadge" id="badge-downloads"></span></button>
+      <button class="tab" data-tab="moderation">Moderation<span class="tbadge" id="badge-moderation"></span></button>
       <button class="tab" data-tab="logs">Logs</button>
     </div>
 
@@ -166,6 +200,7 @@
           <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--text-dim)">
             <input type="checkbox" id="log-live" checked style="width:auto" /> Live
           </label>
+          <button class="btn small" id="log-download">Download</button>
           <button class="btn small" id="log-clear">Clear</button>
         </div>
         <div class="log-list" id="log-list"></div>
@@ -334,6 +369,11 @@
         <div class="empty-note hidden" id="sv-torrents-empty">No active torrents.</div>
       </div>
       <div class="card">
+        <h2>Updates <span class="note">read-only — never pulls anything by itself</span></h2>
+        <div id="sv-update" class="empty-note">Checking…</div>
+        <button class="mini" id="update-check-btn" style="margin-top:8px">Check now</button>
+      </div>
+      <div class="card">
         <h2>Environment</h2>
         <dl class="kv" id="sv-env"></dl>
       </div>
@@ -351,6 +391,18 @@
         </h2>
         <div class="now-grid" id="dl-pending"></div>
         <div class="empty-note hidden" id="dl-pending-empty">Nothing is waiting for approval — there's enough disk space, so requests start by themselves.</div>
+      </section>
+      <section>
+        <h2>Speed limits <span class="note">caps the download engine so an evening's streaming never fights a download</span></h2>
+        <div class="bar-row" style="align-items:center">
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↓
+            <input type="text" id="lim-down" placeholder="0" style="max-width:110px;flex:none" /></label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↑
+            <input type="text" id="lim-up" placeholder="0" style="max-width:110px;flex:none" /></label>
+          <button class="btn small btn-primary" id="lim-apply">Apply</button>
+          <span class="muted" style="font-size:0.8rem">0 = unlimited · e.g. <b>5M</b> or <b>500K</b> per second</span>
+        </div>
+        <div class="empty-note" id="lim-status" style="padding:4px"></div>
       </section>
       <section>
         <h2>Active &amp; finished</h2>
@@ -379,13 +431,21 @@
         </table></div>
       </section>
       <section>
+        <h2>Skip-intro marks <span class="note">what the household marked from the player — delete a bad one and it can be re-marked</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Show</th><th>Key</th><th>Range</th><th></th></tr></thead>
+          <tbody id="intro-list"></tbody>
+        </table></div>
+        <div class="empty-note hidden" id="intro-empty">No intro marks yet — they appear when someone marks one from the player.</div>
+      </section>
+      <section>
         <h2>Banned IPs</h2>
         <div class="bar-row">
           <input type="text" id="ban-ip" placeholder="IP address" style="max-width:220px" />
           <input type="text" id="ban-reason" placeholder="Reason (optional)" />
           <button class="btn small" id="ban-btn">Ban</button>
         </div>
-        <table><tbody id="bans"></tbody></table>
+        <div class="table-scroll"><table><tbody id="bans"></tbody></table></div>
       </section>
     </div>
   </div>
@@ -910,6 +970,7 @@
       const b = e.target.closest("button[data-level]");
       if (!b) return;
       logLevel = b.dataset.level;
+      try { localStorage.setItem("aurora-admin-loglevel", logLevel); } catch {}
       for (const x of $("#log-levels").children) x.classList.toggle("active", x === b);
       loadLogs();
     });
@@ -1143,6 +1204,123 @@
         <dt>Online metadata</dt><dd>${s.tools.onlineMetadata ? '<span class="ok">enabled</span>' : '<span class="bad">disabled</span>'}</dd>`;
     }
 
+    // ---------- pending-work badges on the tab labels ----------
+    async function loadBadges() {
+      try {
+        const [counts, profReqs] = await Promise.all([
+          json("/api/admin/pending-counts"),
+          json("/api/admin/profile-requests"),
+        ]);
+        const put = (id, n) => { $(id).textContent = n > 0 ? String(n) : ""; };
+        put("#badge-moderation", counts.requests);
+        put("#badge-downloads", counts.downloads);
+        put("#badge-profiles", profReqs.length);
+      } catch {}
+    }
+
+    // ---------- update checker (Server tab) ----------
+    async function loadUpdateCheck(force = false) {
+      const host = $("#sv-update");
+      if (force) host.textContent = "Checking…";
+      let u;
+      try { u = await json("/api/admin/update-check" + (force ? "?force=1" : "")); } catch { return; }
+      const shortSha = (s) => (s ? s.slice(0, 7) : "?");
+      if (u.error) {
+        host.innerHTML = `<span class="muted">Couldn't reach GitHub (offline?). Running ${esc(shortSha(u.local))}.</span>`;
+      } else if (u.available) {
+        host.innerHTML =
+          `<span class="pill warn">update available</span> ` +
+          `<span class="muted" style="font-size:0.88rem">GitHub master is at ${esc(shortSha(u.remote))}, this server runs ${esc(shortSha(u.local))}` +
+          ` — pull on the server when convenient (nothing happens automatically)</span>`;
+        $("#badge-server").textContent = "1";
+      } else {
+        host.innerHTML = `<span class="pill live">up to date</span> <span class="muted" style="font-size:0.85rem">running ${esc(shortSha(u.local))} · checked ${ago(new Date(u.checkedAt).toISOString())}</span>`;
+        $("#badge-server").textContent = "";
+      }
+    }
+    $("#update-check-btn").onclick = () => loadUpdateCheck(true);
+
+    // ---------- aria2 speed limits (Downloads tab) ----------
+    async function loadLimits() {
+      let l;
+      try { l = await json("/api/admin/aria2-limits"); } catch { return; }
+      if (!$("#lim-down").matches(":focus")) $("#lim-down").value = l.saved.download;
+      if (!$("#lim-up").matches(":focus")) $("#lim-up").value = l.saved.upload;
+      const eff = l.effective;
+      $("#lim-status").innerHTML = !l.available
+        ? `<span class="muted">aria2 isn't installed — nothing to limit.</span>`
+        : l.running && eff
+          ? `<span class="muted">live on the engine now: ↓ ${esc(eff.download === "0" ? "unlimited" : eff.download)} · ↑ ${esc(eff.upload === "0" ? "unlimited" : eff.upload)}</span>`
+          : `<span class="muted">engine idle — the saved caps apply automatically when the next download starts.</span>`;
+    }
+    $("#lim-apply").onclick = async () => {
+      const btn = $("#lim-apply");
+      btn.disabled = true;
+      try {
+        const r = await adminFetch("/api/admin/aria2-limits", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ download: $("#lim-down").value.trim() || "0", upload: $("#lim-up").value.trim() || "0" }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) return toast(data.error || "Failed to set limits");
+        toast(data.applied ? "Limits applied to the running engine" : "Limits saved — they apply when the engine starts");
+        loadLimits();
+      } catch {
+        toast("Couldn't reach the server");
+      } finally {
+        btn.disabled = false; // a network error must not leave Apply dead
+      }
+    };
+
+    // ---------- skip-intro marks (Moderation tab) ----------
+    async function loadIntros() {
+      let data;
+      try { data = await json("/api/admin/intros"); } catch { return; }
+      const items = data.intros || [];
+      $("#intro-empty").classList.toggle("hidden", items.length > 0);
+      $("#intro-list").innerHTML = items.map((i) => `
+        <tr>
+          <td>${esc(i.title || "—")}</td>
+          <td class="muted" style="font-family:ui-monospace,monospace;font-size:0.8rem">${esc(i.key)}</td>
+          <td class="num">${fmtClock(i.start)} – ${fmtClock(i.end)}</td>
+          <td style="text-align:right"><button class="mini danger" data-intro-del="${esc(i.key)}">Delete</button></td>
+        </tr>`).join("");
+    }
+    $("#intro-list").addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-intro-del]");
+      if (!btn) return;
+      if (!confirm("Delete this intro mark? Skip-intro stops offering until someone re-marks it from the player.")) return;
+      btn.disabled = true;
+      try {
+        const r = await adminFetch("/api/admin/intros/" + encodeURIComponent(btn.dataset.introDel), { method: "DELETE" });
+        toast(r.ok ? "Intro mark deleted" : "Already gone");
+        loadIntros();
+      } catch {
+        toast("Couldn't reach the server");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ---------- log download ----------
+    $("#log-download").onclick = async () => {
+      let data;
+      try { data = await json("/api/admin/logs?level=all&limit=5000"); }
+      catch { return toast("Couldn't fetch the log"); }
+      // the buffer serves newest-first for the live view — a FILE should
+      // read top-to-bottom chronologically
+      const lines = (data.entries || [])
+        .map((e) => `${new Date(e.t).toISOString()} ${e.level.toUpperCase().padEnd(5)} ${e.msg}`)
+        .reverse();
+      const blob = new Blob([lines.join("\n") + "\n"], { type: "text/plain" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `aurora-log-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-")}.txt`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    };
+
     // ---------- moderation ----------
     async function loadRequests() {
       const reqs = await json("/api/requests");
@@ -1301,9 +1479,20 @@
     window.unban = async (ip) => { await post("/api/admin/unban", { ip }); toast("Unbanned " + ip); loadBans(); };
 
     $("#rescan").onclick = async () => { await post("/api/admin/rescan"); toast("Rescan started"); setTimeout(loadOverview, 1500); };
-    $("#clear-caches").onclick = async () => { await post("/api/admin/clear-caches"); toast("Caches cleared"); };
-    $("#clear-history").onclick = async () => { await post("/api/admin/watch-history/clear"); toast("History cleared"); loadHistory(); };
-    $("#clear-sessions").onclick = async () => { await post("/api/admin/sessions/clear"); toast("Sessions cleared"); loadSessions(); loadAnalytics(); };
+    // Destructive one-taps get a real confirm — Clear sessions used to wipe
+    // ALL analytics history silently, one mis-tap from "Filter by title".
+    $("#clear-caches").onclick = async () => {
+      if (!confirm("Clear the metadata and subtitle caches? They rebuild on demand (slower first loads).")) return;
+      await post("/api/admin/clear-caches"); toast("Caches cleared");
+    };
+    $("#clear-history").onclick = async () => {
+      if (!confirm("Clear the legacy watch history? This can't be undone.")) return;
+      await post("/api/admin/watch-history/clear"); toast("History cleared"); loadHistory();
+    };
+    $("#clear-sessions").onclick = async () => {
+      if (!confirm("Clear ALL recorded watch sessions?\n\nAnalytics (watch time, top titles, heatmap) starts from zero. This can't be undone.")) return;
+      await post("/api/admin/sessions/clear"); toast("Sessions cleared"); loadSessions(); loadAnalytics();
+    };
     $("#ban-btn").onclick = async () => {
       const ip = $("#ban-ip").value.trim();
       if (!ip) return;
@@ -1338,9 +1527,9 @@
       analytics: () => loadAnalytics(),
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
       profiles: () => { loadProfileRequests(); loadProfileAccess(); loadProfiles(); },
-      server: () => { loadServer(); loadTimeseries(); },
-      downloads: () => { loadDownloads(); loadDisk(); loadLibraryList(); },
-      moderation: () => { loadRequests(); loadBans(); },
+      server: () => { loadServer(); loadTimeseries(); loadUpdateCheck(); },
+      downloads: () => { loadDownloads(); loadDisk(); loadLibraryList(); loadLimits(); },
+      moderation: () => { loadRequests(); loadBans(); loadIntros(); },
       logs: () => loadLogs(),
     };
     let activeTab = "overview";
@@ -1382,9 +1571,10 @@
           } else if (data.type === "request_new" || data.type === "request_update") {
             if (activeTab === "moderation") loadRequests();
             if (data.type === "request_new") toast("New request: " + (data.request?.title || ""));
+            loadBadges();
           } else if (data.type === "download_new" || data.type === "download_update") {
             if (activeTab === "downloads") loadDownloads();
-            if (data.type === "download_new") toast("New download request: " + (data.job?.title || ""));
+            if (data.type === "download_new") { toast("New download request: " + (data.job?.title || "")); loadBadges(); }
           }
         };
         ws.onclose = () => setTimeout(connectWs, 5000);
@@ -1394,6 +1584,7 @@
     // Periodic refreshers for the visible tab (only once authed)
     setInterval(() => {
       if (!ADMIN_PW || document.hidden) return;
+      loadBadges(); // pending-work counts stay honest on every tab
       if (activeTab === "overview") { loadOverview(); loadTimeseries(); }
       if (activeTab === "server") { loadServer(); loadTimeseries(); }
       if (activeTab === "history") loadLog();
@@ -1422,8 +1613,18 @@
     // Boot the panel only after the password is entered. It's held in memory
     // (ADMIN_PW) and never persisted, so a refresh returns to this prompt.
     function boot() {
+      // The log-level filter survives reloads (the search text is ephemeral).
+      try {
+        const savedLevel = localStorage.getItem("aurora-admin-loglevel");
+        if (savedLevel && $(`#log-levels [data-level="${savedLevel}"]`)) {
+          logLevel = savedLevel;
+          for (const x of $("#log-levels").children) x.classList.toggle("active", x.dataset.level === savedLevel);
+        }
+      } catch {}
       showTab(location.hash.replace("#", "") || "overview");
       connectWs();
+      loadBadges();
+      loadUpdateCheck(); // fills the Server-tab badge even before visiting it
     }
 
     function requirePassword() {
@@ -1441,6 +1642,9 @@
       const form = overlay.querySelector("form");
       const input = overlay.querySelector("input");
       const err = overlay.querySelector(".pw-err");
+      // the autofocus ATTRIBUTE doesn't fire for dynamically-inserted markup
+      // on mobile browsers — focus explicitly
+      setTimeout(() => input.focus(), 50);
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         const pw = input.value;

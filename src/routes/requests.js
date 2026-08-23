@@ -197,4 +197,8 @@ scanner.events.on("scanned", () => {
   if (changed) store.save();
 });
 
+// How many title requests still need an answer (the admin tab badge).
+router.pendingCount = () =>
+  store.data.filter((r) => r.status === "pending").length;
+
 module.exports = router;

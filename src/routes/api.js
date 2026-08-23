@@ -17,7 +17,7 @@ const router = express.Router();
 // player (same trust model as watch progress). Every episode of the show then
 // offers "Skip intro" inside that range. Keys: "show:<libraryShowId>" for
 // library shows, "imdb:<ttId>" for streamed ones.
-const intros = new JsonStore(path.join(config.DATA_DIR, "intros.json"), {});
+const intros = require("../lib/introstore"); // shared with the admin manager
 const INTRO_KEY = /^(show|imdb):[\w.-]{1,40}$/;
 
 router.get("/api/intro/:key", (req, res) => {

@@ -106,6 +106,22 @@ const ensure = async () => {
       try {
         const v = await call("aria2.getVersion");
         console.log(`[aria2] ready — version ${v.version}`);
+        // Re-apply the persisted speed caps on EVERY spawn: the daemon
+        // starts from a fixed arg list with a fresh secret, so any limit
+        // not re-applied here would silently die with the old process.
+        try {
+          const settings = require("../lib/settings");
+          const dl = String(settings.data.aria2MaxDownload || "0");
+          const ul = String(settings.data.aria2MaxUpload || "0");
+          if (dl !== "0" || ul !== "0") {
+            await call("aria2.changeGlobalOption", [
+              { "max-overall-download-limit": dl, "max-overall-upload-limit": ul },
+            ]);
+            console.log(`[aria2] speed caps applied (down ${dl}, up ${ul})`);
+          }
+        } catch (err) {
+          console.warn(`[aria2] could not apply speed caps: ${err.message}`);
+        }
         return true;
       } catch {
         await new Promise((r) => setTimeout(r, 250));
@@ -302,9 +318,26 @@ const shutdown = () => {
 // --stop-with-process covers a hard kill; this is the tidy path.
 process.on("exit", shutdown);
 
+// ---------- global options (admin speed caps) ----------
+// The RPC methods are aria2.getGlobalOption / aria2.changeGlobalOption
+// (there is no setGlobalOption). Values are aria2 strings: "0" = unlimited,
+// "5M", "500K", or plain bytes/sec.
+const getGlobalOptions = () => rpc("aria2.getGlobalOption", []);
+const setGlobalLimits = ({ download, upload }) =>
+  rpc("aria2.changeGlobalOption", [
+    {
+      ...(download != null ? { "max-overall-download-limit": String(download) } : {}),
+      ...(upload != null ? { "max-overall-upload-limit": String(upload) } : {}),
+    },
+  ]);
+// Daemon state without side effects: null when not running (the admin UI
+// must not BOOT the daemon just to display a number).
+const running = () => !!proc;
+
 module.exports = {
   available, ensure, add, status, fileProgress, select, remove, purge,
   activeDownloads, shutdown, stagingDir, STAGING_ROOT,
+  getGlobalOptions, setGlobalLimits, running,
   // Test-only: the rule that tells the real download apart from the metadata
   // placeholder. Getting this wrong parks every job at 0%, so it is pinned.
   _internals: { isMetadataPlaceholder },
