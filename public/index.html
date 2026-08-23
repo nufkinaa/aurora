@@ -60,9 +60,10 @@
     <a class="nav-item focusable" href="#/list" data-route="#/list" data-nav>My List</a>
     <a class="nav-item focusable hidden" id="nav-pick" href="#/pick" data-route="#/pick" data-nav>AI</a>
     <a class="nav-item focusable" href="#/games" data-route="#/games" data-nav>Games</a>
-    <!-- the empty nav stretch hosts a slow aurora borealis (decoration only) -->
+    <!-- the empty nav stretch hosts a slow aurora borealis (decoration only;
+         painted by js/aurora.js while the nav is solid) -->
     <span class="nav-spacer" aria-hidden="true">
-      <i class="nav-aurora na-1"></i><i class="nav-aurora na-2"></i><i class="nav-aurora na-3"></i>
+      <canvas class="nav-aurora" id="nav-aurora"></canvas>
     </span>
     <!-- live download pill: hidden when idle, "⬇ 2 · 47%" while the server
          pulls something down; tapping it opens the requests/downloads page -->

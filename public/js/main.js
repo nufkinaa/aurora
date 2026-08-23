@@ -16,6 +16,7 @@ import { renderPreferences } from "./screens/preferences.js";
 import { renderPickForMe } from "./screens/pickforme.js";
 import { showProfileGate } from "./screens/profiles.js";
 import { showShortcutsOverlay } from "./screens/shortcuts.js";
+import { initAurora } from "./aurora.js";
 
 route("/", renderHome);
 route("/movies", renderMovies);
@@ -55,6 +56,7 @@ const paintNavSolid = () =>
 window.addEventListener("scroll", paintNavSolid, { passive: true });
 window.addEventListener("hashchange", () => setTimeout(paintNavSolid, 0));
 paintNavSolid();
+initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
 
 // Live download pill: after requesting a download and leaving the page there
 // was zero feedback until you wandered back. One global subscription feeds a
