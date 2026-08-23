@@ -55,6 +55,8 @@ function Card({
   hideLabel,
   showKind,
   edgeLeft,
+  edgeRight,
+  ref,
 }: {
   item: HeroItem;
   // Position in the shelf. Handed back through onFocus so the row can slide to
@@ -79,6 +81,11 @@ function Card({
   // First card of its row, or column 0 of a grid: LEFT from here opens the nav
   // rail rather than moving focus.
   edgeLeft?: boolean;
+  // Last column of a grid: RIGHT from here opens Browse's filter panel.
+  edgeRight?: boolean;
+  // Forwarded to the Focusable, so a grid can hold its first card as a focus
+  // target (requestTVFocus lives on the host instance).
+  ref?: React.Ref<View>;
 }) {
   const isEpisode = !!item.showId && item.type !== 'show';
   const landscape = wide || isEpisode;
@@ -136,7 +143,9 @@ function Card({
       ringColor={cardAura.edge.color}
       shadow={cardAura.shadow}
       hasTVPreferredFocus={hasTVPreferredFocus}
+      ref={ref}
       edgeLeft={edgeLeft}
+      edgeRight={edgeRight}
       onPress={() => onPress(item)}
       onLongPress={removable ? () => removable(item) : undefined}
       onFocusChange={onFocus ? f => f && onFocus(item, index ?? 0) : undefined}

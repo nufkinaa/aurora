@@ -143,6 +143,9 @@ type Props = {
   // has nowhere to go on the page and opens the nav rail instead. Written to
   // focus.ts on every focus, by every Focusable, so the flag cannot go stale.
   edgeLeft?: boolean;
+  // The mirror: rightmost focusable of its band, so RIGHT from it can open a
+  // right-hand panel (Browse's filters). Same write-on-focus contract.
+  edgeRight?: boolean;
   onFocusChange?: (focused: boolean) => void;
   // Exposed so callers can imperatively move focus here
   // (instance.requestTVFocus() — react-native-tvos attaches it to View refs).
@@ -168,6 +171,7 @@ export default function Focusable({
   ringColor,
   onLongPress,
   edgeLeft,
+  edgeRight,
   onFocusChange,
   ref,
 }: Props) {
@@ -275,7 +279,7 @@ export default function Focusable({
       onLongPress={onLongPress}
       onFocus={() => {
         claimRing(idRef.current);
-        noteFocus(node.current, !!edgeLeft);
+        noteFocus(node.current, !!edgeLeft, !!edgeRight);
         // focus.duration (110ms) with a decelerating curve, up from a linear
         // 60ms. 60ms is below the threshold where the eye reads a transition at
         // all, so moving between rows looked like the highlight teleporting;

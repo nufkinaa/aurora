@@ -35,20 +35,27 @@ let held: FocusNode = null;
 // LEFT to the rail — §6.4's contract is that the rail is reachable even from a
 // screen with nothing focusable.
 let heldEdgeLeft = true;
+// The mirror image for the right edge: Browse's filter panel opens on RIGHT
+// from the rightmost column, the way the rail opens on LEFT. Starts FALSE —
+// a screen with no right-hand panel must never answer RIGHT with anything.
+let heldEdgeRight = false;
 // When focus last MOVED between elements. The rail's LEFT handler reads this to
 // tell "a press made from the edge" apart from "the press that arrived at the
 // edge" — see focusJustMoved.
 let lastFocusMoveAt = 0;
 
-export const noteFocus = (node: FocusNode, edgeLeft: boolean) => {
+export const noteFocus = (node: FocusNode, edgeLeft: boolean, edgeRight = false) => {
   if (node !== held) lastFocusMoveAt = Date.now();
   held = node;
   heldEdgeLeft = edgeLeft;
+  heldEdgeRight = edgeRight;
 };
 
 /** Focus is on the leftmost element of its band, so LEFT has nowhere to go on
  *  the page and belongs to the nav rail. */
 export const atLeftEdge = () => heldEdgeLeft;
+/** Focus is on the rightmost element of its band (see heldEdgeRight). */
+export const atRightEdge = () => heldEdgeRight;
 
 /** True while a focus move is younger than `withinMs`.
  *

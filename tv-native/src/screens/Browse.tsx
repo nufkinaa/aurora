@@ -1,23 +1,35 @@
-// Movies / Shows — the site's Browse (public/js/screens/browse.js), band for band:
-// a heading with a live count and Surprise me, a search box, six CATEGORY pills,
-// a genre picker with an Unwatched toggle, then the grid and one Load more.
+// Movies / Shows — the site's Browse (public/js/screens/browse.js), re-shaped
+// for a 10-foot screen with a remote.
 //
-// Built from SPEC/.findings/03-BUILD.md. Two departures from the site, both
-// deliberate and both recorded in SPEC/99-open.md §E:
+// THE GRID IS THE PAGE. Everything that used to sit above it — the search stop,
+// the category pills, the genre/unwatched band — lives in a FILTER PANEL that
+// opens from the RIGHT edge, the mirror of the nav rail on the left: RIGHT from
+// the last column opens it, LEFT or Back closes it and hands focus straight
+// back to the card you left. One slim heading line (title + count) is all the
+// chrome the grid pays for.
 //
-//   • The search box is a BUTTON that opens the Search screen. It cannot be typed
-//     into here: the platform IME takes DPAD_LEFT/RIGHT for itself and covers the
-//     lower half of the panel, which is why 06-search draws its own keyboard. A
-//     second drawn keyboard on this screen would be the same screen twice.
-//   • Nothing else. The library ordering, which used to interleave, now
-//     transcribes the site — see `items`.
+// This replaced a collapsing header (2026-08-23, elia): the collapse looked
+// junky, the search stop duplicated the Search page, and a sticky Load-more
+// strip under the grid read as a stray control. Paging is now automatic —
+// the next page is fetched as focus nears the end of what is loaded, and a
+// page APPENDS, so nothing under the focused card ever moves.
+//
+// The category list, the genre picker, the Unwatched toggle and Surprise me
+// are the site's own controls; only their home changed.
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {View, Text, Animated, FlatList, StyleSheet, TVFocusGuideView} from 'react-native';
+import {
+  View,
+  Text,
+  Animated,
+  BackHandler,
+  Easing,
+  FlatList,
+  StyleSheet,
+  TVFocusGuideView,
+} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Btn from '../components/Btn';
 import Chip from '../components/Chip';
-import Icon from '../components/Icon';
-import Focusable from '../components/Focusable';
 import MiniSpinner from '../components/MiniSpinner';
 import NavRail from '../components/NavRail';
 import Picker from '../components/Picker';
@@ -27,18 +39,37 @@ import Card, {CARD_W} from '../components/Card';
 import {api, HeroItem, ProfileState} from '../api';
 import {watchStateFor} from '../watchState';
 import {canNavigate} from '../navLock';
-import {railOpen, useFocusFallback, useListClaim, useTVKeys} from '../focus';
+import {
+  atRightEdge,
+  captureFocus,
+  focusJustMoved,
+  railOpen,
+  useFocusFallback,
+  useListClaim,
+  useTVKeys,
+} from '../focus';
 import {useScreenIn} from '../motion';
 import {useApp} from '../AppContext';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 
-const {colors, fontSize, spacing, CLEARANCE} = theme;
+const {colors, fontSize, spacing, CLEARANCE, motion, focus} = theme;
+
+const EASE = Easing.bezier(...(focus.ease as unknown as [number, number, number, number]));
 
 // P17. 18px x 0.70 — the grid gap, not spacing.md.
 const GRID_GAP = 13;
 // browse.js:352 — the placeholder count is fixed, not derived from the viewport.
 const SKELETONS = 18;
+// The filter panel: wide enough for "Downloaded" and the genre picker at row
+// type, narrow enough to leave four columns of the grid showing behind it.
+const PANEL_W = 300;
+// The passive edge strip that says a panel lives here (the rail's collapsed
+// 72dp strip, mirrored and slimmer — it carries one glyph and no focus target).
+const STRIP_W = 44;
+// How close to the end of the loaded list focus has to get before the next page
+// is fetched: two rows out, so the page lands before the viewer reaches it.
+const PREFETCH_ROWS = 2;
 
 // The site's CATEGORIES, verbatim (browse.js:195-201). `withLocal` leads with
 // your own library and then continues into the catalog; `local` is the library
@@ -74,14 +105,11 @@ export default function Browse({
   const {width, safeBottom} = useTvMetrics();
   const screenIn = useScreenIn();
   // P17 — a FIXED 124dp cell at a 13dp gap in the content box, not a fluid
-  // column. RN has no auto-fill/minmax and numColumns is an integer, so the
-  // site's fluidity cannot be transcribed; rather than invent an approximation
-  // the cell is the same card the rows use. At 960dp that is 6 columns of 809 in
-  // 816 — 7dp of TRAILING slack, which stays trailing (§3.4 forbids spending it
-  // into the gaps).
+  // column. The content box now ends at the edge strip rather than the safe
+  // inset: the strip is chrome the grid must not slide under.
   const cols = Math.max(
     3,
-    Math.floor((width - spacing.contentLeft - spacing.pageX + GRID_GAP) / (CARD_W + GRID_GAP)),
+    Math.floor((width - spacing.contentLeft - STRIP_W - spacing.sm + GRID_GAP) / (CARD_W + GRID_GAP)),
   );
 
   const [lib, setLib] = useState<HeroItem[] | null>(null);
@@ -90,90 +118,6 @@ export default function Browse({
   const [unwatched, setUnwatched] = useState(false);
   const [genreList, setGenreList] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
-  // THE HEADER COLLAPSES WHILE FOCUS IS DOWN IN THE GRID. The full chrome —
-  // heading, count, Surprise, the search stop — is ~150dp of a 540dp panel, and
-  // with it up the grid showed barely one row of posters. Focus is the TV's
-  // scroll position: a card gaining focus collapses the top bands, any pill or
-  // filter gaining focus brings them back. The category pills and the filter
-  // bar stay in both states, so UP from the grid always lands on something and
-  // the collapsed state still says which category is live.
-  const [compact, setCompact] = useState(false);
-  // The FIRST card focus is the programmatic claim on arrival (useListClaim),
-  // not the viewer moving down — collapsing on it made the header flash and
-  // vanish on every entry to the screen. Arm on the first, collapse from the
-  // second onward, so the chrome stays until the viewer actually moves.
-  const gridArmed = useRef(false);
-  // Whether focus is in the grid, and on which index — the deterministic
-  // UP-escape below needs both.
-  const inGrid = useRef(false);
-  const gridIdx = useRef(0);
-  const collapseHead = useCallback((_item: HeroItem, index: number) => {
-    inGrid.current = true;
-    gridIdx.current = index;
-    if (!gridArmed.current) {
-      gridArmed.current = true;
-      return;
-    }
-    setCompact(true);
-  }, []);
-  const expandHead = useCallback((f: boolean) => {
-    if (!f) return;
-    inGrid.current = false;
-    setCompact(false);
-  }, []);
-
-  // UP OUT OF THE GRID, DETERMINISTICALLY. Measured on the Streamer: Android's
-  // own focus search regularly finds NOTHING above a top-row card (it worked
-  // from column 0, and was a dead key from every other column), which read as
-  // "moving up toward the top panel takes several presses and sometimes never
-  // lands". Same solution as the nav rail's LEFT: the platform already failed
-  // to move focus by the time this handler runs, so requesting the filter band
-  // directly cannot double-move — and when the native search DOES work, the
-  // focus change flips inGrid false before this runs and it is a no-op.
-  const genreRef = useRef(null);
-  useTVKeys(
-    useCallback(
-      (evt: {eventType: string}) => {
-        if (evt.eventType !== 'up') return;
-        // Never while the nav rail's panel is up — its focus containment is
-        // native-only, so this handler still hears keys and would yank focus
-        // out of the open rail onto the page behind it.
-        if (railOpen()) return;
-        if (!inGrid.current || gridIdx.current >= cols) return;
-        (genreRef.current as {requestTVFocus?: () => void} | null)?.requestTVFocus?.();
-      },
-      [cols],
-    ),
-  );
-  // Clears the in-grid flag WITHOUT re-expanding the header — for the pager
-  // strip below the grid, where UP must go back to the cards, not teleport to
-  // the filter band (the escape's top-row test can't tell the pager apart from
-  // a top-row card when the grid is a single row).
-  const leaveGridOnly = useCallback((f: boolean) => {
-    if (f) inGrid.current = false;
-  }, []);
-  // Where focus goes if it is ever lost: the first category pill is the one
-  // focusable this screen has in every state.
-  const firstPill = useRef(null);
-  useFocusFallback(firstPill);
-  // UP out of the tools band must land on the ACTIVE pill, not on whichever pill
-  // happens to sit above by x. A focus guide with an explicit destination is the
-  // mechanism for that, and it takes the native instance rather than a ref — so
-  // the nodes are collected by six ref callbacks whose identity never changes
-  // (a fresh callback each render would detach and reattach on every render).
-  const pillNodes = useRef<unknown[]>([]);
-  const setPillRef = useMemo(
-    () =>
-      CATEGORIES.map((_, i) => (n: unknown) => {
-        pillNodes.current[i] = n;
-        if (i === 0) (firstPill as React.MutableRefObject<unknown>).current = n;
-      }),
-    [],
-  );
-  // One render after mount, so the guide sees the nodes the refs just filled in.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
 
   // Catalog items fetched so far, in catalog order — that order IS the ranking.
   const [fetched, setFetched] = useState<HeroItem[]>([]);
@@ -187,26 +131,6 @@ export default function Browse({
   // at all and streamed history lives in streamProgress/episodeProgress — so
   // the Unwatched toggle was a no-op for every streamable title on the grid.
   const marks = useMemo(() => watchStateFor(profState), [profState]);
-
-  // OPEN DEFECT — focus is lost when a page lands. The Load more button stays
-  // mounted (browse.js:385-387's whole point) and stays on screen, but after the
-  // 48 new rows commit nothing on the screen is focused: UP and DOWN just scroll.
-  // The rail is still reachable with LEFT, so the remote is not dead, but the
-  // highlight is gone until you go out to the rail and come back.
-  //
-  // FOUR fixes were tried on the device and all four failed. Recorded so the
-  // fifth does not repeat them:
-  //   1. Re-focus the button if `focusHeld()` says nothing holds focus. Never
-  //      ran — Android drops the focus without firing onBlur, so `held` still
-  //      named the button.
-  //   2. Re-focus it unconditionally after the press, twice, at 150/450ms. No
-  //      effect.
-  //   3. Same, with a probe attached: `node=true fn=function`. The ref is live
-  //      and `requestTVFocus()` is called and ignored. Imperative focus does not
-  //      land on that view once the list has re-laid-out around it.
-  //   4. Claim the FIRST NEW CARD with `hasTVPreferredFocus` at mount, set in the
-  //      same commit as the data. It moved the list to the new page and still
-  //      focused nothing — strictly worse, so it came out (RULES rule 5).
 
   const cat = CATEGORIES.find(c => c.id === category) || CATEGORIES[0];
   const localOnly = !!cat.local;
@@ -325,18 +249,14 @@ export default function Browse({
       .catch(() => id === reqId.current && setHasMore(false))
       .finally(() => id === reqId.current && setLoading(false));
   }, [cacheKey, cat.catalog, genre, hasMore, kind, loading, localOnly, page]);
+  // Read through a ref by the card focus handler, which must keep a stable
+  // identity (it is a prop on every memoized card).
+  const loadNextRef = useRef(loadNext);
+  loadNextRef.current = loadNext;
 
   // ---- what to show ------------------------------------------------------
   // `visible()` transcribed (browse.js:310-327): the WHOLE downloaded library,
   // alphabetical, ahead of the catalog whenever the category asks for it.
-  //
-  // This screen used to interleave — three owned titles at the head and the rest
-  // folded in behind the catalog's ranking — on the argument that a TV shows ~12
-  // posters and a 30-title library would fill the first three screens with things
-  // sorted by nothing but their first letter. That argument is about ergonomics,
-  // not about the old app, so rule 13 does not void it; but nothing authorised
-  // the departure either, and D1 says the site is the source of truth. Recorded
-  // as an open question rather than kept silently.
   const {list: items, owned} = useMemo(() => {
     const downloaded = lib || [];
     let local: HeroItem[] = [];
@@ -364,6 +284,9 @@ export default function Browse({
     }
     return {list: [...local, ...tagged], owned: local.length};
   }, [cat, fetched, genre, lib, localOnly, marks, tasteGenres, unwatched]);
+  const itemCount = items.length;
+  const itemCountRef = useRef(itemCount);
+  itemCountRef.current = itemCount;
 
   const openDetail = useCallback(
     (item: HeroItem) => {
@@ -379,143 +302,142 @@ export default function Browse({
     if (pool.length) openDetail(pool[Math.floor(Math.random() * pool.length)]);
   };
 
+  // ---- the filter panel --------------------------------------------------
+  const [panel, setPanel] = useState(false);
+  const slide = useRef(new Animated.Value(0)).current;
+  // Who had focus before the panel took it — the card you were on — so closing
+  // can give it straight back (the rail does exactly this).
+  const restore = useRef<(() => void) | null>(null);
+  // The grid's first card and the list itself: where focus lands when the
+  // panel closes on a CHANGED grid (the card you came from may be filtered
+  // away), and this screen's focus fallback.
+  const firstCard = useRef(null);
+  const listRef = useRef<FlatList<HeroItem>>(null);
+  // Did a filter change while the panel was open? Decides restore-vs-first.
+  const dirty = useRef(false);
+  const openPanel = useCallback(() => {
+    restore.current = captureFocus();
+    dirty.current = false;
+    setPanel(true);
+  }, []);
+  const closePanel = useCallback(() => {
+    setPanel(false);
+    slide.setValue(0);
+    if (dirty.current) {
+      // New results: start them from the top, on the first card. Restoring to
+      // the old card would aim at a cell the filter may have unmounted —
+      // focus would land nowhere.
+      listRef.current?.scrollToOffset({offset: 0, animated: false});
+      (firstCard.current as {requestTVFocus?: () => void} | null)?.requestTVFocus?.();
+    } else {
+      restore.current?.();
+    }
+    restore.current = null;
+  }, [slide]);
+  const pick = useCallback((fn: () => void) => {
+    dirty.current = true;
+    fn();
+  }, []);
+  useEffect(() => {
+    if (!panel) return;
+    Animated.timing(slide, {
+      toValue: 1,
+      duration: motion.med,
+      easing: EASE,
+      useNativeDriver: true,
+      isInteraction: false,
+    }).start();
+  }, [panel, slide]);
+
+  // RIGHT from the last column opens it; LEFT inside it closes it. The race
+  // guard is the rail's: the press that carried focus INTO the last column must
+  // not also open the panel. Deaf while the rail is open, while the genre
+  // picker's trap is up (useTVKeys handles that), and while the panel's own
+  // Back is pending.
+  const onTV = useCallback(
+    (evt: {eventType: string}) => {
+      const t = evt.eventType;
+      if (!panel) {
+        if (t === 'right' && atRightEdge() && !railOpen() && !focusJustMoved(120)) openPanel();
+        return;
+      }
+      if (t === 'left') closePanel();
+    },
+    [panel, openPanel, closePanel],
+  );
+  useTVKeys(onTV);
+  useEffect(() => {
+    if (!panel) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      closePanel();
+      return true;
+    });
+    return () => sub.remove();
+  }, [panel, closePanel]);
+
+  // Where focus goes if it is ever lost on this screen: the first card. The
+  // Empty state brings its own.
+  useFocusFallback(firstCard);
+
   // Claim the first card once, when the grid first fills. NOT per filter: the
-  // site leaves focus on the pill you pressed, and the picker hands focus back
-  // to its own opener (useKeyTrap). See focus.ts.
+  // panel hands focus back to the card you left when it closes. See focus.ts.
   const claims = useListClaim('grid', items.length > 0);
+  const onCardFocus = useCallback((_item: HeroItem, index: number) => {
+    // Automatic paging, two rows ahead of the focus. The page APPENDS, so no
+    // card already on screen moves; the only visible change is more rows
+    // below, which is what "scrolling" is.
+    if (index >= itemCountRef.current - cols * PREFETCH_ROWS) loadNextRef.current();
+  }, [cols]);
   const renderCard = useCallback(
     ({item, index}: {item: HeroItem; index: number}) => (
       <Card
         item={item}
         index={index}
+        ref={index === 0 ? firstCard : undefined}
         onPress={openDetail}
-        // Any card gaining focus is "the viewer is in the grid" — collapse.
-        onFocus={collapseHead}
-        // Column 0 has nothing to its left, so LEFT from it opens the rail.
+        onFocus={onCardFocus}
+        // Column 0 has nothing to its left, so LEFT from it opens the rail; the
+        // last column has nothing to its right, so RIGHT opens the filters.
         edgeLeft={index % cols === 0}
+        edgeRight={index % cols === cols - 1}
         hasTVPreferredFocus={claims(index)}
       />
     ),
-    [openDetail, cols, claims, collapseHead],
+    [openDetail, onCardFocus, cols, claims],
   );
 
-  // paintCount, transcribed (browse.js:411-423). The query branch is gone with
-  // the query — see the header note on the search box.
+  // paintCount, transcribed (browse.js:411-423).
   const count = localOnly
     ? `${items.length} downloaded`
     : (owned ? `${owned} downloaded · ` : '') +
       `${items.length - owned} to stream${hasMore ? ' · more available' : ''}`;
-  // The pills-row copy while the header is collapsed: ONE fact, because the
-  // full line kept ellipsizing against six pills ("46 to st…"). The downloaded
-  // split is still one UP away on the full header.
-  const compactCount = localOnly
-    ? `${items.length} downloaded`
-    : `${items.length - owned} to stream`;
-
   const taste = cat.taste && !genre ? tasteGenres.slice(0, 3) : [];
-  const note = taste.length ? `from your ${taste.join(', ')}` : '';
+  const note = taste.length ? `From your ${taste.join(', ')}` : '';
 
-
-  // Local lists are already complete — there is nothing to page (browse.js:391).
-  const showMore = !localOnly && (hasMore || loading);
   const skeletons = (lib === null || loading) && items.length === 0;
-  const active = pillNodes.current[CATEGORIES.findIndex(c => c.id === category)];
-  const activePill = mounted && active ? [active as never] : undefined;
+  // The spinner row under the grid while the next page is on its way. Not a
+  // focus target — there is nothing to press.
+  const footer =
+    !localOnly && loading && items.length > 0 ? (
+      <View style={styles.footer}>
+        <MiniSpinner />
+      </View>
+    ) : null;
 
   return (
     <View style={styles.root}>
       <Animated.View style={[styles.page, screenIn]}>
-        {/* .browse-head — heading, count, then Surprise me pushed right by the
-            inline `margin-left: auto` (browse.js:532). Gone while the grid holds
-            focus; the pills below re-expand it. */}
-        {compact ? null : (
-          <View style={styles.head}>
-            <Text style={styles.h1}>{title}</Text>
-            <Text style={styles.count}>{count}</Text>
-            <View style={styles.spacer} />
-            <Btn
-              small
-              glyph="🎲"
-              label="Surprise me"
-              edgeLeft
-              onFocusChange={expandHead}
-              onPress={surprise}
-            />
-          </View>
-        )}
-
-        {/* .search-wrap / .search-box. A stop, not an input — see the header. */}
-        {compact ? null : (
-          <View style={styles.searchWrap}>
-            <Focusable
-              edgeLeft
-              onFocusChange={f => {
-                setSearchFocused(f);
-                if (f) inGrid.current = false;
-              }}
-              onPress={() => canNavigate(navigation) && navigation.push('Search')}
-              style={styles.searchBox}>
-              <View
-                style={[styles.searchEdge, searchFocused && styles.searchEdgeOn]}
-                pointerEvents="none"
-              />
-              <Icon name="search" size={22} color={colors.textDim} />
-              <Text style={styles.searchText}>{`Search ${title.toLowerCase()}…`}</Text>
-            </Focusable>
-          </View>
-        )}
-
-        {/* .cat-row — present in BOTH header states: it is where UP from the
-            grid lands, and a pill gaining focus is what re-expands the header. */}
-        <TVFocusGuideView style={styles.catRow} destinations={activePill}>
-          {CATEGORIES.map((c, i) => (
-            <Chip
-              key={c.id}
-              bare
-              label={c.label}
-              on={category === c.id}
-              ref={setPillRef[i]}
-              edgeLeft={i === 0}
-              onFocusChange={expandHead}
-              onPress={() => category !== c.id && setCategory(c.id)}
-            />
-          ))}
-          {/* The count keeps a home while the head is away — it is the one line
-              of the head that still orients ("312 to stream · more available"). */}
-          {compact ? (
-            <>
-              <View style={styles.spacer} />
-              {/* flexShrink: pills win the row; a long count ellipsizes rather
-                  than pushing past the safe inset. */}
-              <Text style={[styles.count, styles.countShrink]} numberOfLines={1}>
-                {compactCount}
-              </Text>
-            </>
-          ) : null}
-        </TVFocusGuideView>
-
-        {/* .filter-bar.tools. zIndex so the genre panel paints over the grid —
-            the panel is a child of the picker, which is a child of this band. */}
-        <View style={styles.tools}>
-          <Picker
-            ref={genreRef}
-            edgeLeft
-            label="Genre"
-            value={genre}
-            options={[{label: 'All genres', value: ''}, ...genreList.map(g => ({label: g, value: g}))]}
-            onPick={setGenre}
-            onOpenChange={setPickerOpen}
-            onFocusChange={expandHead}
-          />
-          <Chip
-            label="Unwatched"
-            on={unwatched}
-            onFocusChange={expandHead}
-            onPress={() => setUnwatched(u => !u)}
-          />
-          {/* Hidden, never unmounted: the flex gap would otherwise leave a
-              phantom notch as it comes and goes (browse.js:499-500). */}
-          <Text style={[styles.note, !note && styles.gone]}>{note}</Text>
+        {/* One line of chrome: the title, the live count, and — on the right
+            — which category is showing, next to the strip that opens it. */}
+        <View style={styles.head}>
+          <Text style={styles.h1}>{title}</Text>
+          <Text style={styles.count} numberOfLines={1}>
+            {count}
+          </Text>
+          <View style={styles.spacer} />
+          <Text style={styles.active} numberOfLines={1}>
+            {[cat.label, genre, unwatched ? 'Unwatched' : ''].filter(Boolean).join(' · ')}
+          </Text>
         </View>
 
         {skeletons ? (
@@ -532,162 +454,164 @@ export default function Browse({
                 ? `Nothing in ${genre} here. Try another genre?`
                 : 'Nothing matches. Try fewer filters?'
             }
-            actionLabel="All titles"
-            onAction={() => {
-              setCategory('all');
-              setGenre('');
-              setUnwatched(false);
-            }}
+            actionLabel="Change filters"
+            onAction={openPanel}
           />
         ) : (
-          <>
           <FlatList
+            ref={listRef}
             data={items}
             // numColumns cannot be changed in place, so the list is re-keyed.
             key={`${kind}-${cols}`}
             style={styles.listFill}
             numColumns={cols}
-            // keyOf ALONE. With the index in the key, inserting a page's worth of
-            // items at the front remounts every card behind the insertion.
+            // keyOf ALONE. With the index in the key, appending a page would
+            // remount every card behind the insertion.
             keyExtractor={keyOf}
             columnWrapperStyle={styles.rowGap}
             contentContainerStyle={[styles.grid, {paddingBottom: CLEARANCE.below + safeBottom}]}
-            // appendProgressive(…, 24, 12) — ui.js:183.
             initialNumToRender={24}
             maxToRenderPerBatch={12}
-            // THIS IS THE PERFORMANCE FIX. It was `false`, on §G.1's reasoning
-            // that a clipped subview is a clipped focus treatment — and the cost
-            // of that was the app becoming unusable the longer you browsed.
-            // Measured on the Streamer, four identical 60-press bursts in a row:
-            //
-            //   false, windowSize 5 :  53ms -> 600 -> 750 -> 750ms median frame,
-            //                          100% janky, GPU 92 -> 125MB and climbing
-            //   true,  windowSize 3 :  34 -> 32 -> 31 -> 32ms, 4-13% janky,
-            //                          GPU flat at 87MB
-            //
-            // The same burst on the nav rail never degraded, which is what
-            // identified the grid as the accumulator. §G.1's worry does not
-            // materialise: the clearance is contentContainer padding, so the CELL
-            // is not what gets clipped — verified on screen, a focused card on the
-            // last row keeps its ring on all four sides.
+            // Measured on the Streamer (see git history for the numbers): with
+            // clipping off the grid degraded to 750ms frames the longer you
+            // browsed; on, it stays flat. The clearance is contentContainer
+            // padding, so a focused card's ring on the last row is never clipped.
             removeClippedSubviews
             windowSize={3}
             renderItem={renderCard}
-            // NO onEndReached. The site's only pager is the button
-            // (browse.js:385-400) and an auto-pager moves the grid under the
-            // reader's own focus.
+            ListFooterComponent={footer}
           />
-          {/* The pager, as a SIBLING below the list rather than a
-              ListFooterComponent. Inside the footer it was a list cell: when a
-              page landed, the list re-laid-out around it and Android silently
-              dropped its focus — the OPEN DEFECT recorded above, where four
-              in-place re-focus attempts all failed because requestTVFocus on a
-              re-attached cell is accepted and ignored. As a sibling it never
-              re-lays-out with the list, so the focus it was pressed with simply
-              survives. Still ONE button relabelled in place (browse.js:385-387). */}
-          {showMore ? (
-            // safeBottom here too: this strip sits BELOW the list now, so the
-            // list's own bottom inset no longer covers it against overscan.
-            <View style={[styles.moreHost, {paddingBottom: 12 + safeBottom}]}>
-              <Btn
-                edgeLeft
-                dim={loading}
-                leading={loading ? <MiniSpinner /> : null}
-                label={loading ? 'Loading…' : 'Load more'}
-                onFocusChange={leaveGridOnly}
-                onPress={loadNext}
-              />
-            </View>
-          ) : null}
-          </>
         )}
       </Animated.View>
 
+      {/* The passive edge strip — the panel's "collapsed" state, mirroring the
+          rail's: a tune glyph, no focus target, fading out as the panel arrives. */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.strip, {opacity: slide.interpolate({inputRange: [0, 1], outputRange: [1, 0]})}]}>
+        <View style={styles.tune}>
+          <View style={[styles.tuneBar, {width: 18}]} />
+          <View style={[styles.tuneBar, {width: 12}]} />
+          <View style={[styles.tuneBar, {width: 6}]} />
+        </View>
+      </Animated.View>
+
+      {panel ? (
+        <Animated.View
+          style={[
+            styles.panel,
+            {transform: [{translateX: slide.interpolate({inputRange: [0, 1], outputRange: [PANEL_W, 0]})}]},
+          ]}>
+          {/* Traps all four directions: the grid behind is unreachable while the
+              panel is up; LEFT is handled above as "close". The active category
+              claims focus on open — the most useful place to start. */}
+          <TVFocusGuideView
+            autoFocus
+            trapFocusLeft
+            trapFocusRight
+            trapFocusUp
+            trapFocusDown
+            style={styles.panelInner}>
+            <Text style={styles.kicker}>{title.toUpperCase()}</Text>
+            <View style={styles.cats}>
+              {CATEGORIES.map(c => (
+                <Chip
+                  key={c.id}
+                  bare
+                  label={c.label}
+                  on={category === c.id}
+                  hasTVPreferredFocus={category === c.id}
+                  onPress={() => category !== c.id && pick(() => setCategory(c.id))}
+                />
+              ))}
+            </View>
+            <View style={styles.rule} />
+            <Picker
+              label="Genre"
+              value={genre}
+              options={[{label: 'All genres', value: ''}, ...genreList.map(g => ({label: g, value: g}))]}
+              onPick={g => pick(() => setGenre(g))}
+              onOpenChange={setPickerOpen}
+            />
+            <View style={styles.toolRow}>
+              <Chip label="Unwatched" on={unwatched} onPress={() => pick(() => setUnwatched(u => !u))} />
+            </View>
+            {note ? <Text style={styles.note}>{note}</Text> : null}
+            <View style={styles.spacer} />
+            <Btn small glyph="🎲" label="Surprise me" onPress={surprise} />
+          </TVFocusGuideView>
+        </Animated.View>
+      ) : null}
+
       {/* Outside the sliding page: `.nav` is not inside `.screen` on the site,
-          and the entry animation is the screen's, not the app's. */}
-      <NavRail active={kind === 'show' ? 'shows' : 'movies'} disabled={pickerOpen} />
+          and the entry animation is the screen's, not the app's. Gone while a
+          panel or the genre picker owns the screen (§5.8). */}
+      <NavRail active={kind === 'show' ? 'shows' : 'movies'} disabled={pickerOpen || panel} />
     </View>
   );
 }
 
 // Every chrome band carries the same horizontal frame (P1/P2): the rail plus its
-// gutter on the left, the safe inset on the right.
-const frame = {paddingLeft: spacing.contentLeft, paddingRight: spacing.pageX};
+// gutter on the left, the edge strip on the right.
+const frame = {paddingLeft: spacing.contentLeft, paddingRight: STRIP_W + spacing.sm};
 
 const styles = StyleSheet.create({
   // No backgroundColor: android:windowBackground is already this colour, and
   // painting it again cost a second full-screen fill on every frame.
   root: {flex: 1},
   page: {flex: 1},
-  // `padding: calc(--nav-h + 42px) --page-x 8px`. The top bar is gone, and 42x0.505
-  // = 21 is inside the 27dp vertical safe inset, so it is absorbed rather than
-  // added (P2).
-  head: {flexDirection: 'row', alignItems: 'baseline', gap: 16, paddingTop: 27, paddingBottom: 4, ...frame},
+  head: {flexDirection: 'row', alignItems: 'baseline', gap: 16, paddingTop: 27, paddingBottom: 2, ...frame},
   // --fs-title 35.2 x 0.72 = 26 (P8), lh 1.5, -0.02em.
   h1: {color: colors.text, fontSize: fontSize.title, lineHeight: 39, fontWeight: '900', letterSpacing: -0.52},
-  // No font-size of its own: it inherits --fs-body. P14 keeps it at 16.
-  count: {color: colors.textFaint, fontSize: 16, lineHeight: 24, fontWeight: '600'},
-  countShrink: {flexShrink: 1},
+  count: {color: colors.textFaint, fontSize: 16, lineHeight: 24, fontWeight: '600', flexShrink: 1},
   spacer: {flex: 1},
-  // browse.js:540's inline padding beats screens.css:552-554.
-  searchWrap: {paddingTop: 6, paddingBottom: 4, ...frame},
-  // 16/22 over --surface at radius 14 — natural 64dp, since `border-box` leaves
-  // the height auto and 1rem x 1.25 x 1.5 = 30 for the line box.
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 22,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-  },
-  searchEdge: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 14,
-  },
-  // `.search-box:focus-within` (screens.css:567-570). The 3dp 0.12 glow it also
-  // carries is not drawn: this is a button here, so it takes --focus-ring like
-  // every other one, and two cues would fight.
-  searchEdgeOn: {borderColor: 'rgba(255,255,255,0.45)'},
-  // The input's own 1.25rem/600; the placeholder colour, since there is never a
-  // value to show.
-  searchText: {color: colors.textFaint, fontSize: 20, fontWeight: '600'},
-  // Vertical padding is load-bearing on the site (it stops the pills' focus ring
-  // being clipped by the strip's own overflow) and is transcribed as-is.
-  catRow: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, ...frame},
-  tools: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingTop: 2,
-    paddingBottom: 6,
-    zIndex: 20,
-    ...frame,
-  },
-  note: {color: colors.textFaint, fontSize: 16, fontWeight: '600', alignSelf: 'center'},
-  gone: {display: 'none'},
-  // Vertical FlatLists need flex here: on TV the list is wrapped in a focus
-  // guide that mirrors this style (see the virtualized-lists patch); without it
-  // the list sizes to its content and overflows the screen instead of scrolling
-  // inside it.
+  // What the panel currently says, in its own words, so the grid never has to
+  // be guessed at while the panel is shut.
+  active: {color: colors.textDim, fontSize: 16, lineHeight: 24, fontWeight: '700', flexShrink: 1},
   listFill: {flex: 1},
   // A vertical FlatList spends the clearance as padding and takes NO cancelling
   // margins: a recycled cell cannot be relied on to carry them (§F.4 / G.1).
   grid: {paddingTop: CLEARANCE.above, ...frame},
-  // NOT space-between: P17 leaves 7dp of slack at 960dp and §3.4 forbids
-  // spending it into the gaps — the gap is pinned at 13 and the residue stays
-  // trailing, so the grid stays left-aligned under the content inset.
+  // NOT space-between: the gap is pinned at 13 and the residue stays trailing,
+  // so the grid stays left-aligned under the content inset.
   rowGap: {gap: GRID_GAP, marginBottom: GRID_GAP},
   skelGrid: {flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP, paddingTop: CLEARANCE.above, ...frame},
-  // A fixed strip under the list now (see the sibling note at the render): it
-  // only exists while more pages exist, so it earns its ~60dp. The render adds
-  // safeBottom to the 12.
-  moreHost: {alignItems: 'center', paddingTop: 4},
+  footer: {alignItems: 'center', paddingVertical: spacing.md},
+
+  // ---- the filter panel ------------------------------------------------
+  strip: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: STRIP_W,
+    alignItems: 'center',
+    paddingTop: 27 + 8,
+    zIndex: 100,
+  },
+  tune: {gap: 4, alignItems: 'flex-end', width: 18},
+  tuneBar: {height: 2, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.35)'},
+  panel: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: PANEL_W,
+    // Opaque, like the rail: measured on the Streamer, a 3% see-through reads
+    // as ghost posters behind the controls.
+    backgroundColor: '#0a0b14',
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(255,255,255,0.09)',
+    zIndex: 101,
+  },
+  // Insets to the 48dp safe edge on the right, the panel's own gutter on the left.
+  // Budgeted against a 540dp panel: 18 + kicker 24 + six 48dp chips + rule 9 +
+  // picker 48 + chip 48 + Surprise 48 + 27 = 510. The first cut had 27/8/6 here
+  // and came to 543 — Surprise me sat clipped below the safe inset.
+  panelInner: {flex: 1, paddingLeft: 18, paddingRight: spacing.pageX, paddingTop: 18, paddingBottom: 27},
+  kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3, marginBottom: 4},
+  cats: {alignItems: 'flex-start'},
+  rule: {height: 1, backgroundColor: colors.line, marginVertical: 4},
+  toolRow: {flexDirection: 'row', alignItems: 'center'},
+  note: {color: colors.textFaint, fontSize: 14, fontWeight: '600', marginTop: 2},
 });

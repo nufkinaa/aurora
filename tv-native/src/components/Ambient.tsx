@@ -26,7 +26,10 @@ import theme from '../theme';
 const {colors} = theme;
 
 const AMBIENT = require('../assets/ambient.png');
-const GRAIN = require('../assets/ambient-grain.png');
+// The site's film-grain layer (body::before) is deliberately NOT drawn here
+// any more. At 3% it is invisible on a monitor, but the Streamer upscales a
+// 960dp frame to a 4K panel and the tile read as a speckled filter over every
+// page — elia's "graininess". The blooms alone keep the canvas from being a void.
 
 // StyleSheet.absoluteFillObject is missing from the tvos type defs.
 const fill = {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0} as const;
@@ -38,9 +41,6 @@ function Ambient() {
           so they must follow its proportions rather than be cropped to preserve
           an aspect ratio a gradient does not have. */}
       <Image source={AMBIENT} style={styles.wash} resizeMode="stretch" fadeDuration={0} />
-      {/* "repeat" keeps the tile at 1:1 pixel size on any panel — the one size
-          at which grain reads as grain instead of as blur. */}
-      <Image source={GRAIN} style={styles.grain} resizeMode="repeat" fadeDuration={0} />
     </View>
   );
 }
@@ -52,7 +52,4 @@ const styles = StyleSheet.create({
   // so any rounding at the edges shows whatever is behind it.
   root: {...fill, backgroundColor: colors.bg},
   wash: {...fill, width: '100%', height: '100%'},
-  // body::before's opacity: low enough that you cannot see grain, high enough
-  // that you can see it is not a flat fill.
-  grain: {...fill, width: '100%', height: '100%', opacity: 0.032},
 });
