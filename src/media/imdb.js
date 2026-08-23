@@ -60,4 +60,13 @@ const resolve = async (title, type, year) => {
   return imdbId;
 };
 
-module.exports = { resolve, _internals: { norm } };
+// Synchronous cache peek — the resolution a previous resolve() stored, or
+// null. Never touches the network; identity matching leans on this so it can
+// run inside request handlers.
+const cachedIdFor = (title, type, year) => {
+  const kind = type === "show" ? "show" : "movie";
+  const hit = store.data[`${kind}|${norm(String(title || ""))}|${year || ""}`];
+  return (hit && hit.imdbId) || null;
+};
+
+module.exports = { resolve, cachedIdFor, _internals: { norm } };

@@ -90,6 +90,7 @@ export const api = {
   },
 
   serverInfo: () => json("/api/server-info"),
+  suggest: (q) => json(`/api/search/suggest?q=${encodeURIComponent(q)}`),
   intro: (key) => json(`/api/intro/${encodeURIComponent(key)}`),
   setIntro: (key, start, end) =>
     post(`/api/intro/${encodeURIComponent(key)}`, { start, end }),

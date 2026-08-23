@@ -43,13 +43,11 @@ const showItem = (s) => ({
 });
 
 const markLibrary = (items) => {
-  const byTitle = new Map(
-    scanner.allItems().map((i) => [normalize(i.title), i.id])
-  );
-  for (const item of items) {
-    item.inLibrary = byTitle.get(normalize(item.title)) || null;
-  }
-  return items;
+  // Delegates to the shared identity matcher (title+year strict, imdb-map
+  // aware) — the old title-only map here merged "Dune" 1984 onto "Dune" 2021.
+  // Lazily required: identity → imdb → THIS module; a top-level require
+  // during our own load would hand imdb.js an empty partial export.
+  return require("./identity").markLibrary(items);
 };
 
 // ---------- trending ----------

@@ -36,6 +36,23 @@ const stateFor = (profileId) => {
 const entryKey = (entry) =>
   typeof entry === "string" ? entry : "disc:" + entry.imdbId;
 
+// Two stored forms can denote ONE title: a library id, and a stream ref of
+// the same film added from Discover before (or after) it was downloaded.
+// sameIdentity makes membership checks and removal treat them as one; the
+// shared identity matcher does the heavy lifting. `deps` is injectable so
+// tests never touch the live store or the scanner.
+const sameIdentity = (a, b, deps = null) => {
+  if (entryKey(a) === entryKey(b)) return true;
+  const str = typeof a === "string" ? a : typeof b === "string" ? b : null;
+  const ref = a && typeof a === "object" ? a : b && typeof b === "object" ? b : null;
+  if (!str || !ref) return false;
+  const findLibrary =
+    (deps && deps.findLibrary) ||
+    ((r) => require("./media/identity").findLibraryFor(r));
+  const lib = findLibrary(ref);
+  return !!lib && lib.id === str;
+};
+
 // Public shape sent to clients — NEVER leaks the password hash/salt, just
 // whether a password is set.
 const pub = (p) => ({
@@ -374,10 +391,22 @@ const streamTitleProgress = (profileId) =>
 // `item` is a local id string or a stream ref object (see entryKey).
 const toggleWatchlist = (profileId, item, add) => {
   const state = stateFor(profileId);
-  const key = entryKey(item);
-  const has = state.watchlist.some((e) => entryKey(e) === key);
-  if (add && !has) state.watchlist.push(item);
-  if (!add && has) state.watchlist = state.watchlist.filter((e) => entryKey(e) !== key);
+  // Adds dedupe on the EXACT stored key only — an identity twin in the OTHER
+  // form is welcome, because each form carries keys the other lacks (the
+  // stream ref holds imdbId/genres that New Episodes and the genre filter
+  // need; the library id survives the stream cache expiring). The read path
+  // (materializeWatchlist) collapses twins to one card, and removal is
+  // identity-aware so one remove takes every costume of the title with it.
+  const exact = state.watchlist.some((e) => entryKey(e) === entryKey(item));
+  if (add && !exact) state.watchlist.push(item);
+  if (!add) {
+    // Build the library maps ONCE for the whole sweep — bare sameIdentity
+    // rebuilds them per stream-ref entry (O(watchlist × library) per click).
+    const identity = require("./media/identity");
+    const maps = identity._internals.libraryMaps();
+    const deps = { findLibrary: (r) => identity.findLibraryFor(r, maps) };
+    state.watchlist = state.watchlist.filter((e) => !sameIdentity(e, item, deps));
+  }
   store.save();
   return state.watchlist;
 };
@@ -511,24 +540,74 @@ const recommendations = (profileId) => {
 
 // Resolve watchlist entries to renderable card items: local ids via the
 // scanner, stream refs normalised to a card shape that opens the Discover page.
-const watchlistItems = (profileId) =>
-  stateFor(profileId)
-    .watchlist.map((entry) => {
-      if (typeof entry === "string") return scanner.findById(entry);
-      return {
-        id: "disc:" + entry.imdbId,
-        imdbId: entry.imdbId,
-        type: entry.type || "movie",
-        title: entry.title || "",
-        cover: entry.poster || null,
-        year: entry.year || null,
-        genres: entry.genres || [],
-        rating: entry.rating || null,
-        source: "stream",
-      };
-    })
-    .filter(Boolean)
-    .reverse();
+// Pure materializer (deps injected; tests use fakes): stored entries → cards.
+// One title, one card (elia's item 11): a stream ref whose title the library
+// now OWNS becomes the LIBRARY card — its own cover — carrying BOTH keys
+// (id + imdbId) so both detail pages' membership checks recognize it, plus
+// `listKey` (the ORIGINAL stored key). Deliberately NO source:"stream" on a
+// library-backed card: that is exactly what makes openItem route it to the
+// library page instead of Discover. Read-time only — stored entries are
+// never rewritten here.
+const materializeWatchlist = (entries, deps) => {
+  const out = [];
+  const seen = new Set();
+  for (const entry of entries) {
+    let card = null;
+    if (typeof entry === "string") {
+      const item = deps.findById(entry);
+      if (!item) continue;
+      card = { ...item, listKey: entry };
+      const imdbId = deps.imdbIdFor(item);
+      if (imdbId) card.imdbId = imdbId;
+    } else {
+      const lib = deps.findLibrary(entry);
+      if (lib) {
+        card = {
+          ...lib,
+          // rare gap: a library item scanned without artwork still shows the
+          // poster the stream ref stored at add-time
+          cover: lib.cover || entry.poster || null,
+          imdbId: entry.imdbId,
+          listKey: "disc:" + entry.imdbId,
+        };
+      } else {
+        card = {
+          id: "disc:" + entry.imdbId,
+          imdbId: entry.imdbId,
+          type: entry.type || "movie",
+          title: entry.title || "",
+          cover: entry.poster || null,
+          year: entry.year || null,
+          genres: entry.genres || [],
+          rating: entry.rating || null,
+          source: "stream",
+          listKey: "disc:" + entry.imdbId,
+        };
+      }
+    }
+    // Collapse twins WITHIN the list (both forms stored by design now) — safe
+    // because removal is identity-aware and takes both. imdbId joins the seen
+    // set only for STREAM-STORED entries: two distinct library items whose
+    // cached IMDb lookups ever collide must both stay visible.
+    const fromStream = card.listKey.startsWith("disc:");
+    if (seen.has(card.id) || (fromStream && card.imdbId && seen.has(card.imdbId)))
+      continue;
+    seen.add(card.id);
+    if (fromStream && card.imdbId) seen.add(card.imdbId);
+    out.push(card);
+  }
+  return out.reverse();
+};
+
+const watchlistItems = (profileId) => {
+  const identity = require("./media/identity");
+  const maps = identity._internals.libraryMaps();
+  return materializeWatchlist(stateFor(profileId).watchlist, {
+    findById: scanner.findById,
+    findLibrary: (ref) => identity.findLibraryFor(ref, maps),
+    imdbIdFor: identity.imdbIdFor,
+  });
+};
 
 const clearProgress = (profileId, itemId) => {
   const state = stateFor(profileId);
@@ -586,4 +665,6 @@ module.exports = {
   getRatings,
   setLikedGenres,
   getLikedGenres,
+  // Test-only: the pure halves of the watchlist identity work.
+  _internals: { entryKey, sameIdentity, materializeWatchlist },
 };

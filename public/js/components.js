@@ -69,7 +69,12 @@ const NEW_WINDOW_MS = 7 * 24 * 3600 * 1000;
 
 export const card = (item, { wide = false, onRemove = null, showKind = false } = {}) => {
   const isEpisode = !!item.showId && item.type !== "show";
-  const prog = progressFor(item.id);
+  // Both keys, on purpose: a library-backed list card may carry progress
+  // under its STREAM identity (watched via Discover before the download).
+  const prog =
+    progressFor(item.id) ||
+    (item.imdbId && state.streamProgress && state.streamProgress[item.imdbId]) ||
+    null;
   const pct =
     prog && prog.duration > 0 && !prog.finished
       ? Math.min(100, (prog.position / prog.duration) * 100)

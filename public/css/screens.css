@@ -569,6 +569,55 @@
 }
 
 /* ---------- Search ---------- */
+/* Instant search suggestions — a flat stacked list under the box (not an
+   overlay: simpler, and vertical stacking is what the D-pad walks best). */
+.suggest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 var(--page-x) 10px;
+  max-width: 640px;
+}
+.suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+  min-height: 52px;
+}
+.suggest-item:hover,
+.suggest-item:focus {
+  background: var(--surface-hover);
+}
+.suggest-thumb {
+  width: 34px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--surface-hover);
+  flex-shrink: 0;
+  font-size: 0; /* the titled-fallback text has no room at this size */
+}
+.suggest-title {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.suggest-meta {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.suggest-item .disc-tag.have {
+  position: static;
+  flex-shrink: 0;
+}
+
 .search-wrap {
   padding: calc(var(--nav-h) + 42px) var(--page-x) 10px;
 }

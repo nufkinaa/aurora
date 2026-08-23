@@ -103,7 +103,12 @@ const genreFallback = async (type, imdbId) => {
     genres = (meta && meta.genres) || [];
   } catch {}
   const wanted = type === "series" ? "show" : "movie";
-  const items = (discover.trendingCached() || [])
+  // trendingCached returns {movies, shows} (or null before first warm)
+  const trending = discover.trendingCached();
+  const pool = trending
+    ? [...(trending.movies || []), ...(trending.shows || [])]
+    : [];
+  const items = pool
     .filter(
       (m) => m.type === wanted && m.imdbId && m.imdbId !== imdbId && m.poster,
     )
@@ -147,7 +152,13 @@ const similar = async (type, imdbId, tmdbHint) => {
       }
     } catch {}
   }
-  if (!result.items.length) result = await genreFallback(type, imdbId);
+  // Belt: a fallback failure must degrade to an empty row, never 500 the
+  // detail page it decorates.
+  if (!result.items.length) {
+    try {
+      result = await genreFallback(type, imdbId);
+    } catch {}
+  }
 
   store.data.rows[key] = {
     items: result.items,

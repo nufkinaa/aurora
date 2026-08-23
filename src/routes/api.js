@@ -110,10 +110,24 @@ router.get("/api/item/:id", (req, res) => {
   res.json(item);
 });
 
+// Instant autocomplete over library + cached catalog titles: in-memory
+// index, typo-tolerant, tiny payload. See src/media/searchindex.js.
+router.get("/api/search/suggest", (req, res) => {
+  const q = String(req.query.q || "").slice(0, 80);
+  if (!q.trim()) return res.json({ suggestions: [] });
+  res.json({ suggestions: require("../media/searchindex").suggest(q) });
+});
+
 router.get("/api/search", (req, res) => {
   const q = (req.query.q || "").trim().toLowerCase();
   if (!q) return res.json({ results: [] });
 
+  // Normalized + fuzzy tiers under the exact ones: before these, ANY
+  // one-character typo returned zero library results and punctuation was
+  // load-bearing ("honey dont" found nothing) — measured in the search audit.
+  const { norm, fuzzyWordMatch } = require("../media/searchindex")._internals;
+  const nq = norm(q);
+  const nqWords = nq.split(" ").filter(Boolean);
   const score = (title) => {
     const t = title.toLowerCase();
     if (t === q) return 3;
@@ -121,7 +135,12 @@ router.get("/api/search", (req, res) => {
     if (t.includes(q)) return 1;
     // every word of the query appears somewhere
     const words = q.split(/\s+/);
-    return words.length > 1 && words.every((w) => t.includes(w)) ? 0.5 : 0;
+    if (words.length > 1 && words.every((w) => t.includes(w))) return 0.5;
+    const nt = norm(title);
+    if (nq && (nt === nq || nt.startsWith(nq) || nt.includes(nq))) return 0.45;
+    if (nqWords.length && fuzzyWordMatch(nqWords, nt.split(" ").filter(Boolean)))
+      return 0.42;
+    return 0;
   };
 
   const results = [];
