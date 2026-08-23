@@ -33,6 +33,11 @@ router.get("/api/torrents/sources", async (req, res) => {
       `[perf] sources "${title.trim().slice(0, 40)}" ${Date.now() - t0}ms (${(result.streams || []).length} streams)`,
     );
     res.json(result);
+    // The viewer is choosing right now — pre-warm the recommended pick's
+    // swarm so Play starts warm. Fire-and-forget, self-bounded (see
+    // warmTorrent: one slot, one piece, 5-min TTL).
+    const best = (result.streams || []).find((s) => s.recommended);
+    if (best && best.infoHash) torrent.warmTorrent(best.infoHash);
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

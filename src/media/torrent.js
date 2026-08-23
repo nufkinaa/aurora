@@ -25,6 +25,51 @@ const loadWebTorrent = async () => {
 };
 
 const CACHE_DIR = path.join(config.CACHE_DIR, "torrents");
+
+// ---------- torrent-metadata cache ----------
+// The raw .torrent of every torrent we've ever readied, keyed by infoHash.
+// A cached re-add (replay, post-eviction seek, server restart) skips the
+// swarm metadata hunt entirely — the slowest cold step on weak swarms, and
+// the reason a magnet-only re-add needed a live peer just to remember what
+// the torrent contained. Files run ~20–100KB; capped below.
+try {
+  fs.mkdirSync(CACHE_DIR, { recursive: true });
+} catch {}
+const metadataCachePath = (infoHash) =>
+  path.join(CACHE_DIR, `${infoHash}.torrent`);
+const readCachedMetadata = (infoHash) => {
+  try {
+    return fs.readFileSync(metadataCachePath(infoHash));
+  } catch {
+    return null;
+  }
+};
+const MAX_CACHED_TORRENTS = 300;
+const sweepMetadataCache = (dir = CACHE_DIR, max = MAX_CACHED_TORRENTS) => {
+  try {
+    const entries = fs.readdirSync(dir).filter((f) => f.endsWith(".torrent"));
+    if (entries.length <= max) return;
+    entries
+      .map((f) => ({ f, m: fs.statSync(path.join(dir, f)).mtimeMs }))
+      .sort((a, b) => a.m - b.m)
+      .slice(0, entries.length - max)
+      .forEach(({ f }) => {
+        try {
+          fs.unlinkSync(path.join(dir, f));
+        } catch {}
+      });
+  } catch {}
+};
+const saveMetadata = (t) => {
+  try {
+    if (!t || !t.torrentFile) return;
+    const file = metadataCachePath(t.infoHash);
+    if (fs.existsSync(file)) return;
+    fs.writeFile(file, t.torrentFile, (err) => {
+      if (!err) sweepMetadataCache();
+    });
+  } catch {}
+};
 const STORE = new JsonStore(
   path.join(config.CACHE_DIR, "torrent-streams.json"),
   {
@@ -63,7 +108,20 @@ const getClient = () => {
       // seedOutgoingConnections:false makes webtorrent itself ignore peers
       // offered by trackers/DHT/PEX once a torrent is done — it stops dialing
       // out the moment there is nothing left to fetch (see quiesce()).
-      clientInstance = new W({ maxConns: 40, seedOutgoingConnections: false });
+      // utp:false — with utp-native installed, webtorrent dials EVERY IPv4
+      // peer uTP-first and only falls back to TCP after the whole 21-35s
+      // retry ladder; each dead uTP attempt squats in the maxConns budget.
+      // aria2 dials TCP immediately, and this network is documented UDP-
+      // hostile. Measured 2026-08-23: same swarm, aria2 44 conns vs our 20.
+      // numwant:200 — webtorrent's default asks a tracker for only 50
+      // addresses, once per ~30min; ask for more up front (trackers clamp
+      // as they see fit).
+      clientInstance = new W({
+        maxConns: 40,
+        seedOutgoingConnections: false,
+        utp: false,
+        tracker: { getAnnounceOpts: () => ({ numwant: 200 }) },
+      });
       // A client-level error with no listener throws out of the event loop;
       // the process guard catches it but the client can be left wedged. Log it.
       clientInstance.on("error", (err) =>
@@ -85,6 +143,51 @@ const torrentAccess = new Map(); // infoHash -> last-access ms
 const TORRENT_IDLE_MS = 30 * 60 * 1000; // 30 min untouched -> evict
 const MAX_TORRENTS = 12; // hard cap; evict least-recently-used beyond it
 const touchTorrent = (infoHash) => torrentAccess.set(infoHash, Date.now());
+
+// ---------- pre-warm on intent ----------
+// The sources list opening means someone is choosing RIGHT NOW — join the
+// ★ BEST pick's swarm early (metadata + peer connections), so pressing Play
+// starts on a warm torrent instead of a cold add. Strictly bounded: one warm
+// slot (a newer intent replaces the old), one piece selected (an EMPTY
+// selection across ticks is the known piece-picker crash), never allowed to
+// fill the client, and swept after 5 minutes if nobody pressed Play.
+const WARM_TTL_MS = 5 * 60 * 1000;
+const warmed = new Map(); // infoHash -> warmedAt
+const peerBoosts = new Map(); // infoHash -> last re-discovery nudge
+const warmTorrent = (infoHash) => {
+  if (!config.PREWARM || !infoHash) return;
+  const cl = clientInstance;
+  if (cl && cl.torrents.some((t) => t.infoHash === infoHash)) return; // already live
+  if (cl && cl.torrents.length >= MAX_TORRENTS - 1) return; // real streams first
+  for (const [oldHash] of warmed) {
+    if (oldHash === infoHash) continue;
+    // The viewer moved on to another title — retarget the single warm slot.
+    warmed.delete(oldHash);
+    removeTorrent(oldHash).catch(() => {});
+  }
+  const warmAt = Date.now();
+  warmed.set(infoHash, warmAt);
+  perf.note(infoHash, "prewarmed", true);
+  readyTorrent(infoHash)
+    .then((t) => {
+      // Withhold the payload — a warm torrent holds connections, not bytes.
+      // If Play already arrived (any touch after ours), leave the selection
+      // alone: scopeToFile owns it now. (Even a lost race here self-heals —
+      // every range request re-scopes.)
+      if (!warmed.has(infoHash)) return;
+      if ((torrentAccess.get(infoHash) || 0) > warmAt + 1000) return;
+      try {
+        // Selections are PER FILE in webtorrent (deselect(0, N) matches no
+        // interval and silently does nothing — measured: a "warm" torrent
+        // downloaded all 123MB). Drop each file's auto-selection, keep piece
+        // 0 so the selection is never empty across ticks (the known
+        // piece-picker crash).
+        for (const f of t.files) f.deselect();
+        t.select(0, 0, false);
+      } catch {}
+    })
+    .catch(() => warmed.delete(infoHash));
+};
 
 // In-flight remove+destroyStore teardowns. A readyTorrent re-add racing a
 // pending remove reads through half-destroyed store handles — the new
@@ -117,9 +220,50 @@ setInterval(() => {
       if (removing.get(hash) === p) removing.delete(hash);
     });
     torrentAccess.delete(hash);
+    peerBoosts.delete(hash);
     perf.flush(hash, `evict-${why}`);
     console.log(`[torrent] evicted ${why} ${hash.slice(0, 8)}…`);
   };
+  // 0) warm torrents: any real touch after the warm promotes them to normal
+  //    lifecycle; abandoned ones (sources page opened, nothing played) go
+  //    after WARM_TTL_MS instead of holding a swarm for 30 minutes.
+  for (const [hash, at] of warmed) {
+    const t = cl.torrents.find((x) => x.infoHash === hash);
+    if (!t) {
+      warmed.delete(hash);
+      continue;
+    }
+    if ((torrentAccess.get(hash) || 0) > at + 2000) {
+      warmed.delete(hash); // promoted — someone pressed Play
+      continue;
+    }
+    if (now - at > WARM_TTL_MS) {
+      warmed.delete(hash);
+      evict(t, "warm-abandoned");
+    }
+  }
+  // 0.5) under-peered ACTIVE streams: webtorrent never re-asks for peers on
+  //      its own (one 50-address announce, then ~30 min of silence; DHT ~15
+  //      min — verified in its lib) — so nudge tracker + DHT for any
+  //      actively-watched torrent running low. Politeness: one nudge per
+  //      torrent per 3 minutes, watched-in-the-last-2-min torrents only.
+  for (const t of cl.torrents) {
+    if (t.done || t._auroraQuiesced || !t.ready) continue;
+    if (now - (torrentAccess.get(t.infoHash) || 0) > 120000) continue;
+    if ((t.numPeers || 0) >= 12) continue;
+    if (now - (peerBoosts.get(t.infoHash) || 0) < 180000) continue;
+    peerBoosts.set(t.infoHash, now);
+    try {
+      t.discovery && t.discovery.tracker && t.discovery.tracker.update();
+    } catch {}
+    try {
+      const dht = t.discovery && t.discovery.dht;
+      if (dht && typeof dht.lookup === "function") dht.lookup(t.infoHash);
+    } catch {}
+    console.log(
+      `[torrent] peer boost ${t.infoHash.slice(0, 8)}… (${t.numPeers} peers)`,
+    );
+  }
   // 1) idle eviction — and stop peer discovery on anything already complete
   //    (covers torrents that came up 100% from the store, whose 'done' event
   //    fired before we could listen for it)
@@ -629,10 +773,27 @@ const _readyTorrent = (infoHash) =>
             .map((t) => "tr=" + encodeURIComponent(t))
             .join("&");
           const magnet = `magnet:?xt=urn:btih:${infoHash}&${trParams}`;
+          // Cached .torrent first: metadata is instant and needs no peer.
+          // (webtorrent merges the `announce` option into every torrentId
+          // type, buffers included — verified against lib/torrent.js — so the
+          // tracker set rides along exactly as it does for magnets.)
+          const cached = readCachedMetadata(infoHash);
           try {
             // No `path` option: stream from WebTorrent's default store. A custom
             // path can stall adds on Windows and isn't needed for streaming.
-            t = cl.add(magnet, { announce });
+            if (cached) {
+              try {
+                t = cl.add(cached, { announce });
+              } catch (err) {
+                // Corrupt/stale cache file — drop it, fall back to the magnet.
+                try {
+                  fs.unlinkSync(metadataCachePath(infoHash));
+                } catch {}
+                t = cl.add(magnet, { announce });
+              }
+            } else {
+              t = cl.add(magnet, { announce });
+            }
           } catch (err) {
             // Duplicate-add race: a magnet's infoHash isn't set synchronously, so
             // a concurrent request may have already added this torrent. Reuse it.
@@ -641,9 +802,12 @@ const _readyTorrent = (infoHash) =>
             else return reject(err);
           }
           console.log(
-            `[torrent] add ${infoHash.slice(0, 8)}… (${announce.length} trackers)`,
+            `[torrent] add ${infoHash.slice(0, 8)}… (${announce.length} trackers${cached ? ", metadata cached" : ""})`,
           );
-          perf.mark(infoHash, "add", { trackers: announce.length });
+          perf.mark(infoHash, "add", {
+            trackers: announce.length,
+            fromMetadataCache: !!cached,
+          });
           t.once("metadata", () => perf.mark(infoHash, "metadata"));
           t.once("wire", () => perf.mark(infoHash, "first_peer"));
           t.on("ready", () => {
@@ -651,6 +815,7 @@ const _readyTorrent = (infoHash) =>
               files: t.files.length,
               peersAtReady: t.numPeers,
             });
+            saveMetadata(t); // future re-adds skip the metadata hunt
             console.log(
               `[torrent] ${infoHash.slice(0, 8)}… ready, ${t.files.length} files, ${t.numPeers} peers`,
             );
@@ -1102,6 +1267,7 @@ module.exports = {
   magnetFor,
   servedFileProgress,
   touchTorrent,
+  warmTorrent,
   resolveId,
   getSources,
   getSubtitles,
@@ -1117,4 +1283,12 @@ module.exports = {
   clearCache,
   VIDEO_EXT,
   CACHE_DIR,
+  // Test-only: the metadata-cache mechanics (see test/torrent-metadata-cache).
+  _internals: {
+    metadataCachePath,
+    readCachedMetadata,
+    saveMetadata,
+    sweepMetadataCache,
+    MAX_CACHED_TORRENTS,
+  },
 };

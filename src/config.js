@@ -146,6 +146,9 @@ module.exports = {
   // with "aiModel" in config.json.
   AI_MODEL: userConfig.aiModel || "google/gemini-2.5-flash",
   TORRENTS: userConfig.torrents !== false,
+  // Join the recommended source's swarm the moment its sources list opens, so
+  // pressing Play lands on a warm torrent. "prewarmStreams": false disables.
+  PREWARM: userConfig.prewarmStreams !== false,
   // Download requests start on their own; an admin is only asked when the
   // library volume would be left with less than this much free space (percent).
   // Override with "downloadMinFreePercent" in config.json (0 = always start).

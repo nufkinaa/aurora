@@ -318,6 +318,9 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
       "-muxdelay", "0", "-muxpreload", "0",
       "-f", "hls",
       "-hls_time", "4", // shorter segments → first frames reach the player sooner
+      // A short FIRST segment gets the playlist (and playback) started after
+      // ~2s of encoded content instead of 4 — same setting remux.js proved.
+      "-hls_init_time", "2",
       "-hls_playlist_type", "event",
       "-hls_flags", "independent_segments+temp_file",
       "-hls_segment_filename", path.join(dir, "seg%05d.ts"),

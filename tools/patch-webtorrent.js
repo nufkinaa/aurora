@@ -59,9 +59,39 @@ if (
   changed = true;
 }
 
+// ---------- torrent.js: peer-churn tuning ----------
+// Measured 2026-08-23 (bench vs aria2 on the same swarm: 4.9 vs 16.1 MB/s,
+// 20 vs 44 peers): webtorrent hangs up on any wire that hasn't unchoked us
+// within 5s — but the standard BitTorrent rechoke round is 10s (webtorrent's
+// own RECHOKE_INTERVAL says so), so healthy seeders get dropped before their
+// first rechoke tick, burn their three reconnect retries, and are then
+// discarded forever — with the next tracker refill 30 minutes away. Give
+// wires three rechoke rounds before giving up, and keep retrying addresses
+// long enough to bridge announce intervals.
+if (
+  src.includes("const CHOKE_TIMEOUT = 5_000") &&
+  !src.includes("AURORA-PATCH: choke timeout")
+) {
+  src = src.replace(
+    "const CHOKE_TIMEOUT = 5_000",
+    "const CHOKE_TIMEOUT = 30_000 // AURORA-PATCH: choke timeout — 3 rechoke rounds, not half of one",
+  );
+  changed = true;
+}
+if (
+  src.includes("const RECONNECT_WAIT = [1_000, 5_000, 15_000]") &&
+  !src.includes("AURORA-PATCH: reconnect ladder")
+) {
+  src = src.replace(
+    "const RECONNECT_WAIT = [1_000, 5_000, 15_000]",
+    "const RECONNECT_WAIT = [1_000, 5_000, 15_000, 60_000, 180_000] // AURORA-PATCH: reconnect ladder bridges the 30-min announce gap",
+  );
+  changed = true;
+}
+
 if (changed) {
   fs.writeFileSync(file, src);
-  console.log("patched webtorrent piece-picker null guards");
+  console.log("patched webtorrent piece-picker null guards + peer-churn tuning");
 } else {
   console.log("webtorrent already patched (or layout changed)");
 }

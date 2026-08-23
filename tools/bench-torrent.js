@@ -35,7 +35,14 @@ const result = { runSecs: RUN_SECS, webtorrent: {}, aria2: {} };
 const benchWebTorrent = () =>
   new Promise(async (resolve) => {
     const { default: WebTorrent } = await import("webtorrent");
-    const client = new WebTorrent({ maxConns: 40 });
+    // Mirror the server's client options exactly (src/media/torrent.js
+    // getClient), so this measures what production would do.
+    const client = new WebTorrent({
+      maxConns: 40,
+      seedOutgoingConnections: false,
+      utp: false,
+      tracker: { getAnnounceOpts: () => ({ numwant: 200 }) },
+    });
     client.on("error", () => {});
     const t0 = now();
     const R = result.webtorrent;
