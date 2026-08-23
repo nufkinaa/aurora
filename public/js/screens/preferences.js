@@ -102,6 +102,85 @@ const appearanceSection = () => {
   return host;
 };
 
+// ---------- home rows: reorder + hide, per profile ----------
+const ROW_NAMES = {
+  continue: "Continue Watching", "new-episodes": "New Episodes", recommended: "Recommended for You",
+  mylist: "My List", "next-watch": "Your Next Watch", "trending-stream": "Trending to Stream",
+  "top-rated": "Top Rated by You", "new-movies": "New Movies", upcoming: "Upcoming",
+  "recent-movies": "Recently Added", movies: "All Movies", shows: "All Shows",
+};
+const rowName = (id, title) => title || ROW_NAMES[id] || (id.startsWith("liked-") ? "More " + id.slice(6) : id);
+
+const homeRowsSection = async () => {
+  const host = el("div", { class: "page-pad", style: { maxWidth: "560px" } });
+  let entries = []; // [{id, title, hidden}]
+  try {
+    const home = await api.home(state.profile.id);
+    const live = (home.rows || []).map((r) => ({ id: r.id, title: r.title, hidden: false }));
+    const prefs = state.profile.rows || { order: [], hidden: [] };
+    const liveIds = new Set(live.map((r) => r.id));
+    // hidden rows aren't in /api/home any more — resurface them here so they
+    // can be un-hidden
+    for (const id of prefs.hidden || []) {
+      if (!liveIds.has(id)) live.push({ id, title: rowName(id), hidden: true });
+      else live.find((r) => r.id === id).hidden = true;
+    }
+    entries = live;
+  } catch {
+    host.append(el("div", { class: "empty-note" }, "Couldn't load the rows."));
+    return host;
+  }
+
+  const save = async () => {
+    try {
+      const updated = await api.updateProfile(state.profile.id, {
+        rows: { order: entries.map((e) => e.id), hidden: entries.filter((e) => e.hidden).map((e) => e.id) },
+      });
+      if (updated && updated.id) state.profile = { ...state.profile, ...updated };
+    } catch { toast("Couldn't save the order", "⚠️"); }
+  };
+
+  const paint = () => {
+    host.innerHTML = "";
+    entries.forEach((e, i) => {
+      host.append(el("div", {
+        class: "pref-item",
+        style: e.hidden ? { opacity: "0.5" } : {},
+      },
+        el("div", { class: "pref-item-text" }, el("div", { class: "pref-item-label" }, rowName(e.id, e.title))),
+        el("div", { style: { display: "flex", gap: "6px" } },
+          el("button", {
+            class: "mini focusable", html: "↑", "aria-label": "Move up", disabled: i === 0 ? "disabled" : undefined,
+            onclick: () => { [entries[i - 1], entries[i]] = [entries[i], entries[i - 1]]; paint(); save(); },
+          }),
+          el("button", {
+            class: "mini focusable", html: "↓", "aria-label": "Move down", disabled: i === entries.length - 1 ? "disabled" : undefined,
+            onclick: () => { [entries[i + 1], entries[i]] = [entries[i], entries[i + 1]]; paint(); save(); },
+          }),
+          el("button", {
+            class: "mini focusable",
+            onclick: () => { e.hidden = !e.hidden; paint(); save(); },
+          }, e.hidden ? "Show" : "Hide"),
+        ),
+      ));
+    });
+    host.append(el("button", {
+      class: "btn small focusable", style: { marginTop: "10px" },
+      html: "<span>Reset to default</span>",
+      onclick: async () => {
+        try {
+          const updated = await api.updateProfile(state.profile.id, { rows: { order: [], hidden: [] } });
+          if (updated && updated.id) state.profile = { ...state.profile, ...updated };
+          toast("Back to the default order");
+          window.dispatchEvent(new HashChangeEvent("hashchange"));
+        } catch { toast("Couldn't reset", "⚠️"); }
+      },
+    }));
+  };
+  paint();
+  return host;
+};
+
 export const renderPreferences = async (root) => {
   const screen = el("div", { class: "screen" });
   root.append(screen);
@@ -204,6 +283,10 @@ export const renderPreferences = async (root) => {
     el("h2", { class: "row-title", style: { marginTop: "18px" } }, "Appearance"),
     el("p", { class: "pref-note" }, "Yours alone — follows this profile to every device."),
     appearanceSection(),
+    // ---- Home rows ----
+    el("h2", { class: "row-title", style: { marginTop: "18px" } }, "Your home page"),
+    el("p", { class: "pref-note" }, "Reorder or hide the rows on Home. New kinds of rows appear at the end. The TV follows this order too."),
+    await homeRowsSection(),
     // ---- Playback ----
     el("h2", { class: "row-title", style: { marginTop: "18px" } }, "Playback"),
     el("div", { class: "pref-list page-pad" },

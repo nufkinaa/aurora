@@ -196,8 +196,8 @@ const ROW_ORDER = [
 
 // Sorted by rank, then by where it already was — so the unnamed rows keep their
 // existing sequence instead of being shuffled by an unstable comparison.
-const orderRows = (rows) =>
-  rows
+const orderRows = (rows, prefs = null) => {
+  const byDefault = rows
     .map((row, at) => ({ row, at, rank: ROW_ORDER.indexOf(row.id) }))
     .sort((a, b) => {
       const ra = a.rank === -1 ? ROW_ORDER.length : a.rank;
@@ -205,6 +205,30 @@ const orderRows = (rows) =>
       return ra - rb || a.at - b.at;
     })
     .map((entry) => entry.row);
+  if (!prefs) return byDefault;
+  // Per-profile composition. Rules that keep every consumer honest:
+  //  - hidden rows are removed (the profile asked);
+  //  - rows the stored order doesn't know (GENERATED ids like liked-<genre>)
+  //    keep their default position after the ordered ones — never dropped;
+  //  - "upcoming" (unreleased titles) never lands first: the TV uses
+  //    rows[0].items[0] as its hero fallback and must never hero something
+  //    nobody can play.
+  const hidden = new Set(prefs.hidden || []);
+  let out = byDefault.filter((r) => !hidden.has(r.id));
+  const order = Array.isArray(prefs.order) ? prefs.order : [];
+  if (order.length) {
+    const rank = new Map(order.map((id, i) => [id, i]));
+    out = out
+      .map((row, at) => ({ row, at, r: rank.has(row.id) ? rank.get(row.id) : order.length + at }))
+      .sort((a, b) => a.r - b.r || a.at - b.at)
+      .map((e) => e.row);
+  }
+  if (out.length > 1 && out[0].id === "upcoming") {
+    const i = out.findIndex((r) => r.id !== "upcoming");
+    if (i > 0) out.unshift(out.splice(i, 1)[0]);
+  }
+  return out;
+};
 
 // Tiny seeded PRNG (mulberry32) + a (profile, day) seed for the home page's
 // sampled rows — see the `random:` note at the hero.select call.
@@ -482,7 +506,8 @@ router.get("/api/home", (req, res) => {
       : cardStrip;
   res.json({
     hero: heroItems.map((i) => strip(i, { synopsis: true })),
-    rows: orderRows(rows).map((r) => ({ ...r, items: r.items.map((i) => strip(i)) })),
+    rows: orderRows(rows, profileId ? profiles.rowPrefs(profileId) : null)
+      .map((r) => ({ ...r, items: r.items.map((i) => strip(i)) })),
   });
 });
 
@@ -506,5 +531,9 @@ const cardStrip = (i, { synopsis = false } = {}) => {
   if (synopsis && syn) rest.synopsis = syn;
   return rest;
 };
+
+// Test-only: the home-row composer's merge rules are contracts (never drop
+// unknown rows, never hero "upcoming") — pinned in test/roworder.test.js.
+router._internals = { orderRows };
 
 module.exports = router;

@@ -66,6 +66,7 @@ const pub = (p) => ({
   // (emoji): the TV renders `avatar` as literal text, so it stays the
   // universal fallback and never carries a path.
   avatarImage: p.avatarImage || null,
+  rows: p.rows || null, // home-row order/visibility prefs (settings UI reads these)
   hasPassword: !!p.passwordHash,
   locked: !!p.locked,
 });
@@ -324,8 +325,26 @@ const update = (id, fields) => {
   if (typeof fields.theme === "string" && THEMES.includes(fields.theme)) p.theme = fields.theme;
   if (typeof fields.accent === "string" && HEX_COLOR.test(fields.accent)) p.accent = fields.accent;
   if (fields.accent === null) delete p.accent; // back to the default violet
+  // Home row composition: {order: [rowIds], hidden: [rowIds]}. Ids are
+  // opaque strings (generated rows like liked-<genre> included) — bounded,
+  // never interpreted. Empty prefs delete the field (back to defaults).
+  if (fields.rows && typeof fields.rows === "object") {
+    const clean = (a) =>
+      Array.isArray(a)
+        ? a.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 40).slice(0, 50)
+        : [];
+    const rows = { order: clean(fields.rows.order), hidden: clean(fields.rows.hidden) };
+    if (rows.order.length || rows.hidden.length) p.rows = rows;
+    else delete p.rows;
+  }
   store.save();
   return pub(p);
+};
+
+// The stored home-row prefs for /api/home's composer (null = defaults).
+const rowPrefs = (id) => {
+  const p = store.data.profiles.find((x) => x.id === id);
+  return (p && p.rows) || null;
 };
 
 // Set (or clear) the processed avatar image URL — written only by the upload
@@ -676,6 +695,7 @@ module.exports = {
   lastSeenBefore,
   update,
   setAvatarImage,
+  rowPrefs,
   remove,
   setProgress,
   getProgress,
