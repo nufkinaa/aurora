@@ -12,8 +12,15 @@ test("git plumbing resolves HEAD", async () => {
   assert.match(head, /^[0-9a-f]{40}$/);
 });
 
-test("a parent commit IS an ancestor (up to date / ahead → no update)", async () => {
+test("a parent commit IS an ancestor (up to date / ahead → no update)", async (t) => {
   const parent = await git(["rev-parse", "HEAD~1"]);
+  if (!parent) {
+    // GitHub Actions checks out a SHALLOW clone (depth 1) — HEAD has no
+    // parent there. The ancestor semantics are still pinned by the
+    // HEAD-of-itself and unknown-sha tests below.
+    t.skip("shallow clone: HEAD~1 does not exist");
+    return;
+  }
   assert.match(parent, /^[0-9a-f]{40}$/);
   assert.equal(await isAncestor(parent), true);
 });
