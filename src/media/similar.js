@@ -137,7 +137,9 @@ const similarCached = (type, imdbId) => {
 // in the background so the NEXT home render has rows to read. Silent on
 // failure — a missing row just means no "because you loved" candidates yet.
 const warmSimilar = (type, imdbId, tmdbHint) => {
-  if (similarCached(type, imdbId)) return;
+  // an EMPTY cached row (a failed fetch's miss entry) is truthy — length is
+  // the real question, or the 24h retry inside similar() is unreachable
+  if ((similarCached(type, imdbId) || []).length) return;
   similar(type, imdbId, tmdbHint).catch(() => {});
 };
 

@@ -389,9 +389,20 @@ router.get("/api/home", (req, res) => {
       // a RATED title has been seen by definition — recommending back
       // something the person starred (especially 1★) would be absurd
       for (const key of Object.keys(ratings)) seen.add(key);
+      // a show you're mid-way through lives in Continue Watching, not here:
+      // episode progress marks the PARENT show seen too
+      for (const id of Object.keys(progress)) {
+        const f = scanner.findById(id);
+        if (f && f.showId) seen.add(f.showId);
+      }
       tasteRows = require("../media/taste").homeRecommendations({
         profileId,
-        candidates: [...streamAll, ...local],
+        // hero.recommend's old playable contract, kept: an unreleased film
+        // must never be recommended — its detail page has nothing to play
+        candidates: [
+          ...streamAll.filter((i) => i.type !== "movie" || availability.isReleased(i)),
+          ...local,
+        ],
         seen,
         exclude: heroItems,
       });

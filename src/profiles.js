@@ -399,6 +399,7 @@ const remove = (id) => {
 // `meta` (optional) is the play-item for a torrent stream, stored so Continue
 // Watching can render + resume it (torrent ids aren't in the scanner).
 const setProgress = (profileId, itemId, position, duration, meta) => {
+  bumpSignals(profileId);
   const state = stateFor(profileId);
   const finished = duration > 0 && position / duration > 0.95;
   state.progress[itemId] = {
@@ -502,6 +503,7 @@ const setRating = (profileId, itemId, stars) => {
 const getRatings = (profileId) => stateFor(profileId).ratings;
 
 const setLikedGenres = (profileId, genres) => {
+  bumpSignals(profileId);
   const state = stateFor(profileId);
   state.likedGenres = Array.isArray(genres) ? genres.filter((g) => typeof g === "string").slice(0, 40) : [];
   store.save();
@@ -688,6 +690,7 @@ const watchlistItems = (profileId) => {
 };
 
 const clearProgress = (profileId, itemId) => {
+  bumpSignals(profileId);
   const state = stateFor(profileId);
   delete state.progress[itemId];
   delete state.streamItems[itemId]; // drop stored stream meta too

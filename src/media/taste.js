@@ -109,8 +109,14 @@ const W = {
 // Everything known about a title, from the caches only.
 const metaIndex = () => {
   const byKey = new Map();
+  const identity = require("./identity"); // lazy: identity ↔ heavy deps
   for (const item of scanner.allItems()) {
-    byKey.set(item.id, { genres: item.genres || [], type: item.type, year: item.year, title: item.title, imdbId: null });
+    // the cached IMDb id (sync, no network) lets a loved LIBRARY title
+    // anchor a "Because you loved" row and be rated under either key
+    const imdbId = identity.imdbIdFor(item);
+    const m = { genres: item.genres || [], type: item.type, year: item.year, title: item.title, imdbId };
+    byKey.set(item.id, m);
+    if (imdbId && !byKey.has(imdbId)) byKey.set(imdbId, m);
   }
   const t = discover.trendingCached();
   for (const i of t ? [...(t.movies || []), ...(t.shows || [])] : []) {
@@ -148,14 +154,22 @@ const collectSignals = (profileId, meta) => {
   for (const [id, row] of Object.entries(progress)) {
     // stream ids resolve through their stored play-meta to an imdbId
     const sm = streamItems[id];
-    const key = sm && sm.imdbId ? sm.imdbId : id;
+    let key = sm && sm.imdbId ? sm.imdbId : id;
+    let extra = null;
+    if (!meta.get(key)) {
+      // a library EPISODE id — the household's core viewing — resolves to
+      // its parent show (metaIndex holds movies+shows, not episodes)
+      const found = scanner.findById(id);
+      if (found && found.showId) key = found.showId;
+      else if (sm) extra = { genres: sm.genres || [], type: sm.type, year: sm.year, title: sm.title, imdbId: sm.imdbId };
+    }
     const m = meta.get(key);
     const title = (m && m.title) || (sm && sm.title) || "it";
-    if (row.finished) push(key, W.finished, `You finished ${title}`, row.updatedAt);
+    if (row.finished) push(key, W.finished, `You finished ${title}`, row.updatedAt, extra);
     else if (row.duration > 0 && row.position / row.duration > 0.7) {
-      push(key, W.deep, `You watched most of ${title}`, row.updatedAt);
+      push(key, W.deep, `You watched most of ${title}`, row.updatedAt, extra);
     } else if (row.duration > 600 && row.position > 300 && row.position / row.duration < 0.2) {
-      push(key, W.abandoned, `abandoned ${title}`, row.updatedAt);
+      push(key, W.abandoned, `abandoned ${title}`, row.updatedAt, extra);
     }
   }
 
@@ -178,7 +192,11 @@ const collectSignals = (profileId, meta) => {
   }
 
   anchors.sort((a, b) => b.weight - a.weight);
-  return { signals, anchors };
+  // dedupe (a 5★ + an onboarding love on one title = one anchor, not two
+  // crowding the shortlist)
+  const seenAnchors = new Set();
+  const unique = anchors.filter((a) => !seenAnchors.has(a.imdbId) && seenAnchors.add(a.imdbId));
+  return { signals, anchors: unique };
 };
 
 // ---------- the per-profile model (cached, invalidated on new signals) ----------
@@ -193,6 +211,7 @@ const modelFor = (profileId) => {
   const meta = metaIndex();
   const { signals, anchors } = collectSignals(profileId, meta);
   const model = { at: Date.now(), stamp, vector: buildVector(signals), anchors: anchors.slice(0, 5) };
+  if (modelCache.size > 50) modelCache.clear(); // deleted-profile retention cap
   modelCache.set(profileId, model);
   // background: make sure the top anchors have similar-rows for next time
   for (const a of model.anchors.slice(0, 3)) {
