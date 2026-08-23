@@ -4,7 +4,7 @@ import { $, el } from "./ui.js";
 import { route, startRouter, navigate } from "./router.js";
 import { state, loadProfiles, setProfile, savedToken } from "./state.js";
 import { api, setAuthToken } from "./api.js";
-import { connect } from "./ws.js";
+import { connect, onMessage } from "./ws.js";
 import { renderHome } from "./screens/home.js";
 import { renderMovies, renderShows, renderMyList } from "./screens/browse.js";
 import { renderSearch } from "./screens/search.js";
@@ -52,6 +52,36 @@ window.addEventListener("scroll", () => {
   $("#nav").classList.toggle("solid", window.scrollY > 24);
 }, { passive: true });
 $("#nav").classList.add("solid");
+
+// Live download pill: after requesting a download and leaving the page there
+// was zero feedback until you wandered back. One global subscription feeds a
+// tiny "⬇ 2 · 47%" in the nav; hidden whenever nothing is moving.
+{
+  const pill = $("#nav-dl");
+  const ACTIVE = ["pending", "approved", "downloading"];
+  const jobs = new Map();
+  const paint = () => {
+    const act = [...jobs.values()].filter((j) => ACTIVE.includes(j.status));
+    if (act.length === 0) return pill.classList.add("hidden");
+    const pct = Math.round(
+      (act.reduce((s, j) => s + (j.progress || 0), 0) / act.length) * 100,
+    );
+    pill.textContent = `⬇ ${act.length} · ${pct}%`;
+    pill.classList.remove("hidden");
+  };
+  api.downloads()
+    .then((res) => {
+      // the route answers a bare array
+      for (const j of Array.isArray(res) ? res : res.downloads || []) jobs.set(j.id, j);
+      paint();
+    })
+    .catch(() => {});
+  onMessage("download_update", ({ job }) => {
+    if (!job) return;
+    jobs.set(job.id, job);
+    paint();
+  });
+}
 
 // On narrow screens the nav is a swipeable strip. Fade the clipped edge so
 // it's visible that more items exist, and nudge it once so the swipe is

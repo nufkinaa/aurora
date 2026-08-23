@@ -2,7 +2,7 @@
 // (Discover) titles — one grid, with categories, a genre picker, sort, and a
 // search that spans both. My List is the same grid under filters of its own,
 // because what you want from a saved list is not what you want from a catalogue.
-import { el, icons, toast, appendProgressive, debounce } from "../ui.js";
+import { el, icons, toast, appendProgressive, debounce, restoreScrollY } from "../ui.js";
 import { loadLibrary, state, watchState, refreshProgress } from "../state.js";
 import { api } from "../api.js";
 import { card } from "../components.js";
@@ -652,4 +652,10 @@ export const renderMyList = async (root) => {
     const started = items.filter((i) => watchState(i).started).length;
     narrator.call("onListGraveyard", items.length, started);
   } catch {}
+  // Same session scroll memory the Movies/Shows grids have.
+  const stopRestore = restoreScrollY(viewState.get("mylist")?.scrollY);
+  return () => {
+    viewState.set("mylist", { scrollY: window.scrollY || document.body.scrollTop || 0 });
+    stopRestore();
+  };
 };

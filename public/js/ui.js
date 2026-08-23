@@ -115,6 +115,31 @@ export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-f
   return img;
 };
 
+// Re-apply a saved scroll offset until the page is tall enough to hold it
+// (grids and rows fill in over several frames). Any real scroll input wins
+// immediately. Returns a stop() for the route's cleanup. (Same pattern the
+// browse grids proved out — hoisted here so Home/Search/My List share it.)
+export const restoreScrollY = (y) => {
+  if (!y) return () => {};
+  const ABORT_ON = ["wheel", "touchstart", "keydown"];
+  let stop = false;
+  let tries = 0;
+  const give = () => {
+    stop = true;
+    for (const ev of ABORT_ON) window.removeEventListener(ev, give, true);
+  };
+  for (const ev of ABORT_ON) window.addEventListener(ev, give, true);
+  const tick = () => {
+    if (stop) return;
+    window.scrollTo(0, y);
+    const at = window.scrollY || document.body.scrollTop || 0;
+    if (Math.abs(at - y) > 4 && tries++ < 40) setTimeout(tick, 50);
+    else give();
+  };
+  setTimeout(tick, 0);
+  return give;
+};
+
 export const fmtDuration = (seconds) => {
   if (!seconds || seconds <= 0) return "";
   const h = Math.floor(seconds / 3600);

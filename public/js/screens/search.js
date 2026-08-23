@@ -1,10 +1,14 @@
 // Instant search: typo-tolerant suggestions as you type, then full results.
-import { el, icons, debounce } from "../ui.js";
+import { el, icons, debounce, restoreScrollY } from "../ui.js";
 import { api } from "../api.js";
 import { state, loadLibrary } from "../state.js";
 import { navigate } from "../router.js";
 import { card } from "../components.js";
 import { attachSuggest, suggestHref } from "../suggest.js";
+
+// Session-lived: coming BACK to Search restores the query, its results and
+// the scroll offset — it used to start blank every time.
+let searchMemory = null;
 
 const recents = {
   get: () => {
@@ -147,9 +151,24 @@ export const renderSearch = async (root) => {
   root.append(screen);
 
   paintRecents();
-  setTimeout(() => input.focus(), 60);
   // The owned-copy rescue reads state.library — load it now (cheap, cached
   // server-side) so a cold visit straight to Search isn't blind to the
   // library. Without this, an owned title could render as a STREAM card.
   loadLibrary().catch(() => {});
+
+  let stopRestore = () => {};
+  if (searchMemory && searchMemory.q) {
+    input.value = searchMemory.q;
+    run();
+    stopRestore = restoreScrollY(searchMemory.scrollY);
+  } else {
+    setTimeout(() => input.focus(), 60);
+  }
+  return () => {
+    searchMemory = {
+      q: input.value.trim(),
+      scrollY: window.scrollY || document.body.scrollTop || 0,
+    };
+    stopRestore();
+  };
 };

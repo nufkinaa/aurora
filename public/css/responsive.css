@@ -268,9 +268,13 @@
 
 /* ---------- Touch devices (any width) ---------- */
 @media (hover: none) {
-  /* Hover-revealed affordances must be always-visible on touch */
+  /* Hover-revealed affordances must be always-visible on touch — and big
+     enough for a finger (30px next to the card's own tap area mis-tapped). */
   .card-remove {
     opacity: 1;
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
   }
 }
 

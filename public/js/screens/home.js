@@ -1,5 +1,5 @@
 // Home: rotating hero billboard + shelves (Continue Watching, My List, ...)
-import { el, icons, fmtDuration, resBadge, artUrl } from "../ui.js";
+import { el, icons, fmtDuration, resBadge, artUrl, restoreScrollY } from "../ui.js";
 import { api } from "../api.js";
 import { state } from "../state.js";
 import { shelfRow, continueRow, openItem } from "../components.js";
@@ -11,6 +11,9 @@ import { onMessage } from "../ws.js";
 // fully sharp partway through and then simply stays there, so a longer dwell buys
 // more time on a clear image rather than a slower blur.
 const HERO_DWELL_MS = 9000;
+
+// Session-lived scroll memory (module scope survives route changes)
+let homeScrollY = 0;
 
 export const renderHome = async (root) => {
   const screen = el("div", { class: "screen" });
@@ -299,7 +302,12 @@ export const renderHome = async (root) => {
     } catch {}
   });
 
+  // Coming back from a title lands where you left, not at the hero again.
+  const stopRestore = restoreScrollY(homeScrollY);
+
   return () => {
+    homeScrollY = window.scrollY || document.body.scrollTop || 0;
+    stopRestore();
     if (heroTimer) clearInterval(heroTimer);
     for (const fn of cleanups) fn();
     unsub();

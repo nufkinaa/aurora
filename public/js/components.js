@@ -190,6 +190,10 @@ export const continueRow = (title, items, profileId, api) => {
   const opts = {
     wide: true,
     onRemove: async (item, node) => {
+      // Captured BEFORE the clear so Undo can put the exact row back.
+      const prev = progressFor(item.id);
+      const parent = node.parentNode;
+      const anchor = node.nextSibling;
       node.remove();
       try {
         // An "up next" card is synthesized from the PREVIOUS episode's finished
@@ -197,10 +201,42 @@ export const continueRow = (title, items, profileId, api) => {
         // a silent no-op and the card came back on the next visit.
         if (item.upNext && item.showId) {
           await api.dismissUpNext(profileId, item.showId, item.id);
+          toast("Hidden from Continue Watching", "✅");
         } else {
           await api.clearProgress(profileId, item.id);
+          toast(
+            "Removed from Continue Watching",
+            "✅",
+            prev && prev.duration
+              ? {
+                  label: "Undo",
+                  onClick: async () => {
+                    try {
+                      // Stream cards lose their stored meta with the clear —
+                      // send it along again so the row rebuilds whole.
+                      const meta = item.imdbId
+                        ? {
+                            imdbId: item.imdbId,
+                            season: item.season,
+                            episode: item.episode,
+                            title: item.title,
+                          }
+                        : undefined;
+                      await api.saveProgress(profileId, item.id, prev.position, prev.duration, meta);
+                      if (parent && parent.isConnected) parent.insertBefore(node, anchor && anchor.isConnected ? anchor : null);
+                    } catch {
+                      toast("Couldn't undo that", "⚠️");
+                    }
+                  },
+                }
+              : null,
+          );
         }
-      } catch {}
+      } catch {
+        // The clear FAILED — a vanished card would be a lie; put it back.
+        if (parent && parent.isConnected) parent.insertBefore(node, anchor && anchor.isConnected ? anchor : null);
+        toast("Couldn't remove — try again", "⚠️");
+      }
     },
   };
   return shelfRow(title, items, opts);
