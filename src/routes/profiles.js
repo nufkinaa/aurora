@@ -301,6 +301,15 @@ router.delete("/api/profiles/:id/avatar-image", gate, (req, res) => {
   res.json({ ok: true, profile: profiles.setAvatarImage(req.params.id, null) });
 });
 
+// Taste onboarding: the titles this profile SAID they love. Read by the
+// picker (to show current picks) and by prompt 9's recommender.
+router.get("/api/profiles/:id/taste", gate, (req, res) => {
+  res.json({ liked: profiles.getLikedTitles(req.params.id) });
+});
+router.post("/api/profiles/:id/taste", gate, (req, res) => {
+  res.json({ liked: profiles.setLikedTitles(req.params.id, (req.body || {}).liked) });
+});
+
 // Aurora Wrapped: this profile's viewing, aggregated from the telemetry
 // sessions (ring buffer — the payload carries `since` so the UI never
 // pretends it's a full year), plus started/finished counts from progress

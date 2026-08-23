@@ -14,6 +14,7 @@ import { renderGames } from "./screens/games.js";
 import { renderRequests } from "./screens/requests.js";
 import { renderPreferences } from "./screens/preferences.js";
 import { renderWrapped } from "./screens/wrapped.js";
+import { renderTaste } from "./screens/taste.js";
 import { renderPickForMe } from "./screens/pickforme.js";
 import { showProfileGate } from "./screens/profiles.js";
 import { showShortcutsOverlay } from "./screens/shortcuts.js";
@@ -35,6 +36,7 @@ route("/requests", renderRequests); // no longer in nav; kept for deep links
 route("/discover/:type/:id", (root, p) => renderDetail(root, { source: "discover", type: p.type, id: p.id }));
 route("/preferences", renderPreferences);
 route("/wrapped", renderWrapped);
+route("/taste", renderTaste);
 route("/pick", renderPickForMe);
 
 // "?" anywhere opens the keyboard shortcuts overlay

@@ -347,6 +347,24 @@ const rowPrefs = (id) => {
   return (p && p.rows) || null;
 };
 
+// Taste signals: titles the person SAID they love (the onboarding picker).
+// Stronger than inferred signals; prompt 9's recommender consumes these
+// alongside likedGenres. Bounded and validated — stored forever.
+const setLikedTitles = (profileId, list) => {
+  const state = stateFor(profileId);
+  state.likedTitles = (Array.isArray(list) ? list : [])
+    .slice(0, 100)
+    .map((t) => ({
+      ...(typeof t.id === "string" && t.id.length <= 40 ? { id: t.id } : {}),
+      ...(typeof t.imdbId === "string" && /^tt\d{4,12}$/.test(t.imdbId) ? { imdbId: t.imdbId } : {}),
+      title: String(t.title || "").slice(0, 200),
+    }))
+    .filter((t) => t.title);
+  store.save();
+  return state.likedTitles;
+};
+const getLikedTitles = (profileId) => stateFor(profileId).likedTitles || [];
+
 // Set (or clear) the processed avatar image URL — written only by the upload
 // route, which owns validation and the file on disk.
 const setAvatarImage = (id, url) => {
@@ -696,6 +714,8 @@ module.exports = {
   update,
   setAvatarImage,
   rowPrefs,
+  setLikedTitles,
+  getLikedTitles,
   remove,
   setProgress,
   getProgress,

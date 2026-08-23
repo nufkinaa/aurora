@@ -273,11 +273,16 @@ export const renderPreferences = async (root) => {
         },
       }),
     ),
-    el("div", { class: "page-pad", style: { marginTop: "6px" } },
+    el("div", { class: "page-pad", style: { marginTop: "6px", display: "flex", gap: "10px", flexWrap: "wrap" } },
       el("button", {
         class: "btn small focusable",
         html: "<span>🌌 Your Aurora Wrapped — stats & roasts</span>",
         onclick: () => navigate("#/wrapped"),
+      }),
+      el("button", {
+        class: "btn small focusable",
+        html: "<span>🎯 Pick titles you love</span>",
+        onclick: () => navigate("#/taste"),
       })),
     // ---- Appearance (theme + accent follow the profile to every device) ----
     el("h2", { class: "row-title", style: { marginTop: "18px" } }, "Appearance"),

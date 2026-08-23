@@ -112,6 +112,8 @@ export const api = {
       body: file,
     }),
   removeAvatar: (id) => json(`/api/profiles/${id}/avatar-image`, { method: "DELETE" }),
+  taste: (id) => json(`/api/profiles/${id}/taste`),
+  setTaste: (id, liked) => post(`/api/profiles/${id}/taste`, { liked }),
   updateProfile: (id, fields) =>
     json(`/api/profiles/${id}`, {
       method: "PUT",
