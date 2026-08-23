@@ -588,6 +588,73 @@
   border-radius: 12px; padding: 14px 16px; font-size: 0.95rem; line-height: 1.5;
 }
 
+/* ---------- Preferences: section cards on a responsive grid ---------- */
+.pref-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+  padding: 6px var(--page-x) 10px;
+}
+@media (min-width: 1100px) {
+  .pref-grid { grid-template-columns: 1fr 1fr; gap: 20px 26px; }
+}
+.pref-section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  padding: 18px 20px;
+}
+.pref-section .row-title { margin-bottom: 6px; }
+.pref-section .pref-note { margin-bottom: 12px; }
+.pref-section .page-pad { padding-left: 0; padding-right: 0; }
+
+/* Home-row editor: a quietly scrollable list that never eats the screen */
+.rows-editor {
+  max-height: 340px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-hover) transparent;
+  padding-right: 6px;
+  /* content fades at the bottom edge so "there's more" reads at a glance */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
+}
+.rows-editor::-webkit-scrollbar { width: 8px; }
+.rows-editor::-webkit-scrollbar-thumb { background: var(--surface-hover); border-radius: 99px; }
+.rows-editor::-webkit-scrollbar-track { background: transparent; }
+.rows-editor .pref-item { padding: 8px 4px; }
+.row-grip {
+  color: var(--text-faint);
+  letter-spacing: 2px;
+  margin-right: 10px;
+  font-size: 0.85rem;
+  user-select: none;
+}
+.row-move {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast);
+}
+.row-move:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); transform: translateY(-1px); }
+.row-move:disabled { opacity: 0.3; }
+.row-move:focus { box-shadow: var(--focus-ring); }
+.pref-item.row-moved {
+  animation: row-pop 500ms var(--ease);
+  border-radius: 10px;
+}
+@keyframes row-pop {
+  0% { background: rgba(var(--accent-rgb), 0.22); }
+  100% { background: transparent; }
+}
+
 /* ---------- Taste picker ---------- */
 .taste { padding-top: calc(var(--nav-h) + 18px); }
 .taste-tile {
@@ -624,6 +691,19 @@
   transform: scale(1.1);
 }
 .taste-tile.on .taste-poster { filter: brightness(0.8); }
+/* Done floats above the grid — always reachable */
+.taste-done {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 60;
+}
+.taste-done .btn {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  min-width: 180px;
+  justify-content: center;
+}
 
 /* An uploaded avatar photo fills its tile/chip round frame */
 .avatar-photo {
@@ -679,9 +759,24 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Time-aware greeting above the home rows */
+/* Time-aware greeting above the home rows — a headline, not a whisper */
 .home-greeting { padding: 18px var(--page-x) 0; font-size: 1.05rem; font-weight: 700; color: var(--text-dim); }
 .home-greeting b { color: var(--text); }
+.home-greeting.big { padding-top: 26px; }
+.home-greeting.big .greet-line { font-size: clamp(1.4rem, 2.4vw, 1.9rem); font-weight: 900; color: var(--text); letter-spacing: -0.01em; }
+.greet-name {
+  background: linear-gradient(100deg, var(--accent), #b76cff 35%, #4ea3ff 65%, var(--accent));
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: greet-shine 8s linear infinite;
+}
+@keyframes greet-shine { to { background-position: -220% 0; } }
+.greet-sub { font-size: 0.98rem; font-weight: 600; color: var(--text-dim); margin-top: 5px; }
+@media (prefers-reduced-motion: reduce) {
+  .greet-name { animation: none; }
+}
 
 /* ---------- Search ---------- */
 /* Instant search suggestions — in-flow under the box (not an overlay:

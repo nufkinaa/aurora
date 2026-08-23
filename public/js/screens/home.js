@@ -261,21 +261,44 @@ export const renderHome = async (root) => {
   }
 
   // ----- rows -----
-  // Time-aware greeting (elia's pick): tiny, warm, changes with the clock.
+  // The greeting (elia round 2): a proper headline — the name shines in
+  // aurora gradient, and a cheeky line reads the profile's actual habits.
   if (state.profile) {
-    const h = new Date().getHours();
-    const day = new Date().getDay();
+    const now = new Date();
+    const h = now.getHours();
+    const day = now.getDay();
     const part = h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-    const extra =
-      h < 5 ? " — one more episode, then bed. Deal?"
-      : day === 5 && h >= 17 ? " — Friday movie night?"
-      : day === 6 && h >= 11 ? " — the couch is calling."
-      : "";
-    screen.append(el("div", { class: "home-greeting" },
-      part === "Up late" ? "Up late, " : part + ", ",
-      el("b", {}, state.profile.name),
-      (part === "Up late" ? "?" : "") + extra,
+    const sub = el("div", { class: "greet-sub" }, " ");
+    screen.append(el("div", { class: "home-greeting big" },
+      el("div", { class: "greet-line" },
+        (part === "Up late" ? "Up late, " : part + ", "),
+        el("b", { class: "greet-name" }, state.profile.name),
+        part === "Up late" ? "?" : ""),
+      sub,
     ));
+    // remark: stats-aware when we can, charming filler when we can't
+    const daily = [
+      "What's on the plate tonight — a movie, or a show?",
+      "The watchlist isn't going to watch itself.",
+      "Pick something good. No pressure.",
+      "One episode. Sure. “One.”",
+      "The couch is preheated.",
+    ];
+    const pickDaily = () => daily[(now.getFullYear() * 366 + now.getMonth() * 31 + now.getDate()) % daily.length];
+    sub.textContent =
+      day === 5 && h >= 17 ? "Friday. Movie night is legally required." :
+      day === 6 && h >= 11 ? "Weekend. A double feature is fully justified." :
+      pickDaily();
+    api.wrapped(state.profile.id).then((w) => {
+      if (!w || w.empty || !w.lastWatchedAt) return;
+      const last = new Date(w.lastWatchedAt);
+      const hoursSince = (now - last) / 36e5;
+      if (hoursSince > 24 * 7) {
+        sub.textContent = "Long time no see — the couch forgot your shape.";
+      } else if (hoursSince < 36 && last.getHours() < 5 && h >= 6) {
+        sub.textContent = "Someone was up late last night. No judgment. (Some judgment.)";
+      }
+    }).catch(() => {});
   }
 
   const rowsHost = el("div");

@@ -305,9 +305,11 @@ const wrappedFor = (profileName) => {
   let latestFinishHour = null; // {hour, title}
   let longest = null;
   let oldest = mine[0].startedAt;
+  let newest = mine[0].startedAt;
 
   for (const s of mine) {
     if (s.startedAt < oldest) oldest = s.startedAt;
+    if (s.startedAt > newest) newest = s.startedAt;
     totalSec += s.watchedSec;
     byDay.set(dayKey(s.startedAt), (byDay.get(dayKey(s.startedAt)) || 0) + s.watchedSec);
     // shows log as "Title · S1 E2" — fold episodes into their show
@@ -345,6 +347,7 @@ const wrappedFor = (profileName) => {
 
   return {
     since: oldest,
+    lastWatchedAt: newest, // the greeting's "long time no see" / "up late" cues
     totalSec,
     plays: mine.length,
     distinctTitles: byTitle.size,

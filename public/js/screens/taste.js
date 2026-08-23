@@ -19,28 +19,50 @@ export const renderTaste = async (root) => {
   let liked = [];
   let pool = [];
   try {
-    const [lib, home, taste] = await Promise.all([
+    // Taste needs RANGE, not an inventory of what's already downloaded —
+    // pull the wide catalog (top + trending, films + series) and mix a
+    // modest slice of the library into it, everything shuffled together.
+    const [lib, taste, ...cats] = await Promise.all([
       loadLibrary(),
-      api.home(state.profile.id),
       api.taste(state.profile.id),
+      api.catalog({ type: "movie", category: "top" }).catch(() => null),
+      api.catalog({ type: "movie", category: "trending" }).catch(() => null),
+      api.catalog({ type: "show", category: "top" }).catch(() => null),
+      api.catalog({ type: "show", category: "trending" }).catch(() => null),
     ]);
     liked = taste.liked || [];
     const seen = new Set();
-    const add = (t) => {
+    const add = (t, requireCover = true) => {
       const k = keyOf(t);
-      if (!k || seen.has(k)) return;
+      if (!k || seen.has(k) || (requireCover && !t.cover)) return;
       seen.add(k);
       pool.push(t);
     };
-    // your own library first (things you chose to own say the most)…
-    for (const i of [...(lib.movies || []), ...(lib.shows || [])]) {
-      add({ id: i.id, title: i.title, cover: i.cover, year: i.year });
-    }
-    // …then the trending catalog for range
-    const trending = (home.rows || []).find((r) => r.id === "trending-stream");
-    for (const i of (trending ? trending.items : [])) {
-      add({ imdbId: i.imdbId, title: i.title, cover: i.cover || i.poster, year: i.year });
-    }
+    const shuffle = (a) => {
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    };
+    const catalog = shuffle(cats.flatMap((c) => (c && c.items) || [])).map((i) => ({
+      imdbId: i.imdbId, title: i.title, cover: i.cover || i.poster, year: i.year,
+    }));
+    const library = shuffle([...(lib.movies || []), ...(lib.shows || [])]).slice(0, 15).map((i) => ({
+      id: i.id, title: i.title, cover: i.cover, year: i.year,
+    }));
+    // interleave: mostly catalog, a familiar face every few tiles
+    let li = 0;
+    catalog.forEach((c, i) => {
+      add(c);
+      if (i % 5 === 4 && li < library.length) add(library[li++]);
+    });
+    while (li < library.length) add(library[li++]);
+    // anything already liked must be visible (and toggleable) even if the
+    // catalog no longer surfaces it — the titled fallback covers a missing
+    // poster on old picks
+    for (const t of liked) add({ ...t }, false);
+    pool = pool.slice(0, 120);
   } catch {
     screen.append(el("div", { class: "empty" }, "Couldn't load titles — try again in a moment."));
     return;
@@ -82,7 +104,9 @@ export const renderTaste = async (root) => {
     el("p", { class: "pref-note", style: { paddingLeft: 0 } },
       "Tap the ones you'd defend in an argument. Home learns from these — you can come back and change them anytime."),
     grid,
-    el("div", { class: "detail-actions", style: { padding: "22px 0" } },
+    // Done floats — no scrolling a 120-poster grid just to leave
+    el("div", { class: "taste-done" },
       el("button", { class: "btn btn-primary focusable", html: "<span>Done</span>", onclick: () => navigate("#/preferences") })),
+    el("div", { style: { height: "90px" } }), // the floating bar's landing pad
   );
 };

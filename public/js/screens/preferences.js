@@ -111,8 +111,11 @@ const ROW_NAMES = {
 };
 const rowName = (id, title) => title || ROW_NAMES[id] || (id.startsWith("liked-") ? "More " + id.slice(6) : id);
 
+const CHEV_UP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>';
+const CHEV_DOWN = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+
 const homeRowsSection = async () => {
-  const host = el("div", { class: "page-pad", style: { maxWidth: "560px" } });
+  const host = el("div", { class: "rows-editor" });
   let entries = []; // [{id, title, hidden}]
   try {
     const home = await api.home(state.profile.id);
@@ -140,31 +143,51 @@ const homeRowsSection = async () => {
     } catch { toast("Couldn't save the order", "⚠️"); }
   };
 
+  let flashId = null; // the row that just moved gets a little accent pop
+  const move = (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= entries.length) return;
+    [entries[j], entries[i]] = [entries[i], entries[j]];
+    flashId = entries[j].id;
+    paint();
+    save();
+  };
   const paint = () => {
     host.innerHTML = "";
     entries.forEach((e, i) => {
       host.append(el("div", {
-        class: "pref-item",
-        style: e.hidden ? { opacity: "0.5" } : {},
+        class: "pref-item" + (e.id === flashId ? " row-moved" : ""),
+        style: e.hidden ? { opacity: "0.45" } : {},
       },
-        el("div", { class: "pref-item-text" }, el("div", { class: "pref-item-label" }, rowName(e.id, e.title))),
-        el("div", { style: { display: "flex", gap: "6px" } },
+        el("span", { class: "row-grip", "aria-hidden": "true" }, "⠿"),
+        el("div", { class: "pref-item-text", style: { flex: "1" } },
+          el("div", { class: "pref-item-label" }, rowName(e.id, e.title))),
+        el("div", { style: { display: "flex", gap: "6px", alignItems: "center" } },
           el("button", {
-            class: "mini focusable", html: "↑", "aria-label": "Move up", disabled: i === 0 ? "disabled" : undefined,
-            onclick: () => { [entries[i - 1], entries[i]] = [entries[i], entries[i - 1]]; paint(); save(); },
+            class: "row-move focusable", html: CHEV_UP, "aria-label": "Move up",
+            disabled: i === 0 ? "disabled" : undefined,
+            onclick: () => move(i, -1),
           }),
           el("button", {
-            class: "mini focusable", html: "↓", "aria-label": "Move down", disabled: i === entries.length - 1 ? "disabled" : undefined,
-            onclick: () => { [entries[i + 1], entries[i]] = [entries[i], entries[i + 1]]; paint(); save(); },
+            class: "row-move focusable", html: CHEV_DOWN, "aria-label": "Move down",
+            disabled: i === entries.length - 1 ? "disabled" : undefined,
+            onclick: () => move(i, 1),
           }),
           el("button", {
             class: "mini focusable",
-            onclick: () => { e.hidden = !e.hidden; paint(); save(); },
-          }, e.hidden ? "Show" : "Hide"),
+            title: e.hidden ? "Show this row on Home" : "Hide this row from Home",
+            onclick: () => { e.hidden = !e.hidden; flashId = e.id; paint(); save(); },
+          }, e.hidden ? "🙈 Hidden" : "👁 Shown"),
         ),
       ));
     });
-    host.append(el("button", {
+    flashId = null;
+    host.append(el("div", { style: { height: "26px" } })); // room under the fade mask
+  };
+  paint();
+  const wrap = el("div", {},
+    host,
+    el("button", {
       class: "btn small focusable", style: { marginTop: "10px" },
       html: "<span>Reset to default</span>",
       onclick: async () => {
@@ -176,9 +199,7 @@ const homeRowsSection = async () => {
         } catch { toast("Couldn't reset", "⚠️"); }
       },
     }));
-  };
-  paint();
-  return host;
+  return wrap;
 };
 
 export const renderPreferences = async (root) => {
@@ -214,13 +235,15 @@ export const renderPreferences = async (root) => {
     );
   };
 
-  screen.append(
-    el("div", { class: "browse-head" },
-      el("h1", {}, "Preferences"),
-      el("span", { class: "count" }, `for ${state.profile.name}`)
-    ),
-    // Your profile — the only place to edit your profile / set a password
-    el("h2", { class: "row-title", style: { marginTop: "8px" } }, "Your profile"),
+  // Sections are self-contained cards laid out on a grid — two columns on a
+  // big screen (elia: "we have space on the right, use it"), one on phones.
+  const section = (title, note, ...content) =>
+    el("div", { class: "pref-section" },
+      el("h2", { class: "row-title", style: { padding: 0 } }, title),
+      note && el("p", { class: "pref-note", style: { padding: 0 } }, note),
+      ...content);
+
+  const profileSection = section("Your profile", null,
     el("div", { class: "pref-profile page-pad" },
       el("div", { class: "big-avatar small", style: { background: state.profile.color } },
         state.profile.avatarImage
@@ -284,66 +307,63 @@ export const renderPreferences = async (root) => {
         html: "<span>🎯 Pick titles you love</span>",
         onclick: () => navigate("#/taste"),
       })),
-    // ---- Appearance (theme + accent follow the profile to every device) ----
-    el("h2", { class: "row-title", style: { marginTop: "18px" } }, "Appearance"),
-    el("p", { class: "pref-note" }, "Yours alone — follows this profile to every device."),
-    appearanceSection(),
-    // ---- Home rows ----
-    el("h2", { class: "row-title", style: { marginTop: "18px" } }, "Your home page"),
-    el("p", { class: "pref-note" }, "Reorder or hide the rows on Home. New kinds of rows appear at the end. The TV follows this order too."),
-    await homeRowsSection(),
-    // ---- Playback ----
-    el("h2", { class: "row-title", style: { marginTop: "18px" } }, "Playback"),
-    el("div", { class: "pref-list page-pad" },
-      prefRow(
-        "Autoplay next episode",
-        "Start the next episode automatically when one finishes.",
-        () => (playerPrefs.get("autoplayNext", true) ? "On" : "Off"),
-        () => playerPrefs.set("autoplayNext", !playerPrefs.get("autoplayNext", true))
-      )
-    ),
-
-    // ---- Subtitles ----
-    el("h2", { class: "row-title", style: { marginTop: "18px" } }, "Subtitles"),
-    el("div", { class: "pref-list page-pad" },
-      prefRow(
-        "Turn subtitles on automatically",
-        "When a title offers subtitles, switch one on without asking.",
-        () => (playerPrefs.get("subsDefault", true) ? "On" : "Off"),
-        () => playerPrefs.set("subsDefault", !playerPrefs.get("subsDefault", true))
-      ),
-      prefRow(
-        "Preferred subtitle language",
-        "Which one to pick when a title offers several. Falls back to the first available.",
-        () => ({ any: "First available", he: "Hebrew", en: "English" }[playerPrefs.get("subLang", "any")] || "First available"),
-        () => cycle("subLang", ["any", "he", "en"], "any")
-      ),
-      prefRow(
-        "Subtitle size",
-        null,
-        () => ({ S: "Small", M: "Medium", L: "Large" }[playerPrefs.get("cueSize", "M")] || "Medium"),
-        () => { cycle("cueSize", ["S", "M", "L"], "M"); applyCueStyle(); }
-      ),
-      prefRow(
-        "Subtitle background",
-        "A dark box behind the text — easier to read on bright scenes.",
-        () => (playerPrefs.get("cueBackground", true) ? "On" : "Off"),
-        () => { playerPrefs.set("cueBackground", !playerPrefs.get("cueBackground", true)); applyCueStyle(); }
-      )
-    ),
-
-    el("h2", { class: "row-title", style: { marginTop: "18px" } }, "Genres you like"),
-    el("p", { class: "pref-note" }, "We use these — plus your watch history and star ratings — to pick what shows up on Home."),
   );
 
-  if (genres.length === 0) {
-    screen.append(el("div", { class: "empty" }, "No genres yet — they turn up once the library finishes reading itself."));
-  } else {
-    paint();
-    screen.append(chips,
-      el("div", { class: "detail-actions", style: { padding: "20px var(--page-x)" } },
-        el("button", { class: "btn btn-primary focusable", html: "<span>Done</span>", onclick: () => navigate("#/") })
-      )
-    );
-  }
+  paint();
+  screen.append(
+    el("div", { class: "browse-head" },
+      el("h1", {}, "Preferences"),
+      el("span", { class: "count" }, `for ${state.profile.name}`)
+    ),
+    el("div", { class: "pref-grid" },
+      profileSection,
+      section("Appearance", "Yours alone — follows this profile to every device.",
+        appearanceSection()),
+      section("Your home page", "Reorder or hide the rows on Home. New kinds of rows appear at the end. The TV follows this order too.",
+        await homeRowsSection()),
+      section("Playback", null,
+        el("div", { class: "pref-list page-pad" },
+          prefRow(
+            "Autoplay next episode",
+            "Start the next episode automatically when one finishes.",
+            () => (playerPrefs.get("autoplayNext", true) ? "On" : "Off"),
+            () => playerPrefs.set("autoplayNext", !playerPrefs.get("autoplayNext", true))
+          )
+        )),
+      section("Subtitles", null,
+        el("div", { class: "pref-list page-pad" },
+          prefRow(
+            "Turn subtitles on automatically",
+            "When a title offers subtitles, switch one on without asking.",
+            () => (playerPrefs.get("subsDefault", true) ? "On" : "Off"),
+            () => playerPrefs.set("subsDefault", !playerPrefs.get("subsDefault", true))
+          ),
+          prefRow(
+            "Preferred subtitle language",
+            "Which one to pick when a title offers several. Falls back to the first available.",
+            () => ({ any: "First available", he: "Hebrew", en: "English" }[playerPrefs.get("subLang", "any")] || "First available"),
+            () => cycle("subLang", ["any", "he", "en"], "any")
+          ),
+          prefRow(
+            "Subtitle size",
+            null,
+            () => ({ S: "Small", M: "Medium", L: "Large" }[playerPrefs.get("cueSize", "M")] || "Medium"),
+            () => { cycle("cueSize", ["S", "M", "L"], "M"); applyCueStyle(); }
+          ),
+          prefRow(
+            "Subtitle background",
+            "A dark box behind the text — easier to read on bright scenes.",
+            () => (playerPrefs.get("cueBackground", true) ? "On" : "Off"),
+            () => { playerPrefs.set("cueBackground", !playerPrefs.get("cueBackground", true)); applyCueStyle(); }
+          )
+        )),
+      section("Genres you like", "We use these — plus your watch history and star ratings — to pick what shows up on Home.",
+        genres.length
+          ? chips
+          : el("div", { class: "empty-note" }, "No genres yet — they turn up once the library finishes reading itself.")),
+    ),
+    el("div", { class: "detail-actions", style: { padding: "8px var(--page-x) 26px" } },
+      el("button", { class: "btn btn-primary focusable", html: "<span>Done</span>", onclick: () => navigate("#/") })
+    ),
+  );
 };
