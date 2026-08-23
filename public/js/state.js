@@ -54,10 +54,38 @@ const rememberRecentProfile = (id) => {
 // `token` is the unlock token for a password-protected profile (from
 // api.unlockProfile). Kept in memory only — never persisted — so a reload of a
 // protected profile re-prompts for the password.
+// Apply a profile's appearance (theme + accent) to the live document and
+// mirror it in localStorage so the boot script in index.html paints the SAME
+// look before the stylesheets on the next cold load — no flash.
+export const applyAppearance = (profile) => {
+  const theme = profile && (profile.theme === "oled" || profile.theme === "warm") ? profile.theme : null;
+  const accent = profile && /^#[0-9a-f]{6}$/i.test(profile.accent || "") ? profile.accent : null;
+  const root = document.documentElement;
+  if (theme) root.dataset.theme = theme;
+  else delete root.dataset.theme;
+  if (accent) {
+    root.style.setProperty("--accent", accent);
+    root.style.setProperty("--accent-strong", accent);
+    root.style.setProperty("--progress", accent);
+    root.style.setProperty("--accent-rgb",
+      [1, 3, 5].map((i) => parseInt(accent.slice(i, i + 2), 16)).join(", "));
+  } else {
+    for (const v of ["--accent", "--accent-strong", "--progress", "--accent-rgb"])
+      root.style.removeProperty(v);
+  }
+  try {
+    if (theme) localStorage.setItem("aurora-theme", theme);
+    else localStorage.removeItem("aurora-theme");
+    if (accent) localStorage.setItem("aurora-accent", accent);
+    else localStorage.removeItem("aurora-accent");
+  } catch {}
+};
+
 export const setProfile = async (profile, token = null) => {
   state.profile = profile;
   state.token = token;
   setAuthToken(token);
+  applyAppearance(profile);
   localStorage.setItem("aurora-profile", profile.id);
   rememberRecentProfile(profile.id);
   // Remember the unlock token for THIS browser session only (sessionStorage

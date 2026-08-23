@@ -10,6 +10,27 @@
        any more: first-ever fetches happen server-side, everything after is
        same-origin at LAN speed. -->
 
+  <!-- Theme boot: the profile's theme + accent are mirrored in localStorage
+       and applied HERE, before the stylesheets, so a cold load never flashes
+       the default look. The server-side profile record is the source of
+       truth; state.js re-syncs both on profile entry. -->
+  <script>
+    (() => {
+      try {
+        const t = localStorage.getItem("aurora-theme");
+        if (t === "oled" || t === "warm") document.documentElement.dataset.theme = t;
+        const a = localStorage.getItem("aurora-accent");
+        if (a && /^#[0-9a-f]{6}$/i.test(a)) {
+          const s = document.documentElement.style;
+          s.setProperty("--accent", a);
+          s.setProperty("--accent-strong", a);
+          s.setProperty("--progress", a);
+          s.setProperty("--accent-rgb",
+            [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16)).join(", "));
+        }
+      } catch {}
+    })();
+  </script>
   <link rel="stylesheet" href="/css/tokens.css" />
   <link rel="stylesheet" href="/css/base.css" />
   <link rel="stylesheet" href="/css/components.css" />

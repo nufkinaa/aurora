@@ -2,7 +2,7 @@
 // defaults, and the liked genres used to tailor Home recommendations.
 // Reopenable anytime from the nav gear.
 import { el, toast } from "../ui.js";
-import { loadLibrary, loadProfiles, state } from "../state.js";
+import { loadLibrary, loadProfiles, state, applyAppearance } from "../state.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { profileModal } from "./profiles.js";
@@ -31,6 +31,75 @@ const cycle = (key, values, fallback) => {
   const cur = playerPrefs.get(key, fallback);
   const i = values.indexOf(cur);
   playerPrefs.set(key, values[(i + 1) % values.length]);
+};
+
+// ---------- appearance: 3 curated themes + accent swatches ----------
+const THEME_DEFS = [
+  { id: "aurora", name: "Aurora", note: "the deep-space default", bg: "#0b0c14", raised: "#131523" },
+  { id: "oled", name: "OLED black", note: "true black — perfect on OLED panels", bg: "#000000", raised: "#0b0b12" },
+  { id: "warm", name: "Dim warm", note: "candle-lit, easy late at night", bg: "#131009", raised: "#1c1710" },
+];
+const ACCENTS = ["#8b7bff", "#4ea3ff", "#3ddc97", "#f0b132", "#e05f2c", "#f472b6", "#ff7a7a", "#7fd1e8"];
+
+const appearanceSection = () => {
+  const host = el("div", { class: "page-pad", style: { display: "flex", flexDirection: "column", gap: "12px" } });
+  const saveAppearance = async (fields) => {
+    try {
+      const updated = await api.updateProfile(state.profile.id, fields);
+      if (updated && updated.id) {
+        state.profile = { ...state.profile, ...updated };
+        applyAppearance(state.profile);
+        paint();
+      }
+    } catch {
+      toast("Couldn't save the look", "⚠️");
+    }
+  };
+  const themeRow = el("div", { style: { display: "flex", gap: "10px", flexWrap: "wrap" } });
+  const accentRow = el("div", { style: { display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" } });
+  const paint = () => {
+    const curTheme = state.profile.theme || "aurora";
+    const curAccent = state.profile.accent || null;
+    themeRow.innerHTML = "";
+    for (const t of THEME_DEFS) {
+      themeRow.append(el("button", {
+        class: "focusable",
+        style: {
+          display: "flex", flexDirection: "column", gap: "6px", padding: "12px 14px", minWidth: "150px",
+          borderRadius: "12px", background: t.bg, textAlign: "left",
+          border: t.id === curTheme ? "2px solid var(--accent)" : "1px solid var(--line)",
+        },
+        onclick: () => saveAppearance({ theme: t.id }),
+      },
+        el("span", { style: { display: "flex", gap: "5px" } },
+          el("i", { style: { width: "26px", height: "16px", borderRadius: "4px", background: t.raised, border: "1px solid rgba(255,255,255,0.12)" } }),
+          el("i", { style: { width: "16px", height: "16px", borderRadius: "50%", background: curAccent || "#8b7bff" } }),
+        ),
+        el("span", { style: { fontWeight: "800", fontSize: "0.9rem", color: "#f3f4f8" } }, t.name),
+        el("span", { style: { fontSize: "0.75rem", color: "#9aa1b5" } }, t.note),
+      ));
+    }
+    accentRow.innerHTML = "";
+    for (const a of ACCENTS) {
+      const active = (curAccent || "#8b7bff") === a;
+      accentRow.append(el("button", {
+        class: "focusable",
+        title: a,
+        "aria-label": "Accent " + a,
+        style: {
+          width: "34px", height: "34px", borderRadius: "50%", background: a,
+          border: active ? "3px solid #fff" : "2px solid transparent",
+          boxShadow: active ? "0 0 0 2px " + a : "none",
+        },
+        // the default violet is stored as "no accent" so future default
+        // changes reach profiles that never picked one
+        onclick: () => saveAppearance({ accent: a === "#8b7bff" ? null : a }),
+      }));
+    }
+  };
+  paint();
+  host.append(themeRow, accentRow);
+  return host;
 };
 
 export const renderPreferences = async (root) => {
@@ -86,6 +155,10 @@ export const renderPreferences = async (root) => {
         onclick: () => profileModal(state.profile, async () => { await loadProfiles(); navigate("#/preferences"); window.dispatchEvent(new HashChangeEvent("hashchange")); }),
       })
     ),
+    // ---- Appearance (theme + accent follow the profile to every device) ----
+    el("h2", { class: "row-title", style: { marginTop: "18px" } }, "Appearance"),
+    el("p", { class: "pref-note" }, "Yours alone — follows this profile to every device."),
+    appearanceSection(),
     // ---- Playback ----
     el("h2", { class: "row-title", style: { marginTop: "18px" } }, "Playback"),
     el("div", { class: "pref-list page-pad" },

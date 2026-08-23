@@ -21,16 +21,16 @@
      fades smoothly. */
   background-image: linear-gradient(
     to bottom,
-    rgba(8, 9, 16, 0.9),
-    rgba(8, 9, 16, 0)
+    rgba(var(--bg-rgb), 0.9),
+    rgba(var(--bg-rgb), 0)
   );
-  background-color: rgba(10, 11, 20, 0);
+  background-color: rgba(var(--bg-rgb), 0);
   transition:
     background-color 400ms var(--ease),
     box-shadow 400ms var(--ease);
 }
 .nav.solid {
-  background-color: rgba(10, 11, 20, 0.97);
+  background-color: rgba(var(--bg-rgb), 0.97);
   box-shadow: 0 1px 0 var(--line);
 }
 

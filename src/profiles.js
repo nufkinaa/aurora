@@ -60,6 +60,8 @@ const pub = (p) => ({
   name: p.name,
   color: p.color,
   avatar: p.avatar,
+  theme: p.theme || null, // appearance rides the profile across devices
+  accent: p.accent || null,
   hasPassword: !!p.passwordHash,
   locked: !!p.locked,
 });
@@ -300,12 +302,24 @@ const lastSeenBefore = (profileId) => {
   return last || 0;
 };
 
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const THEMES = ["aurora", "oled", "warm"];
+
 const update = (id, fields) => {
   const p = store.data.profiles.find((x) => x.id === id);
   if (!p) return null;
   if (fields.name) p.name = String(fields.name).slice(0, 24);
-  if (fields.color) p.color = fields.color;
-  if (fields.avatar) p.avatar = fields.avatar;
+  if (typeof fields.color === "string" && HEX_COLOR.test(fields.color)) p.color = fields.color;
+  // The avatar stays SHORT text (emoji) — the TV prints it literally at
+  // fontSize 48, so a path or long string here would render as text there.
+  if (typeof fields.avatar === "string" && fields.avatar.length > 0 && fields.avatar.length <= 8) {
+    p.avatar = fields.avatar;
+  }
+  // Appearance follows the profile to every device (additive fields — old
+  // profiles and the TV keep working without them).
+  if (typeof fields.theme === "string" && THEMES.includes(fields.theme)) p.theme = fields.theme;
+  if (typeof fields.accent === "string" && HEX_COLOR.test(fields.accent)) p.accent = fields.accent;
+  if (fields.accent === null) delete p.accent; // back to the default violet
   store.save();
   return pub(p);
 };
