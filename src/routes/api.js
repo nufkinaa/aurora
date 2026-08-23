@@ -386,6 +386,9 @@ router.get("/api/home", (req, res) => {
       for (const e of profiles.getWatchlist(profileId)) {
         seen.add(typeof e === "string" ? e : e.imdbId);
       }
+      // a RATED title has been seen by definition — recommending back
+      // something the person starred (especially 1★) would be absurd
+      for (const key of Object.keys(ratings)) seen.add(key);
       tasteRows = require("../media/taste").homeRecommendations({
         profileId,
         candidates: [...streamAll, ...local],
