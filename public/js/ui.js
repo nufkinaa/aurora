@@ -215,9 +215,24 @@ export const resBadge = (item) => {
 };
 
 let toastRoot;
-export const toast = (message, icon = "ℹ️") => {
+// `action` ({label, onClick}) renders a tappable button on the toast — the
+// undo pattern. Action toasts accept pointer events; plain ones stay inert.
+export const toast = (message, icon = "ℹ️", action = null) => {
   if (!toastRoot) toastRoot = document.getElementById("toasts");
-  const node = el("div", { class: "toast" }, el("span", {}, icon), el("span", {}, message));
+  const node = el(
+    "div",
+    { class: "toast" + (action ? " has-action" : "") },
+    el("span", {}, icon),
+    el("span", {}, message),
+    action &&
+      el("button", {
+        class: "toast-act focusable",
+        onclick: () => {
+          node.remove();
+          action.onClick();
+        },
+      }, action.label),
+  );
   toastRoot.append(node);
   // A WebSocket burst (several downloads finishing, OCR ticks) used to stack
   // a whole column; three is plenty — drop the oldest.

@@ -231,7 +231,7 @@ const viewState = new Map();
 // because the filter strip scrolls horizontally on a phone — a panel inside it
 // would be clipped by that overflow. Same focus scope + Back handling as the
 // app's modals, so a remote can walk it and Back closes it.
-const dropdown = (anchor, options, current, onPick) => {
+export const dropdown = (anchor, options, current, onPick) => {
   const close = () => {
     document.removeEventListener("ui-back", onBack);
     window.removeEventListener("resize", close);

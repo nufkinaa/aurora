@@ -21,6 +21,7 @@ import {
   toast,
 } from "../ui.js";
 import { api } from "../api.js";
+import { dropdown } from "./browse.js";
 import {
   state,
   refreshProgress,
@@ -1351,7 +1352,9 @@ export const renderDetail = async (root, { source, type, id }) => {
   // Mark an episode watched — the local file when we have it, otherwise against
   // the IMDb id, so an episode you streamed (or watched elsewhere) can be ticked
   // off exactly like one you own.
-  const setWatched = async (row, watched) => {
+  // `defer` skips the refresh+repaint so a season batch does them ONCE at the
+  // end — per-episode it was N×(POST + full profile fetch + list rebuild).
+  const setWatched = async (row, watched, defer = false) => {
     if (!state.profile) return;
     const local = row.local;
     const id = local
@@ -1377,18 +1380,31 @@ export const renderDetail = async (root, { source, type, id }) => {
       } else {
         await api.clearProgress(state.profile.id, id);
       }
-      await refreshProgress();
-      renderEpisodes();
+      if (!defer) {
+        await refreshProgress();
+        renderEpisodes();
+      }
     } catch {}
   };
+
+  // Watched-state of one episode row, local or streamed (shared by the rows
+  // and the season pill's label/batch).
+  const isWatchedRow = (r) =>
+    !!(r.local
+      ? progressFor(r.local.id)?.finished
+      : (
+          episodeProgressFor(imdbId, r.season, r.episode) ||
+          progressFor(streamProgressKey(imdbId, r.season, r.episode))
+        )?.finished);
 
   // Assigned below, once the season bar exists — a season you own nothing in
   // has nothing to offer, so the pill comes and goes with the active season.
   let downloadSeasonPill = null;
+  let markSeasonPill = null; // label follows the active season's true state
   const ownedIn = (season) =>
     ((season && season.episodes) || []).filter((r) => r.local && r.local.downloadUrl);
 
-  const renderEpisodes = () => {
+  const renderEpisodes = (scrollToNext = false) => {
     const season = seasons.find((s) => s.number === activeSeason) || seasons[0];
     // Keep the hero's meta line honest about which season you're looking at.
     const metaNode = screen.querySelector(".detail-meta-parts");
@@ -1400,6 +1416,20 @@ export const renderDetail = async (root, { source, type, id }) => {
       downloadSeasonPill.hidden = owned.length === 0;
       downloadSeasonPill.textContent = `Download season to device (${owned.length})`;
     }
+    if (markSeasonPill && season) {
+      // Say what the tap will actually DO — the old static label silently
+      // CLEARED a fully-watched season.
+      const states = resolveAirStates(season.episodes);
+      const aired = season.episodes.filter((r, i) => states[i] === "aired");
+      const left = aired.filter((r) => !isWatchedRow(r)).length;
+      markSeasonPill.textContent =
+        left === 0 && aired.length > 0
+          ? "Mark season unwatched"
+          : left === aired.length
+            ? "Mark season watched"
+            : `Mark season watched (${left} left)`;
+      markSeasonPill.hidden = aired.length === 0;
+    }
     episodeList.innerHTML = "";
     if (!season || !season.episodes.length) {
       episodeList.append(
@@ -1408,6 +1438,12 @@ export const renderDetail = async (root, { source, type, id }) => {
       return;
     }
     const airStates = resolveAirStates(season.episodes);
+    // The first aired episode you haven't finished — marked in the list so a
+    // 24-row season doesn't make you hunt through the Watched badges.
+    const upNextAt = season.episodes.findIndex(
+      (r, i) => airStates[i] === "aired" && !isWatchedRow(r),
+    );
+    const anyWatched = season.episodes.some((r) => isWatchedRow(r));
     season.episodes.forEach((row, i) => {
       const local = row.local;
       const air = airStates[i];
@@ -1436,7 +1472,8 @@ export const renderDetail = async (root, { source, type, id }) => {
           class:
             "episode" +
             (unaired ? " unaired" : " focusable") +
-            (local ? " owned" : ""),
+            (local ? " owned" : "") +
+            (i === upNextAt && anyWatched ? " up-next" : ""),
           ...(unaired
             ? { disabled: true, "aria-disabled": "true" }
             : { onclick: () => openSources(row) }),
@@ -1454,6 +1491,7 @@ export const renderDetail = async (root, { source, type, id }) => {
               row.title || `Episode ${row.episode}`,
             ),
             local && el("span", { class: "source-owned" }, "✓ DOWNLOADED"),
+            i === upNextAt && anyWatched && el("span", { class: "ep-up-next" }, "UP NEXT"),
           ),
           el(
             "div",
@@ -1526,28 +1564,74 @@ export const renderDetail = async (root, { source, type, id }) => {
           : epBtn,
       );
     });
+    // On open (and season switch), bring the next unwatched episode into
+    // view when it sits deep in a long season — only when there's real
+    // watching history, so a fresh show never yanks the page around.
+    if (scrollToNext && anyWatched && upNextAt > 3 && season.episodes.length > 8) {
+      const target = episodeList.querySelector(".up-next");
+      if (target)
+        setTimeout(() => {
+          if (!target.isConnected) return;
+          target.scrollIntoView({
+            behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+              ? "auto"
+              : "smooth",
+            block: "center",
+          });
+        }, 350);
+    }
   };
 
-  for (const s of seasons) {
-    const pill = el(
-      "button",
-      {
-        class: `season-pill focusable ${s.number === activeSeason ? "active" : ""}`,
-        onclick: () => {
-          activeSeason = s.number;
-          try {
-            localStorage.setItem(seasonKey, String(s.number));
-          } catch {}
-          seasonBar
-            .querySelectorAll(".season-pill")
-            .forEach((p) => p.classList.remove("active"));
-          pill.classList.add("active");
-          renderEpisodes();
+  const pickSeason = (n) => {
+    activeSeason = n;
+    try {
+      localStorage.setItem(seasonKey, String(n));
+    } catch {}
+    renderEpisodes(true);
+  };
+  if (seasons.length > 8) {
+    // A long show's pills ran off the bar (scrollbar hidden, no affordance) —
+    // one picker jumps anywhere. Same dropdown as the browse filters: scope-
+    // safe for the D-pad, Back closes it.
+    const seasonBtn = el("button", { class: "picker-btn focusable" });
+    const face = () => {
+      seasonBtn.innerHTML = "";
+      seasonBtn.append(
+        el("span", { class: "picker-label" }, "Season"),
+        el("span", { class: "picker-value" }, String(activeSeason)),
+        el("span", { class: "picker-caret" }, "▾"),
+      );
+    };
+    seasonBtn.onclick = () =>
+      dropdown(
+        seasonBtn,
+        seasons.map((s) => ({ label: `Season ${s.number}`, value: s.number })),
+        activeSeason,
+        (v) => {
+          pickSeason(v);
+          face();
         },
-      },
-      `Season ${s.number}`,
-    );
-    if (seasons.length > 1) seasonBar.append(pill);
+      );
+    face();
+    seasonBar.append(seasonBtn);
+  } else {
+    for (const s of seasons) {
+      const pill = el(
+        "button",
+        {
+          class: `season-pill focusable ${s.number === activeSeason ? "active" : ""}`,
+          onclick: () => {
+            pickSeason(s.number);
+            seasonBar
+              .querySelectorAll(".season-pill")
+              .forEach((p) => p.classList.remove("active"));
+            pill.classList.add("active");
+          },
+        },
+        `Season ${s.number}`,
+      );
+      if (seasons.length > 1) seasonBar.append(pill);
+    }
   }
   // Trailing actions sit apart from the season pills; whichever comes first
   // pushes the pair to the far end of the bar.
@@ -1571,31 +1655,53 @@ export const renderDetail = async (root, { source, type, id }) => {
     );
     trailing.push(downloadSeasonPill);
   }
-  // Preserved from the old library page: one tap to clear a whole season.
+  // One tap for the whole season — as ONE parallel batch with a single
+  // repaint (it was N serial requests, each refetching the profile and
+  // rebuilding the list), and an Undo that restores each episode's previous
+  // state, so accidentally clearing a watched season is one tap back.
   if (state.profile && (lib || imdbId)) {
-    trailing.push(
-      el(
-        "button",
-        {
-          class: "season-pill focusable",
-          onclick: async () => {
-            const season =
-              seasons.find((s) => s.number === activeSeason) || seasons[0];
-            const rows = season.episodes;
-            const isWatched = (r) =>
-              !!(r.local
-                ? progressFor(r.local.id)?.finished
-                : (
-                    episodeProgressFor(imdbId, r.season, r.episode) ||
-                    progressFor(streamProgressKey(imdbId, r.season, r.episode))
-                  )?.finished);
-            const allWatched = rows.every(isWatched);
-            for (const r of rows) await setWatched(r, !allWatched);
-          },
+    const applyBatch = async (rows, want) => {
+      markSeasonPill.disabled = true;
+      const before = markSeasonPill.textContent;
+      markSeasonPill.textContent = "Working…";
+      await Promise.allSettled(
+        rows.map(({ r, watched }) => setWatched(r, watched, true)),
+      );
+      await refreshProgress();
+      renderEpisodes();
+      markSeasonPill.disabled = false;
+      if (markSeasonPill.textContent === "Working…")
+        markSeasonPill.textContent = before;
+      return want;
+    };
+    markSeasonPill = el(
+      "button",
+      {
+        class: "season-pill focusable",
+        onclick: async () => {
+          if (markSeasonPill.disabled) return;
+          const season =
+            seasons.find((s) => s.number === activeSeason) || seasons[0];
+          const airStates = resolveAirStates(season.episodes);
+          const rows = season.episodes.filter((_, i) => airStates[i] === "aired");
+          const prev = rows.map((r) => ({ r, watched: isWatchedRow(r) }));
+          const target = !rows.every(isWatchedRow);
+          await applyBatch(
+            prev.filter((p) => p.watched !== target).map(({ r }) => ({ r, watched: target })),
+            target,
+          );
+          toast(
+            target
+              ? `Season ${season.number} marked watched`
+              : `Season ${season.number} marked unwatched`,
+            "✅",
+            { label: "Undo", onClick: () => applyBatch(prev.filter((p) => p.watched !== target), null) },
+          );
         },
-        "Mark season watched",
-      ),
+      },
+      "Mark season watched",
     );
+    trailing.push(markSeasonPill);
   }
   if (trailing.length) {
     seasonBar.append(
@@ -1612,7 +1718,7 @@ export const renderDetail = async (root, { source, type, id }) => {
 
   screen.append(seasonBar, episodeList);
   if (imdbId) screen.append(epSourcesLabel, sourcesSection);
-  renderEpisodes();
+  renderEpisodes(true);
 
   // A download that finishes while you're looking at the page updates the page.
   // Waiting for a download and then having to reload to see it is the sort of

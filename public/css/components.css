@@ -730,6 +730,26 @@
   opacity: 0;
   transform: translateX(24px);
 }
+/* Undo-style toasts carry a button, so they alone accept taps */
+.toast.has-action {
+  pointer-events: auto;
+}
+.toast-act {
+  margin-left: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-weight: 800;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.toast-act:hover,
+.toast-act:focus {
+  background: #fff;
+  color: #0b0c14;
+}
 @keyframes toast-in {
   from {
     opacity: 0;

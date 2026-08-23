@@ -1390,6 +1390,22 @@
 .episode.owned {
   border-left: 3px solid #4ade80;
 }
+/* The next unwatched episode — the row the viewer is here for */
+.episode.up-next {
+  border-left: 3px solid var(--accent, #60a5fa);
+}
+.ep-up-next {
+  margin-left: 8px;
+  flex: none;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #0b0c14;
+  background: var(--accent, #60a5fa);
+  border-radius: 4px;
+  padding: 1px 6px;
+  vertical-align: middle;
+}
 .source-langs {
   letter-spacing: 0.04em;
 }
