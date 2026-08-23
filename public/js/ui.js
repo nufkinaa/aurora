@@ -219,6 +219,9 @@ export const toast = (message, icon = "ℹ️") => {
   if (!toastRoot) toastRoot = document.getElementById("toasts");
   const node = el("div", { class: "toast" }, el("span", {}, icon), el("span", {}, message));
   toastRoot.append(node);
+  // A WebSocket burst (several downloads finishing, OCR ticks) used to stack
+  // a whole column; three is plenty — drop the oldest.
+  while (toastRoot.childElementCount > 3) toastRoot.firstElementChild.remove();
   setTimeout(() => node.classList.add("hide"), 5200);
   setTimeout(() => node.remove(), 5800);
 };

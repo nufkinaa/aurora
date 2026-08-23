@@ -116,6 +116,10 @@ ul, ol { list-style: none; }
    all interactive elements carry their own :active/:focus states. */
 html { -webkit-tap-highlight-color: transparent; }
 
+/* A downward swipe on the video used to trigger pull-to-refresh and reload
+   the page MID-MOVIE (Android Chrome). Normal scrolling is untouched. */
+html, body { overscroll-behavior-y: none; }
+
 /* Posters fade in as they decode instead of popping (class set by posterImg) */
 .img-fade { opacity: 0; transition: opacity 240ms var(--ease); }
 .img-fade.img-in { opacity: 1; }

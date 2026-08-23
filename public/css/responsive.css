@@ -68,6 +68,16 @@
 
 /* ---------- Phones (≤ 600px) ---------- */
 @media (max-width: 600px) {
+  /* Toasts: full-width above the thumb zone (24px-right + 360px max-width
+     clipped off-screen on small phones), clear of the home indicator. */
+  #toasts {
+    left: 16px;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+  .toast {
+    max-width: none;
+  }
   :root {
     --page-x: 16px;
     --nav-h: 56px;
@@ -231,10 +241,13 @@
   /* Player: the control row (8 buttons + volume) overflows 375px at 52px
      per button — shrink the chrome, not the tap logic */
   .player-top {
-    padding: 14px 16px;
+    padding: max(14px, env(safe-area-inset-top))
+      max(16px, env(safe-area-inset-right)) 14px
+      max(16px, env(safe-area-inset-left));
   }
   .player-bottom {
-    padding: 14px 16px 18px;
+    padding: 14px max(16px, env(safe-area-inset-right))
+      max(18px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   }
   .player-controls {
     gap: 2px;

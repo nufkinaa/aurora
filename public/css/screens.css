@@ -1875,7 +1875,11 @@
   top: 0;
   left: 0;
   right: 0;
-  padding: 26px 36px;
+  /* Notched phones in fullscreen: keep Back/title out of the cutout and
+     the controls off the home indicator (env() is 0 everywhere else). */
+  padding: max(26px, env(safe-area-inset-top))
+    max(36px, env(safe-area-inset-right)) 26px
+    max(36px, env(safe-area-inset-left));
   display: flex;
   align-items: center;
   gap: 18px;
@@ -1901,7 +1905,8 @@
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 22px 36px 28px;
+  padding: 22px max(36px, env(safe-area-inset-right))
+    max(28px, env(safe-area-inset-bottom)) max(36px, env(safe-area-inset-left));
   /* Deeper, longer fade — controls float on the picture instead of sitting
      on a visible gradient edge */
   background: linear-gradient(
@@ -1935,6 +1940,13 @@
   /* Dragging the timeline must never turn into a page pan/zoom on touch —
      without this, mobile browsers cancel the pointer stream mid-drag. */
   touch-action: none;
+}
+/* Fingers need a fatter target than a mouse: 40px hit zone (the visible
+   track stays thin) — a missed grab used to fall through and pause. */
+@media (hover: none) {
+  .scrubber {
+    height: 40px;
+  }
 }
 .scrubber-track {
   position: relative;

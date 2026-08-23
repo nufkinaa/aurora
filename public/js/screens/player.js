@@ -2168,12 +2168,28 @@ export const renderPlayer = async (root, { id }) => {
       "⚠️",
     );
   });
-  // Single click toggles play, double click toggles fullscreen
+  // Single click toggles play/controls. Double action depends on the input:
+  // mouse double-click = fullscreen (desktop convention); on TOUCH the
+  // screen edges are the phone grammar everyone expects — double-tap the
+  // left/right third = ±10s, only the middle stays fullscreen. TV remotes
+  // never fire pointer events, so the D-pad path below is untouched.
   let clickTimer = null;
-  video.addEventListener("click", () => {
+  let lastPointerType = "mouse";
+  video.addEventListener(
+    "pointerdown",
+    (e) => { lastPointerType = e.pointerType || "mouse"; },
+    { passive: true },
+  );
+  video.addEventListener("click", (e) => {
     if (clickTimer) {
       clearTimeout(clickTimer);
       clickTimer = null;
+      if (lastPointerType === "touch") {
+        const r = video.getBoundingClientRect();
+        const f = r.width > 0 ? (e.clientX - r.left) / r.width : 0.5;
+        if (f < 0.35) return skip(-1);
+        if (f > 0.65) return skip(1);
+      }
       toggleFullscreen();
       return;
     }
