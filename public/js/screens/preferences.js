@@ -143,7 +143,10 @@ export const renderPreferences = async (root) => {
     // Your profile — the only place to edit your profile / set a password
     el("h2", { class: "row-title", style: { marginTop: "8px" } }, "Your profile"),
     el("div", { class: "pref-profile page-pad" },
-      el("div", { class: "big-avatar small", style: { background: state.profile.color } }, state.profile.avatar),
+      el("div", { class: "big-avatar small", style: { background: state.profile.color } },
+        state.profile.avatarImage
+          ? el("img", { class: "avatar-photo", src: state.profile.avatarImage, alt: "" })
+          : state.profile.avatar),
       el("div", { style: { flex: "1" } },
         el("div", { class: "pref-profile-name" }, state.profile.name),
         el("div", { class: "pref-note", style: { padding: 0, margin: "2px 0 0" } },
@@ -154,6 +157,42 @@ export const renderPreferences = async (root) => {
         html: "<span>Edit profile & password</span>",
         onclick: () => profileModal(state.profile, async () => { await loadProfiles(); navigate("#/preferences"); window.dispatchEvent(new HashChangeEvent("hashchange")); }),
       })
+    ),
+    // Custom avatar photo: uploaded, validated + re-encoded server-side.
+    el("div", { class: "page-pad", style: { display: "flex", gap: "10px", marginTop: "8px", flexWrap: "wrap" } },
+      el("button", {
+        class: "btn small focusable",
+        html: "<span>📷 Upload a photo</span>",
+        onclick: () => {
+          const pick = el("input", { type: "file", accept: "image/jpeg,image/png,image/webp" });
+          pick.onchange = async () => {
+            const file = pick.files && pick.files[0];
+            if (!file) return;
+            if (file.size > 2 * 1024 * 1024) return toast("2MB max — pick a smaller image", "⚠️");
+            try {
+              const r = await api.uploadAvatar(state.profile.id, file);
+              state.profile = { ...state.profile, ...r.profile };
+              toast("Looking sharp", "📷");
+              window.dispatchEvent(new HashChangeEvent("hashchange")); // repaint the screen + nav chip
+            } catch (e) {
+              toast(e.message || "Upload failed", "⚠️");
+            }
+          };
+          pick.click();
+        },
+      }),
+      state.profile.avatarImage && el("button", {
+        class: "btn small focusable",
+        html: "<span>Remove photo</span>",
+        onclick: async () => {
+          try {
+            const r = await api.removeAvatar(state.profile.id);
+            state.profile = { ...state.profile, ...r.profile };
+            toast("Back to the emoji");
+            window.dispatchEvent(new HashChangeEvent("hashchange"));
+          } catch { toast("Couldn't remove it", "⚠️"); }
+        },
+      }),
     ),
     el("div", { class: "page-pad", style: { marginTop: "6px" } },
       el("button", {

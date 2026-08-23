@@ -46,8 +46,14 @@ document.addEventListener("keydown", (e) => {
 
 const paintProfileChip = () => {
   if (!state.profile) return;
-  $("#nav-avatar").textContent = state.profile.avatar;
-  $("#nav-avatar").style.background = state.profile.color;
+  const a = $("#nav-avatar");
+  if (state.profile.avatarImage) {
+    a.textContent = "";
+    a.style.background = `url("${state.profile.avatarImage}") center/cover`;
+  } else {
+    a.textContent = state.profile.avatar;
+    a.style.background = state.profile.color;
+  }
   $("#nav-profile-name").textContent = state.profile.name;
 };
 
@@ -59,6 +65,10 @@ const paintNavSolid = () =>
 window.addEventListener("scroll", paintNavSolid, { passive: true });
 window.addEventListener("hashchange", () => setTimeout(paintNavSolid, 0));
 paintNavSolid();
+// The chip repaints on navigation too — profile edits (avatar photo, name)
+// land in state.profile and this keeps the nav honest without a plumbing
+// event. It's two DOM writes; free.
+window.addEventListener("hashchange", () => setTimeout(paintProfileChip, 0));
 initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
 initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
 

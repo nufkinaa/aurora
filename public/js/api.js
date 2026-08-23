@@ -105,6 +105,13 @@ export const api = {
   // Seconds watched today — only the narrator's "you've been at this a while" uses it.
   todayWatchTime: (id) => json(`/api/profiles/${encodeURIComponent(id)}/today`),
   wrapped: (id) => json(`/api/profiles/${id}/wrapped`),
+  uploadAvatar: (id, file) =>
+    json(`/api/profiles/${id}/avatar-image`, {
+      method: "POST",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    }),
+  removeAvatar: (id) => json(`/api/profiles/${id}/avatar-image`, { method: "DELETE" }),
   updateProfile: (id, fields) =>
     json(`/api/profiles/${id}`, {
       method: "PUT",

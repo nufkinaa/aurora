@@ -233,6 +233,74 @@ router.get("/api/profiles/:id/watchlist", gate, (req, res) => {
   res.json({ items: profiles.watchlistItems(req.params.id) });
 });
 
+// ---------- custom avatar image ----------
+// The app's first user file upload — treated as hostile input end to end:
+// size-capped raw body, magic-byte sniff (the claimed content-type is
+// ignored), re-encoded through ffmpeg to a fresh 256px JPEG (the ORIGINAL
+// bytes are never stored or served), deterministic server-chosen filename
+// (nothing from the client touches the path).
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { execFile } = require("child_process");
+const rawImage = express.raw({
+  limit: "2mb",
+  type: ["image/jpeg", "image/png", "image/webp", "application/octet-stream"],
+});
+const AVATAR_DIR = path.join(config.DATA_DIR, "avatars");
+const SAFE_ID = /^[\w-]{1,40}$/; // profile ids are server-generated, but the id is used in a filename — belt anyway
+
+router.post("/api/profiles/:id/avatar-image", gate, rawImage, (req, res) => {
+  if (!config.ffmpegAvailable) {
+    return res.status(503).json({ error: "image processing isn't available on this server (ffmpeg missing)" });
+  }
+  if (!SAFE_ID.test(req.params.id)) return res.status(400).json({ error: "bad id" });
+  const buf = req.body;
+  if (!Buffer.isBuffer(buf) || buf.length < 100) {
+    return res.status(400).json({ error: "no image received (2MB max)" });
+  }
+  if (!require("../lib/imgcheck").magicOk(buf)) {
+    return res.status(400).json({ error: "that file isn't a JPEG, PNG or WebP" });
+  }
+  fs.mkdirSync(AVATAR_DIR, { recursive: true });
+  const tmpIn = path.join(os.tmpdir(), `aurora-avatar-${req.params.id}-${Date.now()}`);
+  const out = path.join(AVATAR_DIR, `${req.params.id}.jpg`);
+  const tmpOut = out + ".tmp.jpg";
+  try {
+    fs.writeFileSync(tmpIn, buf);
+  } catch {
+    return res.status(500).json({ error: "couldn't stage the upload" });
+  }
+  execFile(
+    config.FFMPEG,
+    ["-y", "-i", tmpIn,
+      // center-crop square, then 256px — every avatar comes out identical
+      "-vf", "crop='min(iw,ih)':'min(iw,ih)',scale=256:256",
+      "-frames:v", "1", "-q:v", "4", tmpOut],
+    { timeout: 20000 },
+    (err) => {
+      try { fs.unlinkSync(tmpIn); } catch {}
+      if (err) {
+        try { fs.unlinkSync(tmpOut); } catch {}
+        return res.status(400).json({ error: "couldn't process that image — try another file" });
+      }
+      try { fs.renameSync(tmpOut, out); } catch {
+        return res.status(500).json({ error: "couldn't save the avatar" });
+      }
+      // ?v busts the long-cache on re-upload (the static mount is immutable)
+      const url = `/avatars/${req.params.id}.jpg?v=${Date.now()}`;
+      res.json({ ok: true, profile: profiles.setAvatarImage(req.params.id, url) });
+    },
+  );
+});
+
+router.delete("/api/profiles/:id/avatar-image", gate, (req, res) => {
+  if (SAFE_ID.test(req.params.id)) {
+    try { fs.unlinkSync(path.join(AVATAR_DIR, `${req.params.id}.jpg`)); } catch {}
+  }
+  res.json({ ok: true, profile: profiles.setAvatarImage(req.params.id, null) });
+});
+
 // Aurora Wrapped: this profile's viewing, aggregated from the telemetry
 // sessions (ring buffer — the payload carries `since` so the UI never
 // pretends it's a full year), plus started/finished counts from progress

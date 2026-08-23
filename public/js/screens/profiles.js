@@ -8,7 +8,12 @@ import { state, setProfile, loadProfiles, recentProfileIds } from "../state.js";
 import { pushScope, popScope } from "../focus.js";
 import * as narrator from "../narrator.js";
 
-const AVATARS = ["🍿", "🎬", "🦊", "🐼", "🚀", "🌵", "🦖", "👾", "🐳", "🌙", "⚡", "🔥"];
+const AVATARS = [
+  "🍿", "🎬", "🦊", "🐼", "🚀", "🌵", "🦖", "👾", "🐳", "🌙", "⚡", "🔥",
+  // the expanded set (prompt 8): more personalities to pick from
+  "🐱", "🐶", "🦉", "🐸", "🦄", "🐧", "🍕", "🍩", "☕", "🌈", "🎧", "🎮",
+  "🏀", "⚽", "🌊", "🍁", "🎃", "❄️", "💜", "🛸", "🧠", "🕶️", "👑", "🧸",
+];
 const COLORS = ["#e05f2c", "#8b7bff", "#2c9fe0", "#38b26c", "#d94f8a", "#e0b52c", "#7a5cd6", "#4ec3c9"];
 
 // Shortest password accepted when creating a profile (mirrored server-side in
@@ -299,7 +304,10 @@ export const showProfileGate = (onChosen) => {
       onclick: () => openProfile(p),
     },
       el("div", { class: "big-avatar", style: { background: p.color } },
-        p.avatar,
+        // uploaded photo when there is one; the emoji stays the fallback
+        p.avatarImage
+          ? el("img", { class: "avatar-photo", src: p.avatarImage, alt: "" })
+          : p.avatar,
         (p.locked || p.hasPassword) && el("span", { class: "profile-lock" }, p.locked ? "🚫" : "🔒")
       ),
       el("div", { class: "name" }, p.name)

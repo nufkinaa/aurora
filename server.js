@@ -116,6 +116,14 @@ app.use(require("./src/routes/torrent"));
 app.use(require("./src/routes/downloads"));
 app.use(require("./src/routes/proxy"));
 
+// Processed profile avatars (re-encoded 256px JPEGs — see routes/profiles.js).
+// Immutable long-cache is safe: re-uploads change the ?v the clients use.
+app.use("/avatars", express.static(path.join(__dirname, "data", "avatars"), {
+  maxAge: "365d",
+  immutable: true,
+  fallthrough: false,
+}));
+
 app.get("/admin", (req, res) => {
   // The shell is just UI code (no data). It shows a password overlay on load
   // and makes NO admin API/WS calls until the password is entered; every one

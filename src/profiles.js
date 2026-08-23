@@ -62,6 +62,10 @@ const pub = (p) => ({
   avatar: p.avatar,
   theme: p.theme || null, // appearance rides the profile across devices
   accent: p.accent || null,
+  // A processed image under /avatars/, or null. Kept SEPARATE from `avatar`
+  // (emoji): the TV renders `avatar` as literal text, so it stays the
+  // universal fallback and never carries a path.
+  avatarImage: p.avatarImage || null,
   hasPassword: !!p.passwordHash,
   locked: !!p.locked,
 });
@@ -320,6 +324,17 @@ const update = (id, fields) => {
   if (typeof fields.theme === "string" && THEMES.includes(fields.theme)) p.theme = fields.theme;
   if (typeof fields.accent === "string" && HEX_COLOR.test(fields.accent)) p.accent = fields.accent;
   if (fields.accent === null) delete p.accent; // back to the default violet
+  store.save();
+  return pub(p);
+};
+
+// Set (or clear) the processed avatar image URL — written only by the upload
+// route, which owns validation and the file on disk.
+const setAvatarImage = (id, url) => {
+  const p = store.data.profiles.find((x) => x.id === id);
+  if (!p) return null;
+  if (url) p.avatarImage = url;
+  else delete p.avatarImage;
   store.save();
   return pub(p);
 };
@@ -660,6 +675,7 @@ module.exports = {
   accessFor,
   lastSeenBefore,
   update,
+  setAvatarImage,
   remove,
   setProgress,
   getProgress,
