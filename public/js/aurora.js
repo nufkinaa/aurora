@@ -28,35 +28,43 @@ const makeRamp = (stops) => {
 
 const rand = (a, b) => a + Math.random() * (b - a);
 
-// Cross-section: faint blue whisper above, bright core just above the
-// middle, then a LONG diffuse green veil below — the reference's bands have
-// real body under the core, not a hard edge.
+// Cross-section: a short blue-green fringe ABOVE the bright core and a
+// LONG diffuse veil below it — asymmetric like the reference (the glow
+// hangs under the band, it doesn't halo evenly). Core sits at 36% of the
+// section; the draw offset below keeps it on the centerline.
+const CORE_AT = 0.36;
 const makeBandRamp = (strength) =>
   makeRamp([
     [0, "rgba(120, 160, 255, 0)"],
-    [0.12, `rgba(110, 160, 255, ${0.08 * strength})`],
-    [0.3, `rgba(60, 235, 150, ${0.4 * strength})`],
-    [0.44, `rgba(140, 255, 190, ${0.9 * strength})`], // the bright core
-    [0.62, `rgba(60, 225, 150, ${0.5 * strength})`],
-    [0.82, `rgba(35, 180, 130, ${0.24 * strength})`], // the veil below
+    [0.1, `rgba(110, 160, 255, ${0.08 * strength})`],
+    [0.24, `rgba(60, 235, 150, ${0.42 * strength})`],
+    [CORE_AT, `rgba(140, 255, 190, ${0.9 * strength})`], // the bright core
+    [0.55, `rgba(60, 225, 150, ${0.5 * strength})`],
+    [0.78, `rgba(35, 180, 130, ${0.26 * strength})`], // the long veil
     [1, "rgba(20, 150, 115, 0)"],
   ]);
 
-// Each band gets its own random personality at page load.
-const makeBand = () => ({
-  ramp: makeBandRamp(rand(0.8, 1.05)),
+// Each band gets its own random personality at page load. The HERO band
+// never fades out and keeps a healthy minimum thickness/brightness — the
+// sky always has one aurora at decent intensity; the other two come and
+// go freely (so the count reads as 1–3).
+const makeBand = (hero = false) => ({
+  hero,
+  ramp: makeBandRamp(hero ? rand(0.95, 1.1) : rand(0.8, 1.05)),
   speed: rand(0.24, 0.4) * (Math.random() < 0.5 ? -1 : 1),
-  meander: rand(0.0022, 0.0038), // centerline wander frequency
-  mAmp: rand(0.18, 0.28),
+  meander: rand(0.0026, 0.0044), // centerline wander frequency
+  mAmp: rand(0.24, 0.32), // deeper slalom
   curlF: rand(0.008, 0.013), // the tighter random curls
   thick: rand(0.55, 0.8), // of the strip's height
-  yOff: rand(-0.08, 0.08),
+  sMin: hero ? 0.72 : 0.6, // thickness-swell floor
+  sVar: hero ? 0.28 : 0.4,
+  yOff: rand(-0.06, 0.06),
   phase: rand(0, Math.PI * 2),
   presF: rand(0.045, 0.085), // how often it appears/disappears
   presOff: rand(0, Math.PI * 2),
   lenF: rand(0.03, 0.06), // how its span drifts and stretches
   lenOff: rand(0, Math.PI * 2),
-  alpha: rand(1.4, 1.8), // compensates the stack of ≤1 envelopes below
+  alpha: hero ? rand(1.6, 1.9) : rand(1.4, 1.8),
 });
 
 export const initAurora = (canvas) => {
@@ -65,7 +73,7 @@ export const initAurora = (canvas) => {
   const nav = canvas.closest(".nav");
   const calm = matchMedia("(prefers-reduced-motion: reduce)");
 
-  const BANDS = [makeBand(), makeBand(), makeBand()];
+  const BANDS = [makeBand(true), makeBand(), makeBand()];
 
   let raf = null;
   let last = 0;
@@ -87,25 +95,25 @@ export const initAurora = (canvas) => {
     const H = canvas.height;
     const cw = W * DOWN; // strip width in CSS pixels (the wave math's unit)
     ctx.clearRect(0, 0, W, H);
-    // Presence: each band fades in, lives a while, fades away on its own
-    // slow clock — the sky holds one to three at any moment, and the
-    // brightest is lifted so it never goes completely empty (elia: 1–3).
-    const presences = BANDS.map((b) =>
-      Math.min(1, Math.max(0, 1.6 * Math.sin(t * b.presF + b.presOff) + 0.35)),
-    );
-    const top = Math.max(...presences);
-    if (top < 0.45) presences[presences.indexOf(top)] = 0.45;
     for (let bi = 0; bi < BANDS.length; bi++) {
       const b = BANDS[bi];
-      let presence = presences[bi];
-      if (still && bi === 0) presence = Math.max(presence, 0.8);
+      // Presence: each band fades in, lives a while, fades away on its own
+      // slow clock — the hero band never drops below a healthy glow, so the
+      // sky always holds at least one real aurora (elia: 1–3, one decent).
+      let presence = Math.min(
+        1,
+        Math.max(0, 1.6 * Math.sin(t * b.presF + b.presOff) + 0.35),
+      );
+      if (b.hero) presence = Math.max(presence, 0.85);
+      if (still && b.hero) presence = 1;
       if (presence < 0.04) continue;
 
       // Dynamic span: the band's center and length both drift, so it
       // stretches across the sky, shrinks to a short arc, wanders sideways.
-      const center = cw * (0.5 + 0.3 * Math.sin(t * b.lenF + b.lenOff));
+      const center = cw * (0.5 + 0.26 * Math.sin(t * b.lenF + b.lenOff));
+      // longer by default — from a generous arc up to a full sky-crosser
       const halfLen =
-        cw * (0.3 + 0.18 * Math.sin(t * b.lenF * 0.73 + b.lenOff * 1.9));
+        cw * (0.5 + 0.2 * Math.sin(t * b.lenF * 0.73 + b.lenOff * 1.9));
 
       const s = t * b.speed;
       // Curls flare up and die down over time — the tight kinks real bands
@@ -128,11 +136,11 @@ export const initAurora = (canvas) => {
             b.yOff +
             b.mAmp *
               Math.sin(
-                cx * b.meander + s * 0.9 + b.phase + 1.8 * Math.sin(cx * b.meander * 0.31 + s * 0.3),
+                cx * b.meander + s * 0.9 + b.phase + 2.6 * Math.sin(cx * b.meander * 0.31 + s * 0.3),
               ) +
             curlAmp * Math.sin(cx * b.curlF + s * 1.6 + b.phase * 3));
 
-        const swell = 0.6 + 0.4 * Math.sin(cx * 0.0017 + s * 0.7 + b.phase * 1.6);
+        const swell = b.sMin + b.sVar * Math.sin(cx * 0.0017 + s * 0.7 + b.phase * 1.6);
         const th = H * b.thick * swell * (0.5 + 0.5 * endTaper);
         if (th < 1) continue;
 
@@ -141,7 +149,8 @@ export const initAurora = (canvas) => {
         const bright = flow * swell * streak * endTaper * presence;
         if (bright < 0.04) continue;
         ctx.globalAlpha = Math.min(1, Math.pow(bright, 1.25) * b.alpha + 0.03);
-        ctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, x, yC - th / 2, 1, th);
+        // asymmetric: the core rides the centerline, the long veil below
+        ctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, x, yC - th * CORE_AT, 1, th);
       }
     }
     ctx.globalAlpha = 1;
