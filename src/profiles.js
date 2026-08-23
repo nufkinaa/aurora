@@ -353,6 +353,7 @@ const rowPrefs = (id) => {
 const setLikedTitles = (profileId, list) => {
   const state = stateFor(profileId);
   state.likedTitles = (Array.isArray(list) ? list : [])
+    .filter((t) => t && typeof t === "object") // a null entry must not 500 the route
     .slice(0, 100)
     .map((t) => ({
       ...(typeof t.id === "string" && t.id.length <= 40 ? { id: t.id } : {}),

@@ -263,9 +263,12 @@ router.post("/api/profiles/:id/avatar-image", gate, rawImage, (req, res) => {
     return res.status(400).json({ error: "that file isn't a JPEG, PNG or WebP" });
   }
   fs.mkdirSync(AVATAR_DIR, { recursive: true });
-  const tmpIn = path.join(os.tmpdir(), `aurora-avatar-${req.params.id}-${Date.now()}`);
+  // unique suffixes so two simultaneous uploads to one profile can't write
+  // through each other; the rename at the end is the atomic publish
+  const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const tmpIn = path.join(os.tmpdir(), `aurora-avatar-${req.params.id}-${nonce}`);
   const out = path.join(AVATAR_DIR, `${req.params.id}.jpg`);
-  const tmpOut = out + ".tmp.jpg";
+  const tmpOut = `${out}.${nonce}.tmp`;
   try {
     fs.writeFileSync(tmpIn, buf);
   } catch {
@@ -285,6 +288,7 @@ router.post("/api/profiles/:id/avatar-image", gate, rawImage, (req, res) => {
         return res.status(400).json({ error: "couldn't process that image — try another file" });
       }
       try { fs.renameSync(tmpOut, out); } catch {
+        try { fs.unlinkSync(tmpOut); } catch {} // never strand a servable .tmp
         return res.status(500).json({ error: "couldn't save the avatar" });
       }
       // ?v busts the long-cache on re-upload (the static mount is immutable)

@@ -39,3 +39,11 @@ test("an order full of stale ids degrades to the default sequence", () => {
   const out = orderRows(BASE, { order: ["gone-1", "gone-2"], hidden: [] });
   assert.equal(out.length, BASE.length);
 });
+
+test("hiding everything except 'upcoming' fails closed — empty beats an unreleased hero", () => {
+  const out = orderRows(BASE, {
+    order: [],
+    hidden: ["continue", "mylist", "trending-stream", "liked-Drama"],
+  });
+  assert.deepEqual(ids(out), []);
+});

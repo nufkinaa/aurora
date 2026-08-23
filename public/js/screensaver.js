@@ -29,8 +29,14 @@ const stop = () => {
   }
 };
 
+let armGen = 0; // bumped by every poke, so an in-flight arm can notice
+
 const start = async () => {
   if (overlay || !onHome() || !state.profile || document.hidden) return;
+  // Modals, the profile-switch gate and other overlays own the screen —
+  // never paint over them (they'd still be there underneath on wake).
+  if (document.querySelector(".ui-overlay")) return;
+  const gen = armGen;
   let pool = [];
   try {
     const data = await api.home(state.profile.id);
@@ -40,7 +46,10 @@ const start = async () => {
       ...(data.rows || []).flatMap((r) => r.items.slice(0, 6).map((i) => ({ src: i.backdrop || i.cover, title: i.title }))),
     ].filter((x) => x.src);
   } catch {}
-  if (!pool.length || overlay || !onHome()) return;
+  // the fetch took a moment — if the user moved, the tab hid, or another
+  // overlay appeared meanwhile, this arm is stale
+  if (gen !== armGen || !pool.length || overlay || !onHome() || document.hidden) return;
+  if (document.querySelector(".ui-overlay")) return;
   // shuffle so every doze-off shows a different reel
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -84,6 +93,7 @@ const start = async () => {
 };
 
 const poke = () => {
+  armGen++;
   if (overlay) stop();
   clearTimeout(idleTimer);
   idleTimer = setTimeout(start, IDLE_MS);

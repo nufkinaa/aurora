@@ -227,6 +227,9 @@ const orderRows = (rows, prefs = null) => {
     const i = out.findIndex((r) => r.id !== "upcoming");
     if (i > 0) out.unshift(out.splice(i, 1)[0]);
   }
+  // fail closed: if hiding left NOTHING but upcoming, drop it too — an empty
+  // rows list is tolerated by every consumer; an unreleased hero is not
+  if (out.length && out[0].id === "upcoming") out = out.filter((r) => r.id !== "upcoming");
   return out;
 };
 
