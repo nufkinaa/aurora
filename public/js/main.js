@@ -18,6 +18,7 @@ import { renderPickForMe } from "./screens/pickforme.js";
 import { showProfileGate } from "./screens/profiles.js";
 import { showShortcutsOverlay } from "./screens/shortcuts.js";
 import { initAurora } from "./aurora.js";
+import { initScreensaver } from "./screensaver.js";
 
 route("/", renderHome);
 route("/movies", renderMovies);
@@ -59,6 +60,7 @@ window.addEventListener("scroll", paintNavSolid, { passive: true });
 window.addEventListener("hashchange", () => setTimeout(paintNavSolid, 0));
 paintNavSolid();
 initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
+initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
 
 // Live download pill: after requesting a download and leaving the page there
 // was zero feedback until you wandered back. One global subscription feeds a
