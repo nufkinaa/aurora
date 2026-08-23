@@ -220,6 +220,11 @@ const paintDl = (btn, job) => {
     btn.style.setProperty("--dl-pct", String(Math.max(0, Math.min(100, pct))));
   // A finished download is nothing to click; anything else can be (re)requested.
   btn.disabled = !!job && job.status === "done";
+  // The action rail's caption (torrent cards only — the owned row's device-
+  // download button has none): says what the ⬇ DOES, so it never gets
+  // confused with Play again.
+  const cap = btn.querySelector(".dl-cap");
+  if (cap) cap.textContent = job && job.status === "done" ? "SAVED" : "SAVE";
 };
 
 // The badge a source carries when it already has a download job. Saying it on
@@ -333,6 +338,7 @@ const sourceRow = (stream, onPlay, onDownload, job) => {
     },
     el("i", { class: "dl-ring" }),
     el("span", { class: "dl-face" }),
+    el("span", { class: "dl-cap" }, "SAVE"),
   );
   paintDl(dlBtn, job);
 

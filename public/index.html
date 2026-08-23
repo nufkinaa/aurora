@@ -54,16 +54,16 @@
     <a class="nav-item focusable" href="#/search" data-route="#/search" data-nav>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="vertical-align:-3px"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
     </a>
-    <!-- twin spacers center the tab cluster on desktop: the dead stretch that
-         used to sit between Games and the gear is split to both sides -->
-    <span class="nav-spacer"></span>
     <a class="nav-item focusable" href="#/" data-route="#/" data-nav>Home</a>
     <a class="nav-item focusable" href="#/movies" data-route="#/movies" data-nav>Movies</a>
     <a class="nav-item focusable" href="#/shows" data-route="#/shows" data-nav>Shows</a>
     <a class="nav-item focusable" href="#/list" data-route="#/list" data-nav>My List</a>
     <a class="nav-item focusable hidden" id="nav-pick" href="#/pick" data-route="#/pick" data-nav>AI</a>
     <a class="nav-item focusable" href="#/games" data-route="#/games" data-nav>Games</a>
-    <span class="nav-spacer"></span>
+    <!-- the empty nav stretch hosts a slow aurora borealis (decoration only) -->
+    <span class="nav-spacer" aria-hidden="true">
+      <i class="nav-aurora na-1"></i><i class="nav-aurora na-2"></i><i class="nav-aurora na-3"></i>
+    </span>
     <a class="nav-item nav-gear focusable" href="#/preferences" data-route="#/preferences" data-nav title="Preferences" aria-label="Preferences">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-4px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </a>

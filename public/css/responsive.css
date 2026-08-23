@@ -40,6 +40,9 @@
   .nav-spacer {
     width: 4px;
   }
+  .nav-aurora {
+    display: none; /* no empty stretch to light up on the swipe-strip */
+  }
   #nav-profile-name {
     display: none; /* avatar alone identifies the profile */
   }

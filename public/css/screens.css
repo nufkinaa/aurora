@@ -985,27 +985,25 @@
 }
 /* the ★ BEST pick is the featured card: full row, gold-washed, and it stays
    put while the rest scrolls under it */
-.source-box .best-pinned {
+.source-box .best-pinned,
+.source-box .best-pinned:hover {
   grid-column: 1 / -1;
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--bg-raised);
-  border-radius: 12px;
-  /* mask the grid gap so scrolling rows don't peek around the pinned row */
-  box-shadow: 0 0 0 8px var(--bg-raised);
-}
-.source-box .best-pinned .source-row {
   border-color: rgba(245, 197, 66, 0.38);
-  background: linear-gradient(100deg, rgba(245, 197, 66, 0.10), var(--surface) 55%);
+  background:
+    linear-gradient(100deg, rgba(245, 197, 66, 0.10), rgba(108, 88, 255, 0.06) 45%, var(--surface) 75%),
+    var(--bg-raised);
+  /* mask the grid gap so scrolling rows don't peek around the pinned row —
+     and keep it on hover too, or the peek comes back mid-hover */
+  box-shadow: 0 0 0 8px var(--bg-raised);
+  transform: none; /* a sticky card hopping on hover reads as broken */
 }
-/* inside the grid the ⬇ hugs its card instead of floating as an orphan tile
-   (68px still clears the 44px progress ring + percentage) */
-.source-box .source-row-wrap {
-  gap: 5px;
-}
-.source-box .source-dl {
-  width: 68px;
+/* a card that is OWNED wears green at card level (badge + gradient carry it
+   where :has isn't supported) */
+.source-row-wrap:has(> .source-row.owned) {
+  border-color: rgba(74, 222, 128, 0.45);
 }
 
 /* Quality filter bar above the sources list */
@@ -1062,10 +1060,26 @@
   gap: 8px;
 }
 
+/* ---- The source CARD: one unified surface per source, Aurora-washed ----
+   The play area and the SAVE rail live INSIDE one card (they used to be two
+   detached buttons — nobody could tell which did what). */
 .source-row-wrap {
   display: flex;
   align-items: stretch;
-  gap: 8px;
+  gap: 0;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(155deg, rgba(108, 88, 255, 0.10), rgba(78, 163, 255, 0.05) 40%, var(--surface) 75%);
+  transition:
+    border-color var(--t-fast),
+    box-shadow var(--t-fast),
+    transform var(--t-fast);
+}
+.source-row-wrap:hover {
+  border-color: rgba(124, 100, 255, 0.45);
+  box-shadow: 0 6px 26px rgba(108, 88, 255, 0.16);
+  transform: translateY(-2px);
 }
 .source-row-wrap .source-row {
   flex: 1;
@@ -1073,22 +1087,36 @@
 }
 .source-dl {
   flex: none;
-  /* Wide enough for a progress ring with a percentage inside it — at 54px the
-     ring and the number were fighting for the same few pixels. */
-  width: 84px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--line);
+  /* Wide enough for the progress ring with a percentage inside it. */
+  width: 66px;
+  border-radius: 0 13px 13px 0;
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  border-left: 1px solid var(--line);
   color: var(--text-dim);
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 3px;
   transition:
     background var(--t-fast),
     box-shadow var(--t-fast),
-    color var(--t-fast),
-    transform var(--t-fast);
+    color var(--t-fast);
+}
+/* the rail says what it does — the whole "which button is which" fix */
+.dl-cap {
+  font-size: 0.55rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  color: var(--text-faint);
+}
+.source-dl.has-ring .dl-cap {
+  display: none; /* the ring + % is the caption while a download runs */
+}
+.source-dl.done .dl-cap {
+  color: #4ade80;
 }
 /* The torrent rows' button draws a glyph at font size; the owned row's draws an
    icon, which needs saying out loud or it fills the 84px button. */
@@ -1101,7 +1129,6 @@
   background: var(--surface-hover);
   box-shadow: var(--focus-ring);
   color: var(--text);
-  transform: scale(1.03);
 }
 .source-dl.on {
   color: var(--accent);
@@ -1200,13 +1227,13 @@
 .source-row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   width: 100%;
   text-align: left;
   padding: 12px 14px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--line);
+  border-radius: 13px 0 0 13px;
+  background: none;
+  border: none;
   transition:
     background var(--t-fast),
     box-shadow var(--t-fast),
@@ -1214,10 +1241,8 @@
 }
 .source-row:hover,
 .source-row:focus {
-  background: var(--surface-hover);
-  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.05);
   box-shadow: var(--focus-ring);
-  transform: scale(1.01);
 }
 .source-quality {
   width: 58px;
@@ -1498,6 +1523,11 @@
 .source-row:focus .source-play {
   background: #fff;
   color: #0b0c14;
+}
+/* the play chip lights up in Aurora colors when the card is under the cursor */
+.source-row-wrap:hover .source-play {
+  background: linear-gradient(135deg, #6c58ff, #4ea3ff);
+  color: #fff;
 }
 
 .sources-loading,

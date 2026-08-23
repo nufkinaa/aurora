@@ -78,6 +78,59 @@
 
 .nav-spacer {
   flex: 1;
+  position: relative;
+  align-self: stretch;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* Aurora borealis in the empty nav stretch (elia's idea): three soft
+   green/blue curtains drifting slowly. Radial gradients fade on their own —
+   no filter:blur — and only transform/opacity animate, so the whole thing
+   stays on the compositor (the TV GPU never repaints the nav for it). */
+.nav-aurora {
+  position: absolute;
+  top: -30%;
+  height: 160%;
+  width: 42%;
+  border-radius: 50%;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.na-1 {
+  left: 4%;
+  background: radial-gradient(ellipse 55% 45% at 50% 55%, rgba(61, 220, 151, 0.34), transparent 68%);
+  animation: aurora-drift-1 17s ease-in-out infinite;
+}
+.na-2 {
+  left: 30%;
+  background: radial-gradient(ellipse 60% 42% at 50% 45%, rgba(78, 163, 255, 0.30), transparent 70%);
+  animation: aurora-drift-2 23s ease-in-out infinite;
+}
+.na-3 {
+  left: 56%;
+  background: radial-gradient(ellipse 50% 40% at 50% 50%, rgba(64, 224, 200, 0.24), transparent 66%);
+  animation: aurora-drift-3 29s ease-in-out infinite;
+}
+@keyframes aurora-drift-1 {
+  0%, 100% { transform: translateX(-12%) skewX(-14deg) scaleY(0.9); opacity: 0.35; }
+  45%      { transform: translateX(38%) skewX(10deg) scaleY(1.15); opacity: 0.8; }
+  70%      { transform: translateX(16%) skewX(-4deg) scaleY(1);   opacity: 0.5; }
+}
+@keyframes aurora-drift-2 {
+  0%, 100% { transform: translateX(24%) skewX(12deg) scaleY(1.1);  opacity: 0.65; }
+  38%      { transform: translateX(-18%) skewX(-10deg) scaleY(0.85); opacity: 0.3; }
+  72%      { transform: translateX(8%) skewX(4deg) scaleY(1.2);   opacity: 0.75; }
+}
+@keyframes aurora-drift-3 {
+  0%, 100% { transform: translateX(-8%) skewX(6deg) scaleY(1);    opacity: 0.45; }
+  50%      { transform: translateX(30%) skewX(-12deg) scaleY(1.25); opacity: 0.7; }
+}
+/* Calm request = still sky: a faint static glow instead of the dance. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-aurora {
+    animation: none;
+    opacity: 0.35;
+  }
 }
 
 .nav-profile {
