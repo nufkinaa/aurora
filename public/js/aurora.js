@@ -9,7 +9,14 @@
 // for the glow, capped at 30fps, and the loop runs ONLY while the lights are
 // visible (nav solid, tab in front) — a MutationObserver on the nav's class
 // starts/stops it. Reduced motion gets a single still frame. No assets.
-const RAMP_H = 64;
+// Height of the cross-section bitmap. Deliberately CLOSE to the height a
+// column actually gets drawn at (~15-45 device px): canvas2d downscaling is
+// bilinear, so squashing a 64px ramp into a 20px column threw away the soft
+// top fringe and left a hard, stair-stepped edge — the "pixelation" that
+// survived every resolution increase, because resolution was never the
+// problem. At 24 the ramp is a mild up/down scale either way, which
+// interpolates cleanly.
+const RAMP_H = 24;
 
 // One 1px-wide vertical color ramp per band (its cross-section, top→bottom).
 // Columns are drawn by scaling this strip with drawImage, so no gradient
@@ -77,18 +84,24 @@ export const initAurora = (canvas) => {
 
   let raf = null;
   let last = 0;
-  // RESOLUTION. This used to paint at half size and let the browser upscale;
-  // the upscale WAS the glow, but it also made the curtain edges read as
-  // low-res stair-steps on a sharp screen. Now the backing store matches the
-  // real device pixels (capped at 2x so a 3x phone doesn't pay for pixels
-  // nobody can see), and the softness comes from a deliberate sub-pixel blur
-  // in CSS instead of from thrown-away resolution.
+  // RESOLUTION + GLOW, and why they are two separate jobs.
   //
-  // Cost is bounded by COLUMNS, not by pixels: one drawImage per CSS pixel of
-  // strip width regardless of DPR, and the ramp's vertical scaling is free.
-  // Vertical detail — where the core/veil gradient lives and where the
-  // stair-stepping showed — is now full resolution at zero extra calls.
+  // v1 painted at half size and let the browser upscale: the upscale WAS the
+  // glow, but it also read as stair-stepped edges on a sharp screen. v2 went
+  // to device pixels and asked CSS for a 0.5px blur — which traded one
+  // artifact for a worse one, because the columns overlapped by 0.7px and
+  // every seam got composited TWICE, laying a faint vertical comb under the
+  // band that the blur then smeared into a "weird filter" look.
+  //
+  // v3 added a real Gaussian on top — and that was the "weird filter" look:
+  // once the painter runs at device resolution the glow is ALREADY in the
+  // cross-section (measured: a column fades 0→190 alpha over ~8 rows), so any
+  // extra blur is just smear over an image that was already soft where it
+  // should be soft and crisp where it should be crisp. v4 paints sharp and
+  // adds nothing: the ramp is the glow.
   let ss = 1; // device-pixel scale of the backing store
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   const size = () => {
     ss = Math.min(window.devicePixelRatio || 1, 2);
     const w = Math.max(1, Math.round(canvas.clientWidth * ss));
@@ -103,6 +116,7 @@ export const initAurora = (canvas) => {
     size();
     const H = canvas.height;                                  // backing px
     const cw = Math.max(1, Math.round(canvas.clientWidth));   // CSS px — the wave math's unit
+    const px = Math.max(1, Math.round(ss));                   // one device pixel, integral
     ctx.clearRect(0, 0, canvas.width, H);
     for (let bi = 0; bi < BANDS.length; bi++) {
       const b = BANDS[bi];
@@ -171,8 +185,9 @@ export const initAurora = (canvas) => {
         // the visibility floor dies with the feather, or it re-draws the cut
         ctx.globalAlpha = Math.min(1, Math.pow(bright, 1.25) * b.alpha + 0.03 * feather);
         // asymmetric: the core rides the centerline, the long veil below
-        // columns overlap by a hair so neighbours blend instead of seaming
-        ctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, cx * ss, yC - th * CORE_AT, ss + 0.7, th);
+        // exactly one device pixel wide, on an integer boundary: adjacent
+        // columns tile instead of overlapping, so nothing composites twice
+        ctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, Math.round(cx * ss), yC - th * CORE_AT, px, th);
       }
     }
     ctx.globalAlpha = 1;

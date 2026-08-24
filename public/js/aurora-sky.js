@@ -5,7 +5,10 @@
 // resolution and browser-upscaled — the blur IS the glow. 24fps, and the
 // loop stops the moment the canvas leaves the DOM or the tab hides.
 // Reduced motion: one still frame, no drift.
-const RAMP_H = 64;
+// Kept close to the height a column is actually drawn at (~55-80px here), so
+// the cross-section is interpolated UP rather than aliased down — the same
+// fix the nav painter needed (see js/aurora.js).
+const RAMP_H = 32;
 
 const makeRamp = (stops) => {
   const c = document.createElement("canvas");
@@ -66,6 +69,8 @@ const makeBand = ({ hero = false, violet = false, y = 0.3 } = {}) => ({
 export const initAuroraSky = (canvas) => {
   if (!canvas) return () => {};
   const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   const calm = matchMedia("(prefers-reduced-motion: reduce)");
 
   const BANDS = [

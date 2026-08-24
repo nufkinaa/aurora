@@ -104,10 +104,9 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  /* The painter now runs at real device resolution (see js/aurora.js), so the
-     softness has to be asked for rather than inherited from an upscale: half
-     a pixel of blur melts the column seams without costing sharpness. */
-  filter: blur(0.5px);
+  /* No filter here on purpose: js/aurora.js paints sharp and applies its own
+     Gaussian to the finished frame. A second blur at this level would smear
+     the result (and stack with the painter's own fallback on old browsers). */
 }
 
 /* Live download pill — quiet, informative, gone when idle */
