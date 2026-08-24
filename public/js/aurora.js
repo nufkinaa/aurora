@@ -77,12 +77,22 @@ export const initAurora = (canvas) => {
 
   let raf = null;
   let last = 0;
-  // Half resolution: enough interpolation to glow, crisp enough to read as
-  // light rather than blur (1/3 looked low-res per elia).
-  const DOWN = 2;
+  // RESOLUTION. This used to paint at half size and let the browser upscale;
+  // the upscale WAS the glow, but it also made the curtain edges read as
+  // low-res stair-steps on a sharp screen. Now the backing store matches the
+  // real device pixels (capped at 2x so a 3x phone doesn't pay for pixels
+  // nobody can see), and the softness comes from a deliberate sub-pixel blur
+  // in CSS instead of from thrown-away resolution.
+  //
+  // Cost is bounded by COLUMNS, not by pixels: one drawImage per CSS pixel of
+  // strip width regardless of DPR, and the ramp's vertical scaling is free.
+  // Vertical detail — where the core/veil gradient lives and where the
+  // stair-stepping showed — is now full resolution at zero extra calls.
+  let ss = 1; // device-pixel scale of the backing store
   const size = () => {
-    const w = Math.max(1, Math.round(canvas.clientWidth / DOWN));
-    const h = Math.max(1, Math.round(canvas.clientHeight / DOWN));
+    ss = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.round(canvas.clientWidth * ss));
+    const h = Math.max(1, Math.round(canvas.clientHeight * ss));
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;
@@ -91,10 +101,9 @@ export const initAurora = (canvas) => {
 
   const paint = (t, still = false) => {
     size();
-    const W = canvas.width;
-    const H = canvas.height;
-    const cw = W * DOWN; // strip width in CSS pixels (the wave math's unit)
-    ctx.clearRect(0, 0, W, H);
+    const H = canvas.height;                                  // backing px
+    const cw = Math.max(1, Math.round(canvas.clientWidth));   // CSS px — the wave math's unit
+    ctx.clearRect(0, 0, canvas.width, H);
     for (let bi = 0; bi < BANDS.length; bi++) {
       const b = BANDS[bi];
       // Presence: each band fades in, lives a while, fades away on its own
@@ -121,8 +130,7 @@ export const initAurora = (canvas) => {
       const curlAmp =
         0.12 * Math.max(0, Math.sin(t * 0.19 + b.phase * 2.3));
 
-      for (let x = 0; x < W; x++) {
-        const cx = x * DOWN;
+      for (let cx = 0; cx < cw; cx++) {
         const u = (cx - center) / halfLen;
         if (u < -1 || u > 1) continue;
         // The dome shades the band toward its ends — but sqrt alone has
@@ -163,7 +171,8 @@ export const initAurora = (canvas) => {
         // the visibility floor dies with the feather, or it re-draws the cut
         ctx.globalAlpha = Math.min(1, Math.pow(bright, 1.25) * b.alpha + 0.03 * feather);
         // asymmetric: the core rides the centerline, the long veil below
-        ctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, x, yC - th * CORE_AT, 1, th);
+        // columns overlap by a hair so neighbours blend instead of seaming
+        ctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, cx * ss, yC - th * CORE_AT, ss + 0.7, th);
       }
     }
     ctx.globalAlpha = 1;
