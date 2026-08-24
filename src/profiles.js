@@ -71,6 +71,149 @@ const pub = (p) => ({
   locked: !!p.locked,
 });
 
+// ---------- sign-in identity (prompt 10: ACCOUNT = PROFILE) ----------
+// elia's model, second iteration: there is no separate accounts layer. The
+// profile IS the account — username, optional email, optional Google, and
+// ONE password (the profile's own). "Claimed" = this profile can sign in.
+const normUsername = (u) =>
+  String(u || "").trim().toLowerCase().replace(/[^a-z0-9._-]/g, "").slice(0, 24);
+const normEmail = (e) => String(e || "").trim().toLowerCase().slice(0, 80);
+const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
+
+const byUsername = (username) => {
+  const u = normUsername(username);
+  return (u && store.data.profiles.find((p) => p.username === u)) || null;
+};
+const byEmail = (email) => {
+  const e = normEmail(email);
+  return (e && store.data.profiles.find((p) => p.email === e)) || null;
+};
+const byGoogleSub = (sub) =>
+  (sub && store.data.profiles.find((p) => p.googleSub === sub)) || null;
+const usernameTaken = (username) =>
+  !!byUsername(username) ||
+  store.data.pending.some((r) => r.username && r.username === normUsername(username));
+const emailTaken = (email) => {
+  const e = normEmail(email);
+  return !!e && (!!byEmail(e) || store.data.pending.some((r) => r.email === e));
+};
+const isClaimed = (p) => !!(p && (p.username || p.googleSub));
+
+// What /api/me and the login response call "the user" — the profile's
+// sign-in identity. Sits beside pub(); hash/salt never leave here either.
+const signinPub = (p) => ({
+  id: p.id,
+  profileId: p.id,
+  username: p.username || null,
+  name: p.name,
+  email: p.email || null,
+  hasGoogle: !!p.googleSub,
+  claimed: isClaimed(p),
+});
+
+// Sign in with username OR email + the profile's password. Same dummy-hash
+// trick as unlock: unknown identifiers still cost one scrypt, so timing
+// doesn't reveal which usernames exist. An unclaimed or password-less
+// profile can never log in.
+const login = async (identifier, password) => {
+  const p = byUsername(identifier) || byEmail(identifier);
+  const ok =
+    p && isClaimed(p) && p.passwordHash
+      ? await verifyHash(password, p.passwordSalt, p.passwordHash)
+      : (await hashPassword(String(password || "x")), false);
+  if (!ok) return { error: "wrong username or password" };
+  if (p.locked) return { error: `that profile is locked — talk to ${config.ADMIN_NAME}` };
+  return { ok: true, profileId: p.id, user: signinPub(p), profile: pub(p) };
+};
+
+// Can this profile still be claimed? Seeds the claim UI: a free suggested
+// username, and whether a password already exists (then the claim never asks
+// for one — the profile password IS the sign-in password).
+const claimableFor = (profileId) => {
+  const p = getRaw(profileId);
+  if (!p || p.locked || isClaimed(p)) return null;
+  let suggestion = normUsername(p.name) || `user${p.id.slice(0, 4)}`;
+  for (let n = 2; usernameTaken(suggestion) && n < 50; n++) {
+    suggestion = `${normUsername(p.name) || "user"}${n}`;
+  }
+  return { suggestedUsername: suggestion, hasPassword: !!p.passwordHash, name: p.name };
+};
+
+// The one-time claim: attach a username (+ optional email) to the profile,
+// and set the password IF it doesn't have one yet. Only possible while the
+// profile is unclaimed — afterwards changes go through the signed-in paths.
+const claimSignin = async ({ profileId, username, email, password }) => {
+  const p = getRaw(profileId);
+  if (!p) return { error: "no such profile" };
+  if (p.locked) return { error: "that profile is locked" };
+  if (isClaimed(p)) return { error: "this profile is already set up — sign in instead", claimed: true };
+  const uname = normUsername(username);
+  if (uname.length < 2) return { error: "pick a username (letters/numbers, 2+ chars)" };
+  if (usernameTaken(uname)) return { error: "that username is taken" };
+  const e = normEmail(email);
+  if (e && !validEmail(e)) return { error: "that email doesn't look right" };
+  if (e && emailTaken(e)) return { error: "that email is already in use" };
+  if (!p.passwordHash) {
+    if (!password || String(password).length < 4) {
+      return { error: "password too short (4+ chars)" };
+    }
+    const { salt, hash } = await hashPassword(String(password));
+    p.passwordHash = hash;
+    p.passwordSalt = salt;
+  }
+  p.username = uname;
+  if (e) p.email = e;
+  p.claimedAt = Date.now();
+  store.save();
+  return { ok: true, profileId: p.id, user: signinPub(p), profile: pub(p) };
+};
+
+const linkGoogle = (profileId, sub) => {
+  const p = getRaw(profileId);
+  if (!p) return { error: "not found" };
+  p.googleSub = sub;
+  if (!p.claimedAt) p.claimedAt = Date.now();
+  store.save();
+  return { ok: true, user: signinPub(p) };
+};
+
+const setEmail = (profileId, email) => {
+  const p = getRaw(profileId);
+  if (!p) return { error: "not found" };
+  const e = normEmail(email);
+  if (e && !validEmail(e)) return { error: "that email doesn't look right" };
+  if (e && emailTaken(e) && byEmail(e) !== p) return { error: "that email is already in use" };
+  if (e) p.email = e;
+  else delete p.email;
+  store.save();
+  return { ok: true, user: signinPub(p) };
+};
+
+// Admin knob: hand a profile a fresh password without knowing the old one
+// (someone forgot theirs; a passwordless profile needs one before Closed).
+// Live unlock tokens die with the old password, same as setPassword.
+const adminSetPassword = async (profileId, newPassword) => {
+  const p = getRaw(profileId);
+  if (!p) return { error: "not found" };
+  const { salt, hash } = await hashPassword(String(newPassword));
+  p.passwordHash = hash;
+  p.passwordSalt = salt;
+  for (const [t, pid] of tokens) if (pid === profileId) tokens.delete(t);
+  store.save();
+  return { ok: true };
+};
+
+// The admin panel's per-profile sign-in roster.
+const signinList = () =>
+  store.data.profiles.map((p) => ({
+    ...signinPub(p),
+    avatar: p.avatar,
+    color: p.color,
+    hasPassword: !!p.passwordHash,
+    locked: !!p.locked,
+    claimedAt: p.claimedAt || null,
+  }));
+
 const list = () => store.data.profiles;          // internal (raw)
 const publicList = () => store.data.profiles.map(pub);
 const getRaw = (id) => store.data.profiles.find((x) => x.id === id) || null;
@@ -180,6 +323,9 @@ const pendingPub = (r) => ({
   requestedAt: r.requestedAt,
   ip: r.ip,
   device: r.device,
+  username: r.username || null,
+  email: r.email || null,
+  viaGoogle: !!r.googleSub,
 });
 
 const nameTaken = (name) => {
@@ -190,16 +336,33 @@ const nameTaken = (name) => {
   );
 };
 
-const requestProfile = async ({ name, color, avatar, password, realName, note, ip, device }) => {
+// Two doors feed this queue: the profile wall's "Add profile" (today's flow —
+// name + password, no sign-in identity) and the login screen's "Request
+// access" (which also carries username / email / a server-verified Google
+// identity). Either way it's a REQUEST until the admin approves it.
+const requestProfile = async ({ name, color, avatar, password, realName, note, ip, device, username, email, googleSub, googleEmail }) => {
   const clean = String(name || "").trim().slice(0, 24);
   if (!clean) return { error: "You left the name blank. A nameless profile. Inspired. Try again with letters this time." };
   if (nameTaken(clean)) return { error: "That name is taken. Add a number, or get creative." };
+  // Sign-in identity (optional — the wall's flow sends none of these).
+  const uname = normUsername(username);
+  if (username && uname.length < 2) return { error: "pick a username (letters/numbers, 2+ chars)" };
+  if (uname && usernameTaken(uname)) return { error: "that username is taken" };
+  const e = normEmail(email);
+  if (e && !validEmail(e)) return { error: "that email doesn't look right" };
+  if (e && emailTaken(e)) return { error: "that email is already in use" };
+  if (googleSub && byGoogleSub(googleSub)) return { error: "that Google account is already linked to a profile" };
+  // A password is what makes the profile private — required UNLESS the
+  // request signs in with Google only.
+  if (!googleSub && (!password || String(password).length < 4)) {
+    return { error: "password too short (4+ chars)" };
+  }
   // Without a cap, anyone who can reach the gate could fill the store with
   // requests. Rejecting rather than rotating keeps the admin's queue honest.
   if (store.data.pending.length >= MAX_PENDING) {
     return { error: `Queue's full. Forty other people had this idea before you. Come back when ${config.ADMIN_NAME} digs out from under it.` };
   }
-  const { salt, hash } = await hashPassword(String(password));
+  const hashed = password ? await hashPassword(String(password)) : null;
   const req = {
     id: crypto.randomBytes(6).toString("hex"),
     name: clean,
@@ -210,8 +373,10 @@ const requestProfile = async ({ name, color, avatar, password, realName, note, i
     requestedAt: Date.now(),
     ip: String(ip || "?").slice(0, 60),
     device: device || null,
-    passwordHash: hash,
-    passwordSalt: salt,
+    ...(hashed ? { passwordHash: hashed.hash, passwordSalt: hashed.salt } : {}),
+    ...(uname ? { username: uname } : {}),
+    ...(e ? { email: e } : {}),
+    ...(googleSub ? { googleSub: String(googleSub), googleEmail: normEmail(googleEmail) || null } : {}),
   };
   store.data.pending.push(req);
   store.save();
@@ -227,14 +392,27 @@ const pendingCount = () => store.data.pending.length;
 const approveRequest = (reqId) => {
   const i = store.data.pending.findIndex((r) => r.id === reqId);
   if (i === -1) return null;
+  // The username/email may have been claimed while the request waited —
+  // approving would otherwise mint a login that can never work.
+  const r = store.data.pending[i];
+  if (r.username && byUsername(r.username)) {
+    return { error: `@${r.username} got taken while this request waited — reject it and have them re-request` };
+  }
+  if (r.email && byEmail(r.email)) {
+    return { error: `${r.email} got claimed while this request waited — reject it and have them re-request` };
+  }
   const [req] = store.data.pending.splice(i, 1);
   const profile = {
     id: req.id,
     name: req.name,
     color: req.color,
     avatar: req.avatar,
-    passwordHash: req.passwordHash,
-    passwordSalt: req.passwordSalt,
+    ...(req.passwordHash ? { passwordHash: req.passwordHash, passwordSalt: req.passwordSalt } : {}),
+    // sign-in identity (account = profile): rides straight in, so the person
+    // can log in the moment they're approved
+    ...(req.username ? { username: req.username, claimedAt: Date.now() } : {}),
+    ...(req.email ? { email: req.email } : {}),
+    ...(req.googleSub ? { googleSub: req.googleSub, claimedAt: Date.now() } : {}),
     // Kept so the admin can still tell who this profile belongs to later.
     realName: req.realName || undefined,
     approvedAt: Date.now(),
@@ -751,6 +929,24 @@ module.exports = {
   getRatings,
   setLikedGenres,
   getLikedGenres,
-  // Test-only: the pure halves of the watchlist identity work.
-  _internals: { entryKey, sameIdentity, materializeWatchlist },
+  // sign-in identity (prompt 10: account = profile)
+  pub,
+  signinPub,
+  byUsername,
+  byEmail,
+  byGoogleSub,
+  usernameTaken,
+  emailTaken,
+  isClaimed,
+  login,
+  claimableFor,
+  claimSignin,
+  linkGoogle,
+  setEmail,
+  adminSetPassword,
+  signinList,
+  issueToken,
+  // Test-only: the pure halves of the watchlist identity work, plus the
+  // store handle + norms so auth tests can run on a stubbed store.
+  _internals: { entryKey, sameIdentity, materializeWatchlist, store, normUsername, normEmail, validEmail, hashPassword, verifyHash },
 };

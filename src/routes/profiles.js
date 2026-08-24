@@ -34,6 +34,12 @@ const gate = (req, res, next) => {
     return res.status(401).json({ error: "sign in first", signinRequired: true });
   }
   if (profiles.isLocked(id)) return res.status(403).json({ error: "locked by admin" });
+  // A session FOR this profile is stronger proof than an unlock token — it
+  // was minted by the very same password (account = profile). Without this,
+  // a signed-in device still got 401s on its own protected profile until it
+  // exchanged the session for a token.
+  const s = authz.sessionFor(req);
+  if (s && s.profile.id === id) return next();
   if (!profiles.isProtected(id)) return next();
   if (profiles.tokenValid(id, req.get("X-Profile-Token"))) return next();
   return res.status(401).json({ error: "locked" });
@@ -50,7 +56,8 @@ router.get("/api/profiles", (req, res) => {
   }
   const s = authz.sessionFor(req);
   if (!s) return res.status(401).json({ error: "sign in first", signinRequired: true });
-  res.json(profiles.publicList().filter((p) => (s.user.profileIds || []).includes(p.id)));
+  // account = profile: signed in, you ARE your profile — the wall is just you
+  res.json(profiles.publicList().filter((p) => p.id === s.profile.id));
 });
 
 // Verify a password and get an access token (no-op token for open profiles).
@@ -81,7 +88,22 @@ router.post("/api/profiles/:id/unlock", async (req, res) => {
     if (prev) awayDays = Math.floor((Date.now() - prev) / 86400000);
   } catch {}
   profiles.recordAccess(req.params.id, whoIs(req));
-  res.json({ ...result, awayDays });
+  // ACCOUNT = PROFILE: unlocking a CLAIMED profile just verified its sign-in
+  // password, so the device gets a session too — silently. This is what makes
+  // the transition seamless: by the time the admin closes the wall, every
+  // device that kept using the app is already signed in. (Claimed implies a
+  // password exists, so this never fires for open profiles; the extra fields
+  // are additive — old clients and the TV ignore them.)
+  let signin = {};
+  try {
+    const raw = profiles.list().find((x) => x.id === req.params.id);
+    if (raw && profiles.isClaimed(raw) && raw.passwordHash) {
+      const sid = require("../lib/sessions").create(raw.id, whoIs(req));
+      require("../lib/authz").setSessionCookie(req, res, sid);
+      signin = { session: sid, user: profiles.signinPub(raw) };
+    }
+  } catch {}
+  res.json({ ...result, awayDays, ...signin });
 });
 
 // Shortest password accepted anywhere (mirrored client-side in

@@ -105,6 +105,9 @@ export const api = {
   // profile, and claim it (sets username/password/email, signs you in)
   claimable: (profileId) => json(`/api/auth/claimable/${encodeURIComponent(profileId)}`),
   claimAccount: (fields) => post("/api/auth/claim", fields),
+  // session → profile unlock token (a signed-in device never retypes the password)
+  sessionProfileToken: () => post("/api/auth/profile-token", {}),
+  setAccountEmail: (email) => post("/api/auth/email", { email }),
   googleStart: () => post("/api/auth/google/start", {}),
   googlePoll: (pollId) => post("/api/auth/google/poll", { pollId }),
   googleLink: (pollId) => post("/api/auth/google/link", { pollId }),

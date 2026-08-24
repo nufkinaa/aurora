@@ -1,39 +1,41 @@
-// Prompt 10's foundation: sessions, accounts, and the login rate limiter.
-// Both stores are swapped for in-memory fakes BEFORE any test runs — save()
-// is a no-op and data is replaced — so these tests can never touch the live
-// data/sessions.json or data/users.json (and jsonstore's shutdown flushAll
-// skips them too: it only flushes stores with a pending save timer, which a
-// no-op save() never arms).
+// Prompt 10's foundation, second iteration: ACCOUNT = PROFILE. Sessions,
+// sign-in identity on profiles, claiming, email login, the rollout switch,
+// and the login rate limiter.
+// The profiles and sessions stores are swapped for in-memory fakes BEFORE any
+// test runs — save() is a no-op and data is replaced — so these tests can
+// never touch the live data/*.json (jsonstore's shutdown flushAll skips them
+// too: it only flushes stores with a pending save timer, which a no-op save()
+// never arms).
 const test = require("node:test");
 const assert = require("node:assert");
 const crypto = require("crypto");
 
 const sessions = require("../src/lib/sessions");
-const users = require("../src/users");
+const profiles = require("../src/profiles");
 
 sessions._internals.store.save = () => {};
 sessions._internals.store.data = {};
-users._internals.store.save = () => {};
-users._internals.store.data = { users: [], pending: [] };
+profiles._internals.store.save = () => {};
+profiles._internals.store.data = { profiles: [], state: {}, pending: [], access: {} };
 
 const sesStore = () => sessions._internals.store.data;
+const profStore = () => profiles._internals.store.data;
 
 // ---------- sessions ----------
 
 test("create() returns a 64-hex sid and stores only its sha256", () => {
-  const sid = sessions.create("user1", { device: "test", ip: "1.2.3.4" });
+  const sid = sessions.create("prof1", { device: "test", ip: "1.2.3.4" });
   assert.match(sid, /^[0-9a-f]{64}$/);
   assert.equal(sesStore()[sid], undefined, "the raw sid must never be a storage key");
   const key = sessions._internals.hash(sid);
   assert.ok(sesStore()[key], "the sha256 of the sid is the storage key");
-  assert.equal(sesStore()[key].userId, "user1");
+  assert.equal(sesStore()[key].profileId, "prof1");
   sessions.revoke(sid);
 });
 
 test("get() resolves a valid sid and rejects garbage", () => {
-  const sid = sessions.create("user2");
-  const row = sessions.get(sid);
-  assert.equal(row.userId, "user2");
+  const sid = sessions.create("prof2");
+  assert.equal(sessions.get(sid).profileId, "prof2");
   assert.equal(sessions.get("not-a-sid"), null);
   assert.equal(sessions.get(null), null);
   assert.equal(sessions.get(crypto.randomBytes(32).toString("hex")), null, "unknown sid");
@@ -41,7 +43,7 @@ test("get() resolves a valid sid and rejects garbage", () => {
 });
 
 test("an expired session is rejected AND deleted on sight", () => {
-  const sid = sessions.create("user3");
+  const sid = sessions.create("prof3");
   const key = sessions._internals.hash(sid);
   sesStore()[key].expiresAt = Date.now() - 1000;
   assert.equal(sessions.get(sid), null);
@@ -49,9 +51,8 @@ test("an expired session is rejected AND deleted on sight", () => {
 });
 
 test("get() slides the expiry once the touch interval has passed", () => {
-  const sid = sessions.create("user4");
+  const sid = sessions.create("prof4");
   const key = sessions._internals.hash(sid);
-  // pretend the last touch was long ago but the session is still alive
   sesStore()[key].lastSeenAt = Date.now() - 10 * 60 * 1000;
   const oldExpiry = (sesStore()[key].expiresAt -= 10 * 60 * 1000);
   sessions.get(sid);
@@ -59,134 +60,169 @@ test("get() slides the expiry once the touch interval has passed", () => {
   sessions.revoke(sid);
 });
 
-test("revoke works by sid and by hash key; revokeAllFor clears a user", () => {
-  const a = sessions.create("user5");
-  const b = sessions.create("user5");
-  const c = sessions.create("someone-else");
+test("revoke by sid and by hash key; revokeAllFor clears a profile's sessions", () => {
+  const a = sessions.create("prof5");
+  const b = sessions.create("prof5");
+  const c = sessions.create("other-prof");
   assert.equal(sessions.revoke(a), true, "revoke by raw sid");
   assert.equal(sessions.revoke(sessions._internals.hash(b)), true, "revoke by hash key");
-  assert.equal(sessions.get(a), null);
-  assert.equal(sessions.get(b), null);
-  assert.ok(sessions.get(c), "other users' sessions untouched");
-  const d = sessions.create("someone-else");
-  assert.equal(sessions.revokeAllFor("someone-else"), 2);
+  assert.ok(sessions.get(c), "other profiles' sessions untouched");
+  const d = sessions.create("other-prof");
+  assert.equal(sessions.revokeAllFor("other-prof"), 2);
   assert.equal(sessions.get(c), null);
   assert.equal(sessions.get(d), null);
 });
 
 test("listFor exposes the hash key as a handle, never a usable sid", () => {
-  const sid = sessions.create("user6", { device: "TV", ip: "10.0.0.9" });
-  const rows = sessions.listFor("user6");
+  const sid = sessions.create("prof6", { device: "TV", ip: "10.0.0.9" });
+  const rows = sessions.listFor("prof6");
   assert.equal(rows.length, 1);
   assert.equal(rows[0].key, sessions._internals.hash(sid));
-  assert.equal(rows[0].device, "TV");
   assert.ok(!Object.values(rows[0]).includes(sid), "raw sid must not appear");
   sessions.revoke(sid);
 });
 
-// ---------- users ----------
+// ---------- sign-in identity on profiles ----------
 
-test("normUsername lowercases, strips junk, and caps length", () => {
-  const { normUsername } = users._internals;
-  assert.equal(normUsername("  Elia  "), "elia");
-  assert.equal(normUsername("El!a@Ha <script>"), "elahascript");
+const addProfile = (p) => {
+  profStore().profiles.push(p);
+  return p;
+};
+
+test("norms: username strips junk, email validates", () => {
+  const { normUsername, normEmail, validEmail } = profiles._internals;
+  assert.equal(normUsername("  ELia!@# "), "elia");
   assert.equal(normUsername("a".repeat(50)).length, 24);
-  assert.equal(normUsername(null), "");
+  assert.equal(normEmail("  Bob@Example.COM "), "bob@example.com");
+  assert.equal(validEmail("bob@example.com"), true);
+  assert.equal(validEmail("not-an-email"), false);
+  assert.equal(validEmail("a@b.c"), false, "TLD needs 2+ chars");
 });
 
-test("requestSignup validates, stores a hash (never plaintext), and dedupes", async () => {
-  const bad1 = await users.requestSignup({ username: "x", password: "goodpass" });
-  assert.ok(bad1.error, "1-char username rejected");
-  const bad2 = await users.requestSignup({ username: "goodname", password: "abc" });
-  assert.ok(bad2.error, "short password rejected");
+test("claimSignin: a profile WITH a password keeps it — claim only adds identity", async () => {
+  const { hash, salt } = await (async () => {
+    const h = await profiles._internals.hashPassword("bobo");
+    return { hash: h.hash, salt: h.salt };
+  })();
+  addProfile({ id: "p-elia", name: "elia", passwordHash: hash, passwordSalt: salt });
 
-  const ok = await users.requestSignup({ username: "TestGuy", name: "Test Guy", password: "hunter22" });
-  assert.equal(ok.ok, true);
-  const pending = users._internals.store.data.pending;
-  assert.equal(pending.length, 1);
-  assert.equal(pending[0].username, "testguy");
-  assert.ok(pending[0].passwordHash && pending[0].passwordSalt, "hashed at request time");
-  assert.ok(!JSON.stringify(pending[0]).includes("hunter22"), "plaintext never stored");
-
-  const dupe = await users.requestSignup({ username: "testguy", password: "whatever1" });
-  assert.ok(dupe.error, "pending username is already taken");
-
-  // pendingList strips the hash material
-  const listed = users.pendingList()[0];
-  assert.equal(listed.passwordHash, undefined);
-  assert.equal(listed.passwordSalt, undefined);
-});
-
-test("approveSignup creates a login-able account; wrong password fails", async () => {
-  const req = users.pendingList()[0];
-  const approved = users.approveSignup(req.id);
-  assert.equal(approved.ok, true);
-  assert.equal(users.pendingList().length, 0);
-
-  const good = await users.login("TESTGUY", "hunter22"); // case-insensitive
-  assert.equal(good.ok, true);
-  assert.equal(good.user.username, "testguy");
-  assert.ok(!("passwordHash" in good.user), "pub() shape only");
-
-  const bad = await users.login("testguy", "hunter23");
-  assert.ok(bad.error);
-  const ghost = await users.login("nobody-here", "hunter22");
-  assert.ok(ghost.error, "unknown user fails the same way");
-});
-
-test("rejectSignup drops the request without creating a user", async () => {
-  await users.requestSignup({ username: "shortlived", password: "abcd1234" });
-  const req = users.pendingList().find((r) => r.username === "shortlived");
-  assert.equal(users.rejectSignup(req.id).ok, true);
-  assert.equal(users.byUsername("shortlived"), null);
-  assert.ok(users.rejectSignup("nope").error, "unknown id errors");
-});
-
-test("setPassword rotates credentials; ownsProfile answers the required-mode question", async () => {
-  const u = users.byUsername("testguy");
-  await users.setPassword(u.id, "newpass99");
-  assert.ok((await users.login("testguy", "hunter22")).error, "old password dead");
-  assert.equal((await users.login("testguy", "newpass99")).ok, true);
-
-  assert.equal(users.ownsProfile(u.id, "prof-a"), false);
-  u.profileIds = ["prof-a"];
-  assert.equal(users.ownsProfile(u.id, "prof-a"), true);
-  assert.equal(users.ownsProfile("ghost-user", "prof-a"), false);
-});
-
-test("setProfiles keeps only ids that are real profiles; removeUser removes", () => {
-  const u = users.byUsername("testguy");
-  // "definitely-not-a-real-profile" doesn't exist in profiles.json → filtered
-  const r = users.setProfiles(u.id, ["definitely-not-a-real-profile"]);
-  assert.equal(r.ok, true);
-  assert.deepEqual(r.user.profileIds, []);
-  assert.ok(users.setProfiles("ghost", []).error);
-
-  assert.equal(users.removeUser(u.id).ok, true);
-  assert.equal(users.byUsername("testguy"), null);
-  assert.ok(users.removeUser(u.id).error, "second removal errors");
-});
-
-test("migrateFromProfiles is idempotent (second run adds nothing)", () => {
-  // backup:false so the test never writes into data/backups
-  const first = users.migrateFromProfiles({ backup: false });
-  assert.ok(Array.isArray(first));
-  const second = users.migrateFromProfiles({ backup: false });
-  assert.deepEqual(second, [], "every profile already has an account");
-});
-
-test("approveSignup refuses a username that got claimed while pending", async () => {
-  await users.requestSignup({ username: "collide-user", password: "abcd1234" });
-  const req = users.pendingList().find((r) => r.username === "collide-user");
-  // the migration (or another approval) claims the name in the meantime
-  users._internals.store.data.users.push({
-    id: "occupier", username: "collide-user", name: "x", profileIds: [],
+  assert.deepEqual(profiles.claimableFor("p-elia"), {
+    suggestedUsername: "elia", hasPassword: true, name: "elia",
   });
-  const r = users.approveSignup(req.id);
-  assert.ok(r.error, "duplicate username must not be minted");
-  assert.equal(users.pendingList().some((x) => x.id === req.id), true, "request stays in the queue");
-  users.rejectSignup(req.id);
-  users.removeUser("occupier");
+
+  // no password field needed — the profile password IS the sign-in password
+  const r = await profiles.claimSignin({ profileId: "p-elia", username: "Elia", email: "e@example.com" });
+  assert.equal(r.ok, true);
+  assert.equal(r.user.username, "elia");
+  assert.equal(r.user.claimed, true);
+  assert.equal(profiles.claimableFor("p-elia"), null, "no longer claimable");
+
+  const login = await profiles.login("elia", "bobo");
+  assert.equal(login.ok, true, "the EXISTING profile password signs in");
+  assert.equal(login.profileId, "p-elia");
+  const byMail = await profiles.login("E@Example.com", "bobo");
+  assert.equal(byMail.ok, true, "email works as the identifier");
+  assert.ok((await profiles.login("elia", "wrong")).error);
+});
+
+test("claimSignin: a password-less profile must set one at claim time", async () => {
+  addProfile({ id: "p-dana", name: "Dana" });
+  assert.equal(profiles.claimableFor("p-dana").hasPassword, false);
+  const noPw = await profiles.claimSignin({ profileId: "p-dana", username: "dana" });
+  assert.ok(noPw.error, "password required when the profile has none");
+  const short = await profiles.claimSignin({ profileId: "p-dana", username: "dana", password: "abc" });
+  assert.ok(short.error, "4+ chars");
+  const ok = await profiles.claimSignin({ profileId: "p-dana", username: "dana", password: "mypassword1" });
+  assert.equal(ok.ok, true);
+  assert.equal((await profiles.login("dana", "mypassword1")).ok, true);
+  // the same password now guards the profile at the wall too — ONE password
+  assert.equal(profiles.isProtected("p-dana"), true);
+});
+
+test("a claimed profile cannot be re-claimed; taken identifiers are refused", async () => {
+  const again = await profiles.claimSignin({ profileId: "p-elia", username: "thief", password: "hijack99" });
+  assert.ok(again.error);
+  assert.equal(again.claimed, true, "flagged for the 409");
+
+  addProfile({ id: "p-x", name: "Xander" });
+  const dupeU = await profiles.claimSignin({ profileId: "p-x", username: "elia", password: "abcd1234" });
+  assert.ok(dupeU.error, "username uniqueness");
+  const dupeE = await profiles.claimSignin({ profileId: "p-x", username: "xander", email: "e@example.com", password: "abcd1234" });
+  assert.ok(dupeE.error, "email uniqueness");
+});
+
+test("unclaimed and locked profiles can never log in", async () => {
+  addProfile({ id: "p-ghost", name: "Ghost" }); // unclaimed, no password
+  assert.ok((await profiles.login("ghost", "anything")).error);
+  const h = await profiles._internals.hashPassword("lockpass1");
+  addProfile({
+    id: "p-locked", name: "Locky", username: "locky",
+    passwordHash: h.hash, passwordSalt: h.salt, locked: true,
+  });
+  const r = await profiles.login("locky", "lockpass1");
+  assert.ok(r.error, "right password, locked profile → refused");
+});
+
+test("signup request carries identity; approval mints a login-able profile", async () => {
+  const bad = await profiles.requestProfile({ name: "Newbie", username: "x", password: "abcd1234" });
+  assert.ok(bad.error, "1-char username rejected");
+  const dupe = await profiles.requestProfile({ name: "Copycat", username: "elia", password: "abcd1234" });
+  assert.ok(dupe.error, "existing username rejected at request time");
+
+  const r = await profiles.requestProfile({
+    name: "Newbie", realName: "Newbie", username: "Newbie-One", email: "new@example.com",
+    password: "abcd1234", note: "hi",
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.request.username, "newbie-one");
+  assert.ok(!JSON.stringify(r.request).includes("abcd1234"), "plaintext never leaves");
+
+  const approved = profiles.approveRequest(r.request.id);
+  assert.equal(approved.hasPassword, true);
+  const login = await profiles.login("new@example.com", "abcd1234");
+  assert.equal(login.ok, true, "approved request can sign in immediately");
+  assert.equal(profiles.isClaimed(profiles.byUsername("newbie-one")), true);
+});
+
+test("approval refuses a username claimed while the request waited", async () => {
+  const r = await profiles.requestProfile({ name: "Race", username: "racer", password: "abcd1234" });
+  assert.equal(r.ok, true);
+  addProfile({ id: "p-sneak", name: "Sneak", username: "racer" }); // claims it meanwhile
+  const out = profiles.approveRequest(r.request.id);
+  assert.ok(out.error, "duplicate username must not be minted");
+  assert.equal(profStore().pending.some((x) => x.id === r.request.id), true, "request stays queued");
+  profiles.rejectRequest(r.request.id);
+});
+
+test("google-only signup request needs no password; sub uniqueness enforced", async () => {
+  const r = await profiles.requestProfile({
+    name: "Googler", googleSub: "sub-123", googleEmail: "g@example.com",
+  });
+  assert.equal(r.ok, true, "no password needed with a verified Google identity");
+  const p = profiles.approveRequest(r.request.id);
+  assert.equal(p.hasPassword, false);
+  assert.equal(profiles.byGoogleSub("sub-123").name, "Googler");
+  assert.equal(profiles.isClaimed(profiles.byGoogleSub("sub-123")), true);
+  const again = await profiles.requestProfile({ name: "Googler2", googleSub: "sub-123" });
+  assert.ok(again.error, "one Google identity, one profile");
+});
+
+test("adminSetPassword overwrites without the old one; setEmail validates", async () => {
+  await profiles.adminSetPassword("p-elia", "fresh-start1");
+  assert.ok((await profiles.login("elia", "bobo")).error, "old password dead");
+  assert.equal((await profiles.login("elia", "fresh-start1")).ok, true);
+  assert.ok(profiles.setEmail("p-elia", "junk").error);
+  assert.equal(profiles.setEmail("p-elia", "elia2@example.com").ok, true);
+  assert.equal((await profiles.login("elia2@example.com", "fresh-start1")).ok, true);
+});
+
+test("signinList exposes status, never hashes", () => {
+  const rows = profiles.signinList();
+  assert.ok(rows.length >= 2);
+  const elia = rows.find((r) => r.username === "elia");
+  assert.equal(elia.claimed, true);
+  assert.equal(elia.hasPassword, true);
+  assert.ok(!JSON.stringify(rows).match(/passwordHash|passwordSalt/), "hashes never leave");
 });
 
 // ---------- auth mode (the admin rollout switch) ----------
@@ -215,65 +251,6 @@ test("authmode: settings win over config, legacy names normalize, junk falls to 
   }
 });
 
-// ---------- email sign-in ----------
-
-test("email: validation, uniqueness, and login by email", async () => {
-  const { normEmail, validEmail } = users._internals;
-  assert.equal(normEmail("  Bob@Example.COM "), "bob@example.com");
-  assert.equal(validEmail("bob@example.com"), true);
-  assert.equal(validEmail("not-an-email"), false);
-  assert.equal(validEmail("a@b.c"), false, "TLD needs 2+ chars");
-
-  const bad = await users.requestSignup({ username: "mailguy", password: "abcd1234", email: "nope" });
-  assert.ok(bad.error, "junk email rejected");
-  await users.requestSignup({ username: "mailguy", password: "abcd1234", email: "Mail.Guy@Example.com" });
-  const req = users.pendingList().find((r) => r.username === "mailguy");
-  assert.equal(req.email, "mail.guy@example.com", "stored normalized");
-  users.approveSignup(req.id);
-
-  const byMail = await users.login("MAIL.GUY@example.com", "abcd1234");
-  assert.equal(byMail.ok, true, "email works as the identifier");
-  assert.equal(byMail.user.username, "mailguy");
-  const byName = await users.login("mailguy", "abcd1234");
-  assert.equal(byName.ok, true, "username still works");
-
-  const dupe = await users.requestSignup({ username: "othermail", password: "abcd1234", email: "mail.guy@example.com" });
-  assert.ok(dupe.error, "email uniqueness enforced");
-  users.removeUser(users.byUsername("mailguy").id);
-});
-
-// ---------- claiming (transition onboarding) ----------
-
-test("claimAccount: an unclaimed migrated account becomes a real login", async () => {
-  users._internals.store.data.users.push({
-    id: "mig1", username: "dana", name: "Dana", profileIds: ["prof-dana"],
-    passwordHash: null, passwordSalt: null, migrated: true,
-  });
-  assert.equal(users.unclaimedFor("prof-dana").username, "dana", "claim UI sees the seed");
-
-  const short = await users.claimAccount({ profileId: "prof-dana", username: "dana", password: "abc" });
-  assert.ok(short.error, "short password rejected");
-
-  const r = await users.claimAccount({
-    profileId: "prof-dana", username: "DanaBanana", password: "mypassword1", email: "dana@example.com",
-  });
-  assert.equal(r.ok, true);
-  assert.equal(r.user.username, "danabanana", "username adjustable at claim time");
-  assert.equal(r.user.claimed, true);
-  assert.equal(users.unclaimedFor("prof-dana"), null, "no longer claimable");
-
-  const login = await users.login("danabanana", "mypassword1");
-  assert.equal(login.ok, true, "the claim IS the credential");
-
-  const again = await users.claimAccount({ profileId: "prof-dana", username: "thief", password: "hijack99" });
-  assert.ok(again.error, "a claimed account cannot be re-claimed");
-  assert.equal(again.claimed, true, "flagged as already-claimed for the 409");
-
-  const orphan = await users.claimAccount({ profileId: "no-such-profile", username: "x", password: "abcd1234" });
-  assert.ok(orphan.error, "no account behind the profile");
-  users.removeUser("mig1");
-});
-
 // ---------- login rate limiter ----------
 
 test("rate limiter opens after FAIL_MAX failures and isolates keys", () => {
@@ -286,7 +263,6 @@ test("rate limiter opens after FAIL_MAX failures and isolates keys", () => {
   }
   assert.equal(tooMany(key), true, "locked after FAIL_MAX");
   assert.equal(tooMany("ip:innocent-bystander"), false, "other keys unaffected");
-  // stale entries age out of the window
   fails.set(key, fails.get(key).map(() => Date.now() - 16 * 60 * 1000));
   assert.equal(tooMany(key), false, "window expiry unlocks");
   fails.clear();

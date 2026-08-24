@@ -1,9 +1,11 @@
-// The sign-in screen (prompt 10, redesigned): a night sky with the real
-// aurora painter running full-viewport, the wordmark shining over it, and one
-// floating glass card that carries every flow — sign in (username OR email),
-// request access, and Google's device-code dance. Shown at boot only when the
-// wall is CLOSED; in transition mode it can also be summoned voluntarily
-// (opts.skippable adds a "continue without an account" path).
+// The sign-in screen (prompt 10): a night sky with the real aurora painter
+// running full-viewport, the wordmark shining over it, and one floating glass
+// card that carries every flow — sign in (username OR email), request access
+// (password or Google — the requester picks), and Google's device-code dance.
+// ACCOUNT = PROFILE: a successful login resolves with the profile and an
+// unlock token, so boot walks straight in with no second password prompt.
+// Shown at boot only when the wall is CLOSED; in transition mode it can be
+// summoned voluntarily (opts.skippable adds a way out).
 import { el, toast } from "../ui.js";
 import { api } from "../api.js";
 import { state } from "../state.js";
@@ -11,8 +13,8 @@ import { pushScope, popScope } from "../focus.js";
 import { initAuroraSky } from "../aurora-sky.js";
 
 // Small inline icon set (stroke = currentColor so the theme owns the color).
-const icon = (d, extra = "") =>
-  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}${extra}</svg>`;
+const icon = (d) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const I = {
   user: icon(`<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>`),
   lock: icon(`<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`),
@@ -22,9 +24,9 @@ const I = {
   eyeOff: icon(`<path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c6.5 0 10 8 10 8a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3.5 8 10 8a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/>`),
 };
 // Google's four-color G (official geometry, inlined — no external assets).
-const GOOGLE_G = `<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>`;
+export const GOOGLE_G = `<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>`;
 
-// One labeled input row: icon + input (+ optional trailing button).
+// One labeled input row: icon + input (+ eye toggle on passwords).
 const field = ({ type = "text", placeholder, autocomplete, ic, maxlength, value = "" }) => {
   const input = el("input", {
     type, placeholder, autocomplete, value,
@@ -61,6 +63,8 @@ const showErr = (node, msg) => {
 };
 const clearErr = (node) => node.classList.remove("on");
 
+// Resolves with the full login/claim response ({user, profile, profileToken})
+// or null when skipped.
 export const showLoginScreen = (opts = {}) =>
   new Promise((resolve) => {
     const sky = el("canvas", { class: "login-sky", "aria-hidden": "true" });
@@ -79,26 +83,23 @@ export const showLoginScreen = (opts = {}) =>
       popScope(wrap);
       wrap.remove();
     };
-    const done = (user) => {
+    const done = (res) => {
       cleanup();
-      opts.onSignedIn?.(user);
-      resolve(user);
+      opts.onSignedIn?.(res && res.user);
+      resolve(res);
     };
 
-    // Crossfade between card views — reduced motion just swaps.
+    let googleEnabled = false;
     const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const setView = (nodes, focusEl) => {
-      const fill = () => {
-        card.innerHTML = "";
-        card.append(...nodes);
-        if (!calm) {
-          card.classList.remove("view-in");
-          void card.offsetWidth;
-          card.classList.add("view-in");
-        }
-        setTimeout(() => focusEl?.focus({ preventScroll: true }), calm ? 30 : 220);
-      };
-      fill();
+      card.innerHTML = "";
+      card.append(...nodes);
+      if (!calm) {
+        card.classList.remove("view-in");
+        void card.offsetWidth;
+        card.classList.add("view-in");
+      }
+      setTimeout(() => focusEl?.focus({ preventScroll: true }), calm ? 30 : 220);
     };
 
     // ---------------- sign in ----------------
@@ -117,7 +118,7 @@ export const showLoginScreen = (opts = {}) =>
         submitBtn.classList.add("busy");
         try {
           const res = await api.login(user.input.value.trim(), pass.input.value);
-          done(res.user);
+          done(res);
         } catch (e) {
           showErr(err, e.message || "Sign-in failed.");
           pass.input.value = "";
@@ -133,16 +134,25 @@ export const showLoginScreen = (opts = {}) =>
       }
 
       const google = el("div", { class: "lgoogle" });
-      api.serverInfo().then((info) => {
-        if (!info || !info.google) return;
+      const paintGoogle = () => {
+        if (!googleEnabled) return;
         google.append(
           el("div", { class: "ldivider" }, el("span", {}, "or")),
           el("button", {
             class: "lbtn google focusable",
-            onclick: () => googleView(),
+            onclick: () => googleView({ purpose: "login" }),
           }, el("span", { class: "gmark", html: GOOGLE_G }), el("span", {}, "Continue with Google")),
         );
-      }).catch(() => {});
+      };
+      if (googleEnabled) paintGoogle();
+      else {
+        api.serverInfo().then((info) => {
+          if (info && info.google) {
+            googleEnabled = true;
+            paintGoogle();
+          }
+        }).catch(() => {});
+      }
 
       const nodes = [
         el("h2", { class: "lhead" }, "Welcome back"),
@@ -161,16 +171,19 @@ export const showLoginScreen = (opts = {}) =>
           el("button", {
             class: "llink dim focusable",
             onclick: () => { cleanup(); resolve(null); },
-          }, "Continue without an account for now →")));
+          }, "Continue without signing in →")));
       }
       setView(nodes, user.input);
     };
 
     // ---------------- request access ----------------
-    const signupView = () => {
-      const uname = field({ placeholder: "Pick a username", autocomplete: "off", ic: I.user, maxlength: "24" });
-      const real = field({ placeholder: "Your real name", autocomplete: "name", ic: I.note, maxlength: "40" });
-      const email = field({ placeholder: "Email (optional)", autocomplete: "email", ic: I.mail, maxlength: "80" });
+    // The requester picks how they'll sign in: a password (username and/or
+    // email) or their Google account (`googleCtx` arrives verified from the
+    // device flow). Either way it lands in the admin's approval queue.
+    const signupView = (googleCtx = null) => {
+      const name = field({ placeholder: "Your name", autocomplete: "name", ic: I.note, maxlength: "24", value: googleCtx?.name || "" });
+      const uname = field({ placeholder: googleCtx ? "Username (optional)" : "Pick a username", autocomplete: "off", ic: I.user, maxlength: "24" });
+      const email = field({ placeholder: "Email (optional — sign in with it too)", autocomplete: "email", ic: I.mail, maxlength: "80" });
       const pw = field({ type: "password", placeholder: "Pick a password (4+ characters)", autocomplete: "new-password", ic: I.lock });
       const pw2 = field({ type: "password", placeholder: "Repeat the password", autocomplete: "new-password", ic: I.lock });
       const note = field({ placeholder: "A bribe, an explanation, or a fun fact", autocomplete: "off", ic: I.note, maxlength: "200" });
@@ -179,18 +192,25 @@ export const showLoginScreen = (opts = {}) =>
 
       const send = async () => {
         clearErr(err);
-        if (pw.input.value !== pw2.input.value) return showErr(err, "The passwords don't match.");
+        if (!name.input.value.trim()) return showErr(err, "Your name, at least.");
+        if (!googleCtx) {
+          if (!uname.input.value.trim() && !email.input.value.trim()) {
+            return showErr(err, "Pick a username or an email to sign in with.");
+          }
+          if (pw.input.value !== pw2.input.value) return showErr(err, "The passwords don't match.");
+        }
         sendBtn.disabled = true;
         sendBtn.classList.add("busy");
         try {
           await api.signupRequest({
+            name: name.input.value.trim(),
             username: uname.input.value.trim(),
-            name: real.input.value.trim(),
             email: email.input.value.trim(),
-            password: pw.input.value,
+            password: googleCtx ? "" : pw.input.value,
             note: note.input.value.trim(),
+            pollId: googleCtx ? googleCtx.pollId : undefined,
           });
-          sentView(uname.input.value.trim());
+          sentView(name.input.value.trim());
         } catch (e) {
           showErr(err, e.message || "That didn't work.");
         } finally {
@@ -200,26 +220,48 @@ export const showLoginScreen = (opts = {}) =>
       };
       sendBtn.addEventListener("click", send);
 
-      setView([
+      const nodes = [
         el("h2", { class: "lhead" }, "Request access"),
         el("p", { class: "lsub" },
-          `${state.adminName} approves every account personally. Your password is set now, so the moment you're in — you're in. `,
-          el("span", { class: "ldim" }, "(Don't reuse a password you care about. This is a living room, not a bank.)")),
-        uname.wrap, real.wrap, email.wrap, pw.wrap, pw2.wrap, note.wrap,
+          `${state.adminName} approves every request personally. Set it up now — the moment you're approved, you're in. `,
+          googleCtx ? "" : el("span", { class: "ldim" }, "(Don't reuse a password you care about. This is a living room, not a bank.)")),
+        name.wrap,
+      ];
+      if (googleCtx) {
+        nodes.push(
+          el("div", { class: "lgoogle-verified" },
+            el("span", { class: "gmark", html: GOOGLE_G }),
+            el("span", {}, `Signing in with Google`,
+              googleCtx.email ? el("span", { class: "ldim" }, ` — ${googleCtx.email}`) : "")),
+          uname.wrap,
+        );
+      } else {
+        nodes.push(uname.wrap, email.wrap, pw.wrap, pw2.wrap);
+        if (googleEnabled) {
+          nodes.push(el("div", { class: "ldivider" }, el("span", {}, "or")),
+            el("button", {
+              class: "lbtn google focusable",
+              onclick: () => googleView({ purpose: "signup" }),
+            }, el("span", { class: "gmark", html: GOOGLE_G }), el("span", {}, "Request access with Google")));
+        }
+      }
+      nodes.push(
+        note.wrap,
         err,
         sendBtn,
         el("div", { class: "lfoot" },
           el("button", { class: "llink focusable", onclick: () => signinView() }, "← Back to sign in")),
-      ], uname.input);
+      );
+      setView(nodes, name.input);
     };
 
-    const sentView = (uname) => {
+    const sentView = (who) => {
       setView([
         el("div", { class: "lsent" },
           el("div", { class: "lsent-glyph" }, "🍿"),
           el("h2", { class: "lhead" }, "Request sent"),
           el("p", { class: "lsub" },
-            `“${uname}” is now on the pile of things ${state.adminName} has to deal with. `,
+            `“${who}” is now on the pile of things ${state.adminName} has to deal with. `,
             el("strong", {}, "Want it faster? Go ask in person."),
             " Once you're approved, come right back here and sign in."),
         ),
@@ -229,7 +271,10 @@ export const showLoginScreen = (opts = {}) =>
     };
 
     // ---------------- Google device flow ----------------
-    const googleView = async () => {
+    // purpose "login": a known Google identity signs its profile straight in;
+    // an unknown one rolls into a prefilled access request. purpose "signup":
+    // verify the identity for the request form.
+    const googleView = async ({ purpose }) => {
       setView([
         el("h2", { class: "lhead" }, "Google sign-in"),
         el("p", { class: "lsub" }, "Getting a code from Google…"),
@@ -239,21 +284,25 @@ export const showLoginScreen = (opts = {}) =>
         start = await api.googleStart();
       } catch (e) {
         toast(e.message || "Couldn't reach Google.", "🙃");
-        return signinView();
+        return purpose === "signup" ? signupView() : signinView();
       }
       let cancelled = false;
       const poll = async () => {
         if (cancelled || !wrap.isConnected) return;
         try {
           const r = await api.googlePoll(start.pollId);
-          if (r.ok && r.user) return done(r.user);
+          if (r.ok && r.user) return done(r); // known identity → signed in
+          if (r.ok && r.signup) {
+            // verified but unknown → a prefilled access request
+            return signupView({ pollId: start.pollId, email: r.signup.email, name: r.signup.name });
+          }
           if (r.ok) {
             toast("You're already signed in in another tab — reload.", "🙃");
             return signinView();
           }
         } catch (e) {
           toast(e.message || "Google sign-in failed.", "🙃");
-          return signinView();
+          return purpose === "signup" ? signupView() : signinView();
         }
         setTimeout(poll, 3000);
       };
@@ -273,8 +322,8 @@ export const showLoginScreen = (opts = {}) =>
         el("div", { class: "lfoot" },
           el("button", {
             class: "llink focusable",
-            onclick: () => { cancelled = true; signinView(); },
-          }, "← Never mind, use a password")),
+            onclick: () => { cancelled = true; purpose === "signup" ? signupView() : signinView(); },
+          }, "← Never mind")),
       ]);
     };
 

@@ -1,4 +1,4 @@
-// Server-side sessions (prompt 10). One table, two transports: an HttpOnly
+// Server-side sessions (prompt 10). Maps a session to its PROFILE (account = profile). One table, two transports: an HttpOnly
 // cookie for browsers and a bearer header (X-Session) for the TV app.
 // Design per findings/auth.md:
 //   - the session id is 32 random bytes; only its sha256 is STORED, so a
@@ -18,11 +18,11 @@ const TOUCH_EVERY_MS = 5 * 60 * 1000;
 
 const hash = (sid) => crypto.createHash("sha256").update(sid).digest("hex");
 
-const create = (userId, { device = null, ip = null } = {}) => {
+const create = (profileId, { device = null, ip = null } = {}) => {
   const sid = crypto.randomBytes(32).toString("hex");
   const now = Date.now();
   store.data[hash(sid)] = {
-    userId,
+    profileId,
     createdAt: now,
     lastSeenAt: now,
     expiresAt: now + TTL_MS,
@@ -62,10 +62,10 @@ const revoke = (sidOrKey) => {
   return existed;
 };
 
-const revokeAllFor = (userId) => {
+const revokeAllFor = (profileId) => {
   let n = 0;
   for (const [key, row] of Object.entries(store.data)) {
-    if (row.userId === userId) {
+    if (row.profileId === profileId) {
       delete store.data[key];
       n++;
     }
@@ -76,9 +76,9 @@ const revokeAllFor = (userId) => {
 
 // "Sessions on my account": safe rows only — the key is exposed as the
 // revocation handle (it's the sha256, not the usable sid).
-const listFor = (userId) =>
+const listFor = (profileId) =>
   Object.entries(store.data)
-    .filter(([, r]) => r.userId === userId && r.expiresAt > Date.now())
+    .filter(([, r]) => r.profileId === profileId && r.expiresAt > Date.now())
     .map(([key, r]) => ({
       key,
       createdAt: r.createdAt,

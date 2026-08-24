@@ -159,12 +159,18 @@ const boot = async () => {
   // claim prompt appears inside the app instead (home banner + Preferences),
   // so the household migrates at its own pace with zero disruption. A throw
   // here (older server without /api/me) is treated as open.
+  // ACCOUNT = PROFILE: a successful login hands back the profile AND an
+  // unlock token (login verified the very same password), so we walk
+  // straight in — no wall, no second password prompt.
+  let loginEntry = null;
   try {
     const me = await api.me();
     state.authMode = me.authMode || "open";
     state.user = me.user || null;
     if (state.authMode === "closed" && !state.user) {
-      state.user = await showLoginScreen();
+      const res = await showLoginScreen();
+      state.user = (res && res.user) || null;
+      if (res && res.profile) loginEntry = res;
     }
   } catch {}
 
@@ -185,22 +191,42 @@ const boot = async () => {
     startRouter(document.getElementById("app"));
   };
 
+  // Fresh login on a closed wall: enter the signed-in profile directly.
+  if (loginEntry) {
+    await setProfile(loginEntry.profile, loginEntry.profileToken || null);
+    start();
+    return;
+  }
+
   // Enter a profile without the gate when we safely can: password-free ones
-  // freely, and protected ones if this browser session still holds a valid
-  // unlock token (survives reloads, not a browser restart).
+  // freely, protected ones if this browser session still holds a valid
+  // unlock token (survives reloads, not a browser restart) — or, new with
+  // sign-in, if the SIGNED-IN account is this profile: the session was
+  // minted by the same password, so it converts to an unlock token.
   const enterProtectedWithToken = async (p) => {
     const tok = savedToken(p.id);
-    if (!tok) return false;
-    setAuthToken(tok);
-    try {
-      await api.profileState(p.id); // 200 = token still valid
-      await setProfile(p, tok);
-      start();
-      return true;
-    } catch {
-      setAuthToken(null);
-      return false;
+    if (tok) {
+      setAuthToken(tok);
+      try {
+        await api.profileState(p.id); // 200 = token still valid
+        await setProfile(p, tok);
+        start();
+        return true;
+      } catch {
+        setAuthToken(null);
+      }
     }
+    if (state.user && state.user.profileId === p.id) {
+      try {
+        const r = await api.sessionProfileToken();
+        if (r.token && r.profileId === p.id) {
+          await setProfile(p, r.token);
+          start();
+          return true;
+        }
+      } catch {}
+    }
+    return false;
   };
 
   // Admin-locked profiles never auto-enter — back to the gate, where the tile

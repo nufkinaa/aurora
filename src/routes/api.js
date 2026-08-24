@@ -292,11 +292,17 @@ router.get("/api/home", (req, res) => {
   if (require("../lib/authmode").get() === "closed" && !require("../lib/authz").sessionFor(req)) {
     return res.status(401).json({ error: "sign in first", signinRequired: true });
   }
+  const sessionOwns = (() => {
+    const s = require("../lib/authz").sessionFor(req);
+    return !!s && s.profile.id === reqProfile;
+  })();
   const profileId =
     reqProfile &&
     require("../lib/authz").profileAllowed(req, reqProfile) &&
     !profiles.isLocked(reqProfile) &&
-    (!profiles.isProtected(reqProfile) || profiles.tokenValid(reqProfile, req.get("X-Profile-Token")))
+    (sessionOwns ||
+      !profiles.isProtected(reqProfile) ||
+      profiles.tokenValid(reqProfile, req.get("X-Profile-Token")))
       ? reqProfile
       : null;
   const { movies, shows } = scanner.index;

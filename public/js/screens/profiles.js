@@ -273,6 +273,9 @@ export const showProfileGate = (onChosen) => {
   const wrap = el("div", { class: "ui-overlay", style: { position: "fixed", inset: 0, background: "var(--bg)", zIndex: 250, overflowY: "auto" } }, host);
 
   const enter = async (p, token, meta) => {
+    // Unlocking a claimed profile signs the device in as a side effect (the
+    // server just verified the same password) — keep the client in step.
+    if (meta && meta.user) state.user = meta.user;
     await setProfile(p, token);
     cleanup();
     onChosen(p);
@@ -285,6 +288,14 @@ export const showProfileGate = (onChosen) => {
   const openProfile = async (p) => {
     // Admin-locked: no way in, not even with the password.
     if (p.locked) return toast(`That profile's been locked. Take it up with ${state.adminName}.`, "🚫");
+    // Signed in as this profile? The session was minted by the same password
+    // — convert it to an unlock token instead of prompting again.
+    if (p.hasPassword && state.user && state.user.profileId === p.id) {
+      try {
+        const r = await api.sessionProfileToken();
+        if (r.token && r.profileId === p.id) return enter(p, r.token, {});
+      } catch {}
+    }
     if (p.hasPassword) return passwordPrompt(p, (token, meta) => enter(p, token, meta));
     // No password to check, but still call unlock: it hands this device a
     // session token and it's what tells the server which device entered, so the

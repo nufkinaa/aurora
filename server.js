@@ -231,20 +231,10 @@ ocr.events.on("job", (job) => {
 // Resume any downloads that were mid-flight when the server last stopped.
 require("./src/media/downloads").resume();
 
-// Sign-in rollout (prompt 10): while authMode is off "open", make sure every
-// existing profile has an account to claim. Idempotent — already-migrated
-// profiles are skipped — and it backs up profiles.json first. (The admin
-// panel's mode switch runs the same migration when leaving "open" live.)
-{
-  const mode = require("./src/lib/authmode").get();
-  if (mode !== "open") {
-    const migrated = require("./src/users").migrateFromProfiles();
-    console.log(
-      `[auth] mode=${mode}` +
-        (migrated.length ? ` — migrated ${migrated.length} profile(s) to accounts:\n  ${migrated.join("\n  ")}` : ""),
-    );
-  }
-}
+// Sign-in rollout (prompt 10, account = profile): nothing to migrate at boot
+// — profiles ARE the accounts; people attach their sign-in by claiming. Just
+// say which mode we woke up in.
+console.log(`[auth] mode=${require("./src/lib/authmode").get()}`);
 
 // Initial scan + periodic rescan
 scanner.scan();

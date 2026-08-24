@@ -380,16 +380,33 @@ export const renderPreferences = async (root) => {
       cur.focus();
     };
 
+    // Add / change the email used as a second sign-in identifier.
+    const emailPrompt = async () => {
+      const val = prompt("Email for this profile (sign in with it too):", u.email || "");
+      if (val === null) return;
+      try {
+        const r = await api.setAccountEmail(val.trim());
+        state.user = r.user || state.user;
+        toast(val.trim() ? "Email saved" : "Email removed");
+        rerender();
+      } catch (e) {
+        toast(e.message || "Couldn't save that", "⚠️");
+      }
+    };
+
     body.append(
       el("div", { class: "pref-note", style: { padding: 0 } },
-        `Signed in as `, el("strong", {}, `@${u.username}`), u.name && u.name !== u.username ? ` (${u.name})` : ""),
+        `Signed in as `, el("strong", {}, `@${u.username}`),
+        u.name && u.name !== u.username ? ` (${u.name})` : "",
+        u.email ? el("span", {}, ` · ${u.email}`) : ""),
       el("div", { style: { display: "flex", gap: "10px", flexWrap: "wrap", margin: "10px 0" } },
         el("button", { class: "btn small focusable", onclick: changePassword }, "Change password"),
+        el("button", { class: "btn small focusable", onclick: emailPrompt }, u.email ? "Change email" : "Add email"),
         el("button", {
           class: "btn small focusable",
           onclick: async () => {
             try { await api.logout(); } catch {}
-            location.reload(); // boot lands on the sign-in screen
+            location.reload(); // boot lands wherever the mode says
           },
         }, "Sign out")),
       devices,
@@ -404,23 +421,23 @@ export const renderPreferences = async (root) => {
   const accountCard = async () => {
     if (state.authMode === "open") return null;
     if (state.user) {
-      return section("Account", "The sign-in that owns this profile — sessions last 90 days per device.",
+      return section("Sign-in", "This profile's sign-in — sessions last 90 days per device.",
         accountSection());
     }
-    let acct = null;
-    try { acct = (await api.claimable(state.profile.id)).account; } catch {}
+    let claimable = null;
+    try { claimable = (await api.claimable(state.profile.id)).claimable; } catch {}
     const body = el("div", { class: "pref-list page-pad" });
-    if (acct) {
+    if (claimable) {
       body.append(
         el("div", { class: "pref-note", style: { padding: 0 } },
-          `Your profile has an account waiting`,
-          el("strong", {}, ` @${acct.username}`),
-          `. Claim it once — pick your username and password — and every device signs in as you.`),
+          `This profile hasn't switched sign-in on yet. Pick your username once`,
+          claimable.hasPassword ? ` (your profile password stays your password)` : ` and a password`,
+          ` — and every device signs in as you.`),
         el("div", { style: { marginTop: "12px" } },
           el("button", {
             class: "btn btn-primary small focusable",
-            onclick: () => showClaimModal(acct, rerender),
-          }, "🔑 Claim my account")));
+            onclick: () => showClaimModal(claimable, rerender),
+          }, "🔑 Set up my sign-in")));
     } else {
       body.append(
         el("div", { class: "pref-note", style: { padding: 0 } },
@@ -429,12 +446,12 @@ export const renderPreferences = async (root) => {
           el("button", {
             class: "btn btn-primary small focusable",
             onclick: async () => {
-              const u = await showLoginScreen({ skippable: state.authMode !== "closed" });
-              if (u) rerender();
+              const r = await showLoginScreen({ skippable: state.authMode !== "closed" });
+              if (r && r.user) rerender();
             },
           }, "Sign in")));
     }
-    return section("Account", "Aurora sign-in is rolling out — accounts sit on top of profiles.", body);
+    return section("Sign-in", "Your profile IS your account — one password for everything.", body);
   };
 
   paint();

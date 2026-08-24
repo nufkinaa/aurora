@@ -1,9 +1,8 @@
 // Shared session plumbing (prompt 10) — one place that answers "who is making
 // this request?", used by the auth routes AND by every route that gates on it.
 // Kept out of routes/auth.js so data routes never import a router.
-const config = require("../config");
-const users = require("../users");
 const sessions = require("./sessions");
+const profiles = require("../profiles");
 
 const COOKIE = "aurora_session";
 
@@ -46,22 +45,24 @@ const clearSessionCookie = (req, res) => {
 // are unreliable across restarts, so it stores the sid in AsyncStorage).
 // Works on plain http.IncomingMessage too (the WS upgrade request has no
 // Express req.get), so realtime can stamp ws.authed at connection time.
+// ACCOUNT = PROFILE: a session resolves straight to its profile.
 const sessionFor = (req) => {
   const sid = readCookie(req) || req.headers["x-session"] || null;
   if (!sid) return null;
   const row = sessions.get(sid);
   if (!row) return null;
-  const user = users.byId(row.userId);
-  return user ? { user, sessionKey: row.key } : null;
+  const p = profiles.list().find((x) => x.id === row.profileId);
+  if (!p || p.locked) return null; // a locked profile's sessions are dead air
+  return { profile: p, user: profiles.signinPub(p), sessionKey: row.key };
 };
 
 // May this request touch this profile's data? Only "closed" mode adds the
-// account check — open and transition keep today's behavior exactly, so
+// session check — open and transition keep today's behavior exactly, so
 // nothing changes for anyone until the admin closes the wall.
 const profileAllowed = (req, profileId) => {
   if (require("./authmode").get() !== "closed") return true;
   const s = sessionFor(req);
-  return !!s && users.ownsProfile(s.user.id, profileId);
+  return !!s && s.profile.id === profileId;
 };
 
 module.exports = {

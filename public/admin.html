@@ -363,18 +363,11 @@
         <div class="empty-note" id="auth-google-note" style="margin-top:10px"></div>
       </section>
       <section id="auth-section" class="hidden">
-        <h2>Account requests <span class="pill" id="signup-count">0</span> <span class="note">sign-in accounts — approved people log in with these</span></h2>
+        <h2>Sign-in status <span class="note">each profile IS its account — “claimed” means it can log in (username set)</span></h2>
         <div class="table-scroll"><table>
-          <thead><tr><th>Asked</th><th>Username</th><th>Real name</th><th>Note</th><th>From</th><th></th></tr></thead>
-          <tbody id="signup-requests"></tbody>
+          <thead><tr><th>Profile</th><th>Username</th><th>Email</th><th>Status</th><th>Password</th><th>Google</th></tr></thead>
+          <tbody id="signin-table"></tbody>
         </table></div>
-        <div class="empty-note" id="signup-empty">No account requests waiting.</div>
-        <h2 style="margin-top:18px">Accounts <span class="note">who can sign in, which profiles each one owns — “claimed” means they've set their own credentials</span></h2>
-        <div class="table-scroll"><table>
-          <thead><tr><th>Username</th><th>Name</th><th>Status</th><th>Profiles</th><th>Password</th><th>Google</th><th></th></tr></thead>
-          <tbody id="accounts-table"></tbody>
-        </table></div>
-        <div class="empty-note hidden" id="accounts-empty">No accounts yet — they appear when signup requests are approved (or when the profile migration runs).</div>
       </section>
       <section>
         <h2>Devices &amp; IPs per profile <span class="note">who has been getting in</span></h2>
@@ -1039,7 +1032,10 @@
       $("#profile-requests").innerHTML = reqs.map((r) => `
         <tr>
           <td class="muted">${ago(new Date(r.requestedAt).toISOString())}</td>
-          <td>${esc(r.avatar || "🙂")} <strong>${esc(r.name)}</strong></td>
+          <td>${esc(r.avatar || "🙂")} <strong>${esc(r.name)}</strong>${
+            r.username ? `<div class="muted" style="font-size:0.78rem">@${esc(r.username)}</div>` : ""
+          }${r.email ? `<div class="muted" style="font-size:0.78rem">${esc(r.email)}</div>` : ""}${
+            r.viaGoogle ? '<div class="muted" style="font-size:0.78rem">via Google</div>' : ""}</td>
           <td>${esc(r.realName || "—")}</td>
           <td class="muted">${esc(r.note || "—")}</td>
           <td class="muted">${esc(r.ip)}${r.device ? " · " + esc(r.device.device + " / " + r.device.os) : ""}</td>
@@ -1133,8 +1129,8 @@
     // ---------- sign-in rollout + accounts (prompt 10) ----------
     const AUTH_MODES = [
       { id: "open", name: "🔓 Open", desc: "How Aurora always worked. No accounts, no login — the profile wall greets everyone. Flipping back here always restores this exactly." },
-      { id: "transition", name: "🔑 Transition", desc: "The app keeps working exactly as it does now, but every profile gets an account to claim: a one-time in-app prompt to pick a username + password (and optionally email/Google). Nobody is locked out of anything." },
-      { id: "closed", name: "🔒 Closed", desc: "A real login wall, like any site. Every device signs in; each account sees only its own profiles; all data and video routes require a session. Flip here once everyone below shows CLAIMED." },
+      { id: "transition", name: "🔑 Transition", desc: "The app keeps working exactly as it does now, but each profile can switch sign-in on: a one-time in-app prompt to pick a username (a profile's password doubles as its sign-in password). Nobody is locked out of anything." },
+      { id: "closed", name: "🔒 Closed", desc: "A real login wall, like any site. Every device signs in with username/email + password and lands straight in its profile; all data and video routes require a session. Flip here once everyone below shows CLAIMED." },
     ];
 
     async function loadAuth() {
@@ -1145,12 +1141,8 @@
         mode = info.authMode || "open";
         google = !!info.google;
       } catch {}
-      let pending = [];
-      let accounts = [];
-      let profs = [];
-      try { pending = (await json("/api/admin/signups")).pending || []; } catch {}
-      try { accounts = (await json("/api/admin/users")).users || []; } catch {}
-      try { profs = await json("/api/admin/profiles"); } catch {}
+      let roster = [];
+      try { roster = (await json("/api/admin/signin")).profiles || []; } catch {}
 
       // the rollout switch — always visible; this is where sign-in turns on
       $("#auth-modes").innerHTML = AUTH_MODES.map((m) => `
@@ -1158,51 +1150,43 @@
           <div class="am-name">${m.name}</div>
           <div class="am-desc">${m.desc}</div>
         </button>`).join("");
-      $("#auth-google-note").innerHTML = google
-        ? `Google sign-in: <span class="ok">configured</span> — the “Continue with Google” button is live on the sign-in screen.`
-        : `Google sign-in: <span class="muted">not configured.</span> To enable it (free): create a Google Cloud project → OAuth consent screen → credentials of type <strong>“TVs and Limited Input devices”</strong>, then put <code>GOOGLE_CLIENT_ID=…</code> and <code>GOOGLE_CLIENT_SECRET=…</code> in the server's <code>.env</code> and restart. The button appears by itself.`;
+      // Google status is checked LIVE against Google, not just "keys exist" —
+      // the classic trap is an OAuth client of the wrong type.
+      const HOWTO = `create a Google Cloud project → OAuth consent screen → Credentials → “Create credentials → OAuth client ID” → application type <strong>“TVs and Limited Input devices”</strong> → put <code>GOOGLE_CLIENT_ID=…</code> and <code>GOOGLE_CLIENT_SECRET=…</code> in the server's <code>.env</code> and restart. Buttons appear everywhere by themselves.`;
+      if (!google) {
+        $("#auth-google-note").innerHTML = `Google sign-in: <span class="muted">not configured.</span> To enable it (free): ${HOWTO}`;
+      } else {
+        $("#auth-google-note").innerHTML = `Google sign-in: <span class="muted">checking the setup against Google…</span>`;
+        json("/api/admin/google-check").then((g) => {
+          $("#auth-google-note").innerHTML =
+            g.status === "ok"
+              ? `Google sign-in: <span class="ok">working</span> — verified live against Google. “Continue with Google” is on the sign-in screen, the access-request form, and account linking.`
+              : g.status === "wrong_type"
+                ? `Google sign-in: <span class="bad">wrong client type.</span> Your keys are in place, but Google only allows this flow for OAuth clients created as <strong>“TVs and Limited Input devices”</strong> — yours is a Web/Desktop client. Fix: in Google Cloud Console ${HOWTO}`
+                : `Google sign-in: <span class="bad">not working.</span> ${esc(g.detail || "")}`;
+        }).catch(() => {
+          $("#auth-google-note").innerHTML = `Google sign-in: <span class="muted">couldn't check right now.</span>`;
+        });
+      }
 
-      const show = mode !== "open" || pending.length > 0 || accounts.length > 0;
+      // the per-profile sign-in roster — hidden while everything is Open and
+      // nobody has claimed (nothing to show yet)
+      const show = mode !== "open" || roster.some((r) => r.claimed);
       $("#auth-section").classList.toggle("hidden", !show);
       if (!show) return;
-
-      $("#signup-count").textContent = pending.length;
-      $("#signup-count").classList.toggle("live", pending.length > 0);
-      $("#signup-empty").classList.toggle("hidden", pending.length > 0);
-      $("#signup-requests").innerHTML = pending.map((r) => `
+      $("#signin-table").innerHTML = roster.map((r) => `
         <tr>
-          <td class="muted">${ago(new Date(r.requestedAt).toISOString())}</td>
-          <td><strong>@${esc(r.username)}</strong></td>
-          <td>${esc(r.name || "—")}${r.email ? `<div class="muted" style="font-size:0.78rem">${esc(r.email)}</div>` : ""}</td>
-          <td class="muted">${esc(r.note || "—")}</td>
-          <td class="muted">${esc(r.ip || "?")}${r.device ? " · " + esc((r.device.device || "?") + " / " + (r.device.os || "?")) : ""}</td>
-          <td style="white-space:nowrap">
-            <button class="mini" data-signup-ok="${esc(r.id)}" data-signup-name="${esc(r.username)}">Approve</button>
-            <button class="mini danger" data-signup-no="${esc(r.id)}" data-signup-name="${esc(r.username)}">Reject</button>
-          </td>
-        </tr>`).join("");
-
-      // Accounts: each profile renders as a toggle chip — highlighted means
-      // this account owns it. One click flips it and saves.
-      $("#accounts-empty").classList.toggle("hidden", accounts.length > 0);
-      $("#accounts-table").innerHTML = accounts.map((u) => `
-        <tr>
-          <td><strong>@${esc(u.username)}</strong>${u.migrated ? ' <span class="note">migrated</span>' : ""}</td>
-          <td>${esc(u.name || "—")}${u.email ? `<div class="muted" style="font-size:0.78rem">${esc(u.email)}</div>` : ""}</td>
-          <td>${u.claimed
+          <td>${esc(r.avatar || "🙂")} <strong>${esc(r.name)}</strong>${r.locked ? ' <span class="pill" style="color:#ff7a7a">locked</span>' : ""}</td>
+          <td>${r.username ? `@${esc(r.username)}` : '<span class="muted">—</span>'}</td>
+          <td>${r.email ? esc(r.email) : '<span class="muted">—</span>'}</td>
+          <td>${r.claimed
             ? '<span class="pill live">claimed</span>'
-            : '<span class="pill warn">unclaimed</span>'}</td>
-          <td>${profs.map((p) => `
-            <button class="mini" style="margin:1px${u.profileIds.includes(p.id) ? ";background:var(--accent,#8b7bff);color:#fff" : ";opacity:0.55"}"
-              data-acct-prof="${esc(p.id)}" data-acct-id="${esc(u.id)}">${esc(p.avatar || "")} ${esc(p.name)}</button>`).join("")}</td>
-          <td>${u.hasPassword
-            ? `🔒 <button class="mini" data-acct-pw="${esc(u.id)}" data-acct-name="${esc(u.username)}">Reset</button>`
-            : `<button class="mini" data-acct-pw="${esc(u.id)}" data-acct-name="${esc(u.username)}">Set password</button>`}</td>
-          <td>${u.hasGoogle ? "✅" : '<span class="muted">—</span>'}</td>
-          <td><button class="mini danger" data-acct-del="${esc(u.id)}" data-acct-name="${esc(u.username)}">Delete</button></td>
+            : '<span class="pill warn">not yet</span>'}</td>
+          <td style="white-space:nowrap">${r.hasPassword
+            ? `🔒 <button class="mini" data-signin-pw="${esc(r.id)}" data-signin-name="${esc(r.name)}">Reset</button>`
+            : `<button class="mini" data-signin-pw="${esc(r.id)}" data-signin-name="${esc(r.name)}">Set password</button>`}</td>
+          <td>${r.hasGoogle ? "✅" : '<span class="muted">—</span>'}</td>
         </tr>`).join("");
-      // stash for the toggle handler
-      loadAuth._accounts = accounts;
     }
 
     // the rollout switch: confirm, flip live (the server migrates profiles to
@@ -1234,69 +1218,23 @@
       loadAuth();
     });
 
-    $("#signup-requests").addEventListener("click", async (e) => {
-      const ok = e.target.closest("[data-signup-ok]");
-      const no = e.target.closest("[data-signup-no]");
-      const btn = ok || no;
-      if (!btn) return;
-      const name = btn.dataset.signupName;
-      if (no && !confirm(`Reject the account request for "@${name}"?`)) return;
-      btn.disabled = true;
-      const id = ok ? ok.dataset.signupOk : no.dataset.signupNo;
-      const r = await adminFetch(`/api/admin/signups/${encodeURIComponent(id)}/${ok ? "approve" : "reject"}`, { method: "POST" });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        toast(err.error || "Failed");
-        btn.disabled = false;
-        return;
-      }
-      toast(ok ? `Approved @${name} — now give them their profiles below` : `Rejected @${name}`);
-      loadAuth();
-      loadBadges();
-    });
-
-    $("#accounts-table").addEventListener("click", async (e) => {
-      const pw = e.target.closest("[data-acct-pw]");
-      if (pw) {
-        const val = prompt(`New password for @${pw.dataset.acctName} (4+ characters):`);
-        if (!val) return;
-        const r = await adminFetch(`/api/admin/users/${encodeURIComponent(pw.dataset.acctPw)}/password`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ newPassword: val }),
-        });
-        if (!r.ok) {
-          const err = await r.json().catch(() => ({}));
-          return toast(err.error || "Failed");
-        }
-        toast(`Password set for @${pw.dataset.acctName} — go tell them in person, don't text it`);
-        loadAuth();
-        return;
-      }
-      const del = e.target.closest("[data-acct-del]");
-      if (del) {
-        if (!confirm(`Delete the account "@${del.dataset.acctName}"? Their profiles stay — only the sign-in goes.`)) return;
-        const r = await adminFetch(`/api/admin/users/${encodeURIComponent(del.dataset.acctDel)}`, { method: "DELETE" });
-        if (!r.ok) return toast("Failed");
-        toast(`Deleted @${del.dataset.acctName}`);
-        loadAuth();
-        return;
-      }
-      const chip = e.target.closest("[data-acct-prof]");
-      if (!chip) return;
-      const acct = (loadAuth._accounts || []).find((u) => u.id === chip.dataset.acctId);
-      if (!acct) return;
-      const pid = chip.dataset.acctProf;
-      const next = acct.profileIds.includes(pid)
-        ? acct.profileIds.filter((x) => x !== pid)
-        : [...acct.profileIds, pid];
-      const r = await adminFetch(`/api/admin/users/${encodeURIComponent(acct.id)}/profiles`, {
+    $("#signin-table").addEventListener("click", async (e) => {
+      const pw = e.target.closest("[data-signin-pw]");
+      if (!pw) return;
+      const val = prompt(`New password for "${pw.dataset.signinName}" (4+ characters).\nThis is the profile's one password — wall AND sign-in — and every signed-in device gets signed out:`);
+      if (!val) return;
+      const r = await adminFetch(`/api/admin/signin/${encodeURIComponent(pw.dataset.signinPw)}/password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileIds: next }),
+        body: JSON.stringify({ newPassword: val }),
       });
-      if (!r.ok) return toast("Failed");
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        return toast(err.error || "Failed");
+      }
+      toast(`Password set for ${pw.dataset.signinName} — go tell them in person, don't text it`);
       loadAuth();
+      loadProfiles();
     });
 
     // ---------- profiles ----------
@@ -1420,7 +1358,7 @@
         const put = (id, n) => { $(id).textContent = n > 0 ? String(n) : ""; };
         put("#badge-moderation", counts.requests);
         put("#badge-downloads", counts.downloads);
-        put("#badge-profiles", profReqs.length + (counts.signups || 0));
+        put("#badge-profiles", profReqs.length);
       } catch {}
     }
 

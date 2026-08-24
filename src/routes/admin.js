@@ -328,6 +328,8 @@ router.post("/api/admin/profile-requests/:id/approve", (req, res) => {
   const p = profiles.approveRequest(req.params.id);
   // Already approved (or rejected) — a second click, not an error worth a 500.
   if (!p) return res.status(404).json({ error: "No such pending request" });
+  // The username/email got claimed while the request waited — surfaced, not minted.
+  if (p.error) return res.status(409).json(p);
   res.json(p);
 });
 
@@ -510,11 +512,7 @@ router.get("/api/admin/pending-counts", (req, res) => {
       .list()
       .filter((j) => j.status === "pending").length;
   } catch {}
-  let signups = 0;
-  try {
-    signups = require("../users").pendingList().length;
-  } catch {}
-  res.json({ requests, downloads, signups });
+  res.json({ requests, downloads });
 });
 
 // Skip-intro marks manager: list everything the household has marked, with
