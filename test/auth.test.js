@@ -214,6 +214,10 @@ test("adminSetPassword overwrites without the old one; setEmail validates", asyn
   assert.ok(profiles.setEmail("p-elia", "junk").error);
   assert.equal(profiles.setEmail("p-elia", "elia2@example.com").ok, true);
   assert.equal((await profiles.login("elia2@example.com", "fresh-start1")).ok, true);
+  // ONE email, ONE profile — a second profile can never take a used address
+  assert.ok(profiles.setEmail("p-dana", "elia2@example.com").error, "email uniqueness on setEmail");
+  assert.ok(profiles.setEmail("p-dana", "ELIA2@example.COM").error, "…case-insensitively");
+  assert.equal(profiles.setEmail("p-elia", "elia2@example.com").ok, true, "re-setting your OWN email is fine");
 });
 
 test("signinList exposes status, never hashes", () => {

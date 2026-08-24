@@ -1067,6 +1067,7 @@
       loadProfileRequests();
       loadProfiles();
       loadProfileAccess();
+      loadAuth(); // the sign-in roster gains (or loses) a row too
     });
 
     // ---------- devices & IPs per profile ----------
@@ -1150,20 +1151,24 @@
           <div class="am-name">${m.name}</div>
           <div class="am-desc">${m.desc}</div>
         </button>`).join("");
-      // Google status is checked LIVE against Google, not just "keys exist" —
-      // the classic trap is an OAuth client of the wrong type.
-      const HOWTO = `create a Google Cloud project → OAuth consent screen → Credentials → “Create credentials → OAuth client ID” → application type <strong>“TVs and Limited Input devices”</strong> → put <code>GOOGLE_CLIENT_ID=…</code> and <code>GOOGLE_CLIENT_SECRET=…</code> in the server's <code>.env</code> and restart. Buttons appear everywhere by themselves.`;
+      // Google has TWO flavors now: the normal browser popup (works with a
+      // standard Web-application OAuth client — the default keys) and the TV
+      // code flow (needs a client created as "TVs and Limited Input devices";
+      // only the TV app and IP-address devices use it). Checked LIVE.
       if (!google) {
-        $("#auth-google-note").innerHTML = `Google sign-in: <span class="muted">not configured.</span> To enable it (free): ${HOWTO}`;
+        $("#auth-google-note").innerHTML =
+          `Google sign-in: <span class="muted">not configured.</span> To enable it (free): Google Cloud Console → OAuth consent screen → Credentials → Create credentials → OAuth client ID → type <strong>“Web application”</strong>, add the redirect URI <code>http://localhost:4000/api/auth/google/web-callback</code> (and <code>https://nufurora.com/api/auth/google/web-callback</code>), then put <code>GOOGLE_CLIENT_ID=…</code> and <code>GOOGLE_CLIENT_SECRET=…</code> in the server's <code>.env</code> and restart.`;
       } else {
         $("#auth-google-note").innerHTML = `Google sign-in: <span class="muted">checking the setup against Google…</span>`;
         json("/api/admin/google-check").then((g) => {
-          $("#auth-google-note").innerHTML =
+          const web = `<strong>Browser sign-in (the normal popup):</strong> uses your existing Web client. Make sure its <em>Authorized redirect URIs</em> include <code>http://localhost:4000/api/auth/google/web-callback</code> and <code>https://nufurora.com/api/auth/google/web-callback</code> (Google Cloud Console → Credentials → your OAuth client).`;
+          const dev =
             g.status === "ok"
-              ? `Google sign-in: <span class="ok">working</span> — verified live against Google. “Continue with Google” is on the sign-in screen, the access-request form, and account linking.`
+              ? `<strong>TV code flow:</strong> <span class="ok">working</span> — verified live.`
               : g.status === "wrong_type"
-                ? `Google sign-in: <span class="bad">wrong client type.</span> Your keys are in place, but Google only allows this flow for OAuth clients created as <strong>“TVs and Limited Input devices”</strong> — yours is a Web/Desktop client. Fix: in Google Cloud Console ${HOWTO}`
-                : `Google sign-in: <span class="bad">not working.</span> ${esc(g.detail || "")}`;
+                ? `<strong>TV code flow:</strong> <span class="muted">needs its own client</span> — only the TV app and devices reaching the server by IP use it. When the TV update ships: create a second OAuth client of type “TVs and Limited Input devices” and put its keys in <code>.env</code> as <code>GOOGLE_CLIENT_ID</code> (move the web keys to <code>GOOGLE_WEB_CLIENT_ID</code>/<code>GOOGLE_WEB_CLIENT_SECRET</code>).`
+                : `<strong>TV code flow:</strong> <span class="bad">not working</span> — ${esc(g.detail || "")}`;
+          $("#auth-google-note").innerHTML = `${web}<br>${dev}`;
         }).catch(() => {
           $("#auth-google-note").innerHTML = `Google sign-in: <span class="muted">couldn't check right now.</span>`;
         });
@@ -1715,6 +1720,10 @@
           } else if (data.type === "request_new" || data.type === "request_update") {
             if (activeTab === "moderation") loadRequests();
             if (data.type === "request_new") toast("New request: " + (data.request?.title || ""));
+            loadBadges();
+          } else if (data.type === "profile_request_new") {
+            if (activeTab === "profiles") { loadProfileRequests(); loadAuth(); }
+            toast("New access request: " + (data.request?.name || "") + (data.request?.username ? " (@" + data.request.username + ")" : ""));
             loadBadges();
           } else if (data.type === "download_new" || data.type === "download_update") {
             if (activeTab === "downloads") loadDownloads();

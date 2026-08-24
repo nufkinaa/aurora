@@ -2928,8 +2928,6 @@
   border: 1px solid var(--line);
   border-radius: 12px;
 }
-.account-pw-form { margin: 10px 0; max-width: 340px; }
-.account-pw-form .field { margin-bottom: 8px; }
 
 /* ---------- Sign-in (prompt 10, the aurora night) ----------
    A full-viewport night sky with the real aurora painter running behind a
@@ -3213,67 +3211,6 @@
 .lsent + .lbtn { margin-top: 18px; }
 
 /* ---------- Account claiming (transition mode) ---------- */
-/* the banner anchors to its screen, not the body, so it sits exactly under
-   the nav regardless of scroll position at render time */
-.screen:has(> .claim-banner) { position: relative; }
-.claim-banner {
-  /* floats over the hero billboard just under the nav — the layout beneath
-     never shifts, and the glass reads on any backdrop */
-  position: absolute;
-  top: calc(var(--nav-h) + 12px);
-  left: var(--page-x);
-  right: var(--page-x);
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 13px 16px;
-  border-radius: 14px;
-  border: 1px solid transparent;
-  background:
-    linear-gradient(rgba(13, 16, 26, 0.72), rgba(13, 16, 26, 0.72)) padding-box,
-    linear-gradient(110deg, rgba(63, 216, 164, 0.75), rgba(139, 123, 255, 0.75), rgba(78, 163, 255, 0.75)) border-box;
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  overflow: hidden;
-  z-index: 40;
-  animation: login-rise 0.5s 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-@media (prefers-reduced-motion: reduce) { .claim-banner { animation: none; } }
-.claim-banner-glow {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(60% 130% at 8% 50%, rgba(63, 216, 164, 0.12), transparent 60%);
-}
-.claim-banner-ic { font-size: 1.35rem; flex: none; }
-.claim-banner-text { flex: 1; color: var(--text-faint); font-size: 0.92rem; min-width: 0; }
-.claim-banner-text strong { color: var(--text); display: inline-block; margin-right: 5px; }
-.claim-banner .btn { flex: none; }
-.claim-banner-x {
-  flex: none;
-  background: none;
-  border: 0;
-  color: var(--text-faint);
-  cursor: pointer;
-  font-size: 0.95rem;
-  padding: 6px 8px;
-  border-radius: 8px;
-}
-.claim-banner-x:hover { color: var(--text); }
-/* Phones: two tidy rows — icon+copy (the ✕ pinned top-right), then a
-   full-width button. The desktop single-line layout wrapped into a mess. */
-@media (max-width: 600px) {
-  .claim-banner {
-    flex-wrap: wrap;
-    gap: 10px 12px;
-    padding: 12px 40px 12px 14px;
-  }
-  .claim-banner-text { flex-basis: calc(100% - 42px); font-size: 0.88rem; }
-  .claim-banner .btn { flex: 1 1 100%; justify-content: center; }
-  .claim-banner-x { position: absolute; top: 8px; right: 8px; }
-}
-
 .claim-modal { max-width: 430px; }
 .claim-glyph { font-size: 2.1rem; margin-bottom: 6px; }
 .claim-sub { color: var(--text-faint); font-size: 0.92rem; line-height: 1.55; margin: 6px 0 16px; }
@@ -3295,3 +3232,51 @@
   color: #cfe9dd;
 }
 .lgoogle-verified .gmark svg { width: 18px; height: 18px; }
+
+/* ---------- nav profile menu (prompt 10) ---------- */
+.nav-menu-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.25);
+}
+.nav-menu {
+  position: absolute;
+  top: calc(var(--nav-h) + 8px);
+  right: max(18px, calc(var(--page-x) - 6px));
+  min-width: 220px;
+  padding: 8px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  animation: login-view 0.18s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) { .nav-menu { animation: none; } }
+.nav-menu-head { padding: 8px 12px 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.nav-menu-name { font-weight: 800; }
+.nav-menu-sub { color: var(--text-faint); font-size: 0.82rem; margin-top: 1px; }
+.nav-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.93rem;
+  cursor: pointer;
+}
+.nav-menu-item:hover { background: var(--surface-hover); }
+.nav-menu-item.danger { color: #ff8296; }
+.nav-menu-item.danger:hover { background: rgba(224, 64, 80, 0.12); }
+
+/* a proper red button for destructive actions (sign out & friends) */
+.btn.danger {
+  color: #ff8296;
+  border-color: rgba(224, 64, 80, 0.35);
+  background: rgba(224, 64, 80, 0.08);
+}
+.btn.danger:hover { background: rgba(224, 64, 80, 0.16); border-color: rgba(224, 64, 80, 0.55); }

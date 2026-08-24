@@ -7,6 +7,8 @@ import { api, setAuthToken } from "../api.js";
 import { state, setProfile, loadProfiles, recentProfileIds } from "../state.js";
 import { pushScope, popScope } from "../focus.js";
 import * as narrator from "../narrator.js";
+import { showClaimModal } from "../claim.js";
+import { showLoginScreen } from "./login.js";
 
 const AVATARS = [
   "🍿", "🎬", "🦊", "🐼", "🚀", "🌵", "🦖", "👾", "🐳", "🌙", "⚡", "🔥",
@@ -107,6 +109,18 @@ export const profileModal = (existing, onDone) => {
 
   const nameInput = el("input", { type: "text", class: "focusable", value: existing?.name || "", placeholder: "Name", maxlength: "24" });
 
+  // Email — EDIT mode only (creation goes through the request-access flow).
+  // Prefilled only for the signed-in profile: emails never ride the public
+  // wall data, so another profile's email simply starts blank here.
+  const ownEmail = existing && state.user && state.user.profileId === existing.id ? state.user.email || "" : "";
+  const emailInput = existing
+    ? el("input", {
+        type: "email", class: "focusable", value: ownEmail,
+        placeholder: "Email (optional)", maxlength: "80", autocomplete: "email",
+        "data-initial": ownEmail,
+      })
+    : null;
+
   // Approval fields — only when REQUESTING a new profile. Editing an existing
   // one is unchanged: these never appear and are never sent.
   const realNameInput = el("input", {
@@ -173,6 +187,16 @@ export const profileModal = (existing, onDone) => {
       try {
         if (existing) {
           await api.updateProfile(existing.id, { name, avatar, color });
+          // Email (a sign-in identifier) lives here with the rest of the
+          // profile's identity. Only sent when it actually changed.
+          if (emailInput && emailInput.value.trim() !== (emailInput.dataset.initial || "")) {
+            try {
+              const r = await api.setProfileEmail(existing.id, emailInput.value.trim());
+              if (state.user && state.user.profileId === existing.id) state.user = r.user;
+            } catch (e) {
+              return showPwErr(e.message || "Couldn't save that email.");
+            }
+          }
           if (newPw.value) {
             await api.setPassword(existing.id, newPw.value, hasPw ? curPw.value : "");
             // Changing the password invalidates old tokens — re-unlock and
@@ -226,6 +250,10 @@ export const profileModal = (existing, onDone) => {
       isNew && el("p", { class: "field-hint", style: { marginTop: "-6px" } },
         `Every new profile needs ${state.adminName}'s approval. Yes, even yours. Especially yours.`),
       el("div", { class: "field" }, el("label", {}, "Name"), nameInput),
+      emailInput && el("div", { class: "field" },
+        el("label", {}, "Email"),
+        emailInput,
+        el("div", { class: "field-hint" }, "Optional — sign in with it instead of your username. Blank removes it.")),
       isNew && el("div", { class: "field" },
         el("label", {}, "Your real name"),
         realNameInput,
@@ -285,6 +313,28 @@ export const showProfileGate = (onChosen) => {
     narrator.call("checkTodaysWatchTime");
   };
 
+  // Transition-mode onboarding happens HERE, at the door (elia's spec: the
+  // first thing a signing-in person sees is "confirm your username / email /
+  // Google" — once, then everything is as it was). If the unlock already
+  // signed the device in (a claimed profile — same password) or there is
+  // nothing to claim, this is a straight pass-through.
+  const maybeClaimThenEnter = async (p, token, meta) => {
+    if (state.authMode === "transition" && !(meta && meta.user) && !state.user) {
+      setAuthToken(token || null); // the claim check needs the profile's proof
+      let claimable = null;
+      try { claimable = (await api.claimable(p.id)).claimable; } catch {}
+      if (claimable) {
+        showClaimModal(claimable, () => enter(p, token, meta), {
+          required: true,
+          profileId: p.id,
+          onCancel: () => setAuthToken(null), // back to the wall, nothing kept
+        });
+        return;
+      }
+    }
+    enter(p, token, meta);
+  };
+
   const openProfile = async (p) => {
     // Admin-locked: no way in, not even with the password.
     if (p.locked) return toast(`That profile's been locked. Take it up with ${state.adminName}.`, "🚫");
@@ -296,7 +346,7 @@ export const showProfileGate = (onChosen) => {
         if (r.token && r.profileId === p.id) return enter(p, r.token, {});
       } catch {}
     }
-    if (p.hasPassword) return passwordPrompt(p, (token, meta) => enter(p, token, meta));
+    if (p.hasPassword) return passwordPrompt(p, (token, meta) => maybeClaimThenEnter(p, token, meta));
     // No password to check, but still call unlock: it hands this device a
     // session token and it's what tells the server which device entered, so the
     // admin's per-profile device list covers open profiles too. A failure here
@@ -304,7 +354,7 @@ export const showProfileGate = (onChosen) => {
     let token = null;
     let meta = {};
     try { meta = await api.unlockProfile(p.id, ""); token = meta.token; } catch {}
-    enter(p, token, meta);
+    maybeClaimThenEnter(p, token, meta);
   };
 
   const tile = (p) =>
@@ -324,8 +374,17 @@ export const showProfileGate = (onChosen) => {
       el("div", { class: "name" }, p.name)
     );
 
+  // "Add profile" opens the modern request-access flow (name, sign-in
+  // identity, password — avatar and colors come later, in Preferences).
+  // The old create-modal survives only as the EDIT modal.
   const addTile = () =>
-    el("button", { class: "profile-tile add focusable", onclick: () => profileModal(null, render) },
+    el("button", {
+      class: "profile-tile add focusable",
+      onclick: async () => {
+        await showLoginScreen({ view: "signup" });
+        render();
+      },
+    },
       el("div", { class: "big-avatar" }, "＋"),
       el("div", { class: "name" }, "Add profile")
     );

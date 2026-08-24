@@ -312,7 +312,7 @@ export const renderPreferences = async (root) => {
   );
 
   // ---------- account (sign-in) section — only when the server runs accounts ----------
-  const accountSection = () => {
+  const accountSection = async () => {
     const u = state.user;
     const body = el("div", { class: "pref-list page-pad" });
 
@@ -345,71 +345,112 @@ export const renderPreferences = async (root) => {
               try { await api.revokeSession(s.key); paintDevices(); toast("Signed that device out"); }
               catch { toast("Couldn't sign it out", "⚠️"); }
             },
-          }, "Sign out"),
+          }, "Revoke"),
         ));
       }
     };
     paintDevices();
 
-    const changePassword = () => {
-      const cur = el("input", { type: "password", class: "focusable", placeholder: "Current password", autocomplete: "current-password" });
-      const nw = el("input", { type: "password", class: "focusable", placeholder: "New password (4+ chars)", autocomplete: "new-password" });
-      const err = el("div", { class: "pw-error hidden" });
-      const form = el("div", { class: "account-pw-form" },
-        el("div", { class: "field" }, cur),
-        el("div", { class: "field" }, nw),
-        err,
-        el("div", { style: { display: "flex", gap: "10px" } },
-          el("button", {
-            class: "btn btn-primary small focusable",
-            onclick: async () => {
-              err.classList.add("hidden");
-              try {
-                await api.changeAccountPassword(cur.value, nw.value);
-                form.remove();
-                toast("Password changed", "🔒");
-              } catch (e) {
-                err.textContent = e.message || "That didn't work.";
-                err.classList.remove("hidden");
-              }
-            },
-          }, "Save"),
-          el("button", { class: "btn small focusable", onclick: () => form.remove() }, "Cancel")),
-      );
-      body.append(form);
-      cur.focus();
-    };
-
-    // Add / change the email used as a second sign-in identifier.
-    const emailPrompt = async () => {
-      const val = prompt("Email for this profile (sign in with it too):", u.email || "");
-      if (val === null) return;
+    // One-time completions only — once an email exists it's edited in the
+    // profile modal (with the password), and once Google is linked it's just
+    // a checkmark. No standing "change X" buttons cluttering the card.
+    const addEmail = async () => {
+      const val = prompt("Email for this profile (you can sign in with it too):", "");
+      if (!val || !val.trim()) return;
       try {
-        const r = await api.setAccountEmail(val.trim());
+        const r = await api.setProfileEmail(state.profile.id, val.trim());
         state.user = r.user || state.user;
-        toast(val.trim() ? "Email saved" : "Email removed");
+        toast("Email saved", "✉️");
         rerender();
       } catch (e) {
         toast(e.message || "Couldn't save that", "⚠️");
       }
     };
 
+    const connectGoogle = async () => {
+      let info = null;
+      try { info = await api.serverInfo(); } catch {}
+      const { googleFlavor, googleWebFlow } = await import("../google.js");
+      const flavor = googleFlavor(info);
+      if (flavor === "web") {
+        try {
+          const r = await googleWebFlow("link");
+          if (r.linked) {
+            state.user = r.user || state.user;
+            toast("Google connected", "✅");
+            rerender();
+          }
+        } catch (e) {
+          toast(e.message || "Couldn't connect Google", "🙃");
+        }
+        return;
+      }
+      if (flavor !== "device") return toast("Google sign-in isn't configured on this server", "🙃");
+      // device-code fallback (reached the server by IP): tiny code modal
+      let start;
+      try { start = await api.googleStart(); } catch (e) {
+        return toast(e.message || "Couldn't reach Google", "🙃");
+      }
+      let closed = false;
+      const backdrop = el("div", { class: "modal-backdrop ui-overlay" },
+        el("div", { class: "modal", style: { textAlign: "center" } },
+          el("h2", {}, "Connect Google"),
+          el("p", { class: "pref-note" }, `On your phone, open ${start.verificationUrl.replace(/^https?:\/\//, "")} and enter:`),
+          el("div", { style: { fontSize: "1.7rem", fontWeight: "900", letterSpacing: "0.2em", margin: "10px 0" } }, start.userCode),
+          el("button", { class: "btn focusable", onclick: () => { closed = true; backdrop.remove(); } }, "Cancel")));
+      document.body.append(backdrop);
+      const poll = async () => {
+        if (closed || !backdrop.isConnected) return;
+        try {
+          const r = await api.googlePoll(start.pollId);
+          if (r.ok && r.linkable) {
+            const l = await api.googleLink(start.pollId);
+            state.user = l.user || state.user;
+            backdrop.remove();
+            toast("Google connected", "✅");
+            rerender();
+            return;
+          }
+          if (r.ok) { backdrop.remove(); return toast("That Google account signed in elsewhere — try again", "🙃"); }
+        } catch (e) {
+          backdrop.remove();
+          return toast(e.message || "Google linking failed", "🙃");
+        }
+        setTimeout(poll, 3000);
+      };
+      setTimeout(poll, 3000);
+    };
+
+    let googleAvailable = false;
+    try { googleAvailable = !!(await api.serverInfo()).google; } catch {}
+
     body.append(
       el("div", { class: "pref-note", style: { padding: 0 } },
         `Signed in as `, el("strong", {}, `@${u.username}`),
         u.name && u.name !== u.username ? ` (${u.name})` : "",
-        u.email ? el("span", {}, ` · ${u.email}`) : ""),
-      el("div", { style: { display: "flex", gap: "10px", flexWrap: "wrap", margin: "10px 0" } },
-        el("button", { class: "btn small focusable", onclick: changePassword }, "Change password"),
-        el("button", { class: "btn small focusable", onclick: emailPrompt }, u.email ? "Change email" : "Add email"),
+        u.email ? el("span", {}, ` · ${u.email}`) : "",
+        u.hasGoogle ? el("span", {}, " · Google ✅") : ""),
+      (!u.email || (googleAvailable && !u.hasGoogle)) &&
+        el("div", { style: { display: "flex", gap: "10px", flexWrap: "wrap", margin: "10px 0 4px" } },
+          !u.email && el("button", { class: "btn small focusable", onclick: addEmail }, "✉️ Add email"),
+          googleAvailable && !u.hasGoogle &&
+            el("button", { class: "btn small focusable", onclick: connectGoogle }, "Connect Google")),
+      el("div", { class: "pref-note", style: { padding: 0, margin: "8px 0 4px", fontSize: "0.82rem" } },
+        "Password and email changes live in “Edit profile & password” above — one password opens everything."),
+      devices,
+      el("div", { style: { marginTop: "14px" } },
         el("button", {
-          class: "btn small focusable",
+          class: "btn danger focusable",
+          style: { width: "100%" },
           onclick: async () => {
             try { await api.logout(); } catch {}
-            location.reload(); // boot lands wherever the mode says
+            try {
+              localStorage.removeItem("aurora-profile");
+              sessionStorage.removeItem(`aurora-token-${state.profile.id}`);
+            } catch {}
+            location.reload();
           },
         }, "Sign out")),
-      devices,
     );
     return body;
   };
@@ -422,7 +463,7 @@ export const renderPreferences = async (root) => {
     if (state.authMode === "open") return null;
     if (state.user) {
       return section("Sign-in", "This profile's sign-in — sessions last 90 days per device.",
-        accountSection());
+        await accountSection());
     }
     let claimable = null;
     try { claimable = (await api.claimable(state.profile.id)).claimable; } catch {}

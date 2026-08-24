@@ -142,13 +142,61 @@ document.addEventListener("ui-back", (e) => {
   else navigate("#/");
 });
 
-$("#nav-profile").addEventListener("click", () => {
+// The profile chip opens a small menu (elia: "fix that whole segment") —
+// switch profile where the wall exists, preferences, and a proper red
+// sign-out when signed in. In closed mode there is no wall to switch on,
+// so the menu is the whole story.
+const openGate = () => {
   showProfileGate(() => {
     paintProfileChip();
     navigate("#/");
     // force re-render if already home
     window.dispatchEvent(new HashChangeEvent("hashchange"));
   });
+};
+
+const showProfileMenu = () => {
+  document.querySelector(".nav-menu-wrap")?.remove(); // toggle: second click closes
+  const item = (label, onclick, cls = "") =>
+    el("button", { class: `nav-menu-item focusable ${cls}`, onclick }, label);
+  const menu = el("div", { class: "nav-menu" },
+    el("div", { class: "nav-menu-head" },
+      el("div", { class: "nav-menu-name" }, state.profile?.name || "Aurora"),
+      state.user && el("div", { class: "nav-menu-sub" }, `@${state.user.username}`)),
+    state.authMode !== "closed" &&
+      item("Switch profile", () => { close(); openGate(); }),
+    item("Preferences", () => { close(); navigate("#/preferences"); }),
+    state.user &&
+      item("Sign out", async () => {
+        close();
+        try { await api.logout(); } catch {}
+        // out means out: forget the device's shortcuts back in
+        try {
+          localStorage.removeItem("aurora-profile");
+          if (state.profile) sessionStorage.removeItem(`aurora-token-${state.profile.id}`);
+        } catch {}
+        location.reload();
+      }, "danger"),
+  );
+  const wrap = el("div", { class: "nav-menu-wrap ui-overlay", onclick: (e) => e.target === wrap && close() }, menu);
+  const close = () => {
+    document.removeEventListener("keydown", onKey);
+    document.removeEventListener("ui-back", onBack);
+    wrap.remove();
+  };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  const onBack = (e) => { e.preventDefault(); close(); };
+  document.addEventListener("keydown", onKey);
+  document.addEventListener("ui-back", onBack);
+  document.body.append(wrap);
+  setTimeout(() => menu.querySelector("button")?.focus({ preventScroll: true }), 40);
+};
+
+$("#nav-profile").addEventListener("click", () => {
+  // Before any profile is active (shouldn't happen — the gate covers boot),
+  // fall through to the wall rather than a menu about nothing.
+  if (!state.profile) return openGate();
+  showProfileMenu();
 });
 
 const boot = async () => {

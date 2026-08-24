@@ -11,6 +11,7 @@ import { api } from "../api.js";
 import { state } from "../state.js";
 import { pushScope, popScope } from "../focus.js";
 import { initAuroraSky } from "../aurora-sky.js";
+import { googleFlavor, googleWebFlow } from "../google.js";
 
 // Small inline icon set (stroke = currentColor so the theme owns the color).
 const icon = (d) =>
@@ -89,7 +90,29 @@ export const showLoginScreen = (opts = {}) =>
       resolve(res);
     };
 
-    let googleEnabled = false;
+    let serverInfo = null; // {googleWeb, googleDevice, ...} once fetched
+    const infoReady = api.serverInfo().then((i) => (serverInfo = i)).catch(() => null);
+
+    // One entry point for every Google button: the web popup where the
+    // browser can use it (localhost/domain), the code flow otherwise.
+    // purpose: "login" (signin view) or "signup" (request-access view).
+    const doGoogle = async (purpose) => {
+      const flavor = googleFlavor(serverInfo);
+      if (flavor === "web") {
+        try {
+          const r = await googleWebFlow(purpose);
+          if (r.user && r.profile) return done(r);
+          if (r.signup) return signupView({ pollId: r.pollId, email: r.signup.email, name: r.signup.name });
+          toast("Unexpected Google result — try again.", "🙃");
+        } catch (e) {
+          toast(e.message || "Google sign-in failed.", "🙃");
+        }
+        return;
+      }
+      if (flavor === "device") return googleView({ purpose });
+      toast("Google sign-in isn't available here.", "🙃");
+    };
+
     const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const setView = (nodes, focusEl) => {
       card.innerHTML = "";
@@ -135,24 +158,16 @@ export const showLoginScreen = (opts = {}) =>
 
       const google = el("div", { class: "lgoogle" });
       const paintGoogle = () => {
-        if (!googleEnabled) return;
+        if (!googleFlavor(serverInfo) || google.childElementCount) return;
         google.append(
           el("div", { class: "ldivider" }, el("span", {}, "or")),
           el("button", {
             class: "lbtn google focusable",
-            onclick: () => googleView({ purpose: "login" }),
+            onclick: () => doGoogle("login"),
           }, el("span", { class: "gmark", html: GOOGLE_G }), el("span", {}, "Continue with Google")),
         );
       };
-      if (googleEnabled) paintGoogle();
-      else {
-        api.serverInfo().then((info) => {
-          if (info && info.google) {
-            googleEnabled = true;
-            paintGoogle();
-          }
-        }).catch(() => {});
-      }
+      infoReady.then(paintGoogle);
 
       const nodes = [
         el("h2", { class: "lhead" }, "Welcome back"),
@@ -237,11 +252,11 @@ export const showLoginScreen = (opts = {}) =>
         );
       } else {
         nodes.push(uname.wrap, email.wrap, pw.wrap, pw2.wrap);
-        if (googleEnabled) {
+        if (googleFlavor(serverInfo)) {
           nodes.push(el("div", { class: "ldivider" }, el("span", {}, "or")),
             el("button", {
               class: "lbtn google focusable",
-              onclick: () => googleView({ purpose: "signup" }),
+              onclick: () => doGoogle("signup"),
             }, el("span", { class: "gmark", html: GOOGLE_G }), el("span", {}, "Request access with Google")));
         }
       }
@@ -250,12 +265,17 @@ export const showLoginScreen = (opts = {}) =>
         err,
         sendBtn,
         el("div", { class: "lfoot" },
-          el("button", { class: "llink focusable", onclick: () => signinView() }, "← Back to sign in")),
+          // standalone signup (opened from the wall's "Add profile"): there is
+          // no sign-in view behind it — the way out is simply out
+          opts.view === "signup"
+            ? el("button", { class: "llink focusable", onclick: () => { cleanup(); resolve(null); } }, "Cancel")
+            : el("button", { class: "llink focusable", onclick: () => signinView() }, "← Back to sign in")),
       );
       setView(nodes, name.input);
     };
 
     const sentView = (who) => {
+      const standalone = opts.view === "signup";
       setView([
         el("div", { class: "lsent" },
           el("div", { class: "lsent-glyph" }, "🍿"),
@@ -265,8 +285,10 @@ export const showLoginScreen = (opts = {}) =>
             el("strong", {}, "Want it faster? Go ask in person."),
             " Once you're approved, come right back here and sign in."),
         ),
-        el("button", { class: "lbtn primary focusable", onclick: () => signinView() },
-          el("span", {}, "Back to sign in")),
+        el("button", {
+          class: "lbtn primary focusable",
+          onclick: () => (standalone ? (cleanup(), resolve(null)) : signinView()),
+        }, el("span", {}, standalone ? "Done" : "Back to sign in")),
       ]);
     };
 
@@ -327,7 +349,8 @@ export const showLoginScreen = (opts = {}) =>
       ]);
     };
 
-    signinView();
+    if (opts.view === "signup") signupView();
+    else signinView();
     document.body.append(wrap);
     // the painter checks canvas.isConnected — start it only once it's real
     stopSky = initAuroraSky(sky);

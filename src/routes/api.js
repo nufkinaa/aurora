@@ -76,7 +76,12 @@ router.get("/api/server-info", (req, res) => {
   res.json({
     adminName: authed ? config.ADMIN_NAME : "the admin",
     authMode: mode,
-    google: !!process.env.GOOGLE_CLIENT_ID,
+    // googleWeb: the normal popup flow (a Web-application OAuth client — the
+    // default keys work for it). googleDevice: the TV code flow. `google`
+    // stays as "any of it exists" for older clients.
+    google: !!(process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_WEB_CLIENT_ID),
+    googleWeb: !!(process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID),
+    googleDevice: !!process.env.GOOGLE_CLIENT_ID,
   });
 });
 

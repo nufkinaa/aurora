@@ -99,15 +99,14 @@ export const api = {
   signupRequest: (fields) => post("/api/auth/signup", fields),
   accountSessions: () => json("/api/auth/sessions"),
   revokeSession: (key) => json(`/api/auth/sessions/${encodeURIComponent(key)}`, { method: "DELETE" }),
-  changeAccountPassword: (currentPassword, newPassword) =>
-    post("/api/auth/password", { currentPassword, newPassword }),
   // transition-mode onboarding: is there an unclaimed account behind this
   // profile, and claim it (sets username/password/email, signs you in)
   claimable: (profileId) => json(`/api/auth/claimable/${encodeURIComponent(profileId)}`),
   claimAccount: (fields) => post("/api/auth/claim", fields),
   // session → profile unlock token (a signed-in device never retypes the password)
   sessionProfileToken: () => post("/api/auth/profile-token", {}),
-  setAccountEmail: (email) => post("/api/auth/email", { email }),
+  setProfileEmail: (profileId, email) => post(`/api/profiles/${encodeURIComponent(profileId)}/email`, { email }),
+  googleWebFinish: (state) => post("/api/auth/google/web-finish", { state }),
   googleStart: () => post("/api/auth/google/start", {}),
   googlePoll: (pollId) => post("/api/auth/google/poll", { pollId }),
   googleLink: (pollId) => post("/api/auth/google/link", { pollId }),

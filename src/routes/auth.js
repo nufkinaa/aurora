@@ -141,6 +141,7 @@ router.post("/api/auth/signup", async (req, res) => {
     device: deviceOf(req),
   });
   if (result.error) return res.status(400).json({ error: result.error });
+  realtime.broadcastAdmins({ type: "profile_request_new", request: result.request });
   res.json(result);
 });
 
@@ -209,15 +210,6 @@ router.post("/api/auth/profile-token", (req, res) => {
     ip: realtime.clientIp(req), device: deviceOf(req),
   });
   res.json({ ok: true, profileId: s.profile.id, token: profiles.issueToken(s.profile.id) });
-});
-
-// Add / change my email (a second identifier to sign in with).
-router.post("/api/auth/email", (req, res) => {
-  const s = sessionFor(req);
-  if (!s) return res.status(401).json({ error: "sign in first" });
-  const r = profiles.setEmail(s.profile.id, (req.body || {}).email);
-  if (r.error) return res.status(400).json(r);
-  res.json(r);
 });
 
 // "Sessions on my profile" — list and revoke (the key is the sha256 handle,
@@ -298,7 +290,32 @@ router.post("/api/admin/signin/:profileId/password", adminOnly, async (req, res)
 // every Google surface hides itself.
 const G_ID = process.env.GOOGLE_CLIENT_ID || null;
 const G_SECRET = process.env.GOOGLE_CLIENT_SECRET || null;
+// The WEB (redirect/popup) flow — the "normal" Google button for browsers.
+// Defaults to the same keys: a standard "Web application" OAuth client works
+// here directly (it's the device flow that needs the TV-type client), so
+// elia's existing client id serves the website as-is once its redirect URIs
+// are registered. A separate TV-type client can override for the device flow.
+const G_WEB_ID = process.env.GOOGLE_WEB_CLIENT_ID || G_ID;
+const G_WEB_SECRET = process.env.GOOGLE_WEB_CLIENT_SECRET || G_SECRET;
 const gPolls = new Map(); // pollId -> {deviceCode, interval, expiresAt, done, error, session, user, linkSub, signupSub}
+
+// What a VERIFIED-but-unlinked-to-this-flow Google identity means: a known
+// profile signs straight in; an unknown one is held (server-side) for a
+// signup request; a locked profile is refused. Shared by the device poll and
+// the web callback so the two flows can never drift apart.
+const googleOutcomeFor = (info, req) => {
+  const prof = profiles.byGoogleSub(info.sub);
+  if (prof && prof.locked) return { error: `that profile is locked — talk to ${config.ADMIN_NAME}` };
+  if (prof) {
+    return {
+      session: sessions.create(prof.id, { ip: realtime.clientIp(req), device: deviceOf(req) }),
+      user: profiles.signinPub(prof),
+      profile: profiles.pub(prof),
+      profileToken: profiles.issueToken(prof.id),
+    };
+  }
+  return { signupSub: { sub: info.sub, email: info.email || null, name: info.name || null } };
+};
 
 // Ask Google for a device code. Exported logic so the admin panel's config
 // check can run the same call and report the REAL failure (the #1 setup trap:
@@ -421,31 +438,118 @@ router.post("/api/auth/google/poll", async (req, res) => {
           p.done = true;
           p.linkSub = info.sub;
         } else {
-          const prof = profiles.byGoogleSub(info.sub);
-          if (prof && !prof.locked) {
-            // a known Google identity → sign its profile in
-            p.done = true;
-            p.session = sessions.create(prof.id, {
-              ip: realtime.clientIp(req),
-              device: deviceOf(req),
-            });
-            p.user = profiles.signinPub(prof);
-            p.profile = profiles.pub(prof);
-            p.profileToken = profiles.issueToken(prof.id);
-          } else if (prof && prof.locked) {
-            p.done = true;
-            p.error = `that profile is locked — talk to ${config.ADMIN_NAME}`;
-          } else {
-            // unknown Google identity → hold the VERIFIED details for a
-            // signup request ("Request access with Google")
-            p.done = true;
-            p.signupSub = { sub: info.sub, email: info.email || null, name: info.name || null };
-          }
+          p.done = true;
+          Object.assign(p, googleOutcomeFor(info, req));
         }
       }
     } catch {} // transient network error: stay pending
   }
   res.json({ pending: true });
+});
+
+// ---------- Google WEB flow (the "normal" browser sign-in) ----------
+// A standard authorization-code redirect in a POPUP: /web-start sends the
+// popup to Google, Google returns it to /web-callback (registered redirect
+// URI), the popup messages the opener, and the opener collects the result
+// with /web-finish (which is also where the session cookie is set — on the
+// main window's own request). Works on localhost and real domains; a device
+// that reached the server by raw IP can't use it (Google forbids IP redirect
+// URIs) and is told to use the code flow instead.
+const gStates = new Map(); // state -> {createdAt, redirectUri, linkProfileId, outcome}
+const IP_HOST = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$|^\[/;
+
+router.get("/api/auth/google/web-start", (req, res) => {
+  if (!G_WEB_ID) return res.status(501).json({ error: "Google sign-in isn't configured on this server" });
+  const host = String(req.headers.host || "");
+  if (IP_HOST.test(host)) {
+    return res.status(409).json({
+      error: "Google's web sign-in needs a hostname (localhost or the domain) — from an IP address use the code flow",
+      useDevice: !!G_ID,
+    });
+  }
+  for (const [k, v] of gStates) if (Date.now() - v.createdAt > 10 * 60 * 1000) gStates.delete(k);
+  const proto = require("../lib/authz").isHttps(req) ? "https" : "http";
+  const redirectUri = `${proto}://${host}/api/auth/google/web-callback`;
+  const state = require("crypto").randomBytes(16).toString("hex");
+  const s = sessionFor(req);
+  gStates.set(state, {
+    createdAt: Date.now(),
+    redirectUri,
+    // linking is an EXPLICIT intent from Preferences — never inferred from a
+    // cookie the popup happens to carry
+    linkProfileId: req.query.intent === "link" && s ? s.profile.id : null,
+  });
+  const auth = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  auth.searchParams.set("client_id", G_WEB_ID);
+  auth.searchParams.set("redirect_uri", redirectUri);
+  auth.searchParams.set("response_type", "code");
+  auth.searchParams.set("scope", "openid email profile");
+  auth.searchParams.set("state", state);
+  auth.searchParams.set("prompt", "select_account");
+  res.redirect(auth.toString());
+});
+
+router.get("/api/auth/google/web-callback", async (req, res) => {
+  const stateKey = String(req.query.state || "");
+  const st = gStates.get(stateKey);
+  const page = (msg) =>
+    res.type("html").send(
+      `<!doctype html><meta charset="utf-8"><body style="background:#0a0e18;color:#9aa3ba;font:15px system-ui;display:grid;place-items:center;height:100vh;margin:0"><div>${msg}</div>` +
+      `<script>try{window.opener&&window.opener.postMessage({auroraGoogle:{state:${JSON.stringify(stateKey)}}},location.origin)}catch(e){}setTimeout(function(){window.close()},800)</script>`,
+    );
+  if (!st) return page("This sign-in attempt expired — close this window and try again.");
+  try {
+    if (req.query.error) throw new Error(String(req.query.error));
+    const tr = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: G_WEB_ID,
+        client_secret: G_WEB_SECRET || "",
+        code: String(req.query.code || ""),
+        grant_type: "authorization_code",
+        redirect_uri: st.redirectUri,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    const td = await tr.json();
+    if (!td.id_token) throw new Error(td.error_description || td.error || "token exchange failed");
+    const info = await fetch(
+      "https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(td.id_token),
+      { signal: AbortSignal.timeout(8000) },
+    ).then((x) => x.json());
+    if (info.aud !== G_WEB_ID || !info.sub) throw new Error("token verification failed");
+    if (st.linkProfileId) {
+      if (profiles.byGoogleSub(info.sub)) throw new Error("that Google account is already linked to a profile");
+      profiles.linkGoogle(st.linkProfileId, info.sub);
+      const prof = profiles.list().find((x) => x.id === st.linkProfileId);
+      st.outcome = { linked: true, user: prof ? profiles.signinPub(prof) : null };
+    } else {
+      st.outcome = googleOutcomeFor(info, req);
+    }
+  } catch (err) {
+    st.outcome = { error: err.message || "Google sign-in failed" };
+  }
+  page("Done — you can close this window.");
+});
+
+router.post("/api/auth/google/web-finish", (req, res) => {
+  const key = String((req.body || {}).state || "");
+  const st = gStates.get(key);
+  if (!st || !st.outcome) return res.status(404).json({ error: "nothing finished for that sign-in attempt" });
+  const o = st.outcome;
+  gStates.delete(key);
+  if (o.error) return res.status(401).json({ error: o.error });
+  if (o.linked) return res.json({ ok: true, linked: true, user: o.user });
+  if (o.signupSub) {
+    // hand the verified identity to the signup endpoint via the same pollId
+    // channel the device flow uses — one consumption path
+    const pollId = require("crypto").randomBytes(12).toString("hex");
+    gPolls.set(pollId, { done: true, signupSub: o.signupSub, expiresAt: Date.now() + 10 * 60 * 1000, interval: 1e9, lastPoll: 0 });
+    return res.json({ ok: true, signup: { email: o.signupSub.email, name: o.signupSub.name }, pollId });
+  }
+  setSessionCookie(req, res, o.session);
+  res.json({ ok: true, user: o.user, profile: o.profile, profileToken: o.profileToken, session: o.session });
 });
 
 // Link the signed-in profile to a Google identity (same device flow; the

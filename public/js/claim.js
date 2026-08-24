@@ -1,20 +1,17 @@
-// Account claiming — the transition-mode onboarding (prompt 10, account =
-// profile). While the admin runs authMode "transition", the app works exactly
-// as always, and each person gets ONE gentle prompt: a banner on Home that
-// opens a small modal to switch sign-in on for their profile — pick a
-// username (+ optional email). If the profile already has a password, that
-// password simply IS the sign-in password and the modal never asks for one;
-// otherwise it's set here. Claiming signs them in on the spot; when everyone
-// has claimed, the admin closes the wall.
+// The one-time sign-in confirmation (prompt 10, account = profile).
+// In transition mode this modal IS the migration: entering an unclaimed
+// profile at the wall shows it before the profile opens — confirm the
+// username, maybe add an email, set a password only if the profile never had
+// one. elia's spec: "everybody will have to confirm that they remember" — so
+// at the wall it's required (no Later); closing it returns to the wall.
 import { el, toast } from "./ui.js";
 import { api } from "./api.js";
 import { state } from "./state.js";
 import { pushScope, popScope } from "./focus.js";
 
-const DISMISS_KEY = "aurora-claim-later";
-
-// The claim modal. `claimable` is {suggestedUsername, hasPassword, name}.
-export const showClaimModal = (claimable, onClaimed) => {
+// `claimable` is {suggestedUsername, hasPassword, name} from api.claimable.
+// opts.required: no "Later" — closing cancels the profile entry (onCancel).
+export const showClaimModal = (claimable, onClaimed, opts = {}) => {
   const uname = el("input", {
     type: "text", class: "focusable", value: claimable?.suggestedUsername || "",
     placeholder: "Username", maxlength: "24",
@@ -29,12 +26,13 @@ export const showClaimModal = (claimable, onClaimed) => {
   const err = el("div", { class: "pw-error hidden" });
   const needsPassword = !claimable?.hasPassword;
 
-  const close = () => {
+  const close = (cancelled) => {
     document.removeEventListener("ui-back", onBack);
     popScope(backdrop);
     backdrop.remove();
+    if (cancelled) opts.onCancel?.();
   };
-  const onBack = (e) => { e.preventDefault(); close(); };
+  const onBack = (e) => { e.preventDefault(); close(true); };
 
   const submit = async (btn) => {
     err.classList.add("hidden");
@@ -46,13 +44,13 @@ export const showClaimModal = (claimable, onClaimed) => {
     btn.disabled = true;
     try {
       const r = await api.claimAccount({
-        profileId: state.profile.id,
+        profileId: opts.profileId || state.profile?.id,
         username: uname.value.trim(),
         email: email.value.trim(),
         ...(needsPassword ? { password: pw.value } : {}),
       });
       state.user = r.user;
-      close();
+      close(false);
       toast(`Welcome, @${r.user.username} — you're signed in`, "🎉");
       onClaimed?.(r.user);
     } catch (e) {
@@ -63,7 +61,7 @@ export const showClaimModal = (claimable, onClaimed) => {
     }
   };
 
-  const goBtn = el("button", { class: "btn btn-primary focusable" }, "Turn my sign-in on");
+  const goBtn = el("button", { class: "btn btn-primary focusable" }, opts.required ? "Confirm & continue" : "Turn my sign-in on");
   goBtn.addEventListener("click", () => submit(goBtn));
   for (const i of [uname, email, pw, pw2]) {
     i.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(goBtn); });
@@ -71,13 +69,13 @@ export const showClaimModal = (claimable, onClaimed) => {
 
   const box = el("div", { class: "modal claim-modal" },
     el("div", { class: "claim-glyph" }, "🔑"),
-    el("h2", {}, "Make this profile yours"),
+    el("h2", {}, opts.required ? "One-time setup" : "Make this profile yours"),
     el("p", { class: "claim-sub" },
-      `Aurora is getting real sign-in — and your profile IS your account. Pick your username once, and every device signs in as `,
-      el("strong", {}, state.profile.name),
-      `. `,
+      `Aurora now has real sign-in — and your profile IS your account. Confirm the username for `,
+      el("strong", {}, claimable?.name || state.profile?.name || "this profile"),
+      ` once, and every device signs in with it. `,
       needsPassword
-        ? el("span", { class: "claim-dim" }, "Nothing about your history or list changes.")
+        ? el("span", { class: "claim-dim" }, "Pick the password you'll sign in with — nothing about your history or list changes.")
         : el("span", { class: "claim-dim" }, "Your profile password stays your password — nothing new to remember.")),
     el("div", { class: "field" }, el("label", {}, "Username"), uname),
     el("div", { class: "field" }, email),
@@ -86,50 +84,14 @@ export const showClaimModal = (claimable, onClaimed) => {
     err,
     el("div", { style: { display: "flex", gap: "10px", marginTop: "18px" } },
       goBtn,
-      el("button", { class: "btn focusable", onclick: close }, "Later")),
+      el("button", { class: "btn focusable", onclick: () => close(true) }, opts.required ? "Cancel" : "Later")),
   );
   const backdrop = el("div", {
     class: "modal-backdrop ui-overlay",
-    onclick: (e) => e.target === backdrop && close(),
+    onclick: (e) => e.target === backdrop && close(true),
   }, box);
   document.body.append(backdrop);
   document.addEventListener("ui-back", onBack);
   pushScope(backdrop);
   setTimeout(() => uname.focus(), 60);
-};
-
-// The Home banner. Returns a node to float over the hero, or null when there
-// is nothing to prompt for (wrong mode, signed in, dismissed, no claim).
-export const claimBanner = async () => {
-  if (state.authMode !== "transition" || state.user || !state.profile) return null;
-  try {
-    if (sessionStorage.getItem(DISMISS_KEY)) return null;
-  } catch {}
-  let claimable = null;
-  try {
-    claimable = (await api.claimable(state.profile.id)).claimable;
-  } catch {
-    return null;
-  }
-  if (!claimable) return null;
-
-  const banner = el("div", { class: "claim-banner" },
-    el("div", { class: "claim-banner-glow", "aria-hidden": "true" }),
-    el("span", { class: "claim-banner-ic" }, "🔑"),
-    el("div", { class: "claim-banner-text" },
-      el("strong", {}, "Aurora sign-in is here."),
-      ` One minute to set yours up — then every device knows it's you.`),
-    el("button", {
-      class: "btn btn-primary small focusable",
-      onclick: () => showClaimModal(claimable, () => banner.remove()),
-    }, "Set it up"),
-    el("button", {
-      class: "claim-banner-x focusable", "aria-label": "Not now",
-      onclick: () => {
-        try { sessionStorage.setItem(DISMISS_KEY, "1"); } catch {}
-        banner.remove();
-      },
-    }, "✕"),
-  );
-  return banner;
 };

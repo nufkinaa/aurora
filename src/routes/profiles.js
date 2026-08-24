@@ -159,9 +159,21 @@ router.post("/api/profiles", async (req, res) => {
     ...whoIs(req),
   });
   if (result.error) return res.status(400).json({ error: result.error });
+  // The admin panel updates live — a request sitting invisible until a manual
+  // refresh reads as "signup is broken" to whoever just filed it.
+  realtime.broadcastAdmins({ type: "profile_request_new", request: result.request });
   // `pending: true` is what tells the client to show "waiting for approval"
   // instead of dropping the new profile into the picker.
   res.json({ pending: true, request: result.request });
+});
+
+// Set / change / clear the profile's email (a sign-in identifier). Gate-
+// protected like the rest of the profile's data: profile token or a session
+// for this profile both count. Reports validation/uniqueness errors.
+router.post("/api/profiles/:id/email", gate, (req, res) => {
+  const r = profiles.setEmail(req.params.id, (req.body || {}).email);
+  if (r.error) return res.status(r.error === "not found" ? 404 : 400).json(r);
+  res.json(r);
 });
 
 router.put("/api/profiles/:id", gate, (req, res) => {
