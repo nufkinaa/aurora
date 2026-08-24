@@ -61,13 +61,24 @@ router.get("/api/profiles", (req, res) => {
 });
 
 // Verify a password and get an access token (no-op token for open profiles).
+// Rate-limited like login — since account = profile, this password IS the
+// sign-in credential, and scrypt speed alone is not a brute-force answer.
 router.post("/api/profiles/:id/unlock", async (req, res) => {
-  // required mode: unlocking someone else's profile needs their session, not
+  // closed mode: unlocking someone else's profile needs their session, not
   // just their profile password
   if (!authz.profileAllowed(req, req.params.id)) {
     return res.status(401).json({ error: "sign in first", signinRequired: true });
   }
+  const { tooMany, recordFail } = require("./auth")._internals;
+  const ip = realtime.clientIp(req);
+  if (tooMany("unlock:" + ip) || tooMany("unlock:p:" + req.params.id)) {
+    return res.status(429).json({ error: "too many attempts — try again in a few minutes" });
+  }
   const result = await profiles.unlock(req.params.id, (req.body || {}).password);
+  if (result.error === "wrong password") {
+    recordFail("unlock:" + ip);
+    recordFail("unlock:p:" + req.params.id);
+  }
   if (result.error) {
     const status =
       result.error === "not found" ? 404 : result.error === "locked by admin" ? 403 : 401;
@@ -98,7 +109,12 @@ router.post("/api/profiles/:id/unlock", async (req, res) => {
   try {
     const raw = profiles.list().find((x) => x.id === req.params.id);
     if (raw && profiles.isClaimed(raw) && raw.passwordHash) {
-      const sid = require("../lib/sessions").create(raw.id, whoIs(req));
+      const sessions = require("../lib/sessions");
+      // the cookie being replaced dies with its replacement — otherwise every
+      // wall unlock leaves a zombie row in the Preferences device list
+      const old = require("../lib/authz").readCookie(req);
+      if (old) sessions.revoke(old);
+      const sid = sessions.create(raw.id, whoIs(req));
       require("../lib/authz").setSessionCookie(req, res, sid);
       signin = { session: sid, user: profiles.signinPub(raw) };
     }
@@ -112,11 +128,11 @@ const MIN_PASSWORD = 4;
 
 // Set / change / remove a profile's password (not while admin-locked).
 // An empty newPassword removes the password; a non-empty one obeys the same
-// minimum as profile creation.
-router.post("/api/profiles/:id/password", async (req, res) => {
-  if (profiles.isLocked(req.params.id)) {
-    return res.status(403).json({ error: "locked by admin" });
-  }
+// minimum as profile creation. GATED like the rest of a profile's data —
+// without the gate, anyone could SET a password on a password-less profile
+// (setPassword accepts any currentPassword when none exists) and lock its
+// owner out; in closed mode another signed-in member could do the same.
+router.post("/api/profiles/:id/password", gate, async (req, res) => {
   const { newPassword, currentPassword } = req.body || {};
   if (newPassword && String(newPassword).length < MIN_PASSWORD) {
     return res.status(400).json({ error: `Passwords need at least ${MIN_PASSWORD} characters.` });

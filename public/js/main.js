@@ -10,7 +10,6 @@ import { renderMovies, renderShows, renderMyList } from "./screens/browse.js";
 import { renderSearch } from "./screens/search.js";
 import { renderDetail } from "./screens/discover-detail.js";
 import { renderPlayer } from "./screens/player.js";
-import { renderGames } from "./screens/games.js";
 import { renderRequests } from "./screens/requests.js";
 import { renderPreferences } from "./screens/preferences.js";
 import { renderWrapped } from "./screens/wrapped.js";
@@ -18,6 +17,7 @@ import { renderTaste } from "./screens/taste.js";
 import { renderPickForMe } from "./screens/pickforme.js";
 import { showProfileGate } from "./screens/profiles.js";
 import { showLoginScreen } from "./screens/login.js";
+import { showClaimModal } from "./claim.js";
 import { showShortcutsOverlay } from "./screens/shortcuts.js";
 import { initAurora } from "./aurora.js";
 import { initScreensaver } from "./screensaver.js";
@@ -27,7 +27,6 @@ route("/movies", renderMovies);
 route("/shows", renderShows);
 route("/list", renderMyList);
 route("/search", renderSearch);
-route("/games", renderGames);
 // One detail page for everything — a title looks the same whether it is on
 // disk, streamable, or both (see screens/discover-detail.js).
 route("/movie/:id", (root, p) => renderDetail(root, { source: "library", type: "movie", id: p.id }));
@@ -147,12 +146,13 @@ document.addEventListener("ui-back", (e) => {
 // sign-out when signed in. In closed mode there is no wall to switch on,
 // so the menu is the whole story.
 const openGate = () => {
+  // Opened over the running app — dismissable, unlike the boot gate.
   showProfileGate(() => {
     paintProfileChip();
     navigate("#/");
     // force re-render if already home
     window.dispatchEvent(new HashChangeEvent("hashchange"));
-  });
+  }, { dismissable: true });
 };
 
 const showProfileMenu = () => {
@@ -162,7 +162,7 @@ const showProfileMenu = () => {
   const menu = el("div", { class: "nav-menu" },
     el("div", { class: "nav-menu-head" },
       el("div", { class: "nav-menu-name" }, state.profile?.name || "Aurora"),
-      state.user && el("div", { class: "nav-menu-sub" }, `@${state.user.username}`)),
+      state.user && el("div", { class: "nav-menu-sub" }, `@${state.user.username || state.user.name}`)),
     state.authMode !== "closed" &&
       item("Switch profile", () => { close(); openGate(); }),
     item("Preferences", () => { close(); navigate("#/preferences"); }),
@@ -204,9 +204,9 @@ const boot = async () => {
 
   // Sign-in comes before the profile wall ONLY when the wall is closed.
   // "open" boots exactly as always; "transition" also boots normally — the
-  // claim prompt appears inside the app instead (home banner + Preferences),
-  // so the household migrates at its own pace with zero disruption. A throw
-  // here (older server without /api/me) is treated as open.
+  // one-time claim step appears at the profile door instead (the wall, and
+  // the auto-entry path below), so the household migrates at its own pace.
+  // A throw here (older server without /api/me) is treated as open.
   // ACCOUNT = PROFILE: a successful login hands back the profile AND an
   // unlock token (login verified the very same password), so we walk
   // straight in — no wall, no second password prompt.
@@ -239,6 +239,27 @@ const boot = async () => {
     startRouter(document.getElementById("app"));
   };
 
+  // Transition-mode migration must also reach devices that AUTO-enter a
+  // remembered profile (they never touch the wall, so the wall's claim step
+  // would never fire for them). Same one-time modal, same rules; cancelling
+  // drops back to the wall. setProfile has already run here, so the profile
+  // token is attached for the claimable check.
+  const claimGateThenStart = async (p) => {
+    if (state.authMode === "transition" && !state.user) {
+      let claimable = null;
+      try { claimable = (await api.claimable(p.id)).claimable; } catch {}
+      if (claimable) {
+        showClaimModal(claimable, () => start(), {
+          required: true,
+          profileId: p.id,
+          onCancel: () => showProfileGate(start),
+        });
+        return;
+      }
+    }
+    start();
+  };
+
   // Fresh login on a closed wall: enter the signed-in profile directly.
   if (loginEntry) {
     await setProfile(loginEntry.profile, loginEntry.profileToken || null);
@@ -258,7 +279,7 @@ const boot = async () => {
       try {
         await api.profileState(p.id); // 200 = token still valid
         await setProfile(p, tok);
-        start();
+        await claimGateThenStart(p);
         return true;
       } catch {
         setAuthToken(null);
@@ -269,7 +290,7 @@ const boot = async () => {
         const r = await api.sessionProfileToken();
         if (r.token && r.profileId === p.id) {
           await setProfile(p, r.token);
-          start();
+          start(); // signed in — nothing left to claim
           return true;
         }
       } catch {}
@@ -284,7 +305,7 @@ const boot = async () => {
     showProfileGate(start);
   } else if (p && !p.hasPassword) {
     await setProfile(p);
-    start();
+    await claimGateThenStart(p);
   } else if (p && p.hasPassword && (await enterProtectedWithToken(p))) {
     // entered via saved session token
   } else {

@@ -4,7 +4,7 @@
 // picks (and unlocks) a profile.
 import { el, icons, toast } from "../ui.js";
 import { api, setAuthToken } from "../api.js";
-import { state, setProfile, loadProfiles, recentProfileIds } from "../state.js";
+import { state, setProfile, loadProfiles, recentProfileIds, savedToken } from "../state.js";
 import { pushScope, popScope } from "../focus.js";
 import * as narrator from "../narrator.js";
 import { showClaimModal } from "../claim.js";
@@ -239,9 +239,12 @@ export const profileModal = (existing, onDone) => {
       } catch (e) {
         // The server rejects a duplicate name and a flooded queue with a real
         // message — showing it beats a generic failure the viewer can't act on.
+        // Show the server's own message when it sent one — "that's not the
+        // current password" was claimed for EVERY edit failure, even a name
+        // clash or an expired token, which is a lie.
         showPwErr(
-          existing ? (hasPw ? "That's not the current password." : "Couldn't save that profile.")
-                   : (e && e.message) || "Couldn't send that request — is the server awake?"
+          (e && e.message) ||
+            (existing ? "Couldn't save that profile." : "Couldn't send that request — is the server awake?")
         );
       }
     };
@@ -296,9 +299,22 @@ export const profileModal = (existing, onDone) => {
 // follows alphabetically in a compact grid, and a name search filters the lot.
 // Small households (< SEARCH_FROM profiles) see the plain row of tiles as
 // before — no search box, no section labels.
-export const showProfileGate = (onChosen) => {
+// opts.dismissable: the gate was opened over a RUNNING app (nav menu →
+// "Switch profile") — Back/Escape/✕ close it and return to where you were.
+// The boot gate stays non-dismissable: there is nothing behind it.
+export const showProfileGate = (onChosen, opts = {}) => {
   const host = el("div", { class: "profiles-gate" });
   const wrap = el("div", { class: "ui-overlay", style: { position: "fixed", inset: 0, background: "var(--bg)", zIndex: 250, overflowY: "auto" } }, host);
+
+  if (opts.dismissable) {
+    const onBack = (e) => { e.preventDefault(); cleanup(); };
+    document.addEventListener("ui-back", onBack);
+    wrap.append(el("button", {
+      class: "gate-close focusable", "aria-label": "Close",
+      onclick: () => cleanup(),
+    }, "✕"));
+    wrap._onBack = onBack; // removed in cleanup
+  }
 
   const enter = async (p, token, meta) => {
     // Unlocking a claimed profile signs the device in as a side effect (the
@@ -346,7 +362,22 @@ export const showProfileGate = (onChosen) => {
         if (r.token && r.profileId === p.id) return enter(p, r.token, {});
       } catch {}
     }
-    if (p.hasPassword) return passwordPrompt(p, (token, meta) => maybeClaimThenEnter(p, token, meta));
+    // This browser session may still hold a valid unlock token (boot uses it;
+    // the gate should too) — re-entering your own profile from "Switch
+    // profile" must not demand the password again.
+    if (p.hasPassword) {
+      const tok = savedToken(p.id);
+      if (tok) {
+        setAuthToken(tok);
+        try {
+          await api.profileState(p.id); // 200 = token still valid
+          return maybeClaimThenEnter(p, tok, {});
+        } catch {
+          setAuthToken(null);
+        }
+      }
+      return passwordPrompt(p, (token, meta) => maybeClaimThenEnter(p, token, meta));
+    }
     // No password to check, but still call unlock: it hands this device a
     // session token and it's what tells the server which device entered, so the
     // admin's per-profile device list covers open profiles too. A failure here
@@ -381,7 +412,12 @@ export const showProfileGate = (onChosen) => {
     el("button", {
       class: "profile-tile add focusable",
       onclick: async () => {
-        await showLoginScreen({ view: "signup" });
+        const r = await showLoginScreen({ view: "signup" });
+        // the Google path can resolve a full SIGN-IN (a known Google identity
+        // used the button) — honor it instead of dumping them back at the wall
+        if (r && r.user && r.profile) {
+          return enter(r.profile, r.profileToken || null, { user: r.user });
+        }
         render();
       },
     },
@@ -448,6 +484,12 @@ export const showProfileGate = (onChosen) => {
     host.append(
       el("div", { class: "profiles-head" },
         el("h1", {}, "Who's watching?"),
+        // The migration heads-up (transition mode only): one friendly line so
+        // nobody is surprised by the one-time username step, plus the email
+        // nudge — an email is just a username you already can't forget.
+        state.authMode === "transition" &&
+          el("p", { class: "profiles-note" },
+            "🔑 Heads up: Aurora is moving to real sign-ins. Pick a username you'll actually remember — and add an email too. It works exactly like a username, except your brain already keeps it safe."),
         state.profiles.length >= SEARCH_FROM &&
           el("label", { class: "profiles-search" },
             el("span", { class: "profiles-search-icon", html: icons.search }),
@@ -464,7 +506,11 @@ export const showProfileGate = (onChosen) => {
 
   searchInput.addEventListener("input", paint);
 
-  const cleanup = () => { popScope(wrap); wrap.remove(); };
+  const cleanup = () => {
+    if (wrap._onBack) document.removeEventListener("ui-back", wrap._onBack);
+    popScope(wrap);
+    wrap.remove();
+  };
 
   document.body.append(wrap);
   pushScope(wrap);

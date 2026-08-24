@@ -41,8 +41,8 @@
        fetch main.js, parse it, discover 18 imports, fetch those, parse them,
        discover the rest — a waterfall as deep as the import tree, and every
        level costs a full round trip. Declaring them here starts all 22 at once.
-       Regenerate if main.js's static imports change; anything lazy (hls.js, the
-       games engine) is deliberately absent. -->
+       Regenerate if main.js's static imports change; anything lazy (hls.js)
+       is deliberately absent. -->
   <link rel="modulepreload" href="/js/main.js" />
   <link rel="modulepreload" href="/js/focus.js" />
   <link rel="modulepreload" href="/js/ui.js" />
@@ -59,7 +59,6 @@
   <link rel="modulepreload" href="/js/screens/details.js" />
   <link rel="modulepreload" href="/js/screens/discover-detail.js" />
   <link rel="modulepreload" href="/js/screens/player.js" />
-  <link rel="modulepreload" href="/js/screens/games.js" />
   <link rel="modulepreload" href="/js/screens/requests.js" />
   <link rel="modulepreload" href="/js/screens/profiles.js" />
   <link rel="modulepreload" href="/js/screens/preferences.js" />
@@ -80,7 +79,6 @@
     <a class="nav-item focusable" href="#/shows" data-route="#/shows" data-nav>Shows</a>
     <a class="nav-item focusable" href="#/list" data-route="#/list" data-nav>My List</a>
     <a class="nav-item focusable hidden" id="nav-pick" href="#/pick" data-route="#/pick" data-nav>AI</a>
-    <a class="nav-item focusable" href="#/games" data-route="#/games" data-nav>Games</a>
     <!-- the empty nav stretch hosts a slow aurora borealis (decoration only;
          painted by js/aurora.js while the nav is solid) -->
     <span class="nav-spacer" aria-hidden="true">

@@ -164,15 +164,6 @@ document.addEventListener(
     const code = e.keyCode;
     const typing = inTextInput(document.activeElement);
 
-    // While a canvas game is running it owns arrows/enter/space -
-    // only Back keeps working (body.suspend-nav is set by the games screen)
-    if (document.body.classList.contains("suspend-nav")) {
-      if (BACK_KEYS.has(key) || BACK_CODES.has(code)) {
-        if (emit("ui-back")) e.preventDefault();
-      }
-      return;
-    }
-
     // Back
     if (BACK_KEYS.has(key) || BACK_CODES.has(code)) {
       if (typing) {

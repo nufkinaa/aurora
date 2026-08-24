@@ -426,7 +426,7 @@ export const renderPreferences = async (root) => {
 
     body.append(
       el("div", { class: "pref-note", style: { padding: 0 } },
-        `Signed in as `, el("strong", {}, `@${u.username}`),
+        `Signed in as `, el("strong", {}, `@${u.username || u.name}`),
         u.name && u.name !== u.username ? ` (${u.name})` : "",
         u.email ? el("span", {}, ` · ${u.email}`) : "",
         u.hasGoogle ? el("span", {}, " · Google ✅") : ""),
@@ -441,7 +441,6 @@ export const renderPreferences = async (root) => {
       el("div", { style: { marginTop: "14px" } },
         el("button", {
           class: "btn danger focusable",
-          style: { width: "100%" },
           onclick: async () => {
             try { await api.logout(); } catch {}
             try {
@@ -488,7 +487,10 @@ export const renderPreferences = async (root) => {
             class: "btn btn-primary small focusable",
             onclick: async () => {
               const r = await showLoginScreen({ skippable: state.authMode !== "closed" });
-              if (r && r.user) rerender();
+              if (r && r.user) {
+                state.user = r.user; // the card repaints from this
+                rerender();
+              }
             },
           }, "Sign in")));
     }

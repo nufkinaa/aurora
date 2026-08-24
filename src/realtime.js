@@ -1,5 +1,5 @@
 // WebSocket hub: client presence + activity for the admin panel, watch
-// history recording, game leaderboards, notifications, and IP bans.
+// history recording, notifications, and IP bans.
 const path = require("path");
 const crypto = require("crypto");
 const WebSocket = require("ws");
@@ -9,7 +9,6 @@ const { JsonStore } = require("./lib/jsonstore");
 
 const bans = new JsonStore(path.join(config.DATA_DIR, "bans.json"), {});
 const watchHistory = new JsonStore(path.join(config.DATA_DIR, "watch-history.json"), []);
-const leaderboards = new JsonStore(path.join(config.DATA_DIR, "leaderboards.json"), {});
 
 const clients = new Map(); // clientId -> {id, ip, device, profile, activity, ws...}
 const connectionLog = [];
@@ -106,20 +105,6 @@ const recordWatch = (client, content) => {
   broadcastAdmins({ type: "watch_history_update" });
 };
 
-const submitScore = (gameId, name, score) => {
-  if (typeof score !== "number" || !isFinite(score)) return null;
-  const board = leaderboards.data[gameId] || (leaderboards.data[gameId] = []);
-  board.push({
-    name: String(name || "Player").slice(0, 16),
-    score: Math.floor(score),
-    date: new Date().toISOString(),
-  });
-  board.sort((a, b) => b.score - a.score);
-  leaderboards.data[gameId] = board.slice(0, 25);
-  leaderboards.save();
-  return leaderboards.data[gameId];
-};
-
 const isLocal = (ip) => ip === "127.0.0.1" || ip === "::1" || ip === "localhost";
 
 // Admin access requires the password from AURORA_ADMIN_PASSWORD in `.env` (or
@@ -141,6 +126,16 @@ const isAdmin = (req) => {
 };
 
 const handleMessage = (client, data, ws) => {
+  // authMode "closed": an unauthenticated socket may still ASK to become
+  // admin, but its hello/activity writes (presence, telemetry, watch history)
+  // are dropped — signed-in devices only.
+  if (
+    data.type !== "admin_subscribe" &&
+    !ws.authed && !ws.isAdmin &&
+    require("./lib/authmode").get() === "closed"
+  ) {
+    return;
+  }
   switch (data.type) {
     case "hello":
       client.profile = String(data.profile || "").slice(0, 24) || null;
@@ -171,22 +166,6 @@ const handleMessage = (client, data, ws) => {
       broadcastAdmins({ type: "client_update", client: publicClient(client) });
       break;
     }
-
-    case "submit_score": {
-      const board = submitScore(data.gameId, data.name, data.score);
-      if (board) ws.send(JSON.stringify({ type: "leaderboard", gameId: data.gameId, board }));
-      break;
-    }
-
-    case "request_leaderboard":
-      ws.send(
-        JSON.stringify({
-          type: "leaderboard",
-          gameId: data.gameId,
-          board: leaderboards.data[data.gameId] || [],
-        })
-      );
-      break;
 
     case "admin_subscribe":
       // The password rides in the subscribe message (page memory only, never a
@@ -287,7 +266,6 @@ module.exports = {
   stats,
   bans,
   watchHistory,
-  leaderboards,
   isLocal,
   isAdmin,
   validAdminPassword,

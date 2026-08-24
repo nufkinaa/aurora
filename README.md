@@ -12,11 +12,11 @@
 
 **A personal streaming platform, served straight from your PC to every screen in the house.**
 
-Aurora exists because the "family movie server" experience is usually a compromise: either a heavyweight media-center suite that needs a wiki to configure, or a bare file share that nobody's grandmother will ever navigate. Aurora is one Node process and a folder of files. It turns that folder into a Netflix-style app — rotating hero billboard, per-person profiles with watch progress, Continue Watching, subtitles that just work — and serves it to every browser, phone, and TV on your network. No accounts, no cloud, no build step.
+Aurora exists because the "family movie server" experience is usually a compromise: either a heavyweight media-center suite that needs a wiki to configure, or a bare file share that nobody's grandmother will ever navigate. Aurora is one Node process and a folder of files. It turns that folder into a Netflix-style app — rotating hero billboard, per-person profiles with watch progress, Continue Watching, real recommendations, subtitles that just work — and serves it to every browser, phone, and TV on your network. No cloud, no build step.
 
 And when something isn't in your library, Aurora can find a source for it, stream it while it downloads, and — if you approve — file it permanently into the library, cover art and subtitles included.
 
-> **Aurora is built for a private LAN.** Most APIs have no authentication by design — it trusts your household the way a shared bookshelf does. Keep the server behind your firewall; the boot banner warns you if your network address doesn't look private.
+> **Aurora is built for a private LAN first.** Out of the box it trusts your household the way a shared bookshelf does — and when you want more, a built-in sign-in system (username/email + password, optional Google) can be rolled out gradually from the admin panel and closed down to a real login wall. Keep the server behind your firewall; the boot banner warns you if your network address doesn't look private.
 
 ---
 
@@ -28,22 +28,25 @@ And when something isn't in your library, Aurora can find a source for it, strea
 | *Home — hero billboard, personalized rows* | *One page per title — on disk, streamable, or both* |
 | ![Browse](docs/screenshots/browse.png) | <img src="docs/screenshots/mobile.png" alt="Mobile" width="46%"> |
 | *Browse — your library and the whole catalog together* | *Every screen works on a phone* |
+| ![Sign in](docs/screenshots/login.png) | |
+| *The sign-in screen — the aurora, painted live* | |
 
 ---
 
 ## Features
 
 ### The web app
-- **Home** — rotating hero billboard, Continue Watching, Recommended, My List, New Episodes and recently-added shelves; personalized per profile
-- **Library + Discover in one** — your local files sit next to a full streaming catalog (Cinemeta/TMDB metadata); search covers both
-- **Instant torrent streaming** — pick any title, Aurora ranks the available sources (quality, seeders, CAM/dub detection, a ★ best pick) and playback starts as soon as peers are found
+- **Home** — rotating hero billboard, Continue Watching, Recommended, My List, New Episodes and recently-added shelves; personalized per profile, with reorderable/hideable rows
+- **Real recommendations** — a per-profile taste model built from ratings, watch history and picked favorites, with "Because you loved X" rows — and every recommendation can explain *why* (hover any card)
+- **Library + Discover in one** — your local files sit next to a full streaming catalog (Cinemeta/TMDB metadata); search covers both, with instant typo-tolerant autocomplete, and a downloaded+listed title is always ONE card
+- **Instant torrent streaming** — pick any title, Aurora ranks the available sources (quality, seeders, CAM/dub detection, a ★ best pick) and playback starts as soon as peers are found; tuned cold-start (~4s to first frames on a healthy swarm) and real seek-readahead
 - **Download to library** — a ⬇ on any source starts a server-side download (aria2) that lands in your library, with phone push notifications (ntfy) when it starts and finishes. Admin approval is only requested when the library drive is low on space
-- **Player** — custom controls, scrubber with buffer display, accelerating ±10s skips, playback speed, subtitle menu, resume prompts, Up Next auto-advance for episodes
+- **Player** — custom controls, scrubber with buffer display, accelerating ±10s skips, playback speed, subtitle menu, resume prompts, skip-intro marks, Up Next auto-advance for episodes; phone niceties like double-tap ±10s and safe-area layouts
 - **Subtitles, seriously** — Hebrew and English from OpenSubtitles *and* Wizdom, external `.srt` (auto-converted), embedded tracks (extracted and cached), a one-command backfill tool, and automatic **OCR of bitmap-only subs** (DVD/PGS → synced `.srt`, in the background)
-- **Profiles** — per-person progress and watchlist stored server-side (resume on any device), optional password (scrypt-hashed), admin approval for new profiles
+- **Profiles & sign-in** — per-person progress and watchlist stored server-side (resume on any device), scrypt-hashed passwords, admin approval for new profiles — and an optional full **sign-in system**: username *or email* + the profile's own password, optional Google, per-device session management, rolled out in three stages from the admin panel (see Security model)
+- **Personalization** — three themes + accent colors that follow the profile to every device, custom avatar photos, a taste picker, an ambient screensaver, and **Aurora Wrapped** (your stats, all year round, with roasts)
 - **TV-browser ready** — full D-pad spatial navigation, LG magic-remote pointer, Back-button handling for LG/Tizen/Android TV
-- **Games** — 21 built-in arcade games with leaderboards
-- **Admin panel** (`/admin`) — live viewers, watch history and analytics, disk space and the download queue, broadcast messages, kick/ban, profile management, library rescan, live log tail
+- **Admin panel** (`/admin`) — live viewers, watch history and analytics, disk space and the download queue with speed caps, broadcast messages, kick/ban, profile + sign-in management, an update checker, library rescan, live log tail — all phone-friendly
 - **Extras** — direct file downloads, a built-in proxy browser (`/web`) for TVs with no browser, APK hosting for the TV app
 
 ### The native Android TV app (`tv-native/`)
@@ -92,9 +95,15 @@ npm start                            # → http://localhost:4000
 ### `.env` — secrets (gitignored)
 
 ```
-AURORA_ADMIN_PASSWORD=   # required for /admin — without it the admin panel stays locked
-TMDB_API_KEY=            # optional, free: age ratings + better movie search/trending
-OPENROUTER_API_KEY=      # optional: enables the AI "pick for me" recommender
+AURORA_ADMIN_PASSWORD=     # required for /admin — without it the admin panel stays locked
+TMDB_API_KEY=              # optional, free: age ratings + better movie search/trending
+OPENROUTER_API_KEY=        # optional: enables the AI "pick for me" recommender
+
+# Optional "Continue with Google" (see the admin panel's Sign-in rollout card):
+GOOGLE_WEB_CLIENT_ID=      # a "Web application" OAuth client — the normal browser popup
+GOOGLE_WEB_CLIENT_SECRET=  #   (register <your-origin>/api/auth/google/web-callback as a redirect URI)
+GOOGLE_TV_CLIENT_ID=       # a "TVs and Limited Input devices" client — the code flow
+GOOGLE_TV_CLIENT_SECRET=   #   (used by the TV app and devices that reach the server by raw IP)
 ```
 
 Every key is optional except that `/admin` won't open without a password set. There is **no default password and no localhost bypass** — the password rides on each request and is never stored in a cookie.
@@ -133,19 +142,25 @@ Without ffmpeg, playback of browser-friendly files still works, but there's no t
 - **Downloads** run on **aria2** (`src/media/aria2.js`), a separate process driven over JSON-RPC, so a heavy download can't touch the streaming server's event loop. Several episodes of one season pack share a single aria2 download; each job's progress is that file's exact byte count.
 - **Transcoding** (`src/routes/stream.js` + ffmpeg) — files a browser can't play are transcoded on the fly; files with incompatible audio get a cheap remux instead of a full transcode. The native TV app skips all of this by hardware-decoding.
 - **Subtitles** (`src/media/websubs.js` + friends) — two providers: OpenSubtitles for Hebrew and English, and **Wizdom** for Hebrew. Up to 8 tracks per language, interleaved, deduplicated by content; ZIPs and Windows-1255 handled on the way in, so what reaches a player is always UTF-8. SRT→VTT conversion, embedded-track extraction (cached), and an OCR queue (`tools/bitmap-subs-to-srt.py`) that converts bitmap subtitles to text with Tesseract. `node tools/backfill-subtitles.js` fetches sidecars for titles you added by hand.
-- **Realtime hub** (`src/realtime.js`, WebSocket) — presence, watch telemetry and history, admin broadcast/kick/ban, and game leaderboards.
-- **Profiles** (`src/profiles.js`) — scrypt-hashed passwords with constant-time compare, server-side progress/watchlists in debounced JSON stores (`data/`), unlock tokens held in memory (a restart re-locks protected profiles, by design).
+- **Realtime hub** (`src/realtime.js`, WebSocket) — presence, watch telemetry and history, admin broadcast/kick/ban.
+- **Profiles & sign-in** (`src/profiles.js` + `src/routes/auth.js`) — ACCOUNT = PROFILE: a profile carries an optional username/email/Google identity, and its one scrypt-hashed password serves both the profile lock and the login. Sessions (`src/lib/sessions.js`) store only sha256 hashes of their ids, slide over 90 days, and ride an HttpOnly cookie (browsers) or an `X-Session` header (the TV app). The rollout mode lives in `data/settings.json` and is switched live from the admin panel.
 
 **TV app** (`tv-native/`) — React Native (the `react-native-tvos` fork, new architecture + Hermes) with `react-native-video`/ExoPlayer. Focus handling is the whole game on TV: one `Focusable` primitive drives a ring + scale on a native-driver `Animated.Value`, so a D-pad move costs zero React renders. Playback timing works around ExoPlayer's HTTP timeouts being shorter than peer discovery: the player "kicks" the server, polls readiness, and only hands ExoPlayer the URL once peers exist.
 
 ## Security model
 
-Aurora trusts the network it runs on, so the network is the security boundary:
+Aurora starts as a trusted-LAN app and can be tightened, in stages, to a real login wall — the switch lives in the admin panel (Profiles → Sign-in rollout) and flips live, no restart:
 
-- **Keep it on a private LAN.** Library browsing, streaming, and download requests are unauthenticated by design. The boot banner warns when your address doesn't look private.
+- **Open** (default) — exactly the classic behavior: library browsing, streaming and download requests are unauthenticated; the network is the security boundary. The boot banner warns when your address doesn't look private.
+- **Transition** — the app behaves identically, but each profile gets a one-time prompt at the wall to switch sign-in on (pick a username, optionally add an email; an existing profile password simply becomes the sign-in password). Entering a claimed profile silently signs the device in, so the household migrates just by using the app.
+- **Closed** — a real login wall: every data route (`/api`, `/stream`, `/img`, `/avatars`, `/proxy`) requires a session that belongs to the profile it touches; signing in with username *or* email lands you straight in your profile. WebSocket broadcasts and telemetry writes are gated too. Health (`/api/ping`), the login endpoints, and the app shell stay reachable.
+
+Always true, in every mode:
+
 - **Admin is always password-gated** — every `/api/admin/*` endpoint and admin WebSocket subscription independently verifies the password from `.env`; it is compared in constant time and never persisted client-side.
+- **Sessions store no usable secret** — only the sha256 of a session id is kept server-side; login attempts are rate-limited per IP and per identifier, with scrypt's cost as a second throttle.
 - **The `/proxy` endpoint refuses private addresses** — it exists to browse the public web from TVs and cannot be used to reach into your LAN or the server itself.
-- Profile passwords are a courtesy lock between household members, not hardened auth.
+- Everything still rides plain HTTP on a LAN (cookies are sniffable by a hostile device on your network); behind a real HTTPS domain the session cookie automatically picks up the `Secure` flag.
 
 ## Legal
 
@@ -153,14 +168,11 @@ Aurora is a media *player and organizer* for your own files. The torrent integra
 
 ## Roadmap
 
-What's being worked on next, roughly in order:
+The 2026 improvement roadmap — a faster torrent engine, typo-tolerant search, server-cached artwork, mobile QoL, personalization, real recommendations, and the sign-in system — has **shipped**. What's next, roughly in order:
 
-- **A much faster torrent engine** — measured overhaul of buffering and seek latency, including an aria2-assisted "turbo" stream path
-- **Search worth 2026** — instant autocomplete, typo tolerance, one card per title everywhere
-- **Speed & resilience** — server-cached artwork, lazy loading, graceful behavior on bad connections
-- **Personalization** — themes and accent colors, custom avatars, reorderable home rows, kids profiles, letterboxd import
-- **Real recommendations** — a per-profile taste model that can explain every pick
-- **Accounts & sign-in** — a proper login instead of the profile wall
+- **TV app sign-in** — the native app learns the new login (the server side is ready and waiting)
+- **Kids profiles** — content limits per profile, now that sign-in exists to anchor them
+- **Letterboxd import** — waiting on API access
 
 Ideas and votes welcome in [issues](https://github.com/nufkinaa/aurora/issues).
 
@@ -175,23 +187,23 @@ are as valuable as patches. Security reports go through
 ## Development
 
 ```bash
-npm test          # 165 unit tests, no network, a few seconds
+npm test          # ~250 unit tests, no network, a few seconds
 ```
 
 Repo layout:
 
 ```
-server.js              boot + wiring
+server.js              boot + wiring (+ the closed-mode route gate)
 config.example.json    copy to config.json: port, folders, notifications
 .env.example           copy to .env: admin password + API keys
 src/
-  media/               scanner, metadata, subtitles, OCR, downloads, torrents
-  routes/              api, stream, profiles, admin, torrent, downloads, proxy
-  profiles.js          profiles / progress / watchlists
-  realtime.js          WebSocket hub: presence, history, leaderboards
+  media/               scanner, metadata, subtitles, OCR, downloads, torrents, taste model
+  routes/              api, stream, profiles, auth, admin, torrent, downloads, proxy
+  profiles.js          profiles / sign-in identity / progress / watchlists
+  realtime.js          WebSocket hub: presence, history, notifications
+  lib/sessions.js      sign-in sessions (hashed ids, sliding expiry)
 public/                web app (vanilla ES modules, no build step)
   js/screens/          one screen per route (discover-detail.js is THE detail page)
-  js/games/            arcade engine (21 games)
   aurora-tv.apk        published Android TV build
 tv-native/             native Android TV app (react-native-tvos)
 tools/                 subtitle backfill, OCR pipeline, webtorrent patch

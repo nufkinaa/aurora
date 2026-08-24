@@ -1158,7 +1158,7 @@
       // only the TV app and IP-address devices use it). Checked LIVE.
       if (!google) {
         $("#auth-google-note").innerHTML =
-          `Google sign-in: <span class="muted">not configured.</span> To enable the normal browser popup (free): Google Cloud Console → OAuth consent screen → Credentials → Create credentials → OAuth client ID → type <strong>“Web application”</strong>, add the redirect URIs <code>http://localhost:4000/api/auth/google/web-callback</code> and <code>https://nufurora.com/api/auth/google/web-callback</code>, then put <code>GOOGLE_WEB_CLIENT_ID=…</code> and <code>GOOGLE_WEB_CLIENT_SECRET=…</code> in the server's <code>.env</code> and restart.`;
+          `Google sign-in: <span class="muted">not configured.</span> To enable the normal browser popup (free): Google Cloud Console → OAuth consent screen → Credentials → Create credentials → OAuth client ID → type <strong>“Web application”</strong>, add the redirect URIs <code>http://localhost:4000/api/auth/google/web-callback</code>, then put <code>GOOGLE_WEB_CLIENT_ID=…</code> and <code>GOOGLE_WEB_CLIENT_SECRET=…</code> in the server's <code>.env</code> and restart.`;
       } else {
         $("#auth-google-note").innerHTML = `Google sign-in: <span class="muted">checking the setup against Google…</span>`;
         json("/api/admin/google-check").then((g) => {
@@ -1224,7 +1224,7 @@
         return;
       }
       const d = await r.json();
-      toast(`Sign-in is now ${d.mode}` + (d.migrated && d.migrated.length ? ` — ${d.migrated.length} profile(s) migrated` : ""));
+      toast(`Sign-in is now ${d.mode}`);
       loadAuth();
     });
 

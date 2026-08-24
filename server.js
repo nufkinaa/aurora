@@ -118,10 +118,19 @@ app.use((req, res, next) => {
 {
   const authz = require("./src/lib/authz");
   const authmode = require("./src/lib/authmode");
-  const OPEN_PATHS = /^\/api\/(ping|me|server-info|auth\/)/;
+  // exact paths (or the /api/auth/ subtree) — prefix matching would let a
+  // future route named e.g. /api/me-something slip through the wall unnoticed
+  const OPEN_PATHS = /^\/api\/(ping|me|server-info)$|^\/api\/auth\//;
+  // Everything that serves DATA: the API, video streams, avatars, the artwork
+  // proxy-cache (/img/*) and the generic URL proxy (/proxy). Deliberately NOT
+  // gated: the app shell + login screen assets, /admin + /web shells (their
+  // APIs gate themselves), and /download (the TV installer — a TV needs it
+  // before it can ever sign in; it carries no personal data).
+  const GATED = (p) =>
+    /^\/(api|stream|avatars|img)\//.test(p) || p === "/proxy";
   app.use((req, res, next) => {
     if (authmode.get() !== "closed") return next();
-    if (!/^\/(api|stream|avatars)\//.test(req.path)) return next();
+    if (!GATED(req.path)) return next();
     if (OPEN_PATHS.test(req.path)) return next();
     if (authz.sessionFor(req)) return next();
     if (realtime.isAdmin(req)) return next();

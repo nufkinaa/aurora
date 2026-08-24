@@ -252,13 +252,20 @@ export const showLoginScreen = (opts = {}) =>
         );
       } else {
         nodes.push(uname.wrap, email.wrap, pw.wrap, pw2.wrap);
-        if (googleFlavor(serverInfo)) {
-          nodes.push(el("div", { class: "ldivider" }, el("span", {}, "or")),
+        // painted when server-info lands — a synchronous check raced the fetch
+        // and silently hid Google on the standalone signup (the wall's
+        // "Add profile" opens this view before serverInfo resolves)
+        const gArea = el("div", { class: "lgoogle" });
+        nodes.push(gArea);
+        infoReady.then(() => {
+          if (!googleFlavor(serverInfo) || gArea.childElementCount || !gArea.isConnected) return;
+          gArea.append(
+            el("div", { class: "ldivider" }, el("span", {}, "or")),
             el("button", {
               class: "lbtn google focusable",
               onclick: () => doGoogle("signup"),
             }, el("span", { class: "gmark", html: GOOGLE_G }), el("span", {}, "Request access with Google")));
-        }
+        });
       }
       nodes.push(
         note.wrap,

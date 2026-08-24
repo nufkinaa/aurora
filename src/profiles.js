@@ -293,6 +293,12 @@ const setPassword = async (id, newPassword, currentPassword) => {
     return { error: "wrong password" };
   }
   if (!newPassword) {
+    // A claimed profile's password IS its sign-in credential — removing it
+    // would brick the login forever (claiming is one-time, and login refuses
+    // password-less profiles). Change it, don't delete it.
+    if (isClaimed(p)) {
+      return { error: "this password is your sign-in now — you can change it, but not remove it" };
+    }
     delete p.passwordHash;
     delete p.passwordSalt;
   } else {

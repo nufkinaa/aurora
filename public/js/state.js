@@ -14,7 +14,7 @@ export const state = {
   ws: null,
   pendingItems: {},     // id -> item handed to the player without a server round-trip
   adminName: "the admin", // what UI copy calls whoever runs the server (configurable)
-  authMode: "open",     // "open" | "hybrid" | "required" (from /api/me at boot)
+  authMode: "open",     // "open" | "transition" | "closed" (from /api/me at boot)
   user: null,           // signed-in account {id, username, name, profileIds, hasGoogle} or null
 };
 
@@ -88,7 +88,9 @@ export const setProfile = async (profile, token = null) => {
   state.token = token;
   setAuthToken(token);
   applyAppearance(profile);
-  localStorage.setItem("aurora-profile", profile.id);
+  // storage can be unavailable (private mode, restrictive embeds) — losing
+  // the remember-me must never abort profile entry itself
+  try { localStorage.setItem("aurora-profile", profile.id); } catch {}
   rememberRecentProfile(profile.id);
   // Remember the unlock token for THIS browser session only (sessionStorage
   // clears when the browser closes) so reloads/navigation don't re-prompt, but

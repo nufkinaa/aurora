@@ -229,6 +229,16 @@ test("signinList exposes status, never hashes", () => {
   assert.ok(!JSON.stringify(rows).match(/passwordHash|passwordSalt/), "hashes never leave");
 });
 
+test("a claimed profile's password can be changed but never REMOVED", async () => {
+  // p-dana was claimed earlier with password "mypassword1"
+  const gone = await profiles.setPassword("p-dana", "", "mypassword1");
+  assert.ok(gone.error, "removal refused — the password IS the sign-in");
+  assert.equal((await profiles.login("dana", "mypassword1")).ok, true, "login intact");
+  const changed = await profiles.setPassword("p-dana", "newpass22", "mypassword1");
+  assert.equal(changed.ok, true, "changing is fine");
+  assert.equal((await profiles.login("dana", "newpass22")).ok, true);
+});
+
 // ---------- auth mode (the admin rollout switch) ----------
 
 test("authmode: settings win over config, legacy names normalize, junk falls to open", () => {

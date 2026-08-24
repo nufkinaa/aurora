@@ -112,8 +112,11 @@ router.post("/api/auth/signup", async (req, res) => {
   if (tooMany("signup:" + ip)) return res.status(429).json({ error: "slow down" });
   recordFail("signup:" + ip); // signup attempts count against the window too
 
-  // a completed Google device flow (held server-side — the client only ever
-  // hands back the opaque pollId, never a sub or email we'd have to trust)
+  // a completed Google flow (held server-side — the client only ever hands
+  // back the opaque pollId, never a sub or email we'd have to trust). The
+  // entry is consumed ONLY after the request succeeds: a validation failure
+  // (name taken, queue full…) must leave it usable for the retry, or the
+  // person is forced to redo the whole Google dance.
   let google = null;
   if (pollId) {
     const p = gPolls.get(String(pollId));
@@ -121,7 +124,6 @@ router.post("/api/auth/signup", async (req, res) => {
       return res.status(400).json({ error: "finish the Google step first" });
     }
     google = p.signupSub;
-    gPolls.delete(String(pollId));
   }
   if (!google && !String(username || "").trim() && !String(email || "").trim()) {
     return res.status(400).json({ error: "pick a username or an email to sign in with" });
@@ -141,6 +143,7 @@ router.post("/api/auth/signup", async (req, res) => {
     device: deviceOf(req),
   });
   if (result.error) return res.status(400).json({ error: result.error });
+  if (pollId) gPolls.delete(String(pollId)); // success — now it's spent
   realtime.broadcastAdmins({ type: "profile_request_new", request: result.request });
   res.json(result);
 });
@@ -158,13 +161,27 @@ const profileProof = (req, profileId) => {
   return { ok: true };
 };
 
+// Claiming is TRANSITION machinery. With the wall closed it would be an
+// anonymous hole: /api/auth/* is allowlisted through the wall, and an
+// unclaimed password-less profile has no proof to demand — so a stranger
+// could claim it (and mint a session) with one request. Closed = no claiming.
+const claimingOpen = (res) => {
+  if (require("../lib/authmode").get() === "closed") {
+    res.status(403).json({ error: `sign-in setup is over — ask ${config.ADMIN_NAME} for access` });
+    return false;
+  }
+  return true;
+};
+
 router.get("/api/auth/claimable/:profileId", (req, res) => {
+  if (!claimingOpen(res)) return;
   const proof = profileProof(req, req.params.profileId);
   if (proof.error) return res.status(proof.status).json({ error: proof.error });
   res.json({ claimable: profiles.claimableFor(req.params.profileId) });
 });
 
 router.post("/api/auth/claim", async (req, res) => {
+  if (!claimingOpen(res)) return;
   const { profileId, username, email, password } = req.body || {};
   const ip = realtime.clientIp(req);
   if (tooMany("claim:" + ip)) return res.status(429).json({ error: "slow down" });
