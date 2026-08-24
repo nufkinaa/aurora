@@ -31,6 +31,7 @@ import {useNavigation} from '@react-navigation/native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import Focusable from './Focusable';
 import Icon, {IconName} from './Icon';
+import RailAurora from './RailAurora';
 import {useApp} from '../AppContext';
 import {imgSrc} from '../api';
 import {atLeftEdge, captureFocus, focusJustMoved, noteRail, useTVKeys} from '../focus';
@@ -47,6 +48,8 @@ const EASE = Easing.bezier(...(focus.ease as unknown as [number, number, number,
 // Vertical safe inset, 5% of a 540dp panel (PINS P2). Both states use it, so the
 // mark sits at the same y whether the rail is open or shut.
 const PAD_Y = 27;
+// How far the panel's right edge bleeds into the page before it is gone.
+const FEATHER = 48;
 // `.nav-item` 0.95rem = 15.2px, reading tier x1.0 (components.css:53).
 const ITEM_TEXT = 15;
 
@@ -238,8 +241,29 @@ export default function NavRail({
         <Animated.View
           style={[
             styles.panel,
-            {transform: [{translateX: slide.interpolate({inputRange: [0, 1], outputRange: [-nav.railOpen, 0]})}]},
+            {transform: [{translateX: slide.interpolate({inputRange: [0, 1], outputRange: [-(nav.railOpen + FEATHER), 0]})}]},
           ]}>
+          {/* The opaque body, then the feather that melts its edge into the
+              page — the panel View itself paints nothing. */}
+          <View style={styles.panelBody} />
+          {/* The website nav's aurora, vertical, on the layer below the
+              buttons. Its opacity rides the same `slide` value that moves the
+              panel (both on the native driver), so the lights bloom in and
+              land in perfect sync with the nav itself — and mounting it here
+              means its animators only exist while the panel does. */}
+          <Animated.View pointerEvents="none" style={[styles.panelBody, {opacity: slide}]}>
+            <RailAurora width={nav.railOpen} />
+          </Animated.View>
+          <Svg pointerEvents="none" style={styles.panelFeather} width={FEATHER} height="100%">
+            <Defs>
+              <LinearGradient id="railFeather" x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor="#0a0b14" stopOpacity="1" />
+                <Stop offset="0.45" stopColor="#0a0b14" stopOpacity="0.55" />
+                <Stop offset="1" stopColor="#0a0b14" stopOpacity="0" />
+              </LinearGradient>
+            </Defs>
+            <Rect x="0" y="0" width={FEATHER} height="100%" fill="url(#railFeather)" />
+          </Svg>
           {/* autoFocus alone is NOT enough — a focus guide only redirects focus
               that is already entering it, it does not claim focus on mount. The
               claim below lands on the active section, which is both the site's
@@ -384,7 +408,11 @@ function NavItem({
       </Focusable>
     );
   }
-  const fg = focused ? colors.bg : on ? colors.text : colors.textDim;
+  // Unfocused labels used to take colors.textDim (#9aa1b5), which read fine
+  // on flat black but went muddy over the aurora glow (elia). Near-white with
+  // a hair of hierarchy below the active item's pure white, plus a dark cast
+  // shadow (below) to lift the glyphs off the brightest bands.
+  const fg = focused ? colors.bg : on ? colors.text : 'rgba(255,255,255,0.92)';
   return (
     <Focusable
       round
@@ -409,7 +437,9 @@ function NavItem({
       style={[styles.item, on && !focused && styles.itemOn]}>
       {icon ? <Icon name={icon} size={iconSize || 18} color={fg} /> : null}
       {icon ? null : (
-        <Text style={[styles.itemText, {color: fg}]} numberOfLines={1}>
+        <Text
+          style={[styles.itemText, {color: fg}, !focused && styles.itemTextLift]}
+          numberOfLines={1}>
           {label}
         </Text>
       )}
@@ -435,20 +465,41 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     bottom: 0,
-    width: nav.railOpen,
-    // `.nav.solid` (components.css:25-26) is `rgba(10,11,20,0.97)` and its 1px
-    // line, rotated onto the edge the rail hangs on. OPAQUE rather than 0.97:
-    // measured on the Streamer, 3% of a 243-white shelf heading still reads as
-    // ghost text on a near-black panel, and the page showed through the rail.
-    // On the site that fill sits over the top of a page, not over posters.
-    backgroundColor: '#0a0b14',
-    borderRightWidth: 1,
-    borderRightColor: 'rgba(255,255,255,0.09)',
+    // railOpen of opaque body + the feather that bleeds it into the page.
+    width: nav.railOpen + FEATHER,
     zIndex: 101,
+  },
+  // `.nav.solid` (components.css:25-26), rotated onto the edge the rail hangs
+  // on. OPAQUE rather than 0.97: measured on the Streamer, 3% of a 243-white
+  // shelf heading still reads as ghost text on a near-black panel. The 1px
+  // hairline the site draws is gone — instead of a hard cut the body hands
+  // off to `panelFeather`, a gradient that melts the edge into the app
+  // (elia: "fade into and blend into the rest, for a clean look").
+  panelBody: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: nav.railOpen,
+    backgroundColor: '#0a0b14',
+  },
+  panelFeather: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: nav.railOpen,
+    width: FEATHER,
   },
   // Expanded insets its content to the 48dp safe edge, so no label and nothing
   // focusable is ever inside the action-safe band (§4.6).
-  panelInner: {flex: 1, paddingLeft: 48, paddingRight: 16, paddingVertical: PAD_Y, gap: 4},
+  panelInner: {
+    flex: 1,
+    width: nav.railOpen, // not the panel's — nothing focusable in the feather
+    paddingLeft: 48,
+    paddingRight: 16,
+    paddingVertical: PAD_Y,
+    gap: 4,
+  },
   // 26dp icon box, P18 x1.0 (components.css:39-41). Centred in the 72dp strip,
   // so it spans x = 23-49.
   mark: {
@@ -482,6 +533,13 @@ const styles = StyleSheet.create({
   // `.nav-item.active { color: --text; background: --surface }`.
   itemOn: {backgroundColor: colors.surface},
   itemText: {fontSize: ITEM_TEXT, fontWeight: '600'},
+  // The cast shadow that keeps unfocused labels legible over the aurora.
+  // Dropped while focused: dark-on-white with a dark halo looks smudged.
+  itemTextLift: {
+    textShadowColor: 'rgba(8,9,16,0.9)',
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 6,
+  },
   spacer: {flex: 1},
   // `.nav-profile { padding: 5px 14px 5px 6px; gap: 10px }` at x1.0.
   profile: {

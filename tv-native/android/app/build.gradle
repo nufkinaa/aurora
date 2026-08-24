@@ -89,8 +89,8 @@ android {
         // after the real adaptive icon was added and verified inside the APK.
         // (Confirmed by extracting the icon layers from the installed APK: they
         // were correct; the launcher was simply showing its cache.)
-        versionCode 49
-        versionName "4.9"
+        versionCode 50
+        versionName "4.9.1"
     }
     signingConfigs {
         debug {
