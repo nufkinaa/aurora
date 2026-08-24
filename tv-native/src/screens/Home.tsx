@@ -22,7 +22,7 @@ import Btn from '../components/Btn';
 import Row from '../components/Row';
 import NavRail from '../components/NavRail';
 import {ErrorState} from '../components/States';
-import {api, assetUrl, Home as HomeData, HeroItem, HomeRow} from '../api';
+import {api, imgSrc, ImgSource, Home as HomeData, HeroItem, HomeRow} from '../api';
 import {checkForUpdate, UpdateInfo} from '../update';
 import {canNavigate} from '../navLock';
 import {openItem} from '../openItem';
@@ -60,18 +60,18 @@ const HeroArt = React.memo(function HeroArtLayer({
   atTop,
   h,
 }: {
-  art: string;
+  art: ImgSource;
   atTop: Animated.Value;
   h: number;
 }) {
   // A still stays sharp in both states, so it needs one layer; blurred art needs
   // two, because blurRadius is a prop and cannot be animated.
-  const sharp = art.includes('/img/still');
+  const sharp = art.uri.includes('/img/still');
   const dim = atTop.interpolate({inputRange: [0, 1], outputRange: [SCROLLED.dim, REST.dim]});
   return (
     <View style={[styles.artLayer, {height: h}]} pointerEvents="none">
       <Image
-        source={{uri: art}}
+        source={art}
         style={styles.art}
         resizeMode="cover"
         blurRadius={sharp ? 0 : REST.blur}
@@ -79,7 +79,7 @@ const HeroArt = React.memo(function HeroArtLayer({
       />
       {sharp ? null : (
         <Animated.Image
-          source={{uri: art}}
+          source={art}
           style={[styles.art, {opacity: atTop.interpolate({inputRange: [0, 1], outputRange: [1, 0]})}]}
           resizeMode="cover"
           blurRadius={SCROLLED.blur}
@@ -356,7 +356,7 @@ export default function Home({
   }
 
   const hero = heroes[heroIdx % Math.max(1, heroes.length)] || null;
-  const art = assetUrl(hero?.backdrop || hero?.cover);
+  const art = imgSrc(hero?.backdrop || hero?.cover);
   const isEpisode = !!hero?.showId && hero?.type !== 'show';
   const facts = [
     hero?.rating ? `★ ${hero.rating}` : null,
@@ -464,9 +464,9 @@ export default function Home({
             </View>
             {/* `.hero-poster` — 240px → 12.6% of width, 2:3, --radius-l, and the
                 site's deep bottom shadow (screens.css:174-181). */}
-            {assetUrl(hero.cover || hero.poster) ? (
+            {imgSrc(hero.cover || hero.poster) ? (
               <Image
-                source={{uri: assetUrl(hero.cover || hero.poster) as string}}
+                source={imgSrc(hero.cover || hero.poster) as ImgSource}
                 style={[
                   styles.heroPoster,
                   {width: Math.round(width * 0.126), height: Math.round(width * 0.126 * 1.5)},

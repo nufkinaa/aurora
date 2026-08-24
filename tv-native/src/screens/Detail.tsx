@@ -26,7 +26,7 @@ import {useIsFocused} from '@react-navigation/native';
 import Focusable from '../components/Focusable';
 import Card, {CARD_W} from '../components/Card';
 import NavRail from '../components/NavRail';
-import {api, assetUrl, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta} from '../api';
+import {api, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta} from '../api';
 import {canNavigate} from '../navLock';
 import {useFocusFallback, useKeyTrap} from '../focus';
 import {SourcesPanel} from './Sources';
@@ -267,12 +267,12 @@ function DetailHero({
 
 // The backdrop stack every detail page sits on: art, a light overall dim, the
 // left ramp that carries the type, and the bottom ramp that lands the page.
-function HeroArt({art, sharp}: {art?: string | null; sharp: boolean}) {
+function HeroArt({art, sharp}: {art?: ImgSource | null; sharp: boolean}) {
   if (!art) return <View style={styles.artFallback} />;
   return (
     <>
       <Image
-        source={{uri: art}}
+        source={art}
         style={styles.art}
         resizeMode="cover"
         resizeMethod="resize"
@@ -387,7 +387,7 @@ const EpisodeCard = React.memo(function EpisodeCardItem({ep, edgeLeft}: {ep: UiE
         <View style={styles.epThumb}>
           {ep.thumb ? (
             <Image
-              source={{uri: ep.thumb}}
+              source={imgSrc(ep.thumb) as ImgSource}
               style={styles.epThumbImg}
               resizeMode="cover"
               resizeMethod="resize"
@@ -859,7 +859,7 @@ export default function Detail({
     [ensureImdb, item.title],
   );
 
-  const backdrop = assetUrl(item.backdrop || item.cover || item.poster);
+  const backdrop = imgSrc(item.backdrop || item.cover || item.poster);
   // Portrait art beside the title, like the web's `.detail-poster`. Skipped when
   // the backdrop already IS the poster — the same picture twice looks broken.
 
@@ -1117,7 +1117,7 @@ export default function Detail({
       trapFocusRight>
         <View style={styles.srcLeft}>
           <Image
-            source={{uri: assetUrl(item.cover || item.poster) || undefined}}
+            source={imgSrc(item.cover || item.poster) || undefined}
             style={styles.srcPoster}
             resizeMode="cover"
             fadeDuration={160}

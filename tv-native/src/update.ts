@@ -8,7 +8,7 @@ import {getBaseUrl} from './api';
 // Keep in lockstep with android/app/build.gradle versionName on each release.
 // (Was '2.3' while gradle said 4.7 — the drift meant a published
 // tv-version.json would have compared against the wrong number.)
-export const APP_VERSION = '4.8';
+export const APP_VERSION = '4.9';
 
 const cmp = (a: string, b: string) => {
   const pa = a.split('.').map(n => parseInt(n, 10) || 0);

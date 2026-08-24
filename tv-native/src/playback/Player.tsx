@@ -84,7 +84,7 @@ import Video, {
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Focusable from '../components/Focusable';
 import Icon, {IconName} from '../components/Icon';
-import {api, assetUrl, Item, ProfileState, SubtitleTrack} from '../api';
+import {api, assetUrl, mediaHeaders, Item, ProfileState, SubtitleTrack} from '../api';
 import {useApp} from '../AppContext';
 import {useFocusFallback} from '../focus';
 import {canNavigate} from '../navLock';
@@ -792,7 +792,10 @@ export default function Player({
       const timer = setTimeout(() => ctrl.abort(), 60000);
       try {
         if (!torrentBytes.current) {
-          const head = await fetch(url, {headers: {Range: 'bytes=0-1'}, signal: ctrl.signal});
+          const head = await fetch(url, {
+            headers: {Range: 'bytes=0-1', ...mediaHeaders()},
+            signal: ctrl.signal,
+          });
           const cr = head.headers.get('Content-Range') || '';
           torrentBytes.current = parseInt(cr.split('/')[1], 10) || 0;
         }
@@ -807,7 +810,7 @@ export default function Player({
         );
         const end = Math.min(torrentBytes.current - 1, byte + 2 * 1024 * 1024);
         const res = await fetch(url, {
-          headers: {Range: `bytes=${byte}-${end}`},
+          headers: {Range: `bytes=${byte}-${end}`, ...mediaHeaders()},
           signal: ctrl.signal,
         });
         await res.arrayBuffer(); // resolves only once those bytes exist on disk
@@ -848,7 +851,7 @@ export default function Player({
       setCurrent(ss);
       setBuffering(true);
       const url = transcodeUrl(base, ss, v);
-      if (claim) fetch(`${url}&seek=1`).catch(() => {});
+      if (claim) fetch(`${url}&seek=1`, {headers: mediaHeaders()}).catch(() => {});
       setUri(`${url}&g=${++gen.current}`);
     },
     [transcodeUrl],
@@ -877,7 +880,10 @@ export default function Player({
       const ctrl = new AbortController();
       const probeTimer = setTimeout(() => ctrl.abort(), 45000);
       try {
-        const res = await fetch(`${transcodeUrl(base, ss, v)}&seek=1`, {signal: ctrl.signal});
+        const res = await fetch(`${transcodeUrl(base, ss, v)}&seek=1`, {
+          headers: mediaHeaders(),
+          signal: ctrl.signal,
+        });
         if (exited.current || token !== probeToken.current) return true;
         if (!res.ok) throw new Error('not ready');
         startTranscode(base, ss, v, false); // the probe already claimed it
@@ -1045,7 +1051,7 @@ export default function Player({
     };
 
     const kickUrl = assetUrl(stream.videoUrl) as string;
-    fetch(kickUrl, {headers: {Range: 'bytes=0-1'}})
+    fetch(kickUrl, {headers: {Range: 'bytes=0-1', ...mediaHeaders()}})
       .then(r => {
         // 206 (or a 200 from a server ignoring the range) means bytes are really
         // flowing — the same thing the browser's <video> waits for.
@@ -1203,7 +1209,7 @@ export default function Player({
     // `reload` is what Resync bumps, and it goes on the URL as well: a track that
     // came back short or empty once would otherwise be served from cache forever.
     const url = `${assetUrl(subUrl)}${reload ? `${subUrl.includes('?') ? '&' : '?'}retry=${reload}` : ''}`;
-    fetch(url)
+    fetch(url, {headers: mediaHeaders()})
       .then(r => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
       .then(txt => {
         if (!live) return;
@@ -1253,7 +1259,17 @@ export default function Player({
   // unmemoised here is a fresh source — and a reload from zero — on every
   // scrubber tick.
   const source = useMemo(
-    () => (uri ? {uri, bufferConfig: BUFFER_CONFIG, minLoadRetryCount: MIN_LOAD_RETRY} : undefined),
+    () =>
+      uri
+        ? {
+            uri,
+            // Closed mode gates /stream/* like everything else; ExoPlayer
+            // forwards these on every segment/range request.
+            headers: mediaHeaders(),
+            bufferConfig: BUFFER_CONFIG,
+            minLoadRetryCount: MIN_LOAD_RETRY,
+          }
+        : undefined,
     [uri],
   );
 
@@ -1575,7 +1591,9 @@ export default function Player({
       if (usingTranscodeRef.current && !probing.current) {
         const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
         if (base) {
-          fetch(transcodeUrl(base, streamOffset.current, currentV.current)).catch(() => {});
+          fetch(transcodeUrl(base, streamOffset.current, currentV.current), {
+            headers: mediaHeaders(),
+          }).catch(() => {});
         }
       }
     }, 60000);

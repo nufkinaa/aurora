@@ -12,10 +12,10 @@ import {View, Text, ScrollView, StyleSheet, ActivityIndicator} from 'react-nativ
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Focusable from '../components/Focusable';
 import NavRail from '../components/NavRail';
-import {api} from '../api';
+import {api, getSession, setSession} from '../api';
 import {useApp} from '../AppContext';
 import {useMe} from '../navSection';
-import {loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
+import {loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS, saveAuthSession} from '../storage';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 
@@ -56,7 +56,7 @@ const Row = React.memo(function PrefRow({
 export default function Settings(
   _props: NativeStackScreenProps<RootStackParamList, 'Settings'>,
 ) {
-  const {profileId} = useApp();
+  const {profileId, switchProfile} = useApp();
   const {safeBottom} = useTvMetrics();
   const me = useMe(profileId);
 
@@ -216,12 +216,45 @@ export default function Settings(
             onPress={() => set('cueBackground', !prefs.cueBackground)}
           />
         </View>
+        {getSession() ? (
+          <>
+            <Text style={styles.h2}>Account</Text>
+            <Focusable
+              scaleTo={1.01}
+              highlightColor={colors.surfaceHover}
+              onPress={async () => {
+                // Revoke server-side first (best-effort), THEN forget locally —
+                // switchProfile routes to the gate or the login screen by mode.
+                try {
+                  await api.logout();
+                } catch {}
+                setSession(null);
+                await saveAuthSession(null);
+                switchProfile();
+              }}
+              style={styles.signOut}>
+              <Text style={styles.signOutText}>Sign out on this TV</Text>
+              <Text style={styles.signOutNote}>
+                Ends this TV's session — you'll sign in again with the QR or your password.
+              </Text>
+            </Focusable>
+          </>
+        ) : null}
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  signOut: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.m,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    marginTop: 2,
+  },
+  signOutText: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
+  signOutNote: {color: colors.textFaint, fontSize: fontSize.small, marginTop: 2},
   // No backgroundColor: android:windowBackground already paints it.
   root: {flex: 1},
   scroll: {flex: 1},

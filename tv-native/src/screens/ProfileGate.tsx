@@ -6,12 +6,13 @@ import {
   View,
   Text,
   TextInput,
+  Image,
   StyleSheet,
   ActivityIndicator,
   FlatList,
 } from 'react-native';
 import Focusable from '../components/Focusable';
-import {api, ApiError, Profile} from '../api';
+import {api, imgSrc, ApiError, Profile} from '../api';
 import {loadRecentProfiles, pushRecentProfile} from '../storage';
 import theme, {useTvMetrics} from '../theme';
 
@@ -31,7 +32,9 @@ const AVATAR = 104;
 export default function ProfileGate({
   onChosen,
 }: {
-  onChosen: (profileId: string, token: string | null) => void;
+  // `sid` is the sign-in session the unlock of a CLAIMED profile mints
+  // (prompt 10's silent migration) — null for open/unclaimed profiles.
+  onChosen: (profileId: string, token: string | null, sid?: string | null) => void;
 }) {
   const {width, safeBottom} = useTvMetrics();
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
@@ -92,7 +95,9 @@ export default function ProfileGate({
         // Remember it for this TV before handing control up, so the next visit
         // to the gate lands straight on the profile actually used here.
         await pushRecentProfile(p.id);
-        onChosen(p.id, res.token);
+        // A claimed profile's unlock signs the device in on the spot — carry
+        // the session up so the eventual flip to closed mode costs nothing.
+        onChosen(p.id, res.token, res.session || null);
       } else {
         setPwError(res.error === 'wrong password' ? 'Wrong password' : 'Could not unlock');
       }
@@ -137,7 +142,16 @@ export default function ProfileGate({
       style={[styles.tile, p.locked && styles.tileLocked]}
       highlightColor={colors.surface}>
       <View style={[styles.avatar, {backgroundColor: p.color || colors.surfaceHover}]}>
-        <Text style={styles.avatarGlyph}>{p.avatar || '🍿'}</Text>
+        {p.avatarImage ? (
+          <Image
+            source={imgSrc(p.avatarImage) || undefined}
+            style={styles.avatarImg}
+            resizeMode="cover"
+            fadeDuration={0}
+          />
+        ) : (
+          <Text style={styles.avatarGlyph}>{p.avatar || '🍿'}</Text>
+        )}
       </View>
       <Text style={styles.tileName} numberOfLines={1}>
         {p.name}
@@ -260,6 +274,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarGlyph: {fontSize: 48},
+  avatarImg: {width: '100%', height: '100%', borderRadius: radius.l},
   tileName: {
     color: colors.text,
     fontSize: fontSize.body,

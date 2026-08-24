@@ -8,6 +8,7 @@ const KEYS = {
   serverUrl: 'aurora.serverUrl',
   profileId: 'aurora.profileId',
   token: 'aurora.token',
+  session: 'aurora.session', // signed-in session id (prompt 10) — X-Session
   recentProfiles: 'aurora.recentProfiles',
 } as const;
 
@@ -40,16 +41,24 @@ export type Session = {
   serverUrl: string | null;
   profileId: string | null;
   token: string | null;
+  // The sign-in session id (opaque 64-hex). Unlike the unlock token it
+  // SURVIVES server restarts (the server stores its hash on disk), so it is
+  // the thing that keeps a TV signed in across weeks.
+  session: string | null;
 };
 
 export async function loadSession(): Promise<Session> {
-  const [serverUrl, profileId, token] = await Promise.all([
+  const [serverUrl, profileId, token, session] = await Promise.all([
     AsyncStorage.getItem(KEYS.serverUrl),
     AsyncStorage.getItem(KEYS.profileId),
     AsyncStorage.getItem(KEYS.token),
+    AsyncStorage.getItem(KEYS.session),
   ]);
-  return {serverUrl, profileId, token};
+  return {serverUrl, profileId, token, session: session || null};
 }
+
+export const saveAuthSession = (sid: string | null) =>
+  sid ? AsyncStorage.setItem(KEYS.session, sid) : AsyncStorage.removeItem(KEYS.session);
 
 export const saveServerUrl = (url: string) =>
   AsyncStorage.setItem(KEYS.serverUrl, url);

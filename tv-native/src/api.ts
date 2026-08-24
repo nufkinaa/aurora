@@ -21,15 +21,54 @@ export const getBaseUrl = () => baseUrl;
 export const setToken = (t: string | null) => {
   token = t || null;
 };
-// The Games screen seeds this into the WebView so the site doesn't show its own
-// profile gate on top of ours.
-export const getToken = () => token;
+// The signed-in session id (prompt 10, account = profile). Sent as X-Session on
+// every request — including images and video, which closed mode also gates.
+let session: string | null = null;
+export const setSession = (s: string | null) => {
+  session = s || null;
+};
+export const getSession = () => session;
+// The auth mode the last successful ping reported: 'open' | 'transition' |
+// 'closed'. Boot reads it to pick gate-vs-login; it is advisory anywhere else
+// (the server enforces per request).
+let authMode = 'open';
+export const getAuthMode = () => authMode;
+// The app-level reaction to a 401 {signinRequired:true} — App.tsx registers
+// "clear credentials, show the login screen". One hook, so no screen has to
+// remember; fired at most once per burst.
+let signinRequiredCb: (() => void) | null = null;
+let signinFiredAt = 0;
+export const onSigninRequired = (cb: (() => void) | null) => {
+  signinRequiredCb = cb;
+};
+
+// The signed-in account card (prompt 10; profiles.signinPub). ACCOUNT =
+// PROFILE: `profileId` is the profile this account IS.
+export type SigninUser = {
+  profileId: string;
+  username?: string | null;
+  email?: string | null;
+  name?: string;
+  hasGoogle?: boolean;
+};
+// The full success payload login / pairing / google all share.
+export type SigninResult = {
+  ok?: boolean;
+  user: SigninUser;
+  profile: Profile;
+  profileToken: string;
+  session: string;
+};
 
 export type Profile = {
   id: string;
   name: string;
   color: string;
   avatar: string;
+  // A processed photo under /avatars/, or null. Kept SEPARATE from `avatar`
+  // (which stays an emoji, the universal fallback) by the server, precisely so
+  // clients that render `avatar` as text never print a path.
+  avatarImage?: string | null;
   hasPassword: boolean;
   locked?: boolean; // admin lockdown — can't be entered at all
 };
@@ -285,6 +324,9 @@ export type Discover = { movies: HeroItem[]; shows: HeroItem[] };
 
 class ApiError extends Error {
   status: number;
+  // Set when the server's error body carried {signinRequired:true} — the
+  // closed-mode "you need a session" answer, distinct from a plain 401.
+  signinRequired?: boolean;
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
@@ -297,6 +339,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...(options.headers as Record<string, string>),
   };
   if (token) headers['X-Profile-Token'] = token;
+  if (session) headers['X-Session'] = session;
   let res: Response;
   try {
     res = await fetch(baseUrl + path, { ...options, headers });
@@ -305,7 +348,26 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     // friendly, catchable shape instead of a raw TypeError.
     throw new ApiError(0, 'Cannot reach server');
   }
-  if (!res.ok) throw new ApiError(res.status, `${res.status} ${path}`);
+  if (!res.ok) {
+    // The server writes its error bodies for viewers ("too many attempts —
+    // try again in a few minutes") — surface them instead of a status line.
+    let body: {error?: string; signinRequired?: boolean} = {};
+    try {
+      body = await res.json();
+    } catch {}
+    const err = new ApiError(res.status, body.error || `${res.status} ${path}`);
+    if (body.signinRequired) {
+      err.signinRequired = true;
+      // The wall went up (mode flipped, session revoked/expired): route the
+      // app to the login screen — once per burst, because every in-flight
+      // request on the screen fails together.
+      if (signinRequiredCb && Date.now() - signinFiredAt > 3000) {
+        signinFiredAt = Date.now();
+        signinRequiredCb();
+      }
+    }
+    throw err;
+  }
   return res.json() as Promise<T>;
 }
 
@@ -331,8 +393,18 @@ function post<T>(path: string, body: unknown): Promise<T> {
 // always answers in time whether or not the underlying socket ever does.
 const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
   const ctrl = new AbortController();
-  const attempt = fetch(url.replace(/\/+$/, '') + '/api/home', {signal: ctrl.signal})
-    .then(res => res.ok)
+  // /api/ping, NOT /api/home: ping is tiny, stays open in EVERY auth mode
+  // (closed mode 401s /api/home, which made resolveServer declare a healthy
+  // server dead), and reports the mode — captured here so boot has it free.
+  const attempt = fetch(url.replace(/\/+$/, '') + '/api/ping', {signal: ctrl.signal})
+    .then(async res => {
+      if (!res.ok) return false;
+      try {
+        const j = await res.json();
+        if (j && typeof j.authMode === 'string') authMode = j.authMode;
+      } catch {}
+      return true;
+    })
     .catch(() => false);
   const timeout = new Promise<boolean>(resolve =>
     setTimeout(() => {
@@ -381,12 +453,43 @@ export function assetUrl(pathOrUrl: string | null | undefined): string | null {
   return baseUrl + pathOrUrl;
 }
 
+// An <Image> source for a server asset, session header included. In closed
+// mode /img/* requires X-Session like everything else; remote URLs (metahub
+// posters) pass through with no header — they would neither need nor want it.
+// Callers that already hold an assetUrl() STRING can pass it here too: the
+// base-url prefix identifies it as ours.
+export type ImgSource = {uri: string; headers?: Record<string, string>};
+export function imgSrc(pathOrUrl: string | null | undefined): ImgSource | null {
+  const uri = assetUrl(pathOrUrl);
+  if (!uri) return null;
+  if (session && baseUrl && uri.startsWith(baseUrl)) {
+    return {uri, headers: {'X-Session': session}};
+  }
+  return {uri};
+}
+
+// The same, for the video element: react-native-video forwards source.headers
+// to ExoPlayer's data source, which is what lets /stream/* through the wall.
+export function mediaHeaders(): Record<string, string> | undefined {
+  return session ? {'X-Session': session} : undefined;
+}
+
 export const api = {
   // Health check: /api/home with no profile is public and cheap.
   ping: () => request<Home>('/api/home'),
   profiles: () => request<Profile[]>('/api/profiles'),
   unlock: (id: string, password: string) =>
-    post<{ ok?: boolean; token?: string; error?: string }>(
+    post<{
+      ok?: boolean;
+      token?: string;
+      error?: string;
+      awayDays?: number;
+      // Unlocking a CLAIMED profile verifies its sign-in password, so the
+      // server signs the device in on the spot (the zero-UI migration that
+      // makes the later flip to closed free). Store these when present.
+      session?: string;
+      user?: SigninUser;
+    }>(
       `/api/profiles/${id}/unlock`,
       { password },
     ),
@@ -521,6 +624,55 @@ export const api = {
       alreadyAvailable?: unknown;
       needsApproval?: boolean;
     }>('/api/downloads', fields),
+  // ---- sign-in (prompt 10) ----
+  // Tiny, always-open health check; also reports the auth mode.
+  pingInfo: () => request<{ ok: boolean; name: string; authMode: string }>('/api/ping'),
+  serverInfo: () =>
+    request<{
+      adminName?: string;
+      authMode: string;
+      google?: boolean;
+      googleWeb?: boolean;
+      googleDevice?: boolean;
+    }>('/api/server-info'),
+  // Is the stored session alive? user === null means no/dead session.
+  me: () => request<{ authMode: string; user: SigninUser | null }>('/api/me'),
+  // Username OR email + the profile's password.
+  login: (username: string, password: string) =>
+    post<SigninResult>('/api/auth/login', { username, password }),
+  logout: () => post<{ ok: boolean }>('/api/auth/logout', {}),
+  // Exchange a live session for a fresh profile unlock token (closed-mode boot).
+  profileTokenFromSession: () =>
+    post<{ ok: boolean; profileId: string; token: string }>('/api/auth/profile-token', {}),
+  // QR pairing: TV shows a QR of {base}/link?code=XXXXXX, phone approves, TV
+  // polls until the session lands. `secret` never leaves this device.
+  deviceStart: () =>
+    post<{ code: string; secret: string; expiresIn: number; linkPath: string }>(
+      '/api/auth/device/start',
+      {},
+    ),
+  devicePoll: (code: string, secret: string) =>
+    post<Partial<SigninResult> & { pending?: boolean }>('/api/auth/device/poll', {
+      code,
+      secret,
+    }),
+  // Google on TV (the OAuth device flow). Gated on serverInfo.googleDevice.
+  googleStart: () =>
+    post<{
+      pollId: string;
+      userCode: string;
+      verificationUrl: string;
+      interval?: number;
+      expiresIn?: number;
+    }>('/api/auth/google/start', {}),
+  googlePoll: (pollId: string) =>
+    post<
+      Partial<SigninResult> & {
+        pending?: boolean;
+        signup?: { email?: string; name?: string };
+      }
+    >('/api/auth/google/poll', { pollId }),
+
   watchlist: (profileId: string) =>
     request<{ items: HeroItem[] }>(`/api/profiles/${profileId}/watchlist`),
   toggleWatchlist: (

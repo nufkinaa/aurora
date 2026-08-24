@@ -32,6 +32,7 @@ import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import Focusable from './Focusable';
 import Icon, {IconName} from './Icon';
 import {useApp} from '../AppContext';
+import {imgSrc} from '../api';
 import {atLeftEdge, captureFocus, focusJustMoved, noteRail, useTVKeys} from '../focus';
 import {goSection, useMe, NAV_SECTIONS, NavSection} from '../navSection';
 import theme from '../theme';
@@ -65,7 +66,6 @@ type NodeRef = {requestTVFocus?: () => void} | null;
 export default function NavRail({
   active,
   disabled,
-  passive,
 }: {
   active: NavSection;
   // A modal owns the screen. useTVEventHandler is GLOBAL — every mounted handler
@@ -73,11 +73,6 @@ export default function NavRail({
   // inside a panel that was supposed to have focus trapped, and then took focus
   // itself. §5.8(a): while a modal is up, the rail is unreachable by design.
   disabled?: boolean;
-  // Draw the strip, answer no keys. For a screen whose content is not made of
-  // Focusables and so never reports where focus is — the Games WebView. There,
-  // `atLeftEdge()` keeps whatever the last RN element said, so LEFT opened the
-  // nav on top of a running game, where LEFT is how you steer.
-  passive?: boolean;
 }) {
   const navigation = useNavigation();
   const {profileId, switchProfile} = useApp();
@@ -177,7 +172,7 @@ export default function NavRail({
   );
   // The gates — this screen must be the live one and no trap may be up — belong
   // to useTVKeys, which every global handler in the app goes through.
-  const live = useTVKeys(onTV, {deaf: disabled || passive});
+  const live = useTVKeys(onTV, {deaf: disabled});
 
   // Closing on blur matters: navigating from a rail item leaves this screen with
   // the rail still open behind it, and coming back would show it expanded with
@@ -269,6 +264,7 @@ export default function NavRail({
                   icon={it.icon}
                   iconSize={it.iconSize}
                   profile={it.key === 'profile' ? me?.avatar || '🍿' : undefined}
+                  profileImage={it.key === 'profile' ? me?.avatarImage || null : undefined}
                   profileColor={it.key === 'profile' ? me?.color : undefined}
                   name={
                     it.key === 'profile'
@@ -334,6 +330,7 @@ function NavItem({
   icon,
   iconSize,
   profile,
+  profileImage,
   profileColor,
   name,
   on,
@@ -346,6 +343,7 @@ function NavItem({
   icon?: IconName;
   iconSize?: number;
   profile?: string;
+  profileImage?: string | null;
   profileColor?: string | null;
   name?: string;
   on?: boolean;
@@ -369,7 +367,16 @@ function NavItem({
         onPress={onPress}
         style={styles.profile}>
         <View style={[styles.avatar, {backgroundColor: profileColor || colors.surfaceHover}]}>
-          <Text style={styles.avatarGlyph}>{profile}</Text>
+          {profileImage ? (
+            <Image
+              source={imgSrc(profileImage) || undefined}
+              style={styles.avatarImg}
+              resizeMode="cover"
+              fadeDuration={0}
+            />
+          ) : (
+            <Text style={styles.avatarGlyph}>{profile}</Text>
+          )}
         </View>
         <Text style={styles.profileName} numberOfLines={1}>
           {name}
@@ -491,6 +498,7 @@ const styles = StyleSheet.create({
   // `.avatar` 30px — an icon box, fixed at x1.0 (P18), with a 16dp glyph.
   avatar: {width: 30, height: 30, borderRadius: 999, alignItems: 'center', justifyContent: 'center'},
   avatarGlyph: {fontSize: 16},
+  avatarImg: {width: '100%', height: '100%', borderRadius: 999},
   // `.nav-profile` 0.9rem = 14.4px, at the 14dp reading floor.
   profileName: {color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1},
 });

@@ -13,7 +13,6 @@ export type NavSection =
   | 'shows'
   | 'list'
   | 'search'
-  | 'games'
   | 'settings';
 
 // index.html:56-72, in order. AI (`#nav-pick`) is `display: none` there and
@@ -31,7 +30,6 @@ export const NAV_SECTIONS: {
   {key: 'movies', label: 'Movies'},
   {key: 'shows', label: 'Shows'},
   {key: 'list', label: 'My List'},
-  {key: 'games', label: 'Games'},
   {key: 'settings', label: 'Preferences', icon: 'gear', iconSize: 19, foot: true},
 ];
 
@@ -74,9 +72,6 @@ export const goSection = <R extends keyof RootStackParamList>(
       return;
     case 'search':
       nav.push('Search');
-      return;
-    case 'games':
-      nav.push('Games');
       return;
     case 'settings':
       nav.push('Settings');

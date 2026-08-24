@@ -12,12 +12,22 @@ import React, {useEffect, useState} from 'react';
 import {View, StatusBar, ActivityIndicator, StyleSheet} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import ProfileGate from './src/screens/ProfileGate';
+import SignIn from './src/screens/SignIn';
 import {ErrorState} from './src/components/States';
 import AppNavigator from './src/navigation';
 import {AppContext} from './src/AppContext';
-import {api, setBaseUrl, setToken, resolveServer} from './src/api';
+import {
+  api,
+  getAuthMode,
+  onSigninRequired,
+  resolveServer,
+  setBaseUrl,
+  setSession,
+  setToken,
+} from './src/api';
 import {
   loadSession,
+  saveAuthSession,
   saveServerUrl,
   saveProfile,
   clearProfile,
@@ -25,16 +35,17 @@ import {
 } from './src/storage';
 import theme from './src/theme';
 
-type Stage = 'loading' | 'offline' | 'gate' | 'home';
+type Stage = 'loading' | 'offline' | 'gate' | 'login' | 'home';
 
 export default function App() {
   const [stage, setStage] = useState<Stage>('loading');
   // Bumped by the offline state's Retry, so boot runs again.
   const [boot, setBoot] = useState(0);
-  const [session, setSession] = useState<Session>({
+  const [session, setLocal] = useState<Session>({
     serverUrl: null,
     profileId: null,
     token: null,
+    session: null,
   });
 
   // Boot: restore whatever we remembered and jump to the furthest valid stage.
@@ -53,7 +64,7 @@ export default function App() {
       const live = await resolveServer(s.serverUrl);
       if (!alive) return;
       if (!live) {
-        setSession(s);
+        setLocal(s);
         setStage('offline');
         return;
       }
@@ -61,6 +72,40 @@ export default function App() {
       if (!alive) return;
       setBaseUrl(live);
       setToken(s.token);
+      setSession(s.session);
+      const mode = getAuthMode(); // captured by the ping that found the server
+
+      // CLOSED mode (prompt 10): the picker is gone — a session is the only
+      // way in. Validate the stored one, then mint a fresh unlock token from
+      // it (tokens live in server RAM and die on restart; the session is what
+      // survives). No session, or a dead one, means the login screen.
+      if (mode === 'closed') {
+        if (s.session) {
+          try {
+            const who = await api.me();
+            if (!alive) return;
+            if (who.user) {
+              const t = await api.profileTokenFromSession();
+              if (!alive) return;
+              setToken(t.token);
+              await saveProfile(t.profileId, t.token);
+              if (!alive) return;
+              setLocal({...s, serverUrl: live, profileId: t.profileId, token: t.token});
+              setStage('home');
+              return;
+            }
+          } catch {
+            if (!alive) return;
+          }
+          // Dead/revoked session: forget it so nothing keeps sending it.
+          setSession(null);
+          await saveAuthSession(null);
+          if (!alive) return;
+        }
+        setLocal({...s, serverUrl: live, profileId: null, token: null, session: null});
+        setStage('login');
+        return;
+      }
 
       // Validate the remembered profile session. Unlock tokens live in server
       // RAM, so after a server restart the saved token is silently dead — the
@@ -73,15 +118,31 @@ export default function App() {
           if (!alive) return;
         } catch {
           if (!alive) return;
+          // A live session can revive the profile with no password typing: it
+          // was minted by the very password the gate would ask for.
+          if (s.session) {
+            try {
+              const t = await api.profileTokenFromSession();
+              if (!alive) return;
+              setToken(t.token);
+              await saveProfile(t.profileId, t.token);
+              if (!alive) return;
+              setLocal({...s, serverUrl: live, profileId: t.profileId, token: t.token});
+              setStage('home');
+              return;
+            } catch {
+              if (!alive) return;
+            }
+          }
           await clearProfile();
           setToken(null);
-          setSession({...s, serverUrl: live, profileId: null, token: null});
+          setLocal({...s, serverUrl: live, profileId: null, token: null});
           setStage('gate');
           return;
         }
       }
 
-      setSession({...s, serverUrl: live});
+      setLocal({...s, serverUrl: live});
       setStage(s.profileId ? 'home' : 'gate');
     })();
     return () => {
@@ -89,12 +150,43 @@ export default function App() {
     };
   }, [boot]);
 
-  const onChosen = async (profileId: string, token: string | null) => {
+  // From the gate (open/transition). `sid` rides along when the unlock of a
+  // claimed profile signed the device in (MUST #3 — the silent migration).
+  const onChosen = async (profileId: string, token: string | null, sid?: string | null) => {
     setToken(token);
+    if (sid) {
+      setSession(sid);
+      await saveAuthSession(sid);
+    }
     await saveProfile(profileId, token);
-    setSession(s => ({...s, profileId, token}));
+    setLocal(s => ({...s, profileId, token, session: sid || s.session}));
     setStage('home');
   };
+
+  // From the login screen (closed mode, or anyone preferring QR/typed login).
+  const onSignedIn = async (profileId: string, token: string, sid: string) => {
+    setToken(token);
+    setSession(sid);
+    await saveAuthSession(sid);
+    await saveProfile(profileId, token);
+    setLocal(s => ({...s, profileId, token, session: sid}));
+    setStage('home');
+  };
+
+  // The wall answered 401 {signinRequired:true} mid-session — the mode was
+  // flipped to closed, or this session was revoked. Credentials are dead:
+  // clear them and show the login screen. Registered once; api.ts debounces.
+  useEffect(() => {
+    onSigninRequired(() => {
+      setToken(null);
+      setSession(null);
+      saveAuthSession(null).catch(() => {});
+      clearProfile().catch(() => {});
+      setLocal(s => ({...s, profileId: null, token: null, session: null}));
+      setStage('login');
+    });
+    return () => onSigninRequired(null);
+  }, []);
 
   const switchProfile = async () => {
     await clearProfile();
@@ -105,11 +197,22 @@ export default function App() {
     // switching profiles mid-film lost your place. The effect below clears the
     // token AFTER the stage change has committed (and the unmount saves have
     // been dispatched with the old token).
-    setSession(s => ({...s, profileId: null, token: null}));
+    // In CLOSED mode there is no picker — switching profile means switching
+    // ACCOUNT, so it is a real sign-out: revoke the session server-side
+    // (best-effort) and forget it, then show the login screen.
+    if (getAuthMode() === 'closed') {
+      api.logout().catch(() => {});
+      setSession(null);
+      await saveAuthSession(null);
+      setLocal(s => ({...s, profileId: null, token: null, session: null}));
+      setStage('login');
+      return;
+    }
+    setLocal(s => ({...s, profileId: null, token: null}));
     setStage('gate');
   };
   useEffect(() => {
-    if (stage === 'gate') setToken(null);
+    if (stage === 'gate' || stage === 'login') setToken(null);
   }, [stage]);
 
   return (
@@ -134,6 +237,8 @@ export default function App() {
         {stage === 'gate' ? (
           <ProfileGate onChosen={onChosen} />
         ) : null}
+
+        {stage === 'login' ? <SignIn onSignedIn={onSignedIn} /> : null}
 
         {stage === 'home' && session.profileId ? (
           <AppContext.Provider

@@ -9,7 +9,7 @@ import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Focusable from '../components/Focusable';
 import Icon from '../components/Icon';
 import Svg, {Circle} from 'react-native-svg';
-import {api, assetUrl, DownloadJob, Stream, TorrentPlayItem} from '../api';
+import {api, imgSrc, DownloadJob, Stream, TorrentPlayItem} from '../api';
 import {canNavigate} from '../navLock';
 import {useApp} from '../AppContext';
 import {RootStackParamList} from '../navigation';
@@ -596,7 +596,7 @@ export function SourcesPanel({
     [type, imdbId, title, year, season, episode, runtime, poster, profileId, jobs, owned, onPlayLibrary, onPlay],
   );
 
-  const art = assetUrl(poster);
+  const art = imgSrc(poster);
   const count = ordered?.length || 0;
   // Drawn only when it can actually be played — `owned` without a play route
   // would be a row that does nothing.
@@ -610,7 +610,7 @@ export function SourcesPanel({
           already has the artwork and a second copy would double-darken it. */}
       {art && !embedded ? (
         <Image
-          source={{uri: art}}
+          source={art}
           style={styles.art}
           resizeMode="cover"
           resizeMethod="resize"
@@ -629,7 +629,7 @@ export function SourcesPanel({
       <View style={embedded ? styles.pageEmbedded : styles.page}>
         <View style={styles.headRow}>
           {art ? (
-            <Image source={{uri: art}} style={styles.headPoster} resizeMode="cover" fadeDuration={0} />
+            <Image source={art} style={styles.headPoster} resizeMode="cover" fadeDuration={0} />
           ) : null}
           <View style={styles.headText}>
             <Text style={styles.heading} numberOfLines={1}>

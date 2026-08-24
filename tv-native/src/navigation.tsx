@@ -9,7 +9,6 @@ import Home from './screens/Home';
 import Browse from './screens/Browse';
 import MyList from './screens/MyList';
 import Settings from './screens/Settings';
-import Games from './screens/Games';
 import Search from './screens/Search';
 import Detail from './screens/Detail';
 import Sources from './screens/Sources';
@@ -23,7 +22,6 @@ export type RootStackParamList = {
   Browse: {kind: 'movie' | 'show'};
   MyList: undefined;
   Settings: undefined;
-  Games: undefined;
   Search: undefined;
   Detail: {item: HeroItem};
   Sources: {
@@ -88,7 +86,6 @@ export default function AppNavigator() {
         <Stack.Screen name="Browse" component={Browse} />
         <Stack.Screen name="MyList" component={MyList} />
         <Stack.Screen name="Settings" component={Settings} />
-        <Stack.Screen name="Games" component={Games} />
         <Stack.Screen name="Search" component={Search} />
         <Stack.Screen name="Detail" component={Detail} />
         <Stack.Screen name="Sources" component={Sources} />

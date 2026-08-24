@@ -10,7 +10,7 @@ import {View, Text, Image, StyleSheet} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import Focusable from './Focusable';
 import Icon from './Icon';
-import {assetUrl, HeroItem} from '../api';
+import {imgSrc, HeroItem} from '../api';
 import theme from '../theme';
 
 const {colors, radius, cardAura} = theme;
@@ -93,7 +93,7 @@ function Card({
   // `item.cover` to the <img> with no branch and lets `.card.wide` crop it 16:9.
   // A landscape still would read better and elia is fixing that ON THE SITE
   // first; see SPEC/99-open.md §I.2. Do not change it here ahead of the site.
-  const src = assetUrl(item.cover || item.poster);
+  const src = imgSrc(item.cover || item.poster);
   const showLabel = !hideLabel && (landscape || item.upNext);
   const prog = item.progress;
   const pct =
@@ -175,7 +175,7 @@ function Card({
         // posters decoded full-size is a silent memory/CPU tax on a TV.
         // fadeDuration={0}: Android's 300ms default makes every poster feel late.
         <Image
-          source={{uri: src}}
+          source={src}
           style={styles.poster}
           resizeMode="cover"
           resizeMethod="resize"
