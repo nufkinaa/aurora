@@ -125,8 +125,19 @@ export const initAurora = (canvas) => {
         const cx = x * DOWN;
         const u = (cx - center) / halfLen;
         if (u < -1 || u > 1) continue;
-        // flat through the middle, soft only at the actual ends
-        const endTaper = Math.sqrt(1 - u * u);
+        // The dome shades the band toward its ends — but sqrt alone has
+        // infinite slope AT the tips, so the last columns fell off a cliff
+        // and every band ended on a clean vertical cut. A smoothstep feather
+        // over the outer 15% takes the tail to zero with zero slope; the
+        // middle 85% is untouched, so the approved look stays identical.
+        const dome = Math.sqrt(1 - u * u);
+        const a = Math.abs(u);
+        let feather = 1;
+        if (a > 0.85) {
+          const t = (1 - a) / 0.15;
+          feather = t * t * (3 - 2 * t);
+        }
+        const endTaper = dome * feather;
 
         // Centerline: slow meander (phase itself waved, so arcs never
         // repeat) + the occasional tighter curl riding on top.
@@ -141,14 +152,16 @@ export const initAurora = (canvas) => {
             curlAmp * Math.sin(cx * b.curlF + s * 1.6 + b.phase * 3));
 
         const swell = b.sMin + b.sVar * Math.sin(cx * 0.0017 + s * 0.7 + b.phase * 1.6);
-        const th = H * b.thick * swell * (0.5 + 0.5 * endTaper);
+        // ends PINCH (real bands thin out) instead of stopping at half height
+        const th = H * b.thick * swell * (0.3 + 0.7 * endTaper);
         if (th < 1) continue;
 
         const flow = 0.7 + 0.3 * Math.sin(cx * 0.0023 + s + b.phase);
         const streak = 0.9 + 0.1 * Math.sin(cx * 0.05 + s * 1.8);
         const bright = flow * swell * streak * endTaper * presence;
-        if (bright < 0.04) continue;
-        ctx.globalAlpha = Math.min(1, Math.pow(bright, 1.25) * b.alpha + 0.03);
+        if (bright < 0.02) continue;
+        // the visibility floor dies with the feather, or it re-draws the cut
+        ctx.globalAlpha = Math.min(1, Math.pow(bright, 1.25) * b.alpha + 0.03 * feather);
         // asymmetric: the core rides the centerline, the long veil below
         ctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, x, yC - th * CORE_AT, 1, th);
       }

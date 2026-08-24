@@ -124,7 +124,16 @@ export const initAuroraSky = (canvas) => {
         const cx = x * DOWN;
         const u = (cx - center) / halfLen;
         if (u < -1 || u > 1) continue;
-        const endTaper = Math.sqrt(1 - u * u);
+        // same feathered ends as the nav painter — sqrt alone cuts a clean
+        // vertical edge at the tips (see aurora.js)
+        const dome = Math.sqrt(1 - u * u);
+        const a = Math.abs(u);
+        let feather = 1;
+        if (a > 0.85) {
+          const t = (1 - a) / 0.15;
+          feather = t * t * (3 - 2 * t);
+        }
+        const endTaper = dome * feather;
         const yC =
           H *
           (b.yBase +
@@ -132,13 +141,13 @@ export const initAuroraSky = (canvas) => {
               Math.sin(cx * b.meander + s * 0.9 + b.phase + 2.6 * Math.sin(cx * b.meander * 0.31 + s * 0.3)) +
             curlAmp * Math.sin(cx * b.curlF + s * 1.6 + b.phase * 3));
         const swell = b.sMin + b.sVar * Math.sin(cx * 0.0009 + s * 0.7 + b.phase * 1.6);
-        const th = H * b.thick * swell * (0.5 + 0.5 * endTaper);
+        const th = H * b.thick * swell * (0.3 + 0.7 * endTaper);
         if (th < 1) continue;
         const flow = 0.7 + 0.3 * Math.sin(cx * 0.0012 + s + b.phase);
         const streak = 0.9 + 0.1 * Math.sin(cx * 0.03 + s * 1.8);
         const bright = flow * swell * streak * endTaper * presence;
-        if (bright < 0.04) continue;
-        ctx.globalAlpha = Math.min(1, Math.pow(bright, 1.25) * b.alpha + 0.02);
+        if (bright < 0.02) continue;
+        ctx.globalAlpha = Math.min(1, Math.pow(bright, 1.25) * b.alpha + 0.02 * feather);
         ctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, x, yC - th * CORE_AT, 1, th);
       }
     }
