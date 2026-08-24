@@ -114,10 +114,10 @@ export const initAurora = (canvas) => {
 
   const paint = (t, still = false) => {
     size();
+    const W = canvas.width;                                   // backing px (columns)
     const H = canvas.height;                                  // backing px
-    const cw = Math.max(1, Math.round(canvas.clientWidth));   // CSS px — the wave math's unit
-    const px = Math.max(1, Math.round(ss));                   // one device pixel, integral
-    ctx.clearRect(0, 0, canvas.width, H);
+    const cw = Math.max(1, canvas.clientWidth);               // CSS px — the wave math's unit
+    ctx.clearRect(0, 0, W, H);
     for (let bi = 0; bi < BANDS.length; bi++) {
       const b = BANDS[bi];
       // Presence: each band fades in, lives a while, fades away on its own
@@ -144,7 +144,14 @@ export const initAurora = (canvas) => {
       const curlAmp =
         0.12 * Math.max(0, Math.sin(t * 0.19 + b.phase * 2.3));
 
-      for (let cx = 0; cx < cw; cx++) {
+      // ONE COLUMN PER DEVICE PIXEL. Looping CSS pixels and placing them at
+      // round(cx * dpr) looked fine at dpr 1 and drew a literal barcode at
+      // 1.25 or 1.5 (Windows display scaling): fractional spacing with an
+      // integral width leaves every fourth device pixel unpainted. Iterating
+      // the backing store instead means every column is exactly one pixel
+      // wide on an integer boundary — no gaps, no overlap, at any dpr.
+      for (let x = 0; x < W; x++) {
+        const cx = x / ss; // back to CSS px, which is what the waves are tuned in
         const u = (cx - center) / halfLen;
         if (u < -1 || u > 1) continue;
         // The dome shades the band toward its ends — but sqrt alone has
@@ -187,7 +194,7 @@ export const initAurora = (canvas) => {
         // asymmetric: the core rides the centerline, the long veil below
         // exactly one device pixel wide, on an integer boundary: adjacent
         // columns tile instead of overlapping, so nothing composites twice
-        ctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, Math.round(cx * ss), yC - th * CORE_AT, px, th);
+        ctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, x, yC - th * CORE_AT, 1, th);
       }
     }
     ctx.globalAlpha = 1;
