@@ -4015,3 +4015,25 @@
   cursor: pointer;
 }
 .gate-close:hover { color: var(--text); background: var(--surface-hover); }
+
+/* ---------- TV pairing confirm (#/pair/:code) ---------- */
+.pair-wrap {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--nav-h) + 20px) var(--page-x) 40px;
+}
+.pair-card {
+  width: min(440px, 100%);
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 30px 26px;
+}
+.pair-glyph { font-size: 2.6rem; margin-bottom: 10px; }
+.pair-card h1 { font-size: 1.45rem; font-weight: 800; margin: 0 0 8px; }
+.pair-sub { color: var(--text-faint); line-height: 1.55; margin: 0 0 6px; }
+.pair-code { letter-spacing: 0.18em; color: var(--text); }
+.pair-card .btn { justify-content: center; }

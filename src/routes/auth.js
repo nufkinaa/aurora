@@ -251,6 +251,61 @@ router.delete("/api/auth/sessions/:key", (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- TV pairing by QR ----------
+// The TV starts a pairing and renders /link?code=XXXXXX as a QR; the phone
+// scans it, lands on the confirm screen, and approves with ITS session; the
+// TV polls with its secret and receives a session + profile of its own.
+// See src/lib/devicepair.js for the two-credential design.
+const devicepair = require("../lib/devicepair");
+
+router.post("/api/auth/device/start", (req, res) => {
+  const ip = realtime.clientIp(req);
+  if (tooMany("pair:" + ip)) return res.status(429).json({ error: "slow down" });
+  recordFail("pair:" + ip); // starts count against the window — codes are cheap to mint
+  const r = devicepair.start({ ip, device: deviceOf(req) });
+  if (r.error) return res.status(429).json(r);
+  res.json({
+    ...r,
+    // what the TV should encode in the QR (its own reachable base URL + path)
+    linkPath: `/link?code=${r.code}`,
+  });
+});
+
+// What the phone's confirm screen needs: who is asking (and code validity).
+router.get("/api/auth/device/describe/:code", (req, res) => {
+  const d = devicepair.describe(req.params.code);
+  if (!d) return res.status(404).json({ error: "that code expired — ask the TV for a fresh one" });
+  res.json(d);
+});
+
+// The one tap that signs the TV in — requires the phone's OWN session, and
+// hands the TV that session's profile (never anything else).
+router.post("/api/auth/device/approve", (req, res) => {
+  const s = sessionFor(req);
+  if (!s) return res.status(401).json({ error: "sign in first", signinRequired: true });
+  const r = devicepair.approve((req.body || {}).code, s.profile.id);
+  if (r.error) return res.status(410).json(r);
+  res.json({ ok: true });
+});
+
+// The TV's poll: code + its secret. Single-use — the session is minted once.
+router.post("/api/auth/device/poll", (req, res) => {
+  const { code, secret } = req.body || {};
+  const r = devicepair.consume(code, secret);
+  if (r.gone) return res.status(410).json({ error: "that code expired — start again" });
+  if (r.pending) return res.json({ pending: true });
+  const p = profiles.list().find((x) => x.id === r.profileId);
+  if (!p || p.locked) return res.status(410).json({ error: "that profile isn't available" });
+  const sid = sessions.create(p.id, { ip: realtime.clientIp(req), device: deviceOf(req) });
+  res.json({
+    ok: true,
+    user: profiles.signinPub(p),
+    profile: profiles.pub(p),
+    profileToken: profiles.issueToken(p.id),
+    session: sid, // the TV stores this and sends it as X-Session
+  });
+});
+
 // ---------- admin ----------
 const adminOnly = (req, res, next) => {
   if (!realtime.isAdmin(req)) return res.status(403).json({ error: "Admin access required" });

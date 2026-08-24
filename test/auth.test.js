@@ -265,6 +265,39 @@ test("authmode: settings win over config, legacy names normalize, junk falls to 
   }
 });
 
+// ---------- TV pairing (QR device link) ----------
+
+test("device pairing: start → approve → consume, exactly once", () => {
+  const pair = require("../src/lib/devicepair");
+  const r = pair.start({ ip: "10.0.0.9", device: { device: "TV", os: "Android" } });
+  assert.match(r.code, /^[A-HJ-NP-Z2-9]{6}$/, "readable alphabet, no 0/O/1/I/L");
+  assert.match(r.secret, /^[0-9a-f]{48}$/);
+
+  const d = pair.describe(r.code.toLowerCase()); // case-insensitive
+  assert.equal(d.approved, false);
+  assert.equal(d.device.device, "TV");
+
+  assert.deepEqual(pair.consume(r.code, r.secret), { pending: true }, "not approved yet");
+  assert.equal(pair.consume(r.code, "wrong-secret").gone, true, "wrong holder = expired");
+
+  assert.equal(pair.approve(r.code, "prof-tv").ok, true);
+  assert.ok(pair.approve(r.code, "someone-else").error, "second approval refused");
+
+  const got = pair.consume(r.code, r.secret);
+  assert.equal(got.profileId, "prof-tv");
+  assert.equal(pair.consume(r.code, r.secret).gone, true, "single use — spent");
+});
+
+test("device pairing: codes expire and unknown codes describe as null", () => {
+  const pair = require("../src/lib/devicepair");
+  const r = pair.start({});
+  pair._internals.pairs.get(r.code).expiresAt = Date.now() - 1;
+  assert.equal(pair.describe(r.code), null, "expired = gone");
+  assert.equal(pair.consume(r.code, r.secret).gone, true);
+  assert.equal(pair.describe("NOSUCH"), null);
+  assert.ok(pair.approve("NOSUCH", "p").error);
+});
+
 // ---------- login rate limiter ----------
 
 test("rate limiter opens after FAIL_MAX failures and isolates keys", () => {

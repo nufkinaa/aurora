@@ -107,6 +107,9 @@ export const api = {
   sessionProfileToken: () => post("/api/auth/profile-token", {}),
   setProfileEmail: (profileId, email) => post(`/api/profiles/${encodeURIComponent(profileId)}/email`, { email }),
   googleWebFinish: (state) => post("/api/auth/google/web-finish", { state }),
+  // TV pairing by QR: the phone's confirm screen (#/pair/:code)
+  devicePairDescribe: (code) => json(`/api/auth/device/describe/${encodeURIComponent(code)}`),
+  devicePairApprove: (code) => post("/api/auth/device/approve", { code }),
   googleStart: () => post("/api/auth/google/start", {}),
   googlePoll: (pollId) => post("/api/auth/google/poll", { pollId }),
   googleLink: (pollId) => post("/api/auth/google/link", { pollId }),

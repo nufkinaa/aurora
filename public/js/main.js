@@ -38,6 +38,7 @@ route("/preferences", renderPreferences);
 route("/wrapped", renderWrapped);
 route("/taste", renderTaste);
 route("/pick", renderPickForMe);
+route("/pair/:code", (root, p) => import("./screens/pair.js").then((m) => m.renderPair(root, p)));
 
 // "?" anywhere opens the keyboard shortcuts overlay
 document.addEventListener("keydown", (e) => {
