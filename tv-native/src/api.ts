@@ -9,6 +9,8 @@ let token: string | null = null;
 // viewer is never asked. The LAN address is tried first; if it does not answer on
 // the first try the remote one BECOMES the server for this run.
 export const SERVER_CANDIDATES = [
+  // TEMP QA ONLY - REVERT BEFORE HANDOFF.
+  'http://127.0.0.1:4000',
   "http://10.0.0.1:4000",
   'https://nufurora.com',
 ];

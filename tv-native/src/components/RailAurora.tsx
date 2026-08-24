@@ -16,11 +16,18 @@
 //      layers, crossfaded by one native value: 15 full-height alpha-blended
 //      layers was pure fill-rate murder — 85% janky at 350ms a frame.
 // What survives is composition-only motion on exactly TWO band textures
-// (elia: perf first, "1-2 lines is fine"): each frozen band rides four
-// layered native-driver sines — vertical drift, sideways sway, a slow TILT
-// (the rotation is what reads as the curtain folding), and the site's
-// presence pulse as opacity. Different periods per motion per band, so the
-// composite never visibly repeats. Measured: same ~0% jank as a bare rail.
+// (elia: perf first, "1-2 lines is fine"): each frozen band rides layered
+// sines — vertical drift, sideways sway, a TILT (the rotation is what reads
+// as the curtain folding), scale breathing, and the site's presence pulse
+// as opacity. Measured: same ~0% jank as a bare rail.
+//
+// EVERY MOTION DERIVES FROM ONE 90s LINEAR MASTER per band, sampled into
+// native interpolations — NOT one Animated.loop per motion. A native-driver
+// loop restarts through JS every iteration, and eight little loops
+// restarting every 3-7s put a visible hitch on screen every couple of
+// seconds (elia: "glitching"). The master loops once per 90s, and because
+// every sine completes an INTEGER number of cycles across it, the seam has
+// identical value and slope — the one restart is mathematically invisible.
 //
 // The whole layer is pointerEvents="none" and holds no focusables; NavRail
 // mounts it inside the panel, so it exists only while the panel does.
@@ -42,15 +49,39 @@ type Band = {
   phase: number;
   alpha: number;
   seed: number; // where on its personal clock this band lives
+  // Motion: integer cycle counts across the 90s master (period = 90s/k) and
+  // amplitudes. Integers are load-bearing — see the header on the seam.
+  ky: number; // vertical drift cycles
+  kx: number; // sideways sway cycles
+  kr: number; // tilt cycles
+  ks: number; // scale-breathe cycles
+  kp: number; // presence cycles
+  ampY: number;
+  ampX: number;
+  deg: number; // tilt, degrees
+  presLo: number;
+  presHi: number;
 };
 
 // Baked personalities (values hand-picked from the site's makeBand ranges).
 // The hero is the wide always-there curtain; the two others are slimmer and
 // pulse in and out around it without ever fully vanishing.
+// Periods land between 3s and 7.5s — big, couch-visible travel (the +-18px
+// first cut read as "sitting"), the two bands drifting on offset clocks so
+// there is always relative motion between them.
 const BANDS: Band[] = [
-  {hero: true, meander: 0.0034, mAmp: 0.19, curlF: 0.010, thick: 0.36, sMin: 0.72, sVar: 0.28, xOff: -0.02, phase: 1.3, alpha: 0.95, seed: 40},
-  {hero: false, meander: 0.0029, mAmp: 0.17, curlF: 0.012, thick: 0.24, sMin: 0.6, sVar: 0.4, xOff: 0.07, phase: 4.0, alpha: 0.75, seed: 110},
+  {hero: true, meander: 0.0034, mAmp: 0.19, curlF: 0.010, thick: 0.36, sMin: 0.72, sVar: 0.28, xOff: -0.02, phase: 1.3, alpha: 0.95, seed: 40,
+   ky: 18, kx: 26, kr: 21, ks: 15, kp: 16, ampY: 42, ampX: 15, deg: 4.2, presLo: 0.72, presHi: 1},
+  {hero: false, meander: 0.0029, mAmp: 0.17, curlF: 0.012, thick: 0.24, sMin: 0.6, sVar: 0.4, xOff: 0.07, phase: 4.0, alpha: 0.75, seed: 110,
+   ky: 22, kx: 30, kr: 25, ks: 17, kp: 12, ampY: 55, ampX: 19, deg: 5.2, presLo: 0.28, presHi: 0.9},
 ];
+
+// One trip of the master. Long enough that its (seam-invisible) restart is
+// rare; short enough that the sampled interpolations stay small.
+const MASTER_MS = 90000;
+// Samples across the master for the sine tables: the fastest motion (k=30)
+// still gets 24 points per cycle — smooth at these amplitudes.
+const SINE_N = 720;
 
 // Sample points along the drop — enough that the tips resolve smoothly.
 const SAMPLES = 18;
@@ -137,47 +168,62 @@ function bandRibbons(b: Band, t: number, W: number, H: number): Ribbon[] {
   }));
 }
 
-// An endless there-and-back on a native-driver value.
-const breathe = (v: Animated.Value, dur: number, delay = 0) =>
-  Animated.loop(
-    Animated.sequence([
-      Animated.timing(v, {
-        toValue: 1,
-        duration: dur,
-        delay,
-        easing: Easing.inOut(Easing.sin),
-        useNativeDriver: true,
-        isInteraction: false,
-      }),
-      Animated.timing(v, {
-        toValue: 0,
-        duration: dur,
-        easing: Easing.inOut(Easing.sin),
-        useNativeDriver: true,
-        isInteraction: false,
-      }),
-    ]),
-  );
+// A sine of `cycles` full periods across the master's [0,1], sampled into a
+// native interpolation. `phase` shifts where in the cycle this opening
+// starts; integer `cycles` keeps the loop seam continuous.
+function sineOf(
+  master: Animated.Value,
+  cycles: number,
+  phase: number,
+  lo: number,
+  hi: number,
+  unit?: string,
+): Animated.AnimatedInterpolation<string | number> {
+  const inputRange: number[] = [];
+  const values: number[] = [];
+  for (let i = 0; i <= SINE_N; i++) {
+    const t = i / SINE_N;
+    inputRange.push(t);
+    values.push(lo + (hi - lo) * (0.5 + 0.5 * Math.sin(2 * Math.PI * cycles * t + phase)));
+  }
+  return unit
+    ? master.interpolate({inputRange, outputRange: values.map(v => v.toFixed(3) + unit)})
+    : master.interpolate({inputRange, outputRange: values});
+}
 
 function BandView({band, w, h}: {band: Band; w: number; h: number}) {
   // This band's one frozen shape, computed once per mount.
   const ribbons = useMemo(() => bandRibbons(band, band.seed, w, h), [band, w, h]);
-  // Openings differ only in WHERE each motion starts, never in the lanes.
-  const drift = useRef(new Animated.Value(Math.random())).current;
-  const sway = useRef(new Animated.Value(Math.random())).current;
-  const tilt = useRef(new Animated.Value(Math.random())).current;
-  const pres = useRef(new Animated.Value(band.hero ? 1 : Math.random())).current;
+  const master = useRef(new Animated.Value(0)).current;
+  // Openings differ only in WHERE on the cycle each motion starts (one
+  // random phase per mount), never in the lanes.
+  const p0 = useRef(rand(0, Math.PI * 2)).current;
+
+  const motion = useMemo(
+    () => ({
+      ty: sineOf(master, band.ky, p0, -band.ampY, band.ampY),
+      tx: sineOf(master, band.kx, p0 * 1.7 + 1, -band.ampX, band.ampX),
+      rot: sineOf(master, band.kr, p0 * 2.3 + 2, -band.deg, band.deg, 'deg'),
+      sy: sineOf(master, band.ks, p0 * 0.9, 0.94, 1.08),
+      sx: sineOf(master, band.ks, p0 * 0.9 + Math.PI, 0.92, 1.1),
+      op: sineOf(master, band.kp, p0 * 1.3, band.presLo, band.presHi),
+    }),
+    [master, band, p0],
+  );
 
   useEffect(() => {
-    const anims = [
-      breathe(drift, rand(4800, 6800)),
-      breathe(sway, rand(3200, 4600)),
-      breathe(tilt, rand(4000, 6000), rand(0, 800)),
-      breathe(pres, band.hero ? rand(4000, 6000) : rand(3000, 5000), band.hero ? 0 : rand(0, 1200)),
-    ];
-    anims.forEach(a => a.start());
-    return () => anims.forEach(a => a.stop());
-  }, [drift, sway, tilt, pres, band.hero]);
+    const a = Animated.loop(
+      Animated.timing(master, {
+        toValue: 1,
+        duration: MASTER_MS,
+        easing: Easing.linear,
+        useNativeDriver: true,
+        isInteraction: false,
+      }),
+    );
+    a.start();
+    return () => a.stop();
+  }, [master]);
 
   return (
     <Animated.View
@@ -185,20 +231,16 @@ function BandView({band, w, h}: {band: Band; w: number; h: number}) {
       style={[
         styles.fill,
         {
-          opacity: pres.interpolate({
-            // Nobody fully vanishes — bands swelling and thinning in place
-            // keeps the sky recognisable between glances.
-            inputRange: [0, 1],
-            outputRange: band.hero ? [0.7, 1] : [0.3, 0.9],
-          }),
+          opacity: motion.op,
           transform: [
-            {translateY: drift.interpolate({inputRange: [0, 1], outputRange: [-18, 18]})},
-            {translateX: sway.interpolate({inputRange: [0, 1], outputRange: [-9, 9]})},
-            // The tilt is the fold: a tall curtain leaning ±2° sweeps its
-            // tips ~20px sideways, which the eye reads as the drape
+            {translateY: motion.ty},
+            {translateX: motion.tx},
+            // The tilt is the fold: a tall curtain leaning sweeps its tips
+            // tens of px sideways, which the eye reads as the drape
             // regathering — the closest a rigid texture gets to morphing.
-            {rotate: tilt.interpolate({inputRange: [0, 1], outputRange: ['-2.2deg', '2.2deg']})},
-            {scaleY: drift.interpolate({inputRange: [0, 1], outputRange: [1.04, 0.98]})},
+            {rotate: motion.rot as Animated.AnimatedInterpolation<string>},
+            {scaleY: motion.sy},
+            {scaleX: motion.sx},
           ],
         },
       ]}>
