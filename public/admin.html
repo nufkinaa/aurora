@@ -1137,8 +1137,9 @@
     async function loadAuth() {
       let mode = "open";
       let google = false;
+      let info = {};
       try {
-        const info = await json("/api/server-info");
+        info = await json("/api/server-info");
         mode = info.authMode || "open";
         google = !!info.google;
       } catch {}
@@ -1157,17 +1158,21 @@
       // only the TV app and IP-address devices use it). Checked LIVE.
       if (!google) {
         $("#auth-google-note").innerHTML =
-          `Google sign-in: <span class="muted">not configured.</span> To enable it (free): Google Cloud Console → OAuth consent screen → Credentials → Create credentials → OAuth client ID → type <strong>“Web application”</strong>, add the redirect URI <code>http://localhost:4000/api/auth/google/web-callback</code> (and <code>https://nufurora.com/api/auth/google/web-callback</code>), then put <code>GOOGLE_CLIENT_ID=…</code> and <code>GOOGLE_CLIENT_SECRET=…</code> in the server's <code>.env</code> and restart.`;
+          `Google sign-in: <span class="muted">not configured.</span> To enable the normal browser popup (free): Google Cloud Console → OAuth consent screen → Credentials → Create credentials → OAuth client ID → type <strong>“Web application”</strong>, add the redirect URIs <code>http://localhost:4000/api/auth/google/web-callback</code> and <code>https://nufurora.com/api/auth/google/web-callback</code>, then put <code>GOOGLE_WEB_CLIENT_ID=…</code> and <code>GOOGLE_WEB_CLIENT_SECRET=…</code> in the server's <code>.env</code> and restart.`;
       } else {
         $("#auth-google-note").innerHTML = `Google sign-in: <span class="muted">checking the setup against Google…</span>`;
         json("/api/admin/google-check").then((g) => {
-          const web = `<strong>Browser sign-in (the normal popup):</strong> uses your existing Web client. Make sure its <em>Authorized redirect URIs</em> include <code>http://localhost:4000/api/auth/google/web-callback</code> and <code>https://nufurora.com/api/auth/google/web-callback</code> (Google Cloud Console → Credentials → your OAuth client).`;
+          const web = info.googleWeb
+            ? `<strong>Browser sign-in (the normal popup)</strong> — <code>GOOGLE_WEB_CLIENT_ID</code>: <span class="ok">configured.</span> Make sure the client's <em>Authorized redirect URIs</em> include <code>http://localhost:4000/api/auth/google/web-callback</code> and <code>https://nufurora.com/api/auth/google/web-callback</code> (Google Cloud Console → Credentials → the client).`
+            : `<strong>Browser sign-in (the normal popup)</strong> — <span class="muted">not configured:</span> add <code>GOOGLE_WEB_CLIENT_ID=…</code> + <code>GOOGLE_WEB_CLIENT_SECRET=…</code> (a “Web application” OAuth client) to <code>.env</code>.`;
           const dev =
             g.status === "ok"
-              ? `<strong>TV code flow:</strong> <span class="ok">working</span> — verified live.`
-              : g.status === "wrong_type"
-                ? `<strong>TV code flow:</strong> <span class="muted">needs its own client</span> — only the TV app and devices reaching the server by IP use it. When the TV update ships: create a second OAuth client of type “TVs and Limited Input devices” and put its keys in <code>.env</code> as <code>GOOGLE_CLIENT_ID</code> (move the web keys to <code>GOOGLE_WEB_CLIENT_ID</code>/<code>GOOGLE_WEB_CLIENT_SECRET</code>).`
-                : `<strong>TV code flow:</strong> <span class="bad">not working</span> — ${esc(g.detail || "")}`;
+              ? `<strong>TV code flow</strong> — <code>GOOGLE_TV_CLIENT_ID</code>: <span class="ok">working</span>, verified live against Google.`
+              : g.status === "missing"
+                ? `<strong>TV code flow</strong> — <span class="muted">not configured (fine for now):</span> only the TV app and devices reaching the server by raw IP use it. When the TV update ships, create an OAuth client of type “TVs and Limited Input devices” and put its keys in <code>.env</code> as <code>GOOGLE_TV_CLIENT_ID=…</code> + <code>GOOGLE_TV_CLIENT_SECRET=…</code> (placeholders are already there, commented).`
+                : g.status === "wrong_type"
+                  ? `<strong>TV code flow</strong> — <span class="bad">wrong client type:</span> <code>GOOGLE_TV_CLIENT_ID</code> must be a client created as “TVs and Limited Input devices”, not a Web/Desktop one.`
+                  : `<strong>TV code flow</strong> — <span class="bad">not working:</span> ${esc(g.detail || "")}`;
           $("#auth-google-note").innerHTML = `${web}<br>${dev}`;
         }).catch(() => {
           $("#auth-google-note").innerHTML = `Google sign-in: <span class="muted">couldn't check right now.</span>`;

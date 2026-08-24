@@ -288,15 +288,18 @@ router.post("/api/admin/signin/:profileId/password", adminOnly, async (req, res)
 // a redirect URI, so this works from the LAN and the TV identically.
 // Configure GOOGLE_CLIENT_ID (+ GOOGLE_CLIENT_SECRET) in .env; without them
 // every Google surface hides itself.
-const G_ID = process.env.GOOGLE_CLIENT_ID || null;
-const G_SECRET = process.env.GOOGLE_CLIENT_SECRET || null;
-// The WEB (redirect/popup) flow — the "normal" Google button for browsers.
-// Defaults to the same keys: a standard "Web application" OAuth client works
-// here directly (it's the device flow that needs the TV-type client), so
-// elia's existing client id serves the website as-is once its redirect URIs
-// are registered. A separate TV-type client can override for the device flow.
-const G_WEB_ID = process.env.GOOGLE_WEB_CLIENT_ID || G_ID;
-const G_WEB_SECRET = process.env.GOOGLE_WEB_CLIENT_SECRET || G_SECRET;
+// Two Google OAuth clients, two explicit .env pairs (elia's model):
+//   GOOGLE_WEB_CLIENT_ID / GOOGLE_WEB_CLIENT_SECRET
+//     — a "Web application" client: the normal popup sign-in for browsers.
+//   GOOGLE_TV_CLIENT_ID / GOOGLE_TV_CLIENT_SECRET
+//     — a "TVs and Limited Input devices" client: the code flow, used by the
+//       TV app and by devices that reach the server by raw IP.
+// The old single GOOGLE_CLIENT_ID/SECRET pair still works as a fallback for
+// either, so nothing breaks if it's all a .env has.
+const G_ID = process.env.GOOGLE_TV_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || null;
+const G_SECRET = process.env.GOOGLE_TV_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET || null;
+const G_WEB_ID = process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || null;
+const G_WEB_SECRET = process.env.GOOGLE_WEB_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET || null;
 const gPolls = new Map(); // pollId -> {deviceCode, interval, expiresAt, done, error, session, user, linkSub, signupSub}
 
 // What a VERIFIED-but-unlinked-to-this-flow Google identity means: a known
