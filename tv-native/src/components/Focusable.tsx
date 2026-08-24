@@ -134,6 +134,12 @@ type Props = {
   // and nothing reflows.
   ringWidth?: number;
   ringColor?: string;
+  // Take this element out of the d-pad's reach without unmounting it. Exists
+  // for the rail's slide-OUT: the panel keeps drawing for ~200ms after close,
+  // and Android's focus search must not be able to wander back into a row
+  // that is about to unmount (the stranded-focus bug that once made the rail
+  // close instantly instead of animating).
+  focusDisabled?: boolean;
   // Long-press OK. The Continue Watching ✕ is drawn but never focusable (P12), so
   // the removal gesture has nowhere else to live — P20, and the one change to
   // src/ the spec asks for. The ring registry is deliberately untouched: a long
@@ -169,6 +175,7 @@ export default function Focusable({
   focusOverlay,
   ringWidth,
   ringColor,
+  focusDisabled,
   onLongPress,
   edgeLeft,
   edgeRight,
@@ -273,6 +280,7 @@ export default function Focusable({
   return (
     <AnimatedPressable
       ref={setRef as never}
+      {...(focusDisabled ? ({focusable: false, isTVSelectable: false} as object) : null)}
       hasTVPreferredFocus={wantsFocus}
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}

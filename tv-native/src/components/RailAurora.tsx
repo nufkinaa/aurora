@@ -1,27 +1,26 @@
 // Aurora curtains for the nav rail — js/aurora.js from the website, turned
-// 90°: the bands flow DOWN the panel, meandering across its width, and sit on
-// a layer below the buttons. Same personality system as the site (1–3 bands,
-// random meander/curls/swell/presence, so no two openings look alike), with
-// the tempo turned up — the rail is only open for seconds, so the sky has to
-// be alive immediately.
+// 90°: bands flow DOWN the panel, meandering across its width, on a layer
+// below the buttons.
 //
-// HOW IT ANIMATES — and why not like the website. The site repaints a canvas
-// per frame. The first TV port did the same through react-native-svg (new
-// path data ~12x/s), and gfxinfo on the Streamer showed what that costs:
-// every update was a 50–60ms raster — 84% janky frames with the rail just
-// sitting open, against Home's 7% baseline. Path morphing is simply not
-// affordable on this GPU.
+// THE SKY IS THE SAME SKY EVERY TIME. The first cut re-rolled every band's
+// personality per opening, and the rail read as a different place each visit
+// (elia). The three personalities are now baked constants — curated draws
+// from the site's makeBand ranges — so the lanes live where you left them;
+// only the phase of the motion differs between openings.
 //
-// So the shapes are FROZEN and the motion is composition. Each band's ribbon
-// stack is generated once per opening (at a random moment of its personal
-// clock, so every opening gets a different sky) and rendered to one static
-// Svg, pinned as a hardware texture. What moves are Animated transforms on
-// the band's wrapper — a slow vertical drift, a sideways sway, a scale
-// breathe, and the site's presence cycle as an opacity pulse — all on the
-// NATIVE driver: no JS ticks, no re-renders, no re-rasters, just the GPU
-// compositing three textures. Three bands on different clocks folding over
-// each other still read as living curtains; only the tight in-band curl
-// morphing is lost, and at 240px wide nobody can tell.
+// HOW IT MOVES — frozen shapes, moving transforms. Two approaches measured
+// on the Streamer and rejected:
+//   1. Repainting SVG paths per frame (the site's canvas approach):
+//      50-60ms per raster, 84% janky.
+//   2. Keyframe dissolve — K snapshots per band as stacked hardware-texture
+//      layers, crossfaded by one native value: 15 full-height alpha-blended
+//      layers was pure fill-rate murder — 85% janky at 350ms a frame.
+// What survives is composition-only motion on exactly TWO band textures
+// (elia: perf first, "1-2 lines is fine"): each frozen band rides four
+// layered native-driver sines — vertical drift, sideways sway, a slow TILT
+// (the rotation is what reads as the curtain folding), and the site's
+// presence pulse as opacity. Different periods per motion per band, so the
+// composite never visibly repeats. Measured: same ~0% jank as a bare rail.
 //
 // The whole layer is pointerEvents="none" and holds no focusables; NavRail
 // mounts it inside the panel, so it exists only while the panel does.
@@ -31,60 +30,52 @@ import Svg, {Defs, LinearGradient, Path, Rect, Stop} from 'react-native-svg';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
-// One band's personality — the site's makeBand with the axis swapped
-// (meander/curl frequencies run along y, amplitudes across the width).
 type Band = {
   hero: boolean;
-  meander: number;
-  mAmp: number;
-  curlF: number;
-  thick: number;
-  sMin: number;
+  meander: number; // centerline wander frequency along the drop
+  mAmp: number; // how far it slaloms across the rail, in widths
+  curlF: number; // the tighter kinks riding on the meander
+  thick: number; // body thickness, in widths
+  sMin: number; // thickness-swell floor
   sVar: number;
   xOff: number;
   phase: number;
   alpha: number;
-  seed: number; // the frozen moment of this band's clock
+  seed: number; // where on its personal clock this band lives
 };
 
-const makeBand = (hero = false): Band => ({
-  hero,
-  meander: rand(0.0026, 0.0044),
-  mAmp: rand(0.15, 0.22),
-  curlF: rand(0.008, 0.013),
-  thick: rand(0.18, 0.28),
-  sMin: hero ? 0.72 : 0.6,
-  sVar: hero ? 0.28 : 0.4,
-  xOff: rand(-0.05, 0.05),
-  phase: rand(0, Math.PI * 2),
-  alpha: hero ? rand(0.85, 1.0) : rand(0.65, 0.85),
-  seed: rand(0, 200),
-});
+// Baked personalities (values hand-picked from the site's makeBand ranges).
+// The hero is the wide always-there curtain; the two others are slimmer and
+// pulse in and out around it without ever fully vanishing.
+const BANDS: Band[] = [
+  {hero: true, meander: 0.0034, mAmp: 0.19, curlF: 0.010, thick: 0.36, sMin: 0.72, sVar: 0.28, xOff: -0.02, phase: 1.3, alpha: 0.95, seed: 40},
+  {hero: false, meander: 0.0029, mAmp: 0.17, curlF: 0.012, thick: 0.24, sMin: 0.6, sVar: 0.4, xOff: 0.07, phase: 4.0, alpha: 0.75, seed: 110},
+];
 
-// Sample points along the drop. The slowest wave is ~1800px, the tightest
-// curl ~500px — 14 samples over ~1100px renders smooth at rail widths.
-const SAMPLES = 14;
+// Sample points along the drop — enough that the tips resolve smoothly.
+const SAMPLES = 18;
 
 type Ribbon = {d: string; opacity: number; color: string};
 
 // The cross-section as concentric ribbons: [width factor, centerline offset
 // (in thicknesses; the glow leans off one side like the site's veil), color,
-// opacity factor]. Painted widest first — SVG has no cheap blur, so the
-// canvas ramp's falloff is faked with a graduated stack whose edges land
-// close enough together that the eye reads one glowing band, not stripes.
+// opacity factor]. SVG has no cheap blur, so the canvas ramp's falloff is a
+// graduated stack — seven nested translucent ribbons read as one soft glow.
+// (Four read as drawn lines — elia: "too liny".)
 const LAYERS: Array<[number, number, string, number]> = [
-  [2.4, 0.14, '#1ea87c', 0.045], // the long diffuse veil…
-  [1.5, 0.07, '#2cc98b', 0.09],
-  [0.85, 0.0, '#3ce996', 0.16], // …the band body…
-  [0.34, -0.05, '#a4ffd0', 0.42], // …and the bright core
+  [3.0, 0.18, '#17957a', 0.03],
+  [2.2, 0.12, '#1ea87c', 0.055],
+  [1.6, 0.07, '#2cc98b', 0.085],
+  [1.15, 0.03, '#38dd92', 0.12],
+  [0.8, 0.0, '#3ce996', 0.16],
+  [0.5, -0.03, '#6ef7b0', 0.24],
+  [0.26, -0.06, '#a4ffd0', 0.38],
 ];
 // The hero band alone gets the site's blue-violet fringe on its far side.
-const FRINGE: [number, number, string, number] = [0.7, -0.5, '#6ea0ff', 0.08];
+const FRINGE: [number, number, string, number] = [0.8, -0.5, '#6ea0ff', 0.07];
 
-// One frozen sky for one band: the site's per-column math, sampled at the
-// band's seed moment and turned into closed ribbon paths.
-function bandRibbons(b: Band, W: number, H: number): Ribbon[] {
-  const t = b.seed;
+// One moment of one band's clock, as closed ribbon paths.
+function bandRibbons(b: Band, t: number, W: number, H: number): Ribbon[] {
   const center = H * (0.5 + 0.28 * Math.sin(t * 0.05 + b.phase));
   const halfLen = H * (0.62 + 0.18 * Math.sin(t * 0.037 + b.phase * 1.9));
   const s = t * 0.3;
@@ -96,7 +87,17 @@ function bandRibbons(b: Band, W: number, H: number): Ribbon[] {
   for (let i = 0; i < SAMPLES; i++) {
     const u = -1 + (2 * i) / (SAMPLES - 1);
     const y = center + u * halfLen;
-    const endTaper = Math.sqrt(1 - u * u); // soft only at the actual ends
+    // The dome shades the band toward its ends — but sqrt alone leaves real
+    // thickness AT the tips, which drew a flat cut where the band should die
+    // (elia: "their end is flat"). A smoothstep feather over the outer 28%
+    // takes the width to an actual point, with zero slope at the very tip.
+    const dome = Math.sqrt(1 - u * u);
+    const a = Math.abs(u);
+    let feather = 1;
+    if (a > 0.72) {
+      const k = (1 - a) / 0.28;
+      feather = k * k * (3 - 2 * k);
+    }
     const xC =
       W *
       (0.5 +
@@ -109,7 +110,7 @@ function bandRibbons(b: Band, W: number, H: number): Ribbon[] {
     const swell = b.sMin + b.sVar * Math.sin(y * 0.0017 + s * 0.7 + b.phase * 1.6);
     xs.push(xC);
     ys.push(y);
-    ths.push(W * b.thick * swell * (0.5 + 0.5 * endTaper));
+    ths.push(W * b.thick * swell * (0.25 + 0.75 * dome) * feather);
   }
 
   const ribbon = (wf: number, off: number): string => {
@@ -136,9 +137,7 @@ function bandRibbons(b: Band, W: number, H: number): Ribbon[] {
   }));
 }
 
-// An endless there-and-back on a native-driver value: the building block for
-// every motion here. Random durations per band keep the three bands' clocks
-// from ever locking into step.
+// An endless there-and-back on a native-driver value.
 const breathe = (v: Animated.Value, dur: number, delay = 0) =>
   Animated.loop(
     Animated.sequence([
@@ -161,23 +160,24 @@ const breathe = (v: Animated.Value, dur: number, delay = 0) =>
   );
 
 function BandView({band, w, h}: {band: Band; w: number; h: number}) {
-  const ribbons = useMemo(() => bandRibbons(band, w, h), [band, w, h]);
+  // This band's one frozen shape, computed once per mount.
+  const ribbons = useMemo(() => bandRibbons(band, band.seed, w, h), [band, w, h]);
+  // Openings differ only in WHERE each motion starts, never in the lanes.
   const drift = useRef(new Animated.Value(Math.random())).current;
   const sway = useRef(new Animated.Value(Math.random())).current;
+  const tilt = useRef(new Animated.Value(Math.random())).current;
   const pres = useRef(new Animated.Value(band.hero ? 1 : Math.random())).current;
 
   useEffect(() => {
-    // The site's clocks run minutes; these run seconds (elia: "faster than
-    // on the website") — the fold, the sway and the come-and-go all happen
-    // while the viewer is actually looking.
     const anims = [
-      breathe(drift, rand(4500, 7000)),
-      breathe(sway, rand(3000, 5000)),
-      breathe(pres, band.hero ? rand(3500, 5500) : rand(2500, 4500), band.hero ? 0 : rand(0, 1500)),
+      breathe(drift, rand(4800, 6800)),
+      breathe(sway, rand(3200, 4600)),
+      breathe(tilt, rand(4000, 6000), rand(0, 800)),
+      breathe(pres, band.hero ? rand(4000, 6000) : rand(3000, 5000), band.hero ? 0 : rand(0, 1200)),
     ];
     anims.forEach(a => a.start());
     return () => anims.forEach(a => a.stop());
-  }, [drift, sway, pres, band.hero]);
+  }, [drift, sway, tilt, pres, band.hero]);
 
   return (
     <Animated.View
@@ -186,15 +186,19 @@ function BandView({band, w, h}: {band: Band; w: number; h: number}) {
         styles.fill,
         {
           opacity: pres.interpolate({
-            // The hero band never drops below a healthy glow — the panel
-            // always holds at least one real aurora (site behavior).
+            // Nobody fully vanishes — bands swelling and thinning in place
+            // keeps the sky recognisable between glances.
             inputRange: [0, 1],
-            outputRange: band.hero ? [0.55, 1] : [0.1, 0.95],
+            outputRange: band.hero ? [0.7, 1] : [0.3, 0.9],
           }),
           transform: [
-            {translateY: drift.interpolate({inputRange: [0, 1], outputRange: [-34, 34]})},
-            {translateX: sway.interpolate({inputRange: [0, 1], outputRange: [-13, 13]})},
-            {scaleY: drift.interpolate({inputRange: [0, 1], outputRange: [1.06, 0.97]})},
+            {translateY: drift.interpolate({inputRange: [0, 1], outputRange: [-18, 18]})},
+            {translateX: sway.interpolate({inputRange: [0, 1], outputRange: [-9, 9]})},
+            // The tilt is the fold: a tall curtain leaning ±2° sweeps its
+            // tips ~20px sideways, which the eye reads as the drape
+            // regathering — the closest a rigid texture gets to morphing.
+            {rotate: tilt.interpolate({inputRange: [0, 1], outputRange: ['-2.2deg', '2.2deg']})},
+            {scaleY: drift.interpolate({inputRange: [0, 1], outputRange: [1.04, 0.98]})},
           ],
         },
       ]}>
@@ -208,8 +212,6 @@ function BandView({band, w, h}: {band: Band; w: number; h: number}) {
 }
 
 export default function RailAurora({width}: {width: number}) {
-  // Fresh personalities on every opening, like the site gets per page load.
-  const bands = useMemo(() => [makeBand(true), makeBand(), makeBand()], []);
   // The panel is full-height; measure once and build the sky to fit.
   const [height, setHeight] = useState(0);
   return (
@@ -217,26 +219,26 @@ export default function RailAurora({width}: {width: number}) {
       pointerEvents="none"
       style={styles.clip}
       onLayout={e => setHeight(Math.round(e.nativeEvent.layout.height))}>
-      {height > 0 ? bands.map((b, i) => <BandView key={i} band={b} w={width} h={height} />) : null}
+      {height > 0 ? BANDS.map((b, i) => <BandView key={i} band={b} w={width} h={height} />) : null}
       {/* Soft vertical edges: rays are born and die gently, never cut off —
           the site's horizontal mask, rotated. The panel is opaque, so painting
           its own color back over the ends is a free mask, drawn ABOVE the
           bands and outside their transforms so the drift never moves it. */}
       {height > 0 ? (
-      <Svg width={width} height={height} style={styles.fill}>
-        <Defs>
-          <LinearGradient id="railAuroraTop" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#0a0b14" stopOpacity="1" />
-            <Stop offset="1" stopColor="#0a0b14" stopOpacity="0" />
-          </LinearGradient>
-          <LinearGradient id="railAuroraBot" x1="0" y1="1" x2="0" y2="0">
-            <Stop offset="0" stopColor="#0a0b14" stopOpacity="1" />
-            <Stop offset="1" stopColor="#0a0b14" stopOpacity="0" />
-          </LinearGradient>
-        </Defs>
-        <Rect x="0" y="0" width={width} height={110} fill="url(#railAuroraTop)" />
-        <Rect x="0" y={height - 110} width={width} height={110} fill="url(#railAuroraBot)" />
-      </Svg>
+        <Svg width={width} height={height} style={styles.fill}>
+          <Defs>
+            <LinearGradient id="railAuroraTop" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="#0a0b14" stopOpacity="1" />
+              <Stop offset="1" stopColor="#0a0b14" stopOpacity="0" />
+            </LinearGradient>
+            <LinearGradient id="railAuroraBot" x1="0" y1="1" x2="0" y2="0">
+              <Stop offset="0" stopColor="#0a0b14" stopOpacity="1" />
+              <Stop offset="1" stopColor="#0a0b14" stopOpacity="0" />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width={width} height={110} fill="url(#railAuroraTop)" />
+          <Rect x="0" y={height - 110} width={width} height={110} fill="url(#railAuroraBot)" />
+        </Svg>
       ) : null}
     </View>
   );

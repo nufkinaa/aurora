@@ -82,6 +82,14 @@ export default function NavRail({
   const me = useMe(profileId);
 
   const [open, setOpen] = useState(false);
+  // True while the panel is sliding OUT. It used to vanish in one frame —
+  // "like a glitch" (elia) — because a departing panel still held the nav's
+  // focusables and Android could focus-search into one mid-exit and strand
+  // focus. The fix is not to skip the animation but to make the rows
+  // unfocusable for the ride (Focusable.focusDisabled) and hand focus back
+  // to the page BEFORE the slide starts.
+  const [closing, setClosing] = useState(false);
+  const closingRef = useRef(false);
   const slide = useRef(new Animated.Value(0)).current;
   // Who had focus before the rail took it, so closing can give it straight back.
   const restore = useRef<(() => void) | null>(null);
@@ -105,27 +113,47 @@ export default function NavRail({
   }, []);
 
   const close = useCallback(() => {
-    setOpen(false);
-    slide.setValue(0);
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setClosing(true);
     disarmSwitch();
+    // Focus goes home FIRST: the page owns the remote for the whole exit.
     restore.current?.();
     restore.current = null;
+    Animated.timing(slide, {
+      toValue: 0,
+      duration: motion.med,
+      easing: EASE,
+      useNativeDriver: true,
+      isInteraction: false,
+    }).start(() => {
+      closingRef.current = false;
+      setClosing(false);
+      setOpen(false);
+    });
   }, [slide, disarmSwitch]);
+
+  // The no-animation exits (navigating away, losing the screen): the panel
+  // must not linger over a screen that is changing under it.
+  const instantClose = useCallback(() => {
+    closingRef.current = false;
+    setClosing(false);
+    setOpen(false);
+    slide.setValue(0);
+  }, [slide]);
 
   // Announce the open panel to focus.ts, so per-screen key handlers (the grid
   // up-escapes) go quiet while the rail owns the remote. Effect-based, so every
   // way the panel closes — RIGHT, Back, blur, navigation — retracts it.
   useEffect(() => {
-    if (!open) return;
+    if (!open || closing) return;
     noteRail(true);
     return () => noteRail(false);
-  }, [open]);
+  }, [open, closing]);
 
   useEffect(() => {
-    if (!open) return;
-    // Slides in over --t-med. There is deliberately no exit animation: a panel
-    // sliding out still holds the nav's focusables, and Android can focus-search
-    // back into one 200ms before it unmounts, which strands focus.
+    if (!open || closing) return;
+    // Slides in over --t-med; close() runs the mirror image out.
     Animated.timing(slide, {
       toValue: 1,
       duration: motion.med,
@@ -138,6 +166,7 @@ export default function NavRail({
   const onTV = useCallback(
     (evt: {eventType: string}) => {
       const t = evt.eventType;
+      if (closingRef.current) return;
       if (!open) {
         // LEFT from the leftmost focusable of the page. Anywhere else the press
         // is the page's own business and the platform has already moved focus.
@@ -182,11 +211,10 @@ export default function NavRail({
   // focus somewhere else.
   useEffect(() => {
     if (!live && open) {
-      setOpen(false);
-      slide.setValue(0);
       restore.current = null;
+      instantClose();
     }
-  }, [live, open, slide]);
+  }, [live, open, instantClose]);
 
 
   useEffect(() => {
@@ -214,8 +242,7 @@ export default function NavRail({
     // Do NOT restore focus on the way out: this screen is being left. Restoring
     // would hand focus to an element that is about to unmount.
     restore.current = null;
-    setOpen(false);
-    slide.setValue(0);
+    instantClose();
     disarmSwitch();
     if (key === 'profile') switchProfile();
     else goSection(navigation as never, active, key);
@@ -287,6 +314,7 @@ export default function NavRail({
                   label={it.label}
                   icon={it.icon}
                   iconSize={it.iconSize}
+                  focusDisabled={closing}
                   profile={it.key === 'profile' ? me?.avatar || '🍿' : undefined}
                   profileImage={it.key === 'profile' ? me?.avatarImage || null : undefined}
                   profileColor={it.key === 'profile' ? me?.color : undefined}
@@ -359,6 +387,7 @@ function NavItem({
   name,
   on,
   claimFocus,
+  focusDisabled,
   onFocused,
   onPress,
   ref,
@@ -372,6 +401,7 @@ function NavItem({
   name?: string;
   on?: boolean;
   claimFocus?: boolean;
+  focusDisabled?: boolean;
   onFocused: () => void;
   onPress: () => void;
   ref?: (node: NodeRef) => void;
@@ -385,6 +415,7 @@ function NavItem({
         round
         ref={ref as never}
         edgeLeft
+        focusDisabled={focusDisabled}
         accessibilityLabel={name}
         hasTVPreferredFocus={claimFocus}
         onFocusChange={f => f && onFocused()}
@@ -417,6 +448,7 @@ function NavItem({
     <Focusable
       round
       ref={ref as never}
+      focusDisabled={focusDisabled}
       // Every item in the rail is at the screen's left edge, so LEFT from any of
       // them is a no-op rather than a page press.
       edgeLeft
