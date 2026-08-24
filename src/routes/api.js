@@ -71,10 +71,11 @@ const listEntry = (i) => {
 // leaks member data" — this route was called out by name).
 router.get("/api/server-info", (req, res) => {
   const config = require("../config");
-  const authed = config.AUTH_MODE === "open" || !!require("../lib/authz").sessionFor(req);
+  const mode = require("../lib/authmode").get();
+  const authed = mode !== "closed" || !!require("../lib/authz").sessionFor(req);
   res.json({
     adminName: authed ? config.ADMIN_NAME : "the admin",
-    authMode: config.AUTH_MODE,
+    authMode: mode,
     google: !!process.env.GOOGLE_CLIENT_ID,
   });
 });
@@ -282,13 +283,13 @@ router.get("/api/home", (req, res) => {
   // token. Admin-locked profiles never personalize. Otherwise serve the
   // generic (non-personalized) home instead.
   //
-  // authMode notes: the route stays 200 without a session in open AND hybrid —
-  // old TV builds health-check this exact URL and treat non-ok as "server
-  // dead" (findings/auth.md §5). In required mode a session is demanded (the
-  // updated clients resolve via /api/ping instead), and a profile that the
-  // session's account doesn't own degrades to the generic home, same as a
-  // wrong profile-token does today.
-  if (require("../config").AUTH_MODE === "required" && !require("../lib/authz").sessionFor(req)) {
+  // authMode notes: the route stays 200 without a session in open AND
+  // transition — old TV builds health-check this exact URL and treat non-ok
+  // as "server dead" (findings/auth.md §5). In closed mode a session is
+  // demanded (updated clients resolve via /api/ping instead), and a profile
+  // the session's account doesn't own degrades to the generic home, same as
+  // a wrong profile-token does today.
+  if (require("../lib/authmode").get() === "closed" && !require("../lib/authz").sessionFor(req)) {
     return res.status(401).json({ error: "sign in first", signinRequired: true });
   }
   const profileId =

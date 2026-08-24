@@ -189,6 +189,91 @@ test("approveSignup refuses a username that got claimed while pending", async ()
   users.removeUser("occupier");
 });
 
+// ---------- auth mode (the admin rollout switch) ----------
+
+test("authmode: settings win over config, legacy names normalize, junk falls to open", () => {
+  const settings = require("../src/lib/settings");
+  const authmode = require("../src/lib/authmode");
+  const savedSave = settings.save;
+  const savedMode = settings.data.authMode;
+  settings.save = () => {};
+  try {
+    settings.data.authMode = "closed";
+    assert.equal(authmode.get(), "closed");
+    settings.data.authMode = "hybrid"; // legacy name from the first cut
+    assert.equal(authmode.get(), "transition");
+    settings.data.authMode = "required";
+    assert.equal(authmode.get(), "closed");
+    settings.data.authMode = "banana";
+    assert.equal(authmode.get(), "open");
+    assert.equal(authmode.set("nonsense"), false, "junk is refused");
+    assert.equal(authmode.set("transition"), true);
+    assert.equal(settings.data.authMode, "transition");
+  } finally {
+    settings.data.authMode = savedMode;
+    settings.save = savedSave;
+  }
+});
+
+// ---------- email sign-in ----------
+
+test("email: validation, uniqueness, and login by email", async () => {
+  const { normEmail, validEmail } = users._internals;
+  assert.equal(normEmail("  Bob@Example.COM "), "bob@example.com");
+  assert.equal(validEmail("bob@example.com"), true);
+  assert.equal(validEmail("not-an-email"), false);
+  assert.equal(validEmail("a@b.c"), false, "TLD needs 2+ chars");
+
+  const bad = await users.requestSignup({ username: "mailguy", password: "abcd1234", email: "nope" });
+  assert.ok(bad.error, "junk email rejected");
+  await users.requestSignup({ username: "mailguy", password: "abcd1234", email: "Mail.Guy@Example.com" });
+  const req = users.pendingList().find((r) => r.username === "mailguy");
+  assert.equal(req.email, "mail.guy@example.com", "stored normalized");
+  users.approveSignup(req.id);
+
+  const byMail = await users.login("MAIL.GUY@example.com", "abcd1234");
+  assert.equal(byMail.ok, true, "email works as the identifier");
+  assert.equal(byMail.user.username, "mailguy");
+  const byName = await users.login("mailguy", "abcd1234");
+  assert.equal(byName.ok, true, "username still works");
+
+  const dupe = await users.requestSignup({ username: "othermail", password: "abcd1234", email: "mail.guy@example.com" });
+  assert.ok(dupe.error, "email uniqueness enforced");
+  users.removeUser(users.byUsername("mailguy").id);
+});
+
+// ---------- claiming (transition onboarding) ----------
+
+test("claimAccount: an unclaimed migrated account becomes a real login", async () => {
+  users._internals.store.data.users.push({
+    id: "mig1", username: "dana", name: "Dana", profileIds: ["prof-dana"],
+    passwordHash: null, passwordSalt: null, migrated: true,
+  });
+  assert.equal(users.unclaimedFor("prof-dana").username, "dana", "claim UI sees the seed");
+
+  const short = await users.claimAccount({ profileId: "prof-dana", username: "dana", password: "abc" });
+  assert.ok(short.error, "short password rejected");
+
+  const r = await users.claimAccount({
+    profileId: "prof-dana", username: "DanaBanana", password: "mypassword1", email: "dana@example.com",
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.user.username, "danabanana", "username adjustable at claim time");
+  assert.equal(r.user.claimed, true);
+  assert.equal(users.unclaimedFor("prof-dana"), null, "no longer claimable");
+
+  const login = await users.login("danabanana", "mypassword1");
+  assert.equal(login.ok, true, "the claim IS the credential");
+
+  const again = await users.claimAccount({ profileId: "prof-dana", username: "thief", password: "hijack99" });
+  assert.ok(again.error, "a claimed account cannot be re-claimed");
+  assert.equal(again.claimed, true, "flagged as already-claimed for the 409");
+
+  const orphan = await users.claimAccount({ profileId: "no-such-profile", username: "x", password: "abcd1234" });
+  assert.ok(orphan.error, "no account behind the profile");
+  users.removeUser("mig1");
+});
+
 // ---------- login rate limiter ----------
 
 test("rate limiter opens after FAIL_MAX failures and isolates keys", () => {

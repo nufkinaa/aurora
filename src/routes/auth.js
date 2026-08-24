@@ -18,7 +18,7 @@ const router = express.Router();
 // auth mode, carries nothing personal. The TV switches to this from its old
 // "ping /api/home" habit before "required" mode can ever be flipped.
 router.get("/api/ping", (req, res) => {
-  res.json({ ok: true, name: "aurora", authMode: config.AUTH_MODE });
+  res.json({ ok: true, name: "aurora", authMode: require("../lib/authmode").get() });
 });
 
 // ---------- login rate limiting (per-IP and per-username) ----------
@@ -52,7 +52,7 @@ const recordFail = (key) => {
 router.get("/api/me", (req, res) => {
   const s = sessionFor(req);
   res.json({
-    authMode: config.AUTH_MODE,
+    authMode: require("../lib/authmode").get(),
     user: s ? users.pub(s.user) : null,
   });
 });
@@ -60,7 +60,9 @@ router.get("/api/me", (req, res) => {
 router.post("/api/auth/login", async (req, res) => {
   const { username, password } = req.body || {};
   const ip = realtime.clientIp(req);
-  const uKey = "u:" + users._internals.normUsername(username);
+  // the identifier may be a username OR an email — key the per-account
+  // counter on the raw lowercased input so both forms rate-limit
+  const uKey = "u:" + String(username || "").trim().toLowerCase().slice(0, 80);
   if (tooMany("ip:" + ip) || tooMany(uKey)) {
     return res.status(429).json({ error: "too many attempts — try again in a few minutes" });
   }
@@ -88,17 +90,62 @@ router.post("/api/auth/logout", (req, res) => {
 
 // Signup stays a request the admin approves — nobody self-creates access.
 router.post("/api/auth/signup", async (req, res) => {
-  const { username, name, password, note } = req.body || {};
+  const { username, name, email, password, note } = req.body || {};
   const ip = realtime.clientIp(req);
   if (tooMany("signup:" + ip)) return res.status(429).json({ error: "slow down" });
   recordFail("signup:" + ip); // signup attempts count against the window too
   const result = await users.requestSignup({
-    username, name, password, note,
+    username, name, email, password, note,
     ip,
     device: realtime.parseDevice(req.headers["user-agent"] || ""),
   });
   if (result.error) return res.status(400).json({ error: result.error });
   res.json(result);
+});
+
+// ---------- claiming (transition-mode onboarding) ----------
+// From inside a profile, the person makes the migrated account theirs:
+// confirm username, set a password, optionally add an email. A protected
+// profile requires its unlock token — the same proof the rest of the app
+// accepts for acting as that profile. Claiming signs them in on the spot.
+const profileProof = (req, profileId) => {
+  const profiles = require("../profiles");
+  if (!profiles.exists(profileId)) return { error: "no such profile", status: 404 };
+  if (profiles.isLocked(profileId)) return { error: "that profile is locked", status: 403 };
+  if (profiles.isProtected(profileId) && !profiles.tokenValid(profileId, req.get("X-Profile-Token"))) {
+    return { error: "unlock the profile first", status: 401 };
+  }
+  return { ok: true };
+};
+
+// Is there an unclaimed account waiting behind this profile? (Seeds the
+// claim card: suggested username, and whether to show the prompt at all.)
+router.get("/api/auth/claimable/:profileId", (req, res) => {
+  const proof = profileProof(req, req.params.profileId);
+  if (proof.error) return res.status(proof.status).json({ error: proof.error });
+  res.json({ account: users.unclaimedFor(req.params.profileId) });
+});
+
+router.post("/api/auth/claim", async (req, res) => {
+  const { profileId, username, password, email } = req.body || {};
+  const ip = realtime.clientIp(req);
+  if (tooMany("claim:" + ip)) return res.status(429).json({ error: "slow down" });
+  const proof = profileProof(req, String(profileId || ""));
+  if (proof.error) {
+    recordFail("claim:" + ip);
+    return res.status(proof.status).json({ error: proof.error });
+  }
+  const result = await users.claimAccount({ profileId, username, password, email });
+  if (result.error) {
+    recordFail("claim:" + ip);
+    return res.status(result.claimed ? 409 : 400).json(result);
+  }
+  const sid = sessions.create(result.userId, {
+    ip,
+    device: realtime.parseDevice(req.headers["user-agent"] || ""),
+  });
+  setSessionCookie(req, res, sid);
+  res.json({ ok: true, user: result.user, session: sid });
 });
 
 // Change my password (needs the current one — a walked-away-from browser
@@ -165,6 +212,21 @@ router.post("/api/admin/signups/:id/reject", adminOnly, (req, res) => {
 // up profiles.json first — see users.migrateFromProfiles).
 router.post("/api/admin/auth-migrate", adminOnly, (req, res) => {
   res.json({ migrated: users.migrateFromProfiles() });
+});
+// Admin: the sign-in rollout switch, LIVE — no restart, no config edits.
+// Leaving "open" runs the migration first so every profile has an account
+// waiting to be claimed before anything changes for anyone.
+router.post("/api/admin/auth-mode", adminOnly, (req, res) => {
+  const authmode = require("../lib/authmode");
+  const mode = String((req.body || {}).mode || "");
+  const target = mode === "hybrid" ? "transition" : mode === "required" ? "closed" : mode;
+  if (!authmode.MODES.includes(target)) return res.status(400).json({ error: "unknown mode" });
+  let migrated = [];
+  if (target !== "open") migrated = users.migrateFromProfiles();
+  authmode.set(target);
+  console.log(`[auth] mode -> ${target} (set from the admin panel)` +
+    (migrated.length ? ` — migrated: ${migrated.join("; ")}` : ""));
+  res.json({ ok: true, mode: target, migrated });
 });
 // Admin: list accounts and (re)assign which profiles each one owns — the knob
 // that makes a freshly approved account actually see something.

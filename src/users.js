@@ -24,6 +24,11 @@ const MAX_PENDING = 40;
 const normUsername = (u) =>
   String(u || "").trim().toLowerCase().replace(/[^a-z0-9._-]/g, "").slice(0, 24);
 
+// Emails are optional on an account: a second way to sign in, and a future
+// notification address. Household-honest validation — not an RFC parser.
+const normEmail = (e) => String(e || "").trim().toLowerCase().slice(0, 80);
+const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
+
 const hashPassword = async (password) => {
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = (await scrypt(String(password), salt, 64)).toString("hex");
@@ -41,31 +46,44 @@ const pub = (u) => ({
   id: u.id,
   username: u.username,
   name: u.name,
+  email: u.email || null,
   profileIds: u.profileIds || [],
   hasGoogle: !!u.googleSub,
+  claimed: !!(u.passwordHash || u.googleSub),
 });
 
 const byId = (id) => store.data.users.find((u) => u.id === id) || null;
 const byUsername = (username) =>
   store.data.users.find((u) => u.username === normUsername(username)) || null;
+const byEmail = (email) => {
+  const e = normEmail(email);
+  return (e && store.data.users.find((u) => u.email === e)) || null;
+};
 const byGoogleSub = (sub) => store.data.users.find((u) => u.googleSub === sub) || null;
 
 const usernameTaken = (username) =>
   !!byUsername(username) ||
   store.data.pending.some((r) => r.username === normUsername(username));
+const emailTaken = (email) =>
+  !!byEmail(email) ||
+  store.data.pending.some((r) => r.email && r.email === normEmail(email));
 
 // ---------- signup requests (admin-approved, like profile requests) ----------
-const requestSignup = async ({ username, name, password, note, ip, device }) => {
+const requestSignup = async ({ username, name, email, password, note, ip, device }) => {
   const u = normUsername(username);
   if (u.length < 2) return { error: "pick a username (letters/numbers, 2+ chars)" };
   if (!password || String(password).length < 4) return { error: "password too short (4+ chars)" };
   if (usernameTaken(u)) return { error: "that username is taken" };
+  const e = normEmail(email);
+  if (e && !validEmail(e)) return { error: "that email doesn't look right" };
+  if (e && emailTaken(e)) return { error: "that email already has an account" };
   if (store.data.pending.length >= MAX_PENDING) return { error: "too many pending requests — ask the admin" };
   const { salt, hash } = await hashPassword(password);
   const req = {
     id: crypto.randomBytes(6).toString("hex"),
     username: u,
     name: String(name || u).slice(0, 40),
+    email: e || null,
     note: String(note || "").slice(0, 200),
     passwordHash: hash,
     passwordSalt: salt,
@@ -95,6 +113,7 @@ const approveSignup = (requestId) => {
     id: crypto.randomBytes(6).toString("hex"),
     username: r.username,
     name: r.name,
+    email: r.email || null,
     passwordHash: r.passwordHash,
     passwordSalt: r.passwordSalt,
     profileIds: [],
@@ -114,8 +133,9 @@ const rejectSignup = (requestId) => {
 };
 
 // ---------- login ----------
-const login = async (username, password) => {
-  const u = byUsername(username);
+// `identifier` is a username OR an email — whichever the person typed.
+const login = async (identifier, password) => {
+  const u = byUsername(identifier) || byEmail(identifier);
   // scrypt against a dummy even on unknown users, so timing doesn't reveal
   // which usernames exist
   const ok = u
@@ -123,6 +143,40 @@ const login = async (username, password) => {
     : (await hashPassword(String(password || "x")), false);
   if (!ok) return { error: "wrong username or password" };
   return { ok: true, user: pub(u), userId: u.id };
+};
+
+// ---------- claiming (the transition-mode onboarding) ----------
+// A migrated account starts password-less; the person CLAIMS it from inside
+// their own profile: confirm/adjust the username, set the password, maybe add
+// an email. Claiming is only possible while the account has no credentials —
+// once claimed, changes go through the normal signed-in paths.
+const claimAccount = async ({ profileId, username, password, email }) => {
+  const u = store.data.users.find((x) => (x.profileIds || []).includes(profileId));
+  if (!u) return { error: "no account is attached to this profile — ask the admin" };
+  if (u.passwordHash || u.googleSub) {
+    return { error: "this account is already set up — sign in instead", claimed: true };
+  }
+  const uname = normUsername(username);
+  if (uname.length < 2) return { error: "pick a username (letters/numbers, 2+ chars)" };
+  if (uname !== u.username && usernameTaken(uname)) return { error: "that username is taken" };
+  if (!password || String(password).length < 4) return { error: "password too short (4+ chars)" };
+  const e = normEmail(email);
+  if (e && !validEmail(e)) return { error: "that email doesn't look right" };
+  if (e && emailTaken(e)) return { error: "that email already has an account" };
+  const { salt, hash } = await hashPassword(password);
+  u.username = uname;
+  u.email = e || null;
+  u.passwordHash = hash;
+  u.passwordSalt = salt;
+  u.claimedAt = Date.now();
+  store.save();
+  return { ok: true, user: pub(u), userId: u.id };
+};
+
+// The unclaimed account (if any) owning a profile — the claim UI's seed.
+const unclaimedFor = (profileId) => {
+  const u = store.data.users.find((x) => (x.profileIds || []).includes(profileId));
+  return u && !u.passwordHash && !u.googleSub ? pub(u) : null;
 };
 
 // ---------- migration: existing profiles → accounts, 1:1 ----------
@@ -185,6 +239,7 @@ const adminList = () =>
   store.data.users.map((u) => ({
     ...pub(u),
     createdAt: u.createdAt,
+    claimedAt: u.claimedAt || null,
     migrated: !!u.migrated,
     hasPassword: !!u.passwordHash,
   }));
@@ -216,9 +271,10 @@ const linkGoogle = (userId, sub) => {
 };
 
 module.exports = {
-  pub, byId, byUsername, byGoogleSub, usernameTaken,
+  pub, byId, byUsername, byEmail, byGoogleSub, usernameTaken, emailTaken,
   requestSignup, pendingList, approveSignup, rejectSignup,
-  login, migrateFromProfiles, ownsProfile, setPassword, linkGoogle,
+  login, claimAccount, unclaimedFor,
+  migrateFromProfiles, ownsProfile, setPassword, linkGoogle,
   adminList, setProfiles, removeUser,
-  _internals: { normUsername, store, hashPassword, verifyHash },
+  _internals: { normUsername, normEmail, validEmail, store, hashPassword, verifyHash },
 };

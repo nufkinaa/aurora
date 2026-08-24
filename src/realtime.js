@@ -60,10 +60,10 @@ const broadcastAll = (data) => {
   if (!wss) return;
   const msg = JSON.stringify(data);
   wss.clients.forEach((ws) => {
-    // authMode "required": broadcasts can carry member data (download_update
+    // authMode "closed": broadcasts can carry member data (download_update
     // has title names), so unauthenticated sockets don't get them. ws.authed
-    // is stamped at upgrade time in attach(). Open/hybrid: everyone, as ever.
-    if (config.AUTH_MODE === "required" && !ws.authed && !ws.isAdmin) return;
+    // is stamped at upgrade time in attach(). Open/transition: everyone.
+    if (require("./lib/authmode").get() === "closed" && !ws.authed && !ws.isAdmin) return;
     if (ws.readyState === WebSocket.OPEN) ws.send(msg);
   });
 };

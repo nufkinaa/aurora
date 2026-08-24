@@ -159,6 +159,24 @@
       .card { padding: 13px; }
       .bar-row input, .bar-row select { min-height: 44px; }
     }
+
+    /* Sign-in rollout switch (prompt 10) — three selectable state cards */
+    .auth-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    @media (max-width: 760px) { .auth-modes { grid-template-columns: 1fr; } }
+    .auth-mode {
+      text-align: left; padding: 13px 15px; border-radius: 12px; cursor: pointer;
+      background: var(--surface); border: 1px solid var(--line); color: inherit; font: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .auth-mode:hover { border-color: rgba(139, 123, 255, 0.5); }
+    .auth-mode .am-name { font-weight: 700; display: flex; align-items: center; gap: 8px; font-size: 0.95rem; }
+    .auth-mode .am-desc { font-size: 0.8rem; color: var(--text-faint, #9aa1b5); margin-top: 5px; line-height: 1.45; }
+    .auth-mode.on { border-color: #37d4a0; box-shadow: 0 0 0 1px rgba(55, 212, 160, 0.4), 0 4px 18px rgba(55, 212, 160, 0.1); }
+    .auth-mode.on .am-name::after {
+      content: "ACTIVE"; font-size: 0.6rem; letter-spacing: 0.09em; color: #37d4a0;
+      background: rgba(55, 212, 160, 0.12); padding: 2px 8px; border-radius: 99px; margin-left: auto;
+    }
+    .auth-mode:disabled { cursor: default; }
   </style>
 </head>
 <body>
@@ -339,6 +357,11 @@
         </table></div>
         <div class="empty-note" id="req-empty">No one is waiting for approval.</div>
       </section>
+      <section id="auth-mode-section">
+        <h2>Sign-in rollout <span class="note">live switch — no restart, reversible any time</span></h2>
+        <div class="auth-modes" id="auth-modes"></div>
+        <div class="empty-note" id="auth-google-note" style="margin-top:10px"></div>
+      </section>
       <section id="auth-section" class="hidden">
         <h2>Account requests <span class="pill" id="signup-count">0</span> <span class="note">sign-in accounts — approved people log in with these</span></h2>
         <div class="table-scroll"><table>
@@ -346,9 +369,9 @@
           <tbody id="signup-requests"></tbody>
         </table></div>
         <div class="empty-note" id="signup-empty">No account requests waiting.</div>
-        <h2 style="margin-top:18px">Accounts <span class="note">who can sign in, and which profiles each one owns</span></h2>
+        <h2 style="margin-top:18px">Accounts <span class="note">who can sign in, which profiles each one owns — “claimed” means they've set their own credentials</span></h2>
         <div class="table-scroll"><table>
-          <thead><tr><th>Username</th><th>Name</th><th>Profiles</th><th>Password</th><th>Google</th><th></th></tr></thead>
+          <thead><tr><th>Username</th><th>Name</th><th>Status</th><th>Profiles</th><th>Password</th><th>Google</th><th></th></tr></thead>
           <tbody id="accounts-table"></tbody>
         </table></div>
         <div class="empty-note hidden" id="accounts-empty">No accounts yet — they appear when signup requests are approved (or when the profile migration runs).</div>
@@ -1107,19 +1130,38 @@
       loadProfileAccess();
     });
 
-    // ---------- sign-in accounts (prompt 10) ----------
-    // The whole section stays hidden while authMode is "open" and nothing
-    // account-shaped exists yet, so the panel doesn't advertise a system
-    // that isn't switched on.
+    // ---------- sign-in rollout + accounts (prompt 10) ----------
+    const AUTH_MODES = [
+      { id: "open", name: "🔓 Open", desc: "How Aurora always worked. No accounts, no login — the profile wall greets everyone. Flipping back here always restores this exactly." },
+      { id: "transition", name: "🔑 Transition", desc: "The app keeps working exactly as it does now, but every profile gets an account to claim: a one-time in-app prompt to pick a username + password (and optionally email/Google). Nobody is locked out of anything." },
+      { id: "closed", name: "🔒 Closed", desc: "A real login wall, like any site. Every device signs in; each account sees only its own profiles; all data and video routes require a session. Flip here once everyone below shows CLAIMED." },
+    ];
+
     async function loadAuth() {
       let mode = "open";
-      try { mode = (await json("/api/server-info")).authMode || "open"; } catch {}
+      let google = false;
+      try {
+        const info = await json("/api/server-info");
+        mode = info.authMode || "open";
+        google = !!info.google;
+      } catch {}
       let pending = [];
       let accounts = [];
       let profs = [];
       try { pending = (await json("/api/admin/signups")).pending || []; } catch {}
       try { accounts = (await json("/api/admin/users")).users || []; } catch {}
       try { profs = await json("/api/admin/profiles"); } catch {}
+
+      // the rollout switch — always visible; this is where sign-in turns on
+      $("#auth-modes").innerHTML = AUTH_MODES.map((m) => `
+        <button class="auth-mode${mode === m.id ? " on" : ""}" data-auth-mode="${m.id}" ${mode === m.id ? "disabled" : ""}>
+          <div class="am-name">${m.name}</div>
+          <div class="am-desc">${m.desc}</div>
+        </button>`).join("");
+      $("#auth-google-note").innerHTML = google
+        ? `Google sign-in: <span class="ok">configured</span> — the “Continue with Google” button is live on the sign-in screen.`
+        : `Google sign-in: <span class="muted">not configured.</span> To enable it (free): create a Google Cloud project → OAuth consent screen → credentials of type <strong>“TVs and Limited Input devices”</strong>, then put <code>GOOGLE_CLIENT_ID=…</code> and <code>GOOGLE_CLIENT_SECRET=…</code> in the server's <code>.env</code> and restart. The button appears by itself.`;
+
       const show = mode !== "open" || pending.length > 0 || accounts.length > 0;
       $("#auth-section").classList.toggle("hidden", !show);
       if (!show) return;
@@ -1131,7 +1173,7 @@
         <tr>
           <td class="muted">${ago(new Date(r.requestedAt).toISOString())}</td>
           <td><strong>@${esc(r.username)}</strong></td>
-          <td>${esc(r.name || "—")}</td>
+          <td>${esc(r.name || "—")}${r.email ? `<div class="muted" style="font-size:0.78rem">${esc(r.email)}</div>` : ""}</td>
           <td class="muted">${esc(r.note || "—")}</td>
           <td class="muted">${esc(r.ip || "?")}${r.device ? " · " + esc((r.device.device || "?") + " / " + (r.device.os || "?")) : ""}</td>
           <td style="white-space:nowrap">
@@ -1146,19 +1188,51 @@
       $("#accounts-table").innerHTML = accounts.map((u) => `
         <tr>
           <td><strong>@${esc(u.username)}</strong>${u.migrated ? ' <span class="note">migrated</span>' : ""}</td>
-          <td>${esc(u.name || "—")}</td>
+          <td>${esc(u.name || "—")}${u.email ? `<div class="muted" style="font-size:0.78rem">${esc(u.email)}</div>` : ""}</td>
+          <td>${u.claimed
+            ? '<span class="pill live">claimed</span>'
+            : '<span class="pill warn">unclaimed</span>'}</td>
           <td>${profs.map((p) => `
             <button class="mini" style="margin:1px${u.profileIds.includes(p.id) ? ";background:var(--accent,#8b7bff);color:#fff" : ";opacity:0.55"}"
               data-acct-prof="${esc(p.id)}" data-acct-id="${esc(u.id)}">${esc(p.avatar || "")} ${esc(p.name)}</button>`).join("")}</td>
           <td>${u.hasPassword
             ? `🔒 <button class="mini" data-acct-pw="${esc(u.id)}" data-acct-name="${esc(u.username)}">Reset</button>`
-            : `<span class="pill warn">NO PASSWORD</span> <button class="mini" data-acct-pw="${esc(u.id)}" data-acct-name="${esc(u.username)}">Set one</button>`}</td>
+            : `<button class="mini" data-acct-pw="${esc(u.id)}" data-acct-name="${esc(u.username)}">Set password</button>`}</td>
           <td>${u.hasGoogle ? "✅" : '<span class="muted">—</span>'}</td>
           <td><button class="mini danger" data-acct-del="${esc(u.id)}" data-acct-name="${esc(u.username)}">Delete</button></td>
         </tr>`).join("");
       // stash for the toggle handler
       loadAuth._accounts = accounts;
     }
+
+    // the rollout switch: confirm, flip live (the server migrates profiles to
+    // accounts by itself when leaving "open"), repaint
+    $("#auth-modes").addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-auth-mode]");
+      if (!btn || btn.disabled) return;
+      const mode = btn.dataset.authMode;
+      const CONFIRM = {
+        open: "Back to Open? Sign-in switches off everywhere; accounts are kept but dormant.",
+        transition: "Start the Transition? The app keeps working exactly as now — everyone just gets a prompt to claim their account. Fully reversible.",
+        closed: "Close the wall? Every device will need to sign in from now on. Make sure everyone has CLAIMED their account first (and remember: old TV app builds can't log in until the TV update ships).",
+      };
+      if (!confirm(CONFIRM[mode])) return;
+      btn.disabled = true;
+      const r = await adminFetch("/api/admin/auth-mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        toast(err.error || "Failed");
+        btn.disabled = false;
+        return;
+      }
+      const d = await r.json();
+      toast(`Sign-in is now ${d.mode}` + (d.migrated && d.migrated.length ? ` — ${d.migrated.length} profile(s) migrated` : ""));
+      loadAuth();
+    });
 
     $("#signup-requests").addEventListener("click", async (e) => {
       const ok = e.target.closest("[data-signup-ok]");

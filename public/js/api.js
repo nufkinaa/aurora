@@ -101,6 +101,10 @@ export const api = {
   revokeSession: (key) => json(`/api/auth/sessions/${encodeURIComponent(key)}`, { method: "DELETE" }),
   changeAccountPassword: (currentPassword, newPassword) =>
     post("/api/auth/password", { currentPassword, newPassword }),
+  // transition-mode onboarding: is there an unclaimed account behind this
+  // profile, and claim it (sets username/password/email, signs you in)
+  claimable: (profileId) => json(`/api/auth/claimable/${encodeURIComponent(profileId)}`),
+  claimAccount: (fields) => post("/api/auth/claim", fields),
   googleStart: () => post("/api/auth/google/start", {}),
   googlePoll: (pollId) => post("/api/auth/google/poll", { pollId }),
   googleLink: (pollId) => post("/api/auth/google/link", { pollId }),

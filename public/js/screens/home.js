@@ -5,6 +5,7 @@ import { state } from "../state.js";
 import { shelfRow, continueRow, openItem } from "../components.js";
 import { navigate } from "../router.js";
 import { onMessage } from "../ws.js";
+import { claimBanner } from "../claim.js";
 
 // How long each billboard title holds before the next slides in. The focus-pull
 // animation in screens.css is deliberately SHORTER than this: the art reaches
@@ -43,6 +44,10 @@ export const renderHome = async (root) => {
   }
 
   screen.innerHTML = "";
+
+  // Transition-mode claim prompt (prompt 10): resolves async and slots in
+  // above the hero only when this profile really has an unclaimed account.
+  claimBanner().then((b) => { if (b && screen.isConnected) screen.prepend(b); }).catch(() => {});
 
   // ----- hero -----
   let heroTimer = null;

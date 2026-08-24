@@ -41,20 +41,15 @@ const gate = (req, res, next) => {
 
 router.get("/api/profiles", (req, res) => {
   // The profile wall, mode-aware (prompt 10):
-  //   open     — everyone sees every profile (today's behavior)
-  //   hybrid   — no session: [] (the wall is hidden; old TV builds render an
-  //              empty picker instead of crashing). With a session: only the
-  //              account's own profiles.
-  //   required — no session: 401 (new clients show the login screen); with a
-  //              session: only the account's own profiles.
-  if (config.AUTH_MODE === "open") return res.json(profiles.publicList());
-  const s = authz.sessionFor(req);
-  if (!s) {
-    if (config.AUTH_MODE === "required") {
-      return res.status(401).json({ error: "sign in first", signinRequired: true });
-    }
-    return res.json([]);
+  //   open / transition — everyone sees every profile (today's behavior;
+  //                       transition is the claim period, nothing is gated)
+  //   closed            — no session: 401 (clients show the login screen);
+  //                       with a session: only the account's own profiles.
+  if (require("../lib/authmode").get() !== "closed") {
+    return res.json(profiles.publicList());
   }
+  const s = authz.sessionFor(req);
+  if (!s) return res.status(401).json({ error: "sign in first", signinRequired: true });
   res.json(profiles.publicList().filter((p) => (s.user.profileIds || []).includes(p.id)));
 });
 
@@ -116,9 +111,9 @@ router.post("/api/profiles/:id/password", async (req, res) => {
 // A real name is required: it's the only thing that lets the admin tell who is
 // actually asking. (Profiles that predate this flow keep working as they are.)
 router.post("/api/profiles", async (req, res) => {
-  // required mode: new watch profiles are requested by signed-in people
+  // closed mode: new watch profiles are requested by signed-in people
   // (account signup is the separate /api/auth/signup flow)
-  if (config.AUTH_MODE === "required" && !authz.sessionFor(req)) {
+  if (require("../lib/authmode").get() === "closed" && !authz.sessionFor(req)) {
     return res.status(401).json({ error: "sign in first", signinRequired: true });
   }
   const body = req.body || {};

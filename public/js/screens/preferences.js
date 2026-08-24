@@ -7,6 +7,8 @@ import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { profileModal } from "./profiles.js";
 import { playerPrefs, applyCueStyle } from "./player.js";
+import { showClaimModal } from "../claim.js";
+import { showLoginScreen } from "./login.js";
 
 // One settings row: label + explanation on the left, a button cycling the value
 // on the right. Every row here drives behaviour that already exists in the
@@ -395,6 +397,46 @@ export const renderPreferences = async (root) => {
     return body;
   };
 
+  // The Account card has three states: signed in (manage sessions), an
+  // unclaimed migrated account (claim it), or claimed-but-signed-out on this
+  // device (sign in). Hidden entirely while authMode is "open".
+  const rerender = () => window.dispatchEvent(new HashChangeEvent("hashchange"));
+  const accountCard = async () => {
+    if (state.authMode === "open") return null;
+    if (state.user) {
+      return section("Account", "The sign-in that owns this profile — sessions last 90 days per device.",
+        accountSection());
+    }
+    let acct = null;
+    try { acct = (await api.claimable(state.profile.id)).account; } catch {}
+    const body = el("div", { class: "pref-list page-pad" });
+    if (acct) {
+      body.append(
+        el("div", { class: "pref-note", style: { padding: 0 } },
+          `Your profile has an account waiting`,
+          el("strong", {}, ` @${acct.username}`),
+          `. Claim it once — pick your username and password — and every device signs in as you.`),
+        el("div", { style: { marginTop: "12px" } },
+          el("button", {
+            class: "btn btn-primary small focusable",
+            onclick: () => showClaimModal(acct, rerender),
+          }, "🔑 Claim my account")));
+    } else {
+      body.append(
+        el("div", { class: "pref-note", style: { padding: 0 } },
+          "You're not signed in on this device."),
+        el("div", { style: { marginTop: "12px" } },
+          el("button", {
+            class: "btn btn-primary small focusable",
+            onclick: async () => {
+              const u = await showLoginScreen({ skippable: state.authMode !== "closed" });
+              if (u) rerender();
+            },
+          }, "Sign in")));
+    }
+    return section("Account", "Aurora sign-in is rolling out — accounts sit on top of profiles.", body);
+  };
+
   paint();
   screen.append(
     el("div", { class: "browse-head" },
@@ -403,9 +445,7 @@ export const renderPreferences = async (root) => {
     ),
     el("div", { class: "pref-grid" },
       profileSection,
-      state.authMode !== "open" && state.user &&
-        section("Account", "The sign-in that owns this profile — sessions last 90 days per device.",
-          accountSection()),
+      await accountCard(),
       section("Appearance", "Yours alone — follows this profile to every device.",
         appearanceSection()),
       section("Your home page", "Reorder or hide the rows on Home. New kinds of rows appear at the end. The TV follows this order too.",

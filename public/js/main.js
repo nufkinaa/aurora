@@ -154,15 +154,16 @@ $("#nav-profile").addEventListener("click", () => {
 const boot = async () => {
   connect();
 
-  // Sign-in comes before the profile wall when the server requires it
-  // (authMode hybrid/required). On an "open" server — today's default — this
-  // resolves instantly and nothing about boot changes. A throw here (older
-  // server without /api/me) is treated as open.
+  // Sign-in comes before the profile wall ONLY when the wall is closed.
+  // "open" boots exactly as always; "transition" also boots normally — the
+  // claim prompt appears inside the app instead (home banner + Preferences),
+  // so the household migrates at its own pace with zero disruption. A throw
+  // here (older server without /api/me) is treated as open.
   try {
     const me = await api.me();
     state.authMode = me.authMode || "open";
     state.user = me.user || null;
-    if (state.authMode !== "open" && !state.user) {
+    if (state.authMode === "closed" && !state.user) {
       state.user = await showLoginScreen();
     }
   } catch {}

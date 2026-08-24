@@ -55,11 +55,11 @@ const sessionFor = (req) => {
   return user ? { user, sessionKey: row.key } : null;
 };
 
-// May this request touch this profile's data? Only "required" mode adds the
-// account check — open and hybrid keep today's behavior exactly, so nothing
-// changes for legacy clients until elia deliberately flips the mode.
+// May this request touch this profile's data? Only "closed" mode adds the
+// account check — open and transition keep today's behavior exactly, so
+// nothing changes for anyone until the admin closes the wall.
 const profileAllowed = (req, profileId) => {
-  if (config.AUTH_MODE !== "required") return true;
+  if (require("./authmode").get() !== "closed") return true;
   const s = sessionFor(req);
   return !!s && users.ownsProfile(s.user.id, profileId);
 };
