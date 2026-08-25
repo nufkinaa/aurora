@@ -8,10 +8,7 @@ import { connect, onMessage } from "./ws.js";
 import { renderHome } from "./screens/home.js";
 import { renderMovies, renderShows, renderMyList } from "./screens/browse.js";
 import { renderSearch } from "./screens/search.js";
-import { renderDetail } from "./screens/discover-detail.js";
-import { renderPlayer } from "./screens/player.js";
 import { renderRequests } from "./screens/requests.js";
-import { renderPreferences } from "./screens/preferences.js";
 import { renderWrapped } from "./screens/wrapped.js";
 import { renderTaste } from "./screens/taste.js";
 import { renderPickForMe } from "./screens/pickforme.js";
@@ -22,6 +19,16 @@ import { showShortcutsOverlay } from "./screens/shortcuts.js";
 import { initAurora } from "./aurora.js";
 import { initScreensaver } from "./screensaver.js";
 
+// The three heaviest screens — player (94 KB), the unified detail page
+// (65 KB) and preferences (which statically pulls player.js in for the
+// subtitle prefs) — load on first navigation instead of at boot, the same
+// shape as pair.js below. Safe because the router AWAITS handlers
+// (router.js:59), so the resolved cleanup function still reaches
+// current.cleanup; they're also warmed right after boot (see the idle
+// callback at the bottom) so a real click never waits on the network.
+const renderDetailLazy = (root, opts) =>
+  import("./screens/discover-detail.js").then((m) => m.renderDetail(root, opts));
+
 route("/", renderHome);
 route("/movies", renderMovies);
 route("/shows", renderShows);
@@ -29,12 +36,12 @@ route("/list", renderMyList);
 route("/search", renderSearch);
 // One detail page for everything — a title looks the same whether it is on
 // disk, streamable, or both (see screens/discover-detail.js).
-route("/movie/:id", (root, p) => renderDetail(root, { source: "library", type: "movie", id: p.id }));
-route("/show/:id", (root, p) => renderDetail(root, { source: "library", type: "show", id: p.id }));
-route("/play/:id", renderPlayer);
+route("/movie/:id", (root, p) => renderDetailLazy(root, { source: "library", type: "movie", id: p.id }));
+route("/show/:id", (root, p) => renderDetailLazy(root, { source: "library", type: "show", id: p.id }));
+route("/play/:id", (root, p) => import("./screens/player.js").then((m) => m.renderPlayer(root, p)));
 route("/requests", renderRequests); // no longer in nav; kept for deep links
-route("/discover/:type/:id", (root, p) => renderDetail(root, { source: "discover", type: p.type, id: p.id }));
-route("/preferences", renderPreferences);
+route("/discover/:type/:id", (root, p) => renderDetailLazy(root, { source: "discover", type: p.type, id: p.id }));
+route("/preferences", (root, p) => import("./screens/preferences.js").then((m) => m.renderPreferences(root, p)));
 route("/wrapped", renderWrapped);
 route("/taste", renderTaste);
 route("/pick", renderPickForMe);
@@ -315,6 +322,15 @@ const boot = async () => {
 };
 
 boot();
+
+// Warm the lazy screens once the browser goes idle: boot's critical path is
+// long done by then, and the module cache means the later route hit is
+// instant — same UX as when these were eager, minus their cost at boot.
+(window.requestIdleCallback || ((fn) => setTimeout(fn, 2500)))(() => {
+  import("./screens/player.js").catch(() => {});
+  import("./screens/discover-detail.js").catch(() => {});
+  import("./screens/preferences.js").catch(() => {});
+});
 
 // The AI tab only exists when the server has an AI key configured.
 // Failure here is silent by design: no key, no tab, nothing else changes.

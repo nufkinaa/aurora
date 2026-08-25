@@ -86,10 +86,17 @@ app.use(express.json());
 // CPU for nothing, and buffering a range response to deflate it is how you turn
 // instant seeking into a stall.
 const compression = require("compression");
+const zlib = require("zlib");
 const COMPRESSIBLE = /^(?:application\/(?:json|javascript|xml|manifest)|text\/|image\/svg)/i;
 app.use(
   compression({
     threshold: 1024, // below ~1 KB the header overhead is most of the packet
+    // Brotli negotiates automatically (compression >= 1.8), but its default
+    // quality 4 is tuned for speed and LOSES to gzip on our stylesheets
+    // (screens.css: 22,664 B br-q4 vs 21,211 B gzip). Measured 2026-08-25 on
+    // the real payloads: q6 beats gzip ~5% on code and ~21% on /api/home
+    // JSON at ~1-3ms per response; q9 shaves only ~2% more for 4x the CPU.
+    brotli: { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 6 } },
     filter: (req, res) => {
       if (req.headers["x-no-compression"]) return false;
       // 206 Partial Content is the seek path. Leave it alone.
@@ -157,17 +164,22 @@ app.use("/avatars", express.static(path.join(__dirname, "data", "avatars"), {
   fallthrough: false,
 }));
 
+// HTML shells go out with content-hashed ?v= stylesheet URLs (CSS only — see
+// src/lib/assetver.js for why JS can't ride along). The "/" route must sit
+// ahead of express.static, or static's directory-index handling serves the
+// raw index.html without versions first.
+const shell = require("./src/lib/assetver").sendShell(path.join(__dirname, "public"));
+app.get("/", (req, res) => shell(res, "index.html"));
+
 app.get("/admin", (req, res) => {
   // The shell is just UI code (no data). It shows a password overlay on load
   // and makes NO admin API/WS calls until the password is entered; every one
   // of those is gated server-side (realtime.isAdmin). The password lives only
   // in page memory, so a refresh re-shows the prompt — nothing is remembered.
-  res.sendFile(path.join(__dirname, "public", "admin.html"));
+  shell(res, "admin.html");
 });
 
-app.get("/web", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "browser.html"));
-});
+app.get("/web", (req, res) => shell(res, "browser.html"));
 
 // The TV-pairing QR encodes this short path; it lands the phone in the SPA's
 // confirm screen. A plain redirect so the QR stays small and the page gets
@@ -194,7 +206,9 @@ app.get("/download", (req, res) => {
 app.get("/aurora-tv.apk", (req, res) => res.redirect(302, "/download"));
 
 // Code revalidates on every load (cheap 304s) so updates land instantly;
-// images can cache for a day.
+// images can cache for a day. The one exception: a CSS request that carries
+// the ?v= content hash the shells inject (assetver.js) is immutable — its
+// URL changes whenever its content does, so it can never go stale.
 app.use(
   express.static(path.join(__dirname, "public"), {
     setHeaders: (res, filePath) => {
@@ -202,7 +216,9 @@ app.use(
       // TV's update banner lags a release by up to 24h (measured on the
       // Streamer: the device kept serving the previous versionName from HTTP
       // cache). It must always revalidate, like code.
-      if (/\.(js|css|html)$/i.test(filePath) || /tv-version\.json$/i.test(filePath)) {
+      if (/\.css$/i.test(filePath) && /[?&]v=/.test((res.req && res.req.originalUrl) || "")) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else if (/\.(js|css|html)$/i.test(filePath) || /tv-version\.json$/i.test(filePath)) {
         res.setHeader("Cache-Control", "no-cache");
       } else {
         res.setHeader("Cache-Control", "public, max-age=86400");
@@ -217,7 +233,7 @@ app.get("*", (req, res) => {
   if (/^\/(api|stream)\//.test(req.path)) {
     return res.status(404).json({ error: "Not found" });
   }
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  shell(res, "index.html");
 });
 
 realtime.attach(server);
