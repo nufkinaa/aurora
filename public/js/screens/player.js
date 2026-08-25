@@ -155,6 +155,19 @@ export const renderPlayer = async (root, { id }) => {
     return !containers.some((c) => video.canPlayType(`${c}; codecs="${mime}"`));
   };
 
+  // iPhone: play HLS through Safari's NATIVE pipeline, never MSE. iOS 17.1
+  // added ManagedMediaSource, which flips Hls.isSupported() to true on
+  // iPhone — but video.webkitEnterFullscreen() (the ONLY fullscreen an
+  // iPhone has) is exactly what iOS 17.x breaks on MSE-backed elements
+  // (InvalidStateError, or the native player opening audio-only). Native HLS
+  // is the configuration iPhones always used before 17.1 and the one the
+  // native player accepts. iPhone ONLY: desktop Safari keeps hls.js and the
+  // patient torrent retry tuning below; canPlayType guards against a spoofed
+  // UA on a browser with no native HLS.
+  const nativeHlsOnly =
+    /iPhone|iPod/.test(navigator.userAgent) &&
+    !!video.canPlayType("application/vnd.apple.mpegurl");
+
   let hls = null;
   // Rebuilds after a FATAL hls.js error (see the ERROR handler). Bounded per
   // BURST rather than for the whole session: four quick attempts, then an honest
@@ -227,6 +240,20 @@ export const renderPlayer = async (root, { id }) => {
   const startHls = (url, startAt = 0) => {
     const gen = ++hlsGen;
     clearTimeout(hlsRecoverTimer);
+    if (nativeHlsOnly) {
+      // Same shape as the no-MSE fallback below (startAt is ignored there
+      // too — Safari's native pipeline owns its own start position). Skips
+      // loading the 530 KB hls.js bundle on iPhones entirely.
+      if (hls) {
+        try {
+          hls.destroy();
+        } catch {}
+        hls = null;
+      }
+      video.src = url;
+      tryPlay();
+      return;
+    }
     loadHlsScript()
       .then(() => {
         if (exited || gen !== hlsGen) return;
@@ -946,6 +973,17 @@ export const renderPlayer = async (root, { id }) => {
     try {
       video.webkitEnterFullscreen();
     } catch {}
+    // iOS failures here throw synchronously OR no-op silently — either way
+    // the button just looked dead and nobody could tell why. Check shortly
+    // after and say so.
+    setTimeout(() => {
+      if (exited) return;
+      const opened =
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        video.webkitDisplayingFullscreen;
+      if (!opened) toast("iOS wouldn't open fullscreen — try again in a moment", "⚠️");
+    }, 400);
   };
   const toggleFullscreen = () => {
     if (video.webkitDisplayingFullscreen) {
