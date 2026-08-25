@@ -438,6 +438,12 @@ const playStream = (stream, base, label, season, episode) => {
     // where Back should return to
     returnHash: location.hash,
   };
+  // Fire the head-probe the moment the source is chosen — by the time the
+  // player's 1500ms pre-play window races it, a warm source has answered and
+  // the REAL codecs (not the release tags) make the decision (player.js S2).
+  item._probePromise = fetch(`/api/torrents/probe/${stream.infoHash}/${stream.fileIdx}`)
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
   state.pendingItems[id] = item;
   navigate(`#/play/${id}`);
 

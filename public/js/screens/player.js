@@ -76,7 +76,32 @@ export const renderPlayer = async (root, { id }) => {
   }
   await refreshProgress();
 
-  // The user may have pressed Back (or navigated anywhere else) while the two
+  // S2 probe-then-decide: for torrents, ask the server what the file's first
+  // bytes actually SAY (streamprobe.js) — release tags are a guess and the
+  // wild lies (unlisted AC-3 was S0's whole third act). Wait a beat for the
+  // answer; a warm/prewarmed source answers in well under a second, a cold
+  // swarm misses the window and the tag guess proceeds unchanged — the late
+  // subscription further down corrects the path the moment truth arrives.
+  let probeP = null;
+  let probeResult = null;
+  if (item.infoHash) {
+    const probeIdx = parseInt(String(item.id || "").split("|")[2], 10) || 0;
+    probeP =
+      item._probePromise ||
+      fetch(`/api/torrents/probe/${item.infoHash}/${probeIdx}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+    const first = await Promise.race([
+      probeP,
+      new Promise((r) => setTimeout(() => r("__timeout"), 1500)),
+    ]);
+    if (first && first !== "__timeout") {
+      probeResult = first;
+      probeP = null; // consumed pre-play; no late correction needed
+    }
+  }
+
+  // The user may have pressed Back (or navigated anywhere else) while the
   // awaits above were in flight — the router has already rendered the next
   // screen. Building the overlay now would orphan it on top of that screen
   // and leak every player listener/timer.
@@ -478,8 +503,33 @@ export const renderPlayer = async (root, { id }) => {
       ? Math.floor(prog0.position)
       : 0;
 
+  // Probe data replaces the tag guess THROUGH the same fields library items
+  // carry, so the one set of capability functions decides for both. For
+  // torrents the verdict is folded back into needsTranscode/transcodeV so
+  // the torrent-specific start logic below (prefetch warm, fallbackToZero)
+  // keeps owning the flow — only the truth feeding it changes.
+  const applyProbe = (p) => {
+    if (!p) return false;
+    if (p.container) item.container = p.container;
+    if (p.video) item.video = p.video;
+    const a = (p.audioStreams || [])[0];
+    if (a) item.audio = { codec: a.codec };
+    return !!(p.video || a);
+  };
+  if (probeResult && isTorrent && applyProbe(probeResult)) {
+    const needV = videoNeedsTranscode();
+    const needA = audioNeedsRemux();
+    item.needsTranscode = needV || needA;
+    item.transcodeV = needV ? "h264" : needA ? "copy" : item.transcodeV;
+  }
+
   const usingRemux = audioNeedsRemux(); // library file with undecodable audio
-  if (videoNeedsTranscode()) {
+  // The !isTorrent guards below preserve flow ownership: torrents ALWAYS go
+  // through their own branch (prefetch warm + fallbackToZero on resume) —
+  // before the probe existed they had no item.video/audio so these library
+  // branches never matched a torrent; the guard keeps that invariant now
+  // that probe data fills those fields.
+  if (!isTorrent && videoNeedsTranscode()) {
     // Library file this device can't play directly. The file is complete on
     // disk, so resuming at the saved position works (unlike torrent streams,
     // where the bytes at an arbitrary offset may not be downloaded yet).
@@ -489,7 +539,7 @@ export const renderPlayer = async (root, { id }) => {
     const v = item.video || {};
     const copyOk = v.codec === "h264" && (v.bitDepth || 8) <= 8;
     startTranscode(resumeAt, copyOk ? "copy" : "h264");
-  } else if (usingRemux) {
+  } else if (!isTorrent && usingRemux) {
     // Undecodable AUDIO only. The offset-aware copy transcode both fixes the
     // audio and makes resume + far-seek actually work — the legacy from-0
     // remux could only seek within what it had already produced, so resuming
@@ -613,6 +663,30 @@ export const renderPlayer = async (root, { id }) => {
         startTranscodeAt(effTime(), "copy", { fallbackToZero: true });
       }
     }, 1000);
+  }
+
+  // Late probe arrival (the 1500ms pre-play window missed — cold swarm):
+  // the moment the file's real codecs are known, correct the path NOW with
+  // the honest toast, instead of letting the viewer sit through silent audio
+  // until the byte-counting watchdog concludes the same thing.
+  if (probeP) {
+    probeP.then((p) => {
+      if (exited || usingTranscode || switchedToTranscode) return;
+      if (!applyProbe(p)) return;
+      if (videoNeedsTranscode()) {
+        switchedToTranscode = true;
+        if (stallTimer) { clearInterval(stallTimer); stallTimer = null; }
+        toast("This encode won't decode here — switching to transcode…", "⚙️");
+        reportMark("client_switch", { reason: "probe-video", to: "h264", position: effTime() });
+        startTranscodeAt(effTime(), "h264", { fallbackToZero: true });
+      } else if (audioNeedsRemux()) {
+        switchedToTranscode = true;
+        if (stallTimer) { clearInterval(stallTimer); stallTimer = null; }
+        toast("This encode's audio can't play here — switching sound…", "🔇");
+        reportMark("client_switch", { reason: "probe-audio", to: "copy", position: effTime() });
+        startTranscodeAt(effTime(), "copy", { fallbackToZero: true });
+      }
+    });
   }
 
   for (const [i, t] of (item.subtitles || []).entries()) {

@@ -14,7 +14,30 @@ const MIME = {
   ".webm": "video/webm", ".avi": "video/x-msvideo", ".mov": "video/quicktime",
 };
 
-// Client-side halves of a stream's story (watchdog path switches, far-seek
+// Head-probe: the REAL codecs of a stream, read from its first bytes (see
+// src/media/streamprobe.js). The client asks at play time and, when this
+// answers, its library-grade capability logic replaces the release-tag
+// guess entirely. 504 = can't know yet (no head pieces / weak swarm) — the
+// client just keeps the tag guess; it can ask again later.
+router.get("/api/torrents/probe/:infoHash/:fileIdx", async (req, res) => {
+  if (!/^[0-9a-f]{40}$/i.test(req.params.infoHash)) return res.status(400).json({ error: "bad hash" });
+  try {
+    const t = await torrent.readyTorrent(req.params.infoHash);
+    const file = torrent.pickVideoFile(t, parseInt(req.params.fileIdx, 10));
+    if (!file) return res.status(404).json({ error: "no video file" });
+    torrent.scopeToFile(t, file);
+    const r = await require("../media/streamprobe").probe(
+      req.params.infoHash.toLowerCase(),
+      parseInt(req.params.fileIdx, 10) || 0,
+    );
+    res.setHeader("Cache-Control", "no-cache");
+    res.json(r);
+  } catch (err) {
+    res.status(504).json({ error: "probe not ready: " + err.message });
+  }
+});
+
+// Client-side halves of a stream's story (watchdog switch forensics, far-seek
 // outcomes) land in the SAME per-torrent perf record as the server's own
 // marks, so one grep of sessions.jsonl tells the whole tale. Names are
 // whitelisted to a client_ prefix and values clamped — this must never
