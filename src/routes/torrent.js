@@ -149,7 +149,9 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
   const vcodec = req.query.v === "copy" ? "copy" : "h264";
   const ss = Math.max(0, Math.floor(Number(req.params.ss) || 0));
   try {
+    const tReady = Date.now();
     const t = await torrent.readyTorrent(req.params.infoHash);
+    const readyMs = Date.now() - tReady;
     const fileIdx = parseInt(req.params.fileIdx, 10);
     const file = torrent.pickVideoFile(t, fileIdx);
     if (!file) return res.status(404).send("No video file in torrent");
@@ -162,7 +164,9 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
     const t0 = Date.now();
     const dir = await transcode.ensure(file, absPath, req.params.infoHash, fileIdx, vcodec, ss, seek);
     // Timing for deliberate viewer seeks only — playlist refreshes are noise.
-    if (seek) perf.event(req.params.infoHash, "seek_playlist_ready", Date.now() - t0, { ss });
+    // readyMs isolates readyTorrent (metadata/re-add wait) from ensure; the
+    // matching seek_ensure_detail event breaks ensure down further.
+    if (seek) perf.event(req.params.infoHash, "seek_playlist_ready", Date.now() - t0, { ss, readyMs });
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.join(dir, "index.m3u8"));

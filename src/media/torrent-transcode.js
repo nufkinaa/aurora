@@ -12,6 +12,7 @@ const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
 const config = require("../config");
+const perf = require("../lib/perf");
 
 const HLS_ROOT = path.join(config.CACHE_DIR, "torrent-hls");
 const MAX_CACHED_JOBS = 3;
@@ -154,6 +155,7 @@ const pruneOld = (keepDir) => {
 // ever read start-to-end, never seek the input).
 const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek = false) => {
   if (!config.FFMPEG) return Promise.reject(new Error("ffmpeg not available"));
+  const ensureStart = Date.now();
   ss = Math.max(0, Math.floor(Number(ss) || 0));
   // Starting at an offset forces a re-encode: `-ss` + `-c:v copy` cuts on a
   // keyframe and hands the player a shifted timeline — the 2026-07-25 MSE
@@ -280,6 +282,13 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
   if (!complete) {
     try { complete = file.length > 0 && file.downloaded >= file.length; } catch {}
   }
+  // How much of the file webtorrent considers VERIFIED right now. This is the
+  // number that explains "it says downloaded but the seek is slow": after a
+  // server restart the torrent re-hash-checks the whole file, and until that
+  // finishes `complete` is false and every read blocks on verification even
+  // though the bytes are all on disk. Reported in the seek perf event below.
+  let downloadedPct = -1;
+  try { downloadedPct = Math.round((file.downloaded / file.length) * 100); } catch {}
   if (seeking) { try { file.select(); } catch {} } // keep downloading the whole file
   // MKV keeps its seek index (Cues) in the LAST ~0.1-1.7 MB of the file —
   // measured across this library 2026-07-25; the hit near the front is only the
@@ -303,6 +312,7 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
          "-i", `http://127.0.0.1:${config.PORT}/stream/torrent/${infoHash}/${fileIdx}`]
     : ["-fflags", "+genpts", "-i", "pipe:0"];
 
+  const spawnedAt = Date.now();
   const proc = spawn(
     config.FFMPEG,
     [
@@ -363,6 +373,16 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
     const check = setInterval(() => {
       if (fs.existsSync(playlist)) {
         clearInterval(check);
+        // The breakdown that makes a slow seek diagnosable from the perf log:
+        // which input mode ran, whether the file was believed complete, how
+        // verified it was, and how much of the wait was ffmpeg itself.
+        if (seek) {
+          perf.event(infoHash, "seek_ensure_detail", Date.now() - ensureStart, {
+            ss, vcodec, complete, downloadedPct,
+            mode: seeking ? (complete ? "local" : "http") : "pipe",
+            spawnToPlaylistMs: Date.now() - spawnedAt,
+          });
+        }
         resolve(dir);
       } else if (Date.now() - started > startTimeout) {
         clearInterval(check);
