@@ -355,6 +355,26 @@ const sourceRow = (stream, onPlay, onDownload, job) => {
 const VIDEO_TRANSCODE_TAGS = ["H.265", "AV1"];
 const AUDIO_TRANSCODE_TAGS = ["DTS", "DTS-HD", "TrueHD", "Atmos", "DD+"];
 
+// A video tag names a codec THIS device might still decode natively — ask the
+// browser instead of assuming (measured 2026-08-25: desktop Chrome with
+// hardware HEVC answers "probably" even for HEVC-in-MKV, yet every H.265
+// stream was being re-encoded to h264 on exactly such machines). Queries use
+// the x-matroska container on purpose — torrents are MKV, and WebKit (iPhone)
+// honestly answers "" for it even though it decodes HEVC-in-mp4: correct,
+// because an iPhone cannot demux the MKV wrapper, so it must keep the
+// transcode until an fmp4 copy path exists. HEVC is queried in its Main10
+// form: torrent x265 is overwhelmingly 10-bit, and a decoder that handles
+// Main10 handles Main. Wrong answers are caught by the player's existing
+// nets: the decode-stall watchdog and the silent-audio probe both fall back
+// to the transcode from the current position.
+const TAG_CODEC_QUERY = {
+  "H.265": 'video/x-matroska; codecs="hvc1.2.4.L123.B0"',
+  AV1: 'video/x-matroska; codecs="av01.0.08M.08"',
+};
+const capProbe = document.createElement("video");
+const deviceDecodes = (tag) =>
+  !!TAG_CODEC_QUERY[tag] && !!capProbe.canPlayType(TAG_CODEC_QUERY[tag]);
+
 // Parse a Cinemeta runtime string ("152 min", "1h 52min", "57 min") to seconds,
 // so the player can show the whole movie's length instead of "how much has
 // transcoded so far".
@@ -385,7 +405,9 @@ const playStream = (stream, base, label, season, episode) => {
   // Base for transcode HLS; the player appends the seek offset: `${base}/${ss}/index.m3u8?v=…`
   const transcodeBase = `/stream/torrent/hls/${stream.infoHash}/${stream.fileIdx}`;
   const tags = stream.tags || [];
-  const needsVideo = tags.some((t) => VIDEO_TRANSCODE_TAGS.includes(t));
+  const needsVideo = tags.some(
+    (t) => VIDEO_TRANSCODE_TAGS.includes(t) && !deviceDecodes(t),
+  );
   const needsAudio = tags.some((t) => AUDIO_TRANSCODE_TAGS.includes(t));
 
   const item = {
