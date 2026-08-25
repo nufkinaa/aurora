@@ -155,11 +155,11 @@ const pruneOld = (keepDir) => {
 const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek = false) => {
   if (!config.FFMPEG) return Promise.reject(new Error("ffmpeg not available"));
   ss = Math.max(0, Math.floor(Number(ss) || 0));
-  // Starting at an offset forces a re-encode: `-ss` + `-c:v copy` can only cut
-  // on a keyframe, and the resulting first fragment has a misaligned, partly
-  // negative timeline that MSE refuses (see the note in remux.js — same fix,
-  // same measurement). The job dir here doesn't encode the codec, so this
-  // normalisation is invisible to the segment route.
+  // Starting at an offset forces a re-encode: `-ss` + `-c:v copy` cuts on a
+  // keyframe and hands the player a shifted timeline — the 2026-07-25 MSE
+  // starvation AND the 2026-08-25 positive-offset stall are both written up
+  // in remux.js. The copy-seek prize (~0.1-2s starts for h264 sources) waits
+  // on the PTS-honest design described there.
   if (ss > 0) vcodec = "h264";
 
   const dir = jobDir(infoHash, fileIdx, ss);
@@ -320,6 +320,7 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
       "-hls_time", "4", // shorter segments → first frames reach the player sooner
       // A short FIRST segment gets the playlist (and playback) started after
       // ~2s of encoded content instead of 4 — same setting remux.js proved.
+      // (Going below 2 buys nothing: segments split on keyframes, -g 48 = 2s.)
       "-hls_init_time", "2",
       "-hls_playlist_type", "event",
       "-hls_flags", "independent_segments+temp_file",
@@ -372,7 +373,7 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
         // segment requests, which don't exist yet).
         job.lastAccess = Date.now();
       }
-    }, 250);
+    }, 100); // the playlist gate is on every seek's critical path — poll tight
 
     proc.on("error", (err) => {
       clearInterval(check);

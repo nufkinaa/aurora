@@ -75,14 +75,21 @@ const activeTranscodes = () => {
 };
 
 // A job that STARTS AT AN OFFSET must re-encode the video — copying it is not
-// an option. With `-ss` + `-c:v copy` ffmpeg can only cut on a keyframe, so the
-// output's first fragment carries a misaligned, partly NEGATIVE timeline
-// (measured 2026-07-25: fragment 0 at PTS -2.81..1.57, audio 1.4s behind the
-// video, while the playlist declares it starting at 0). MSE drops it, hls.js
-// re-appends it in a loop, the buffer never grows past ~13s and playback
-// starves — the spinner after every skip, and the same for resuming mid-film.
-// A re-encode starts exactly on the requested second with a clean 0-based
-// timeline (verified: fragments at 0-2-4-6s, playback immediate, no errors).
+// an option YET. Two measured failures, one per era:
+// - 2026-07-25: `-ss` + `-c:v copy` emitted a partly NEGATIVE timeline
+//   (fragment 0 at PTS -2.81..1.57) — MSE dropped it, hls.js re-appended in a
+//   loop, playback starved after every skip.
+// - 2026-08-25: with `-avoid_negative_ts make_zero` the starvation is GONE
+//   (sandbox-verified, sustained playback) — but the copied timeline starts
+//   at a POSITIVE offset (seg0 PTS began at 9.3s for -ss 22), and the
+//   player's `startPosition: 0` made hls.js hunt a position that doesn't
+//   exist for ~20s before its gap-jump kicked in; the clock then lies to the
+//   scrubber by the same offset. make_zero only fixes negatives.
+// The prize is real (a copy seek would start in ~0.1-2s instead of paying a
+// libx264 encode — the server side measured 117ms cold) but it needs the
+// PTS-honest design: serve the segments' true content-time PTS and have the
+// player map its clock from PTS instead of assuming 0 = ss. Until that lands,
+// offset jobs re-encode: exact requested second, clean 0-based timeline.
 // Both the playlist and the segment route must agree on this, or they compute
 // different job dirs and every segment 404s.
 const effectiveVcodec = (vcodec, ss) => (ss > 0 ? "h264" : vcodec);
@@ -271,7 +278,8 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false } = {}) =
       "-f", "hls",
       "-hls_time", "6",
       // Short first segments so playback can start as soon as ~2s is encoded
-      // instead of waiting for a full 6s segment.
+      // instead of waiting for a full 6s segment. (Going below 2 buys nothing:
+      // segments can only split on keyframes and -g 48 makes a 2s GOP.)
       "-hls_init_time", "2",
       "-hls_playlist_type", "event",
       "-hls_flags", "independent_segments+temp_file",
@@ -298,7 +306,7 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false } = {}) =
         clearInterval(check);
         reject(new Error("Remux did not start in time"));
       }
-    }, 250);
+    }, 100); // the playlist gate is on every seek's critical path — poll tight
 
     proc.on("error", (err) => {
       clearInterval(check);

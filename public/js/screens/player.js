@@ -386,7 +386,7 @@ export const renderPlayer = async (root, { id }) => {
   let currentV = item.transcodeV || "h264";
   const transcodeUrl = (ss, v) =>
     `${item.transcodeBase}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${v || currentV}`;
-  const startTranscode = (offset, v) => {
+  const startTranscode = (offset, v, { claimed = false } = {}) => {
     streamOffset = Math.max(0, Math.floor(offset || 0));
     usingTranscode = true;
     if (v) currentV = v;
@@ -397,8 +397,10 @@ export const renderPlayer = async (root, { id }) => {
     // title at a resume point left the previous offset's ffmpeg holding a slot
     // until it idled out, which is what used to answer the next seek with
     // "busy transcoding". Fire-and-forget: hls.js gets the URL WITHOUT the flag,
-    // so its own playlist refreshes can never retire anything.
-    fetch(`${url}&seek=1`, { cache: "no-store" }).catch(() => {});
+    // so its own playlist refreshes can never retire anything. A far seek's
+    // probe already WAS this exact request (claimed) — repeating it cost a
+    // full extra pass through readyTorrent+ensure on the seek's critical path.
+    if (!claimed) fetch(`${url}&seek=1`, { cache: "no-store" }).catch(() => {});
     startHls(url);
   };
 
@@ -431,7 +433,7 @@ export const renderPlayer = async (root, { id }) => {
       const res = await fetch(`${transcodeUrl(ss, v || currentV)}&seek=1`);
       if (exited || token !== probeToken) return true;
       if (!res.ok) throw new Error("not ready");
-      startTranscode(ss, v);
+      startTranscode(ss, v, { claimed: true }); // the probe above was the claim
       return true;
     } catch {
       if (exited || token !== probeToken) return true;
