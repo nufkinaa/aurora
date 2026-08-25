@@ -52,57 +52,62 @@ const makeBandRamp = (strength) =>
   ]);
 
 // The same violet cross-section the sign-in sky uses (js/aurora-sky.js), so
-// the two screens read as one place. Deliberately dimmer than the green: it
-// is depth behind the aurora, not a second aurora — see makeBand's rule that
-// only ONE non-hero band may ever take it.
+// the two screens read as one place. Its stop ALPHAS now mirror the green
+// ramp exactly (0.08 / 0.42 / 0.9 / 0.5 / 0.26): the two colours are equals
+// that share the strip, not a subject and its shadow.
 const makeVioletRamp = (strength) =>
   makeRamp([
     [0, "rgba(150, 130, 255, 0)"],
-    [0.1, `rgba(150, 130, 255, ${0.07 * strength})`],
-    [0.24, `rgba(150, 120, 255, ${0.34 * strength})`],
-    [CORE_AT, `rgba(190, 160, 255, ${0.7 * strength})`],
-    [0.58, `rgba(130, 100, 235, ${0.36 * strength})`],
+    [0.1, `rgba(150, 130, 255, ${0.08 * strength})`],
+    [0.24, `rgba(155, 120, 255, ${0.42 * strength})`],
+    [CORE_AT, `rgba(198, 168, 255, ${0.9 * strength})`], // the bright core
+    [0.55, `rgba(140, 110, 240, ${0.5 * strength})`],
+    [0.78, `rgba(105, 80, 205, ${0.26 * strength})`], // the long veil
     [1, "rgba(90, 70, 190, 0)"],
   ]);
 
 // Each band gets its own random personality at page load. The HERO band
 // never fades out and keeps a healthy minimum thickness/brightness — the
-// sky always has one aurora at decent intensity; the other two come and
-// go freely (so the count reads as 1–3).
+// sky always has one aurora at decent intensity; the other three come and
+// go freely (so the count reads as 1–4).
 const makeBand = (hero = false, violet = false) => ({
   hero,
+  violet,
   ramp: violet
-    ? makeVioletRamp(rand(0.52, 0.68))
+    ? makeVioletRamp(rand(0.8, 1.05))
     : makeBandRamp(hero ? rand(0.95, 1.1) : rand(0.8, 1.05)),
   speed: rand(0.24, 0.4) * (Math.random() < 0.5 ? -1 : 1),
   meander: rand(0.0026, 0.0044), // centerline wander frequency
   mAmp: rand(0.24, 0.32), // deeper slalom
   curlF: rand(0.008, 0.013), // the tighter random curls
-  thick: rand(0.55, 0.8) * (violet ? 0.85 : 1), // of the strip's height
+  thick: rand(0.55, 0.8), // of the strip's height
   sMin: hero ? 0.72 : 0.6, // thickness-swell floor
   sVar: hero ? 0.28 : 0.4,
-  yOff: rand(-0.06, 0.06),
+  yOff: rand(-0.09, 0.09),
   phase: rand(0, Math.PI * 2),
   presF: rand(0.045, 0.085), // how often it appears/disappears
   presOff: rand(0, Math.PI * 2),
   lenF: rand(0.03, 0.06), // how its span drifts and stretches
   lenOff: rand(0, Math.PI * 2),
-  alpha: hero ? rand(1.6, 1.9) : violet ? rand(0.95, 1.2) : rand(1.4, 1.8),
+  alpha: hero ? rand(1.6, 1.9) : rand(1.4, 1.8),
 });
 
-// Green is the aurora; violet is a guest. The hero band — the one that never
-// fades — is ALWAYS green, so the prominent colour never changes; on some
-// page loads exactly one of the two free bands comes up violet instead,
-// which is what gives the strip depth without turning it into a gradient
-// toy. Roughly two sessions in five see it.
-const VIOLET_CHANCE = 0.4;
+// FOUR bands now, and green and violet are equals that share the sky — same
+// ramp alphas, same thickness range, same brightness range. The hero (the one
+// that never fades) stays green so the strip still opens on the signature
+// colour, and the other three are dealt from a pool that always contains at
+// least one of each: two violet on most loads, one on the rest. Which slot
+// gets which is random, and every band keeps its own independent fade cycle,
+// so the pairing you see drifts minute to minute.
 const makeBandSet = () => {
-  const violetIndex = Math.random() < VIOLET_CHANCE ? (Math.random() < 0.5 ? 1 : 2) : -1;
-  return [
-    makeBand(true),
-    makeBand(false, violetIndex === 1),
-    makeBand(false, violetIndex === 2),
-  ];
+  const pool = Math.random() < 0.65
+    ? ["violet", "violet", "green"]
+    : ["violet", "green", "green"];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return [makeBand(true), ...pool.map((c) => makeBand(false, c === "violet"))];
 };
 
 export const initAurora = (canvas) => {
