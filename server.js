@@ -74,6 +74,20 @@ process.on("unhandledRejection", (reason) => {
 const app = express();
 const server = http.createServer(app);
 
+// Failing to bind must kill the process LOUDLY, and this listener must be
+// registered FIRST: realtime.attach's WebSocketServer also listens for server
+// errors and RE-EMITS them on the wss — which has no error listener, so
+// EventEmitter throws mid-emit and any listener registered after ws never
+// runs. That throw became an uncaughtException the keep-alive guard swallowed:
+// a portless zombie kept its scanner and torrent client alive, and the STALE
+// instance that still owned the port kept serving old code while pm2 showed
+// the new one "online" (diagnosed live 2026-08-25, PIDs 36856/31544).
+// Registered first, we exit before ws's re-emit can happen.
+server.on("error", (err) => {
+  console.error("[fatal] server failed to listen:", err && err.message ? err.message : err);
+  process.exit(1);
+});
+
 app.use(express.json());
 
 // Gzip/deflate for text payloads. Measured on this library (35 titles):
@@ -303,15 +317,6 @@ const lanAddress = () => {
     "localhost"
   );
 };
-
-// Failing to bind must kill the process LOUDLY. Without this, EADDRINUSE is
-// swallowed by the uncaughtException guard: a stale orphan keeps serving old
-// code on the port while pm2 shows the new instance "online" — and both end
-// up downloading the same torrents into the same staging files.
-server.on("error", (err) => {
-  console.error("[fatal] server failed to listen:", err && err.message ? err.message : err);
-  process.exit(1);
-});
 
 server.listen(config.PORT, () => {
   // Now that we OWN the port, clear last-run's transcode stumps. Deferred to
