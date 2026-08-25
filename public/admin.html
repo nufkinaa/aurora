@@ -399,9 +399,14 @@
         <div class="empty-note hidden" id="sv-torrents-empty">No active torrents.</div>
       </div>
       <div class="card">
-        <h2>Updates <span class="note">read-only — never pulls anything by itself</span></h2>
+        <h2>Updates <span class="note">nothing happens without a button press</span></h2>
         <div id="sv-update" class="empty-note">Checking…</div>
-        <button class="mini" id="update-check-btn" style="margin-top:8px">Check now</button>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini" id="update-check-btn">Check now</button>
+          <button class="mini" id="update-pull-btn" disabled>Pull from GitHub</button>
+          <button class="mini" id="update-restart-btn">Restart Aurora</button>
+        </div>
+        <div id="sv-update-log" class="empty-note hidden" style="margin-top:8px;white-space:pre-wrap;font-size:0.8rem"></div>
       </div>
       <div class="card">
         <h2>Environment</h2>
@@ -1373,26 +1378,66 @@
     }
 
     // ---------- update checker (Server tab) ----------
+    // Three shas tell the whole story: GitHub master (remote), the checkout
+    // on disk (local), and the commit the RUNNING process booted from
+    // (running). remote≠local → Pull; local≠running → Restart. The old card
+    // only compared the first two, so a pulled-but-not-restarted server
+    // claimed "up to date" while serving stale code.
     async function loadUpdateCheck(force = false) {
       const host = $("#sv-update");
       if (force) host.textContent = "Checking…";
       let u;
       try { u = await json("/api/admin/update-check" + (force ? "?force=1" : "")); } catch { return; }
       const shortSha = (s) => (s ? s.slice(0, 7) : "?");
-      if (u.error) {
-        host.innerHTML = `<span class="muted">Couldn't reach GitHub (offline?). Running ${esc(shortSha(u.local))}.</span>`;
-      } else if (u.available) {
-        host.innerHTML =
-          `<span class="pill warn">update available</span> ` +
-          `<span class="muted" style="font-size:0.88rem">GitHub master is at ${esc(shortSha(u.remote))}, this server runs ${esc(shortSha(u.local))}` +
-          ` — pull on the server when convenient (nothing happens automatically)</span>`;
-        $("#badge-server").textContent = "1";
-      } else {
-        host.innerHTML = `<span class="pill live">up to date</span> <span class="muted" style="font-size:0.85rem">running ${esc(shortSha(u.local))} · checked ${ago(new Date(u.checkedAt).toISOString())}</span>`;
-        $("#badge-server").textContent = "";
+      const detail = `<span class="muted" style="font-size:0.85rem">GitHub ${esc(shortSha(u.remote))} · on disk ${esc(shortSha(u.local))} · running ${esc(shortSha(u.running))}</span>`;
+      const parts = [];
+      if (u.error) parts.push(`<span class="muted">Couldn't reach GitHub (offline?).</span>`);
+      else if (u.available) parts.push(`<span class="pill warn">update available</span>`);
+      if (u.restartNeeded) parts.push(`<span class="pill warn">restart to apply</span>`);
+      if (!u.available && !u.restartNeeded && !u.error) {
+        parts.push(`<span class="pill live">up to date</span> <span class="muted" style="font-size:0.85rem">checked ${ago(new Date(u.checkedAt).toISOString())}</span>`);
       }
+      host.innerHTML = parts.join(" ") + "<br>" + detail;
+      $("#update-pull-btn").disabled = !u.available;
+      $("#badge-server").textContent = u.available || u.restartNeeded ? "1" : "";
     }
     $("#update-check-btn").onclick = () => loadUpdateCheck(true);
+
+    $("#update-pull-btn").onclick = async () => {
+      const btn = $("#update-pull-btn");
+      const log = $("#sv-update-log");
+      btn.disabled = true;
+      btn.textContent = "Pulling…";
+      try {
+        const r = await post("/api/admin/update/pull");
+        log.classList.remove("hidden");
+        log.textContent = r.output || (r.ok ? "Pulled." : r.error || "git pull failed");
+      } catch (e) {
+        log.classList.remove("hidden");
+        log.textContent = "git pull failed — check the server logs";
+      }
+      btn.textContent = "Pull from GitHub";
+      await loadUpdateCheck(true);
+    };
+
+    $("#update-restart-btn").onclick = async () => {
+      if (!confirm("Restart Aurora now? Anyone watching will be interrupted for a few seconds. (The server must run under pm2 — outside pm2 this only stops it.)")) return;
+      const host = $("#sv-update");
+      try { await post("/api/admin/update/restart"); } catch {}
+      host.innerHTML = `<span class="pill warn">restarting…</span> <span class="muted">waiting for the server to come back</span>`;
+      // Poll until the new process answers, then reload the whole page so
+      // the admin UI itself is the freshly pulled version too.
+      const t0 = Date.now();
+      const poll = async () => {
+        try {
+          const r = await fetch("/api/ping?t=" + Date.now(), { cache: "no-store" });
+          if (r.ok) { location.reload(); return; }
+        } catch {}
+        if (Date.now() - t0 < 60000) setTimeout(poll, 1000);
+        else host.innerHTML = `<span class="pill warn">still down</span> <span class="muted">the server didn't come back within a minute — check pm2 on the box</span>`;
+      };
+      setTimeout(poll, 1500);
+    };
 
     // ---------- aria2 speed limits (Downloads tab) ----------
     async function loadLimits() {

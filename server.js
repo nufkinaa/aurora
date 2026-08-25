@@ -304,6 +304,9 @@ server.listen(config.PORT, () => {
   // it finishes before any HTTP request handler runs.
   try { require("./src/media/remux").bootSweep(); } catch {}
   try { require("./src/media/torrent-transcode").bootSweep(); } catch {}
+  // Remember which commit this process actually runs — the admin's update
+  // card compares it against HEAD on disk to say "restart to apply".
+  try { require("./src/lib/updatecheck").captureBoot(); } catch {}
 
   const { movies, shows } = scanner.index;
   const network = lanAddress();

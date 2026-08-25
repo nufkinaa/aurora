@@ -547,6 +547,23 @@ router.get("/api/admin/update-check", async (req, res) => {
   res.json(result);
 });
 
+// The Pull button (admin-gated like everything under /api/admin). ff-only —
+// see updatecheck.pull() for why.
+router.post("/api/admin/update/pull", async (req, res) => {
+  const r = await require("../lib/updatecheck").pull();
+  if (!r.ok) return res.status(500).json({ error: "git pull failed", output: r.output });
+  res.json({ ok: true, output: r.output, state: await require("../lib/updatecheck").check(true) });
+});
+
+// The Restart button. The reply goes out first, then the process exits and
+// pm2's autorestart brings it back up on the NEW code — this server has no
+// in-place reload, a clean death is the honest restart. (Run outside pm2,
+// this just stops the server; the button's confirm says as much.)
+router.post("/api/admin/update/restart", (req, res) => {
+  res.json({ ok: true });
+  setTimeout(() => process.exit(0), 400);
+});
+
 // aria2 global speed caps. GET reports the EFFECTIVE daemon values when it
 // runs (plus what's persisted); POST validates, persists (so every future
 // daemon spawn re-applies), and applies live when the daemon is up.

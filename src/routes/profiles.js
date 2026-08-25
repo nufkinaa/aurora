@@ -356,7 +356,11 @@ router.post("/api/profiles/:id/avatar-image", gate, rawImage, (req, res) => {
     ["-y", "-i", tmpIn,
       // center-crop square, then 256px — every avatar comes out identical
       "-vf", "crop='min(iw,ih)':'min(iw,ih)',scale=256:256",
-      "-frames:v", "1", "-q:v", "4", tmpOut],
+      // -f image2: the atomic-publish tmp name ends in ".tmp", and ffmpeg
+      // infers the output muxer from the extension — with no known extension
+      // it dies with "unable to find a suitable output format", which is why
+      // every avatar upload 400'd. State the format; ignore the name.
+      "-frames:v", "1", "-q:v", "4", "-f", "image2", tmpOut],
     { timeout: 20000 },
     (err) => {
       try { fs.unlinkSync(tmpIn); } catch {}
