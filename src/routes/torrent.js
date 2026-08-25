@@ -14,6 +14,25 @@ const MIME = {
   ".webm": "video/webm", ".avi": "video/x-msvideo", ".mov": "video/quicktime",
 };
 
+// Client-side halves of a stream's story (watchdog path switches, far-seek
+// outcomes) land in the SAME per-torrent perf record as the server's own
+// marks, so one grep of sessions.jsonl tells the whole tale. Names are
+// whitelisted to a client_ prefix and values clamped — this must never
+// become a free-form log sink.
+router.post("/api/torrents/perf-mark/:infoHash", (req, res) => {
+  if (!/^[0-9a-f]{40}$/i.test(req.params.infoHash)) return res.status(400).json({ error: "bad hash" });
+  const b = req.body || {};
+  const name = String(b.name || "");
+  if (!/^client_[a-z_]{1,30}$/.test(name)) return res.status(400).json({ error: "bad name" });
+  const extra = {};
+  for (const k of ["reason", "from", "to", "outcome", "position", "target", "wallMs"]) {
+    if (b[k] === undefined) continue;
+    extra[k] = typeof b[k] === "number" && isFinite(b[k]) ? Math.round(b[k]) : String(b[k]).slice(0, 60);
+  }
+  perf.event(req.params.infoHash.toLowerCase(), name, Math.max(0, Math.round(Number(b.ms) || 0)), extra);
+  res.json({ ok: true });
+});
+
 // GET /api/torrents/sources?type=movie&title=Tenet&year=2020
 // GET /api/torrents/sources?type=series&title=The%20Office&year=2005&season=2&episode=1
 router.get("/api/torrents/sources", async (req, res) => {

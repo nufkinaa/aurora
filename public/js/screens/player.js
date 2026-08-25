@@ -92,6 +92,21 @@ export const renderPlayer = async (root, { id }) => {
   const isTorrent =
     item._isTorrent || item.magnet || item.id?.startsWith("torrent|");
 
+  // Client-side forensics: path switches and far-seek outcomes land in the
+  // same per-torrent perf record as the server's marks (routes/torrent.js
+  // perf-mark), so a slow stream's whole story reads from one log. Torrent
+  // streams only; fire-and-forget.
+  const reportMark = (name, extra) => {
+    if (!isTorrent || !item.infoHash) return;
+    try {
+      fetch(`/api/torrents/perf-mark/${item.infoHash}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, ms: 0, ...extra }),
+      }).catch(() => {});
+    } catch {}
+  };
+
   // ---------- element tree ----------
   const video = el("video", {
     autoplay: true,
@@ -522,6 +537,7 @@ export const renderPlayer = async (root, { id }) => {
       stallTimer = null;
     }
     toast("This encode won't decode here — switching to transcode…", "⚙️");
+    reportMark("client_switch", { reason: "decode-stall", to: "h264", position: effTime() });
     // Resume from where the direct stream died (those bytes are downloaded —
     // we were just playing them); fall back to 0 only if the seek-job fails.
     startTranscodeAt(effTime(), "h264", { fallbackToZero: true });
@@ -580,7 +596,10 @@ export const renderPlayer = async (root, { id }) => {
         clearInterval(audioProbe);
         return;
       }
-      if (video.paused || video.currentTime < 6) return;
+      // 3s of REAL playback is plenty for the audio pipeline to have decoded
+      // its first bytes if it ever will — the old 6s threshold just meant 6
+      // silent seconds before the inevitable switch (S0 measured 6.8s).
+      if (video.paused || video.currentTime < 3) return;
       clearInterval(audioProbe); // one-shot: decide once real playback ran
       const dec = video.webkitAudioDecodedByteCount;
       if (typeof dec === "number" && dec === 0) {
@@ -590,9 +609,10 @@ export const renderPlayer = async (root, { id }) => {
           stallTimer = null;
         }
         toast("This encode's audio can't play here — switching sound…", "🔇");
+        reportMark("client_switch", { reason: "silent-audio", to: "copy", position: effTime() });
         startTranscodeAt(effTime(), "copy", { fallbackToZero: true });
       }
-    }, 2000);
+    }, 1000);
   }
 
   for (const [i, t] of (item.subtitles || []).entries()) {
@@ -792,8 +812,17 @@ export const renderPlayer = async (root, { id }) => {
       try {
         const st = await api.torrentStatus(item.infoHash);
         serverLoaded = st.progress || 0;
-        const onTranscode =
-          !!(item.needsTranscode && item.transcodeUrl) || switchedToTranscode;
+        // The truth about the current path, in words a person can act on —
+        // "transcoding…" used to appear for streams whose video was merely
+        // COPIED (audio-only conversion), which read as "the server is doing
+        // something heavy/wrong" (elia, 2026-08-25). usingTranscode is the
+        // live state; item.needsTranscode was only the pre-play guess.
+        const onTranscode = usingTranscode || switchedToTranscode;
+        const pathWords = onTranscode
+          ? currentV === "copy"
+            ? "converting sound only"
+            : "re-encoding for this device"
+          : "direct stream";
         // Seconds of video actually ready to play — what the user cares about,
         // not the scattered whole-torrent download %.
         const readySec = video.buffered.length
@@ -827,12 +856,11 @@ export const renderPlayer = async (root, { id }) => {
           const downloaded = (st.progress || 0) >= 0.99;
           if (st.downloadSpeed > 30000) parts.push(fmtSpeed(st.downloadSpeed));
           else if (downloaded) parts.push("downloaded");
+          parts.push(pathWords);
           parts.push(
             readySec > 0
               ? `${readySec}s of video ready`
-              : onTranscode
-                ? "transcoding…"
-                : "getting the first frames…",
+              : "getting the first frames…",
           );
           sub.textContent = parts.join(" · ") + waiting;
         } else {
@@ -1730,6 +1758,7 @@ export const renderPlayer = async (root, { id }) => {
         // not the viewer's — they pressed once and expect it to land. Keep the
         // spinner up across attempts and only speak up if it really can't be had.
         (async () => {
+          const seekStarted = Date.now();
           const attempt = async () => {
             const t0 = Date.now();
             const ok = await startTranscodeAt(target, currentV);
@@ -1748,7 +1777,17 @@ export const renderPlayer = async (root, { id }) => {
               if (exited || seq !== farSeekSeq) return;
               r = await attempt();
             }
+            if (r.ok) {
+              reportMark("client_seek_outcome", {
+                outcome: "landed", target: Math.round(target),
+                wallMs: Date.now() - seekStarted,
+              });
+            }
             if (!r.ok && seq === farSeekSeq && !exited) {
+              reportMark("client_seek_outcome", {
+                outcome: "refused", target: Math.round(target),
+                wallMs: Date.now() - seekStarted,
+              });
               seekPreview = null; // give the bar back to reality
               toast(
                 "That part can't be fetched right now — the source may be too slow",
