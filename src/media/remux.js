@@ -169,6 +169,15 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
   ss = Math.max(0, Math.floor(Number(ss) || 0));
   vcodec = effectiveVcodec(vcodec, ss);
   if (fmt !== "fmp4") fmt = null;
+  // Disk guard (learned 2026-08-26 the ENOSPC way: a full disk truncates
+  // store writes into "corrupt" pieces and kills segment muxing with noise
+  // instead of answers). Refuse loudly while there is still headroom.
+  try {
+    const sfs = fs.statfsSync(HLS_ROOT);
+    if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
+      return Promise.reject(new Error("Server disk is nearly full — free space to stream"));
+    }
+  } catch {}
   const heavy = vcodec === "h264";
 
   const dir = jobDir(id, mtime, vcodec, ss, fmt);

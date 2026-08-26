@@ -191,6 +191,15 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
   // 2026-08-25 positive-offset gap-hunt (both written up in remux.js) —
   // were artifacts of RESETTING timestamps; copyts resets nothing.
 
+  // Disk guard (learned 2026-08-26 the ENOSPC way: a full disk truncates
+  // store writes into "corrupt" pieces and kills segment muxing with noise
+  // instead of answers). Refuse loudly while there is still headroom.
+  try {
+    const sfs = fs.statfsSync(HLS_ROOT);
+    if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
+      return Promise.reject(new Error("Server disk is nearly full — free space to stream"));
+    }
+  } catch {}
   if (fmt !== "fmp4") fmt = null;
   const dir = jobDir(infoHash, fileIdx, ss, fmt);
   const playlist = path.join(dir, "index.m3u8");
