@@ -326,7 +326,20 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
   // though the bytes are all on disk. Reported in the seek perf event below.
   let downloadedPct = -1;
   try { downloadedPct = Math.round((file.downloaded / file.length) * 100); } catch {}
-  if (seeking) { try { file.select(); } catch {} } // keep downloading the whole file
+  // FOCUS THE SWARM while a seek lands (measured 2026-08-27: a skip took
+  // 63s of spawnToPlaylist at a real 25MB/s — the bandwidth was filling the
+  // whole-file selection's pieces everywhere EXCEPT the three regions the
+  // seek serially needs). Dropping the greedy full-file selection leaves
+  // only deliberate reads holding priorities — the old stream's own
+  // readahead, warmHead/warmTail, and ffmpeg's target reads — so every
+  // peer slot serves the landing. The full-file select is restored the
+  // moment this job resolves or fails (see the .finally below).
+  const focusSwarm = seeking && !complete;
+  if (focusSwarm) {
+    try { file.deselect(); } catch {}
+  } else if (seeking) {
+    try { file.select(); } catch {}
+  }
   // MKV keeps its seek index (Cues) in the LAST ~0.1-1.7 MB of the file —
   // measured across this library 2026-07-25; the hit near the front is only the
   // SeekHead pointer. So ffmpeg cannot resolve `-ss` until those trailing bytes
@@ -512,6 +525,13 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
   // (see the supersede loop). If this job never gets there, they keep running —
   // whatever the viewer was already watching survives the failed seek.
   if (victims.length) job.ready.then(retireVictims, () => {});
+
+  // The landing is over (either way) — resume the whole-file download the
+  // focusSwarm block above paused.
+  if (focusSwarm) {
+    const restore = () => { try { file.select(); } catch {} };
+    job.ready.then(restore, restore);
+  }
 
   jobs.set(dir, job);
   console.log(`[torrent-transcode] ${infoHash.slice(0, 8)}… file ${fileIdx} (${vcodec}${ss ? ` @${ss}s` : ""})`);

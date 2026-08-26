@@ -2095,13 +2095,10 @@
   background: none;
   pointer-events: none;
 }
-.torrent-status.mini .spinner {
-  width: 34px;
-  height: 34px;
-  margin-bottom: 10px;
-}
+.torrent-status.mini .spinner,
 .torrent-status.mini .torrent-status-title,
 .torrent-status.mini .btn {
+  /* the player's own central spinner already animates — one loader only */
   display: none;
 }
 .torrent-status.mini .torrent-status-sub {
@@ -2112,6 +2109,8 @@
   border-radius: 999px;
   padding: 6px 14px;
   backdrop-filter: blur(6px);
+  /* sit just below the main spinner, keeping the center stage */
+  transform: translateY(58px);
 }
 
 .torrent-badge {

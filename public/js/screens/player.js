@@ -1112,9 +1112,17 @@ export const renderPlayer = async (root, { id }) => {
               remaining <= 0 || !speed
                 ? null
                 : Math.min(120, Math.max(2, Math.round(remaining / speed)));
+            const elapsed = Math.round((now - seekWait.at) / 1000);
+            // The budget is a bandwidth heuristic and bandwidth can be
+            // filling the WRONG pieces (measured 63s "starting…" at a real
+            // 25MB/s, 2026-08-27) — once it's spent with no landing, stop
+            // pretending and show the honest elapsed wait instead.
+            const tail =
+              eta ? ` · ~${eta}s`
+              : elapsed <= 8 ? " · starting…"
+              : ` · still fetching that part… (${elapsed}s)`;
             sub.textContent =
-              `→ ${fmtClock(seekWait.target)} · ${speed > 30000 ? fmtSpeed(speed) : "…"}` +
-              (eta ? ` · ~${eta}s` : " · starting…");
+              `→ ${fmtClock(seekWait.target)} · ${speed > 30000 ? fmtSpeed(speed) : "…"}` + tail;
           } else {
             sub.textContent =
               (speed > 30000 ? `${fmtSpeed(speed)} · ` : "") +
