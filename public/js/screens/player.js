@@ -480,9 +480,15 @@ export const renderPlayer = async (root, { id }) => {
   const transcodeUrl = (ss, v) => {
     const vv = v || currentV;
     // Native-HLS devices (iPhone) get fMP4 segments for copy jobs — Apple
-    // requires them for HEVC-in-HLS, and they're fine for h264 too.
+    // requires them for HEVC-in-HLS, and they're fine for h264 too. HEVC in
+    // fMP4 additionally MUST be tagged hvc1: ffmpeg's default (hev1) is the
+    // other legal tag, and iOS refuses it (the black-screen "codec
+    // unsupported" of 2026-08-26).
     const seg = nativeHlsOnly && vv === "copy" ? "&seg=fmp4" : "";
-    return `${item.transcodeBase}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${vv}${seg}`;
+    const isHevc =
+      (item.video && item.video.codec === "hevc") || item.videoCodecHint === "hevc";
+    const vtag = seg && isHevc ? "&vtag=hvc1" : "";
+    return `${item.transcodeBase}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${vv}${seg}${vtag}`;
   };
   const startTranscode = (offset, v, { claimed = false, clock = null } = {}) => {
     streamOffset = Math.max(0, Math.floor(offset || 0));
@@ -2446,6 +2452,18 @@ export const renderPlayer = async (root, { id }) => {
     // before giving up.
     if (canFallback && !switchedToTranscode) {
       fallbackToTranscode();
+      return;
+    }
+    // A COPY stream can also be refused (a device rejecting the repackaged
+    // codec — elia's iPhone sat on a dead screen for 3 minutes here,
+    // 2026-08-26, with only the "codec unsupported" dead-end below). The
+    // h264 encode is the one thing every device decodes: escalate to it
+    // from the current position instead of giving up.
+    if (usingTranscode && currentV === "copy" && !switchedToTranscode) {
+      switchedToTranscode = true;
+      toast("This device refused the fast path — re-encoding instead…", "⚙️");
+      reportMark("client_switch", { reason: "media-error", to: "h264", position: effTime() });
+      startTranscodeAt(effTime(), "h264", { fallbackToZero: true });
       return;
     }
     spinner.classList.add("hidden");

@@ -204,8 +204,9 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
     // offset we just retired — see `retired` in torrent-transcode.js.
     const seek = req.query.seek === "1";
     const fmt = req.query.seg === "fmp4" ? "fmp4" : null; // Apple's HEVC-in-HLS format (S4)
+    const vtag = req.query.vtag === "hvc1"; // Apple-mandated HEVC sample tag
     const t0 = Date.now();
-    const dir = await transcode.ensure(file, absPath, req.params.infoHash, fileIdx, vcodec, ss, seek, fmt);
+    const dir = await transcode.ensure(file, absPath, req.params.infoHash, fileIdx, vcodec, ss, seek, fmt, vtag);
     // Timing for deliberate viewer seeks only — playlist refreshes are noise.
     // readyMs isolates readyTorrent (metadata/re-add wait) from ensure; the
     // matching seek_ensure_detail event breaks ensure down further.

@@ -438,6 +438,9 @@ const playStream = (stream, base, label, season, episode) => {
     // stalls falls back to v=h264 from the stall point.
     transcodeBase,
     transcodeV: needsVideo ? (videoCopyable ? "copy" : "h264") : needsAudio ? "copy" : "h264",
+    // Until the probe answers, this is the player's only codec knowledge —
+    // it drives the hvc1 tag Apple requires on HEVC fMP4 copies.
+    videoCodecHint: videoCopyable ? "hevc" : null,
     needsTranscode: needsVideo || needsAudio,
     // True runtime so the scrubber shows the whole movie's length, not the
     // amount transcoded so far (a live HLS playlist's duration keeps growing).

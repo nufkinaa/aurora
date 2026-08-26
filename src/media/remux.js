@@ -159,7 +159,7 @@ const pruneOld = (keepDir) => {
 
 // Ensure an HLS remux/transcode job exists for this video. Resolves with the
 // job dir once the playlist file is available (job continues in background).
-const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = null } = {}) => {
+const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = null, vtag = false } = {}) => {
   let mtime = 0;
   try {
     mtime = fs.statSync(videoPath).mtimeMs;
@@ -313,6 +313,9 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
       // TS otherwise, which hls.js's transmuxer prefers.
       ...(fmt === "fmp4"
         ? ["-hls_segment_type", "fmp4", "-hls_fmp4_init_filename", path.join(dir, "init.mp4"),
+           // Apple requires the hvc1 sample tag for HEVC fMP4 (ffmpeg
+           // defaults to hev1, which iOS refuses).
+           ...(vtag && !heavy ? ["-tag:v", "hvc1"] : []),
            "-hls_segment_filename", path.join(dir, "seg%05d.m4s")]
         : ["-hls_segment_filename", path.join(dir, "seg%05d.ts")]),
       playlist,

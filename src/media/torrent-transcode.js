@@ -177,7 +177,7 @@ const pruneOld = (keepDir) => {
 // bytes strictly in order (byte 0 first) and blocks until each is verified, so
 // ffmpeg never reads a hole. MKV demuxes linearly from a pipe fine (we only
 // ever read start-to-end, never seek the input).
-const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek = false, fmt = null) => {
+const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek = false, fmt = null, vtagHvc1 = false) => {
   if (!config.FFMPEG) return Promise.reject(new Error("ffmpeg not available"));
   const ensureStart = Date.now();
   ss = Math.max(0, Math.floor(Number(ss) || 0));
@@ -385,6 +385,9 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
       // fMP4 segments when asked (Apple requires them for HEVC-in-HLS — S4)
       ...(fmt === "fmp4"
         ? ["-hls_segment_type", "fmp4", "-hls_fmp4_init_filename", path.join(dir, "init.mp4"),
+           // HEVC in fMP4 must carry the hvc1 sample tag for Apple — ffmpeg
+           // defaults to hev1, which iOS refuses (black screen, 2026-08-26).
+           ...(vtagHvc1 && vcodec === "copy" ? ["-tag:v", "hvc1"] : []),
            "-hls_segment_filename", path.join(dir, "seg%05d.m4s")]
         : ["-hls_segment_filename", path.join(dir, "seg%05d.ts")]),
       playlist,

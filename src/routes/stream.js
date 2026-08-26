@@ -298,7 +298,8 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
     // hls.js playlist refreshes never do). Only that may re-create an offset we
     // just retired — see `retired` in remux.js.
     const fmt = req.query.seg === "fmp4" ? "fmp4" : null; // Apple's HEVC-in-HLS format (S4)
-    const dir = await remux.ensure(entry.path, req.params.id, { vcodec: v, ss, seek: req.query.seek === "1", fmt });
+    const vtag = req.query.vtag === "hvc1";
+    const dir = await remux.ensure(entry.path, req.params.id, { vcodec: v, ss, seek: req.query.seek === "1", fmt, vtag });
     // Segment URIs carry ?v= (and &seg= for fMP4 jobs, EXT-X-MAP included) so
     // the segment route can resolve this exact job dir.
     const q = `?v=${v}${fmt ? "&seg=fmp4" : ""}`;
