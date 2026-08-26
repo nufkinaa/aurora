@@ -991,6 +991,11 @@ export const renderPlayer = async (root, { id }) => {
     const titleEl = torrentStatus.querySelector(".torrent-status-title");
     let everPlayed = false;
     let lastPolledTime = 0; // to detect real progress between polls
+    // mini-pill ETA accounting (see the mini block below)
+    let seekEtaAnchor = 0;
+    let seekBytesSince = 0;
+    let seekLastTick = 0;
+    let readySecLast = 0;
 
     const refresh = async () => {
       if (exited) return;
@@ -1073,6 +1078,7 @@ export const renderPlayer = async (root, { id }) => {
               ? `${readySec}s of video ready`
               : "getting the first frames…",
           );
+          readySecLast = readySec;
           sub.textContent = parts.join(" · ") + waiting;
         } else {
           titleEl.textContent = seekWait
@@ -1081,6 +1087,39 @@ export const renderPlayer = async (root, { id }) => {
           sub.textContent =
             (seekWait ? "waiting on the swarm" : "This can take a moment") +
             waiting;
+        }
+        // Once the picture has shown, the full-screen vignette is just in the
+        // way (elia, 2026-08-26: "the overlay is kind of annoying") — flip to
+        // a compact pill above the controls: destination, live speed, and an
+        // honest countdown. The ETA integrates the actual download rate
+        // against a ~24MB target-region budget — a heuristic, so it wears a
+        // tilde — and once the data is in it says "starting…".
+        torrentStatus.classList.toggle("mini", everPlayed);
+        if (everPlayed) {
+          const speed = st.downloadSpeed || 0;
+          const now = Date.now();
+          if (seekWait) {
+            if (seekEtaAnchor !== seekWait.at) {
+              seekEtaAnchor = seekWait.at;
+              seekBytesSince = 0;
+              seekLastTick = now;
+            }
+            seekBytesSince += speed * Math.max(0, (now - seekLastTick) / 1000);
+            seekLastTick = now;
+            const NEED = 24 * 1024 * 1024;
+            const remaining = NEED - seekBytesSince;
+            const eta =
+              remaining <= 0 || !speed
+                ? null
+                : Math.min(120, Math.max(2, Math.round(remaining / speed)));
+            sub.textContent =
+              `→ ${fmtClock(seekWait.target)} · ${speed > 30000 ? fmtSpeed(speed) : "…"}` +
+              (eta ? ` · ~${eta}s` : " · starting…");
+          } else {
+            sub.textContent =
+              (speed > 30000 ? `${fmtSpeed(speed)} · ` : "") +
+              (readySecLast > 0 ? `${readySecLast}s ready` : "buffering…");
+          }
         }
       } catch {}
     };
@@ -1986,7 +2025,7 @@ export const renderPlayer = async (root, { id }) => {
             for (let i = 0; !r.ok && r.ms < 20000 && i < 3; i++) {
               if (exited || seq !== farSeekSeq) return; // a newer seek owns the player
               spinner.classList.remove("hidden");
-              await new Promise((res) => setTimeout(res, 1500));
+              await new Promise((res) => setTimeout(res, 700));
               if (exited || seq !== farSeekSeq) return;
               r = await attempt();
             }
@@ -2040,7 +2079,10 @@ export const renderPlayer = async (root, { id }) => {
     pendingSeek = target;
     updateScrubber();
     clearTimeout(seekDebounce);
-    seekDebounce = setTimeout(commitSeek, 450);
+    // 250ms: long enough to coalesce a remote's auto-repeat burst, short
+    // enough that a single deliberate click feels immediate (was 450 — part
+    // of the answer to "why does a skip take so long", 2026-08-26).
+    seekDebounce = setTimeout(commitSeek, 250);
   };
 
   const updateScrubber = () => {
