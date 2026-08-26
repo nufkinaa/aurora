@@ -364,7 +364,7 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
       "-muxdelay", "0", "-muxpreload", "0",
       // Offset copy jobs keep the source's real timestamps (see the note at
       // the top of ensure) — the media timeline becomes content time.
-      ...(seeking && vcodec === "copy" ? ["-copyts"] : []),
+      ...(seeking && vcodec === "copy" && fmt !== "fmp4" ? ["-copyts"] : []),
       "-f", "hls",
       "-hls_time", "4", // shorter segments → first frames reach the player sooner
       // A short FIRST segment gets the playlist (and playback) started after

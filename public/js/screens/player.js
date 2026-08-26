@@ -219,7 +219,12 @@ export const renderPlayer = async (root, { id }) => {
     !!v &&
     ((v.codec === "h264" && (v.bitDepth || 8) <= 8) ||
       (v.codec === "hevc" &&
-        !!video.canPlayType('video/mp4; codecs="hvc1.2.4.L123.B0"')));
+        // iOS canPlayType LIES about hvc1 (answers blank while every iPhone
+        // since iOS 11 hardware-decodes HEVC — elia's phone proved it by
+        // "encoding" every x265 stream, 2026-08-26). On native-HLS devices
+        // HEVC is a platform guarantee; elsewhere trust the browser's answer.
+        (nativeHlsOnly ||
+          !!video.canPlayType('video/mp4; codecs="hvc1.2.4.L123.B0"'))));
 
   let hls = null;
   // Rebuilds after a FATAL hls.js error (see the ERROR handler). Bounded per
@@ -498,17 +503,20 @@ export const renderPlayer = async (root, { id }) => {
       startHls(u2);
     };
     const begin = (c) => {
-      // Native HLS keeps raw PTS (copyts → the clock is content time, base
-      // 0) and needs NO published numbers — only the hls.js path, which
-      // rebases media time to the segment's min PTS (measured 2026-08-26),
-      // requires the headers; without them it takes the exact h264 encode.
+      // Two copy clocks (both measured 2026-08-26):
+      // - hls.js/TS: -copyts keeps real timestamps; hls.js rebases media
+      //   time to the segment's min PTS, so the published headers anchor an
+      //   EXACT clock. No headers → the exact h264 encode instead.
+      // - native/fMP4 (iPhone): Apple normalizes fMP4 to a zero-based
+      //   timeline (and its fullscreen UI chokes on raw copyts stamps —
+      //   elia's "crazy high numbers"), so those jobs ship WITHOUT copyts
+      //   and the clock anchors at the requested offset like an h264 job:
+      //   worst case one GOP of early-landing bias, sane native UI.
       if (isCopySeek && !nativeHlsOnly && !(c && isFinite(c.base))) return beginH264Fallback();
-      if (isCopySeek) {
-        clockBase = nativeHlsOnly ? 0 : c.base;
-        windowStart = nativeHlsOnly
-          ? (c && isFinite(c.base) ? c.base : streamOffset)
-          : c.base;
-        startHls(url, nativeHlsOnly ? 0 : c.offset || 0);
+      if (isCopySeek && !nativeHlsOnly) {
+        clockBase = c.base;
+        windowStart = c.base;
+        startHls(url, c.offset || 0);
       } else {
         clockBase = streamOffset;
         windowStart = streamOffset;

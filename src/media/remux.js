@@ -291,7 +291,7 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
       "-muxdelay", "0", "-muxpreload", "0",
       // Offset copy jobs keep the source's real timestamps (see the
       // effectiveVcodec note) — the media timeline becomes content time.
-      ...(ss > 0 && !heavy ? ["-copyts"] : []),
+      ...(ss > 0 && !heavy && fmt !== "fmp4" ? ["-copyts"] : []),
       "-f", "hls",
       "-hls_time", "6",
       // Short first segments so playback can start as soon as ~2s is encoded
