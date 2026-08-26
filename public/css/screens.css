@@ -2087,28 +2087,31 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Mini mode: once the picture has shown, the vignette gets out of the way —
-   a compact status pill above the control bar carries the essentials
-   (destination · speed · ~eta). The big spinner/title/back button vanish;
-   the pill never intercepts clicks meant for the video. */
+/* Mini mode: once the picture has shown, the dark vignette gets out of the
+   way but the message KEEPS ITS PLACE — centered, small spinner with the
+   essentials right below it (destination · speed · ~eta). No backdrop, no
+   title, no Back button; never intercepts clicks meant for the video. */
 .torrent-status.mini {
-  inset: auto 16px 108px auto;
-  background: rgba(10, 12, 20, 0.78);
-  border-radius: 999px;
-  padding: 8px 16px;
-  z-index: 5;
+  background: none;
   pointer-events: none;
-  backdrop-filter: blur(6px);
 }
-.torrent-status.mini .spinner,
+.torrent-status.mini .spinner {
+  width: 34px;
+  height: 34px;
+  margin-bottom: 10px;
+}
 .torrent-status.mini .torrent-status-title,
 .torrent-status.mini .btn {
   display: none;
 }
 .torrent-status.mini .torrent-status-sub {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--text);
   white-space: nowrap;
+  background: rgba(10, 12, 20, 0.6);
+  border-radius: 999px;
+  padding: 6px 14px;
+  backdrop-filter: blur(6px);
 }
 
 .torrent-badge {

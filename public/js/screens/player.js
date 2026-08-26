@@ -1183,7 +1183,24 @@ export const renderPlayer = async (root, { id }) => {
   };
   const controlsHidden = () => overlay.classList.contains("controls-hidden");
 
+  // While a far seek is landing, conflicting inputs are LOCKED: pressing
+  // play resumed the deliberately-held old picture mid-swap, and stacking
+  // another restart on the one in flight churned the server's job slots —
+  // both reported as "it messes it up" (elia, 2026-08-27). Back always
+  // works; a locked press gets one gentle reminder, never silence.
+  let seekLockToastAt = 0;
+  const seekLocked = () => {
+    if (!seekWait && !probing) return false;
+    const now = Date.now();
+    if (now - seekLockToastAt > 2500) {
+      seekLockToastAt = now;
+      toast("Hold on — landing your skip…", "⏳");
+    }
+    return true;
+  };
+
   const togglePlay = () => {
+    if (seekLocked()) return;
     if (video.paused) {
       video.play().catch(() => {});
       showFlash(icons.play);
@@ -1202,6 +1219,7 @@ export const renderPlayer = async (root, { id }) => {
   let skipHideTimer = null;
 
   const skip = (dir) => {
+    if (seekLocked()) return;
     const now = Date.now();
     if (now - lastSkipAt > SKIP_CHAIN_MS || dir !== skipDir) {
       skipStreak = 0;
@@ -2070,6 +2088,7 @@ export const renderPlayer = async (root, { id }) => {
     updateScrubber();
   };
   const seekTo = (sec) => {
+    if (seekLocked()) return; // scrubber retargets wait for the landing too
     const total = totalDuration();
     const target = Math.max(0, Math.min(total ? total - 1 : sec, sec));
     // Debounced: a burst of remote skips moves the scrubber preview instantly
