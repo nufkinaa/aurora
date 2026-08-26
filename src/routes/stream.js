@@ -297,13 +297,20 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
     // ?seek=1 marks a deliberate seek by the viewer (the player probe sets it;
     // hls.js playlist refreshes never do). Only that may re-create an offset we
     // just retired — see `retired` in remux.js.
-    const dir = await remux.ensure(entry.path, req.params.id, { vcodec: v, ss, seek: req.query.seek === "1" });
-    // Segment URIs carry ?v= so the segment route can resolve this exact job
-    // dir (an h264 and a copy job can coexist for the same file + offset).
+    const fmt = req.query.seg === "fmp4" ? "fmp4" : null; // Apple's HEVC-in-HLS format (S4)
+    const dir = await remux.ensure(entry.path, req.params.id, { vcodec: v, ss, seek: req.query.seek === "1", fmt });
+    // Segment URIs carry ?v= (and &seg= for fMP4 jobs, EXT-X-MAP included) so
+    // the segment route can resolve this exact job dir.
+    const q = `?v=${v}${fmt ? "&seg=fmp4" : ""}`;
     let text = fs
       .readFileSync(path.join(dir, "index.m3u8"), "utf-8")
       .split("\n")
-      .map((line) => (line.trim().endsWith(".ts") ? `${line.trim()}?v=${v}` : line))
+      .map((line) => {
+        const t = line.trim();
+        if (t.endsWith(".ts") || t.endsWith(".m4s")) return `${t}${q}`;
+        if (t.startsWith("#EXT-X-MAP:")) return t.replace(/URI="[^"]*init\.mp4"/, `URI="init.mp4${q}"`);
+        return line;
+      })
       .join("\n");
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
@@ -336,10 +343,11 @@ router.get("/stream/transcode/:id/:ss/:file", (req, res) => {
   }
   const ss = Math.max(0, parseInt(req.params.ss, 10) || 0);
   const v = remux.effectiveVcodec(req.query.v === "copy" ? "copy" : "h264", ss);
-  remux.touch(req.params.id, mtime, v, ss); // keep an actively-watched job alive
-  const abs = remux.filePath(remux.dirName(req.params.id, mtime, v, ss), req.params.file);
+  const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
+  remux.touch(req.params.id, mtime, v, ss, fmt); // keep an actively-watched job alive
+  const abs = remux.filePath(remux.dirName(req.params.id, mtime, v, ss, fmt), req.params.file);
   if (!abs) return res.status(404).send("Not found");
-  res.setHeader("Content-Type", "video/mp2t");
+  res.setHeader("Content-Type", /\.(m4s|mp4)$/.test(req.params.file) ? "video/mp4" : "video/mp2t");
   res.setHeader("Cache-Control", "no-cache");
   res.sendFile(abs);
 });

@@ -203,8 +203,9 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
     // hls.js's own playlist refreshes never do). Only that may re-create an
     // offset we just retired — see `retired` in torrent-transcode.js.
     const seek = req.query.seek === "1";
+    const fmt = req.query.seg === "fmp4" ? "fmp4" : null; // Apple's HEVC-in-HLS format (S4)
     const t0 = Date.now();
-    const dir = await transcode.ensure(file, absPath, req.params.infoHash, fileIdx, vcodec, ss, seek);
+    const dir = await transcode.ensure(file, absPath, req.params.infoHash, fileIdx, vcodec, ss, seek, fmt);
     // Timing for deliberate viewer seeks only — playlist refreshes are noise.
     // readyMs isolates readyTorrent (metadata/re-add wait) from ensure; the
     // matching seek_ensure_detail event breaks ensure down further.
@@ -215,7 +216,10 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
     // torrent-transcode.js): publish where playback begins — header for our
     // player, EXT-X-START for native HLS. hls.js playlist refreshes hit this
     // same route, so the tag stays present across reloads.
-    if (vcodec === "copy" && ss > 0) {
+    if (vcodec === "copy" && ss > 0 && !fmt) {
+      // TS only: hls.js needs the clock; the fMP4/native path keeps raw PTS
+      // (copyts) so its clock is already honest and ffprobe can't read a
+      // bare .m4s fragment anyway.
       const s = await require("../media/streamprobe").segmentStart(path.join(dir, "seg00000.ts"));
       let text = require("fs").readFileSync(path.join(dir, "index.m3u8"), "utf-8");
       if (s) {
@@ -223,6 +227,22 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
         res.setHeader("X-Aurora-Offset", String(s.offset));
         text = text.replace("#EXTM3U", `#EXTM3U\n#EXT-X-START:TIME-OFFSET=${s.offset},PRECISE=YES`);
       }
+      return res.send(text);
+    }
+    if (fmt === "fmp4") {
+      // Segment URIs are relative and lose the query string — carry the
+      // format on every .m4s line and on the EXT-X-MAP init URI, or the
+      // segment route resolves the TS dir and 404s.
+      const text = require("fs")
+        .readFileSync(path.join(dir, "index.m3u8"), "utf-8")
+        .split("\n")
+        .map((line) => {
+          const t = line.trim();
+          if (t.endsWith(".m4s")) return `${t}?seg=fmp4`;
+          if (t.startsWith("#EXT-X-MAP:")) return t.replace(/URI="[^"]*init\.mp4"/, 'URI="init.mp4?seg=fmp4"');
+          return line;
+        })
+        .join("\n");
       return res.send(text);
     }
     res.sendFile(path.join(dir, "index.m3u8"));
@@ -233,11 +253,14 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
 
 // HLS segments (and the playlist on refresh) for the transcode above.
 router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/:file", (req, res) => {
-  transcode.touch(req.params.infoHash, req.params.fileIdx, req.params.ss); // keep the transcode alive
+  const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
+  transcode.touch(req.params.infoHash, req.params.fileIdx, req.params.ss, fmt); // keep the transcode alive
   torrent.touchTorrent(req.params.infoHash); // and its torrent (so it isn't idle-evicted)
-  const abs = transcode.filePath(req.params.infoHash, req.params.fileIdx, req.params.ss, req.params.file);
+  const abs = transcode.filePath(req.params.infoHash, req.params.fileIdx, req.params.ss, req.params.file, fmt);
   if (!abs) return res.status(404).send("Not found");
-  res.setHeader("Content-Type", req.params.file.endsWith(".m3u8") ? "application/vnd.apple.mpegurl" : "video/mp2t");
+  res.setHeader("Content-Type", req.params.file.endsWith(".m3u8")
+    ? "application/vnd.apple.mpegurl"
+    : /\.(m4s|mp4)$/.test(req.params.file) ? "video/mp4" : "video/mp2t");
   res.setHeader("Cache-Control", "no-cache");
   res.sendFile(abs);
 });

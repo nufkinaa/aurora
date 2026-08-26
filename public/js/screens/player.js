@@ -208,6 +208,19 @@ export const renderPlayer = async (root, { id }) => {
     /iPhone|iPod/.test(navigator.userAgent) &&
     !!video.canPlayType("application/vnd.apple.mpegurl");
 
+  // Can this device DECODE the codec if we repackage into a container it
+  // accepts? This is what separates the cheap COPY from the full h264 encode
+  // (elia's iPhone report, 2026-08-26: every MKV stream re-encoded at swarm
+  // speed because the container check alone said "can't play" — when the
+  // phone hardware-decodes both h264 AND hevc, and only the MKV wrapper was
+  // the problem). h264 8-bit is universal; HEVC rides on hardware and gets
+  // fMP4 segments on native-HLS devices (Apple's requirement).
+  const codecCopyable = (v) =>
+    !!v &&
+    ((v.codec === "h264" && (v.bitDepth || 8) <= 8) ||
+      (v.codec === "hevc" &&
+        !!video.canPlayType('video/mp4; codecs="hvc1.2.4.L123.B0"')));
+
   let hls = null;
   // Rebuilds after a FATAL hls.js error (see the ERROR handler). Bounded per
   // BURST rather than for the whole session: four quick attempts, then an honest
@@ -459,8 +472,13 @@ export const renderPlayer = async (root, { id }) => {
   // failing, that flag is what brings it back.
   let abandonedFatal = false; // true once the held stream has died mid-seek
   let currentV = item.transcodeV || "h264";
-  const transcodeUrl = (ss, v) =>
-    `${item.transcodeBase}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${v || currentV}`;
+  const transcodeUrl = (ss, v) => {
+    const vv = v || currentV;
+    // Native-HLS devices (iPhone) get fMP4 segments for copy jobs — Apple
+    // requires them for HEVC-in-HLS, and they're fine for h264 too.
+    const seg = nativeHlsOnly && vv === "copy" ? "&seg=fmp4" : "";
+    return `${item.transcodeBase}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${vv}${seg}`;
+  };
   const startTranscode = (offset, v, { claimed = false, clock = null } = {}) => {
     streamOffset = Math.max(0, Math.floor(offset || 0));
     usingTranscode = true;
@@ -480,13 +498,16 @@ export const renderPlayer = async (root, { id }) => {
       startHls(u2);
     };
     const begin = (c) => {
-      if (isCopySeek && !(c && isFinite(c.base))) return beginH264Fallback();
+      // Native HLS keeps raw PTS (copyts → the clock is content time, base
+      // 0) and needs NO published numbers — only the hls.js path, which
+      // rebases media time to the segment's min PTS (measured 2026-08-26),
+      // requires the headers; without them it takes the exact h264 encode.
+      if (isCopySeek && !nativeHlsOnly && !(c && isFinite(c.base))) return beginH264Fallback();
       if (isCopySeek) {
-        // hls.js rebases media time so 0 == the segment's min PTS (measured
-        // 2026-08-26); native HLS keeps raw PTS, so its base is simply 0 and
-        // EXT-X-START (playlist-relative) picks the start position.
         clockBase = nativeHlsOnly ? 0 : c.base;
-        windowStart = c.base;
+        windowStart = nativeHlsOnly
+          ? (c && isFinite(c.base) ? c.base : streamOffset)
+          : c.base;
         startHls(url, nativeHlsOnly ? 0 : c.offset || 0);
       } else {
         clockBase = streamOffset;
@@ -600,7 +621,11 @@ export const renderPlayer = async (root, { id }) => {
     const needV = videoNeedsTranscode();
     const needA = audioNeedsRemux();
     item.needsTranscode = needV || needA;
-    item.transcodeV = needV ? "h264" : needA ? "copy" : item.transcodeV;
+    // Container-only problem with a decodable codec → COPY (repackage at
+    // stream speed); the full encode only when the device truly can't decode.
+    item.transcodeV = needV
+      ? codecCopyable(item.video) ? "copy" : "h264"
+      : needA ? "copy" : item.transcodeV;
   }
 
   const usingRemux = audioNeedsRemux(); // library file with undecodable audio
@@ -616,8 +641,7 @@ export const renderPlayer = async (root, { id }) => {
     // When only the CONTAINER is the problem (h264-in-MKV on an iPhone), a
     // copy remux repackages without re-encoding — starts in a second or two
     // and costs no CPU; everything else needs the real h264 transcode.
-    const v = item.video || {};
-    const copyOk = v.codec === "h264" && (v.bitDepth || 8) <= 8;
+    const copyOk = codecCopyable(item.video || {});
     startTranscode(resumeAt, copyOk ? "copy" : "h264");
   } else if (!isTorrent && usingRemux) {
     // Undecodable AUDIO only. The offset-aware copy transcode both fixes the

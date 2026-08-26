@@ -104,16 +104,19 @@ const AUDIO_GAIN = "volume=4dB,alimiter=limit=0.7:level=disabled:latency=true";
 // Job dir name. The bare `${id}-${mtime}` form is the original audio-only
 // remux (existing cached jobs stay valid); transcodes and offset jobs get a
 // suffixed dir so a cached video-copy job is never served where h264 is needed.
-const dirName = (id, mtime, vcodec = "copy", ss = 0) =>
-  vcodec === "copy" && !ss
+// `fmt` "fmp4" gets its own -f4 suffix: Apple mandates fMP4 segments for
+// HEVC-in-HLS (S4), and a TS job and an fMP4 job at the same offset must
+// never share a dir.
+const dirName = (id, mtime, vcodec = "copy", ss = 0, fmt = null) =>
+  (vcodec === "copy" && !ss && !fmt
     ? `${id}-${Math.floor(mtime)}`
-    : `${id}-${Math.floor(mtime)}-${vcodec}-${ss}`;
+    : `${id}-${Math.floor(mtime)}-${vcodec}-${ss}`) + (fmt === "fmp4" ? "-f4" : "");
 
-const jobDir = (id, mtime, vcodec, ss) => path.join(HLS_ROOT, dirName(id, mtime, vcodec, ss));
+const jobDir = (id, mtime, vcodec, ss, fmt) => path.join(HLS_ROOT, dirName(id, mtime, vcodec, ss, fmt));
 
 // Keep an actively-watched job alive (called on segment/playlist requests).
-const touch = (id, mtime, vcodec, ss) => {
-  const job = jobs.get(jobDir(id, mtime, vcodec, ss));
+const touch = (id, mtime, vcodec, ss, fmt) => {
+  const job = jobs.get(jobDir(id, mtime, vcodec, ss, fmt));
   if (job) job.lastAccess = Date.now();
 };
 
@@ -156,7 +159,7 @@ const pruneOld = (keepDir) => {
 
 // Ensure an HLS remux/transcode job exists for this video. Resolves with the
 // job dir once the playlist file is available (job continues in background).
-const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false } = {}) => {
+const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = null } = {}) => {
   let mtime = 0;
   try {
     mtime = fs.statSync(videoPath).mtimeMs;
@@ -165,9 +168,10 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false } = {}) =
   }
   ss = Math.max(0, Math.floor(Number(ss) || 0));
   vcodec = effectiveVcodec(vcodec, ss);
+  if (fmt !== "fmp4") fmt = null;
   const heavy = vcodec === "h264";
 
-  const dir = jobDir(id, mtime, vcodec, ss);
+  const dir = jobDir(id, mtime, vcodec, ss, fmt);
   const playlist = path.join(dir, "index.m3u8");
 
   // A poll from the stream we just moved off (see `retired`) must not resurrect
@@ -296,7 +300,12 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false } = {}) =
       "-hls_init_time", "2",
       "-hls_playlist_type", "event",
       "-hls_flags", "independent_segments+temp_file",
-      "-hls_segment_filename", path.join(dir, "seg%05d.ts"),
+      // fMP4 segments when asked (Apple requires them for HEVC-in-HLS — S4);
+      // TS otherwise, which hls.js's transmuxer prefers.
+      ...(fmt === "fmp4"
+        ? ["-hls_segment_type", "fmp4", "-hls_fmp4_init_filename", path.join(dir, "init.mp4"),
+           "-hls_segment_filename", path.join(dir, "seg%05d.m4s")]
+        : ["-hls_segment_filename", path.join(dir, "seg%05d.ts")]),
       playlist,
     ],
     { stdio: ["ignore", "ignore", "pipe"], windowsHide: true }
@@ -363,9 +372,9 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false } = {}) =
 };
 
 const filePath = (dir, file) => {
-  // strict names only: index.m3u8 / segNNNNN.ts
-  if (!/^(index\.m3u8|seg\d{5}\.ts)$/.test(file)) return null;
-  if (!/^[a-z0-9]+-\d+(-(?:h264|copy)-\d+)?$/.test(dir)) return null;
+  // strict names only: index.m3u8 / segNNNNN.ts / fMP4's segNNNNN.m4s + init.mp4
+  if (!/^(index\.m3u8|seg\d{5}\.(ts|m4s)|init\.mp4)$/.test(file)) return null;
+  if (!/^[a-z0-9]+-\d+(-(?:h264|copy)-\d+)?(-f4)?$/.test(dir)) return null;
   const abs = path.join(HLS_ROOT, dir, file);
   return fs.existsSync(abs) ? abs : null;
 };
