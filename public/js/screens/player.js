@@ -496,6 +496,9 @@ export const renderPlayer = async (root, { id }) => {
   const startTranscode = (offset, v, { claimed = false, clock = null } = {}) => {
     streamOffset = Math.max(0, Math.floor(offset || 0));
     usingTranscode = true;
+    // Any offset job means we've LEFT the jit world (e.g. the media-error
+    // self-heal) — keepAlive must ping the new job again.
+    jitMode = false;
     if (v) currentV = v;
     const url = transcodeUrl(streamOffset, currentV);
     const isCopySeek = currentV === "copy" && streamOffset > 0;
@@ -609,6 +612,35 @@ export const renderPlayer = async (root, { id }) => {
     }
   };
 
+  // S7b: move THIS torrent playback onto the jit full-timeline stream at an
+  // absolute content time — one COMPLETE playlist, segments on demand, every
+  // future seek native. Only for probe-confirmed copy-safe MKVs (the index
+  // lives in the Cues, the producer copies the video); resolves false when
+  // jit can't serve (wrong container, no index, TS-incapable device) and the
+  // caller keeps the legacy flow.
+  const tryJitSwitch = async (fromSec) => {
+    if (!isTorrent || nativeHlsOnly) return false;
+    // The probe normalizes ffprobe's "matroska,webm" to "mkv"; accept both.
+    if (!/matroska|mkv/i.test(item.container || "")) return false;
+    if (!codecCopyable(item.video || {})) return false; // producer copies video
+    const jitUrl = `${item.transcodeBase}/jit/index.m3u8`;
+    try {
+      const r = await fetch(jitUrl, { cache: "no-store" });
+      if (!r.ok) return false;
+    } catch {
+      return false;
+    }
+    if (exited) return true; // switched-to-nothing: just don't start legacy
+    usingTranscode = true;
+    jitMode = true;
+    currentV = "copy";
+    streamOffset = 0;
+    clockBase = 0;
+    windowStart = 0;
+    startHls(jitUrl, Math.max(0, fromSec || 0));
+    return true;
+  };
+
   // Resume point (baked into the transcode's start offset for streams, applied
   // as a native seek for direct/library playback).
   const prog0 = progressFor(item.id);
@@ -701,14 +733,27 @@ export const renderPlayer = async (root, { id }) => {
     // warms the estimated byte region. Falls back to 0 if the swarm can't
     // deliver in time. Deferred a tick: these touch bindings initialized
     // further down this function.
-    if (resumeAt > 0) {
+    // S7b JIT first — tryJitSwitch only accepts probe-confirmed copy-safe
+    // MKVs, so every stream it declines (unknown container, cold probe,
+    // non-copyable codec) keeps the proven legacy flow untouched. Streams
+    // that start legacy get their jit chance when the late probe answers.
+    const jitOk = await tryJitSwitch(resumeAt);
+    if (jitOk && resumeAt > 0)
+      // Deferred a tick: prefetchRegion is declared further down this
+      // function (same reason the legacy branch defers).
       setTimeout(() => {
-        if (exited) return;
-        prefetchRegion(resumeAt); // fire-and-forget warmup
-        startTranscodeAt(resumeAt, item.transcodeV, { fallbackToZero: true });
+        if (!exited) prefetchRegion(resumeAt); // fire-and-forget warmup
       }, 0);
-    } else {
-      startTranscode(0, item.transcodeV);
+    if (!jitOk) {
+      if (resumeAt > 0) {
+        setTimeout(() => {
+          if (exited) return;
+          prefetchRegion(resumeAt); // fire-and-forget warmup
+          startTranscodeAt(resumeAt, item.transcodeV, { fallbackToZero: true });
+        }, 0);
+      } else {
+        startTranscode(0, item.transcodeV);
+      }
     }
   } else {
     startDirect();
@@ -819,21 +864,38 @@ export const renderPlayer = async (root, { id }) => {
   // until the byte-counting watchdog concludes the same thing.
   if (probeP) {
     probeP.then((p) => {
-      if (exited || switchedToTranscode) return;
+      if (exited) return;
       if (!applyProbe(p)) return;
+      // usingTranscode is checked BEFORE switchedToTranscode: a transcode
+      // the audio watchdog already switched to still deserves its upgrade
+      // (h264→copy, copy→jit) now that the real codecs are known.
       if (usingTranscode) {
-        // Started on the TAG guess before the truth arrived. The one wrong
-        // start worth correcting is a full h264 encode of a codec this
-        // device decodes (elia's second stream, 2026-08-26: probe missed
-        // the 1.5s window, tags said h264, and nothing ever upgraded it) —
-        // restart as the stream-speed copy from the current position.
+        // Started on the TAG guess before the truth arrived. Two corrections
+        // are worth making now that the codecs are known:
+        //  • a full h264 encode of a codec this device decodes (elia's
+        //    second stream, 2026-08-26: probe missed the 1.5s window, tags
+        //    said h264, and nothing ever upgraded it) → the stream-speed
+        //    copy, on the jit full timeline when the file supports it;
+        //  • a LEGACY copy job (started from tags, so the container wasn't
+        //    known yet) whose file turns out jit-capable → same picture,
+        //    but every future seek becomes native. Silent switch: nothing
+        //    is wrong with what the viewer sees.
         if (currentV === "h264" && videoNeedsTranscode() && codecCopyable(item.video)) {
           toast("This device can play this video — switching to the fast path…", "⚡");
           reportMark("client_switch", { reason: "probe-upgrade", to: "copy", position: effTime() });
-          startTranscodeAt(effTime(), "copy", { fallbackToZero: true });
+          const at = effTime();
+          tryJitSwitch(at).then((ok) => {
+            if (!ok) startTranscodeAt(at, "copy", { fallbackToZero: true });
+          });
+        } else if (currentV === "copy" && !jitMode) {
+          const at = effTime();
+          tryJitSwitch(at).then((ok) => {
+            if (ok) reportMark("client_switch", { reason: "probe-jit", to: "jit", position: at });
+          });
         }
         return;
       }
+      if (switchedToTranscode) return; // a direct→transcode switch is in flight
       if (videoNeedsTranscode()) {
         const wantV = codecCopyable(item.video) ? "copy" : "h264";
         switchedToTranscode = true;
@@ -845,13 +907,23 @@ export const renderPlayer = async (root, { id }) => {
           "⚙️",
         );
         reportMark("client_switch", { reason: "probe-video", to: wantV, position: effTime() });
-        startTranscodeAt(effTime(), wantV, { fallbackToZero: true });
+        const at = effTime();
+        if (wantV === "copy") {
+          tryJitSwitch(at).then((ok) => {
+            if (!ok) startTranscodeAt(at, "copy", { fallbackToZero: true });
+          });
+        } else {
+          startTranscodeAt(at, wantV, { fallbackToZero: true });
+        }
       } else if (audioNeedsRemux()) {
         switchedToTranscode = true;
         if (stallTimer) { clearInterval(stallTimer); stallTimer = null; }
         toast("This encode's audio can't play here — switching sound…", "🔇");
         reportMark("client_switch", { reason: "probe-audio", to: "copy", position: effTime() });
-        startTranscodeAt(effTime(), "copy", { fallbackToZero: true });
+        const at = effTime();
+        tryJitSwitch(at).then((ok) => {
+          if (!ok) startTranscodeAt(at, "copy", { fallbackToZero: true });
+        });
       }
     });
   }

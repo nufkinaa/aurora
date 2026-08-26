@@ -186,6 +186,103 @@ router.get("/stream/torrent/sub/:infoHash/:fileIdx", async (req, res) => {
 // audio. `:ss` is the seek/resume offset in seconds (0 = from the start).
 // Registered BEFORE the raw file route so "hls" isn't read as an infoHash.
 // GET /stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8
+// ---------- S7b: JIT full-timeline VOD (torrents) ----------
+// Same machinery as the library route (media/jit.js): one COMPLETE playlist
+// from the torrent's own MKV index, segments produced on demand. The index
+// reads and the producer both go through the torrent, so pieces anywhere on
+// the timeline are prioritized exactly when the viewer asks for them —
+// a seek fetches segment N instead of restarting a transcode.
+// Registered BEFORE the /:ss routes so "jit" can't parse as an offset.
+const jit = require("../media/jit");
+
+// readRange over the torrent: collect a recovering read stream into a buffer.
+// createReadStream is what marks those exact pieces critical in webtorrent,
+// so this both reads AND prioritizes (head + Cues tail on a cold swarm).
+const torrentReadRange = (t, file) => (start, len) =>
+  new Promise((resolve, reject) => {
+    const end = Math.min(start + len, file.length) - 1;
+    if (end < start) return resolve(Buffer.alloc(0));
+    const s = torrent.recoveringStream(file, { start, end, torrent: t });
+    const chunks = [];
+    s.on("data", (c) => chunks.push(c));
+    s.on("end", () => resolve(Buffer.concat(chunks)));
+    s.on("error", reject);
+  });
+
+// How long the playlist request will wait for the MKV index (head + Cues)
+// to arrive from the swarm before telling the client to use the legacy
+// event-playlist path instead. The reads keep prioritizing those pieces,
+// so a retry after the swarm warms usually succeeds.
+const JIT_INDEX_TIMEOUT_MS = 20000;
+
+router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/index.m3u8", async (req, res) => {
+  if (!config.ffmpegAvailable) return res.status(503).send("ffmpeg not available");
+  // Same disk guard as every transcoder: a full disk makes producers grind
+  // silently and segment requests hang to their deadline.
+  try {
+    const sfs = require("fs").statfsSync(config.CACHE_DIR);
+    if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
+      return res.status(503).send("Server disk is nearly full — free space to stream");
+    }
+  } catch {}
+  try {
+    const t0 = Date.now();
+    const t = await torrent.readyTorrent(req.params.infoHash);
+    const fileIdx = parseInt(req.params.fileIdx, 10);
+    const file = torrent.pickVideoFile(t, fileIdx);
+    if (!file) return res.status(404).send("No video file in torrent");
+    torrent.scopeToFile(t, file);
+    const key = `jt-${req.params.infoHash}-${fileIdx}`;
+    const table = await Promise.race([
+      jit.tableFor(key, torrentReadRange(t, file), file.length),
+      new Promise((r) => setTimeout(r, JIT_INDEX_TIMEOUT_MS, null)),
+    ]);
+    perf.event(req.params.infoHash, "jit_index", Date.now() - t0, { ok: !!table });
+    if (!table) return res.status(503).send("No usable index yet");
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    res.setHeader("Cache-Control", "no-cache");
+    res.send(jit.playlistText(table, "?v=copy"));
+  } catch (err) {
+    res.status(504).send("Torrent not ready: " + err.message);
+  }
+});
+
+router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/:file", async (req, res) => {
+  const m = String(req.params.file).match(/^seg(\d{5})\.ts$/);
+  if (!m) return res.status(404).send("Not found");
+  try {
+    torrent.touchTorrent(req.params.infoHash); // don't idle-evict mid-watch
+    const t = await torrent.readyTorrent(req.params.infoHash);
+    const fileIdx = parseInt(req.params.fileIdx, 10);
+    const file = torrent.pickVideoFile(t, fileIdx);
+    if (!file) return res.status(404).send("No video file in torrent");
+    const key = `jt-${req.params.infoHash}-${fileIdx}`;
+    const table = await jit.tableFor(key, null, 0).catch(() => null);
+    if (!table) return res.status(409).send("Playlist first");
+    // Producer input: the complete file straight from disk; otherwise our
+    // own blocking range route, so ffmpeg's reads pull the exact pieces
+    // from the swarm (same contract as torrent-transcode's http mode).
+    let complete = false;
+    try { complete = !!file.done; } catch {}
+    const absPath = path.join(t.path, file.path);
+    const input = complete
+      ? { url: absPath, extra: [] }
+      : {
+          url: `http://127.0.0.1:${config.PORT}/stream/torrent/${req.params.infoHash}/${fileIdx}`,
+          extra: ["-seekable", "1", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"],
+        };
+    const dir = path.join(config.CACHE_DIR, "jit", key);
+    const job = jit.jobFor(dir, table);
+    const seg = await jit.ensureSegment(dir, job, input, parseInt(m[1], 10));
+    if (!seg) return res.status(504).send("Segment not ready");
+    res.setHeader("Content-Type", "video/mp2t");
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(seg);
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
 router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, res) => {
   if (!config.ffmpegAvailable) return res.status(503).send("ffmpeg not available");
   const vcodec = req.query.v === "copy" ? "copy" : "h264";
