@@ -107,6 +107,18 @@ const loadStartupBitfield = (infoHash) => {
 const dropBitfield = (infoHash) => {
   try { fs.unlinkSync(bitfieldPath(infoHash)); } catch {}
 };
+// Corruption tripwire (learned 2026-08-26): skipping re-verification also
+// skips corruption DETECTION — a bitfield that immortalizes bytes damaged by
+// the double-writer era (two instances sharing %TEMP%/webtorrent) makes
+// ffmpeg die on "verified" data forever. Any consumer that catches a hard
+// decode/read failure on a torrent calls this: the sidecar is dropped so the
+// NEXT add runs a full verify, and the store re-earns its trust.
+const distrustBitfield = (infoHash) => {
+  dropBitfield(infoHash);
+  console.warn(
+    `[torrent] bitfield distrusted for ${String(infoHash).slice(0, 8)}… — next add will re-verify`,
+  );
+};
 
 const saveMetadata = (t) => {
   try {
@@ -1358,6 +1370,7 @@ const magnetFor = (infoHash) => {
 };
 
 module.exports = {
+  distrustBitfield,
   getClient,
   clientIfLoaded,
   magnetFor,

@@ -457,6 +457,10 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
       }
       if (code !== 0 && code !== null) {
         console.error(`[torrent-transcode] ffmpeg exited ${code} (${infoHash.slice(0, 8)}…):`, stderr.slice(-300));
+        // A hard ffmpeg death on torrent bytes is the corruption tripwire:
+        // if this torrent's verified map was restored from disk, stop
+        // trusting it — the next add re-verifies the whole store.
+        try { require("./torrent").distrustBitfield(infoHash); } catch {}
         clearInterval(check);
         // Never keep a partial job: a playlist stump would replay a few
         // seconds then stall forever on every retry. Evict + delete so the
