@@ -211,6 +211,20 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
     if (seek) perf.event(req.params.infoHash, "seek_playlist_ready", Date.now() - t0, { ss, readyMs });
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
+    // Copy jobs at an offset keep the source's real timestamps (-copyts, see
+    // torrent-transcode.js): publish where playback begins — header for our
+    // player, EXT-X-START for native HLS. hls.js playlist refreshes hit this
+    // same route, so the tag stays present across reloads.
+    if (vcodec === "copy" && ss > 0) {
+      const s = await require("../media/streamprobe").segmentStart(path.join(dir, "seg00000.ts"));
+      let text = require("fs").readFileSync(path.join(dir, "index.m3u8"), "utf-8");
+      if (s) {
+        res.setHeader("X-Aurora-Base", String(s.base));
+        res.setHeader("X-Aurora-Offset", String(s.offset));
+        text = text.replace("#EXTM3U", `#EXTM3U\n#EXT-X-START:TIME-OFFSET=${s.offset},PRECISE=YES`);
+      }
+      return res.send(text);
+    }
     res.sendFile(path.join(dir, "index.m3u8"));
   } catch (err) {
     res.status(504).send("Transcode not ready: " + err.message);

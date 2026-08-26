@@ -289,8 +289,9 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
   if (!require("../config").ffmpegAvailable) return res.status(503).send("ffmpeg not available");
   const ss = Math.max(0, parseInt(req.params.ss, 10) || 0);
-  // effectiveVcodec: an offset start always re-encodes (see remux.js). Applied
-  // here too so the segment URIs below name the job dir that actually exists.
+  // effectiveVcodec (now the identity — offset copy is PTS-honest, see
+  // remux.js) is still applied here so the segment URIs below always name
+  // the same job dir the segment route computes.
   const v = remux.effectiveVcodec(req.query.v === "copy" ? "copy" : "h264", ss);
   try {
     // ?seek=1 marks a deliberate seek by the viewer (the player probe sets it;
@@ -299,13 +300,25 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
     const dir = await remux.ensure(entry.path, req.params.id, { vcodec: v, ss, seek: req.query.seek === "1" });
     // Segment URIs carry ?v= so the segment route can resolve this exact job
     // dir (an h264 and a copy job can coexist for the same file + offset).
-    const text = fs
+    let text = fs
       .readFileSync(path.join(dir, "index.m3u8"), "utf-8")
       .split("\n")
       .map((line) => (line.trim().endsWith(".ts") ? `${line.trim()}?v=${v}` : line))
       .join("\n");
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
+    // A copy job at an offset keeps the source's real timestamps (-copyts,
+    // see remux.js): tell the player where playback begins — audio starts
+    // exactly at ss, video rolls back to its keyframe. Header for our own
+    // player, EXT-X-START for native HLS (iPhone).
+    if (v === "copy" && ss > 0) {
+      const s = await require("../media/streamprobe").segmentStart(path.join(dir, "seg00000.ts"));
+      if (s) {
+        res.setHeader("X-Aurora-Base", String(s.base));
+        res.setHeader("X-Aurora-Offset", String(s.offset));
+        text = text.replace("#EXTM3U", `#EXTM3U\n#EXT-X-START:TIME-OFFSET=${s.offset},PRECISE=YES`);
+      }
+    }
     res.send(text);
   } catch (err) {
     res.status(500).send(err.message);

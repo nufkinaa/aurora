@@ -112,4 +112,48 @@ const probe = (infoHash, fileIdx) => {
   return p;
 };
 
-module.exports = { probe };
+// Start position of a finished HLS segment: the MAX of its streams' start
+// times. For a `-copyts` offset-copy job (S3) the media timeline IS content
+// time — video begins at the keyframe at/below the requested second while
+// audio begins exactly AT it (measured: -ss 100 → video 93.75, audio 99.97) —
+// so playback must start at the later of the two or the viewer gets seconds
+// of silent video lead. Cached per file path: segments are immutable.
+// Two numbers describe the timeline (measured 2026-08-26, and hls.js's
+// rebasing is why both are needed): hls.js maps media time 0 to the
+// segment's MINIMUM stream PTS (the video keyframe at/below the requested
+// second), so `base` anchors the clock (content = base + currentTime), and
+// `offset` = maxStart - minStart is where playback should BEGIN within the
+// rebased timeline (the audio's exact start — skipping the video-only
+// keyframe pre-roll). Native HLS players don't rebase (raw PTS clock), so
+// they use base 0 and read EXT-X-START, which is playlist-relative = offset.
+const segStarts = new Map();
+const segmentStart = (file) => {
+  if (segStarts.has(file)) return Promise.resolve(segStarts.get(file));
+  return new Promise((resolve) => {
+    if (!config.FFPROBE) return resolve(null);
+    const proc = spawn(
+      config.FFPROBE,
+      ["-v", "error", "-show_entries", "stream=start_time", "-of", "csv=p=0", file],
+      { stdio: ["ignore", "pipe", "ignore"], windowsHide: true },
+    );
+    let out = "";
+    proc.stdout.on("data", (d) => (out += d));
+    const timer = setTimeout(() => { try { proc.kill("SIGKILL"); } catch {} }, 8000);
+    proc.on("error", () => { clearTimeout(timer); resolve(null); });
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      if (code !== 0) return resolve(null);
+      const starts = out.split(/\r?\n/).map(parseFloat).filter((n) => isFinite(n));
+      if (!starts.length) return resolve(null);
+      const r = {
+        base: Math.min(...starts),
+        offset: Math.max(0, Math.max(...starts) - Math.min(...starts)),
+      };
+      segStarts.set(file, r);
+      if (segStarts.size > 500) segStarts.clear();
+      resolve(r);
+    });
+  });
+};
+
+module.exports = { probe, segmentStart };

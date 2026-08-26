@@ -74,8 +74,15 @@ const activeTranscodes = () => {
   return n;
 };
 
-// A job that STARTS AT AN OFFSET must re-encode the video — copying it is not
-// an option YET. Two measured failures, one per era:
+// Offset + copy jobs are PTS-HONEST now (S3, 2026-08-26): `-copyts` keeps the
+// source's original timestamps, so the media clock IS the movie clock —
+// video starts at the keyframe at/below ss, audio exactly at ss (measured:
+// -ss 100 → video 93.75, audio 99.97), and the playlist routes publish the
+// start position (X-Aurora-Start + EXT-X-START via streamprobe.segmentStart).
+// Resetting timestamps was the whole disease both earlier failures shared;
+// copyts resets nothing, so neither can recur. History preserved below so
+// nobody re-fights those battles:
+// Two measured failures, one per era:
 // - 2026-07-25: `-ss` + `-c:v copy` emitted a partly NEGATIVE timeline
 //   (fragment 0 at PTS -2.81..1.57) — MSE dropped it, hls.js re-appended in a
 //   loop, playback starved after every skip.
@@ -85,14 +92,10 @@ const activeTranscodes = () => {
 //   player's `startPosition: 0` made hls.js hunt a position that doesn't
 //   exist for ~20s before its gap-jump kicked in; the clock then lies to the
 //   scrubber by the same offset. make_zero only fixes negatives.
-// The prize is real (a copy seek would start in ~0.1-2s instead of paying a
-// libx264 encode — the server side measured 117ms cold) but it needs the
-// PTS-honest design: serve the segments' true content-time PTS and have the
-// player map its clock from PTS instead of assuming 0 = ss. Until that lands,
-// offset jobs re-encode: exact requested second, clean 0-based timeline.
-// Both the playlist and the segment route must agree on this, or they compute
-// different job dirs and every segment 404s.
-const effectiveVcodec = (vcodec, ss) => (ss > 0 ? "h264" : vcodec);
+// effectiveVcodec is the identity now, kept because the playlist and segment
+// routes must compute the SAME job dir from the same inputs or every
+// segment 404s.
+const effectiveVcodec = (vcodec) => vcodec;
 
 // Level-match film audio to web expectations — see the note in
 // torrent-transcode.js for the measurements behind these numbers.
@@ -265,8 +268,15 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false } = {}) =
     config.FFMPEG,
     [
       "-v", "error",
-      // -ss before -i: fast input seek; the file is complete so any offset works
-      ...(ss > 0 ? ["-ss", String(ss)] : []),
+      // -ss before -i: fast input seek; the file is complete so any offset
+      // works. Copy jobs add -noaccurate_seek: without it ffmpeg trims audio
+      // to exactly ss while the copied video rolls back to its keyframe —
+      // seg0's audio then starts MID-FRAGMENT and hls.js refuses to append
+      // it until the next playlist reload (a reproducible ~20s stall,
+      // 2026-08-26). Aligned from the keyframe, playback starts instantly,
+      // landing at most one GOP early — same direction as the player's own
+      // target-2s bias, and the PTS-honest clock stays exact.
+      ...(ss > 0 ? (heavy ? ["-ss", String(ss)] : ["-noaccurate_seek", "-ss", String(ss)]) : []),
       "-i", videoPath,
       "-map", "0:v:0", "-map", "0:a:0",
       ...videoArgs,
@@ -275,6 +285,9 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false } = {}) =
       // for the clock; the muxer's default ~1.4s delay skewed subtitles and
       // the scrubber on iOS relative to desktop. Measured 2026-07-24.
       "-muxdelay", "0", "-muxpreload", "0",
+      // Offset copy jobs keep the source's real timestamps (see the
+      // effectiveVcodec note) — the media timeline becomes content time.
+      ...(ss > 0 && !heavy ? ["-copyts"] : []),
       "-f", "hls",
       "-hls_time", "6",
       // Short first segments so playback can start as soon as ~2s is encoded

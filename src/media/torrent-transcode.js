@@ -157,12 +157,15 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
   if (!config.FFMPEG) return Promise.reject(new Error("ffmpeg not available"));
   const ensureStart = Date.now();
   ss = Math.max(0, Math.floor(Number(ss) || 0));
-  // Starting at an offset forces a re-encode: `-ss` + `-c:v copy` cuts on a
-  // keyframe and hands the player a shifted timeline — the 2026-07-25 MSE
-  // starvation AND the 2026-08-25 positive-offset stall are both written up
-  // in remux.js. The copy-seek prize (~0.1-2s starts for h264 sources) waits
-  // on the PTS-honest design described there.
-  if (ss > 0) vcodec = "h264";
+  // Offset + copy is allowed again (S3, PTS-honest): `-copyts` keeps the
+  // ORIGINAL content timestamps — video starts at the keyframe at/below ss,
+  // audio exactly AT ss, and the media clock IS the movie clock, so the
+  // scrubber and subtitles are exact by construction. The playlist route
+  // tells the player where playback begins (X-Aurora-Start + EXT-X-START,
+  // from streamprobe.segmentStart). The two measured failures that used to
+  // force h264 here — the 2026-07-25 negative timeline MSE refused and the
+  // 2026-08-25 positive-offset gap-hunt (both written up in remux.js) —
+  // were artifacts of RESETTING timestamps; copyts resets nothing.
 
   const dir = jobDir(infoHash, fileIdx, ss);
   const playlist = path.join(dir, "index.m3u8");
@@ -300,10 +303,15 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
   // WebTorrent mark those exact pieces critical.
   if (seeking && !complete) warmTail(file);
 
+  // Copy seeks add -noaccurate_seek: audio must start at the keyframe WITH
+  // the copied video, or seg0's audio begins mid-fragment and hls.js holds
+  // the whole fragment until the next playlist reload (~20s stall, measured
+  // 2026-08-26 — see remux.js for the full note).
+  const seekArgs = vcodec === "copy" ? ["-noaccurate_seek", "-ss", String(ss)] : ["-ss", String(ss)];
   const inputArgs = seeking
     ? complete
-      ? ["-ss", String(ss), "-i", absPath]
-      : ["-ss", String(ss), "-seekable", "1",
+      ? [...seekArgs, "-i", absPath]
+      : [...seekArgs, "-seekable", "1",
          // A single failed read on this (deliberately blocking) route would
          // otherwise kill the whole transcode and strand the viewer; let ffmpeg
          // re-open the connection instead. http-protocol options only, so they
@@ -326,6 +334,9 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
       // its clock ran 1.4s off from ours, shifting subtitles and the
       // scrubber on iOS while desktop looked perfect. Measured 2026-07-24.
       "-muxdelay", "0", "-muxpreload", "0",
+      // Offset copy jobs keep the source's real timestamps (see the note at
+      // the top of ensure) — the media timeline becomes content time.
+      ...(seeking && vcodec === "copy" ? ["-copyts"] : []),
       "-f", "hls",
       "-hls_time", "4", // shorter segments → first frames reach the player sooner
       // A short FIRST segment gets the playlist (and playback) started after

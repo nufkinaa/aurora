@@ -302,6 +302,18 @@ export const renderPlayer = async (root, { id }) => {
             try {
               hls.destroy();
             } catch {}
+            hls = null;
+            // Reset the element's resource state machine between instances:
+            // detaching a MediaSource with a WELL-FED buffer and attaching a
+            // fresh one wedges Chrome for ~20s (empty buffer, readyState 1,
+            // then everything at once — reproduced 2026-08-26 on copy-seek
+            // restarts fired after ~15s of playback; restarts fired early
+            // never stalled). load() aborts the teardown synchronously —
+            // same reset the exit cleanup already trusts.
+            try {
+              video.removeAttribute("src");
+              video.load();
+            } catch {}
           }
           // A torrent-backed transcode playlist can take 15-30s to first
           // respond (peer discovery + first segment). hls.js defaults time out
@@ -398,6 +410,20 @@ export const renderPlayer = async (root, { id }) => {
           });
           hls.loadSource(url);
           hls.attachMedia(video);
+          // Rare attach race (observed on copy-seek restarts, 2026-08-26):
+          // the loader sits idle with an EMPTY buffer for ~20s, then appends
+          // everything at once and plays fine — it always self-heals, so
+          // this only shortens the hiccup. One bounded nudge: if nothing
+          // buffered shortly after start, kick the loader once.
+          setTimeout(() => {
+            if (exited || gen !== hlsGen || !hls) return;
+            if (video.buffered.length === 0) {
+              try {
+                hls.stopLoad();
+                hls.startLoad(startAt || -1);
+              } catch {}
+            }
+          }, 5000);
         } else {
           video.src = url; // Safari plays HLS natively
         }
@@ -407,10 +433,19 @@ export const renderPlayer = async (root, { id }) => {
   };
 
   // ---- offset-aware transcode (enables resume + seek on streams) ----
-  // A live HLS transcode always starts at content-time `streamOffset`; the
-  // player maps the video clock by adding it. Non-transcode playback keeps
-  // streamOffset 0 and seeks natively.
+  // Three related-but-distinct numbers (S3 split them; conflating them is
+  // what made copy-seeks impossible):
+  //  • streamOffset — the JOB's requested offset: names the transcode URL.
+  //  • clockBase    — content time at media position 0: h264 jobs re-encode
+  //    a fresh 0-based timeline so clockBase = streamOffset; PTS-honest copy
+  //    jobs (-copyts) keep the source clock so clockBase = 0 — the media
+  //    clock IS the movie clock, scrubber and subtitles exact for free.
+  //  • windowStart  — content time where the playlist's data begins (for
+  //    copy jobs the keyframe/audio start the server publishes); the far-
+  //    seek boundary below uses it.
   let streamOffset = 0;
+  let clockBase = 0;
+  let windowStart = 0;
   let usingTranscode = false;
   // True while a seek is probing a new offset. Nothing may request the OLD
   // playlist during that window — the server would recreate that job and
@@ -426,11 +461,39 @@ export const renderPlayer = async (root, { id }) => {
   let currentV = item.transcodeV || "h264";
   const transcodeUrl = (ss, v) =>
     `${item.transcodeBase}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${v || currentV}`;
-  const startTranscode = (offset, v, { claimed = false } = {}) => {
+  const startTranscode = (offset, v, { claimed = false, clock = null } = {}) => {
     streamOffset = Math.max(0, Math.floor(offset || 0));
     usingTranscode = true;
     if (v) currentV = v;
     const url = transcodeUrl(streamOffset, currentV);
+    const isCopySeek = currentV === "copy" && streamOffset > 0;
+    // PTS-honest copy jobs need the playlist's published clock (base +
+    // start offset — see streamprobe.segmentStart for why two numbers)
+    // before the scrubber can be trusted; if it can't be learned, fall back
+    // to the exact 0-based h264 encode rather than play with a wrong clock.
+    const beginH264Fallback = () => {
+      currentV = "h264";
+      const u2 = transcodeUrl(streamOffset, currentV);
+      fetch(`${u2}&seek=1`, { cache: "no-store" }).catch(() => {});
+      clockBase = streamOffset;
+      windowStart = streamOffset;
+      startHls(u2);
+    };
+    const begin = (c) => {
+      if (isCopySeek && !(c && isFinite(c.base))) return beginH264Fallback();
+      if (isCopySeek) {
+        // hls.js rebases media time so 0 == the segment's min PTS (measured
+        // 2026-08-26); native HLS keeps raw PTS, so its base is simply 0 and
+        // EXT-X-START (playlist-relative) picks the start position.
+        clockBase = nativeHlsOnly ? 0 : c.base;
+        windowStart = c.base;
+        startHls(url, nativeHlsOnly ? 0 : c.offset || 0);
+      } else {
+        clockBase = streamOffset;
+        windowStart = streamOffset;
+        startHls(url);
+      }
+    };
     // Claim this offset the way a seek does (see startTranscodeAt). Only a
     // &seek=1 request tells the server the VIEWER chose this position, and only
     // those retire an older job for the same file — without this, re-opening a
@@ -440,8 +503,23 @@ export const renderPlayer = async (root, { id }) => {
     // so its own playlist refreshes can never retire anything. A far seek's
     // probe already WAS this exact request (claimed) — repeating it cost a
     // full extra pass through readyTorrent+ensure on the seek's critical path.
-    if (!claimed) fetch(`${url}&seek=1`, { cache: "no-store" }).catch(() => {});
-    startHls(url);
+    if (claimed) return begin(clock);
+    if (!isCopySeek) {
+      fetch(`${url}&seek=1`, { cache: "no-store" }).catch(() => {});
+      return begin(null);
+    }
+    // Unclaimed copy-at-offset (boot resume): the claim response carries the
+    // clock headers — await it; the playlist production gates playback anyway.
+    fetch(`${url}&seek=1`, { cache: "no-store" })
+      .then((res) => begin(res.ok ? clockFromHeaders(res) : null))
+      .catch(() => beginH264Fallback());
+  };
+
+  // The PTS-honest clock published by copy-at-offset playlist responses.
+  const clockFromHeaders = (res) => {
+    const base = parseFloat(res.headers.get("X-Aurora-Base"));
+    const offset = parseFloat(res.headers.get("X-Aurora-Offset"));
+    return isFinite(base) ? { base, offset: isFinite(offset) ? offset : 0 } : null;
   };
 
   // Restart the transcode at an absolute content time — but PROBE the
@@ -473,7 +551,9 @@ export const renderPlayer = async (root, { id }) => {
       const res = await fetch(`${transcodeUrl(ss, v || currentV)}&seek=1`);
       if (exited || token !== probeToken) return true;
       if (!res.ok) throw new Error("not ready");
-      startTranscode(ss, v, { claimed: true }); // the probe above was the claim
+      // The probe above was the claim; a PTS-honest copy playlist's clock
+      // rides its response headers.
+      startTranscode(ss, v, { claimed: true, clock: clockFromHeaders(res) });
       return true;
     } catch {
       if (exited || token !== probeToken) return true;
@@ -1253,7 +1333,7 @@ export const renderPlayer = async (root, { id }) => {
   const applyOffsetToTrack = (tt) => {
     if (!tt || !tt.cues || !tt.cues.length) return;
     const idx = [...video.textTracks].indexOf(tt);
-    const shift = (idx >= 0 ? offsetFor(idx) : 0) - streamOffset;
+    const shift = (idx >= 0 ? offsetFor(idx) : 0) - clockBase;
     if (appliedOffset.get(tt) === shift) return;
     // SNAPSHOT the cue list first. `tt.cues` is LIVE and kept sorted by start
     // time, and the clamp below parks every cue before the stream start on 0 —
@@ -1704,14 +1784,16 @@ export const renderPlayer = async (root, { id }) => {
     // what's transcoded so far - the probed duration is the real total.
     const vd = isFinite(video.duration) ? video.duration : 0;
     return Math.max(
-      usingTranscode ? streamOffset + vd : vd,
+      usingTranscode ? clockBase + vd : vd,
       item.duration || 0,
     );
   };
 
-  // Effective content time: transcodes start at streamOffset, so add it.
+  // Effective content time. h264 transcodes re-base their clock at
+  // clockBase = streamOffset; PTS-honest copy jobs keep the source clock
+  // (clockBase 0), so this is exact for both.
   const effTime = () =>
-    (usingTranscode ? streamOffset : 0) + (video.currentTime || 0);
+    (usingTranscode ? clockBase : 0) + (video.currentTime || 0);
 
   // ---- torrent far-seek prefetch ----
   // Restarting a torrent transcode at an offset makes ffmpeg -ss read the
@@ -1786,13 +1868,13 @@ export const renderPlayer = async (root, { id }) => {
     const target = pendingSeek;
     pendingSeek = null;
     if (usingTranscode) {
-      // The live playlist only spans [streamOffset, transcoded edge]. A seek
+      // The live playlist only spans [windowStart, transcoded edge]. A seek
       // outside that used to clamp silently to the farthest transcoded point;
       // instead, restart the transcode at the target — for torrents, AFTER
       // waiting for the target region's bytes (see prefetchRegion above).
       const edge =
-        streamOffset + (isFinite(video.duration) ? video.duration : 0);
-      if (target < streamOffset || target >= edge + 4) {
+        clockBase + (isFinite(video.duration) ? video.duration : 0);
+      if (target < windowStart || target >= edge + 4) {
         const seq = ++farSeekSeq;
         seekPreview = target; // hold the destination on screen while it loads
         updateScrubber();
@@ -1888,7 +1970,7 @@ export const renderPlayer = async (root, { id }) => {
         return;
       }
     }
-    video.currentTime = Math.max(0, target - streamOffset);
+    video.currentTime = Math.max(0, target - clockBase);
     updateScrubber();
   };
   const seekTo = (sec) => {
@@ -1916,7 +1998,7 @@ export const renderPlayer = async (root, { id }) => {
     scrubFill.style.width = d ? `${(t / d) * 100}%` : "0%";
     if (video.buffered.length && d) {
       const buffered =
-        (usingTranscode ? streamOffset : 0) +
+        (usingTranscode ? clockBase : 0) +
         video.buffered.end(video.buffered.length - 1);
       scrubBuffer.style.width = `${Math.min(100, (buffered / d) * 100)}%`;
     }
