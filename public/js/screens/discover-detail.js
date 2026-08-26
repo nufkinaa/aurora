@@ -374,6 +374,17 @@ const TAG_CODEC_QUERY = {
 const capProbe = document.createElement("video");
 const deviceDecodes = (tag) =>
   !!TAG_CODEC_QUERY[tag] && !!capProbe.canPlayType(TAG_CODEC_QUERY[tag]);
+// When the tag's codec IS decodable but the container isn't (an iPhone with
+// an H.265 MKV: native HLS + hardware HEVC, no MKV demuxer), the right
+// transcode is the COPY — repackage at stream speed, never re-encode. iOS
+// canPlayType lies about hvc1, so native-HLS devices get HEVC as the
+// platform guarantee it is (every iPhone since iOS 11).
+const NATIVE_HLS =
+  /iPhone|iPod/.test(navigator.userAgent) &&
+  !!capProbe.canPlayType("application/vnd.apple.mpegurl");
+const tagCopyable = (tag) =>
+  tag === "H.265" &&
+  (NATIVE_HLS || !!capProbe.canPlayType('video/mp4; codecs="hvc1.2.4.L123.B0"'));
 
 // Parse a Cinemeta runtime string ("152 min", "1h 52min", "57 min") to seconds,
 // so the player can show the whole movie's length instead of "how much has
@@ -408,6 +419,9 @@ const playStream = (stream, base, label, season, episode) => {
   const needsVideo = tags.some(
     (t) => VIDEO_TRANSCODE_TAGS.includes(t) && !deviceDecodes(t),
   );
+  const videoCopyable =
+    needsVideo &&
+    tags.some((t) => VIDEO_TRANSCODE_TAGS.includes(t) && tagCopyable(t));
   const needsAudio = tags.some((t) => AUDIO_TRANSCODE_TAGS.includes(t));
 
   const item = {
@@ -423,7 +437,7 @@ const playStream = (stream, base, label, season, episode) => {
     // `${transcodeBase}/${ss}/index.m3u8?v=${transcodeV}`. A "direct" stream that
     // stalls falls back to v=h264 from the stall point.
     transcodeBase,
-    transcodeV: needsVideo ? "h264" : needsAudio ? "copy" : "h264",
+    transcodeV: needsVideo ? (videoCopyable ? "copy" : "h264") : needsAudio ? "copy" : "h264",
     needsTranscode: needsVideo || needsAudio,
     // True runtime so the scrubber shows the whole movie's length, not the
     // amount transcoded so far (a live HLS playlist's duration keeps growing).

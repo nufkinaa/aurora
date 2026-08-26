@@ -783,14 +783,33 @@ export const renderPlayer = async (root, { id }) => {
   // until the byte-counting watchdog concludes the same thing.
   if (probeP) {
     probeP.then((p) => {
-      if (exited || usingTranscode || switchedToTranscode) return;
+      if (exited || switchedToTranscode) return;
       if (!applyProbe(p)) return;
+      if (usingTranscode) {
+        // Started on the TAG guess before the truth arrived. The one wrong
+        // start worth correcting is a full h264 encode of a codec this
+        // device decodes (elia's second stream, 2026-08-26: probe missed
+        // the 1.5s window, tags said h264, and nothing ever upgraded it) —
+        // restart as the stream-speed copy from the current position.
+        if (currentV === "h264" && videoNeedsTranscode() && codecCopyable(item.video)) {
+          toast("This device can play this video — switching to the fast path…", "⚡");
+          reportMark("client_switch", { reason: "probe-upgrade", to: "copy", position: effTime() });
+          startTranscodeAt(effTime(), "copy", { fallbackToZero: true });
+        }
+        return;
+      }
       if (videoNeedsTranscode()) {
+        const wantV = codecCopyable(item.video) ? "copy" : "h264";
         switchedToTranscode = true;
         if (stallTimer) { clearInterval(stallTimer); stallTimer = null; }
-        toast("This encode won't decode here — switching to transcode…", "⚙️");
-        reportMark("client_switch", { reason: "probe-video", to: "h264", position: effTime() });
-        startTranscodeAt(effTime(), "h264", { fallbackToZero: true });
+        toast(
+          wantV === "copy"
+            ? "Repackaging this stream for your device…"
+            : "This encode won't decode here — switching to transcode…",
+          "⚙️",
+        );
+        reportMark("client_switch", { reason: "probe-video", to: wantV, position: effTime() });
+        startTranscodeAt(effTime(), wantV, { fallbackToZero: true });
       } else if (audioNeedsRemux()) {
         switchedToTranscode = true;
         if (stallTimer) { clearInterval(stallTimer); stallTimer = null; }
