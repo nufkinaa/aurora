@@ -282,6 +282,67 @@ router.get("/stream/hls/:id/:file", (req, res) => {
 // Offset-aware library transcode (HLS). ?v=h264 re-encodes video for devices
 // that can't decode the file (HEVC/AV1/10-bit on phones); ?v=copy keeps the
 // video and only fixes the audio. URL shape matches the torrent transcode
+// ---------- S7: JIT full-timeline VOD (library files) ----------
+// One COMPLETE playlist, exact duration + boundaries from the file's own
+// MKV index; segments materialize on demand (media/jit.js). Registered
+// BEFORE the /:ss routes so the literal "jit" path can't parse as an offset.
+const jit = require("../media/jit");
+router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
+  const entry = resolveKind(req.params.id, "video");
+  if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
+  if (!require("../config").ffmpegAvailable) return res.status(503).send("ffmpeg not available");
+  // Same disk guard as the other transcoders: on a nearly-full disk the
+  // producer grinds/fails silently and every segment request hangs to its
+  // 90s deadline — refuse up front so the player falls back cleanly.
+  try {
+    const sfs = fs.statfsSync(require("../config").CACHE_DIR);
+    if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
+      return res.status(503).send("Server disk is nearly full — free space to stream");
+    }
+  } catch {}
+  try {
+    const st = fs.statSync(entry.path);
+    const key = `${req.params.id}-${Math.floor(st.mtimeMs)}`;
+    const fd = fs.openSync(entry.path, "r");
+    const readRange = async (start, len) => {
+      const b = Buffer.alloc(len);
+      fs.readSync(fd, b, 0, len, start);
+      return b;
+    };
+    const table = await jit.tableFor(key, readRange, st.size).finally(() => {
+      try { fs.closeSync(fd); } catch {}
+    });
+    if (!table) return res.status(503).send("No usable index in this file");
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    res.setHeader("Cache-Control", "no-cache");
+    res.send(jit.playlistText(table, "?v=copy"));
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
+  const entry = resolveKind(req.params.id, "video");
+  if (!entry) return res.status(404).send("Not found");
+  const m = String(req.params.file).match(/^seg(\d{5})\.ts$/);
+  if (!m) return res.status(404).send("Not found");
+  try {
+    const st = fs.statSync(entry.path);
+    const key = `${req.params.id}-${Math.floor(st.mtimeMs)}`;
+    const cached = await jit.tableFor(key, null, 0).catch(() => null);
+    const table = cached || null;
+    if (!table) return res.status(409).send("Playlist first");
+    const dir = path.join(require("../config").CACHE_DIR, "jit", key);
+    const job = jit.jobFor(dir, table);
+    const file = await jit.ensureSegment(dir, job, { url: entry.path, extra: [] }, parseInt(m[1], 10));
+    if (!file) return res.status(504).send("Segment not ready");
+    res.setHeader("Content-Type", "video/mp2t");
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(file);
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
 // (/base/:ss/index.m3u8?v=) so the player reuses one code path — and unlike
 // torrents, the file is complete on disk so ANY offset works (resume + seek).
 router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {

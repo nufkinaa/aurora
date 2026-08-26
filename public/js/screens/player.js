@@ -465,6 +465,9 @@ export const renderPlayer = async (root, { id }) => {
   let clockBase = 0;
   let windowStart = 0;
   let usingTranscode = false;
+  // S7: a JIT stream has ONE full-length playlist — no offset jobs exist, so
+  // anything that speaks offset-URLs (keepAlive pings) must stand down.
+  let jitMode = false;
   // True while a seek is probing a new offset. Nothing may request the OLD
   // playlist during that window — the server would recreate that job and
   // supersede the one the seek is waiting for (see startTranscodeAt).
@@ -657,6 +660,33 @@ export const renderPlayer = async (root, { id }) => {
     // and costs no CPU; everything else needs the real h264 transcode.
     const copyOk = codecCopyable(item.video || {});
     startTranscode(resumeAt, copyOk ? "copy" : "h264");
+  } else if (!isTorrent && usingRemux && !nativeHlsOnly) {
+    // S7 JIT first: one COMPLETE playlist (exact duration + boundaries from
+    // the file's own index), segments made on demand — every seek becomes a
+    // native in-window seek over the whole film, no offset jobs at all. If
+    // the file has no usable index (503), fall through to the classic flow.
+    const jitUrl = `/stream/transcode/${item.id}/jit/index.m3u8`;
+    let jitOk = false;
+    try {
+      const r = await fetch(jitUrl, { cache: "no-store" });
+      jitOk = r.ok;
+    } catch {}
+    if (location.hash !== entryHash) return;
+    if (jitOk) {
+      usingTranscode = true;
+      jitMode = true;
+      currentV = "copy";
+      streamOffset = 0;
+      clockBase = 0;
+      windowStart = 0;
+      startHls(jitUrl, resumeAt || 0);
+    } else {
+      const legacy = () => {
+        if (item.transcodeBase) startTranscode(resumeAt, "copy");
+        else startHls(item.hlsUrl);
+      };
+      legacy();
+    }
   } else if (!isTorrent && usingRemux) {
     // Undecodable AUDIO only. The offset-aware copy transcode both fixes the
     // audio and makes resume + far-seek actually work — the legacy from-0
@@ -746,7 +776,7 @@ export const renderPlayer = async (root, { id }) => {
       fetch(`/api/torrents/status/${item.infoHash}`).catch(() => {});
     // Never ping the old offset mid-seek — that request would supersede the
     // job the seek is waiting on.
-    if (usingTranscode && !probing)
+    if (usingTranscode && !probing && !jitMode)
       fetch(transcodeUrl(streamOffset, currentV), { cache: "no-store" }).catch(
         () => {},
       );
