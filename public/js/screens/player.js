@@ -299,9 +299,11 @@ export const renderPlayer = async (root, { id }) => {
     const gen = ++hlsGen;
     clearTimeout(hlsRecoverTimer);
     if (nativeHlsOnly) {
-      // Same shape as the no-MSE fallback below (startAt is ignored there
-      // too — Safari's native pipeline owns its own start position). Skips
-      // loading the 530 KB hls.js bundle on iPhones entirely.
+      // Same shape as the no-MSE fallback below. Skips loading the 530 KB
+      // hls.js bundle on iPhones entirely. Legacy jobs bake the offset into
+      // the playlist, so their startAt is 0 — but a jit stream is the WHOLE
+      // movie, so a resume/switch position must become a native seek the
+      // moment the timeline exists.
       if (hls) {
         try {
           hls.destroy();
@@ -309,6 +311,15 @@ export const renderPlayer = async (root, { id }) => {
         hls = null;
       }
       video.src = url;
+      if (startAt > 0) {
+        const once = () => {
+          video.removeEventListener("loadedmetadata", once);
+          try {
+            video.currentTime = startAt;
+          } catch {}
+        };
+        video.addEventListener("loadedmetadata", once);
+      }
       tryPlay();
       return;
     }
@@ -465,6 +476,9 @@ export const renderPlayer = async (root, { id }) => {
   let clockBase = 0;
   let windowStart = 0;
   let usingTranscode = false;
+  // Set by the exit cleanup; declared with the stream state because the
+  // startup chain (tryJitSwitch) consults it before the UI wiring below.
+  let exited = false;
   // S7: a JIT stream has ONE full-length playlist — no offset jobs exist, so
   // anything that speaks offset-URLs (keepAlive pings) must stand down.
   let jitMode = false;
@@ -612,18 +626,26 @@ export const renderPlayer = async (root, { id }) => {
     }
   };
 
-  // S7b: move THIS torrent playback onto the jit full-timeline stream at an
-  // absolute content time — one COMPLETE playlist, segments on demand, every
-  // future seek native. Only for probe-confirmed copy-safe MKVs (the index
-  // lives in the Cues, the producer copies the video); resolves false when
-  // jit can't serve (wrong container, no index, TS-incapable device) and the
-  // caller keeps the legacy flow.
+  // S7: move playback (library or torrent) onto the jit full-timeline stream
+  // at an absolute content time — one COMPLETE playlist, segments on demand,
+  // every future seek native. Native-HLS devices (Apple) get fMP4 segments
+  // (+hvc1 tag for HEVC); hls.js gets TS. The producer copies the video, so
+  // only codecs this device decodes qualify; resolves false when jit can't
+  // serve (wrong container, no index) and the caller keeps the legacy flow.
   const tryJitSwitch = async (fromSec) => {
-    if (!isTorrent || nativeHlsOnly) return false;
-    // The probe normalizes ffprobe's "matroska,webm" to "mkv"; accept both.
-    if (!/matroska|mkv/i.test(item.container || "")) return false;
-    if (!codecCopyable(item.video || {})) return false; // producer copies video
-    const jitUrl = `${item.transcodeBase}/jit/index.m3u8`;
+    if (isTorrent) {
+      // The probe normalizes ffprobe's "matroska,webm" to "mkv"; accept both.
+      if (!/matroska|mkv/i.test(item.container || "")) return false;
+      if (!codecCopyable(item.video || {})) return false;
+    } else if (item.video && videoNeedsTranscode() && !codecCopyable(item.video)) {
+      return false; // truly undecodable here — needs the real h264 encode
+    }
+    const base = isTorrent ? item.transcodeBase : `/stream/transcode/${item.id}`;
+    const isHevc =
+      (item.video && item.video.codec === "hevc") || item.videoCodecHint === "hevc";
+    const jitUrl = `${base}/jit/index.m3u8${
+      nativeHlsOnly ? `?seg=fmp4${isHevc ? "&vtag=hvc1" : ""}` : ""
+    }`;
     try {
       const r = await fetch(jitUrl, { cache: "no-store" });
       if (!r.ok) return false;
@@ -687,45 +709,25 @@ export const renderPlayer = async (root, { id }) => {
     // Library file this device can't play directly. The file is complete on
     // disk, so resuming at the saved position works (unlike torrent streams,
     // where the bytes at an arbitrary offset may not be downloaded yet).
-    // When only the CONTAINER is the problem (h264-in-MKV on an iPhone), a
-    // copy remux repackages without re-encoding — starts in a second or two
-    // and costs no CPU; everything else needs the real h264 transcode.
+    // When only the CONTAINER is the problem (h264/HEVC-in-MKV on an
+    // iPhone), jit copies it onto the full timeline (S7c: fMP4 there, so
+    // Apple's fullscreen can scrub the whole film); the legacy copy job is
+    // the fallback, and everything undecodable gets the real h264 encode.
     const copyOk = codecCopyable(item.video || {});
-    startTranscode(resumeAt, copyOk ? "copy" : "h264");
-  } else if (!isTorrent && usingRemux && !nativeHlsOnly) {
-    // S7 JIT first: one COMPLETE playlist (exact duration + boundaries from
-    // the file's own index), segments made on demand — every seek becomes a
-    // native in-window seek over the whole film, no offset jobs at all. If
-    // the file has no usable index (503), fall through to the classic flow.
-    const jitUrl = `/stream/transcode/${item.id}/jit/index.m3u8`;
-    let jitOk = false;
-    try {
-      const r = await fetch(jitUrl, { cache: "no-store" });
-      jitOk = r.ok;
-    } catch {}
-    if (location.hash !== entryHash) return;
-    if (jitOk) {
-      usingTranscode = true;
-      jitMode = true;
-      currentV = "copy";
-      streamOffset = 0;
-      clockBase = 0;
-      windowStart = 0;
-      startHls(jitUrl, resumeAt || 0);
-    } else {
-      const legacy = () => {
-        if (item.transcodeBase) startTranscode(resumeAt, "copy");
-        else startHls(item.hlsUrl);
-      };
-      legacy();
-    }
+    const jitOk = copyOk ? await tryJitSwitch(resumeAt) : false;
+    if (!jitOk) startTranscode(resumeAt, copyOk ? "copy" : "h264");
   } else if (!isTorrent && usingRemux) {
-    // Undecodable AUDIO only. The offset-aware copy transcode both fixes the
-    // audio and makes resume + far-seek actually work — the legacy from-0
-    // remux could only seek within what it had already produced, so resuming
-    // an hour in landed at the farthest transcoded point instead.
-    if (item.transcodeBase) startTranscode(resumeAt, "copy");
-    else startHls(item.hlsUrl);
+    // Undecodable AUDIO only. S7 JIT first: one COMPLETE playlist (exact
+    // duration + boundaries from the file's own index), segments made on
+    // demand — every seek becomes a native in-window seek over the whole
+    // film, no offset jobs at all. If the file has no usable index (503),
+    // fall through to the classic flow: the offset-aware copy transcode,
+    // which fixes the audio and makes resume + far-seek work.
+    const jitOk = await tryJitSwitch(resumeAt);
+    if (!jitOk) {
+      if (item.transcodeBase) startTranscode(resumeAt, "copy");
+      else startHls(item.hlsUrl);
+    }
   } else if (isTorrent && item.needsTranscode && item.transcodeBase) {
     // Known-undecodable torrent codec (HEVC/AV1/DTS…). Resume at the saved
     // position: the server-side seek reads the torrent through the blocking
@@ -1067,7 +1069,6 @@ export const renderPlayer = async (root, { id }) => {
   let controlsTimer = null;
   let saveTimer = null;
   let upNextShown = false;
-  let exited = false;
   let torrentPoll = null;
   // Fraction of the FILE the server has (1 for library files on disk; for
   // torrents, the swarm download progress) — drives the "% loaded" label.

@@ -239,17 +239,21 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/index.m3u8", async (req, 
     ]);
     perf.event(req.params.infoHash, "jit_index", Date.now() - t0, { ok: !!table });
     if (!table) return res.status(503).send("No usable index yet");
+    const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
+    const suffix = `?v=copy${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
-    res.send(jit.playlistText(table, "?v=copy"));
+    res.send(jit.playlistText(table, suffix, fmt));
   } catch (err) {
     res.status(504).send("Torrent not ready: " + err.message);
   }
 });
 
 router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/:file", async (req, res) => {
-  const m = String(req.params.file).match(/^seg(\d{5})\.ts$/);
-  if (!m) return res.status(404).send("Not found");
+  const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
+  const m = String(req.params.file).match(fmt ? /^seg(\d{5})\.m4s$/ : /^seg(\d{5})\.ts$/);
+  const isInit = fmt && req.params.file === "init.mp4";
+  if (!m && !isInit) return res.status(404).send("Not found");
   try {
     torrent.touchTorrent(req.params.infoHash); // don't idle-evict mid-watch
     const t = await torrent.readyTorrent(req.params.infoHash);
@@ -271,11 +275,16 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/:file", async (req, res) 
           url: `http://127.0.0.1:${config.PORT}/stream/torrent/${req.params.infoHash}/${fileIdx}`,
           extra: ["-seekable", "1", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"],
         };
-    const dir = path.join(config.CACHE_DIR, "jit", key);
+    input.fmt = fmt;
+    input.vtagHvc1 = req.query.vtag === "hvc1";
+    // fMP4 producers get their own dir — same table, different segment files.
+    const dir = path.join(config.CACHE_DIR, "jit", key + (fmt ? "-f4" : ""));
     const job = jit.jobFor(dir, table);
-    const seg = await jit.ensureSegment(dir, job, input, parseInt(m[1], 10));
+    const seg = isInit
+      ? await jit.ensureInit(dir, job, input)
+      : await jit.ensureSegment(dir, job, input, parseInt(m[1], 10));
     if (!seg) return res.status(504).send("Segment not ready");
-    res.setHeader("Content-Type", "video/mp2t");
+    res.setHeader("Content-Type", fmt ? "video/mp4" : "video/mp2t");
     res.setHeader("Cache-Control", "no-cache");
     res.sendFile(seg);
   } catch (err) {

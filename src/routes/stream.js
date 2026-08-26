@@ -313,9 +313,13 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
       try { fs.closeSync(fd); } catch {}
     });
     if (!table) return res.status(503).send("No usable index in this file");
+    // ?seg=fmp4 → fragmented-MP4 segments (Apple native HLS; required for
+    // HEVC there) with the hvc1 tag riding along when the client asked.
+    const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
+    const suffix = `?v=copy${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
-    res.send(jit.playlistText(table, "?v=copy"));
+    res.send(jit.playlistText(table, suffix, fmt));
   } catch (err) {
     res.status(500).send(err.message);
   }
@@ -323,19 +327,24 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
 router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry) return res.status(404).send("Not found");
-  const m = String(req.params.file).match(/^seg(\d{5})\.ts$/);
-  if (!m) return res.status(404).send("Not found");
+  const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
+  const m = String(req.params.file).match(fmt ? /^seg(\d{5})\.m4s$/ : /^seg(\d{5})\.ts$/);
+  const isInit = fmt && req.params.file === "init.mp4";
+  if (!m && !isInit) return res.status(404).send("Not found");
   try {
     const st = fs.statSync(entry.path);
     const key = `${req.params.id}-${Math.floor(st.mtimeMs)}`;
-    const cached = await jit.tableFor(key, null, 0).catch(() => null);
-    const table = cached || null;
+    const table = await jit.tableFor(key, null, 0).catch(() => null);
     if (!table) return res.status(409).send("Playlist first");
-    const dir = path.join(require("../config").CACHE_DIR, "jit", key);
+    // fMP4 producers get their own dir — same table, different segment files.
+    const dir = path.join(require("../config").CACHE_DIR, "jit", key + (fmt ? "-f4" : ""));
     const job = jit.jobFor(dir, table);
-    const file = await jit.ensureSegment(dir, job, { url: entry.path, extra: [] }, parseInt(m[1], 10));
+    const input = { url: entry.path, extra: [], fmt, vtagHvc1: req.query.vtag === "hvc1" };
+    const file = isInit
+      ? await jit.ensureInit(dir, job, input)
+      : await jit.ensureSegment(dir, job, input, parseInt(m[1], 10));
     if (!file) return res.status(504).send("Segment not ready");
-    res.setHeader("Content-Type", "video/mp2t");
+    res.setHeader("Content-Type", fmt ? "video/mp4" : "video/mp2t");
     res.setHeader("Cache-Control", "no-cache");
     res.sendFile(file);
   } catch (err) {
