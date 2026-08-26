@@ -13,6 +13,7 @@ const torrent = require("../media/torrent");
 const profiles = require("../profiles");
 const logbuffer = require("../lib/logbuffer");
 const disk = require("../lib/disk");
+const libfiles = require("../lib/libfiles");
 
 const router = express.Router();
 
@@ -134,6 +135,32 @@ const insideARoot = (dir, roots) =>
     return rel && !rel.startsWith("..") && !path.isAbsolute(rel);
   });
 
+// Delete ONE video file — elia's "specific episode" ask (2026-08-26: HARD
+// delete, no trash; profile watch-state is KEPT — it re-links if the file
+// ever comes back). Paths resolve through scanner ids only; sidecar
+// subtitles (same basename) go with the video; directories left empty by
+// the deletion are removed too (never a library root), then a rescan.
+// Registered BEFORE the generic /:type/:id delete so "file" can't parse
+// as a type.
+router.delete("/api/admin/library/file/:id", (req, res) => {
+  const entry = scanner.resolve(req.params.id);
+  if (!entry || entry.kind !== "video" || !fs.existsSync(entry.path)) {
+    return res.status(404).json({ error: "File not found" });
+  }
+  const roots = [...config.LIBRARIES.movies, ...config.LIBRARIES.shows];
+  let result;
+  try {
+    result = libfiles.deleteVideoFile(entry.path, roots, config.SUBTITLE_EXTENSIONS);
+  } catch (err) {
+    const refusal = /outside the library/.test(err.message);
+    return res.status(refusal ? 400 : 500).json({ error: refusal ? err.message : `Delete failed: ${err.message}` });
+  }
+  scanner.scan();
+  realtime.broadcastAll({ type: "library_updated" });
+  console.log(`[admin] deleted file ${req.params.id} → ${result.deleted.join(", ")} (${result.freedBytes} bytes)`);
+  res.json({ ok: true, ...result });
+});
+
 // Delete a movie's folder or a whole show's folder from disk, then rescan.
 router.delete("/api/admin/library/:type/:id", (req, res) => {
   const { type, id } = req.params;
@@ -177,6 +204,49 @@ router.delete("/api/admin/library/:type/:id", (req, res) => {
   realtime.broadcastAll({ type: "library_updated" });
   console.log(`[admin] deleted ${type} "${req.params.id}" → ${folder}`);
   res.json({ ok: true });
+});
+
+// ---------- D1: per-file library management ----------
+
+// The library as a deletable tree: movies and shows → seasons → episodes,
+// every row with its size on disk, plus the disk-free headline. This is the
+// data the downloads page's ON DISK zone renders; sizes come from the scan.
+router.get("/api/admin/library/tree", (req, res) => {
+  const movies = scanner.index.movies.map((m) => ({
+    id: m.id,
+    title: m.title,
+    year: m.year,
+    sizeBytes: m.sizeBytes || 0,
+  }));
+  const shows = scanner.index.shows.map((s) => {
+    const seasons = (s.seasons || []).map((se) => ({
+      season: se.number,
+      sizeBytes: (se.episodes || []).reduce((n, e) => n + (e.sizeBytes || 0), 0),
+      episodes: (se.episodes || []).map((e) => ({
+        id: e.id,
+        season: e.season,
+        episode: e.episode,
+        title: e.title,
+        fileName: e.fileName,
+        sizeBytes: e.sizeBytes || 0,
+      })),
+    }));
+    return {
+      id: s.id,
+      title: s.title,
+      sizeBytes: seasons.reduce((n, se) => n + se.sizeBytes, 0),
+      seasons,
+    };
+  });
+  const totalBytes =
+    movies.reduce((n, m) => n + m.sizeBytes, 0) +
+    shows.reduce((n, s) => n + s.sizeBytes, 0);
+  let free = null;
+  try {
+    const roots = [...config.LIBRARIES.movies, ...config.LIBRARIES.shows];
+    if (roots[0]) free = disk.spaceSync(roots[0]);
+  } catch {}
+  res.json({ movies, shows, totalBytes, disk: free });
 });
 
 // ---------- analytics & telemetry ----------
