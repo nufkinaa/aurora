@@ -60,6 +60,54 @@ const sweepMetadataCache = (dir = CACHE_DIR, max = MAX_CACHED_TORRENTS) => {
       });
   } catch {}
 };
+// ---------- verified-bitfield persistence (S5) ----------
+// webtorrent re-hashes a torrent's ENTIRE store every time it is re-added:
+// after a server restart, a fully-downloaded multi-GB film pays a whole-disk
+// hash check before one byte can be served — the "it says downloaded but the
+// seek takes 30s" disease. webtorrent natively accepts a startup `bitfield`
+// (opts.bitfield, applied at metadata time behind its own length guard), so
+// the verified map is saved on every sweep and handed back on re-add.
+// Guards: the store files must still exist with EXACTLY the saved sizes, or
+// the whole map is discarded and a normal verify runs — failures only ever
+// fall toward re-checking. Save ordering is naturally safe: a piece reaches
+// the store BEFORE its bit is set, so a saved bit can never describe
+// unwritten data. Eviction destroys the store, so it drops the sidecar too.
+const bitfieldPath = (infoHash) => path.join(CACHE_DIR, `${infoHash}.bitfield.json`);
+const saveBitfield = (t) => {
+  try {
+    if (!t || !t.ready || !t.bitfield || !t.files || t.files.length === 0) return;
+    if (!(t.progress > 0)) return; // nothing verified yet — nothing to save
+    const files = t.files.map((f) => {
+      const abs = path.join(t.path, f.path);
+      return { abs, size: fs.statSync(abs).size };
+    });
+    fs.writeFileSync(
+      bitfieldPath(t.infoHash),
+      JSON.stringify({
+        v: 1,
+        savedAt: Date.now(),
+        files,
+        bitfield: Buffer.from(t.bitfield.buffer).toString("base64"),
+      }),
+    );
+  } catch {} // a missed save just means a re-verify next boot
+};
+const loadStartupBitfield = (infoHash) => {
+  try {
+    const j = JSON.parse(fs.readFileSync(bitfieldPath(infoHash), "utf-8"));
+    if (j.v !== 1 || !j.bitfield || !Array.isArray(j.files) || j.files.length === 0) return null;
+    for (const f of j.files) {
+      if (fs.statSync(f.abs).size !== f.size) return null;
+    }
+    return new Uint8Array(Buffer.from(j.bitfield, "base64"));
+  } catch {
+    return null;
+  }
+};
+const dropBitfield = (infoHash) => {
+  try { fs.unlinkSync(bitfieldPath(infoHash)); } catch {}
+};
+
 const saveMetadata = (t) => {
   try {
     if (!t || !t.torrentFile) return;
@@ -203,6 +251,7 @@ setInterval(() => {
     const hash = t.infoHash;
     const p = new Promise((resolve) => {
       try {
+        dropBitfield(hash); // the store dies with the torrent — so does its map
         cl.remove(hash, { destroyStore: true }, (err) => {
           if (err)
             console.warn(
@@ -266,11 +315,15 @@ setInterval(() => {
   }
   // 1) idle eviction — and stop peer discovery on anything already complete
   //    (covers torrents that came up 100% from the store, whose 'done' event
-  //    fired before we could listen for it)
+  //    fired before we could listen for it). Surviving torrents get their
+  //    verified bitfield persisted so a server restart never re-hashes them.
   for (const t of [...cl.torrents]) {
     if (now - (torrentAccess.get(t.infoHash) || 0) > TORRENT_IDLE_MS)
       evict(t, "idle");
-    else if (servedContentComplete(t)) quiesce(t, "sweep");
+    else {
+      saveBitfield(t);
+      if (servedContentComplete(t)) quiesce(t, "sweep");
+    }
   }
   // 2) hard cap — drop least-recently-used, but never one touched in the last
   //    2 min (i.e. actively streaming)
@@ -778,21 +831,33 @@ const _readyTorrent = (infoHash) =>
           // type, buffers included — verified against lib/torrent.js — so the
           // tracker set rides along exactly as it does for magnets.)
           const cached = readCachedMetadata(infoHash);
+          // A persisted verified map (see saveBitfield) skips the full-store
+          // re-hash after a restart; webtorrent length-guards it at metadata
+          // time, and loadStartupBitfield already stat-guarded the files.
+          const startup = loadStartupBitfield(infoHash);
+          if (startup) {
+            let set = 0;
+            for (const b of startup) for (let m = b; m; m >>= 1) set += m & 1;
+            console.log(
+              `[torrent] restored verified bitfield for ${infoHash.slice(0, 8)}… (~${set} pieces) — skipping the re-hash`,
+            );
+          }
+          const addOpts = startup ? { announce, bitfield: startup } : { announce };
           try {
             // No `path` option: stream from WebTorrent's default store. A custom
             // path can stall adds on Windows and isn't needed for streaming.
             if (cached) {
               try {
-                t = cl.add(cached, { announce });
+                t = cl.add(cached, addOpts);
               } catch (err) {
                 // Corrupt/stale cache file — drop it, fall back to the magnet.
                 try {
                   fs.unlinkSync(metadataCachePath(infoHash));
                 } catch {}
-                t = cl.add(magnet, { announce });
+                t = cl.add(magnet, addOpts);
               }
             } else {
-              t = cl.add(magnet, { announce });
+              t = cl.add(magnet, addOpts);
             }
           } catch (err) {
             // Duplicate-add race: a magnet's infoHash isn't set synchronously, so

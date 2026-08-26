@@ -101,6 +101,28 @@ const warmTail = (file) => {
   s.on("error", () => clearTimeout(giveUp));
 };
 
+// ffmpeg's very first read on a seek is the container PROBE at byte 0 (~5MB
+// by default) — on a mid-download torrent those head pieces compete with the
+// target region ffmpeg wants next. Warm them in PARALLEL with the tail (S5):
+// the forensics showed spawnToPlaylistMs is ~100% torrent reads, and every
+// serial read the swarm can pre-stage shortens the chain. Usually instant —
+// streams that began at 0 already hold the head on disk.
+const HEAD_BYTES = 6 * 1024 * 1024;
+const warmHead = (file) => {
+  if (!file || !file.length) return;
+  let s;
+  try {
+    s = file.createReadStream({ start: 0, end: Math.min(HEAD_BYTES, file.length) - 1 });
+  } catch {
+    return;
+  }
+  const giveUp = setTimeout(() => { try { s.destroy(); } catch {} }, 120000);
+  giveUp.unref?.();
+  s.on("data", () => {});
+  s.on("end", () => clearTimeout(giveUp));
+  s.on("error", () => clearTimeout(giveUp));
+};
+
 // Film audio is mastered far quieter than web video: measured across this
 // library, integrated loudness sits at -21 to -29 LUFS where YouTube/Netflix
 // normalise to -14..-16, which is why everything here sounded low. A flat +4 dB
@@ -301,7 +323,10 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
   // only sometimes: it depended on whether the tail happened to be there.
   // Pull it in parallel with ffmpeg's own reads — a read stream is what makes
   // WebTorrent mark those exact pieces critical.
-  if (seeking && !complete) warmTail(file);
+  if (seeking && !complete) {
+    warmTail(file);
+    warmHead(file);
+  }
 
   // Copy seeks add -noaccurate_seek: audio must start at the keyframe WITH
   // the copied video, or seg0's audio begins mid-fragment and hls.js holds
