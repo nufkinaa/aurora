@@ -451,9 +451,30 @@
         </table></div>
         <div class="empty-note hidden" id="dl-done-empty">Nothing finished yet.</div>
       </section>
+      <style>
+        #lib-chips .chip-active { background: #7c5cff; border-color: #7c5cff; color: #fff; }
+        #lib-tree summary::-webkit-details-marker { display: none; }
+        #lib-tree details > summary .lib-row:hover { background: rgba(255,255,255,0.04); }
+      </style>
       <section>
-        <h2>On disk <span class="note">biggest first — deleting removes the files permanently</span></h2>
-        <div id="lib-toolbar" class="empty-note" style="font-size:0.9rem;padding:6px 4px"></div>
+        <h2>On disk <span class="note">find it, see who watched it, delete it — files are removed permanently</span></h2>
+        <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+          <input type="text" id="lib-search" placeholder="Search titles &amp; episodes…" style="max-width:230px;flex:1;min-width:150px" />
+          <select id="lib-sort" style="padding:7px 10px;background:var(--bg-input,#1c1c24);color:inherit;border:1px solid rgba(255,255,255,0.12);border-radius:8px">
+            <option value="size">Biggest first</option>
+            <option value="new">Recently added</option>
+            <option value="old">Oldest first</option>
+            <option value="az">A–Z</option>
+          </select>
+          <span id="lib-chips" style="display:flex;gap:6px">
+            <button class="mini chip-active" data-libfilter="all">All</button>
+            <button class="mini" data-libfilter="movies">Movies</button>
+            <button class="mini" data-libfilter="shows">Shows</button>
+            <button class="mini" data-libfilter="watched">Watched</button>
+          </span>
+          <button class="mini" id="lib-select-watched" title="Tick every fully-watched episode currently shown">Select watched</button>
+        </div>
+        <div id="lib-toolbar" class="empty-note" style="font-size:0.9rem;padding:2px 4px"></div>
         <div id="lib-batchbar" class="bar-row hidden" style="align-items:center;margin:6px 0">
           <button class="btn small btn-primary" id="lib-batch-delete" style="background:#b91c1c;border-color:#b91c1c">Delete selected</button>
           <span class="muted" id="lib-batch-info" style="font-size:0.85rem"></span>
@@ -1666,46 +1687,121 @@
       }).join("");
     }
 
-    // ON DISK: the whole library as a deletable tree (D1 data), biggest
-    // first — shows expand to seasons to episodes, every row with its size.
+    // ON DISK: the whole library as a searchable, sortable, watched-aware
+    // catalog (D1 data + watchedBy) — the zone exists to answer "where is
+    // it", "who watched it", and "what can I safely delete".
     const libRow = (inner, indent = 0) =>
-      `<div class="lib-row" style="display:flex;align-items:center;gap:10px;padding:7px 6px 7px ${6 + indent}px;border-bottom:1px solid rgba(255,255,255,0.06)">${inner}</div>`;
+      `<div class="lib-row" style="display:flex;align-items:center;gap:10px;padding:6px 6px 6px ${6 + indent}px;border-bottom:1px solid rgba(255,255,255,0.06)">${inner}</div>`;
+    const libThumb = (cover, emoji) => cover
+      ? `<img src="${esc(cover)}" loading="lazy" style="width:30px;height:44px;object-fit:cover;border-radius:4px;flex:none" onerror="this.replaceWith('${emoji}')" />`
+      : `<span style="font-size:1.2rem">${emoji}</span>`;
+    const watchedBadge = (n) => n
+      ? `<span class="pill live" title="finished by ${n} profile${n > 1 ? "s" : ""}" style="flex:none">✓ watched</span>`
+      : "";
+    let libTreeData = null;
+    let libFilter = "all";
     async function loadLibraryTree() {
-      const t = await json("/api/admin/library/tree");
+      libTreeData = await json("/api/admin/library/tree");
+      renderLibTree();
+    }
+    function renderLibTree() {
+      const t = libTreeData;
+      if (!t) return;
+      const q = ($("#lib-search").value || "").trim().toLowerCase();
+      const sort = $("#lib-sort").value;
+      const match = (s) => !q || (s || "").toLowerCase().includes(q);
       $("#lib-toolbar").innerHTML =
         `<b>${fmtBytes(t.totalBytes)}</b> in the library` +
         (t.disk && t.disk.free != null ? ` · ${fmtBytes(t.disk.free)} free` : "");
-      const items = [
+      let items = [
         ...t.movies.map((m) => ({ kind: "movie", ...m })),
-        ...t.shows.map((s) => ({ kind: "show", ...s })),
-      ].sort((a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0));
+        ...t.shows.map((s) => ({
+          kind: "show", ...s,
+          epCount: s.seasons.reduce((n, se) => n + se.episodes.length, 0),
+          epWatched: s.seasons.reduce((n, se) => n + se.episodes.filter((e) => e.watched).length, 0),
+        })),
+      ];
+      if (libFilter === "movies") items = items.filter((i) => i.kind === "movie");
+      if (libFilter === "shows") items = items.filter((i) => i.kind === "show");
+      if (libFilter === "watched")
+        items = items.filter((i) => (i.kind === "movie" ? i.watched : i.epWatched));
+      // Search matches the title OR any episode name; matching shows open up.
+      items = items.filter((i) =>
+        i.kind === "movie"
+          ? match(i.title)
+          : match(i.title) ||
+            i.seasons.some((se) => se.episodes.some((e) => match(e.title) || match(e.fileName))));
+      const cmp = {
+        size: (a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0),
+        new: (a, b) => (b.addedAt || 0) - (a.addedAt || 0),
+        old: (a, b) => (a.addedAt || 0) - (b.addedAt || 0),
+        az: (a, b) => a.title.localeCompare(b.title),
+      }[sort];
+      items.sort(cmp);
+      const epRow = (e) => libRow(
+        `<input type="checkbox" class="lib-ep-check" data-id="${esc(e.id)}" data-size="${e.sizeBytes}" data-name="${esc(e.fileName)}" data-watched="${e.watched ? 1 : 0}" style="margin:0" />` +
+        `<span class="muted num" style="min-width:52px">S${String(e.season).padStart(2, "0")}E${String(e.episode || 0).padStart(2, "0")}</span>` +
+        `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.fileName)}">${esc(e.title)}</span>` +
+        watchedBadge(e.watched) +
+        `<span class="num muted">${fmtBytes(e.sizeBytes)}</span>` +
+        `<button class="mini danger" data-file-id="${esc(e.id)}" data-file-name="${esc(e.fileName)}" data-file-size="${e.sizeBytes}">Delete</button>`, 26);
       $("#lib-tree").innerHTML = items.length ? items.map((it) => {
         if (it.kind === "movie") {
           return libRow(
-            `<span>🎬</span><span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)}${it.year ? ` <span class="muted">(${it.year})</span>` : ""}</span>` +
+            libThumb(it.cover, "🎬") +
+            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)}${it.year ? ` <span class="muted">(${it.year})</span>` : ""}</span>` +
+            watchedBadge(it.watched) +
             `<span class="num muted">${fmtBytes(it.sizeBytes)}</span>` +
             `<button class="mini danger" data-del-type="movie" data-del-id="${esc(it.id)}" data-del-title="${esc(it.title)}">Delete</button>`);
         }
-        const epCount = it.seasons.reduce((n, se) => n + se.episodes.length, 0);
-        return `<details class="lib-show">
+        // A show matched by episode-search (or the Watched filter) opens
+        // itself so the reason it's listed is visible.
+        const epMatchOnly = q && !match(it.title);
+        const open = epMatchOnly || libFilter === "watched" ? " open" : "";
+        const seasons = it.seasons.map((se) => {
+          let eps = se.episodes;
+          if (epMatchOnly) eps = eps.filter((e) => match(e.title) || match(e.fileName));
+          if (libFilter === "watched") eps = eps.filter((e) => e.watched);
+          if (!eps.length) return "";
+          const w = se.episodes.filter((e) => e.watched).length;
+          return `<details class="lib-season"${open} style="margin-left:14px">
+            <summary style="list-style:none;cursor:pointer">${libRow(
+              `<input type="checkbox" class="lib-season-check" title="select this season" style="margin:0" />` +
+              `<span class="grow" style="flex:1">Season ${se.season} <span class="muted">${se.episodes.length} ep${w ? ` · ${w}/${se.episodes.length} watched` : ""}</span></span>` +
+              `<span class="num muted">${fmtBytes(se.sizeBytes)}</span>`)}</summary>
+            ${eps.map(epRow).join("")}
+          </details>`;
+        }).join("");
+        return `<details class="lib-show"${open}>
           <summary style="list-style:none;cursor:pointer">${libRow(
-            `<span>📺</span><span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)} <span class="muted">${epCount} ep</span></span>` +
+            libThumb(it.cover, "📺") +
+            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)} <span class="muted">${it.epCount} ep${it.epWatched ? ` · ${it.epWatched} watched` : ""}</span></span>` +
             `<span class="num muted">${fmtBytes(it.sizeBytes)}</span>` +
             `<button class="mini danger" data-del-type="show" data-del-id="${esc(it.id)}" data-del-title="${esc(it.title)}">Delete</button>`)}</summary>
-          ${it.seasons.map((se) => `<details class="lib-season" style="margin-left:14px">
-            <summary style="list-style:none;cursor:pointer">${libRow(
-              `<span class="grow" style="flex:1">Season ${se.season} <span class="muted">${se.episodes.length} ep</span></span><span class="num muted">${fmtBytes(se.sizeBytes)}</span>`)}</summary>
-            ${se.episodes.map((e) => libRow(
-              `<input type="checkbox" class="lib-ep-check" data-id="${esc(e.id)}" data-size="${e.sizeBytes}" data-name="${esc(e.fileName)}" style="margin:0" />` +
-              `<span class="muted num" style="min-width:52px">S${String(e.season).padStart(2, "0")}E${String(e.episode || 0).padStart(2, "0")}</span>` +
-              `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.fileName)}">${esc(e.title)}</span>` +
-              `<span class="num muted">${fmtBytes(e.sizeBytes)}</span>` +
-              `<button class="mini danger" data-file-id="${esc(e.id)}" data-file-name="${esc(e.fileName)}" data-file-size="${e.sizeBytes}">Delete</button>`, 26)).join("")}
-          </details>`).join("")}
+          ${seasons}
         </details>`;
-      }).join("") : `<div class="empty-note">Library is empty.</div>`;
+      }).join("") : `<div class="empty-note">${q || libFilter !== "all" ? "Nothing matches." : "Library is empty."}</div>`;
       updateBatchBar();
     }
+    $("#lib-search").addEventListener("input", renderLibTree);
+    $("#lib-sort").addEventListener("change", renderLibTree);
+    $("#lib-chips").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-libfilter]");
+      if (!b) return;
+      libFilter = b.dataset.libfilter;
+      for (const x of $("#lib-chips").children) x.classList.toggle("chip-active", x === b);
+      renderLibTree();
+    });
+    $("#lib-select-watched").addEventListener("click", () => {
+      let n = 0;
+      document.querySelectorAll('.lib-ep-check[data-watched="1"]').forEach((c) => {
+        c.closest("details")?.setAttribute("open", "");
+        c.checked = true;
+        n++;
+      });
+      if (!n) toast("No fully-watched episodes in this view");
+      updateBatchBar();
+    });
 
     const libRefresh = () => { loadDisk(); loadLibraryTree(); loadOverview(); };
     const deleteFileById = async (id) => {
@@ -1723,9 +1819,18 @@
         : "";
     }
     $("#lib-tree").addEventListener("change", (e) => {
-      if (e.target.classList.contains("lib-ep-check")) updateBatchBar();
+      if (e.target.classList.contains("lib-season-check")) {
+        // Season checkbox = its whole season, one tap (season cleanup is
+        // THE use case). Open the fold so the selection is visible.
+        const season = e.target.closest("details.lib-season");
+        season.setAttribute("open", "");
+        season.querySelectorAll(".lib-ep-check").forEach((c) => (c.checked = e.target.checked));
+      }
+      updateBatchBar();
     });
     $("#lib-tree").addEventListener("click", async (e) => {
+      // A checkbox inside a <summary> must not toggle the fold it sits in.
+      if (e.target.classList.contains("lib-season-check")) { e.stopPropagation(); return; }
       const fileBtn = e.target.closest("[data-file-id]");
       const titleBtn = e.target.closest("[data-del-id]");
       if (!fileBtn && !titleBtn) return;

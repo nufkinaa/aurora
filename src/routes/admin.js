@@ -212,10 +212,22 @@ router.delete("/api/admin/library/:type/:id", (req, res) => {
 // every row with its size on disk, plus the disk-free headline. This is the
 // data the downloads page's ON DISK zone renders; sizes come from the scan.
 router.get("/api/admin/library/tree", (req, res) => {
+  // watchedBy: how many profiles FINISHED each item — the number that
+  // answers "is this safe to delete" (elia's catalog-cleanup ask).
+  const watchedBy = new Map();
+  for (const p of profiles.list()) {
+    const prog = profiles.getProgress(p.id) || {};
+    for (const [itemId, pr] of Object.entries(prog)) {
+      if (pr && pr.finished) watchedBy.set(itemId, (watchedBy.get(itemId) || 0) + 1);
+    }
+  }
   const movies = scanner.index.movies.map((m) => ({
     id: m.id,
     title: m.title,
     year: m.year,
+    cover: m.cover || null,
+    addedAt: m.addedAt || 0,
+    watched: watchedBy.get(m.id) || 0,
     sizeBytes: m.sizeBytes || 0,
   }));
   const shows = scanner.index.shows.map((s) => {
@@ -228,12 +240,16 @@ router.get("/api/admin/library/tree", (req, res) => {
         episode: e.episode,
         title: e.title,
         fileName: e.fileName,
+        addedAt: e.addedAt || 0,
+        watched: watchedBy.get(e.id) || 0,
         sizeBytes: e.sizeBytes || 0,
       })),
     }));
     return {
       id: s.id,
       title: s.title,
+      cover: s.cover || null,
+      addedAt: s.addedAt || 0,
       sizeBytes: seasons.reduce((n, se) => n + se.sizeBytes, 0),
       seasons,
     };
