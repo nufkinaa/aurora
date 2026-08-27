@@ -414,22 +414,26 @@
       </div>
     </div>
 
-    <!-- ================= DOWNLOADS ================= -->
+    <!-- ================= DOWNLOADS (three zones: needs you / in flight / on disk) ================= -->
     <div class="pane" id="pane-downloads">
       <section>
-        <h2>Disk space <span class="note">where downloads land</span></h2>
-        <div class="now-grid" id="disk-bars"></div>
-      </section>
-      <section>
-        <h2>Pending approval <span class="pill warn" id="dl-pending-count">0</span>
-          <span class="note">downloads normally start on their own — these are held back because the disk is running low</span>
+        <h2>Needs you <span class="pill warn" id="dl-pending-count">0</span>
+          <span class="note">approvals waiting on you — everything else runs by itself</span>
         </h2>
+        <div id="disk-headline" class="empty-note" style="font-size:0.95rem;padding:6px 4px"></div>
+        <div class="now-grid" id="disk-bars"></div>
         <div class="now-grid" id="dl-pending"></div>
         <div class="empty-note hidden" id="dl-pending-empty">Nothing is waiting for approval — there's enough disk space, so requests start by themselves.</div>
       </section>
       <section>
-        <h2>Speed limits <span class="note">caps the download engine so an evening's streaming never fights a download</span></h2>
-        <div class="bar-row" style="align-items:center">
+        <h2>In flight <span class="note">live downloads — progress, speed and how long is left</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Title</th><th>Size</th><th>Progress</th><th>Speed</th><th>ETA</th><th>Status</th><th></th></tr></thead>
+          <tbody id="dl-jobs"></tbody>
+        </table></div>
+        <div class="empty-note hidden" id="dl-jobs-empty">Nothing is downloading right now.</div>
+        <div class="bar-row" style="align-items:center;margin-top:10px">
+          <span class="muted" style="font-size:0.8rem">Speed limits:</span>
           <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↓
             <input type="text" id="lim-down" placeholder="0" style="max-width:110px;flex:none" /></label>
           <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↑
@@ -440,19 +444,21 @@
         <div class="empty-note" id="lim-status" style="padding:4px"></div>
       </section>
       <section>
-        <h2>Active &amp; finished</h2>
+        <h2>Finished <span class="note">done, declined or failed — remove rows you're done with</span></h2>
         <div class="table-scroll"><table>
-          <thead><tr><th>Title</th><th>Quality</th><th>Size</th><th>Progress</th><th>Speed</th><th>Peers</th><th>Status</th><th></th></tr></thead>
-          <tbody id="dl-jobs"></tbody>
+          <thead><tr><th>Title</th><th>Quality</th><th>Size</th><th>Status</th><th></th></tr></thead>
+          <tbody id="dl-done"></tbody>
         </table></div>
-        <div class="empty-note hidden" id="dl-jobs-empty">Nothing downloaded yet.</div>
+        <div class="empty-note hidden" id="dl-done-empty">Nothing finished yet.</div>
       </section>
       <section>
-        <h2>Library <span class="note">delete titles to free up disk space — removes the files permanently</span></h2>
-        <div class="table-scroll"><table>
-          <thead><tr><th>Title</th><th>Type</th><th>Size</th><th></th></tr></thead>
-          <tbody id="lib-items"></tbody>
-        </table></div>
+        <h2>On disk <span class="note">biggest first — deleting removes the files permanently</span></h2>
+        <div id="lib-toolbar" class="empty-note" style="font-size:0.9rem;padding:6px 4px"></div>
+        <div id="lib-batchbar" class="bar-row hidden" style="align-items:center;margin:6px 0">
+          <button class="btn small btn-primary" id="lib-batch-delete" style="background:#b91c1c;border-color:#b91c1c">Delete selected</button>
+          <span class="muted" id="lib-batch-info" style="font-size:0.85rem"></span>
+        </div>
+        <div id="lib-tree"></div>
       </section>
     </div>
 
@@ -1584,27 +1590,43 @@
           </div>
         </div>`).join("");
 
-      const rest = jobs.filter((j) => j.status !== "pending");
-      $("#dl-jobs-empty").classList.toggle("hidden", rest.length > 0);
-      $("#dl-jobs").innerHTML = rest.map((j) => {
+      // IN FLIGHT: live jobs with real progress, speed and time left.
+      const active = jobs.filter((j) => ["approved", "downloading"].includes(j.status));
+      const fmtEta = (s) => (s < 90 ? Math.round(s) + "s" : s < 5400 ? Math.round(s / 60) + "m" : (s / 3600).toFixed(1) + "h");
+      const eta = (j) => {
+        if (j.status !== "downloading" || !j.downloadSpeed) return "—";
+        const left = (j.sizeBytes || 0) * (1 - (j.progress || 0));
+        return left > 0 ? "~" + fmtEta(left / j.downloadSpeed) : "—";
+      };
+      $("#dl-jobs-empty").classList.toggle("hidden", active.length > 0);
+      $("#dl-jobs").innerHTML = active.map((j) => {
         const pct = Math.round((j.progress || 0) * 100);
-        const canCancel = ["approved", "downloading"].includes(j.status);
         return `
+        <tr>
+          <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}</td>
+          <td class="num">${fmtBytes(j.sizeBytes)}</td>
+          <td style="white-space:nowrap"><span class="mini-prog"><i style="width:${pct}%"></i></span><span class="muted num">${pct}%</span></td>
+          <td class="num">${j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "—"}</td>
+          <td class="num">${eta(j)}</td>
+          <td><span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(phaseLabel(j))}</span></td>
+          <td style="text-align:right;white-space:nowrap"><button class="mini danger" onclick="cancelDownload('${esc(j.id)}')">Cancel</button></td>
+        </tr>`;
+      }).join("");
+
+      // FINISHED: done / declined / failed — retry and row cleanup live here.
+      const finished = jobs.filter((j) => !["pending", "approved", "downloading"].includes(j.status));
+      $("#dl-done-empty").classList.toggle("hidden", finished.length > 0);
+      $("#dl-done").innerHTML = finished.map((j) => `
         <tr>
           <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}</td>
           <td>${esc(j.quality || "—")}</td>
           <td class="num">${fmtBytes(j.sizeBytes)}</td>
-          <td style="white-space:nowrap"><span class="mini-prog"><i style="width:${pct}%"></i></span><span class="muted num">${pct}%</span></td>
-          <td class="num">${j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "—"}</td>
-          <td class="num">${j.status === "downloading" ? j.peers : "—"}</td>
-          <td><span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(phaseLabel(j))}</span>${j.error ? " <span class='muted' title='" + esc(j.error) + "'>" + esc(j.error.slice(0, 40)) + "</span>" : ""}</td>
+          <td><span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(j.status)}</span>${j.error ? " <span class='muted' title='" + esc(j.error) + "'>" + esc(j.error.slice(0, 40)) + "</span>" : ""}</td>
           <td style="text-align:right;white-space:nowrap">
-            ${canCancel ? `<button class="mini danger" onclick="cancelDownload('${esc(j.id)}')">Cancel</button>` : ""}
             ${j.status === "error" ? `<button class="mini" onclick="approveDownload('${esc(j.id)}')">Retry</button>` : ""}
             <button class="mini" onclick="removeDownload('${esc(j.id)}')">Remove</button>
           </td>
-        </tr>`;
-      }).join("");
+        </tr>`).join("");
     }
 
     // ---------- disk + library management ----------
@@ -1614,6 +1636,14 @@
       const res = await json("/api/admin/disk");
       const disks = Array.isArray(res) ? res : res.disks || [];
       const minFreePct = Array.isArray(res) ? 0 : res.minFreePct || 0;
+      // The headline number this page exists for (the ENOSPC lesson): free
+      // space, always visible, red under 50GB.
+      const minFree = disks.reduce((m, d) => (d.free != null && (m == null || d.free < m) ? d.free : m), null);
+      if (minFree != null) {
+        const low = minFree < 50e9;
+        $("#disk-headline").innerHTML =
+          `<b style="${low ? "color:#f87171" : ""}">${fmtBytes(minFree)} free</b>${low ? " — running low, clean up below" : ""}`;
+      }
       $("#disk-bars").innerHTML = disks.map((d) => {
         if (d.total == null) {
           return `<div class="now-card"><div class="name">${esc(d.root)}</div><div class="meta">size unavailable</div></div>`;
@@ -1636,34 +1666,118 @@
       }).join("");
     }
 
-    async function loadLibraryList() {
-      const lib = await json("/api/admin/library");
-      const items = [...lib.movies, ...lib.shows].sort((a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0));
-      $("#lib-items").innerHTML = items.length ? items.map((i) => `
-        <tr>
-          <td style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(i.title)}">${esc(i.title)}${i.year ? ` <span class="muted">(${i.year})</span>` : ""}</td>
-          <td>${i.type === "show" ? `📺 ${i.episodeCount || 0} ep` : "🎬 movie"}</td>
-          <td class="num">${fmtBytes(i.sizeBytes)}</td>
-          <td style="text-align:right"><button class="mini danger" data-del-type="${esc(i.type)}" data-del-id="${esc(i.id)}" data-del-title="${esc(i.title)}">Delete</button></td>
-        </tr>`).join("") : `<tr><td class="empty-note">Library is empty.</td></tr>`;
+    // ON DISK: the whole library as a deletable tree (D1 data), biggest
+    // first — shows expand to seasons to episodes, every row with its size.
+    const libRow = (inner, indent = 0) =>
+      `<div class="lib-row" style="display:flex;align-items:center;gap:10px;padding:7px 6px 7px ${6 + indent}px;border-bottom:1px solid rgba(255,255,255,0.06)">${inner}</div>`;
+    async function loadLibraryTree() {
+      const t = await json("/api/admin/library/tree");
+      $("#lib-toolbar").innerHTML =
+        `<b>${fmtBytes(t.totalBytes)}</b> in the library` +
+        (t.disk && t.disk.free != null ? ` · ${fmtBytes(t.disk.free)} free` : "");
+      const items = [
+        ...t.movies.map((m) => ({ kind: "movie", ...m })),
+        ...t.shows.map((s) => ({ kind: "show", ...s })),
+      ].sort((a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0));
+      $("#lib-tree").innerHTML = items.length ? items.map((it) => {
+        if (it.kind === "movie") {
+          return libRow(
+            `<span>🎬</span><span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)}${it.year ? ` <span class="muted">(${it.year})</span>` : ""}</span>` +
+            `<span class="num muted">${fmtBytes(it.sizeBytes)}</span>` +
+            `<button class="mini danger" data-del-type="movie" data-del-id="${esc(it.id)}" data-del-title="${esc(it.title)}">Delete</button>`);
+        }
+        const epCount = it.seasons.reduce((n, se) => n + se.episodes.length, 0);
+        return `<details class="lib-show">
+          <summary style="list-style:none;cursor:pointer">${libRow(
+            `<span>📺</span><span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)} <span class="muted">${epCount} ep</span></span>` +
+            `<span class="num muted">${fmtBytes(it.sizeBytes)}</span>` +
+            `<button class="mini danger" data-del-type="show" data-del-id="${esc(it.id)}" data-del-title="${esc(it.title)}">Delete</button>`)}</summary>
+          ${it.seasons.map((se) => `<details class="lib-season" style="margin-left:14px">
+            <summary style="list-style:none;cursor:pointer">${libRow(
+              `<span class="grow" style="flex:1">Season ${se.season} <span class="muted">${se.episodes.length} ep</span></span><span class="num muted">${fmtBytes(se.sizeBytes)}</span>`)}</summary>
+            ${se.episodes.map((e) => libRow(
+              `<input type="checkbox" class="lib-ep-check" data-id="${esc(e.id)}" data-size="${e.sizeBytes}" data-name="${esc(e.fileName)}" style="margin:0" />` +
+              `<span class="muted num" style="min-width:52px">S${String(e.season).padStart(2, "0")}E${String(e.episode || 0).padStart(2, "0")}</span>` +
+              `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.fileName)}">${esc(e.title)}</span>` +
+              `<span class="num muted">${fmtBytes(e.sizeBytes)}</span>` +
+              `<button class="mini danger" data-file-id="${esc(e.id)}" data-file-name="${esc(e.fileName)}" data-file-size="${e.sizeBytes}">Delete</button>`, 26)).join("")}
+          </details>`).join("")}
+        </details>`;
+      }).join("") : `<div class="empty-note">Library is empty.</div>`;
+      updateBatchBar();
     }
 
-    $("#lib-items").addEventListener("click", async (e) => {
-      const btn = e.target.closest("[data-del-id]");
-      if (!btn) return;
-      const { delType, delId, delTitle } = btn.dataset;
+    const libRefresh = () => { loadDisk(); loadLibraryTree(); loadOverview(); };
+    const deleteFileById = async (id) => {
+      const r = await adminFetch(`/api/admin/library/file/${id}`, { method: "DELETE" });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || data.error) throw new Error(data.error || "Delete failed");
+      return data;
+    };
+    function updateBatchBar() {
+      const checked = [...document.querySelectorAll(".lib-ep-check:checked")];
+      $("#lib-batchbar").classList.toggle("hidden", checked.length === 0);
+      const total = checked.reduce((n, c) => n + (+c.dataset.size || 0), 0);
+      $("#lib-batch-info").textContent = checked.length
+        ? `${checked.length} episode${checked.length > 1 ? "s" : ""} · ${fmtBytes(total)}`
+        : "";
+    }
+    $("#lib-tree").addEventListener("change", (e) => {
+      if (e.target.classList.contains("lib-ep-check")) updateBatchBar();
+    });
+    $("#lib-tree").addEventListener("click", async (e) => {
+      const fileBtn = e.target.closest("[data-file-id]");
+      const titleBtn = e.target.closest("[data-del-id]");
+      if (!fileBtn && !titleBtn) return;
+      // Buttons inside <summary> must not toggle the fold they sit in.
+      e.preventDefault();
+      e.stopPropagation();
+      if (fileBtn) {
+        const { fileId, fileName, fileSize } = fileBtn.dataset;
+        if (!confirm(`Delete this episode from disk?\n\n${fileName} (${fmtBytes(+fileSize)})\n\nThis cannot be undone. Watch progress is kept.`)) return;
+        fileBtn.disabled = true;
+        fileBtn.textContent = "Deleting…";
+        try {
+          const r = await deleteFileById(fileId);
+          toast(`Deleted ${fileName} — ${fmtBytes(r.freedBytes)} freed`);
+          libRefresh();
+        } catch (err) {
+          fileBtn.disabled = false;
+          fileBtn.textContent = "Delete";
+          toast(err.message);
+        }
+        return;
+      }
+      const { delType, delId, delTitle } = titleBtn.dataset;
       if (!confirm(`Delete "${delTitle}" from disk?\n\nThis permanently removes the ${delType === "show" ? "whole show folder (all episodes)" : "movie folder"}. It cannot be undone.`)) return;
-      btn.disabled = true;
-      btn.textContent = "Deleting…";
+      titleBtn.disabled = true;
+      titleBtn.textContent = "Deleting…";
       const r = await adminFetch(`/api/admin/library/${delType}/${delId}`, { method: "DELETE" });
       const data = await r.json().catch(() => ({}));
       if (!r.ok || data.error) {
-        btn.disabled = false;
-        btn.textContent = "Delete";
+        titleBtn.disabled = false;
+        titleBtn.textContent = "Delete";
         return toast(data.error || "Delete failed");
       }
       toast(`Deleted "${delTitle}"`);
-      loadDisk(); loadLibraryList(); loadOverview();
+      libRefresh();
+    });
+    $("#lib-batch-delete").addEventListener("click", async () => {
+      const checked = [...document.querySelectorAll(".lib-ep-check:checked")];
+      if (!checked.length) return;
+      const total = checked.reduce((n, c) => n + (+c.dataset.size || 0), 0);
+      const names = checked.slice(0, 6).map((c) => "• " + c.dataset.name).join("\n");
+      if (!confirm(`Delete ${checked.length} episode${checked.length > 1 ? "s" : ""} from disk (${fmtBytes(total)})?\n\n${names}${checked.length > 6 ? `\n…and ${checked.length - 6} more` : ""}\n\nThis cannot be undone. Watch progress is kept.`)) return;
+      const btn = $("#lib-batch-delete");
+      btn.disabled = true;
+      let freed = 0, failed = 0;
+      for (const c of checked) {
+        try { freed += (await deleteFileById(c.dataset.id)).freedBytes; }
+        catch { failed++; }
+      }
+      btn.disabled = false;
+      toast(failed ? `Deleted with ${failed} failure${failed > 1 ? "s" : ""} — ${fmtBytes(freed)} freed` : `Deleted ${checked.length} episodes — ${fmtBytes(freed)} freed`);
+      libRefresh();
     });
 
     // ---------- actions ----------
@@ -1727,7 +1841,7 @@
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
       profiles: () => { loadProfileRequests(); loadProfileAccess(); loadProfiles(); loadAuth(); },
       server: () => { loadServer(); loadTimeseries(); loadUpdateCheck(); },
-      downloads: () => { loadDownloads(); loadDisk(); loadLibraryList(); loadLimits(); },
+      downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadLimits(); },
       moderation: () => { loadRequests(); loadBans(); loadIntros(); },
       logs: () => loadLogs(),
     };
@@ -1778,6 +1892,10 @@
           } else if (data.type === "download_new" || data.type === "download_update") {
             if (activeTab === "downloads") loadDownloads();
             if (data.type === "download_new") { toast("New download request: " + (data.job?.title || "")); loadBadges(); }
+          } else if (data.type === "library_updated") {
+            // A delete (possibly from another admin tab) changed the disk —
+            // keep the ON DISK zone honest.
+            if (activeTab === "downloads") { loadLibraryTree(); loadDisk(); }
           }
         };
         ws.onclose = () => setTimeout(connectWs, 5000);
