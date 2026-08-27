@@ -142,14 +142,24 @@ export const renderPlayer = async (root, { id }) => {
   // AC-3 / E-AC-3 / DTS audio is silent in most desktop browsers (fine on
   // TVs). When the browser can't decode it, play through the server's
   // compat remux (HLS: video copied, audio -> AAC).
-  const AUDIO_MIME = { ac3: "ac-3", eac3: "ec-3", dts: "dtsc", truehd: "mlpa" };
+  // BOTH directions must be mapped: the bad codecs so they remux, and the
+  // GOOD ones with their real RFC6381 strings — a bare "aac" gets "" from
+  // canPlayType (it wants mp4a.40.2), which silently classed every probed
+  // AAC stream as needs-remux and re-encoded perfectly playable audio
+  // (found 2026-08-27 hunting elia's needless-transcode report).
+  const AUDIO_MIME = {
+    ac3: "ac-3", eac3: "ec-3", dts: "dtsc", truehd: "mlpa",
+    aac: "mp4a.40.2", mp3: "mp4a.6B", opus: "opus", flac: "flac", vorbis: "vorbis",
+  };
   const audioNeedsRemux = () => {
     const codec = item.audio && item.audio.codec;
     if (!codec || item.audio.compatible) return false;
     const mime = AUDIO_MIME[codec] || codec;
     return !(
       video.canPlayType(`audio/mp4; codecs="${mime}"`) ||
-      video.canPlayType(`video/mp4; codecs="${mime}"`)
+      video.canPlayType(`video/mp4; codecs="${mime}"`) ||
+      // opus/vorbis are webm-family answers in Blink; mkv rides the same demuxer
+      video.canPlayType(`audio/webm; codecs="${mime}"`)
     );
   };
 
@@ -479,6 +489,11 @@ export const renderPlayer = async (root, { id }) => {
   // Set by the exit cleanup; declared with the stream state because the
   // startup chain (tryJitSwitch) consults it before the UI wiring below.
   let exited = false;
+  // True once THIS DEVICE actually failed to play a copy stream (media
+  // error) — from then on no watchdog or probe "upgrade" may steer back to
+  // copy, or a device that genuinely can't decode the codec ping-pongs
+  // between copy and the h264 encode forever.
+  let copyRefused = false;
   // S7: a JIT stream has ONE full-length playlist — no offset jobs exist, so
   // anything that speaks offset-URLs (keepAlive pings) must stand down.
   let jitMode = false;
@@ -633,6 +648,7 @@ export const renderPlayer = async (root, { id }) => {
   // only codecs this device decodes qualify; resolves false when jit can't
   // serve (wrong container, no index) and the caller keeps the legacy flow.
   const tryJitSwitch = async (fromSec) => {
+    if (copyRefused) return false; // jit IS a copy stream — escalations are one-way
     if (isTorrent) {
       // The probe normalizes ffprobe's "matroska,webm" to "mkv"; accept both.
       if (!/matroska|mkv/i.test(item.container || "")) return false;
@@ -781,11 +797,32 @@ export const renderPlayer = async (root, { id }) => {
       clearInterval(stallTimer);
       stallTimer = null;
     }
-    toast("This encode won't decode here — switching to transcode…", "⚙️");
-    reportMark("client_switch", { reason: "decode-stall", to: "h264", position: effTime() });
+    // A direct-play stall is very often the CONTAINER or the audio track
+    // (this Chrome can't decode AC-3/E-AC-3 at all), not the video codec —
+    // measured 2026-08-27 hunting elia's "h264 was encoded for me": the
+    // watchdog hard-coded h264 and burned CPU on video this device
+    // hardware-decodes. When the probe has told us the video is copyable,
+    // the copy remux (new container + AAC audio) fixes everything a stall
+    // like that can mean — and if the video itself was the problem, the
+    // media-error self-heal escalates copy → h264 anyway.
+    const wantV = !copyRefused && item.video && codecCopyable(item.video) ? "copy" : "h264";
+    toast(
+      wantV === "copy"
+        ? "Repackaging this stream for your device…"
+        : "This encode won't decode here — switching to transcode…",
+      "⚙️",
+    );
+    reportMark("client_switch", { reason: "decode-stall", to: wantV, position: effTime() });
     // Resume from where the direct stream died (those bytes are downloaded —
     // we were just playing them); fall back to 0 only if the seek-job fails.
-    startTranscodeAt(effTime(), "h264", { fallbackToZero: true });
+    const at = effTime();
+    if (wantV === "copy") {
+      tryJitSwitch(at).then((ok) => {
+        if (!ok) startTranscodeAt(at, "copy", { fallbackToZero: true });
+      });
+    } else {
+      startTranscodeAt(at, "h264", { fallbackToZero: true });
+    }
   };
 
   if (canFallback) {
@@ -882,7 +919,11 @@ export const renderPlayer = async (root, { id }) => {
         //    known yet) whose file turns out jit-capable → same picture,
         //    but every future seek becomes native. Silent switch: nothing
         //    is wrong with what the viewer sees.
-        if (currentV === "h264" && videoNeedsTranscode() && codecCopyable(item.video)) {
+        // The h264 upgrade applies whenever the probe proves the video
+        // copyable — however we ENDED UP encoding (tag guess, decode-stall
+        // watchdog) — except after this device actually refused a copy
+        // stream (copyRefused: escalations are one-way).
+        if (currentV === "h264" && !copyRefused && codecCopyable(item.video)) {
           toast("This device can play this video — switching to the fast path…", "⚡");
           reportMark("client_switch", { reason: "probe-upgrade", to: "copy", position: effTime() });
           const at = effTime();
@@ -2633,6 +2674,7 @@ export const renderPlayer = async (root, { id }) => {
     // from the current position instead of giving up.
     if (usingTranscode && currentV === "copy" && !switchedToTranscode) {
       switchedToTranscode = true;
+      copyRefused = true; // remember: no later "upgrade" may ping-pong back to copy
       toast("This device refused the fast path — re-encoding instead…", "⚙️");
       reportMark("client_switch", { reason: "media-error", to: "h264", position: effTime() });
       startTranscodeAt(effTime(), "h264", { fallbackToZero: true });
