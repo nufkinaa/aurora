@@ -312,7 +312,9 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
     const table = await jit.tableFor(key, readRange, st.size).finally(() => {
       try { fs.closeSync(fd); } catch {}
     });
-    if (!table) return res.status(503).send("No usable index in this file");
+    // Permanent property of the file (not MKV / no usable Cues) — 404, so
+    // the client falls back and nothing reads it as a server fault.
+    if (!table) return res.status(404).send("No usable index in this file");
     // ?seg=fmp4 → fragmented-MP4 segments (Apple native HLS; required for
     // HEVC there) with the hvc1 tag riding along when the client asked.
     const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
@@ -334,7 +336,22 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
   try {
     const st = fs.statSync(entry.path);
     const key = `${req.params.id}-${Math.floor(st.mtimeMs)}`;
-    const table = await jit.tableFor(key, null, 0).catch(() => null);
+    // Normally the playlist fetch populated the table cache — but after a
+    // server restart mid-watch the player still holds the full playlist and
+    // just asks for the next segment. Rebuild the table from the file
+    // rather than 409ing a perfectly resumable stream.
+    let table = await jit.tableFor(key, null, 0).catch(() => null);
+    if (!table) {
+      const fd = fs.openSync(entry.path, "r");
+      const readRange = async (start, len) => {
+        const b = Buffer.alloc(len);
+        fs.readSync(fd, b, 0, len, start);
+        return b;
+      };
+      table = await jit.tableFor(key, readRange, st.size)
+        .catch(() => null)
+        .finally(() => { try { fs.closeSync(fd); } catch {} });
+    }
     if (!table) return res.status(409).send("Playlist first");
     // fMP4 producers get their own dir — same table, different segment files.
     const dir = path.join(require("../config").CACHE_DIR, "jit", key + (fmt ? "-f4" : ""));

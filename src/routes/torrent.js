@@ -235,10 +235,14 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/index.m3u8", async (req, 
     const key = `jt-${req.params.infoHash}-${fileIdx}`;
     const table = await Promise.race([
       jit.tableFor(key, torrentReadRange(t, file), file.length),
-      new Promise((r) => setTimeout(r, JIT_INDEX_TIMEOUT_MS, null)),
+      new Promise((r) => setTimeout(r, JIT_INDEX_TIMEOUT_MS, "timeout")),
     ]);
-    perf.event(req.params.infoHash, "jit_index", Date.now() - t0, { ok: !!table });
-    if (!table) return res.status(503).send("No usable index yet");
+    perf.event(req.params.infoHash, "jit_index", Date.now() - t0, { ok: !!(table && table !== "timeout") });
+    // null = the file has no usable MKV index (permanent → 404, client falls
+    // back for good). "timeout" = the swarm hasn't delivered the head/Cues
+    // yet (temporary → 503, a later attempt can succeed).
+    if (table === "timeout") return res.status(503).send("Index not ready yet");
+    if (!table) return res.status(404).send("No usable index in this file");
     const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
     const suffix = `?v=copy${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
@@ -261,7 +265,16 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/:file", async (req, res) 
     const file = torrent.pickVideoFile(t, fileIdx);
     if (!file) return res.status(404).send("No video file in torrent");
     const key = `jt-${req.params.infoHash}-${fileIdx}`;
-    const table = await jit.tableFor(key, null, 0).catch(() => null);
+    // After a server restart mid-watch the table cache is empty while the
+    // player still holds the full playlist — rebuild through the torrent
+    // instead of 409ing (the reads re-prioritize the head/Cues pieces).
+    let table = await jit.tableFor(key, null, 0).catch(() => null);
+    if (!table) {
+      table = await Promise.race([
+        jit.tableFor(key, torrentReadRange(t, file), file.length),
+        new Promise((r) => setTimeout(r, JIT_INDEX_TIMEOUT_MS, null)),
+      ]).catch(() => null);
+    }
     if (!table) return res.status(409).send("Playlist first");
     // Producer input: the complete file straight from disk; otherwise our
     // own blocking range route, so ffmpeg's reads pull the exact pieces

@@ -39,6 +39,19 @@ const buildTable = (index) => {
     table.push({ start, dur: Math.max(0.04, end - start) });
     i = j;
   }
+  // A cue within a sliver of the file's end would declare a near-empty
+  // final segment — whose producer (-ss start+0.3) would seek past EOF and
+  // emit nothing, hanging the request to its deadline. Fold it into the
+  // previous segment instead; only the LAST segment can be a sliver (mid-
+  // table gaps are real GOP lengths).
+  if (table.length >= 2) {
+    const last = table[table.length - 1];
+    if (last.dur < 0.5) {
+      table.pop();
+      const prev = table[table.length - 1];
+      prev.dur = index.durationSec - prev.start;
+    }
+  }
   return table;
 };
 
@@ -222,4 +235,13 @@ setInterval(() => {
   }
 }, 30000).unref?.();
 
-module.exports = { tableFor, playlistText, jobFor, ensureSegment, ensureInit, segPath };
+module.exports = {
+  tableFor,
+  playlistText,
+  jobFor,
+  ensureSegment,
+  ensureInit,
+  segPath,
+  // Test-only: the split rule must mirror ffmpeg's or declared EXTINFs lie.
+  _internals: { buildTable, producedUpTo, TARGET_SEG_SEC },
+};
