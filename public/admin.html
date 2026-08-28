@@ -41,6 +41,26 @@
     .card > h2, section > h2 { font-size: 1.05rem; font-weight: 800; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .card > h2 .note, section > h2 .note { font-size: 0.8rem; font-weight: 600; color: var(--text-faint); }
     section { margin-bottom: 30px; }
+
+    /* ---------- collapsible cards (elia 2026-08-28) ----------
+       The busy panes (Downloads, Users) fold: every block is a card whose
+       header always shows and whose CONTENT scrolls inside the card, so
+       the page itself stays short on any screen. Fold state persists per
+       device (localStorage, see the acard script). */
+    details.acard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 14px; }
+    details.acard > summary { list-style: none; cursor: pointer; padding: 13px 16px; display: flex; align-items: center; gap: 10px; user-select: none; }
+    details.acard > summary::-webkit-details-marker { display: none; }
+    details.acard > summary:hover { background: rgba(255, 255, 255, 0.03); }
+    details.acard > summary h2 { font-size: 1rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; }
+    details.acard > summary h2 .note { font-size: 0.78rem; font-weight: 600; color: var(--text-faint); }
+    details.acard > summary .chev { color: var(--text-faint); flex: none; font-size: 0.8rem; transition: transform 0.15s; }
+    details.acard[open] > summary .chev { transform: rotate(90deg); }
+    details.acard > .acard-body { padding: 2px 16px 14px; max-height: min(56vh, 540px); overflow-y: auto; overscroll-behavior: contain; }
+    details.acard > .acard-body.tall { max-height: none; overflow: visible; }
+    @media (max-width: 640px) {
+      details.acard > summary { padding: 11px 12px; }
+      details.acard > .acard-body { padding: 2px 12px 12px; max-height: 62vh; }
+    }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
     @media (max-width: 980px) { .grid-2 { grid-template-columns: 1fr; } }
 
@@ -349,32 +369,43 @@
 
     <!-- ================= PROFILES ================= -->
     <div class="pane" id="pane-profiles">
-      <section>
-        <h2>Waiting for approval <span class="pill" id="req-count">0</span></h2>
-        <div class="table-scroll"><table>
-          <thead><tr><th>Asked</th><th>Profile</th><th>Real name</th><th>Note</th><th>From</th><th></th></tr></thead>
-          <tbody id="profile-requests"></tbody>
-        </table></div>
-        <div class="empty-note" id="req-empty">No one is waiting for approval.</div>
-      </section>
-      <section id="auth-mode-section">
-        <h2>Sign-in rollout <span class="note">live switch — no restart, reversible any time</span></h2>
-        <div class="auth-modes" id="auth-modes"></div>
-        <div class="empty-note" id="auth-google-note" style="margin-top:10px"></div>
-      </section>
-      <section id="auth-section" class="hidden">
-        <h2>Sign-in status <span class="note">each profile IS its account — “claimed” means it can log in (username set)</span></h2>
-        <div class="table-scroll"><table>
-          <thead><tr><th>Profile</th><th>Username</th><th>Email</th><th>Status</th><th>Password</th><th>Google</th></tr></thead>
-          <tbody id="signin-table"></tbody>
-        </table></div>
-      </section>
-      <section>
-        <h2>Devices &amp; IPs per profile <span class="note">who has been getting in</span></h2>
-        <div id="profile-access"></div>
-        <div class="empty-note hidden" id="access-empty">No profile has been entered yet.</div>
-      </section>
-      <div class="now-grid" id="profiles-grid"></div>
+      <details class="acard" data-key="p-req" open>
+        <summary><span class="chev">▶</span><h2>Waiting for approval <span class="pill" id="req-count">0</span></h2></summary>
+        <div class="acard-body">
+          <div class="table-scroll"><table>
+            <thead><tr><th>Asked</th><th>Profile</th><th>Real name</th><th>Note</th><th>From</th><th></th></tr></thead>
+            <tbody id="profile-requests"></tbody>
+          </table></div>
+          <div class="empty-note" id="req-empty">No one is waiting for approval.</div>
+        </div>
+      </details>
+      <details class="acard" data-key="p-profiles" open>
+        <summary><span class="chev">▶</span><h2>Profiles <span class="pill" id="profiles-count">0</span></h2></summary>
+        <div class="acard-body"><div class="now-grid" id="profiles-grid" style="margin-top:10px"></div></div>
+      </details>
+      <details class="acard" data-key="p-rollout" id="auth-mode-section">
+        <summary><span class="chev">▶</span><h2>Sign-in rollout <span class="note">live switch — no restart, reversible any time</span></h2></summary>
+        <div class="acard-body">
+          <div class="auth-modes" id="auth-modes" style="margin-top:10px"></div>
+          <div class="empty-note" id="auth-google-note" style="margin-top:10px"></div>
+        </div>
+      </details>
+      <details class="acard hidden" data-key="p-signin" id="auth-section">
+        <summary><span class="chev">▶</span><h2>Sign-in status <span class="note">each profile IS its account — “claimed” means it can log in (username set)</span></h2></summary>
+        <div class="acard-body">
+          <div class="table-scroll"><table>
+            <thead><tr><th>Profile</th><th>Username</th><th>Email</th><th>Status</th><th>Password</th><th>Google</th></tr></thead>
+            <tbody id="signin-table"></tbody>
+          </table></div>
+        </div>
+      </details>
+      <details class="acard" data-key="p-access">
+        <summary><span class="chev">▶</span><h2>Devices &amp; IPs per profile <span class="note">who has been getting in</span></h2></summary>
+        <div class="acard-body">
+          <div id="profile-access" style="margin-top:8px"></div>
+          <div class="empty-note hidden" id="access-empty">No profile has been entered yet.</div>
+        </div>
+      </details>
     </div>
 
     <!-- ================= SERVER ================= -->
@@ -416,71 +447,87 @@
 
     <!-- ================= DOWNLOADS (three zones: needs you / in flight / on disk) ================= -->
     <div class="pane" id="pane-downloads">
-      <section>
-        <h2>Needs you <span class="pill warn" id="dl-pending-count">0</span>
-          <span class="note">approvals waiting on you — everything else runs by itself</span>
-        </h2>
-        <div id="disk-headline" class="empty-note" style="font-size:0.95rem;padding:6px 4px"></div>
-        <div class="now-grid" id="disk-bars"></div>
-        <div class="now-grid" id="dl-pending"></div>
-        <div class="empty-note hidden" id="dl-pending-empty">Nothing is waiting for approval — there's enough disk space, so requests start by themselves.</div>
-      </section>
-      <section>
-        <h2>In flight <span class="note">live downloads — progress, speed and how long is left</span></h2>
-        <div class="table-scroll"><table>
-          <thead><tr><th>Title</th><th>Size</th><th>Progress</th><th>Speed</th><th>ETA</th><th>Status</th><th></th></tr></thead>
-          <tbody id="dl-jobs"></tbody>
-        </table></div>
-        <div class="empty-note hidden" id="dl-jobs-empty">Nothing is downloading right now.</div>
-        <div class="bar-row" style="align-items:center;margin-top:10px">
-          <span class="muted" style="font-size:0.8rem">Speed limits:</span>
-          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↓
-            <input type="text" id="lim-down" placeholder="0" style="max-width:110px;flex:none" /></label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↑
-            <input type="text" id="lim-up" placeholder="0" style="max-width:110px;flex:none" /></label>
-          <button class="btn small btn-primary" id="lim-apply">Apply</button>
-          <span class="muted" style="font-size:0.8rem">0 = unlimited · e.g. <b>5M</b> or <b>500K</b> per second</span>
+      <details class="acard" data-key="d-needs" open>
+        <summary><span class="chev">▶</span><h2>Needs you <span class="pill warn" id="dl-pending-count">0</span>
+          <span class="note">approvals waiting on you — everything else runs by itself</span></h2></summary>
+        <div class="acard-body">
+          <div id="disk-headline" class="empty-note" style="font-size:0.95rem;padding:6px 4px"></div>
+          <div class="now-grid" id="disk-bars"></div>
+          <div class="now-grid" id="dl-pending" style="margin-top:10px"></div>
+          <div class="empty-note hidden" id="dl-pending-empty">Nothing is waiting for approval — there's enough disk space, so requests start by themselves.</div>
         </div>
-        <div class="empty-note" id="lim-status" style="padding:4px"></div>
-      </section>
-      <section>
-        <h2>Finished <span class="note">done, declined or failed — remove rows you're done with</span></h2>
-        <div class="table-scroll"><table>
-          <thead><tr><th>Title</th><th>Quality</th><th>Size</th><th>Status</th><th></th></tr></thead>
-          <tbody id="dl-done"></tbody>
-        </table></div>
-        <div class="empty-note hidden" id="dl-done-empty">Nothing finished yet.</div>
-      </section>
+      </details>
+      <details class="acard" data-key="d-flight" open>
+        <summary><span class="chev">▶</span><h2>In flight <span class="note">live downloads — progress, speed and how long is left</span></h2></summary>
+        <div class="acard-body">
+          <div class="table-scroll"><table>
+            <thead><tr><th>Title</th><th>Size</th><th>Progress</th><th>Speed</th><th>ETA</th><th>Status</th><th></th></tr></thead>
+            <tbody id="dl-jobs"></tbody>
+          </table></div>
+          <div class="empty-note hidden" id="dl-jobs-empty">Nothing is downloading right now.</div>
+          <div class="bar-row" style="align-items:center;margin-top:10px;flex-wrap:wrap">
+            <span class="muted" style="font-size:0.8rem">Speed limits:</span>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↓
+              <input type="text" id="lim-down" placeholder="0" style="max-width:110px;flex:none" /></label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↑
+              <input type="text" id="lim-up" placeholder="0" style="max-width:110px;flex:none" /></label>
+            <button class="btn small btn-primary" id="lim-apply">Apply</button>
+            <span class="muted" style="font-size:0.8rem">0 = unlimited · e.g. <b>5M</b> or <b>500K</b> per second</span>
+          </div>
+          <div class="empty-note" id="lim-status" style="padding:4px"></div>
+        </div>
+      </details>
+      <details class="acard" data-key="d-done">
+        <summary><span class="chev">▶</span><h2>Finished <span class="note">done, declined or failed — remove rows you're done with</span></h2></summary>
+        <div class="acard-body">
+          <div class="table-scroll"><table>
+            <thead><tr><th>Title</th><th>Quality</th><th>Size</th><th>Status</th><th></th></tr></thead>
+            <tbody id="dl-done"></tbody>
+          </table></div>
+          <div class="empty-note hidden" id="dl-done-empty">Nothing finished yet.</div>
+        </div>
+      </details>
       <style>
         #lib-chips .chip-active { background: #7c5cff; border-color: #7c5cff; color: #fff; }
         #lib-tree summary::-webkit-details-marker { display: none; }
         #lib-tree details > summary .lib-row:hover { background: rgba(255,255,255,0.04); }
+        /* Controls stay put; only the catalog itself scrolls. */
+        #lib-tree { max-height: min(52vh, 560px); overflow-y: auto; overscroll-behavior: contain;
+          border: 1px solid var(--line); border-radius: 10px; }
+        @media (max-width: 640px) {
+          #lib-tree { max-height: 58vh; }
+          /* Thumb-sized targets on phones. */
+          #pane-downloads .mini { padding: 7px 12px; min-height: 30px; }
+          .lib-ep-check, .lib-season-check { width: 20px; height: 20px; }
+        }
       </style>
-      <section>
-        <h2>On disk <span class="note">find it, see who watched it, delete it — files are removed permanently</span></h2>
-        <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
-          <input type="text" id="lib-search" placeholder="Search titles &amp; episodes…" style="max-width:230px;flex:1;min-width:150px" />
-          <select id="lib-sort" style="padding:7px 10px;background:var(--bg-input,#1c1c24);color:inherit;border:1px solid rgba(255,255,255,0.12);border-radius:8px">
-            <option value="size">Biggest first</option>
-            <option value="new">Recently added</option>
-            <option value="old">Oldest first</option>
-            <option value="az">A–Z</option>
-          </select>
-          <span id="lib-chips" style="display:flex;gap:6px">
-            <button class="mini chip-active" data-libfilter="all">All</button>
-            <button class="mini" data-libfilter="movies">Movies</button>
-            <button class="mini" data-libfilter="shows">Shows</button>
-            <button class="mini" data-libfilter="watched">Watched</button>
-          </span>
-          <button class="mini" id="lib-select-watched" title="Tick every fully-watched episode currently shown">Select watched</button>
+      <details class="acard" data-key="d-disk" open>
+        <summary><span class="chev">▶</span><h2>On disk <span class="note">find it, see who watched it, delete it — files are removed permanently</span></h2></summary>
+        <div class="acard-body tall">
+          <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px;margin:8px 0 6px">
+            <input type="text" id="lib-search" placeholder="Search titles &amp; episodes…" style="max-width:230px;flex:1;min-width:150px" />
+            <select id="lib-sort" style="padding:7px 10px;background:var(--bg-input,#1c1c24);color:inherit;border:1px solid rgba(255,255,255,0.12);border-radius:8px">
+              <option value="size">Biggest first</option>
+              <option value="new">Recently added</option>
+              <option value="old">Oldest first</option>
+              <option value="az">A–Z</option>
+            </select>
+            <span id="lib-chips" style="display:flex;gap:6px">
+              <button class="mini chip-active" data-libfilter="all">All</button>
+              <button class="mini" data-libfilter="movies">Movies</button>
+              <button class="mini" data-libfilter="shows">Shows</button>
+              <button class="mini" data-libfilter="watched">Watched</button>
+            </span>
+            <button class="mini" id="lib-select-watched" title="Tick every fully-watched episode currently shown">Select watched</button>
+          </div>
+          <div id="lib-toolbar" class="empty-note" style="font-size:0.9rem;padding:2px 4px"></div>
+          <div id="lib-batchbar" class="bar-row hidden" style="align-items:center;margin:6px 0">
+            <button class="btn small btn-primary" id="lib-batch-delete" style="background:#b91c1c;border-color:#b91c1c">Delete selected</button>
+            <span class="muted" id="lib-batch-info" style="font-size:0.85rem"></span>
+          </div>
+          <div id="lib-tree"></div>
         </div>
-        <div id="lib-toolbar" class="empty-note" style="font-size:0.9rem;padding:2px 4px"></div>
-        <div id="lib-batchbar" class="bar-row hidden" style="align-items:center;margin:6px 0">
-          <button class="btn small btn-primary" id="lib-batch-delete" style="background:#b91c1c;border-color:#b91c1c">Delete selected</button>
-          <span class="muted" id="lib-batch-info" style="font-size:0.85rem"></span>
-        </div>
-        <div id="lib-tree"></div>
-      </section>
+      </details>
     </div>
 
     <!-- ================= MODERATION ================= -->
@@ -1282,6 +1329,7 @@
     // ---------- profiles ----------
     async function loadProfiles() {
       const profs = await json("/api/admin/profiles");
+      $("#profiles-count").textContent = profs.length;
       $("#profiles-grid").innerHTML = profs.map((p) => `
         <div class="now-card"${p.locked ? ' style="opacity:0.6"' : ""}>
           <div class="who">
@@ -1666,8 +1714,11 @@
           `<b style="${low ? "color:#f87171" : ""}">${fmtBytes(minFree)} free</b>${low ? " — running low, clean up below" : ""}`;
       }
       $("#disk-bars").innerHTML = disks.map((d) => {
+        // The folder NAME is what identifies a library ("Movies", "Shows");
+        // the full path is a tooltip — on a phone it wrapped over 4 lines.
+        const shortRoot = d.root.split(/[\\/]/).filter(Boolean).slice(-2).join("/");
         if (d.total == null) {
-          return `<div class="now-card"><div class="name">${esc(d.root)}</div><div class="meta">size unavailable</div></div>`;
+          return `<div class="now-card"><div class="name" title="${esc(d.root)}">${esc(shortRoot)}</div><div class="meta">size unavailable</div></div>`;
         }
         const used = d.total - d.free;
         const pct = Math.min(100, Math.round((used / d.total) * 100));
@@ -1677,7 +1728,7 @@
         const gated = minFreePct > 0 && freePct < minFreePct;
         const low = gated || d.free < 30e9 || pct > 90; // running out — read as a warning
         return `<div class="now-card">
-          <div class="name" style="margin-bottom:8px">${esc(d.root)}</div>
+          <div class="name" style="margin-bottom:8px" title="${esc(d.root)}">${esc(shortRoot)}</div>
           <span class="mini-prog" style="width:100%"><i style="width:${pct}%${low ? ";background:#f87171" : ""}"></i></span>
           <div class="meta" style="margin-top:6px${low ? ";color:#f87171;font-weight:700" : ""}">${fmtBytes(d.free)} free of ${fmtBytes(d.total)} (${pct}% used)</div>
           ${minFreePct > 0 ? `<div class="meta" style="margin-top:4px">${gated
@@ -1936,6 +1987,22 @@
       analyticsDays = +b.dataset.days;
       for (const x of $("#range-chips").children) x.classList.toggle("active", x === b);
       loadAnalytics();
+    });
+
+    // ---------- collapsible cards ----------
+    // Fold state is per device (localStorage): the HTML's open attributes
+    // are just the first-visit defaults.
+    const ACARD_KEY = "aurora-admin-cards";
+    const acardState = (() => {
+      try { return JSON.parse(localStorage.getItem(ACARD_KEY)) || {}; } catch { return {}; }
+    })();
+    document.querySelectorAll("details.acard[data-key]").forEach((d) => {
+      const k = d.dataset.key;
+      if (k in acardState) d.open = !!acardState[k];
+      d.addEventListener("toggle", () => {
+        acardState[k] = d.open;
+        try { localStorage.setItem(ACARD_KEY, JSON.stringify(acardState)); } catch {}
+      });
     });
 
     // ---------- tabs ----------
