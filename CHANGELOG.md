@@ -13,6 +13,10 @@ Shown inside the app under Preferences → What's new. Newest first; one
 - Franchise and "More from <director>" shelves on movie pages (needs a TMDB key).
 - Trailers on the detail page.
 - Admin log can be filtered by subsystem and copied in one press.
+- Smart downloads: two-thirds into an episode, the next one starts downloading to the server (off per profile in Preferences → Playback).
+- Resume shows the frame you stopped on — on the title page's Resume button and in the player.
+- Watch parties: start one from the player (👥), share a four-letter code, and everyone's play, pause and seek stay in step.
+- Offline on your phone: "Save offline" on any title you own keeps a phone-playable copy on the device; the app and your saved titles work with no server in reach. Needs Aurora on an https address (browsers allow offline storage only there).
 - This "What's new" card, with the app's version, under Preferences.
 
 ## 1.0.0 — 2026-08-27

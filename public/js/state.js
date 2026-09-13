@@ -120,7 +120,9 @@ export const refreshProgress = async () => {
     state.episodeProgress = episodeProgress || {};
     state.streamProgress = streamProgress || {};
   } catch {
-    state.progress = {};
+    // Offline (or a blip): keep what we have — wiping it would drop every
+    // resume point the moment the server is out of reach.
+    if (!state.progress) state.progress = {};
   }
 };
 

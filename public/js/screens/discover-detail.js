@@ -30,6 +30,7 @@ import {
   loadLibrary,
 } from "../state.js";
 import { navigate } from "../router.js";
+import * as offline from "../offline.js";
 import { shelfRow } from "../components.js";
 import { heroBlock, watchlistButton } from "./details.js";
 import { pushScope, popScope } from "../focus.js";
@@ -697,7 +698,7 @@ const buildFilterBar = (streams, renderList) => {
 // The "you already have this" row: the finished download, presented as the
 // obvious first choice above the torrents rather than as a green tick somewhere
 // in the list. Plays the library file, so it starts instantly and seeks freely.
-const ownedRow = ({ id, label, onDownload }) =>
+const ownedRow = ({ id, label, onDownload, item }) =>
   el(
     "div",
     { class: "source-row-wrap" },
@@ -739,6 +740,8 @@ const ownedRow = ({ id, label, onDownload }) =>
         "aria-label": "Download to this device",
         onclick: onDownload,
       }),
+    // …and keep it inside the app, playable with no server in reach.
+    item && offlineButton(item, { compact: true }),
   );
 
 // Render a sources list into a host element (with loading + empty states)
@@ -1233,6 +1236,10 @@ export const renderDetail = async (root, { source, type, id }) => {
   if (state.profile) {
     actions.push(lib ? watchlistButton(lib) : streamWatchlistButton(meta));
   }
+  if (!isShow && lib) {
+    const ob = offlineButton(lib, { compact: true });
+    if (ob) actions.push(ob);
+  }
   if (!isShow && lib && lib.downloadUrl) {
     actions.push(
       el("button", {
@@ -1466,6 +1473,7 @@ export const renderDetail = async (root, { source, type, id }) => {
           owned: lib
             ? {
                 id: lib.id,
+                item: lib,
                 label: `${view.title} — in your library`,
                 onDownload: lib.downloadUrl
                   ? () => openDownload(view.title, [lib], deviceKeys)
@@ -1540,6 +1548,7 @@ export const renderDetail = async (root, { source, type, id }) => {
         owned: row.local
           ? {
               id: row.local.id,
+              item: { ...row.local, showTitle: view.title, showId: lib && lib.id, cover: view.cover },
               label: `${view.title} · S${row.season} E${row.episode} — in your library`,
               onDownload: row.local.downloadUrl
                 ? () =>
@@ -2068,6 +2077,55 @@ export const renderDetail = async (root, { source, type, id }) => {
       ),
     );
   }
+};
+
+// ---------- save offline ----------
+// One button per library file: Save offline → (preparing 43% → saving 71%)
+// → Saved ✓ (press again to remove). Hidden on plain http, where the
+// browser has no offline storage to offer (see offline.js).
+const offlineButton = (item, { compact = false } = {}) => {
+  if (!offline.available() || !item || !item.id) return null;
+  const btn = el("button", {
+    class: `btn ${compact ? "btn-icon" : ""} focusable btn-offline`,
+    title: "Save offline on this device",
+    "aria-label": "Save offline on this device",
+  });
+  let saved = false;
+  let busy = false;
+  const face = (text, icon = "📱") => {
+    btn.innerHTML = "";
+    btn.append(el("span", {}, icon));
+    if (!compact) btn.append(el("span", {}, text));
+    btn.title = compact ? text : btn.title;
+  };
+  const paint = async () => {
+    saved = await offline.isSaved(item.id).catch(() => false);
+    btn.classList.toggle("saved", saved);
+    face(saved ? "Saved ✓" : "Save offline", saved ? "✅" : "📱");
+  };
+  btn.onclick = async () => {
+    if (busy) return;
+    if (saved) {
+      await offline.removeSaved(item.id);
+      toast("Removed from this device", "🗑");
+      return paint();
+    }
+    busy = true;
+    try {
+      await offline.saveItem(item, ({ phase, pct, note }) => {
+        const p = Math.round((pct || 0) * 100);
+        face(phase === "preparing" ? `Preparing ${p}%` : phase === "saving" ? `Saving ${p}%` : "Saved ✓", "⏳");
+        if (note) btn.title = note;
+      });
+      toast(`“${item.title}” is saved on this device`, "📱");
+    } catch (e) {
+      toast(`Couldn't save: ${e.message}`, "⚠️");
+    }
+    busy = false;
+    paint();
+  };
+  paint();
+  return btn;
 };
 
 // ---------- trailer ----------

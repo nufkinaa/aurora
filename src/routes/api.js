@@ -118,6 +118,42 @@ router.get("/api/changelog", (req, res) => {
   res.json(changelogCache.data);
 });
 
+// Everything the app shell is made of, for the service worker to precache
+// so the app boots with no server in reach. Versioned by the files' mtimes,
+// so a deploy makes the worker re-fetch exactly once.
+let shellManifest = { at: 0, data: null };
+router.get("/sw-manifest.json", (req, res) => {
+  const fs = require("fs");
+  const pub = path.join(__dirname, "..", "..", "public");
+  if (Date.now() - shellManifest.at > 30000 || !shellManifest.data) {
+    const files = ["/", "/index.html"];
+    let stamp = 0;
+    const walk = (dir, prefix) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (e.isDirectory()) walk(path.join(dir, e.name), `${prefix}/${e.name}`);
+        else if (/\.(js|css)$/.test(e.name)) {
+          files.push(`${prefix}/${e.name}`);
+          try { stamp = Math.max(stamp, Math.floor(fs.statSync(path.join(dir, e.name)).mtimeMs)); } catch {}
+        }
+      }
+    };
+    for (const sub of ["js", "css"]) {
+      try { walk(path.join(pub, sub), `/${sub}`); } catch {}
+    }
+    shellManifest = { at: Date.now(), data: { version: String(stamp), files } };
+  }
+  res.setHeader("Cache-Control", "no-store");
+  res.json(shellManifest.data);
+});
+
+// Offline copies (media/offline.js): ask for one, then poll until ready.
+router.post("/api/offline/prepare/:id", (req, res) => {
+  res.json(require("../media/offline").prepare(req.params.id));
+});
+router.get("/api/offline/status/:id", (req, res) => {
+  res.json(require("../media/offline").status(req.params.id));
+});
+
 // Watch parties: what's on right now (the Home strip), and one party by
 // code (the join route needs the item before it can open the player).
 router.get("/api/party", (req, res) => {

@@ -7,6 +7,7 @@ import { navigate } from "../router.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
 import { party, createParty, joinParty, leaveParty, sendPartyState, onPartyState, onPartyUpdate, onPartyEnded } from "../party.js";
+import * as offline from "../offline.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -63,9 +64,30 @@ export const renderPlayer = async (root, { id }) => {
   const entryHash = location.hash;
 
   let item;
+  // Offline mode (#/play/<id>?offline=1, from the Saved screen): the item
+  // comes from this device's store and the bytes from the service worker's
+  // media cache — no server involved, no probe, no transcode decisions.
+  const offlineMode = location.hash.includes("offline=1");
   // Torrent sources are handed over directly by the Discover page (no server
   // round-trip); fall back to the API for library items or a page refresh.
-  if (state.pendingItems[itemId]) {
+  if (offlineMode) {
+    const saved = await offline.getSaved(itemId).catch(() => null);
+    if (!saved) {
+      toast("That title isn't saved on this device", "📱");
+      return navigate("#/saved");
+    }
+    item = {
+      ...saved,
+      videoUrl: `/offline/media/${saved.id}`,
+      downloadUrl: null,
+      hlsUrl: null,
+      transcodeBase: null,
+      video: null,
+      audio: null,
+      subtitles: (saved.subtitles || []).map((t) => ({ ...t })),
+      _offline: true,
+    };
+  } else if (state.pendingItems[itemId]) {
     item = state.pendingItems[itemId];
     delete state.pendingItems[itemId];
   } else {
@@ -759,7 +781,10 @@ export const renderPlayer = async (root, { id }) => {
   // before the probe existed they had no item.video/audio so these library
   // branches never matched a torrent; the guard keeps that invariant now
   // that probe data fills those fields.
-  if (!isTorrent && videoNeedsTranscode()) {
+  if (item._offline) {
+    // The saved copy was made playable for this device (offline.js); play it.
+    startDirect();
+  } else if (!isTorrent && videoNeedsTranscode()) {
     // Library file this device can't play directly. The file is complete on
     // disk, so resuming at the saved position works (unlike torrent streams,
     // where the bytes at an arbitrary offset may not be downloaded yet).
@@ -2627,9 +2652,19 @@ export const renderPlayer = async (root, { id }) => {
     if (!state.profile || !d) return;
     // Save the EFFECTIVE content time (transcode offset + clock) so resume lands
     // where the viewer actually stopped, not where the transcode session began.
+    const pos = effTime();
     api
-      .saveProgress(state.profile.id, item.id, effTime(), d, streamMeta())
-      .catch(() => {});
+      .saveProgress(state.profile.id, item.id, pos, d, streamMeta())
+      .then(() => {
+        // a good save also refreshes the local view, so the Saved screen and
+        // resume points don't lag while the server is reachable
+        state.progress[item.id] = { position: Math.floor(pos), duration: Math.floor(d), finished: d > 0 && pos / d > 0.95, updatedAt: Date.now() };
+      })
+      .catch(() => {
+        // offline: keep it here, flushed when the server is back (main.js)
+        state.progress[item.id] = { position: Math.floor(pos), duration: Math.floor(d), finished: d > 0 && pos / d > 0.95, updatedAt: Date.now() };
+        offline.queueProgress(state.profile.id, item.id, pos, d);
+      });
   };
 
   // ---------- Up Next ----------

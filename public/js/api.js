@@ -81,6 +81,8 @@ export const api = {
     ),
   changelog: () => json("/api/changelog"),
   party: (code) => json(`/api/party/${encodeURIComponent(code)}`),
+  offlinePrepare: (id) => post(`/api/offline/prepare/${encodeURIComponent(id)}`, {}),
+  offlineStatus: (id) => json(`/api/offline/status/${encodeURIComponent(id)}`),
   parties: () => json("/api/party"),
   discoverSimilar: (type, id, tmdbId) =>
     json(

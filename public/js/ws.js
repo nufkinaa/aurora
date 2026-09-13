@@ -69,7 +69,12 @@ const showOfflineBanner = () => {
   if (document.getElementById(BANNER_ID)) return;
   const b = document.createElement("div");
   b.id = BANNER_ID;
-  b.textContent = "Can't reach the Aurora server — retrying…";
+  b.textContent = "Can't reach the Aurora server — retrying… ";
+  const a = document.createElement("a");
+  a.href = "#/saved";
+  a.textContent = "Saved titles still play";
+  a.style.cssText = "color:#fff;text-decoration:underline;margin-left:6px";
+  b.append(a);
   b.style.cssText =
     "position:fixed;bottom:0;left:0;right:0;z-index:9999;padding:6px 12px;" +
     "text-align:center;font-size:0.85rem;font-weight:600;" +

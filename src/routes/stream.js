@@ -119,6 +119,16 @@ router.get("/img/still/:id", async (req, res) => {
   }
 });
 
+// The phone-playable copy made by media/offline.js (Range-capable, so the
+// phone's cache can pull it in one go and the player can seek if it ever
+// plays it straight from here).
+router.get("/offline/file/:id", (req, res) => {
+  const file = require("../media/offline").fileFor(req.params.id);
+  if (!file) return res.status(404).send("Not prepared");
+  res.setHeader("Cache-Control", "private, max-age=0");
+  res.sendFile(file);
+});
+
 // A frame at a given second (?t=), for "resume from here" prompts.
 router.get("/img/frame/:id", async (req, res) => {
   try {

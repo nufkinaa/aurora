@@ -44,6 +44,7 @@ route("/downloads", (root, p) => import("./screens/downloads.js").then((m) => m.
 // Join a watch party by code: look the party up, hand its item to the
 // player (a torrent play-item travels with the party; a library id is
 // enough on its own), and open the player in party mode.
+route("/saved", (root, p) => import("./screens/saved.js").then((m) => m.renderSaved(root, p)));
 route("/party/:code", async (root, p) => {
   const code = String(p.code || "").toUpperCase();
   let party = null;
@@ -146,6 +147,28 @@ initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
     paint();
   });
   window.addEventListener("hashchange", () => setTimeout(() => { load(); paint(); }, 0));
+}
+
+// Offline copies: the worker that serves the app and saved titles with no
+// server in reach, the "Saved" nav entry (shown once something is saved,
+// or whenever the server is unreachable), and the flush of progress made
+// offline the moment the server is back.
+{
+  import("./offline.js").then((offline) => {
+    offline.registerWorker();
+    const nav = $("#nav-saved");
+    const paint = async () => {
+      let any = false;
+      try { any = (await offline.listSaved()).length > 0; } catch {}
+      nav.classList.toggle("hidden", !(any || !navigator.onLine || !state.ws));
+    };
+    paint();
+    window.addEventListener("hashchange", () => setTimeout(paint, 0));
+    window.addEventListener("offline", paint);
+    window.addEventListener("online", () => { paint(); offline.flushProgress().catch(() => {}); });
+    // the socket coming back is the surest "server is there" signal
+    onMessage("welcome", () => { offline.flushProgress().catch(() => {}); paint(); });
+  }).catch(() => {});
 }
 
 // A dot on the gear while there's a release the person hasn't read about

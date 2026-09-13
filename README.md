@@ -47,6 +47,9 @@ And when something isn't in your library, Aurora can find a source for it, strea
 - **Personalization** — three themes + accent colors that follow the profile to every device, custom avatar photos, a taste picker, an ambient screensaver, and **Aurora Wrapped** (your stats, all year round, with roasts)
 - **TV-browser ready** — full D-pad spatial navigation, LG magic-remote pointer, Back-button handling for LG/Tizen/Android TV
 - **Admin panel** (`/admin`) — live viewers, watch history and analytics, disk space and the download queue with speed caps, broadcast messages, kick/ban, profile + sign-in management, an update checker, library rescan, live log tail — all phone-friendly
+- **Watch parties** — start one from the player, share a four-letter code (or join from the Home strip), and play/pause/seek stay in step across devices
+- **Offline on a phone** — "Save offline" keeps a phone-playable copy (converted by the server when needed) in the browser's own storage; the app shell and saved titles work with no server in reach. Browsers only allow this over **https** (or localhost), so put Aurora behind an https address to use it
+- **Smart downloads** — two-thirds into an episode, the next one starts downloading to the server so it plays from disk (per profile, off in Preferences)
 - **Extras** — direct file downloads, a built-in proxy browser (`/web`) for TVs with no browser, APK hosting for the TV app
 
 ### The native Android TV app (`tv-native/`)

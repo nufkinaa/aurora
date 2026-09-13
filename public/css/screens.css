@@ -3736,3 +3736,8 @@
     font-size: 1.6rem;
   }
 }
+
+/* ---------- offline copies ---------- */
+.btn-offline.saved {
+  color: #86efac;
+}
