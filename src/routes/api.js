@@ -21,6 +21,12 @@ const router = express.Router();
 const intros = require("../lib/introstore"); // shared with the admin manager
 const INTRO_KEY = /^(show|imdb):[\w.-]{1,40}$/;
 
+// The automatic answer (media/introdetect.js): chapters or audio fingerprints
+// across the season. The player prefers a manual mark when one exists.
+router.get("/api/intro/auto/:id", (req, res) => {
+  res.json(require("../media/introdetect").get(req.params.id));
+});
+
 router.get("/api/intro/:key", (req, res) => {
   res.json(intros.data[req.params.key] || {});
 });

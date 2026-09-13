@@ -31,7 +31,8 @@ router.get("/api/downloads", (req, res) => {
 
 // Create a download request (pending admin approval).
 router.post("/api/downloads", (req, res) => {
-  const result = downloads.create(req.body || {});
+  const viewer = viewerFor(req, (req.body || {}).profile);
+  const result = downloads.create({ ...(req.body || {}), profile: viewer.id || (req.body || {}).profile, profileName: viewer.name });
   if (result.error) return res.status(400).json(result);
   res.json(result);
 });
@@ -47,6 +48,17 @@ router.post("/api/downloads/:id/seen", (req, res) => {
   }
   const r = downloads.markSeen(req.params.id, viewerFor(req, profile));
   if (r.error) return res.status(r.error === "no such download" ? 404 : 403).json(r);
+  res.json(r);
+});
+
+// A viewer cancels their own request (an admin cancels anyone's, above).
+router.post("/api/downloads/:id/cancel", (req, res) => {
+  const profile = String((req.body || {}).profile || "");
+  if (!profile || !require("../lib/authz").profileAllowed(req, profile)) {
+    return res.status(403).json({ error: "not your download" });
+  }
+  const r = downloads.cancelOwn(req.params.id, viewerFor(req, profile));
+  if (r.error) return res.status(r.error === "not found" ? 404 : 403).json(r);
   res.json(r);
 });
 

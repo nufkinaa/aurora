@@ -265,6 +265,9 @@ scanner.events.on("scanned", () => online.enrich(scanner.allItems()));
 // IMDb ids + Cinemeta metadata for what is on disk, so a detail page never
 // waits on a provider for a title we already have.
 require("./src/media/librarywarm");
+// Intros and credits, detected from the files themselves (chapters, then
+// audio that repeats across a season) — the skip button and Up Next timing.
+require("./src/media/introdetect");
 online.events.on("updated", () => {
   scanner.scan();
   realtime.broadcastAll({ type: "library_updated" });

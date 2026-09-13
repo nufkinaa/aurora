@@ -89,6 +89,12 @@ self.addEventListener("fetch", (e) => {
   if (url.origin !== location.origin) return;
   const p = url.pathname;
 
+  if (p.startsWith("/offline/subs/")) {
+    e.respondWith(
+      caches.open(MEDIA).then(async (c) => (await c.match(p)) || new Response("Not saved on this device", { status: 404 })),
+    );
+    return;
+  }
   if (p.startsWith("/offline/media/")) {
     e.respondWith(
       caches.open(MEDIA).then(async (c) => {

@@ -55,7 +55,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Save one library item. `onProgress({phase, pct, note})` keeps the button
 // honest: "preparing" (the server converts, with its own percentage), then
 // "saving" (bytes landing in the cache, sized by storage estimates).
-export const saveItem = async (item, onProgress = () => {}) => {
+// `confirm(status)` (optional) runs once the server knows what it will send
+// — the original file, or a 720p copy — and its size; resolve false to stop.
+export const saveItem = async (item, onProgress = () => {}, confirm = null) => {
   if (!available()) throw new Error("offline copies need a secure (https) address");
   // 1. a phone-playable file
   let st = await api.offlinePrepare(item.id);
@@ -65,6 +67,10 @@ export const saveItem = async (item, onProgress = () => {}) => {
     st = await api.offlineStatus(item.id);
   }
   if (st.state !== "ready") throw new Error(st.error || "the server couldn't prepare it");
+  if (confirm && !(await confirm(st))) {
+    onProgress({ phase: "cancelled", pct: 0 });
+    return null;
+  }
   // 2. the bytes, streamed straight into the cache (never through memory)
   onProgress({ phase: "saving", pct: 0, note: "downloading to this device" });
   const before = await (navigator.storage && navigator.storage.estimate ? navigator.storage.estimate() : { usage: 0 });
@@ -86,13 +92,19 @@ export const saveItem = async (item, onProgress = () => {}) => {
   } finally {
     clearInterval(ticker);
   }
-  // 3. subtitles that already exist as text tracks (best effort)
+  // 3. subtitles that already exist as text tracks (best effort). Stored
+  // under /offline/subs/… — the worker serves that prefix from this cache;
+  // their live /stream/… addresses are never answered offline.
   const subtitles = [];
+  let n = 0;
   for (const t of (item.subtitles || []).slice(0, 6)) {
     if (!t.url) continue;
     try {
-      await c.add(t.url);
-      subtitles.push({ label: t.label, lang: t.lang, url: t.url });
+      const res = await fetch(t.url, { cache: "no-store" });
+      if (!res.ok) continue;
+      const key = `/offline/subs/${item.id}/${n++}`;
+      await c.put(key, new Response(await res.blob(), { status: 200, headers: { "Content-Type": res.headers.get("Content-Type") || "text/vtt" } }));
+      subtitles.push({ label: t.label, lang: t.lang, url: key });
     } catch {}
   }
   const saved = {

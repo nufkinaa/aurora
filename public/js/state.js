@@ -61,16 +61,16 @@ const rememberRecentProfile = (id) => {
 // look before the stylesheets on the next cold load — no flash.
 export const applyAppearance = (profile) => {
   const theme = profile && (profile.theme === "oled" || profile.theme === "warm") ? profile.theme : null;
-  // The look: "glass" is the new design, anything else the classic one.
-  const look = profile && profile.look === "glass" ? "glass" : null;
+  // The look: glass is the default; "legacy" is the classic design. No
+  // profile yet (the door) also shows glass.
+  const look = profile && profile.look === "legacy" ? null : "glass";
   {
     const root = document.documentElement;
     const was = root.dataset.look || null;
     if (look) root.dataset.look = look;
     else delete root.dataset.look;
     try {
-      if (look) localStorage.setItem("aurora-look", look);
-      else localStorage.removeItem("aurora-look");
+      localStorage.setItem("aurora-look", look || "legacy");
     } catch {}
     if (was !== look) window.dispatchEvent(new CustomEvent("aurora-look", { detail: { look } }));
   }
@@ -113,8 +113,9 @@ export const setProfile = async (profile, token = null) => {
   } catch {}
   await refreshProgress();
   if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-    state.ws.send(JSON.stringify({ type: "hello", profile: profile.name }));
+    state.ws.send(JSON.stringify({ type: "hello", profile: profile.name, profileId: profile.id }));
   }
+  window.dispatchEvent(new CustomEvent("aurora-profile", { detail: { profile } }));
 };
 
 // A previously-unlocked token for this profile in this browser session, if any.

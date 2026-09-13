@@ -584,8 +584,25 @@ export const renderPreferences = async (root) => {
             async () => {
               const next = (state.profile.prefs || {}).smartDownloads === false;
               state.profile.prefs = { ...(state.profile.prefs || {}), smartDownloads: next };
-              try { await api.updateProfile(state.profile.id, { prefs: { smartDownloads: next } }); } catch {}
+              try {
+                await api.updateProfile(state.profile.id, { prefs: { smartDownloads: next } });
+              } catch (e) {
+                state.profile.prefs = { ...(state.profile.prefs || {}), smartDownloads: !next };
+                toast(e.message || "Couldn't save that", "⚠️");
+              }
             }
+          )
+        )),
+      section("Offline",
+        window.isSecureContext && "serviceWorker" in navigator
+          ? "Save offline (📱 on any title you own) keeps a phone-playable copy inside Aurora on this device — it plays with no server in reach. Your copies live under Saved in the top bar."
+          : `Save offline needs Aurora on an https address (or localhost) — browsers only allow offline storage there. You're on ${location.protocol.replace(":", "")}://${location.host}, so the 📱 buttons stay hidden on this device.`,
+        el("div", { class: "pref-list page-pad" },
+          prefRow(
+            "Saved on this device",
+            "Everything kept offline here, with how much space it takes.",
+            () => (window.isSecureContext && "serviceWorker" in navigator ? "Open" : "Unavailable"),
+            () => { if (window.isSecureContext && "serviceWorker" in navigator) navigate("#/saved"); }
           )
         )),
       section("Subtitles", null,

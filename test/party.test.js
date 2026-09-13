@@ -78,6 +78,26 @@ test("leave: a guest leaving updates the rest; the host leaving ends it for ever
   assert.equal(party.leave(mk("k"), send), false); // already gone
 });
 
+test("setItem: only the host moves the party; guests are told and the transport resets", () => {
+  reset();
+  const { log, send } = sentTo();
+  const { party: p } = party.create(mk("h", "Elia"), { id: "ep1", title: "Pilot" }, send);
+  party.join(mk("g", "Dana"), p.code, send);
+  party.setState(mk("h"), { playing: true, position: 1200, kind: "play" }, send);
+  assert.ok(party.setItem(mk("g"), { id: "ep2" }, send).error, "a guest can't move the party");
+  log.length = 0;
+  const r = party.setItem(mk("h"), { id: "ep2", title: "Episode 2", _probePromise: "x" }, send);
+  assert.ok(!r.error);
+  assert.equal(r.party.item.id, "ep2");
+  assert.equal(r.party.item._probePromise, undefined);
+  assert.deepEqual({ playing: r.party.state.playing, position: r.party.state.position }, { playing: false, position: 0 });
+  const told = log.find((m) => m.type === "party_item");
+  assert.ok(told && told.id === "g", "the guest hears about it");
+  assert.equal(told.data.item.id, "ep2");
+  assert.equal(party.get(p.code).item.id, "ep2", "the party carries the new item for late joiners");
+  assert.ok(party.setItem(mk("x"), { id: "ep3" }, send).error, "not in a party");
+});
+
 test("one party per socket: creating again leaves the old one", () => {
   reset();
   const { send } = sentTo();

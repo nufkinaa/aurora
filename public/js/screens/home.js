@@ -17,6 +17,7 @@ let homeScrollY = 0;
 
 export const renderHome = async (root) => {
   const screen = el("div", { class: "screen" });
+  const glass = () => document.documentElement.dataset.look === "glass";
   root.append(screen);
   const cleanups = [];
 
@@ -337,7 +338,8 @@ export const renderHome = async (root) => {
   screen.append(partyStrip);
   const paintParties = (parties) => {
     partyStrip.innerHTML = "";
-    const list = (parties || []).filter((p) => p.code);
+    // In the glass look the Tonight row carries the parties — not twice.
+    const list = glass() ? [] : (parties || []).filter((p) => p.code);
     partyStrip.classList.toggle("hidden", list.length === 0);
     for (const p of list) {
       partyStrip.append(
@@ -357,7 +359,7 @@ export const renderHome = async (root) => {
       );
     }
   };
-  api.parties().then((d) => paintParties(d.parties)).catch(() => {});
+  if (!glass()) api.parties().then((d) => paintParties(d.parties)).catch(() => {});
   const unsubParties = onMessage("party_list", ({ parties }) => {
     if (!screen.isConnected) return unsubParties();
     paintParties(parties);
@@ -375,7 +377,6 @@ export const renderHome = async (root) => {
   // Home's shelves are the one place films and series sit side by side in the same
   // row, so this is where a card has to say which it is. The Movies and Shows
   // pages know already, and Continue Watching's labels read as episodes.
-  const glass = () => document.documentElement.dataset.look === "glass";
   // Glass look: Continue Watching becomes "Tonight" — the same cards, with
   // what used to be separate tiles riding on cards of their own at the front:
   // a download of yours that landed (READY · plays from disk), a party you can
@@ -416,21 +417,25 @@ export const renderHome = async (root) => {
   };
   let liveParties = [];
   let lastRows = [];
-  const buildRow = (r, allRows = lastRows) =>
-    r.id === "continue" && state.profile
-      ? glass()
-        ? continueRow("Tonight", tonightItems(r.items, allRows), state.profile.id, api, {
-            sub: "where you are, what's landed, who's watching",
-            showKind: true,
-          })
-        : continueRow(r.title, r.items, state.profile.id, api)
-      : shelfRow(r.title, r.items, { showKind: true });
+  const buildRow = (r, allRows = lastRows) => {
+    const node =
+      r.id === "continue" && state.profile
+        ? glass()
+          ? continueRow("Tonight", tonightItems(r.items, allRows), state.profile.id, api, {
+              sub: "where you are, what's landed, who's watching",
+              showKind: true,
+            })
+          : continueRow(r.title, r.items, state.profile.id, api)
+        : shelfRow(r.title, r.items, { showKind: true });
+    if (node) node.dataset.rowId = r.id;
+    return node;
+  };
   // Parties come from their own call; when they land (or change), the Tonight
   // row is the one row to repaint.
   const repaintTonight = () => {
     if (!glass()) return;
     const cont = lastRows.find((r) => r.id === "continue");
-    const old = rowsHost.querySelector(".row");
+    const old = rowsHost.querySelector('[data-row-id="continue"]');
     if (!cont || !old) return;
     const fresh = buildRow(cont, lastRows);
     if (fresh) old.replaceWith(fresh);

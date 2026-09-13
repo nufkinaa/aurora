@@ -106,7 +106,7 @@ export const renderTaste = async (root) => {
     grid,
     // Done floats — no scrolling a 120-poster grid just to leave
     el("div", { class: "taste-done" },
-      el("button", { class: "btn btn-primary focusable", html: "<span>Done</span>", onclick: () => navigate("#/preferences") })),
+      el("button", { class: "btn btn-primary focusable", html: "<span>Done</span>", onclick: () => (history.length > 1 ? history.back() : navigate("#/preferences")) })),
     el("div", { style: { height: "90px" } }), // the floating bar's landing pad
   );
 };

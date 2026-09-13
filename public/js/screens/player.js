@@ -6,7 +6,7 @@ import { state, progressFor, titleProgressFor, refreshProgress, readyDownloads }
 import { navigate } from "../router.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
-import { party, createParty, joinParty, leaveParty, sendPartyState, onPartyState, onPartyUpdate, onPartyEnded } from "../party.js";
+import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem } from "../party.js";
 import * as offline from "../offline.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -2009,6 +2009,19 @@ export const renderPlayer = async (root, { id }) => {
         // range is saved for the whole show, on the server, for everyone.
         if (introKey) {
           menu.append(el("div", { class: "menu-title" }, "Skip intro"));
+          if (!intro && autoIntro && introMarkStart == null) {
+            menu.append(
+              entry(
+                "Ignore the detected intro",
+                `found ${fmtClock(autoIntro.start)}–${fmtClock(autoIntro.end)} · wrong? mark it by hand below`,
+                () => {
+                  ignoreAutoIntro();
+                  toast("Detected intro ignored for this show on this device", "⏭");
+                  rebuild();
+                },
+              ),
+            );
+          }
           if (intro && introMarkStart == null) {
             menu.append(
               entry(
@@ -2031,10 +2044,7 @@ export const renderPlayer = async (root, { id }) => {
                 `at ${fmtClock(effTime())}`,
                 () => {
                   introMarkStart = Math.max(0, Math.floor(effTime()));
-                  toast(
-                    `Intro start set at ${fmtClock(introMarkStart)} — open Settings again when it ends`,
-                    "⏭",
-                  );
+                  showMarkChip();
                   rebuild();
                 },
               ),
@@ -2045,22 +2055,7 @@ export const renderPlayer = async (root, { id }) => {
                 "Mark intro end (save)",
                 `starts ${fmtClock(introMarkStart)}`,
                 async () => {
-                  const end = Math.floor(effTime());
-                  if (end <= introMarkStart) {
-                    toast("The end has to come after the start", "⏭");
-                    return;
-                  }
-                  try {
-                    await api.setIntro(introKey, introMarkStart, end);
-                    intro = { start: introMarkStart, end };
-                    toast(
-                      "Saved — every episode of this show now offers Skip intro",
-                      "⏭",
-                    );
-                  } catch (e) {
-                    toast(e.message || "Couldn't save the intro", "⚠️");
-                  }
-                  introMarkStart = null;
+                  await saveIntroEnd();
                   rebuild();
                 },
               ),
@@ -2068,6 +2063,7 @@ export const renderPlayer = async (root, { id }) => {
             menu.append(
               entry("Cancel marking", `was ${fmtClock(introMarkStart)}`, () => {
                 introMarkStart = null;
+                hideMarkChip();
                 rebuild();
               }),
             );
@@ -2453,7 +2449,15 @@ export const renderPlayer = async (root, { id }) => {
   const partyCode = (location.hash.match(/[?&]party=([A-Za-z0-9]{4,6})/) || [])[1] || null;
   let partyEcho = 0;
   let partySync = null;
+  // Set when this player hands over to the next episode's player with the
+  // party still running (host moved on, or guest following) — the route
+  // cleanup then leaves the party alone instead of ending it.
+  let keepParty = false;
   const inParty = () => !!party.current;
+  const partySnapshotOf = (it) =>
+    it._isTorrent || isTorrent && it.id === item.id
+      ? { ...(streamMeta() || {}), cover: it.cover, backdrop: it.backdrop }
+      : { id: it.id, title: it.title, showTitle: it.showTitle || item.showTitle, season: it.season, episode: it.episode, cover: it.cover || item.cover };
   // What the PERSON did — play/pause from the button, remote or media key,
   // and committed seeks — goes to the party. Raw video play/pause events do
   // not: the player's own transcode restarts and start-up juggling fire
@@ -2508,30 +2512,46 @@ export const renderPlayer = async (root, { id }) => {
           class: "btn focusable",
           html: `<span>${party.role === "host" ? "End party" : "Leave party"}</span>`,
           onclick: () => {
+            const wasHost = party.role === "host";
             leaveParty();
             paintParty();
-            toast(party.role === "host" ? "Party ended" : "Left the party", "👥");
+            toast(wasHost ? "Party ended" : "Left the party", "👥");
           },
         }),
       ),
     );
   };
-  togglePartyPanel = async () => {
-    if (!inParty()) {
-      try {
-        const snapshot = isTorrent ? { ...(streamMeta() || {}), cover: item.cover, backdrop: item.backdrop } : { id: item.id, title: item.title, showTitle: item.showTitle, cover: item.cover };
-        await createParty(snapshot);
-        // the party starts from where we are, in our state
-        sendPartyState(!video.paused, effTime(), "sync");
-        paintParty();
-        partyPanel.classList.remove("hidden");
-        pushScope(partyPanel);
-        toast("Party started — share the code", "👥");
-      } catch (e) {
-        toast(`Couldn't start a party: ${e.message}`, "⚠️");
-      }
-      return;
+  const startParty = async () => {
+    try {
+      await createParty(partySnapshotOf(item));
+      // the party starts from where we are, in our state
+      sendPartyState(!video.paused, effTime(), "sync");
+      paintParty();
+      partyPanel.classList.remove("hidden");
+      pushScope(partyPanel);
+      toast("Party started — share the code", "👥");
+    } catch (e) {
+      toast(`Couldn't start a party: ${e.message}`, "⚠️");
     }
+  };
+  // Not in a party yet: the first press explains what a party is (and that
+  // it shows on everyone's Home) before anything is announced.
+  const paintPartyInvite = () => {
+    partyPanel.innerHTML = "";
+    partyPanel.append(
+      el("div", { class: "party-head" }, el("span", {}, "Watch together"), el("button", { class: "btn btn-icon focusable", "aria-label": "Close", html: "✕", onclick: () => { partyPanel.classList.add("hidden"); popScope(partyPanel); } })),
+      el(
+        "div",
+        { class: "party-hint" },
+        "Start a party and Aurora hands you a four-letter code. Anyone on another device joins with it (profile menu → Join a watch party) and play, pause and jumps stay in step. Everyone on Aurora sees the party on their Home and can join.",
+      ),
+      el("div", { class: "party-actions" },
+        el("button", { class: "btn btn-primary focusable", html: "<span>Start a party</span>", onclick: startParty }),
+      ),
+    );
+  };
+  togglePartyPanel = async () => {
+    if (!inParty()) paintPartyInvite();
     const open = partyPanel.classList.toggle("hidden");
     if (!open) pushScope(partyPanel);
     else popScope(partyPanel);
@@ -2542,6 +2562,14 @@ export const renderPlayer = async (root, { id }) => {
     onPartyEnded(() => {
       paintParty();
       popScope(partyPanel);
+    }),
+    // The host moved to another title (Up next, mostly): follow it, party intact.
+    onPartyItem(({ item: next, party: p }) => {
+      if (!next || party.role === "host" || String(next.id) === String(item.id)) return;
+      if (String(next.id).startsWith("torrent|")) state.pendingItems[next.id] = next;
+      keepParty = true;
+      toast(`${p && p.host ? p.host.name : "The host"} moved on to ${next.showTitle ? `S${next.season} E${next.episode}` : next.title || "the next title"}`, "👥");
+      navigate(`#/play/${encodeURIComponent(next.id)}?party=${p ? p.code : partyCode}`);
     }),
   ];
   // Joining via #/play/<id>?party=CODE (the #/party/:code route lands here).
@@ -2577,8 +2605,13 @@ export const renderPlayer = async (root, { id }) => {
   // "Start over" is one press away for the six seconds it stays up, then it
   // fades. Streams have no file to pull a frame from, so they keep the toast.
   let resumeCard = null;
+  let resumeAnnounced = false; // once per visit — transcode restarts re-fire the load handler
   const showResumeCard = (at) => {
-    if (isTorrent || !overlay) return toast(`Resuming from ${fmtClock(at)}`, "▶️");
+    if (resumeAnnounced) return;
+    resumeAnnounced = true;
+    if (isTorrent || !overlay) {
+      return toast(`Resuming from ${fmtClock(at)}`, "▶️", { label: "Start over", onClick: () => seekTo(0) });
+    }
     if (resumeCard) resumeCard.remove();
     const img = el("img", {
       class: "resume-card-frame",
@@ -2590,7 +2623,7 @@ export const renderPlayer = async (root, { id }) => {
       class: "btn small focusable",
       html: "<span>Start over</span>",
       onclick: () => {
-        video.currentTime = 0;
+        seekTo(0); // understands the transcode clock; currentTime = 0 would land on the resume point
         dismiss();
         toast("From the top", "⏮");
       },
@@ -2760,8 +2793,8 @@ export const renderPlayer = async (root, { id }) => {
         el(
           "button",
           { class: "btn focusable", onclick: dismissUpNext },
-          counter,
-          " Dismiss",
+          autoplay ? counter : null,
+          autoplay ? " Dismiss" : "Dismiss",
         ),
       ),
     );
@@ -2792,6 +2825,15 @@ export const renderPlayer = async (root, { id }) => {
       navigate(`#/discover/series/${item.imdbId}`);
       return;
     }
+    // A hosted party comes along: the guests are told the new episode and
+    // follow; the next player finds the party still running.
+    if (inParty() && party.role === "host") {
+      setPartyItem(partySnapshotOf(next));
+      keepParty = true;
+      navigate(`#/play/${next.id}?party=${party.current.code}`);
+      return;
+    }
+    if (inParty()) keepParty = false;
     navigate(`#/play/${next.id}`);
   };
 
@@ -2806,13 +2848,20 @@ export const renderPlayer = async (root, { id }) => {
       : null;
   let intro = null; // {start, end} seconds, content-absolute
   let introMarkStart = null; // first half of an in-progress marking
+  // Detected from the file (chapters, or the audio every episode of the
+  // season shares): the skip range when nobody marked one by hand, and where
+  // the credits start — Up Next then appears exactly there instead of at a
+  // guessed distance from the end.
+  let autoIntro = null;
+  let creditsStart = null;
   const skipIntroBtn = el("button", {
     class: "btn skip-intro focusable hidden",
     html: `<span>Skip intro</span> ⏭`,
     onclick: () => {
-      if (!intro) return;
+      const range = activeIntro();
+      if (!range) return;
       skipIntroBtn.classList.add("hidden");
-      seekTo(intro.end);
+      seekTo(range.end);
     },
   });
   overlay.append(skipIntroBtn);
@@ -2824,7 +2873,61 @@ export const renderPlayer = async (root, { id }) => {
       })
       .catch(() => {});
   }
+  // A detected intro the household says is wrong stays ignored for that
+  // show on this device (the manual marks, saved on the server, always win).
+  const IGNORE_KEY = "aurora-intro-ignore";
+  const ignoredIntros = () => {
+    try { return JSON.parse(localStorage.getItem(IGNORE_KEY) || "[]"); } catch { return []; }
+  };
+  const introIgnored = () => !!introKey && ignoredIntros().includes(introKey);
+  const ignoreAutoIntro = () => {
+    if (!introKey) return;
+    try { localStorage.setItem(IGNORE_KEY, JSON.stringify([...new Set([...ignoredIntros(), introKey])])); } catch {}
+    autoIntro = null;
+    skipIntroBtn.classList.add("hidden");
+  };
+  if (isEpisode && !item._offline) {
+    api
+      .introAuto(item.id)
+      .then((r) => {
+        if (r && r.intro && isFinite(r.intro.start) && isFinite(r.intro.end) && !introIgnored()) autoIntro = r.intro;
+        if (r && r.credits && isFinite(r.credits.start)) creditsStart = r.credits.start;
+      })
+      .catch(() => {});
+  }
+  const activeIntro = () => intro || autoIntro;
+  // While an intro is being marked, a chip on the video carries the second
+  // press ("ends here") so nobody has to find the gear menu again. Shared
+  // with the menu's "Mark intro end (save)" entry through saveIntroEnd.
+  let markChip = null;
+  const hideMarkChip = () => { if (markChip) markChip.remove(); markChip = null; };
+  const saveIntroEnd = async () => {
+    const end = Math.floor(effTime());
+    if (end <= introMarkStart) return toast("The end has to come after the start", "⏭");
+    try {
+      await api.setIntro(introKey, introMarkStart, end);
+      intro = { start: introMarkStart, end };
+      toast("Saved — every episode of this show now offers Skip intro", "⏭");
+    } catch (e) {
+      toast(e.message || "Couldn't save the intro", "⚠️");
+    }
+    introMarkStart = null;
+    hideMarkChip();
+  };
+  const showMarkChip = () => {
+    hideMarkChip();
+    if (!overlay) return;
+    markChip = el(
+      "div",
+      { class: "mark-chip" },
+      el("span", { class: "mark-chip-k" }, `Intro starts ${fmtClock(introMarkStart)}`),
+      el("button", { class: "btn small btn-primary focusable", onclick: () => { saveIntroEnd(); } }, "Ends here ✓"),
+      el("button", { class: "btn small focusable", "aria-label": "Cancel marking", onclick: () => { introMarkStart = null; hideMarkChip(); } }, "✕"),
+    );
+    overlay.append(markChip);
+  };
   const maybeSkipIntro = () => {
+    const intro = activeIntro();
     if (!intro) return;
     const t = effTime();
     // Not in the range's final second — skipping to "one second from now"
@@ -2856,8 +2959,8 @@ export const renderPlayer = async (root, { id }) => {
     ) {
       video.currentTime = prog.position;
       showResumeCard(prog.position);
-    } else if (usingTranscode && streamOffset > 0) {
-      showResumeCard(streamOffset);
+    } else if (usingTranscode && resumeAt > 0) {
+      showResumeCard(resumeAt);
     }
     // RE-ASSERT the chosen subtitle track. A transcode restart (far seek /
     // resume) tears down hls.js and re-attaches the media element, which resets
@@ -2882,8 +2985,11 @@ export const renderPlayer = async (root, { id }) => {
     if (!isEpisode && !isStreamEpisode) return;
     const d = totalDuration();
     if (!d) return;
-    const remaining = d - effTime();
-    const win = upNextWindow(d);
+    const t = effTime();
+    const remaining = d - t;
+    // Detected credits: Up Next appears the moment they start. Otherwise the
+    // runtime-scaled window near the end.
+    const win = creditsStart && creditsStart < d - 5 ? d - creditsStart : upNextWindow(d);
     if (remaining <= win) {
       // Only while actually playing — pausing on (or scrubbing across) the
       // last minute shouldn't pop a countdown over the frame.
@@ -3206,8 +3312,15 @@ export const renderPlayer = async (root, { id }) => {
   });
 
   // ---------- exit ----------
+  let exitConfirmed = false;
   const exit = () => {
     if (exited) return;
+    if (inParty() && party.role === "host" && party.current.members.length > 1 && !exitConfirmed) {
+      exitConfirmed = true;
+      setTimeout(() => { exitConfirmed = false; }, 6000);
+      toast(`Leaving ends the party for ${party.current.members.length - 1} other${party.current.members.length > 2 ? "s" : ""} — press Back again to end it`, "👥");
+      return;
+    }
     exited = true;
     saveProgress();
     reportActivity("Browsing");
@@ -3229,7 +3342,7 @@ export const renderPlayer = async (root, { id }) => {
     clearInterval(saveTimer);
     clearInterval(partySync);
     for (const un of unsubParty) un();
-    leaveParty();
+    if (!keepParty) leaveParty();
     if (torrentPoll) clearInterval(torrentPoll);
     if (statusPoll) clearInterval(statusPoll);
     if (stallTimer) clearInterval(stallTimer);

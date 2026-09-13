@@ -21,7 +21,9 @@
         if (t === "oled" || t === "warm") document.documentElement.dataset.theme = t;
         // The look (classic, or the glass one) is applied before the sheets
         // load, so a glass profile never flashes the classic chrome.
-        if (localStorage.getItem("aurora-look") === "glass") document.documentElement.dataset.look = "glass";
+        // Glass is the default; only a profile that chose the classic look
+        // ("legacy") boots without it.
+        if (localStorage.getItem("aurora-look") !== "legacy") document.documentElement.dataset.look = "glass";
         const a = localStorage.getItem("aurora-accent");
         if (a && /^#[0-9a-f]{6}$/i.test(a)) {
           const s = document.documentElement.style;

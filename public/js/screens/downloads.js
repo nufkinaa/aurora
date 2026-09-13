@@ -95,6 +95,26 @@ const row = (job) => {
       }),
     );
   }
+  // Yours, and not landed yet: one press takes it back (a mis-tap on a 60 GB
+  // pack shouldn't be an admin's problem).
+  if (job.mine && ["pending", "approved", "downloading", "error"].includes(job.status)) {
+    actions.push(
+      el("button", {
+        class: "btn focusable",
+        html: `<span>${job.status === "error" ? "Remove" : "Cancel"}</span>`,
+        onclick: async (e) => {
+          e.currentTarget.disabled = true;
+          try {
+            await api.downloadCancel(job.id, state.profile.id);
+            toast(`Cancelled “${job.label || job.title}”`, "🗑");
+          } catch (err) {
+            e.currentTarget.disabled = false;
+            toast(err.message || "Couldn't cancel", "⚠️");
+          }
+        },
+      }),
+    );
+  }
   const pct = ACTIVE.includes(job.status) ? Math.round((job.progress || 0) * 100) : null;
   return el(
     "div",

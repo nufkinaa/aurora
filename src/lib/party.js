@@ -120,12 +120,27 @@ const leave = (client, send) => {
   p.members.delete(client.id);
   if (client.id === p.hostId || p.members.size === 0) {
     parties.delete(code);
-    for (const id of p.members.keys()) byClient.delete(id);
     sendMembers(p, { type: "party_ended", code, reason: `${who ? who.name : "The host"} ended the party` }, send);
+    for (const id of p.members.keys()) byClient.delete(id);
   } else {
     sendMembers(p, { type: "party_update", party: publicParty(p), left: who ? who.name : "Someone" }, send);
   }
   return true;
+};
+
+// The host moved the party to another title (Up next): keep it, reset the
+// transport, tell the guests — they navigate and re-join the same code.
+const setItem = (client, item, send) => {
+  const code = byClient.get(client.id);
+  const p = code && parties.get(code);
+  if (!p) return { error: "not in a party" };
+  if (client.id !== p.hostId) return { error: "only the host can change what's playing" };
+  const clean = sanitizeItem(item);
+  if (!clean) return { error: "nothing to watch together" };
+  p.item = clean;
+  p.state = { playing: false, position: 0, at: Date.now() };
+  sendMembers(p, { type: "party_item", code, item: clean, party: publicParty(p) }, send, client.id);
+  return { party: publicParty(p) };
 };
 
 // Transport state from any member: keep it, tell the others. `kind` is
@@ -156,4 +171,4 @@ const get = (code) => {
 const list = () => [...parties.values()].map(publicSummary);
 const codeFor = (clientId) => byClient.get(clientId) || null;
 
-module.exports = { create, join, leave, setState, get, list, codeFor, _internals: { parties, byClient, sanitizeItem, publicParty } };
+module.exports = { create, join, leave, setItem, setState, get, list, codeFor, _internals: { parties, byClient, sanitizeItem, publicParty } };

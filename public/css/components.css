@@ -1301,3 +1301,61 @@
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.14) !important;
 }
+
+/* ---------- the one-time "new look" note ---------- */
+.look-notice-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 5, 9, 0.6);
+  animation: fade-in var(--t-med);
+}
+.look-notice-wrap.leaving {
+  opacity: 0;
+  transition: opacity 240ms var(--ease);
+}
+.look-notice {
+  width: min(440px, 100%);
+  padding: 26px 26px 22px;
+  border-radius: var(--radius-l);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+  animation: modal-in var(--t-med) var(--ease);
+  text-align: center;
+}
+.look-notice-glyph {
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 14px;
+  border-radius: 16px;
+  background: conic-gradient(from 210deg, #6c58ff, #b76cff, #4ea3ff, #6c58ff);
+  box-shadow: 0 0 30px rgba(124, 100, 255, 0.55);
+}
+.look-notice-title {
+  font-size: 1.3rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+.look-notice-text {
+  margin: 10px 0 18px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+.look-notice-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ---- the confirm sheet (ui.confirmSheet) rides the look-notice card ---- */
+.look-notice.sheet .look-notice-text { margin-top: 8px; }
+.sheet-icon { font-size: 2rem; line-height: 1; margin-bottom: 10px; }
+/* short "nothing here" lines inside cards (Preferences) */
+.empty-note { color: var(--text-dim); font-size: 0.92rem; padding: 6px 0; }

@@ -148,7 +148,7 @@ initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
   };
   // "mine" is decided server-side per profile, so the list is (re)fetched
   // for whoever is signed in — at boot, and again when the profile changes.
-  let fetchedFor = null;
+  let fetchedFor = undefined; // never "the null profile" — boot must fetch too
   const load = () => {
     const pid = state.profile ? state.profile.id : null;
     if (pid === fetchedFor) return;
@@ -164,6 +164,13 @@ initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
   load();
   onMessage("download_update", ({ job }) => {
     if (!job) return;
+    // A smart download appearing for the first time is the one download the
+    // viewer never asked for — say so once, so the new row on the Downloads
+    // page isn't a mystery (and so they know the feature is doing its job).
+    if (!downloads.has(job.id) && job.mine && job.smart) {
+      const ep = job.season && job.episode ? ` S${job.season}E${job.episode}` : "";
+      toast(`Next up is downloading: ${job.title || job.label}${ep} · smart downloads`, "⬇");
+    }
     downloads.set(job.id, job);
     paint();
   });
@@ -181,7 +188,9 @@ initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
     const paint = async () => {
       let any = false;
       try { any = (await offline.listSaved()).length > 0; } catch {}
-      nav.classList.toggle("hidden", !(any || !navigator.onLine || !state.ws));
+      // Only where offline copies can exist at all (https / localhost) —
+      // over plain http the entry would lead to a screen that says no.
+      nav.classList.toggle("hidden", !offline.available() || !(any || !navigator.onLine || !state.ws));
     };
     paint();
     window.addEventListener("hashchange", () => setTimeout(paint, 0));
@@ -190,6 +199,42 @@ initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
     // the socket coming back is the surest "server is there" signal
     onMessage("welcome", () => { offline.flushProgress().catch(() => {}); paint(); });
   }).catch(() => {});
+}
+
+// First entry after the redesign: one small note, once per profile (the
+// flag rides the profile, so every device sees it exactly once), saying the
+// look can be switched under Preferences. Nothing else is asked of them.
+{
+  const showLookNotice = () => {
+    const p = state.profile;
+    if (!p || p.lookNoticeSeen || document.querySelector(".look-notice")) return;
+    const seen = () => {
+      p.lookNoticeSeen = true;
+      api.updateProfile(p.id, { lookNoticeSeen: true }).catch(() => {});
+    };
+    const close = () => {
+      document.removeEventListener("ui-back", onBack);
+      wrap.classList.add("leaving");
+      setTimeout(() => wrap.remove(), 260);
+      seen();
+    };
+    const onBack = (e) => { e.preventDefault(); close(); };
+    const card = el("div", { class: "look-notice" },
+      el("div", { class: "look-notice-glyph" }),
+      el("div", { class: "look-notice-title" }, "Aurora has a new look"),
+      el("p", { class: "look-notice-text" },
+        "Glass over a living sky, a Tonight row with what's ready for you, and a cleaner player. ",
+        "The Legacy look is still here — switch between the two any time under Preferences → Appearance → Look."),
+      el("div", { class: "look-notice-actions" },
+        el("button", { class: "btn focusable", onclick: () => { close(); navigate("#/preferences"); } }, "Open Preferences"),
+        el("button", { class: "btn btn-primary focusable", onclick: close }, "Got it")));
+    const wrap = el("div", { class: "look-notice-wrap ui-overlay", onclick: (e) => e.target === wrap && close() }, card);
+    document.addEventListener("ui-back", onBack);
+    document.body.append(wrap);
+    setTimeout(() => card.querySelector(".btn-primary")?.focus({ preventScroll: true }), 60);
+  };
+  // after the profile is in and the first screen has painted
+  window.addEventListener("aurora-profile", () => setTimeout(showLookNotice, 900));
 }
 
 // A dot on the gear while there's a release the person hasn't read about
@@ -307,6 +352,7 @@ const showProfileMenu = () => {
     state.authMode !== "closed" &&
       item("Switch profile", () => { close(); openGate(); }),
     item("Preferences", () => { close(); navigate("#/preferences"); }),
+    item("My downloads", () => { close(); navigate("#/downloads"); }),
     item("Join a watch party", () => { close(); showJoinParty(); }),
     state.user &&
       item("Sign out", async () => {

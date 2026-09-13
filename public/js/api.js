@@ -80,6 +80,7 @@ export const api = {
       `/api/discover/collection/${type}/${encodeURIComponent(id)}${tmdbId ? `?tmdbId=${tmdbId}` : ""}`,
     ),
   changelog: () => json("/api/changelog"),
+  introAuto: (id) => json(`/api/intro/auto/${encodeURIComponent(id)}`),
   party: (code) => json(`/api/party/${encodeURIComponent(code)}`),
   offlinePrepare: (id) => post(`/api/offline/prepare/${encodeURIComponent(id)}`, {}),
   offlineStatus: (id) => json(`/api/offline/status/${encodeURIComponent(id)}`),
@@ -195,4 +196,5 @@ export const api = {
   requestDownload: (fields) => post("/api/downloads", fields),
   // The requester opened a finished download: clear its "ready" nudge.
   downloadSeen: (id, profile) => post(`/api/downloads/${encodeURIComponent(id)}/seen`, { profile }),
+  downloadCancel: (id, profile) => post(`/api/downloads/${encodeURIComponent(id)}/cancel`, { profile }),
 };

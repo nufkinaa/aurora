@@ -213,6 +213,12 @@ const handleMessage = (client, data, ws) => {
     case "party_leave":
       if (party.leave(client, sendTo)) broadcastAll({ type: "party_list", parties: party.list() });
       break;
+    case "party_item": {
+      const r = party.setItem(client, data.item, sendTo);
+      if (r.error) ws.send(JSON.stringify({ type: "party_error", message: r.error }));
+      else broadcastAll({ type: "party_list", parties: party.list() });
+      break;
+    }
     case "party_state":
       party.setState(client, data, sendTo);
       break;

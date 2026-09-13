@@ -1004,3 +1004,141 @@ html[data-look="glass"] .ui-overlay:has(> .profiles-gate) {
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
+
+html[data-look="glass"] .look-notice {
+  background: var(--g-fill-strong);
+  border: 0;
+  box-shadow: var(--g-edge), var(--g-shadow);
+  backdrop-filter: var(--g-blur);
+  -webkit-backdrop-filter: var(--g-blur);
+  border-radius: var(--g-radius-l);
+}
+
+/* ---------- motion: every small change moves ---------- */
+/* menus, dropdowns and the profile menu grow in from their anchor */
+html[data-look="glass"] .menu,
+html[data-look="glass"] .dropdown,
+html[data-look="glass"] .nav-menu,
+html[data-look="glass"] .suggest-list {
+  animation: g-pop 200ms var(--ease) both;
+  transform-origin: top right;
+}
+@keyframes g-pop {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+/* chips, pills and nav links ease between states; pressed = a small squash */
+html[data-look="glass"] .chip,
+html[data-look="glass"] .cat-pill,
+html[data-look="glass"] .season-pill,
+html[data-look="glass"] .source-filter,
+html[data-look="glass"] .nav-item,
+html[data-look="glass"] .hero-pick,
+html[data-look="glass"] .pbtn,
+html[data-look="glass"] .menu-item,
+html[data-look="glass"] .nav-menu-item {
+  transition: background var(--t-fast) var(--ease), color var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast) var(--ease);
+}
+html[data-look="glass"] .chip:active,
+html[data-look="glass"] .season-pill:active,
+html[data-look="glass"] .cat-pill:active,
+html[data-look="glass"] .nav-item:active,
+html[data-look="glass"] .hero-pick:active,
+html[data-look="glass"] .pbtn:active,
+html[data-look="glass"] .card:active {
+  transform: scale(0.97);
+}
+html[data-look="glass"] .pbtn.big:active {
+  transform: scale(0.94);
+}
+/* progress fills glide to their new width; the watch bar's head pulses once on hover */
+html[data-look="glass"] .card-progress > div,
+html[data-look="glass"] .progress > i,
+html[data-look="glass"] .progress > div,
+html[data-look="glass"] .episode-bar > div,
+html[data-look="glass"] .dl-bar-fill,
+html[data-look="glass"] .scrubber-fill {
+  transition: width 420ms var(--ease);
+}
+/* a live party card breathes */
+html[data-look="glass"] .card-tag.live {
+  animation: g-breathe 2.4s ease-in-out infinite;
+}
+@keyframes g-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(147, 197, 253, 0.55); }
+  50% { box-shadow: 0 0 0 6px rgba(147, 197, 253, 0); }
+}
+/* the "ready" nav pill lands with a little bounce */
+html[data-look="glass"] .nav-dl.ready {
+  animation: g-land 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes g-land {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: none; }
+}
+/* episode rows, source rows and download rows enter with a stagger when a list repaints */
+html[data-look="glass"] .episode-list > *,
+html[data-look="glass"] .source-list > *,
+html[data-look="glass"] .dl-list > * {
+  animation: g-reveal 420ms var(--ease) both;
+}
+html[data-look="glass"] .episode-list > :nth-child(2),
+html[data-look="glass"] .source-list > :nth-child(2),
+html[data-look="glass"] .dl-list > :nth-child(2) { animation-delay: 40ms; }
+html[data-look="glass"] .episode-list > :nth-child(3),
+html[data-look="glass"] .source-list > :nth-child(3),
+html[data-look="glass"] .dl-list > :nth-child(3) { animation-delay: 80ms; }
+html[data-look="glass"] .episode-list > :nth-child(4),
+html[data-look="glass"] .source-list > :nth-child(4),
+html[data-look="glass"] .dl-list > :nth-child(4) { animation-delay: 120ms; }
+html[data-look="glass"] .episode-list > :nth-child(n + 5),
+html[data-look="glass"] .source-list > :nth-child(n + 5),
+html[data-look="glass"] .dl-list > :nth-child(n + 5) { animation-delay: 160ms; }
+/* loading placeholders shimmer instead of sitting flat */
+html[data-look="glass"] .skeleton,
+html[data-look="glass"] .grid-skel > * {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.11) 37%, rgba(255, 255, 255, 0.05) 63%);
+  background-size: 400% 100%;
+  animation: g-shimmer 1.4s linear infinite;
+  border-radius: 14px;
+}
+@keyframes g-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+/* the skip-intro button and up-next card slide in from below */
+html[data-look="glass"] .player .skip-intro:not(.hidden),
+html[data-look="glass"] .upnext {
+  animation: g-rise 260ms var(--ease) both;
+}
+@keyframes g-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+/* the scrubber's head grows under the pointer */
+html[data-look="glass"] .scrubber-fill::after {
+  transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast);
+}
+html[data-look="glass"] .scrubber:hover .scrubber-fill::after {
+  transform: translateY(-50%) scale(1.25);
+}
+/* focus rings fade in rather than snap */
+html[data-look="glass"] .focusable {
+  transition: box-shadow var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-look="glass"] .menu,
+  html[data-look="glass"] .dropdown,
+  html[data-look="glass"] .nav-menu,
+  html[data-look="glass"] .suggest-list,
+  html[data-look="glass"] .card-tag.live,
+  html[data-look="glass"] .nav-dl.ready,
+  html[data-look="glass"] .episode-list > *,
+  html[data-look="glass"] .source-list > *,
+  html[data-look="glass"] .dl-list > *,
+  html[data-look="glass"] .skeleton,
+  html[data-look="glass"] .player .skip-intro,
+  html[data-look="glass"] .upnext {
+    animation: none;
+  }
+}

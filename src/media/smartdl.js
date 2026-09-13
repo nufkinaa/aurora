@@ -108,6 +108,7 @@ const onProgress = async (profileId, itemId, position, duration, meta) => {
     provider: pick.provider,
     seeders: pick.seeders,
     profile: profileId,
+    profileName: profile.name,
     smart: true,
   });
   if (r && r.error) return console.warn(`[smart] could not queue ${m.title} S${next.season}E${next.episode}: ${r.error}`);

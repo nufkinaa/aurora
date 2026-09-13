@@ -36,7 +36,7 @@ const LIST_SORTS = [
   { id: "listed", label: "Recently listed" },
   { id: "title", label: "A – Z", cmp: () => byTitle },
   { id: "watched", label: "Last watched", cmp: (mark) => (a, b) => mark(b).at - mark(a).at },
-  { id: "device", label: "Saved to device", cmp: () => (a, b) => deviceDownloadedAt(b) - deviceDownloadedAt(a) },
+  { id: "device", label: "Files on this device", cmp: () => (a, b) => deviceDownloadedAt(b) - deviceDownloadedAt(a) },
   { id: "added", label: "Added to server", cmp: () => (a, b) => (b.addedAt || 0) - (a.addedAt || 0) },
   { id: "year", label: "Newest", cmp: () => (a, b) => (b.year || 0) - (a.year || 0) },
   { id: "rating", label: "Top rated", cmp: () => (a, b) => (b.rating || 0) - (a.rating || 0) },

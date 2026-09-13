@@ -319,6 +319,34 @@ export const toast = (message, icon = "ℹ️", action = null) => {
   setTimeout(() => node.remove(), 5800);
 };
 
+// A yes/no sheet in the app's own dress (the same card as the one-time
+// look notice) — resolves true on the primary button, false on cancel,
+// backdrop or Back. The one place native confirm() would otherwise creep in.
+export const confirmSheet = ({ title, text, ok = "OK", cancel = "Cancel", icon = null }) =>
+  new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      document.removeEventListener("ui-back", onBack);
+      wrap.classList.add("leaving");
+      setTimeout(() => wrap.remove(), 240);
+      resolve(v);
+    };
+    const onBack = (e) => { e.preventDefault(); finish(false); };
+    const card = el("div", { class: "look-notice sheet", role: "dialog", "aria-label": title },
+      icon && el("div", { class: "sheet-icon" }, icon),
+      el("div", { class: "look-notice-title" }, title),
+      text && el("p", { class: "look-notice-text" }, text),
+      el("div", { class: "look-notice-actions" },
+        el("button", { class: "btn focusable", onclick: () => finish(false) }, cancel),
+        el("button", { class: "btn btn-primary focusable", onclick: () => finish(true) }, ok)));
+    const wrap = el("div", { class: "look-notice-wrap ui-overlay", onclick: (e) => e.target === wrap && finish(false) }, card);
+    document.addEventListener("ui-back", onBack);
+    document.body.append(wrap);
+    setTimeout(() => card.querySelector(".btn-primary")?.focus({ preventScroll: true }), 60);
+  });
+
 // Append many nodes without a long synchronous layout hitch: the first
 // `eager` land now (fills the viewport), the rest fill in over the next few
 // frames. Returns a cancel() to abort pending work (e.g. on re-render).

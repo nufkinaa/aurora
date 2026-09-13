@@ -19,6 +19,7 @@ import {
   fmtAirDate,
   resolveAirStates,
   toast,
+  confirmSheet,
 } from "../ui.js";
 import { api } from "../api.js";
 import { dropdown } from "./browse.js";
@@ -127,7 +128,7 @@ const dlFace = (job) => {
     return {
       face: "⬇",
       pct: null,
-      hint: "Download for better playback (will take more time)",
+      hint: "Save to the server library — it downloads once, then plays instantly for everyone (takes a while)",
     };
   const pct = Math.round((job.progress || 0) * 100);
   switch (job.status) {
@@ -190,7 +191,7 @@ const dlFace = (job) => {
       return {
         face: "⬇",
         pct: null,
-        hint: "Download for better playback (will take more time)",
+        hint: "Save to the server library — it downloads once, then plays instantly for everyone (takes a while)",
       };
   }
 };
@@ -582,9 +583,8 @@ const showDownloadRequested = (label, needsApproval) => {
         needsApproval
           ? `“${label}” needs a quick admin approval this time — the server is running low on space. ` +
               "Once it's waved through it lands in your library in minutes, ready to play in full quality."
-          : "“it usually takes about 40 seconds for a download to start, chill for a sec :)." +
-              `${label}” is already downloading. In a few minutes it lands in your library, ` +
-              "ready to play instantly in full quality. " +
+          : `“${label}” is downloading now. It usually takes about 40 seconds to get going, ` +
+              "then a few minutes to land in your library — ready to play instantly, in full quality. " +
               "Go grab some popcorn; it'll be ready before it goes cold. 🍿",
       ),
       el(
@@ -736,8 +736,8 @@ const ownedRow = ({ id, label, onDownload, item }) =>
       el("button", {
         class: "source-dl focusable",
         html: icons.downloadDevice,
-        title: "Download to this device",
-        "aria-label": "Download to this device",
+        title: "Download the file to this device (lands in your browser's downloads)",
+        "aria-label": "Download the file to this device",
         onclick: onDownload,
       }),
     // …and keep it inside the app, playable with no server in reach.
@@ -2087,7 +2087,7 @@ const offlineButton = (item, { compact = false } = {}) => {
   if (!offline.available() || !item || !item.id) return null;
   const btn = el("button", {
     class: `btn ${compact ? "btn-icon" : ""} focusable btn-offline`,
-    title: "Save offline on this device",
+    title: "Save offline — keep it inside Aurora on this device, playable with no server in reach",
     "aria-label": "Save offline on this device",
   });
   let saved = false;
@@ -2112,12 +2112,24 @@ const offlineButton = (item, { compact = false } = {}) => {
     }
     busy = true;
     try {
-      await offline.saveItem(item, ({ phase, pct, note }) => {
-        const p = Math.round((pct || 0) * 100);
-        face(phase === "preparing" ? `Preparing ${p}%` : phase === "saving" ? `Saving ${p}%` : "Saved ✓", "⏳");
-        if (note) btn.title = note;
-      });
-      toast(`“${item.title}” is saved on this device`, "📱");
+      const saved = await offline.saveItem(
+        item,
+        ({ phase, pct, note }) => {
+          const p = Math.round((pct || 0) * 100);
+          face(phase === "preparing" ? `Preparing ${p}%` : phase === "saving" ? `Saving ${p}%` : phase === "cancelled" ? "Save offline" : "Saved ✓", phase === "cancelled" ? "📱" : "⏳");
+          if (note) btn.title = note;
+        },
+        // What it will cost this device, before a byte moves: the original
+        // file when the phone can play it as is, else a 720p copy.
+        (st) => confirmSheet({
+          icon: "📱",
+          title: st.direct ? "Save the original file?" : "Save a 720p copy?",
+          text: `${st.direct ? "This file plays as it is, so the full-quality original" : "Aurora made a phone-sized copy (720p, stereo) that"} takes ${fmtBytes(st.sizeBytes || 0)} on this device. It stays until you remove it from Saved.`,
+          ok: "Save it",
+          cancel: "Not now",
+        }),
+      );
+      if (saved) toast(`“${item.title}” is saved on this device`, "📱");
     } catch (e) {
       toast(`Couldn't save: ${e.message}`, "⚠️");
     }

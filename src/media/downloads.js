@@ -291,6 +291,8 @@ const create = (fields) => {
     provider: provider || null,
     seeders: seeders || 0,
     profile: profile ? String(profile).slice(0, 24) : null,
+    // The person, for the admin's notification (profile is an id).
+    profileName: fields.profileName ? String(fields.profileName).slice(0, 40) : null,
     smart: !!smart, // queued by smart downloads (the next episode), not by hand
     status: gate.ok ? "approved" : "pending",
     // Set when the queue started this itself, so pump() knows it may still send
@@ -319,7 +321,7 @@ const create = (fields) => {
 
   const size = job.sizeBytes ? ` · ${gb(job.sizeBytes)} GB` : "";
   const what =
-    `${job.profile || "Someone"} requested "${job.label || job.title}"` +
+    `${job.profileName || job.profile || "Someone"} requested "${job.label || job.title}"` +
     `${job.quality ? ` (${job.quality}${size})` : size}`;
   if (gate.ok) {
     // Nothing to do — tell the admin it's happening, don't ask.
@@ -381,6 +383,15 @@ const cancel = (id) => {
   purgeIfUnused(job.infoHash, job.id);
   pump();
   return { job: publicJob(job) };
+};
+
+// A viewer taking back their own request: only while it hasn't landed.
+const cancelOwn = (id, viewer) => {
+  const job = findJob(id);
+  if (!job) return { error: "not found" };
+  if (!isRequester(job, viewer)) return { error: "not your download" };
+  if (!["pending", "approved", "downloading", "error"].includes(job.status)) return { error: "already finished" };
+  return cancel(id);
 };
 
 const remove = (id) => {
@@ -797,7 +808,7 @@ const resume = () => {
 };
 
 module.exports = {
-  list, listFor, create, approve, decline, cancel, remove, resume, publicJob, publicJobFor, stats, markSeen,
+  list, listFor, create, approve, decline, cancel, cancelOwn, remove, resume, publicJob, publicJobFor, stats, markSeen,
   // Pure helpers, exported so test/downloads.test.js can pin the rules that
   // decide where a file lands and whether a request needs approval.
   _internals: { safeName, folderKey, chooseFolder, diskGate, destinationFor },
