@@ -1537,6 +1537,26 @@
   padding: 0 5px;
   vertical-align: middle;
 }
+/* Plain-language guidance: the best pick's one-liner is always on; the
+   "vs ★ BEST" line of every other row appears when the row is focused
+   (D-pad) or hovered, so 40 rows don't turn into 40 paragraphs. */
+.source-guidance {
+  margin-top: 5px;
+  font-size: 0.74rem;
+  color: #f5c542;
+  opacity: 0.95;
+}
+.source-why {
+  display: none;
+  margin-top: 5px;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+}
+.source-row:hover .source-why,
+.source-row:focus .source-why,
+.source-row-wrap:focus-within .source-why {
+  display: block;
+}
 .source-best {
   margin-left: 8px;
   font-size: 0.58rem;

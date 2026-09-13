@@ -238,10 +238,62 @@ const DL_BADGE = {
   pending: { text: "⏳ NEEDS APPROVAL", class: "source-getting" },
 };
 
+// ---------- plain-language guidance for the sources list ----------
+// The ★ BEST pick gets one honest line ("starts in about 6s · 1080p · 2.1 GB
+// · 340 seeders"); every other row can say, on focus, what it gives up
+// against that pick. Estimates are heuristics from what the list already
+// knows (seeders, size, pack/CAM flags, and whether THIS device decodes the
+// codec) — meant to set expectations, not to be exact.
+const fmtGb = (bytes) =>
+  bytes ? `${(bytes / 1024 ** 3).toFixed(bytes >= 10 * 1024 ** 3 ? 0 : 1)} GB` : null;
+const needsConvert = (s) =>
+  (s.tags || []).find((t) => VIDEO_TRANSCODE_TAGS.includes(t) && !deviceDecodes(t)) || null;
+const startEstimate = (s) => {
+  const seeds = s.seeders || 0;
+  const gb = (s.sizeBytes || 0) / 1024 ** 3;
+  let secs = seeds >= 100 ? 4 : seeds >= 30 ? 6 : seeds >= 10 ? 10 : seeds >= 5 ? 15 : 30;
+  if (gb > 15) secs += 8;
+  else if (gb > 6) secs += 3;
+  if (s.pack) secs += 10;
+  if (needsConvert(s)) secs += 6;
+  return secs;
+};
+const guidanceFor = (s) =>
+  [
+    `starts in about ${startEstimate(s)}s`,
+    s.quality,
+    fmtGb(s.sizeBytes),
+    s.seeders != null && `${s.seeders} seeders`,
+    needsConvert(s) && `${needsConvert(s)} is converted on the server for this device`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+const QUALITY_RANK = { "2160p": 4, "1080p": 3, "720p": 2, "480p": 1, SD: 0 };
+const whyNotBest = (s, best) => {
+  if (!best || s === best) return null;
+  const r = [];
+  if (s.cam) r.push("a camera recording");
+  if (s.pack) r.push("inside a collection pack (weak swarm, slow start)");
+  if (s.dubbed) r.push("dubbed audio");
+  if ((QUALITY_RANK[s.quality] ?? 0) < (QUALITY_RANK[best.quality] ?? 0))
+    r.push(`lower resolution than ${best.quality}`);
+  if (s.quality === "2160p" && best.quality !== "2160p")
+    r.push("4K needs a strong swarm and a device that can decode it");
+  if ((s.seeders || 0) < (best.seeders || 0) * 0.5)
+    r.push(`fewer seeders (${s.seeders || 0} vs ${best.seeders || 0})`);
+  if (s.sizeBytes && best.sizeBytes && s.sizeBytes > best.sizeBytes * 1.5)
+    r.push(`bigger file (${fmtGb(s.sizeBytes)} vs ${fmtGb(best.sizeBytes)})`);
+  const conv = needsConvert(s);
+  if (conv && !needsConvert(best)) r.push(`${conv} must be converted for this device`);
+  if (!r.length) r.push("a close second — ★ BEST just scores a little higher");
+  return r;
+};
+
 // A stream source row (reused for movies and episodes). `onDownload` requests a
 // server-side download of this exact source; `dlStatus` is the current job
 // state for it (if any) so the button can show "queued / downloading / saved".
-const sourceRow = (stream, onPlay, onDownload, job) => {
+// `best` is the ★ BEST pick of the list, for the "why not this one" line.
+const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
   const color = QUALITY_COLOR[stream.quality] || QUALITY_COLOR.SD;
   const dlStatus = job && job.status;
   const owned = dlStatus === "done";
@@ -322,6 +374,13 @@ const sourceRow = (stream, onPlay, onDownload, job) => {
           { class: "source-tags" },
           tags.map((t) => el("span", { class: "source-tag" }, t)),
         ),
+      // What to expect, in words: the best pick says how it will go; the
+      // others say what they trade away against it (shown on focus/hover).
+      !owned && stream.recommended && el("div", { class: "source-guidance" }, guidanceFor(stream)),
+      !owned &&
+        !stream.recommended &&
+        best &&
+        el("div", { class: "source-why" }, `vs ★ BEST: ${whyNotBest(stream, best).join(" · ")}`),
     ),
     el("span", { class: "source-play", html: icons.play }),
   );
@@ -760,6 +819,7 @@ const loadSources = async (
       .map((x) => x.s);
 
     const listHost = el("div", { class: "source-list" });
+    const best = streams.find((x) => x.recommended) || null;
     // Rows by source key, so a live download_update repaints just that button.
     const rows = new Map();
     const renderList = (list) => {
@@ -782,7 +842,7 @@ const loadSources = async (
             job && job.status === "done" && owned
               ? () => navigate(`#/play/${owned.id}`)
               : onPlay;
-          const row = sourceRow(s, play, onDownload, job);
+          const row = sourceRow(s, play, onDownload, job, best);
           // the ★ BEST pick stays visible while the list scrolls in its box
           if (s.recommended) row.classList.add("best-pinned");
           rows.set(key, row);
