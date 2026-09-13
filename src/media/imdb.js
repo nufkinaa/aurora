@@ -18,12 +18,21 @@ const NEGATIVE_TTL = 7 * 24 * 3600 * 1000; // retry "no match" after a week
 const norm = (s) =>
   String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 
+// The one spelling of a cache key: resolve() writes it, cachedIdFor() and
+// remember() read/write it — a drift between them silently loses every id.
+const keyFor = (type, title, year) =>
+  `${type === "show" ? "show" : "movie"}|${norm(String(title || ""))}|${year || ""}`;
+
+// Bumped on every write, so callers that memoize over the cache (the library
+// listing) know when a remembered or resolved id has changed the answer.
+let version = 0;
+
 // The IMDb id for a title, or null. `type` is "movie" or "show".
 const resolve = async (title, type, year) => {
   const clean = String(title || "").trim();
   if (!clean) return null;
   const kind = type === "show" ? "show" : "movie";
-  const key = `${kind}|${norm(clean)}|${year || ""}`;
+  const key = keyFor(kind, clean, year);
 
   const hit = store.data[key];
   if (hit && (hit.imdbId || Date.now() - (hit.at || 0) < NEGATIVE_TTL)) {
@@ -56,6 +65,7 @@ const resolve = async (title, type, year) => {
   }
 
   store.data[key] = { imdbId, at: Date.now() };
+  version++;
   store.save();
   return imdbId;
 };
@@ -64,9 +74,24 @@ const resolve = async (title, type, year) => {
 // null. Never touches the network; identity matching leans on this so it can
 // run inside request handlers.
 const cachedIdFor = (title, type, year) => {
-  const kind = type === "show" ? "show" : "movie";
-  const hit = store.data[`${kind}|${norm(String(title || ""))}|${year || ""}`];
+  const hit = store.data[keyFor(type, title, year)];
   return (hit && hit.imdbId) || null;
 };
 
-module.exports = { resolve, cachedIdFor, _internals: { norm } };
+// Seed the cache with an id we KNOW — a finished download carries the exact
+// IMDb id the viewer picked, so the file it landed as never has to be guessed
+// at by title. Filed under exactly the (title, year) the scanner will read
+// off the folder: a year-less key would also claim any same-titled older film
+// sitting in a year-less folder (Dune 1984 answering for Dune 2021).
+const remember = (title, type, year, imdbId) => {
+  const clean = String(title || "").trim();
+  if (!clean || !/^tt\d+$/.test(String(imdbId || ""))) return;
+  const key = keyFor(type, clean, year);
+  const hit = store.data[key];
+  if (hit && hit.imdbId === imdbId) return;
+  store.data[key] = { imdbId, at: Date.now() };
+  version++;
+  store.save();
+};
+
+module.exports = { resolve, cachedIdFor, remember, version: () => version, _internals: { norm, keyFor } };

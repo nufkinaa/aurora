@@ -8,6 +8,7 @@ const discover = require("../media/discover");
 const hero = require("../media/hero");
 const availability = require("../media/availability");
 const newEpisodes = require("../media/newEpisodes");
+const identity = require("../media/identity");
 const { JsonStore } = require("../lib/jsonstore");
 
 const router = express.Router();
@@ -63,6 +64,31 @@ const listEntry = (i) => {
   return rest;
 };
 
+// A list entry plus the IMDb id we already know for it (cached; never a
+// network call). The client matches stream titles to owned copies by this
+// id first — a title-only match is what let a downloaded episode go
+// unrecognised and get streamed again.
+//
+// Memoized per item over (scan stamp, imdb-cache version): the answer only
+// moves when one of those does, and every client refetches /api/library on
+// each library_updated broadcast, so the per-item norm() must not be redone
+// per request.
+const imdbMemo = { key: null, ids: new Map() };
+const withImdb = (i) => {
+  const imdb = require("../media/imdb");
+  const key = `${scanner.index.scannedAt}|${imdb.version()}`;
+  if (imdbMemo.key !== key) {
+    imdbMemo.key = key;
+    imdbMemo.ids.clear();
+  }
+  let imdbId = imdbMemo.ids.get(i.id);
+  if (imdbId === undefined) {
+    imdbId = identity.imdbIdFor(i);
+    imdbMemo.ids.set(i.id, imdbId);
+  }
+  return imdbId ? { ...i, imdbId } : i;
+};
+
 // Non-secret display config the client needs before a profile is picked.
 // authMode tells the client whether to boot into the login screen; google
 // says whether a "Sign in with Google" button should exist at all.
@@ -88,11 +114,30 @@ router.get("/api/server-info", (req, res) => {
 
 router.get("/api/library", (req, res) => {
   res.json({
-    movies: scanner.index.movies,
-    shows: scanner.index.shows.map(listEntry),
+    movies: scanner.index.movies.map(withImdb),
+    shows: scanner.index.shows.map((s) => withImdb(listEntry(s))),
     scannedAt: scanner.index.scannedAt,
     enriched: scanner.index.enriched,
   });
+});
+
+// The library copy of a stream identity, if we own it: the movie, or the one
+// episode named by season+episode (a show we own without that episode is
+// NOT owned here — the player wants a file). The player and the detail page
+// ask this before ever touching a torrent for a title.
+router.get("/api/library/for", (req, res) => {
+  const q = req.query || {};
+  const season = parseInt(q.season, 10);
+  const episode = parseInt(q.episode, 10);
+  const item = identity.findLibraryPlayable({
+    imdbId: /^tt\d+$/.test(String(q.imdbId || "")) ? q.imdbId : null,
+    type: q.type === "series" || q.type === "show" ? "show" : "movie",
+    title: q.title ? String(q.title).slice(0, 200) : null,
+    year: parseInt(q.year, 10) || null,
+    season: Number.isFinite(season) ? season : null,
+    episode: Number.isFinite(episode) ? episode : null,
+  });
+  res.json({ item: item ? listEntry(item) : null });
 });
 
 router.get("/api/item/:id", (req, res) => {

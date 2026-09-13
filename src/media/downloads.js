@@ -28,6 +28,7 @@ const realtime = require("../realtime");
 const notify = require("../lib/notify");
 const disk = require("../lib/disk");
 const aria2 = require("./aria2");
+const imdb = require("./imdb");
 const websubs = require("./websubs");
 const { JsonStore } = require("../lib/jsonstore");
 
@@ -714,7 +715,14 @@ const finish = async (job, destPath) => {
   store.save();
   broadcast(job);
 
-  // Index it into the library and tell everyone.
+  // The viewer picked this title BY IMDb id; file that under the name the
+  // scanner is about to index it as, so the library copy is recognised as
+  // this exact title everywhere (detail page, Continue Watching, Up Next)
+  // instead of being re-guessed from a folder name. Only now, with the file
+  // really in the library — a declined or canceled job must not seed it.
+  imdb.remember(job.title, job.type, job.year, job.imdbId);
+  // Index it into the library and tell everyone. (The scan also hands any
+  // history watched as a stream over to the new file — profiles.js.)
   scanner.scan();
   scanner.enrich();
   realtime.broadcastAll({ type: "library_updated" });

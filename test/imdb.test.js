@@ -5,7 +5,7 @@ const { test } = require("node:test");
 const assert = require("node:assert");
 
 const imdb = require("../src/media/imdb");
-const { norm } = imdb._internals;
+const { norm, keyFor } = imdb._internals;
 
 test("titles normalise past punctuation and spacing", () => {
   assert.equal(norm("Avatar: The Last Airbender"), norm("Avatar The Last Airbender"));
@@ -79,4 +79,10 @@ test("no match returns null rather than a guess", () => {
 test("resolve rejects an empty title without calling anything", async () => {
   assert.equal(await imdb.resolve("", "movie", 2000), null);
   assert.equal(await imdb.resolve(null, "show", null), null);
+});
+
+test("keyFor is the one spelling of a cache key, with and without a year", () => {
+  assert.equal(keyFor("show", "Farming Life in Another World", 2023), "show|farming life in another world|2023");
+  assert.equal(keyFor("series-ish", "Dune", null), "movie|dune|");
+  assert.equal(keyFor("movie", "Don't Look Up!", 2021), keyFor("movie", "dont look up", 2021).replace("dont", "don t"));
 });

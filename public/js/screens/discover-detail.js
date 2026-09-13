@@ -452,6 +452,9 @@ const playStream = (stream, base, label, season, episode) => {
     episode,
     quality: stream.quality,
     _isTorrent: true,
+    // Picked by hand from the sources list: the player must honour it even
+    // when a copy of this title is on disk ("Other versions" means that).
+    _chosen: true,
     // where Back should return to
     returnHash: location.hash,
   };
@@ -706,10 +709,19 @@ const loadSources = async (
     ]);
     let streams = rawStreams;
     host.innerHTML = "";
-    if (!streams || streams.length === 0) {
-      host.append(el("div", { class: "sources-empty" }, "No sources found."));
-      return;
-    }
+    // The copy on disk is offered whatever the swarm says: a provider that is
+    // down or a title nobody seeds must never hide the file we already have.
+    const bailEmpty = (what) => {
+      if (owned) host.append(ownedRow(owned));
+      host.append(
+        el(
+          "div",
+          { class: "sources-empty" },
+          `No ${owned ? "other " : ""}sources${what}.`,
+        ),
+      );
+    };
+    if (!streams || streams.length === 0) return bailEmpty(" found");
 
     // Drop dead torrents (0 peers) entirely — but only when seeder counts are
     // actually present, so a provider that reports no counts doesn't wipe the
@@ -717,12 +729,7 @@ const loadSources = async (
     if (streams.some((s) => s.seeders > 0)) {
       streams = streams.filter((s) => s.seeders > 0);
     }
-    if (streams.length === 0) {
-      host.append(
-        el("div", { class: "sources-empty" }, "No sources with active peers."),
-      );
-      return;
-    }
+    if (streams.length === 0) return bailEmpty(" with active peers");
 
     // Surface the last source the user played for this title/episode: flag it
     // and float it to the top so "continue with the same source" is one tap.
@@ -1000,7 +1007,7 @@ export const renderDetail = async (root, { source, type, id }) => {
     try {
       await loadLibrary();
     } catch {}
-    const libId = findInLibrary(meta);
+    const libId = findInLibrary(meta, imdbId);
     if (libId) lib = await api.item(libId).catch(() => null);
   }
   await refreshProgress().catch(() => {});
@@ -1313,6 +1320,7 @@ export const renderDetail = async (root, { source, type, id }) => {
       } catch {}
       const libId = findInLibrary(
         meta || { type: "movie", title: view.title, year: view.year },
+        imdbId,
       );
       const fresh = libId ? await api.item(libId).catch(() => null) : null;
       if (!fresh) return;
@@ -1812,6 +1820,7 @@ export const renderDetail = async (root, { source, type, id }) => {
       ? lib.id
       : findInLibrary(
           meta || { type: view.type, title: view.title, year: view.year },
+          imdbId,
         );
     const fresh = libId ? await api.item(libId).catch(() => null) : null;
     if (!fresh) return;
@@ -1894,10 +1903,18 @@ const libMatch = (pool, title, year) => {
   );
 };
 
-const findInLibrary = (meta) => {
+const findInLibrary = (meta, imdbId = null) => {
   const lib = state.library;
   if (!lib) return null;
   const pool = meta.type === "show" ? lib.shows : lib.movies;
+  // The server knows the IMDb id of everything it downloaded (and of every
+  // title it has resolved since) — an exact key that no folder-name quirk
+  // can break. Titles are the fallback, never the first word.
+  const want = imdbId || meta.imdbId || null;
+  if (want) {
+    const byId = (pool || []).find((i) => i.imdbId === want);
+    if (byId) return byId.id;
+  }
   const hit = libMatch(pool, meta.title, meta.year);
   return hit ? hit.id : null;
 };

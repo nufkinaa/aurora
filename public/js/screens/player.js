@@ -74,7 +74,38 @@ export const renderPlayer = async (root, { id }) => {
       return navigate("#/");
     }
   }
-  await refreshProgress();
+  // Detect torrent playback
+  const isTorrent =
+    item._isTorrent || item.magnet || item.id?.startsWith("torrent|");
+
+  // A stream item for something we now OWN plays the file instead. This is
+  // the last line of defence for every way a torrent id can still reach the
+  // player — a Continue Watching card, a deep link, a stale tab — and it runs
+  // before anything below can touch the swarm (the probe adds the torrent).
+  // NOT for a source the viewer just picked by hand on the detail page
+  // (`_chosen`): "Other versions" is a deliberate choice of a different file.
+  // location.replace keeps Back honest: no torrent url left in history to
+  // bounce straight back here. Runs alongside the progress refresh — the two
+  // are independent, and the probe window below shouldn't wait on either.
+  const ownedP =
+    isTorrent && !item._chosen && (item.imdbId || item.title)
+      ? api
+          .libraryFor({
+            imdbId: item.imdbId,
+            type: item.season != null && item.episode != null ? "series" : item.type,
+            title: item.title,
+            year: item.year,
+            season: item.season,
+            episode: item.episode,
+          })
+          .catch(() => null)
+      : Promise.resolve(null);
+  const [owned] = await Promise.all([ownedP, refreshProgress()]);
+  if (location.hash !== entryHash) return;
+  if (owned && owned.id) {
+    location.replace(`#/play/${owned.id}${restart ? "?restart=1" : ""}`);
+    return;
+  }
 
   // S2 probe-then-decide: for torrents, ask the server what the file's first
   // bytes actually SAY (streamprobe.js) — release tags are a guess and the
@@ -112,10 +143,6 @@ export const renderPlayer = async (root, { id }) => {
   const subtitleText = isEpisode
     ? `S${item.season} E${item.episode} · ${item.title}`
     : item.year || "";
-
-  // Detect torrent playback
-  const isTorrent =
-    item._isTorrent || item.magnet || item.id?.startsWith("torrent|");
 
   // Client-side forensics: path switches and far-seek outcomes land in the
   // same per-torrent perf record as the server's marks (routes/torrent.js
@@ -2430,6 +2457,21 @@ export const renderPlayer = async (root, { id }) => {
       if (!next) return null;
       // An unaired episode is not up next, whatever the metadata lists.
       if (next.released && new Date(next.released) > new Date()) return null;
+      // Already downloaded? Then it's a library episode: "Play now" and
+      // auto-advance, never a trip back to the sources list.
+      const owned = await api
+        .libraryFor({
+          imdbId: item.imdbId,
+          type: "series",
+          title: item.title,
+          year: item.year,
+          season: next.season,
+          episode: next.episode,
+        })
+        .catch(() => null);
+      if (owned && owned.id && owned.showId) {
+        return { ...owned, title: owned.title || next.title };
+      }
       return { ...next, _stream: true };
     }
     return null;

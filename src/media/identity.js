@@ -85,6 +85,29 @@ const findLibraryFor = ({ imdbId, type, title, year } = {}, maps = null) => {
   return null;
 };
 
+// The FILE the player would open for a stream identity, or null: the movie
+// itself, or — given season+episode — that one episode of the library show,
+// shaped like scanner.findById's episode (showId/showTitle/cover attached).
+// Never a bare show: a show we own without that episode, or a show identity
+// with no episode named, is not something the player can open. Season 0
+// (specials) is a real season here, so the checks are against null, not 0.
+const findLibraryPlayable = (identity = {}, maps = null) => {
+  const lib = findLibraryFor(identity, maps);
+  if (!lib) return null;
+  const { season, episode } = identity;
+  const hasEpisode = season != null && episode != null;
+  if (lib.type !== "show") return hasEpisode ? null : lib;
+  if (!hasEpisode) return null;
+  for (const s of lib.seasons || []) {
+    if (Number(s.number) !== Number(season)) continue;
+    for (const ep of s.episodes || []) {
+      if (Number(ep.episode) === Number(episode))
+        return { ...ep, showId: lib.id, showTitle: lib.title, cover: lib.cover };
+    }
+  }
+  return null;
+};
+
 // The cached IMDb id for a library item (sync, no network), or null.
 const imdbIdFor = (item) =>
   item ? imdb.cachedIdFor(item.title, item.type, item.year) : null;
@@ -102,6 +125,7 @@ const markLibrary = (items) => {
 
 module.exports = {
   findLibraryFor,
+  findLibraryPlayable,
   imdbIdFor,
   markLibrary,
   titlesMatch,

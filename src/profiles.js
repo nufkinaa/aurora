@@ -696,10 +696,79 @@ const setLikedGenres = (profileId, genres) => {
 
 const getLikedGenres = (profileId) => stateFor(profileId).likedGenres;
 
+// A streamed title's history moves onto its library copy once one exists.
+//
+// Progress for a torrent stream is keyed by the FILE it played from
+// (`torrent|<hash>|<idx>`), so when that same episode is later downloaded the
+// library copy starts with a blank history — and Continue Watching kept
+// pointing at the torrent, which is how "play my downloaded episode" ended up
+// hunting for peers. This copies each stream entry onto the library item it
+// now resolves to (newest wins, so a later watch of the file is never
+// overwritten) — pure over one profile's state so it can be pinned by tests.
+//
+// Each hand-off is stamped on the stream meta (`adoptedAt` = the stream
+// row's updatedAt at the time), and a row is only handed over again once it
+// has been watched since. Without the stamp, dismissing the card (which
+// clears the LIBRARY row) would just get it copied back on the next pass.
+const adoptStreamProgress = (state, findPlayable) => {
+  let changed = false;
+  for (const [itemId, prog] of Object.entries(state.progress || {})) {
+    if (!itemId.startsWith("torrent|") || !prog) continue;
+    const meta = state.streamItems && state.streamItems[itemId];
+    if (!meta) continue;
+    const at = prog.updatedAt || 0;
+    if (meta.adoptedAt != null && meta.adoptedAt >= at) continue;
+    let lib = null;
+    try { lib = findPlayable(meta); } catch { lib = null; }
+    if (!lib || !lib.id) continue;
+    meta.adoptedAt = at;
+    changed = true;
+    const cur = state.progress[lib.id];
+    if (cur && (cur.updatedAt || 0) >= at) continue;
+    state.progress[lib.id] = {
+      position: prog.position,
+      duration: prog.duration,
+      finished: !!prog.finished,
+      updatedAt: at || Date.now(),
+    };
+  }
+  return changed;
+};
+
+// Run the hand-off for every profile against the live library. The answer
+// only changes when the library does, so this runs once per scan (the
+// "scanned" hook), and Continue Watching re-checks the scan stamp in case a
+// scan landed before this module was loaded. `maps` lets the caller share
+// one libraryMaps build.
+let reconciledFor = null; // scanner.index.scannedAt of the last pass
+const reconcileStreamProgress = (maps = null) => {
+  const identity = require("./media/identity");
+  const m = maps || identity._internals.libraryMaps();
+  const find = (meta) => identity.findLibraryPlayable(meta, m);
+  let changed = false;
+  for (const profileId of Object.keys(store.data.state || {})) {
+    if (adoptStreamProgress(stateFor(profileId), find)) changed = true;
+  }
+  reconciledFor = scanner.index.scannedAt;
+  if (changed) store.save();
+  return changed;
+};
+scanner.events.on("scanned", () => {
+  try { reconcileStreamProgress(); } catch (e) {
+    console.warn("[profiles] stream→library progress hand-off failed:", e && e.message ? e.message : e);
+  }
+});
+
 // Items for the Continue Watching row: in-progress videos, most recent first.
 // Finished episodes advance to the next episode of the show.
 const continueWatching = (profileId) => {
   const state = stateFor(profileId);
+  const identity = require("./media/identity");
+  // One maps build serves both the (rare) catch-up hand-off and the loop.
+  const maps = identity._internals.libraryMaps();
+  if (reconciledFor !== scanner.index.scannedAt) {
+    try { reconcileStreamProgress(maps); } catch {}
+  }
   const entries = Object.entries(state.progress).sort(
     (a, b) => b[1].updatedAt - a[1].updatedAt
   );
@@ -715,6 +784,12 @@ const continueWatching = (profileId) => {
     if (itemId.startsWith("torrent|")) {
       const meta = state.streamItems[itemId];
       if (!meta || prog.finished || prog.position <= 10) continue;
+      // Downloaded since: the library copy carries this history now (see
+      // adoptStreamProgress) and its own entry below renders the card — a
+      // card that plays the file, not the torrent.
+      let owned = null;
+      try { owned = identity.findLibraryPlayable(meta, maps); } catch {}
+      if (owned) continue;
       // One card per show/title — the most recent episode (entries are sorted
       // newest-first). imdbId is the SHOW's id for episodes, so all episodes of
       // one show collapse to its latest; also kills same-episode duplicates
@@ -925,6 +1000,7 @@ module.exports = {
   streamEpisodeProgress,
   streamTitleProgress,
   clearProgress,
+  reconcileStreamProgress,
   dismissUpNext,
   toggleWatchlist,
   continueWatching,
@@ -954,5 +1030,5 @@ module.exports = {
   issueToken,
   // Test-only: the pure halves of the watchlist identity work, plus the
   // store handle + norms so auth tests can run on a stubbed store.
-  _internals: { entryKey, sameIdentity, materializeWatchlist, store, normUsername, normEmail, validEmail, hashPassword, verifyHash },
+  _internals: { entryKey, sameIdentity, materializeWatchlist, adoptStreamProgress, store, normUsername, normEmail, validEmail, hashPassword, verifyHash },
 };

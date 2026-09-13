@@ -82,3 +82,67 @@ test("findLibraryFor: imdbId hit is authoritative", () => {
     "m1",
   );
 });
+
+// ---------- findLibraryPlayable: the FILE a stream identity plays as ----------
+// (libraryMaps is already pulled from identity._internals above)
+const LIB = [
+  { id: "mv1", type: "movie", title: "Arrival", year: 2016 },
+  {
+    id: "sh1",
+    type: "show",
+    title: "Farming Life in Another World",
+    year: 2023,
+    cover: "/img/sh1",
+    seasons: [
+      { number: 1, episodes: [{ id: "ep101", episode: 1, title: "Pilot" }, { id: "ep102", episode: 2, title: "Two" }] },
+    ],
+  },
+];
+
+test("playable: a movie identity resolves to the movie itself", () => {
+  const hit = identity.findLibraryPlayable({ type: "movie", title: "Arrival", year: 2016 }, libraryMaps(LIB));
+  assert.equal(hit && hit.id, "mv1");
+});
+
+test("playable: season+episode drills down to that episode, shaped like findById's", () => {
+  const hit = identity.findLibraryPlayable(
+    { type: "series", title: "Farming Life in Another World", year: 2023, season: 1, episode: 2 },
+    libraryMaps(LIB),
+  );
+  assert.equal(hit && hit.id, "ep102");
+  assert.equal(hit.showId, "sh1");
+  assert.equal(hit.showTitle, "Farming Life in Another World");
+  assert.equal(hit.cover, "/img/sh1");
+});
+
+test("playable: the player's stream label ('Title · S1 E1') still finds the file", () => {
+  // playStream titles a stream item with the episode suffix; the strict
+  // prefix rule (years agree) is what resolves that back to the show.
+  const hit = identity.findLibraryPlayable(
+    { type: "series", title: "Farming Life in Another World · S1 E1", year: 2023, season: 1, episode: 1 },
+    libraryMaps(LIB),
+  );
+  assert.equal(hit && hit.id, "ep101");
+});
+
+test("playable: an owned show WITHOUT that episode is not owned — the player wants a file", () => {
+  const hit = identity.findLibraryPlayable(
+    { type: "series", title: "Farming Life in Another World", year: 2023, season: 1, episode: 9 },
+    libraryMaps(LIB),
+  );
+  assert.equal(hit, null);
+});
+
+test("playable: a show identity with no episode named is not a file — null", () => {
+  const hit = identity.findLibraryPlayable({ type: "series", title: "Farming Life in Another World", year: 2023 }, libraryMaps(LIB));
+  assert.equal(hit, null);
+});
+
+test("playable: season 0 (specials) is a real season, not 'no season'", () => {
+  const lib = [{ ...LIB[1], seasons: [...LIB[1].seasons, { number: 0, episodes: [{ id: "sp2", episode: 2, title: "OVA" }] }] }];
+  const hit = identity.findLibraryPlayable(
+    { type: "series", title: "Farming Life in Another World", year: 2023, season: 0, episode: 2 },
+    libraryMaps(lib),
+  );
+  assert.equal(hit && hit.id, "sp2");
+});

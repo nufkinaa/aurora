@@ -63,6 +63,17 @@ export const api = {
     return json(`/api/torrents/sources?${p.toString()}`);
   },
   torrentStatus: (infoHash) => json(`/api/torrents/status/${infoHash}`),
+  // The library copy of a stream identity (movie, or one episode), or null.
+  libraryFor: ({ imdbId, type, title, year, season, episode }) => {
+    const p = new URLSearchParams();
+    if (imdbId) p.set("imdbId", imdbId);
+    if (type) p.set("type", type);
+    if (title) p.set("title", title);
+    if (year) p.set("year", year);
+    if (season) p.set("season", season);
+    if (episode) p.set("episode", episode);
+    return json(`/api/library/for?${p.toString()}`).then((r) => (r && r.item) || null);
+  },
   discoverMeta: (type, id) => json(`/api/discover/meta/${type}/${id}`),
   discoverSimilar: (type, id, tmdbId) =>
     json(
