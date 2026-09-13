@@ -142,14 +142,10 @@ export const progressFor = (itemId) => state.progress[itemId] || null;
 
 // ---------- the download queue, as this profile sees it ----------
 // One map fed by /api/downloads at boot and the download_update stream after
-// (main.js). "Mine" is what the current profile requested — older jobs carry
-// the profile NAME, newer ones the id, so both match.
+// (main.js). The server marks each job "mine" for the asking profile and
+// never says who asked otherwise, so "mine" is the whole filter.
 export const downloads = new Map();
-export const myDownloads = () => {
-  const p = state.profile;
-  if (!p) return [];
-  return [...downloads.values()].filter((j) => j.profile && (j.profile === p.id || j.profile === p.name));
-};
+export const myDownloads = () => (state.profile ? [...downloads.values()].filter((j) => j.mine) : []);
 // Finished, indexed, and not yet opened by the person who asked for it.
 export const readyDownloads = () =>
   myDownloads().filter((j) => j.status === "done" && j.libraryId && !j.seenAt);

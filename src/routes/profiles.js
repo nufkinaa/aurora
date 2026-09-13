@@ -254,6 +254,11 @@ router.post("/api/profiles/:id/progress", gate, (req, res) => {
   }
   profiles.setProgress(req.params.id, itemId, position, duration, item);
   res.json({ ok: true });
+  // Most of the way through an episode? Queue the next one (media/smartdl.js).
+  // After the response, never on its critical path.
+  require("../media/smartdl")
+    .onProgress(req.params.id, itemId, position, duration, item)
+    .catch((e) => console.warn("[smart] failed:", e && e.message ? e.message : e));
 });
 
 router.delete("/api/profiles/:id/progress/:itemId", gate, (req, res) => {

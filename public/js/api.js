@@ -187,7 +187,7 @@ export const api = {
     post("/api/ai/recommend", { vibe, mix, era, length }),
 
   // Download-to-server
-  downloads: () => json("/api/downloads"),
+  downloads: (profileId) => json(`/api/downloads${profileId ? `?profile=${encodeURIComponent(profileId)}` : ""}`),
   requestDownload: (fields) => post("/api/downloads", fields),
   // The requester opened a finished download: clear its "ready" nudge.
   downloadSeen: (id, profile) => post(`/api/downloads/${encodeURIComponent(id)}/seen`, { profile }),

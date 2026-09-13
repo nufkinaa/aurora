@@ -110,20 +110,28 @@ initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
     pill.textContent = `⬇ ${act.length} · ${pct}%`;
     pill.classList.remove("hidden");
   };
-  api.downloads()
-    .then((res) => {
-      // the route answers a bare array
-      for (const j of Array.isArray(res) ? res : res.downloads || []) downloads.set(j.id, j);
-      paint();
-    })
-    .catch(() => {});
+  // "mine" is decided server-side per profile, so the list is (re)fetched
+  // for whoever is signed in — at boot, and again when the profile changes.
+  let fetchedFor = null;
+  const load = () => {
+    const pid = state.profile ? state.profile.id : null;
+    if (pid === fetchedFor) return;
+    fetchedFor = pid;
+    api.downloads(pid)
+      .then((res) => {
+        // the route answers a bare array
+        for (const j of Array.isArray(res) ? res : res.downloads || []) downloads.set(j.id, j);
+        paint();
+      })
+      .catch(() => { fetchedFor = null; });
+  };
+  load();
   onMessage("download_update", ({ job }) => {
     if (!job) return;
     downloads.set(job.id, job);
     paint();
   });
-  // "mine" depends on who is signed in
-  window.addEventListener("hashchange", () => setTimeout(paint, 0));
+  window.addEventListener("hashchange", () => setTimeout(() => { load(); paint(); }, 0));
 }
 
 // A dot on the gear while there's a release the person hasn't read about

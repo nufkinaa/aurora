@@ -11,9 +11,22 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
-// Anyone on the LAN can see the queue (so the Discover page can show state).
+// Who is asking: the session's profile in closed mode, else the profile id
+// the client says it is (open mode trusts that everywhere). The name comes
+// along so jobs from before ids were stored still match.
+const viewerFor = (req, profileId) => {
+  const authz = require("../lib/authz");
+  const profiles = require("../profiles");
+  const sess = authz.sessionFor(req);
+  const id = sess ? sess.profile.id : String(profileId || "").slice(0, 24) || null;
+  const p = id ? profiles.list().find((x) => x.id === id) : null;
+  return { id: p ? p.id : id, name: p ? p.name : null };
+};
+
+// Anyone on the LAN can see the queue (so the Discover page can show state);
+// each job says whether it is the asker's own ("mine"), never who asked.
 router.get("/api/downloads", (req, res) => {
-  res.json(downloads.list());
+  res.json(downloads.listFor(viewerFor(req, req.query.profile)));
 });
 
 // Create a download request (pending admin approval).
@@ -32,7 +45,7 @@ router.post("/api/downloads/:id/seen", (req, res) => {
   if (!profile || !require("../lib/authz").profileAllowed(req, profile)) {
     return res.status(403).json({ error: "not your download" });
   }
-  const r = downloads.markSeen(req.params.id, profile);
+  const r = downloads.markSeen(req.params.id, viewerFor(req, profile));
   if (r.error) return res.status(r.error === "no such download" ? 404 : 403).json(r);
   res.json(r);
 });

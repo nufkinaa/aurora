@@ -3498,3 +3498,68 @@
   color: var(--text-faint);
   margin-bottom: 4px;
 }
+
+/* ---------- resume: the frame you stopped on ---------- */
+.btn.resume-btn {
+  padding-left: 6px;
+  gap: 10px;
+}
+.resume-peek {
+  height: 40px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+}
+.resume-card {
+  position: absolute;
+  left: 28px;
+  bottom: 120px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(10, 11, 20, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  animation: resume-in 0.3s ease-out;
+}
+.resume-card.leaving {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.resume-card-frame {
+  height: 64px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+.resume-card-k {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.resume-card-t {
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes resume-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@media (max-width: 640px) {
+  .resume-card {
+    left: 12px;
+    right: 12px;
+    bottom: 96px;
+  }
+  .resume-card-frame {
+    height: 48px;
+  }
+}

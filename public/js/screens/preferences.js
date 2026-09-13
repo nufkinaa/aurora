@@ -548,6 +548,16 @@ export const renderPreferences = async (root) => {
             "Start the next episode automatically when one finishes.",
             () => (playerPrefs.get("autoplayNext", true) ? "On" : "Off"),
             () => playerPrefs.set("autoplayNext", !playerPrefs.get("autoplayNext", true))
+          ),
+          prefRow(
+            "Smart downloads",
+            "When you're two-thirds through an episode, the next one starts downloading to the server so it plays from disk. Yours alone; the disk-space rules still apply.",
+            () => ((state.profile.prefs || {}).smartDownloads === false ? "Off" : "On"),
+            async () => {
+              const next = (state.profile.prefs || {}).smartDownloads === false;
+              state.profile.prefs = { ...(state.profile.prefs || {}), smartDownloads: next };
+              try { await api.updateProfile(state.profile.id, { prefs: { smartDownloads: next } }); } catch {}
+            }
           )
         )),
       section("Subtitles", null,

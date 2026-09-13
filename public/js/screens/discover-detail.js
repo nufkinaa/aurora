@@ -1152,16 +1152,33 @@ export const renderDetail = async (root, { source, type, id }) => {
     )?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  // A Resume button that shows the frame you stopped on (library files
+  // only; the stills pipeline makes it). The image simply drops out when
+  // there is no ffmpeg on the server.
+  const resumeButton = (id, position, label, onclick) => {
+    const btn = el("button", { class: "btn btn-primary focusable resume-btn", onclick });
+    const img = el("img", {
+      class: "resume-peek",
+      src: `/img/frame/${encodeURIComponent(id)}?t=${Math.floor(position)}`,
+      alt: "",
+      onerror: () => img.remove(),
+    });
+    btn.append(img, el("span", { html: icons.play }), el("span", {}, label));
+    return btn;
+  };
+
   const actions = [];
   if (!isShow && lib) {
     actions.push(
-      el("button", {
-        class: "btn btn-primary focusable",
-        html:
-          icons.play +
-          `<span>${resumable ? "Resume " + fmtClock(movieProg.position) : "Play"}</span>`,
-        onclick: () => navigate(`#/play/${lib.id}`),
-      }),
+      resumable
+        ? resumeButton(lib.id, movieProg.position, `Resume ${fmtClock(movieProg.position)}`, () =>
+            navigate(`#/play/${lib.id}`),
+          )
+        : el("button", {
+            class: "btn btn-primary focusable",
+            html: icons.play + "<span>Play</span>",
+            onclick: () => navigate(`#/play/${lib.id}`),
+          }),
     );
     if (resumable) {
       actions.push(
@@ -1173,14 +1190,20 @@ export const renderDetail = async (root, { source, type, id }) => {
       );
     }
   } else if (isShow && nextUp) {
+    const p = nextUp.resumed ? progressFor(nextUp.local.id) : null;
+    const mid = p && !p.finished && p.position > 10;
     actions.push(
-      el("button", {
-        class: "btn btn-primary focusable",
-        html:
-          icons.play +
-          `<span>${nextUp.resumed ? `Continue S${nextUp.season} E${nextUp.episode}` : "Play"}</span>`,
-        onclick: () => navigate(`#/play/${nextUp.local.id}`),
-      }),
+      mid
+        ? resumeButton(nextUp.local.id, p.position, `Continue S${nextUp.season} E${nextUp.episode} · ${fmtClock(p.position)}`, () =>
+            navigate(`#/play/${nextUp.local.id}`),
+          )
+        : el("button", {
+            class: "btn btn-primary focusable",
+            html:
+              icons.play +
+              `<span>${nextUp.resumed ? `Continue S${nextUp.season} E${nextUp.episode}` : "Play"}</span>`,
+            onclick: () => navigate(`#/play/${nextUp.local.id}`),
+          }),
     );
   }
   // Streams: the only play button when we own nothing, a secondary one otherwise.

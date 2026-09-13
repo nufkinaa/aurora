@@ -45,6 +45,51 @@ const generate = (videoPath, outFile) =>
     );
   });
 
+// A frame at (roughly) a given second — the resume prompt's "this is where
+// you stopped". Bucketed to 10s so a slowly-moving resume point doesn't
+// mint a new file every save; small (640px) because it's a thumbnail.
+const generateAt = (videoPath, seconds, outFile) =>
+  new Promise((resolve) => {
+    execFile(
+      config.FFMPEG,
+      [
+        "-v", "error",
+        "-ss", String(Math.max(0, Math.floor(seconds))),
+        "-i", videoPath,
+        "-frames:v", "1",
+        "-vf", "scale=640:-2",
+        "-q:v", "4",
+        "-y", outFile,
+      ],
+      { windowsHide: true, timeout: 30000 },
+      (err) => resolve(!err && fs.existsSync(outFile) ? outFile : null)
+    );
+  });
+
+const getFrame = (videoPath, seconds) => {
+  if (!config.ffmpegAvailable) return Promise.resolve(null);
+  let mtime = 0;
+  try {
+    mtime = Math.floor(fs.statSync(videoPath).mtimeMs);
+  } catch {
+    return Promise.resolve(null);
+  }
+  const bucket = Math.max(0, Math.floor((Number(seconds) || 0) / 10) * 10);
+  const name =
+    require("crypto").createHash("md5").update(`${videoPath}|${mtime}|frame|${bucket}`).digest("hex") + ".jpg";
+  const outFile = path.join(STILL_DIR, name);
+  if (fs.existsSync(outFile)) return Promise.resolve(outFile);
+  const key = `frame|${outFile}`;
+  if (inflight.has(key)) return inflight.get(key);
+  fs.mkdirSync(STILL_DIR, { recursive: true });
+  const p = new Promise((resolve) => {
+    queue.push(() => generateAt(videoPath, bucket, outFile).then(resolve));
+    runNext();
+  }).finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+};
+
 // Returns the cached still path, generating it on first request.
 const getStill = (videoPath) => {
   if (!config.ffmpegAvailable) return Promise.resolve(null);
@@ -83,4 +128,4 @@ const getStill = (videoPath) => {
   return promise;
 };
 
-module.exports = { getStill };
+module.exports = { getStill, getFrame };

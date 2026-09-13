@@ -25,7 +25,7 @@ const handle = (data) => {
 
   switch (data.type) {
     case "welcome":
-      if (state.profile) send({ type: "hello", profile: state.profile.name });
+      if (state.profile) send({ type: "hello", profile: state.profile.name, profileId: state.profile.id });
       break;
     case "subtitle_ocr":
       if (data.status === "started") toast(`Writing subtitles for ${data.name}…`, "💬");

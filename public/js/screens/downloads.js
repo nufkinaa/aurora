@@ -117,6 +117,7 @@ const row = (job) => {
       el(
         "div",
         { class: "dl-status" },
+        job.smart ? "Next episode, queued for you · " : "",
         statusLine(job),
         job.sizeBytes ? ` · ${fmtBytes(job.sizeBytes)}` : "",
       ),
@@ -189,7 +190,7 @@ export const renderDownloads = async (root) => {
     if (!screen.isConnected) return unsub();
     if (!job) return;
     downloads.set(job.id, job);
-    if (job.status === "done" && job.libraryId && !job.seenAt && (job.profile === state.profile?.id || job.profile === state.profile?.name)) {
+    if (job.status === "done" && job.libraryId && !job.seenAt && job.mine) {
       toast(`“${job.label || job.title}” is ready to play`, "✅");
     }
     paint();

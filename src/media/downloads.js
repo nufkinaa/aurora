@@ -46,7 +46,22 @@ const active = new Map();
 // ---------- helpers ----------
 const now = () => new Date().toISOString();
 
-const broadcast = (job) => realtime.broadcastAll({ type: "download_update", job: publicJob(job) });
+// Every socket gets the update, each told only whether the job is ITS
+// profile's ("mine") — who asked never leaves the server (see publicJob).
+const broadcast = (job) =>
+  realtime.broadcastEach((c) => ({
+    type: "download_update",
+    job: publicJobFor(job, { id: c.profileId, name: c.profile }),
+  }));
+
+// Is this viewer the profile that requested the job? Newer jobs store the
+// profile ID; jobs from before that carry the NAME, so both are accepted.
+const isRequester = (job, viewer) =>
+  !!(job && job.profile && viewer && ((viewer.id && job.profile === viewer.id) || (viewer.name && job.profile === viewer.name)));
+
+// publicJob plus "mine" for a given viewer — the shape the downloads page,
+// the nav pill and the player read.
+const publicJobFor = (job, viewer) => ({ ...publicJob(job), mine: isRequester(job, viewer) });
 
 // Strip fields nobody outside needs; keep it small for WS.
 const publicJob = (j) => ({
@@ -60,25 +75,26 @@ const publicJob = (j) => ({
   approvedAt: j.approvedAt || null, doneAt: j.doneAt || null,
   // Why it's waiting for an admin, and whether the queue started it by itself.
   holdReason: j.holdReason || null, autoApproved: !!j.autoApproved,
-  // Whose request it is (profile id; older jobs carry the name), whether they
-  // have opened it since it finished, and the library id the finished file
-  // was indexed under — the thing "Play" on the downloads page needs.
-  profile: j.profile || null, seenAt: j.seenAt || null,
+  // Whether the requester has opened it since it finished, whether smart
+  // downloads queued it, and the library id the finished file was indexed
+  // under — the thing "Play" on the downloads page needs. WHO requested it
+  // stays server-side (publicJobFor answers "mine" per viewer instead).
+  seenAt: j.seenAt || null, smart: !!j.smart,
   libraryId: j.status === "done" && j.destPath ? scanner.idForPath(j.destPath) : null,
 });
 
 // The requester opened the finished file: the "ready to play" nudge for it
 // goes away on every device of theirs. Only the requester can clear it.
-const markSeen = (id, profile) => {
+const markSeen = (id, viewer) => {
   const job = findJob(id);
   if (!job) return { error: "no such download" };
-  if (!profile || job.profile !== profile) return { error: "not your download" };
+  if (!isRequester(job, viewer)) return { error: "not your download" };
   if (!job.seenAt) {
     job.seenAt = now();
     store.save();
     broadcast(job);
   }
-  return { job: publicJob(job) };
+  return { job: publicJobFor(job, viewer) };
 };
 
 // Windows-safe folder/file component.
@@ -218,11 +234,13 @@ const findJob = (id) => store.data.find((j) => j.id === id);
 const activeCount = () => active.size;
 
 const list = () => store.data.map(publicJob);
+// The list as one viewer sees it ("mine" per job).
+const listFor = (viewer) => store.data.map((j) => publicJobFor(j, viewer));
 
 const create = (fields) => {
   const {
     infoHash, fileIdx, type, imdbId, title, label, year, poster,
-    quality, sizeBytes, season, episode, provider, seeders, profile,
+    quality, sizeBytes, season, episode, provider, seeders, profile, smart,
   } = fields || {};
 
   if (!isValidHash(infoHash)) return { error: "bad infoHash" };
@@ -273,6 +291,7 @@ const create = (fields) => {
     provider: provider || null,
     seeders: seeders || 0,
     profile: profile ? String(profile).slice(0, 24) : null,
+    smart: !!smart, // queued by smart downloads (the next episode), not by hand
     status: gate.ok ? "approved" : "pending",
     // Set when the queue started this itself, so pump() knows it may still send
     // the job back to "pending" if the disk fills before its turn comes up.
@@ -778,7 +797,7 @@ const resume = () => {
 };
 
 module.exports = {
-  list, create, approve, decline, cancel, remove, resume, publicJob, stats, markSeen,
+  list, listFor, create, approve, decline, cancel, remove, resume, publicJob, publicJobFor, stats, markSeen,
   // Pure helpers, exported so test/downloads.test.js can pin the rules that
   // decide where a file lands and whether a request needs approval.
   _internals: { safeName, folderKey, chooseFolder, diskGate, destinationFor },

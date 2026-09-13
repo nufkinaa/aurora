@@ -68,6 +68,7 @@ const pub = (p) => ({
   // universal fallback and never carries a path.
   avatarImage: p.avatarImage || null,
   rows: p.rows || null, // home-row order/visibility prefs (settings UI reads these)
+  prefs: p.prefs || {}, // small per-profile switches (smartDownloads …)
   hasPassword: !!p.passwordHash,
   locked: !!p.locked,
 });
@@ -510,6 +511,13 @@ const update = (id, fields) => {
   if (typeof fields.theme === "string" && THEMES.includes(fields.theme)) p.theme = fields.theme;
   if (typeof fields.accent === "string" && HEX_COLOR.test(fields.accent)) p.accent = fields.accent;
   if (fields.accent === null) delete p.accent; // back to the default violet
+  // Boolean switches only, by name — nothing arbitrary lands in the store.
+  if (fields.prefs && typeof fields.prefs === "object") {
+    p.prefs = p.prefs || {};
+    for (const k of ["smartDownloads"]) {
+      if (typeof fields.prefs[k] === "boolean") p.prefs[k] = fields.prefs[k];
+    }
+  }
   // Home row composition: {order: [rowIds], hidden: [rowIds]}. Ids are
   // opaque strings (generated rows like liked-<genre> included) — bounded,
   // never interpreted. Empty prefs delete the field (back to defaults).

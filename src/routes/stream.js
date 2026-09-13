@@ -119,6 +119,22 @@ router.get("/img/still/:id", async (req, res) => {
   }
 });
 
+// A frame at a given second (?t=), for "resume from here" prompts.
+router.get("/img/frame/:id", async (req, res) => {
+  try {
+    const entry = resolveKind(req.params.id, "video");
+    if (!entry) return res.status(404).send("Not found");
+    const t = Math.max(0, parseFloat(req.query.t) || 0);
+    const stills = require("../media/stills");
+    const file = await stills.getFrame(entry.path, t);
+    if (!file) return res.status(404).send("No frame available");
+    res.setHeader("Cache-Control", "public, max-age=604800");
+    res.sendFile(file);
+  } catch {
+    res.status(500).send("Frame generation failed");
+  }
+});
+
 // ---------- external artwork proxy-cache ----------
 // Discover posters/backdrops hotlink external CDNs — measured 2026-08-23:
 // ~319 unique posters per home load, all from one host, at 200–650ms each.

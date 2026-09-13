@@ -159,6 +159,15 @@ test("publicJob exposes what the pages and admin read, and hides the rest", () =
   assert.equal(job.profile, undefined, "who asked stays server-side");
 });
 
+test("publicJobFor says 'mine' to the requester (by id, or by name for older jobs) and nothing about who asked", () => {
+  const job = { id: "j1", status: "done", profile: "p-elia", at: "now" };
+  assert.equal(downloads.publicJobFor(job, { id: "p-elia", name: "Elia" }).mine, true);
+  assert.equal(downloads.publicJobFor(job, { id: "p-other", name: "Other" }).mine, false);
+  assert.equal(downloads.publicJobFor({ ...job, profile: "Elia" }, { id: "p-elia", name: "Elia" }).mine, true);
+  assert.equal(downloads.publicJobFor(job, { id: null, name: null }).mine, false);
+  assert.equal(downloads.publicJobFor(job, { id: "p-other" }).profile, undefined);
+});
+
 // ---------- staging ----------
 
 test("aria2 stages each torrent in its own directory, away from streaming", () => {

@@ -67,6 +67,22 @@ const broadcastAll = (data) => {
   });
 };
 
+// One payload PER CLIENT (fn(client) → data, or null to skip that socket):
+// for messages whose shape depends on who is listening — download updates
+// say "mine" to the requester and nothing about who asked to everyone else.
+const broadcastEach = (fn) => {
+  if (!wss) return;
+  const closed = require("./lib/authmode").get() === "closed";
+  for (const c of clients.values()) {
+    const ws = c.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) continue;
+    if (closed && !ws.authed && !ws.isAdmin) continue;
+    let data = null;
+    try { data = fn(c, ws); } catch { data = null; }
+    if (data) ws.send(JSON.stringify(data));
+  }
+};
+
 const broadcastAdmins = (data) => {
   if (!wss) return;
   const msg = JSON.stringify(data);
@@ -139,6 +155,11 @@ const handleMessage = (client, data, ws) => {
   switch (data.type) {
     case "hello":
       client.profile = String(data.profile || "").slice(0, 24) || null;
+      // the id too (the name is for presence; "is this download mine?" needs
+      // the id). In closed mode the session is the truth, not the message.
+      client.profileId = ws.authed && ws.profileId
+        ? ws.profileId
+        : String(data.profileId || "").slice(0, 24) || null;
       broadcastAdmins({ type: "client_update", client: publicClient(client) });
       break;
 
@@ -210,9 +231,12 @@ const attach = (server) => {
     // only in authMode "required" — see the note there. Lazy require: authz
     // pulls users→profiles, and realtime loads very early at boot.
     try {
-      ws.authed = !!require("./lib/authz").sessionFor(req);
+      const sess = require("./lib/authz").sessionFor(req);
+      ws.authed = !!sess;
+      ws.profileId = sess ? sess.profile.id : null;
     } catch {
       ws.authed = false;
+      ws.profileId = null;
     }
 
     if (bans.data[ip]) {
@@ -260,6 +284,7 @@ const attach = (server) => {
 module.exports = {
   attach,
   broadcastAll,
+  broadcastEach,
   broadcastAdmins,
   clients,
   connectionLog,

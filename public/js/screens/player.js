@@ -2402,6 +2402,56 @@ export const renderPlayer = async (root, { id }) => {
     scrubTip.classList.add("hidden"),
   );
 
+  // ---------- resume card ----------
+  // "Resuming from 12:34", with the frame at that spot for a library file
+  // (/img/frame — the stills pipeline, so it costs one ffmpeg call the first
+  // time and nothing after). Non-blocking: playback carries on underneath;
+  // "Start over" is one press away for the six seconds it stays up, then it
+  // fades. Streams have no file to pull a frame from, so they keep the toast.
+  let resumeCard = null;
+  const showResumeCard = (at) => {
+    if (isTorrent || !overlay) return toast(`Resuming from ${fmtClock(at)}`, "▶️");
+    if (resumeCard) resumeCard.remove();
+    const img = el("img", {
+      class: "resume-card-frame",
+      src: `/img/frame/${encodeURIComponent(item.id)}?t=${Math.floor(at)}`,
+      alt: "",
+      onerror: () => img.remove(), // no ffmpeg / no frame: the card is text-only
+    });
+    const startOver = el("button", {
+      class: "btn small focusable",
+      html: "<span>Start over</span>",
+      onclick: () => {
+        video.currentTime = 0;
+        dismiss();
+        toast("From the top", "⏮");
+      },
+    });
+    resumeCard = el(
+      "div",
+      { class: "resume-card" },
+      img,
+      el(
+        "div",
+        { class: "resume-card-text" },
+        el("div", { class: "resume-card-k" }, "Resuming from"),
+        el("div", { class: "resume-card-t" }, fmtClock(at)),
+      ),
+      startOver,
+    );
+    let timer = null;
+    const dismiss = () => {
+      clearTimeout(timer);
+      if (!resumeCard) return;
+      resumeCard.classList.add("leaving");
+      const node = resumeCard;
+      resumeCard = null;
+      setTimeout(() => node.remove(), 350);
+    };
+    overlay.append(resumeCard);
+    timer = setTimeout(dismiss, 6000);
+  };
+
   // ---------- progress persistence ----------
   // For torrent streams, send a trimmed play-item so Continue Watching can
   // render and resume it (torrent ids aren't in the server's library scanner).
@@ -2627,9 +2677,9 @@ export const renderPlayer = async (root, { id }) => {
       prog.position < totalDuration() - 20
     ) {
       video.currentTime = prog.position;
-      toast(`Resuming from ${fmtClock(prog.position)}`, "▶️");
+      showResumeCard(prog.position);
     } else if (usingTranscode && streamOffset > 0) {
-      toast(`Resuming from ${fmtClock(streamOffset)}`, "▶️");
+      showResumeCard(streamOffset);
     }
     // RE-ASSERT the chosen subtitle track. A transcode restart (far seek /
     // resume) tears down hls.js and re-attaches the media element, which resets
