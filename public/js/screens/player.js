@@ -7,6 +7,7 @@ import { navigate } from "../router.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
 import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem } from "../party.js";
+import { showReportSheet, setPlayingContext } from "../report.js";
 import * as offline from "../offline.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -190,6 +191,27 @@ export const renderPlayer = async (root, { id }) => {
     } catch {}
   };
 
+  // Start-up forensics for library files (torrents have perf-mark): every
+  // step from mount to first frame, with the milliseconds, in the server log
+  // under [play] — so "it takes too long" comes with the step that took it.
+  const t0 = performance.now();
+  const playMarks = [];
+  const mark = (name, extra = {}) => {
+    const ms = Math.round(performance.now() - t0);
+    playMarks.push({ name, ms, ...extra });
+    if (isTorrent || item._offline) return;
+    try {
+      fetch(`/api/play-mark/${encodeURIComponent(item.id)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, ms, ...extra }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {}
+  };
+  mark("mount", { container: item.container || null, video: item.video && item.video.codec, audio: item.audio && item.audio.codec });
+  setPlayingContext({ id: item.id, title: isEpisode ? `${item.showTitle} S${item.season}E${item.episode}` : item.title, marks: () => playMarks.slice() });
+
   // ---------- element tree ----------
   const video = el("video", {
     autoplay: true,
@@ -350,6 +372,7 @@ export const renderPlayer = async (root, { id }) => {
   };
 
   const startDirect = () => {
+    mark("path", { path: "direct" });
     video.src = item.videoUrl;
     tryPlay();
   };
@@ -727,6 +750,7 @@ export const renderPlayer = async (root, { id }) => {
       return false;
     }
     if (exited) return true; // switched-to-nothing: just don't start legacy
+    mark("path", { path: "jit", from: fromSec || 0 });
     usingTranscode = true;
     jitMode = true;
     currentV = "copy";
@@ -784,6 +808,16 @@ export const renderPlayer = async (root, { id }) => {
   if (item._offline) {
     // The saved copy was made playable for this device (offline.js); play it.
     startDirect();
+  } else if (
+    !isTorrent &&
+    !nativeHlsOnly &&
+    item.video && item.video.codec === "hevc" &&
+    /mkv|matroska/i.test(item.container || "") &&
+    codecCopyable(item.video)
+  ) {
+    mark("decision", { why: "hevc-in-mkv → copy first" });
+    const jitOk = await tryJitSwitch(resumeAt);
+    if (!jitOk) startTranscode(resumeAt, "copy");
   } else if (!isTorrent && videoNeedsTranscode()) {
     // Library file this device can't play directly. The file is complete on
     // disk, so resuming at the saved position works (unlike torrent streams,
@@ -899,12 +933,12 @@ export const renderPlayer = async (root, { id }) => {
         video.buffered.end(video.buffered.length - 1) - ct > 3;
       // frozen clock WITH data waiting ahead = decode stall (not a peer stall)
       if (!video.paused && ahead && ct === lastCT) {
-        if (++stalls >= 3) fallbackToTranscode(); // ~6s
+        if (++stalls >= 3) { mark("stall-switch", { at: ct }); fallbackToTranscode(); } // ~3s
       } else {
         stalls = 0;
       }
       lastCT = ct;
-    }, 2000);
+    }, 1000);
   }
 
   // Keep the server-side halves of this playback alive for as long as the
@@ -1145,7 +1179,9 @@ export const renderPlayer = async (root, { id }) => {
         el("div", { class: "player-title" }, title),
         subtitleText && el("div", { class: "player-subtitle" }, subtitleText),
         isTorrent && el("span", { class: "torrent-badge" }, "TORRENT"),
-        formatRow(item, { max: 4 }),
+        // the pill up top says what matters while watching: resolution,
+        // HDR flavour, sound — not the codec or that there are subtitles
+        formatRow(item, { max: 3, codec: false, subs: false }),
       ),
       partyPill,
     ),
@@ -1157,16 +1193,16 @@ export const renderPlayer = async (root, { id }) => {
       el(
         "div",
         { class: "player-controls" },
-        btn("Back 10 seconds", icons.back10, () => skip(-1)),
-        playBtn,
-        btn("Forward 10 seconds", icons.forward10, () => skip(1)),
+        // three groups: transport, volume, tools — the classic look lays
+        // them out left-to-right, the glass dock puts the transport in the
+        // middle with volume left and tools right
+        el("div", { class: "pc-transport" },
+          btn("Back 10 seconds", icons.back10, () => skip(-1)),
+          playBtn,
+          btn("Forward 10 seconds", icons.forward10, () => skip(1))),
         el("div", { class: "vol-group" }, muteBtn, volSlider),
         el("div", { class: "player-spacer" }),
-        ccBtn,
-        speedBtn,
-        partyBtn,
-        gearBtn,
-        fsBtn,
+        el("div", { class: "pc-tools" }, ccBtn, speedBtn, partyBtn, gearBtn, fsBtn),
       ),
     ),
     menuHost,
@@ -1978,6 +2014,7 @@ export const renderPlayer = async (root, { id }) => {
       const rebuild = () => {
         menu.innerHTML = "";
         menu.append(el("div", { class: "menu-title" }, "Playback"));
+        menu.append(entry("Report a problem", "with this title", () => { closeMenu(); showReportSheet({ hint: "from the player" }); }));
         menu.append(
           entry(
             "Autoplay next episode",
@@ -3410,6 +3447,14 @@ export const renderPlayer = async (root, { id }) => {
     else navigate("#/");
   };
 
+  // first picture, once
+  let firstFrameMarked = false;
+  video.addEventListener("playing", () => {
+    if (firstFrameMarked) return;
+    firstFrameMarked = true;
+    mark("first-frame", { transcode: usingTranscode, jit: jitMode, v: currentV || null });
+  });
+
   applyCueStyle();
   paintVolume();
   showControls();
@@ -3421,6 +3466,7 @@ export const renderPlayer = async (root, { id }) => {
     clearInterval(partySync);
     for (const un of unsubParty) un();
     if (!keepParty) leaveParty();
+    setPlayingContext(null);
     if (torrentPoll) clearInterval(torrentPoll);
     if (statusPoll) clearInterval(statusPoll);
     if (stallTimer) clearInterval(stallTimer);

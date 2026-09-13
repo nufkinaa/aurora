@@ -3826,3 +3826,8 @@
 /* trailer chooser + no-internet note */
 .trailer-pills { display: flex; gap: 6px; margin-left: auto; margin-right: 10px; }
 .trailer-note { position: absolute; inset: auto 0 0 0; padding: 14px 18px; text-align: center; color: #fff; background: linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0)); font-size: 0.9rem; }
+
+/* glass-only title-page pieces (see glass.css) */
+.detail-server, .episode-still, .episode-kicker { display: none; }
+/* legacy: rows below the fold skip layout until needed (same trick, both looks) */
+.row, .grid { content-visibility: auto; contain-intrinsic-size: auto 340px; }

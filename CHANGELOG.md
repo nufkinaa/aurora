@@ -3,6 +3,18 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.5.0 — 2026-09-14
+
+- Apple Horror, tightened: the home hero is full-bleed and taller, sits behind the floating nav, and its art is sharp from the first frame; the Tonight row is gone — Continue Watching is Continue Watching again, and parties live in their own strip; the quiet dots are back instead of the picks panel; the sky moves faster and its curtains cover the whole height.
+- One glass everywhere: every raised surface — sheets, menus, settings cards, episode and source rows, the title page's side card and season island — is the nav island's material (blur 7px, the same fill and edge light). The title page's art blur dropped from 50px to 1px.
+- Title pages redesigned for the new look: a chip row, a big title, glass action pills, a side card with your rating and what's on the server, a season island, and episode cards with stills, "EPISODE N · MIN" kickers and progress.
+- Player dock rebalanced: volume on the left, transport in the middle, tools on the right. The title pill up top keeps resolution, HDR and sound and drops the codec and CC.
+- Nav links no longer flash white when the mouse leaves them (pointer focus is drawn like hover; only keyboard focus gets the strong ring).
+- Faster starts for files on disk: HEVC in MKV goes straight to the copy stream instead of gambling on direct play and stalling; the decode-stall watchdog decides in 3 seconds instead of 6; every library start now logs its steps under [play] in the server log (mount → path → first frame, with milliseconds) so a slow start can be read, not guessed.
+- Watchdog and self-heal: every 20 seconds the server checks memory, event-loop lag and ffmpeg children. Under pressure it drops rebuildable caches and stops idle transcoders; if memory keeps climbing or the loop is stuck it restarts itself cleanly under pm2. Admin → Server has a Health card with the numbers, the events, and a Heal now button.
+- Report a problem: profile menu → Report a problem (or the player's gear menu). A few words from you, and the screen, the title playing, the look, the browser, the app version, the player's start-up marks and the page's last errors come along by themselves. Admin → Moderation lists them; the admin's phone gets a push.
+- Performance, same picture: the glass sheen moves by transform instead of repainting every surface each frame; ordinary buttons no longer carry a backdrop blur each; rows and grids below the fold skip layout until they scroll near; the sky paints at 20 fps.
+
 ## 1.4.0 — 2026-09-14
 
 - Auto-subtitles: pick a language under Preferences → Subtitles and it follows your profile to every device. When a title you own doesn't have it, Aurora fetches one from the subtitle providers in the background, saves it next to the file for everyone, and switches it on the moment it lands.

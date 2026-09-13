@@ -36,7 +36,7 @@ export const watchlistButton = (item) => {
   return btn;
 };
 
-export const heroBlock = (item, actions, metaParts, { rateKey = null } = {}) => {
+export const heroBlock = (item, actions, metaParts, { rateKey = null, serverInfo = null } = {}) => {
   return el("div", { class: "detail-hero" },
     (item.backdrop || item.cover) &&
       el("div", {
@@ -78,7 +78,14 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null } = {}) => 
       rateKey && state.profile &&
         el("div", { class: "detail-rate" },
           el("span", { class: "detail-rate-label" }, "Your rating"),
-          starRating(rateKey)
+          starRating(rateKey),
+          // What the server holds of this title (the glass side card shows
+          // it; the classic look keeps the rating alone). Lines are
+          // [text, tone] pairs; tone "ok" reads green, "dim" quiet.
+          serverInfo && serverInfo.length > 0 &&
+            el("div", { class: "detail-server" },
+              el("span", { class: "detail-server-k" }, "On this server"),
+              ...serverInfo.map(([text, tone]) => el("div", { class: tone || "" }, text))),
         ),
       el("div", { class: "detail-actions" }, actions)
     )

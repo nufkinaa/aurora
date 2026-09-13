@@ -23,6 +23,23 @@ const INTRO_KEY = /^(show|imdb):[\w.-]{1,40}$/;
 
 // The automatic answer (media/introdetect.js): chapters or audio fingerprints
 // across the season. The player prefers a manual mark when one exists.
+// Player start-up marks for library titles: one log line per step, so a
+// slow start is diagnosable from the server log ([play] mount → path →
+// first-frame, with the milliseconds since mount). Public like the rest
+// of playback; bounded and never stored.
+router.post("/api/play-mark/:id", (req, res) => {
+  const b = req.body || {};
+  const name = String(b.name || "").slice(0, 32);
+  const ms = Math.max(0, Math.min(600000, parseInt(b.ms, 10) || 0));
+  const extra = Object.entries(b)
+    .filter(([k]) => !["name", "ms"].includes(k))
+    .slice(0, 6)
+    .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`)
+    .join(" ");
+  if (name) console.log(`[play] ${String(req.params.id).slice(0, 12)} +${ms}ms ${name}${extra ? " " + extra : ""}`);
+  res.json({ ok: true });
+});
+
 router.get("/api/intro/auto/:id", (req, res) => {
   res.json(require("../media/introdetect").get(req.params.id));
 });

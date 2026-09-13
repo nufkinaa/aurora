@@ -76,16 +76,21 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   ctx.imageSmoothingQuality = "high";
   const calm = matchMedia("(prefers-reduced-motion: reduce)");
 
+  // Four curtains spread over the WHOLE height (the page sky sits behind
+  // every screen, not just the top of one), thicker and a touch brighter
+  // than the sign-in sky.
   const BANDS = [
-    makeBand({ hero: true, y: rand(0.24, 0.3) }),
-    makeBand({ violet: true, y: rand(0.4, 0.48) }),
-    makeBand({ y: rand(0.14, 0.2) }),
+    makeBand({ hero: true, y: rand(0.2, 0.28) }),
+    makeBand({ violet: true, y: rand(0.42, 0.52) }),
+    makeBand({ y: rand(0.08, 0.14) }),
+    makeBand({ y: rand(0.66, 0.78) }),
   ];
+  for (const b of BANDS) { b.thick *= 1.25; b.alpha *= 1.12; }
   for (const b of BANDS) b.speed *= pace;
   // A sparse, fixed starfield (twinkle via alpha wave — no reshuffling).
-  const STARS = Array.from({ length: 90 }, () => ({
+  const STARS = Array.from({ length: 110 }, () => ({
     x: Math.random(),
-    y: Math.random() * 0.82,
+    y: Math.random(),
     r: rand(0.3, 1.0),
     tw: rand(0.3, 1.4),
     off: rand(0, Math.PI * 2),
@@ -167,7 +172,7 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   const loop = (now) => {
     raf = null;
     if (!alive() || calm.matches) return;
-    if (now - last >= 42) {
+    if (now - last >= 50) {
       last = now;
       paint(now / 1000);
     }

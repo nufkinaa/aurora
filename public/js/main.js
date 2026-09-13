@@ -16,6 +16,7 @@ import { showProfileGate } from "./screens/profiles.js";
 import { showLoginScreen } from "./screens/login.js";
 import { showClaimModal } from "./claim.js";
 import { showShortcutsOverlay } from "./screens/shortcuts.js";
+import { showReportSheet } from "./report.js";
 import { initAurora } from "./aurora.js";
 import { initScreensaver } from "./screensaver.js";
 
@@ -115,7 +116,7 @@ initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
     if (glass && !stopSky) {
       import("./aurora-sky.js").then((m) => {
         if (document.documentElement.dataset.look !== "glass" || stopSky) return;
-        stopSky = m.initAuroraSky($("#glass-sky"), { pace: 0.45 });
+        stopSky = m.initAuroraSky($("#glass-sky"), { pace: 0.95 });
       });
     } else if (!glass && stopSky) {
       stopSky();
@@ -190,6 +191,7 @@ initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
       .catch(() => { fetchedFor = null; });
   };
   load();
+  onMessage("server_notice", ({ message }) => { if (message) toast(message, "🛠️"); });
   onMessage("download_update", ({ job }) => {
     if (!job) return;
     // A smart download appearing for the first time is the one download the
@@ -397,6 +399,7 @@ const showProfileMenu = () => {
       item("Switch profile", () => { close(); openGate(); }),
     item("Preferences", () => { close(); navigate("#/preferences"); }),
     item("My downloads", () => { close(); navigate("#/downloads"); }),
+    item("Report a problem", () => { close(); showReportSheet(); }),
     item("Join a watch party", () => { close(); showJoinParty(); }),
     state.user &&
       item("Sign out", async () => {

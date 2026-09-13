@@ -1410,3 +1410,22 @@
   .peek-remove { margin-left: 0; }
 }
 @keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } }
+
+/* report a problem */
+.look-notice.report { text-align: left; }
+.look-notice.report .look-notice-title, .look-notice.report .sheet-icon { text-align: center; }
+.report-text, .report-doing {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+.report-text:focus, .report-doing:focus { outline: none; box-shadow: var(--focus-ring); }
+.report-ctx { margin-top: 10px; font-size: 0.78rem; color: var(--text-faint); }
+.report-status { min-height: 1.2em; margin-top: 6px; font-size: 0.85rem; color: var(--text-dim); }
+.look-notice.report .look-notice-actions { justify-content: flex-end; margin-top: 14px; }

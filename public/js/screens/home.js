@@ -1,7 +1,7 @@
 // Home: rotating hero billboard + shelves (Continue Watching, My List, ...)
 import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, restoreScrollY } from "../ui.js";
 import { api } from "../api.js";
-import { state, progressFor, readyDownloads } from "../state.js";
+import { state, progressFor } from "../state.js";
 import { shelfRow, continueRow, openItem } from "../components.js";
 import { navigate } from "../router.js";
 import { onMessage } from "../ws.js";
@@ -338,8 +338,7 @@ export const renderHome = async (root) => {
   screen.append(partyStrip);
   const paintParties = (parties) => {
     partyStrip.innerHTML = "";
-    // In the glass look the Tonight row carries the parties — not twice.
-    const list = glass() ? [] : (parties || []).filter((p) => p.code);
+    const list = (parties || []).filter((p) => p.code);
     partyStrip.classList.toggle("hidden", list.length === 0);
     for (const p of list) {
       partyStrip.append(
@@ -359,7 +358,7 @@ export const renderHome = async (root) => {
       );
     }
   };
-  if (!glass()) api.parties().then((d) => paintParties(d.parties)).catch(() => {});
+  api.parties().then((d) => paintParties(d.parties)).catch(() => {});
   const unsubParties = onMessage("party_list", ({ parties }) => {
     if (!screen.isConnected) return unsubParties();
     paintParties(parties);
@@ -377,77 +376,15 @@ export const renderHome = async (root) => {
   // Home's shelves are the one place films and series sit side by side in the same
   // row, so this is where a card has to say which it is. The Movies and Shows
   // pages know already, and Continue Watching's labels read as episodes.
-  // Glass look: Continue Watching becomes "Tonight" — the same cards, with
-  // what used to be separate tiles riding on cards of their own at the front:
-  // a download of yours that landed (READY · plays from disk), a party you can
-  // join (LIVE), the newest episode of a show you follow (NEW).
-  const tonightItems = (items, allRows) => {
-    const out = [];
-    for (const job of readyDownloads()) {
-      out.push({
-        id: `ready|${job.id}`,
-        title: job.label || job.title,
-        cover: job.poster || null,
-        badge: { text: "Ready · plays from disk", tone: "ready" },
-        meta: job.smart ? "queued for you" : "your download landed",
-        _noRemove: true,
-        _open: () => {
-          api.downloadSeen(job.id, state.profile.id).catch(() => {});
-          navigate(`#/play/${job.libraryId}`);
-        },
-      });
-    }
-    for (const p of liveParties) {
-      out.push({
-        id: `party|${p.code}`,
-        title: p.title,
-        cover: p.cover || null,
-        badge: { text: `Live · ${p.host}'s party`, tone: "live" },
-        meta: `${p.members} watching · join`,
-        _noRemove: true,
-        _open: () => navigate(`#/party/${p.code}`),
-      });
-    }
-    const fresh = (allRows.find((r) => r.id === "new-episodes") || {}).items;
-    if (fresh && fresh[0]) {
-      const f = fresh[0];
-      out.push({ ...f, badge: { text: "New episode", tone: "fresh" }, _noRemove: true });
-    }
-    return out.concat(items || []);
-  };
-  let liveParties = [];
   let lastRows = [];
-  const buildRow = (r, allRows = lastRows) => {
+  const buildRow = (r) => {
     const node =
       r.id === "continue" && state.profile
-        ? glass()
-          ? continueRow("Tonight", tonightItems(r.items, allRows), state.profile.id, api, {
-              sub: "where you are, what's landed, who's watching",
-              showKind: true,
-            })
-          : continueRow(r.title, r.items, state.profile.id, api)
+        ? continueRow(r.title, r.items, state.profile.id, api)
         : shelfRow(r.title, r.items, { showKind: true });
     if (node) node.dataset.rowId = r.id;
     return node;
   };
-  // Parties come from their own call; when they land (or change), the Tonight
-  // row is the one row to repaint.
-  const repaintTonight = () => {
-    if (!glass()) return;
-    const cont = lastRows.find((r) => r.id === "continue");
-    const old = rowsHost.querySelector('[data-row-id="continue"]');
-    if (!cont || !old) return;
-    const fresh = buildRow(cont, lastRows);
-    if (fresh) old.replaceWith(fresh);
-  };
-  if (glass()) {
-    api.parties().then((d) => { liveParties = d.parties || []; repaintTonight(); }).catch(() => {});
-  }
-  const unsubPartyList = onMessage("party_list", ({ parties }) => {
-    if (!screen.isConnected) return unsubPartyList();
-    liveParties = parties || [];
-    repaintTonight();
-  });
 
   const renderRows = (rows) => {
     const token = ++renderToken;

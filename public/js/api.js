@@ -138,6 +138,7 @@ export const api = {
     json(`/api/search/suggest?q=${encodeURIComponent(q)}${type ? `&type=${type}` : ""}${limit ? `&limit=${limit}` : ""}`),
   intro: (key) => json(`/api/intro/${encodeURIComponent(key)}`),
   subtitlesFetch: (id, lang) => post("/api/subtitles/fetch", { id, lang }),
+  report: (text, context, profile) => post("/api/reports", { text, context, profile }),
   setIntro: (key, start, end) => {
     let by = null;
     try { by = (JSON.parse(localStorage.getItem("aurora-profile-name") || "null")); } catch {}

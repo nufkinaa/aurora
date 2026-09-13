@@ -247,7 +247,7 @@ export const resBadge = (item) => {
 // channel count. Reads the probe on library items and the release tags on
 // torrent sources; text only, never a logo. Returns strings, most important
 // first, so callers can cap the count.
-export const formatBadges = (item, { max = 5 } = {}) => {
+export const formatBadges = (item, { max = 5, codec: withCodec = true, subs: withSubs = true } = {}) => {
   if (!item) return [];
   const out = [];
   const push = (t) => { if (t && !out.includes(t)) out.push(t); };
@@ -274,9 +274,11 @@ export const formatBadges = (item, { max = 5 } = {}) => {
   if (a && a.channels >= 8) push("7.1");
   else if (a && a.channels >= 6) push("5.1");
   const vc = item.video && item.video.codec;
-  if (vc === "hevc" || tags.includes("H.265")) push("HEVC");
-  else if (vc === "av1" || tags.includes("AV1")) push("AV1");
-  if ((item.subtitles || []).length) push("CC");
+  if (withCodec) {
+    if (vc === "hevc" || tags.includes("H.265")) push("HEVC");
+    else if (vc === "av1" || tags.includes("AV1")) push("AV1");
+  }
+  if (withSubs && (item.subtitles || []).length) push("CC");
   return out.slice(0, max);
 };
 // The badges as a row node, or null when there is nothing to say.

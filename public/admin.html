@@ -446,6 +446,14 @@
         <div class="empty-note hidden" id="sv-torrents-empty">No active torrents.</div>
       </div>
       <div class="card">
+        <h2>Health <span class="note">the watchdog: memory, event-loop lag, ffmpeg children — and what it did about them</span></h2>
+        <div class="stats" id="sv-health" style="margin:0 0 10px"></div>
+        <div id="sv-health-events" class="empty-note">No watchdog events yet.</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini" id="heal-btn">Heal now (drop caches, stop idle ffmpeg)</button>
+        </div>
+      </div>
+      <div class="card">
         <h2>Updates <span class="note">nothing happens without a button press</span></h2>
         <div id="sv-update" class="empty-note">Checking…</div>
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
@@ -548,6 +556,13 @@
 
     <!-- ================= MODERATION ================= -->
     <div class="pane" id="pane-moderation">
+      <section>
+        <h2>Problem reports <span class="note">what people sent from "Report a problem" — with where they were and the errors their page saw</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>When</th><th>From</th><th>Report</th><th>Where</th><th>Status</th><th></th></tr></thead>
+          <tbody id="reports"></tbody>
+        </table></div>
+      </section>
       <section>
         <h2>Requests</h2>
         <div class="table-scroll"><table>
@@ -1539,7 +1554,7 @@
           json("/api/admin/profile-requests"),
         ]);
         const put = (id, n) => { $(id).textContent = n > 0 ? String(n) : ""; };
-        put("#badge-moderation", counts.requests);
+        put("#badge-moderation", (counts.requests || 0) + (counts.reports || 0));
         put("#badge-downloads", counts.downloads);
         put("#badge-profiles", profReqs.length);
       } catch {}
@@ -1688,6 +1703,71 @@
       a.download = `aurora-log-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-")}.txt`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    };
+
+    // ---------- problem reports ----------
+    async function loadReports() {
+      let data;
+      try { data = await json("/api/admin/reports"); } catch { return; }
+      const items = data.reports || [];
+      $("#reports").innerHTML = items.length
+        ? items.map((r) => `
+          <tr class="${r.status === "closed" ? "muted" : ""}">
+            <td class="muted" style="white-space:nowrap">${ago(new Date(r.at).toISOString())}</td>
+            <td>${esc(r.profile || "—")}</td>
+            <td style="max-width:460px"><div style="white-space:pre-wrap">${esc(r.text)}</div>
+              <details style="margin-top:6px"><summary class="muted" style="cursor:pointer;font-size:0.8rem">context${r.context.errors && r.context.errors.length ? ` · ${r.context.errors.length} error${r.context.errors.length > 1 ? "s" : ""}` : ""}</summary>
+                <div class="muted" style="font-size:0.78rem;margin-top:4px;line-height:1.5">
+                  ${esc(r.context.look || "")} · ${esc(r.context.viewport || "")} · v${esc(r.context.version || "?")}${r.context.online === false ? " · offline" : ""}<br>
+                  <span style="font-family:ui-monospace,monospace">${esc(r.context.ua || "")}</span>
+                  ${r.context.title ? `<br>playing: ${esc(r.context.title)} (${esc(r.context.itemId || "")})` : ""}
+                  ${r.context.playMarks && r.context.playMarks.length ? `<br>start-up: ${esc(r.context.playMarks.map((m) => `+${m.ms}ms ${m.name}${m.path ? ":" + m.path : ""}`).join(" → "))}` : ""}
+                  ${r.context.errors && r.context.errors.length ? `<pre style="white-space:pre-wrap;margin:6px 0 0;font-size:0.74rem">${esc(r.context.errors.join("\n"))}</pre>` : ""}
+                </div></details></td>
+            <td class="muted" style="font-family:ui-monospace,monospace;font-size:0.78rem">${esc(r.context.route || "")}</td>
+            <td><span class="pill${r.status === "open" ? " warn" : ""}">${esc(r.status)}</span></td>
+            <td style="text-align:right;white-space:nowrap">
+              <button class="mini" data-report-status="${esc(r.id)}" data-next="${r.status === "open" ? "closed" : "open"}">${r.status === "open" ? "Mark fixed" : "Reopen"}</button>
+              <button class="mini danger" data-report-del="${esc(r.id)}">Remove</button>
+            </td>
+          </tr>`).join("")
+        : `<tr><td colspan="6" class="empty-note">Nothing reported. (Profile menu → Report a problem, or the player's gear menu.)</td></tr>`;
+    }
+    $("#reports").addEventListener("click", async (e) => {
+      const st = e.target.closest("[data-report-status]");
+      const del = e.target.closest("[data-report-del]");
+      if (st) {
+        await post(`/api/admin/reports/${encodeURIComponent(st.dataset.reportStatus)}/status`, { status: st.dataset.next });
+        loadReports(); loadBadges();
+      } else if (del) {
+        if (!confirm("Remove this report for good?")) return;
+        await adminFetch(`/api/admin/reports/${encodeURIComponent(del.dataset.reportDel)}`, { method: "DELETE" });
+        loadReports(); loadBadges();
+      }
+    });
+
+    // ---------- health (watchdog) ----------
+    async function loadHealth() {
+      let h;
+      try { h = await json("/api/admin/health"); } catch { return; }
+      const n = h.now;
+      const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+      $("#sv-health").innerHTML = [
+        [fmtBytes(n.rss), "resident memory", `${pct(n.rss, h.thresholds.hardRss)}% of the restart line (${fmtBytes(h.thresholds.hardRss)})`],
+        [fmtBytes(n.heapUsed), "heap used", `of ${fmtBytes(n.heapTotal)}`],
+        [`${n.lagMs} ms`, "event-loop lag", n.lagMs > h.thresholds.softLagMs ? "sluggish" : "responsive"],
+        [String(n.ffmpeg), "ffmpeg children", n.ffmpeg > 0 ? "transcoding / probing now" : "idle"],
+        [h.pm2 ? "pm2" : "bare node", "self-restart", h.pm2 ? "a hard heal restarts the server" : "hard heals are logged only"],
+      ].map(([v, k, note]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div>${note ? `<div class="note">${esc(note)}</div>` : ""}</div>`).join("");
+      const ev = h.events || [];
+      $("#sv-health-events").innerHTML = ev.length
+        ? ev.slice().reverse().map((e) => `<div><span class="muted">${ago(new Date(e.at).toISOString())}</span> · <b>${esc(e.kind)}</b>${e.detail ? ` — ${esc(e.detail)}` : ""}</div>`).join("")
+        : "No watchdog events yet — it checks every 20 seconds and only speaks when it acts.";
+    }
+    $("#heal-btn").onclick = async () => {
+      const b = $("#heal-btn"); b.disabled = true;
+      try { await post("/api/admin/heal"); toast("Caches dropped, idle ffmpeg stopped"); } catch { toast("Heal failed"); }
+      b.disabled = false; loadHealth(); loadServer();
     };
 
     // ---------- moderation ----------
@@ -2110,9 +2190,9 @@
       analytics: () => loadAnalytics(),
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
       profiles: () => { loadProfileRequests(); loadProfileAccess(); loadProfiles(); loadAuth(); },
-      server: () => { loadServer(); loadTimeseries(); loadUpdateCheck(); },
+      server: () => { loadServer(); loadHealth(); loadTimeseries(); loadUpdateCheck(); },
       downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadLimits(); },
-      moderation: () => { loadRequests(); loadBans(); loadIntros(); },
+      moderation: () => { loadReports(); loadRequests(); loadBans(); loadIntros(); },
       logs: () => loadLogs(),
     };
     let activeTab = "overview";
@@ -2198,6 +2278,10 @@
             if (activeTab === "profiles") { loadProfileRequests(); loadAuth(); }
             toast("New access request: " + (data.request?.name || "") + (data.request?.username ? " (@" + data.request.username + ")" : ""));
             loadBadges();
+          } else if (data.type === "report_new") {
+            toast("Problem reported: " + ((data.report && data.report.text) || "").slice(0, 80));
+            loadBadges();
+            if (activeTab === "moderation") loadReports();
           } else if (data.type === "download_new" || data.type === "download_update") {
             if (activeTab === "downloads") loadDownloads();
             if (data.type === "download_new") { toast("New download request: " + (data.job?.title || "")); loadBadges(); }

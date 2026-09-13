@@ -235,6 +235,25 @@ setInterval(() => {
   }
 }, 30000).unref?.();
 
+// Under memory pressure the watchdog asks: drop the segment tables (they are
+// re-read from the file in a few ms) and kill every idle producer now.
+try {
+  require("../lib/watchdog").onSoftHeal(() => {
+    const n = tables.size;
+    tables.clear();
+    let killed = 0;
+    const now = Date.now();
+    for (const [dir, job] of jobs) {
+      if (now - job.lastAccess > 30000 && job.proc) {
+        try { job.proc.kill("SIGKILL"); } catch {}
+        job.proc = null;
+        killed++;
+      }
+    }
+    return `jit: ${n} tables dropped, ${killed} idle producers stopped`;
+  });
+} catch {}
+
 module.exports = {
   tableFor,
   playlistText,

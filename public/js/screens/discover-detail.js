@@ -20,6 +20,8 @@ import {
   resolveAirStates,
   toast,
   confirmSheet,
+  artUrl,
+  formatBadges,
 } from "../ui.js";
 import { api } from "../api.js";
 import { dropdown } from "./browse.js";
@@ -1058,6 +1060,30 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   let lateMeta = null;
   const lateMetaHooks = [];
 
+  // The side card's facts: what of this title is on disk, and what it is.
+  const serverInfoFor = () => {
+    const out = [];
+    if (!lib) {
+      out.push([view.type === "show" ? "No episodes on disk yet — stream, or save a source" : "Not on disk yet — stream it, or save a source", "dim"]);
+      return out;
+    }
+    if (view.type === "show") {
+      const eps = (lib.seasons || []).flatMap((se) => se.episodes || []);
+      const listed = (seasonsOf ? seasonsOf() : []).reduce((n, se) => n + (se.episodes || []).length, 0) || eps.length;
+      out.push([`${eps.length} of ${Math.max(listed, eps.length)} episodes on disk`, "ok"]);
+      const bytes = eps.reduce((n, e) => n + (e.sizeBytes || 0), 0);
+      const fmt = formatBadges(eps[0] || {}, { max: 3, subs: false }).join(" · ");
+      if (bytes || fmt) out.push([[bytes ? fmtBytes(bytes) : null, fmt || null].filter(Boolean).join(" · "), "dim"]);
+    } else {
+      out.push(["On disk — plays instantly", "ok"]);
+      const fmt = formatBadges(lib, { max: 4, subs: false }).join(" · ");
+      out.push([[lib.sizeBytes ? fmtBytes(lib.sizeBytes) : null, fmt || null, lib.duration ? fmtDuration(lib.duration) : null].filter(Boolean).join(" · "), "dim"]);
+    }
+    return out;
+  };
+  let seasonsOf = null; // set once the show's seasons are known (below)
+
+
   if (source === "library") {
     lib = await api.item(id).catch(() => null);
     if (!lib) return navigate("#/");
@@ -1339,6 +1365,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   screen.append(
     heroBlock(view, actions, metaPartsFor(null), {
       rateKey: imdbId || (lib && lib.id),
+      serverInfo: serverInfoFor(),
     }),
   );
 
@@ -1370,7 +1397,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     const oldHero = screen.querySelector(".detail-hero");
     if (oldHero) {
       oldHero.replaceWith(
-        heroBlock(view, actions, metaPartsFor(null), { rateKey: imdbId || (lib && lib.id) }),
+        heroBlock(view, actions, metaPartsFor(null), { rateKey: imdbId || (lib && lib.id), serverInfo: serverInfoFor() }),
       );
       if (m.cast && m.cast.length && !screen.querySelector(".detail-cast")) {
         screen.querySelector(".detail-hero").after(castLine(m));
@@ -1525,6 +1552,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   }
 
   // ---------- shows ----------
+  seasonsOf = () => seasons;
   const seasonKey = `aurora-season-${imdbId || (lib && lib.id)}`;
   const savedSeason = parseInt(localStorage.getItem(seasonKey) || "", 10);
   const hasSaved = seasons.some((s) => s.number === savedSeason);
@@ -1727,9 +1755,24 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
             : { onclick: () => openSources(row) }),
         },
         el("div", { class: "episode-num" }, row.episode),
+        // A still for the glass card: the episode's own thumbnail when the
+        // metadata has one, else a frame from the file we own.
+        (row.thumbnail || (local && local.id)) &&
+          el("img", {
+            class: "episode-still",
+            alt: "",
+            loading: "lazy",
+            decoding: "async",
+            src: row.thumbnail
+              ? artUrl(row.thumbnail)
+              : `/img/frame/${encodeURIComponent(local.id)}?t=${Math.max(30, Math.floor((local.duration || 600) * 0.12))}`,
+            onerror: function () { this.remove(); },
+          }),
         el(
           "div",
           { class: "episode-body" },
+          el("div", { class: "episode-kicker" },
+            `Episode ${row.episode}${local && local.duration ? ` · ${Math.round(local.duration / 60)} min` : ""}`),
           el(
             "div",
             { class: "episode-title" },

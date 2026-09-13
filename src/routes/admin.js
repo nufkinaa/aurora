@@ -267,6 +267,15 @@ router.get("/api/admin/library/tree", (req, res) => {
   res.json({ movies, shows, totalBytes, disk: free });
 });
 
+// ---------- health (watchdog) ----------
+router.get("/api/admin/health", (req, res) => {
+  res.json(require("../lib/watchdog").status());
+});
+router.post("/api/admin/heal", (req, res) => {
+  require("../lib/watchdog").softHeal("asked from the admin page");
+  res.json({ ok: true, status: require("../lib/watchdog").status() });
+});
+
 // ---------- analytics & telemetry ----------
 
 // Full analytics rollup computed from watch sessions. ?days=7|14|30|90
@@ -601,6 +610,8 @@ router.post("/api/admin/clear-caches", (req, res) => {
 router.get("/api/admin/pending-counts", (req, res) => {
   let requests = 0;
   let downloads = 0;
+  let reports = 0;
+  try { reports = require("./reports").openCount(); } catch {}
   try {
     requests = require("./requests").pendingCount();
   } catch {}
@@ -609,7 +620,7 @@ router.get("/api/admin/pending-counts", (req, res) => {
       .list()
       .filter((j) => j.status === "pending").length;
   } catch {}
-  res.json({ requests, downloads });
+  res.json({ requests, downloads, reports });
 });
 
 // Skip-intro marks manager: list everything the household has marked, with

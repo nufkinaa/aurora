@@ -169,6 +169,7 @@ app.use(require("./src/routes/requests"));
 app.use(require("./src/routes/torrent"));
 app.use(require("./src/routes/downloads"));
 app.use(require("./src/routes/subtitles"));
+app.use(require("./src/routes/reports"));
 app.use(require("./src/routes/proxy"));
 
 // Processed profile avatars (re-encoded 256px JPEGs — see routes/profiles.js).
@@ -269,6 +270,7 @@ require("./src/media/librarywarm");
 // Intros and credits, detected from the files themselves (chapters, then
 // audio that repeats across a season) — the skip button and Up Next timing.
 require("./src/media/introdetect");
+require("./src/lib/watchdog").start();
 online.events.on("updated", () => {
   scanner.scan();
   realtime.broadcastAll({ type: "library_updated" });
