@@ -23,6 +23,20 @@ router.post("/api/downloads", (req, res) => {
   res.json(result);
 });
 
+// The requester opened a finished download (played it, or opened its page):
+// clears the "ready to play" nudge for that job. In closed mode the session
+// must own the profile; in open mode the profile id in the body is trusted,
+// same as every other per-profile write.
+router.post("/api/downloads/:id/seen", (req, res) => {
+  const profile = String((req.body || {}).profile || "");
+  if (!profile || !require("../lib/authz").profileAllowed(req, profile)) {
+    return res.status(403).json({ error: "not your download" });
+  }
+  const r = downloads.markSeen(req.params.id, profile);
+  if (r.error) return res.status(r.error === "no such download" ? 404 : 403).json(r);
+  res.json(r);
+});
+
 // What the engine says about every live download: bytes per selected file,
 // speed, connections and seeders. Answers "is this stuck, or just short of
 // peers?" without reading logs.

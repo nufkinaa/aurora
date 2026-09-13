@@ -3327,3 +3327,111 @@
   background: rgba(224, 64, 80, 0.08);
 }
 .btn.danger:hover { background: rgba(224, 64, 80, 0.16); border-color: rgba(224, 64, 80, 0.55); }
+
+/* ---------- My downloads (#/downloads) ---------- */
+.dl-section {
+  margin-top: 18px;
+}
+.dl-section .row-title .count {
+  margin-left: 10px;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.dl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dl-row {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid transparent;
+}
+.dl-row.fresh {
+  border-color: rgba(74, 222, 128, 0.45);
+  background: rgba(74, 222, 128, 0.06);
+}
+.dl-poster {
+  position: relative; /* the poster fallback is absolutely positioned */
+  width: 56px;
+  aspect-ratio: 2/3;
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 0.55rem;
+  background: var(--surface-2, rgba(255, 255, 255, 0.06));
+}
+.dl-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.dl-info {
+  min-width: 0;
+}
+.dl-title {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dl-new {
+  margin-left: 8px;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #0b0c14;
+  background: #4ade80;
+  border-radius: 4px;
+  padding: 1px 6px;
+  vertical-align: middle;
+}
+.dl-quality {
+  margin-left: 8px;
+  font-size: 0.65rem;
+  color: var(--text-faint);
+  font-weight: 700;
+}
+.dl-status {
+  margin-top: 3px;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+}
+.dl-row.error .dl-status,
+.dl-row.declined .dl-status {
+  color: #ff7a7a;
+}
+.dl-bar {
+  margin-top: 8px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.dl-bar-fill {
+  height: 100%;
+  background: #60a5fa;
+  transition: width 0.4s ease;
+}
+.dl-actions {
+  display: flex;
+  gap: 8px;
+}
+.empty.small {
+  padding: 12px 0;
+  font-size: 0.85rem;
+}
+@media (max-width: 640px) {
+  .dl-row {
+    grid-template-columns: 44px 1fr;
+  }
+  .dl-actions {
+    grid-column: 1 / -1;
+  }
+}

@@ -140,6 +140,20 @@ export const loadLibrary = async (force = false) => {
 
 export const progressFor = (itemId) => state.progress[itemId] || null;
 
+// ---------- the download queue, as this profile sees it ----------
+// One map fed by /api/downloads at boot and the download_update stream after
+// (main.js). "Mine" is what the current profile requested — older jobs carry
+// the profile NAME, newer ones the id, so both match.
+export const downloads = new Map();
+export const myDownloads = () => {
+  const p = state.profile;
+  if (!p) return [];
+  return [...downloads.values()].filter((j) => j.profile && (j.profile === p.id || j.profile === p.name));
+};
+// Finished, indexed, and not yet opened by the person who asked for it.
+export const readyDownloads = () =>
+  myDownloads().filter((j) => j.status === "done" && j.libraryId && !j.seenAt);
+
 // What this profile's history says about a title: started, finished, and when it
 // was last touched.
 //

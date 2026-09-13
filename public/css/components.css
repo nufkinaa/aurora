@@ -125,6 +125,15 @@
 .nav-dl:hover {
   background: rgba(96, 165, 250, 0.24);
 }
+/* your download landed and you haven't opened it yet */
+.nav-dl.ready {
+  background: rgba(74, 222, 128, 0.14);
+  border-color: rgba(74, 222, 128, 0.45);
+  color: #86efac;
+}
+.nav-dl.ready:hover {
+  background: rgba(74, 222, 128, 0.24);
+}
 .nav-dl:focus {
   box-shadow: var(--focus-ring);
 }

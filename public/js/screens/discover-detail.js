@@ -619,7 +619,7 @@ const requestDownload = async (stream, base, label, season, episode) => {
       episode: episode || null,
       provider: stream.provider || null,
       seeders: stream.seeders || 0,
-      profile: state.profile ? state.profile.name : null,
+      profile: state.profile ? state.profile.id : null,
     });
     if (res.error) return toast(res.error, "⚠️");
     if (res.alreadyAvailable)

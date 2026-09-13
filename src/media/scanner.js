@@ -32,11 +32,17 @@ const makeId = (kind, relPath) =>
     .digest("hex")
     .slice(0, 12);
 
+const byPath = new Map(); // absPath -> id (the downloads queue asks "what did my file become?")
 const register = (kind, absPath, relPath) => {
   const id = makeId(kind, relPath);
   registry.set(id, { path: absPath, kind });
+  byPath.set(absPath, id);
   return id;
 };
+
+// The library id a file on disk was indexed under, or null. Paths compare
+// exactly, so callers pass the same absolute path the scanner walked.
+const idForPath = (absPath) => byPath.get(absPath) || null;
 
 const naturalCompare = (a, b) =>
   a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
@@ -603,6 +609,7 @@ const mergeDuplicateShows = (shows) => {
 
 const scan = () => {
   registry.clear();
+  byPath.clear();
   index.movies = scanMovies();
   index.shows = scanShows();
   index.scannedAt = Date.now();
@@ -702,6 +709,7 @@ module.exports = {
   scan,
   enrich,
   resolve,
+  idForPath,
   findById,
   allItems,
   bitmapOnlyVideos,

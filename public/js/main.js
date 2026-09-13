@@ -2,7 +2,7 @@
 import "./focus.js";
 import { $, el } from "./ui.js";
 import { route, startRouter, navigate } from "./router.js";
-import { state, loadProfiles, setProfile, savedToken } from "./state.js";
+import { state, loadProfiles, setProfile, savedToken, downloads, readyDownloads } from "./state.js";
 import { api, setAuthToken } from "./api.js";
 import { connect, onMessage } from "./ws.js";
 import { renderHome } from "./screens/home.js";
@@ -40,6 +40,7 @@ route("/movie/:id", (root, p) => renderDetailLazy(root, { source: "library", typ
 route("/show/:id", (root, p) => renderDetailLazy(root, { source: "library", type: "show", id: p.id }));
 route("/play/:id", (root, p) => import("./screens/player.js").then((m) => m.renderPlayer(root, p)));
 route("/requests", renderRequests); // no longer in nav; kept for deep links
+route("/downloads", (root, p) => import("./screens/downloads.js").then((m) => m.renderDownloads(root, p)));
 route("/discover/:type/:id", (root, p) => renderDetailLazy(root, { source: "discover", type: p.type, id: p.id }));
 route("/preferences", (root, p) => import("./screens/preferences.js").then((m) => m.renderPreferences(root, p)));
 route("/wrapped", renderWrapped);
@@ -84,13 +85,24 @@ initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
 
 // Live download pill: after requesting a download and leaving the page there
 // was zero feedback until you wandered back. One global subscription feeds a
-// tiny "⬇ 2 · 47%" in the nav; hidden whenever nothing is moving.
+// tiny "⬇ 2 · 47%" in the nav while something is moving — and once YOUR
+// download has landed, a green "✓ 1 ready" that stays until you open the
+// title (the player and the downloads page clear it), so a finished
+// download is never something you find out about by wandering back.
 {
   const pill = $("#nav-dl");
   const ACTIVE = ["pending", "approved", "downloading"];
-  const jobs = new Map();
   const paint = () => {
-    const act = [...jobs.values()].filter((j) => ACTIVE.includes(j.status));
+    const ready = readyDownloads();
+    if (ready.length > 0) {
+      pill.textContent = `✓ ${ready.length} ready`;
+      pill.title = ready.length === 1 ? `“${ready[0].label || ready[0].title}” is ready to play` : `${ready.length} downloads ready to play`;
+      pill.classList.add("ready");
+      return pill.classList.remove("hidden");
+    }
+    pill.classList.remove("ready");
+    pill.title = "Downloads in progress";
+    const act = [...downloads.values()].filter((j) => ACTIVE.includes(j.status));
     if (act.length === 0) return pill.classList.add("hidden");
     const pct = Math.round(
       (act.reduce((s, j) => s + (j.progress || 0), 0) / act.length) * 100,
@@ -101,15 +113,17 @@ initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
   api.downloads()
     .then((res) => {
       // the route answers a bare array
-      for (const j of Array.isArray(res) ? res : res.downloads || []) jobs.set(j.id, j);
+      for (const j of Array.isArray(res) ? res : res.downloads || []) downloads.set(j.id, j);
       paint();
     })
     .catch(() => {});
   onMessage("download_update", ({ job }) => {
     if (!job) return;
-    jobs.set(job.id, job);
+    downloads.set(job.id, job);
     paint();
   });
+  // "mine" depends on who is signed in
+  window.addEventListener("hashchange", () => setTimeout(paint, 0));
 }
 
 // On narrow screens the nav is a swipeable strip. Fade the clipped edge so

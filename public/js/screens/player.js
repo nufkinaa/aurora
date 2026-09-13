@@ -2,7 +2,7 @@
 // ±10s, subtitle + speed menus, Up Next auto-advance, server-side resume.
 import { el, icons, fmtClock, toast } from "../ui.js";
 import { api } from "../api.js";
-import { state, progressFor, titleProgressFor, refreshProgress } from "../state.js";
+import { state, progressFor, titleProgressFor, refreshProgress, readyDownloads } from "../state.js";
 import { navigate } from "../router.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
@@ -137,6 +137,14 @@ export const renderPlayer = async (root, { id }) => {
   // screen. Building the overlay now would orphan it on top of that screen
   // and leak every player listener/timer.
   if (location.hash !== entryHash) return;
+
+  // Playing a file you asked the server to download is "opening" it: the
+  // nav's "✓ ready" nudge for that job goes away, on every device of yours.
+  if (state.profile && !isTorrent) {
+    for (const job of readyDownloads()) {
+      if (job.libraryId === item.id) api.downloadSeen(job.id, state.profile.id).catch(() => {});
+    }
+  }
 
   const isEpisode = !!item.showId;
   const title = isEpisode ? item.showTitle : item.title;

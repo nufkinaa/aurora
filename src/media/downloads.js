@@ -60,7 +60,26 @@ const publicJob = (j) => ({
   approvedAt: j.approvedAt || null, doneAt: j.doneAt || null,
   // Why it's waiting for an admin, and whether the queue started it by itself.
   holdReason: j.holdReason || null, autoApproved: !!j.autoApproved,
+  // Whose request it is (profile id; older jobs carry the name), whether they
+  // have opened it since it finished, and the library id the finished file
+  // was indexed under — the thing "Play" on the downloads page needs.
+  profile: j.profile || null, seenAt: j.seenAt || null,
+  libraryId: j.status === "done" && j.destPath ? scanner.idForPath(j.destPath) : null,
 });
+
+// The requester opened the finished file: the "ready to play" nudge for it
+// goes away on every device of theirs. Only the requester can clear it.
+const markSeen = (id, profile) => {
+  const job = findJob(id);
+  if (!job) return { error: "no such download" };
+  if (!profile || job.profile !== profile) return { error: "not your download" };
+  if (!job.seenAt) {
+    job.seenAt = now();
+    store.save();
+    broadcast(job);
+  }
+  return { job: publicJob(job) };
+};
 
 // Windows-safe folder/file component.
 const safeName = (s) =>
@@ -713,7 +732,6 @@ const finish = async (job, destPath) => {
   job.destPath = destPath;
   job.doneAt = now();
   store.save();
-  broadcast(job);
 
   // The viewer picked this title BY IMDb id; file that under the name the
   // scanner is about to index it as, so the library copy is recognised as
@@ -721,9 +739,12 @@ const finish = async (job, destPath) => {
   // instead of being re-guessed from a folder name. Only now, with the file
   // really in the library — a declined or canceled job must not seed it.
   imdb.remember(job.title, job.type, job.year, job.imdbId);
-  // Index it into the library and tell everyone. (The scan also hands any
-  // history watched as a stream over to the new file — profiles.js.)
+  // Index it into the library FIRST, so the "done" update below already
+  // carries the library id (the downloads page's Play button), then tell
+  // everyone. (The scan also folds any history watched as a stream into the
+  // new file's title — profiles.js.)
   scanner.scan();
+  broadcast(job);
   scanner.enrich();
   realtime.broadcastAll({ type: "library_updated" });
   console.log(`[download] ${job.id.slice(0, 6)} done "${job.title}"`);
@@ -757,7 +778,7 @@ const resume = () => {
 };
 
 module.exports = {
-  list, create, approve, decline, cancel, remove, resume, publicJob, stats,
+  list, create, approve, decline, cancel, remove, resume, publicJob, stats, markSeen,
   // Pure helpers, exported so test/downloads.test.js can pin the rules that
   // decide where a file lands and whether a request needs approval.
   _internals: { safeName, folderKey, chooseFolder, diskGate, destinationFor },
