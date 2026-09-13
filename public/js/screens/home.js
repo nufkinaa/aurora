@@ -1,7 +1,7 @@
 // Home: rotating hero billboard + shelves (Continue Watching, My List, ...)
-import { el, icons, fmtDuration, resBadge, artUrl, restoreScrollY } from "../ui.js";
+import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, restoreScrollY } from "../ui.js";
 import { api } from "../api.js";
-import { state } from "../state.js";
+import { state, progressFor, readyDownloads } from "../state.js";
 import { shelfRow, continueRow, openItem } from "../components.js";
 import { navigate } from "../router.js";
 import { onMessage } from "../ws.js";
@@ -73,6 +73,21 @@ export const renderHome = async (root) => {
     });
     // Dots are real buttons now, so they're tappable on a phone (a bare 8px
     // span is not a touch target). `go` is defined below — only called on tap.
+    // Tonight's picks (glass look): the billboard's titles as rows you can
+    // step through, with a poster thumb — the dots' job, done legibly.
+    const picks = el("div", { class: "hero-picks" },
+      el("div", { class: "hero-picks-k" }, "Tonight's picks"),
+      data.hero.map((h, j) =>
+        el("button", {
+          class: "hero-pick focusable",
+          "aria-label": h.title,
+          onclick: () => go(j),
+        },
+          h.cover ? el("img", { src: artUrl(h.cover), alt: "" }) : el("span", { class: "hero-pick-thumb" }),
+          el("span", { class: "hero-pick-text" },
+            el("span", { class: "hero-pick-title" }, h.title),
+            el("span", { class: "hero-pick-sub" }, h.source === "stream" ? "Stream" : h.type === "show" ? "In your library" : "On disk")))),
+    );
     const dots = el("div", { class: "hero-dots" },
       data.hero.map((_, i) =>
         el("button", {
@@ -84,6 +99,7 @@ export const renderHome = async (root) => {
 
     // `dir`: 1 = moving forward (slide in from the right), -1 = backward,
     // 0 = first paint (no slide).
+    const count = data.hero.length;
     const show = (i, dir = 1) => {
       idx = i;
       const item = data.hero[i];
@@ -120,6 +136,7 @@ export const renderHome = async (root) => {
         }
       }
       [...dots.querySelectorAll("span")].forEach((d, j) => d.classList.toggle("on", j === i));
+      [...picks.querySelectorAll(".hero-pick")].forEach((d, j) => d.classList.toggle("on", j === i));
 
       const meta = [];
       if (item.year) meta.push(String(item.year));
@@ -127,18 +144,27 @@ export const renderHome = async (root) => {
       else if (item.source === "stream") meta.push(item.type === "show" ? "Series" : "Film");
       if (item.duration) meta.push(fmtDuration(item.duration));
       if (item.genres && item.genres.length) meta.push(item.genres.slice(0, 3).join(" · "));
-      const badge = resBadge(item);
+      const fmt = formatRow(item, { max: 4 });
+      // Where you are in it — the glass look shows this as a small capsule under
+      // the synopsis; the classic look leaves the billboard as it was.
+      const prog = item.type !== "show" ? progressFor(item.id) : null;
+      const mid = prog && !prog.finished && prog.position > 10 && prog.duration > 0 ? prog : null;
 
       info.innerHTML = "";
-      info.append(
+      // DOM append() stringifies null ("null" showed up under the synopsis
+      // the first time a billboard title had no format badges) — filter first.
+      info.append(...[
         el("div", { class: "hero-kicker" }, item.type === "show" ? "Series" : "Film"),
         el("h1", { class: "hero-title" }, item.title),
         el("div", { class: "hero-meta" },
           item.rating && el("span", { class: "rating-star" }, `★ ${item.rating}`),
           meta.join(" · "),
-          badge && el("span", { class: "badge" }, badge)
+          fmt
         ),
         item.synopsis && el("p", { class: "hero-synopsis" }, item.synopsis),
+        mid && el("div", { class: "hero-progress" },
+          el("span", { class: "progress" }, el("i", { style: { width: `${Math.round((mid.position / mid.duration) * 100)}%` } })),
+          el("span", {}, `${fmtClock(mid.position)} in · ${fmtDuration(mid.duration - mid.position)} left`)),
         el("div", { class: "hero-actions" },
           el("button", {
             class: "btn btn-primary focusable",
@@ -155,13 +181,16 @@ export const renderHome = async (root) => {
             onclick: () => openItem(item),
           })
         )
-      );
+      ].filter(Boolean));
+      // The picks panel shows a window of four around the active title, so a
+      // long billboard never overflows the slab (glass look).
+      const start = Math.max(0, Math.min(i - 1, count - 4));
+      [...picks.querySelectorAll(".hero-pick")].forEach((d, j) => d.classList.toggle("hidden", j < start || j >= start + 4));
     };
     show(0, 0);
 
     // Jump to a specific title (dot tap / swipe), and hold the auto-rotation
     // off for a while so it can't yank the hero away mid-browse.
-    const count = data.hero.length;
     let holdUntil = 0;
     const go = (i, dir) => {
       const next = ((i % count) + count) % count;
@@ -191,7 +220,8 @@ export const renderHome = async (root) => {
       layers[1],
       el("div", { class: "hero-fade" }),
       el("div", { class: "hero-inner" }, info, heroPoster),
-      dots
+      dots,
+      picks
     );
     screen.append(heroEl);
 
@@ -345,13 +375,78 @@ export const renderHome = async (root) => {
   // Home's shelves are the one place films and series sit side by side in the same
   // row, so this is where a card has to say which it is. The Movies and Shows
   // pages know already, and Continue Watching's labels read as episodes.
-  const buildRow = (r) =>
+  const glass = () => document.documentElement.dataset.look === "glass";
+  // Glass look: Continue Watching becomes "Tonight" — the same cards, with
+  // what used to be separate tiles riding on cards of their own at the front:
+  // a download of yours that landed (READY · plays from disk), a party you can
+  // join (LIVE), the newest episode of a show you follow (NEW).
+  const tonightItems = (items, allRows) => {
+    const out = [];
+    for (const job of readyDownloads()) {
+      out.push({
+        id: `ready|${job.id}`,
+        title: job.label || job.title,
+        cover: job.poster || null,
+        badge: { text: "Ready · plays from disk", tone: "ready" },
+        meta: job.smart ? "queued for you" : "your download landed",
+        _noRemove: true,
+        _open: () => {
+          api.downloadSeen(job.id, state.profile.id).catch(() => {});
+          navigate(`#/play/${job.libraryId}`);
+        },
+      });
+    }
+    for (const p of liveParties) {
+      out.push({
+        id: `party|${p.code}`,
+        title: p.title,
+        cover: p.cover || null,
+        badge: { text: `Live · ${p.host}'s party`, tone: "live" },
+        meta: `${p.members} watching · join`,
+        _noRemove: true,
+        _open: () => navigate(`#/party/${p.code}`),
+      });
+    }
+    const fresh = (allRows.find((r) => r.id === "new-episodes") || {}).items;
+    if (fresh && fresh[0]) {
+      const f = fresh[0];
+      out.push({ ...f, badge: { text: "New episode", tone: "fresh" }, _noRemove: true });
+    }
+    return out.concat(items || []);
+  };
+  let liveParties = [];
+  let lastRows = [];
+  const buildRow = (r, allRows = lastRows) =>
     r.id === "continue" && state.profile
-      ? continueRow(r.title, r.items, state.profile.id, api)
+      ? glass()
+        ? continueRow("Tonight", tonightItems(r.items, allRows), state.profile.id, api, {
+            sub: "where you are, what's landed, who's watching",
+            showKind: true,
+          })
+        : continueRow(r.title, r.items, state.profile.id, api)
       : shelfRow(r.title, r.items, { showKind: true });
+  // Parties come from their own call; when they land (or change), the Tonight
+  // row is the one row to repaint.
+  const repaintTonight = () => {
+    if (!glass()) return;
+    const cont = lastRows.find((r) => r.id === "continue");
+    const old = rowsHost.querySelector(".row");
+    if (!cont || !old) return;
+    const fresh = buildRow(cont, lastRows);
+    if (fresh) old.replaceWith(fresh);
+  };
+  if (glass()) {
+    api.parties().then((d) => { liveParties = d.parties || []; repaintTonight(); }).catch(() => {});
+  }
+  const unsubPartyList = onMessage("party_list", ({ parties }) => {
+    if (!screen.isConnected) return unsubPartyList();
+    liveParties = parties || [];
+    repaintTonight();
+  });
 
   const renderRows = (rows) => {
     const token = ++renderToken;
+    lastRows = rows;
     rowsHost.innerHTML = "";
     rows.slice(0, EAGER_ROWS).forEach((r) => rowsHost.append(buildRow(r) || ""));
 

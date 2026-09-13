@@ -242,6 +242,50 @@ export const resBadge = (item) => {
   return "SD";
 };
 
+// What the file actually is, as short badges: resolution, HDR flavour, video
+// codec, audio format (Dolby Atmos, TrueHD, DTS:X, DTS-HD, DD+, DD, AAC) and
+// channel count. Reads the probe on library items and the release tags on
+// torrent sources; text only, never a logo. Returns strings, most important
+// first, so callers can cap the count.
+export const formatBadges = (item, { max = 5 } = {}) => {
+  if (!item) return [];
+  const out = [];
+  const push = (t) => { if (t && !out.includes(t)) out.push(t); };
+  const tags = (item.tags || []).map((t) => String(t));
+  const h = item.height || (item.video && item.video.height) || 0;
+  if (h >= 2000) push("4K");
+  else if (h >= 1000) push("1080p");
+  else if (h >= 700) push("720p");
+  else if (h > 0) push("SD");
+  else if (item.quality && item.quality !== "SD") push(item.quality);
+  const hdr = item.video && item.video.hdr;
+  if (hdr === "dolby-vision" || tags.includes("DV")) push("Dolby Vision");
+  else if (hdr === "hdr10" || tags.includes("HDR")) push("HDR10");
+  else if (hdr === "hlg") push("HLG");
+  const a = item.audio || null;
+  const codec = a && a.codec;
+  if ((a && a.atmos) || tags.includes("Atmos")) push("Dolby Atmos");
+  else if ((a && a.dtsx)) push("DTS:X");
+  else if (codec === "truehd" || tags.includes("TrueHD")) push("TrueHD");
+  else if (codec === "dts" && /hd|ma/i.test((a && a.profile) || "") || tags.includes("DTS-HD")) push("DTS-HD");
+  else if (codec === "dts" || tags.includes("DTS")) push("DTS");
+  else if (codec === "eac3" || tags.includes("DD+")) push("DD+");
+  else if (codec === "ac3") push("Dolby Digital");
+  if (a && a.channels >= 8) push("7.1");
+  else if (a && a.channels >= 6) push("5.1");
+  const vc = item.video && item.video.codec;
+  if (vc === "hevc" || tags.includes("H.265")) push("HEVC");
+  else if (vc === "av1" || tags.includes("AV1")) push("AV1");
+  if ((item.subtitles || []).length) push("CC");
+  return out.slice(0, max);
+};
+// The badges as a row node, or null when there is nothing to say.
+export const formatRow = (item, opts) => {
+  const list = formatBadges(item, opts);
+  if (!list.length) return null;
+  return el("span", { class: "fmt", "aria-label": "Formats: " + list.join(", ") }, list.map((t) => el("span", {}, t)));
+};
+
 let toastRoot;
 // `action` ({label, onClick}) renders a tappable button on the toast — the
 // undo pattern. Action toasts accept pointer events; plain ones stay inert.

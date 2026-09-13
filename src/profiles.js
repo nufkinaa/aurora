@@ -63,6 +63,7 @@ const pub = (p) => ({
   avatar: p.avatar,
   theme: p.theme || null, // appearance rides the profile across devices
   accent: p.accent || null,
+  look: p.look === "glass" ? "glass" : "legacy", // the classic design, or the glass one
   // A processed image under /avatars/, or null. Kept SEPARATE from `avatar`
   // (emoji): the TV renders `avatar` as literal text, so it stays the
   // universal fallback and never carries a path.
@@ -511,6 +512,7 @@ const update = (id, fields) => {
   if (typeof fields.theme === "string" && THEMES.includes(fields.theme)) p.theme = fields.theme;
   if (typeof fields.accent === "string" && HEX_COLOR.test(fields.accent)) p.accent = fields.accent;
   if (fields.accent === null) delete p.accent; // back to the default violet
+  if (fields.look === "glass" || fields.look === "legacy") p.look = fields.look;
   // Boolean switches only, by name — nothing arbitrary lands in the store.
   if (fields.prefs && typeof fields.prefs === "object") {
     p.prefs = p.prefs || {};

@@ -453,7 +453,8 @@ const scanShows = () => {
               downloadUrl: `/stream/download/${id}`,
               container: path.extname(e.name).slice(1).toLowerCase(),
               duration: meta ? meta.duration : 0,
-              container: path.extname(e.name).slice(1).toLowerCase(),
+              width: meta ? meta.width : 0,
+              height: meta ? meta.height : 0,
               video: (meta && meta.video) || null,
               audio:
                 meta && meta.audioStreams && meta.audioStreams[0]

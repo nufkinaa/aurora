@@ -96,6 +96,27 @@ paintNavSolid();
 // event. It's two DOM writes; free.
 window.addEventListener("hashchange", () => setTimeout(paintProfileChip, 0));
 initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
+
+// The glass look's sky: the sign-in aurora, slowed, behind every page. Started
+// when the look is glass and torn down when it isn't — the classic look never
+// pays for a full-viewport canvas it doesn't show.
+{
+  let stopSky = null;
+  const syncSky = () => {
+    const glass = document.documentElement.dataset.look === "glass";
+    if (glass && !stopSky) {
+      import("./aurora-sky.js").then((m) => {
+        if (document.documentElement.dataset.look !== "glass" || stopSky) return;
+        stopSky = m.initAuroraSky($("#glass-sky"), { pace: 0.45 });
+      });
+    } else if (!glass && stopSky) {
+      stopSky();
+      stopSky = null;
+    }
+  };
+  syncSky();
+  window.addEventListener("aurora-look", syncSky);
+}
 initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
 
 // Live download pill: after requesting a download and leaving the page there

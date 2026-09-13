@@ -61,6 +61,19 @@ const rememberRecentProfile = (id) => {
 // look before the stylesheets on the next cold load — no flash.
 export const applyAppearance = (profile) => {
   const theme = profile && (profile.theme === "oled" || profile.theme === "warm") ? profile.theme : null;
+  // The look: "glass" is the new design, anything else the classic one.
+  const look = profile && profile.look === "glass" ? "glass" : null;
+  {
+    const root = document.documentElement;
+    const was = root.dataset.look || null;
+    if (look) root.dataset.look = look;
+    else delete root.dataset.look;
+    try {
+      if (look) localStorage.setItem("aurora-look", look);
+      else localStorage.removeItem("aurora-look");
+    } catch {}
+    if (was !== look) window.dispatchEvent(new CustomEvent("aurora-look", { detail: { look } }));
+  }
   const accent = profile && /^#[0-9a-f]{6}$/i.test(profile.accent || "") ? profile.accent : null;
   const root = document.documentElement;
   if (theme) root.dataset.theme = theme;

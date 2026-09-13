@@ -1,6 +1,6 @@
 // Full-screen player with Apple TV-style controls: auto-hiding UI, scrubber,
 // ±10s, subtitle + speed menus, Up Next auto-advance, server-side resume.
-import { el, icons, fmtClock, toast } from "../ui.js";
+import { el, icons, fmtClock, toast, formatRow } from "../ui.js";
 import { api } from "../api.js";
 import { state, progressFor, titleProgressFor, refreshProgress, readyDownloads } from "../state.js";
 import { navigate } from "../router.js";
@@ -1142,6 +1142,7 @@ export const renderPlayer = async (root, { id }) => {
         el("div", { class: "player-title" }, title),
         subtitleText && el("div", { class: "player-subtitle" }, subtitleText),
         isTorrent && el("span", { class: "torrent-badge" }, "TORRENT"),
+        formatRow(item, { max: 4 }),
       ),
       partyPill,
     ),

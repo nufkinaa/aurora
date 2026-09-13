@@ -42,6 +42,11 @@ const THEME_DEFS = [
   { id: "warm", name: "Dim warm", note: "candle-lit, easy late at night", bg: "#131009", raised: "#1c1710" },
 ];
 const ACCENTS = ["#8b7bff", "#4ea3ff", "#3ddc97", "#f0b132", "#e05f2c", "#f472b6", "#ff7a7a", "#7fd1e8"];
+// Two looks: the classic design, and the glass one (elia's name for it).
+const LOOK_DEFS = [
+  { id: "legacy", name: "Legacy", note: "the classic Aurora look" },
+  { id: "glass", name: "Apple Horror", note: "glass over a living sky, big radii, the new rows" },
+];
 
 const appearanceSection = () => {
   const host = el("div", { class: "page-pad", style: { display: "flex", flexDirection: "column", gap: "12px" } });
@@ -57,11 +62,28 @@ const appearanceSection = () => {
       toast("Couldn't save the look", "⚠️");
     }
   };
+  const lookRow = el("div", { style: { display: "flex", gap: "10px", flexWrap: "wrap" } });
   const themeRow = el("div", { style: { display: "flex", gap: "10px", flexWrap: "wrap" } });
   const accentRow = el("div", { style: { display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" } });
   const paint = () => {
     const curTheme = state.profile.theme || "aurora";
     const curAccent = state.profile.accent || null;
+    const curLook = state.profile.look === "glass" ? "glass" : "legacy";
+    lookRow.innerHTML = "";
+    for (const l of LOOK_DEFS) {
+      lookRow.append(el("button", {
+        class: "focusable look-pick" + (l.id === curLook ? " on" : "") + (l.id === "glass" ? " glass-preview" : ""),
+        onclick: () => saveAppearance({ look: l.id }),
+      },
+        el("span", { class: "look-pick-swatch" },
+          el("i", { class: "look-pick-nav" }),
+          el("i", { class: "look-pick-hero" }),
+          el("i", { class: "look-pick-row" }),
+        ),
+        el("span", { style: { fontWeight: "800", fontSize: "0.9rem", color: "#f3f4f8" } }, l.name),
+        el("span", { style: { fontSize: "0.75rem", color: "#9aa1b5" } }, l.note),
+      ));
+    }
     themeRow.innerHTML = "";
     for (const t of THEME_DEFS) {
       themeRow.append(el("button", {
@@ -100,7 +122,13 @@ const appearanceSection = () => {
     }
   };
   paint();
-  host.append(themeRow, accentRow);
+  host.append(
+    el("div", { class: "pref-note", style: { padding: 0, margin: "0 0 -4px" } }, "Look"),
+    lookRow,
+    el("div", { class: "pref-note", style: { padding: 0, margin: "6px 0 -4px" } }, "Theme and accent"),
+    themeRow,
+    accentRow,
+  );
   return host;
 };
 

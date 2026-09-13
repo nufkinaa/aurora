@@ -21,7 +21,7 @@ const BROWSER_AUDIO_CODECS = new Set([
 ]);
 
 // Bump when the probe result shape changes so old cache entries re-probe
-const PROBE_VERSION = 3;
+const PROBE_VERSION = 4; // 4: colour transfer, Dolby Vision side data, audio profiles
 
 const probe = (videoPath) => {
   if (!config.ffmpegAvailable) return null;
@@ -53,7 +53,7 @@ const probe = (videoPath) => {
       [
         "-v", "quiet",
         "-show_entries",
-        "format=duration:stream=index,codec_type,codec_name,channels,width,height,pix_fmt:stream_tags=language,title",
+        "format=duration:stream=index,codec_type,codec_name,profile,channels,channel_layout,width,height,pix_fmt,color_transfer,color_primaries:stream_tags=language,title:stream_side_data=side_data_type",
         "-of", "json",
         videoPath,
       ],
@@ -71,14 +71,29 @@ const probe = (videoPath) => {
         // phones/desktops. Decodability is decided client-side (canPlayType) —
         // the same file direct-plays on one device and transcodes on another.
         const depth = /(\d+)(?:le|be)$/.exec(s.pix_fmt || "");
+        // HDR flavour, for the format badges: Dolby Vision rides as side
+        // data (a DOVI configuration record), HDR10 / HLG as the transfer
+        // characteristic. Text for the UI, never a logo.
+        const side = (s.side_data_list || []).map((d) => String(d.side_data_type || "").toLowerCase());
+        const dv = side.some((t) => t.includes("dovi") || t.includes("dolby vision"));
+        const transfer = String(s.color_transfer || "").toLowerCase();
+        const hdr = dv ? "dolby-vision" : transfer === "smpte2084" ? "hdr10" : transfer === "arib-std-b67" ? "hlg" : null;
         result.video = {
           codec: s.codec_name || null,
           bitDepth: depth ? parseInt(depth[1], 10) : 8,
+          hdr,
         };
       } else if (s.codec_type === "audio") {
+        // ffprobe names Atmos in the PROFILE ("Dolby TrueHD + Dolby Atmos",
+        // "Dolby Digital Plus + Dolby Atmos") and DTS:X the same way.
+        const profile = String(s.profile || "");
         result.audioStreams.push({
           codec: s.codec_name,
           channels: s.channels || 2,
+          layout: s.channel_layout || null,
+          profile: profile || null,
+          atmos: /atmos/i.test(profile),
+          dtsx: /dts:x|dts-x|dtsx/i.test(profile),
           compatible: BROWSER_AUDIO_CODECS.has(s.codec_name),
         });
       } else if (s.codec_type === "subtitle") {

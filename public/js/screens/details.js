@@ -1,7 +1,7 @@
 // Shared pieces of the detail page: the hero block and the library-side
 // "My List" button. The page itself lives in discover-detail.js, which serves
 // library titles and streamable titles as one screen.
-import { el, icons, resBadge, toast, posterImg, artUrl } from "../ui.js";
+import { el, icons, resBadge, toast, posterImg, artUrl, formatRow } from "../ui.js";
 import { api } from "../api.js";
 import { state } from "../state.js";
 import { starRating } from "../components.js";
@@ -37,7 +37,6 @@ export const watchlistButton = (item) => {
 };
 
 export const heroBlock = (item, actions, metaParts, { rateKey = null } = {}) => {
-  const badge = resBadge(item);
   return el("div", { class: "detail-hero" },
     (item.backdrop || item.cover) &&
       el("div", {
@@ -68,7 +67,7 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null } = {}) => 
             { class: "badge badge-age", title: "Age rating" },
             item.certificate,
           ),
-        badge && el("span", { class: "badge" }, badge),
+        formatRow(item, { max: 5 }),
         item.subtitles && item.subtitles.length > 0 && el("span", { class: "badge" }, "CC")
       ),
       item.genres && item.genres.length > 0 &&

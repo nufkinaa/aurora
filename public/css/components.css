@@ -1202,3 +1202,102 @@
   font-size: 3rem;
   margin-bottom: 12px;
 }
+
+/* ---------- Shared by both looks ----------
+   .nav-items groups the nav links: display:contents here so the classic bar
+   lays out exactly as before; the glass look turns it into its island. The
+   hero picks / progress line and card meta only render in the glass look. */
+.nav-items {
+  display: contents;
+}
+.hero-picks,
+.hero-progress,
+.card-meta,
+.row-sub {
+  display: none;
+}
+/* Format badges (4K · Dolby Vision · Atmos · 5.1 · HEVC · CC): the classic
+   look draws them like its resolution badge; glass.css restyles them. */
+.fmt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.fmt span {
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text);
+  white-space: nowrap;
+}
+/* State tags on Tonight cards (glass look): ready / live / fresh */
+.card-tag.ready {
+  left: 10px;
+  background: #4ade80;
+  color: #0b0c14;
+}
+.card-tag.live {
+  left: 10px;
+  background: #93c5fd;
+  color: #0b0c14;
+}
+.card-tag.fresh {
+  left: 10px;
+  background: #c7bfff;
+  color: #0b0c14;
+}
+/* Look picker (Preferences → Appearance) */
+.look-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  min-width: 170px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+.look-pick.on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.look-pick:focus {
+  box-shadow: var(--focus-ring);
+}
+.look-pick-swatch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  height: 54px;
+  padding: 6px;
+  border-radius: 8px;
+  background: #0b0c14;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.look-pick-swatch i {
+  display: block;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.look-pick-nav { height: 7px; width: 60%; }
+.look-pick-hero { height: 18px; width: 100%; background: linear-gradient(90deg, rgba(139,123,255,0.5), rgba(78,163,255,0.25)) !important; }
+.look-pick-row { height: 9px; width: 85%; }
+.look-pick.glass-preview .look-pick-swatch {
+  background: radial-gradient(80% 60% at 30% 30%, rgba(60, 235, 150, 0.35), transparent 60%), radial-gradient(60% 50% at 70% 60%, rgba(150, 120, 255, 0.4), transparent 65%), #070811;
+}
+.look-pick.glass-preview .look-pick-swatch i {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.look-pick.glass-preview .look-pick-hero {
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.14) !important;
+}

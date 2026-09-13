@@ -1,0 +1,1006 @@
+/* ==========================================================================
+   Aurora — the glass look ("Apple Horror" in Preferences)
+   ==========================================================================
+   Every rule here is scoped to html[data-look="glass"]; the classic look is
+   untouched by this file. The design: a living aurora sky behind every page,
+   frosted-glass chrome floating over it (a nav island, a hero slab, a player
+   dock), big radii, one white primary per screen, format badges, and a
+   capsule watch bar with a glowing head. Motion is calm and long.
+
+   Cost discipline: backdrop-filter is the expensive thing here. It is used on
+   the FEW surfaces that float over moving art (nav island, hero slab, player
+   dock, menus, modals, toasts) — never on cards or rows. Reduced transparency
+   or a coarse pointer without hover (TVs) drops the blur for flat tints; the
+   layout stays identical. */
+
+html[data-look="glass"] {
+  --g-radius: 20px;
+  --g-radius-l: 30px;
+  --g-fill: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025) 55%, rgba(255, 255, 255, 0.06));
+  --g-fill-strong: linear-gradient(135deg, rgba(20, 22, 38, 0.42), rgba(14, 16, 30, 0.28));
+  --g-edge: inset 0 1px 0 rgba(255, 255, 255, 0.38), inset 1px 0 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --g-shadow: 0 24px 60px rgba(0, 0, 0, 0.38);
+  --g-blur: blur(32px) saturate(1.9) brightness(1.08);
+  --g-progress: linear-gradient(90deg, #8b7bff, #a6c8ff);
+  --g-glow: 0 0 10px rgba(139, 123, 255, 0.6);
+  --bg: #070811;
+  --bg-rgb: 7, 8, 17;
+  --radius: 16px;
+  --radius-l: 24px;
+  --t-slow: 420ms;
+}
+html[data-look="glass"][data-theme="warm"] {
+  --bg: #100d08;
+  --bg-rgb: 16, 13, 8;
+}
+html[data-look="glass"][data-theme="oled"] {
+  --bg: #000;
+  --bg-rgb: 0, 0, 0;
+}
+
+/* ---------- the sky ---------- */
+.glass-sky {
+  display: none;
+}
+html[data-look="glass"] .glass-sky {
+  display: block;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* behind everything in flow, above the body's own background — and no
+     stacking context on #app, or the player could never rise above the nav */
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.85;
+}
+html[data-look="glass"] body {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(120% 90% at 70% -20%, rgba(96, 80, 220, 0.28), transparent 60%),
+    radial-gradient(80% 60% at 0% 100%, rgba(48, 112, 184, 0.22), transparent 55%);
+  background-attachment: fixed;
+}
+html[data-look="glass"] body::before,
+html[data-look="glass"] body::after {
+  display: none; /* the classic drifting blooms + grain: the sky does that job now */
+}
+/* the nav's own strip aurora is redundant under a whole sky */
+html[data-look="glass"] .nav-aurora {
+  display: none;
+}
+
+/* ---------- glass material ---------- */
+html[data-look="glass"] .g,
+html[data-look="glass"] .nav-items,
+html[data-look="glass"] .nav-logo,
+html[data-look="glass"] .nav-profile,
+html[data-look="glass"] .nav-gear,
+html[data-look="glass"] .nav-dl,
+html[data-look="glass"] .hero,
+html[data-look="glass"] .hero-picks,
+html[data-look="glass"] .menu,
+html[data-look="glass"] .modal,
+html[data-look="glass"] .nav-menu,
+html[data-look="glass"] .dropdown,
+html[data-look="glass"] .toast,
+html[data-look="glass"] .player-bottom,
+html[data-look="glass"] .player-top > div,
+html[data-look="glass"] .player-top .pbtn,
+html[data-look="glass"] .upnext,
+html[data-look="glass"] .resume-card,
+html[data-look="glass"] .party-panel,
+html[data-look="glass"] .party-pill,
+html[data-look="glass"] .trailer-box,
+html[data-look="glass"] .search-box,
+html[data-look="glass"] .login-card,
+html[data-look="glass"] .claim-modal,
+html[data-look="glass"] .suggest-list {
+  /* no `position` here: menus, dropdowns, the up-next card and the party pill
+     keep their own absolute placement — only the sheen'd surfaces below need
+     a positioning context */
+  background: var(--g-fill);
+  box-shadow: var(--g-edge), var(--g-shadow);
+  backdrop-filter: var(--g-blur);
+  -webkit-backdrop-filter: var(--g-blur);
+  border: 0;
+}
+html[data-look="glass"] .modal,
+html[data-look="glass"] .login-card,
+html[data-look="glass"] .toast,
+html[data-look="glass"] .search-box {
+  position: relative;
+}
+/* the specular: a soft highlight that slides across the surface every 9s */
+html[data-look="glass"] .nav-items::before,
+html[data-look="glass"] .hero::before,
+html[data-look="glass"] .player-bottom::before,
+html[data-look="glass"] .modal::before,
+html[data-look="glass"] .login-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(120% 60% at 15% 0%, rgba(255, 255, 255, 0.14), transparent 55%),
+    linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.06) 45%, transparent 60%);
+  background-size: 100% 100%, 260% 100%;
+  animation: g-sheen 9s ease-in-out infinite;
+}
+@keyframes g-sheen {
+  0% { background-position: 0 0, 120% 0; }
+  100% { background-position: 0 0, -120% 0; }
+}
+/* flat tints where blur is too costly or unwanted */
+@media (prefers-reduced-transparency: reduce), (hover: none) and (pointer: coarse) and (min-width: 1200px) {
+  html[data-look="glass"] .nav-items,
+  html[data-look="glass"] .hero,
+  html[data-look="glass"] .menu,
+  html[data-look="glass"] .modal,
+  html[data-look="glass"] .toast,
+  html[data-look="glass"] .player-bottom,
+  html[data-look="glass"] .upnext,
+  html[data-look="glass"] .party-panel {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(18, 20, 34, 0.9);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-look="glass"] *::before {
+    animation: none !important;
+  }
+}
+
+/* ---------- nav: logo pill · centered island · right cluster ---------- */
+html[data-look="glass"] .nav {
+  background-image: none;
+  background-color: transparent;
+  padding-top: 18px;
+  height: calc(var(--nav-h) + 22px);
+  gap: 10px;
+}
+html[data-look="glass"] .nav.solid {
+  background-color: transparent;
+  box-shadow: none;
+}
+html[data-look="glass"] .nav.solid::after {
+  /* a light scrim keeps text legible over rows scrolling under the island */
+  content: "";
+  position: absolute;
+  inset: 0 0 -30px;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(var(--bg-rgb), 0.82), rgba(var(--bg-rgb), 0));
+}
+html[data-look="glass"] .nav-logo {
+  border-radius: 999px;
+  padding: 7px 16px 7px 8px;
+  margin-right: 0;
+  font-size: 1.05rem;
+}
+html[data-look="glass"] .nav-items {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 999px;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+html[data-look="glass"] .nav-item {
+  padding: 9px 15px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: rgba(243, 244, 248, 0.72);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+html[data-look="glass"] .nav-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+html[data-look="glass"] .nav-item.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+html[data-look="glass"] .nav-item.active::after {
+  display: none; /* the classic underline */
+}
+html[data-look="glass"] .nav-spacer {
+  flex: 1;
+}
+html[data-look="glass"] .nav-gear {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: rgba(243, 244, 248, 0.8);
+}
+html[data-look="glass"] .nav-gear.has-new::after {
+  top: 7px;
+  right: 7px;
+}
+html[data-look="glass"] .nav-profile {
+  border-radius: 999px;
+  padding: 5px 14px 5px 5px;
+}
+html[data-look="glass"] .nav-dl {
+  border-radius: 999px;
+  padding: 9px 14px;
+}
+html[data-look="glass"] .nav-dl.ready {
+  background: rgba(74, 222, 128, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.42), var(--g-shadow);
+}
+@media (max-width: 1100px) {
+  html[data-look="glass"] .nav-items {
+    position: static;
+    transform: none;
+  }
+  html[data-look="glass"] .nav-item {
+    padding: 9px 11px;
+  }
+}
+@media (max-width: 720px) {
+  /* Phones: the island becomes a floating glass tab bar at the bottom, in
+     thumb reach; the top bar keeps the logo, the ready pill and the profile. */
+  html[data-look="glass"] .nav {
+    padding-top: 10px;
+    height: var(--nav-h);
+  }
+  html[data-look="glass"] .nav-items {
+    position: fixed;
+    top: auto;
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    transform: none;
+    justify-content: space-around;
+    padding: 6px;
+    z-index: 100;
+  }
+  html[data-look="glass"] .nav-item {
+    flex: 1;
+    text-align: center;
+    padding: 11px 6px;
+    font-size: 0.76rem;
+    font-weight: 700;
+  }
+  html[data-look="glass"] #app {
+    padding-bottom: 92px; /* room under the last row for the tab bar */
+  }
+  html[data-look="glass"] .episode-bar {
+    width: 72px;
+  }
+  /* toasts sit above the tab bar, and above the player's dock */
+  html[data-look="glass"] #toasts {
+    bottom: 96px;
+  }
+  html[data-look="glass"] body:has(.player) #toasts {
+    bottom: 150px;
+  }
+  html[data-look="glass"] body:has(.player) .nav-items {
+    display: none; /* the player owns the screen */
+  }
+}
+
+/* ---------- home hero: the slab is the lens ---------- */
+html[data-look="glass"] .hero {
+  min-height: 0;
+  height: min(580px, 62vh);
+  margin: calc(var(--nav-h) + 44px) var(--page-x) 0;
+  padding: 0;
+  border-radius: var(--g-radius-l);
+  overflow: hidden;
+  align-items: flex-end;
+  background: var(--g-fill-strong);
+}
+html[data-look="glass"] .hero-layer {
+  /* the art fills the slab; the dissolve is the slab's own gradient below */
+  -webkit-mask-image: none;
+  mask-image: none;
+  inset: 0;
+  transform: none;
+}
+html[data-look="glass"] .hero-fade {
+  -webkit-mask-image: none;
+  mask-image: none;
+  background:
+    radial-gradient(70% 80% at 80% 30%, rgba(255, 255, 255, 0.08), transparent 60%),
+    linear-gradient(90deg, rgba(7, 8, 17, 0.94) 0%, rgba(7, 8, 17, 0.6) 42%, rgba(7, 8, 17, 0.06) 78%),
+    linear-gradient(to top, rgba(7, 8, 17, 0.72), transparent 45%);
+}
+html[data-look="glass"] .hero-inner {
+  padding: 0 52px 52px;
+  z-index: 2;
+}
+html[data-look="glass"] .hero-poster {
+  display: none; /* elia: no card in the hero — the text block owns the slab */
+}
+html[data-look="glass"] .hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f0c67e;
+  margin-bottom: 14px;
+}
+html[data-look="glass"] .hero-title {
+  font-size: clamp(2.4rem, 4.6vw, 4.1rem);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+html[data-look="glass"] .hero-meta {
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+html[data-look="glass"] .hero-synopsis {
+  max-width: 560px;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: rgba(243, 244, 248, 0.82);
+  margin-bottom: 14px;
+}
+html[data-look="glass"] .hero-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.82rem;
+  color: rgba(243, 244, 248, 0.7);
+  margin-bottom: 20px;
+}
+html[data-look="glass"] .hero-actions {
+  margin-top: 4px;
+}
+html[data-look="glass"] .hero-dots {
+  display: none;
+}
+html[data-look="glass"] .hero-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: absolute;
+  right: 28px;
+  bottom: 28px;
+  z-index: 3;
+  padding: 8px;
+  border-radius: var(--g-radius);
+}
+html[data-look="glass"] .hero-picks-k {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(243, 244, 248, 0.5);
+  padding: 6px 10px 2px;
+}
+html[data-look="glass"] .hero-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 220px;
+  padding: 8px 12px 8px 8px;
+  border-radius: 14px;
+  text-align: left;
+  color: rgba(243, 244, 248, 0.85);
+  transition: background var(--t-fast), box-shadow var(--t-fast);
+}
+html[data-look="glass"] .hero-pick img,
+html[data-look="glass"] .hero-pick-thumb {
+  width: 40px;
+  height: 60px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--surface);
+  flex-shrink: 0;
+}
+html[data-look="glass"] .hero-pick-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+html[data-look="glass"] .hero-pick-title {
+  font-weight: 800;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html[data-look="glass"] .hero-pick-sub {
+  font-size: 0.7rem;
+  color: rgba(243, 244, 248, 0.6);
+}
+html[data-look="glass"] .hero-pick.on,
+html[data-look="glass"] .hero-pick:hover {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+html[data-look="glass"] .hero-pick:focus {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+@media (max-width: 1100px) {
+  html[data-look="glass"] .hero-picks {
+    display: none; /* the slab is too narrow for a side panel; swipe + dots return */
+  }
+  html[data-look="glass"] .hero-dots {
+    display: flex;
+  }
+}
+@media (max-width: 720px) {
+  html[data-look="glass"] .hero {
+    margin: calc(var(--nav-h) + 22px) 16px 0;
+    height: min(470px, 60vh);
+    border-radius: 26px;
+  }
+  html[data-look="glass"] .hero-inner {
+    padding: 0 20px 20px;
+  }
+  html[data-look="glass"] .hero-fade {
+    background: linear-gradient(to top, rgba(7, 8, 17, 0.95) 0%, rgba(7, 8, 17, 0.4) 50%, transparent 80%);
+  }
+  html[data-look="glass"] .hero-title {
+    font-size: 2.1rem;
+  }
+  html[data-look="glass"] .hero-synopsis {
+    display: none;
+  }
+}
+
+/* ---------- rows + cards ---------- */
+html[data-look="glass"] .row {
+  margin-top: 26px;
+}
+html[data-look="glass"] .row-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 1.25rem;
+}
+html[data-look="glass"] .row-title .row-sub {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(243, 244, 248, 0.5);
+}
+html[data-look="glass"] .card {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+}
+html[data-look="glass"] .card.wide {
+  border-radius: 18px;
+}
+html[data-look="glass"] .card-poster,
+html[data-look="glass"] .card-fallback,
+html[data-look="glass"] .card-shade {
+  border-radius: inherit;
+}
+html[data-look="glass"] .card-tag {
+  border-radius: 999px;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  border: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+html[data-look="glass"] .card-tag.ready {
+  background: #4ade80;
+  color: #0b0c14;
+  box-shadow: none;
+}
+html[data-look="glass"] .card-tag.live {
+  background: #93c5fd;
+  color: #0b0c14;
+  box-shadow: none;
+}
+html[data-look="glass"] .card-tag.fresh {
+  background: #c7bfff;
+  color: #0b0c14;
+  box-shadow: none;
+}
+html[data-look="glass"] .card-new {
+  border-radius: 999px;
+}
+/* the watch bar: a capsule inset from the edges, with a glowing head */
+html[data-look="glass"] .card-progress {
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: visible;
+  transition: height var(--t-fast);
+}
+html[data-look="glass"] .card-progress > div {
+  position: relative;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--g-progress);
+  box-shadow: var(--g-glow);
+}
+html[data-look="glass"] .card-progress > div::after {
+  content: "";
+  position: absolute;
+  right: -3px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #fff;
+  transform: translateY(-50%);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+}
+html[data-look="glass"] .card:hover .card-progress,
+html[data-look="glass"] .card:focus .card-progress {
+  height: 4px;
+}
+html[data-look="glass"] .card.has-label .card-label {
+  bottom: 22px;
+}
+html[data-look="glass"] .card:not(.has-label) .card-progress {
+  bottom: 10px;
+}
+html[data-look="glass"] .card-meta {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(243, 244, 248, 0.7);
+  margin-top: 2px;
+}
+html[data-look="glass"] .card-remove {
+  border-radius: 999px;
+}
+
+/* the same capsule wherever a bar shows progress */
+html[data-look="glass"] .progress,
+html[data-look="glass"] .episode-bar,
+html[data-look="glass"] .dl-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: visible;
+  position: relative;
+}
+html[data-look="glass"] .progress > i,
+html[data-look="glass"] .progress > div,
+html[data-look="glass"] .episode-bar > div,
+html[data-look="glass"] .dl-bar-fill {
+  display: block;
+  position: relative;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--g-progress);
+  box-shadow: var(--g-glow);
+}
+html[data-look="glass"] .progress > i::after,
+html[data-look="glass"] .progress > div::after,
+html[data-look="glass"] .episode-bar > div::after {
+  content: "";
+  position: absolute;
+  right: -3px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #fff;
+  transform: translateY(-50%);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+}
+html[data-look="glass"] .hero-progress .progress {
+  width: 180px;
+}
+
+/* ---------- format badges ---------- */
+html[data-look="glass"] .fmt span {
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(243, 244, 248, 0.82);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+/* ---------- buttons, chips, pills ---------- */
+html[data-look="glass"] .btn {
+  background: var(--g-fill);
+  box-shadow: var(--g-edge);
+  backdrop-filter: blur(12px) saturate(1.5);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+}
+html[data-look="glass"] .btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: var(--g-edge), 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+html[data-look="glass"] .btn-primary,
+html[data-look="glass"] .btn-primary:hover {
+  background: #fff;
+  color: #0b0c14;
+  box-shadow: 0 10px 30px rgba(255, 255, 255, 0.18);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html[data-look="glass"] .btn:focus {
+  box-shadow: var(--focus-ring);
+}
+html[data-look="glass"] .btn-primary:focus {
+  box-shadow: var(--focus-ring-light);
+}
+html[data-look="glass"] .resume-btn .resume-peek {
+  border-radius: 8px;
+}
+html[data-look="glass"] .chip,
+html[data-look="glass"] .cat-pill,
+html[data-look="glass"] .season-pill,
+html[data-look="glass"] .source-filter,
+html[data-look="glass"] .picker-btn {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  border: 0;
+  color: rgba(243, 244, 248, 0.72);
+}
+html[data-look="glass"] .chip.on,
+html[data-look="glass"] .cat-pill.active,
+html[data-look="glass"] .cat-pill.on,
+html[data-look="glass"] .season-pill.active,
+html[data-look="glass"] .source-filter.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+html[data-look="glass"] .season-bar,
+html[data-look="glass"] .filter-bar,
+html[data-look="glass"] .source-filters {
+  gap: 4px;
+}
+
+/* ---------- browse / search / preferences / downloads ---------- */
+html[data-look="glass"] .browse-head {
+  padding-top: calc(var(--nav-h) + 54px);
+}
+html[data-look="glass"] .browse-head h1 {
+  letter-spacing: -0.03em;
+}
+html[data-look="glass"] .search-box {
+  border-radius: 999px;
+  padding: 14px 22px;
+}
+html[data-look="glass"] .suggest-list,
+html[data-look="glass"] .dropdown {
+  border-radius: var(--g-radius);
+}
+html[data-look="glass"] .pref-section,
+html[data-look="glass"] .dl-row,
+html[data-look="glass"] .wrapped-card,
+html[data-look="glass"] .pair-card,
+html[data-look="glass"] .request-sent,
+html[data-look="glass"] .taste-tile {
+  background: rgba(255, 255, 255, 0.05);
+  border: 0;
+  box-shadow: var(--g-edge);
+  border-radius: var(--g-radius);
+}
+html[data-look="glass"] .dl-row.fresh {
+  box-shadow: var(--g-edge), inset 0 0 0 1px rgba(74, 222, 128, 0.45);
+}
+html[data-look="glass"] .pref-item {
+  border-radius: 14px;
+}
+html[data-look="glass"] .empty {
+  color: rgba(243, 244, 248, 0.6);
+}
+
+/* ---------- title page ---------- */
+html[data-look="glass"] .detail-hero {
+  padding-top: calc(var(--nav-h) + 70px);
+}
+html[data-look="glass"] .detail-hero .hero-backdrop {
+  filter: blur(50px) saturate(1.3) brightness(0.45);
+}
+html[data-look="glass"] .detail-poster {
+  border-radius: 24px;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+html[data-look="glass"] .detail-title {
+  letter-spacing: -0.03em;
+}
+html[data-look="glass"] .detail-meta .badge {
+  border-radius: 6px;
+}
+html[data-look="glass"] .episode {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: var(--g-edge);
+  padding: 12px;
+}
+html[data-look="glass"] .episode:hover,
+html[data-look="glass"] .episode:focus {
+  background: rgba(255, 255, 255, 0.09);
+}
+html[data-look="glass"] .episode-num {
+  border-radius: 12px;
+}
+html[data-look="glass"] .episode-bar {
+  width: 160px;
+}
+html[data-look="glass"] .source-row {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: var(--g-edge);
+}
+html[data-look="glass"] .source-row-wrap:has(> .source-row.owned) {
+  border-radius: 18px;
+}
+html[data-look="glass"] .source-quality,
+html[data-look="glass"] .source-best,
+html[data-look="glass"] .source-owned,
+html[data-look="glass"] .source-last,
+html[data-look="glass"] .source-getting,
+html[data-look="glass"] .source-cam,
+html[data-look="glass"] .source-pack,
+html[data-look="glass"] .owned-chip {
+  border-radius: 999px;
+}
+html[data-look="glass"] .source-dl {
+  border-radius: 16px;
+}
+html[data-look="glass"] .dl-callout {
+  border-radius: var(--g-radius);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: var(--g-edge);
+  border: 0;
+}
+
+/* ---------- player: pills up top, a dock at the bottom ---------- */
+html[data-look="glass"] .player-top {
+  padding-top: max(24px, env(safe-area-inset-top));
+  gap: 12px;
+  background: none;
+}
+html[data-look="glass"] .player-top > div {
+  border-radius: 999px;
+  padding: 8px 18px 8px 14px;
+}
+html[data-look="glass"] .player-top .pbtn {
+  border-radius: 999px;
+}
+html[data-look="glass"] .player-title {
+  font-size: 1rem;
+}
+html[data-look="glass"] .player-subtitle {
+  font-size: 0.78rem;
+}
+html[data-look="glass"] .player-top .fmt {
+  display: inline-flex;
+  margin-top: 4px;
+}
+html[data-look="glass"] .player-bottom {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(1040px, calc(100% - 48px));
+  bottom: max(28px, env(safe-area-inset-bottom));
+  padding: 18px 24px 14px;
+  border-radius: 28px;
+  background: var(--g-fill-strong);
+}
+html[data-look="glass"] .player.controls-hidden .player-bottom {
+  transform: translateX(-50%) translateY(8px);
+}
+html[data-look="glass"] .scrubber-track {
+  height: 6px;
+  border-radius: 3px;
+  overflow: visible;
+}
+html[data-look="glass"] .scrubber:hover .scrubber-track {
+  height: 8px;
+}
+html[data-look="glass"] .scrubber-fill {
+  background: linear-gradient(90deg, #8b7bff, #7fd1e8, #8cffbe);
+  box-shadow: 0 0 14px rgba(140, 255, 190, 0.5);
+}
+html[data-look="glass"] .scrubber-fill::after {
+  content: "";
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #fff;
+  transform: translateY(-50%);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.22), 0 0 24px rgba(140, 255, 190, 0.7);
+}
+html[data-look="glass"] .scrub-tip {
+  border-radius: 10px;
+}
+html[data-look="glass"] .player-controls {
+  justify-content: center;
+  position: relative;
+  gap: 6px;
+}
+html[data-look="glass"] .pbtn {
+  width: 46px;
+  height: 46px;
+}
+html[data-look="glass"] .pbtn.big {
+  width: 62px;
+  height: 62px;
+  background: #fff;
+  color: #0b0c14;
+}
+html[data-look="glass"] .pbtn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+html[data-look="glass"] .pbtn.big:hover {
+  background: #fff;
+}
+html[data-look="glass"] .player-spacer {
+  display: none;
+}
+html[data-look="glass"] .vol-group {
+  position: absolute;
+  right: 0;
+}
+html[data-look="glass"] .player .skip-intro {
+  border-radius: 999px;
+}
+html[data-look="glass"] .torrent-status {
+  background: radial-gradient(ellipse at center, rgba(7, 8, 17, 0.55) 0%, rgba(4, 5, 10, 0.9) 100%);
+}
+html[data-look="glass"] .torrent-status.mini {
+  border-radius: 999px;
+}
+html[data-look="glass"] .upnext,
+html[data-look="glass"] .resume-card,
+html[data-look="glass"] .party-panel {
+  border-radius: var(--g-radius);
+  background: var(--g-fill-strong);
+}
+html[data-look="glass"] .party-code span {
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+}
+@media (max-width: 720px) {
+  html[data-look="glass"] .player-bottom {
+    width: calc(100% - 20px);
+    border-radius: 22px;
+    padding: 12px 14px 10px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  html[data-look="glass"] .player-top > div {
+    padding: 6px 12px 6px 10px;
+  }
+}
+
+html[data-look="glass"] body:has(.player) #toasts {
+  bottom: 140px;
+}
+
+/* ---------- overlays: menus, modals, toasts, the profile door ---------- */
+html[data-look="glass"] .menu,
+html[data-look="glass"] .nav-menu,
+html[data-look="glass"] .dropdown {
+  border-radius: var(--g-radius);
+  padding: 8px;
+}
+html[data-look="glass"] .menu-item,
+html[data-look="glass"] .nav-menu-item,
+html[data-look="glass"] .dropdown-item {
+  border-radius: 12px;
+}
+html[data-look="glass"] .modal,
+html[data-look="glass"] .claim-modal,
+html[data-look="glass"] .trailer-box,
+html[data-look="glass"] .login-card {
+  border-radius: var(--g-radius-l);
+}
+html[data-look="glass"] .modal-backdrop,
+html[data-look="glass"] .nav-menu-wrap,
+html[data-look="glass"] .trailer-modal,
+html[data-look="glass"] .claim-dim {
+  background: rgba(4, 5, 12, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+html[data-look="glass"] .toast {
+  border-radius: 16px;
+  background: var(--g-fill-strong);
+}
+html[data-look="glass"] .profiles-gate {
+  background: transparent;
+}
+html[data-look="glass"] .profile-tile {
+  border-radius: 24px;
+}
+html[data-look="glass"] .profile-tile:hover,
+html[data-look="glass"] .profile-tile:focus {
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: var(--g-edge), var(--g-shadow);
+}
+html[data-look="glass"] .party-strip-item {
+  border-radius: 18px;
+  background: var(--g-fill);
+  border: 0;
+  box-shadow: var(--g-edge);
+}
+html[data-look="glass"] .party-join .party-code-input {
+  border-radius: 16px;
+}
+
+/* ---------- reveal: screens rise in with a stagger ---------- */
+html[data-look="glass"] .screen > * {
+  animation: g-reveal 620ms var(--ease) both;
+}
+html[data-look="glass"] .screen > :nth-child(2) { animation-delay: 60ms; }
+html[data-look="glass"] .screen > :nth-child(3) { animation-delay: 120ms; }
+html[data-look="glass"] .screen > :nth-child(4) { animation-delay: 180ms; }
+html[data-look="glass"] .screen > :nth-child(n + 5) { animation-delay: 240ms; }
+@keyframes g-reveal {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-look="glass"] .screen > * {
+    animation: none;
+  }
+}
+/* the hero art breathes: a 30s zoom + drift, only while the tab is visible */
+html[data-look="glass"] .hero-layer.on {
+  animation: g-kb 30s ease-in-out infinite alternate;
+}
+@keyframes g-kb {
+  from { transform: scale(1.02); }
+  to { transform: scale(1.08) translate(-1.2%, -0.8%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-look="glass"] .hero-layer.on {
+    animation: none;
+  }
+}
+
+/* ---------- phone overrides that must win over the section rules above ---------- */
+html[data-look="glass"] .nav-gear {
+  flex: none;
+}
+@media (max-width: 720px) {
+  html[data-look="glass"] .episode-bar {
+    width: 72px;
+  }
+  html[data-look="glass"] body:has(.player) #toasts {
+    bottom: 200px;
+    left: 12px;
+    right: 12px;
+  }
+  html[data-look="glass"] .nav-profile {
+    padding: 4px;
+  }
+  html[data-look="glass"] .nav-profile #nav-profile-name {
+    display: none;
+  }
+}
+/* the profile door paints its own solid ground (inline) — let the sky through */
+html[data-look="glass"] .ui-overlay:has(> .profiles-gate) {
+  background: rgba(7, 8, 17, 0.55) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}

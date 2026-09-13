@@ -50,6 +50,9 @@ export const starRating = (key) => {
 };
 
 export const openItem = (item) => {
+  // A synthesized card (a party to join, a download that landed) knows where
+  // it goes; nothing else about it is a library item.
+  if (typeof item._open === "function") return item._open();
   // Resume a streamed title from Continue Watching: hand the stored play-item
   // straight to the player (its transcode URLs etc. aren't reconstructable from
   // the id alone).
@@ -80,6 +83,12 @@ export const card = (item, { wide = false, onRemove = null, showKind = false } =
       ? Math.min(100, (prog.position / prog.duration) * 100)
       : null;
   const isNew = item.addedAt && Date.now() - item.addedAt < NEW_WINDOW_MS && !prog;
+  // Glass look only: how much is left, under the label of a card mid-way.
+  const glass = document.documentElement.dataset.look === "glass";
+  const left =
+    glass && prog && pct !== null && prog.duration > 0
+      ? `${Math.max(1, Math.round((prog.duration - prog.position) / 60))} min left`
+      : null;
 
   // A New Episodes card is a show poster, so on its own it cannot say the one
   // thing the row exists to tell you: which episode is waiting.
@@ -95,7 +104,11 @@ export const card = (item, { wide = false, onRemove = null, showKind = false } =
     if (isEpisode) {
       return el("div", { class: "card-label" },
         el("span", { class: "card-sub" }, item.showTitle || ""),
-        `S${item.season} E${item.episode} · ${item.title}`);
+        `S${item.season} E${item.episode} · ${item.title}`,
+        (item.meta || left) && el("span", { class: "card-meta" }, item.meta || left));
+    }
+    if (item.meta) {
+      return el("div", { class: "card-label" }, item.title, el("span", { class: "card-meta" }, item.meta));
     }
     if (newEp) {
       return el("div", { class: "card-label" }, `S${newEp.season} E${newEp.episode}${behind}`);
@@ -103,7 +116,7 @@ export const card = (item, { wide = false, onRemove = null, showKind = false } =
     return el("div", { class: "card-label" }, item.title);
   };
   const label = labelFor();
-  const showLabel = wide || isEpisode || item.upNext || !!newEp;
+  const showLabel = wide || isEpisode || item.upNext || !!newEp || !!item.meta;
 
   const node = el(
     "button",
@@ -129,7 +142,9 @@ export const card = (item, { wide = false, onRemove = null, showKind = false } =
       ? posterImg(item.cover, item.title)
       : el("div", { class: "card-fallback" }, item.title),
     el("div", { class: "card-shade" }),
-    item.source === "stream" && el("span", { class: "card-tag stream" }, "STREAM"),
+    item.source === "stream" && !item.badge && el("span", { class: "card-tag stream" }, "STREAM"),
+    // Tonight-row state (glass look): READY · plays from disk, LIVE · a party, NEW
+    item.badge && el("span", { class: `card-tag ${item.badge.tone || ""}` }, item.badge.text),
     // Series or film. Only where the row it sits in mixes the two, and never on an
     // episode (its own label already reads "S3 E2") or a card carrying the remove
     // ✕, which owns this corner.
@@ -143,7 +158,7 @@ export const card = (item, { wide = false, onRemove = null, showKind = false } =
     isNew && el("span", { class: "card-new" }, "NEW"),
     pct !== null && el("div", { class: "card-progress" }, el("div", { style: { width: pct + "%" } })),
     showLabel && label,
-    onRemove &&
+    onRemove && !item._noRemove &&
       el("span", {
         class: "card-remove",
         role: "button",
@@ -180,7 +195,8 @@ export const shelfRow = (title, items, opts = {}) => {
   const section = el(
     "section",
     { class: "row" },
-    el("h2", { class: "row-title" }, title),
+    // `opts.sub` is the quiet reason line the glass look shows beside a title
+    el("h2", { class: "row-title" }, title, opts.sub && el("span", { class: "row-sub" }, opts.sub)),
     scroller
   );
   attachRowArrows(section, scroller);
@@ -188,8 +204,9 @@ export const shelfRow = (title, items, opts = {}) => {
 };
 
 // Continue Watching cards get a remove (✕) affordance
-export const continueRow = (title, items, profileId, api) => {
+export const continueRow = (title, items, profileId, api, extra = {}) => {
   const opts = {
+    ...extra,
     wide: true,
     onRemove: async (item, node) => {
       // Captured BEFORE the clear so Undo can put the exact row back.

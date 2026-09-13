@@ -66,7 +66,10 @@ const makeBand = ({ hero = false, violet = false, y = 0.3 } = {}) => ({
   alpha: hero ? rand(1.45, 1.7) : rand(1.2, 1.5),
 });
 
-export const initAuroraSky = (canvas) => {
+// `pace` scales every band's drift: 1 is the sign-in sky, ~0.45 the glass
+// look's page sky (elia: "a bit slower" — a sky behind everything must
+// breathe, not drift). `stars` toggles the starfield.
+export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   if (!canvas) return () => {};
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = true;
@@ -78,6 +81,7 @@ export const initAuroraSky = (canvas) => {
     makeBand({ violet: true, y: rand(0.4, 0.48) }),
     makeBand({ y: rand(0.14, 0.2) }),
   ];
+  for (const b of BANDS) b.speed *= pace;
   // A sparse, fixed starfield (twinkle via alpha wave — no reshuffling).
   const STARS = Array.from({ length: 90 }, () => ({
     x: Math.random(),
@@ -107,7 +111,7 @@ export const initAuroraSky = (canvas) => {
     ctx.clearRect(0, 0, W, H);
 
     ctx.fillStyle = "rgba(230, 238, 255, 1)";
-    for (const s of STARS) {
+    for (const s of stars ? STARS : []) {
       const a = still ? 0.5 : 0.32 + 0.3 * Math.sin(t * s.tw + s.off);
       if (a <= 0.06) continue;
       ctx.globalAlpha = a * 0.7;
