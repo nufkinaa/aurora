@@ -126,6 +126,21 @@ initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
   window.addEventListener("hashchange", () => setTimeout(paint, 0));
 }
 
+// A dot on the gear while there's a release the person hasn't read about
+// (Preferences → What's new marks it seen). One fetch at boot; the server
+// answers from a parsed-once cache.
+{
+  const gear = $(".nav-gear");
+  let version = null;
+  const paint = () => {
+    let seen = null;
+    try { seen = localStorage.getItem("aurora-seen-version"); } catch {}
+    gear.classList.toggle("has-new", !!version && seen !== version);
+  };
+  api.changelog().then((d) => { version = d && d.version; paint(); }).catch(() => {});
+  window.addEventListener("aurora-version-seen", paint);
+}
+
 // On narrow screens the nav is a swipeable strip. Fade the clipped edge so
 // it's visible that more items exist, and nudge it once so the swipe is
 // discoverable without knowing.

@@ -524,9 +524,10 @@ const search = async (q) => {
 // is on disk). Stale entries are pruned on load, so the file stays bounded.
 const metaCache = new Map();
 const META_TTL = 12 * 3600 * 1000;
+const META_V = 2; // bump when the shape of `data` changes, so stale entries refetch
 const metaStore = new JsonStore(path.join(config.CACHE_DIR, "meta.json"), {});
 for (const [key, hit] of Object.entries(metaStore.data)) {
-  if (hit && hit.data && Date.now() - (hit.at || 0) < META_TTL) metaCache.set(key, hit);
+  if (hit && hit.data && hit.v === META_V && Date.now() - (hit.at || 0) < META_TTL) metaCache.set(key, hit);
   else delete metaStore.data[key];
 }
 
@@ -582,6 +583,16 @@ const meta = async (type, id) => {
     // Cinemeta hands back the TMDB id — expose it so per-title features
     // (similar titles) skip their own /find lookup.
     tmdbId: m.moviedb_id || null,
+    // YouTube ids, trailers first — the detail page's "Trailer" button.
+    trailers: [
+      ...new Set(
+        [
+          ...(m.trailers || []).filter((t) => !t.type || /trailer/i.test(t.type)).map((t) => t.source),
+          ...(m.trailerStreams || []).map((t) => t.ytId),
+          ...(m.trailers || []).map((t) => t.source),
+        ].filter((id) => typeof id === "string" && /^[\w-]{6,20}$/.test(id)),
+      ),
+    ].slice(0, 3),
     // Cinemeta has no age rating, but it does hand back the TMDB id, so this
     // costs one request off an id we already hold. Null without a TMDB key.
     certificate: await certification.fetchCertificate(
@@ -590,7 +601,7 @@ const meta = async (type, id) => {
     ),
   };
 
-  const entry = { at: Date.now(), data };
+  const entry = { at: Date.now(), v: META_V, data };
   metaCache.set(key, entry);
   metaStore.data[key] = entry;
   metaStore.save();

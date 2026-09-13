@@ -1195,6 +1195,9 @@ export const renderDetail = async (root, { source, type, id }) => {
       }),
     );
   }
+  if (meta && meta.trailers && meta.trailers.length) {
+    actions.push(trailerButton(meta.trailers, view.title));
+  }
   if (surprise.landedHere()) {
     actions.push(
       el("button", {
@@ -1329,6 +1332,11 @@ export const renderDetail = async (root, { source, type, id }) => {
     }
     if (!view.cover && (m.cover || m.poster)) view.cover = m.cover || m.poster;
     if ((!view.genres || !view.genres.length) && m.genres && m.genres.length) view.genres = m.genres;
+    if (m.trailers && m.trailers.length && !actions.some((a) => a.classList && a.classList.contains("btn-trailer"))) {
+      // keep it next to the other play-ish buttons, ahead of watchlist/rating
+      const at = actions.findIndex((a) => a.classList && a.classList.contains("btn-icon"));
+      actions.splice(at >= 0 ? at : actions.length, 0, trailerButton(m.trailers, view.title));
+    }
     const oldHero = screen.querySelector(".detail-hero");
     if (oldHero) {
       oldHero.replaceWith(
@@ -1351,9 +1359,42 @@ export const renderDetail = async (root, { source, type, id }) => {
   // "More like this" — a row of similar titles at the bottom of the page.
   // Appended per-branch (the movie branch returns early) and filled in async;
   // an empty or failed answer simply leaves no row.
-  const similarHost = el("div");
+  // Three shelves in a fixed order however the answers arrive: the
+  // franchise, the director's other films, then "More like this".
+  const collHost = el("div");
+  const dirHost = el("div");
+  const simHost = el("div");
+  const similarHost = el("div", {}, collHost, dirHost, simHost);
+  const streamCards = (items) =>
+    (items || [])
+      .filter((m) => m.imdbId && m.poster && m.imdbId !== imdbId)
+      .map((m) => ({ ...m, source: "stream", cover: m.poster }));
+  const fillCollection = () => {
+    if (!imdbId || isShow) return;
+    api
+      .discoverCollection("movie", imdbId, meta && meta.tmdbId)
+      .then(({ collection, director }) => {
+        if (!similarHost.isConnected) return;
+        if (collection && collection.items && collection.items.length) {
+          const node = shelfRow(collection.name, streamCards(collection.items), { showKind: true });
+          if (node) {
+            node.style.marginTop = "26px";
+            collHost.append(node);
+          }
+        }
+        if (director && director.items && director.items.length) {
+          const node = shelfRow(`More from ${director.name}`, streamCards(director.items), { showKind: true });
+          if (node) {
+            node.style.marginTop = "26px";
+            dirHost.append(node);
+          }
+        }
+      })
+      .catch(() => {});
+  };
   const fillSimilar = () => {
     if (!imdbId) return;
+    fillCollection();
     api
       .discoverSimilar(
         view.type === "show" ? "series" : "movie",
@@ -1371,7 +1412,7 @@ export const renderDetail = async (root, { source, type, id }) => {
         );
         if (node && similarHost.isConnected) {
           node.style.marginTop = "26px";
-          similarHost.append(node);
+          simHost.append(node);
         }
       })
       .catch(() => {});
@@ -2005,6 +2046,62 @@ export const renderDetail = async (root, { source, type, id }) => {
     );
   }
 };
+
+// ---------- trailer ----------
+// A YouTube embed in a modal over the page (privacy-enhanced host, no
+// cookies until play). Escape / Back closes; focus is scoped to the box so
+// the D-pad can't wander onto the page behind it.
+const showTrailer = (ytIds, title) => {
+  const id = ytIds[0];
+  if (!id) return;
+  const closeBtn = el("button", { class: "btn btn-icon focusable trailer-close", "aria-label": "Close trailer", html: "✕" });
+  const frame = el("iframe", {
+    src: `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0&modestbranding=1`,
+    title: `${title} — trailer`,
+    allow: "autoplay; fullscreen; encrypted-media; picture-in-picture",
+    allowfullscreen: "",
+    frameborder: "0",
+  });
+  const modal = el(
+    "div",
+    // .ui-overlay: the app's global Back handler leaves overlays that carry
+    // it alone (it was registered first, so it checks the DOM, not
+    // preventDefault) — Back closes the trailer and nothing else.
+    { class: "trailer-modal ui-overlay", role: "dialog", "aria-label": `${title} trailer` },
+    el(
+      "div",
+      { class: "trailer-box" },
+      el("div", { class: "trailer-head" }, el("span", { class: "trailer-title" }, `${title} — trailer`), closeBtn),
+      el("div", { class: "trailer-frame" }, frame),
+    ),
+  );
+  // Back (Escape, Backspace, the TV remote) is the app's "ui-back" event;
+  // consuming it here closes the trailer and nothing else — the page behind
+  // stays put instead of also navigating away.
+  const onBack = (e) => {
+    e.preventDefault();
+    close();
+  };
+  const close = () => {
+    document.removeEventListener("ui-back", onBack);
+    popScope(modal);
+    modal.remove();
+  };
+  closeBtn.onclick = close;
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) close();
+  });
+  document.addEventListener("ui-back", onBack);
+  document.body.append(modal);
+  pushScope(modal);
+};
+
+const trailerButton = (ytIds, title) =>
+  el("button", {
+    class: "btn focusable btn-trailer",
+    html: icons.play + "<span>Trailer</span>",
+    onclick: () => showTrailer(ytIds, title),
+  });
 
 // Progress key for something watched WITHOUT a library copy. Marking a streamed
 // title watched has to record it somewhere, and there is no library id to hang

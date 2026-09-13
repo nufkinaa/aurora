@@ -108,6 +108,20 @@ router.get("/api/discover/similar/:type/:id", async (req, res) => {
   }
 });
 
+// The franchise a film belongs to, and its director's other films — two
+// more shelves on the detail page. Decoration: failures answer empty.
+router.get("/api/discover/collection/:type/:id", async (req, res) => {
+  try {
+    const type = req.params.type === "series" || req.params.type === "show" ? "series" : "movie";
+    const id = String(req.params.id || "");
+    if (!/^tt\d{4,12}$/.test(id)) return res.json({ collection: null, director: null });
+    const similar = require("../media/similar");
+    res.json(await similar.collection(type, id, parseInt(req.query.tmdbId, 10) || null));
+  } catch {
+    res.json({ collection: null, director: null });
+  }
+});
+
 const normalize = (s) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 

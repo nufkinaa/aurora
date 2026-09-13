@@ -497,6 +497,36 @@ export const renderPreferences = async (root) => {
     return section("Sign-in", "Your profile IS your account — one password for everything.", body);
   };
 
+  // What's new: the latest release's notes and the version, from
+  // CHANGELOG.md via /api/changelog. Opening this page marks the version
+  // seen, which clears the dot on the nav's gear (main.js).
+  const whatsNew = async () => {
+    let data = null;
+    try { data = await api.changelog(); } catch {}
+    if (!data) return null;
+    try { localStorage.setItem("aurora-seen-version", data.version); } catch {}
+    window.dispatchEvent(new Event("aurora-version-seen"));
+    const releases = data.releases || [];
+    const latest = releases[0];
+    const list = (r) =>
+      el("ul", { class: "changelog" }, (r.items || []).map((t) => el("li", {}, t)));
+    const older = el("div", { class: "hidden" },
+      releases.slice(1).map((r) =>
+        el("div", { class: "changelog-release" },
+          el("div", { class: "changelog-head" }, `${r.version}${r.date ? ` · ${r.date}` : ""}`),
+          list(r))));
+    const more = releases.length > 1 && el("button", {
+      class: "btn small focusable",
+      style: { marginTop: "8px" },
+      onclick: () => { older.classList.toggle("hidden"); more.textContent = older.classList.contains("hidden") ? "Show older" : "Hide older"; },
+    }, "Show older");
+    return section(`What's new`, `Aurora ${data.version}${latest && latest.date ? ` · ${latest.date}` : ""}`,
+      el("div", { class: "page-pad" },
+        latest ? list(latest) : el("p", { class: "pref-note" }, "No notes yet."),
+        more || null,
+        older));
+  };
+
   paint();
   screen.append(
     el("div", { class: "browse-head" },
@@ -505,6 +535,7 @@ export const renderPreferences = async (root) => {
     ),
     el("div", { class: "pref-grid" },
       profileSection,
+      await whatsNew(),
       await accountCard(),
       section("Appearance", "Yours alone — follows this profile to every device.",
         appearanceSection()),

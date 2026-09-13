@@ -87,6 +87,37 @@ router.get("/api/server-info", (req, res) => {
   });
 });
 
+// What changed, from CHANGELOG.md at the repo root: "## <version> — <date>"
+// headings with "- " bullets under them. Parsed once and cached until the
+// file's mtime moves, so Preferences can show "What's new" for free.
+let changelogCache = { mtime: 0, data: null };
+router.get("/api/changelog", (req, res) => {
+  const fs = require("fs");
+  const file = path.join(__dirname, "..", "..", "CHANGELOG.md");
+  let mtime = 0;
+  try { mtime = fs.statSync(file).mtimeMs; } catch {}
+  if (!changelogCache.data || changelogCache.mtime !== mtime) {
+    const releases = [];
+    let cur = null;
+    let text = "";
+    try { text = fs.readFileSync(file, "utf-8"); } catch {}
+    for (const raw of text.split(/\r?\n/)) {
+      const h = /^##\s+([^\s—–-]+)(?:\s*[—–-]\s*(.+))?$/.exec(raw.trim());
+      if (h) {
+        cur = { version: h[1], date: (h[2] || "").trim() || null, items: [] };
+        releases.push(cur);
+        continue;
+      }
+      const b = /^[-*]\s+(.+)$/.exec(raw.trim());
+      if (b && cur) cur.items.push(b[1]);
+    }
+    let version = "0.0.0";
+    try { version = require("../../package.json").version || version; } catch {}
+    changelogCache = { mtime, data: { version, releases } };
+  }
+  res.json(changelogCache.data);
+});
+
 router.get("/api/library", (req, res) => {
   // Library items carry the IMDb id we already know for them (identity.js
   // stamps the index; a no-op unless the library or the id cache changed).

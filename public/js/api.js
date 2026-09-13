@@ -75,6 +75,11 @@ export const api = {
     return json(`/api/library/for?${p.toString()}`).then((r) => (r && r.item) || null);
   },
   discoverMeta: (type, id) => json(`/api/discover/meta/${type}/${id}`),
+  discoverCollection: (type, id, tmdbId) =>
+    json(
+      `/api/discover/collection/${type}/${encodeURIComponent(id)}${tmdbId ? `?tmdbId=${tmdbId}` : ""}`,
+    ),
+  changelog: () => json("/api/changelog"),
   discoverSimilar: (type, id, tmdbId) =>
     json(
       `/api/discover/similar/${type}/${encodeURIComponent(id)}${tmdbId ? `?tmdbId=${tmdbId}` : ""}`,

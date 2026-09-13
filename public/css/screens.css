@@ -3435,3 +3435,66 @@
     grid-column: 1 / -1;
   }
 }
+
+/* ---------- trailer modal ---------- */
+.trailer-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.trailer-box {
+  width: min(1100px, 100%);
+  background: #0b0c14;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+.trailer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-weight: 700;
+}
+.trailer-close {
+  width: 36px;
+  height: 36px;
+}
+.trailer-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+.trailer-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* ---------- What's new (Preferences) ---------- */
+.changelog {
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.changelog li + li {
+  margin-top: 4px;
+}
+.changelog-release {
+  margin-top: 14px;
+}
+.changelog-head {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}

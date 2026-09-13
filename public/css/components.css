@@ -138,6 +138,22 @@
   box-shadow: var(--focus-ring);
 }
 
+/* a release you haven't read about yet */
+.nav-gear {
+  position: relative;
+}
+.nav-gear.has-new::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 0 2px var(--bg, #0b0c14);
+}
+
 .nav-profile {
   display: flex;
   align-items: center;

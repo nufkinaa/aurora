@@ -187,4 +187,47 @@ const similar = async (type, imdbId, tmdbHint) => {
   return result;
 };
 
-module.exports = { similar, similarCached, warmSimilar, _internals: { mapItems, genreFallback, tmdbIdFor } };
+// ---------- collections: the franchise, and the director's other films ----------
+// TMDB-only (Cinemeta has neither); without a key both rows are empty and
+// the page shows nothing for them. Cached a week under "coll|movie|tt…".
+const collection = async (type, imdbId, tmdbHint) => {
+  if (type === "series" || !config.TMDB_KEY) return { collection: null, director: null };
+  const key = `coll|movie|${imdbId}`;
+  const hit = store.data.rows[key];
+  if (hit && Date.now() - hit.at < (hit.collection || hit.director ? ROW_TTL : MISS_TTL)) {
+    return { collection: hit.collection || null, director: hit.director || null };
+  }
+  const out = { collection: null, director: null };
+  try {
+    const tmdbId = tmdbHint || (await tmdbIdFor(imdbId, "movie"));
+    if (tmdbId) {
+      const movie = await tmdb(`movie/${tmdbId}`, "&append_to_response=credits");
+      const coll = movie.belongs_to_collection;
+      if (coll && coll.id) {
+        const parts = (await tmdb(`collection/${coll.id}`)).parts || [];
+        const ordered = parts
+          .filter((m) => m.release_date) // unreleased entries have no poster worth showing
+          .sort((a, b) => a.release_date.localeCompare(b.release_date));
+        const items = await addImdbIds(mapItems(ordered, "movie"), "movie");
+        if (items.length > 1) out.collection = { name: coll.name, items };
+      }
+      const director = ((movie.credits && movie.credits.crew) || []).find((c) => c.job === "Director");
+      if (director && director.id) {
+        const credits = (await tmdb(`person/${director.id}/movie_credits`)).crew || [];
+        const seen = new Set();
+        const directed = credits
+          .filter((m) => m.job === "Director" && m.id !== tmdbId && m.poster_path)
+          .filter((m) => (seen.has(m.id) ? false : seen.add(m.id)))
+          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+          .slice(0, 14);
+        const items = await addImdbIds(mapItems(directed, "movie"), "movie");
+        if (items.length) out.director = { name: director.name, items };
+      }
+    }
+  } catch {}
+  store.data.rows[key] = { ...out, at: Date.now() };
+  store.save();
+  return out;
+};
+
+module.exports = { similar, similarCached, warmSimilar, collection, _internals: { mapItems, genreFallback, tmdbIdFor } };
