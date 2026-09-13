@@ -218,7 +218,7 @@ router.get("/api/profiles/:id/today", gate, (req, res) => {
 
 router.get("/api/profiles/:id/state", gate, (req, res) => {
   res.json({
-    progress: profiles.getProgress(req.params.id),
+    progress: profiles.getProgressView(req.params.id),
     ratings: profiles.getRatings(req.params.id),
     likedGenres: profiles.getLikedGenres(req.params.id),
     episodeProgress: profiles.streamEpisodeProgress(req.params.id),

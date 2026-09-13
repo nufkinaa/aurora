@@ -2,7 +2,7 @@
 // ±10s, subtitle + speed menus, Up Next auto-advance, server-side resume.
 import { el, icons, fmtClock, toast } from "../ui.js";
 import { api } from "../api.js";
-import { state, progressFor, refreshProgress } from "../state.js";
+import { state, progressFor, titleProgressFor, refreshProgress } from "../state.js";
 import { navigate } from "../router.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
@@ -708,7 +708,9 @@ export const renderPlayer = async (root, { id }) => {
 
   // Resume point (baked into the transcode's start offset for streams, applied
   // as a native seek for direct/library playback).
-  const prog0 = progressFor(item.id);
+  // This exact file/torrent first, else the title's shared history (the same
+  // episode watched from another source resumes where it stopped).
+  const prog0 = progressFor(item.id) || titleProgressFor(item);
   const resumeAt =
     !restart &&
     prog0 &&
@@ -2604,7 +2606,7 @@ export const renderPlayer = async (root, { id }) => {
     // The new stream's clock is valid from here, so the held seek target can
     // hand the scrubber back to it without the bar ever stepping backwards.
     seekPreview = null;
-    const prog = progressFor(item.id);
+    const prog = progressFor(item.id) || titleProgressFor(item);
     // Transcoded streams resume by starting the transcode at the saved offset
     // (baked into streamOffset at startup), so no client-side seek here. Direct
     // and library playback seek natively.

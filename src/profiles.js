@@ -27,6 +27,7 @@ const stateFor = (profileId) => {
   if (!s.likedGenres) s.likedGenres = [];  // ["Action", ...]
   if (!s.streamItems) s.streamItems = {};  // torrent id -> play-item meta (for Continue Watching)
   if (!s.upNextDismissed) s.upNextDismissed = {}; // showId -> dismissed NEXT-episode id
+  if (!s.titles) s.titles = {};            // title key (imdbId[:s:e]) -> shared history row
   return s;
 };
 
@@ -586,12 +587,13 @@ const setProgress = (profileId, itemId, position, duration, meta) => {
   bumpSignals(profileId);
   const state = stateFor(profileId);
   const finished = duration > 0 && position / duration > 0.95;
-  state.progress[itemId] = {
+  const row = {
     position: Math.floor(position),
     duration: Math.floor(duration),
     finished,
     updatedAt: Date.now(),
   };
+  state.progress[itemId] = row;
   // `torrent|…` is something that was actually played; `stream|…` is a title
   // marked watched by hand without ever playing it here (you saw it elsewhere).
   // Both need their meta kept, because that is what streamEpisodeProgress reads
@@ -599,10 +601,126 @@ const setProgress = (profileId, itemId, position, duration, meta) => {
   if (meta && typeof meta === "object" && /^(torrent|stream)\|/.test(itemId)) {
     state.streamItems[itemId] = meta;
   }
+  // The shared history row for the TITLE, whatever was played (see titles).
+  const key = titleKeyOf(itemId, state.streamItems[itemId]);
+  if (key) writeTitle(state, key, row, itemId);
   store.save();
 };
 
+// ---------- one history per title ----------
+//
+// `state.progress` is keyed by what was PLAYED (library id, torrent file,
+// hand-ticked stream key). `state.titles` is keyed by what it WAS — the IMDb
+// id, plus season+episode for an episode — and holds the freshest row across
+// every alias. The player, Continue Watching and the watched flags read the
+// title, so a show streamed on Monday and downloaded on Tuesday is one
+// history, and dismissing it dismisses it everywhere.
+const titleKeyOf = (itemId, meta) => require("./media/identity").titleKeyFor(itemId, meta);
+
+const writeTitle = (state, key, row, itemId) => {
+  const cur = state.titles[key];
+  if (cur && (cur.updatedAt || 0) >= (row.updatedAt || 0)) return false;
+  state.titles[key] = {
+    position: row.position,
+    duration: row.duration,
+    finished: !!row.finished,
+    updatedAt: row.updatedAt || Date.now(),
+    itemId,
+  };
+  return true;
+};
+
+// Fold every progress row of one profile into its title rows (newest wins).
+// Pure over the state + a key resolver so tests can pin it; the live caller
+// runs it whenever the library or the IMDb cache changes, since either can
+// make a row resolvable that wasn't before (a show's id learned, a download
+// landed) — and that is also the migration for stores written before titles.
+const foldTitles = (state, keyFor) => {
+  let changed = false;
+  for (const [itemId, prog] of Object.entries(state.progress || {})) {
+    if (!prog) continue;
+    const key = keyFor(itemId, state.streamItems && state.streamItems[itemId]);
+    if (key && writeTitle(state, key, prog, itemId)) changed = true;
+  }
+  return changed;
+};
+
+// The progress map a client should see: the raw alias rows, plus every
+// library item filled in from its title row when that is what's freshest —
+// so `progress[libraryId]` answers for a title first watched as a stream.
+// Read-only: nothing here is written back.
+const pickRow = (t) => ({ position: t.position, duration: t.duration, finished: !!t.finished, updatedAt: t.updatedAt });
+const materializeProgress = (state, titleKeys) => {
+  const out = { ...(state.progress || {}) };
+  for (const [libId, key] of titleKeys) {
+    const t = state.titles && state.titles[key];
+    if (!t) continue;
+    const cur = out[libId];
+    if (!cur || (cur.updatedAt || 0) < (t.updatedAt || 0)) out[libId] = pickRow(t);
+  }
+  return out;
+};
+
+// Everything filed under one title: the title row itself and every alias row
+// that resolves to it (their stream meta too). Pure, for the same reason.
+const clearTitle = (state, itemId, keyFor) => {
+  const key = keyFor(itemId, state.streamItems && state.streamItems[itemId]);
+  delete state.progress[itemId];
+  delete state.streamItems[itemId];
+  if (!key) return;
+  delete state.titles[key];
+  for (const id of Object.keys(state.progress || {})) {
+    if (keyFor(id, state.streamItems && state.streamItems[id]) === key) {
+      delete state.progress[id];
+      delete state.streamItems[id];
+    }
+  }
+};
+
+// Keep every profile's title rows current with the library and the IMDb
+// cache. Memoized on the same stamp identity.js uses, so it is a no-op on the
+// hot path and a full fold exactly when something changed.
+let titlesFor = null;
+const ensureTitles = () => {
+  const identity = require("./media/identity");
+  const keys = identity.ensureStamped();
+  const imdb = require("./media/imdb");
+  const stamp = `${scanner.index.scannedAt}|${imdb.version()}`;
+  if (stamp === titlesFor) return keys;
+  let changed = false;
+  for (const profileId of Object.keys(store.data.state || {})) {
+    if (foldTitles(stateFor(profileId), identity.titleKeyFor)) changed = true;
+  }
+  titlesFor = stamp;
+  if (changed) store.save();
+  return keys;
+};
+scanner.events.on("scanned", () => {
+  try { ensureTitles(); } catch (e) {
+    console.warn("[profiles] title history fold failed:", e && e.message ? e.message : e);
+  }
+});
+
+// Raw alias rows — what was played, as played. Aggregators (Wrapped, taste)
+// read this so a title is never counted twice.
 const getProgress = (profileId) => stateFor(profileId).progress;
+
+// The client-facing view: raw rows plus library ids filled from their title.
+const getProgressView = (profileId) => materializeProgress(stateFor(profileId), ensureTitles());
+
+// Title rows split the way the browser reads them: episodes keyed
+// "imdbId:season:episode", films keyed by IMDb id. Covers library-played
+// titles too (the stamp gives library ids their IMDb identity), so a show's
+// episode bars on the Discover page know about the copies on disk as well.
+const titleRows = (profileId, wantEpisodes) => {
+  ensureTitles();
+  const out = {};
+  for (const [key, t] of Object.entries(stateFor(profileId).titles)) {
+    if (key.includes(":") !== wantEpisodes) continue;
+    out[key] = pickRow(t);
+  }
+  return out;
+};
 
 // The stored play-item for a streamed title (used to rebuild a torrent item
 // after a page refresh, when the client's in-memory pendingItems is gone).
@@ -617,37 +735,14 @@ const getStreamItems = (profileId) => stateFor(profileId).streamItems;
 // the entry rather than the rendered card watchlistItems() returns.
 const getWatchlist = (profileId) => stateFor(profileId).watchlist;
 
-// Watch progress for streamed titles, re-filed under a key the browser can
-// recognise. The stored key names a FILE (`torrent|<hash>|<idx>`) or a title the
-// viewer ticked off by hand (`stream|<imdbId>`), neither of which a card on screen
-// knows about — so `keyOf` maps the stored meta onto something it does. Returning
-// null skips the entry. Most recent watch per key wins.
-const streamProgressBy = (profileId, keyOf) => {
-  const s = stateFor(profileId);
-  const out = {};
-  for (const [id, meta] of Object.entries(s.streamItems)) {
-    if (!meta || !meta.imdbId) continue;
-    const key = keyOf(meta);
-    if (!key) continue;
-    const prog = s.progress[id];
-    if (!prog) continue;
-    if (!out[key] || (out[key].updatedAt || 0) < prog.updatedAt) {
-      out[key] = { position: prog.position, duration: prog.duration, finished: prog.finished, updatedAt: prog.updatedAt };
-    }
-  }
-  return out;
-};
-
 // Keyed "imdbId:season:episode", so the Discover show page can draw a progress
-// bar per episode regardless of which torrent source was used.
-const streamEpisodeProgress = (profileId) =>
-  streamProgressBy(profileId, (m) => (m.season && m.episode ? `${m.imdbId}:${m.season}:${m.episode}` : null));
+// bar per episode regardless of which source (or file) was used.
+const streamEpisodeProgress = (profileId) => titleRows(profileId, true);
 
 // The film counterpart, keyed by IMDb id: what the browser needs to tell whether
 // a streamable title has been watched, which no amount of looking at
 // `progress[item.id]` can answer (see watchState in public/js/state.js).
-const streamTitleProgress = (profileId) =>
-  streamProgressBy(profileId, (m) => (m.season ? null : m.imdbId));
+const streamTitleProgress = (profileId) => titleRows(profileId, false);
 
 // `item` is a local id string or a stream ref object (see entryKey).
 const toggleWatchlist = (profileId, item, add) => {
@@ -696,80 +791,15 @@ const setLikedGenres = (profileId, genres) => {
 
 const getLikedGenres = (profileId) => stateFor(profileId).likedGenres;
 
-// A streamed title's history moves onto its library copy once one exists.
-//
-// Progress for a torrent stream is keyed by the FILE it played from
-// (`torrent|<hash>|<idx>`), so when that same episode is later downloaded the
-// library copy starts with a blank history — and Continue Watching kept
-// pointing at the torrent, which is how "play my downloaded episode" ended up
-// hunting for peers. This copies each stream entry onto the library item it
-// now resolves to (newest wins, so a later watch of the file is never
-// overwritten) — pure over one profile's state so it can be pinned by tests.
-//
-// Each hand-off is stamped on the stream meta (`adoptedAt` = the stream
-// row's updatedAt at the time), and a row is only handed over again once it
-// has been watched since. Without the stamp, dismissing the card (which
-// clears the LIBRARY row) would just get it copied back on the next pass.
-const adoptStreamProgress = (state, findPlayable) => {
-  let changed = false;
-  for (const [itemId, prog] of Object.entries(state.progress || {})) {
-    if (!itemId.startsWith("torrent|") || !prog) continue;
-    const meta = state.streamItems && state.streamItems[itemId];
-    if (!meta) continue;
-    const at = prog.updatedAt || 0;
-    if (meta.adoptedAt != null && meta.adoptedAt >= at) continue;
-    let lib = null;
-    try { lib = findPlayable(meta); } catch { lib = null; }
-    if (!lib || !lib.id) continue;
-    meta.adoptedAt = at;
-    changed = true;
-    const cur = state.progress[lib.id];
-    if (cur && (cur.updatedAt || 0) >= at) continue;
-    state.progress[lib.id] = {
-      position: prog.position,
-      duration: prog.duration,
-      finished: !!prog.finished,
-      updatedAt: at || Date.now(),
-    };
-  }
-  return changed;
-};
-
-// Run the hand-off for every profile against the live library. The answer
-// only changes when the library does, so this runs once per scan (the
-// "scanned" hook), and Continue Watching re-checks the scan stamp in case a
-// scan landed before this module was loaded. `maps` lets the caller share
-// one libraryMaps build.
-let reconciledFor = null; // scanner.index.scannedAt of the last pass
-const reconcileStreamProgress = (maps = null) => {
-  const identity = require("./media/identity");
-  const m = maps || identity._internals.libraryMaps();
-  const find = (meta) => identity.findLibraryPlayable(meta, m);
-  let changed = false;
-  for (const profileId of Object.keys(store.data.state || {})) {
-    if (adoptStreamProgress(stateFor(profileId), find)) changed = true;
-  }
-  reconciledFor = scanner.index.scannedAt;
-  if (changed) store.save();
-  return changed;
-};
-scanner.events.on("scanned", () => {
-  try { reconcileStreamProgress(); } catch (e) {
-    console.warn("[profiles] stream→library progress hand-off failed:", e && e.message ? e.message : e);
-  }
-});
-
 // Items for the Continue Watching row: in-progress videos, most recent first.
 // Finished episodes advance to the next episode of the show.
 const continueWatching = (profileId) => {
   const state = stateFor(profileId);
   const identity = require("./media/identity");
-  // One maps build serves both the (rare) catch-up hand-off and the loop.
   const maps = identity._internals.libraryMaps();
-  if (reconciledFor !== scanner.index.scannedAt) {
-    try { reconcileStreamProgress(maps); } catch {}
-  }
-  const entries = Object.entries(state.progress).sort(
+  // The title view: a library episode first watched as a stream shows up
+  // under its library id here, with the stream's position.
+  const entries = Object.entries(getProgressView(profileId)).sort(
     (a, b) => b[1].updatedAt - a[1].updatedAt
   );
 
@@ -784,9 +814,9 @@ const continueWatching = (profileId) => {
     if (itemId.startsWith("torrent|")) {
       const meta = state.streamItems[itemId];
       if (!meta || prog.finished || prog.position <= 10) continue;
-      // Downloaded since: the library copy carries this history now (see
-      // adoptStreamProgress) and its own entry below renders the card — a
-      // card that plays the file, not the torrent.
+      // Downloaded since: the library copy carries this history now (the
+      // title view above) and its own entry renders the card — a card that
+      // plays the file, not the torrent.
       let owned = null;
       try { owned = identity.findLibraryPlayable(meta, maps); } catch {}
       if (owned) continue;
@@ -948,11 +978,14 @@ const watchlistItems = (profileId) => {
   });
 };
 
+// Clears the TITLE: every alias of it goes too (the torrent it was streamed
+// from, the file it was later downloaded as), or the card would come straight
+// back from whichever row was left behind.
 const clearProgress = (profileId, itemId) => {
   bumpSignals(profileId);
   const state = stateFor(profileId);
-  delete state.progress[itemId];
-  delete state.streamItems[itemId]; // drop stored stream meta too
+  ensureTitles();
+  clearTitle(state, itemId, titleKeyOf);
   store.save();
 };
 
@@ -994,13 +1027,13 @@ module.exports = {
   remove,
   setProgress,
   getProgress,
+  getProgressView,
   getStreamItem,
   getStreamItems,
   getWatchlist,
   streamEpisodeProgress,
   streamTitleProgress,
   clearProgress,
-  reconcileStreamProgress,
   dismissUpNext,
   toggleWatchlist,
   continueWatching,
@@ -1030,5 +1063,5 @@ module.exports = {
   issueToken,
   // Test-only: the pure halves of the watchlist identity work, plus the
   // store handle + norms so auth tests can run on a stubbed store.
-  _internals: { entryKey, sameIdentity, materializeWatchlist, adoptStreamProgress, store, normUsername, normEmail, validEmail, hashPassword, verifyHash },
+  _internals: { entryKey, sameIdentity, materializeWatchlist, foldTitles, materializeProgress, clearTitle, store, normUsername, normEmail, validEmail, hashPassword, verifyHash },
 };

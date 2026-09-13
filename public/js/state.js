@@ -140,9 +140,6 @@ export const loadLibrary = async (force = false) => {
 
 export const progressFor = (itemId) => state.progress[itemId] || null;
 
-const episodeIdsOf = (item) =>
-  ((item && item.seasons) || []).flatMap((s) => (s.episodes || []).map((e) => e.id)).filter(Boolean);
-
 // What this profile's history says about a title: started, finished, and when it
 // was last touched.
 //
@@ -154,29 +151,60 @@ const episodeIdsOf = (item) =>
 export const watchState = (item) => {
   if (!item) return { started: false, finished: false, at: 0 };
   const isShow = item.type === "show";
-  const episodeIds = isShow ? episodeIdsOf(item) : [];
-  const found = [];
-
+  // One entry per EPISODE (or per film), whichever alias it was watched under:
+  // the library file and the same episode's stream both key to "season:episode",
+  // so a title watched twice is still one title — and a two-episode show with
+  // one episode seen is not "finished" because that episode came in twice.
+  const byKey = new Map();
+  const add = (key, p) => {
+    if (!p) return;
+    const cur = byKey.get(key);
+    if (!cur || (cur.updatedAt || 0) < (p.updatedAt || 0)) byKey.set(key, p);
+  };
+  const libKeys = new Set();
   if (isShow) {
-    for (const id of episodeIds) found.push(state.progress[id]);
+    for (const s of item.seasons || []) {
+      for (const e of s.episodes || []) {
+        const key = `${e.season ?? s.number}:${e.episode}`;
+        libKeys.add(key);
+        add(key, state.progress[e.id]);
+      }
+    }
     if (item.imdbId) {
+      const prefix = `${item.imdbId}:`;
       for (const [key, p] of Object.entries(state.episodeProgress)) {
-        if (key.startsWith(`${item.imdbId}:`)) found.push(p);
+        if (key.startsWith(prefix)) add(key.slice(prefix.length), p);
       }
     }
   } else {
-    found.push(state.progress[item.id]);
-    if (item.imdbId) found.push(state.streamProgress[item.imdbId], state.progress[`stream|${item.imdbId}`]);
+    add("film", state.progress[item.id]);
+    if (item.imdbId) {
+      add("film", state.streamProgress[item.imdbId]);
+      add("film", state.progress[`stream|${item.imdbId}`]);
+    }
   }
 
-  const seen = found.filter(Boolean);
-  const done = seen.filter((p) => p.finished).length;
+  const seen = [...byKey.values()];
+  const doneKeys = new Set([...byKey].filter(([, p]) => p.finished).map(([k]) => k));
   return {
     started: seen.length > 0,
     // A series is only done when every episode we can see is done. For a
     // streamable one we cannot see the full run at all, so it stays "in
     // progress" rather than claiming you finished it after one episode.
-    finished: isShow ? episodeIds.length > 0 && done >= episodeIds.length : done > 0,
+    finished: isShow
+      ? libKeys.size > 0 && [...libKeys].every((k) => doneKeys.has(k))
+      : doneKeys.size > 0,
     at: seen.reduce((latest, p) => Math.max(latest, p.updatedAt || 0), 0),
   };
+};
+
+// The title's history for an item that has no alias row of its own yet — a
+// torrent of an episode watched before from another source, or a stream item
+// for a film played as a library file. Same identity, so same resume point.
+export const titleProgressFor = (item) => {
+  if (!item || !item.imdbId) return null;
+  if (item.season != null && item.episode != null) {
+    return state.episodeProgress[`${item.imdbId}:${item.season}:${item.episode}`] || null;
+  }
+  return state.streamProgress[item.imdbId] || null;
 };

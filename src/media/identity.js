@@ -108,6 +108,67 @@ const findLibraryPlayable = (identity = {}, maps = null) => {
   return null;
 };
 
+// ---------- one identity for everything a person watched ----------
+//
+// Watch history is keyed by whatever was PLAYED: a library id, a torrent file
+// (`torrent|hash|idx`), or a hand-ticked `stream|imdbId[|s|e]`. The TITLE
+// behind all three is the IMDb id (plus season+episode for one episode), and
+// that is the key profiles.js files the shared history under. Library ids
+// resolve through the stamp below; stream keys carry their id themselves.
+
+// Stamp every library movie and show with the IMDb id we already know for it
+// (cached; never a network call), and build the library-id → title-key map.
+// Memoized over (scan stamp, imdb-cache version): the answer only moves when
+// one of those does. Idempotent and cheap, so callers just call it.
+let stampKey = null;
+let titleKeys = new Map();
+const ensureStamped = () => {
+  const key = `${scanner.index.scannedAt}|${imdb.version()}`;
+  if (key === stampKey) return titleKeys;
+  const next = new Map();
+  for (const m of scanner.index.movies) {
+    const id = imdb.cachedIdFor(m.title, "movie", m.year);
+    if (id) {
+      m.imdbId = id;
+      next.set(m.id, id);
+    } else delete m.imdbId;
+  }
+  for (const show of scanner.index.shows) {
+    const id = imdb.cachedIdFor(show.title, "show", show.year);
+    if (id) show.imdbId = id;
+    else delete show.imdbId;
+    if (!id) continue;
+    for (const season of show.seasons || []) {
+      for (const ep of season.episodes || []) {
+        if (ep.season != null && ep.episode != null)
+          next.set(ep.id, `${id}:${Number(ep.season)}:${Number(ep.episode)}`);
+      }
+    }
+  }
+  stampKey = key;
+  titleKeys = next;
+  return titleKeys;
+};
+
+// The title key for a progress row: "tt123" for a film, "tt123:1:4" for one
+// episode, or null when the identity is unknown (a library title the IMDb
+// cache has never resolved, a torrent whose meta carries no id).
+const titleKeyFor = (itemId, meta = null) => {
+  const id = String(itemId || "");
+  if (id.startsWith("torrent|")) {
+    if (!meta || !meta.imdbId) return null;
+    return meta.season != null && meta.episode != null && meta.season !== ""
+      ? `${meta.imdbId}:${Number(meta.season)}:${Number(meta.episode)}`
+      : meta.imdbId;
+  }
+  if (id.startsWith("stream|")) {
+    const [, imdbId, season, episode] = id.split("|");
+    if (!imdbId) return null;
+    return season && episode ? `${imdbId}:${Number(season)}:${Number(episode)}` : imdbId;
+  }
+  return ensureStamped().get(id) || null;
+};
+
 // The cached IMDb id for a library item (sync, no network), or null.
 const imdbIdFor = (item) =>
   item ? imdb.cachedIdFor(item.title, item.type, item.year) : null;
@@ -126,6 +187,8 @@ const markLibrary = (items) => {
 module.exports = {
   findLibraryFor,
   findLibraryPlayable,
+  ensureStamped,
+  titleKeyFor,
   imdbIdFor,
   markLibrary,
   titlesMatch,

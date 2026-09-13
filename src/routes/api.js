@@ -64,31 +64,6 @@ const listEntry = (i) => {
   return rest;
 };
 
-// A list entry plus the IMDb id we already know for it (cached; never a
-// network call). The client matches stream titles to owned copies by this
-// id first — a title-only match is what let a downloaded episode go
-// unrecognised and get streamed again.
-//
-// Memoized per item over (scan stamp, imdb-cache version): the answer only
-// moves when one of those does, and every client refetches /api/library on
-// each library_updated broadcast, so the per-item norm() must not be redone
-// per request.
-const imdbMemo = { key: null, ids: new Map() };
-const withImdb = (i) => {
-  const imdb = require("../media/imdb");
-  const key = `${scanner.index.scannedAt}|${imdb.version()}`;
-  if (imdbMemo.key !== key) {
-    imdbMemo.key = key;
-    imdbMemo.ids.clear();
-  }
-  let imdbId = imdbMemo.ids.get(i.id);
-  if (imdbId === undefined) {
-    imdbId = identity.imdbIdFor(i);
-    imdbMemo.ids.set(i.id, imdbId);
-  }
-  return imdbId ? { ...i, imdbId } : i;
-};
-
 // Non-secret display config the client needs before a profile is picked.
 // authMode tells the client whether to boot into the login screen; google
 // says whether a "Sign in with Google" button should exist at all.
@@ -113,9 +88,12 @@ router.get("/api/server-info", (req, res) => {
 });
 
 router.get("/api/library", (req, res) => {
+  // Library items carry the IMDb id we already know for them (identity.js
+  // stamps the index; a no-op unless the library or the id cache changed).
+  identity.ensureStamped();
   res.json({
-    movies: scanner.index.movies.map(withImdb),
-    shows: scanner.index.shows.map((s) => withImdb(listEntry(s))),
+    movies: scanner.index.movies,
+    shows: scanner.index.shows.map(listEntry),
     scannedAt: scanner.index.scannedAt,
     enriched: scanner.index.enriched,
   });
@@ -173,6 +151,7 @@ router.get("/api/item/:id", (req, res) => {
     });
   }
 
+  identity.ensureStamped(); // so the item carries its imdbId
   const item = scanner.findById(id);
   if (!item) return res.status(404).json({ error: "Not found" });
   res.json(item);
@@ -402,7 +381,9 @@ router.get("/api/home", (req, res) => {
 
   const ratings = profileId ? profiles.getRatings(profileId) : {};
   const likedGenres = profileId ? profiles.getLikedGenres(profileId) : [];
-  const progress = profileId ? profiles.getProgress(profileId) : {};
+  // The title view: a library copy of something first watched as a stream
+  // counts as watched here too (seen-filters, New Episodes, the taste seed).
+  const progress = profileId ? profiles.getProgressView(profileId) : {};
   const userRating = (i) => ratings[i.id] || ratings[i.imdbId] || 0;
 
   // Every known title, indexed by both kinds of key a profile can store against
