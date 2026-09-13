@@ -80,6 +80,8 @@ export const api = {
       `/api/discover/collection/${type}/${encodeURIComponent(id)}${tmdbId ? `?tmdbId=${tmdbId}` : ""}`,
     ),
   changelog: () => json("/api/changelog"),
+  party: (code) => json(`/api/party/${encodeURIComponent(code)}`),
+  parties: () => json("/api/party"),
   discoverSimilar: (type, id, tmdbId) =>
     json(
       `/api/discover/similar/${type}/${encodeURIComponent(id)}${tmdbId ? `?tmdbId=${tmdbId}` : ""}`,

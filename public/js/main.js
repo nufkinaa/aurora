@@ -1,6 +1,6 @@
 // Aurora boot: profile gate -> router -> screens.
 import "./focus.js";
-import { $, el } from "./ui.js";
+import { $, el, toast } from "./ui.js";
 import { route, startRouter, navigate } from "./router.js";
 import { state, loadProfiles, setProfile, savedToken, downloads, readyDownloads } from "./state.js";
 import { api, setAuthToken } from "./api.js";
@@ -41,6 +41,20 @@ route("/show/:id", (root, p) => renderDetailLazy(root, { source: "library", type
 route("/play/:id", (root, p) => import("./screens/player.js").then((m) => m.renderPlayer(root, p)));
 route("/requests", renderRequests); // no longer in nav; kept for deep links
 route("/downloads", (root, p) => import("./screens/downloads.js").then((m) => m.renderDownloads(root, p)));
+// Join a watch party by code: look the party up, hand its item to the
+// player (a torrent play-item travels with the party; a library id is
+// enough on its own), and open the player in party mode.
+route("/party/:code", async (root, p) => {
+  const code = String(p.code || "").toUpperCase();
+  let party = null;
+  try { party = await api.party(code); } catch {}
+  if (!party || !party.item) {
+    toast("No party with that code", "👥");
+    return navigate("#/");
+  }
+  if (String(party.item.id).startsWith("torrent|")) state.pendingItems[party.item.id] = party.item;
+  navigate(`#/play/${encodeURIComponent(party.item.id)}?party=${code}`);
+});
 route("/discover/:type/:id", (root, p) => renderDetailLazy(root, { source: "discover", type: p.type, id: p.id }));
 route("/preferences", (root, p) => import("./screens/preferences.js").then((m) => m.renderPreferences(root, p)));
 route("/wrapped", renderWrapped);
@@ -190,6 +204,44 @@ document.addEventListener("ui-back", (e) => {
 // switch profile where the wall exists, preferences, and a proper red
 // sign-out when signed in. In closed mode there is no wall to switch on,
 // so the menu is the whole story.
+// "Join a watch party": a four-letter code from whoever started one.
+const showJoinParty = () => {
+  const input = el("input", {
+    class: "focusable party-code-input",
+    type: "text",
+    maxlength: "6",
+    placeholder: "CODE",
+    autocapitalize: "characters",
+    autocomplete: "off",
+    "aria-label": "Party code",
+  });
+  const go = () => {
+    const code = input.value.trim().toUpperCase();
+    if (code.length < 4) return toast("Codes are four letters", "👥");
+    close();
+    navigate(`#/party/${code}`);
+  };
+  const box = el("div", { class: "nav-menu party-join" },
+    el("div", { class: "nav-menu-head" },
+      el("div", { class: "nav-menu-name" }, "Join a watch party"),
+      el("div", { class: "nav-menu-sub" }, "The code is on the host's screen (👥 in the player)")),
+    input,
+    el("div", { class: "party-join-actions" },
+      el("button", { class: "btn focusable", onclick: () => close() }, "Cancel"),
+      el("button", { class: "btn btn-primary focusable", onclick: go }, "Join")));
+  const wrap = el("div", { class: "nav-menu-wrap ui-overlay", onclick: (e) => e.target === wrap && close() }, box);
+  const close = () => {
+    document.removeEventListener("ui-back", onBack);
+    wrap.remove();
+  };
+  const onBack = (e) => { e.preventDefault(); close(); };
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  input.addEventListener("input", () => { input.value = input.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
+  document.addEventListener("ui-back", onBack);
+  document.body.append(wrap);
+  setTimeout(() => input.focus({ preventScroll: true }), 40);
+};
+
 const openGate = () => {
   // Opened over the running app — dismissable, unlike the boot gate.
   showProfileGate(() => {
@@ -211,6 +263,7 @@ const showProfileMenu = () => {
     state.authMode !== "closed" &&
       item("Switch profile", () => { close(); openGate(); }),
     item("Preferences", () => { close(); navigate("#/preferences"); }),
+    item("Join a watch party", () => { close(); showJoinParty(); }),
     state.user &&
       item("Sign out", async () => {
         close();

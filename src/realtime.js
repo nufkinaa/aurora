@@ -83,6 +83,15 @@ const broadcastEach = (fn) => {
   }
 };
 
+// One client, by id (parties address members this way).
+const sendTo = (clientId, data) => {
+  const c = clients.get(clientId);
+  if (!c || !c.ws || c.ws.readyState !== WebSocket.OPEN) return false;
+  try { c.ws.send(JSON.stringify(data)); } catch { return false; }
+  return true;
+};
+const party = require("./lib/party");
+
 const broadcastAdmins = (data) => {
   if (!wss) return;
   const msg = JSON.stringify(data);
@@ -188,6 +197,31 @@ const handleMessage = (client, data, ws) => {
       break;
     }
 
+    // ---------- watch parties (lib/party.js) ----------
+    case "party_create": {
+      const r = party.create(client, data.item, sendTo);
+      ws.send(JSON.stringify(r.error ? { type: "party_error", message: r.error } : { type: "party_created", party: r.party }));
+      if (!r.error) broadcastAll({ type: "party_list", parties: party.list() });
+      break;
+    }
+    case "party_join": {
+      const r = party.join(client, data.code, sendTo);
+      ws.send(JSON.stringify(r.error ? { type: "party_error", message: r.error } : { type: "party_joined", party: r.party }));
+      if (!r.error) broadcastAll({ type: "party_list", parties: party.list() });
+      break;
+    }
+    case "party_leave":
+      if (party.leave(client, sendTo)) broadcastAll({ type: "party_list", parties: party.list() });
+      break;
+    case "party_state":
+      party.setState(client, data, sendTo);
+      break;
+    case "party_avatar":
+      // presence knows the name; the party chips want the face too
+      client.avatar = String(data.avatar || "").slice(0, 8) || null;
+      client.avatarImage = typeof data.avatarImage === "string" && data.avatarImage.startsWith("/avatars/") ? data.avatarImage.slice(0, 200) : null;
+      break;
+
     case "admin_subscribe":
       // The password rides in the subscribe message (page memory only, never a
       // cookie) — browsers can't set WS headers, so this is how the live
@@ -272,6 +306,8 @@ const attach = (server) => {
 
     ws.on("close", () => {
       telemetry.onStopWatching(client.id);
+      // a dropped socket leaves its party (the host's drop ends it)
+      if (party.leave(client, sendTo)) broadcastAll({ type: "party_list", parties: party.list() });
       clients.delete(client.id);
       logEvent({ event: "disconnected", ...publicClient(client) });
       broadcastAdmins({ type: "client_disconnected", clientId: client.id });
@@ -285,6 +321,7 @@ module.exports = {
   attach,
   broadcastAll,
   broadcastEach,
+  sendTo,
   broadcastAdmins,
   clients,
   connectionLog,

@@ -118,6 +118,17 @@ router.get("/api/changelog", (req, res) => {
   res.json(changelogCache.data);
 });
 
+// Watch parties: what's on right now (the Home strip), and one party by
+// code (the join route needs the item before it can open the player).
+router.get("/api/party", (req, res) => {
+  res.json({ parties: require("../lib/party").list() });
+});
+router.get("/api/party/:code", (req, res) => {
+  const p = require("../lib/party").get(req.params.code);
+  if (!p) return res.status(404).json({ error: "no party with that code" });
+  res.json(p);
+});
+
 router.get("/api/library", (req, res) => {
   // Library items carry the IMDb id we already know for them (identity.js
   // stamps the index; a no-op unless the library or the id cache changed).

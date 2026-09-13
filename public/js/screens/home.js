@@ -301,6 +301,38 @@ export const renderHome = async (root) => {
     }).catch(() => {});
   }
 
+  // Watching together right now: a strip above the shelves with who is
+  // hosting what, one press to join. Live over party_list.
+  const partyStrip = el("div", { class: "party-strip hidden" });
+  screen.append(partyStrip);
+  const paintParties = (parties) => {
+    partyStrip.innerHTML = "";
+    const list = (parties || []).filter((p) => p.code);
+    partyStrip.classList.toggle("hidden", list.length === 0);
+    for (const p of list) {
+      partyStrip.append(
+        el(
+          "button",
+          { class: "party-strip-item focusable", onclick: () => navigate(`#/party/${p.code}`) },
+          el("span", { class: "party-strip-icon" }, "👥"),
+          el(
+            "span",
+            { class: "party-strip-text" },
+            el("strong", {}, p.host),
+            ` is watching ${p.title} together`,
+            el("span", { class: "party-strip-sub" }, ` · ${p.members} watching · code ${p.code}`),
+          ),
+          el("span", { class: "party-strip-cta" }, "Join"),
+        ),
+      );
+    }
+  };
+  api.parties().then((d) => paintParties(d.parties)).catch(() => {});
+  const unsubParties = onMessage("party_list", ({ parties }) => {
+    if (!screen.isConnected) return unsubParties();
+    paintParties(parties);
+  });
+
   const rowsHost = el("div");
   screen.append(rowsHost);
 

@@ -6,6 +6,7 @@ import { state, progressFor, titleProgressFor, refreshProgress, readyDownloads }
 import { navigate } from "../router.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
+import { party, createParty, joinParty, leaveParty, sendPartyState, onPartyState, onPartyUpdate, onPartyEnded } from "../party.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -1073,6 +1074,7 @@ export const renderPlayer = async (root, { id }) => {
   const ccBtn = btn("Subtitles", icons.cc, () => toggleMenu("cc"));
   const speedBtn = btn("Speed", icons.speed, () => toggleMenu("speed"));
   const gearBtn = btn("Settings", icons.gear, () => toggleMenu("settings"));
+  const partyBtn = btn("Watch together", "👥", () => togglePartyPanel());
   const fsBtn = btn("Fullscreen", icons.fullscreen, () => toggleFullscreen());
   if ((item.subtitles || []).length === 0) ccBtn.classList.add("hidden");
 
@@ -1088,6 +1090,14 @@ export const renderPlayer = async (root, { id }) => {
   video.volume = prefs.get("volume", 1);
 
   const menuHost = el("div");
+
+  // ---------- watch party: pill + panel ----------
+  // The pill (top-right) says you're in a party and how many are in; the
+  // panel is the code to share, the people in it, and Leave. Both are built
+  // here and driven by the party section further down.
+  const partyPill = el("button", { class: "party-pill focusable hidden", onclick: () => togglePartyPanel() });
+  const partyPanel = el("div", { class: "party-panel hidden" });
+  let togglePartyPanel = () => {}; // bound below, once the video exists
 
   const overlay = el(
     "div",
@@ -1108,6 +1118,7 @@ export const renderPlayer = async (root, { id }) => {
         subtitleText && el("div", { class: "player-subtitle" }, subtitleText),
         isTorrent && el("span", { class: "torrent-badge" }, "TORRENT"),
       ),
+      partyPill,
     ),
     el(
       "div",
@@ -1124,11 +1135,13 @@ export const renderPlayer = async (root, { id }) => {
         el("div", { class: "player-spacer" }),
         ccBtn,
         speedBtn,
+        partyBtn,
         gearBtn,
         fsBtn,
       ),
     ),
     menuHost,
+    partyPanel,
   );
 
   root.append(overlay);
@@ -1393,11 +1406,16 @@ export const renderPlayer = async (root, { id }) => {
     if (video.paused) {
       video.play().catch(() => {});
       showFlash(icons.play);
+      partyUser(true);
     } else {
       video.pause();
       showFlash(icons.pause);
+      partyUser(false);
     }
   };
+  // Bound in the watch-party section below (declared here so togglePlay,
+  // defined first, can call it).
+  let partyUser = () => {};
 
   // Accelerating skip: 10s per press; chains of fast presses escalate to
   // 30s, 1m, 2m, 5m. The indicator shows the cumulative jump.
@@ -2170,6 +2188,7 @@ export const renderPlayer = async (root, { id }) => {
     if (pendingSeek == null) return;
     const target = pendingSeek;
     pendingSeek = null;
+    if (party.current && Date.now() >= partyEcho) sendPartyState(!video.paused, target, "seek");
     if (usingTranscode) {
       // The live playlist only spans [windowStart, transcoded edge]. A seek
       // outside that used to clamp silently to the farthest transcoded point;
@@ -2401,6 +2420,129 @@ export const renderPlayer = async (root, { id }) => {
   scrubber.addEventListener("mouseleave", () =>
     scrubTip.classList.add("hidden"),
   );
+
+  // ---------- watch party ----------
+  // Shared remote: our play / pause / seek goes to the others; theirs lands
+  // here. `partyEcho` mutes the video events our own remote-apply causes.
+  const partyCode = (location.hash.match(/[?&]party=([A-Za-z0-9]{4,6})/) || [])[1] || null;
+  let partyEcho = 0;
+  let partySync = null;
+  const inParty = () => !!party.current;
+  // What the PERSON did — play/pause from the button, remote or media key,
+  // and committed seeks — goes to the party. Raw video play/pause events do
+  // not: the player's own transcode restarts and start-up juggling fire
+  // those constantly, and a guest joining would announce "pressed play" to
+  // the room before a single frame showed.
+  partyUser = (playing) => {
+    if (!inParty() || Date.now() < partyEcho) return;
+    sendPartyState(playing, effTime(), playing ? "play" : "pause");
+  };
+  const applyPartyState = (st, announce) => {
+    partyEcho = Date.now() + 1500;
+    const elapsed = st.playing && st.now && st.at ? Math.max(0, st.now - st.at) / 1000 : 0;
+    const target = (st.position || 0) + elapsed;
+    if (Math.abs(effTime() - target) > (st.kind === "sync" ? 2.5 : 1.2)) seekTo(target);
+    if (st.playing && video.paused) video.play().catch(() => {});
+    else if (!st.playing && !video.paused) video.pause();
+    if (announce && st.by && st.kind !== "sync") {
+      toast(
+        st.kind === "pause" ? `${st.by} paused` : st.kind === "play" ? `${st.by} pressed play` : `${st.by} jumped to ${fmtClock(target)}`,
+        "👥",
+      );
+    }
+  };
+  const paintParty = () => {
+    const p = party.current;
+    partyPill.classList.toggle("hidden", !p);
+    partyBtn.classList.toggle("active", !!p);
+    if (!p) {
+      partyPanel.classList.add("hidden");
+      return;
+    }
+    partyPill.textContent = `👥 ${p.members.length} · ${p.code}`;
+    partyPanel.innerHTML = "";
+    const chip = (m) =>
+      el(
+        "span",
+        { class: "party-member" },
+        m.avatarImage ? el("img", { src: m.avatarImage, alt: "" }) : el("span", { class: "party-avatar" }, m.avatar || "👤"),
+        el("span", {}, m.name + (p.host && p.host.id === m.id ? " · host" : "")),
+      );
+    partyPanel.append(
+      el("div", { class: "party-head" }, el("span", {}, "Watch together"), el("button", { class: "btn btn-icon focusable", "aria-label": "Close", html: "✕", onclick: () => partyPanel.classList.add("hidden") })),
+      el("div", { class: "party-code" }, ...p.code.split("").map((c) => el("span", {}, c))),
+      el(
+        "div",
+        { class: "party-hint" },
+        "On another device: profile menu → Join a watch party, and type the code. Anyone can play, pause or jump — everyone follows.",
+      ),
+      el("div", { class: "party-members" }, p.members.map(chip)),
+      el("div", { class: "party-actions" },
+        el("button", {
+          class: "btn focusable",
+          html: `<span>${party.role === "host" ? "End party" : "Leave party"}</span>`,
+          onclick: () => {
+            leaveParty();
+            paintParty();
+            toast(party.role === "host" ? "Party ended" : "Left the party", "👥");
+          },
+        }),
+      ),
+    );
+  };
+  togglePartyPanel = async () => {
+    if (!inParty()) {
+      try {
+        const snapshot = isTorrent ? { ...(streamMeta() || {}), cover: item.cover, backdrop: item.backdrop } : { id: item.id, title: item.title, showTitle: item.showTitle, cover: item.cover };
+        await createParty(snapshot);
+        // the party starts from where we are, in our state
+        sendPartyState(!video.paused, effTime(), "sync");
+        paintParty();
+        partyPanel.classList.remove("hidden");
+        pushScope(partyPanel);
+        toast("Party started — share the code", "👥");
+      } catch (e) {
+        toast(`Couldn't start a party: ${e.message}`, "⚠️");
+      }
+      return;
+    }
+    const open = partyPanel.classList.toggle("hidden");
+    if (!open) pushScope(partyPanel);
+    else popScope(partyPanel);
+  };
+  const unsubParty = [
+    onPartyState((st) => applyPartyState(st, true)),
+    onPartyUpdate(() => paintParty()),
+    onPartyEnded(() => {
+      paintParty();
+      popScope(partyPanel);
+    }),
+  ];
+  // Joining via #/play/<id>?party=CODE (the #/party/:code route lands here).
+  if (partyCode) {
+    const tryJoin = async () => {
+      try {
+        const p = await joinParty(partyCode);
+        paintParty();
+        toast(`Joined ${p.host ? p.host.name + "'s" : "the"} party`, "👥");
+        // land where they are — once the video can seek
+        const land = () => applyPartyState({ ...p.state, now: p.now, kind: "sync" }, false);
+        if (video.readyState >= 1) land();
+        else video.addEventListener("loadedmetadata", land, { once: true });
+      } catch (e) {
+        toast(`Couldn't join: ${e.message}`, "⚠️");
+      }
+    };
+    // the socket may still be connecting on a fresh page load
+    if (state.ws && state.ws.readyState === WebSocket.OPEN) tryJoin();
+    else setTimeout(tryJoin, 1200);
+  }
+  // Periodic sync while playing, from whoever is in the party — a heartbeat
+  // that late joiners and drifters correct against (guests only act on it
+  // when they're more than 2.5s out).
+  partySync = setInterval(() => {
+    if (inParty() && !video.paused && party.role === "host") sendPartyState(true, effTime(), "sync");
+  }, 5000);
 
   // ---------- resume card ----------
   // "Resuming from 12:34", with the frame at that spot for a library file
@@ -2918,8 +3060,13 @@ export const renderPlayer = async (root, { id }) => {
   const onMediaKey = (e) => {
     const action = e.detail;
     if (action === "playpause") togglePlay();
-    else if (action === "play") video.play().catch(() => {});
-    else if (action === "pause") video.pause();
+    else if (action === "play") {
+      video.play().catch(() => {});
+      partyUser(true);
+    } else if (action === "pause") {
+      video.pause();
+      partyUser(false);
+    }
     else if (action === "rewind") skip(-1);
     else if (action === "forward") skip(1);
     else if (action === "stop") exit();
@@ -3044,6 +3191,9 @@ export const renderPlayer = async (root, { id }) => {
   return () => {
     exited = true;
     clearInterval(saveTimer);
+    clearInterval(partySync);
+    for (const un of unsubParty) un();
+    leaveParty();
     if (torrentPoll) clearInterval(torrentPoll);
     if (statusPoll) clearInterval(statusPoll);
     if (stallTimer) clearInterval(stallTimer);
