@@ -262,6 +262,9 @@ scanner.events.on("enriched", () => {
 
 // Online metadata (genres, synopsis, art) fills in after each scan
 scanner.events.on("scanned", () => online.enrich(scanner.allItems()));
+// IMDb ids + Cinemeta metadata for what is on disk, so a detail page never
+// waits on a provider for a title we already have.
+require("./src/media/librarywarm");
 online.events.on("updated", () => {
   scanner.scan();
   realtime.broadcastAll({ type: "library_updated" });

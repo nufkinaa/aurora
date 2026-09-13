@@ -518,9 +518,17 @@ const search = async (q) => {
 };
 
 // Full metadata for a title (backdrop, cast, runtime, and episode list for
-// series) from Cinemeta. Cached per id.
+// series) from Cinemeta. Cached per id — in memory for speed, and on disk so
+// a restart doesn't turn every detail page back into a 5-10s Cinemeta wait
+// (the library warmer in librarywarm.js fills this ahead of time for what
+// is on disk). Stale entries are pruned on load, so the file stays bounded.
 const metaCache = new Map();
 const META_TTL = 12 * 3600 * 1000;
+const metaStore = new JsonStore(path.join(config.CACHE_DIR, "meta.json"), {});
+for (const [key, hit] of Object.entries(metaStore.data)) {
+  if (hit && hit.data && Date.now() - (hit.at || 0) < META_TTL) metaCache.set(key, hit);
+  else delete metaStore.data[key];
+}
 
 const meta = async (type, id) => {
   const cinemetaType = type === "series" || type === "show" ? "series" : "movie";
@@ -582,7 +590,10 @@ const meta = async (type, id) => {
     ),
   };
 
-  metaCache.set(key, { at: Date.now(), data });
+  const entry = { at: Date.now(), data };
+  metaCache.set(key, entry);
+  metaStore.data[key] = entry;
+  metaStore.save();
   return data;
 };
 

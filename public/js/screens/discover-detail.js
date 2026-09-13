@@ -960,6 +960,7 @@ const mergeSeasons = (lib, meta) => {
 export const renderDetail = async (root, { source, type, id }) => {
   const screen = el("div", { class: "screen" });
   root.append(screen);
+  const entryHash = location.hash;
 
   // Skeleton hero while the metadata lands.
   screen.append(
@@ -988,15 +989,33 @@ export const renderDetail = async (root, { source, type, id }) => {
   let meta = null; // stream metadata (backdrop, cast, episode titles)
   let imdbId = null;
 
+  // Stream metadata that missed the first paint lands here and patches the
+  // page in place (see applyLateMeta) — a library title must never wait on
+  // a provider to show the copy you own.
+  let lateMeta = null;
+  const lateMetaHooks = [];
+
   if (source === "library") {
     lib = await api.item(id).catch(() => null);
     if (!lib) return navigate("#/");
-    imdbId = await resolveImdbId(lib);
-    // Sources are a bonus here — never let a metadata hiccup hide the local copy.
-    if (imdbId)
-      meta = await api
+    // The server already knows most library titles' IMDb ids (identity.js
+    // stamps them; librarywarm.js resolves the rest in the background), so
+    // this is usually free. The round-trip is the fallback, not the rule.
+    imdbId = lib.imdbId || (await resolveImdbId(lib));
+    // Sources are a bonus here — never let a metadata hiccup hide the local
+    // copy, and never let a slow provider hold the page: give the (usually
+    // cached) metadata a short window, then paint and patch later.
+    if (imdbId) {
+      const metaP = api
         .discoverMeta(lib.type === "show" ? "show" : "movie", imdbId)
         .catch(() => null);
+      const first = await Promise.race([
+        metaP,
+        new Promise((r) => setTimeout(() => r("__late"), 900)),
+      ]);
+      if (first === "__late") lateMeta = metaP;
+      else meta = first;
+    }
   } else {
     imdbId = id;
     meta = await api.discoverMeta(type, id).catch(() => null);
@@ -1230,15 +1249,43 @@ export const renderDetail = async (root, { source, type, id }) => {
     }),
   );
 
-  if (meta && meta.cast && meta.cast.length) {
-    screen.append(
-      el(
-        "div",
-        { class: "detail-cast page-pad" },
-        el("span", { class: "cast-label" }, "Cast "),
-        meta.cast.join(" · "),
-      ),
+  const castLine = (m) =>
+    el(
+      "div",
+      { class: "detail-cast page-pad" },
+      el("span", { class: "cast-label" }, "Cast "),
+      m.cast.join(" · "),
     );
+  if (meta && meta.cast && meta.cast.length) screen.append(castLine(meta));
+
+  // Late metadata: fill in what the library side doesn't know (backdrop,
+  // synopsis, rating, cast, director), rebuild the hero with it, and let the
+  // branch below re-merge its episode list. The actions are the same nodes,
+  // so button state and focus survive the swap.
+  const applyLateMeta = (m) => {
+    meta = m;
+    for (const k of ["backdrop", "synopsis", "rating", "certificate", "year"]) {
+      if (!view[k] && m[k]) view[k] = m[k];
+    }
+    if (!view.cover && (m.cover || m.poster)) view.cover = m.cover || m.poster;
+    if ((!view.genres || !view.genres.length) && m.genres && m.genres.length) view.genres = m.genres;
+    const oldHero = screen.querySelector(".detail-hero");
+    if (oldHero) {
+      oldHero.replaceWith(
+        heroBlock(view, actions, metaPartsFor(null), { rateKey: imdbId || (lib && lib.id) }),
+      );
+      if (m.cast && m.cast.length && !screen.querySelector(".detail-cast")) {
+        screen.querySelector(".detail-hero").after(castLine(m));
+      }
+    }
+    for (const hook of lateMetaHooks) {
+      try { hook(m); } catch {}
+    }
+  };
+  if (lateMeta) {
+    lateMeta.then((m) => {
+      if (m && screen.isConnected && location.hash === entryHash) applyLateMeta(m);
+    });
   }
 
   // "More like this" — a row of similar titles at the bottom of the page.
@@ -1284,7 +1331,7 @@ export const renderDetail = async (root, { source, type, id }) => {
       similarHost,
     );
     fillSimilar();
-    const base = meta || { ...view, imdbId };
+    const base = () => meta || { ...view, imdbId };
     const showMovieSources = () =>
       loadSources(
         sourcesSection,
@@ -1302,8 +1349,8 @@ export const renderDetail = async (root, { source, type, id }) => {
               }
             : null,
         },
-        (s) => playStream(s, base, view.title),
-        (s) => requestDownload(s, base, view.title),
+        (s) => playStream(s, base(), view.title),
+        (s) => requestDownload(s, base(), view.title),
       );
     showMovieSources();
 
@@ -1348,7 +1395,7 @@ export const renderDetail = async (root, { source, type, id }) => {
     "Sources",
   );
 
-  const base = meta || { ...view, imdbId };
+  const base = () => meta || { ...view, imdbId };
 
   // The episode whose sources are on screen, so a finished download can put its
   // "plays your copy" row in front of you without you doing anything.
@@ -1384,7 +1431,7 @@ export const renderDetail = async (root, { source, type, id }) => {
       (s) =>
         playStream(
           s,
-          base,
+          base(),
           `${view.title} · S${row.season} E${row.episode}`,
           row.season,
           row.episode,
@@ -1392,7 +1439,7 @@ export const renderDetail = async (root, { source, type, id }) => {
       (s) =>
         requestDownload(
           s,
-          base,
+          base(),
           `${view.title} · S${row.season} E${row.episode}`,
           row.season,
           row.episode,
@@ -1642,50 +1689,61 @@ export const renderDetail = async (root, { source, type, id }) => {
     } catch {}
     renderEpisodes(true);
   };
-  if (seasons.length > 8) {
-    // A long show's pills ran off the bar (scrollbar hidden, no affordance) —
-    // one picker jumps anywhere. Same dropdown as the browse filters: scope-
-    // safe for the D-pad, Back closes it.
-    const seasonBtn = el("button", { class: "picker-btn focusable" });
-    const face = () => {
-      seasonBtn.innerHTML = "";
-      seasonBtn.append(
-        el("span", { class: "picker-label" }, "Season"),
-        el("span", { class: "picker-value" }, String(activeSeason)),
-        el("span", { class: "picker-caret" }, "▾"),
-      );
-    };
-    seasonBtn.onclick = () =>
-      dropdown(
-        seasonBtn,
-        seasons.map((s) => ({ label: `Season ${s.number}`, value: s.number })),
-        activeSeason,
-        (v) => {
-          pickSeason(v);
-          face();
-        },
-      );
-    face();
-    seasonBar.append(seasonBtn);
-  } else {
-    for (const s of seasons) {
-      const pill = el(
-        "button",
-        {
-          class: `season-pill focusable ${s.number === activeSeason ? "active" : ""}`,
-          onclick: () => {
-            pickSeason(s.number);
-            seasonBar
-              .querySelectorAll(".season-pill")
-              .forEach((p) => p.classList.remove("active"));
-            pill.classList.add("active");
+  // The season picker is rebuilt when late metadata changes the season
+  // count (a show we own one season of has five once Cinemeta answers);
+  // its nodes are tagged so the trailing action pills survive the rebuild.
+  const buildSeasonPicker = () => {
+    seasonBar.querySelectorAll("[data-picker]").forEach((n) => n.remove());
+    const nodes = [];
+    if (seasons.length > 8) {
+      // A long show's pills ran off the bar (scrollbar hidden, no affordance) —
+      // one picker jumps anywhere. Same dropdown as the browse filters: scope-
+      // safe for the D-pad, Back closes it.
+      const seasonBtn = el("button", { class: "picker-btn focusable" });
+      const face = () => {
+        seasonBtn.innerHTML = "";
+        seasonBtn.append(
+          el("span", { class: "picker-label" }, "Season"),
+          el("span", { class: "picker-value" }, String(activeSeason)),
+          el("span", { class: "picker-caret" }, "▾"),
+        );
+      };
+      seasonBtn.onclick = () =>
+        dropdown(
+          seasonBtn,
+          seasons.map((s) => ({ label: `Season ${s.number}`, value: s.number })),
+          activeSeason,
+          (v) => {
+            pickSeason(v);
+            face();
           },
-        },
-        `Season ${s.number}`,
-      );
-      if (seasons.length > 1) seasonBar.append(pill);
+        );
+      face();
+      seasonBtn.dataset.picker = "1";
+      nodes.push(seasonBtn);
+    } else {
+      for (const s of seasons) {
+        const pill = el(
+          "button",
+          {
+            class: `season-pill focusable ${s.number === activeSeason ? "active" : ""}`,
+            onclick: () => {
+              pickSeason(s.number);
+              seasonBar
+                .querySelectorAll(".season-pill")
+                .forEach((p) => p.classList.remove("active"));
+              pill.classList.add("active");
+            },
+          },
+          `Season ${s.number}`,
+        );
+        pill.dataset.picker = "1";
+        if (seasons.length > 1) nodes.push(pill);
+      }
     }
-  }
+    seasonBar.prepend(...nodes);
+  };
+  buildSeasonPicker();
   // Trailing actions sit apart from the season pills; whichever comes first
   // pushes the pair to the far end of the bar.
   const trailing = [];
@@ -1806,6 +1864,20 @@ export const renderDetail = async (root, { source, type, id }) => {
   // A download that finishes while you're looking at the page updates the page.
   // Waiting for a download and then having to reload to see it is the sort of
   // thing that makes people think it didn't work.
+  // Metadata that arrived after the first paint: episode titles, air dates,
+  // and the episodes we don't have yet join the list in place.
+  lateMetaHooks.push((m) => {
+    seasons.splice(0, seasons.length, ...mergeSeasons(lib, m));
+    buildSeasonPicker();
+    renderEpisodes();
+    const again =
+      openRow &&
+      (seasons.find((s) => s.number === openRow.season)?.episodes || []).find(
+        (e) => e.episode === openRow.episode,
+      );
+    if (again) openSources(again, { scroll: false });
+  });
+
   const unsubDone = onMessage("download_update", async ({ job }) => {
     if (!screen.isConnected) return unsubDone();
     if (!job || job.status !== "done") return;
