@@ -272,7 +272,16 @@ router.get("/api/admin/library/tree", (req, res) => {
 // Full analytics rollup computed from watch sessions. ?days=7|14|30|90
 router.get("/api/admin/analytics", (req, res) => {
   const days = Math.min(365, Math.max(1, parseInt(req.query.days, 10) || 14));
-  res.json(telemetry.analytics(days));
+  const out = telemetry.analytics(days);
+  // Skip-intro coverage rides along: detected, hand-marked, and what the
+  // household has ignored isn't known server-side (that's per device).
+  try {
+    const intros = require("../lib/introstore");
+    out.intros = { ...require("../media/introdetect").coverage(), manual: Object.keys(intros.data).length };
+  } catch {
+    out.intros = null;
+  }
+  res.json(out);
 });
 
 // Session log: who watched what, when, for how long, how far they got.
@@ -615,7 +624,7 @@ router.get("/api/admin/intros", (req, res) => {
       const show = scanner.findById(key.slice(5));
       title = show ? show.title : null;
     }
-    return { key, start: range.start, end: range.end, title };
+    return { key, start: range.start, end: range.end, title, by: range.by || null, at: range.at || null };
   });
   res.json({ intros: items });
 });

@@ -1142,3 +1142,15 @@ html[data-look="glass"] .focusable {
     animation: none;
   }
 }
+
+/* peek sheet: the same glass as the look notice */
+html[data-look="glass"] .peek {
+  background: var(--g-fill-strong);
+  border: 0;
+  box-shadow: var(--g-edge), var(--g-shadow);
+  backdrop-filter: var(--g-blur);
+  -webkit-backdrop-filter: var(--g-blur);
+  border-radius: var(--g-radius-l);
+}
+html[data-look="glass"] .peek-art-fade { background: linear-gradient(to top, rgba(14, 16, 28, 0.96) 0%, rgba(0, 0, 0, 0) 55%); }
+html[data-look="glass"] .peek-bar i { background: var(--g-progress, #fff); }

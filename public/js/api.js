@@ -137,8 +137,12 @@ export const api = {
   suggest: (q, type, limit) =>
     json(`/api/search/suggest?q=${encodeURIComponent(q)}${type ? `&type=${type}` : ""}${limit ? `&limit=${limit}` : ""}`),
   intro: (key) => json(`/api/intro/${encodeURIComponent(key)}`),
-  setIntro: (key, start, end) =>
-    post(`/api/intro/${encodeURIComponent(key)}`, { start, end }),
+  subtitlesFetch: (id, lang) => post("/api/subtitles/fetch", { id, lang }),
+  setIntro: (key, start, end) => {
+    let by = null;
+    try { by = (JSON.parse(localStorage.getItem("aurora-profile-name") || "null")); } catch {}
+    return post(`/api/intro/${encodeURIComponent(key)}`, { start, end, by });
+  },
   clearIntro: (key) =>
     json(`/api/intro/${encodeURIComponent(key)}`, { method: "DELETE" }),
   profiles: () => json("/api/profiles"),

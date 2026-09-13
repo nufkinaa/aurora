@@ -114,7 +114,7 @@ router.get("/api/discover/collection/:type/:id", async (req, res) => {
   try {
     const type = req.params.type === "series" || req.params.type === "show" ? "series" : "movie";
     const id = String(req.params.id || "");
-    if (!/^tt\d{4,12}$/.test(id)) return res.json({ collection: null, director: null });
+    if (!/^tt\d{4,12}$/.test(id)) return res.json({ collection: null, director: null, creator: null, network: null });
     const similar = require("../media/similar");
     res.json(await similar.collection(type, id, parseInt(req.query.tmdbId, 10) || null));
   } catch {

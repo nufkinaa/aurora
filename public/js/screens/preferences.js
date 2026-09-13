@@ -615,9 +615,16 @@ export const renderPreferences = async (root) => {
           ),
           prefRow(
             "Preferred subtitle language",
-            "Which one to pick when a title offers several. Falls back to the first available.",
+            "Which one to switch on when a title offers several — and when a title you own doesn't have it, Aurora fetches it in the background and turns it on. Follows this profile everywhere.",
             () => ({ any: "First available", he: "Hebrew", en: "English" }[playerPrefs.get("subLang", "any")] || "First available"),
-            () => cycle("subLang", ["any", "he", "en"], "any")
+            () => {
+              cycle("subLang", ["any", "he", "en"], "any");
+              // The choice follows the profile to every device — and when a
+              // title lacks the language, the player fetches it by itself.
+              const subLang = playerPrefs.get("subLang", "any");
+              state.profile.prefs = { ...(state.profile.prefs || {}), subLang };
+              api.updateProfile(state.profile.id, { prefs: { subLang } }).catch(() => {});
+            }
           ),
           prefRow(
             "Subtitle size",

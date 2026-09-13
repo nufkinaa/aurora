@@ -3783,3 +3783,46 @@
   animation: screen-in 0.3s ease both;
 }
 .player .mark-chip-k { white-space: nowrap; }
+
+/* ---- double-tap ripple (phone): a soft disc where the finger landed ---- */
+.player .tap-ripple {
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  margin: -75px 0 0 -75px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.1) 55%, rgba(255, 255, 255, 0) 72%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  z-index: 6;
+  animation: tap-ripple 0.65s ease-out both;
+}
+@keyframes tap-ripple {
+  0% { transform: scale(0.55); opacity: 0; }
+  25% { opacity: 1; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+/* landmark ticks on the scrubber: intro start/end, credits start */
+.player .scrubber-marks { position: absolute; inset: 0; pointer-events: none; }
+.player .scrubber-marks i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+/* Wrapped preview (empty profile): the real cards, quietly greyed out */
+.wrapped-preview { opacity: 0.45; filter: saturate(0.4); pointer-events: none; user-select: none; }
+/* trailer chooser + no-internet note */
+.trailer-pills { display: flex; gap: 6px; margin-left: auto; margin-right: 10px; }
+.trailer-note { position: absolute; inset: auto 0 0 0; padding: 14px 18px; text-align: center; color: #fff; background: linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0)); font-size: 0.9rem; }

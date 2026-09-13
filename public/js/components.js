@@ -5,6 +5,7 @@ import { state, progressFor, ratingFor } from "./state.js";
 import { api } from "./api.js";
 import { attachRowArrows } from "./rowArrows.js";
 import * as narrator from "./narrator.js";
+import { attachPeek } from "./peek.js";
 
 // A flat "Rated 3★" wastes a moment the viewer just chose to have; the
 // reaction scales with the score instead.
@@ -170,6 +171,11 @@ export const card = (item, { wide = false, onRemove = null, showKind = false } =
         },
       })
   );
+  // Hold (or right-click) for the peek sheet — synthesized cards (a party to
+  // join, a download that landed) have nothing to peek at.
+  if (typeof item._open !== "function") {
+    attachPeek(node, item, { open: openItem, onRemove: onRemove && !item._noRemove ? (it) => onRemove(it, node) : null });
+  }
   return node;
 };
 

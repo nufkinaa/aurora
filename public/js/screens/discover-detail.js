@@ -1020,7 +1020,7 @@ const mergeSeasons = (lib, meta) => {
   });
 };
 
-export const renderDetail = async (root, { source, type, id }) => {
+export const renderDetail = async (root, { source, type, id, jump = null }) => {
   const screen = el("div", { class: "screen" });
   root.append(screen);
   const entryHash = location.hash;
@@ -1400,11 +1400,26 @@ export const renderDetail = async (root, { source, type, id }) => {
       .filter((m) => m.imdbId && m.poster && m.imdbId !== imdbId)
       .map((m) => ({ ...m, source: "stream", cover: m.poster }));
   const fillCollection = () => {
-    if (!imdbId || isShow) return;
+    if (!imdbId) return;
     api
-      .discoverCollection("movie", imdbId, meta && meta.tmdbId)
-      .then(({ collection, director }) => {
+      .discoverCollection(isShow ? "series" : "movie", imdbId, meta && meta.tmdbId)
+      .then(({ collection, director, creator, network }) => {
         if (!similarHost.isConnected) return;
+        // Series: what the creator made, and what else the network airs.
+        if (creator && creator.items && creator.items.length) {
+          const node = shelfRow(`More from ${creator.name}`, streamCards(creator.items), { showKind: true });
+          if (node) {
+            node.style.marginTop = "26px";
+            collHost.append(node);
+          }
+        }
+        if (network && network.items && network.items.length) {
+          const node = shelfRow(`More on ${network.name}`, streamCards(network.items), { showKind: true });
+          if (node) {
+            node.style.marginTop = "26px";
+            dirHost.append(node);
+          }
+        }
         if (collection && collection.items && collection.items.length) {
           const node = shelfRow(collection.name, streamCards(collection.items), { showKind: true });
           if (node) {
@@ -1992,7 +2007,21 @@ export const renderDetail = async (root, { source, type, id }) => {
 
   screen.append(seasonBar, episodeList);
   if (imdbId) screen.append(epSourcesLabel, sourcesSection);
-  renderEpisodes(true);
+  // Arriving from Up next (`?s=&e=`): that season, that episode's sources, no hunting.
+  const jumpSeason = jump && seasons.find((s) => s.number === jump.season);
+  const jumpRow = jumpSeason && jumpSeason.episodes.find((r) => r.episode === jump.episode);
+  if (jumpRow) {
+    activeSeason = jumpSeason.number;
+    renderEpisodes(false);
+    openSources(jumpRow);
+    setTimeout(() => {
+      const rows = [...episodeList.children];
+      const target = rows[jumpSeason.episodes.indexOf(jumpRow)];
+      if (target && target.isConnected) target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 350);
+  } else {
+    renderEpisodes(true);
+  }
 
   // A download that finishes while you're looking at the page updates the page.
   // Waiting for a download and then having to reload to see it is the sort of
@@ -2092,6 +2121,7 @@ const offlineButton = (item, { compact = false } = {}) => {
   });
   let saved = false;
   let busy = false;
+  let aborter = null;
   const face = (text, icon = "📱") => {
     btn.innerHTML = "";
     btn.append(el("span", {}, icon));
@@ -2104,20 +2134,25 @@ const offlineButton = (item, { compact = false } = {}) => {
     face(saved ? "Saved ✓" : "Save offline", saved ? "✅" : "📱");
   };
   btn.onclick = async () => {
-    if (busy) return;
+    if (busy) {
+      if (aborter) aborter.abort(); // a press while saving cancels
+      return;
+    }
     if (saved) {
       await offline.removeSaved(item.id);
       toast("Removed from this device", "🗑");
       return paint();
     }
     busy = true;
+    aborter = new AbortController();
+    btn.classList.add("busy");
     try {
       const saved = await offline.saveItem(
         item,
         ({ phase, pct, note }) => {
           const p = Math.round((pct || 0) * 100);
           face(phase === "preparing" ? `Preparing ${p}%` : phase === "saving" ? `Saving ${p}%` : phase === "cancelled" ? "Save offline" : "Saved ✓", phase === "cancelled" ? "📱" : "⏳");
-          if (note) btn.title = note;
+          btn.title = phase === "preparing" || phase === "saving" ? `${note || ""} — press again to cancel`.replace(/^ — /, "") : btn.title;
         },
         // What it will cost this device, before a byte moves: the original
         // file when the phone can play it as is, else a 720p copy.
@@ -2128,11 +2163,15 @@ const offlineButton = (item, { compact = false } = {}) => {
           ok: "Save it",
           cancel: "Not now",
         }),
+        aborter.signal,
       );
       if (saved) toast(`“${item.title}” is saved on this device`, "📱");
     } catch (e) {
-      toast(`Couldn't save: ${e.message}`, "⚠️");
+      if (e && e.name === "AbortError") toast("Save cancelled", "📱");
+      else toast(`Couldn't save: ${e.message}`, "⚠️");
     }
+    aborter = null;
+    btn.classList.remove("busy");
     busy = false;
     paint();
   };
@@ -2145,16 +2184,40 @@ const offlineButton = (item, { compact = false } = {}) => {
 // cookies until play). Escape / Back closes; focus is scoped to the box so
 // the D-pad can't wander onto the page behind it.
 const showTrailer = (ytIds, title) => {
-  const id = ytIds[0];
-  if (!id) return;
+  const ids = (ytIds || []).filter(Boolean);
+  if (!ids.length) return;
   const closeBtn = el("button", { class: "btn btn-icon focusable trailer-close", "aria-label": "Close trailer", html: "✕" });
+  const embed = (id) => `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0&modestbranding=1`;
   const frame = el("iframe", {
-    src: `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0&modestbranding=1`,
+    src: embed(ids[0]),
     title: `${title} — trailer`,
     allow: "autoplay; fullscreen; encrypted-media; picture-in-picture",
     allowfullscreen: "",
     frameborder: "0",
   });
+  // Several trailers: small numbered pills in the head switch the embed.
+  const pills = ids.length > 1
+    ? el("div", { class: "trailer-pills", role: "tablist", "aria-label": "Trailers" },
+        ids.map((id, i) =>
+          el("button", {
+            class: `chip focusable${i === 0 ? " on" : ""}`,
+            role: "tab",
+            "aria-selected": i === 0 ? "true" : "false",
+            onclick: (e) => {
+              frame.src = embed(id);
+              for (const b of pills.children) {
+                b.classList.toggle("on", b === e.currentTarget);
+                b.setAttribute("aria-selected", b === e.currentTarget ? "true" : "false");
+              }
+            },
+          }, `Trailer ${i + 1}`)))
+    : null;
+  // A LAN with no way out renders a black box and nothing else — the one
+  // thing an iframe can't tell us. The browser's own online flag is the best
+  // signal there is; say something instead of showing nothing.
+  const offlineNote = !navigator.onLine
+    ? el("div", { class: "trailer-note" }, "This device has no internet right now — trailers play from YouTube, so this one can't load.")
+    : null;
   const modal = el(
     "div",
     // .ui-overlay: the app's global Back handler leaves overlays that carry
@@ -2164,8 +2227,8 @@ const showTrailer = (ytIds, title) => {
     el(
       "div",
       { class: "trailer-box" },
-      el("div", { class: "trailer-head" }, el("span", { class: "trailer-title" }, `${title} — trailer`), closeBtn),
-      el("div", { class: "trailer-frame" }, frame),
+      el("div", { class: "trailer-head" }, el("span", { class: "trailer-title" }, `${title} — trailer`), pills, closeBtn),
+      el("div", { class: "trailer-frame" }, frame, offlineNote),
     ),
   );
   // Back (Escape, Backspace, the TV remote) is the app's "ui-back" event;

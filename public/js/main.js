@@ -56,7 +56,15 @@ route("/party/:code", async (root, p) => {
   if (String(party.item.id).startsWith("torrent|")) state.pendingItems[party.item.id] = party.item;
   navigate(`#/play/${encodeURIComponent(party.item.id)}?party=${code}`);
 });
-route("/discover/:type/:id", (root, p) => renderDetailLazy(root, { source: "discover", type: p.type, id: p.id }));
+// `#/discover/series/tt123?s=2&e=5` opens season 2 with episode 5's sources
+// showing — where Up next lands for a streamed show.
+route("/discover/:type/:id", (root, p) => {
+  const [id, q = ""] = String(p.id).split("?");
+  const qs = new URLSearchParams(q);
+  const s = parseInt(qs.get("s") || "", 10);
+  const e = parseInt(qs.get("e") || "", 10);
+  return renderDetailLazy(root, { source: "discover", type: p.type, id, jump: s > 0 && e > 0 ? { season: s, episode: e } : null });
+});
 route("/preferences", (root, p) => import("./screens/preferences.js").then((m) => m.renderPreferences(root, p)));
 route("/wrapped", renderWrapped);
 route("/taste", renderTaste);
@@ -119,6 +127,26 @@ initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
 }
 initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
 
+// First desktop visit: one quiet hint that "?" lists the keyboard shortcuts.
+// A mouse-and-keyboard device only (phones and TVs have no "?" to press).
+{
+  const desktop = matchMedia("(pointer: fine)").matches && !("ontouchstart" in window) && innerWidth > 900;
+  let seen = true;
+  try { seen = !!localStorage.getItem("aurora-kbd-hint"); } catch {}
+  if (desktop && !seen) {
+    // Not over a wall (profile gate, sign-in, the look note): wait it out.
+    const tryHint = (left) => setTimeout(() => {
+      if (document.querySelector(".profiles-gate, .login-card, .look-notice, .peek-wrap")) {
+        if (left > 0) tryHint(left - 1);
+        return;
+      }
+      try { localStorage.setItem("aurora-kbd-hint", "1"); } catch {}
+      toast("Press ? any time for the keyboard shortcuts", "⌨️", { label: "Show me", onClick: showShortcutsOverlay });
+    }, 6000);
+    tryHint(10);
+  }
+}
+
 // Live download pill: after requesting a download and leaving the page there
 // was zero feedback until you wandered back. One global subscription feeds a
 // tiny "⬇ 2 · 47%" in the nav while something is moving — and once YOUR
@@ -169,7 +197,19 @@ initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
     // page isn't a mystery (and so they know the feature is doing its job).
     if (!downloads.has(job.id) && job.mine && job.smart) {
       const ep = job.season && job.episode ? ` S${job.season}E${job.episode}` : "";
-      toast(`Next up is downloading: ${job.title || job.label}${ep} · smart downloads`, "⬇");
+      let first = false;
+      try { first = !localStorage.getItem("aurora-smartdl-explained"); localStorage.setItem("aurora-smartdl-explained", "1"); } catch {}
+      const cancel = {
+        label: "Cancel",
+        onClick: () => api.downloadCancel(job.id, state.profile.id).then(() => toast("Cancelled — it won't queue this one again", "🗑")).catch(() => {}),
+      };
+      toast(
+        first
+          ? `Smart downloads: you're two-thirds through, so the next episode (${job.title || job.label}${ep}) is downloading to the server. Turn it off under Preferences → Playback.`
+          : `Next up is downloading: ${job.title || job.label}${ep} · smart downloads`,
+        "⬇",
+        cancel,
+      );
     }
     downloads.set(job.id, job);
     paint();
@@ -210,7 +250,11 @@ initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
     if (!p || p.lookNoticeSeen || document.querySelector(".look-notice")) return;
     const seen = () => {
       p.lookNoticeSeen = true;
-      api.updateProfile(p.id, { lookNoticeSeen: true }).catch(() => {});
+      const save = (left) =>
+        api.updateProfile(p.id, { lookNoticeSeen: true }).catch(() => {
+          if (left > 0) setTimeout(() => save(left - 1), 4000); // quietly, a few times
+        });
+      save(3);
     };
     const close = () => {
       document.removeEventListener("ui-back", onBack);

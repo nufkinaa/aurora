@@ -191,7 +191,8 @@ const similar = async (type, imdbId, tmdbHint) => {
 // TMDB-only (Cinemeta has neither); without a key both rows are empty and
 // the page shows nothing for them. Cached a week under "coll|movie|tt…".
 const collection = async (type, imdbId, tmdbHint) => {
-  if (type === "series" || !config.TMDB_KEY) return { collection: null, director: null };
+  if (type === "series") return seriesShelves(imdbId, tmdbHint);
+  if (!config.TMDB_KEY) return { collection: null, director: null };
   const key = `coll|movie|${imdbId}`;
   const hit = store.data.rows[key];
   if (hit && Date.now() - hit.at < (hit.collection || hit.director ? ROW_TTL : MISS_TTL)) {
@@ -226,6 +227,50 @@ const collection = async (type, imdbId, tmdbHint) => {
     }
   } catch {}
   store.data.rows[key] = { ...out, at: Date.now() };
+  store.save();
+  return out;
+};
+
+// ---------- series: the creator's other shows, and the network's ----------
+// Same TMDB-only, cached-a-week deal as the film shelves. "Creator" is
+// TMDB's created_by (the showrunner credit), whose other series come from
+// their tv credits; the network is the first one listed, and its shelf is a
+// popularity-sorted discover query.
+const seriesShelves = async (imdbId, tmdbHint) => {
+  const empty = { collection: null, director: null, creator: null, network: null };
+  if (!config.TMDB_KEY) return empty;
+  const key = `coll|series|${imdbId}`;
+  const hit = store.data.rows[key];
+  if (hit && Date.now() - hit.at < (hit.creator || hit.network ? ROW_TTL : MISS_TTL)) {
+    return { ...empty, creator: hit.creator || null, network: hit.network || null };
+  }
+  const out = { ...empty };
+  try {
+    const tmdbId = tmdbHint || (await tmdbIdFor(imdbId, "series"));
+    if (tmdbId) {
+      const show = await tmdb(`tv/${tmdbId}`);
+      const creator = (show.created_by || [])[0];
+      if (creator && creator.id) {
+        const credits = (await tmdb(`person/${creator.id}/tv_credits`)).crew || [];
+        const seen = new Set([tmdbId]);
+        const made = credits
+          .filter((s) => /creator|executive producer|writer|showrunner/i.test(s.job || "") && s.poster_path)
+          .filter((s) => (seen.has(s.id) ? false : seen.add(s.id)))
+          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+          .slice(0, 14);
+        const items = await addImdbIds(mapItems(made, "series"), "series");
+        if (items.length) out.creator = { name: creator.name, items };
+      }
+      const network = (show.networks || [])[0];
+      if (network && network.id) {
+        const disc = (await tmdb(`discover/tv`, `&with_networks=${network.id}&sort_by=popularity.desc`)).results || [];
+        const others = disc.filter((s) => s.id !== tmdbId).slice(0, 16);
+        const items = await addImdbIds(mapItems(others, "series"), "series");
+        if (items.length) out.network = { name: network.name, items };
+      }
+    }
+  } catch {}
+  store.data.rows[key] = { creator: out.creator, network: out.network, at: Date.now() };
   store.save();
   return out;
 };

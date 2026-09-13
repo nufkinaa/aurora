@@ -1359,3 +1359,54 @@
 .sheet-icon { font-size: 2rem; line-height: 1; margin-bottom: 10px; }
 /* short "nothing here" lines inside cards (Preferences) */
 .empty-note { color: var(--text-dim); font-size: 0.92rem; padding: 6px 0; }
+
+/* ---------- peek sheet (hold a card) ---------- */
+.peek-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 310;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 5, 9, 0.62);
+  animation: fade-in var(--t-fast);
+}
+.peek-wrap.leaving { opacity: 0; transition: opacity 200ms var(--ease); }
+.peek {
+  width: min(520px, 100%);
+  max-height: min(86vh, 720px);
+  overflow: hidden auto;
+  border-radius: var(--radius-l);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.65);
+  animation: modal-in var(--t-med) var(--ease);
+}
+.peek-art { position: relative; aspect-ratio: 16 / 9; background: #0b0c14; overflow: hidden; }
+.peek-art.poster { aspect-ratio: 16 / 10; }
+.peek-art .peek-img, .peek-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.peek-art.poster img { object-position: center 20%; }
+.peek-art .card-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.peek-art-fade {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, var(--bg-raised) 0%, rgba(0, 0, 0, 0) 55%);
+}
+.peek-close { position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.5); }
+.peek-body { padding: 4px 22px 20px; }
+.peek-title { font-size: 1.35rem; font-weight: 900; letter-spacing: -0.02em; line-height: 1.15; }
+.peek-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; color: var(--text-dim); font-size: 0.9rem; margin-top: 6px; }
+.peek-progress { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 0.82rem; color: var(--text-dim); }
+.peek-bar { flex: 1; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
+.peek-bar i { display: block; height: 100%; background: var(--accent, #7c64ff); border-radius: 4px; }
+.peek-synopsis { margin: 12px 0 0; color: var(--text-dim); line-height: 1.5; font-size: 0.93rem; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.peek-synopsis.skeleton-text { height: 3.6em; border-radius: 8px; background: linear-gradient(100deg, rgba(255,255,255,0.05) 40%, rgba(255,255,255,0.10) 50%, rgba(255,255,255,0.05) 60%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+.peek-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.peek-remove { margin-left: auto; }
+@media (max-width: 720px) {
+  .peek-wrap { align-items: flex-end; padding: 0; }
+  .peek { width: 100%; max-height: 88vh; border-radius: 22px 22px 0 0; animation: sheet-up var(--t-med) var(--ease); }
+  .peek-body { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+  .peek-remove { margin-left: 0; }
+}
+@keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } }

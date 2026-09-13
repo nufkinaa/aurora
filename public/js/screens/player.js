@@ -1075,10 +1075,13 @@ export const renderPlayer = async (root, { id }) => {
     style: { width: "0%" },
   });
   const scrubTip = el("div", { class: "scrub-tip hidden" });
+  // Landmarks on the track — where the intro ends, where the credits start —
+  // drawn as ticks, and felt as a tap on a phone when a drag crosses one.
+  const scrubMarks = el("div", { class: "scrubber-marks", "aria-hidden": "true" });
   const scrubber = el(
     "div",
     { class: "scrubber focusable", tabindex: "0", "aria-label": "Seek" },
-    el("div", { class: "scrubber-track" }, scrubBuffer, scrubFill),
+    el("div", { class: "scrubber-track" }, scrubBuffer, scrubFill, scrubMarks),
     scrubTip,
   );
   const timeNow = el("span", {}, "0:00");
@@ -1398,10 +1401,13 @@ export const renderPlayer = async (root, { id }) => {
     flash.classList.add("go");
   };
 
+  // 2.4s of nothing moving and the chrome steps aside; any motion — mouse,
+  // finger, wheel, key, remote — brings it straight back.
+  const CONTROLS_IDLE_MS = 2400;
   const showControls = () => {
     overlay.classList.remove("controls-hidden", "hide-cursor");
     clearTimeout(controlsTimer);
-    controlsTimer = setTimeout(hideControls, 3200);
+    controlsTimer = setTimeout(hideControls, CONTROLS_IDLE_MS);
   };
   const hideControls = () => {
     if (menuHost.childElementCount > 0) return; // keep visible while a menu is open
@@ -2028,10 +2034,16 @@ export const renderPlayer = async (root, { id }) => {
                 "Clear intro marks",
                 `${fmtClock(intro.start)}–${fmtClock(intro.end)}`,
                 () => {
+                  const was = intro;
                   api.clearIntro(introKey).catch(() => {});
                   intro = null;
                   skipIntroBtn.classList.add("hidden");
-                  toast("Intro marks cleared for this show", "⏭");
+                  toast("Intro marks cleared for this show", "⏭", {
+                    label: "Undo",
+                    onClick: () => {
+                      api.setIntro(introKey, was.start, was.end).then(() => { intro = was; toast("Intro marks restored", "⏭"); }).catch(() => {});
+                    },
+                  });
                   rebuild();
                 },
               ),
@@ -2381,6 +2393,27 @@ export const renderPlayer = async (root, { id }) => {
     } catch {}
     showControls();
   });
+  let lastHapticT = null;
+  const landmarks = () => {
+    const i = typeof activeIntro === "function" ? activeIntro() : null;
+    return [i && i.start, i && i.end, creditsStart].filter((t) => isFinite(t) && t > 0);
+  };
+  const paintScrubMarks = () => {
+    const d = totalDuration();
+    scrubMarks.innerHTML = "";
+    if (!d) return;
+    for (const t of landmarks()) if (t < d) scrubMarks.append(el("i", { style: { left: `${(t / d) * 100}%` } }));
+  };
+  const hapticAt = (t) => {
+    if (lastHapticT != null && navigator.vibrate) {
+      const lo = Math.min(lastHapticT, t);
+      const hi = Math.max(lastHapticT, t);
+      if (landmarks().some((m) => m > lo && m <= hi)) {
+        try { navigator.vibrate(10); } catch {}
+      }
+    }
+    lastHapticT = t;
+  };
   scrubber.addEventListener("pointermove", (e) => {
     if (!scrubDragging) return;
     const d = totalDuration();
@@ -2390,6 +2423,7 @@ export const renderPlayer = async (root, { id }) => {
     // Live preview only — pendingSeek moves the bar/clock via updateScrubber,
     // and nothing commits until the finger lifts.
     pendingSeek = frac * d;
+    hapticAt(pendingSeek);
     clearTimeout(seekDebounce);
     updateScrubber();
     scrubTip.textContent = fmtClock(frac * d);
@@ -2400,6 +2434,7 @@ export const renderPlayer = async (root, { id }) => {
   scrubber.addEventListener("pointerup", (e) => {
     if (!scrubDragging) return;
     scrubDragging = false;
+    lastHapticT = null;
     scrubTip.classList.add("hidden");
     if (scrubDragMoved) seekTo(scrubFrac(e) * totalDuration());
   });
@@ -2471,7 +2506,13 @@ export const renderPlayer = async (root, { id }) => {
     partyEcho = Date.now() + 1500;
     const elapsed = st.playing && st.now && st.at ? Math.max(0, st.now - st.at) / 1000 : 0;
     const target = (st.position || 0) + elapsed;
-    if (Math.abs(effTime() - target) > (st.kind === "sync" ? 2.5 : 1.2)) seekTo(target);
+    // A transcoded / torrent stream restarts its whole pipeline on a seek,
+    // so a guest on one tolerates far more drift on the periodic sync (and
+    // a few seconds on a deliberate jump). Exact jumps still land exactly.
+    const heavy = usingTranscode || isTorrent;
+    const drift = effTime() - target;
+    const tol = st.kind === "sync" ? (heavy ? 8 : 2.5) : heavy ? 3 : 1.2;
+    if (Math.abs(drift) > tol) seekTo(target);
     if (st.playing && video.paused) video.play().catch(() => {});
     else if (!st.playing && !video.paused) video.pause();
     if (announce && st.by && st.kind !== "sync") {
@@ -2822,7 +2863,7 @@ export const renderPlayer = async (root, { id }) => {
     // Streamed episode: back to the show's page to pick a source — episode
     // deep-linked so it's one press away.
     if (next._stream) {
-      navigate(`#/discover/series/${item.imdbId}`);
+      navigate(`#/discover/series/${item.imdbId}?s=${next.season}&e=${next.episode}`);
       return;
     }
     // A hosted party comes along: the guests are told the new episode and
@@ -2870,6 +2911,7 @@ export const renderPlayer = async (root, { id }) => {
       .intro(introKey)
       .then((r) => {
         if (r && isFinite(r.start) && isFinite(r.end)) intro = r;
+        paintScrubMarks();
       })
       .catch(() => {});
   }
@@ -2892,6 +2934,7 @@ export const renderPlayer = async (root, { id }) => {
       .then((r) => {
         if (r && r.intro && isFinite(r.intro.start) && isFinite(r.intro.end) && !introIgnored()) autoIntro = r.intro;
         if (r && r.credits && isFinite(r.credits.start)) creditsStart = r.credits.start;
+        paintScrubMarks();
       })
       .catch(() => {});
   }
@@ -2942,6 +2985,7 @@ export const renderPlayer = async (root, { id }) => {
     // streamOffset (far seek / resume). Re-anchor all subtitle cues to the
     // new clock, or subs go out of sync the moment a seek restarts the stream.
     applyOffsetAll();
+    paintScrubMarks();
     // The new stream's clock is valid from here, so the held seek target can
     // hand the scrubber back to it without the bar ever stepping backwards.
     seekPreview = null;
@@ -3084,6 +3128,16 @@ export const renderPlayer = async (root, { id }) => {
     (e) => { lastPointerType = e.pointerType || "mouse"; },
     { passive: true },
   );
+  // The ripple under a double tap — a soft disc where the finger landed,
+  // saying which way and how far, the way iOS players do it.
+  const tapRipple = (side, x, y) => {
+    const r = overlay.getBoundingClientRect();
+    const node = el("div", { class: `tap-ripple ${side}`, style: { left: `${x - r.left}px`, top: `${y - r.top}px` } },
+      el("span", {}, side === "left" ? "−10s" : "+10s"));
+    overlay.append(node);
+    setTimeout(() => node.remove(), 700);
+    try { if (navigator.vibrate) navigator.vibrate(8); } catch {}
+  };
   video.addEventListener("click", (e) => {
     if (clickTimer) {
       clearTimeout(clickTimer);
@@ -3091,8 +3145,8 @@ export const renderPlayer = async (root, { id }) => {
       if (lastPointerType === "touch") {
         const r = video.getBoundingClientRect();
         const f = r.width > 0 ? (e.clientX - r.left) / r.width : 0.5;
-        if (f < 0.35) return skip(-1);
-        if (f > 0.65) return skip(1);
+        if (f < 0.35) return (tapRipple("left", e.clientX, e.clientY), skip(-1));
+        if (f > 0.65) return (tapRipple("right", e.clientX, e.clientY), skip(1));
       }
       toggleFullscreen();
       return;
@@ -3124,7 +3178,9 @@ export const renderPlayer = async (root, { id }) => {
 
   // ---------- input handling ----------
   const onPointerMove = () => showControls();
-  overlay.addEventListener("mousemove", onPointerMove);
+  overlay.addEventListener("pointermove", onPointerMove); // mouse, pen and finger alike
+  overlay.addEventListener("touchstart", onPointerMove, { passive: true });
+  overlay.addEventListener("wheel", onPointerMove, { passive: true });
 
   const onNavMove = (e) => {
     const dir = e.detail;
@@ -3287,6 +3343,28 @@ export const renderPlayer = async (root, { id }) => {
   }
 
   // OCR can finish while watching this exact video - add the track live
+  // Auto-subtitles: the viewer asked for a language (Preferences → Subtitles)
+  // and this file doesn't carry it — the server fetches one from the
+  // subtitle providers, writes it next to the file (for everyone, for good),
+  // and it switches on here the moment it lands.
+  if (!isTorrent && !item._offline && prefs.get("subsDefault", true)) {
+    const want = prefs.get("subLang", "any");
+    const test = SUB_LANG_TEST[want];
+    const matches = (t) => test && (test.code.test(t.lang || "") || test.label.test(t.label || ""));
+    if (test && !(item.subtitles || []).some(matches)) {
+      api.subtitlesFetch(item.id, want)
+        .then((r) => {
+          if (exited || !r || !r.tracks || !r.tracks.length) return;
+          addTracks(r.tracks.map((t) => ({ ...t, lang: t.lang || want })));
+          const i = (item.subtitles || []).findIndex(matches);
+          if (i >= 0) {
+            selectTrack(i);
+            toast(`${want === "he" ? "Hebrew" : "English"} subtitles found — switched on`, "💬");
+          }
+        })
+        .catch(() => {});
+    }
+  }
   const unsubOcr = onMessage("subtitle_ocr", async (msg) => {
     if (msg.status !== "done") return;
     try {

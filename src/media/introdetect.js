@@ -314,4 +314,28 @@ const get = (episodeId) => {
 
 scanner.events.on("enriched", () => setTimeout(run, 5000));
 
-module.exports = { run, get, _internals: { fingerprint, longestRun, consensus, fromChapters, similar, INVALID, FRAME, HOP, SR } };
+// For the admin's analytics: how much of the library the detector has
+// covered, and how much it found. The denominator is what the pass would
+// consider (episodes in seasons of two or more); "analyzed" is every episode
+// it has looked at, found or not.
+const coverage = () => {
+  let episodes = 0;
+  const ids = new Set();
+  for (const s of scanner.index.shows || []) {
+    for (const season of s.seasons || []) {
+      if ((season.episodes || []).length < 2) continue;
+      for (const ep of season.episodes) { episodes++; ids.add(ep.id); }
+    }
+  }
+  let analyzed = 0, intro = 0, credits = 0, chapters = 0;
+  for (const [id, r] of Object.entries(store.data)) {
+    if (!ids.has(id)) continue;
+    analyzed++;
+    if (r.intro) intro++;
+    if (r.credits) credits++;
+    if (r.source === "chapters") chapters++;
+  }
+  return { episodes, analyzed, intro, credits, chapters };
+};
+
+module.exports = { run, get, coverage, _internals: { fingerprint, longestRun, consensus, fromChapters, similar, INVALID, FRAME, HOP, SR } };

@@ -101,9 +101,20 @@ export const setProfile = async (profile, token = null) => {
   state.token = token;
   setAuthToken(token);
   applyAppearance(profile);
+  // The profile's subtitle language lands in this device's player settings
+  // (the player and Preferences read those), so every device agrees.
+  if (profile && profile.prefs && ["any", "he", "en"].includes(profile.prefs.subLang)) {
+    try {
+      const all = JSON.parse(localStorage.getItem("aurora-player") || "{}");
+      if (all.subLang !== profile.prefs.subLang) {
+        all.subLang = profile.prefs.subLang;
+        localStorage.setItem("aurora-player", JSON.stringify(all));
+      }
+    } catch {}
+  }
   // storage can be unavailable (private mode, restrictive embeds) — losing
   // the remember-me must never abort profile entry itself
-  try { localStorage.setItem("aurora-profile", profile.id); } catch {}
+  try { localStorage.setItem("aurora-profile", profile.id); localStorage.setItem("aurora-profile-name", JSON.stringify(profile.name || null)); } catch {}
   rememberRecentProfile(profile.id);
   // Remember the unlock token for THIS browser session only (sessionStorage
   // clears when the browser closes) so reloads/navigation don't re-prompt, but

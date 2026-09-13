@@ -57,40 +57,58 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // "saving" (bytes landing in the cache, sized by storage estimates).
 // `confirm(status)` (optional) runs once the server knows what it will send
 // — the original file, or a 720p copy — and its size; resolve false to stop.
-export const saveItem = async (item, onProgress = () => {}, confirm = null) => {
+// `signal` (an AbortController's) cancels at any point: the poll, the
+// confirm, or the download itself — a half-saved copy is thrown away.
+export const saveItem = async (item, onProgress = () => {}, confirm = null, signal = null) => {
   if (!available()) throw new Error("offline copies need a secure (https) address");
+  const aborted = () => !!(signal && signal.aborted);
+  const bail = () => { const e = new Error("cancelled"); e.name = "AbortError"; throw e; };
   // 1. a phone-playable file
   let st = await api.offlinePrepare(item.id);
   while (st.state === "queued" || st.state === "working") {
+    if (aborted()) bail();
     onProgress({ phase: "preparing", pct: st.progress || 0, note: st.state === "queued" ? "waiting for the server" : "converting for this device" });
     await sleep(2000);
     st = await api.offlineStatus(item.id);
   }
+  if (aborted()) bail();
   if (st.state !== "ready") throw new Error(st.error || "the server couldn't prepare it");
   if (confirm && !(await confirm(st))) {
     onProgress({ phase: "cancelled", pct: 0 });
     return null;
   }
-  // 2. the bytes, streamed straight into the cache (never through memory)
+  // 2. the bytes, streamed straight into the cache (never through memory).
+  // Progress is the bytes that have actually passed through — counted on
+  // the way in — against the size the server announced.
   onProgress({ phase: "saving", pct: 0, note: "downloading to this device" });
-  const before = await (navigator.storage && navigator.storage.estimate ? navigator.storage.estimate() : { usage: 0 });
   const c = await caches.open(MEDIA);
-  const ticker = setInterval(async () => {
-    try {
-      const now = await navigator.storage.estimate();
-      const got = Math.max(0, (now.usage || 0) - (before.usage || 0));
-      onProgress({ phase: "saving", pct: st.sizeBytes ? Math.min(0.99, got / st.sizeBytes) : 0, note: "downloading to this device" });
-    } catch {}
-  }, 1000);
+  const key = `/offline/media/${item.id}`;
   try {
-    const res = await fetch(st.url, { cache: "no-store" });
+    const res = await fetch(st.url, { cache: "no-store", signal: signal || undefined });
     if (!res.ok) throw new Error(`download failed (${res.status})`);
     const headers = new Headers({ "Content-Type": res.headers.get("Content-Type") || "video/mp4" });
-    const len = res.headers.get("Content-Length");
-    if (len) headers.set("Content-Length", len);
-    await c.put(`/offline/media/${item.id}`, new Response(res.body, { status: 200, headers }));
-  } finally {
-    clearInterval(ticker);
+    const len = Number(res.headers.get("Content-Length")) || st.sizeBytes || 0;
+    if (len) headers.set("Content-Length", String(len));
+    let got = 0;
+    let lastTick = 0;
+    const counted = res.body.pipeThrough(
+      new TransformStream({
+        transform(chunk, controller) {
+          got += chunk.byteLength;
+          const now = Date.now();
+          if (now - lastTick > 500) {
+            lastTick = now;
+            onProgress({ phase: "saving", pct: len ? Math.min(0.99, got / len) : 0, note: "downloading to this device" });
+          }
+          controller.enqueue(chunk);
+        },
+      }),
+    );
+    await c.put(key, new Response(counted, { status: 200, headers }));
+    if (aborted()) bail();
+  } catch (e) {
+    await c.delete(key).catch(() => {}); // never leave half a film behind
+    throw e;
   }
   // 3. subtitles that already exist as text tracks (best effort). Stored
   // under /offline/subs/… — the worker serves that prefix from this cache;

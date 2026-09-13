@@ -521,6 +521,8 @@ const update = (id, fields) => {
     for (const k of ["smartDownloads"]) {
       if (typeof fields.prefs[k] === "boolean") p.prefs[k] = fields.prefs[k];
     }
+    // The subtitle language is a closed set, so it can ride along too.
+    if (["any", "he", "en"].includes(fields.prefs.subLang)) p.prefs.subLang = fields.prefs.subLang;
   }
   // Home row composition: {order: [rowIds], hidden: [rowIds]}. Ids are
   // opaque strings (generated rows like liked-<genre> included) — bounded,

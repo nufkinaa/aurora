@@ -112,6 +112,11 @@
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     th { text-align: left; padding: 9px 12px; color: var(--text-faint); font-size: 0.72rem;
       text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--line); }
+    .table-scroll th:not(:empty) { cursor: pointer; user-select: none; }
+    .table-scroll th:not(:empty):hover { color: var(--text); }
+    .table-scroll th[data-sort="asc"]::after { content: " ↑"; }
+    .table-scroll th[data-sort="desc"]::after { content: " ↓"; }
+    .stat .note { font-size: 0.72rem; color: var(--text-faint); margin-top: 4px; }
     td { padding: 10px 12px; border-bottom: 1px solid var(--line); }
     tr:hover td { background: rgba(255,255,255,0.03); }
     td.num { font-variant-numeric: tabular-nums; }
@@ -306,6 +311,10 @@
         </div>
       </div>
       <div class="stats" id="an-stats"></div>
+      <div class="card">
+        <h2>Skip intro <span class="note">what the audio detector has found across the library</span></h2>
+        <div class="stats" id="an-intros" style="margin:0"></div>
+      </div>
       <div class="card">
         <h2>Watch time per day</h2>
         <div class="chart" id="an-daily"></div>
@@ -549,7 +558,7 @@
       <section>
         <h2>Skip-intro marks <span class="note">what the household marked from the player — delete a bad one and it can be re-marked</span></h2>
         <div class="table-scroll"><table>
-          <thead><tr><th>Show</th><th>Key</th><th>Range</th><th></th></tr></thead>
+          <thead><tr><th>Show</th><th>Range</th><th>Marked by</th><th>Key</th><th></th></tr></thead>
           <tbody id="intro-list"></tbody>
         </table></div>
         <div class="empty-note hidden" id="intro-empty">No intro marks yet — they appear when someone marks one from the player.</div>
@@ -561,7 +570,10 @@
           <input type="text" id="ban-reason" placeholder="Reason (optional)" />
           <button class="btn small" id="ban-btn">Ban</button>
         </div>
-        <div class="table-scroll"><table><tbody id="bans"></tbody></table></div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>IP</th><th>Reason · when</th><th></th></tr></thead>
+          <tbody id="bans"></tbody>
+        </table></div>
       </section>
     </div>
   </div>
@@ -584,7 +596,15 @@
       if (ADMIN_PW) headers["X-Admin-Password"] = ADMIN_PW;
       return fetch(url, { ...opts, headers });
     };
-    const json = (url, opts) => adminFetch(url, opts).then((r) => r.json());
+    // A pane that stays blank after a 502 used to be the only symptom of a
+    // server problem — now the failure says so, once, and still throws.
+    const json = async (url, opts) => {
+      let r;
+      try { r = await adminFetch(url, opts); }
+      catch (e) { toast("Can't reach the server"); throw e; }
+      if (r.status >= 500) toast(`Server error ${r.status} — ${url.replace(/^\/api\/(admin\/)?/, "").split("?")[0]}`);
+      return r.json();
+    };
     const post = (url, body) => json(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
 
     const ago = (iso) => {
@@ -944,6 +964,17 @@
         [a.totals.uniqueViewers, "viewers (IPs)"],
         [fmtDur(a.totals.watchSec / Math.max(1, a.days)), "avg per day"],
       ].map(([v, k]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("");
+      // Skip-intro coverage: what the detector has looked at and found, and
+      // what the household marked by hand.
+      const it = a.intros;
+      $("#an-intros").innerHTML = it
+        ? [
+            [`${it.analyzed} / ${it.episodes}`, "episodes analysed", it.episodes ? `${Math.round((it.analyzed / it.episodes) * 100)}% of what the detector considers (seasons of 2+)` : "no multi-episode seasons yet"],
+            [String(it.intro), "intros detected", it.analyzed ? `${Math.round((it.intro / it.analyzed) * 100)}% of analysed · ${it.chapters} from chapter names` : ""],
+            [String(it.credits), "credits detected", "Up next appears when these start"],
+            [String(it.manual), "marked by hand", "manual marks win over detection"],
+          ].map(([v, k, n]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div>${n ? `<div class="note">${esc(n)}</div>` : ""}</div>`).join("")
+        : `<div class="empty-note">Intro detection needs ffmpeg on the server.</div>`;
 
       barChart("#an-daily", a.byDay.map((d) => ({
         label: fmtDay(d.day), v: d.watchSec,
@@ -1543,6 +1574,7 @@
     $("#update-pull-btn").onclick = async () => {
       const btn = $("#update-pull-btn");
       const log = $("#sv-update-log");
+      if (!confirm("Pull the latest code onto the server? Nothing restarts until you press Restart.")) return;
       btn.disabled = true;
       btn.textContent = "Pulling…";
       try {
@@ -1617,9 +1649,10 @@
       $("#intro-empty").classList.toggle("hidden", items.length > 0);
       $("#intro-list").innerHTML = items.map((i) => `
         <tr>
-          <td>${esc(i.title || "—")}</td>
-          <td class="muted" style="font-family:ui-monospace,monospace;font-size:0.8rem">${esc(i.key)}</td>
+          <td>${esc(i.title || (i.key.startsWith("imdb:") ? "Streamed show " + i.key.slice(5) : "—"))}</td>
           <td class="num">${fmtClock(i.start)} – ${fmtClock(i.end)}</td>
+          <td class="muted">${esc(i.by || "—")}${i.at ? " · " + ago(new Date(i.at).toISOString()) : ""}</td>
+          <td class="muted" style="font-family:ui-monospace,monospace;font-size:0.72rem">${esc(i.key)}</td>
           <td style="text-align:right"><button class="mini danger" data-intro-del="${esc(i.key)}">Delete</button></td>
         </tr>`).join("");
     }
@@ -2000,13 +2033,15 @@
 
     // ---------- actions ----------
     window.approveDownload = async (id) => { await post(`/api/admin/downloads/${id}/approve`); toast("Download approved"); loadDownloads(); };
-    window.declineDownload = async (id) => { await post(`/api/admin/downloads/${id}/decline`); toast("Download declined"); loadDownloads(); };
-    window.cancelDownload = async (id) => { await post(`/api/admin/downloads/${id}/cancel`); toast("Download canceled"); loadDownloads(); };
-    window.removeDownload = async (id) => { await adminFetch(`/api/admin/downloads/${id}`, { method: "DELETE" }); loadDownloads(); };
-    window.setRequest = async (id, status) => { await post(`/api/admin/requests/${id}/status`, { status }); toast("Request " + status); loadRequests(); };
-    window.deleteRequest = async (id) => { await adminFetch(`/api/admin/requests/${id}`, { method: "DELETE" }); loadRequests(); };
-    window.kick = async (id) => { await post("/api/admin/kick/" + id); toast("Kicked"); loadClients(); };
-    window.banIp = async (ip) => { await post("/api/admin/ban", { ip }); toast("Banned " + ip); loadClients(); loadBans(); };
+    // Anything that can't be undone from here asks once. Approve doesn't:
+    // it's the thing the queue is waiting for, and a wrong approve is a cancel.
+    window.declineDownload = async (id) => { if (!confirm("Decline this download? The requester is told, and it leaves the queue.")) return; await post(`/api/admin/downloads/${id}/decline`); toast("Download declined"); loadDownloads(); };
+    window.cancelDownload = async (id) => { if (!confirm("Cancel this download? Whatever landed so far is thrown away.")) return; await post(`/api/admin/downloads/${id}/cancel`); toast("Download canceled"); loadDownloads(); };
+    window.removeDownload = async (id) => { if (!confirm("Remove this entry from the downloads list? (The file in the library stays.)")) return; await adminFetch(`/api/admin/downloads/${id}`, { method: "DELETE" }); loadDownloads(); };
+    window.setRequest = async (id, status) => { if (status === "declined" && !confirm("Decline this request?")) return; await post(`/api/admin/requests/${id}/status`, { status }); toast("Request " + status); loadRequests(); };
+    window.deleteRequest = async (id) => { if (!confirm("Remove this request for good?")) return; await adminFetch(`/api/admin/requests/${id}`, { method: "DELETE" }); loadRequests(); };
+    window.kick = async (id) => { if (!confirm("Kick this device? It reconnects on its next load — use Ban to keep it out.")) return; await post("/api/admin/kick/" + id); toast("Kicked"); loadClients(); };
+    window.banIp = async (ip) => { if (!confirm(`Ban ${ip}? Every device on that address loses the whole server until you unban it.`)) return; await post("/api/admin/ban", { ip }); toast("Banned " + ip); loadClients(); loadBans(); };
     window.unban = async (ip) => { await post("/api/admin/unban", { ip }); toast("Unbanned " + ip); loadBans(); };
 
     $("#rescan").onclick = async () => { await post("/api/admin/rescan"); toast("Rescan started"); setTimeout(loadOverview, 1500); };
@@ -2034,6 +2069,7 @@
     $("#broadcast-btn").onclick = async () => {
       const message = $("#broadcast-input").value.trim();
       if (!message) return;
+      if (!confirm(`Send "${message}" to every screen that's open right now?`)) return;
       await post("/api/admin/broadcast", { message });
       $("#broadcast-input").value = "";
       toast("Broadcast sent");
@@ -2047,7 +2083,7 @@
       const b = e.target.closest("button[data-days]");
       if (!b) return;
       analyticsDays = +b.dataset.days;
-      for (const x of $("#range-chips").children) x.classList.toggle("active", x === b);
+      for (const x of $("#range-chips").children) { x.classList.toggle("active", x === b); x.setAttribute("aria-pressed", x === b ? "true" : "false"); }
       loadAnalytics();
     });
 
@@ -2091,6 +2127,45 @@
     $("#tabs").addEventListener("click", (e) => {
       const b = e.target.closest(".tab");
       if (b) showTab(b.dataset.tab);
+    });
+    // ← → walk the tabs from the keyboard.
+    $("#tabs").addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const tabs = [...$("#tabs").children];
+      const i = tabs.findIndex((t) => t.classList.contains("active"));
+      const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+      e.preventDefault();
+      next.focus();
+      showTab(next.dataset.tab);
+    });
+    // Every table sorts by any header: numbers as numbers, durations and
+    // "3m ago" by their value, everything else as text. Click again to flip.
+    const sortKey = (text) => {
+      const t = text.trim();
+      const dur = t.match(/^(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+)s)?$/);
+      if (dur && (dur[1] || dur[2] || dur[3])) return (+dur[1] || 0) * 3600 + (+dur[2] || 0) * 60 + (+dur[3] || 0);
+      const ago = t.match(/^(\d+)([smhd]) ago$/);
+      if (ago) return -(+ago[1] * { s: 1, m: 60, h: 3600, d: 86400 }[ago[2]]);
+      const n = parseFloat(t.replace(/[,%]/g, ""));
+      return isFinite(n) && /^[\d.,%\s-]+[a-zA-Z%]*$/.test(t) ? n : t.toLowerCase();
+    };
+    document.addEventListener("click", (e) => {
+      const th = e.target.closest(".table-scroll thead th");
+      if (!th || !th.textContent.trim()) return;
+      const table = th.closest("table");
+      const tbody = table.querySelector("tbody");
+      const idx = [...th.parentElement.children].indexOf(th);
+      const desc = th.dataset.sort !== "desc";
+      for (const h of th.parentElement.children) { delete h.dataset.sort; h.removeAttribute("aria-sort"); }
+      th.dataset.sort = desc ? "desc" : "asc";
+      th.setAttribute("aria-sort", desc ? "descending" : "ascending");
+      const rows = [...tbody.querySelectorAll(":scope > tr")].filter((r) => r.children.length > idx && !r.querySelector(".empty-note"));
+      rows.sort((a, b) => {
+        const ka = sortKey(a.children[idx].textContent), kb = sortKey(b.children[idx].textContent);
+        const c = typeof ka === "number" && typeof kb === "number" ? ka - kb : String(ka).localeCompare(String(kb));
+        return desc ? -c : c;
+      });
+      for (const r of rows) tbody.append(r);
     });
 
     // ---------- live updates ----------

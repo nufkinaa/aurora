@@ -44,7 +44,11 @@ router.post("/api/intro/:key", (req, res) => {
   ) {
     return res.status(400).json({ error: "bad range" });
   }
-  intros.data[key] = { start: Math.floor(start), end: Math.floor(end) };
+  // Who marked it rides along (the admin page shows it next to the range),
+  // so a wrong mark has a name to ask about. Free text from the client, so
+  // trimmed and bounded like everything else the household sends.
+  const by = String((req.body && req.body.by) || "").trim().slice(0, 40) || null;
+  intros.data[key] = { start: Math.floor(start), end: Math.floor(end), by, at: Date.now() };
   intros.save();
   res.json({ ok: true, ...intros.data[key] });
 });

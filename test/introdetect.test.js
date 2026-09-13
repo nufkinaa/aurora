@@ -92,3 +92,24 @@ test("frame geometry: 128ms hops over a 512ms window", () => {
   assert.equal(HOP / SR, 0.128);
   assert.equal(FRAME / SR, 0.512);
 });
+
+test("coverage: counts episodes in seasons of two or more, and what the store says about them", () => {
+  const scanner = require("../src/media/scanner");
+  const introdetect = require("../src/media/introdetect");
+  const saved = scanner.index.shows;
+  scanner.index.shows = [
+    { id: "s1", seasons: [
+      { episodes: [{ id: "e1" }, { id: "e2" }, { id: "e3" }] },
+      { episodes: [{ id: "lonely" }] }, // a single-episode season is never analysed
+    ] },
+  ];
+  try {
+    const c = introdetect.coverage();
+    assert.equal(c.episodes, 3);
+    assert.equal(c.analyzed, 0);
+    assert.equal(c.intro, 0);
+    assert.equal(c.credits, 0);
+  } finally {
+    scanner.index.shows = saved;
+  }
+});

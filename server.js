@@ -168,6 +168,7 @@ app.use(require("./src/routes/admin"));
 app.use(require("./src/routes/requests"));
 app.use(require("./src/routes/torrent"));
 app.use(require("./src/routes/downloads"));
+app.use(require("./src/routes/subtitles"));
 app.use(require("./src/routes/proxy"));
 
 // Processed profile avatars (re-encoded 256px JPEGs — see routes/profiles.js).

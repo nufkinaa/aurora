@@ -79,6 +79,7 @@ export const renderTaste = async (root) => {
   }, 600);
 
   const grid = el("div", { class: "grid", style: { paddingLeft: 0, paddingRight: 0 } });
+  let tileNo = 0;
   for (const t of pool) {
     const k = keyOf(t);
     const tile = el("button", {
@@ -95,6 +96,8 @@ export const renderTaste = async (root) => {
       posterImg(t.cover, t.title, "taste-poster", "card-fallback"),
       el("span", { class: "taste-check" }, "♥"),
     );
+    // the first two rows are on screen at once — no lazy gap there
+    if (tileNo++ < 16) { const im = tile.querySelector("img"); if (im) im.loading = "eager"; }
     grid.append(tile);
   }
 

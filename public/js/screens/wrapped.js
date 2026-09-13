@@ -72,10 +72,23 @@ export const renderWrapped = async (root) => {
 
   const name = state.profile.name;
   if (w.empty) {
+    // A preview of the real thing, dimmed, so the page isn't a dead end: the
+    // same cards with sample numbers, and the note that says why they're grey.
     screen.append(
       el("h1", { class: "wrapped-title" }, "Aurora Wrapped"),
-      el("div", { class: "empty" }, el("div", { class: "glyph" }, "🌌"),
-        `Nothing to wrap yet, ${name} — watch something and come back.`),
+      el("p", { class: "wrapped-since" }, `${name} · nothing to wrap yet — this is what it'll look like once you've watched a few things`),
+      el("div", { class: "wrapped-grid wrapped-preview", "aria-hidden": "true" },
+        bigCard("12h 40m", "watched", "9 sessions · 6 days with at least one"),
+        bigCard("7", "different titles", "“Something great” on top with 4h 10m"),
+        bigCard("Friday", "is your night", null),
+        bigCard("4", "day streak", "biggest day: 3h 05m"),
+        bigCard("Sci-Fi", "your genre", "Drama · Thriller"),
+        bigCard("2h 15m", "longest sitting", "“One you couldn't stop”"),
+      ),
+      el("div", { class: "empty", style: { paddingTop: "8px" } }, el("div", { class: "glyph" }, "🌌"),
+        "Watch something and come back — the numbers fill in by themselves."),
+      el("div", { class: "detail-actions", style: { padding: "6px 0 26px", justifyContent: "center" } },
+        el("button", { class: "btn btn-primary focusable", html: "<span>Find something to watch</span>", onclick: () => navigate("#/") })),
     );
     return;
   }

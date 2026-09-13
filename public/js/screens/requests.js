@@ -85,7 +85,7 @@ export const renderRequests = async (root) => {
     resultsHost.append(el("section", { class: "row" }, posterSkeletons(6)));
     const token = ++searchToken;
     try {
-      const data = await (await fetch(`/api/discover/search?q=${encodeURIComponent(q)}`)).json();
+      const data = await api.discoverSearch(q);
       if (token !== searchToken) return; // a newer search superseded this
       cache.searches.set(q, data);
       paintResults(data, q);
@@ -136,7 +136,7 @@ export const renderRequests = async (root) => {
       el("section", { class: "row" }, el("h2", { class: "row-title" }, "Trending movies"), posterSkeletons(6))
     );
     try {
-      cache.trending = await (await fetch("/api/discover")).json();
+      cache.trending = await api.discover();
       paintShelves(cache.trending);
     } catch {
       shelvesHost.innerHTML = "";

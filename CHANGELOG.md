@@ -3,6 +3,25 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.4.0 — 2026-09-14
+
+- Auto-subtitles: pick a language under Preferences → Subtitles and it follows your profile to every device. When a title you own doesn't have it, Aurora fetches one from the subtitle providers in the background, saves it next to the file for everyone, and switches it on the moment it lands.
+- Hold any card (or right-click it) for a peek sheet: art, what it is, how much is left, the synopsis, and Play / Details / My List right there. Back, the backdrop or ✕ puts you exactly where you were.
+- Phone: double-tap the left or right of the picture to skip 10 seconds, with a ripple where your finger landed. Dragging the scrubber ticks under your finger where the intro ends and the credits start — those points are also drawn on the bar.
+- Player controls step aside after 2.4 seconds of nothing moving, and come straight back on any motion — finger, wheel, key or remote, not only the mouse.
+- Desktop: the first visit gets one quiet hint that ? opens the keyboard shortcuts.
+- Smart downloads explains itself the first time it queues an episode, and every such toast has Cancel on it.
+- Up next for a streamed show lands on the exact episode with its sources open.
+- Watch parties on a transcoded or torrent stream tolerate more drift before re-seeking, so a guest on a slower stream stops restarting its pipeline every few seconds.
+- "Clear intro marks" has Undo, and the admin page shows who marked an intro and when.
+- Trailers: several trailers get a chooser; a device with no internet is told why the trailer stays black.
+- Series pages get two new shelves when a TMDB key is set: More from the creator, and More on the network.
+- The Discover storefront (trending + catalogue search) is reachable again from a search with no results, and uses the app's own API client.
+- Wrapped shows a greyed-out preview of the real cards until there's something to wrap.
+- Save offline can be cancelled with a second press, and its percentage counts the bytes that actually landed.
+- Taste: the first two rows of posters load eagerly.
+- Admin: every table sorts by its headers, ← → walk the tabs, irreversible actions (ban, kick, decline, remove, broadcast, pull) ask first, the banned-IPs table has headers, server errors say so instead of leaving a pane blank, and Analytics has a Skip intro card: episodes analysed, intros and credits detected, marks made by hand.
+
 ## 1.3.0 — 2026-09-14
 
 - "Apple Horror" is now the default look for everyone. The first time a profile opens Aurora after the update, one small note says the classic look is a switch away (Preferences → Appearance → Look) — shown once, then never again.

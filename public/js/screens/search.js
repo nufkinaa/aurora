@@ -125,7 +125,8 @@ export const renderSearch = async (root) => {
     results.append(...stream.map((i) => card(i)));
 
     if (local.length === 0 && stream.length === 0 && rescued === 0) {
-      status.innerHTML = `<div class="glyph">🔍</div>No results for “${q.replace(/</g, "&lt;")}”`;
+      status.innerHTML = `<div class="glyph">🔍</div>No results for “${q.replace(/</g, "&lt;")}”` +
+        `<div style="margin-top:14px"><a class="btn small focusable" href="#/requests">Browse what's trending</a></div>`;
       status.classList.remove("hidden");
     } else {
       // remember searches that found something (after a settle delay)
