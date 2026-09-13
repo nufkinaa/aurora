@@ -74,10 +74,20 @@ const install = () => {
 };
 
 // `sinceId` lets the UI poll for just what's new instead of refetching the lot.
-const read = ({ level, q, sinceId = 0, limit = 500 } = {}) => {
+// The subsystem a line belongs to: the "[torrent]" / "[download]" / "[perf]"
+// prefix every module already writes, lower-cased, or "other". Cheap enough
+// to derive on read; nothing has to remember to set it.
+const TAG_RE = /^\s*\[([a-z0-9 _.-]{1,20})\]/i;
+const tagOf = (msg) => {
+  const m = TAG_RE.exec(msg);
+  return m ? m[1].toLowerCase() : "other";
+};
+
+const read = ({ level, q, tag, sinceId = 0, limit = 500 } = {}) => {
   const needle = (q || "").trim().toLowerCase();
   let rows = buf;
   if (sinceId) rows = rows.filter((e) => e.id > sinceId);
+  if (tag && tag !== "all") rows = rows.filter((e) => tagOf(e.msg) === tag);
   if (level && level !== "all") {
     // "warn" means "warnings AND errors" — when you're hunting a problem you
     // want everything at or above that level, not warnings in isolation.
@@ -98,6 +108,17 @@ const counts = () => {
   return c;
 };
 
+// Subsystem tallies for the filter chips — the busiest first, so the chips
+// that matter (torrent, download, scan…) come before the one-offs.
+const tags = () => {
+  const t = new Map();
+  for (const e of buf) {
+    const k = tagOf(e.msg);
+    t.set(k, (t.get(k) || 0) + 1);
+  }
+  return [...t.entries()].sort((a, b) => b[1] - a[1]).map(([tag, n]) => ({ tag, n }));
+};
+
 const clear = () => {
   buf.length = 0;
   dropped = 0;
@@ -107,4 +128,4 @@ const stats = () => ({ kept: buf.length, dropped, max: MAX, latestId: seq });
 
 install();
 
-module.exports = { read, counts, clear, stats };
+module.exports = { read, counts, tags, tagOf, clear, stats };

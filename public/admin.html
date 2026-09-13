@@ -235,6 +235,13 @@
             <button data-level="info">Info</button>
           </div>
           <input type="text" id="log-search" placeholder="Filter text (e.g. silo, superseded, ffmpeg)…" style="flex:1;min-width:220px" />
+        </div>
+        <div class="bar-row" style="align-items:center;flex-wrap:wrap">
+          <span class="note" style="margin-right:4px">Subsystem</span>
+          <div class="range-chips" id="log-tags">
+            <button data-tag="all" class="active">All</button>
+          </div>
+          <button class="btn small" id="log-copy" title="Copy the last 200 lines of what's shown, oldest first — paste it straight into a bug report">Copy last 200</button>
           <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--text-dim)">
             <input type="checkbox" id="log-live" checked style="width:auto" /> Live
           </label>
@@ -1043,11 +1050,14 @@
       const q = $("#log-search").value.trim();
       const params = new URLSearchParams({ level: logLevel, limit: "400" });
       if (q) params.set("q", q);
+      if (logTag !== "all") params.set("tag", logTag);
       let data;
       try {
         data = await json("/api/admin/logs?" + params);
       } catch { return; } // a transient failure must not kill the live tail
-      const { entries, counts, stats } = data;
+      const { entries, counts, stats, tags } = data;
+      lastLogEntries = entries;
+      paintLogTags(tags || []);
 
       $("#log-stats").textContent =
         `${counts.all} lines held${stats.dropped ? " · " + stats.dropped + " older lines dropped" : ""}` +
@@ -1074,6 +1084,58 @@
           <span class="log-msg">${esc(e.msg)}</span>
         </div>`).join("");
     }
+
+    // Subsystem chips are rebuilt from what the buffer actually holds (the
+    // busiest first); the active one survives a repaint. Capped at ten so a
+    // noisy day doesn't turn the bar into a wall.
+    let logTag = "all";
+    let lastLogEntries = [];
+    function paintLogTags(tags) {
+      const host = $("#log-tags");
+      const want = ["all", ...tags.slice(0, 10).map((t) => t.tag)];
+      const have = [...host.children].map((b) => b.dataset.tag);
+      if (want.join("|") !== have.join("|")) {
+        host.innerHTML = "";
+        for (const tag of want) {
+          const b = document.createElement("button");
+          b.dataset.tag = tag;
+          b.dataset.label = tag === "all" ? "All" : tag;
+          host.append(b);
+        }
+      }
+      const byTag = Object.fromEntries(tags.map((t) => [t.tag, t.n]));
+      for (const b of host.children) {
+        const tag = b.dataset.tag;
+        b.textContent = tag === "all" ? "All" : `${b.dataset.label} (${byTag[tag] || 0})`;
+        b.classList.toggle("active", tag === logTag);
+      }
+      // a tag that vanished from the buffer (cleared) falls back to All
+      if (!want.includes(logTag)) { logTag = "all"; host.children[0].classList.add("active"); }
+    }
+    $("#log-tags").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-tag]");
+      if (!b) return;
+      logTag = b.dataset.tag;
+      for (const x of $("#log-tags").children) x.classList.toggle("active", x === b);
+      loadLogs();
+    });
+    // What's on screen, as text, oldest first, straight to the clipboard.
+    $("#log-copy").onclick = async () => {
+      const lines = lastLogEntries.slice(0, 200)
+        .map((e) => `${new Date(e.t).toISOString()} ${e.level.toUpperCase().padEnd(5)} ${e.msg}`)
+        .reverse();
+      if (!lines.length) return toast("Nothing to copy");
+      try {
+        await navigator.clipboard.writeText(lines.join("\n") + "\n");
+        toast(`Copied ${lines.length} lines`);
+      } catch {
+        // No clipboard (http on a LAN box, an old TV browser): select the list
+        // so a manual copy is one keystroke away.
+        const r = document.createRange(); r.selectNodeContents($("#log-list"));
+        const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+        toast("Clipboard blocked here — the log is selected, press Ctrl/Cmd+C");
+      }
+    };
 
     $("#log-levels").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-level]");

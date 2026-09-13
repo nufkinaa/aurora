@@ -65,17 +65,19 @@ router.get("/api/admin/log", (req, res) => {
 // on each line so "warnings and errors" is a filter rather than a guess.
 // `sinceId` lets the live tail ask for just what's new instead of the lot.
 router.get("/api/admin/logs", (req, res) => {
-  const { level, q, sinceId, limit } = req.query;
+  const { level, q, tag, sinceId, limit } = req.query;
   res.json({
     entries: logbuffer.read({
       level: typeof level === "string" ? level : "all",
       q: typeof q === "string" ? q : "",
+      tag: typeof tag === "string" ? tag.toLowerCase().slice(0, 20) : "all",
       sinceId: parseInt(sinceId, 10) || 0,
       // clamp to the buffer's own capacity (1500) — the download button asks
       // for everything, and a lower clamp silently dropped the oldest third
       limit: Math.min(1500, Math.max(1, parseInt(limit, 10) || 400)),
     }),
     counts: logbuffer.counts(),
+    tags: logbuffer.tags(),
     stats: logbuffer.stats(),
   });
 });
