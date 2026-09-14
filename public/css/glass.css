@@ -56,7 +56,7 @@ html[data-look="glass"] .glass-sky {
      stacking context on #app, or the player could never rise above the nav */
   z-index: -1;
   pointer-events: none;
-  opacity: 0.85;
+  opacity: 1;
 }
 html[data-look="glass"] body {
   background-color: var(--bg);
@@ -306,8 +306,8 @@ html[data-look="glass"] .nav-dl.ready {
 /* a slab again — a hair in from the edges, the nav floating over its top */
 html[data-look="glass"] .hero {
   min-height: 0;
-  height: min(760px, 80vh);
-  margin: 12px 12px 8px;
+  height: min(800px, 84vh);
+  margin: 12px 12px 0;
   padding: 0;
   border-radius: 32px;
   overflow: hidden;
@@ -1526,12 +1526,16 @@ html[data-look="glass"] .hero-unmute {
   -webkit-backdrop-filter: var(--g-blur);
   cursor: pointer;
   animation: g-reveal 420ms var(--ease) both;
-  /* the dots own the corner (right: page-x); the pill parks just left of them */
-  right: calc(var(--page-x) + 140px);
+  /* right above the dots, flush with their right edge */
+  right: var(--page-x);
+  bottom: 68px;
 }
 html[data-look="glass"] .hero-unmute:hover { background: rgba(255, 255, 255, 0.16); }
 html[data-look="glass"] .hero-unmute:focus { box-shadow: var(--focus-ring); }
 html[data-look="glass"] .hero.trailing-sound .hero-unmute { background: rgba(255, 255, 255, 0.2); }
 @media (max-width: 720px) {
-  html[data-look="glass"] .hero-unmute { right: 16px; bottom: 44px; transform: none; }
+  html[data-look="glass"] .hero-unmute { right: 16px; bottom: 44px; }
 }
+
+/* the greeting sits close under the slab */
+html[data-look="glass"] .home-greeting.big { padding-top: 14px; }

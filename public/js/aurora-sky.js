@@ -49,6 +49,7 @@ const violetRamp = (s) =>
 
 const makeBand = ({ hero = false, violet = false, y = 0.3 } = {}) => ({
   hero,
+  violet,
   ramp: violet ? violetRamp(rand(0.75, 0.9)) : greenRamp(hero ? rand(0.9, 1.05) : rand(0.7, 0.9)),
   speed: rand(0.1, 0.2) * (Math.random() < 0.5 ? -1 : 1), // half the nav's pace — a sky, not a strip
   meander: rand(0.0012, 0.002),
@@ -80,21 +81,31 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   // every screen, not just the top of one), thicker and a touch brighter
   // than the sign-in sky.
   const BANDS = [
-    makeBand({ hero: true, y: rand(0.2, 0.28) }),
-    makeBand({ violet: true, y: rand(0.42, 0.52) }),
-    makeBand({ y: rand(0.08, 0.14) }),
-    makeBand({ y: rand(0.66, 0.78) }),
+    makeBand({ hero: true, y: rand(0.18, 0.26) }),
+    makeBand({ violet: true, y: rand(0.38, 0.46) }),
+    makeBand({ y: rand(0.06, 0.12) }),
+    makeBand({ violet: true, y: rand(0.58, 0.66) }),
+    makeBand({ y: rand(0.78, 0.88) }),
   ];
-  for (const b of BANDS) { b.thick *= 1.25; b.alpha *= 1.12; }
+  for (const b of BANDS) {
+    b.thick *= 1.3;
+    b.alpha *= 1.25;
+  }
   for (const b of BANDS) b.speed *= pace;
   // A sparse, fixed starfield (twinkle via alpha wave — no reshuffling).
-  const STARS = Array.from({ length: 110 }, () => ({
-    x: Math.random(),
-    y: Math.random(),
-    r: rand(0.3, 1.0),
-    tw: rand(0.3, 1.4),
-    off: rand(0, Math.PI * 2),
-  }));
+  // A fuller field, twinkling the way stars do: most flicker faintly, a few
+  // bright ones swell and dim with a soft halo, each on its own slow clock.
+  const STARS = Array.from({ length: 170 }, () => {
+    const bright = Math.random() < 0.12;
+    return {
+      x: Math.random(),
+      y: Math.random(),
+      r: bright ? rand(1.1, 1.7) : rand(0.3, 1.0),
+      tw: bright ? rand(0.25, 0.7) : rand(0.4, 1.6),
+      off: rand(0, Math.PI * 2),
+      bright,
+    };
+  });
 
   let raf = null;
   let last = 0;
@@ -117,20 +128,30 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
 
     ctx.fillStyle = "rgba(230, 238, 255, 1)";
     for (const s of stars ? STARS : []) {
-      const a = still ? 0.5 : 0.32 + 0.3 * Math.sin(t * s.tw + s.off);
-      if (a <= 0.06) continue;
-      ctx.globalAlpha = a * 0.7;
-      ctx.fillRect(s.x * W, s.y * H, s.r, s.r);
+      // a slow swell with a sharper glint on top — real twinkle isn't a sine
+      const w = Math.sin(t * s.tw + s.off);
+      const glint = Math.max(0, Math.sin(t * s.tw * 3.1 + s.off * 1.7)) ** 6;
+      const a = still ? 0.55 : Math.max(0, 0.22 + 0.45 * w + 0.35 * glint);
+      if (a <= 0.05) continue;
+      const x = s.x * W, y = s.y * H;
+      if (s.bright) {
+        // a soft halo that grows with the glow
+        ctx.globalAlpha = a * 0.18;
+        ctx.fillRect(x - 1.5, y - 1.5, s.r + 3, s.r + 3);
+      }
+      ctx.globalAlpha = Math.min(1, a * (s.bright ? 1 : 0.75));
+      ctx.fillRect(x, y, s.r, s.r);
     }
 
     for (const b of BANDS) {
       let presence = Math.min(1, Math.max(0, 1.6 * Math.sin(t * b.presF + b.presOff) + 0.35));
       if (b.hero) presence = Math.max(presence, 0.85);
+      presence = Math.max(presence, b.violet ? 0.55 : 0.3); // nothing vanishes for long
       if (still) presence = Math.max(presence, 0.7);
       if (presence < 0.04) continue;
 
       const center = cw * (0.5 + 0.3 * Math.sin(t * b.lenF + b.lenOff));
-      const halfLen = cw * (0.55 + 0.25 * Math.sin(t * b.lenF * 0.73 + b.lenOff * 1.9));
+      const halfLen = cw * (0.72 + 0.28 * Math.sin(t * b.lenF * 0.73 + b.lenOff * 1.9));
       const s = t * b.speed;
       const curlAmp = 0.04 * Math.max(0, Math.sin(t * 0.11 + b.phase * 2.3));
 

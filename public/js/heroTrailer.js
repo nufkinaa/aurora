@@ -26,7 +26,7 @@ const pref = (key, fallback) => {
   }
 };
 
-const DWELL_MS = 3000; // still this long → the trailer starts
+const DWELL_MS = 6000; // still this long → the trailer starts
 const MUTED_S = 25; // how long a muted trailer runs
 const UNMUTED_S = 50; // …and with sound
 const START_TIMEOUT_MS = 7000; // no "playing" by then → give up on this pick
@@ -166,12 +166,13 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
       playerVars: {
         autoplay: 1, mute: 1, controls: 0, rel: 0, modestbranding: 1, playsinline: 1,
         iv_load_policy: 3, disablekb: 1, fs: 0, enablejsapi: 1, origin: location.origin,
+        vq: "hd1080", // a hint; YouTube mostly sizes quality to the frame, which is why it's oversized
       },
       events: {
         onReady: (e) => {
           if (myGen !== gen) return;
           sizeFrame();
-          try { e.target.mute(); e.target.playVideo(); } catch {}
+          try { e.target.mute(); e.target.setPlaybackQuality("hd1080"); e.target.playVideo(); } catch {}
           startTimer = setTimeout(() => {
             // never got going (autoplay refused, no internet, an ad): the art stays
             if (myGen === gen && !active) { noTrailer.add(id); stop(false); }
@@ -183,8 +184,10 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
             active = true;
             startedAt = Date.now();
             clearTimeout(startTimer);
+            try { e.target.setPlaybackQuality("hd1080"); } catch {}
             heroEl.classList.remove("trailing-loading");
             heroEl.classList.add("trailing");
+            paintMuteBtn(); // a new trailer always starts muted — the button says so
             unmute.classList.remove("hidden");
             armCap();
           } else if (e.data === YT.PlayerState.ENDED && active) {
@@ -196,14 +199,22 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
     });
   };
 
+  // The button is a toggle: Unmute → sound on (and the window grows to 50s
+  // from the start); Mute → quiet again (the window stays as it is). Every
+  // new trailer starts muted, so the button reads "Unmute" again.
+  const paintMuteBtn = () => {
+    unmute.innerHTML = `<span class="hero-unmute-ic">${unmuted ? "🔊" : "🔇"}</span><span>${unmuted ? "Mute" : "Unmute"}</span>`;
+    unmute.setAttribute("aria-label", unmuted ? "Mute trailer" : "Unmute trailer");
+    heroEl.classList.toggle("trailing-sound", unmuted);
+  };
   unmute.onclick = () => {
     if (!active || !player) return;
-    unmuted = true;
-    try { player.unMute(); player.setVolume(100); } catch {}
-    heroEl.classList.add("trailing-sound");
-    unmute.innerHTML = `<span class="hero-unmute-ic">🔊</span><span>Sound on</span>`;
-    unmute.setAttribute("aria-label", "Trailer sound is on");
-    armCap(); // the window grows to 50 seconds from when it started
+    unmuted = !unmuted;
+    try {
+      if (unmuted) { player.unMute(); player.setVolume(100); } else player.mute();
+    } catch {}
+    paintMuteBtn();
+    if (unmuted) armCap();
   };
 
   // A pick landed: wait out the dwell, then (if still this pick, still
