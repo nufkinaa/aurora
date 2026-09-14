@@ -5,6 +5,7 @@ import { state, progressFor } from "../state.js";
 import { shelfRow, continueRow, openItem } from "../components.js";
 import { navigate } from "../router.js";
 import { onMessage } from "../ws.js";
+import { createHeroTrailer } from "../heroTrailer.js";
 
 // How long each billboard title holds before the next slides in. The focus-pull
 // animation in screens.css is deliberately SHORTER than this: the art reaches
@@ -61,6 +62,7 @@ export const renderHome = async (root) => {
       el("div", { class: "hero-backdrop fade" }),
     ];
     let front = 0;
+    let trailer = null; // the billboard's trailer player, built with the slab below
     const info = el("div", { class: "hero-info" });
     const heroPoster = el("img", {
       class: "hero-poster",
@@ -187,8 +189,9 @@ export const renderHome = async (root) => {
       // long billboard never overflows the slab (glass look).
       const start = Math.max(0, Math.min(i - 1, count - 4));
       [...picks.querySelectorAll(".hero-pick")].forEach((d, j) => d.classList.toggle("hidden", j < start || j >= start + 4));
+      if (trailer) trailer.arm(item, { visible: () => !pastHero });
     };
-    show(0, 0);
+    // (the first paint happens below, once the slab and its trailer layer exist)
 
     // Jump to a specific title (dot tap / swipe), and hold the auto-rotation
     // off for a while so it can't yank the hero away mid-browse.
@@ -213,9 +216,12 @@ export const renderHome = async (root) => {
       // the TV app had exactly this bug and it re-rendered the world).
       if (document.hidden || pastHero) return;
       if (Date.now() < holdUntil) return;
+      if (trailer && trailer.isActive()) return; // a trailer is on, or about to be: it ends the dwell itself
       if (!info.contains(document.activeElement)) show((idx + 1) % count, 1);
     }, HERO_DWELL_MS);
 
+    // The trailer layer sits between the art and the scrim, so the text
+    // stays legible over video exactly as over a still.
     const heroEl = el("div", { class: "hero" },
       layers[0],
       layers[1],
@@ -224,7 +230,14 @@ export const renderHome = async (root) => {
       dots,
       picks
     );
+    trailer = createHeroTrailer(heroEl, {
+      // a trailer that ran its course moves the billboard on
+      onEnd: () => { if (!pastHero && !document.hidden) show((idx + 1) % count, 1); },
+    });
+    heroEl.insertBefore(trailer.layer, heroEl.querySelector(".hero-fade"));
     screen.append(heroEl);
+    cleanups.push(() => trailer.destroy());
+    show(0, 0);
 
     // ----- swipe (touch) -----
     // Horizontal drag moves between titles; vertical is left alone so the page
@@ -272,6 +285,7 @@ export const renderHome = async (root) => {
         // is genuinely out of view — at 0.2 it still fills most of the screen.
         heroEl.classList.toggle("scrolled", y > heroH * 0.2);
         pastHero = y > heroH * 0.9;
+        if (pastHero && trailer) trailer.stop(false);
       });
     };
     measureHero();

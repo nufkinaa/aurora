@@ -306,7 +306,7 @@ html[data-look="glass"] .nav-dl.ready {
 /* a slab again — a hair in from the edges, the nav floating over its top */
 html[data-look="glass"] .hero {
   min-height: 0;
-  height: min(700px, 76vh);
+  height: min(760px, 80vh);
   margin: 12px 12px 8px;
   padding: 0;
   border-radius: 32px;
@@ -340,7 +340,7 @@ html[data-look="glass"] .hero-fade {
     linear-gradient(to top, rgba(7, 8, 17, 0.82), transparent 46%);
 }
 html[data-look="glass"] .hero-inner {
-  padding: 0 var(--page-x) 64px;
+  padding: 0 var(--page-x) 28px; /* the buttons sit level with the dots */
   z-index: 2;
 }
 html[data-look="glass"] .hero-poster {
@@ -393,7 +393,7 @@ html[data-look="glass"] .hero-actions {
 html[data-look="glass"] .hero-dots {
   display: flex;
   right: var(--page-x);
-  bottom: 30px;
+  bottom: 40px; /* centred on the action buttons' row */
   gap: 4px;
   z-index: 3;
 }
@@ -1482,4 +1482,56 @@ html[data-look="glass"] .card::before {
 html[data-look="glass"] .card:hover,
 html[data-look="glass"] .card:focus {
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.92), 0 18px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- hero trailers ---------- */
+html[data-look="glass"] .hero-video {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 800ms var(--ease);
+  pointer-events: none;
+  background: #000;
+}
+html[data-look="glass"] .hero-video iframe {
+  position: absolute;
+  border: 0;
+  pointer-events: none;
+}
+html[data-look="glass"] .hero.trailing .hero-video {
+  opacity: 1;
+}
+html[data-look="glass"] .hero.trailing .hero-backdrop.on {
+  opacity: 0; /* the art gives way; its own 0.75s opacity transition does the fade */
+}
+html[data-look="glass"] .hero-unmute {
+  position: absolute;
+  right: calc(var(--page-x) + 12px);
+  bottom: 30px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 12px;
+  border-radius: 999px;
+  border: 0;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #fff;
+  background: var(--g-fill);
+  box-shadow: var(--g-edge), var(--g-shadow);
+  backdrop-filter: var(--g-blur);
+  -webkit-backdrop-filter: var(--g-blur);
+  cursor: pointer;
+  animation: g-reveal 420ms var(--ease) both;
+  /* the dots own the corner (right: page-x); the pill parks just left of them */
+  right: calc(var(--page-x) + 140px);
+}
+html[data-look="glass"] .hero-unmute:hover { background: rgba(255, 255, 255, 0.16); }
+html[data-look="glass"] .hero-unmute:focus { box-shadow: var(--focus-ring); }
+html[data-look="glass"] .hero.trailing-sound .hero-unmute { background: rgba(255, 255, 255, 0.2); }
+@media (max-width: 720px) {
+  html[data-look="glass"] .hero-unmute { right: 16px; bottom: 44px; transform: none; }
 }

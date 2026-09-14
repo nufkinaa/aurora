@@ -16,6 +16,14 @@ let slideTimer = null;
 let clockTimer = null;
 
 const onHome = () => (location.hash || "#/") === "#/";
+// A film left paused is a place the saver may take over too (tvOS does the
+// same); a playing one, never — the picture IS the content.
+const pausedPlayer = () => {
+  if (!location.hash.startsWith("#/play/")) return false;
+  const v = document.querySelector(".player video");
+  return !!(v && v.paused && !v.ended);
+};
+const eligible = () => onHome() || pausedPlayer();
 
 const stop = () => {
   clearInterval(slideTimer);
@@ -32,7 +40,7 @@ const stop = () => {
 let armGen = 0; // bumped by every poke, so an in-flight arm can notice
 
 const start = async () => {
-  if (overlay || !onHome() || !state.profile || document.hidden) return;
+  if (overlay || !eligible() || !state.profile || document.hidden) return;
   // Modals, the profile-switch gate and other overlays own the screen —
   // never paint over them (they'd still be there underneath on wake).
   if (document.querySelector(".ui-overlay")) return;
@@ -48,7 +56,7 @@ const start = async () => {
   } catch {}
   // the fetch took a moment — if the user moved, the tab hid, or another
   // overlay appeared meanwhile, this arm is stale
-  if (gen !== armGen || !pool.length || overlay || !onHome() || document.hidden) return;
+  if (gen !== armGen || !pool.length || overlay || !eligible() || document.hidden) return;
   if (document.querySelector(".ui-overlay")) return;
   // shuffle so every doze-off shows a different reel
   for (let i = pool.length - 1; i > 0; i--) {
@@ -107,5 +115,9 @@ export const initScreensaver = () => {
     window.addEventListener(ev, poke, { passive: true });
   document.addEventListener("visibilitychange", poke);
   window.addEventListener("hashchange", poke); // navigating away disarms/wakes
+  // media events don't bubble — capture them: playback resuming (a remote,
+  // a party's host, autoplay) wakes and disarms like any input would
+  document.addEventListener("play", poke, true);
+  document.addEventListener("pause", poke, true); // pausing starts the idle clock fresh
   poke();
 };

@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.0 — 2026-09-14
+
+- Trailers in the hero (Apple Horror): a title that sits on the billboard for three seconds cross-fades from its art to its trailer, streamed straight from YouTube, muted, for 25 seconds — then back to the art and on to the next pick. Press Unmute for sound and the trailer runs 50 seconds before easing out. A dot, a swipe, scrolling past or hiding the tab ends it at once. Off on data saver, reduce-motion and the classic look; off by default on phones (Preferences → Playback → Trailers in the hero).
+- The screensaver now also takes over a film left paused for three minutes, exactly as it does on Home; any input or playback resuming wakes it, and the frame is where you left it.
+- Hero: a slab again, 12px in from the edges, a little taller, brighter art, the buttons level with the dots. The sliding highlights across glass surfaces are gone; hovered cards keep the ring without the halo; the season picker sits inside the page margin; greys are brighter.
+
 ## 1.5.1 — 2026-09-14
 
 - QA pass, 23 fixes. Peek: a Discover title offers Open (not a Play that went nowhere), an episode's Details opens its show, focus returns to the card, no iOS image sheet under a hold. Watch parties: the host stays host across Up next, a guest never advances on its own. The player ignores its shortcuts while a sheet or text field has the keyboard, and sheets and toasts show inside fullscreen. Confirm and Join sheets trap remote focus; Join is a centred sheet with a four-character code. Downloads' Cancel keeps its button after a failure. The classic look's player dock lays its groups out inline again. Title pages: no stray "0" on an episode without a duration, the season island scrolls on phones, the phone puts the actions before the rating card and keeps a smaller poster. Phone dock: transport on one row, tools on the next.

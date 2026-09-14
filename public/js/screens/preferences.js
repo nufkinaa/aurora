@@ -572,6 +572,12 @@ export const renderPreferences = async (root) => {
       section("Playback", null,
         el("div", { class: "pref-list page-pad" },
           prefRow(
+            "Trailers in the hero",
+            "Apple Horror only. A title that sits on the billboard for a few seconds plays its trailer, muted, for 25 seconds — Unmute gives it sound and 50. Off on data saver and reduce-motion; off by default on phones.",
+            () => (playerPrefs.get("heroTrailers", !(matchMedia("(pointer: coarse)").matches && innerWidth < 900)) ? "On" : "Off"),
+            () => playerPrefs.set("heroTrailers", !playerPrefs.get("heroTrailers", !(matchMedia("(pointer: coarse)").matches && innerWidth < 900)))
+          ),
+          prefRow(
             "Autoplay next episode",
             "Start the next episode automatically when one finishes.",
             () => (playerPrefs.get("autoplayNext", true) ? "On" : "Off"),
