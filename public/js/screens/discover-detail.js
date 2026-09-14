@@ -1771,8 +1771,11 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         el(
           "div",
           { class: "episode-body" },
+          // two spans: a phone keeps "Episode 4" and moves the runtime back
+          // to the sub-line, where there is room for it
           el("div", { class: "episode-kicker" },
-            `Episode ${row.episode}${local && local.duration ? ` · ${Math.round(local.duration / 60)} min` : ""}`),
+            `Episode ${row.episode}`,
+            local && local.duration && el("span", { class: "episode-kicker-dur" }, ` · ${Math.round(local.duration / 60)} min`)),
           el(
             "div",
             { class: "episode-title" },
@@ -2046,10 +2049,9 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     seasonBar.append(
       el(
         "div",
-        {
-          class: "season-bar-trailing",
-          style: { marginLeft: seasons.length > 1 ? "auto" : "0" },
-        },
+        // pushed to the bar's far end when there are pills to push against
+        // (a class, so the phone layout can wrap it under the island)
+        { class: "season-bar-trailing" + (seasons.length > 1 ? " push-end" : "") },
         trailing,
       ),
     );

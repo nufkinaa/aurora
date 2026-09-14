@@ -1211,6 +1211,16 @@ export const renderPlayer = async (root, { id }) => {
 
   root.append(overlay);
   pushScope(overlay);
+  // The dock's real height, published as --dock-h: on a phone it is two rows
+  // tall, and everything that floats above it (the CC/speed/settings menu,
+  // Up next, Skip intro, the resume card) positions against this in CSS
+  // instead of against a fixed offset tuned for the one-row desktop dock.
+  const dockEl = overlay.querySelector(".player-bottom");
+  const paintDockH = () => overlay.style.setProperty("--dock-h", `${dockEl.offsetHeight || 0}px`);
+  const dockRO = window.ResizeObserver ? new ResizeObserver(paintDockH) : null;
+  if (dockRO) dockRO.observe(dockEl);
+  else window.addEventListener("resize", paintDockH);
+  paintDockH();
   const activityLabel = isEpisode
     ? `${item.showTitle} S${item.season}E${item.episode}`
     : item.title;
@@ -1869,10 +1879,8 @@ export const renderPlayer = async (root, { id }) => {
     }
     menuPinned = pinned;
     menuKind = kind;
-    const menu = el("div", {
-      class: "menu",
-      style: { right: "36px", bottom: "110px" },
-    });
+    // positioned by CSS (.player .menu) — the glass look's phone dock moves it
+    const menu = el("div", { class: "menu" });
 
     if (kind === "cc") {
       menu.append(el("div", { class: "menu-title" }, "Subtitles"));
@@ -3514,6 +3522,8 @@ export const renderPlayer = async (root, { id }) => {
     document.removeEventListener("media-key", onMediaKey);
     document.removeEventListener("ui-back", onBack);
     document.removeEventListener("torrent-subs", onTorrentSubs);
+    if (dockRO) dockRO.disconnect();
+    else window.removeEventListener("resize", paintDockH);
     unsubOcr();
     popScope(overlay);
   };

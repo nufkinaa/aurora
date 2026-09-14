@@ -1,5 +1,5 @@
 // Home: rotating hero billboard + shelves (Continue Watching, My List, ...)
-import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, restoreScrollY } from "../ui.js";
+import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, heroArtWidth, restoreScrollY } from "../ui.js";
 import { api } from "../api.js";
 import { state, progressFor } from "../state.js";
 import { shelfRow, continueRow, openItem } from "../components.js";
@@ -50,6 +50,20 @@ export const renderHome = async (root) => {
   let heroTimer = null;
   if (data.hero.length > 0) {
     let idx = 0;
+    // The first billboard picture is the page's largest paint, and as a CSS
+    // background it is only discovered once the slab is styled. Ask for it
+    // now, at high priority — the layer below then finds it in the cache.
+    // A portrait phone shows the poster (see the orientation rule in CSS).
+    try {
+      const first = data.hero[0];
+      const portrait = matchMedia("(max-width: 900px) and (orientation: portrait)").matches;
+      const src = portrait || !first.backdrop ? artUrl(first.cover, 400) : artUrl(first.backdrop, heroArtWidth());
+      if (src) {
+        const pre = new Image();
+        pre.fetchPriority = "high";
+        pre.src = src;
+      }
+    } catch {}
     // TWO backdrop layers, cross-faded by opacity. A single layer had to swap
     // its background-image outright — `transition: background-image` animates
     // nothing in any engine — so every rotation was a hard cut with the blur
@@ -86,7 +100,9 @@ export const renderHome = async (root) => {
           "aria-label": h.title,
           onclick: () => go(j),
         },
-          h.cover ? el("img", { src: artUrl(h.cover), alt: "" }) : el("span", { class: "hero-pick-thumb" }),
+          // lazy: the panel is hidden in both looks today, and a lazy image
+          // with no layout box is never fetched
+          h.cover ? el("img", { src: artUrl(h.cover, 80), alt: "", loading: "lazy" }) : el("span", { class: "hero-pick-thumb" }),
           el("span", { class: "hero-pick-text" },
             el("span", { class: "hero-pick-title" }, h.title),
             el("span", { class: "hero-pick-sub" }, h.source === "stream" ? "Stream" : h.type === "show" ? "In your library" : "On disk")))),
@@ -117,8 +133,10 @@ export const renderHome = async (root) => {
       // wants the poster, everything else the landscape art (see the
       // orientation: portrait rule in screens.css). Setting background-image
       // here instead would freeze that choice until the next rotation.
-      incoming.style.setProperty("--hero-art", item.backdrop ? `url("${artUrl(item.backdrop)}")` : "none");
-      incoming.style.setProperty("--hero-poster", `url("${artUrl(item.cover)}")`);
+      // sized for this screen — the catalogue's backdrops are 1920px JPEGs
+      // of up to 1.3 MB, which a phone would have drawn 360px wide
+      incoming.style.setProperty("--hero-art", item.backdrop ? `url("${artUrl(item.backdrop, heroArtWidth())}")` : "none");
+      incoming.style.setProperty("--hero-poster", `url("${artUrl(item.cover, 400)}")`);
       // The focus pull lives on the ::after veil, keyed to `.on` — toggling
       // the class across rotations restarts it, no forced reflow needed.
       incoming.classList.add("on");
@@ -127,8 +145,12 @@ export const renderHome = async (root) => {
         front = 1 - front;
       }
 
-      heroPoster.src = artUrl(item.cover);
-      heroPoster.style.visibility = "visible";
+      // The glass look hides the poster card (display:none still downloads
+      // an <img>'s src) — only the classic look pays for it.
+      if (!glass()) {
+        heroPoster.src = artUrl(item.cover, 240);
+        heroPoster.style.visibility = "visible";
+      }
       // Slide the text + poster in from the direction of travel.
       if (dir !== 0) {
         const cls = dir > 0 ? "slide-next" : "slide-prev";

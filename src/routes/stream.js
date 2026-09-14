@@ -232,6 +232,18 @@ const fetchExtImage = (url, file) => {
   );
   return p;
 };
+// ?w=<px>: a downscaled variant for the screen that asked (lib/imgvariant.js
+// — ffmpeg, cached; the original when it can't be had). The catalogue's
+// backdrops are 1920px, 0.8–1.3 MB JPEGs; a phone drew them 360px wide.
+const { variant: imgVariant } = require("../lib/imgvariant");
+const sendArt = async (res, file, width) => {
+  const v = width ? await imgVariant(file, width) : null;
+  const out = v || file;
+  const head = readHead(out);
+  res.setHeader("Content-Type", head ? sniffMime(head) : "image/jpeg");
+  res.setHeader("Cache-Control", "public, max-age=604800");
+  res.sendFile(out);
+};
 router.get("/img/ext", async (req, res) => {
   const url = String(req.query.u || "");
   if (!extAllowed(url)) return res.status(403).send("host not allowed");
@@ -242,30 +254,36 @@ router.get("/img/ext", async (req, res) => {
       if (Date.now() - failedAt < EXT_FAIL_TTL) throw new Error("recently failed");
       await fetchExtImage(url, file);
     }
-    const head = readHead(file);
-    res.setHeader("Content-Type", head ? sniffMime(head) : "image/jpeg");
-    res.setHeader("Cache-Control", "public, max-age=604800");
-    res.sendFile(file);
+    await sendArt(res, file, req.query.w);
   } catch {
-    res.status(502).send("artwork unavailable");
+    if (!res.headersSent) res.status(502).send("artwork unavailable");
   }
 });
 
 // Downloaded metadata posters (cached on disk by src/media/online.js)
-router.get("/img/meta/:name", (req, res) => {
+router.get("/img/meta/:name", async (req, res) => {
   const online = require("../media/online");
   const file = online.posterFile(req.params.name);
   if (!file) return res.status(404).send("Not found");
-  res.setHeader("Cache-Control", "public, max-age=604800");
-  res.sendFile(file);
+  try {
+    await sendArt(res, file, req.query.w); // ?w= as on /img/:id
+  } catch {
+    if (!res.headersSent) res.status(404).send("Not found");
+  }
 });
 
-// Cover images
-router.get("/img/:id", (req, res) => {
+// Cover images (?w= for a downscaled variant — library posters are ~200 KB
+// scans, drawn 150–260px wide)
+router.get("/img/:id", async (req, res) => {
   const entry = resolveKind(req.params.id, "image");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
-  res.setHeader("Cache-Control", "public, max-age=86400");
-  res.sendFile(entry.path);
+  try {
+    const v = req.query.w ? await imgVariant(entry.path, req.query.w) : null;
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.sendFile(v || entry.path);
+  } catch {
+    if (!res.headersSent) res.status(404).send("Not found");
+  }
 });
 
 // Compatibility remux (HLS, video copied + audio -> AAC) for files whose

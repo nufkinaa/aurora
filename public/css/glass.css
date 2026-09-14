@@ -56,7 +56,13 @@ html[data-look="glass"] .glass-sky {
      stacking context on #app, or the player could never rise above the nav */
   z-index: -1;
   pointer-events: none;
-  opacity: 0.9; /* a touch under full strength — text over the sky stays easy to read */
+  /* the painter starts once the page is idle (main.js) and fades in — a
+     touch under full strength, so text over the sky stays easy to read */
+  opacity: 0;
+  transition: opacity 1.4s var(--ease);
+}
+html[data-look="glass"] .glass-sky.on {
+  opacity: 0.9;
 }
 html[data-look="glass"] body {
   background-color: var(--bg);
@@ -290,9 +296,10 @@ html[data-look="glass"] .nav-dl.ready {
   html[data-look="glass"] .episode-bar {
     width: 72px;
   }
-  /* toasts sit above the tab bar, and above the player's dock */
+  /* toasts sit above the tab bar (which itself rides the home indicator),
+     and above the player's dock */
   html[data-look="glass"] #toasts {
-    bottom: 96px;
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
   }
   html[data-look="glass"] body:has(.player) #toasts {
     bottom: 150px;
@@ -487,11 +494,11 @@ html[data-look="glass"] .hero-pick:focus {
     bottom: 12px;
     transform: translateX(-50%);
   }
+  /* 44px under the buttons: the dots (12px up, 21px tall) sit BELOW the
+     Play/Details row instead of on its bottom edge, where they used to steal
+     the tap (measured: buttons 498–548, dots 535–556 on a 375px phone) */
   html[data-look="glass"] .hero-inner {
-    padding-bottom: 40px;
-  }
-  html[data-look="glass"] .hero-inner {
-    padding: 0 20px 20px;
+    padding: 0 20px 44px;
   }
   html[data-look="glass"] .hero-fade {
     background: linear-gradient(to top, rgba(7, 8, 17, 0.95) 0%, rgba(7, 8, 17, 0.4) 50%, transparent 80%);
@@ -746,8 +753,26 @@ html[data-look="glass"] .taste-tile {
 html[data-look="glass"] .dl-row.fresh {
   box-shadow: var(--g-edge), inset 0 0 0 1px rgba(74, 222, 128, 0.45);
 }
-html[data-look="glass"] .pref-item {
-  border-radius: 14px;
+/* Settings rows are rows, not cards — a box inside the section's box read
+   as clutter (elia). A hairline between rows is all the structure needed. */
+html[data-look="glass"] .pref-list .pref-item,
+html[data-look="glass"] .rows-editor .pref-item {
+  background: none;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 14px 0;
+}
+html[data-look="glass"] .pref-list .pref-item:last-child,
+html[data-look="glass"] .rows-editor .pref-item:last-of-type {
+  border-bottom: 0;
+}
+html[data-look="glass"] .pref-section .pref-note {
+  padding-left: 0;
+  padding-right: 0;
 }
 html[data-look="glass"] .empty {
   color: rgba(243, 244, 248, 0.74);
@@ -947,8 +972,21 @@ html[data-look="glass"] .episode-title {
 html[data-look="glass"] .episode-bar {
   width: 160px;
 }
+/* the kicker already says "· 52 min"; the sub-line's runtime would say it twice */
+html[data-look="glass"] .episode-sub .ep-dur {
+  display: none;
+}
 @media (max-width: 720px) {
-  html[data-look="glass"] .episode-still { width: 112px; height: 63px; }
+  /* A 375px phone gave the title 85px next to a 112px still and two 44px
+     action buttons ("Who Are…", "It's All G…"). Smaller still, tighter
+     gaps, the runtime back on the sub-line instead of the kicker. */
+  html[data-look="glass"] .episode { gap: 12px; padding: 10px; }
+  html[data-look="glass"] .episode-still { width: 88px; height: 50px; border-radius: 9px; }
+  html[data-look="glass"] .episode-title { font-size: 0.95rem; }
+  html[data-look="glass"] .episode-kicker { font-size: 0.66rem; letter-spacing: 0.06em; white-space: nowrap; }
+  html[data-look="glass"] .episode-kicker-dur { display: none; }
+  html[data-look="glass"] .episode-sub .ep-dur { display: inline; }
+  html[data-look="glass"] .ep-action { width: 40px; }
 }
 html[data-look="glass"] .source-row {
   border-radius: 16px;
@@ -1114,6 +1152,59 @@ html[data-look="glass"] .party-code span {
   }
   html[data-look="glass"] .player-top > div {
     padding: 6px 12px 6px 10px;
+    min-width: 0;
+  }
+  /* Phones: a live blur over moving video is the single most expensive
+     effect on a weak GPU (re-blurred every frame) — the dock and the top
+     pills become a plain translucent tint there. Layout is identical. */
+  html[data-look="glass"] .player-bottom,
+  html[data-look="glass"] .player-top > div,
+  html[data-look="glass"] .player-top .pbtn,
+  html[data-look="glass"] .player .menu,
+  html[data-look="glass"] .upnext,
+  html[data-look="glass"] .resume-card,
+  html[data-look="glass"] .party-panel {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(14, 16, 28, 0.82);
+  }
+  html[data-look="glass"] .player-bottom::before {
+    display: none;
+  }
+  /* Everything that floats above the dock rides on --dock-h (set by the
+     player from the dock's real height): the CC/speed/settings menu, Up
+     next, Skip intro, the intro-marking chip and the resume card used to
+     sit at fixed offsets tuned for the one-row desktop dock and landed on
+     top of the phone's two-row dock (measured: menu 328–702 over a dock
+     starting at 588, and 42px off the left edge). */
+  html[data-look="glass"] .player .menu {
+    left: 10px;
+    right: 10px;
+    bottom: calc(var(--dock-h, 224px) + 20px);
+    min-width: 0;
+    max-height: min(46vh, calc(100vh - var(--dock-h, 224px) - 130px));
+  }
+  html[data-look="glass"] .player .sub-sync {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  html[data-look="glass"] .upnext {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    bottom: calc(var(--dock-h, 224px) + 24px);
+  }
+  html[data-look="glass"] .player .skip-intro,
+  html[data-look="glass"] .player .mark-chip {
+    right: 16px;
+    bottom: calc(var(--dock-h, 224px) + 24px);
+  }
+  /* controls away = dock away: the button drops to the corner */
+  html[data-look="glass"] .player.controls-hidden .skip-intro {
+    bottom: max(28px, env(safe-area-inset-bottom));
+  }
+  html[data-look="glass"] .resume-card {
+    bottom: calc(var(--dock-h, 224px) + 24px);
   }
 }
 
@@ -1217,7 +1308,7 @@ html[data-look="glass"] .nav-gear {
     right: 12px;
   }
   html[data-look="glass"] .nav-profile {
-    padding: 4px;
+    padding: 5px; /* 30px avatar + 5px = a 40px target */
   }
   html[data-look="glass"] .nav-profile #nav-profile-name {
     display: none;
@@ -1378,6 +1469,10 @@ html[data-look="glass"] .peek {
   border-radius: var(--g-radius-l);
 }
 html[data-look="glass"] .peek-art-fade { background: linear-gradient(to top, rgba(14, 16, 28, 0.96) 0%, rgba(0, 0, 0, 0) 55%); }
+/* the phone's bottom sheet sits flush on the screen edge — square there */
+@media (max-width: 720px) {
+  html[data-look="glass"] .peek { border-radius: var(--g-radius-l) var(--g-radius-l) 0 0; }
+}
 html[data-look="glass"] .peek-bar i { background: var(--g-progress, #fff); }
 
 /* ---------- performance: the same picture, fewer paints ---------- */
@@ -1427,7 +1522,6 @@ html[data-look="glass"] .episode,
 html[data-look="glass"] .source-row,
 html[data-look="glass"] .dl-row,
 html[data-look="glass"] .taste-tile,
-html[data-look="glass"] .pref-item,
 html[data-look="glass"] .party-strip-item {
   background: var(--g-fill);
   border: 0;
@@ -1461,6 +1555,15 @@ html[data-look="glass"] .dl-row.fresh {
 /* the season island scrolls sideways when it can't fit */
 html[data-look="glass"] .season-bar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 html[data-look="glass"] .season-bar::-webkit-scrollbar { display: none; }
+/* phones: the island scrolls on its own and the season actions wrap under
+   it — one long strip put "Mark season watched" 300px off the right edge
+   with nothing to say it was there */
+@media (max-width: 720px) {
+  html[data-look="glass"] .season-bar { flex-wrap: wrap; overflow: visible; row-gap: 10px; }
+  html[data-look="glass"] .season-island { max-width: 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  html[data-look="glass"] .season-island::-webkit-scrollbar { display: none; }
+  html[data-look="glass"] .season-bar-trailing { margin-left: 0 !important; flex-wrap: wrap; }
+}
 /* phone dock: transport on one row, tools on the next; volume is the phone's own buttons */
 @media (max-width: 720px) {
   html[data-look="glass"] .player-controls {
@@ -1507,8 +1610,9 @@ html[data-look="glass"] .hero.trailing .hero-backdrop.on {
 }
 html[data-look="glass"] .hero-unmute {
   position: absolute;
-  right: calc(var(--page-x) + 12px);
-  bottom: 30px;
+  /* right above the dots, flush with their right edge */
+  right: var(--page-x);
+  bottom: 68px;
   z-index: 4;
   display: inline-flex;
   align-items: center;
@@ -1526,15 +1630,13 @@ html[data-look="glass"] .hero-unmute {
   -webkit-backdrop-filter: var(--g-blur);
   cursor: pointer;
   animation: g-reveal 420ms var(--ease) both;
-  /* right above the dots, flush with their right edge */
-  right: var(--page-x);
-  bottom: 68px;
 }
 html[data-look="glass"] .hero-unmute:hover { background: rgba(255, 255, 255, 0.16); }
 html[data-look="glass"] .hero-unmute:focus { box-shadow: var(--focus-ring); }
 html[data-look="glass"] .hero.trailing-sound .hero-unmute { background: rgba(255, 255, 255, 0.2); }
 @media (max-width: 720px) {
-  html[data-look="glass"] .hero-unmute { right: 16px; bottom: 44px; }
+  /* above the Play/Details row (which ends 94px up), not beside it */
+  html[data-look="glass"] .hero-unmute { right: 16px; bottom: 104px; }
 }
 
 /* the greeting sits close under the slab */
@@ -1582,10 +1684,10 @@ html[data-look="glass"] #nav-new.has-new .nav-new-dot {
   color: #86efac; background: rgba(74, 222, 128, 0.16); box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.4);
 }
 .wn-what { margin: 8px 0 0; line-height: 1.5; color: rgba(243, 244, 248, 0.9); text-wrap: pretty; }
-.wn-how { margin: 8px 0 0; font-size: 0.9rem; line-height: 1.5; color: var(--text-dim); text-wrap: pretty; }
+.wn-how { margin: 8px 0 12px; font-size: 0.9rem; line-height: 1.5; color: var(--text-dim); text-wrap: pretty; }
 .wn-how b { color: #7fd1e8; font-weight: 800; letter-spacing: 0.04em; }
-.wn-go { margin-top: auto; align-self: flex-start; padding-top: 12px; border-radius: 999px; }
-.wn-foot { display: flex; gap: 10px; justify-content: center; margin-top: 30px; }
+.wn-go { margin-top: auto; align-self: flex-start; border-radius: 999px; }
+.wn-foot { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 30px; }
 /* the cue tile: a glyph in glass, with a small living hint per feature */
 .wn-cue {
   position: relative; flex: none; width: 76px; height: 76px; border-radius: 22px;
@@ -1635,4 +1737,7 @@ html[data-look="glass"] #nav-new.has-new .nav-new-dot {
 @media (max-width: 720px) {
   .whatsnew { padding-top: calc(var(--nav-h) + 10px); } /* clear of the floating logo */
   .wn-grid { grid-template-columns: 1fr; }
+  /* two buttons that no longer fit side by side each take a full line
+     instead of wrapping their own label onto two */
+  .wn-foot .btn { flex: 1 1 100%; justify-content: center; }
 }

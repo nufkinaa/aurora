@@ -76,6 +76,19 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   const calm = matchMedia("(prefers-reduced-motion: reduce)");
+  // Phones (and anything else with a finger, or a small screen) paint at a
+  // quarter of the resolution and 12fps instead of a third and 20: the
+  // curtains are as soft either way — the blur IS the upscale — and the
+  // per-frame column loop costs less than half as much on a weak CPU.
+  const mobile = matchMedia("(pointer: coarse)").matches || innerWidth < 900;
+  const FRAME_MS = mobile ? 83 : 50;
+  // A genuinely weak device (2 GB, two cores, or data saver on) gets one still
+  // frame of the sky, like reduced-motion does — the look, without the loop.
+  const weak =
+    (navigator.deviceMemory && navigator.deviceMemory <= 2) ||
+    (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2) ||
+    !!(navigator.connection && navigator.connection.saveData);
+  const still = () => calm.matches || weak;
 
   // Four curtains spread over the WHOLE height (the page sky sits behind
   // every screen, not just the top of one), thicker and a touch brighter
@@ -95,7 +108,7 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   // A sparse, fixed starfield (twinkle via alpha wave — no reshuffling).
   // A fuller field, twinkling the way stars do: most flicker faintly, a few
   // bright ones swell and dim with a soft halo, each on its own slow clock.
-  const STARS = Array.from({ length: 170 }, () => {
+  const STARS = Array.from({ length: mobile ? 110 : 170 }, () => {
     const bright = Math.random() < 0.12;
     return {
       x: Math.random(),
@@ -109,7 +122,7 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
 
   let raf = null;
   let last = 0;
-  const DOWN = 3;
+  const DOWN = mobile ? 4 : 3;
   const size = () => {
     const w = Math.max(1, Math.round(canvas.clientWidth / DOWN));
     const h = Math.max(1, Math.round(canvas.clientHeight / DOWN));
@@ -190,10 +203,20 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   };
 
   const alive = () => canvas.isConnected && !document.hidden;
+  // The player covers the whole viewport with black — a sky animating under
+  // it is pure battery. While one is open the loop sleeps and checks back
+  // once a second (a full-screen overlay, not a page, so no route event).
+  const covered = () => !!document.querySelector(".player");
+  let napTimer = null;
   const loop = (now) => {
     raf = null;
-    if (!alive() || calm.matches) return;
-    if (now - last >= 50) {
+    if (!alive() || still()) return;
+    if (covered()) {
+      clearTimeout(napTimer);
+      napTimer = setTimeout(kick, 1000);
+      return;
+    }
+    if (now - last >= FRAME_MS) {
       last = now;
       paint(now / 1000);
     }
@@ -201,7 +224,7 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   };
   const kick = () => {
     if (!alive()) return;
-    if (calm.matches) {
+    if (still()) {
       paint(6, true);
       return;
     }
@@ -215,6 +238,7 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   return () => {
     if (raf != null) cancelAnimationFrame(raf);
     raf = null;
+    clearTimeout(napTimer);
     document.removeEventListener("visibilitychange", kick);
     window.removeEventListener("resize", kick);
   };

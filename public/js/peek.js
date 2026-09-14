@@ -113,7 +113,7 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
     "div",
     { class: "peek", role: "dialog", "aria-modal": "true", "aria-label": item.title },
     el("div", { class: "peek-art" + (item.backdrop ? "" : " poster") },
-      art ? posterImg(art, item.title, "peek-img", "card-fallback") : el("div", { class: "card-fallback" }, item.title),
+      art ? posterImg(art, item.title, "peek-img", "card-fallback", { w: 520 }) : el("div", { class: "card-fallback" }, item.title),
       el("div", { class: "peek-art-fade" }),
       el("button", { class: "btn btn-icon focusable peek-close", "aria-label": "Close", html: "✕", onclick: closePeek }),
     ),

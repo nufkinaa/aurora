@@ -19,6 +19,15 @@ const crypto = require("crypto");
 
 const versions = new Map(); // abs path -> { stamp, v }
 const versionFor = (abs) => {
+  // the bundled shell stylesheet has no file of its own — its hash is the
+  // bundle's (src/lib/cssbundle.js), recomputed when any source sheet moves
+  if (/[\\/]aurora\.css$/.test(abs)) {
+    try {
+      return require("./cssbundle").get(path.dirname(abs)).hash;
+    } catch {
+      return null;
+    }
+  }
   try {
     const st = fs.statSync(abs);
     const stamp = `${st.mtimeMs}:${st.size}`;

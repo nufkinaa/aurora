@@ -187,6 +187,28 @@ app.use("/avatars", express.static(path.join(__dirname, "data", "avatars"), {
 const shell = require("./src/lib/assetver").sendShell(path.join(__dirname, "public"));
 app.get("/", (req, res) => shell(res, "index.html"));
 
+// The app shell's stylesheets as ONE minified file (src/lib/cssbundle.js):
+// six render-blocking requests became one, ~40% smaller. Versioned by the
+// shell's ?v= like every other sheet — immutable when the hash is present,
+// revalidated when it isn't (a direct load while editing).
+const cssbundle = require("./src/lib/cssbundle");
+app.get("/css/aurora.css", (req, res) => {
+  const { css, hash } = cssbundle.get(path.join(__dirname, "public", "css"));
+  res.setHeader("Content-Type", "text/css; charset=utf-8");
+  res.setHeader("ETag", `"${hash}"`);
+  res.setHeader("Cache-Control", req.query.v ? "public, max-age=31536000, immutable" : "no-cache");
+  if (req.headers["if-none-match"] === `"${hash}"`) return res.status(304).end();
+  res.send(css);
+});
+
+// Without this the SPA fallback answered robots.txt with the HTML shell,
+// which crawlers (and Lighthouse) read as a broken robots file. Nothing is
+// forbidden here: every page sits behind the profile door (or the sign-in
+// wall), so a crawler that follows the shell finds no library data anyway.
+app.get("/robots.txt", (req, res) => {
+  res.type("text/plain").send("User-agent: *\nDisallow:\n");
+});
+
 app.get("/admin", (req, res) => {
   // The shell is just UI code (no data). It shows a password overlay on load
   // and makes NO admin API/WS calls until the password is entered; every one

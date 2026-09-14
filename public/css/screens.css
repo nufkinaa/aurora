@@ -628,6 +628,20 @@
 .rows-editor::-webkit-scrollbar-thumb { background: var(--surface-hover); border-radius: 99px; }
 .rows-editor::-webkit-scrollbar-track { background: transparent; }
 .rows-editor .pref-item { padding: 8px 4px; }
+/* the Shown/Hidden toggle beside the arrows: a small pill, not bare text */
+.rows-editor .mini {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background var(--t-fast), color var(--t-fast), box-shadow var(--t-fast);
+}
+.rows-editor .mini:hover { background: var(--surface-hover); color: var(--text); }
+.rows-editor .mini:focus { box-shadow: var(--focus-ring); }
 .row-grip {
   color: var(--text-faint);
   letter-spacing: 2px;
@@ -994,6 +1008,9 @@
 .season-bar-trailing {
   display: flex;
   gap: 10px;
+}
+.season-bar-trailing.push-end {
+  margin-left: auto;
 }
 
 /* Episode list */
@@ -2447,6 +2464,14 @@
     opacity: 0;
     transform: translate(-50%, -50%) scale(1.15);
   }
+}
+
+/* The CC / speed / settings popover, anchored above the tools at the right
+   of the control bar (it used to carry these as inline styles; the glass
+   look's phone dock repositions it). */
+.player .menu {
+  right: 36px;
+  bottom: 110px;
 }
 
 /* Up Next card */

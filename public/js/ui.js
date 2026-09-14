@@ -83,22 +83,36 @@ const PROXY_ART_HOSTS = new Set([
   "live.metahub.space",
   "static.tvmaze.com",
 ]);
-export const artUrl = (u) => {
-  if (!u || typeof u !== "string" || !u.startsWith("https://")) return u;
+// `w` (optional): the widest the picture will be drawn, in CSS px. The server
+// answers with a variant no wider than ~2× that (imgvariant.js) — a poster
+// drawn 150px wide on a phone doesn't need a 200 KB scan. Local library
+// covers (/img/<id>) and proxied catalogue art both take it; stills, frames
+// and unknown hosts pass through untouched.
+export const artUrl = (u, w) => {
+  if (!u || typeof u !== "string") return u;
+  const wq = w ? `w=${Math.min(1280, Math.round(w * Math.min(2, window.devicePixelRatio || 1)))}` : "";
+  if (u.startsWith("/img/")) {
+    // library covers and the cached metadata posters; stills/frames untouched
+    return wq && /^\/img\/(?:meta\/)?[A-Za-z0-9._-]+$/.test(u) ? `${u}?${wq}` : u;
+  }
+  if (!u.startsWith("https://")) return u;
   try {
     if (PROXY_ART_HOSTS.has(new URL(u).host))
-      return "/img/ext?u=" + encodeURIComponent(u);
+      return "/img/ext?u=" + encodeURIComponent(u) + (wq ? `&${wq}` : "");
   } catch {}
   return u;
 };
+
+// How wide a full-bleed hero backdrop is worth fetching for this screen.
+export const heroArtWidth = () => Math.min(1280, window.innerWidth);
 
 // A poster <img> that can never strand a grey tile. Browsers never retry a
 // failed image on their own, so one transient CDN hiccup used to leave a
 // blank card until the next full render (elia's grey-poster report). One
 // cache-busted retry covers the transient case; a second failure swaps in
 // the same titled fallback tile the no-artwork path uses.
-export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-fallback") => {
-  src = artUrl(src);
+export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-fallback", { w = null } = {}) => {
+  src = artUrl(src, w);
   const img = el("img", { class: cls + " img-fade", src, loading: "lazy", decoding: "async", alt: "" });
   // Fade in on decode instead of popping. Cached images can be complete
   // before this handler attaches — reveal immediately then.

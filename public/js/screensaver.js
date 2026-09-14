@@ -82,7 +82,7 @@ const start = async () => {
   let front = imgA;
   const show = (slide) => {
     const back = front === imgA ? imgB : imgA;
-    back.src = artUrl(slide.src);
+    back.src = artUrl(slide.src, window.innerWidth);
     back.onload = () => {
       back.classList.add("show");
       front.classList.remove("show");

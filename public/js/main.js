@@ -3,16 +3,9 @@ import "./focus.js";
 import { $, el, toast } from "./ui.js";
 import { route, startRouter, navigate } from "./router.js";
 import { state, loadProfiles, setProfile, savedToken, downloads, readyDownloads } from "./state.js";
-import { api, setAuthToken } from "./api.js";
+import { api, setAuthToken, forgetWarm } from "./api.js";
 import { connect, onMessage } from "./ws.js";
 import { renderHome } from "./screens/home.js";
-import { renderMovies, renderShows, renderMyList } from "./screens/browse.js";
-import { renderSearch } from "./screens/search.js";
-import { renderRequests } from "./screens/requests.js";
-import { renderWrapped } from "./screens/wrapped.js";
-import { renderTaste } from "./screens/taste.js";
-import { renderPickForMe } from "./screens/pickforme.js";
-import { renderWhatsNew, paintNewDot } from "./screens/whatsnew.js";
 import { showProfileGate } from "./screens/profiles.js";
 import { showLoginScreen } from "./screens/login.js";
 import { showClaimModal } from "./claim.js";
@@ -21,28 +14,33 @@ import { showReportSheet } from "./report.js";
 import { pushScope, popScope } from "./focus.js";
 import { initAurora } from "./aurora.js";
 import { initScreensaver } from "./screensaver.js";
+import { initPrefetch } from "./prefetch.js";
 
-// The three heaviest screens — player (94 KB), the unified detail page
-// (65 KB) and preferences (which statically pulls player.js in for the
-// subtitle prefs) — load on first navigation instead of at boot, the same
-// shape as pair.js below. Safe because the router AWAITS handlers
-// (router.js:59), so the resolved cleanup function still reaches
-// current.cleanup; they're also warmed right after boot (see the idle
-// callback at the bottom) so a real click never waits on the network.
+// Only what boot needs is imported statically: home, the profile door, the
+// sign-in screen and the shared chrome. Every other screen loads on first
+// navigation, the same shape as pair.js below — the player (150 KB), the
+// unified detail page, preferences, and now the browse pages, search,
+// requests, Wrapped, taste, the AI tab and the New page too (another ~70 KB
+// a cold phone load was parsing before it could paint the door). Safe
+// because the router AWAITS handlers (router.js), so the resolved cleanup
+// function still reaches current.cleanup; they're all warmed right after
+// boot (see the idle callback at the bottom) so a real click never waits
+// on the network.
 const renderDetailLazy = (root, opts) =>
   import("./screens/discover-detail.js").then((m) => m.renderDetail(root, opts));
+const lazy = (file, name) => (root, p) => import(file).then((m) => m[name](root, p));
 
 route("/", renderHome);
-route("/movies", renderMovies);
-route("/shows", renderShows);
-route("/list", renderMyList);
-route("/search", renderSearch);
+route("/movies", lazy("./screens/browse.js", "renderMovies"));
+route("/shows", lazy("./screens/browse.js", "renderShows"));
+route("/list", lazy("./screens/browse.js", "renderMyList"));
+route("/search", lazy("./screens/search.js", "renderSearch"));
 // One detail page for everything — a title looks the same whether it is on
 // disk, streamable, or both (see screens/discover-detail.js).
 route("/movie/:id", (root, p) => renderDetailLazy(root, { source: "library", type: "movie", id: p.id }));
 route("/show/:id", (root, p) => renderDetailLazy(root, { source: "library", type: "show", id: p.id }));
 route("/play/:id", (root, p) => import("./screens/player.js").then((m) => m.renderPlayer(root, p)));
-route("/requests", renderRequests); // no longer in nav; kept for deep links
+route("/requests", lazy("./screens/requests.js", "renderRequests")); // no longer in nav; kept for deep links
 route("/downloads", (root, p) => import("./screens/downloads.js").then((m) => m.renderDownloads(root, p)));
 // Join a watch party by code: look the party up, hand its item to the
 // player (a torrent play-item travels with the party; a library id is
@@ -69,10 +67,10 @@ route("/discover/:type/:id", (root, p) => {
   return renderDetailLazy(root, { source: "discover", type: p.type, id, jump: s > 0 && e > 0 ? { season: s, episode: e } : null });
 });
 route("/preferences", (root, p) => import("./screens/preferences.js").then((m) => m.renderPreferences(root, p)));
-route("/wrapped", renderWrapped);
-route("/taste", renderTaste);
-route("/pick", renderPickForMe);
-route("/new", renderWhatsNew);
+route("/wrapped", lazy("./screens/wrapped.js", "renderWrapped"));
+route("/taste", lazy("./screens/taste.js", "renderTaste"));
+route("/pick", lazy("./screens/pickforme.js", "renderPickForMe"));
+route("/new", lazy("./screens/whatsnew.js", "renderWhatsNew"));
 route("/pair/:code", (root, p) => import("./screens/pair.js").then((m) => m.renderPair(root, p)));
 
 // "?" anywhere opens the keyboard shortcuts overlay
@@ -112,6 +110,10 @@ initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
 // The glass look's sky: the sign-in aurora, slowed, behind every page. Started
 // when the look is glass and torn down when it isn't — the classic look never
 // pays for a full-viewport canvas it doesn't show.
+// It starts once the browser is idle, not during boot: on a throttled phone
+// the painter was the single biggest main-thread cost of the first seconds
+// (Lighthouse: ~1.2s of a 2.4s total), holding back the first paint of the
+// door it sits behind. The canvas fades in (CSS .on) instead of popping.
 {
   let stopSky = null;
   const syncSky = () => {
@@ -119,17 +121,23 @@ initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
     if (glass && !stopSky) {
       import("./aurora-sky.js").then((m) => {
         if (document.documentElement.dataset.look !== "glass" || stopSky) return;
-        stopSky = m.initAuroraSky($("#glass-sky"), { pace: 0.95 });
+        const canvas = $("#glass-sky");
+        stopSky = m.initAuroraSky(canvas, { pace: 0.95 });
+        canvas.classList.add("on"); // the CSS fade covers the first frame's arrival
       });
     } else if (!glass && stopSky) {
       stopSky();
       stopSky = null;
+      $("#glass-sky").classList.remove("on");
     }
   };
-  syncSky();
+  (window.requestIdleCallback || ((fn) => setTimeout(fn, 900)))(syncSky, { timeout: 2500 });
   window.addEventListener("aurora-look", syncSky);
 }
 initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
+initPrefetch(); // the next screen's data, fetched while this one is read
+// a library change can flip a catalogue item's "in library" mark — start over
+onMessage("library_updated", () => forgetWarm("/api/catalog"));
 
 // Toasts ride into (and out of) the fullscreen element: anything outside
 // the top layer never paints while the player is fullscreen.
@@ -573,9 +581,14 @@ boot();
 // long done by then, and the module cache means the later route hit is
 // instant — same UX as when these were eager, minus their cost at boot.
 (window.requestIdleCallback || ((fn) => setTimeout(fn, 2500)))(() => {
-  import("./screens/player.js").catch(() => {});
-  import("./screens/discover-detail.js").catch(() => {});
-  import("./screens/preferences.js").catch(() => {});
+  for (const f of [
+    "./screens/browse.js", "./screens/search.js", "./screens/discover-detail.js",
+    "./screens/player.js", "./screens/preferences.js", "./screens/whatsnew.js",
+    "./screens/wrapped.js", "./screens/taste.js", "./screens/requests.js", "./screens/pickforme.js",
+  ]) import(f).catch(() => {});
+  // The "New" tab's dot: lit until this version's page has been seen. Rides
+  // the warm-up — it's a nav dot, not something the first paint waits on.
+  import("./screens/whatsnew.js").then((m) => m.paintNewDot()).catch(() => {});
 });
 
 // The AI tab only exists when the server has an AI key configured.
@@ -586,5 +599,4 @@ api
     if (s && s.enabled) document.getElementById("nav-pick")?.classList.remove("hidden");
   })
   .catch(() => {});
-// The "New" tab's dot: lit until this version's page has been seen.
-paintNewDot();
+

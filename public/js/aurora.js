@@ -236,7 +236,9 @@ export const initAurora = (canvas) => {
     ctx.globalAlpha = 1;
   };
 
-  const visible = () => nav.classList.contains("solid") && !document.hidden;
+  // display:none (the glass look hides this strip under its full sky) means
+  // nothing to paint — and no reason to keep a frame loop alive for it
+  const visible = () => nav.classList.contains("solid") && !document.hidden && canvas.offsetParent !== null;
   const loop = (now) => {
     raf = null;
     if (!visible() || calm.matches) return;

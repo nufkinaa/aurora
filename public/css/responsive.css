@@ -108,6 +108,15 @@
   .row-scroller {
     gap: 10px;
   }
+  /* Two-and-a-bit posters per screen instead of two: the third card peeks
+     in, which is what says "this row scrolls". 150px still fits both corner
+     tags (STREAM 60px + FILM 57px, 10px in from each edge). */
+  .card.poster {
+    width: 150px;
+  }
+  .card.wide {
+    width: 264px;
+  }
 
   /* Browse on a phone: the title takes the line, the count sits under it, and
      the filter tools become one swipeable strip instead of wrapping to three. */
@@ -187,6 +196,27 @@
   }
   .source-row .source-play {
     display: none; /* the whole row is the play button here */
+  }
+  /* The YOURS chip and the green edge already say it — the badge only left
+     "Arri…" of the title on a 375px row. */
+  .source-row.owned .source-owned {
+    display: none;
+  }
+  /* Search suggestions: the IN LIBRARY word-badge took 90px of a 343px row
+     and truncated every title; a green tick says the same thing in 22px. */
+  .suggest-item .disc-tag.have {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0;
+    display: inline-grid;
+    place-items: center;
+  }
+  .suggest-item .disc-tag.have::after {
+    content: "✓";
+    font-size: 12px;
+    font-weight: 900;
   }
   .source-quality {
     min-width: 42px;
@@ -275,6 +305,27 @@
     width: 40px;
     height: 40px;
     font-size: 1rem;
+  }
+  /* Pills and chips measured 34–36px tall — a finger wants 40. Padding
+     grows, the type doesn't. */
+  .chip,
+  .cat-pill,
+  .season-pill,
+  .source-filter,
+  .picker-btn {
+    min-height: 40px;
+  }
+  /* the rating stars were 25×26px targets */
+  .star-rating .star {
+    padding: 6px 6px;
+    font-size: 1.55rem;
+  }
+}
+/* A phone held sideways: the rocker is right there, and the dock has no
+   room for a slider beside eight buttons. */
+@media (hover: none) and (max-height: 500px) {
+  .vol-group {
+    display: none;
   }
 }
 

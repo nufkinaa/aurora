@@ -35,6 +35,28 @@ const json = async (url, options = {}, attempt = 0) => {
   return res.json();
 };
 
+let changelogP = null;
+
+// ---- a short-lived cache for idempotent GETs a screen is likely to ask for
+// next (prefetch.js fills it; the pages read through the same api.* calls).
+// TTLs are short and anything that changes a list on the server forgets its
+// entries first (see toggleWatchlist), so a warmed answer is never stale in
+// a way a viewer could notice. A failed fetch drops out at once.
+const warm = new Map(); // url -> { at, p }
+const WARM_TTL = 90 * 1000;
+const warmed = (url, ttl = WARM_TTL) => {
+  const hit = warm.get(url);
+  if (hit && Date.now() - hit.at < ttl) return hit.p;
+  const p = json(url);
+  warm.set(url, { at: Date.now(), p });
+  p.catch(() => warm.delete(url));
+  return p;
+};
+// Drop warmed answers whose URL starts with `prefix` (no prefix: all).
+export const forgetWarm = (prefix = "") => {
+  for (const k of [...warm.keys()]) if (k.startsWith(prefix)) warm.delete(k);
+};
+
 const post = (url, body) =>
   json(url, {
     method: "POST",
@@ -79,7 +101,9 @@ export const api = {
     json(
       `/api/discover/collection/${type}/${encodeURIComponent(id)}${tmdbId ? `?tmdbId=${tmdbId}` : ""}`,
     ),
-  changelog: () => json("/api/changelog"),
+  // Asked by the gear dot, the New tab's dot, the report sheet and the
+  // pages themselves — one request, shared (a failure lets the next ask retry).
+  changelog: () => changelogP || (changelogP = json("/api/changelog").catch((e) => { changelogP = null; throw e; })),
   introAuto: (id) => json(`/api/intro/auto/${encodeURIComponent(id)}`),
   party: (code) => json(`/api/party/${encodeURIComponent(code)}`),
   offlinePrepare: (id) => post(`/api/offline/prepare/${encodeURIComponent(id)}`, {}),
@@ -92,9 +116,9 @@ export const api = {
   // One page of a Browse category (see /api/catalog). Paged per genre, so a
   // niche genre has a deep list of its own rather than a slice of trending.
   catalog: ({ type, category, genre, page = 0 }) =>
-    json(`/api/catalog?type=${encodeURIComponent(type)}&category=${encodeURIComponent(category)}` +
+    warmed(`/api/catalog?type=${encodeURIComponent(type)}&category=${encodeURIComponent(category)}` +
       (genre ? `&genre=${encodeURIComponent(genre)}` : "") + `&page=${page}`),
-  catalogGenres: (type) => json(`/api/catalog/genres?type=${encodeURIComponent(type)}`),
+  catalogGenres: (type) => warmed(`/api/catalog/genres?type=${encodeURIComponent(type)}`, 10 * 60 * 1000),
   // The IMDb id for a library title, so the one detail page can also offer
   // stream sources for something you already own (see /api/imdb-for).
   imdbFor: (type, title, year) =>
@@ -183,10 +207,12 @@ export const api = {
   dismissUpNext: (id, showId, episodeId) =>
     post(`/api/profiles/${id}/upnext-dismiss`, { showId, episodeId }),
   // itemOrRef: a local id string, or a stream ref {imdbId, type, title, poster, year}
-  toggleWatchlist: (id, itemOrRef, add) =>
-    post(`/api/profiles/${id}/watchlist`,
-      typeof itemOrRef === "string" ? { itemId: itemOrRef, add } : { stream: itemOrRef, add }),
-  watchlist: (id) => json(`/api/profiles/${id}/watchlist`),
+  toggleWatchlist: (id, itemOrRef, add) => {
+    forgetWarm(`/api/profiles/${id}/watchlist`); // the list is about to change
+    return post(`/api/profiles/${id}/watchlist`,
+      typeof itemOrRef === "string" ? { itemId: itemOrRef, add } : { stream: itemOrRef, add });
+  },
+  watchlist: (id) => warmed(`/api/profiles/${id}/watchlist`, 60 * 1000),
   rate: (id, itemId, stars) => post(`/api/profiles/${id}/rating`, { itemId, stars }),
   setPreferences: (id, likedGenres) => post(`/api/profiles/${id}/preferences`, { likedGenres }),
 

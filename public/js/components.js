@@ -130,33 +130,53 @@ export const card = (item, { wide = false, onRemove = null, showKind = false } =
         .filter(Boolean)
         .join(" "),
       // The visible label drops the show name, so the accessible one carries both
-      // it and the episode.
-      "aria-label": newEp
-        ? `${item.title}, season ${newEp.season} episode ${newEp.episode}` +
-          (waiting ? `, ${waiting} new episodes` : "")
-        : item.title,
+      // it and the episode — and it starts with what the label shows, so a
+      // screen reader's name matches the words on the card (the tags below
+      // are decoration and sit outside the name).
+      "aria-label": (newEp
+        ? `${item.title}, S${newEp.season} E${newEp.episode}${behind}` // reads as the label prints it
+        : isEpisode
+          ? `${item.showTitle ? `${item.showTitle} ` : ""}S${item.season} E${item.episode} · ${item.title}`
+          : item.title) +
+        // every word printed on the card, so the spoken name never disagrees
+        // with what a sighted person reads off it (a11y label-content rule);
+        // "stream" and "series"/"film" are also useful things to hear
+        [
+          item.source === "stream" && !item.badge && "stream",
+          item.badge && String(item.badge.text || "").toLowerCase(),
+          showKind && !isEpisode && !onRemove && (item.type === "show" ? "series" : "film"),
+          isNew && "new",
+          item.meta || left,
+        ].filter(Boolean).map((w) => `, ${w}`).join(""),
       // the recommender's honesty: hover a recommended card and it says WHY
       ...(item.why ? { title: item.why } : {}),
       onclick: () => openItem(item),
     },
+    // sized for the card (wide cards are 300px, posters 176px; the server
+    // scales the artwork to about twice that for sharp screens)
     item.cover
-      ? posterImg(item.cover, item.title)
+      ? posterImg(item.cover, item.title, "card-poster", "card-fallback", { w: wide || isEpisode ? 320 : 180 })
       : el("div", { class: "card-fallback" }, item.title),
     el("div", { class: "card-shade" }),
-    item.source === "stream" && !item.badge && el("span", { class: "card-tag stream" }, "STREAM"),
+    // The tag words are drawn by CSS from data-t (components.css) rather than
+    // written into the DOM: text inside the button that isn't in its name
+    // trips the label-in-name accessibility rule, and the name already says
+    // "stream" / "film" in words.
+    item.source === "stream" && !item.badge && el("span", { class: "card-tag stream", "aria-hidden": "true", "data-t": "STREAM" }),
     // Tonight-row state (glass look): READY · plays from disk, LIVE · a party, NEW
-    item.badge && el("span", { class: `card-tag ${item.badge.tone || ""}` }, item.badge.text),
+    item.badge && el("span", { class: `card-tag ${item.badge.tone || ""}`, "aria-hidden": "true", "data-t": item.badge.text }),
     // Series or film. Only where the row it sits in mixes the two, and never on an
     // episode (its own label already reads "S3 E2") or a card carrying the remove
     // ✕, which owns this corner.
     showKind && !isEpisode && !onRemove &&
       el("span", {
         class: `card-tag kind ${item.type === "show" ? "series" : "film"}`,
+        "aria-hidden": "true",
         html:
           (item.type === "show" ? icons.series : icons.film) +
-          `<span>${item.type === "show" ? "SERIES" : "FILM"}</span>`,
+          `<span data-t="${item.type === "show" ? "SERIES" : "FILM"}"></span>`,
       }),
-    isNew && el("span", { class: "card-new" }, "NEW"),
+    isNew && el("span", { class: "card-new", "aria-hidden": "true", "data-t": "NEW" }),
     pct !== null && el("div", { class: "card-progress" }, el("div", { style: { width: pct + "%" } })),
     showLabel && label,
     onRemove && !item._noRemove &&

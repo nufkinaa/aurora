@@ -154,7 +154,8 @@ router.get("/sw-manifest.json", (req, res) => {
   const fs = require("fs");
   const pub = path.join(__dirname, "..", "..", "public");
   if (Date.now() - shellManifest.at > 30000 || !shellManifest.data) {
-    const files = ["/", "/index.html"];
+    // the bundled stylesheet the shell actually loads, plus the sources
+    const files = ["/", "/index.html", "/css/aurora.css"];
     let stamp = 0;
     const walk = (dir, prefix) => {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

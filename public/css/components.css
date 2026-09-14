@@ -513,6 +513,14 @@
   backdrop-filter: blur(4px);
   pointer-events: none;
 }
+/* The words come from data-t, drawn here: DOM text inside the card button
+   that isn't part of its accessible name fails the label-in-name rule, and
+   the card's aria-label already carries them in words. */
+.card-tag[data-t]::after,
+.card-tag span[data-t]::after,
+.card-new[data-t]::after {
+  content: attr(data-t);
+}
 .card-tag.stream {
   left: 10px;
 }

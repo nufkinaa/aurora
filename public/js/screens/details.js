@@ -1,7 +1,7 @@
 // Shared pieces of the detail page: the hero block and the library-side
 // "My List" button. The page itself lives in discover-detail.js, which serves
 // library titles and streamable titles as one screen.
-import { el, icons, resBadge, toast, posterImg, artUrl, formatRow } from "../ui.js";
+import { el, icons, resBadge, toast, posterImg, artUrl, formatRow, heroArtWidth } from "../ui.js";
 import { api } from "../api.js";
 import { state } from "../state.js";
 import { starRating } from "../components.js";
@@ -41,15 +41,17 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null, serverInfo
     (item.backdrop || item.cover) &&
       el("div", {
         class: `hero-backdrop ${item.backdrop ? "sharp" : ""}`,
+        // sized for the screen: a 1920px catalogue backdrop is a megabyte a
+        // phone never needed (the server resizes, see imgvariant.js)
         style: {
           backgroundImage: item.backdrop
-            ? `url("${artUrl(item.backdrop)}"), url("${artUrl(item.cover)}")`
-            : `url("${artUrl(item.cover)}")`,
+            ? `url("${artUrl(item.backdrop, heroArtWidth())}"), url("${artUrl(item.cover, 300)}")`
+            : `url("${artUrl(item.cover, heroArtWidth())}")`,
         },
       }),
     el("div", { class: "hero-fade" }),
     item.cover
-      ? posterImg(item.cover, item.title, "detail-poster", "detail-poster card-fallback")
+      ? posterImg(item.cover, item.title, "detail-poster", "detail-poster card-fallback", { w: 300 })
       : el("div", { class: "detail-poster card-fallback" }, item.title),
     el("div", { class: "detail-info" },
       el("div", { class: "hero-kicker" }, item.type === "show" ? "Series" : "Film"),
@@ -67,8 +69,9 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null, serverInfo
             { class: "badge badge-age", title: "Age rating" },
             item.certificate,
           ),
-        formatRow(item, { max: 5 }),
-        item.subtitles && item.subtitles.length > 0 && el("span", { class: "badge" }, "CC")
+        // CC rides in the format row (formatBadges appends it last) — the
+        // separate badge that used to follow printed it twice
+        formatRow(item, { max: 6 }),
       ),
       item.genres && item.genres.length > 0 &&
         el("div", { class: "genre-chips" },
