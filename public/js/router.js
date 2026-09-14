@@ -15,7 +15,7 @@ export const route = (pattern, render) => {
       }) +
       "$"
   );
-  routes.push({ regex, names, render });
+  routes.push({ pattern, regex, names, render });
 };
 
 export const navigate = (hash) => {
@@ -56,8 +56,14 @@ const render = async () => {
     appRoot.innerHTML = "";
     markNav(hash);
     window.scrollTo(0, 0);
+    const t0 = performance.now();
     const cleanup = await r.render(appRoot, params);
     if (typeof cleanup === "function") current.cleanup = cleanup;
+    // Which screen painted and how long it took (the pattern, never an id) —
+    // the usage stats listen for this. Measured to the next frame, so the
+    // paint is in.
+    requestAnimationFrame(() =>
+      window.dispatchEvent(new CustomEvent("aurora-route", { detail: { pattern: r.pattern, ms: performance.now() - t0 } })));
     return;
   }
 

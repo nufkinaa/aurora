@@ -645,6 +645,23 @@ export const renderPreferences = async (root) => {
             () => { playerPrefs.set("cueBackground", !playerPrefs.get("cueBackground", true)); applyCueStyle(); }
           )
         )),
+      section("Privacy", "Usage stats stay on this server. The admin's Analytics tab reads them to tune Aurora for how the household actually uses it.",
+        el("div", { class: "pref-list page-pad" },
+          prefRow(
+            "Usage stats",
+            "Which screens, features and play paths get used, and how long they took to appear — a few bytes each, sent in batches. Never what you search for or type.",
+            () => ((state.profile.prefs || {}).usageStats === false ? "Off" : "On"),
+            async () => {
+              const next = (state.profile.prefs || {}).usageStats === false; // off → on
+              state.profile.prefs = { ...(state.profile.prefs || {}), usageStats: next };
+              try {
+                await api.updateProfile(state.profile.id, { prefs: { usageStats: next } });
+              } catch (e) {
+                state.profile.prefs = { ...(state.profile.prefs || {}), usageStats: !next };
+                toast(e.message || "Couldn't save that", "⚠️");
+              }
+            }
+          ))),
       section("Genres you like", "We use these — plus your watch history and star ratings — to pick what shows up on Home.",
         genres.length
           ? chips

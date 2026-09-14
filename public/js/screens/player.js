@@ -9,6 +9,7 @@ import { reportActivity, onMessage } from "../ws.js";
 import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem } from "../party.js";
 import { showReportSheet, setPlayingContext } from "../report.js";
 import * as offline from "../offline.js";
+import { track } from "../usage.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -41,6 +42,110 @@ const prefs = {
 export const playerPrefs = prefs;
 
 const CUE_SIZES = { S: "1.4vw", M: "2.2vw", L: "3.2vw" };
+
+// ---------- what this device can play ----------
+// Module-level so the Play-button warm-up (warmPlayback, used by
+// prefetch.js) and the player itself decide from ONE set of rules. The
+// player's closures below delegate here — never fork the logic.
+const MIME = {
+  // BOTH directions must be mapped: the bad codecs so they remux, and the
+  // GOOD ones with their real RFC6381 strings — a bare "aac" gets "" from
+  // canPlayType (it wants mp4a.40.2), which silently classed every probed
+  // AAC stream as needs-remux and re-encoded perfectly playable audio.
+  audio: {
+    ac3: "ac-3", eac3: "ec-3", dts: "dtsc", truehd: "mlpa",
+    aac: "mp4a.40.2", mp3: "mp4a.6B", opus: "opus", flac: "flac", vorbis: "vorbis",
+  },
+  video: {
+    h264: "avc1.640029",
+    hevc: "hvc1.1.6.L123.B0",
+    av1: "av01.0.08M.08",
+    vp9: "vp09.00.40.08",
+    vp8: "vp8",
+    mpeg4: "mp4v.20.9",
+  },
+  // The CONTAINER matters as much as the codec: an iPhone hardware-decodes
+  // HEVC but can't demux MKV at all.
+  container: {
+    mp4: "video/mp4",
+    m4v: "video/mp4",
+    mov: "video/quicktime",
+    mkv: "video/x-matroska",
+    webm: "video/webm",
+    avi: "video/x-msvideo",
+  },
+};
+// iPhone: HLS through Safari's NATIVE pipeline, never MSE (see startHls).
+export const nativeHlsFor = (video) =>
+  /iPhone|iPod/.test(navigator.userAgent) && !!video.canPlayType("application/vnd.apple.mpegurl");
+// AC-3 / E-AC-3 / DTS audio is silent in most desktop browsers (fine on TVs).
+export const audioRemuxFor = (item, video) => {
+  const codec = item.audio && item.audio.codec;
+  if (!codec || item.audio.compatible) return false;
+  const mime = MIME.audio[codec] || codec;
+  return !(
+    video.canPlayType(`audio/mp4; codecs="${mime}"`) ||
+    video.canPlayType(`video/mp4; codecs="${mime}"`) ||
+    // opus/vorbis are webm-family answers in Blink; mkv rides the same demuxer
+    video.canPlayType(`audio/webm; codecs="${mime}"`)
+  );
+};
+// HEVC/AV1/10-bit video decodes fine on TVs but not on most phones/desktops.
+export const videoTranscodeFor = (item, video) => {
+  const v = item.video;
+  if (!v || !v.codec || !item.transcodeBase) return false;
+  // 10-bit H.264 (Hi10P) has no hardware decoding anywhere and canPlayType
+  // can't see bit depth — always transcode it.
+  if (v.codec === "h264" && (v.bitDepth || 8) > 8) return true;
+  const mime = MIME.video[v.codec];
+  if (!mime) return true; // mpeg2, vc1, wmv… nothing browsers decode
+  // Ask about the file's actual container when we know it; otherwise fall
+  // back to the generic containers.
+  const containers = MIME.container[item.container]
+    ? [MIME.container[item.container]]
+    : ["video/mp4", "video/webm"];
+  return !containers.some((c) => video.canPlayType(`${c}; codecs="${mime}"`));
+};
+// Can this device DECODE the codec if we repackage into a container it
+// accepts? h264 8-bit is universal; HEVC rides on hardware. iOS canPlayType
+// LIES about hvc1 (blank while every iPhone since iOS 11 decodes HEVC), so
+// on native-HLS devices HEVC is a platform guarantee.
+export const copyableFor = (v, video, nativeHls) =>
+  !!v &&
+  ((v.codec === "h264" && (v.bitDepth || 8) <= 8) ||
+    (v.codec === "hevc" && (nativeHls || !!video.canPlayType('video/mp4; codecs="hvc1.2.4.L123.B0"'))));
+
+// Start the server side of playback for a library title BEFORE the tap: the
+// same first request the player would make (the jit full-timeline playlist,
+// or the h264 offset job) — so the index/first segment is ready when Play
+// lands. Direct-play files have nothing to warm. Torrents are never warmed
+// here (that would join a swarm). Returns the URL asked, or null.
+let probeEl = null;
+export const warmPlayback = (item) => {
+  try {
+    if (!item || item._isTorrent || item.magnet || String(item.id || "").startsWith("torrent|") || item._offline) return null;
+    if (!item.transcodeBase) return null;
+    const video = probeEl || (probeEl = document.createElement("video"));
+    const nativeHls = nativeHlsFor(video);
+    const needV = videoTranscodeFor(item, video);
+    const needA = audioRemuxFor(item, video);
+    const copyable = copyableFor(item.video || {}, video, nativeHls);
+    // the three server-backed branches of renderPlayer's start decision
+    const hevcMkv = !nativeHls && item.video && item.video.codec === "hevc" && /mkv|matroska/i.test(item.container || "") && copyable;
+    let url = null;
+    if (hevcMkv || (needV && copyable) || (!needV && needA)) {
+      const isHevc = item.video && item.video.codec === "hevc";
+      url = `${item.transcodeBase}/jit/index.m3u8${nativeHls ? `?seg=fmp4${isHevc ? "&vtag=hvc1" : ""}` : ""}`;
+    } else if (needV) {
+      url = `${item.transcodeBase}/0/index.m3u8?v=h264`;
+    }
+    if (!url) return null;
+    fetch(url, { cache: "no-store", priority: "low" }).catch(() => {});
+    return url;
+  } catch {
+    return null;
+  }
+};
 
 // Subtitle appearance is styled globally via ::cue
 export const applyCueStyle = () => {
@@ -227,63 +332,21 @@ export const renderPlayer = async (root, { id }) => {
   // canPlayType (it wants mp4a.40.2), which silently classed every probed
   // AAC stream as needs-remux and re-encoded perfectly playable audio
   // (found 2026-08-27 hunting elia's needless-transcode report).
-  const AUDIO_MIME = {
-    ac3: "ac-3", eac3: "ec-3", dts: "dtsc", truehd: "mlpa",
-    aac: "mp4a.40.2", mp3: "mp4a.6B", opus: "opus", flac: "flac", vorbis: "vorbis",
-  };
-  const audioNeedsRemux = () => {
-    const codec = item.audio && item.audio.codec;
-    if (!codec || item.audio.compatible) return false;
-    const mime = AUDIO_MIME[codec] || codec;
-    return !(
-      video.canPlayType(`audio/mp4; codecs="${mime}"`) ||
-      video.canPlayType(`video/mp4; codecs="${mime}"`) ||
-      // opus/vorbis are webm-family answers in Blink; mkv rides the same demuxer
-      video.canPlayType(`audio/webm; codecs="${mime}"`)
-    );
-  };
+  // (the tables and the rules live at module scope — see MIME / audioRemuxFor)
+  const audioNeedsRemux = () => audioRemuxFor(item, video);
 
   // HEVC/AV1/10-bit video (typical of downloaded torrents) decodes fine on
   // TVs but not on most phones/desktops. The server records the library
   // file's video codec; each device decides for itself via canPlayType and
   // plays the server transcode when it can't decode the file directly.
-  const VIDEO_MIME = {
-    h264: "avc1.640029",
-    hevc: "hvc1.1.6.L123.B0",
-    av1: "av01.0.08M.08",
-    vp9: "vp09.00.40.08",
-    vp8: "vp8",
-    mpeg4: "mp4v.20.9",
-  };
+
   // The CONTAINER matters as much as the codec: an iPhone hardware-decodes
   // HEVC but can't demux MKV at all, so asking about the real container is
   // what lets the player start on the transcode immediately instead of
   // direct-playing into a stall and switching 6+ seconds later. Blink
   // (Chrome/TV WebView) answers x-matroska queries accurately; WebKit
   // returns "" for it, which is also the truth.
-  const CONTAINER_MIME = {
-    mp4: "video/mp4",
-    m4v: "video/mp4",
-    mov: "video/quicktime",
-    mkv: "video/x-matroska",
-    webm: "video/webm",
-    avi: "video/x-msvideo",
-  };
-  const videoNeedsTranscode = () => {
-    const v = item.video;
-    if (!v || !v.codec || !item.transcodeBase) return false;
-    // 10-bit H.264 (Hi10P) has no hardware decoding anywhere and canPlayType
-    // can't see bit depth — always transcode it.
-    if (v.codec === "h264" && (v.bitDepth || 8) > 8) return true;
-    const mime = VIDEO_MIME[v.codec];
-    if (!mime) return true; // mpeg2, vc1, wmv… nothing browsers decode
-    // Ask about the file's actual container when we know it; otherwise fall
-    // back to the generic containers.
-    const containers = CONTAINER_MIME[item.container]
-      ? [CONTAINER_MIME[item.container]]
-      : ["video/mp4", "video/webm"];
-    return !containers.some((c) => video.canPlayType(`${c}; codecs="${mime}"`));
-  };
+  const videoNeedsTranscode = () => videoTranscodeFor(item, video);
 
   // iPhone: play HLS through Safari's NATIVE pipeline, never MSE. iOS 17.1
   // added ManagedMediaSource, which flips Hls.isSupported() to true on
@@ -294,9 +357,7 @@ export const renderPlayer = async (root, { id }) => {
   // native player accepts. iPhone ONLY: desktop Safari keeps hls.js and the
   // patient torrent retry tuning below; canPlayType guards against a spoofed
   // UA on a browser with no native HLS.
-  const nativeHlsOnly =
-    /iPhone|iPod/.test(navigator.userAgent) &&
-    !!video.canPlayType("application/vnd.apple.mpegurl");
+  const nativeHlsOnly = nativeHlsFor(video);
 
   // Can this device DECODE the codec if we repackage into a container it
   // accepts? This is what separates the cheap COPY from the full h264 encode
@@ -305,16 +366,7 @@ export const renderPlayer = async (root, { id }) => {
   // phone hardware-decodes both h264 AND hevc, and only the MKV wrapper was
   // the problem). h264 8-bit is universal; HEVC rides on hardware and gets
   // fMP4 segments on native-HLS devices (Apple's requirement).
-  const codecCopyable = (v) =>
-    !!v &&
-    ((v.codec === "h264" && (v.bitDepth || 8) <= 8) ||
-      (v.codec === "hevc" &&
-        // iOS canPlayType LIES about hvc1 (answers blank while every iPhone
-        // since iOS 11 hardware-decodes HEVC — elia's phone proved it by
-        // "encoding" every x265 stream, 2026-08-26). On native-HLS devices
-        // HEVC is a platform guarantee; elsewhere trust the browser's answer.
-        (nativeHlsOnly ||
-          !!video.canPlayType('video/mp4; codecs="hvc1.2.4.L123.B0"'))));
+  const codecCopyable = (v) => copyableFor(v, video, nativeHlsOnly);
 
   let hls = null;
   // Rebuilds after a FATAL hls.js error (see the ERROR handler). Bounded per
@@ -1569,6 +1621,7 @@ export const renderPlayer = async (root, { id }) => {
     }, 400);
   };
   const toggleFullscreen = () => {
+    track("feat", { f: "fullscreen" });
     if (video.webkitDisplayingFullscreen) {
       try {
         video.webkitExitFullscreen();
@@ -2611,6 +2664,7 @@ export const renderPlayer = async (root, { id }) => {
   const startParty = async () => {
     try {
       await createParty(partySnapshotOf(item));
+      track("feat", { f: "party_start" });
       // the party starts from where we are, in our state
       sendPartyState(!video.paused, effTime(), "sync");
       paintParty();
@@ -2958,6 +3012,7 @@ export const renderPlayer = async (root, { id }) => {
       const range = activeIntro();
       if (!range) return;
       skipIntroBtn.classList.add("hidden");
+      track("feat", { f: "skip_intro" });
       seekTo(range.end);
     },
   });
@@ -3477,6 +3532,11 @@ export const renderPlayer = async (root, { id }) => {
     if (firstFrameMarked) return;
     firstFrameMarked = true;
     mark("first-frame", { transcode: usingTranscode, jit: jitMode, v: currentV || null });
+    track("play", {
+      ms: Math.round(performance.now() - t0),
+      path: jitMode ? "jit" : usingTranscode ? currentV : "direct",
+      kind: isTorrent ? "torrent" : item._offline ? "offline" : "library",
+    });
   });
 
   applyCueStyle();

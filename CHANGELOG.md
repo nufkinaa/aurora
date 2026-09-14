@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.2 — 2026-09-14
+
+- The next title is ready before you tap it: after Home paints, the two most recent Continue Watching titles that aren't effectively finished, and the most recent series still in progress, get their page warmed (record, metadata, art) — quietly, at idle, one every 700ms. Hovering, focusing or pressing any card warms that title's page; hovering Play on a title you own starts the server side of playback (the jit index or copy job) so the first frame is closer when the tap lands. Every prefetch is low priority, skipped on data saver, a 2G connection, a hidden tab, offline, or while a film is playing.
+- Usage stats: which screens, features and play paths get used, and how long they took to appear — a few bytes each, batched every 20 seconds, sent to this server only. Admin → Analytics shows them (screens with time-to-painted, features, play starts by path, nav taps, client errors) with a Copy stats button that puts the whole summary on the clipboard as text. Each profile can turn it off under Preferences → Privacy. Never what you search for or type.
+- Screensaver: come back to Aurora after 90 seconds or more in another tab (or on the phone's home screen) and the saver greets you until the first input — on Home or over a paused film, never over one that is playing. A quick tab hop stays invisible.
+
 ## 1.6.1 — 2026-09-14
 
 - Phone QA pass on Apple Horror. Home: the billboard dots sit under Play/Details instead of on their bottom edge (they were stealing the tap). Player: the subtitles/speed/settings menu is a full-width sheet above the two-row dock (it used to hang 42px off the left edge and over the controls); Up next, Skip intro, the intro-marking chip and the resume card float above the dock too, and the dock is a plain tint on phones (no live blur over video). Peek sheet: square bottom corners where it meets the screen edge. Title pages: episode cards give the title room (smaller still, tighter gaps, the runtime back on the sub-line), the season pills scroll on their own with the season actions wrapped under them, the owned source row keeps its title, one CC badge instead of two. Search suggestions keep the whole title (the library mark is a green tick). Posters are 150px and wide cards 264px on phones so a third card peeks in. Pills, chips and rating stars are finger-sized; toasts clear the home indicator.

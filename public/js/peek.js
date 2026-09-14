@@ -10,6 +10,7 @@ import { state, progressFor } from "./state.js";
 import { api } from "./api.js";
 import { navigate } from "./router.js";
 import { pushScope, popScope } from "./focus.js";
+import { track } from "./usage.js";
 
 const HOLD_MS = 480;
 const MOVE_PX = 10;
@@ -137,6 +138,7 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
   (document.fullscreenElement || document.body).append(wrap);
   openNode = wrap;
   pushScope(wrap);
+  track("feat", { f: "peek" });
   // the primary action, not the ✕, is where a remote should land
   (sheet.querySelector(".peek-actions .btn-primary") || sheet.querySelector(".peek-actions .btn"))?.focus({ preventScroll: true });
   try { if (navigator.vibrate) navigator.vibrate(12); } catch {}

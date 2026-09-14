@@ -44,10 +44,12 @@ let changelogP = null;
 // a way a viewer could notice. A failed fetch drops out at once.
 const warm = new Map(); // url -> { at, p }
 const WARM_TTL = 90 * 1000;
-const warmed = (url, ttl = WARM_TTL) => {
+// `low` marks a prefetch: the browser queues it behind anything the screen
+// is actually waiting for (Fetch Priority API; ignored where unsupported).
+const warmed = (url, ttl = WARM_TTL, { low = false } = {}) => {
   const hit = warm.get(url);
   if (hit && Date.now() - hit.at < ttl) return hit.p;
-  const p = json(url);
+  const p = json(url, low ? { priority: "low" } : {});
   warm.set(url, { at: Date.now(), p });
   p.catch(() => warm.delete(url));
   return p;
@@ -69,10 +71,11 @@ export const api = {
   home: (profileId) => json(`/api/home?profile=${encodeURIComponent(profileId || "")}`),
   // Pass the active profile so torrent items can be rebuilt from stored state
   // after a page refresh (harmless for library items).
-  item: (id) => {
+  // `low`: a prefetch (prefetch.js) — same answer, queued behind real work
+  item: (id, { low = false } = {}) => {
     let profile = "";
     try { profile = localStorage.getItem("aurora-profile") || ""; } catch {}
-    return json(`/api/item/${encodeURIComponent(id)}${profile ? `?profile=${encodeURIComponent(profile)}` : ""}`);
+    return warmed(`/api/item/${encodeURIComponent(id)}${profile ? `?profile=${encodeURIComponent(profile)}` : ""}`, 60 * 1000, { low });
   },
   search: (q) => json(`/api/search?q=${encodeURIComponent(q)}`),
 
@@ -96,7 +99,7 @@ export const api = {
     if (episode) p.set("episode", episode);
     return json(`/api/library/for?${p.toString()}`).then((r) => (r && r.item) || null);
   },
-  discoverMeta: (type, id) => json(`/api/discover/meta/${type}/${id}`),
+  discoverMeta: (type, id, { low = false } = {}) => warmed(`/api/discover/meta/${type}/${id}`, 10 * 60 * 1000, { low }),
   discoverCollection: (type, id, tmdbId) =>
     json(
       `/api/discover/collection/${type}/${encodeURIComponent(id)}${tmdbId ? `?tmdbId=${tmdbId}` : ""}`,
@@ -115,10 +118,10 @@ export const api = {
     ),
   // One page of a Browse category (see /api/catalog). Paged per genre, so a
   // niche genre has a deep list of its own rather than a slice of trending.
-  catalog: ({ type, category, genre, page = 0 }) =>
+  catalog: ({ type, category, genre, page = 0, low = false }) =>
     warmed(`/api/catalog?type=${encodeURIComponent(type)}&category=${encodeURIComponent(category)}` +
-      (genre ? `&genre=${encodeURIComponent(genre)}` : "") + `&page=${page}`),
-  catalogGenres: (type) => warmed(`/api/catalog/genres?type=${encodeURIComponent(type)}`, 10 * 60 * 1000),
+      (genre ? `&genre=${encodeURIComponent(genre)}` : "") + `&page=${page}`, WARM_TTL, { low }),
+  catalogGenres: (type, { low = false } = {}) => warmed(`/api/catalog/genres?type=${encodeURIComponent(type)}`, 10 * 60 * 1000, { low }),
   // The IMDb id for a library title, so the one detail page can also offer
   // stream sources for something you already own (see /api/imdb-for).
   imdbFor: (type, title, year) =>
@@ -212,7 +215,7 @@ export const api = {
     return post(`/api/profiles/${id}/watchlist`,
       typeof itemOrRef === "string" ? { itemId: itemOrRef, add } : { stream: itemOrRef, add });
   },
-  watchlist: (id) => warmed(`/api/profiles/${id}/watchlist`, 60 * 1000),
+  watchlist: (id, { low = false } = {}) => warmed(`/api/profiles/${id}/watchlist`, 60 * 1000, { low }),
   rate: (id, itemId, stars) => post(`/api/profiles/${id}/rating`, { itemId, stars }),
   setPreferences: (id, likedGenres) => post(`/api/profiles/${id}/preferences`, { likedGenres }),
 

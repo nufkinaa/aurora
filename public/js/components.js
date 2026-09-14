@@ -6,6 +6,7 @@ import { api } from "./api.js";
 import { attachRowArrows } from "./rowArrows.js";
 import * as narrator from "./narrator.js";
 import { attachPeek } from "./peek.js";
+import { warmTitle } from "./prefetch.js";
 
 // A flat "Rated 3★" wastes a moment the viewer just chose to have; the
 // reaction scales with the score instead.
@@ -195,6 +196,12 @@ export const card = (item, { wide = false, onRemove = null, showKind = false } =
   // join, a download that landed) have nothing to peek at.
   if (typeof item._open !== "function") {
     attachPeek(node, item, { open: openItem, onRemove: onRemove && !item._noRemove ? (it) => onRemove(it, node) : null });
+    // intent: the pointer arriving, focus landing or a finger touching down
+    // warms this title's page (prefetch.js — cached, low priority, once)
+    const intent = () => warmTitle(item);
+    node.addEventListener("pointerenter", intent);
+    node.addEventListener("focus", intent);
+    node.addEventListener("pointerdown", intent, { passive: true });
   }
   return node;
 };

@@ -9,6 +9,10 @@ import { state } from "./state.js";
 
 const IDLE_MS = 3 * 60 * 1000;
 const SLIDE_MS = 12 * 1000;
+// Away in another tab (or on the phone's home screen) at least this long,
+// then back: the saver greets the return until the first input. Shorter
+// absences — a message checked, a tab hopped — stay invisible.
+const AWAY_MS = 90 * 1000;
 
 let idleTimer = null;
 let overlay = null;
@@ -107,13 +111,34 @@ const poke = () => {
   idleTimer = setTimeout(start, IDLE_MS);
 };
 
-// test hook: QA can trigger the saver without waiting out the idle timer
-export const _screensaver = { start, stop };
+// Hidden → remember when; visible again → an ordinary poke (stop + re-arm),
+// and after a real absence the saver comes up at once (start() still checks
+// that we're somewhere it may paint over: Home, or a paused film).
+let hiddenAt = 0;
+const onVisibility = () => {
+  if (document.hidden) {
+    hiddenAt = Date.now();
+    poke();
+    return;
+  }
+  const away = hiddenAt ? Date.now() - hiddenAt : 0;
+  hiddenAt = 0;
+  poke();
+  if (away >= AWAY_MS) start();
+};
+
+// test hooks: QA can trigger the saver without waiting out the idle timer,
+// or replay a return from another tab after `awayMs`
+export const _screensaver = {
+  start,
+  stop,
+  returned: (awayMs) => { hiddenAt = Date.now() - awayMs; const away = Date.now() - hiddenAt; hiddenAt = 0; poke(); if (away >= AWAY_MS) return start(); },
+};
 
 export const initScreensaver = () => {
   for (const ev of ["pointermove", "pointerdown", "keydown", "wheel", "touchstart", "scroll"])
     window.addEventListener(ev, poke, { passive: true });
-  document.addEventListener("visibilitychange", poke);
+  document.addEventListener("visibilitychange", onVisibility);
   window.addEventListener("hashchange", poke); // navigating away disarms/wakes
   // media events don't bubble — capture them: playback resuming (a remote,
   // a party's host, autoplay) wakes and disarms like any input would

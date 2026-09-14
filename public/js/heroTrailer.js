@@ -14,6 +14,7 @@
 // nothing is set until the viewer unmutes.
 import { el } from "./ui.js";
 import { api } from "./api.js";
+import { track } from "./usage.js";
 
 // The device-local player settings, read straight from storage (the same
 // key playerPrefs writes) — the player module itself is loaded lazily.
@@ -187,6 +188,7 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
             try { e.target.setPlaybackQuality("hd1080"); } catch {}
             heroEl.classList.remove("trailing-loading");
             heroEl.classList.add("trailing");
+            track("feat", { f: "trailer_play" });
             paintMuteBtn(); // a new trailer always starts muted — the button says so
             unmute.classList.remove("hidden");
             armCap();
@@ -210,6 +212,7 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
   unmute.onclick = () => {
     if (!active || !player) return;
     unmuted = !unmuted;
+    if (unmuted) track("feat", { f: "trailer_unmute" });
     try {
       if (unmuted) { player.unMute(); player.setVolume(100); } else player.mute();
     } catch {}

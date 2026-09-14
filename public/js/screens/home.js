@@ -6,6 +6,7 @@ import { shelfRow, continueRow, openItem } from "../components.js";
 import { navigate } from "../router.js";
 import { onMessage } from "../ws.js";
 import { createHeroTrailer } from "../heroTrailer.js";
+import { fromHome as prefetchFromHome, warmHero } from "../prefetch.js";
 
 // How long each billboard title holds before the next slides in. The focus-pull
 // animation in screens.css is deliberately SHORTER than this: the art reaches
@@ -212,6 +213,7 @@ export const renderHome = async (root) => {
       const start = Math.max(0, Math.min(i - 1, count - 4));
       [...picks.querySelectorAll(".hero-pick")].forEach((d, j) => d.classList.toggle("hidden", j < start || j >= start + 4));
       if (trailer) trailer.arm(item, { visible: () => !pastHero });
+      warmHero(item); // its page, once it has held still a moment
     };
     // (the first paint happens below, once the slab and its trailer layer exist)
 
@@ -438,6 +440,7 @@ export const renderHome = async (root) => {
     if (rows.length > EAGER_ROWS) setTimeout(pump, 0);
   };
   renderRows(data.rows);
+  prefetchFromHome(data); // Continue Watching's next titles, quietly, at idle
 
   // Refresh rows when the library changes (new files, OCR finished...)
   const unsub = onMessage("library_updated", async () => {

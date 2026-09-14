@@ -312,6 +312,44 @@
       </div>
       <div class="stats" id="an-stats"></div>
       <div class="card">
+        <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">How Aurora is used <span class="note">screens, features and play paths, from the app's own usage stats (each profile can turn them off under Preferences → Privacy)</span>
+          <button class="mini" id="usage-copy" style="margin-left:auto">Copy stats</button></h2>
+        <div class="stats" id="usage-stats" style="margin:0 0 12px"></div>
+        <div class="empty-note hidden" id="usage-empty">Nothing yet — the app sends a small batch every 20 seconds while someone is using it.</div>
+        <div class="grid-2">
+          <div>
+            <div class="muted" style="font-weight:800;margin:6px 0">Screens <span class="note">views · time to painted (p50 / p90) · devices</span></div>
+            <div class="table-scroll"><table>
+              <thead><tr><th>Screen</th><th>Views</th><th>p50</th><th>p90</th><th>Devices</th></tr></thead>
+              <tbody id="usage-routes"></tbody>
+            </table></div>
+          </div>
+          <div>
+            <div class="muted" style="font-weight:800;margin:6px 0">Features <span class="note">uses · devices</span></div>
+            <div class="table-scroll"><table>
+              <thead><tr><th>Feature</th><th>Uses</th><th>Devices</th></tr></thead>
+              <tbody id="usage-features"></tbody>
+            </table></div>
+          </div>
+        </div>
+        <div class="grid-2" style="margin-top:12px">
+          <div>
+            <div class="muted" style="font-weight:800;margin:6px 0">Play starts <span class="note">kind / path · starts · to first frame (p50 / p90)</span></div>
+            <div class="table-scroll"><table>
+              <thead><tr><th>Path</th><th>Starts</th><th>p50</th><th>p90</th><th>Devices</th></tr></thead>
+              <tbody id="usage-plays"></tbody>
+            </table></div>
+          </div>
+          <div>
+            <div class="muted" style="font-weight:800;margin:6px 0">Nav taps &amp; client errors</div>
+            <div class="table-scroll"><table>
+              <thead><tr><th>What</th><th>Count</th></tr></thead>
+              <tbody id="usage-misc"></tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
         <h2>Skip intro <span class="note">what the audio detector has found across the library</span></h2>
         <div class="stats" id="an-intros" style="margin:0"></div>
       </div>
@@ -1746,6 +1784,44 @@
       }
     });
 
+    // ---------- usage stats (the app's own telemetry, lib/usage.js) ----------
+    let usageText = "";
+    async function loadUsage() {
+      let u;
+      try { u = await json("/api/admin/usage"); } catch { return; }
+      const s = u.summary || {};
+      usageText = u.text || "";
+      const devs = (o) => Object.entries(o || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(", ");
+      const ms = (v) => (v == null ? "–" : v >= 1000 ? `${(v / 1000).toFixed(1)}s` : `${v}ms`);
+      const today = (s.activeByDay || []).slice(-1)[0] || {};
+      $("#usage-empty").classList.toggle("hidden", (s.events || 0) > 0);
+      $("#usage-stats").innerHTML = [
+        [String(s.events || 0), "events", s.since ? `since ${new Date(s.since).toLocaleDateString()}` : ""],
+        [devs(s.devices) || "–", "devices", "events per device class"],
+        [devs(s.looks) || "–", "looks", ""],
+        [String(today.profiles || 0), "profiles today", today.sessions ? `${today.sessions} tabs` : ""],
+      ].map(([v, k, note]) => `<div class="stat"><div class="v" style="font-size:1.1rem">${esc(v)}</div><div class="k">${esc(k)}</div>${note ? `<div class="note">${esc(note)}</div>` : ""}</div>`).join("");
+      $("#usage-routes").innerHTML = (s.routes || []).map((r) => `<tr><td>${esc(r.route)}</td><td>${r.n}</td><td>${ms(r.p50)}</td><td>${ms(r.p90)}</td><td class="muted">${esc(devs(r.byDevice))}</td></tr>`).join("") || `<tr><td colspan="5" class="muted">—</td></tr>`;
+      $("#usage-features").innerHTML = (s.features || []).map((f) => `<tr><td>${esc(f.feature)}</td><td>${f.n}</td><td class="muted">${esc(devs(f.byDevice))}</td></tr>`).join("") || `<tr><td colspan="3" class="muted">—</td></tr>`;
+      $("#usage-plays").innerHTML = (s.plays || []).map((p) => `<tr><td>${esc(p.path)}</td><td>${p.n}</td><td>${ms(p.p50)}</td><td>${ms(p.p90)}</td><td class="muted">${esc(devs(p.byDevice))}</td></tr>`).join("") || `<tr><td colspan="5" class="muted">—</td></tr>`;
+      $("#usage-misc").innerHTML = [
+        ...(s.nav || []).map((n) => `<tr><td>nav → ${esc(n.to)}</td><td>${n.n}</td></tr>`),
+        ...(s.errors || []).map((e) => `<tr><td class="muted">error: ${esc(e.message)}</td><td>${e.n}</td></tr>`),
+      ].join("") || `<tr><td colspan="2" class="muted">—</td></tr>`;
+    }
+    $("#usage-copy").onclick = async () => {
+      if (!usageText) await loadUsage();
+      try {
+        await navigator.clipboard.writeText(usageText);
+      } catch {
+        const ta = document.createElement("textarea");
+        ta.value = usageText; document.body.append(ta); ta.select();
+        try { document.execCommand("copy"); } catch {}
+        ta.remove();
+      }
+      toast("Usage stats copied — paste them anywhere");
+    };
+
     // ---------- health (watchdog) ----------
     async function loadHealth() {
       let h;
@@ -2187,7 +2263,7 @@
     const tabLoaders = {
       overview: () => { loadOverview(); loadTimeseries(); loadOverviewTop(); },
       live: () => loadClients(),
-      analytics: () => loadAnalytics(),
+      analytics: () => { loadAnalytics(); loadUsage(); },
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
       profiles: () => { loadProfileRequests(); loadProfileAccess(); loadProfiles(); loadAuth(); },
       server: () => { loadServer(); loadHealth(); loadTimeseries(); loadUpdateCheck(); },

@@ -15,6 +15,7 @@ import { pushScope, popScope } from "./focus.js";
 import { initAurora } from "./aurora.js";
 import { initScreensaver } from "./screensaver.js";
 import { initPrefetch } from "./prefetch.js";
+import { track } from "./usage.js";
 
 // Only what boot needs is imported statically: home, the profile door, the
 // sign-in screen and the shared chrome. Every other screen loads on first
@@ -136,6 +137,11 @@ initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
 }
 initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
 initPrefetch(); // the next screen's data, fetched while this one is read
+// usage stats: which tab gets tapped (the screens themselves report via the router)
+$("#nav").addEventListener("click", (e) => {
+  const a = e.target.closest && e.target.closest(".nav-item[data-route]");
+  if (a) track("nav", { to: a.getAttribute("data-route") });
+});
 // a library change can flip a catalogue item's "in library" mark — start over
 onMessage("library_updated", () => forgetWarm("/api/catalog"));
 

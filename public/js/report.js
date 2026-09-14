@@ -5,6 +5,7 @@ import { el, toast } from "./ui.js";
 import { api } from "./api.js";
 import { state } from "./state.js";
 import { pushScope, popScope } from "./focus.js";
+import { track } from "./usage.js";
 
 // A small ring of the last client errors — window errors, unhandled
 // rejections, console.error calls — so a report carries what went wrong
@@ -66,6 +67,7 @@ export const showReportSheet = ({ hint = "" } = {}) => {
     try {
       await api.report(`${text}${doing.value.trim() ? `\n\nDoing: ${doing.value.trim()}` : ""}${hint ? `\n\n(${hint})` : ""}`, context, state.profile ? state.profile.name : null);
       toast("Sent — thank you. It landed with the admin.", "🛠️");
+      track("feat", { f: "report" });
       close();
     } catch (e) {
       status.textContent = e.message || "Couldn't send it — try again in a moment";

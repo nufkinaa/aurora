@@ -1,6 +1,7 @@
 // Instant search: typo-tolerant suggestions as you type, then full results.
 import { el, icons, debounce, restoreScrollY } from "../ui.js";
 import { api } from "../api.js";
+import { track } from "../usage.js";
 import { state, loadLibrary } from "../state.js";
 import { navigate } from "../router.js";
 import { card } from "../components.js";
@@ -89,6 +90,7 @@ export const renderSearch = async (root) => {
     results.innerHTML = "";
     status.classList.add("hidden");
     results.append(...local.map((i) => card(i)));
+    track("feat", { f: "search", hits: local.length }); // how often, never what
 
     const data = await discP;
     if (input.value.trim() !== q) return;

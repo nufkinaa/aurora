@@ -36,6 +36,7 @@ import { navigate } from "../router.js";
 import * as offline from "../offline.js";
 import { shelfRow } from "../components.js";
 import { heroBlock, watchlistButton } from "./details.js";
+import { warmPlay } from "../prefetch.js";
 import { pushScope, popScope } from "../focus.js";
 import { showDownloadPicker } from "../downloadPicker.js";
 import { onMessage } from "../ws.js";
@@ -1235,6 +1236,17 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
             onclick: () => navigate(`#/play/${nextUp.local.id}`),
           }),
     );
+  }
+  // Hovering, focusing or touching Play warms the server side of playback
+  // for a file you own (the jit index / copy job — prefetch.js), so the
+  // first frame is closer by the time the tap lands. Nothing for streams.
+  {
+    const target = !isShow && lib ? lib : isShow && nextUp ? nextUp.local : null;
+    if (target) {
+      for (const b of actions) {
+        for (const ev of ["pointerenter", "focus", "touchstart"]) b.addEventListener(ev, () => warmPlay(target), { passive: true });
+      }
+    }
   }
   // Streams: the only play button when we own nothing, a secondary one otherwise.
   if (imdbId) {
