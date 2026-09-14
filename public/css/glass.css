@@ -1443,3 +1443,30 @@ html[data-look="glass"] .party-strip-item:hover {
 html[data-look="glass"] .dl-row.fresh {
   box-shadow: var(--g-edge), inset 0 0 0 1px rgba(74, 222, 128, 0.45);
 }
+
+/* title page below the side-card breakpoint: actions first, the card after;
+   the phone keeps a poster that leaves room for the title */
+@media (max-width: 1239px) {
+  html[data-look="glass"] .detail-info { display: flex; flex-direction: column; align-items: flex-start; }
+  html[data-look="glass"] .detail-info > * { width: 100%; }
+  html[data-look="glass"] .detail-info > .hero-kicker { width: auto; }
+  html[data-look="glass"] .detail-rate { order: 10; margin-top: 18px; }
+}
+@media (max-width: 760px) {
+  html[data-look="glass"] .detail-poster { width: 170px; }
+  html[data-look="glass"] .detail-title { font-size: 2.2rem; }
+}
+/* the season island scrolls sideways when it can't fit */
+html[data-look="glass"] .season-bar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+html[data-look="glass"] .season-bar::-webkit-scrollbar { display: none; }
+/* phone dock: transport on one row, tools on the next; volume is the phone's own buttons */
+@media (max-width: 720px) {
+  html[data-look="glass"] .player-controls {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    row-gap: 4px;
+  }
+  html[data-look="glass"] .pc-transport { order: 0; }
+  html[data-look="glass"] .pc-tools { order: 1; justify-self: center; }
+  html[data-look="glass"] .vol-group { display: none; }
+}

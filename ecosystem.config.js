@@ -9,6 +9,7 @@ module.exports = {
       autorestart: true,
       restart_delay: 3000, // breathe between crash-restarts
       max_restarts: 50, // within pm2's default 15s window counter
+      min_uptime: "10s", // a death inside 10s of boot is a crash, and counts
       // Recycle if something leaks badly. MUST carry a unit: pm2 parses this
       // with the `bytes` library, so a bare "15" means fifteen BYTES and the app
       // would restart-loop the instant it booted. It reads ~160 MB streaming.

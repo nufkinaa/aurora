@@ -1148,6 +1148,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   screen.innerHTML = "";
   const sourcesSection = el("div", { class: "sources-section page-pad" });
   const seasons = isShow ? mergeSeasons(lib, meta) : [];
+  seasonsOf = () => seasons;
 
   // Next episode to watch, over the merged list: the most recently touched
   // unfinished local episode, else the one after the last finished one.
@@ -1552,7 +1553,6 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   }
 
   // ---------- shows ----------
-  seasonsOf = () => seasons;
   const seasonKey = `aurora-season-${imdbId || (lib && lib.id)}`;
   const savedSeason = parseInt(localStorage.getItem(seasonKey) || "", 10);
   const hasSaved = seasons.some((s) => s.number === savedSeason);
@@ -1800,7 +1800,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
                   fmtAirDate(row.released),
                 ),
             local &&
-              local.duration &&
+              local.duration > 0 &&
               el("span", { class: "ep-dur" }, fmtDuration(local.duration)),
             local &&
               local.subtitles &&

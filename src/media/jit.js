@@ -170,6 +170,14 @@ const producedUpTo = (dir, fmt) => {
 // which is exactly the cold-seek cost jit exists to kill. Re-aim instead.
 const ensureSegment = async (dir, job, input, k) => {
   job.lastAccess = Date.now();
+  job.waiting = (job.waiting || 0) + 1;
+  try {
+    return await ensureSegmentInner(dir, job, input, k);
+  } finally {
+    job.waiting--;
+  }
+};
+const ensureSegmentInner = async (dir, job, input, k) => {
   const file = segPath(dir, k, input.fmt);
   if (fs.existsSync(file)) return file;
   const head = Math.max(job.fromSeg - 1, producedUpTo(dir, input.fmt));
@@ -244,7 +252,9 @@ try {
     let killed = 0;
     const now = Date.now();
     for (const [dir, job] of jobs) {
-      if (now - job.lastAccess > 30000 && job.proc) {
+      // a producer someone is waiting on, or that served a segment in the
+      // last two minutes (a paused viewer, a full buffer), is not idle
+      if (now - job.lastAccess > 120000 && job.proc && !(job.waiting > 0)) {
         try { job.proc.kill("SIGKILL"); } catch {}
         job.proc = null;
         killed++;
@@ -254,7 +264,10 @@ try {
   });
 } catch {}
 
+const liveCount = () => { let n = 0; for (const j of jobs.values()) if (j.proc) n++; return n; };
+
 module.exports = {
+  liveCount,
   tableFor,
   playlistText,
   jobFor,

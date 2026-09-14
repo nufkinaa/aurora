@@ -14,6 +14,23 @@ const LANG = { he: { code: "heb", name: /hebrew/i }, en: { code: "eng", name: /e
 const PER_FETCH = 2; // distinct files per language, plenty for one request
 const inflight = new Map(); // "<id>|<lang>" -> promise, so a double press is one fetch
 
+// A library walk is synchronous and not free; every request that lands in
+// the same 400 ms shares one, and no two ever run back to back.
+let scanTimer = null;
+let scanWaiters = [];
+const rescanSoon = () =>
+  new Promise((resolve) => {
+    scanWaiters.push(resolve);
+    if (scanTimer) return;
+    scanTimer = setTimeout(() => {
+      scanTimer = null;
+      const waiters = scanWaiters;
+      scanWaiters = [];
+      try { scanner.scan(); } catch {}
+      for (const w of waiters) w();
+    }, 400);
+  });
+
 const fetchFor = async (id, lang) => {
   const item = scanner.findById(id);
   const entry = scanner.resolve(id);
@@ -34,7 +51,7 @@ const fetchFor = async (id, lang) => {
   const before = new Set((item.subtitles || []).map((t) => t.url));
   const { written } = await websubs.writeSidecars(tracks.slice(0, PER_FETCH), entry.path);
   if (!written.length) return { tracks: [] };
-  scanner.scan(); // sidecars get their ids here
+  await rescanSoon(); // sidecars get their ids here — one walk for every caller in the same moment
   const fresh = scanner.findById(id);
   const added = ((fresh && fresh.subtitles) || []).filter((t) => !before.has(t.url) && !t.embedded);
   return { tracks: added.map((t) => ({ ...t, lang })) };
@@ -43,7 +60,7 @@ const fetchFor = async (id, lang) => {
 router.post("/api/subtitles/fetch", async (req, res) => {
   const id = String((req.body || {}).id || "");
   const lang = String((req.body || {}).lang || "");
-  if (!LANG[lang]) return res.status(400).json({ error: "lang must be he or en" });
+  if (!Object.hasOwn(LANG, lang)) return res.status(400).json({ error: "lang must be he or en" });
   if (!id) return res.status(400).json({ error: "id required" });
   const key = `${id}|${lang}`;
   let p = inflight.get(key);

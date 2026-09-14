@@ -1,6 +1,11 @@
 // Small DOM + formatting helpers shared by every screen.
 
 export const $ = (sel, root = document) => root.querySelector(sel);
+
+// focus.js touches `document` at load, and this module is also imported by
+// the test runner — so the focus scope is reached lazily (the app has it
+// loaded already; the import resolves from cache).
+const focusMod = () => import("./focus.js");
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 // el("div", {class: "card", onclick: fn}, child1, child2...)
@@ -331,12 +336,15 @@ export const confirmSheet = ({ title, text, ok = "OK", cancel = "Cancel", icon =
       if (done) return;
       done = true;
       document.removeEventListener("ui-back", onBack);
+      focusMod().then((m) => m.popScope(wrap)).catch(() => {});
       wrap.classList.add("leaving");
       setTimeout(() => wrap.remove(), 240);
+      if (returnTo && returnTo.isConnected) returnTo.focus({ preventScroll: true });
       resolve(v);
     };
+    const returnTo = document.activeElement;
     const onBack = (e) => { e.preventDefault(); finish(false); };
-    const card = el("div", { class: "look-notice sheet", role: "dialog", "aria-label": title },
+    const card = el("div", { class: "look-notice sheet", role: "dialog", "aria-modal": "true", "aria-label": title },
       icon && el("div", { class: "sheet-icon" }, icon),
       el("div", { class: "look-notice-title" }, title),
       text && el("p", { class: "look-notice-text" }, text),
@@ -345,7 +353,8 @@ export const confirmSheet = ({ title, text, ok = "OK", cancel = "Cancel", icon =
         el("button", { class: "btn btn-primary focusable", onclick: () => finish(true) }, ok)));
     const wrap = el("div", { class: "look-notice-wrap ui-overlay", onclick: (e) => e.target === wrap && finish(false) }, card);
     document.addEventListener("ui-back", onBack);
-    document.body.append(wrap);
+    (document.fullscreenElement || document.body).append(wrap);
+    focusMod().then((m) => m.pushScope(wrap)).catch(() => {});
     setTimeout(() => card.querySelector(".btn-primary")?.focus({ preventScroll: true }), 60);
   });
 

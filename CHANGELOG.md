@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.5.1 — 2026-09-14
+
+- QA pass, 23 fixes. Peek: a Discover title offers Open (not a Play that went nowhere), an episode's Details opens its show, focus returns to the card, no iOS image sheet under a hold. Watch parties: the host stays host across Up next, a guest never advances on its own. The player ignores its shortcuts while a sheet or text field has the keyboard, and sheets and toasts show inside fullscreen. Confirm and Join sheets trap remote focus; Join is a centred sheet with a four-character code. Downloads' Cancel keeps its button after a failure. The classic look's player dock lays its groups out inline again. Title pages: no stray "0" on an episode without a duration, the season island scrolls on phones, the phone puts the actions before the rating card and keeps a smaller poster. Phone dock: transport on one row, tools on the next.
+- Server: problem reports store only the fields they need and the admin broadcast is slim; the subtitle fetch coalesces library rescans and rejects prototype-key languages; intro detection fingerprints cooperatively (never a one-second block), reads chapters asynchronously, prunes entries for deleted episodes, and tells the watchdog it's busy; the watchdog never restarts twice within fifteen minutes, ignores lag while the server is legitimately working, counts ffmpeg from the spawners on every platform, and flushes stores at the last moment; jit's soft heal spares producers anyone is waiting on; play-mark log lines are sanitised; pm2 counts a death within 10s of boot as a crash.
+
 ## 1.5.0 — 2026-09-14
 
 - Apple Horror, tightened: the home hero is full-bleed and taller, sits behind the floating nav, and its art is sharp from the first frame; the Tonight row is gone — Continue Watching is Continue Watching again, and parties live in their own strip; the quiet dots are back instead of the picks panel; the sky moves faster and its curtains cover the whole height.

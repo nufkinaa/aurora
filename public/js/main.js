@@ -17,6 +17,7 @@ import { showLoginScreen } from "./screens/login.js";
 import { showClaimModal } from "./claim.js";
 import { showShortcutsOverlay } from "./screens/shortcuts.js";
 import { showReportSheet } from "./report.js";
+import { pushScope, popScope } from "./focus.js";
 import { initAurora } from "./aurora.js";
 import { initScreensaver } from "./screensaver.js";
 
@@ -127,6 +128,17 @@ initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
   window.addEventListener("aurora-look", syncSky);
 }
 initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
+
+// Toasts ride into (and out of) the fullscreen element: anything outside
+// the top layer never paints while the player is fullscreen.
+{
+  const toasts = $("#toasts");
+  const home = toasts && toasts.parentElement;
+  document.addEventListener("fullscreenchange", () => {
+    if (!toasts) return;
+    (document.fullscreenElement || home).append(toasts);
+  });
+}
 
 // First desktop visit: one quiet hint that "?" lists the keyboard shortcuts.
 // A mouse-and-keyboard device only (phones and TVs have no "?" to press).
@@ -344,7 +356,7 @@ const showJoinParty = () => {
   const input = el("input", {
     class: "focusable party-code-input",
     type: "text",
-    maxlength: "6",
+    maxlength: "4",
     placeholder: "CODE",
     autocapitalize: "characters",
     autocomplete: "off",
@@ -352,28 +364,31 @@ const showJoinParty = () => {
   });
   const go = () => {
     const code = input.value.trim().toUpperCase();
-    if (code.length < 4) return toast("Codes are four letters", "👥");
+    if (code.length < 4) return toast("Codes are four characters", "👥");
     close();
     navigate(`#/party/${code}`);
   };
-  const box = el("div", { class: "nav-menu party-join" },
-    el("div", { class: "nav-menu-head" },
-      el("div", { class: "nav-menu-name" }, "Join a watch party"),
-      el("div", { class: "nav-menu-sub" }, "The code is on the host's screen (👥 in the player)")),
+  const box = el("div", { class: "look-notice sheet party-join", role: "dialog", "aria-label": "Join a watch party" },
+    el("div", { class: "sheet-icon" }, "👥"),
+    el("div", { class: "look-notice-title" }, "Join a watch party"),
+    el("p", { class: "look-notice-text" }, "The code is on the host's screen — press 👥 in their player to see it."),
     input,
-    el("div", { class: "party-join-actions" },
+    el("div", { class: "look-notice-actions" },
       el("button", { class: "btn focusable", onclick: () => close() }, "Cancel"),
       el("button", { class: "btn btn-primary focusable", onclick: go }, "Join")));
-  const wrap = el("div", { class: "nav-menu-wrap ui-overlay", onclick: (e) => e.target === wrap && close() }, box);
+  const wrap = el("div", { class: "look-notice-wrap ui-overlay", onclick: (e) => e.target === wrap && close() }, box);
   const close = () => {
     document.removeEventListener("ui-back", onBack);
-    wrap.remove();
+    popScope(wrap);
+    wrap.classList.add("leaving");
+    setTimeout(() => wrap.remove(), 220);
   };
   const onBack = (e) => { e.preventDefault(); close(); };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
   input.addEventListener("input", () => { input.value = input.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
   document.addEventListener("ui-back", onBack);
   document.body.append(wrap);
+  pushScope(wrap);
   setTimeout(() => input.focus({ preventScroll: true }), 40);
 };
 

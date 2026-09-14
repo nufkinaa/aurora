@@ -2014,7 +2014,6 @@ export const renderPlayer = async (root, { id }) => {
       const rebuild = () => {
         menu.innerHTML = "";
         menu.append(el("div", { class: "menu-title" }, "Playback"));
-        menu.append(entry("Report a problem", "with this title", () => { closeMenu(); showReportSheet({ hint: "from the player" }); }));
         menu.append(
           entry(
             "Autoplay next episode",
@@ -2118,6 +2117,8 @@ export const renderPlayer = async (root, { id }) => {
             );
           }
         }
+        menu.append(el("div", { class: "menu-title" }, "Help"));
+        menu.append(entry("Report a problem", "with this title", () => { closeMenu(); showReportSheet({ hint: "from the player" }); }));
       };
       rebuild();
     }
@@ -2432,7 +2433,7 @@ export const renderPlayer = async (root, { id }) => {
   });
   let lastHapticT = null;
   const landmarks = () => {
-    const i = typeof activeIntro === "function" ? activeIntro() : null;
+    const i = activeIntro();
     return [i && i.start, i && i.end, creditsStart].filter((t) => isFinite(t) && t > 0);
   };
   const paintScrubMarks = () => {
@@ -2651,7 +2652,11 @@ export const renderPlayer = async (root, { id }) => {
     }),
   ];
   // Joining via #/play/<id>?party=CODE (the #/party/:code route lands here).
-  if (partyCode) {
+  if (partyCode && party.current && party.current.code === partyCode) {
+    // already in it — the host rolled into the next episode, or a guest
+    // followed; the role and the code carry over untouched
+    paintParty();
+  } else if (partyCode) {
     const tryJoin = async () => {
       try {
         const p = await joinParty(partyCode);
@@ -2842,7 +2847,9 @@ export const renderPlayer = async (root, { id }) => {
 
     // Auto-advance only where "play" is unambiguous (a library file). A
     // streamed next episode needs a source picked — never auto-pick a torrent.
-    const autoplay = !next._stream && prefs.get("autoplayNext", true);
+    // A guest never advances on its own — the host's party_item does that
+    // for everyone, so two countdowns can't race and drop the guest out.
+    const autoplay = !next._stream && prefs.get("autoplayNext", true) && !(inParty() && party.role === "guest");
     let remaining = 15;
     const counter = el(
       "span",
@@ -2897,6 +2904,10 @@ export const renderPlayer = async (root, { id }) => {
   const goNext = (next) => {
     dismissUpNext();
     saveProgress();
+    if (inParty() && party.role === "guest") {
+      toast("Following the host — the next episode starts when theirs does", "👥");
+      return;
+    }
     // Streamed episode: back to the show's page to pick a source — episode
     // deep-linked so it's one press away.
     if (next._stream) {
@@ -3219,7 +3230,10 @@ export const renderPlayer = async (root, { id }) => {
   overlay.addEventListener("touchstart", onPointerMove, { passive: true });
   overlay.addEventListener("wheel", onPointerMove, { passive: true });
 
+  const typing = () =>
+    !!document.querySelector(".look-notice-wrap") || /INPUT|TEXTAREA/.test((document.activeElement && document.activeElement.tagName) || "");
   const onNavMove = (e) => {
+    if (typing()) return;
     const dir = e.detail;
     if (controlsHidden()) {
       if (dir === "left") {
@@ -3273,6 +3287,7 @@ export const renderPlayer = async (root, { id }) => {
   document.addEventListener("nav-move", onNavMove);
 
   const onKey = (e) => {
+    if (typing()) return;
     const k = e.key;
     if (k === " " || e.keyCode === 32) {
       togglePlay();
@@ -3309,6 +3324,7 @@ export const renderPlayer = async (root, { id }) => {
   document.addEventListener("media-key", onMediaKey);
 
   const onBack = (e) => {
+    if (document.querySelector(".look-notice-wrap")) return; // a sheet owns Back
     e.preventDefault();
     if (upNextEl) return dismissUpNext();
     if (menuHost.childElementCount > 0) {

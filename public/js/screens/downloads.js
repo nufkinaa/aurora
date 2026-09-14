@@ -103,12 +103,13 @@ const row = (job) => {
         class: "btn focusable",
         html: `<span>${job.status === "error" ? "Remove" : "Cancel"}</span>`,
         onclick: async (e) => {
-          e.currentTarget.disabled = true;
+          const b = e.currentTarget; // gone from the event once the await returns
+          b.disabled = true;
           try {
             await api.downloadCancel(job.id, state.profile.id);
             toast(`Cancelled “${job.label || job.title}”`, "🗑");
           } catch (err) {
-            e.currentTarget.disabled = false;
+            b.disabled = false;
             toast(err.message || "Couldn't cancel", "⚠️");
           }
         },

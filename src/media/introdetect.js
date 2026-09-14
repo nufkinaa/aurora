@@ -46,6 +46,8 @@ const INVALID = 0xffff;
 const HANN = Float64Array.from({ length: FRAME }, (_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (FRAME - 1)));
 const MIN_CONTRAST = 1.2; // log-energy spread across bands: flat spectra are not evidence
 const MIN_LEVEL = 9; // log energy floor: near-silence carries no signature
+// The synchronous core (tests drive it directly); analyze() uses the
+// cooperative wrapper below so a long head never holds the event loop.
 const fingerprint = (pcm) => {
   const n = Math.max(0, Math.floor((pcm.length - FRAME) / HOP) + 1);
   const out = new Uint16Array(n);
@@ -150,17 +152,39 @@ const decode = (file, startSec, lengthSec) =>
   });
 
 // Titled chapters, when the release carries them.
-const chaptersOf = (file) => {
-  try {
-    const out = execFileSync(config.FFPROBE, ["-v", "error", "-show_chapters", "-of", "json", file], { encoding: "utf-8", timeout: 15000 });
-    return (JSON.parse(out).chapters || []).map((c) => ({
-      start: parseFloat(c.start_time) || 0,
-      end: parseFloat(c.end_time) || 0,
-      title: String((c.tags && c.tags.title) || ""),
-    }));
-  } catch {
-    return [];
+const chaptersOf = (file) =>
+  new Promise((resolve) => {
+    execFile(config.FFPROBE, ["-v", "error", "-show_chapters", "-of", "json", file], { encoding: "utf-8", timeout: 15000, maxBuffer: 4 * 1024 * 1024 }, (err, out) => {
+      if (err) return resolve([]);
+      try {
+        resolve((JSON.parse(out).chapters || []).map((c) => ({
+          start: parseFloat(c.start_time) || 0,
+          end: parseFloat(c.end_time) || 0,
+          title: String((c.tags && c.tags.title) || ""),
+        })));
+      } catch {
+        resolve([]);
+      }
+    });
+  });
+
+// fingerprint() in slices of ~2 s of audio per turn of the event loop: the
+// whole head takes a second or two of CPU, which as one block would read as
+// a stalled server to everything else (and to the watchdog).
+const fingerprintAsync = async (pcm) => {
+  const n = Math.max(0, Math.floor((pcm.length - FRAME) / HOP) + 1);
+  const out = new Uint16Array(n);
+  const SLICE = 32; // frames per turn (≈ 4 s of audio)
+  for (let start = 0; start < n; start += SLICE) {
+    const end = Math.min(n, start + SLICE);
+    // a window of samples covering frames [start, end)
+    const from = start * HOP;
+    const to = Math.min(pcm.length, (end - 1) * HOP + FRAME);
+    const part = fingerprint(pcm.subarray(from, to));
+    for (let i = 0; i < end - start && i < part.length; i++) out[start + i] = part[i];
+    await new Promise((r) => setImmediate(r));
   }
+  return out;
 };
 const fromChapters = (chapters, duration) => {
   const intro = chapters.find((c) => /\b(intro|opening|op)\b/i.test(c.title) && c.end - c.start >= 5 && c.end - c.start <= 240);
@@ -199,8 +223,8 @@ const fingerprintsFor = async (file, duration) => {
   const head = await decode(file, 0, headLen);
   const tail = duration > TAIL_S + 30 ? await decode(file, Math.max(0, duration - TAIL_S), TAIL_S) : null;
   const rec = {
-    head: head && head.length > FRAME ? fingerprint(head) : null,
-    tail: tail && tail.length > FRAME ? fingerprint(tail) : null,
+    head: head && head.length > FRAME ? await fingerprintAsync(head) : null,
+    tail: tail && tail.length > FRAME ? await fingerprintAsync(tail) : null,
     tailStart: duration > TAIL_S + 30 ? Math.max(0, duration - TAIL_S) : 0,
   };
   fpCache.set(file, rec);
@@ -216,7 +240,7 @@ const analyze = async (ep, siblings) => {
   if (!duration) return null;
 
   // 1. chapters: the author's own answer
-  const ch = fromChapters(chaptersOf(entry.path), duration);
+  const ch = fromChapters(await chaptersOf(entry.path), duration);
   if (ch.intro || ch.credits) return { ...ch, source: "chapters" };
 
   // 2. audio: the stretch every episode shares
@@ -263,8 +287,10 @@ const analyze = async (ep, siblings) => {
 
 let running = false;
 let again = false;
+const busy = () => running;
 const pass = async () => {
   let done = 0;
+  const seen = new Set();
   for (const show of scanner.index.shows) {
     for (const season of show.seasons || []) {
       const eps = season.episodes || [];
@@ -272,6 +298,7 @@ const pass = async () => {
       for (const ep of eps) {
         const entry = scanner.resolve(ep.id);
         if (!entry) continue;
+        seen.add(ep.id);
         const mtime = mtimeOf(entry.path);
         const have = store.data[ep.id];
         if (have && have.mtime === mtime) continue;
@@ -291,6 +318,12 @@ const pass = async () => {
       fpCache.clear(); // a season's fingerprints are only useful within it
     }
   }
+  // entries for episodes that left the library go with them
+  let pruned = 0;
+  for (const id of Object.keys(store.data)) {
+    if (!seen.has(id) && !scanner.resolve(id)) { delete store.data[id]; pruned++; }
+  }
+  if (pruned) store.save();
   if (done) console.log(`[intro] analyzed ${done} episode(s) for intros and credits`);
 };
 const run = async () => {
@@ -338,4 +371,4 @@ const coverage = () => {
   return { episodes, analyzed, intro, credits, chapters };
 };
 
-module.exports = { run, get, coverage, _internals: { fingerprint, longestRun, consensus, fromChapters, similar, INVALID, FRAME, HOP, SR } };
+module.exports = { run, get, coverage, busy, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, INVALID, FRAME, HOP, SR } };

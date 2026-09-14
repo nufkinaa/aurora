@@ -113,3 +113,19 @@ test("coverage: counts episodes in seasons of two or more, and what the store sa
     scanner.index.shows = saved;
   }
 });
+
+test("the cooperative fingerprint equals the synchronous one, frame for frame", async () => {
+  const { fingerprintAsync } = require("../src/media/introdetect")._internals;
+  const pcm = new Int16Array(SR * 30);
+  let phase = 0;
+  for (let i = 0; i < pcm.length; i++) {
+    phase += (2 * Math.PI * (220 + 40 * Math.sin(i / 9000))) / SR;
+    pcm[i] = Math.round(9000 * Math.sin(phase) + 3000 * Math.sin(phase * 3.1));
+  }
+  const a = fingerprint(pcm);
+  const b = await fingerprintAsync(pcm);
+  assert.equal(b.length, a.length);
+  let same = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] === b[i]) same++;
+  assert.ok(same / a.length > 0.97, `only ${same}/${a.length} frames agree`);
+});

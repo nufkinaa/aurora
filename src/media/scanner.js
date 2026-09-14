@@ -709,6 +709,7 @@ module.exports = {
   events,
   scan,
   enrich,
+  isEnriching: () => enriching,
   resolve,
   idForPath,
   findById,

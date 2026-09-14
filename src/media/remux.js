@@ -391,4 +391,5 @@ const filePath = (dir, file) => {
   return fs.existsSync(abs) ? abs : null;
 };
 
-module.exports = { ensure, touch, filePath, dirName, effectiveVcodec, bootSweep, HLS_ROOT };
+const liveCount = () => { let n = 0; for (const j of jobs.values()) if (j.proc) n++; return n; };
+module.exports = { ensure, touch, filePath, dirName, effectiveVcodec, bootSweep, liveCount, HLS_ROOT };

@@ -3831,3 +3831,6 @@
 .detail-server, .episode-still, .episode-kicker { display: none; }
 /* legacy: rows below the fold skip layout until needed (same trick, both looks) */
 .row, .grid { content-visibility: auto; contain-intrinsic-size: auto 340px; }
+
+/* the dock's button groups (see player.js): inline in both looks */
+.pc-transport, .pc-tools { display: flex; align-items: center; gap: inherit; }

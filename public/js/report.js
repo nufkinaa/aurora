@@ -73,7 +73,7 @@ export const showReportSheet = ({ hint = "" } = {}) => {
     }
   };
   const sendBtn = el("button", { class: "btn btn-primary focusable", onclick: send }, "Send report");
-  const card = el("div", { class: "look-notice sheet report", role: "dialog", "aria-label": "Report a problem" },
+  const card = el("div", { class: "look-notice sheet report", role: "dialog", "aria-modal": "true", "aria-label": "Report a problem", tabindex: "-1" },
     el("div", { class: "sheet-icon" }, "🛠️"),
     el("div", { class: "look-notice-title" }, "Report a problem"),
     el("p", { class: "look-notice-text" }, "A few words is enough. Where you are, what's playing and the last errors this page saw come along by themselves."),
@@ -87,7 +87,11 @@ export const showReportSheet = ({ hint = "" } = {}) => {
       sendBtn));
   const wrap = el("div", { class: "look-notice-wrap ui-overlay report-wrap", onclick: (e) => e.target === wrap && close() }, card);
   document.addEventListener("ui-back", onBack);
-  document.body.append(wrap);
+  // inside the fullscreen element when there is one (the player's), or the
+  // sheet would sit outside the top layer and never paint
+  (document.fullscreenElement || document.body).append(wrap);
   pushScope(wrap);
-  setTimeout(() => box.focus({ preventScroll: true }), 60);
+  // a phone shouldn't get its keyboard shoved up before the sheet is read
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  setTimeout(() => (coarse ? card : box).focus({ preventScroll: true }), 60);
 };

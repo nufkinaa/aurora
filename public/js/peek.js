@@ -15,6 +15,7 @@ const HOLD_MS = 480;
 const MOVE_PX = 10;
 
 let openNode = null;
+let returnTo = null; // the card that was focused, for remotes
 
 const closePeek = () => {
   if (!openNode) return;
@@ -24,6 +25,8 @@ const closePeek = () => {
   popScope(node);
   node.classList.add("leaving");
   setTimeout(() => node.remove(), 220);
+  if (returnTo && returnTo.isConnected) returnTo.focus({ preventScroll: true });
+  returnTo = null;
 };
 
 // What the sheet says under the title: "2023 · Film", "S1 E3 · Show".
@@ -55,7 +58,10 @@ const synopsisFor = async (item) => {
 export const openPeek = (item, { open = null, onRemove = null } = {}) => {
   if (!item || openNode) return;
   const isEpisode = !!item.showId && item.type !== "show";
-  const playable = isEpisode || item.type === "movie" || String(item.id || "").startsWith("torrent|");
+  // Only what the player can take by id: an episode or film on disk, or a
+  // torrent play-item. A Discover title has no id — Open leads to its
+  // page, where a source is picked.
+  const playable = isEpisode || String(item.id || "").startsWith("torrent|") || (item.type === "movie" && item.source !== "stream" && !!item.id);
   const prog = progressFor(item.id) || (item.imdbId && state.streamProgress && state.streamProgress[item.imdbId]) || null;
   const pct = prog && prog.duration > 0 && !prog.finished ? Math.min(100, (prog.position / prog.duration) * 100) : null;
   const left = pct !== null ? `${Math.max(1, Math.round((prog.duration - prog.position) / 60))} min left` : null;
@@ -65,7 +71,8 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
     if (String(item.id).startsWith("torrent|")) state.pendingItems[item.id] = item;
     navigate(`#/play/${encodeURIComponent(item.id)}`);
   });
-  const details = go(() => (open ? open(item) : null));
+  // Details on an episode means its show, not another way to play it.
+  const details = go(() => (isEpisode && item.showId ? navigate(`#/show/${item.showId}`) : open ? open(item) : null));
 
   // My List: library items go by id, streamable ones by a stored ref (the
   // same shapes the detail pages send).
@@ -98,20 +105,20 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
   synopsisFor(item).then((text) => {
     synopsis.classList.remove("skeleton-text");
     synopsis.textContent = text || "";
-    synopsis.hidden = !text;
+    synopsis.classList.toggle("hidden", !text);
   });
 
   const art = item.backdrop || item.cover;
   const sheet = el(
     "div",
-    { class: "peek", role: "dialog", "aria-label": item.title },
+    { class: "peek", role: "dialog", "aria-modal": "true", "aria-label": item.title },
     el("div", { class: "peek-art" + (item.backdrop ? "" : " poster") },
       art ? posterImg(art, item.title, "peek-img", "card-fallback") : el("div", { class: "card-fallback" }, item.title),
       el("div", { class: "peek-art-fade" }),
       el("button", { class: "btn btn-icon focusable peek-close", "aria-label": "Close", html: "✕", onclick: closePeek }),
     ),
     el("div", { class: "peek-body" },
-      el("div", { class: "peek-title" }, isEpisode ? item.title : item.title),
+      el("div", { class: "peek-title" }, item.title),
       el("div", { class: "peek-sub" }, subline(item), formatRow(item, { max: 4 })),
       pct !== null && el("div", { class: "peek-progress" }, el("div", { class: "peek-bar" }, el("i", { style: { width: pct + "%" } })), el("span", {}, left)),
       synopsis,
@@ -126,7 +133,8 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
   const wrap = el("div", { class: "peek-wrap ui-overlay", onclick: (e) => e.target === wrap && closePeek() }, sheet);
   wrap._onBack = (e) => { e.preventDefault(); closePeek(); };
   document.addEventListener("ui-back", wrap._onBack);
-  document.body.append(wrap);
+  returnTo = document.activeElement;
+  (document.fullscreenElement || document.body).append(wrap);
   openNode = wrap;
   pushScope(wrap);
   // the primary action, not the ✕, is where a remote should land

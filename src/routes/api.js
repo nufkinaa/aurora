@@ -29,14 +29,15 @@ const INTRO_KEY = /^(show|imdb):[\w.-]{1,40}$/;
 // of playback; bounded and never stored.
 router.post("/api/play-mark/:id", (req, res) => {
   const b = req.body || {};
-  const name = String(b.name || "").slice(0, 32);
+  const tidy = (v, n) => String(v == null ? "" : v).replace(/[\x00-\x1f\x7f]/g, "").slice(0, n);
+  const name = tidy(b.name, 32);
   const ms = Math.max(0, Math.min(600000, parseInt(b.ms, 10) || 0));
   const extra = Object.entries(b)
     .filter(([k]) => !["name", "ms"].includes(k))
     .slice(0, 6)
-    .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`)
+    .map(([k, v]) => `${tidy(k, 16)}=${tidy(v, 40)}`)
     .join(" ");
-  if (name) console.log(`[play] ${String(req.params.id).slice(0, 12)} +${ms}ms ${name}${extra ? " " + extra : ""}`);
+  if (name) console.log(`[play] ${tidy(req.params.id, 12)} +${ms}ms ${name}${extra ? " " + extra : ""}`);
   res.json({ ok: true });
 });
 

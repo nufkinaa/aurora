@@ -1429,3 +1429,6 @@
 .report-ctx { margin-top: 10px; font-size: 0.78rem; color: var(--text-faint); }
 .report-status { min-height: 1.2em; margin-top: 6px; font-size: 0.85rem; color: var(--text-dim); }
 .look-notice.report .look-notice-actions { justify-content: flex-end; margin-top: 14px; }
+
+/* a hold on a card opens the peek sheet — not the platform's image sheet */
+.card, .card img { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }

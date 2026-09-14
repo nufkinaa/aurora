@@ -420,5 +420,6 @@ export const renderHome = async (root) => {
     if (heroTimer) clearInterval(heroTimer);
     for (const fn of cleanups) fn();
     unsub();
+    unsubParties();
   };
 };

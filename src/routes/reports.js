@@ -44,7 +44,9 @@ router.post("/api/reports", (req, res) => {
       online: ctx.online !== false,
       version: clean(ctx.version, 20),
       errors: Array.isArray(ctx.errors) ? ctx.errors.slice(-20).map((e) => clean(e, 400)) : [],
-      playMarks: Array.isArray(ctx.playMarks) ? ctx.playMarks.slice(-30) : [],
+      playMarks: (Array.isArray(ctx.playMarks) ? ctx.playMarks.slice(-30) : [])
+        .map((m) => ({ name: clean(m && m.name, 32), ms: Math.max(0, parseInt(m && m.ms, 10) || 0), path: clean(m && m.path, 24) || undefined }))
+        .filter((m) => m.name),
     },
     ip: req.ip,
   };
@@ -53,7 +55,7 @@ router.post("/api/reports", (req, res) => {
   store.save();
   console.log(`[report] ${report.profile || "someone"} on ${report.context.route}: ${text.slice(0, 120)}`);
   notify.send("Aurora: problem reported", `${report.profile || "Someone"}: ${text.slice(0, 200)}${report.context.title ? ` (${report.context.title})` : ""}`);
-  realtime.broadcastAdmins({ type: "report_new", report });
+  realtime.broadcastAdmins({ type: "report_new", report: { id: report.id, at: report.at, profile: report.profile, text: report.text.slice(0, 200), route: report.context.route } });
   res.json({ ok: true, id: report.id });
 });
 
