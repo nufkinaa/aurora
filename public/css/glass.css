@@ -786,8 +786,8 @@ html[data-look="glass"] .detail-hero {
 /* the art reads: barely softened, dimmed, dissolving into the sky */
 html[data-look="glass"] .detail-hero .hero-backdrop,
 html[data-look="glass"] .detail-hero .hero-backdrop.sharp {
-  filter: blur(1px) saturate(1.15) brightness(0.46);
-  -webkit-filter: blur(1px) saturate(1.15) brightness(0.46);
+  filter: blur(1px) saturate(1.5) brightness(1.1);
+  -webkit-filter: blur(1px) saturate(1.5) brightness(1.1);
   transform: scale(1.02);
   --hero-dissolve: linear-gradient(to bottom, #000 70%, rgba(0, 0, 0, 0.5) 86%, transparent 96%);
 }
