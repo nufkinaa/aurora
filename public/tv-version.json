@@ -1,4 +1,4 @@
 {
-  "versionName": "5.0.0",
-  "notes": "Everything the website learned this month, on the TV: watch parties (start one from the player, join from Home or Settings), trailers on the title page and on the home billboard, Skip intro and Up next at the detected credits, a resume card with the frame you stopped on, subtitles that fetch themselves in your language, a New page, My downloads, Report a problem — and updates that install right here, from now on."
+  "versionName": "5.0.1",
+  "notes": "The update offer is now a proper popup: it comes back every time you land on Home and every half hour, and Later only buys ten minutes. Plus everything from 5.0.0 — watch parties, trailers, Skip intro, resume frame, auto subtitles, New page, My downloads, Report a problem."
 }

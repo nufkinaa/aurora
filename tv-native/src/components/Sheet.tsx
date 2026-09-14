@@ -12,12 +12,16 @@ export default function Sheet({
   title,
   kicker,
   width = 560,
+  accent,
   onClose,
   children,
 }: {
   title?: string;
   kicker?: string;
   width?: number | `${number}%`;
+  // A louder card: the accent colour on its edge and a deeper backdrop — for
+  // the one sheet that must not be missed (the update offer).
+  accent?: boolean;
   onClose: () => void;
   children: React.ReactNode;
 }) {
@@ -30,14 +34,14 @@ export default function Sheet({
     return () => sub.remove();
   }, [onClose]);
   return (
-    <View style={styles.backdrop}>
+    <View style={[styles.backdrop, accent && styles.backdropDeep]}>
       <TVFocusGuideView
         autoFocus
         trapFocusUp
         trapFocusDown
         trapFocusLeft
         trapFocusRight
-        style={[styles.card, {width}]}>
+        style={[styles.card, {width}, accent && styles.cardAccent]}>
         {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
         {title ? <Text style={styles.title}>{title}</Text> : null}
         {children}
@@ -76,6 +80,12 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     maxWidth: '92%',
     maxHeight: '92%',
+  },
+  backdropDeep: {backgroundColor: 'rgba(5,6,12,0.86)'},
+  cardAccent: {
+    borderColor: 'rgba(139,123,255,0.55)',
+    borderTopColor: 'rgba(199,191,255,0.8)',
+    boxShadow: '0 0 0 1px rgba(139,123,255,0.25), 0 30px 90px rgba(0,0,0,0.7), 0 0 60px rgba(108,88,255,0.35)',
   },
   kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3, marginBottom: 4},
   title: {color: colors.text, fontSize: fontSize.title, fontWeight: '900', marginBottom: spacing.sm},

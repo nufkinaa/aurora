@@ -27,11 +27,11 @@ import {api, imgSrc, ImgSource, Home as HomeData, HeroItem, HomeRow, PartySummar
 import {checkForUpdate, UpdateInfo} from '../update';
 import {canNavigate} from '../navLock';
 import {openItem} from '../openItem';
-import {openUpdate} from '../overlay';
+import {openUpdate, overlayOpen} from '../overlay';
 import {resolvePartyRoute} from '../party';
 import {warmItem, warmSections} from '../prefetch';
 import {onMessage} from '../realtime';
-import {loadPrefs, updateWasDismissed} from '../storage';
+import {loadPrefs} from '../storage';
 import {track} from '../usage';
 import {railOpen, useFocusFallback, useIsLive} from '../focus';
 import {defer, useSlide} from '../motion';
@@ -149,17 +149,31 @@ export default function Home({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileId, reload, live]);
 
+  // A new build is offered as a sheet the viewer has to answer — on every
+  // return to Home and every half hour while browsing, so it is not missed.
+  // "Later" buys ten minutes, not the whole run (elia: it has to be
+  // noticeable, so people actually upgrade).
+  const lastOffer = useRef(0);
   useEffect(() => {
-    let live = true;
-    checkForUpdate().then(u => {
-      if (!live || !u) return;
+    if (!live) return;
+    let on = true;
+    const offer = async () => {
+      const u = await checkForUpdate();
+      if (!on || !u) return;
       setUpdate(u);
-      if (!updateWasDismissed(u.version)) setTimeout(() => live && openUpdate(u), 1800);
-    });
-    return () => {
-      live = false;
+      if (overlayOpen() || Date.now() - lastOffer.current < 10 * 60000) return;
+      lastOffer.current = Date.now();
+      openUpdate(u);
     };
-  }, []);
+    const t = setTimeout(offer, data ? 1500 : 4000);
+    const iv = setInterval(offer, 30 * 60000);
+    return () => {
+      on = false;
+      clearTimeout(t);
+      clearInterval(iv);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live]);
 
   // Parties: once on arrival, then live over the socket.
   useEffect(() => {

@@ -139,7 +139,13 @@ class UpdaterModule(private val ctx: ReactApplicationContext) : ReactContextBase
       val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
       val intent = Intent(Intent.ACTION_VIEW)
       intent.setDataAndType(uri, "application/vnd.android.package-archive")
-      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      // CLEAR_TASK: the installer leaves its task behind after a successful
+      // install (the viewer presses OPEN, the task with its "App installed"
+      // screen stays). Measured on the Streamer: the NEXT update's intent
+      // landed in that stale task and only re-showed the old success screen —
+      // nothing was installed. Clearing the task gives every install a fresh
+      // installer.
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
       intent.putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
       intent.putExtra(Intent.EXTRA_RETURN_RESULT, false)
       ctx.startActivity(intent)

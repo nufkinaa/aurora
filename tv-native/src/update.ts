@@ -6,7 +6,7 @@ import {NativeEventEmitter, NativeModules} from 'react-native';
 import {getBaseUrl, getSession} from './api';
 
 // Keep in lockstep with android/app/build.gradle versionName on each release.
-export const APP_VERSION = '5.0.0';
+export const APP_VERSION = '5.0.1';
 
 const cmp = (a: string, b: string) => {
   const pa = a.split('.').map(n => parseInt(n, 10) || 0);

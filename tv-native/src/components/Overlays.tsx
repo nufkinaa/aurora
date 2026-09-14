@@ -372,11 +372,11 @@ function UpdateSheet({info}: {info: UpdateInfo}) {
   const pct = prog.total > 0 ? Math.min(100, Math.round((prog.received / prog.total) * 100)) : null;
 
   return (
-    <Sheet kicker="AURORA TV" title={`Version ${info.version} is ready`} onClose={later}>
+    <Sheet kicker="UPDATE AVAILABLE" title={`Aurora TV ${info.version} is ready`} width={680} accent onClose={later}>
       {stage === 'offer' ? (
         <>
           <Text style={styles.body}>{info.notes || 'A new version of the TV app is available.'}</Text>
-          <Text style={styles.faint}>{`You have ${APP_VERSION}. The update downloads from your Aurora server and installs right here — about a minute.`}</Text>
+          <Text style={styles.faint}>{`This TV runs ${APP_VERSION}. Press Update now — it downloads from your Aurora server and installs right here, about a minute. Later asks again in ten minutes.`}</Text>
           <View style={styles.actions}>
             <Primary focus label="Update now" onPress={start} />
             <Ghost label="Later" onPress={later} />
