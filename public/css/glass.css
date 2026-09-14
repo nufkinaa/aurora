@@ -115,7 +115,7 @@ html[data-look="glass"] .toast,
 html[data-look="glass"] .search-box {
   position: relative;
 }
-/* the specular: a soft highlight that slides across the surface every 9s */
+/* the specular: a soft, still highlight in the surface's top-left corner */
 html[data-look="glass"] .nav-items::before,
 html[data-look="glass"] .hero::before,
 html[data-look="glass"] .player-bottom::before,
@@ -130,29 +130,9 @@ html[data-look="glass"] .login-card::before {
   overflow: hidden;
   background: radial-gradient(120% 60% at 15% 0%, rgba(255, 255, 255, 0.14), transparent 55%);
 }
-/* the moving part rides on its own layer and moves by transform only —
-   background-position animation repainted every glass surface every frame */
-html[data-look="glass"] .nav-items::after,
-html[data-look="glass"] .hero::after,
-html[data-look="glass"] .player-bottom::after,
-html[data-look="glass"] .modal::after,
-html[data-look="glass"] .login-card::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -60%;
-  width: 60%;
-  pointer-events: none;
-  z-index: 1;
-  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.07) 50%, transparent 65%);
-  will-change: transform;
-  animation: g-sheen 9s ease-in-out infinite;
-}
-@keyframes g-sheen {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(270%); }
-}
+/* (the sliding highlight that used to cross these surfaces every 9s is
+   gone — elia: the moving lights were too much; the static edge light and
+   the corner glow above stay) */
 /* flat tints where blur is too costly or unwanted */
 @media (prefers-reduced-transparency: reduce), (hover: none) and (pointer: coarse) and (min-width: 1200px) {
   html[data-look="glass"] .nav-items,
