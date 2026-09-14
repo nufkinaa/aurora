@@ -612,11 +612,15 @@
 .pref-section .row-title { margin-bottom: 6px; }
 .pref-section .pref-note { margin-bottom: 12px; }
 .pref-section .page-pad { padding-left: 0; padding-right: 0; }
+/* the home-row editor ends 18px short of the card edge (its own padding +
+   the scrollbar lane); the settings rows' buttons stop on the same line */
+.pref-section .pref-list { padding-right: 18px; }
 
 /* Home-row editor: a quietly scrollable list that never eats the screen */
 .rows-editor {
   max-height: 340px;
   overflow-y: auto;
+  overflow-x: hidden; /* rows never scroll sideways — the toggle must never clip */
   scrollbar-width: thin;
   scrollbar-color: var(--surface-hover) transparent;
   padding-right: 6px;

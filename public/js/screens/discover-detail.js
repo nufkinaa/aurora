@@ -230,7 +230,7 @@ const paintDl = (btn, job) => {
   // download button has none): says what the ⬇ DOES, so it never gets
   // confused with Play again.
   const cap = btn.querySelector(".dl-cap");
-  if (cap) cap.textContent = job && job.status === "done" ? "SAVED" : "SAVE";
+  if (cap) cap.textContent = job && job.status === "done" ? "SAVED" : job && job.status === "error" ? "RETRY" : "SAVE";
 };
 
 // The badge a source carries when it already has a download job. Saying it on
@@ -738,13 +738,14 @@ const ownedRow = ({ id, label, onDownload, item }) =>
     onDownload &&
       el("button", {
         class: "source-dl focusable",
-        html: icons.downloadDevice,
+        html: icons.downloadDevice + '<span class="dl-cap">DEVICE</span>',
         title: "Download the file to this device (lands in your browser's downloads)",
         "aria-label": "Download the file to this device",
         onclick: onDownload,
       }),
-    // …and keep it inside the app, playable with no server in reach.
-    item && offlineButton(item, { compact: true }),
+    // …and keep it inside the app, playable with no server in reach — as a
+    // third rail, the same shape as the two beside it.
+    item && offlineButton(item, { rail: true }),
   );
 
 // Render a sources list into a host element (with loading + empty states)
@@ -2176,10 +2177,13 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
 // One button per library file: Save offline → (preparing 43% → saving 71%)
 // → Saved ✓ (press again to remove). Hidden on plain http, where the
 // browser has no offline storage to offer (see offline.js).
-const offlineButton = (item, { compact = false } = {}) => {
+// `compact`: a round icon button (the title page's action row). `rail`: the
+// 66px action column at the end of a source card, with a caption like the
+// SAVE and DEVICE rails beside it.
+const offlineButton = (item, { compact = false, rail = false } = {}) => {
   if (!offline.available() || !item || !item.id) return null;
   const btn = el("button", {
-    class: `btn ${compact ? "btn-icon" : ""} focusable btn-offline`,
+    class: rail ? "source-dl focusable btn-offline" : `btn ${compact ? "btn-icon" : ""} focusable btn-offline`,
     title: "Save offline — keep it inside Aurora on this device, playable with no server in reach",
     "aria-label": "Save offline on this device",
   });
@@ -2188,6 +2192,15 @@ const offlineButton = (item, { compact = false } = {}) => {
   let aborter = null;
   const face = (text, icon = "📱") => {
     btn.innerHTML = "";
+    if (rail) {
+      const pct = /(\d+)%/.exec(text);
+      btn.append(
+        el("span", { class: "dl-face" }, icon),
+        el("span", { class: "dl-cap" }, pct ? `${pct[1]}%` : /Saved/.test(text) ? "SAVED" : "OFFLINE"),
+      );
+      btn.title = text;
+      return;
+    }
     btn.append(el("span", {}, icon));
     if (!compact) btn.append(el("span", {}, text));
     btn.title = compact ? text : btn.title;

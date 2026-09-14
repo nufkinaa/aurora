@@ -1069,7 +1069,14 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-width: 720px;
+}
+/* the words stay readable at any card width; the row's button sits at the
+   far right, in line with the home-row editor's controls */
+.pref-item-text {
+  max-width: 640px;
+}
+.pref-item > .pref-item-value {
+  margin-left: auto;
 }
 .pref-item {
   display: flex;

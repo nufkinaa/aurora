@@ -988,13 +988,92 @@ html[data-look="glass"] .episode-sub .ep-dur {
   html[data-look="glass"] .episode-sub .ep-dur { display: inline; }
   html[data-look="glass"] .ep-action { width: 40px; }
 }
-html[data-look="glass"] .source-row {
+/* A source card is ONE glass surface: the card (.source-row-wrap) carries
+   the fill, the edge light and the state colour on its border (green when
+   owned, amber for the pinned best pick); the play area and the action rails
+   inside it are transparent and share its corners. Each used to paint its
+   own rounded glass box inside the card — three radii, three edges, a 48px
+   circle floating in a 68px slot. */
+html[data-look="glass"] .source-row-wrap {
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--g-fill);
   box-shadow: var(--g-edge);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+html[data-look="glass"] .source-row-wrap:hover {
+  box-shadow: var(--g-edge), 0 8px 26px rgba(0, 0, 0, 0.3);
 }
 html[data-look="glass"] .source-row-wrap:has(> .source-row.owned) {
-  border-radius: 18px;
+  border-color: rgba(74, 222, 128, 0.45);
+}
+/* the pinned best pick keeps its amber edge (the shorthand above would win) */
+html[data-look="glass"] .source-box .source-row-wrap.best-pinned {
+  border-color: rgba(245, 197, 66, 0.38);
+}
+html[data-look="glass"] .source-row-wrap > .source-row {
+  background: none;
+  box-shadow: none;
+  border-radius: 15px 0 0 15px;
+}
+html[data-look="glass"] .source-row-wrap > .source-row:last-child {
+  border-radius: 15px;
+}
+html[data-look="glass"] .source-row-wrap > .source-row.owned {
+  background: linear-gradient(90deg, rgba(74, 222, 128, 0.14), transparent 60%);
+}
+html[data-look="glass"] .source-row-wrap > .source-row:hover,
+html[data-look="glass"] .source-row-wrap > .source-row:focus:not(:focus-visible) {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none; /* pointer focus reads as hover; the ring is for keys and remotes */
+}
+html[data-look="glass"] .source-row-wrap > .source-row.owned:hover,
+html[data-look="glass"] .source-row-wrap > .source-row.owned:focus:not(:focus-visible) {
+  background: linear-gradient(90deg, rgba(74, 222, 128, 0.2), rgba(255, 255, 255, 0.06) 60%);
+}
+html[data-look="glass"] .source-row-wrap > .source-row:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+/* the rails: SAVE (to the server), DEVICE, OFFLINE — the same 66px column,
+   a hairline between, the card's own right corners on the last one */
+html[data-look="glass"] .source-row-wrap > .source-dl {
+  width: 66px;
+  height: auto;
+  align-self: stretch;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: rgba(243, 244, 248, 0.8);
+}
+html[data-look="glass"] .source-row-wrap > .source-dl:last-child {
+  border-radius: 0 15px 15px 0;
+}
+html[data-look="glass"] .source-row-wrap > .source-dl:hover,
+html[data-look="glass"] .source-row-wrap > .source-dl:focus {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+  color: #fff;
+}
+html[data-look="glass"] .source-row-wrap > .source-dl:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+html[data-look="glass"] .source-row-wrap > .source-dl.done,
+html[data-look="glass"] .source-row-wrap > .source-dl.saved {
+  color: #86efac;
+}
+html[data-look="glass"] .source-row-wrap > .source-dl.failed {
+  color: #f87171;
+}
+html[data-look="glass"] .source-row-wrap > .source-dl.on {
+  color: #c7bfff;
 }
 html[data-look="glass"] .source-quality,
 html[data-look="glass"] .source-best,
@@ -1005,9 +1084,6 @@ html[data-look="glass"] .source-cam,
 html[data-look="glass"] .source-pack,
 html[data-look="glass"] .owned-chip {
   border-radius: 999px;
-}
-html[data-look="glass"] .source-dl {
-  border-radius: 16px;
 }
 html[data-look="glass"] .dl-callout {
   border-radius: var(--g-radius);
@@ -1022,9 +1098,12 @@ html[data-look="glass"] .player-top {
   gap: 12px;
   background: none;
 }
+/* the title pill stacks two or three lines (title, year or episode, the
+   format row) — a capsule's 40px corners swallow a stacked block, so it is
+   a rounded rectangle; the Back button beside it stays round */
 html[data-look="glass"] .player-top > div {
-  border-radius: 999px;
-  padding: 8px 18px 8px 14px;
+  border-radius: 22px;
+  padding: 10px 20px 10px 16px;
 }
 html[data-look="glass"] .player-top .pbtn {
   border-radius: 999px;
