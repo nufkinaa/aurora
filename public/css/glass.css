@@ -56,7 +56,7 @@ html[data-look="glass"] .glass-sky {
      stacking context on #app, or the player could never rise above the nav */
   z-index: -1;
   pointer-events: none;
-  opacity: 1;
+  opacity: 0.9; /* a touch under full strength — text over the sky stays easy to read */
 }
 html[data-look="glass"] body {
   background-color: var(--bg);
