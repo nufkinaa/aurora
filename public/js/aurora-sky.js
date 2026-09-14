@@ -1,8 +1,9 @@
 // Full-screen aurora for the sign-in sky — the nav aurora's big sibling.
 // Same band language (bright core, long veil below, meandering centerline,
 // curls that come and go) tuned for a whole viewport: slower, taller, one
-// violet band in the mix, and a sparse starfield behind. Painted at 1/3
-// resolution and browser-upscaled — the blur IS the glow. 24fps, and the
+// violet band in the mix, and a sparse starfield behind. The curtains are
+// painted at 1/3 resolution and upscaled — the blur IS the glow — while on
+// desktop the stars go on a full-resolution layer so they stay points. The
 // loop stops the moment the canvas leaves the DOM or the tab hides.
 // Reduced motion: one still frame, no drift.
 // Kept close to the height a column is actually drawn at (~55-80px here), so
@@ -123,38 +124,81 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   let raf = null;
   let last = 0;
   const DOWN = mobile ? 4 : 3;
+  // Desktop paints in two layers: the curtains at 1/3 on an OFFSCREEN canvas
+  // (the blur IS the upscale, and the per-column loop stays cheap), blitted
+  // onto a visible canvas at full resolution where the stars are drawn as
+  // real points. One layer at 1/3 made every star a 3px block (elia: "I can
+  // see the stars' pixels"). Phones keep the single low-res canvas.
+  const HI = !mobile;
+  const off = HI ? document.createElement("canvas") : null;
+  const bctx = HI ? off.getContext("2d") : ctx;
   const size = () => {
     const w = Math.max(1, Math.round(canvas.clientWidth / DOWN));
     const h = Math.max(1, Math.round(canvas.clientHeight / DOWN));
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
+    const low = off || canvas;
+    if (low.width !== w || low.height !== h) {
+      low.width = w;
+      low.height = h;
+    }
+    if (HI) {
+      // full CSS resolution, capped — a 4K desktop needs no 4K sky
+      const scale = Math.min(1, 1920 / Math.max(1, canvas.clientWidth));
+      const fw = Math.max(1, Math.round(canvas.clientWidth * scale));
+      const fh = Math.max(1, Math.round(canvas.clientHeight * scale));
+      if (canvas.width !== fw || canvas.height !== fh) {
+        canvas.width = fw;
+        canvas.height = fh;
+      }
     }
   };
 
   const paint = (t, still = false) => {
     size();
-    const W = canvas.width;
-    const H = canvas.height;
+    const low = off || canvas;
+    const W = low.width;
+    const H = low.height;
     const cw = W * DOWN;
-    ctx.clearRect(0, 0, W, H);
+    bctx.clearRect(0, 0, W, H);
+    if (HI) ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "rgba(230, 238, 255, 1)";
+    // Stars on the visible layer — crisp points at full resolution on
+    // desktop, the old blocks on the low-res phone canvas.
+    const sctx = ctx;
+    const SW = canvas.width;
+    const SH = canvas.height;
+    const K = HI ? SW / W : 1; // star sizes were tuned at the low resolution
+    sctx.fillStyle = "rgba(230, 238, 255, 1)";
     for (const s of stars ? STARS : []) {
       // a slow swell with a sharper glint on top — real twinkle isn't a sine
       const w = Math.sin(t * s.tw + s.off);
       const glint = Math.max(0, Math.sin(t * s.tw * 3.1 + s.off * 1.7)) ** 6;
       const a = still ? 0.55 : Math.max(0, 0.22 + 0.45 * w + 0.35 * glint);
       if (a <= 0.05) continue;
-      const x = s.x * W, y = s.y * H;
+      const x = s.x * SW, y = s.y * SH;
+      if (HI) {
+        const r = Math.max(0.6, s.r * K * 0.5);
+        if (s.bright) {
+          // a soft round halo that grows with the glow
+          sctx.globalAlpha = a * 0.18;
+          sctx.beginPath();
+          sctx.arc(x, y, r + 2.2 * K, 0, Math.PI * 2);
+          sctx.fill();
+        }
+        sctx.globalAlpha = Math.min(1, a * (s.bright ? 1 : 0.75));
+        sctx.beginPath();
+        sctx.arc(x, y, r, 0, Math.PI * 2);
+        sctx.fill();
+        continue;
+      }
       if (s.bright) {
         // a soft halo that grows with the glow
-        ctx.globalAlpha = a * 0.18;
-        ctx.fillRect(x - 1.5, y - 1.5, s.r + 3, s.r + 3);
+        sctx.globalAlpha = a * 0.18;
+        sctx.fillRect(x - 1.5, y - 1.5, s.r + 3, s.r + 3);
       }
-      ctx.globalAlpha = Math.min(1, a * (s.bright ? 1 : 0.75));
-      ctx.fillRect(x, y, s.r, s.r);
+      sctx.globalAlpha = Math.min(1, a * (s.bright ? 1 : 0.75));
+      sctx.fillRect(x, y, s.r, s.r);
     }
+    sctx.globalAlpha = 1;
 
     for (const b of BANDS) {
       let presence = Math.min(1, Math.max(0, 1.6 * Math.sin(t * b.presF + b.presOff) + 0.35));
@@ -195,11 +239,17 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
         const streak = 0.9 + 0.1 * Math.sin(cx * 0.03 + s * 1.8);
         const bright = flow * swell * streak * endTaper * presence;
         if (bright < 0.02) continue;
-        ctx.globalAlpha = Math.min(1, Math.pow(bright, 1.25) * b.alpha + 0.02 * feather);
-        ctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, x, yC - th * CORE_AT, 1, th);
+        bctx.globalAlpha = Math.min(1, Math.pow(bright, 1.25) * b.alpha + 0.02 * feather);
+        bctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, x, yC - th * CORE_AT, 1, th);
       }
     }
-    ctx.globalAlpha = 1;
+    bctx.globalAlpha = 1;
+    // The curtains, upscaled over the stars: the same soft blur as before,
+    // one blit per frame.
+    if (HI) {
+      ctx.globalAlpha = 1;
+      ctx.drawImage(off, 0, 0, W, H, 0, 0, canvas.width, canvas.height);
+    }
   };
 
   const alive = () => canvas.isConnected && !document.hidden;

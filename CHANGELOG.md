@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.3 — 2026-09-14
+
+- Aurora TV 5.0.0: everything the website learned this month, on the Streamer. Watch parties (start one from the player's 👥 button, join from the Home billboard pill or Settings → Join a watch party; the host's Up next carries the room along); trailers — a Trailer button on every title page and, after six seconds on the home billboard, the trailer plays muted over the art with an Unmute button (Settings → Playback to turn it off); Skip intro from the household's marks or the server's own detection, Up next at the detected credits, gear-menu marking and "Ignore the detected intro"; a resume card with the frame you stopped on and Start over; subtitles fetched in your preferred language when a title lacks them; a New page (nav dot until seen); My downloads; Report a problem (with the app version, the TV model and the last errors); usage stats (device "tv") with a Privacy toggle; the next screen warmed while you look at this one; a peek sheet on a held OK. Google sign-in on the TV can request access in one press when no profile is linked yet. Subtle glass touches: lit progress heads, glass panels and toasts.
+- Aurora TV updates itself: when a newer build is published the TV offers it on Home and under Settings → This TV, downloads it from the server and hands it to Android's installer — no computer, no sideloading tool. First time, Android asks once to allow it.
+- My downloads (web and TV): a request the admin removed, or whose file has since left the library, disappears from the page at once instead of sitting there as "Finished — indexing…"; the page shows your own downloads first and what the rest of the house has in flight underneath.
+- Apple Horror's sky on desktop paints its stars on a full-resolution layer — points, not blocks — while the curtains keep their soft low-resolution blur.
+
 ## 1.6.2 — 2026-09-14
 
 - Desktop polish (Apple Horror): a source card is one glass surface — the play area and the SAVE / DEVICE / OFFLINE rails sit inside it and share its corners (each used to draw its own rounded box, and the offline button was a loose circle); a failed download rail says RETRY. The player's title pill is a rounded rectangle instead of a capsule around three lines. Preferences rows span the card and their buttons line up with the home-row editor's controls.

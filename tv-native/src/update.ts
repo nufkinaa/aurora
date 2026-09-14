@@ -1,14 +1,12 @@
-// Lightweight self-update check. The server can publish a `tv-version.json`
-// next to the downloadable APK ({ "versionName": "2.1", "notes": "..." }); if
-// it advertises a version newer than this build, Home shows a banner pointing
-// at the download page. Purely informational — no auto-download. No-ops
-// (returns null) when the file is absent, so it's safe before first publish.
-import {getBaseUrl} from './api';
+// Self-update. The server publishes tv-version.json next to the APK
+// ({versionName, notes}); when it names a newer build than this one, Home
+// offers it and UpdaterModule.kt fetches and installs it on the TV itself —
+// no computer, no sideloading tool. Silent no-op when the file is absent.
+import {NativeEventEmitter, NativeModules} from 'react-native';
+import {getBaseUrl, getSession} from './api';
 
 // Keep in lockstep with android/app/build.gradle versionName on each release.
-// (Was '2.3' while gradle said 4.7 — the drift meant a published
-// tv-version.json would have compared against the wrong number.)
-export const APP_VERSION = '4.9.1';
+export const APP_VERSION = '5.0.0';
 
 const cmp = (a: string, b: string) => {
   const pa = a.split('.').map(n => parseInt(n, 10) || 0);
@@ -26,15 +24,11 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
   const base = getBaseUrl();
   if (!base) return null;
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 4000); // don't let a slow check linger
+  const t = setTimeout(() => ctrl.abort(), 4000);
   try {
-    // Cache-busted: the device's HTTP cache (and any CDN in front of the
-    // server) happily serves a stale copy under a long max-age — measured on
-    // the Streamer, the banner sat on the previous version until the cache
-    // expired. A unique query string makes every check hit the origin.
-    const res = await fetch(`${base}/tv-version.json?t=${Date.now()}`, {
-      signal: ctrl.signal,
-    });
+    // Cache-busted: the device's HTTP cache served a stale copy under a long
+    // max-age (measured on the Streamer).
+    const res = await fetch(`${base}/tv-version.json?t=${Date.now()}`, {signal: ctrl.signal});
     clearTimeout(t);
     if (!res.ok) return null;
     const j = (await res.json()) as {versionName?: string; notes?: string};
@@ -46,3 +40,36 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
   }
   return null;
 }
+
+// ---- the native half (UpdaterModule.kt) ----
+type Native = {
+  download: (url: string, session: string | null, ) => Promise<string>;
+  cancel: () => void;
+  canInstall: () => Promise<boolean>;
+  openInstallSettings: () => Promise<boolean>;
+  install: (path: string) => Promise<boolean>;
+  versionName: () => Promise<string>;
+};
+const native = NativeModules.AuroraUpdater as Native | undefined;
+export const updaterAvailable = () => !!native;
+
+export type Progress = {received: number; total: number};
+
+// Fetch the APK into the app's cache. `onProgress` fires a few times a second.
+export const downloadUpdate = async (url: string, onProgress: (p: Progress) => void): Promise<string> => {
+  if (!native) throw new Error('This build cannot update itself');
+  const emitter = new NativeEventEmitter(NativeModules.AuroraUpdater);
+  const sub = emitter.addListener('AuroraUpdaterProgress', (p: Progress) => onProgress(p));
+  try {
+    return await native.download(url, getSession());
+  } finally {
+    sub.remove();
+  }
+};
+export const cancelDownload = () => native?.cancel();
+export const canInstall = () => (native ? native.canInstall() : Promise.resolve(false));
+export const openInstallSettings = () => (native ? native.openInstallSettings() : Promise.resolve(false));
+export const installUpdate = (path: string) => {
+  if (!native) throw new Error('This build cannot update itself');
+  return native.install(path);
+};

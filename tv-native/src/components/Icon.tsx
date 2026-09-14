@@ -32,7 +32,9 @@ export type IconName =
   | 'volume'
   | 'volumeOff'
   | 'film'
-  | 'series';
+  | 'series'
+  | 'people'
+  | 'skip';
 
 type Props = {name: IconName; size?: number; color?: string};
 
@@ -71,6 +73,14 @@ function glyph(name: IconName, color: string) {
           <Rect x="8" y="19" width="8" height="2" rx="1" />
         </>
       );
+    // Two heads — the watch-party button (the site uses the 👥 glyph).
+    case 'people':
+      return (
+        <Path d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm7 1a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM9 13c-3.3 0-7 1.7-7 4.2V20h14v-2.8C16 14.7 12.3 13 9 13zm7 1.2c-.6 0-1.2.1-1.8.2 1.1.9 1.8 2 1.8 3.4V20h6v-2.6c0-2-3.3-3.2-6-3.2z" />
+      );
+    // Skip to the end of a range — the Skip intro button.
+    case 'skip':
+      return <Path d="M5 5.5v13l9-6.5-9-6.5zM16 5h2.5v14H16z" />;
     case 'plus':
       return <Path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z" />;
     case 'check':

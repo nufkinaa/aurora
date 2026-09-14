@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The in-app updater (UpdaterModule.kt) downloads the new APK here and hands
+     the installer a content:// URI to it. -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>

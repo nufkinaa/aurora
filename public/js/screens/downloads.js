@@ -10,6 +10,11 @@ import { el, icons, posterImg, fmtBytes, toast } from "../ui.js";
 import { navigate } from "../router.js";
 import { api } from "../api.js";
 import { state, downloads, myDownloads } from "../state.js";
+
+// Not the asker's — what the rest of the household has moving or waiting,
+// so the page is honest about what is using the server right now. Drawn
+// under the viewer's own sections, without Cancel (only the asker cancels).
+const othersDownloads = () => [...downloads.values()].filter((j) => !j.mine && ["approved", "downloading", "pending"].includes(j.status));
 import { onMessage } from "../ws.js";
 
 const ACTIVE = ["approved", "downloading"];
@@ -184,6 +189,7 @@ export const renderDownloads = async (root) => {
     const moving = mine.filter((j) => ACTIVE.includes(j.status));
     const waiting = mine.filter((j) => j.status === "pending");
     const failed = mine.filter((j) => ["error", "declined", "canceled"].includes(j.status));
+    const others = othersDownloads().sort((a, b) => Date.parse(b.at || 0) - Date.parse(a.at || 0));
     if (!mine.length) {
       body.append(
         el(
@@ -193,20 +199,26 @@ export const renderDownloads = async (root) => {
           "Nothing yet. Tap the ⬇ next to any source on a title's page and it lands here.",
         ),
       );
-      return;
     }
+    // Yours first — that is what the page is for — then what the rest of the
+    // house has in flight, so a slow queue explains itself.
     body.append(
       ...[
-        section("Ready to play", ready.sort((a, b) => (a.seenAt ? 1 : 0) - (b.seenAt ? 1 : 0)), null),
-        section("On its way", moving, null),
-        section("Waiting for approval", waiting, null),
-        section("Didn't make it", failed, null),
+        mine.length ? section("Ready to play", ready.sort((a, b) => (a.seenAt ? 1 : 0) - (b.seenAt ? 1 : 0)), null) : null,
+        mine.length ? section("On its way", moving, null) : null,
+        mine.length ? section("Waiting for approval", waiting, null) : null,
+        mine.length ? section("Didn't make it", failed, null) : null,
+        others.length ? section("Also on the server", others, null) : null,
       ].filter(Boolean),
     );
   };
   paint();
 
   // Live: progress ticks, a finish, an approval — repaint the row that moved.
+  const unsubRemoved = onMessage("download_removed", ({ id }) => {
+    if (!screen.isConnected) return unsubRemoved();
+    if (id && downloads.delete(id)) paint();
+  });
   const unsub = onMessage("download_update", ({ job }) => {
     if (!screen.isConnected) return unsub();
     if (!job) return;
@@ -216,5 +228,8 @@ export const renderDownloads = async (root) => {
     }
     paint();
   });
-  return () => unsub();
+  return () => {
+    unsub();
+    unsubRemoved();
+  };
 };

@@ -8,6 +8,7 @@ import Card, {CARD_W} from '../components/Card';
 import NavRail from '../components/NavRail';
 import {api, HeroItem, Item} from '../api';
 import {canNavigate} from '../navLock';
+import {warmItem} from '../prefetch';
 import {noteFocus, railOpen, useFocusFallback, useTVKeys} from '../focus';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
@@ -56,7 +57,8 @@ export default function Search({
       [cols],
     ),
   );
-  const onCardFocus = useCallback((_item: HeroItem, index: number) => {
+  const onCardFocus = useCallback((item: HeroItem, index: number) => {
+    warmItem(item);
     inGrid.current = true;
     gridIdx.current = index;
   }, []);

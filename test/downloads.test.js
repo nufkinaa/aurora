@@ -180,3 +180,24 @@ test("aria2 stages each torrent in its own directory, away from streaming", () =
 test("the engine reports whether it can run at all", () => {
   assert.equal(typeof aria2.available(), "boolean");
 });
+
+// ---------- gone files fall off the list ----------
+
+test("pruneGone drops finished jobs whose file the admin deleted", () => {
+  const store = downloads._internals.store;
+  const before = store.data.slice();
+  const tmp = path.join(os.tmpdir(), `aurora-dl-${Date.now()}.mkv`);
+  fs.writeFileSync(tmp, "x");
+  store.data = [
+    { id: "keep", status: "done", destPath: tmp },
+    { id: "gone", status: "done", destPath: path.join(os.tmpdir(), "aurora-never-existed.mkv") },
+    { id: "moving", status: "downloading", destPath: null },
+  ];
+  try {
+    downloads.pruneGone();
+    assert.deepEqual(store.data.map((j) => j.id), ["keep", "moving"]);
+  } finally {
+    store.data = before;
+    fs.unlinkSync(tmp);
+  }
+});

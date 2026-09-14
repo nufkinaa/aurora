@@ -317,6 +317,63 @@ export type DiscoverMeta = HeroItem & {
   // Age rating ("16+"). Comes from TMDB via the server, so it is present for
   // streamable titles too, not just the ones we hold on disk.
   certificate?: string | null;
+  // YouTube ids, trailers first (src/media/discover.js) — the Trailer button
+  // and the home billboard's trailer read these.
+  trailers?: string[];
+  director?: string | null;
+};
+
+// A download job as /api/downloads lists it for the asker (publicJob + mine).
+export type MyDownload = DownloadJob & {
+  title?: string;
+  label?: string;
+  season?: number | null;
+  episode?: number | null;
+  mine?: boolean;
+  smart?: boolean;
+  libraryId?: string | null;
+  sizeBytes?: number;
+  seenAt?: string | null;
+  doneAt?: string | null;
+  at?: string;
+  holdReason?: string | null;
+  poster?: string | null;
+  quality?: string;
+  imdbId?: string | null;
+  type?: string;
+};
+
+// A watch party as the server describes it (src/lib/party.js publicParty).
+export type PartyMember = {
+  id: string;
+  name: string;
+  avatar?: string | null;
+  avatarImage?: string | null;
+  profileId?: string | null;
+};
+export type PartyItem = Record<string, unknown> & {
+  id: string;
+  title?: string;
+  showTitle?: string;
+  season?: number;
+  episode?: number;
+  cover?: string | null;
+};
+export type Party = {
+  code: string;
+  host: PartyMember | null;
+  item: PartyItem;
+  members: PartyMember[];
+  state: {playing: boolean; position: number; at: number};
+  now: number;
+  createdAt: number;
+};
+export type PartySummary = {
+  code: string;
+  host: string;
+  title: string;
+  cover?: string | null;
+  members: number;
 };
 
 export type Library = { movies: Item[]; shows: Item[] };
@@ -378,6 +435,23 @@ function post<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
 }
+
+// A small read cache: a screen the viewer is about to open is warmed while
+// they still look at the last one (prefetch.ts), and a second visit costs
+// nothing. Only reads whose answer barely changes are memoised; TTLs are
+// short and library_updated (realtime.ts) empties it.
+const memoStore = new Map<string, {at: number; ttl: number; p: Promise<unknown>}>();
+const memo = <T>(key: string, ttl: number, fn: () => Promise<T>, fresh = false): Promise<T> => {
+  const hit = memoStore.get(key);
+  if (hit && !fresh && Date.now() - hit.at < hit.ttl) return hit.p as Promise<T>;
+  const p = fn();
+  memoStore.set(key, {at: Date.now(), ttl, p});
+  p.catch(() => memoStore.delete(key)); // a failure is never cached
+  return p;
+};
+export const forgetMemo = (prefix = '') => {
+  for (const k of [...memoStore.keys()]) if (k.startsWith(prefix)) memoStore.delete(k);
+};
 
 // Health-check one candidate URL without touching the global baseUrl. Short
 // timeout: a dead LAN IP can otherwise hang for many seconds of SYN retries.
@@ -498,17 +572,18 @@ export const api = {
   // a 450 KB payload that this device had to pull over wifi and parse on launch.
   home: (profileId: string) =>
     request<Home>(`/api/home?slim=1&profile=${encodeURIComponent(profileId)}`),
-  library: () => request<Library>('/api/library'),
+  library: (fresh = false) => memo('library', 60000, () => request<Library>('/api/library'), fresh),
   setPreferences: (profileId: string, likedGenres: string[]) =>
     post<{ ok: boolean }>(`/api/profiles/${profileId}/preferences`, { likedGenres }),
   // The IMDb id for a LIBRARY title, so one detail page can offer both the local
   // copy and the stream sources (which are all keyed by IMDb id). Added to the
   // server in the same commit that unified the site's detail page.
-  imdbFor: (type: 'movie' | 'show', title: string, year?: number | null) =>
-    request<{ imdbId: string | null }>(
+  imdbFor: (type: 'movie' | 'show', title: string, year?: number | null) => {
+    const path =
       `/api/imdb-for?type=${encodeURIComponent(type)}&title=${encodeURIComponent(title)}` +
-      (year ? `&year=${encodeURIComponent(String(year))}` : ''),
-    ),
+      (year ? `&year=${encodeURIComponent(String(year))}` : '');
+    return memo(path, 30 * 60000, () => request<{ imdbId: string | null }>(path));
+  },
   discover: () => request<Discover>('/api/discover'),
   // One page of a Browse category. Paged SERVER-side and per genre, which is the
   // whole point: the old client fetched a fixed slice of trending and filtered it
@@ -526,23 +601,30 @@ export const api = {
       page: String(params.page ?? 0),
     });
     if (params.genre) q.set('genre', params.genre);
-    return request<{ items: HeroItem[]; page: number; hasMore: boolean }>(
-      `/api/catalog?${q.toString()}`,
-    );
+    const path = `/api/catalog?${q.toString()}`;
+    // Only the first page is memoised — that is the one prefetch warms.
+    const run = () => request<{ items: HeroItem[]; page: number; hasMore: boolean }>(path);
+    return (params.page ?? 0) === 0 ? memo(path, 60000, run) : run();
   },
   // The genres the catalog can actually serve, so the picker never offers one
   // that comes back empty.
   catalogGenres: (type: 'movie' | 'show') =>
-    request<{ genres: string[] }>(`/api/catalog/genres?type=${encodeURIComponent(type)}`),
+    memo(`genres:${type}`, 10 * 60000, () =>
+      request<{ genres: string[] }>(`/api/catalog/genres?type=${encodeURIComponent(type)}`),
+    ),
   discoverSearch: (q: string) =>
     request<Discover>(`/api/discover/search?q=${encodeURIComponent(q)}`),
   discoverMeta: (type: 'movie' | 'series', imdbId: string) =>
-    request<DiscoverMeta>(`/api/discover/meta/${type}/${imdbId}`),
-  item: (id: string, profileId?: string) =>
-    request<Item>(
-      `/api/item/${encodeURIComponent(id)}` +
-      (profileId ? `?profile=${encodeURIComponent(profileId)}` : ''),
+    memo(`meta:${type}:${imdbId}`, 10 * 60000, () =>
+      request<DiscoverMeta>(`/api/discover/meta/${type}/${imdbId}`),
     ),
+  // `fresh` bypasses the memo — Detail asks for that after a download lands.
+  item: (id: string, profileId?: string, fresh = false) => {
+    const path =
+      `/api/item/${encodeURIComponent(id)}` +
+      (profileId ? `?profile=${encodeURIComponent(profileId)}` : '');
+    return memo(path, 45000, () => request<Item>(path), fresh);
+  },
   state: (profileId: string) =>
     request<ProfileState>(`/api/profiles/${profileId}/state`),
   // Hide a show's synthesized "up next" card. clearProgress can't (the card's
@@ -672,6 +754,49 @@ export const api = {
         signup?: { email?: string; name?: string };
       }
     >('/api/auth/google/poll', { pollId }),
+
+  // ---- what the last releases added ----
+  // Skip intro: the household's hand-marked range per show ("show:<id>" or
+  // "imdb:<id>") and the server's own detection per episode.
+  intro: (key: string) =>
+    request<{start?: number; end?: number; by?: string | null}>(
+      `/api/intro/${encodeURIComponent(key)}`,
+    ),
+  setIntro: (key: string, start: number, end: number, by?: string | null) =>
+    post<{ok: boolean}>(`/api/intro/${encodeURIComponent(key)}`, {start, end, by}),
+  introAuto: (id: string) =>
+    request<{
+      intro: {start: number; end: number} | null;
+      credits: {start: number} | null;
+      source?: string | null;
+    }>(`/api/intro/auto/${encodeURIComponent(id)}`),
+  // A subtitle in the preferred language for a library file the server holds
+  // no track for; it is written next to the file, for everyone.
+  subtitlesFetch: (id: string, lang: 'he' | 'en') =>
+    post<{tracks: SubtitleTrack[]}>('/api/subtitles/fetch', {id, lang}),
+  report: (text: string, context: Record<string, unknown>, profile: string | null) =>
+    post<{ok: boolean; id: string}>('/api/reports', {text, context, profile}),
+  changelog: () =>
+    memo('changelog', 10 * 60000, () =>
+      request<{
+        version: string | null;
+        releases: {version: string; date: string | null; items: string[]}[];
+      }>('/api/changelog'),
+    ),
+  parties: () => request<{parties: PartySummary[]}>('/api/party'),
+  party: (code: string) => request<Party>(`/api/party/${encodeURIComponent(code)}`),
+  // This profile's own download requests (`mine`), for the My downloads page.
+  myDownloads: (profileId: string) =>
+    request<MyDownload[]>(`/api/downloads?profile=${encodeURIComponent(profileId)}`),
+  downloadSeen: (id: string, profile: string) =>
+    post<{ok: boolean}>(`/api/downloads/${encodeURIComponent(id)}/seen`, {profile}),
+  downloadCancel: (id: string, profile: string) =>
+    post<{ok: boolean}>(`/api/downloads/${encodeURIComponent(id)}/cancel`, {profile}),
+  usage: (body: unknown) => post<unknown>('/api/usage', body),
+  // Request access with a verified Google account (the pollId from the device
+  // flow) — the TV's one-press signup when no profile is linked yet.
+  signup: (fields: {name: string; pollId?: string; note?: string}) =>
+    post<{ok?: boolean; request?: unknown; error?: string}>('/api/auth/signup', fields),
 
   watchlist: (profileId: string) =>
     request<{ items: HeroItem[] }>(`/api/profiles/${profileId}/watchlist`),

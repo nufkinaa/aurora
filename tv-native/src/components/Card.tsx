@@ -11,6 +11,7 @@ import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import Focusable from './Focusable';
 import Icon from './Icon';
 import {imgSrc, HeroItem} from '../api';
+import {openPeek} from '../overlay';
 import theme from '../theme';
 
 const {colors, radius, cardAura} = theme;
@@ -147,7 +148,9 @@ function Card({
       edgeLeft={edgeLeft}
       edgeRight={edgeRight}
       onPress={() => onPress(item)}
-      onLongPress={removable ? () => removable(item) : undefined}
+      // Hold OK: the peek sheet (site: peek.js). Continue Watching's ✕ lives
+      // inside it as "Remove", so the drawn hint still tells the truth.
+      onLongPress={() => openPeek(item, removable || undefined)}
       onFocusChange={onFocus ? f => f && onFocus(item, index ?? 0) : undefined}
       focusOverlay={
         <>
@@ -266,7 +269,9 @@ function Card({
 
       {pct != null ? (
         <View style={styles.progress} pointerEvents="none">
-          <View style={[styles.progressFill, {width: `${pct}%`}]} />
+          <View style={[styles.progressFill, {width: `${pct}%`}]}>
+            <View style={styles.progressHead} />
+          </View>
         </View>
       ) : null}
     </Focusable>
@@ -385,4 +390,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressFill: {height: '100%', backgroundColor: colors.progress, borderRadius: 2},
+  // The glass look's capsule head: a lit bead at the end of the fill.
+  progressHead: {
+    position: 'absolute',
+    right: -1,
+    top: -1,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#ffffff',
+    boxShadow: '0 0 6px rgba(199,191,255,0.9)',
+  },
 });

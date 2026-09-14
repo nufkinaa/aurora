@@ -28,6 +28,7 @@ import Card, {CARD_W} from '../components/Card';
 import NavRail from '../components/NavRail';
 import {api, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta} from '../api';
 import {canNavigate} from '../navLock';
+import {openTrailer} from '../overlay';
 import {useFocusFallback, useKeyTrap} from '../focus';
 import {SourcesPanel} from './Sources';
 import {useApp} from '../AppContext';
@@ -481,7 +482,7 @@ export default function Detail({
     }
     let live = true;
     api
-      .item(item.id, profileId)
+      .item(item.id, profileId, libraryTick > 0)
       .then(f => {
         if (!live) return;
         setFull(f);
@@ -1201,6 +1202,9 @@ export default function Detail({
             label={inList ? '✓  In My List' : '+  My List'}
             onPress={toggleList}
           />
+          {streamMeta?.trailers?.length ? (
+            <GhostBtn label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
+          ) : null}
           <GhostBtn label="More like this" onPress={() => setLikePanel(true)} />
         </DetailHero>
 
@@ -1310,6 +1314,9 @@ export default function Detail({
           label={inList ? '✓  In My List' : '+  My List'}
           onPress={toggleList}
         />
+        {streamMeta?.trailers?.length ? (
+          <GhostBtn label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
+        ) : null}
         <GhostBtn label="More like this" onPress={() => setLikePanel(true)} />
         {ownedMovieId ? (
           <GhostBtn label={movieWatched ? '✓  Watched' : 'Mark watched'} onPress={toggleWatched} />

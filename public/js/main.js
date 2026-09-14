@@ -220,6 +220,11 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
   };
   load();
   onMessage("server_notice", ({ message }) => { if (message) toast(message, "🛠️"); });
+  // The admin removed a request (or its file left the library): the row goes
+  // everywhere it was drawn.
+  onMessage("download_removed", ({ id }) => {
+    if (id && downloads.delete(id)) paint();
+  });
   onMessage("download_update", ({ job }) => {
     if (!job) return;
     // A smart download appearing for the first time is the one download the

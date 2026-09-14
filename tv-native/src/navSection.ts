@@ -3,6 +3,8 @@
 import {useEffect, useState} from 'react';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {api, Profile} from './api';
+import {loadNewSeen, saveNewSeen} from './storage';
+import {APP_VERSION} from './update';
 import type {IconName} from './components/Icon';
 import {canNavigate} from './navLock';
 import type {RootStackParamList} from './navigation';
@@ -12,6 +14,7 @@ export type NavSection =
   | 'movies'
   | 'shows'
   | 'list'
+  | 'new'
   | 'search'
   | 'settings';
 
@@ -30,8 +33,36 @@ export const NAV_SECTIONS: {
   {key: 'movies', label: 'Movies'},
   {key: 'shows', label: 'Shows'},
   {key: 'list', label: 'My List'},
+  {key: 'new', label: 'New'},
   {key: 'settings', label: 'Preferences', icon: 'gear', iconSize: 19, foot: true},
 ];
+
+// The "New" dot: on until this release's page has been opened on this TV.
+let newSeen: string | null | undefined; // undefined = not read yet
+const newSubs = new Set<(unseen: boolean) => void>();
+const newVersion = () => APP_VERSION;
+const unseen = () => newSeen !== undefined && newSeen !== newVersion();
+export const useNewUnseen = () => {
+  const [v, setV] = useState(unseen());
+  useEffect(() => {
+    newSubs.add(setV);
+    if (newSeen === undefined) {
+      loadNewSeen().then(s => {
+        newSeen = s || null;
+        for (const fn of newSubs) fn(unseen());
+      });
+    }
+    return () => {
+      newSubs.delete(setV);
+    };
+  }, []);
+  return v;
+};
+export const markNewSeen = (_version: string) => {
+  newSeen = newVersion();
+  saveNewSeen(newSeen);
+  for (const fn of newSubs) fn(false);
+};
 
 type Nav<R extends keyof RootStackParamList> = NativeStackNavigationProp<
   RootStackParamList,
@@ -72,6 +103,9 @@ export const goSection = <R extends keyof RootStackParamList>(
       return;
     case 'search':
       nav.push('Search');
+      return;
+    case 'new':
+      nav.push('WhatsNew');
       return;
     case 'settings':
       nav.push('Settings');

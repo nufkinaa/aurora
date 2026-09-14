@@ -1,9 +1,9 @@
 // The authenticated app's screen stack. Mounted only once a profile is chosen
 // (App.tsx owns the setup/gate flow outside the navigator). Android TV's
 // hardware Back pops this stack automatically via react-navigation.
-import React from 'react';
+import React, {useRef} from 'react';
 import {View, StyleSheet} from 'react-native';
-import {NavigationContainer, DefaultTheme} from '@react-navigation/native';
+import {DefaultTheme, NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import Home from './screens/Home';
 import Browse from './screens/Browse';
@@ -12,9 +12,14 @@ import Settings from './screens/Settings';
 import Search from './screens/Search';
 import Detail from './screens/Detail';
 import Sources from './screens/Sources';
+import WhatsNew from './screens/WhatsNew';
+import Downloads from './screens/Downloads';
 import Player from './playback/Player';
 import Ambient from './components/Ambient';
+import Overlays from './components/Overlays';
 import {HeroItem, TorrentPlayItem} from './api';
+import {navRef} from './rootNav';
+import {track} from './usage';
 import theme from './theme';
 
 export type RootStackParamList = {
@@ -23,6 +28,8 @@ export type RootStackParamList = {
   MyList: undefined;
   Settings: undefined;
   Search: undefined;
+  WhatsNew: undefined;
+  Downloads: undefined;
   Detail: {item: HeroItem};
   Sources: {
     type: 'movie' | 'series';
@@ -42,42 +49,43 @@ export type RootStackParamList = {
   // items pass only id + title and the player fetches /api/item.
   // `restart` is the site's `?restart=1`: play from 0 and ignore the saved
   // position (Detail's "Start over").
-  Player: {id: string; title: string; stream?: TorrentPlayItem; restart?: boolean};
+  // `party` is a watch-party code to join once the player is up.
+  Player: {id: string; title: string; stream?: TorrentPlayItem; restart?: boolean; party?: string};
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 // TRANSPARENT, not the page colour: the ambient canvas is mounted once behind
 // the whole navigator (below), and an opaque screen background would hide it.
-// On the site this background belongs to `html`/`body`, not to any one screen,
-// so doing it here is both faithful and the only place it has to be written.
 const navTheme = {
   ...DefaultTheme,
   colors: {...DefaultTheme.colors, background: 'transparent'},
 };
 
 export default function AppNavigator() {
+  const routeAt = useRef(Date.now());
   return (
     <View style={styles.root}>
       <Ambient />
-      <NavigationContainer theme={navTheme}>
+      <NavigationContainer
+        ref={navRef}
+        theme={navTheme}
+        // Usage stats: which screens are opened, and how long the last one held.
+        onStateChange={() => {
+          const r = navRef.getCurrentRoute();
+          if (!r) return;
+          const p = r.params as {kind?: string} | undefined;
+          const name = r.name === 'Browse' && p?.kind ? `${r.name}/${p.kind}` : r.name;
+          track('route', {r: `tv:${name.toLowerCase()}`, ms: Math.min(120000, Date.now() - routeAt.current)});
+          routeAt.current = Date.now();
+        }}>
         <Stack.Navigator
-        // A short cross-fade between screens. This was 'none' on the theory that
-        // instant swaps read as "fast", but with nothing easing the change the
-        // whole app felt like it was cutting rather than moving, which is the
-        // opposite of how the site behaves. 180ms is quick enough not to be a
-        // wait and long enough to read as motion.
-        //
-        // freezeOnBlur: screens buried in the stack (Home under Detail under
-        // Player…) stop re-rendering entirely, so none of their timers/effects
-        // steal JS-thread time from the screen the user is actually on.
+        // freezeOnBlur: screens buried in the stack stop re-rendering entirely,
+        // so none of their timers/effects steal JS-thread time from the screen
+        // the user is actually on.
         screenOptions={{
           headerShown: false,
           animation: 'fade',
-          // 260, up from 180. Measured off a screen recording, the swap was
-          // landing inside two frames (~66ms) and reading as a cut. It is now
-          // long enough to see and still well under the quarter-second where a
-          // transition starts feeling like a wait.
           animationDuration: 260,
           freezeOnBlur: true,
           contentStyle: {backgroundColor: 'transparent'},
@@ -87,6 +95,8 @@ export default function AppNavigator() {
         <Stack.Screen name="MyList" component={MyList} />
         <Stack.Screen name="Settings" component={Settings} />
         <Stack.Screen name="Search" component={Search} />
+        <Stack.Screen name="WhatsNew" component={WhatsNew} />
+        <Stack.Screen name="Downloads" component={Downloads} />
         <Stack.Screen name="Detail" component={Detail} />
         <Stack.Screen name="Sources" component={Sources} />
         {/* No fade for the player: cross-fading a video surface is expensive
@@ -94,6 +104,8 @@ export default function AppNavigator() {
         <Stack.Screen name="Player" component={Player} options={{animation: 'none'}} />
         </Stack.Navigator>
       </NavigationContainer>
+      {/* Toasts and the one app-wide sheet, above every screen. */}
+      <Overlays />
     </View>
   );
 }

@@ -70,6 +70,7 @@ router.post("/api/subtitles/fetch", async (req, res) => {
   }
   try {
     const r = await p;
+    console.log(`[subs] fetch ${lang} for ${id.slice(0, 12)}: ${r.error ? r.error : `${(r.tracks || []).length} track(s)`}`);
     if (r.error) return res.status(404).json(r);
     res.json(r);
   } catch (e) {

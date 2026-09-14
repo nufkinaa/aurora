@@ -35,7 +35,7 @@ import RailAurora from './RailAurora';
 import {useApp} from '../AppContext';
 import {imgSrc} from '../api';
 import {atLeftEdge, captureFocus, focusJustMoved, noteRail, useTVKeys} from '../focus';
-import {goSection, useMe, NAV_SECTIONS, NavSection} from '../navSection';
+import {goSection, useMe, useNewUnseen, NAV_SECTIONS, NavSection} from '../navSection';
 import theme from '../theme';
 
 const {colors, focus, motion, nav, radius, spacing} = theme;
@@ -80,6 +80,7 @@ export default function NavRail({
   const navigation = useNavigation();
   const {profileId, switchProfile} = useApp();
   const me = useMe(profileId);
+  const newUnseen = useNewUnseen();
 
   const [open, setOpen] = useState(false);
   // True while the panel is sliding OUT. It used to vanish in one frame —
@@ -314,6 +315,7 @@ export default function NavRail({
                   label={it.label}
                   icon={it.icon}
                   iconSize={it.iconSize}
+                  dot={it.key === 'new' && newUnseen}
                   focusDisabled={closing}
                   profile={it.key === 'profile' ? me?.avatar || '🍿' : undefined}
                   profileImage={it.key === 'profile' ? me?.avatarImage || null : undefined}
@@ -388,6 +390,7 @@ function NavItem({
   on,
   claimFocus,
   focusDisabled,
+  dot,
   onFocused,
   onPress,
   ref,
@@ -395,6 +398,8 @@ function NavItem({
   label: string;
   icon?: IconName;
   iconSize?: number;
+  // A small accent dot after the label — "there is something new here".
+  dot?: boolean;
   profile?: string;
   profileImage?: string | null;
   profileColor?: string | null;
@@ -469,11 +474,14 @@ function NavItem({
       style={[styles.item, on && !focused && styles.itemOn]}>
       {icon ? <Icon name={icon} size={iconSize || 18} color={fg} /> : null}
       {icon ? null : (
-        <Text
-          style={[styles.itemText, {color: fg}, !focused && styles.itemTextLift]}
-          numberOfLines={1}>
-          {label}
-        </Text>
+        <View style={styles.itemRow}>
+          <Text
+            style={[styles.itemText, {color: fg}, !focused && styles.itemTextLift]}
+            numberOfLines={1}>
+            {label}
+          </Text>
+          {dot ? <View style={[styles.newDot, focused && styles.newDotOnLight]} /> : null}
+        </View>
       )}
     </Focusable>
   );
@@ -565,6 +573,9 @@ const styles = StyleSheet.create({
   // `.nav-item.active { color: --text; background: --surface }`.
   itemOn: {backgroundColor: colors.surface},
   itemText: {fontSize: ITEM_TEXT, fontWeight: '600'},
+  itemRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
+  newDot: {width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent},
+  newDotOnLight: {backgroundColor: colors.accentStrong},
   // The cast shadow that keeps unfocused labels legible over the aurora.
   // Dropped while focused: dark-on-white with a dark halo looks smudged.
   itemTextLift: {

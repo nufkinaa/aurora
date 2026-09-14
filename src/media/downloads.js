@@ -235,7 +235,21 @@ const activeCount = () => active.size;
 
 const list = () => store.data.map(publicJob);
 // The list as one viewer sees it ("mine" per job).
-const listFor = (viewer) => store.data.map((j) => publicJobFor(j, viewer));
+// A finished job whose file the admin has since deleted from the library is
+// history nobody wants: it sat on "My downloads" as "Finished — indexing…"
+// forever (no library id resolves for a path that is gone). Drop those on
+// every listing and tell every open page, so they vanish everywhere at once.
+const pruneGone = () => {
+  const gone = store.data.filter((j) => j.status === "done" && j.destPath && !fs.existsSync(j.destPath));
+  if (!gone.length) return;
+  store.data = store.data.filter((j) => !gone.includes(j));
+  store.save();
+  for (const j of gone) realtime.broadcastAll({ type: "download_removed", id: j.id });
+};
+const listFor = (viewer) => {
+  pruneGone();
+  return store.data.map((j) => publicJobFor(j, viewer));
+};
 
 const create = (fields) => {
   const {
@@ -401,6 +415,8 @@ const remove = (id) => {
   stopActive(id, "removed");
   store.data.splice(i, 1);
   store.save();
+  // Every open "My downloads" page drops the row now, not on its next reload.
+  realtime.broadcastAll({ type: "download_removed", id });
   purgeIfUnused(infoHash, id);
   pump();
   return { ok: true };
@@ -808,8 +824,8 @@ const resume = () => {
 };
 
 module.exports = {
-  list, listFor, create, approve, decline, cancel, cancelOwn, remove, resume, publicJob, publicJobFor, stats, markSeen,
+  list, listFor, create, approve, decline, cancel, cancelOwn, remove, resume, publicJob, publicJobFor, stats, markSeen, pruneGone,
   // Pure helpers, exported so test/downloads.test.js can pin the rules that
   // decide where a file lands and whether a request needs approval.
-  _internals: { safeName, folderKey, chooseFolder, diskGate, destinationFor },
+  _internals: { safeName, folderKey, chooseFolder, diskGate, destinationFor, store },
 };

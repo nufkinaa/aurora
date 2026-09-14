@@ -22,11 +22,18 @@ import Btn from '../components/Btn';
 import Row from '../components/Row';
 import NavRail from '../components/NavRail';
 import {ErrorState} from '../components/States';
-import {api, imgSrc, ImgSource, Home as HomeData, HeroItem, HomeRow} from '../api';
+import TrailerFrame, {TrailerHandle, TrailerState} from '../components/Trailer';
+import {api, imgSrc, ImgSource, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
 import {checkForUpdate, UpdateInfo} from '../update';
 import {canNavigate} from '../navLock';
 import {openItem} from '../openItem';
-import {useFocusFallback, useIsLive} from '../focus';
+import {openUpdate} from '../overlay';
+import {resolvePartyRoute} from '../party';
+import {warmItem, warmSections} from '../prefetch';
+import {onMessage} from '../realtime';
+import {loadPrefs, updateWasDismissed} from '../storage';
+import {track} from '../usage';
+import {railOpen, useFocusFallback, useIsLive} from '../focus';
 import {defer, useSlide} from '../motion';
 import {useApp} from '../AppContext';
 import {RootStackParamList} from '../navigation';
@@ -59,10 +66,14 @@ const HeroArt = React.memo(function HeroArtLayer({
   art,
   atTop,
   h,
+  children,
 }: {
   art: ImgSource;
   atTop: Animated.Value;
   h: number;
+  // The trailer layer, drawn over the art and UNDER the scrims, so the lockup
+  // stays readable while the picture moves.
+  children?: React.ReactNode;
 }) {
   // A still stays sharp in both states, so it needs one layer; blurred art needs
   // two, because blurRadius is a prop and cannot be animated.
@@ -86,6 +97,7 @@ const HeroArt = React.memo(function HeroArtLayer({
           fadeDuration={0}
         />
       )}
+      {children}
       <Animated.View style={[styles.artDim, {opacity: dim}]} />
       <Image source={HERO_SIDE} style={styles.artSide} resizeMode="stretch" />
       <Image source={HERO_VEIL} style={styles.artVeil} resizeMode="stretch" />
@@ -101,6 +113,9 @@ export default function Home({
   const [data, setData] = useState<HomeData | null>(null);
   const [error, setError] = useState('');
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  // Watch parties running on the server right now — a Join pill per party in
+  // the hero band (the site's party strip).
+  const [parties, setParties] = useState<PartySummary[]>([]);
   // Bumped by the error state's Retry, so the fetch below re-runs.
   const [reload, setReload] = useState(0);
   // Where focus goes if it is ever lost — see focus.ts. The ref is attached to
@@ -136,11 +151,44 @@ export default function Home({
 
   useEffect(() => {
     let live = true;
-    checkForUpdate().then(u => live && u && setUpdate(u));
+    checkForUpdate().then(u => {
+      if (!live || !u) return;
+      setUpdate(u);
+      if (!updateWasDismissed(u.version)) setTimeout(() => live && openUpdate(u), 1800);
+    });
     return () => {
       live = false;
     };
   }, []);
+
+  // Parties: once on arrival, then live over the socket.
+  useEffect(() => {
+    if (!live) return;
+    let on = true;
+    const load = () => api.parties().then(d => on && setParties(d.parties || [])).catch(() => {});
+    load();
+    const off = onMessage('party_list', d => on && setParties((d.parties as PartySummary[]) || []));
+    const off2 = onMessage('welcome', load);
+    return () => {
+      on = false;
+      off();
+      off2();
+    };
+  }, [live]);
+  const joinParty = useCallback(
+    async (p: PartySummary) => {
+      const route = await resolvePartyRoute(p.code);
+      if (!route || !canNavigate(navigation)) return;
+      track('feat', {f: 'party_join'});
+      navigation.push('Player', {...route, party: p.code});
+    },
+    [navigation],
+  );
+
+  // Once Home is up, warm the other sections quietly (prefetch.ts).
+  useEffect(() => {
+    if (data) warmSections();
+  }, [data]);
 
   const openDetail = useCallback((item: HeroItem) => openItem(navigation, item), [navigation]);
   const heroPlay = useCallback(
@@ -207,11 +255,129 @@ export default function Home({
   useEffect(() => {
     if (heroes.length < 2 || !live) return;
     const t = setInterval(() => {
-      if (!isTop.current || Date.now() < holdUntil.current) return;
+      if (!isTop.current || Date.now() < holdUntil.current || trailerBusy.current) return;
       setHeroIdx(i => (i + 1) % heroes.length);
     }, 9000);
     return () => clearInterval(t);
   }, [heroes.length, live]);
+
+  // ---- the billboard trailer (site: heroTrailer.js) ------------------------
+  // A pick that has held still for 6s cross-fades to its trailer, muted, for
+  // 25s (50s once unmuted), then back to the art and on to the next pick.
+  // Anything the viewer does — moving down to the shelves, the rotation
+  // moving, leaving the screen — ends it at once. The WebView exists only
+  // while a trailer plays.
+  const [trailer, setTrailer] = useState<{id: string; key: number} | null>(null);
+  const [trailerOn, setTrailerOn] = useState(false);
+  const [unmuted, setUnmuted] = useState(false);
+  const trailerFade = useRef(new Animated.Value(0)).current;
+  const trailerBusy = useRef(false);
+  const trailerGen = useRef(0);
+  const trailerHandle = useRef<TrailerHandle | null>(null);
+  const capTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startedAt = useRef(0);
+  const unmutedRef = useRef(false);
+  const noTrailer = useRef(new Set<string>()); // ids that failed once this visit
+  const heroTrailersPref = useRef(true);
+  useEffect(() => {
+    loadPrefs().then(p => {
+      heroTrailersPref.current = p.heroTrailers !== false;
+    });
+  }, []);
+
+  const stopTrailer = useCallback(
+    (advance = false) => {
+      trailerGen.current++;
+      trailerBusy.current = false;
+      if (capTimer.current) clearTimeout(capTimer.current);
+      capTimer.current = null;
+      unmutedRef.current = false;
+      setUnmuted(false);
+      if (trailerOnRef.current) {
+        trailerOnRef.current = false;
+        setTrailerOn(false);
+        Animated.timing(trailerFade, {toValue: 0, duration: 700, useNativeDriver: true, isInteraction: false}).start(() =>
+          setTrailer(null),
+        );
+        if (advance) {
+          holdUntil.current = 0;
+          setHeroIdx(i => (i + 1) % Math.max(1, heroes.length));
+        }
+      } else {
+        setTrailer(null);
+      }
+    },
+    [trailerFade, heroes.length],
+  );
+  const trailerOnRef = useRef(false);
+  const armCap = useCallback(() => {
+    if (capTimer.current) clearTimeout(capTimer.current);
+    const cap = (unmutedRef.current ? 50 : 25) * 1000;
+    capTimer.current = setTimeout(() => stopTrailer(true), Math.max(0, startedAt.current + cap - Date.now()));
+  }, [stopTrailer]);
+  const onTrailerState = useCallback(
+    (s: TrailerState) => {
+      if (s === 'playing' && !trailerOnRef.current) {
+        trailerOnRef.current = true;
+        startedAt.current = Date.now();
+        setTrailerOn(true);
+        track('feat', {f: 'trailer_play'});
+        Animated.timing(trailerFade, {toValue: 1, duration: 800, useNativeDriver: true, isInteraction: false}).start();
+        armCap();
+      } else if (s === 'ended') {
+        stopTrailer(true);
+      } else if (s === 'error') {
+        if (trailer) noTrailer.current.add(trailer.id);
+        stopTrailer(false);
+      }
+    },
+    [armCap, stopTrailer, trailer, trailerFade],
+  );
+  // Arm on every new pick; the cleanup is what ends a trailer when the pick
+  // changes or the screen goes away.
+  const heroNow = heroes[heroIdx % Math.max(1, heroes.length)] || null;
+  const heroId = heroNow ? heroNow.id || heroNow.imdbId : null;
+  useEffect(() => {
+    const hero = heroNow;
+    if (!live || !hero || !heroTrailersPref.current) return;
+    if (!hero.imdbId) return;
+    const gen = ++trailerGen.current;
+    trailerBusy.current = false;
+    const timer = setTimeout(async () => {
+      if (gen !== trailerGen.current || !isTop.current || railOpen()) return;
+      trailerBusy.current = true; // holds the rotation while the id loads and the trailer runs
+      let id: string | null = null;
+      try {
+        const m = await api.discoverMeta(hero.type === 'show' ? 'series' : 'movie', hero.imdbId!);
+        id = (m.trailers || []).find(t => !noTrailer.current.has(t)) || null;
+      } catch {}
+      if (gen !== trailerGen.current || !isTop.current || railOpen()) {
+        trailerBusy.current = false;
+        return;
+      }
+      if (!id) {
+        trailerBusy.current = false;
+        return;
+      }
+      setTrailer({id, key: gen});
+    }, 6000);
+    return () => {
+      clearTimeout(timer);
+      stopTrailer(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heroId, live]);
+  const toggleMute = useCallback(() => {
+    if (!trailerOnRef.current) return;
+    const next = !unmutedRef.current;
+    unmutedRef.current = next;
+    setUnmuted(next);
+    trailerHandle.current?.cmd(next ? 'unmute' : 'mute');
+    if (next) {
+      track('feat', {f: 'trailer_unmute'});
+      armCap();
+    }
+  }, [armCap]);
 
   // screens.css:186-189 — text and poster slide in from the direction of travel,
   // so a change reads as movement rather than as a content swap. 52px at RULE B
@@ -235,6 +401,7 @@ export default function Home({
   const toRow = useCallback(
     (index: number) => {
       setTop(false);
+      if (trailerBusy.current || trailerOnRef.current) stopTrailer(false);
       const y = rowY.current[index];
       if (y == null) return;
       // The focused row comes to rest at the page's top inset — "scroll until
@@ -251,7 +418,7 @@ export default function Home({
       // path — a held DOWN must never wait for a row to render.
       defer(() => setReach(r => (index + 3 > r ? index + 3 : r)));
     },
-    [setTop, ty, height],
+    [setTop, ty, height, stopTrailer],
   );
 
   // Continue Watching's ✕ — drawn on the focused card, removed by LONG-PRESS OK
@@ -294,7 +461,10 @@ export default function Home({
           title={r.title}
           items={r.items}
           onSelect={openDetail}
-          onItemFocus={() => toRow(i)}
+          onItemFocus={it => {
+            toRow(i);
+            warmItem(it);
+          }}
           showKind
           wide={r.id === 'continue'}
           onRemove={r.id === 'continue' ? removeFromContinue : undefined}
@@ -383,7 +553,30 @@ export default function Home({
             artwork — the one thing §1.5 itself says the site's home never does.
             Moving it into the column costs nothing and removes the conflict: art
             and dissolve stay registered because they move together. */}
-        {art ? <HeroArt art={art} atTop={atTop} h={height} /> : null}
+        {art ? (
+          <HeroArt art={art} atTop={atTop} h={height}>
+            {trailer ? (
+              <Animated.View style={[styles.trailerLayer, {opacity: trailerFade}]} pointerEvents="none">
+                <TrailerFrame
+                  key={trailer.key}
+                  videoId={trailer.id}
+                  muted
+                  handle={trailerHandle}
+                  onState={onTrailerState}
+                  // 16:9 at 15% over the window, so YouTube's title strip and
+                  // watermark sit outside the frame (the site does the same).
+                  style={{
+                    position: 'absolute',
+                    width: Math.round(width * 1.15),
+                    height: Math.round((width * 1.15 * 9) / 16),
+                    left: -Math.round(width * 0.075),
+                    top: Math.round((height - (width * 1.15 * 9) / 16) / 2),
+                  }}
+                />
+              </Animated.View>
+            ) : null}
+          </HeroArt>
+        ) : null}
         {/* No hero but real rows (a server mid-warmup can emit that): the Play
             button — this screen's focus fallback — never mounts, so give the
             fallback a home. Without one, a focused card unmounting (long-press
@@ -460,7 +653,31 @@ export default function Home({
                 onFocusChange={f => f && toHero()}
                 onPress={() => openDetail(hero)}
               />
+              {trailerOn ? (
+                <Btn
+                  small
+                  glyph={unmuted ? '🔊' : '🔇'}
+                  label={unmuted ? 'Mute' : 'Unmute'}
+                  onFocusChange={f => f && toHero()}
+                  onPress={toggleMute}
+                />
+              ) : null}
+              {parties.slice(0, 2).map(p => (
+                <Btn
+                  key={p.code}
+                  small
+                  glyph="👥"
+                  label={`Join ${p.host}'s party`}
+                  onFocusChange={f => f && toHero()}
+                  onPress={() => joinParty(p)}
+                />
+              ))}
             </View>
+            {parties.length ? (
+              <Text style={styles.partyNote} numberOfLines={1}>
+                {parties.slice(0, 2).map(p => `${p.host} is watching ${p.title} · ${p.members} in · code ${p.code}`).join('   ·   ')}
+              </Text>
+            ) : null}
             </View>
             {/* `.hero-poster` — 240px → 12.6% of width, 2:3, --radius-l, and the
                 site's deep bottom shadow (screens.css:174-181). */}
@@ -564,7 +781,9 @@ const styles = StyleSheet.create({
     textShadowOffset: {width: 0, height: 1},
     textShadowRadius: 10,
   },
-  actions: {flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md},
+  actions: {flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md, flexWrap: 'wrap', alignItems: 'center'},
+  partyNote: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '600', marginTop: 8},
+  trailerLayer: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000'},
 
   // right: --page-x, bottom: 22px → 11dp (page rhythm, ×0.505). The 8dp dot is a
   // graphic at ×1.0; the site's 7px button padding becomes the gap that keeps

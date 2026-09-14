@@ -21,6 +21,7 @@ import {Empty, ErrorState} from '../components/States';
 import Card, {CARD_W} from '../components/Card';
 import {api, HeroItem, ProfileState} from '../api';
 import {openItem} from '../openItem';
+import {warmItem} from '../prefetch';
 import {goSection} from '../navSection';
 import {railOpen, useFocusFallback, useListClaim, useTVKeys} from '../focus';
 import {useScreenIn} from '../motion';
@@ -116,7 +117,8 @@ export default function MyList({
       [cols],
     ),
   );
-  const onCardFocus = useCallback((_item: HeroItem, index: number) => {
+  const onCardFocus = useCallback((item: HeroItem, index: number) => {
+    warmItem(item);
     inGrid.current = true;
     gridIdx.current = index;
   }, []);

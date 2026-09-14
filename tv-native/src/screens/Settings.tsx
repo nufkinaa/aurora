@@ -15,7 +15,11 @@ import NavRail from '../components/NavRail';
 import {api, getSession, setSession} from '../api';
 import {useApp} from '../AppContext';
 import {useMe} from '../navSection';
+import {openJoinParty, openReport, openUpdate} from '../overlay';
 import {loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS, saveAuthSession} from '../storage';
+import {showToast} from '../toast';
+import {APP_VERSION, checkForUpdate, UpdateInfo} from '../update';
+import {setUsageEnabled} from '../usage';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 
@@ -53,10 +57,22 @@ const Row = React.memo(function PrefRow({
   );
 });
 
-export default function Settings(
-  _props: NativeStackScreenProps<RootStackParamList, 'Settings'>,
-) {
+export default function Settings({
+  navigation,
+}: NativeStackScreenProps<RootStackParamList, 'Settings'>) {
   const {profileId, switchProfile} = useApp();
+  // This TV's build, and whether the server has a newer one.
+  const [update, setUpdate] = useState<UpdateInfo | null | 'checking' | 'none'>(null);
+  const checkUpdate = useCallback(async () => {
+    setUpdate('checking');
+    const u = await checkForUpdate();
+    setUpdate(u || 'none');
+    if (u) openUpdate(u);
+    else showToast(`You're on the latest version (${APP_VERSION})`, '✓');
+  }, []);
+  useEffect(() => {
+    checkForUpdate().then(u => setUpdate(u || 'none'));
+  }, []);
   const {safeBottom} = useTvMetrics();
   const me = useMe(profileId);
 
@@ -122,6 +138,7 @@ export default function Settings(
       const next = {...prefs, [key]: value};
       setPrefs(next);
       savePrefs(next);
+      if (key === 'usageStats') setUsageEnabled(!!value);
     },
     [prefs],
   );
@@ -180,6 +197,29 @@ export default function Settings(
           </View>
         )}
 
+        <Text style={styles.h2}>Aurora</Text>
+        <View style={styles.list}>
+          <Row label="What's new" note="What this TV can do now, and how." value="›" onPress={() => navigation.push('WhatsNew')} />
+          <Row
+            label="My downloads"
+            note="What you asked the server to fetch — ready, on its way, waiting."
+            value="›"
+            onPress={() => navigation.push('Downloads')}
+          />
+          <Row
+            label="Join a watch party"
+            note="Type the four-letter code from another screen and watch in step."
+            value="›"
+            onPress={openJoinParty}
+          />
+          <Row
+            label="Report a problem"
+            note="A few words; where you were and the last errors come along by themselves."
+            value="›"
+            onPress={() => openReport()}
+          />
+        </View>
+
         <Text style={styles.h2}>Playback</Text>
         <View style={styles.list}>
           <Row
@@ -187,6 +227,12 @@ export default function Settings(
             note="Start the next episode automatically when one finishes."
             value={prefs.autoplayNext ? 'On' : 'Off'}
             onPress={() => set('autoplayNext', !prefs.autoplayNext)}
+          />
+          <Row
+            label="Trailers on the home billboard"
+            note="A title that holds still for six seconds plays its trailer, muted, then the billboard moves on."
+            value={prefs.heroTrailers ? 'On' : 'Off'}
+            onPress={() => set('heroTrailers', !prefs.heroTrailers)}
           />
         </View>
 
@@ -216,6 +262,32 @@ export default function Settings(
             onPress={() => set('cueBackground', !prefs.cueBackground)}
           />
         </View>
+        <Text style={styles.h2}>Privacy</Text>
+        <View style={styles.list}>
+          <Row
+            label="Usage stats"
+            note="Which screens and features get used, and how long they took — to your own server only, never anything typed."
+            value={prefs.usageStats ? 'On' : 'Off'}
+            onPress={() => set('usageStats', !prefs.usageStats)}
+          />
+        </View>
+
+        <Text style={styles.h2}>This TV</Text>
+        <View style={styles.list}>
+          <Row
+            label={`Aurora TV ${APP_VERSION}`}
+            note={
+              update && typeof update === 'object'
+                ? `Version ${update.version} is available — press to update.`
+                : update === 'checking'
+                ? 'Checking…'
+                : 'Press to check for a newer version.'
+            }
+            value={update && typeof update === 'object' ? 'Update' : 'Check'}
+            onPress={() => (update && typeof update === 'object' ? openUpdate(update) : checkUpdate())}
+          />
+        </View>
+
         {getSession() ? (
           <>
             <Text style={styles.h2}>Account</Text>

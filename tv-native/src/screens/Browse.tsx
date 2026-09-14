@@ -37,6 +37,7 @@ import Skeleton from '../components/Skeleton';
 import {Empty} from '../components/States';
 import Card, {CARD_W} from '../components/Card';
 import {api, HeroItem, ProfileState} from '../api';
+import {warmItem} from '../prefetch';
 import {watchStateFor} from '../watchState';
 import {canNavigate} from '../navLock';
 import {
@@ -382,7 +383,8 @@ export default function Browse({
   // Claim the first card once, when the grid first fills. NOT per filter: the
   // panel hands focus back to the card you left when it closes. See focus.ts.
   const claims = useListClaim('grid', items.length > 0);
-  const onCardFocus = useCallback((_item: HeroItem, index: number) => {
+  const onCardFocus = useCallback((item: HeroItem, index: number) => {
+    warmItem(item); // the Detail page's data, if focus holds a moment
     // Automatic paging, two rows ahead of the focus. The page APPENDS, so no
     // card already on screen moves; the only visible change is more rows
     // below, which is what "scrolling" is.

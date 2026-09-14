@@ -42,6 +42,7 @@ export default function SignIn({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [googleDevice, setGoogleDevice] = useState(false);
+  const [adminName, setAdminName] = useState('the admin');
   const done = useRef(false); // success is single-shot across every poller
 
   const finish = useCallback(
@@ -60,7 +61,11 @@ export default function SignIn({
     let live = true;
     api
       .serverInfo()
-      .then(i => live && setGoogleDevice(!!i.googleDevice))
+      .then(i => {
+        if (!live) return;
+        setGoogleDevice(!!i.googleDevice);
+        if (i.adminName) setAdminName(i.adminName);
+      })
       .catch(() => {});
     return () => {
       live = false;
@@ -140,6 +145,25 @@ export default function SignIn({
   // ---- Google device flow ---------------------------------------------------
   const [gcode, setGcode] = useState<{userCode: string; url: string} | null>(null);
   const [gErr, setGErr] = useState('');
+  // Google said yes but no Aurora profile is linked: the pollId proves the
+  // account server-side, so one press files an access request — the TV's
+  // signup, with nothing to type.
+  const [gSignup, setGSignup] = useState<{pollId: string; email?: string; name?: string} | null>(null);
+  const [gSent, setGSent] = useState(false);
+  const requestAccess = async () => {
+    if (!gSignup || busy) return;
+    setBusy(true);
+    setGErr('');
+    try {
+      const name = (gSignup.name || (gSignup.email || '').split('@')[0] || 'New viewer').slice(0, 40);
+      await api.signup({name, pollId: gSignup.pollId, note: 'Requested from the TV app'});
+      setGSent(true);
+    } catch (e) {
+      setGErr(e instanceof ApiError && e.message ? e.message : 'Could not send the request');
+    } finally {
+      setBusy(false);
+    }
+  };
   useEffect(() => {
     if (mode !== 'google') return;
     let live = true;
@@ -148,6 +172,8 @@ export default function SignIn({
     (async () => {
       setGcode(null);
       setGErr('');
+      setGSignup(null);
+      setGSent(false);
       try {
         const r = await api.googleStart();
         if (!live) return;
@@ -160,8 +186,10 @@ export default function SignIn({
             if (!live) return;
             if (p.pending) return;
             if (p.signup) {
-              // Verified Google account, but no Aurora profile is linked to it.
-              setGErr('No profile is linked to that Google account — request access from the website.');
+              // Verified Google account, but no Aurora profile is linked to it:
+              // offer to request one right here.
+              setGSignup({pollId: r.pollId, email: p.signup.email, name: p.signup.name});
+              setGcode(null);
               if (poll) clearInterval(poll);
               return;
             }
@@ -255,7 +283,22 @@ export default function SignIn({
       <View style={styles.root}>
         <Text style={styles.kicker}>SIGN IN</Text>
         <Text style={styles.heading}>Continue with Google</Text>
-        {gcode ? (
+        {gSignup ? (
+          <View style={styles.googleText}>
+            {gSent ? (
+              <>
+                <Text style={styles.sub}>{`Request sent. ${adminName} will approve it — then come back here and sign in with Google again.`}</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.sub}>
+                  {`Google knows you${gSignup.email ? ` (${gSignup.email})` : ''}, but no Aurora profile is linked to that account yet.`}
+                </Text>
+                <Text style={styles.sub}>{`Ask ${adminName} for access with one press — your profile will be called "${gSignup.name || (gSignup.email || '').split('@')[0] || 'New viewer'}".`}</Text>
+              </>
+            )}
+          </View>
+        ) : gcode ? (
           <View style={styles.googleWrap}>
             <View style={styles.qrCard}>
               <QRCode
@@ -278,7 +321,12 @@ export default function SignIn({
         )}
         {gErr ? <Text style={styles.error}>{gErr}</Text> : null}
         <View style={styles.row}>
-          <Focusable round ref={anchor} hasTVPreferredFocus onPress={() => setMode('qr')} style={styles.btnGhost}>
+          {gSignup && !gSent ? (
+            <Focusable round hasTVPreferredFocus onPress={requestAccess} style={styles.btnPrimary}>
+              {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.btnPrimaryText}>Request access</Text>}
+            </Focusable>
+          ) : null}
+          <Focusable round ref={anchor} hasTVPreferredFocus={!gSignup || gSent} onPress={() => setMode('qr')} style={styles.btnGhost}>
             <Text style={styles.btnGhostText}>Back</Text>
           </Focusable>
         </View>
@@ -310,6 +358,11 @@ export default function SignIn({
           <Text style={styles.pairCode}>{pair ? pair.code : '· · · · · ·'}</Text>
           {pair ? <Text style={styles.waiting}>Waiting for your phone…</Text> : null}
           {pairErr ? <Text style={styles.error}>{pairErr}</Text> : null}
+          <Text style={styles.newHere}>
+            {googleDevice
+              ? `New to Aurora? Continue with Google below and request access in one press — ${adminName} approves it.`
+              : `New to Aurora? Ask ${adminName} for a profile, then sign in here.`}
+          </Text>
         </View>
       </View>
 
@@ -364,6 +417,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   waiting: {color: colors.textFaint, fontSize: fontSize.small, fontWeight: '600', marginTop: 10},
+  newHere: {color: colors.textFaint, fontSize: fontSize.small, marginTop: 18, maxWidth: 520},
   googleWrap: {flexDirection: 'row', alignItems: 'center', gap: spacing.xl, marginTop: spacing.lg},
   googleText: {flex: 1, maxWidth: 560},
   googleUrl: {color: colors.text, fontSize: fontSize.row, fontWeight: '800', marginTop: 2},

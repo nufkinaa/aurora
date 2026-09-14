@@ -84,11 +84,28 @@ import Video, {
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Focusable from '../components/Focusable';
 import Icon, {IconName} from '../components/Icon';
-import {api, assetUrl, mediaHeaders, Item, ProfileState, SubtitleTrack} from '../api';
+import {api, assetUrl, imgSrc, mediaHeaders, Item, Party, PartyItem, ProfileState, SubtitleTrack} from '../api';
 import {useApp} from '../AppContext';
+import {setPlayingContext} from '../errors';
 import {useFocusFallback} from '../focus';
 import {canNavigate} from '../navLock';
-import {loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
+import {useMe} from '../navSection';
+import {
+  createParty,
+  joinParty,
+  leaveParty,
+  onPartyEnded,
+  onPartyItem,
+  onPartyState,
+  onPartyUpdate,
+  party,
+  PartyStateMsg,
+  sendPartyState,
+  setPartyItem,
+} from '../party';
+import {isOpen as socketOpen} from '../realtime';
+import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
+import {track} from '../usage';
 import {RootStackParamList} from '../navigation';
 import theme from '../theme';
 
@@ -488,9 +505,10 @@ export default function Player({
   route,
   navigation,
 }: NativeStackScreenProps<RootStackParamList, 'Player'>) {
-  const {id, title, stream, restart} = route.params;
+  const {id, title, stream, restart, party: partyCode} = route.params;
   const isTorrent = !!stream;
   const {profileId} = useApp();
+  const me = useMe(profileId);
   const videoRef = useRef<VideoRef>(null);
   // The web's `exited` flag: every async continuation checks it before touching
   // the player, so a late fetch can't setState on a screen that is gone.
@@ -528,7 +546,7 @@ export default function Player({
   const [subOffsets, setSubOffsets] = useState<Record<string, number>>({});
   // Bumped by Resync to force the cue file to be fetched again.
   const [reload, setReload] = useState(0);
-  const [menu, setMenu] = useState<null | 'cc' | 'speed' | 'settings'>(null);
+  const [menu, setMenu] = useState<null | 'cc' | 'speed' | 'settings' | 'party'>(null);
   const menuOpen = menu !== null;
   const [rate, setRate] = useState(1);
   // Level, for the indicator and for <Video volume>. Not adjustable from here
@@ -558,6 +576,15 @@ export default function Player({
     title: string;
     countdown: number | null;
   } | null>(null);
+  // Skip intro: inside a known range right now (the button shows).
+  const [inIntro, setInIntro] = useState(false);
+  const inIntroRef = useRef(false);
+  // The resume card — "Resuming from 12:34" with the frame, Start over beside it.
+  const [resumeCard, setResumeCard] = useState<{at: number} | null>(null);
+  // The watch party this player is in, for the pill and the panel.
+  const [partyInfo, setPartyInfo] = useState<Party | null>(party.current);
+  // Marking an intro by hand: the start pressed, waiting for the end.
+  const [markStart, setMarkStart] = useState<number | null>(null);
 
   // ---------------------------------------------------------------- refs
   // Live mirrors, so the async/interval closures read CURRENT values instead of
@@ -643,8 +670,29 @@ export default function Player({
   // screen underneath — so an OK press aimed at pause could also press
   // "My List" on the Detail page below the video. Innermost registration wins,
   // so this sink absorbs the rescue while the player is up.
-  const focusSink = useRef({requestTVFocus: () => {}});
+  // …unless the chrome is up, in which case the scrubber takes it back: the
+  // Skip intro button and the resume card unmount while focused.
+  const scrubRef = useRef<{requestTVFocus?: () => void} | null>(null);
+  const focusSink = useRef({
+    requestTVFocus: () => {
+      if (controlsRef.current) scrubRef.current?.requestTVFocus?.();
+    },
+  });
   useFocusFallback(focusSink);
+  // Intro ranges: the household's hand-marked one wins over the detected one.
+  const intro = useRef<{start: number; end: number} | null>(null);
+  const autoIntro = useRef<{start: number; end: number} | null>(null);
+  const creditsStart = useRef<number | null>(null);
+  const introKey = useRef<string | null>(null);
+  // Party: mute the events our own remote-apply causes; keep the party across
+  // an Up next hand-over; land a late joiner once the clock is valid.
+  const partyEcho = useRef(0);
+  const keepParty = useRef(false);
+  const pendingLand = useRef<PartyStateMsg | null>(null);
+  // Auto-subtitles: the language a fetch was asked for, to switch on when it lands.
+  const autoLangWanted = useRef<'he' | 'en' | null>(null);
+  const subsFetched = useRef(false);
+  const playTracked = useRef(false);
   // uri, mirrored for callbacks that fire before ANY source is armed: a skip
   // pressed on the loading screen must not cancel the arming probe (see skip).
   const uriRef = useRef<string | null>(null);
@@ -657,9 +705,9 @@ export default function Player({
   // menu; there is no DOM to ask here, so each focusable claims its zone. Only
   // the gaining element writes (something is always focused while the chrome is
   // up), so no blur/focus ordering race can leave this stale.
-  const zone = useRef<'scrub' | 'row' | 'menu' | 'top' | null>(null);
+  const zone = useRef<'scrub' | 'row' | 'menu' | 'top' | 'skip' | 'card' | null>(null);
   const markZone = useCallback(
-    (z: 'scrub' | 'row' | 'menu' | 'top') => (focused: boolean) => {
+    (z: 'scrub' | 'row' | 'menu' | 'top' | 'skip' | 'card') => (focused: boolean) => {
       if (focused) zone.current = z;
     },
     [],
@@ -743,9 +791,15 @@ export default function Player({
   // matters more on a remote than on a mouse.
   const flashAnim = useRef(new Animated.Value(0)).current;
   const [flashPaused, setFlashPaused] = useState(false);
+  // What the PERSON did goes to the party; what the party made us do does not.
+  const partyUser = useCallback((playing: boolean) => {
+    if (!party.current || Date.now() < partyEcho.current) return;
+    sendPartyState(playing, curRef.current, playing ? 'play' : 'pause');
+  }, []);
   const togglePlay = useCallback(() => {
     const next = !pausedRef.current;
     setPaused(next);
+    partyUser(!next);
     setFlashPaused(next);
     flashAnim.setValue(0);
     Animated.timing(flashAnim, {
@@ -755,7 +809,7 @@ export default function Player({
       isInteraction: false,
     }).start();
     showControls();
-  }, [flashAnim, showControls]);
+  }, [flashAnim, showControls, partyUser]);
 
   const closeMenu = useCallback(() => {
     setMenu(null);
@@ -1153,9 +1207,221 @@ export default function Player({
     } else {
       setUri(assetUrl(it.videoUrl) as string);
     }
-    if (r > 0) toast(`Resuming from ${fmt(r)}`);
+    if (r > 0) {
+      // A library file has a frame to show (/img/frame); a stream has no file
+      // to pull one from, so it keeps the toast — the site's resume card.
+      if (stream) toast(`Resuming from ${fmt(r)}`);
+      else {
+        setResumeCard({at: r});
+        setTimeout(() => !exited.current && setResumeCard(null), 6500);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, gateOpen]);
+
+  // ---------------------------------------------------------------- skip intro
+  // The hand-marked range per show (/api/intro) and the server's detection per
+  // episode (/api/intro/auto): the button appears inside the range, Up next at
+  // the detected credits. A detected intro the household said was wrong stays
+  // ignored on this TV.
+  useEffect(() => {
+    if (!meta) return;
+    const it = meta.item;
+    const key = !stream && it.showId ? `show:${it.showId}` : stream?.season && stream.imdbId ? `imdb:${stream.imdbId}` : null;
+    introKey.current = key;
+    let live = true;
+    if (key) {
+      api
+        .intro(key)
+        .then(r => {
+          if (live && r && isFinite(Number(r.start)) && isFinite(Number(r.end)) && Number(r.end) > Number(r.start)) {
+            intro.current = {start: Number(r.start), end: Number(r.end)};
+          }
+        })
+        .catch(() => {});
+    }
+    if (!stream && it.showId) {
+      Promise.all([api.introAuto(id), loadIgnoredIntros()])
+        .then(([r, ignored]) => {
+          if (!live) return;
+          if (r.intro && isFinite(r.intro.start) && isFinite(r.intro.end) && !(key && ignored.includes(key))) {
+            autoIntro.current = {start: r.intro.start, end: r.intro.end};
+          }
+          if (r.credits && isFinite(r.credits.start)) creditsStart.current = r.credits.start;
+        })
+        .catch(() => {});
+    }
+    return () => {
+      live = false;
+    };
+  }, [meta, stream, id]);
+  const activeIntro = () => intro.current || autoIntro.current;
+  const skipIntro = useCallback(() => {
+    const range = activeIntro();
+    if (!range) return;
+    inIntroRef.current = false;
+    setInIntro(false);
+    track('feat', {f: 'skip_intro'});
+    seekTo(range.end);
+    showControls();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---------------------------------------------------------------- auto-subtitles
+  // The viewer asked for a language and this file has no track in it: the
+  // server fetches one from the providers and writes it next to the file, for
+  // everyone; it switches on here the moment it lands (the site's behaviour).
+  useEffect(() => {
+    if (stream || !meta || !prefsLoaded || subsFetched.current || !prefs.subsDefault) return;
+    const want = prefs.subLang;
+    const test = SUB_LANG_TEST[want];
+    if (!test) return;
+    const matches = (t: SubtitleTrack) => test.code.test(t.lang || '') || test.label.test(t.label || '');
+    if ((meta.item.subtitles || []).some(matches)) return;
+    subsFetched.current = true;
+    console.log(`[player] no ${want} subtitles on disk — asking the server`);
+    api
+      .subtitlesFetch(id, want as 'he' | 'en')
+      .then(r => {
+        console.log(`[player] subtitle fetch: ${r?.tracks?.length || 0} track(s)`);
+        if (exited.current || !r?.tracks?.length) return;
+        autoLangWanted.current = want as 'he' | 'en';
+        addSubs(r.tracks.map(t => ({...t, lang: t.lang || want})));
+      })
+      .catch(e => console.log('[player] subtitle fetch failed:', (e as Error).message));
+  }, [stream, meta, prefsLoaded, prefs.subsDefault, prefs.subLang, id, addSubs]);
+
+  // ---------------------------------------------------------------- watch party
+  useEffect(() => {
+    setPlayingContext({id, title});
+    return () => setPlayingContext(null);
+  }, [id, title]);
+  const partySnapshot = useCallback((): PartyItem => {
+    const it = itemRef.current;
+    if (stream) return {...(streamMeta() || {}), id: stream.id, cover: stream.cover ?? null, backdrop: stream.backdrop ?? null} as PartyItem;
+    return {
+      id,
+      title: it?.title || title,
+      showTitle: it?.showTitle,
+      season: it?.season,
+      episode: it?.episode,
+      cover: it?.cover ?? null,
+      type: it?.type,
+    };
+  }, [stream, id, title]); // eslint-disable-line react-hooks/exhaustive-deps
+  const applyPartyState = useCallback(
+    (st: PartyStateMsg, announce: boolean) => {
+      partyEcho.current = Date.now() + 1500;
+      const elapsed = st.playing && st.now && st.at ? Math.max(0, st.now - st.at) / 1000 : 0;
+      const target = (st.position || 0) + elapsed;
+      // A transcoded / torrent stream restarts its pipeline on a seek, so it
+      // tolerates more drift on the periodic sync (the site's numbers).
+      const heavy = usingTranscodeRef.current || isTorrent;
+      const drift = curRef.current - target;
+      const tol = st.kind === 'sync' ? (heavy ? 8 : 2.5) : heavy ? 3 : 1.2;
+      if (Math.abs(drift) > tol && uriRef.current) seekTo(target);
+      if (st.playing && pausedRef.current) setPaused(false);
+      else if (!st.playing && !pausedRef.current) setPaused(true);
+      if (announce && st.by && st.kind !== 'sync') {
+        toast(st.kind === 'pause' ? `${st.by} paused` : st.kind === 'play' ? `${st.by} pressed play` : `${st.by} jumped to ${fmt(target)}`);
+      }
+    },
+    [isTorrent, toast], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  useEffect(() => {
+    const offs = [
+      onPartyState(st => applyPartyState(st, true)),
+      onPartyUpdate(p => setPartyInfo({...p})),
+      onPartyEnded(() => {
+        setPartyInfo(null);
+        setMenu(m => (m === 'party' ? null : m));
+      }),
+      // The host moved to another title (Up next, mostly): follow it, party intact.
+      onPartyItem(({item: next, party: p}) => {
+        if (!next || party.role === 'host' || String(next.id) === String(id)) return;
+        keepParty.current = true;
+        toast(`${p.host ? p.host.name : 'The host'} moved on to ${next.showTitle ? `S${next.season} E${next.episode}` : next.title || 'the next title'}`);
+        const nextTitle = next.showTitle && next.season != null ? `${next.showTitle} · S${next.season} E${next.episode}` : String(next.title || title);
+        saveProgress();
+        navigation.replace('Player', {
+          id: String(next.id),
+          title: nextTitle,
+          stream: String(next.id).startsWith('torrent|') ? (next as never) : undefined,
+          party: p.code,
+        });
+      }),
+    ];
+    return () => offs.forEach(off => off());
+  }, [applyPartyState, id, title, navigation, toast]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Joining via a code (Home's pill, Settings, or the host's hand-over).
+  useEffect(() => {
+    if (!partyCode) return;
+    if (party.current && party.current.code === partyCode) {
+      setPartyInfo(party.current);
+      return;
+    }
+    let live = true;
+    let tries = 0;
+    const attempt = async () => {
+      if (!live) return;
+      if (!socketOpen()) {
+        if (++tries < 12) setTimeout(attempt, 600); // the socket may still be connecting
+        else toast("Couldn't join: not connected to the server");
+        return;
+      }
+      try {
+        const p = await joinParty(partyCode);
+        if (!live) return;
+        setPartyInfo(p);
+        toast(`Joined ${p.host ? p.host.name + "'s" : 'the'} party`);
+        // Land where they are — once the clock is valid (onLoad), or now.
+        const land: PartyStateMsg = {...p.state, now: p.now, kind: 'sync'};
+        if (uriRef.current && durRef.current) applyPartyState(land, false);
+        else pendingLand.current = land;
+      } catch (e) {
+        if (live) toast(`Couldn't join: ${(e as Error).message}`);
+      }
+    };
+    attempt();
+    return () => {
+      live = false;
+    };
+  }, [partyCode]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The host's heartbeat: a sync every 5s while playing, for drifters and late joiners.
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (party.current && party.role === 'host' && !pausedRef.current && uriRef.current) {
+        sendPartyState(true, curRef.current, 'sync');
+      }
+    }, 5000);
+    return () => clearInterval(iv);
+  }, []);
+  // Leaving the player leaves the party — unless this player is handing over
+  // to the next episode's player with the party still running.
+  useEffect(
+    () => () => {
+      if (party.current && !keepParty.current) leaveParty();
+    },
+    [],
+  );
+  const startParty = useCallback(async () => {
+    try {
+      const p = await createParty(partySnapshot());
+      setPartyInfo(p);
+      track('feat', {f: 'party_start'});
+      toast(`Party ${p.code} — others join with that code`);
+      // The party starts from where we are, in our state.
+      sendPartyState(!pausedRef.current, curRef.current, 'sync');
+    } catch (e) {
+      toast(`Couldn't start a party: ${(e as Error).message}`);
+    }
+  }, [partySnapshot, toast]);
+  const endParty = useCallback(() => {
+    const wasHost = party.role === 'host';
+    leaveParty();
+    setPartyInfo(null);
+    toast(wasHost ? 'Party ended' : 'Left the party');
+    closeMenu();
+  }, [toast, closeMenu]);
 
   // ---------------------------------------------------------------- subtitles
   const tracks = useMemo(() => buildTracks(subs), [subs]);
@@ -1163,12 +1429,25 @@ export default function Player({
   // once per title rather than on every media (re)load, so a viewer who turned
   // subtitles off is never overruled by the next seek.
   useEffect(() => {
+    // A track fetched for the preferred language switches on the moment it lands.
+    if (autoLangWanted.current && tracks.length) {
+      const want = autoLangWanted.current;
+      const test = SUB_LANG_TEST[want];
+      const hit = tracks.find(t => test.code.test(t.lang || '') || test.label.test(t.label || ''));
+      if (hit) {
+        autoLangWanted.current = null;
+        autoSubsApplied.current = true;
+        setSubKey(hit.key);
+        toast(`${want === 'he' ? 'Hebrew' : 'English'} subtitles found — switched on`);
+        return;
+      }
+    }
     if (autoSubsApplied.current || !tracks.length || !prefsLoaded) return;
     autoSubsApplied.current = true;
     console.log(`[player] ${tracks.length} track(s):`, tracks.map(t => t.key).join(' | '));
     const pick = autoTrack(tracks, prefs);
     if (pick) setSubKey(pick.key);
-  }, [tracks, prefsLoaded, prefs]);
+  }, [tracks, prefsLoaded, prefs, toast]);
 
   // Remember a HAND-PICKED track (or "off") so the next episode comes up the
   // same way — see autoTrack. Only called from the subtitle menu: an automatic
@@ -1281,6 +1560,9 @@ export default function Player({
     const target = pendingSeek.current;
     pendingSeek.current = null;
     const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
+    // A committed seek is shared with the party — unless it IS the party's
+    // (partyEcho), which is how the room avoids echoing seeks back and forth.
+    if (party.current && Date.now() >= partyEcho.current) sendPartyState(!pausedRef.current, target, 'seek');
 
     // EVERY committed seek supersedes whatever earlier seek is still in flight —
     // including a NEAR seek arriving while a far-seek probe is awaiting. Without
@@ -1467,7 +1749,12 @@ export default function Player({
       if (!controls) {
         if (t === 'left') return skip(-1);
         if (t === 'right') return skip(1);
-        if (t === 'select') return togglePlay();
+        // OK on the focused Skip intro button / resume card is theirs alone —
+        // the Pressable fires, and this global handler must not also toggle.
+        if (t === 'select') {
+          if ((zone.current === 'skip' && inIntroRef.current) || zone.current === 'card') return;
+          return togglePlay();
+        }
         return showControls(); // up/down/menu reveal the UI
       }
       // Left/right SEEK while the SCRUBBER holds focus, and that is why the
@@ -1702,7 +1989,15 @@ export default function Player({
     const target = upNext;
     setUpNext(null);
     saveProgress();
-    navigation.replace('Player', {id: target.id, title: target.title});
+    // The host carries the room along; a guest must not advance on its own —
+    // it follows the host's party_item (see onPartyItem).
+    if (party.current) {
+      if (party.role !== 'host') return;
+      const it = itemRef.current;
+      setPartyItem({id: target.id, title: target.title, showTitle: it?.showTitle, cover: it?.cover ?? null});
+      keepParty.current = true;
+    }
+    navigation.replace('Player', {id: target.id, title: target.title, party: party.current?.code});
   }, [navigation, saveProgress, upNext]);
   // The countdown reaching zero is the autoplay. Driven off state rather than
   // from inside the interval so it can never fire twice.
@@ -1726,6 +2021,12 @@ export default function Player({
     // The new stream's clock is valid from here, so the held seek target can
     // hand the scrubber back to it without the bar ever stepping backwards.
     setSeekPreview(null);
+    if (pendingLand.current) {
+      const land = pendingLand.current;
+      pendingLand.current = null;
+      resumeAt.current = 0; // the party's position wins over our saved one
+      setTimeout(() => !exited.current && applyPartyState(land, false), 50);
+    }
     // Transcoded streams resume by starting the transcode at the saved offset
     // (baked into streamOffset by startTranscode, which also clears resumeAt);
     // direct playback seeks natively. A torrent's bytes at that offset may not
@@ -1785,8 +2086,27 @@ export default function Player({
       setCurrent(content);
       setBuffered(bufRef.current);
     }
-    if (durRef.current && durRef.current - content < 30 && itemRef.current?.showId) {
-      showUpNext();
+    // Skip intro: inside a known range, playing, and not in its final second.
+    const range = intro.current || autoIntro.current;
+    const inR = !!range && content >= range.start && content < range.end - 1 && !pausedRef.current;
+    if (inR !== inIntroRef.current) {
+      inIntroRef.current = inR;
+      setInIntro(inR);
+    }
+    // Up next at the detected credits; otherwise a window that scales with the
+    // runtime (a fixed 30s missed hour-long episodes' credits).
+    const dur = durRef.current;
+    if (dur && itemRef.current?.showId) {
+      const win = Math.max(30, Math.min(90, dur * 0.05));
+      if (creditsStart.current != null ? content >= creditsStart.current : dur - content < win) showUpNext();
+    }
+    if (!playTracked.current && d.currentTime > 0) {
+      playTracked.current = true;
+      track('play', {
+        kind: isTorrent ? 'stream' : 'library',
+        path: usingTranscodeRef.current ? `hls-${currentV.current}` : 'direct',
+        ms: Date.now() - mountedAt.current,
+      });
     }
   };
 
@@ -2148,6 +2468,12 @@ export default function Player({
               onFocusChange={markZone('top')}
               onPress={() => canNavigate(navigation) && navigation.goBack()}
             />
+            {partyInfo ? (
+              <View style={styles.partyPill} pointerEvents="none">
+                <Icon name="people" size={16} color={colors.white} />
+                <Text style={styles.partyPillText}>{`${partyInfo.members.length} · ${partyInfo.code}`}</Text>
+              </View>
+            ) : null}
             <View style={styles.titleWrap}>
               {/* For an episode the site's heading is the SHOW, with the episode
                   on the line beneath — the route's title is a composed label
@@ -2181,6 +2507,7 @@ export default function Player({
                 chrome appears — that is what makes "press right to skip" work. */}
             <Focusable
               noScale
+              ref={scrubRef as never}
               hasTVPreferredFocus={!menuOpen && !upNext}
               onFocusChange={f => {
                 setScrubFocused(f);
@@ -2279,6 +2606,13 @@ export default function Player({
                 onPress={() => setMenu('speed')}
               />
               <PBtn
+                icon="people"
+                label="Watch together"
+                badge={partyInfo ? String(partyInfo.members.length) : undefined}
+                onFocusChange={markZone('row')}
+                onPress={() => setMenu('party')}
+              />
+              <PBtn
                 icon="gear"
                 label="Settings"
                 onFocusChange={markZone('row')}
@@ -2286,6 +2620,49 @@ export default function Player({
               />
             </View>
           </View>
+        </View>
+      ) : null}
+
+      {/* Skip intro — inside the range, playing. It takes focus as it appears so
+          OK skips; leaving the range hands focus back to the scrubber. */}
+      {inIntro && uri && !menuOpen && !upNext ? (
+        <Focusable
+          round
+          light
+          hasTVPreferredFocus
+          onFocusChange={markZone('skip')}
+          onPress={skipIntro}
+          style={[styles.skipIntro, {bottom: controls ? 176 : 56}]}>
+          <Text style={styles.skipIntroText}>Skip intro</Text>
+          <Icon name="skip" size={18} color={colors.bg} />
+        </Focusable>
+      ) : null}
+
+      {/* The resume card: the frame you stopped on, and Start over for six seconds. */}
+      {resumeCard && uri && !menuOpen ? (
+        <View style={[styles.resumeCard, {bottom: controls ? 176 : 56}]}>
+          <Image
+            source={imgSrc(`/img/frame/${encodeURIComponent(id)}?t=${Math.floor(resumeCard.at)}`) || undefined}
+            style={styles.resumeFrame}
+            resizeMode="cover"
+            fadeDuration={200}
+          />
+          <View style={styles.resumeText}>
+            <Text style={styles.resumeK}>RESUMING FROM</Text>
+            <Text style={styles.resumeT}>{fmt(resumeCard.at)}</Text>
+          </View>
+          <Focusable
+            round
+            onFocusChange={markZone('card')}
+            onPress={() => {
+              setResumeCard(null);
+              seekTo(0);
+              toast('From the top');
+              showControls();
+            }}
+            style={styles.btn}>
+            <Text style={styles.btnText}>Start over</Text>
+          </Focusable>
         </View>
       ) : null}
 
@@ -2428,6 +2805,67 @@ export default function Player({
             onFocusChange={markZone('menu')}
             onPress={() => setPref('autoplayNext', !prefs.autoplayNext)}
           />
+          {introKey.current ? (
+            <>
+              <Text style={[styles.menuTitle, styles.menuTitleGap]}>SKIP INTRO</Text>
+              {autoIntro.current && !intro.current ? (
+                <MenuItem
+                  label="Ignore the detected intro"
+                  tag={`${fmt(autoIntro.current.start)}–${fmt(autoIntro.current.end)}`}
+                  onFocusChange={markZone('menu')}
+                  onPress={() => {
+                    if (introKey.current) ignoreIntro(introKey.current);
+                    autoIntro.current = null;
+                    inIntroRef.current = false;
+                    setInIntro(false);
+                    toast('Skip intro is off for this show on this TV');
+                    closeMenu();
+                  }}
+                />
+              ) : null}
+              {markStart == null ? (
+                <MenuItem
+                  label="Mark intro start (now)"
+                  tag={intro.current ? `marked ${fmt(intro.current.start)}–${fmt(intro.current.end)}` : undefined}
+                  onFocusChange={markZone('menu')}
+                  onPress={() => {
+                    setMarkStart(Math.floor(curRef.current));
+                    toast(`Intro starts ${fmt(curRef.current)} — play to where it ends, then save`);
+                    closeMenu();
+                  }}
+                />
+              ) : (
+                <>
+                  <MenuItem
+                    label="Intro ends here (save)"
+                    tag={`from ${fmt(markStart)}`}
+                    onFocusChange={markZone('menu')}
+                    onPress={async () => {
+                      const end = Math.floor(curRef.current);
+                      if (end <= markStart) return toast('The end has to come after the start');
+                      try {
+                        await api.setIntro(introKey.current!, markStart, end, me?.name || null);
+                        intro.current = {start: markStart, end};
+                        toast('Saved — every episode of this show now offers Skip intro');
+                      } catch (e) {
+                        toast((e as Error).message || "Couldn't save the intro");
+                      }
+                      setMarkStart(null);
+                      closeMenu();
+                    }}
+                  />
+                  <MenuItem
+                    label="Cancel marking"
+                    onFocusChange={markZone('menu')}
+                    onPress={() => {
+                      setMarkStart(null);
+                      closeMenu();
+                    }}
+                  />
+                </>
+              )}
+            </>
+          ) : null}
           <Text style={[styles.menuTitle, styles.menuTitleGap]}>SUBTITLE STYLE</Text>
           <MenuItem
             label="Size"
@@ -2444,6 +2882,43 @@ export default function Player({
             onFocusChange={markZone('menu')}
             onPress={() => setPref('cueBackground', !prefs.cueBackground)}
           />
+        </TVFocusGuideView>
+      ) : null}
+
+      {/* Watch together — the party panel (site: .party-panel). */}
+      {menu === 'party' ? (
+        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
+          <Text style={styles.menuTitle}>WATCH TOGETHER</Text>
+          {partyInfo ? (
+            <>
+              <Text style={styles.partyCode}>{partyInfo.code.split('').join(' ')}</Text>
+              <Text style={styles.partyHint}>
+                {`${partyInfo.members.map(m => m.name).join(', ')} · ${partyInfo.members.length} watching. On another device: profile menu → Join a watch party, and type the code. Anyone can play, pause or jump — everyone follows.`}
+              </Text>
+              <MenuItem
+                label={party.role === 'host' ? 'End party' : 'Leave party'}
+                hasTVPreferredFocus
+                onFocusChange={markZone('menu')}
+                onPress={endParty}
+              />
+              <MenuItem label="Close" onFocusChange={markZone('menu')} onPress={closeMenu} />
+            </>
+          ) : (
+            <>
+              <Text style={styles.partyHint}>
+                Start a party and Aurora hands you a four-letter code. Anyone on another device joins with it, and play, pause and jumps stay in step. Everyone on Aurora sees the party on their Home and can join.
+              </Text>
+              <MenuItem
+                label="Start a party"
+                hasTVPreferredFocus
+                onFocusChange={markZone('menu')}
+                onPress={() => {
+                  startParty();
+                }}
+              />
+              <MenuItem label="Close" onFocusChange={markZone('menu')} onPress={closeMenu} />
+            </>
+          )}
         </TVFocusGuideView>
       ) : null}
 
@@ -2809,6 +3284,52 @@ const styles = StyleSheet.create({
   },
   exitBtn: {backgroundColor: colors.surface, paddingVertical: 12, paddingHorizontal: 32},
   exitText: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
+  // .party-pill — in the party: how many, and the code, beside the title.
+  partyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(139,123,255,0.28)',
+    borderWidth: 1,
+    borderColor: 'rgba(139,123,255,0.5)',
+    borderRadius: radius.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+  },
+  partyPillText: {color: colors.white, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 1},
+  partyCode: {color: colors.text, fontSize: 40, fontWeight: '900', letterSpacing: 6, marginBottom: spacing.sm},
+  partyHint: {color: colors.textDim, fontSize: fontSize.small, lineHeight: 20, marginBottom: spacing.md},
+  // .skip-intro — a white key, bottom right, above the transport when it is up.
+  skipIntro: {
+    position: 'absolute',
+    right: spacing.pageX,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.white,
+    paddingVertical: 11,
+    paddingHorizontal: 22,
+  },
+  skipIntroText: {color: colors.bg, fontSize: fontSize.body, fontWeight: '800'},
+  // .resume-card — the frame, the time, Start over.
+  resumeCard: {
+    position: 'absolute',
+    left: spacing.pageX,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: 'rgba(13,14,24,0.94)',
+    borderRadius: radius.l,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderTopColor: 'rgba(255,255,255,0.2)',
+    padding: 10,
+    paddingRight: spacing.md,
+  },
+  resumeFrame: {width: 128, height: 72, borderRadius: radius.s, backgroundColor: colors.bgRaised},
+  resumeText: {minWidth: 90},
+  resumeK: {color: colors.textDim, fontSize: 11, fontWeight: '800', letterSpacing: 1.6},
+  resumeT: {color: colors.text, fontSize: fontSize.row, fontWeight: '900', marginTop: 2},
   // The site's .toast, pinned above the transport bar so it never covers it.
   toast: {
     position: 'absolute',

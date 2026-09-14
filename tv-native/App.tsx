@@ -11,7 +11,9 @@
 import React, {useEffect, useState} from 'react';
 import {View, StatusBar, ActivityIndicator, StyleSheet} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
+import './src/errors'; // the global error ring, installed once
 import ProfileGate from './src/screens/ProfileGate';
+import SessionWiring from './src/SessionWiring';
 import SignIn from './src/screens/SignIn';
 import {ErrorState} from './src/components/States';
 import AppNavigator from './src/navigation';
@@ -243,6 +245,7 @@ export default function App() {
         {stage === 'home' && session.profileId ? (
           <AppContext.Provider
             value={{profileId: session.profileId, switchProfile}}>
+            <SessionWiring />
             <AppNavigator />
           </AppContext.Provider>
         ) : null}

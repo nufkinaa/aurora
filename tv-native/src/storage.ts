@@ -105,6 +105,10 @@ export type Prefs = {
   // for the next one too, and that has to be distinguishable from "never chose".
   lastSubLang: string | null;
   lastSubLabel: string | null;
+  // Trailers on Home's billboard after a title has held still a few seconds.
+  heroTrailers: boolean;
+  // Usage stats to the server's Analytics tab (never anything typed).
+  usageStats: boolean;
   // Whether lastSub* has ever been written. Without this, `null` for "the viewer
   // chose off" is indistinguishable from `null` for "fresh install", and a fresh
   // install would come up with subtitles off — the opposite of subsDefault.
@@ -120,6 +124,8 @@ export const PREFS_DEFAULTS: Prefs = {
   lastSubLang: null,
   lastSubLabel: null,
   lastSubSet: false,
+  heroTrailers: true,
+  usageStats: true,
 };
 
 const PREFS_KEY = 'aurora.prefs';
@@ -140,3 +146,35 @@ export async function savePrefs(p: Prefs) {
     await AsyncStorage.setItem(PREFS_KEY, JSON.stringify(p));
   } catch {}
 }
+
+// ---- small remembered facts ----
+// The release whose "New" page this TV has opened (the nav dot goes out).
+const NEW_SEEN_KEY = 'aurora.newSeen';
+export const loadNewSeen = () => AsyncStorage.getItem(NEW_SEEN_KEY).catch(() => null);
+export const saveNewSeen = (v: string) => AsyncStorage.setItem(NEW_SEEN_KEY, v).catch(() => {});
+
+// Detected intros the household said were wrong, per show key.
+const INTRO_IGNORE_KEY = 'aurora.introIgnore';
+export async function loadIgnoredIntros(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(INTRO_IGNORE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+export async function ignoreIntro(key: string) {
+  const list = await loadIgnoredIntros();
+  if (!list.includes(key)) list.push(key);
+  try {
+    await AsyncStorage.setItem(INTRO_IGNORE_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+// The update version the viewer said "Later" to — asked again on the next run.
+let updateDismissed: string | null = null;
+export const dismissUpdate = (v: string) => {
+  updateDismissed = v;
+};
+export const updateWasDismissed = (v: string) => updateDismissed === v;
