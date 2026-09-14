@@ -1470,3 +1470,14 @@ html[data-look="glass"] .season-bar::-webkit-scrollbar { display: none; }
   html[data-look="glass"] .pc-tools { order: 1; justify-self: center; }
   html[data-look="glass"] .vol-group { display: none; }
 }
+
+/* ---------- card focus in Apple Horror: the ring, nothing else ----------
+   The classic look's tvOS halo (a blurred, grained white glow behind the
+   card) is off here — a hovered card lifts inside a clean white ring. */
+html[data-look="glass"] .card::before {
+  display: none;
+}
+html[data-look="glass"] .card:hover,
+html[data-look="glass"] .card:focus {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.92), 0 18px 40px rgba(0, 0, 0, 0.5);
+}
