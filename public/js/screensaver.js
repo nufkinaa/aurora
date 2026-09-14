@@ -1,8 +1,9 @@
-// Ambient screensaver (elia's pick): idle on the HOME screen for a few
-// minutes and the app becomes a slow slideshow of backdrops from your own
-// home rows, with a clock. Any input wakes it instantly. Never arms outside
-// home (a paused movie must never get painted over), never in a hidden tab,
-// and reduced-motion holds one still image instead of crossfading.
+// Ambient screensaver (elia's pick): idle on any screen for a few minutes —
+// or come back after a while in another tab — and the app becomes a slow
+// slideshow of backdrops from your own home rows, with a clock. Any input
+// wakes it instantly. Never over a film that is playing (a paused one is
+// fine), never in a hidden tab, never under a sheet or the profile door, and
+// reduced-motion holds one still image instead of crossfading.
 import { el, artUrl } from "./ui.js";
 import { api } from "./api.js";
 import { state } from "./state.js";
@@ -19,7 +20,6 @@ let overlay = null;
 let slideTimer = null;
 let clockTimer = null;
 
-const onHome = () => (location.hash || "#/") === "#/";
 // A film left paused is a place the saver may take over too (tvOS does the
 // same); a playing one, never — the picture IS the content.
 const pausedPlayer = () => {
@@ -27,7 +27,11 @@ const pausedPlayer = () => {
   const v = document.querySelector(".player video");
   return !!(v && v.paused && !v.ended);
 };
-const eligible = () => onHome() || pausedPlayer();
+// Every screen may be painted over — a title page, Movies, the New tab, the
+// AI tab, Preferences — except a film that is playing: the picture IS the
+// content. Sheets, menus and the profile door are checked separately in
+// start() (they own the screen; the saver would sit underneath them).
+const eligible = () => !location.hash.startsWith("#/play/") || pausedPlayer();
 
 const stop = () => {
   clearInterval(slideTimer);
@@ -113,7 +117,7 @@ const poke = () => {
 
 // Hidden → remember when; visible again → an ordinary poke (stop + re-arm),
 // and after a real absence the saver comes up at once (start() still checks
-// that we're somewhere it may paint over: Home, or a paused film).
+// that we're somewhere it may paint over: any screen but a playing film).
 let hiddenAt = 0;
 const onVisibility = () => {
   if (document.hidden) {
