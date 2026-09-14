@@ -303,20 +303,21 @@ html[data-look="glass"] .nav-dl.ready {
 }
 
 /* ---------- home hero: the slab is the lens ---------- */
+/* a slab again — a hair in from the edges, the nav floating over its top */
 html[data-look="glass"] .hero {
   min-height: 0;
-  height: min(820px, 86vh);
-  margin: 0 0 8px;
+  height: min(700px, 76vh);
+  margin: 12px 12px 8px;
   padding: 0;
-  border-radius: 0 0 36px 36px;
+  border-radius: 32px;
   overflow: hidden;
   align-items: flex-end;
   background: var(--g-fill-strong);
 }
 /* the art is sharp from the first frame — no dreamy blur, no focus-pull veil */
 html[data-look="glass"] .hero .hero-backdrop {
-  filter: saturate(1.1) brightness(0.7);
-  -webkit-filter: saturate(1.1) brightness(0.7);
+  filter: saturate(1.1) brightness(0.86);
+  -webkit-filter: saturate(1.1) brightness(0.86);
   transform: none;
   background-position: center 18%;
 }
@@ -334,9 +335,9 @@ html[data-look="glass"] .hero-fade {
   -webkit-mask-image: none;
   mask-image: none;
   background:
-    linear-gradient(to bottom, rgba(7, 8, 17, 0.62), transparent 26%),
-    linear-gradient(90deg, rgba(7, 8, 17, 0.9) 0%, rgba(7, 8, 17, 0.55) 40%, rgba(7, 8, 17, 0.04) 75%),
-    linear-gradient(to top, rgba(7, 8, 17, 0.86), transparent 48%);
+    linear-gradient(to bottom, rgba(7, 8, 17, 0.5), transparent 24%),
+    linear-gradient(90deg, rgba(7, 8, 17, 0.86) 0%, rgba(7, 8, 17, 0.45) 38%, rgba(7, 8, 17, 0) 70%),
+    linear-gradient(to top, rgba(7, 8, 17, 0.82), transparent 46%);
 }
 html[data-look="glass"] .hero-inner {
   padding: 0 var(--page-x) 64px;
@@ -475,9 +476,9 @@ html[data-look="glass"] .hero-pick:focus {
 }
 @media (max-width: 720px) {
   html[data-look="glass"] .hero {
-    margin: 0 0 4px;
+    margin: 8px 8px 4px;
     height: min(560px, 72vh);
-    border-radius: 0 0 26px 26px;
+    border-radius: 24px;
   }
   /* the dots sit under the buttons, centred — not on top of them */
   html[data-look="glass"] .hero-dots {
