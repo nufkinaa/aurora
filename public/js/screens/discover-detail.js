@@ -1932,7 +1932,14 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         if (seasons.length > 1) nodes.push(pill);
       }
     }
-    seasonBar.prepend(...nodes);
+    // The pills ride in their own island (the glass look draws it; the
+    // classic look renders the wrapper as nothing) — the trailing actions
+    // stay outside it, at the far end of the bar.
+    if (nodes.length) {
+      const island = el("div", { class: "season-island" }, nodes);
+      island.dataset.picker = "1";
+      seasonBar.prepend(island);
+    }
   };
   buildSeasonPicker();
   // Trailing actions sit apart from the season pills; whichever comes first

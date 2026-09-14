@@ -3834,3 +3834,6 @@
 
 /* the dock's button groups (see player.js): inline in both looks */
 .pc-transport, .pc-tools { display: flex; align-items: center; gap: inherit; }
+
+/* the season pills' wrapper (glass draws it as an island) */
+.season-island { display: contents; }
