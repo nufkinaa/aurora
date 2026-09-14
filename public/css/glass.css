@@ -1539,3 +1539,100 @@ html[data-look="glass"] .hero.trailing-sound .hero-unmute { background: rgba(255
 
 /* the greeting sits close under the slab */
 html[data-look="glass"] .home-greeting.big { padding-top: 14px; }
+
+/* ---------- the "New" tab and page ---------- */
+html[data-look="glass"] #nav-new { display: inline-flex; align-items: center; gap: 6px; }
+html[data-look="glass"] #nav-new.has-new .nav-new-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #8cffbe, #7fd1e8);
+  box-shadow: 0 0 10px rgba(140, 255, 190, 0.8);
+  animation: g-breathe 2.4s ease-in-out infinite;
+}
+@media (max-width: 720px) {
+  html[data-look="glass"] #nav-new { display: none; } /* the phone tab bar is full; the profile menu has it */
+}
+.whatsnew { padding: calc(var(--nav-h) + 54px) var(--page-x) 60px; }
+.wn-hero { max-width: 720px; margin-bottom: 30px; }
+.wn-kicker {
+  display: inline-flex; padding: 6px 12px; border-radius: 999px; margin-bottom: 14px;
+  font-size: 0.74rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #7fd1e8; background: rgba(127, 209, 232, 0.14); box-shadow: inset 0 0 0 1px rgba(127, 209, 232, 0.35);
+}
+.wn-h1 { font-size: clamp(2.2rem, 4vw, 3.4rem); font-weight: 900; letter-spacing: -0.03em; line-height: 1; margin: 0 0 12px; }
+.wn-sub { color: var(--text-dim); font-size: 1.02rem; line-height: 1.5; margin: 0; text-wrap: pretty; }
+.wn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.wn-card {
+  position: relative;
+  display: flex; gap: 18px; padding: 18px;
+  border-radius: var(--g-radius);
+  background: var(--g-fill);
+  box-shadow: var(--g-edge), var(--g-shadow);
+  backdrop-filter: var(--g-blur); -webkit-backdrop-filter: var(--g-blur);
+  animation: g-reveal 520ms var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+.wn-body { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.wn-head { display: flex; align-items: center; gap: 10px; }
+.wn-title { font-size: 1.12rem; font-weight: 800; letter-spacing: -0.01em; margin: 0; }
+.wn-ribbon {
+  padding: 3px 8px; border-radius: 999px; font-size: 0.66rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase;
+  color: #86efac; background: rgba(74, 222, 128, 0.16); box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.4);
+}
+.wn-what { margin: 8px 0 0; line-height: 1.5; color: rgba(243, 244, 248, 0.9); text-wrap: pretty; }
+.wn-how { margin: 8px 0 0; font-size: 0.9rem; line-height: 1.5; color: var(--text-dim); text-wrap: pretty; }
+.wn-how b { color: #7fd1e8; font-weight: 800; letter-spacing: 0.04em; }
+.wn-go { margin-top: auto; align-self: flex-start; padding-top: 12px; border-radius: 999px; }
+.wn-foot { display: flex; gap: 10px; justify-content: center; margin-top: 30px; }
+/* the cue tile: a glyph in glass, with a small living hint per feature */
+.wn-cue {
+  position: relative; flex: none; width: 76px; height: 76px; border-radius: 22px;
+  display: grid; place-items: center; overflow: hidden;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
+  box-shadow: var(--g-edge);
+}
+.wn-glyph { font-size: 2rem; line-height: 1; position: relative; z-index: 1; }
+.wn-cue i { position: absolute; pointer-events: none; }
+/* hold: a ring that swells under the finger */
+.cue-hold i:nth-of-type(1) { inset: 14px; border-radius: 999px; border: 2px solid rgba(255, 255, 255, 0.9); animation: wn-ring 1.8s ease-out infinite; }
+@keyframes wn-ring { 0% { transform: scale(0.6); opacity: 0; } 30% { opacity: 0.9; } 100% { transform: scale(1.25); opacity: 0; } }
+/* trailer: a soft light sweeping like a projector */
+.cue-trailer i:nth-of-type(1) { inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.18) 50%, transparent 70%); animation: wn-sweep 2.6s ease-in-out infinite; }
+@keyframes wn-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+/* party: three little heads orbiting */
+.cue-party i { width: 8px; height: 8px; border-radius: 999px; background: #bfdbfe; top: 50%; left: 50%; margin: -4px 0 0 -4px; animation: wn-orbit 3.2s linear infinite; }
+.cue-party i:nth-of-type(2) { animation-delay: -1.07s; background: #86efac; }
+.cue-party i:nth-of-type(3) { animation-delay: -2.13s; background: #f0c67e; }
+@keyframes wn-orbit { from { transform: rotate(0deg) translateX(28px); } to { transform: rotate(360deg) translateX(28px); } }
+/* skip: a bar with a jump */
+.cue-skip i:nth-of-type(1) { left: 12px; right: 12px; bottom: 12px; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, 0.2); }
+.cue-skip i:nth-of-type(2) { left: 12px; bottom: 12px; height: 3px; width: 20px; border-radius: 3px; background: var(--g-progress); animation: wn-jump 2.2s ease-in-out infinite; }
+@keyframes wn-jump { 0%, 35% { width: 20px; } 55%, 100% { width: 52px; } }
+/* subs: a caption line typing itself */
+.cue-subs i:nth-of-type(1) { left: 14px; right: 14px; bottom: 11px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.85); transform-origin: left; animation: wn-type 2.4s ease-in-out infinite; }
+@keyframes wn-type { 0% { transform: scaleX(0); } 60%, 85% { transform: scaleX(1); } 100% { transform: scaleX(0); } }
+/* smart: a download bar filling */
+.cue-smart i:nth-of-type(1) { left: 14px; right: 14px; bottom: 11px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.18); }
+.cue-smart i:nth-of-type(2) { left: 14px; bottom: 11px; height: 4px; width: 0; border-radius: 2px; background: #86efac; animation: wn-fill 2.8s ease-in-out infinite; }
+@keyframes wn-fill { 0% { width: 0; } 80%, 100% { width: 48px; } }
+/* offline: a signal that goes, and the glyph that stays */
+.cue-offline i:nth-of-type(1) { top: 10px; right: 10px; width: 8px; height: 8px; border-radius: 999px; background: #86efac; animation: wn-blink 2s steps(1) infinite; }
+@keyframes wn-blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0.15; } }
+/* tap: two ripples, left and right */
+.cue-tap i:nth-of-type(1), .cue-tap i:nth-of-type(2) { top: 50%; width: 26px; height: 26px; margin-top: -13px; border-radius: 999px; background: rgba(255, 255, 255, 0.35); animation: wn-tapripple 2.4s ease-out infinite; }
+.cue-tap i:nth-of-type(1) { left: 6px; }
+.cue-tap i:nth-of-type(2) { right: 6px; animation-delay: 1.2s; }
+@keyframes wn-tapripple { 0% { transform: scale(0.4); opacity: 0; } 20% { opacity: 0.8; } 100% { transform: scale(1.4); opacity: 0; } }
+/* look: the tile itself slowly shifts hue */
+.cue-look { animation: wn-hue 6s ease-in-out infinite alternate; }
+@keyframes wn-hue { from { background: linear-gradient(135deg, rgba(139, 123, 255, 0.35), rgba(255, 255, 255, 0.04)); } to { background: linear-gradient(135deg, rgba(140, 255, 190, 0.3), rgba(127, 209, 232, 0.1)); } }
+/* report: a small pulse */
+.cue-report .wn-glyph, .cue-keys .wn-glyph, .cue-resume .wn-glyph { animation: wn-float 3s ease-in-out infinite; }
+@keyframes wn-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .wn-cue, .wn-cue i, .wn-glyph, .wn-card { animation: none !important; } }
+@media (max-width: 720px) {
+  .whatsnew { padding-top: calc(var(--nav-h) + 10px); } /* clear of the floating logo */
+  .wn-grid { grid-template-columns: 1fr; }
+}

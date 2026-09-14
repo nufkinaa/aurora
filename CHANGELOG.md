@@ -5,6 +5,7 @@ Shown inside the app under Preferences → What's new. Newest first; one
 
 ## 1.6.0 — 2026-09-14
 
+- A "New" tab in the nav (Apple Horror): what Aurora can do now and how to use it — a card per feature with a small living cue, one plain sentence, a How, and a button that takes you there. The tab carries a dot until you've seen this version's page; on phones it lives in the profile menu.
 - Trailers in the hero (Apple Horror): a title that sits on the billboard for three seconds cross-fades from its art to its trailer, streamed straight from YouTube, muted, for 25 seconds — then back to the art and on to the next pick. Press Unmute for sound and the trailer runs 50 seconds before easing out. A dot, a swipe, scrolling past or hiding the tab ends it at once. Off on data saver, reduce-motion and the classic look; off by default on phones (Preferences → Playback → Trailers in the hero).
 - The screensaver now also takes over a film left paused for three minutes, exactly as it does on Home; any input or playback resuming wakes it, and the frame is where you left it.
 - Hero: a slab again, 12px in from the edges, a little taller, brighter art, the buttons level with the dots. The sliding highlights across glass surfaces are gone; hovered cards keep the ring without the halo; the season picker sits inside the page margin; greys are brighter.

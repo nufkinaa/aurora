@@ -1432,3 +1432,7 @@
 
 /* a hold on a card opens the peek sheet — not the platform's image sheet */
 .card, .card img { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
+
+/* the "New" tab lives in the glass look only; the classic nav is unchanged */
+#nav-new { display: none; position: relative; }
+.nav-new-dot { display: none; }

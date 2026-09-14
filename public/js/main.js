@@ -12,6 +12,7 @@ import { renderRequests } from "./screens/requests.js";
 import { renderWrapped } from "./screens/wrapped.js";
 import { renderTaste } from "./screens/taste.js";
 import { renderPickForMe } from "./screens/pickforme.js";
+import { renderWhatsNew, paintNewDot } from "./screens/whatsnew.js";
 import { showProfileGate } from "./screens/profiles.js";
 import { showLoginScreen } from "./screens/login.js";
 import { showClaimModal } from "./claim.js";
@@ -71,6 +72,7 @@ route("/preferences", (root, p) => import("./screens/preferences.js").then((m) =
 route("/wrapped", renderWrapped);
 route("/taste", renderTaste);
 route("/pick", renderPickForMe);
+route("/new", renderWhatsNew);
 route("/pair/:code", (root, p) => import("./screens/pair.js").then((m) => m.renderPair(root, p)));
 
 // "?" anywhere opens the keyboard shortcuts overlay
@@ -352,6 +354,7 @@ document.addEventListener("ui-back", (e) => {
 // sign-out when signed in. In closed mode there is no wall to switch on,
 // so the menu is the whole story.
 // "Join a watch party": a four-letter code from whoever started one.
+document.addEventListener("aurora-join-party", () => showJoinParty());
 const showJoinParty = () => {
   const input = el("input", {
     class: "focusable party-code-input",
@@ -414,6 +417,7 @@ const showProfileMenu = () => {
       item("Switch profile", () => { close(); openGate(); }),
     item("Preferences", () => { close(); navigate("#/preferences"); }),
     item("My downloads", () => { close(); navigate("#/downloads"); }),
+    item("What's new", () => { close(); navigate("#/new"); }),
     item("Report a problem", () => { close(); showReportSheet(); }),
     item("Join a watch party", () => { close(); showJoinParty(); }),
     state.user &&
@@ -582,3 +586,5 @@ api
     if (s && s.enabled) document.getElementById("nav-pick")?.classList.remove("hidden");
   })
   .catch(() => {});
+// The "New" tab's dot: lit until this version's page has been seen.
+paintNewDot();
