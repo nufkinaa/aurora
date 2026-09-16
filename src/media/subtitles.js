@@ -16,15 +16,21 @@ const srtToVtt = (srt) =>
     .replace(/\r/g, "\n")
     .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, "$1.$2");
 
-// Decode subtitle bytes: strict UTF-8 first, then Windows-1255 (Hebrew subs
-// from the wild are often ANSI-encoded), and strip any BOM.
+// Decode subtitle bytes: strict UTF-8 first, then the legacy code page that
+// yields real letters — Windows-1255 for Hebrew, Windows-1251 for Russian
+// (subs from the wild are often ANSI-encoded, and the same bytes are one
+// alphabet in one page and the other in the other) — and strip any BOM.
 const decodeSubtitle = (buf) => {
   let text;
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
   } catch {
     try {
-      text = new TextDecoder("windows-1255").decode(buf);
+      const heb = new TextDecoder("windows-1255").decode(buf);
+      const rus = new TextDecoder("windows-1251").decode(buf);
+      const hebLetters = (heb.match(/[\u05d0-\u05ea]/g) || []).length;
+      const rusLetters = (rus.match(/[\u0410-\u044f\u0451\u0401]/g) || []).length;
+      text = rusLetters > hebLetters ? rus : heb;
     } catch {
       text = buf.toString("utf-8");
     }

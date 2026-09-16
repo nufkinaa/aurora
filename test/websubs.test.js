@@ -18,21 +18,24 @@ test("only Hebrew and English are recognised", () => {
   for (const code of ["heb", "he", "iw", "Hebrew", "HE"]) {
     assert.equal(langOf(code) && langOf(code).key, "heb", `${code} is Hebrew`);
   }
+  for (const code of ["rus", "ru", "Russian", "ru-RU"]) {
+    assert.equal(langOf(code) && langOf(code).key, "rus", `${code} is Russian`);
+  }
   for (const code of ["eng", "en", "English", "EN-US"]) {
     assert.equal(langOf(code) && langOf(code).key, "eng", `${code} is English`);
   }
 });
 
 test("every other language is rejected outright", () => {
-  const others = ["fre", "fr", "spa", "es", "ara", "ar", "rus", "por", "ger", "de",
+  const others = ["fre", "fr", "spa", "es", "ara", "ar", "ukr", "por", "ger", "de",
     "ita", "pol", "tur", "chi", "jpn", "kor", "dut", "swe", "", null, undefined];
   for (const code of others) {
     assert.equal(langOf(code), null, `${code} must not be offered`);
   }
 });
 
-test("the server advertises exactly two languages", () => {
-  assert.deepEqual(websubs.LANGS.map((l) => l.key), ["heb", "eng"]);
+test("the server advertises exactly three languages", () => {
+  assert.deepEqual(websubs.LANGS.map((l) => l.key), ["heb", "eng", "rus"]);
   assert.ok(websubs.PER_LANG >= 5, "at least five tracks per language were asked for");
 });
 
@@ -300,4 +303,24 @@ test("a track claiming English but written in Hebrew is refused", () => {
 test("a near-empty signs-only track is refused", () => {
   const twoCues = "1\n00:00:46,416 --> 00:00:49,916\nBA SING SE\n\n2\n00:17:36,125 --> 00:17:39,708\nBLOOD FROM A STONE\n";
   assert.match(rejectReason(twoCues, "eng"), /cue/);
+});
+
+
+// ---------- Russian ----------
+test("a Windows-1251 Russian file decodes as Cyrillic, not as Hebrew", () => {
+  // "Привет" in Windows-1251
+  const bytes = Buffer.from([0xcf, 0xf0, 0xe8, 0xe2, 0xe5, 0xf2, 0x20, 0x2d, 0x20, 0x31]);
+  assert.equal(decode(bytes).slice(0, 6), "Привет");
+  // ...and a Windows-1255 Hebrew file still decodes as Hebrew
+  const heb = Buffer.from([0xf9, 0xec, 0xe5, 0xed]); // שלום
+  assert.equal(decode(heb), "שלום");
+});
+
+test("rejectReason knows Russian: Cyrillic required, and an English slot with Cyrillic is a mislabel", () => {
+  const cue = (i, text) => `${i}\n00:0${i}:00,000 --> 00:0${i}:02,000\n${text}\n`;
+  const russian = Array.from({ length: 12 }, (_, i) => cue(i + 1, "Привет, как дела сегодня вечером")).join("\n");
+  assert.equal(rejectReason(russian, "rus"), null);
+  assert.match(rejectReason(russian, "eng"), /English/);
+  const english = Array.from({ length: 12 }, (_, i) => cue(i + 1, "Hello there, how are you tonight")).join("\n");
+  assert.match(rejectReason(english, "rus"), /Russian/);
 });

@@ -306,14 +306,14 @@
   .detail-hero {
     display: block;
     /* the info column starts where the art's lower third begins */
-    padding: calc(58vh - 120px) var(--page-x) 8px;
+    padding: calc(50vh - 128px) var(--page-x) 8px;
     min-height: 0;
   }
   .detail-hero .hero-backdrop,
   .detail-hero .hero-backdrop.sharp {
     /* the poster, sharp, over the top of the screen only */
     inset: 0 0 auto 0;
-    height: 58vh;
+    height: 50vh;
     background-image: var(--hero-poster, var(--hero-art, none));
     background-position: center 22%;
     background-size: cover;
@@ -326,7 +326,7 @@
   }
   .detail-hero .hero-fade {
     inset: 0 0 auto 0;
-    height: 58vh;
+    height: 50vh;
     -webkit-mask-image: none;
     mask-image: none;
     background: linear-gradient(to bottom, rgba(11, 12, 20, 0.35), transparent 30%, rgba(11, 12, 20, 0.55) 70%, var(--bg) 100%);

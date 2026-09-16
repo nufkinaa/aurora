@@ -1,6 +1,6 @@
-// External subtitle tracks — HEBREW AND ENGLISH ONLY, from two providers.
+// External subtitle tracks — HEBREW, ENGLISH AND RUSSIAN ONLY, from two providers.
 //
-//   OpenSubtitles (via the Stremio v3 addon) — broad, both languages.
+//   OpenSubtitles (via the Stremio v3 addon) — broad, all three languages.
 //   Wizdom (wizdom.xyz)                     — the Israeli catalogue, Hebrew only
 //                                             and far better at it, especially
 //                                             for older and local content.
@@ -26,6 +26,7 @@ const WIZDOM_FILE = "https://wizdom.xyz/api/files/sub";
 const LANGS = [
   { key: "heb", name: "Hebrew", codes: ["heb", "he", "iw", "hebrew", "he-il"] },
   { key: "eng", name: "English", codes: ["eng", "en", "english", "en-us", "en-gb"] },
+  { key: "rus", name: "Russian", codes: ["rus", "ru", "russian", "ru-ru"] },
 ];
 // How many to offer per language. Five is the floor worth having (a mistimed
 // track needs a spare); more variety is better, so we go a little past it.
@@ -107,7 +108,7 @@ const fromWizdom = async (ttType, imdbId, season, episode) => {
 
 // ---------- the merged list ----------
 
-// Hebrew and English tracks for a title, best-first, capped per language.
+// Hebrew, English and Russian tracks for a title, best-first, capped per language.
 // Providers are interleaved so the top of the Hebrew list isn't eight variants
 // from the same source.
 const list = async (type, imdbId, season, episode) => {
@@ -146,15 +147,22 @@ const list = async (type, imdbId, season, episode) => {
 
 // ---------- fetching one track ----------
 
-// Text out of bytes. Hebrew subtitles are as likely to be Windows-1255 as UTF-8,
-// and the only reliable tell is whether the bytes decode as valid UTF-8 at all.
+// Text out of bytes. Hebrew subtitles are as likely to be Windows-1255 as
+// UTF-8, Russian ones as likely to be Windows-1251, and the only reliable tell
+// is whether the bytes decode as valid UTF-8 at all. When they don't, both
+// legacy code pages are tried and the one that yields real letters of its
+// own script wins — the same byte range is Hebrew in 1255 and Cyrillic in
+// 1251, so a wrong guess is a screen of the other alphabet.
 const decode = (buf) => {
   try {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
     return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
   } catch {
-    // Not UTF-8 — the Hebrew legacy encoding is the overwhelmingly likely one.
-    return new TextDecoder("windows-1255").decode(buf);
+    const heb = new TextDecoder("windows-1255").decode(buf);
+    const rus = new TextDecoder("windows-1251").decode(buf);
+    const hebLetters = (heb.match(/[\u05d0-\u05ea]/g) || []).length;
+    const rusLetters = (rus.match(/[\u0410-\u044f\u0451\u0401]/g) || []).length;
+    return rusLetters > hebLetters ? rus : heb;
   }
 };
 
@@ -326,9 +334,12 @@ const rejectReason = (srt, langKey) => {
   const cues = (srt.match(/-->/g) || []).length;
   if (cues < MIN_CUES) return `only ${cues} cue(s)`;
   const hebrew = (srt.match(/[֐-׿]/g) || []).length;
+  const cyrillic = (srt.match(/[\u0400-\u04ff]/g) || []).length;
+  const latin = (srt.match(/[A-Za-z]/g) || []).length;
   if (langKey === "heb" && hebrew < 50) return "labelled Hebrew but has no Hebrew";
-  // An English slot holding a right-to-left script is a mislabel too.
-  if (langKey === "eng" && hebrew > (srt.match(/[A-Za-z]/g) || []).length) {
+  if (langKey === "rus" && cyrillic < 50) return "labelled Russian but has no Russian";
+  // An English slot holding another script is a mislabel too.
+  if (langKey === "eng" && (hebrew > latin || cyrillic > latin)) {
     return "labelled English but is not";
   }
   return null;

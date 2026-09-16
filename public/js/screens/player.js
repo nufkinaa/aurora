@@ -1705,7 +1705,9 @@ export const renderPlayer = async (root, { id }) => {
   const SUB_LANG_TEST = {
     he: { code: /^(he|heb|iw)/i, label: /hebrew|עבר/i },
     en: { code: /^(en|eng)/i, label: /english/i },
+    ru: { code: /^(ru|rus)/i, label: /russian|русск/i },
   };
+  const SUB_LANG_NAME = { he: "Hebrew", en: "English", ru: "Russian" };
   const autoTrackIndex = (from = 0) => {
     if (!prefs.get("subsDefault", true)) return -1;
     const want = prefs.get("subLang", "any");
@@ -3435,7 +3437,7 @@ export const renderPlayer = async (root, { id }) => {
   };
   document.addEventListener("ui-back", onBack);
 
-  // Torrent subtitles (Hebrew/English) are fetched asynchronously after play
+  // Torrent subtitles (Hebrew / English / Russian) are fetched asynchronously after play
   // starts — add them as switchable tracks the moment they arrive.
   const addTracks = (tracks) => {
     const have = new Set(
@@ -3507,7 +3509,7 @@ export const renderPlayer = async (root, { id }) => {
           const i = (item.subtitles || []).findIndex(matches);
           if (i >= 0) {
             selectTrack(i);
-            toast(`${want === "he" ? "Hebrew" : "English"} subtitles found — switched on`, "💬");
+            toast(`${SUB_LANG_NAME[want] || "Matching"} subtitles found — switched on`, "💬");
           }
         })
         .catch(() => {});

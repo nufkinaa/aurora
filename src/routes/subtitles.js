@@ -10,7 +10,11 @@ const websubs = require("../media/websubs");
 const imdb = require("../media/imdb");
 
 const router = express.Router();
-const LANG = { he: { code: "heb", name: /hebrew/i }, en: { code: "eng", name: /english/i } };
+const LANG = {
+  he: { code: "heb", name: /hebrew/i },
+  en: { code: "eng", name: /english/i },
+  ru: { code: "rus", name: /russian/i },
+};
 const PER_FETCH = 2; // distinct files per language, plenty for one request
 const inflight = new Map(); // "<id>|<lang>" -> promise, so a double press is one fetch
 
@@ -60,7 +64,7 @@ const fetchFor = async (id, lang) => {
 router.post("/api/subtitles/fetch", async (req, res) => {
   const id = String((req.body || {}).id || "");
   const lang = String((req.body || {}).lang || "");
-  if (!Object.hasOwn(LANG, lang)) return res.status(400).json({ error: "lang must be he or en" });
+  if (!Object.hasOwn(LANG, lang)) return res.status(400).json({ error: "lang must be he, en or ru" });
   if (!id) return res.status(400).json({ error: "id required" });
   const key = `${id}|${lang}`;
   let p = inflight.get(key);

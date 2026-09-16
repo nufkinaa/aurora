@@ -103,7 +103,7 @@ export const setProfile = async (profile, token = null) => {
   applyAppearance(profile);
   // The profile's subtitle language lands in this device's player settings
   // (the player and Preferences read those), so every device agrees.
-  if (profile && profile.prefs && ["any", "he", "en"].includes(profile.prefs.subLang)) {
+  if (profile && profile.prefs && ["any", "he", "en", "ru"].includes(profile.prefs.subLang)) {
     try {
       const all = JSON.parse(localStorage.getItem("aurora-player") || "{}");
       if (all.subLang !== profile.prefs.subLang) {
