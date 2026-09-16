@@ -2377,7 +2377,9 @@
 .pbtn:active {
   transform: scale(0.96);
 }
-.pbtn:focus {
+/* keyboard / remote focus only — a clicked button used to stay white until
+   the next click landed somewhere else */
+.pbtn:focus-visible {
   background: #fff;
   color: #000;
   box-shadow: 0 6px 26px rgba(0, 0, 0, 0.5);

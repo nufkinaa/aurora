@@ -1119,8 +1119,26 @@ html[data-look="glass"] .player-top > div {
   border-radius: 22px;
   padding: 10px 20px 10px 16px;
 }
+/* Back (and the party pill's neighbour) sit over the brightest part of the
+   picture: a darker base under the glass so the white chevron always reads,
+   and REAL states — the 14% tint the dock buttons use vanished up here. */
 html[data-look="glass"] .player-top .pbtn {
   border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)), rgba(14, 16, 28, 0.55);
+}
+html[data-look="glass"] .player-top .pbtn:hover,
+html[data-look="glass"] .player-top .pbtn:focus-visible,
+html[data-look="glass"] .pbtn:focus-visible {
+  background: #fff;
+  color: #0b0c14;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45);
+}
+html[data-look="glass"] .pbtn:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+html[data-look="glass"] .player-top .pbtn:active {
+  background: rgba(255, 255, 255, 0.85);
+  color: #0b0c14;
 }
 html[data-look="glass"] .player-title {
   font-size: 1rem;
@@ -1204,10 +1222,14 @@ html[data-look="glass"] .pbtn.big {
   color: #0b0c14;
 }
 html[data-look="glass"] .pbtn:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.26); /* was 14% — invisible over a bright frame */
 }
 html[data-look="glass"] .pbtn.big:hover {
   background: #fff;
+}
+html[data-look="glass"] .player-top .pbtn:hover {
+  background: #fff;
+  color: #0b0c14;
 }
 html[data-look="glass"] .player-spacer {
   display: none;

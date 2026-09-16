@@ -2184,8 +2184,40 @@ export const renderPlayer = async (root, { id }) => {
       rebuild();
     }
     menuHost.append(menu);
+    placeMenu(menu, kind === "cc" ? ccBtn : kind === "speed" ? speedBtn : gearBtn);
     menu.querySelector(".menu-item.active")?.focus({ preventScroll: true });
   };
+
+  // The menu opens from the button that asked for it: centred over that
+  // button, sitting just above the dock, clamped to the screen. One fixed
+  // spot (right: 36px, bottom: 110px) served all three menus before — with
+  // the glass dock an island in the middle of the screen, Speed and Settings
+  // opened a hundred pixels to the right of their buttons and 65px INTO the
+  // dock. Phones keep the CSS layout (a full-width sheet above the dock).
+  const placeMenu = (menu, anchor) => {
+    if (!menu || !anchor || matchMedia("(max-width: 720px)").matches) {
+      if (menu) menu.style.cssText = "";
+      return;
+    }
+    const pr = overlay.getBoundingClientRect();
+    const br = anchor.getBoundingClientRect();
+    const dr = dockEl.getBoundingClientRect();
+    const w = menu.offsetWidth || 260;
+    const margin = 12;
+    let left = br.left + br.width / 2 - w / 2 - pr.left;
+    left = Math.max(margin, Math.min(left, pr.width - w - margin));
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.right = "auto";
+    menu.style.bottom = `${Math.round(pr.bottom - dr.top + 14)}px`;
+    // the glass pop grows from where it was pressed
+    menu.style.transformOrigin = `${Math.round(br.left + br.width / 2 - pr.left - left)}px 100%`;
+  };
+  const replaceMenu = () => {
+    const m = menuHost.firstElementChild;
+    if (!m) return;
+    placeMenu(m, menuKind === "cc" ? ccBtn : menuKind === "speed" ? speedBtn : gearBtn);
+  };
+  window.addEventListener("resize", replaceMenu);
 
   // Subtitles open on hover too: reaching for a timing nudge mid-scene shouldn't
   // cost a click. The grace period covers the gap the pointer crosses between the
@@ -3577,6 +3609,7 @@ export const renderPlayer = async (root, { id }) => {
     video.removeAttribute("src");
     video.load();
     document.removeEventListener("nav-move", onNavMove);
+    window.removeEventListener("resize", replaceMenu);
     document.removeEventListener("click", onDocClick);
     document.removeEventListener("keydown", onKey);
     document.removeEventListener("media-key", onMediaKey);
