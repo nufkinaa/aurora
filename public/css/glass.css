@@ -1001,6 +1001,9 @@ html[data-look="glass"] .episode-sub .ep-dur {
   html[data-look="glass"] .episode-kicker-dur { display: none; }
   html[data-look="glass"] .episode-sub .ep-dur { display: inline; }
   html[data-look="glass"] .ep-action { width: 40px; }
+  /* the rail gives the release name a little room back now that the
+     Stream pill sits beside it */
+  html[data-look="glass"] .source-row-wrap > .source-dl { width: 58px; }
 }
 /* A source card is ONE glass surface: the card (.source-row-wrap) carries
    the fill, the edge light and the state colour on its border (green when
@@ -1069,6 +1072,25 @@ html[data-look="glass"] .source-row-wrap > .source-dl {
 }
 html[data-look="glass"] .source-row-wrap > .source-dl:last-child {
   border-radius: 0 15px 15px 0;
+}
+/* the SAVE rail is the card's main press: accent-tinted, in glass too */
+html[data-look="glass"] .source-row-wrap > .source-dl {
+  background: rgba(var(--accent-rgb, 139, 123, 255), 0.16);
+  color: #fff;
+}
+html[data-look="glass"] .source-row-wrap > .source-dl:hover,
+html[data-look="glass"] .source-row-wrap > .source-dl:focus {
+  background: rgba(var(--accent-rgb, 139, 123, 255), 0.32);
+}
+html[data-look="glass"] .source-stream {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+}
+html[data-look="glass"] .source-stream:hover,
+html[data-look="glass"] .source-stream:focus {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  box-shadow: var(--focus-ring);
 }
 html[data-look="glass"] .source-row-wrap > .source-dl:hover,
 html[data-look="glass"] .source-row-wrap > .source-dl:focus {

@@ -297,10 +297,15 @@ const whyNotBest = (s, best) => {
   return r;
 };
 
-// A stream source row (reused for movies and episodes). `onDownload` requests a
-// server-side download of this exact source; `dlStatus` is the current job
-// state for it (if any) so the button can show "queued / downloading / saved".
-// `best` is the ★ BEST pick of the list, for the "why not this one" line.
+// A source card (reused for movies and episodes). Pressing the card SAVES the
+// source to the library — that is the flow Aurora wants (elia: "make the flow
+// of saving a movie and watching it after it downloaded a lot easier and
+// clearer"): instant start, full quality, every device. The rail at the end
+// shows the download's state and is the same press. A small "Stream" pill is
+// the side door for right now. A source that is already downloaded plays the
+// library copy when pressed. `onDownload` requests the server-side download;
+// `job` is its current state; `best` is the ★ BEST pick, for the "why not
+// this one" line.
 const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
   const color = QUALITY_COLOR[stream.quality] || QUALITY_COLOR.SD;
   const dlStatus = job && job.status;
@@ -309,11 +314,19 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
     stream.seeders >= 30 ? "good" : stream.seeders >= 5 ? "ok" : "low";
   const tags = (stream.tags || []).slice(0, 5);
 
+  let dlBtn = null;
+  const save = () => {
+    if (dlBtn && dlBtn.disabled) return;
+    // Optimistic feedback until the first live update lands (a second or two).
+    if (dlBtn) paintDl(dlBtn, { status: "approved", progress: 0 });
+    onDownload(stream);
+  };
   const playBtn = el(
     "button",
     {
       class: "source-row focusable" + (owned ? " owned" : ""),
-      onclick: () => onPlay(stream),
+      title: owned ? "Play your copy" : "Save to the library (Stream is the pill on the right)",
+      onclick: () => (owned ? onPlay(stream) : save()),
     },
     el(
       "span",
@@ -390,19 +403,13 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
         best &&
         el("div", { class: "source-why" }, `vs ★ BEST: ${whyNotBest(stream, best).join(" · ")}`),
     ),
-    el("span", { class: "source-play", html: icons.play }),
   );
 
-  const dlBtn = el(
+  dlBtn = el(
     "button",
     {
       class: "source-dl focusable",
-      onclick: () => {
-        if (dlBtn.disabled) return;
-        // Optimistic feedback until the first live update lands (a second or two).
-        paintDl(dlBtn, { status: "approved", progress: 0 });
-        onDownload(stream);
-      },
+      onclick: save,
     },
     el("i", { class: "dl-ring" }),
     el("span", { class: "dl-face" }),
@@ -410,7 +417,23 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
   );
   paintDl(dlBtn, job);
 
-  const wrap = el("div", { class: "source-row-wrap" }, playBtn, dlBtn);
+  // The side door: stream this source now, nothing saved. Hidden once the
+  // source is downloaded — the library copy is the better play.
+  const streamBtn = owned
+    ? null
+    : el(
+        "button",
+        {
+          class: "source-stream focusable",
+          "aria-label": "Stream this source now, without saving",
+          title: "Stream it now — slower to start, seeks worse, and gone when you leave. Saving is the good copy.",
+          onclick: () => onPlay(stream),
+        },
+        el("span", { class: "source-stream-ic", html: icons.play }),
+        el("span", { class: "source-stream-t" }, "Stream"),
+      );
+
+  const wrap = el("div", { class: "source-row-wrap" }, playBtn, streamBtn, dlBtn);
   // Let the live WebSocket updates repaint this row's button in place.
   wrap._paintDl = (j) => paintDl(dlBtn, j);
   return wrap;
@@ -558,7 +581,7 @@ const playStream = (stream, base, label, season, episode) => {
 // miss, and this is the moment to set expectations (a few minutes; and on the
 // rare low-disk request, that an admin has to wave it through first).
 // Same modal pattern as profiles.js: ui-overlay class + focus scope + Back.
-const showDownloadRequested = (label, needsApproval) => {
+const showDownloadRequested = (label, needsApproval, onStream = null) => {
   const close = () => {
     document.removeEventListener("ui-back", onBack);
     popScope(backdrop);
@@ -594,9 +617,19 @@ const showDownloadRequested = (label, needsApproval) => {
               "Go grab some popcorn; it'll be ready before it goes cold. 🍿",
       ),
       el(
-        "button",
-        { class: "btn btn-primary focusable", onclick: close },
-        "Great, can't wait",
+        "div",
+        { class: "dl-confirm-actions" },
+        el(
+          "button",
+          { class: "btn btn-primary focusable", onclick: close },
+          "Great, can't wait",
+        ),
+        onStream &&
+          el(
+            "button",
+            { class: "btn focusable", onclick: () => { close(); onStream(); } },
+            "Stream it meanwhile",
+          ),
       ),
     ),
   );
@@ -608,7 +641,7 @@ const showDownloadRequested = (label, needsApproval) => {
 // Ask the server to download this exact source to the library. It starts right
 // away unless the server is low on disk, in which case an admin has to approve
 // it first (the server decides; `needsApproval` comes back in the response).
-const requestDownload = async (stream, base, label, season, episode) => {
+const requestDownload = async (stream, base, label, season, episode, { onStream = null } = {}) => {
   const type = base.type === "show" ? "show" : "movie";
   try {
     const res = await api.requestDownload({
@@ -639,9 +672,13 @@ const requestDownload = async (stream, base, label, season, episode) => {
         "⏳",
       );
     }
-    showDownloadRequested(label, !!res.needsApproval);
-  } catch {
-    toast("Couldn't request the download", "⚠️");
+    showDownloadRequested(label, !!res.needsApproval, onStream);
+    return res;
+  } catch (e) {
+    // the server's own reason when it gave one ("the download engine isn't
+    // installed", "no library folder configured") beats a generic shrug
+    toast((e && e.message) || "Couldn't request the download", "⚠️");
+    return null;
   }
 };
 
@@ -789,6 +826,7 @@ const loadSources = async (
           `No ${owned ? "other " : ""}sources${what}.`,
         ),
       );
+      return { streams: [], best: null, jobs: dlStates };
     };
     if (!streams || streams.length === 0) return bailEmpty(" found");
 
@@ -909,7 +947,7 @@ const loadSources = async (
       el(
         "div",
         { class: "source-hint" },
-        "Tip: more seeders (●) = faster, more reliable playback; a smaller file starts quicker. The ★ BEST pick balances both.",
+        "Press a source to save it to the library. More seeders (●) = a faster download; a smaller file lands sooner. The ★ BEST pick balances both. Stream is the pill on the right, for right now.",
       ),
       // The copy on disk, before any torrent and outside the quality filter, so
       // it can't be filtered away or scrolled past.
@@ -928,13 +966,13 @@ const loadSources = async (
                 el(
                   "div",
                   { class: "dl-callout-title" },
-                  "Want the best experience? Download it.",
+                  "Save it, then watch it.",
                 ),
                 el(
                   "div",
                   { class: "dl-callout-sub" },
-                  "Downloads start instantly every time, seek anywhere without buffering, and keep full quality on every device. " +
-                    "Tap the ⬇ next to any source — it starts right away and lands in your library in minutes.",
+                  "One press on a source saves it to the library: it starts instantly every time, seeks anywhere without buffering, " +
+                    "and keeps full quality on every device. It lands in minutes. Streaming is there if you can't wait — slower to start, and gone when you leave.",
                 ),
               ),
             ),
@@ -944,6 +982,7 @@ const loadSources = async (
       el("div", { class: "source-box" }, buildFilterBar(streams, renderList), listHost),
     );
     renderList(streams);
+    return { streams, best, jobs: dlStates };
   } catch {
     host.innerHTML = "";
     host.append(
@@ -959,6 +998,7 @@ const loadSources = async (
         }, "Try again"),
       ),
     );
+    return { streams: [], best: null, jobs: new Map(), failed: true };
   }
 };
 
@@ -1279,14 +1319,53 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       }
     }
   }
-  // Streams: the only play button when we own nothing, a secondary one otherwise.
+  // A film we don't own: "Save & watch" is THE button — one press saves the
+  // ★ BEST source to the library (the sources list below decides which) and
+  // says what happens next; the page follows the download and turns into
+  // Play when it lands. Streaming is beside it, plain, for right now.
+  let saveBtn = null;
+  let sourcesP = null; // set by the movie branch (loadSources' answer)
+  const saveState = (job) => {
+    if (!saveBtn) return;
+    const p = Math.round((job.progress || 0) * 100);
+    const text =
+      job.status === "pending" ? "Waiting for approval"
+      : job.status === "approved" ? "Queued to download"
+      : job.phase === "copying" ? "Almost there…"
+      : job.phase === "finding" || job.phase === "starting" || !(job.progress > 0) ? "Starting download…"
+      : `Downloading · ${p}%`;
+    saveBtn.innerHTML = `<span class="mini-spinner"></span><span>${text}</span>`;
+    saveBtn.disabled = true;
+    saveBtn.classList.add("busy");
+  };
+  if (imdbId && !isShow && !lib) {
+    saveBtn = el("button", {
+      class: "btn btn-primary focusable",
+      html: icons.download + "<span>Save &amp; watch</span>",
+      onclick: async () => {
+        saveBtn.disabled = true;
+        const r = sourcesP ? await sourcesP.catch(() => null) : null;
+        const best = r && (r.best || (r.streams || [])[0]);
+        if (!best) {
+          saveBtn.disabled = false;
+          toast(r && r.failed ? "The source provider didn't answer — try again below" : "No source found yet — pick one below", "🔍");
+          return scrollToSources();
+        }
+        const res = await requestDownload(best, meta || { ...view, imdbId }, view.title, null, null, { onStream: scrollToSources });
+        if (res && res.job) saveState(res.job);
+        else if (res && !res.error && !res.alreadyAvailable) saveState({ status: res.needsApproval ? "pending" : "approved", progress: 0 });
+        else saveBtn.disabled = false;
+      },
+    });
+    actions.push(saveBtn);
+  }
   if (imdbId) {
     actions.push(
       el("button", {
         class: `btn ${actions.length ? "" : "btn-primary"} focusable`,
         html:
           icons.play +
-          `<span>${isShow ? (lib ? "All episodes" : "Choose episode") : lib ? "Other versions" : "Stream now"}</span>`,
+          `<span>${isShow ? (lib ? "All episodes" : "Choose episode") : lib ? "Other versions" : "Stream instead"}</span>`,
         onclick: scrollToSources,
       }),
     );
@@ -1543,7 +1622,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       el(
         "h2",
         { class: "row-title", style: { marginTop: "24px" } },
-        lib ? "Other versions" : "Sources",
+        lib ? "Other versions" : "Save to your library",
       ),
       sourcesSection,
       similarHost,
@@ -1551,7 +1630,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     fillSimilar();
     const base = () => meta || { ...view, imdbId };
     const showMovieSources = () =>
-      loadSources(
+      (sourcesP = loadSources(
         sourcesSection,
         {
           type: "movie",
@@ -1570,17 +1649,36 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         },
         (s) => playStream(s, base(), view.title),
         (s) => requestDownload(s, base(), view.title),
-      );
+      ));
     showMovieSources();
+    // A download of this title already on its way (or waiting): the hero
+    // button says so instead of offering to save it again.
+    sourcesP.then((r) => {
+      if (!r || !saveBtn || !screen.isConnected) return;
+      const live = [...(r.jobs || new Map()).values()].find(
+        (j) => j.imdbId === imdbId && DL_ACTIVE.includes(j.status),
+      );
+      if (live) saveState(live);
+    }).catch(() => {});
 
     // Finished while you were watching the page? Show it, don't make them reload.
     const unsubMovie = onMessage("download_update", async ({ job }) => {
       if (!screen.isConnected) return unsubMovie();
-      if (!job || job.status !== "done") return;
+      if (!job) return;
       const mine =
         (job.imdbId && job.imdbId === imdbId) ||
         libNorm(job.title) === libNorm(view.title);
       if (!mine) return;
+      // the hero follows the download while it runs
+      if (job.status !== "done") {
+        if (DL_ACTIVE.includes(job.status)) saveState(job);
+        else if (saveBtn && (job.status === "error" || job.status === "canceled" || job.status === "declined")) {
+          saveBtn.disabled = false;
+          saveBtn.classList.remove("busy");
+          saveBtn.innerHTML = icons.download + "<span>Save &amp; watch</span>";
+        }
+        return;
+      }
       try {
         await loadLibrary(true);
       } catch {}
@@ -1623,7 +1721,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   const openSources = (row, { scroll = true } = {}) => {
     if (!imdbId) return;
     openRow = row;
-    epSourcesLabel.textContent = `Sources · S${row.season} E${row.episode}`;
+    epSourcesLabel.textContent = `Save to your library · S${row.season} E${row.episode}`;
     loadSources(
       sourcesSection,
       {

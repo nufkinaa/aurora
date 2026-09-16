@@ -202,6 +202,17 @@
   .source-row.owned .source-owned {
     display: none;
   }
+  /* the Stream pill is an icon on a phone — the row is tight already */
+  .source-stream {
+    padding: 0;
+    width: 36px;
+    height: 36px;
+    justify-content: center;
+    margin: 0 6px 0 0;
+  }
+  .source-stream-t {
+    display: none;
+  }
   /* Search suggestions: the IN LIBRARY word-badge took 90px of a 343px row
      and truncated every title; a green tick says the same thing in 22px. */
   .suggest-item .disc-tag.have {
