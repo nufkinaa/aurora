@@ -37,6 +37,23 @@
       } catch {}
     })();
   </script>
+  <!-- A deploy can land between one module fetch and the next, so a page
+       may hold half old, half new code — the symptom is an import that
+       names a binding the cached module lacks. One reload, at most once a
+       minute, fixes it; anything else is left alone. -->
+  <script>
+    window.addEventListener("error", (e) => {
+      const m = String((e && e.message) || "");
+      if (!/Importing binding name|does not provide an export named|Failed to fetch dynamically imported module/.test(m)) return;
+      try {
+        const k = "aurora-mixed-reload";
+        const t = Number(sessionStorage.getItem(k) || 0);
+        if (Date.now() - t < 60000) return;
+        sessionStorage.setItem(k, String(Date.now()));
+      } catch {}
+      location.reload();
+    });
+  </script>
   <!-- The six sheets (tokens, base, components, screens, responsive, glass —
        in that order) as one minified file, built and hashed by the server
        (src/lib/cssbundle.js). One render-blocking request instead of six. -->

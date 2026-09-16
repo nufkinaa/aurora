@@ -21,7 +21,7 @@ const BROWSER_AUDIO_CODECS = new Set([
 ]);
 
 // Bump when the probe result shape changes so old cache entries re-probe
-const PROBE_VERSION = 4; // 4: colour transfer, Dolby Vision side data, audio profiles
+const PROBE_VERSION = 5; // 5: audio stream language/title (the player's audio menu)
 
 const probe = (videoPath) => {
   if (!config.ffmpegAvailable) return null;
@@ -88,6 +88,9 @@ const probe = (videoPath) => {
         // "Dolby Digital Plus + Dolby Atmos") and DTS:X the same way.
         const profile = String(s.profile || "");
         result.audioStreams.push({
+          index: result.audioStreams.length,
+          language: s.tags?.language || null,
+          title: s.tags?.title || null,
           codec: s.codec_name,
           channels: s.channels || 2,
           layout: s.channel_layout || null,

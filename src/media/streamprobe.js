@@ -43,9 +43,18 @@ const parse = (json) => {
           bitDepth: BIT10.test(String(v.pix_fmt || "")) ? 10 : 8,
         }
       : null,
+    // index = the stream's position among the AUDIO streams (what ffmpeg's
+    // -map 0:a:N counts), with its language and title tags — the player's
+    // audio menu for a multi-dub release
     audioStreams: streams
       .filter((s) => s.codec_type === "audio")
-      .map((s) => ({ codec: s.codec_name, channels: s.channels || 2 })),
+      .map((s, i) => ({
+        index: i,
+        codec: s.codec_name,
+        channels: s.channels || 2,
+        language: (s.tags && s.tags.language) || null,
+        title: (s.tags && s.tags.title) || null,
+      })),
   };
 };
 

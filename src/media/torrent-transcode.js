@@ -136,8 +136,11 @@ const AUDIO_GAIN = "volume=4dB,alimiter=limit=0.7:level=disabled:latency=true";
 
 // `fmt` "fmp4" gets a -f4 suffix (Apple mandates fMP4 for HEVC-in-HLS, S4);
 // a TS job and an fMP4 job at the same offset must never share a dir.
-const jobKey = (infoHash, fileIdx, ss = 0, fmt = null) => `${infoHash}-${fileIdx}-${ss}` + (fmt === "fmp4" ? "-f4" : "");
-const jobDir = (infoHash, fileIdx, ss = 0, fmt = null) => path.join(HLS_ROOT, jobKey(infoHash, fileIdx, ss, fmt));
+// `audio`: which of the file's audio streams the job carries (0 = the first,
+// the default) — a multi-dub release is one job per chosen track.
+const jobKey = (infoHash, fileIdx, ss = 0, fmt = null, audio = 0) =>
+  `${infoHash}-${fileIdx}-${ss}` + (fmt === "fmp4" ? "-f4" : "") + (audio ? `-a${audio}` : "");
+const jobDir = (infoHash, fileIdx, ss = 0, fmt = null, audio = 0) => path.join(HLS_ROOT, jobKey(infoHash, fileIdx, ss, fmt, audio));
 
 const pruneOld = (keepDir) => {
   try {
@@ -177,7 +180,8 @@ const pruneOld = (keepDir) => {
 // bytes strictly in order (byte 0 first) and blocks until each is verified, so
 // ffmpeg never reads a hole. MKV demuxes linearly from a pipe fine (we only
 // ever read start-to-end, never seek the input).
-const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek = false, fmt = null, vtagHvc1 = false) => {
+const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek = false, fmt = null, vtagHvc1 = false, audio = 0) => {
+  audio = Math.max(0, Math.min(31, parseInt(audio, 10) || 0));
   if (!config.FFMPEG) return Promise.reject(new Error("ffmpeg not available"));
   const ensureStart = Date.now();
   ss = Math.max(0, Math.floor(Number(ss) || 0));
@@ -201,7 +205,7 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
     }
   } catch {}
   if (fmt !== "fmp4") fmt = null;
-  const dir = jobDir(infoHash, fileIdx, ss, fmt);
+  const dir = jobDir(infoHash, fileIdx, ss, fmt, audio);
   const playlist = path.join(dir, "index.m3u8");
 
   // A poll from the stream we just moved off (see `retired`) must not resurrect
@@ -376,7 +380,7 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
     [
       "-v", "error",
       ...inputArgs,
-      "-map", "0:v:0", "-map", "0:a:0?",
+      "-map", "0:v:0", "-map", `0:a:${audio}?`,
       ...videoArgs,
       "-c:a", "aac", "-ac", "2", "-b:a", "192k", "-af", AUDIO_GAIN,
       // The mpegts muxer's default delay starts segments at PTS ~1.4s.
@@ -540,8 +544,8 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
 
 // Mark a job as still-in-use (called on every playlist/segment request) so the
 // idle sweeper doesn't kill a stream the player is actively watching.
-const touch = (infoHash, fileIdx, ss = 0, fmt = null) => {
-  const job = jobs.get(jobDir(infoHash, fileIdx, ss, fmt));
+const touch = (infoHash, fileIdx, ss = 0, fmt = null, audio = 0) => {
+  const job = jobs.get(jobDir(infoHash, fileIdx, ss, fmt, audio));
   if (job) job.lastAccess = Date.now();
 };
 
@@ -561,11 +565,11 @@ setInterval(() => {
 }, 30000).unref?.();
 
 // Validate + resolve a request for a playlist or segment file.
-const filePath = (infoHash, fileIdx, ss, file, fmt = null) => {
+const filePath = (infoHash, fileIdx, ss, file, fmt = null, audio = 0) => {
   if (!/^[a-f0-9]{40}$/i.test(infoHash) || !/^\d+$/.test(String(fileIdx)) || !/^\d+$/.test(String(ss))) return null;
   if (!/^(index\.m3u8|seg\d{5}\.(ts|m4s)|init\.mp4)$/.test(file)) return null;
-  const abs = path.join(HLS_ROOT, jobKey(infoHash, fileIdx, ss, fmt === "fmp4" ? "fmp4" : null), file);
+  const abs = path.join(HLS_ROOT, jobKey(infoHash, fileIdx, ss, fmt === "fmp4" ? "fmp4" : null, audio), file);
   return fs.existsSync(abs) ? abs : null;
 };
 
-module.exports = { ensure, touch, filePath, bootSweep, HLS_ROOT };
+module.exports = { ensure, touch, filePath, bootSweep, HLS_ROOT, _internals: { jobKey } };

@@ -47,6 +47,20 @@ const idForPath = (absPath) => byPath.get(absPath) || null;
 const naturalCompare = (a, b) =>
   a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 
+// A multi-dub file's audio streams, for the player's audio menu — only when
+// there is a choice to make (one track = nothing to list).
+const audioTracksOf = (meta) => {
+  const list = (meta && meta.audioStreams) || [];
+  if (list.length < 2) return undefined;
+  return list.map((a, i) => ({
+    index: a.index != null ? a.index : i,
+    language: a.language || null,
+    title: a.title || null,
+    codec: a.codec || null,
+    channels: a.channels || 2,
+  }));
+};
+
 // ---------- name parsing ----------
 
 const LANGUAGE_NAMES = {
@@ -403,6 +417,7 @@ const scanMovies = () => {
           meta && meta.audioStreams && meta.audioStreams[0]
             ? meta.audioStreams[0]
             : null,
+        audioTracks: audioTracksOf(meta),
         sizeBytes: stat ? stat.size : 0,
         addedAt: stat ? stat.mtimeMs : 0,
         subtitles: buildSubtitleTracks(videoAbs, videoRel, videoFile, dir, []),
@@ -460,6 +475,7 @@ const scanShows = () => {
                 meta && meta.audioStreams && meta.audioStreams[0]
                   ? meta.audioStreams[0]
                   : null,
+              audioTracks: audioTracksOf(meta),
               sizeBytes: stat ? stat.size : 0,
               addedAt: stat ? stat.mtimeMs : 0,
               subtitles: buildSubtitleTracks(abs, rel, e.name, dir, extraDirs),

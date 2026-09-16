@@ -13,6 +13,25 @@ import { track } from "../usage.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
+// What an audio track is called in the menu: its language in words (the
+// ISO code ffprobe reports), its title when the release named it ("Director's
+// commentary"), else "Track N".
+const AUDIO_LANG_NAMES = {
+  eng: "English", en: "English", heb: "Hebrew", he: "Hebrew", iw: "Hebrew", rus: "Russian", ru: "Russian",
+  ukr: "Ukrainian", uk: "Ukrainian", fra: "French", fre: "French", fr: "French", deu: "German", ger: "German", de: "German",
+  spa: "Spanish", es: "Spanish", ita: "Italian", it: "Italian", por: "Portuguese", pt: "Portuguese",
+  jpn: "Japanese", ja: "Japanese", kor: "Korean", ko: "Korean", zho: "Chinese", chi: "Chinese", zh: "Chinese",
+  ara: "Arabic", ar: "Arabic", tur: "Turkish", tr: "Turkish", pol: "Polish", pl: "Polish", hin: "Hindi", hi: "Hindi",
+  nld: "Dutch", dut: "Dutch", nl: "Dutch", swe: "Swedish", sv: "Swedish", tam: "Tamil", tel: "Telugu",
+};
+const audioTrackName = (t, i) => {
+  const code = String(t.language || "").toLowerCase();
+  const lang = code && code !== "und" ? AUDIO_LANG_NAMES[code] || code.toUpperCase() : "";
+  const title = t.title && !/^(stereo|surround|\d\.\d)$/i.test(t.title) ? t.title : "";
+  if (lang && title && !new RegExp(lang, "i").test(title)) return `${lang} · ${title}`;
+  return lang || title || `Track ${i + 1}`;
+};
+
 // Consecutive fast presses skip in bigger and bigger jumps, capped at 3m —
 // a 5m top step overshot too easily on remotes that auto-repeat.
 const SKIP_STEPS = [10, 10, 10, 30, 60, 60, 120, 180];
@@ -642,6 +661,11 @@ export const renderPlayer = async (root, { id }) => {
   // failing, that flag is what brings it back.
   let abandonedFatal = false; // true once the held stream has died mid-seek
   let currentV = item.transcodeV || "h264";
+  // Which of the file's audio streams plays (multi-dub releases): 0 is the
+  // first. Rides every transcode URL as &a=; a change restarts the stream at
+  // the current position with the other track mapped in (server-side — a
+  // browser can't switch tracks inside one stream).
+  let audioIdx = 0;
   const transcodeUrl = (ss, v) => {
     const vv = v || currentV;
     // Native-HLS devices (iPhone) get fMP4 segments for copy jobs — Apple
@@ -653,7 +677,8 @@ export const renderPlayer = async (root, { id }) => {
     const isHevc =
       (item.video && item.video.codec === "hevc") || item.videoCodecHint === "hevc";
     const vtag = seg && isHevc ? "&vtag=hvc1" : "";
-    return `${item.transcodeBase}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${vv}${seg}${vtag}`;
+    const a = audioIdx > 0 ? `&a=${audioIdx}` : "";
+    return `${item.transcodeBase}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${vv}${seg}${vtag}${a}`;
   };
   const startTranscode = (offset, v, { claimed = false, clock = null } = {}) => {
     streamOffset = Math.max(0, Math.floor(offset || 0));
@@ -716,6 +741,26 @@ export const renderPlayer = async (root, { id }) => {
     fetch(`${url}&seek=1`, { cache: "no-store" })
       .then((res) => begin(res.ok ? clockFromHeaders(res) : null))
       .catch(() => beginH264Fallback());
+  };
+
+  // Play another of the file's audio tracks: restart at the current
+  // position through the transcode path with &a=N. A direct-played file
+  // moves onto the copy path (repackaged at stream speed, no re-encode) —
+  // unless this device can't decode its video, in which case h264.
+  const switchAudio = (idx) => {
+    if (idx === audioIdx) return closeMenu();
+    if (seekLocked()) return;
+    audioIdx = idx;
+    closeMenu();
+    showControls();
+    if (!item.transcodeBase) item.transcodeBase = isTorrent ? item.transcodeBase : `/stream/transcode/${item.id}`;
+    const at = effTime();
+    let v = usingTranscode && !jitMode ? currentV : "copy";
+    if (v === "copy" && item.video && videoNeedsTranscode() && !codecCopyable(item.video)) v = "h264";
+    const t = (item.audioTracks || []).find((x, i) => (x.index != null ? x.index : i) === idx);
+    toast(`Audio: ${audioTrackName(t || {}, idx)}`, "🔈");
+    track("feat", { f: "audio_track" });
+    startTranscodeAt(at, v, { fallbackToZero: true });
   };
 
   // The PTS-honest clock published by copy-at-offset playlist responses.
@@ -782,6 +827,7 @@ export const renderPlayer = async (root, { id }) => {
   // serve (wrong container, no index) and the caller keeps the legacy flow.
   const tryJitSwitch = async (fromSec) => {
     if (copyRefused) return false; // jit IS a copy stream — escalations are one-way
+    if (audioIdx > 0) return false; // jit carries the first audio track only
     if (isTorrent) {
       // The probe normalizes ffprobe's "matroska,webm" to "mkv"; accept both.
       if (!/matroska|mkv/i.test(item.container || "")) return false;
@@ -838,6 +884,8 @@ export const renderPlayer = async (root, { id }) => {
     if (p.video) item.video = p.video;
     const a = (p.audioStreams || [])[0];
     if (a) item.audio = { codec: a.codec };
+    // a choice of dubs: the settings menu lists them (one track = nothing to pick)
+    if ((p.audioStreams || []).length > 1) item.audioTracks = p.audioStreams;
     return !!(p.video || a);
   };
   if (probeResult && isTorrent && applyProbe(probeResult)) {
@@ -2076,6 +2124,27 @@ export const renderPlayer = async (root, { id }) => {
 
       const rebuild = () => {
         menu.innerHTML = "";
+        // Audio — only when the file carries more than one track (a dub, a
+        // commentary). Picking one restarts the stream at the current
+        // position with that track mapped in.
+        const tracks = item.audioTracks || [];
+        if (tracks.length > 1) {
+          menu.append(el("div", { class: "menu-title" }, "Audio"));
+          tracks.forEach((t, i) => {
+            const idx = t.index != null ? t.index : i;
+            menu.append(
+              el(
+                "button",
+                {
+                  class: `menu-item focusable ${audioIdx === idx ? "active" : ""}`,
+                  onclick: () => switchAudio(idx),
+                },
+                el("span", {}, audioTrackName(t, i)),
+                el("span", { class: "tag" }, [t.codec && String(t.codec).toUpperCase(), t.channels && `${t.channels}ch`].filter(Boolean).join(" ")),
+              ),
+            );
+          });
+        }
         menu.append(el("div", { class: "menu-title" }, "Playback"));
         menu.append(
           entry(

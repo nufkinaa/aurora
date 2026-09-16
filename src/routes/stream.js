@@ -430,10 +430,12 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
     // just retired — see `retired` in remux.js.
     const fmt = req.query.seg === "fmp4" ? "fmp4" : null; // Apple's HEVC-in-HLS format (S4)
     const vtag = req.query.vtag === "hvc1";
-    const dir = await remux.ensure(entry.path, req.params.id, { vcodec: v, ss, seek: req.query.seek === "1", fmt, vtag });
-    // Segment URIs carry ?v= (and &seg= for fMP4 jobs, EXT-X-MAP included) so
-    // the segment route can resolve this exact job dir.
-    const q = `?v=${v}${fmt ? "&seg=fmp4" : ""}`;
+    const audio = Math.max(0, Math.min(31, parseInt(req.query.a, 10) || 0)); // which audio stream (multi-dub)
+    const dir = await remux.ensure(entry.path, req.params.id, { vcodec: v, ss, seek: req.query.seek === "1", fmt, vtag, audio });
+    // Segment URIs carry ?v= (and &seg= for fMP4 jobs, &a= for a chosen audio
+    // stream, EXT-X-MAP included) so the segment route can resolve this
+    // exact job dir.
+    const q = `?v=${v}${fmt ? "&seg=fmp4" : ""}${audio ? `&a=${audio}` : ""}`;
     let text = fs
       .readFileSync(path.join(dir, "index.m3u8"), "utf-8")
       .split("\n")
@@ -476,8 +478,9 @@ router.get("/stream/transcode/:id/:ss/:file", (req, res) => {
   const ss = Math.max(0, parseInt(req.params.ss, 10) || 0);
   const v = remux.effectiveVcodec(req.query.v === "copy" ? "copy" : "h264", ss);
   const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
-  remux.touch(req.params.id, mtime, v, ss, fmt); // keep an actively-watched job alive
-  const abs = remux.filePath(remux.dirName(req.params.id, mtime, v, ss, fmt), req.params.file);
+  const audio = Math.max(0, Math.min(31, parseInt(req.query.a, 10) || 0));
+  remux.touch(req.params.id, mtime, v, ss, fmt, audio); // keep an actively-watched job alive
+  const abs = remux.filePath(remux.dirName(req.params.id, mtime, v, ss, fmt, audio), req.params.file);
   if (!abs) return res.status(404).send("Not found");
   res.setHeader("Content-Type", /\.(m4s|mp4)$/.test(req.params.file) ? "video/mp4" : "video/mp2t");
   res.setHeader("Cache-Control", "no-cache");

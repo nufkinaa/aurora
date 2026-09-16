@@ -1705,7 +1705,7 @@ html[data-look="glass"] .dl-section .row-title .count { border-radius: 999px; }
    action buttons' shape and the title size */
 @media (max-width: 720px) {
   html[data-look="glass"] .detail-hero {
-    padding: calc(50vh - 128px) var(--page-x) 8px;
+    padding: calc(46vh - 34px) var(--page-x) 8px;
     gap: 0;
   }
   html[data-look="glass"] .detail-hero .hero-backdrop,

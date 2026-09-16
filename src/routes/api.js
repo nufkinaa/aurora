@@ -732,7 +732,7 @@ router.get("/api/home", (req, res) => {
   const strip =
     req.query.slim === "1"
       ? (i) => {
-          const { seasons, subtitles, audio, video, extras, ...rest } = i;
+          const { seasons, subtitles, audio, video, extras, audioTracks, ...rest } = i;
           return rest;
         }
       : cardStrip;

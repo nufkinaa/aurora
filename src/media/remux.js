@@ -107,16 +107,18 @@ const AUDIO_GAIN = "volume=4dB,alimiter=limit=0.7:level=disabled:latency=true";
 // `fmt` "fmp4" gets its own -f4 suffix: Apple mandates fMP4 segments for
 // HEVC-in-HLS (S4), and a TS job and an fMP4 job at the same offset must
 // never share a dir.
-const dirName = (id, mtime, vcodec = "copy", ss = 0, fmt = null) =>
+// `audio`: which of the file's audio streams the job carries (0 = the
+// first, the default) — a multi-dub file is one job per chosen track.
+const dirName = (id, mtime, vcodec = "copy", ss = 0, fmt = null, audio = 0) =>
   (vcodec === "copy" && !ss && !fmt
     ? `${id}-${Math.floor(mtime)}`
-    : `${id}-${Math.floor(mtime)}-${vcodec}-${ss}`) + (fmt === "fmp4" ? "-f4" : "");
+    : `${id}-${Math.floor(mtime)}-${vcodec}-${ss}`) + (fmt === "fmp4" ? "-f4" : "") + (audio ? `-a${audio}` : "");
 
-const jobDir = (id, mtime, vcodec, ss, fmt) => path.join(HLS_ROOT, dirName(id, mtime, vcodec, ss, fmt));
+const jobDir = (id, mtime, vcodec, ss, fmt, audio = 0) => path.join(HLS_ROOT, dirName(id, mtime, vcodec, ss, fmt, audio));
 
 // Keep an actively-watched job alive (called on segment/playlist requests).
-const touch = (id, mtime, vcodec, ss, fmt) => {
-  const job = jobs.get(jobDir(id, mtime, vcodec, ss, fmt));
+const touch = (id, mtime, vcodec, ss, fmt, audio = 0) => {
+  const job = jobs.get(jobDir(id, mtime, vcodec, ss, fmt, audio));
   if (job) job.lastAccess = Date.now();
 };
 
@@ -159,7 +161,8 @@ const pruneOld = (keepDir) => {
 
 // Ensure an HLS remux/transcode job exists for this video. Resolves with the
 // job dir once the playlist file is available (job continues in background).
-const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = null, vtag = false } = {}) => {
+const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = null, vtag = false, audio = 0 } = {}) => {
+  audio = Math.max(0, Math.min(31, parseInt(audio, 10) || 0));
   let mtime = 0;
   try {
     mtime = fs.statSync(videoPath).mtimeMs;
@@ -180,7 +183,7 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
   } catch {}
   const heavy = vcodec === "h264";
 
-  const dir = jobDir(id, mtime, vcodec, ss, fmt);
+  const dir = jobDir(id, mtime, vcodec, ss, fmt, audio);
   const playlist = path.join(dir, "index.m3u8");
 
   // A poll from the stream we just moved off (see `retired`) must not resurrect
@@ -291,7 +294,7 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
       // target-2s bias, and the PTS-honest clock stays exact.
       ...(ss > 0 ? (heavy ? ["-ss", String(ss)] : ["-noaccurate_seek", "-ss", String(ss)]) : []),
       "-i", videoPath,
-      "-map", "0:v:0", "-map", "0:a:0",
+      "-map", "0:v:0", "-map", `0:a:${audio}`,
       ...videoArgs,
       "-c:a", "aac", "-ac", "2", "-b:a", "192k", "-af", AUDIO_GAIN,
       // PTS must start at 0: native HLS players (iPhone) use raw segment PTS
@@ -386,7 +389,7 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
 const filePath = (dir, file) => {
   // strict names only: index.m3u8 / segNNNNN.ts / fMP4's segNNNNN.m4s + init.mp4
   if (!/^(index\.m3u8|seg\d{5}\.(ts|m4s)|init\.mp4)$/.test(file)) return null;
-  if (!/^[a-z0-9]+-\d+(-(?:h264|copy)-\d+)?(-f4)?$/.test(dir)) return null;
+  if (!/^[a-z0-9]+-\d+(-(?:h264|copy)-\d+)?(-f4)?(-a\d+)?$/.test(dir)) return null;
   const abs = path.join(HLS_ROOT, dir, file);
   return fs.existsSync(abs) ? abs : null;
 };

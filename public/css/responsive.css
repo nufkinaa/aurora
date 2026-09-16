@@ -306,14 +306,17 @@
   .detail-hero {
     display: block;
     /* the info column starts where the art's lower third begins */
-    padding: calc(50vh - 128px) var(--page-x) 8px;
+    /* the info column starts just under the art (the kicker pill rides its
+       faint tail) — a title straddling the art's edge read as half-on,
+       half-off (elia, iPhone) */
+    padding: calc(46vh - 34px) var(--page-x) 8px;
     min-height: 0;
   }
   .detail-hero .hero-backdrop,
   .detail-hero .hero-backdrop.sharp {
     /* the poster, sharp, over the top of the screen only */
     inset: 0 0 auto 0;
-    height: 50vh;
+    height: 46vh;
     background-image: var(--hero-poster, var(--hero-art, none));
     background-position: center 22%;
     background-size: cover;
@@ -326,7 +329,7 @@
   }
   .detail-hero .hero-fade {
     inset: 0 0 auto 0;
-    height: 50vh;
+    height: 46vh;
     -webkit-mask-image: none;
     mask-image: none;
     background: linear-gradient(to bottom, rgba(11, 12, 20, 0.35), transparent 30%, rgba(11, 12, 20, 0.55) 70%, var(--bg) 100%);
@@ -466,6 +469,11 @@
   .source-filter,
   .picker-btn {
     min-height: 40px;
+  }
+  /* a genre tag is a label, not a button — the finger height stretched it
+     into a tall pill with its word stuck to the top edge (elia, iPhone) */
+  .chip.static {
+    min-height: 0;
   }
   /* the billboard dots: a 7px dot in a 21px button is still a miss with a
      thumb — the button grows to ~34px while the dot (and the row's place on

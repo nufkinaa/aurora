@@ -279,12 +279,20 @@ export const resolveAirStates = (episodes, now = Date.now()) => {
   });
 };
 
+// Resolution from EITHER dimension. Widescreen films are 1920×800 (2.40:1):
+// judged by height alone they read as 720p — which is how "we are saying
+// 720p for almost every download" happened (elia). Width is the honest
+// tell for a letterboxed 1080p file; height still catches 4:3 and portrait.
+const resTier = (w, h) => {
+  if (w >= 3200 || h >= 2000) return "4K";
+  if (w >= 1600 || h >= 1000) return "1080p";
+  if (w >= 1100 || h >= 700) return "720p";
+  if (w > 0 || h > 0) return "SD";
+  return null;
+};
 export const resBadge = (item) => {
-  if (!item.height) return null;
-  if (item.height >= 2000) return "4K";
-  if (item.height >= 1000) return "HD";
-  if (item.height >= 700) return "720p";
-  return "SD";
+  const tier = resTier(item.width || 0, item.height || 0);
+  return tier === "1080p" ? "HD" : tier;
 };
 
 // What the file actually is, as short badges: resolution, HDR flavour, video
@@ -298,10 +306,9 @@ export const formatBadges = (item, { max = 5, codec: withCodec = true, subs: wit
   const push = (t) => { if (t && !out.includes(t)) out.push(t); };
   const tags = (item.tags || []).map((t) => String(t));
   const h = item.height || (item.video && item.video.height) || 0;
-  if (h >= 2000) push("4K");
-  else if (h >= 1000) push("1080p");
-  else if (h >= 700) push("720p");
-  else if (h > 0) push("SD");
+  const w = item.width || (item.video && item.video.width) || 0;
+  const tier = resTier(w, h);
+  if (tier) push(tier);
   else if (item.quality && item.quality !== "SD") push(item.quality);
   const hdr = item.video && item.video.hdr;
   if (hdr === "dolby-vision" || tags.includes("DV")) push("Dolby Vision");

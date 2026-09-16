@@ -65,3 +65,13 @@ test("the sweep deletes oldest-first down to the cap and spares the rest", () =>
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ---------- one transcode job per chosen audio track ----------
+const { jobKey } = require("../src/media/torrent-transcode")._internals;
+test("a chosen audio stream names its own transcode job; the default keeps the old name", () => {
+  const h = "a".repeat(40);
+  assert.equal(jobKey(h, 0, 0), `${h}-0-0`);
+  assert.equal(jobKey(h, 0, 0, null, 0), `${h}-0-0`);
+  assert.equal(jobKey(h, 0, 120, "fmp4", 2), `${h}-0-120-f4-a2`);
+  assert.notEqual(jobKey(h, 0, 0, null, 1), jobKey(h, 0, 0, null, 0));
+});
