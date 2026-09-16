@@ -294,6 +294,7 @@ require("./src/media/librarywarm");
 // audio that repeats across a season) — the skip button and Up Next timing.
 require("./src/media/introdetect");
 require("./src/lib/watchdog").start();
+require("./src/lib/healer").start();
 online.events.on("updated", () => {
   scanner.scan();
   realtime.broadcastAll({ type: "library_updated" });

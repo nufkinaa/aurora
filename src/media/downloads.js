@@ -79,7 +79,7 @@ const publicJob = (j) => ({
   // downloads queued it, and the library id the finished file was indexed
   // under — the thing "Play" on the downloads page needs. WHO requested it
   // stays server-side (publicJobFor answers "mine" per viewer instead).
-  seenAt: j.seenAt || null, smart: !!j.smart,
+  seenAt: j.seenAt || null, smart: !!j.smart, resolvedAt: j.resolvedAt || null,
   libraryId: j.status === "done" && j.destPath ? scanner.idForPath(j.destPath) : null,
 });
 
@@ -468,6 +468,7 @@ const fail = (job, message) => {
   job.error = String(message || "download failed").slice(0, 300);
   job.phase = null;
   job.copyProgress = null;
+  job.resolvedAt = now();
   store.save();
   broadcast(job);
   notify.send("Aurora: download failed", `"${job.label || job.title}" — ${job.error}`);
@@ -576,7 +577,7 @@ const startJob = async (job) => {
 
   // Claim the slot before the first await: two pumps in the same tick would
   // otherwise both start this job.
-  active.set(job.id, { gid: null, fileIndex: (job.fileIdx || 0) + 1, ...dest, copying: false });
+  active.set(job.id, { gid: null, fileIndex: (job.fileIdx || 0) + 1, ...dest, copying: false, startedAt: Date.now(), lastProgressAt: 0 });
   console.log(`[download] ${job.id.slice(0, 6)} started ${job.infoHash.slice(0, 8)}… "${job.label || job.title}"`);
 
   const gid = await aria2.add(job.magnet, job.infoHash, (job.fileIdx || 0) + 1);
@@ -645,6 +646,7 @@ const poll = async () => {
       const f = aria2.fileProgress(st, rec.fileIndex);
       if (!f) continue;                       // torrent details not in yet
 
+      if (f.fraction > (job.progress || 0)) rec.lastProgressAt = Date.now(); // the healer's stall clock
       job.progress = f.fraction;
       job.downloadSpeed = st.downloadSpeed;
       job.peers = st.peers;
@@ -812,6 +814,55 @@ const finish = async (job, destPath) => {
   pump();
 };
 
+// ---------- what the healer (lib/healer.js) reads and may do ----------
+// The queue as a health picture: running jobs with their live records (the
+// stall clocks live there), how long the oldest approved job has waited with
+// a free slot, how many died in the last hour, whether the poller that
+// should be ticking actually is.
+const queueHealth = () => {
+  const nowMs = Date.now();
+  const activeJobs = [];
+  for (const [id, rec] of active) {
+    const job = findJob(id);
+    if (job) activeJobs.push({ job, rec });
+  }
+  const approved = store.data.filter((j) => j.status === "approved" && !active.has(j.id));
+  const oldestApproved = approved.reduce((m, j) => Math.max(m, nowMs - (Date.parse(j.approvedAt || j.at) || nowMs)), 0);
+  return {
+    active: activeJobs,
+    activeCount: active.size,
+    maxActive: MAX_ACTIVE,
+    approvedWaiting: approved.length,
+    oldestApprovedAgeMs: oldestApproved,
+    pending: store.data.filter((j) => j.status === "pending").length,
+    errorsLastHour: store.data.filter((j) => j.status === "error" && nowMs - (Date.parse(j.resolvedAt || j.at) || 0) < 3600e3).length,
+    lastError: (store.data.find((j) => j.status === "error") || {}).error || null,
+    doneLastDay: store.data.filter((j) => j.status === "done" && nowMs - (Date.parse(j.doneAt) || 0) < 86400e3).length,
+    pollerExpected: [...active.values()].some((r) => r.gid && !r.copying),
+    pollerRunning: !!poller,
+  };
+};
+// Every torrent some live job still wants — staging folders outside this
+// set belong to nobody.
+const liveInfoHashes = () =>
+  new Set(store.data.filter((j) => LIVE_STATUSES.includes(j.status) && j.infoHash).map((j) => String(j.infoHash).toLowerCase()));
+// Start over on a job that has stopped moving: drop its aria2 download (the
+// staging bytes stay, aria2 continues from them) and queue it again.
+const restartJob = (id, why) => {
+  const job = findJob(id);
+  if (!job || job.status !== "downloading") return false;
+  stopActive(id, `restarted by the healer: ${why}`);
+  job.status = "approved";
+  job.phase = null;
+  job.downloadSpeed = 0;
+  job.peers = 0;
+  store.save();
+  broadcast(job);
+  setTimeout(pump, 1500);
+  return true;
+};
+const pumpNow = () => { try { pump(); startPolling(); } catch (e) { console.error("[download] pump failed:", e && e.message); } };
+
 // On boot, resume anything that was approved/downloading when we stopped. The
 // staging bytes survive a restart, and aria2 continues from them.
 const resume = () => {
@@ -836,6 +887,7 @@ const resume = () => {
 
 module.exports = {
   list, listFor, create, approve, decline, cancel, cancelOwn, removeOwn, remove, resume, publicJob, publicJobFor, stats, markSeen, pruneGone,
+  queueHealth, liveInfoHashes, restartJob, pumpNow,
   // Pure helpers, exported so test/downloads.test.js can pin the rules that
   // decide where a file lands and whether a request needs approval.
   _internals: { safeName, folderKey, chooseFolder, diskGate, destinationFor, store },

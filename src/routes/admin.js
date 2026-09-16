@@ -276,6 +276,19 @@ router.post("/api/admin/heal", (req, res) => {
   res.json({ ok: true, status: require("../lib/watchdog").status() });
 });
 
+// ---------- the healer (lib/healer.js) ----------
+router.get("/api/admin/healer", (req, res) => {
+  res.json(require("../lib/healer").status());
+});
+router.post("/api/admin/healer/run", async (req, res) => {
+  try {
+    await require("../lib/healer").run();
+    res.json({ ok: true, ...require("../lib/healer").status() });
+  } catch (e) {
+    res.status(500).json({ error: (e && e.message) || "the round failed" });
+  }
+});
+
 // ---------- analytics & telemetry ----------
 
 // Full analytics rollup computed from watch sessions. ?days=7|14|30|90

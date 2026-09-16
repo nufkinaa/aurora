@@ -129,7 +129,21 @@ const ensure = async () => {
     }
     throw new Error("aria2 did not start (RPC never answered)");
   })();
+  // A start that fails must not be the answer forever: `startup` used to keep
+  // the rejected promise while the daemon sat there deaf, so every later add
+  // and poll failed with "did not start" until the process happened to exit.
+  // Kill it and forget it, and the next caller spawns a fresh one.
+  startup.catch(() => {
+    console.warn("[aria2] start failed — the daemon will be respawned on the next request");
+    shutdown();
+  });
   return startup;
+};
+
+// Is the running daemon answering? Never spawns one (the healer asks this).
+const ping = () => {
+  if (!proc) return Promise.reject(new Error("aria2 is not running"));
+  return call("aria2.getVersion");
 };
 
 // Raw JSON-RPC. Everything below goes through here.
@@ -337,7 +351,7 @@ const running = () => !!proc;
 module.exports = {
   available, ensure, add, status, fileProgress, select, remove, purge,
   activeDownloads, shutdown, stagingDir, STAGING_ROOT,
-  getGlobalOptions, setGlobalLimits, running,
+  getGlobalOptions, setGlobalLimits, running, ping,
   // Test-only: the rule that tells the real download apart from the metadata
   // placeholder. Getting this wrong parks every job at 0%, so it is pinned.
   _internals: { isMetadataPlaceholder },

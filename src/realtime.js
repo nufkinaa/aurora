@@ -323,7 +323,10 @@ const attach = (server) => {
   });
 };
 
+const clientCount = () => clients.size;
+
 module.exports = {
+  clientCount,
   attach,
   broadcastAll,
   broadcastEach,
