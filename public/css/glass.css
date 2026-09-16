@@ -307,6 +307,19 @@ html[data-look="glass"] .nav-dl.ready {
   html[data-look="glass"] body:has(.player) .nav-items {
     display: none; /* the player owns the screen */
   }
+  /* the server-unreachable strip clears the tab bar instead of covering it */
+  html[data-look="glass"] #offline-banner {
+    left: 12px;
+    right: 12px;
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    border-radius: 12px;
+  }
+  html[data-look="glass"] body:has(.player) #offline-banner {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-radius: 0;
+  }
 }
 
 /* ---------- home hero: the slab is the lens ---------- */
@@ -740,7 +753,6 @@ html[data-look="glass"] .dropdown {
   border-radius: var(--g-radius);
 }
 html[data-look="glass"] .pref-section,
-html[data-look="glass"] .dl-row,
 html[data-look="glass"] .wrapped-card,
 html[data-look="glass"] .pair-card,
 html[data-look="glass"] .request-sent,
@@ -749,9 +761,6 @@ html[data-look="glass"] .taste-tile {
   border: 0;
   box-shadow: var(--g-edge);
   border-radius: var(--g-radius);
-}
-html[data-look="glass"] .dl-row.fresh {
-  box-shadow: var(--g-edge), inset 0 0 0 1px rgba(74, 222, 128, 0.45);
 }
 /* Settings rows are rows, not cards — a box inside the section's box read
    as clutter (elia). A hairline between rows is all the structure needed. */
@@ -780,8 +789,13 @@ html[data-look="glass"] .empty {
 
 /* ---------- title page ---------- */
 html[data-look="glass"] .detail-hero {
-  padding: calc(var(--nav-h) + 64px) var(--page-x) 44px;
+  padding: calc(var(--nav-h) + 176px) var(--page-x) 44px;
   gap: 40px;
+}
+@media (max-width: 900px) {
+  html[data-look="glass"] .detail-hero {
+    padding-top: calc(var(--nav-h) + 108px);
+  }
 }
 /* the art reads: barely softened, dimmed, dissolving into the sky */
 html[data-look="glass"] .detail-hero .hero-backdrop,
@@ -1354,6 +1368,24 @@ html[data-look="glass"] .screen > :nth-child(n + 5) { animation-delay: 240ms; }
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: none; }
 }
+/* Phones: the same rise, shorter and without the translate on the screen's
+   big blocks. The rows' container is the whole page below the hero, and
+   sliding a 5000px layer up by 14px on a phone GPU is what made Home's
+   first frames stutter (and the stagger held the rows back a quarter
+   second for nothing — they sit below the fold anyway). */
+@media (max-width: 720px) {
+  html[data-look="glass"] .screen > * {
+    animation: g-reveal-soft 360ms var(--ease) both;
+  }
+  html[data-look="glass"] .screen > :nth-child(2) { animation-delay: 30ms; }
+  html[data-look="glass"] .screen > :nth-child(3) { animation-delay: 60ms; }
+  html[data-look="glass"] .screen > :nth-child(4) { animation-delay: 90ms; }
+  html[data-look="glass"] .screen > :nth-child(n + 5) { animation-delay: 120ms; }
+}
+@keyframes g-reveal-soft {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
   html[data-look="glass"] .screen > * {
     animation: none;
@@ -1599,7 +1631,6 @@ html[data-look="glass"] .toast {
 }
 html[data-look="glass"] .episode,
 html[data-look="glass"] .source-row,
-html[data-look="glass"] .dl-row,
 html[data-look="glass"] .taste-tile,
 html[data-look="glass"] .party-strip-item {
   background: var(--g-fill);
@@ -1611,13 +1642,29 @@ html[data-look="glass"] .party-strip-item {
 html[data-look="glass"] .episode:hover,
 html[data-look="glass"] .episode:focus,
 html[data-look="glass"] .source-row:hover,
-html[data-look="glass"] .dl-row:hover,
 html[data-look="glass"] .party-strip-item:hover {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06) 55%, rgba(255, 255, 255, 0.1));
 }
-html[data-look="glass"] .dl-row.fresh {
-  box-shadow: var(--g-edge), inset 0 0 0 1px rgba(74, 222, 128, 0.45);
+/* Download rows are firm, not frosted (elia: the page read as transparent
+   and random): a dark base under the glass tint, no live blur per row, the
+   state colour on the edge doing the talking. */
+html[data-look="glass"] .dl-row {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 60%), rgba(12, 14, 26, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--g-edge);
+  border-radius: 18px;
 }
+html[data-look="glass"] .dl-row:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05) 60%), rgba(12, 14, 26, 0.78);
+}
+html[data-look="glass"] .dl-row.fresh {
+  border-color: rgba(74, 222, 128, 0.4);
+  background: linear-gradient(90deg, rgba(74, 222, 128, 0.14), transparent 55%), rgba(12, 14, 26, 0.72);
+}
+html[data-look="glass"] .dl-poster { border-radius: 10px; }
+html[data-look="glass"] .dl-new,
+html[data-look="glass"] .dl-auto,
+html[data-look="glass"] .dl-section .row-title .count { border-radius: 999px; }
 
 /* title page below the side-card breakpoint: actions first, the card after;
    the phone keeps a poster that leaves room for the title */
@@ -1664,6 +1711,12 @@ html[data-look="glass"] .card::before {
 html[data-look="glass"] .card:hover,
 html[data-look="glass"] .card:focus {
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.92), 0 18px 40px rgba(0, 0, 0, 0.5);
+}
+/* a phone has no hover — a tap must not leave a ring stuck on the card */
+@media (hover: none) {
+  html[data-look="glass"] .card:hover {
+    box-shadow: none;
+  }
 }
 
 /* ---------- hero trailers ---------- */

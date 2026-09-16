@@ -253,6 +253,15 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   };
 
   const alive = () => canvas.isConnected && !document.hidden;
+  // While the page is being scrolled, the sky holds its frame. Every repaint
+  // of the canvas re-blurs the glass above it (the nav island, the hero
+  // slab), and on a phone that work landed in the same frames as the
+  // scroll — so the sky waits until the finger has been still for a beat.
+  // The curtains drift over tens of seconds; a 150ms hold is invisible.
+  let scrolledAt = 0;
+  const onScroll = () => { scrolledAt = performance.now(); };
+  document.addEventListener("scroll", onScroll, { passive: true, capture: true });
+  const scrolling = (now) => now - scrolledAt < 150;
   // The player covers the whole viewport with black — a sky animating under
   // it is pure battery. While one is open the loop sleeps and checks back
   // once a second (a full-screen overlay, not a page, so no route event).
@@ -266,7 +275,7 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
       napTimer = setTimeout(kick, 1000);
       return;
     }
-    if (now - last >= FRAME_MS) {
+    if (now - last >= FRAME_MS && !scrolling(now)) {
       last = now;
       paint(now / 1000);
     }
@@ -290,6 +299,7 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
     raf = null;
     clearTimeout(napTimer);
     document.removeEventListener("visibilitychange", kick);
+    document.removeEventListener("scroll", onScroll, { capture: true });
     window.removeEventListener("resize", kick);
   };
 };

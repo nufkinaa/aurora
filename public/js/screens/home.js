@@ -2,7 +2,7 @@
 import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, heroArtWidth, restoreScrollY } from "../ui.js";
 import { api } from "../api.js";
 import { state, progressFor } from "../state.js";
-import { shelfRow, continueRow, openItem } from "../components.js";
+import { shelfRow, continueRow, openItem, ensureRowFilled } from "../components.js";
 import { navigate } from "../router.js";
 import { onMessage } from "../ws.js";
 import { createHeroTrailer } from "../heroTrailer.js";
@@ -16,6 +16,30 @@ const HERO_DWELL_MS = 9000;
 
 // Session-lived scroll memory (module scope survives route changes)
 let homeScrollY = 0;
+// ...and where each shelf was scrolled sideways (row id -> scrollLeft), so
+// coming back from a title finds the row you were browsing where you left
+// it, instead of every shelf snapped back to its first card.
+const rowScrollX = new Map();
+
+// Put a shelf back where it was. Rows below the fold are `content-visibility:
+// auto` — they have no layout yet, so a scrollLeft written now is clamped to
+// 0; those wait until the row is about to come on screen.
+const restoreRowScroll = (section, x) => {
+  const scroller = section.querySelector(".row-scroller");
+  if (!scroller || !x) return;
+  const apply = () => {
+    ensureRowFilled(scroller, x); // the shelf's tail may not be built yet
+    scroller.scrollTo({ left: x, behavior: "instant" });
+  };
+  apply();
+  if (scroller.scrollLeft >= x - 2 || !window.IntersectionObserver) return;
+  const io = new IntersectionObserver((entries) => {
+    if (!entries.some((e) => e.isIntersecting)) return;
+    io.disconnect();
+    apply();
+  }, { rootMargin: "320px 0px" });
+  io.observe(section);
+};
 
 export const renderHome = async (root) => {
   const screen = el("div", { class: "screen" });
@@ -41,7 +65,12 @@ export const renderHome = async (root) => {
     data = await api.home(state.profile?.id);
   } catch {
     screen.innerHTML = "";
-    screen.append(el("div", { class: "empty" }, el("div", { class: "glyph" }, "⚠️"), "Couldn't load the library."));
+    screen.append(
+      el("div", { class: "empty", style: { paddingTop: "30vh" } },
+        el("div", { class: "glyph" }, "📡"),
+        "Couldn't load the library — is the server awake?",
+        el("div", { style: { marginTop: "14px" } },
+          el("button", { class: "btn small focusable", onclick: () => navigate("#/") }, "Try again"))));
     return;
   }
 
@@ -414,30 +443,81 @@ export const renderHome = async (root) => {
   // Home's shelves are the one place films and series sit side by side in the same
   // row, so this is where a card has to say which it is. The Movies and Shows
   // pages know already, and Continue Watching's labels read as episodes.
-  let lastRows = [];
-  const buildRow = (r) => {
+  // `idx`: the row's position — the first few are on screen at once, so their
+  // leading cards fetch their art eagerly (the rest stay lazy).
+  const buildRow = (r, idx) => {
+    const eagerCards = idx < EAGER_ROWS ? 3 : 0;
     const node =
       r.id === "continue" && state.profile
-        ? continueRow(r.title, r.items, state.profile.id, api)
-        : shelfRow(r.title, r.items, { showKind: true });
-    if (node) node.dataset.rowId = r.id;
+        ? continueRow(r.title, r.items, state.profile.id, api, { eagerCards })
+        : shelfRow(r.title, r.items, { showKind: true, eagerCards });
+    if (node) {
+      node.dataset.rowId = r.id;
+      node.dataset.sig = rowSig(r);
+    }
     return node;
   };
+  // Append, then put the shelf back where it was (a detached node can't scroll).
+  const place = (node, r) => {
+    if (!node) return;
+    rowsHost.append(node);
+    restoreRowScroll(node, rowScrollX.get(r.id));
+  };
+  // What a shelf shows, as one string: a refresh only rebuilds the shelves
+  // whose contents actually changed (see the library_updated handler).
+  const rowSig = (r) =>
+    r.title + "|" + (r.items || []).map((i) => `${i.id || i.imdbId}:${i.newEpisodeCount || 0}:${(i.badge && i.badge.text) || ""}`).join(",");
 
   const renderRows = (rows) => {
     const token = ++renderToken;
-    lastRows = rows;
     rowsHost.innerHTML = "";
-    rows.slice(0, EAGER_ROWS).forEach((r) => rowsHost.append(buildRow(r) || ""));
+    rows.slice(0, EAGER_ROWS).forEach((r, i) => place(buildRow(r, i), r));
 
     let i = EAGER_ROWS;
     const pump = () => {
       if (token !== renderToken) return; // superseded by a newer render
       if (i >= rows.length) return;
-      rowsHost.append(buildRow(rows[i++]) || "");
+      place(buildRow(rows[i], i), rows[i]);
+      i++;
       setTimeout(pump, 0); // setTimeout, not rAF: robust if frames are throttled
     };
     if (rows.length > EAGER_ROWS) setTimeout(pump, 0);
+  };
+  // A refresh while you're looking: shelves whose contents are unchanged are
+  // kept — same nodes, same sideways scroll, no posters fading in again — and
+  // only the shelves that differ are rebuilt or moved. Rebuilding everything
+  // (what this did before) snapped every row back to its first card and
+  // re-ran 200 poster fades the moment the server finished a scan.
+  const refreshRows = (rows) => {
+    ++renderToken; // stop a first-render pump that may still be adding rows
+    const have = new Map();
+    for (const node of rowsHost.children) if (node.dataset.rowId) have.set(node.dataset.rowId, node);
+    const next = [];
+    rows.forEach((r, i) => {
+      const old = have.get(r.id);
+      if (old && old.dataset.sig === rowSig(r)) {
+        const scroller = old.querySelector(".row-scroller");
+        old._keepX = scroller ? scroller.scrollLeft : 0;
+        next.push(old);
+      } else {
+        const node = buildRow(r, i);
+        if (node) next.push(node);
+      }
+    });
+    rowsHost.replaceChildren(...next);
+    for (const node of next) {
+      const scroller = node.querySelector(".row-scroller");
+      if (node._keepX) {
+        // moved in the DOM: some engines reset a scroller's offset on re-insert
+        if (scroller && Math.abs(scroller.scrollLeft - node._keepX) > 2) {
+          ensureRowFilled(scroller, node._keepX);
+          scroller.scrollTo({ left: node._keepX, behavior: "instant" });
+        }
+        delete node._keepX;
+      } else if (scroller) {
+        restoreRowScroll(node, rowScrollX.get(node.dataset.rowId));
+      }
+    }
   };
   renderRows(data.rows);
   prefetchFromHome(data); // Continue Watching's next titles, quietly, at idle
@@ -446,7 +526,8 @@ export const renderHome = async (root) => {
   const unsub = onMessage("library_updated", async () => {
     try {
       const fresh = await api.home(state.profile?.id);
-      renderRows(fresh.rows);
+      if (!screen.isConnected) return;
+      refreshRows(fresh.rows);
     } catch {}
   });
 
@@ -455,6 +536,10 @@ export const renderHome = async (root) => {
 
   return () => {
     homeScrollY = window.scrollY || document.body.scrollTop || 0;
+    for (const node of rowsHost.querySelectorAll("[data-row-id]")) {
+      const scroller = node.querySelector(".row-scroller");
+      if (scroller) rowScrollX.set(node.dataset.rowId, scroller.scrollLeft);
+    }
     stopRestore();
     if (heroTimer) clearInterval(heroTimer);
     for (const fn of cleanups) fn();

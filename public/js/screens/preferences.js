@@ -1,7 +1,7 @@
 // Preferences: your profile (name/avatar/password), playback + subtitle
 // defaults, and the liked genres used to tailor Home recommendations.
 // Reopenable anytime from the nav gear.
-import { el, toast } from "../ui.js";
+import { el, toast, rerenderInPlace, keptScrollFor, restoreScrollY, promptSheet } from "../ui.js";
 import { loadLibrary, loadProfiles, state, applyAppearance } from "../state.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
@@ -225,7 +225,7 @@ const homeRowsSection = async () => {
           const updated = await api.updateProfile(state.profile.id, { rows: { order: [], hidden: [] } });
           if (updated && updated.id) state.profile = { ...state.profile, ...updated };
           toast("Back to the default order");
-          window.dispatchEvent(new HashChangeEvent("hashchange"));
+          rerenderInPlace();
         } catch { toast("Couldn't reset", "⚠️"); }
       },
     }));
@@ -235,6 +235,8 @@ const homeRowsSection = async () => {
 export const renderPreferences = async (root) => {
   const screen = el("div", { class: "screen" });
   root.append(screen);
+  // a setting that repaints the page (rows order, avatar) keeps your place
+  const keepY = keptScrollFor(location.hash);
 
   if (!state.profile) {
     screen.append(el("div", { class: "empty" }, el("div", { class: "glyph" }, "👤"), "Pick a profile first."));
@@ -287,7 +289,7 @@ export const renderPreferences = async (root) => {
       el("button", {
         class: "btn focusable",
         html: "<span>Edit profile & password</span>",
-        onclick: () => profileModal(state.profile, async () => { await loadProfiles(); navigate("#/preferences"); window.dispatchEvent(new HashChangeEvent("hashchange")); }),
+        onclick: () => profileModal(state.profile, async () => { await loadProfiles(); rerenderInPlace(); }),
       })
     ),
     // Custom avatar photo: uploaded, validated + re-encoded server-side.
@@ -305,7 +307,7 @@ export const renderPreferences = async (root) => {
               const r = await api.uploadAvatar(state.profile.id, file);
               state.profile = { ...state.profile, ...r.profile };
               toast("Looking sharp", "📷");
-              window.dispatchEvent(new HashChangeEvent("hashchange")); // repaint the screen + nav chip
+              rerenderInPlace(); // repaint the screen + nav chip
             } catch (e) {
               toast(e.message || "Upload failed", "⚠️");
             }
@@ -321,7 +323,7 @@ export const renderPreferences = async (root) => {
             const r = await api.removeAvatar(state.profile.id);
             state.profile = { ...state.profile, ...r.profile };
             toast("Back to the emoji");
-            window.dispatchEvent(new HashChangeEvent("hashchange"));
+            rerenderInPlace();
           } catch { toast("Couldn't remove it", "⚠️"); }
         },
       }),
@@ -383,8 +385,14 @@ export const renderPreferences = async (root) => {
     // profile modal (with the password), and once Google is linked it's just
     // a checkmark. No standing "change X" buttons cluttering the card.
     const addEmail = async () => {
-      const val = prompt("Email for this profile (you can sign in with it too):", "");
-      if (!val || !val.trim()) return;
+      const val = await promptSheet({
+        title: "Add an email",
+        text: "You can sign in with it instead of your username.",
+        placeholder: "you@example.com",
+        type: "email",
+        icon: "✉️",
+      });
+      if (!val) return;
       try {
         const r = await api.setProfileEmail(state.profile.id, val.trim());
         state.user = r.user || state.user;
@@ -485,7 +493,7 @@ export const renderPreferences = async (root) => {
   // The Account card has three states: signed in (manage sessions), an
   // unclaimed migrated account (claim it), or claimed-but-signed-out on this
   // device (sign in). Hidden entirely while authMode is "open".
-  const rerender = () => window.dispatchEvent(new HashChangeEvent("hashchange"));
+  const rerender = () => rerenderInPlace();
   const accountCard = async () => {
     if (state.authMode === "open") return null;
     if (state.user) {
@@ -671,4 +679,5 @@ export const renderPreferences = async (root) => {
       el("button", { class: "btn btn-primary focusable", html: "<span>Done</span>", onclick: () => navigate("#/") })
     ),
   );
+  if (keepY) restoreScrollY(keepY);
 };

@@ -896,11 +896,59 @@
 .search-box input::placeholder {
   color: var(--text-faint);
 }
+/* type=search, so the phone keyboard offers a Search key — without the
+   browser's own field chrome and its little grey ✕ (we draw our own). */
+.search-box input[type="search"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+}
+.search-box input::-webkit-search-cancel-button,
+.search-box input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  display: none;
+}
+.search-clear {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  margin: -6px -8px -6px 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.08);
+}
+.search-clear:hover,
+.search-clear:focus {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--text);
+}
+/* "Searching…" under the results (or in their place) while a lookup is out */
+.search-busy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px var(--page-x) 14px;
+  color: var(--text-faint);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.search-hint {
+  margin-top: 10px;
+  color: var(--text-faint);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
 
 /* ---------- Details ---------- */
 .detail-hero {
   position: relative;
-  padding: calc(var(--nav-h) + 60px) var(--page-x) 44px;
+  /* roomier up top (elia: "a little taller") — the art gets a real band
+     above the title before the info column starts */
+  padding: calc(var(--nav-h) + 170px) var(--page-x) 44px;
   display: flex;
   gap: 44px;
   align-items: flex-end;
@@ -966,6 +1014,7 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 24px;
+    padding-top: calc(var(--nav-h) + 104px); /* the column layout is tall already */
   }
   .detail-poster {
     width: 150px;
@@ -1218,22 +1267,30 @@
   grid-template-columns: repeat(auto-fill, minmax(min(430px, 100%), 1fr));
   gap: 10px;
 }
-/* the ★ BEST pick is the featured card: full row, gold-washed, and it stays
-   put while the rest scrolls under it */
-.source-box .best-pinned,
-.source-box .best-pinned:hover {
+/* the ★ BEST pick is the featured card: full row, gold-washed. It scrolls
+   with the rest of the list (elia: it used to stay pinned on top, which ate a
+   third of the box on a phone and hid the rows under it). */
+.source-box .best-pinned {
   grid-column: 1 / -1;
-  position: sticky;
-  top: 0;
-  z-index: 2;
   border-color: rgba(245, 197, 66, 0.38);
   background:
     linear-gradient(100deg, rgba(245, 197, 66, 0.10), rgba(108, 88, 255, 0.06) 45%, var(--surface) 75%),
     var(--bg-raised);
-  /* mask the grid gap so scrolling rows don't peek around the pinned row —
-     and keep it on hover too, or the peek comes back mid-hover */
-  box-shadow: 0 0 0 8px var(--bg-raised);
-  transform: none; /* a sticky card hopping on hover reads as broken */
+}
+/* the phone's "Show all N sources" — a full-width row at the end of the list */
+.source-more {
+  grid-column: 1 / -1;
+  justify-content: center;
+  width: 100%;
+}
+@media (max-width: 720px) {
+  /* no list-inside-a-page scrolling on a phone: the box grows, the page scrolls */
+  .source-box {
+    max-height: none;
+  }
+  .source-box .source-list {
+    overflow: visible;
+  }
 }
 /* a card that is OWNED wears green at card level (badge + gradient carry it
    where :has isn't supported) */
@@ -1342,7 +1399,7 @@
 }
 /* the rail says what it does — the whole "which button is which" fix */
 .dl-cap {
-  font-size: 0.55rem;
+  font-size: 0.64rem;
   font-weight: 900;
   letter-spacing: 0.09em;
   color: var(--text-faint);
@@ -1580,7 +1637,7 @@
 }
 .source-best {
   margin-left: 8px;
-  font-size: 0.58rem;
+  font-size: 0.66rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   color: #0b0c14;
@@ -1591,7 +1648,7 @@
 }
 .source-last {
   margin-left: 8px;
-  font-size: 0.58rem;
+  font-size: 0.66rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   color: #0b0c14;
@@ -1604,7 +1661,7 @@
    outranks every torrent below it. */
 .source-owned {
   margin-left: 8px;
-  font-size: 0.58rem;
+  font-size: 0.66rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   color: #0b0c14;
@@ -1617,7 +1674,7 @@
 /* Download in flight (or waiting on the admin) — informative, not a trophy */
 .source-getting {
   margin-left: 8px;
-  font-size: 0.58rem;
+  font-size: 0.66rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   color: #60a5fa;
@@ -1756,7 +1813,7 @@
   margin-top: 5px;
 }
 .source-tag {
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.03em;
   color: var(--text-dim);
@@ -3357,15 +3414,71 @@
 }
 .btn.danger:hover { background: rgba(224, 64, 80, 0.16); border-color: rgba(224, 64, 80, 0.55); }
 
-/* ---------- My downloads (#/downloads) ---------- */
+/* the text field inside a promptSheet (ui.js) */
+.sheet-input {
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 1rem;
+}
+.sheet-input:focus {
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+
+/* "Can't reach the server" (ws.js) — the bottom edge, never over the nav */
+#offline-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  padding: 6px 12px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: #5c1f24;
+  color: #ffd7d7;
+}
+
+/* ---------- My downloads (#/downloads) ----------
+   Firm cards on a page you come to for an answer: one summary line up top,
+   then sections in the order you'd ask about them (moving, waiting, ready,
+   dead), each row with a coloured edge and a bold state word. */
+.dl-summary {
+  margin: -2px 0 6px;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
 .dl-section {
-  margin-top: 18px;
+  margin-top: 26px;
+}
+.dl-section .row-title {
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .dl-section .row-title .count {
-  margin-left: 10px;
-  font-size: 0.8rem;
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.1);
+}
+.dl-note {
+  margin: -4px 0 12px;
   color: var(--text-faint);
-  font-weight: 600;
+  font-size: 0.85rem;
 }
 .dl-list {
   display: flex;
@@ -3373,26 +3486,47 @@
   gap: 10px;
 }
 .dl-row {
+  --dl-tone: #9aa3b8;
+  position: relative;
   display: grid;
-  grid-template-columns: 56px 1fr auto;
-  gap: 14px;
+  grid-template-columns: 64px 1fr auto;
+  gap: 16px;
   align-items: center;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 12px 14px 12px 16px;
+  border-radius: 14px;
   background: var(--surface);
-  border: 1px solid transparent;
+  border: 1px solid var(--line);
+  overflow: hidden;
 }
+/* the state, as a coloured edge on the left */
+.dl-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 0 3px 3px 0;
+  background: var(--dl-tone);
+}
+.dl-row.tone-ok { --dl-tone: #4ade80; }
+.dl-row.tone-busy { --dl-tone: var(--accent, #7c64ff); }
+.dl-row.tone-wait { --dl-tone: #f5c542; }
+.dl-row.tone-bad { --dl-tone: #ff7a7a; }
 .dl-row.fresh {
   border-color: rgba(74, 222, 128, 0.45);
-  background: rgba(74, 222, 128, 0.06);
+  background: linear-gradient(90deg, rgba(74, 222, 128, 0.1), transparent 55%), var(--surface);
+}
+.dl-row.others {
+  opacity: 0.78;
 }
 .dl-poster {
   position: relative; /* the poster fallback is absolutely positioned */
-  width: 56px;
+  width: 64px;
   aspect-ratio: 2/3;
-  border-radius: 6px;
+  border-radius: 8px;
   overflow: hidden;
-  font-size: 0.5rem;
+  font-size: 0.55rem;
   line-height: 1.15;
   background: var(--surface-2, rgba(255, 255, 255, 0.06));
 }
@@ -3410,52 +3544,116 @@
   min-width: 0;
 }
 .dl-title {
-  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 800;
+  font-size: 1.02rem;
+}
+.dl-name {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.dl-new {
-  margin-left: 8px;
+.dl-new,
+.dl-auto {
+  flex: none;
   font-size: 0.58rem;
   font-weight: 900;
   letter-spacing: 0.08em;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.dl-new {
   color: #0b0c14;
   background: #4ade80;
-  border-radius: 4px;
-  padding: 1px 6px;
-  vertical-align: middle;
 }
-.dl-quality {
-  margin-left: 8px;
-  font-size: 0.65rem;
+.dl-auto {
+  color: #c7bfff;
+  background: rgba(139, 123, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(139, 123, 255, 0.4);
+}
+.dl-sub {
+  margin-top: 2px;
+  font-size: 0.78rem;
+  font-weight: 600;
   color: var(--text-faint);
-  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .dl-status {
-  margin-top: 3px;
-  font-size: 0.8rem;
-  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.86rem;
+  color: var(--text-dim);
+  min-width: 0;
 }
-.dl-row.error .dl-status,
-.dl-row.declined .dl-status {
-  color: #ff7a7a;
+.dl-status b {
+  color: var(--dl-tone);
+  font-weight: 800;
+  flex: none;
+}
+.dl-status {
+  flex-wrap: wrap;
+}
+.dl-status .dl-line {
+  min-width: 0;
+}
+.dl-status .mini-spinner {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+.dl-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dl-tone);
+  box-shadow: 0 0 8px var(--dl-tone);
 }
 .dl-bar {
-  margin-top: 8px;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.08);
+  margin-top: 9px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
   overflow: hidden;
 }
 .dl-bar-fill {
   height: 100%;
-  background: #60a5fa;
+  border-radius: 3px;
+  background: var(--dl-tone);
   transition: width 0.4s ease;
 }
 .dl-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.dl-actions .btn.quiet {
+  color: var(--text-dim);
+}
+.dl-empty h2 {
+  margin-top: 6px;
+  font-size: 1.3rem;
+}
+.dl-empty p {
+  margin: 10px auto 0;
+  max-width: 460px;
+  color: var(--text-dim);
+}
+.dl-empty-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 16px;
 }
 .empty.small {
   padding: 12px 0;
@@ -3463,10 +3661,20 @@
 }
 @media (max-width: 640px) {
   .dl-row {
-    grid-template-columns: 44px 1fr;
+    grid-template-columns: 52px 1fr;
+    gap: 12px;
+    padding: 12px 12px 12px 14px;
+  }
+  .dl-poster {
+    width: 52px;
   }
   .dl-actions {
     grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .dl-actions .btn {
+    padding: 9px 14px;
+    font-size: 0.9rem;
   }
 }
 

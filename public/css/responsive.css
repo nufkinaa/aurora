@@ -298,6 +298,27 @@
 
 /* ---------- Touch devices (any width) ---------- */
 @media (hover: none) {
+  /* There is no hover on a phone — only a tap that leaves :hover STUCK on the
+     card until the next tap somewhere else. So the tapped card sat lifted,
+     glowing, and brighter while you scrolled on past it (and each such card
+     was another composited layer with a filter on it). Rest state only. */
+  .card:hover {
+    transform: none;
+    box-shadow: none;
+    z-index: auto;
+  }
+  .card:hover::before {
+    opacity: 0;
+  }
+  .card:hover .card-poster {
+    filter: none;
+  }
+  .card:not(.wide):not(.has-label):hover .card-shade {
+    opacity: 0;
+  }
+  .source-row-wrap:hover {
+    transform: none;
+  }
   /* Hover-revealed affordances must be always-visible on touch — and big
      enough for a finger (30px next to the card's own tap area mis-tapped). */
   .card-remove {
@@ -314,6 +335,13 @@
   .source-filter,
   .picker-btn {
     min-height: 40px;
+  }
+  /* the billboard dots: a 7px dot in a 21px button is still a miss with a
+     thumb — the button grows to ~34px while the dot (and the row's place on
+     the page) stays exactly where it was */
+  .hero-dot {
+    padding: 13px 7px;
+    margin: -6px 0;
   }
   /* the rating stars were 25×26px targets */
   .star-rating .star {

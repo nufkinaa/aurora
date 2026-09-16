@@ -72,7 +72,9 @@ export const openItem = (item) => {
 
 const NEW_WINDOW_MS = 7 * 24 * 3600 * 1000;
 
-export const card = (item, { wide = false, onRemove = null, showKind = false } = {}) => {
+// `eager`: this card is in its row's first screenful — fetch the poster now
+// rather than when the lazy-load margin says so (see posterImg).
+export const card = (item, { wide = false, onRemove = null, showKind = false, eager = false } = {}) => {
   const isEpisode = !!item.showId && item.type !== "show";
   // Both keys, on purpose: a library-backed list card may carry progress
   // under its STREAM identity (watched via Discover before the download).
@@ -156,7 +158,7 @@ export const card = (item, { wide = false, onRemove = null, showKind = false } =
     // sized for the card (wide cards are 300px, posters 176px; the server
     // scales the artwork to about twice that for sharp screens)
     item.cover
-      ? posterImg(item.cover, item.title, "card-poster", "card-fallback", { w: wide || isEpisode ? 320 : 180 })
+      ? posterImg(item.cover, item.title, "card-poster", "card-fallback", { w: wide || isEpisode ? 320 : 180, eager })
       : el("div", { class: "card-fallback" }, item.title),
     el("div", { class: "card-shade" }),
     // The tag words are drawn by CSS from data-t (components.css) rather than
@@ -206,10 +208,58 @@ export const card = (item, { wide = false, onRemove = null, showKind = false } =
   return node;
 };
 
+// `opts.eagerCards`: how many cards at the head of the row load their art at
+// once (the rest stay lazy). Only rows in the first screenful should ask.
+const rowCards = (items, opts) => {
+  const { eagerCards = 0, sub, ...cardOpts } = opts;
+  return items.map((item, i) => card(item, { ...cardOpts, eager: i < eagerCards }));
+};
+
+// How many cards a row builds up front: what fits across the screen plus a
+// few in reserve. Home carries a dozen shelves of 24 titles — 240 cards, 480
+// tags and 240 images for a phone to lay out before anything else, most of
+// them off the right edge. The rest of a shelf is built the moment it is
+// scrolled, nudged, or focus walks near its end — the viewer sees the same
+// row, it is just not paid for until it is looked at.
+const HEAD_COUNT = () => Math.max(8, Math.ceil(window.innerWidth / 150) + 4);
+const fillRowLater = (scroller, items, opts) => {
+  const head = HEAD_COUNT();
+  if (items.length <= head) return rowCards(items, opts);
+  let filled = false;
+  const fill = () => {
+    if (filled) return;
+    filled = true;
+    scroller.append(...rowCards(items.slice(head), { ...opts, eagerCards: 0 }));
+    scroller.removeEventListener("scroll", fill);
+    scroller.removeEventListener("focusin", onFocus);
+    scroller._fillRow = null;
+  };
+  // for whoever needs the whole row NOW (a remembered scroll offset deep
+  // into the shelf — see home.js restoreRowScroll)
+  scroller._fillRow = fill;
+  // any sideways movement — a swipe, the arrows, a D-pad step that scrolls
+  scroller.addEventListener("scroll", fill, { passive: true, once: true });
+  // ...and focus reaching the last few built cards, before it can get stuck
+  // on a card with nothing to its right
+  const onFocus = (e) => {
+    const kids = [...scroller.children];
+    const at = kids.indexOf(e.target.closest(".card"));
+    if (at >= 0 && at >= kids.length - 3) fill();
+  };
+  scroller.addEventListener("focusin", onFocus);
+  return rowCards(items.slice(0, head), opts);
+};
+
+// A shelf's tail is built lazily (fillRowLater); asking for a scroll offset
+// past what is built must build the rest first, or the offset is clamped.
+export const ensureRowFilled = (scroller, x) => {
+  if (scroller && scroller._fillRow && x > scroller.scrollWidth - scroller.clientWidth - 2) scroller._fillRow();
+};
+
 export const row = (title, items, opts = {}) => {
   if (!items || items.length === 0) return null;
   const scroller = el("div", { class: "row-scroller", style: { paddingLeft: 0, paddingRight: 0 } },
-    items.map((item) => card(item, opts))
+    rowCards(items, opts)
   );
   const section = el(
     "section",
@@ -224,7 +274,8 @@ export const row = (title, items, opts = {}) => {
 // Full-bleed row (used on home where rows span the page padding themselves)
 export const shelfRow = (title, items, opts = {}) => {
   if (!items || items.length === 0) return null;
-  const scroller = el("div", { class: "row-scroller" }, items.map((item) => card(item, opts)));
+  const scroller = el("div", { class: "row-scroller" });
+  scroller.append(...fillRowLater(scroller, items, opts));
   const section = el(
     "section",
     { class: "row" },

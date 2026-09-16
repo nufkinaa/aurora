@@ -18,8 +18,9 @@ const json = async (url, options = {}, attempt = 0) => {
     // HTTP error statuses are NOT retried here: some are meaningful signals
     // (the transcode probe's 504 means "not ready", not "try again").
     const method = (options.method || "GET").toUpperCase();
+    // (two retries, ~1.2s in all — a dead server used to take 2.5s to admit)
     if (method === "GET" && attempt < 2) {
-      await new Promise((r) => setTimeout(r, 600 * (attempt + 1) + Math.random() * 300));
+      await new Promise((r) => setTimeout(r, 350 * (attempt + 1) + Math.random() * 150));
       return json(url, options, attempt + 1);
     }
     throw err;
@@ -231,4 +232,6 @@ export const api = {
   // The requester opened a finished download: clear its "ready" nudge.
   downloadSeen: (id, profile) => post(`/api/downloads/${encodeURIComponent(id)}/seen`, { profile }),
   downloadCancel: (id, profile) => post(`/api/downloads/${encodeURIComponent(id)}/cancel`, { profile }),
+  // Clear a failed / declined / canceled request of yours off the page.
+  downloadDismiss: (id, profile) => post(`/api/downloads/${encodeURIComponent(id)}/dismiss`, { profile }),
 };

@@ -120,9 +120,11 @@ html { -webkit-tap-highlight-color: transparent; }
    the page MID-MOVIE (Android Chrome). Normal scrolling is untouched. */
 html, body { overscroll-behavior-y: none; }
 
-/* Posters fade in as they decode instead of popping (class set by posterImg) */
+/* Posters fade in as they decode instead of popping (class set by posterImg).
+   `img-now`: the picture came from the cache — show it, don't fade it. */
 .img-fade { opacity: 0; transition: opacity 240ms var(--ease); }
 .img-fade.img-in { opacity: 1; }
+.img-fade.img-now { transition: none; }
 
 /* Skeleton shimmer */
 .skeleton {

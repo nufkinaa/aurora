@@ -289,11 +289,13 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
     fetched: [],        // stream items fetched so far, in catalog order
     page: -1,           // highest page fetched (-1 = none yet)
     hasMore: true,
+    failed: false,      // the last page request didn't come back
     scrollY: 0,
     ...(restore || {}),
   };
   let searchResults = null;
   let loading = false;
+  let searching = false; // a title search's catalogue lookup is out
   let genreList = [];
 
   const gridHost = el("div", { class: "grid" });
@@ -368,7 +370,7 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
       placeholders = true;
       // Skeletons are real grid children, so the shimmer lands in the exact
       // shape (and count) of the posters about to replace it.
-      if (loading) gridHost.append(...skeletons(18));
+      if (loading || searching) gridHost.append(...skeletons(18));
       else gridHost.append(el("div", { class: "empty", style: { gridColumn: "1/-1" } },
         st.query ? "Nothing by that name." :
         st.genre ? `Nothing in ${st.genre} here. Try another genre?` :
@@ -392,13 +394,17 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
   const countEl = el("span", { class: "count" });
   const paintCount = (total) => {
     const c = cat();
-    if (st.query) { countEl.textContent = `${total} result${total === 1 ? "" : "s"}`; return; }
+    if (st.query) {
+      // "0 results" over a grid of shimmer said the search was over; it wasn't
+      countEl.textContent = searching && !total ? "Searching…" : `${total} result${total === 1 ? "" : "s"}`;
+      return;
+    }
     if (c.local) { countEl.textContent = `${total} downloaded`; return; }
     const owned = c.withLocal ? localPool().length : 0;
     const streamable = total - owned;
     countEl.textContent =
       (owned ? `${owned} downloaded · ` : "") +
-      `${streamable} to stream${st.hasMore ? " · more available" : ""}`;
+      `${streamable} to stream${st.hasMore && !st.failed ? " · more available" : ""}`;
   };
 
   // ONE button node for the life of the screen, relabelled in place. Replacing
@@ -414,7 +420,7 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
     moreBtn.innerHTML = "";
     moreBtn.classList.toggle("busy", loading);
     if (loading) moreBtn.append(el("span", { class: "mini-spinner" }));
-    moreBtn.append(el("span", {}, loading ? "Loading…" : "Load more"));
+    moreBtn.append(el("span", {}, loading ? "Loading…" : st.failed ? "Couldn't reach the catalogue — try again" : "Load more"));
     if (!moreBtn.isConnected) moreHost.append(moreBtn);
   };
 
@@ -435,9 +441,11 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
       st.hasMore = !!res.hasMore;
       const seen = new Set(st.fetched.map((i) => i.imdbId));
       st.fetched = [...st.fetched, ...freshStream(res.items).filter((i) => !seen.has(i.imdbId))];
+      st.failed = false;
     } catch {
-      st.hasMore = false;
-      toast("Couldn't reach the catalog", "⚠️");
+      // keep the button: it says what happened and tries again on press
+      st.failed = true;
+      toast("Couldn't reach the catalogue", "⚠️");
     }
     loading = false;
     paint();
@@ -521,27 +529,46 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
 
   // ---------- search ----------
   const input = el("input", {
-    type: "text", class: "focusable", value: st.query,
+    type: "search", inputmode: "search", enterkeyhint: "search", autocomplete: "off", autocorrect: "off",
+    autocapitalize: "off", spellcheck: "false", class: "focusable", value: st.query,
     placeholder: `Search ${title.toLowerCase()}…`, "aria-label": `Search ${title}`,
   });
   const search = async (q) => {
     st.query = q;
     if (!q) {
       searchResults = null;
+      searching = false;
       paint({ reset: true });
       if (!cat().local && !st.fetched.length) loadNext();
       return;
     }
     searchResults = { stream: [] };
+    // `searching` so an empty grid shows the shimmer, not "Nothing by that
+    // name." — which is what it said for the whole second the catalogue
+    // lookup was still out.
+    searching = true;
     paint({ reset: true });                 // local hits land immediately
     try {
       const data = await api.discoverSearch(q);
       if (st.query !== q) return;           // superseded by a later keystroke
       searchResults.stream = freshStream(type === "show" ? data.shows : data.movies);
-      paint({ reset: true });
     } catch {}
+    if (st.query !== q) return;
+    searching = false;
+    paint({ reset: true });
   };
-  input.addEventListener("input", debounce(() => search(input.value.trim()), 300));
+  const typed = debounce(() => search(input.value.trim()), 300);
+  input.addEventListener("input", typed);
+  // Enter / the keyboard's Search key runs the query now (the debounce used
+  // to make a fast type-then-Search land on an empty grid for a beat) and,
+  // on a phone, drops the keyboard so the grid has the screen.
+  input.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    typed.cancel();
+    search(input.value.trim());
+    if (matchMedia("(hover: none)").matches) input.blur();
+  });
 
   // ---------- head ----------
   const head = el("div", { class: "browse-head" }, el("h1", {}, title), countEl);
@@ -558,7 +585,22 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
 
   const searchWrap = el("div", { class: "search-wrap", style: { padding: "6px var(--page-x) 4px" } },
     el("div", { class: "search-box", html: icons.search }));
-  searchWrap.querySelector(".search-box").append(input);
+  // ✕ clears the box (the browser's own is hidden; a phone has no Esc)
+  const clearBtn = el("button", {
+    class: "search-clear focusable" + (st.query ? "" : " hidden"),
+    type: "button",
+    "aria-label": "Clear search",
+    html: "✕",
+    onclick: () => {
+      input.value = "";
+      typed.cancel();
+      search("");
+      clearBtn.classList.add("hidden");
+      input.focus({ preventScroll: true });
+    },
+  });
+  input.addEventListener("input", () => clearBtn.classList.toggle("hidden", !input.value));
+  searchWrap.querySelector(".search-box").append(input, clearBtn);
 
   // Same instant-suggestions dropdown as the Search screen, filtered to this
   // page's kind — typing here suggests only movies on Movies, shows on Shows.
@@ -642,8 +684,20 @@ export const renderMyList = async (root) => {
     // watching something.
     const [, list] = await Promise.all([
       refreshProgress().catch(() => {}),
-      api.watchlist(state.profile.id).catch(() => ({})),
+      api.watchlist(state.profile.id).catch(() => null),
     ]);
+    if (!list) {
+      // the list didn't load — that is not the same as "your list is empty"
+      root.append(
+        el("div", { class: "screen" },
+          el("div", { class: "browse-head" }, el("h1", {}, "My List")),
+          el("div", { class: "empty" },
+            el("div", { class: "glyph" }, "📡"),
+            "Couldn't load your list right now.",
+            el("div", { style: { marginTop: "14px" } },
+              el("button", { class: "btn small focusable", onclick: () => navigate("#/list") }, "Try again")))));
+      return;
+    }
     items = list.items || [];
   }
   root.append(myListScreen(items));

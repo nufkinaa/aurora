@@ -22,6 +22,9 @@ import {
   confirmSheet,
   artUrl,
   formatBadges,
+  restoreScrollY,
+  rerenderInPlace,
+  keptScrollFor,
 } from "../ui.js";
 import { api } from "../api.js";
 import { dropdown } from "./browse.js";
@@ -829,6 +832,12 @@ const loadSources = async (
     const best = streams.find((x) => x.recommended) || null;
     // Rows by source key, so a live download_update repaints just that button.
     const rows = new Map();
+    // On a phone the box doesn't scroll inside the page (a list scrolling
+    // inside a page that scrolls is two thumbs fighting): the first few
+    // sources show, the rest sit behind one "Show all" press.
+    const PHONE_FIRST = 6;
+    const phone = () => matchMedia("(max-width: 720px)").matches;
+    let expanded = false;
     const renderList = (list) => {
       listHost.innerHTML = "";
       rows.clear();
@@ -838,8 +847,10 @@ const loadSources = async (
         );
         return;
       }
+      const collapse = phone() && !expanded && list.length > PHONE_FIRST + 1;
+      const shown = collapse ? list.slice(0, PHONE_FIRST) : list;
       listHost.append(
-        ...list.map((s) => {
+        ...shown.map((s) => {
           const key = `${s.infoHash}:${s.fileIdx}`;
           const job = dlStates.get(key);
           // A source that is already downloaded plays the LIBRARY file, not the
@@ -850,12 +861,24 @@ const loadSources = async (
               ? () => navigate(`#/play/${owned.id}`)
               : onPlay;
           const row = sourceRow(s, play, onDownload, job, best);
-          // the ★ BEST pick stays visible while the list scrolls in its box
+          // the ★ BEST pick is the featured (full-width, gold) card; it
+          // scrolls with the list like every other row
           if (s.recommended) row.classList.add("best-pinned");
           rows.set(key, row);
           return row;
         }),
       );
+      if (collapse) {
+        listHost.append(
+          el("button", {
+            class: "btn focusable source-more",
+            onclick: () => {
+              expanded = true;
+              renderList(list);
+            },
+          }, `Show all ${list.length} sources`),
+        );
+      }
     };
 
     // Live download progress. One subscription per sources list; the previous
@@ -1028,6 +1051,9 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   const screen = el("div", { class: "screen" });
   root.append(screen);
   const entryHash = location.hash;
+  // Re-rendered in place (the watched toggle does that): come back to the
+  // same spot — a "Mark watched" press used to throw you back up to the hero.
+  const keepY = keptScrollFor(entryHash);
 
   // Skeleton hero while the metadata lands.
   screen.append(
@@ -1111,8 +1137,12 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     imdbId = id;
     meta = await api.discoverMeta(type, id).catch(() => null);
     if (!meta) {
-      toast("Couldn't load details", "⚠️");
-      return navigate("#/requests");
+      // Back to where you came from — the Requests page this used to land on
+      // isn't in the nav any more, and a dead end is not what "couldn't
+      // load" should look like.
+      toast("Couldn't load that title — is the internet up?", "⚠️");
+      if (history.length > 1) return history.back();
+      return navigate("#/");
     }
     try {
       await loadLibrary();
@@ -1325,7 +1355,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
               );
             }
             await refreshProgress();
-            window.dispatchEvent(new HashChangeEvent("hashchange"));
+            rerenderInPlace();
           } catch {}
         },
       }),
@@ -1382,6 +1412,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       serverInfo: serverInfoFor(),
     }),
   );
+  if (keepY) restoreScrollY(keepY);
 
   const castLine = (m) =>
     el(

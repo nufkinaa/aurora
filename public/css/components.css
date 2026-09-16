@@ -504,13 +504,17 @@
   top: 10px;
   padding: 3px 8px;
   border-radius: 7px;
-  background: rgba(6, 8, 16, 0.72);
+  background: rgba(6, 8, 16, 0.8);
   color: #cbd2e6;
   font-size: 0.62rem;
   font-weight: 900;
   letter-spacing: 0.12em;
   border: 1px solid rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(4px);
+  /* No backdrop-filter here, on purpose. Home draws two of these on nearly
+     every card, and a phone had 460+ live blur layers on one page (measured
+     2026-09-16): every horizontal flick re-blurred all of them, which is
+     what made rows tile in late and scroll unevenly. A slightly denser tint
+     reads the same over artwork and costs nothing. */
   pointer-events: none;
 }
 /* The words come from data-t, drawn here: DOM text inside the card button

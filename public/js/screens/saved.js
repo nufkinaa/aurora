@@ -52,7 +52,7 @@ export const renderSaved = async (root) => {
           const p = progressFor(it.id);
           return el(
             "div",
-            { class: "dl-row" },
+            { class: "dl-row tone-ok" }, // a saved copy is a ready one
             el("div", { class: "dl-poster" }, it.cover ? el("img", { src: it.cover, alt: "" }) : el("div", { class: "card-fallback" }, it.title)),
             el(
               "div",

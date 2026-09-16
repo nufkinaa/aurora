@@ -145,3 +145,18 @@ test("garbage still returns nothing — no anchor, no fill", () => {
   _setEntries([mk("Arrival", 2016, "movie", ["Sci-Fi"], 7.9)]);
   assert.equal(si.suggest("zzqqxxy").length, 0);
 });
+
+// ---------- the Search screen's instant catalogue hits ----------
+test("searchCatalog: typo-tolerant stream hits from the cached catalogue, library excluded", () => {
+  _setEntries([
+    mk("Arrival", 2016, "movie", ["Sci-Fi"], 7.9, true), // owned — the library search answers this one
+    mk("Interstellar", 2014, "movie", ["Sci-Fi"], 8.7),
+    mk("Dune", 2021, "movie", ["Sci-Fi"], 8.0),
+  ]);
+  const out = si.searchCatalog("intersteller");
+  assert.deepEqual(out.map((s) => s.title), ["Interstellar"]);
+  assert.equal(out[0].poster, "/p.jpg", "shaped like a Discover hit (poster, not cover)");
+  assert.ok(out[0].imdbId);
+  assert.equal(si.searchCatalog("arrival").length, 0, "owned titles are the library's to answer");
+  assert.equal(si.searchCatalog("").length, 0);
+});

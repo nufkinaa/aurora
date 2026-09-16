@@ -62,6 +62,18 @@ router.post("/api/downloads/:id/cancel", (req, res) => {
   res.json(r);
 });
 
+// A viewer clears a dead request of their own (failed / declined / canceled)
+// off their downloads page. Live ones go through cancel above.
+router.post("/api/downloads/:id/dismiss", (req, res) => {
+  const profile = String((req.body || {}).profile || "");
+  if (!profile || !require("../lib/authz").profileAllowed(req, profile)) {
+    return res.status(403).json({ error: "not your download" });
+  }
+  const r = downloads.removeOwn(req.params.id, viewerFor(req, profile));
+  if (r.error) return res.status(r.error === "not found" ? 404 : r.error === "still in progress" ? 409 : 403).json(r);
+  res.json(r);
+});
+
 // What the engine says about every live download: bytes per selected file,
 // speed, connections and seeders. Answers "is this stuck, or just short of
 // peers?" without reading logs.

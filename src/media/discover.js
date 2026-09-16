@@ -504,10 +504,20 @@ const search = async (q) => {
     searchCinemeta(q, "series").catch(() => []),
     searchCinemeta(q, "movie").catch(() => []),
   ]);
-  if (shows.length === 0) shows = await searchShows(q).catch(() => []);
-  if (movies.length === 0) {
-    movies = await (config.TMDB_KEY ? searchMoviesTmdb(q) : searchMoviesWiki(q)).catch(() => []);
-  }
+  // The fallbacks side by side, not one after the other: a query that finds
+  // nothing anywhere (a typo, a title nobody indexed) used to wait through
+  // Cinemeta, THEN TVMaze, THEN Wikipedia's search plus eight page summaries
+  // — the Search screen showed "Searching…" for 6-10 seconds before it could
+  // say "no results". Half that now, and the same answers.
+  // ...and on a budget: a fallback that hasn't answered in 4s answers
+  // nothing. The person is looking at "Searching…" the whole time.
+  const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r([]), ms))]);
+  [shows, movies] = await Promise.all([
+    shows.length === 0 ? within(searchShows(q).catch(() => []), 4000) : shows,
+    movies.length === 0
+      ? within((config.TMDB_KEY ? searchMoviesTmdb(q) : searchMoviesWiki(q)).catch(() => []), 4000)
+      : movies,
+  ]);
 
   const result = { movies, shows };
   searchCache.set(key, { at: Date.now(), result });

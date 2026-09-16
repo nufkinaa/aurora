@@ -111,12 +111,22 @@ export const heroArtWidth = () => Math.min(1280, window.innerWidth);
 // blank card until the next full render (elia's grey-poster report). One
 // cache-busted retry covers the transient case; a second failure swaps in
 // the same titled fallback tile the no-artwork path uses.
-export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-fallback", { w = null } = {}) => {
+// `eager`: the card sits in the first screenful of its row, so the browser
+// may fetch it at once instead of waiting for the lazy-load margin (which on
+// a phone is what let the third card of every row arrive late).
+export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-fallback", { w = null, eager = false } = {}) => {
   src = artUrl(src, w);
-  const img = el("img", { class: cls + " img-fade", src, loading: "lazy", decoding: "async", alt: "" });
-  // Fade in on decode instead of popping. Cached images can be complete
-  // before this handler attaches — reveal immediately then.
-  const reveal = () => img.classList.add("img-in");
+  const img = el("img", { class: cls + " img-fade", src, loading: eager ? "eager" : "lazy", decoding: "async", alt: "" });
+  // Fade in on decode instead of popping — but ONLY when the picture took a
+  // moment to arrive. One that lands within a few frames came from the
+  // cache, and fading THAT in made every revisit of Home look like the rows
+  // were loading again (elia: "the list takes time to look ok"). Cached
+  // images can even be complete before this handler attaches.
+  const t0 = performance.now();
+  const reveal = () => {
+    if (performance.now() - t0 < 120) img.classList.add("img-now");
+    img.classList.add("img-in");
+  };
   img.onload = reveal;
   if (img.complete && img.naturalWidth > 0) reveal();
   let retried = false;
@@ -160,6 +170,22 @@ export const restoreScrollY = (y) => {
   };
   setTimeout(tick, 0);
   return give;
+};
+
+// Re-render the current screen in place — a setting changed, a title was
+// marked watched — and land back at the same scroll offset. The router
+// scrolls to the top on every render, which is right for a new page and
+// wrong for the page you're already on. Screens that re-render this way
+// call keptScrollFor(hash) once they've painted and restore what it returns.
+let keptScroll = null;
+export const rerenderInPlace = () => {
+  keptScroll = { hash: location.hash, y: window.scrollY || document.body.scrollTop || 0 };
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+};
+export const keptScrollFor = (hash) => {
+  const y = keptScroll && keptScroll.hash === hash ? keptScroll.y : 0;
+  keptScroll = null;
+  return y;
 };
 
 export const fmtDuration = (seconds) => {
@@ -372,6 +398,42 @@ export const confirmSheet = ({ title, text, ok = "OK", cancel = "Cancel", icon =
     setTimeout(() => card.querySelector(".btn-primary")?.focus({ preventScroll: true }), 60);
   });
 
+// A one-line text prompt in the same dress as confirmSheet — resolves the
+// trimmed value, or null on cancel / backdrop / Back. (Preferences asked for
+// an email through the browser's own prompt(), the one native dialog left.)
+export const promptSheet = ({ title, text, placeholder = "", value = "", type = "text", ok = "Save", cancel = "Cancel", icon = null }) =>
+  new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      document.removeEventListener("ui-back", onBack);
+      focusMod().then((m) => m.popScope(wrap)).catch(() => {});
+      wrap.classList.add("leaving");
+      setTimeout(() => wrap.remove(), 240);
+      if (returnTo && returnTo.isConnected) returnTo.focus({ preventScroll: true });
+      resolve(v);
+    };
+    const returnTo = document.activeElement;
+    const onBack = (e) => { e.preventDefault(); finish(null); };
+    const input = el("input", { class: "focusable sheet-input", type, placeholder, value, autocomplete: "off", spellcheck: "false", autocapitalize: "off" });
+    const submit = () => finish(input.value.trim() || null);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } });
+    const card = el("div", { class: "look-notice sheet", role: "dialog", "aria-modal": "true", "aria-label": title },
+      icon && el("div", { class: "sheet-icon" }, icon),
+      el("div", { class: "look-notice-title" }, title),
+      text && el("p", { class: "look-notice-text" }, text),
+      input,
+      el("div", { class: "look-notice-actions" },
+        el("button", { class: "btn focusable", onclick: () => finish(null) }, cancel),
+        el("button", { class: "btn btn-primary focusable", onclick: submit }, ok)));
+    const wrap = el("div", { class: "look-notice-wrap ui-overlay", onclick: (e) => e.target === wrap && finish(null) }, card);
+    document.addEventListener("ui-back", onBack);
+    (document.fullscreenElement || document.body).append(wrap);
+    focusMod().then((m) => m.pushScope(wrap)).catch(() => {});
+    setTimeout(() => input.focus({ preventScroll: true }), 60);
+  });
+
 // Append many nodes without a long synchronous layout hitch: the first
 // `eager` land now (fills the viewport), the rest fill in over the next few
 // frames. Returns a cancel() to abort pending work (e.g. on re-render).
@@ -392,10 +454,29 @@ export const appendProgressive = (parent, nodes, eager = 24, chunk = 12) => {
   return () => timer && clearTimeout(timer);
 };
 
+// The returned function also carries `.flush()` (run a pending call NOW —
+// pressing Search on the keyboard shouldn't wait out the typing pause) and
+// `.cancel()`.
 export const debounce = (fn, ms) => {
   let t;
-  return (...args) => {
+  let pending = null;
+  const run = (...args) => {
     clearTimeout(t);
-    t = setTimeout(() => fn(...args), ms);
+    pending = args;
+    t = setTimeout(() => {
+      pending = null;
+      fn(...args);
+    }, ms);
   };
+  run.flush = (...args) => {
+    const use = args.length ? args : pending || [];
+    clearTimeout(t);
+    pending = null;
+    fn(...use);
+  };
+  run.cancel = () => {
+    clearTimeout(t);
+    pending = null;
+  };
+  return run;
 };

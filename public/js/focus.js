@@ -221,10 +221,31 @@ document.addEventListener(
   true
 );
 
-// Pointer remotes / mouse: hovering focuses, keeping D-pad position in sync
+// Pointer remotes / mouse: hovering focuses, keeping D-pad position in sync.
+// Not on a touch screen: the "mouseover" a tap synthesizes would focus the
+// card on the way down, and focus styles (the lift, the ring) would then sit
+// on it until the next tap somewhere else.
+const touchOnly = () => matchMedia("(hover: none)").matches;
 document.addEventListener("mouseover", (e) => {
+  if (touchOnly()) return;
   const target = e.target.closest && e.target.closest(".focusable");
   if (target && currentScope().contains(target)) {
     target.focus({ preventScroll: true });
   }
 });
+
+// A finger tap leaves the tapped button FOCUSED (Android Chrome), and every
+// control here draws its focus state for the remote — so a chip, a pill or a
+// card kept its ring after the tap, as if it were still selected. Once the
+// tap's click has run, let the focus go. Text fields keep theirs (that's the
+// keyboard), and a keyboard/remote never comes through here.
+document.addEventListener("pointerup", (e) => {
+  if (e.pointerType !== "touch") return;
+  const target = e.target && e.target.closest && e.target.closest(".focusable");
+  if (!target || inTextInput(target)) return;
+  // setTimeout, not rAF: the tap's click runs synchronously after pointerup,
+  // and a timer fires even in a tab that has no frames (a hidden pane).
+  setTimeout(() => {
+    if (document.activeElement === target && !inTextInput(document.activeElement)) target.blur();
+  }, 0);
+}, { passive: true });

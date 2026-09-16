@@ -249,6 +249,36 @@ const suggest = (q, opts = {}) => {
   }));
 };
 
+// Streamable titles in the CACHED catalogue that match a query, scored with
+// the same typo-tolerant tiers as the suggestions. The Search screen shows
+// these the instant the library answers — a mis-typed trending title used to
+// wait 400-900ms on the live catalogue lookup (and on a cold Cinemeta, far
+// longer) before anything appeared. Shaped like a Discover search hit so the
+// client renders it as the same stream card; nothing from the library.
+const searchCatalog = (q, limit = 24) => {
+  const nq = norm(String(q || "").slice(0, 80));
+  if (!nq) return [];
+  ensureFresh();
+  const qWords = nq.split(" ").filter(Boolean);
+  const scored = [];
+  for (const e of entries) {
+    if (e.inLibrary || !e.imdbId) continue;
+    const s = scoreTitle(nq, qWords, e);
+    if (s > 0) scored.push({ e, s });
+  }
+  scored.sort((a, b) => b.s - a.s || (b.e.rating || 0) - (a.e.rating || 0));
+  return scored.slice(0, Math.max(1, Math.min(60, limit))).map(({ e, s }) => ({
+    imdbId: e.imdbId,
+    type: e.type,
+    title: e.title,
+    year: e.year,
+    poster: e.cover,
+    rating: e.rating,
+    genres: e.genres,
+    score: s,
+  }));
+};
+
 // test hook: pin the index to a known set (marks it fresh so ensureFresh
 // doesn't rebuild over it mid-test)
 const _setEntries = (list) => {
@@ -259,5 +289,6 @@ const _setEntries = (list) => {
 
 module.exports = {
   suggest,
+  searchCatalog,
   _internals: { norm, editWithin, wordHits, fuzzyWordMatch, scoreTitle, entryFor, build, _setEntries },
 };

@@ -2,7 +2,7 @@
 // password. Editing a profile / changing its password happens only at creation
 // or from Settings (Preferences) for your own profile — the gate itself just
 // picks (and unlocks) a profile.
-import { el, icons, toast } from "../ui.js";
+import { el, icons, toast, confirmSheet } from "../ui.js";
 import { api, setAuthToken } from "../api.js";
 import { state, setProfile, loadProfiles, recentProfileIds, savedToken } from "../state.js";
 import { pushScope, popScope } from "../focus.js";
@@ -273,6 +273,16 @@ export const profileModal = (existing, onDone) => {
           el("button", {
             class: "btn focusable", style: { marginLeft: "auto", color: "#ff7a7a" },
             onclick: async () => {
+              // One tap used to delete a profile — watch history, list,
+              // ratings, gone, no question asked.
+              const sure = await confirmSheet({
+                title: `Delete “${existing.name}”?`,
+                text: "Its watch history, My List and ratings go with it. There is no undo.",
+                ok: "Delete profile",
+                cancel: "Keep it",
+                icon: "🗑",
+              });
+              if (!sure) return;
               try {
                 await api.deleteProfile(existing.id);
                 // Deleting the profile you're currently using would leave the

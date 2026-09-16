@@ -59,6 +59,27 @@ self.addEventListener("message", (e) => {
   if (e.data && e.data.type === "precache") e.waitUntil(precache().catch(() => {}));
 });
 
+// ---- the poster cache's housekeeping ----
+const IMG_TTL_MS = 7 * 24 * 3600 * 1000;
+const IMG_MAX = 800; // about 25 MB of posters at the sizes the app draws
+const imgStale = (res) => {
+  const t = Date.parse(res.headers.get("date") || "");
+  return Number.isFinite(t) && Date.now() - t > IMG_TTL_MS;
+};
+// Every poster ever seen used to stay on the phone. Past the cap, the oldest
+// entries go (keys come back in insertion order) — a few at a time, off the
+// request path.
+let trimming = false;
+const trimImgCache = async (c) => {
+  if (trimming) return;
+  trimming = true;
+  try {
+    const keys = await c.keys();
+    if (keys.length > IMG_MAX) await Promise.all(keys.slice(0, keys.length - IMG_MAX + 50).map((k) => c.delete(k)));
+  } catch {}
+  trimming = false;
+};
+
 // A 206 sliced out of a cached full response, for <video> seeking.
 const rangeResponse = async (cached, rangeHeader) => {
   const blob = await cached.blob();
@@ -130,17 +151,22 @@ self.addEventListener("fetch", (e) => {
 
   if (p.startsWith("/img/")) {
     e.respondWith(
-      caches.match(req).then(
-        (hit) =>
-          hit ||
-          fetch(req).then((res) => {
+      caches.match(req).then((hit) => {
+        // A cached poster is good for a week (the server says the same in its
+        // own Cache-Control). Older than that it is fetched again, so a cover
+        // the metadata refresh replaced does show up — the cache used to be
+        // forever. Offline, a stale hit still beats no picture.
+        if (hit && !imgStale(hit)) return hit;
+        return fetch(req)
+          .then((res) => {
             if (res.ok) {
               const copy = res.clone();
-              caches.open(IMG).then((c) => c.put(req, copy)).catch(() => {});
+              caches.open(IMG).then(async (c) => { await c.put(req, copy); trimImgCache(c); }).catch(() => {});
             }
             return res;
-          }),
-      ),
+          })
+          .catch(() => hit || Response.error());
+      }),
     );
     return;
   }

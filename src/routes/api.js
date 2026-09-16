@@ -325,7 +325,13 @@ router.get("/api/search", (req, res) => {
   }
 
   results.sort((a, b) => b.score - a.score || a.item.title.localeCompare(b.item.title));
-  res.json({ results: results.slice(0, 40).map((r) => r.item) });
+  // `catalog`: typo-tolerant hits from the cached streamable catalogue, so the
+  // Search screen has stream cards to show while the live lookup is out.
+  let catalog = [];
+  try {
+    catalog = require("../media/searchindex").searchCatalog(q, 24);
+  } catch {}
+  res.json({ results: results.slice(0, 40).map((r) => r.item), catalog });
 });
 
 // The order home reads in, top to bottom.

@@ -408,6 +408,17 @@ const cancelOwn = (id, viewer) => {
   return cancel(id);
 };
 
+// A viewer clearing a DEAD request of their own off the page (failed,
+// declined, canceled). "Remove" used to call cancel(), which only flipped a
+// failed row to "Canceled" — the row never went anywhere.
+const removeOwn = (id, viewer) => {
+  const job = findJob(id);
+  if (!job) return { error: "not found" };
+  if (!isRequester(job, viewer)) return { error: "not your download" };
+  if (!["error", "declined", "canceled"].includes(job.status)) return { error: "still in progress" };
+  return remove(id);
+};
+
 const remove = (id) => {
   const i = store.data.findIndex((j) => j.id === id);
   if (i === -1) return { error: "not found" };
@@ -824,7 +835,7 @@ const resume = () => {
 };
 
 module.exports = {
-  list, listFor, create, approve, decline, cancel, cancelOwn, remove, resume, publicJob, publicJobFor, stats, markSeen, pruneGone,
+  list, listFor, create, approve, decline, cancel, cancelOwn, removeOwn, remove, resume, publicJob, publicJobFor, stats, markSeen, pruneGone,
   // Pure helpers, exported so test/downloads.test.js can pin the rules that
   // decide where a file lands and whether a request needs approval.
   _internals: { safeName, folderKey, chooseFolder, diskGate, destinationFor, store },

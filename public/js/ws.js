@@ -77,10 +77,9 @@ const showOfflineBanner = () => {
     a.style.cssText = "color:#fff;text-decoration:underline;margin-left:6px";
     b.append(a);
   }
-  b.style.cssText =
-    "position:fixed;bottom:0;left:0;right:0;z-index:9999;padding:6px 12px;" +
-    "text-align:center;font-size:0.85rem;font-weight:600;" +
-    "background:#5c1f24;color:#ffd7d7;"; // bottom edge: never covers the nav
+  // styled in screens.css (#offline-banner): the bottom edge on desktop and
+  // TV, ABOVE the floating tab bar on a glass phone — it used to sit on top
+  // of Home/Movies/Shows there
   document.body.append(b);
 };
 const hideOfflineBanner = () => document.getElementById(BANNER_ID)?.remove();
