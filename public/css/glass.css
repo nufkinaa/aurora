@@ -1700,6 +1700,48 @@ html[data-look="glass"] .dl-section .row-title .count { border-radius: 999px; }
   html[data-look="glass"] .detail-poster { width: 170px; }
   html[data-look="glass"] .detail-title { font-size: 2.2rem; }
 }
+/* the phone title page (layout in responsive.css): the glass rules above
+   would otherwise win on padding, the art's treatment, the scrim, the
+   action buttons' shape and the title size */
+@media (max-width: 720px) {
+  html[data-look="glass"] .detail-hero {
+    padding: calc(58vh - 120px) var(--page-x) 8px;
+    gap: 0;
+  }
+  html[data-look="glass"] .detail-hero .hero-backdrop,
+  html[data-look="glass"] .detail-hero .hero-backdrop.sharp {
+    transform: none;
+    filter: saturate(1.08) brightness(0.95);
+    -webkit-filter: saturate(1.08) brightness(0.95);
+    --hero-dissolve: linear-gradient(to bottom, #000 62%, rgba(0, 0, 0, 0.55) 84%, transparent 100%);
+  }
+  html[data-look="glass"] .detail-hero .hero-fade {
+    background: linear-gradient(to bottom, rgba(7, 8, 17, 0.4), transparent 28%, rgba(7, 8, 17, 0.6) 72%, var(--bg) 100%);
+  }
+  html[data-look="glass"] .detail-title {
+    font-size: clamp(1.9rem, 8.4vw, 2.5rem);
+    line-height: 1.02;
+  }
+  html[data-look="glass"] .detail-actions .btn:not(.btn-primary) {
+    border-radius: 14px;
+    padding: 10px 4px 9px;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(255, 255, 255, 0.07);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+  html[data-look="glass"] .detail-actions .btn-primary {
+    border-radius: 16px;
+    padding: 14px 18px;
+  }
+  html[data-look="glass"] .detail-rate {
+    margin-top: 6px;
+    padding: 16px 18px;
+  }
+  html[data-look="glass"] .detail-cast {
+    margin-top: 6px;
+  }
+}
 /* the season island scrolls sideways when it can't fit */
 html[data-look="glass"] .season-bar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 html[data-look="glass"] .season-bar::-webkit-scrollbar { display: none; }

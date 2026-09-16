@@ -362,6 +362,36 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.detail-synopsis-wrap {
+  max-width: 640px;
+  margin-bottom: 24px;
+}
+.detail-synopsis-wrap .detail-synopsis {
+  margin-bottom: 0;
+}
+.detail-synopsis.open {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+/* "More" / "Less" under a synopsis that was cut */
+.syn-more {
+  margin-top: 4px;
+  padding: 4px 0;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--text);
+  opacity: 0.85;
+}
+.syn-more:hover,
+.syn-more:focus {
+  opacity: 1;
+  text-decoration: underline;
+}
+/* the word under an icon-only action — phones only (responsive.css) */
+.btn-label {
+  display: none;
+}
 
 .genre-chips {
   display: flex;
@@ -955,6 +985,8 @@
   overflow: hidden;
 }
 .detail-hero .hero-backdrop {
+  /* landscape art with the poster behind it (details.js sets both) */
+  background-image: var(--hero-art, none), var(--hero-poster, none);
   filter: blur(60px) saturate(1.2) brightness(0.4);
   /* Its own dissolve stops. This hero is content-height (measured 776-838px vs
      the home hero's ~500-760), so the fixed 40px inset is a much smaller share

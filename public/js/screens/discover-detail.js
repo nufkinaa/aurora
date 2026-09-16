@@ -2233,7 +2233,9 @@ const offlineButton = (item, { compact = false, rail = false } = {}) => {
       return;
     }
     btn.append(el("span", {}, icon));
-    if (!compact) btn.append(el("span", {}, text));
+    // compact: the word rides along as the tile label a phone shows under
+    // the icon (details.css .btn-label — hidden on wide screens)
+    btn.append(el("span", { class: compact ? "btn-label" : "" }, text));
     btn.title = compact ? text : btn.title;
   };
   const paint = async () => {

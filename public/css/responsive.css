@@ -296,6 +296,137 @@
   }
 }
 
+/* ---------- Phone title page (≤ 720px): the art is the hero ----------
+   A 150px poster floating beside empty space, then a wall of pills, chips
+   and buttons, did not read on a phone. Now the poster fills the top of the
+   screen and dissolves into the page; the title sits over its lower edge;
+   under it one meta line, one big Play, a row of icon tiles for the rest,
+   a three-line synopsis with More, then genres and the rating card. */
+@media (max-width: 720px) {
+  .detail-hero {
+    display: block;
+    /* the info column starts where the art's lower third begins */
+    padding: calc(58vh - 120px) var(--page-x) 8px;
+    min-height: 0;
+  }
+  .detail-hero .hero-backdrop,
+  .detail-hero .hero-backdrop.sharp {
+    /* the poster, sharp, over the top of the screen only */
+    inset: 0 0 auto 0;
+    height: 58vh;
+    background-image: var(--hero-poster, var(--hero-art, none));
+    background-position: center 22%;
+    background-size: cover;
+    transform: none;
+    filter: saturate(1.05) brightness(0.92);
+    -webkit-filter: saturate(1.05) brightness(0.92);
+    --hero-dissolve: linear-gradient(to bottom, #000 62%, rgba(0, 0, 0, 0.55) 84%, transparent 100%);
+    -webkit-mask-image: var(--hero-dissolve);
+    mask-image: var(--hero-dissolve);
+  }
+  .detail-hero .hero-fade {
+    inset: 0 0 auto 0;
+    height: 58vh;
+    -webkit-mask-image: none;
+    mask-image: none;
+    background: linear-gradient(to bottom, rgba(11, 12, 20, 0.35), transparent 30%, rgba(11, 12, 20, 0.55) 70%, var(--bg) 100%);
+  }
+  .detail-poster {
+    display: none; /* the art above IS the poster */
+  }
+  .detail-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .detail-info > * {
+    width: 100%;
+  }
+  .detail-info > .hero-kicker {
+    width: auto;
+    order: 0;
+  }
+  .detail-title {
+    order: 1;
+    font-size: clamp(1.9rem, 8.4vw, 2.5rem);
+    line-height: 1.02;
+    margin-bottom: 10px;
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
+  }
+  .detail-meta {
+    order: 2;
+    gap: 8px;
+    margin-bottom: 14px;
+    font-size: 0.86rem;
+  }
+  .detail-actions {
+    order: 3;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin: 0 0 18px;
+  }
+  /* the one thing to do: full width, first */
+  .detail-actions .btn-primary {
+    grid-column: 1 / -1;
+    justify-content: center;
+    padding: 14px 18px;
+    font-size: 1rem;
+  }
+  /* everything else: a row of equal tiles, icon above the word */
+  .detail-actions .btn:not(.btn-primary) {
+    min-width: 0;
+    max-width: none;
+    width: auto;
+    height: auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    padding: 10px 4px 9px;
+    border-radius: 14px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+  .detail-actions .btn:not(.btn-primary) svg {
+    width: 22px;
+    height: 22px;
+    flex: none;
+  }
+  .detail-actions .btn:not(.btn-primary) > span:not(.btn-label):not(.resume-peek) {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .detail-actions .btn-label {
+    display: block;
+  }
+  .detail-synopsis-wrap {
+    order: 4;
+    margin-bottom: 16px;
+  }
+  .detail-synopsis {
+    -webkit-line-clamp: 3;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  .genre-chips {
+    order: 5;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .genre-chips .chip.static {
+    padding: 4px 10px;
+    font-size: 0.72rem;
+  }
+  .detail-rate {
+    order: 10;
+  }
+}
+
 /* ---------- Touch devices (any width) ---------- */
 @media (hover: none) {
   /* There is no hover on a phone — only a tap that leaves :hover STUCK on the
