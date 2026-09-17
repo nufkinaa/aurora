@@ -120,6 +120,11 @@ module.exports = {
   SCAN_INTERVAL_MS: (userConfig.scanIntervalMinutes || 10) * 60 * 1000,
   AUTO_OCR: userConfig.autoOcrSubtitles !== false,
   ONLINE_METADATA: userConfig.onlineMetadata !== false,
+  // Intro / recap / credits timestamps from the public databases (SkipDB,
+  // TheIntroDB) where Aurora's own detector has nothing — see
+  // media/skipsegments.js. Only IMDb id + season + episode + runtime leave
+  // the server. `"skipDatabases": false` turns it off.
+  SKIP_DATABASES: userConfig.skipDatabases !== false,
   TMDB_KEY: process.env.TMDB_API_KEY || userConfig.tmdbApiKey || null,
   // Admin panel password. No default: unset means the admin panel (and every
   // admin API/WS surface) stays locked for everyone until one is configured.

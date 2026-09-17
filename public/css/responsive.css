@@ -316,34 +316,65 @@
 @media (max-width: 720px) {
   .detail-hero {
     display: block;
-    /* the info column starts where the art's lower third begins */
-    /* the info column starts just under the art (the kicker pill rides its
-       faint tail) — a title straddling the art's edge read as half-on,
-       half-off (elia, iPhone) */
-    padding: calc(46vh - 34px) var(--page-x) 8px;
+    padding: 0 var(--page-x) 8px;
     min-height: 0;
   }
+  /* the wide layout's full-bleed backdrop steps aside: the cover block below
+     draws the picture itself, so its height follows its own content */
   .detail-hero .hero-backdrop,
-  .detail-hero .hero-backdrop.sharp {
-    /* the poster, sharp, over the top of the screen only */
-    inset: 0 0 auto 0;
-    height: 46vh;
-    background-image: var(--hero-poster, var(--hero-art, none));
-    background-position: center 22%;
-    background-size: cover;
-    transform: none;
-    filter: saturate(1.05) brightness(0.92);
-    -webkit-filter: saturate(1.05) brightness(0.92);
-    --hero-dissolve: linear-gradient(to bottom, #000 62%, rgba(0, 0, 0, 0.55) 84%, transparent 100%);
-    -webkit-mask-image: var(--hero-dissolve);
-    mask-image: var(--hero-dissolve);
-  }
   .detail-hero .hero-fade {
-    inset: 0 0 auto 0;
-    height: 46vh;
-    -webkit-mask-image: none;
-    mask-image: none;
-    background: linear-gradient(to bottom, rgba(11, 12, 20, 0.35), transparent 30%, rgba(11, 12, 20, 0.55) 70%, var(--bg) 100%);
+    display: none;
+  }
+  /* THE COVER: the poster edge to edge, with the kicker, the title and the
+     meta line sitting on its lower part — everything above Play is on the
+     picture, and Play comes right under it. The block is as tall as it
+     needs to be (a three-line title grows it), never shorter than 56vh. */
+  .detail-head {
+    order: 0;
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-start;
+    width: auto;
+    min-height: 56vh;
+    margin: 0 calc(-1 * var(--page-x)) 14px;
+    padding: calc(var(--nav-h) + 28px) var(--page-x) 16px;
+  }
+  /* edge to edge: stretch across the column, then out through the page
+     margins (as a start-aligned flex item it shrank to its words and left a
+     strip of page down the right side of the cover) */
+  .detail-info > .detail-head {
+    align-self: stretch;
+    width: auto;
+  }
+  .detail-head::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    background-image: var(--hero-poster, var(--hero-art, none));
+    background-size: cover;
+    background-position: center 20%;
+  }
+  /* legibility where the words sit, and a soft join into the page */
+  .detail-head::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(
+      to bottom,
+      rgba(var(--bg-rgb, 11, 12, 20), 0.4) 0%,
+      rgba(var(--bg-rgb, 11, 12, 20), 0) 24%,
+      rgba(var(--bg-rgb, 11, 12, 20), 0.18) 48%,
+      rgba(var(--bg-rgb, 11, 12, 20), 0.82) 82%,
+      var(--bg) 100%
+    );
+  }
+  .detail-head .detail-meta {
+    margin-bottom: 0;
   }
   .detail-poster {
     display: none; /* the art above IS the poster */

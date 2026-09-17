@@ -1022,6 +1022,11 @@
   flex: 1;
   min-width: 0;
 }
+/* kicker + title + meta: a wrapper that only exists for the phone's cover
+   block (responsive.css) — invisible to the wide layout */
+.detail-head {
+  display: contents;
+}
 .detail-title {
   font-size: var(--fs-title);
   font-weight: 900;

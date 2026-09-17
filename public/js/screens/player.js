@@ -2598,7 +2598,7 @@ export const renderPlayer = async (root, { id }) => {
   let lastHapticT = null;
   const landmarks = () => {
     const i = activeIntro();
-    return [i && i.start, i && i.end, creditsStart].filter((t) => isFinite(t) && t > 0);
+    return [autoRecap && autoRecap.end, i && i.start, i && i.end, creditsStart].filter((t) => isFinite(t) && t > 0);
   };
   const paintScrubMarks = () => {
     const d = totalDuration();
@@ -3108,15 +3108,19 @@ export const renderPlayer = async (root, { id }) => {
   // guessed distance from the end.
   let autoIntro = null;
   let creditsStart = null;
+  // "Previously on…" — only the public databases know these (a recap repeats
+  // in no other episode, so the audio comparison can never find one). The
+  // same button offers it, under its own name.
+  let autoRecap = null;
   const skipIntroBtn = el("button", {
     class: "btn skip-intro focusable hidden",
     html: `<span>Skip intro</span> ⏭`,
     onclick: () => {
-      const range = activeIntro();
-      if (!range) return;
+      const seg = skippableNow();
+      if (!seg) return;
       skipIntroBtn.classList.add("hidden");
-      track("feat", { f: "skip_intro" });
-      seekTo(range.end);
+      track("feat", { f: seg.kind === "recap" ? "skip_recap" : "skip_intro" });
+      seekTo(seg.range.end);
     },
   });
   overlay.append(skipIntroBtn);
@@ -3140,19 +3144,41 @@ export const renderPlayer = async (root, { id }) => {
     if (!introKey) return;
     try { localStorage.setItem(IGNORE_KEY, JSON.stringify([...new Set([...ignoredIntros(), introKey])])); } catch {}
     autoIntro = null;
+    autoRecap = null;
     skipIntroBtn.classList.add("hidden");
   };
+  // One shape from both doors: a library episode asks by file id (its own
+  // detection first, the public databases under it); a STREAMED episode has
+  // no file to analyse and asks by identity — which is what finally gives
+  // streams a Skip intro and an Up next timed to the credits.
+  const applyAutoSegments = (r) => {
+    if (!r) return;
+    const ok = (x) => x && isFinite(x.start) && isFinite(x.end) && x.end > x.start;
+    if (ok(r.intro) && !introIgnored()) autoIntro = r.intro;
+    if (ok(r.recap) && !introIgnored()) autoRecap = r.recap;
+    if (r.credits && isFinite(r.credits.start)) creditsStart = r.credits.start;
+    paintScrubMarks();
+  };
   if (isEpisode && !item._offline) {
+    api.introAuto(item.id).then(applyAutoSegments).catch(() => {});
+  } else if (isStreamEpisode) {
     api
-      .introAuto(item.id)
-      .then((r) => {
-        if (r && r.intro && isFinite(r.intro.start) && isFinite(r.intro.end) && !introIgnored()) autoIntro = r.intro;
-        if (r && r.credits && isFinite(r.credits.start)) creditsStart = r.credits.start;
-        paintScrubMarks();
-      })
+      .segments({ imdbId: item.imdbId, season: item.season, episode: item.episode, duration: item.duration || 0 })
+      .then(applyAutoSegments)
       .catch(() => {});
   }
   const activeIntro = () => intro || autoIntro;
+  // What the button would skip at this moment: the recap while inside it,
+  // else the intro. Never in a range's final second — skipping to "one
+  // second from now" reads as a broken button.
+  const skippableNow = () => {
+    const t = effTime();
+    const inside = (x) => x && t >= x.start && t < x.end - 1;
+    if (inside(autoRecap)) return { kind: "recap", range: autoRecap };
+    const i = activeIntro();
+    if (inside(i)) return { kind: "intro", range: i };
+    return null;
+  };
   // While an intro is being marked, a chip on the video carries the second
   // press ("ends here") so nobody has to find the gear menu again. Shared
   // with the menu's "Mark intro end (save)" entry through saveIntroEnd.
@@ -3183,14 +3209,15 @@ export const renderPlayer = async (root, { id }) => {
     );
     overlay.append(markChip);
   };
+  let skipLabel = "intro";
   const maybeSkipIntro = () => {
-    const intro = activeIntro();
-    if (!intro) return;
-    const t = effTime();
-    // Not in the range's final second — skipping to "one second from now"
-    // reads as a broken button.
-    const inIntro = t >= intro.start && t < intro.end - 1 && !video.paused;
-    skipIntroBtn.classList.toggle("hidden", !inIntro);
+    if (!activeIntro() && !autoRecap) return;
+    const seg = video.paused ? null : skippableNow();
+    if (seg && seg.kind !== skipLabel) {
+      skipLabel = seg.kind;
+      skipIntroBtn.innerHTML = `<span>Skip ${seg.kind}</span> ⏭`;
+    }
+    skipIntroBtn.classList.toggle("hidden", !seg);
   };
 
   // ---------- video events ----------

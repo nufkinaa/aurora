@@ -37,6 +37,15 @@ export const watchlistButton = (item) => {
 };
 
 export const heroBlock = (item, actions, metaParts, { rateKey = null, serverInfo = null } = {}) => {
+  const hero = heroNode(item, actions, metaParts, { rateKey, serverInfo });
+  // the two pictures ride on the hero itself (custom properties inherit), so
+  // the backdrop layer AND the phone's cover block can both draw from them
+  hero.style.setProperty("--hero-art", item.backdrop ? `url("${artUrl(item.backdrop, heroArtWidth())}")` : "none");
+  hero.style.setProperty("--hero-poster", item.cover ? `url("${artUrl(item.cover, Math.min(600, heroArtWidth()))}")` : "none");
+  return hero;
+};
+
+const heroNode = (item, actions, metaParts, { rateKey = null, serverInfo = null } = {}) => {
   return el("div", { class: "detail-hero" },
     (item.backdrop || item.cover) && backdropLayer(item),
     el("div", { class: "hero-fade" }),
@@ -44,6 +53,12 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null, serverInfo
       ? posterImg(item.cover, item.title, "detail-poster", "detail-poster card-fallback", { w: 300 })
       : el("div", { class: "detail-poster card-fallback" }, item.title),
     el("div", { class: "detail-info" },
+      // The head — kicker, title, the meta line. On wide screens the wrapper
+      // is `display: contents` (nothing changes); on a phone it IS the cover:
+      // the poster fills it and these three sit on its lower part, so
+      // everything above Play is on the picture and Play comes right under
+      // it (elia's report from the iPhone).
+      el("div", { class: "detail-head" },
       el("div", { class: "hero-kicker" }, item.type === "show" ? "Series" : "Film"),
       el("h1", { class: "detail-title" }, item.title),
       el("div", { class: "detail-meta" },
@@ -63,6 +78,7 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null, serverInfo
         // separate badge that used to follow printed it twice
         formatRow(item, { max: 6 }),
       ),
+      ), // .detail-head
       item.genres && item.genres.length > 0 &&
         el("div", { class: "genre-chips" },
           item.genres.map((g) => el("span", { class: "chip static" }, g))
@@ -91,12 +107,7 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null, serverInfo
 // Sized for the screen: a 1920px catalogue backdrop is a megabyte a phone
 // never needed (the server resizes, imgvariant.js). setProperty, not the
 // style object — custom properties can't be assigned as properties.
-const backdropLayer = (item) => {
-  const node = el("div", { class: `hero-backdrop ${item.backdrop ? "sharp" : ""}` });
-  node.style.setProperty("--hero-art", item.backdrop ? `url("${artUrl(item.backdrop, heroArtWidth())}")` : "none");
-  node.style.setProperty("--hero-poster", item.cover ? `url("${artUrl(item.cover, Math.min(600, heroArtWidth()))}")` : "none");
-  return node;
-};
+const backdropLayer = (item) => el("div", { class: `hero-backdrop ${item.backdrop ? "sharp" : ""}` });
 
 // The phone draws the secondary actions as icon tiles with a word under
 // each; an icon-only button (download to device, mark watched) carries its

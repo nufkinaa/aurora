@@ -109,6 +109,10 @@ export const api = {
   // pages themselves — one request, shared (a failure lets the next ask retry).
   changelog: () => changelogP || (changelogP = json("/api/changelog").catch((e) => { changelogP = null; throw e; })),
   introAuto: (id) => json(`/api/intro/auto/${encodeURIComponent(id)}`),
+  // intro / recap / credits for a STREAMED episode, by identity (the public
+  // databases — a stream has no file to analyse)
+  segments: ({ imdbId, season, episode, duration }) =>
+    json(`/api/segments?imdbId=${encodeURIComponent(imdbId)}${season ? `&season=${season}` : ""}${episode ? `&episode=${episode}` : ""}${duration ? `&duration=${Math.round(duration)}` : ""}`),
   party: (code) => json(`/api/party/${encodeURIComponent(code)}`),
   offlinePrepare: (id) => post(`/api/offline/prepare/${encodeURIComponent(id)}`, {}),
   offlineStatus: (id) => json(`/api/offline/status/${encodeURIComponent(id)}`),

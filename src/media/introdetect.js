@@ -17,6 +17,12 @@
 // Runs in the background after enrichment, one episode at a time, cached per
 // file (id + mtime) in data/intro-auto.json. A manual mark (lib/introstore)
 // always beats an automatic one in the player.
+//
+// What the file can't answer, the public databases may (skipsegments.js): an
+// episode with no detected intro or credits, a season of one episode, and —
+// always — recaps and previews, which repeat nowhere and so can't be found
+// by comparison. Those answers ride in the same record under `db`, and get()
+// merges them UNDER the file's own: measured-on-this-file beats crowd data.
 const fs = require("fs");
 const path = require("path");
 const { execFile, execFileSync } = require("child_process");
@@ -326,12 +332,60 @@ const pass = async () => {
   if (pruned) store.save();
   if (done) console.log(`[intro] analyzed ${done} episode(s) for intros and credits`);
 };
+// ---------- the databases' turn ----------
+// Every library episode whose show has an IMDb id gets one lookup (cached on
+// disk by skipsegments; re-asked after a week when it came back empty), a
+// bounded number per pass so a big library fills in over a few passes
+// instead of a thousand requests at once.
+const DB_PER_PASS = 150;
+const DB_RETRY_MS = 7 * 24 * 3600 * 1000;
+const fillFromDatabases = async () => {
+  const skipsegments = require("./skipsegments");
+  if (!skipsegments.enabled()) return;
+  try { require("./identity").ensureStamped(); } catch {}
+  let asked = 0;
+  let found = 0;
+  for (const show of scanner.index.shows) {
+    if (!show.imdbId) continue;
+    for (const season of show.seasons || []) {
+      for (const ep of season.episodes || []) {
+        if (asked >= DB_PER_PASS) break;
+        const entry = scanner.resolve(ep.id);
+        if (!entry) continue;
+        const rec = store.data[ep.id];
+        const mtime = mtimeOf(entry.path);
+        if (rec && rec.mtime === mtime && rec.db && Date.now() - (rec.db.at || 0) < (rec.db.source ? Infinity : DB_RETRY_MS)) continue;
+        const meta = metadata.getCached(entry.path);
+        const duration = (meta && meta.duration) || 0;
+        const seasonNo = ep.season != null ? ep.season : season.number;
+        if (!seasonNo || !ep.episode) continue;
+        asked++;
+        const res = await skipsegments.lookup({ imdbId: show.imdbId, season: seasonNo, episode: ep.episode, duration });
+        const db = { at: Date.now(), intro: res.intro, recap: res.recap, credits: res.credits, preview: res.preview, source: res.source };
+        if (res.source) found++;
+        // a season of one episode never got a record from the audio pass
+        store.data[ep.id] = rec && rec.mtime === mtime ? { ...rec, db } : { mtime, at: Date.now(), intro: null, credits: null, source: null, db };
+        if (asked % 20 === 0) store.save();
+        await new Promise((r) => setImmediate(r));
+      }
+    }
+  }
+  if (asked) {
+    store.save();
+    console.log(`[intro] asked the public databases about ${asked} episode(s), ${found} had timestamps`);
+  }
+};
+
 const run = async () => {
-  if (!config.ffmpegAvailable) return;
   if (running) { again = true; return; }
   running = true;
   try {
-    do { again = false; await pass(); } while (again);
+    do {
+      again = false;
+      // the audio pass needs ffmpeg; the databases need only the internet
+      if (config.ffmpegAvailable) await pass();
+      await fillFromDatabases();
+    } while (again);
   } catch (e) {
     console.warn("[intro] pass failed:", e && e.message ? e.message : e);
   } finally {
@@ -340,12 +394,38 @@ const run = async () => {
 };
 
 // What the player asks for: the automatic answer for one episode, or nulls.
+// The file's own detection first; the databases under it, segment by segment
+// (and recap / preview, which only they can know). `sources` says where each
+// came from, for the admin and for anyone debugging a wrong button.
 const get = (episodeId) => {
   const r = store.data[episodeId];
-  return r ? { intro: r.intro || null, credits: r.credits || null, source: r.source || null } : { intro: null, credits: null, source: null };
+  if (!r) return { intro: null, credits: null, recap: null, preview: null, source: null };
+  const db = r.db || {};
+  const intro = r.intro || db.intro || null;
+  const credits = r.credits || (db.credits ? { start: db.credits.start, end: db.credits.end || null } : null);
+  return {
+    intro,
+    credits,
+    recap: db.recap || null,
+    preview: db.preview || null,
+    source: r.intro || r.credits ? r.source || null : db.source || r.source || null,
+    sources: {
+      intro: r.intro ? r.source : db.intro ? db.source : null,
+      credits: r.credits ? r.source : db.credits ? db.source : null,
+    },
+  };
 };
 
 scanner.events.on("enriched", () => setTimeout(run, 5000));
+// Without ffmpeg there is no enrichment (and so no "enriched") — the database
+// fill still has work to do, so a scan wakes it too. Debounced: scans come in
+// bursts, and a pass with nothing new to ask is a walk over cached records.
+let scanKick = null;
+scanner.events.on("scanned", () => {
+  clearTimeout(scanKick);
+  scanKick = setTimeout(run, 30000);
+  scanKick.unref?.();
+});
 
 // For the admin's analytics: how much of the library the detector has
 // covered, and how much it found. The denominator is what the pass would
@@ -360,15 +440,18 @@ const coverage = () => {
       for (const ep of season.episodes) { episodes++; ids.add(ep.id); }
     }
   }
-  let analyzed = 0, intro = 0, credits = 0, chapters = 0;
+  let analyzed = 0, intro = 0, credits = 0, chapters = 0, fromDb = 0, recaps = 0;
   for (const [id, r] of Object.entries(store.data)) {
     if (!ids.has(id)) continue;
     analyzed++;
-    if (r.intro) intro++;
-    if (r.credits) credits++;
+    const db = r.db || {};
+    if (r.intro || db.intro) intro++;
+    if (r.credits || db.credits) credits++;
     if (r.source === "chapters") chapters++;
+    if ((!r.intro && db.intro) || (!r.credits && db.credits)) fromDb++;
+    if (db.recap) recaps++;
   }
-  return { episodes, analyzed, intro, credits, chapters };
+  return { episodes, analyzed, intro, credits, chapters, fromDb, recaps };
 };
 
 module.exports = { run, get, coverage, busy, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, INVALID, FRAME, HOP, SR } };
