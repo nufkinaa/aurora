@@ -806,6 +806,14 @@ const finish = async (job, destPath) => {
   broadcast(job);
   scanner.enrich();
   realtime.broadcastAll({ type: "library_updated" });
+  // An episode's intro / recap / credits go on file NOW, while nobody is
+  // watching yet — not on its first play, and not whenever the background
+  // fill reaches it. Fire-and-forget; the audio pass still runs after
+  // enrichment and its answer, measured on the file, wins where it has one.
+  if (job.type === "show") {
+    const libId = scanner.idForPath(destPath);
+    if (libId) require("./introdetect").fillEpisode(libId).catch(() => {});
+  }
   console.log(`[download] ${job.id.slice(0, 6)} done "${job.title}"`);
   notify.send("Aurora: download ready", `"${job.label || job.title}" is downloaded and in the library.`);
   // The file is safely in the library now, so the staging copy can go — unless a

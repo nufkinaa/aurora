@@ -376,6 +376,45 @@ const fillFromDatabases = async () => {
   }
 };
 
+// One episode, right now — called the moment a download lands in the library
+// (media/downloads.js), so its intro / recap / credits are on file before
+// anyone presses Play instead of waiting for its turn in the bounded
+// background fill. Asked once and kept: the record is only re-asked if the
+// file changes, or weekly while the databases have nothing for it. Playback
+// never triggers a request for a library episode — the player reads this
+// record (/api/intro/auto/:id).
+const fillEpisode = async (episodeId) => {
+  const skipsegments = require("./skipsegments");
+  if (!skipsegments.enabled()) return null;
+  try { require("./identity").ensureStamped(); } catch {}
+  for (const show of scanner.index.shows) {
+    for (const season of show.seasons || []) {
+      const ep = (season.episodes || []).find((e) => e.id === episodeId);
+      if (!ep) continue;
+      if (!show.imdbId) return null;
+      const entry = scanner.resolve(ep.id);
+      if (!entry) return null;
+      const meta = metadata.getCached(entry.path);
+      const seasonNo = ep.season != null ? ep.season : season.number;
+      if (!seasonNo || !ep.episode) return null;
+      const res = await skipsegments.lookup({
+        imdbId: show.imdbId,
+        season: seasonNo,
+        episode: ep.episode,
+        duration: (meta && meta.duration) || 0,
+      });
+      const db = { at: Date.now(), intro: res.intro, recap: res.recap, credits: res.credits, preview: res.preview, source: res.source };
+      const mtime = mtimeOf(entry.path);
+      const rec = store.data[ep.id];
+      store.data[ep.id] = rec && rec.mtime === mtime ? { ...rec, db } : { mtime, at: Date.now(), intro: null, credits: null, source: null, db };
+      store.save();
+      if (res.source) console.log(`[intro] ${show.title} S${seasonNo}E${ep.episode}: timestamps on file from ${res.source}`);
+      return db;
+    }
+  }
+  return null;
+};
+
 const run = async () => {
   if (running) { again = true; return; }
   running = true;
@@ -454,4 +493,4 @@ const coverage = () => {
   return { episodes, analyzed, intro, credits, chapters, fromDb, recaps };
 };
 
-module.exports = { run, get, coverage, busy, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, INVALID, FRAME, HOP, SR } };
+module.exports = { run, get, coverage, busy, fillEpisode, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, INVALID, FRAME, HOP, SR } };
