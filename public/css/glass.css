@@ -1963,3 +1963,31 @@ html[data-look="glass"] #nav-new.has-new .nav-new-dot {
      instead of wrapping their own label onto two */
   .wn-foot .btn { flex: 1 1 100%; justify-content: center; }
 }
+
+/* ---------- legible menus (2026-09-23) ----------
+   elia: "dropdown menus text should be contrasted a little bit better". The
+   glass fill is WHITE-tinted (2.5-9%) over a blur that also BRIGHTENS what's
+   behind it (brightness 1.08, saturate 1.9), so over a bright poster the
+   panel became a light surface under light-grey (--text-dim) text. A dark
+   base layer UNDER the sheen keeps the glass look and puts a floor under the
+   contrast; items read near-white, the chosen one full white. The red Sign
+   out keeps its red. */
+html[data-look="glass"] .dropdown,
+html[data-look="glass"] .menu,
+html[data-look="glass"] .nav-menu,
+html[data-look="glass"] .suggest-list {
+  background: var(--g-fill), rgba(10, 12, 22, 0.8);
+}
+html[data-look="glass"] .dropdown-item,
+html[data-look="glass"] .menu-item,
+html[data-look="glass"] .nav-menu-item:not(.danger) {
+  color: rgba(243, 244, 248, 0.9);
+}
+html[data-look="glass"] .dropdown-item.on,
+html[data-look="glass"] .menu-item.active {
+  color: #fff;
+}
+html[data-look="glass"] .menu-title,
+html[data-look="glass"] .menu-item .tag {
+  color: var(--text-dim);
+}

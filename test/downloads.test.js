@@ -186,6 +186,12 @@ test("the engine reports whether it can run at all", () => {
 test("pruneGone drops finished jobs whose file the admin deleted", () => {
   const store = downloads._internals.store;
   const before = store.data.slice();
+  // pruneGone() calls store.save(), whose debounced write would land AFTER
+  // the finally below — writing this process's stale snapshot of the LIVE
+  // data/downloads.json back to disk and clobbering whatever a running
+  // server wrote in the meantime (download progress, new jobs). No saves.
+  const realSave = store.save;
+  store.save = () => {};
   const tmp = path.join(os.tmpdir(), `aurora-dl-${Date.now()}.mkv`);
   fs.writeFileSync(tmp, "x");
   store.data = [
@@ -198,6 +204,7 @@ test("pruneGone drops finished jobs whose file the admin deleted", () => {
     assert.deepEqual(store.data.map((j) => j.id), ["keep", "moving"]);
   } finally {
     store.data = before;
+    store.save = realSave;
     fs.unlinkSync(tmp);
   }
 });

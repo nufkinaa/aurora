@@ -246,6 +246,12 @@ const pruneGone = () => {
   store.save();
   for (const j of gone) realtime.broadcastAll({ type: "download_removed", id: j.id });
 };
+// Read-only views for smart cleanup (media/smartclean.js): the finished
+// smart downloads whose files are still on disk, and every job as stored
+// (it needs `profile` and `destPath`, which publicJob deliberately hides).
+const smartOnDisk = () =>
+  store.data.filter((j) => j.smart && j.status === "done" && j.destPath && fs.existsSync(j.destPath));
+const rawJobs = () => store.data.slice();
 const listFor = (viewer) => {
   pruneGone();
   return store.data.map((j) => publicJobFor(j, viewer));
@@ -895,7 +901,7 @@ const resume = () => {
 
 module.exports = {
   list, listFor, create, approve, decline, cancel, cancelOwn, removeOwn, remove, resume, publicJob, publicJobFor, stats, markSeen, pruneGone,
-  queueHealth, liveInfoHashes, restartJob, pumpNow,
+  queueHealth, liveInfoHashes, restartJob, pumpNow, smartOnDisk, rawJobs,
   // Pure helpers, exported so test/downloads.test.js can pin the rules that
   // decide where a file lands and whether a request needs approval.
   _internals: { safeName, folderKey, chooseFolder, diskGate, destinationFor, store },

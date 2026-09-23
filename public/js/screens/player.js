@@ -1554,14 +1554,94 @@ export const renderPlayer = async (root, { id }) => {
     overlay.classList.remove("controls-hidden", "hide-cursor");
     clearTimeout(controlsTimer);
     controlsTimer = setTimeout(hideControls, CONTROLS_IDLE_MS);
+    liftCues(true);
   };
   const hideControls = () => {
     if (menuHost.childElementCount > 0) return; // keep visible while a menu is open
     if (video.paused) return;
     overlay.classList.add("controls-hidden", "hide-cursor");
     document.activeElement?.blur?.();
+    liftCues(false);
   };
   const controlsHidden = () => overlay.classList.contains("controls-hidden");
+
+  // ---------- subtitles step above the controls ----------
+  // With the dock up, a bottom-placed cue sat UNDER the scrubber and buttons
+  // (elia: "the subs should be raised when the playback panel is open so they
+  // would be visible"). While the chrome shows, every default-placed cue is
+  // re-aimed so its BOTTOM edge sits just above the dock's real top — whatever
+  // height the dock is (two rows on a phone, one on a desktop); when the
+  // chrome hides they drop back to the browser's own placement. Cues a
+  // subtitle file positioned itself (a sign translated at the top of the
+  // frame) are never touched. Native iOS fullscreen draws its own captions
+  // around its own controls, so it's left alone too.
+  let cuesLifted = false;
+  const liftedCues = new WeakSet();
+  const liftLine = () => {
+    const v = video.getBoundingClientRect();
+    const d = dockEl && dockEl.getBoundingClientRect();
+    if (!v.height || !d || !d.height) return null;
+    const bottom = Math.min(v.bottom, d.top - 12);
+    return Math.max(8, Math.min(96, ((bottom - v.top) / v.height) * 100));
+  };
+  // true when the cue actually moved
+  const placeCue = (cue, line) => {
+    if (line != null) {
+      if (!liftedCues.has(cue) && cue.line !== "auto") return false; // the file placed it — leave it
+      if (liftedCues.has(cue) && cue.line === line) return false;
+      cue.snapToLines = false;
+      cue.lineAlign = "end";
+      cue.line = line;
+      liftedCues.add(cue);
+      return true;
+    }
+    if (!liftedCues.has(cue)) return false;
+    cue.snapToLines = true;
+    cue.lineAlign = "start";
+    cue.line = "auto";
+    liftedCues.delete(cue);
+    return true;
+  };
+  // Chrome keeps drawing a cue that is ON SCREEN where it first put it, new
+  // position or not — so the very line you woke the controls to read stayed
+  // under the dock until the next one. Taking it out and putting it straight
+  // back makes the browser lay it out again, in its new place.
+  const redrawActive = (tt, moved) => {
+    if (!moved.length || !tt.activeCues) return;
+    const onScreen = new Set(Array.from(tt.activeCues));
+    for (const cue of moved) {
+      if (!onScreen.has(cue)) continue;
+      try { tt.removeCue(cue); tt.addCue(cue); } catch {}
+    }
+  };
+  const placeAllCues = () => {
+    const line = cuesLifted ? liftLine() : null;
+    for (const tt of video.textTracks) {
+      if (tt.mode !== "showing" || !tt.cues) continue;
+      const moved = Array.from(tt.cues).filter((cue) => placeCue(cue, line));
+      redrawActive(tt, moved);
+    }
+  };
+  function liftCues(on) {
+    if (on && video.webkitDisplayingFullscreen) on = false;
+    if (on === cuesLifted) return; // showControls runs on every mouse move — act on transitions only
+    cuesLifted = on;
+    placeAllCues();
+  }
+  // Cues that arrive later (a track switched on, auto-subtitles landing, a
+  // track rebuilt by the sync nudge) pick up the current placement as they
+  // become active — cheap: only the active cues are touched.
+  const onCueChange = (e) => {
+    const tt = e.target;
+    if (!cuesLifted || tt.mode !== "showing" || !tt.activeCues) return;
+    const line = liftLine();
+    redrawActive(tt, Array.from(tt.activeCues).filter((cue) => placeCue(cue, line)));
+  };
+  for (const tt of video.textTracks) tt.addEventListener("cuechange", onCueChange);
+  video.textTracks.addEventListener("addtrack", (e) => e.track && e.track.addEventListener("cuechange", onCueChange));
+  // a resize / fullscreen flip moves the dock — re-aim while lifted
+  const onLiftResize = () => cuesLifted && placeAllCues();
+  window.addEventListener("resize", onLiftResize);
 
   // While a far seek is landing, conflicting inputs are LOCKED: pressing
   // play resumed the deliberately-held old picture mid-swap, and stacking
@@ -3715,6 +3795,7 @@ export const renderPlayer = async (root, { id }) => {
     document.removeEventListener("torrent-subs", onTorrentSubs);
     if (dockRO) dockRO.disconnect();
     else window.removeEventListener("resize", paintDockH);
+    window.removeEventListener("resize", onLiftResize);
     unsubOcr();
     popScope(overlay);
   };

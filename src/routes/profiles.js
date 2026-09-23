@@ -205,6 +205,8 @@ router.delete("/api/profiles/:id", gate, (req, res) => {
   if (!profiles.remove(req.params.id)) {
     return res.status(404).json({ error: "Not found" });
   }
+  // its sign-ins go with it, rather than lingering until they expire
+  require("../lib/sessions").revokeAllFor(req.params.id);
   res.json({ ok: true });
 });
 
@@ -259,6 +261,11 @@ router.post("/api/profiles/:id/progress", gate, (req, res) => {
   require("../media/smartdl")
     .onProgress(req.params.id, itemId, position, duration, item)
     .catch((e) => console.warn("[smart] failed:", e && e.message ? e.message : e));
+  // …and the other half: a smart-downloaded episode this person has finished
+  // and moved past leaves the disk (media/smartclean.js).
+  require("../media/smartclean")
+    .onProgress(req.params.id, itemId, position, duration, item)
+    .catch((e) => console.warn("[smart] cleanup failed:", e && e.message ? e.message : e));
 });
 
 router.delete("/api/profiles/:id/progress/:itemId", gate, (req, res) => {

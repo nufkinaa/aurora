@@ -1,11 +1,11 @@
 // "More like this": per-title similar/recommended rows for the detail page.
-// Primary source: TMDB recommendations (collaborative "people also liked",
-// far better than its keyword-overlap /similar, which only tops up short
-// rows). Needs a TMDB key; without one — or when TMDB has nothing — falls
-// back to genre overlap over the cached Discover trending pool, which is
-// keyless and costs no network. Rows cache for a week: recommendations for a
-// given film barely move, and each TMDB row costs a dozen external_ids
-// lookups to attach the IMDb ids the client navigates by.
+// Primary source: the VIBE ranker (media/vibe.js) — TMDB recommendations,
+// /similar and a keyword-discover pool, re-ranked on shared keywords, genre,
+// era and quality. Needs a TMDB key; without one — or when TMDB has nothing —
+// falls back to genre overlap over the cached Discover trending pool, which
+// is keyless and costs no network. Rows cache for a week (a row costs ~30
+// TMDB calls to build), keyed by algorithm version so a better ranker
+// replaces old rows as they're next viewed.
 const path = require("path");
 const config = require("../config");
 const discover = require("./discover");
@@ -18,6 +18,9 @@ const store = new JsonStore(path.join(config.CACHE_DIR, "similar.json"), {
 });
 const ROW_TTL = 7 * 24 * 3600 * 1000;
 const MISS_TTL = 24 * 3600 * 1000; // an empty answer is retried the next day
+// The vibe build FAILED (TMDB timed out, say) and the genre fallback stood
+// in: that is a stopgap, not an answer — try again soon, not next week.
+const FAIL_TTL = 30 * 60 * 1000;
 
 const TMDB = "https://api.themoviedb.org/3";
 const tmdb = async (pathname, params = "") => {
@@ -136,39 +139,44 @@ const similarCached = (type, imdbId) => {
 // Fire-and-forget population for the recommender's anchors: fills the cache
 // in the background so the NEXT home render has rows to read. Silent on
 // failure — a missing row just means no "because you loved" candidates yet.
+// The row algorithm's version. A TMDB row built by an older algorithm is
+// stale regardless of age — it gets rebuilt the next time anyone asks.
+// v2 = the vibe ranker (media/vibe.js); every row carries the version,
+// genre fallbacks included (an old fallback used to outlive the upgrade).
+const ALGO = 4;
+const fresh = (hit) =>
+  !!hit &&
+  hit.algo === ALGO &&
+  Date.now() - hit.at < (hit.failed ? FAIL_TTL : (hit.items || []).length ? ROW_TTL : MISS_TTL);
+
 const warmSimilar = (type, imdbId, tmdbHint) => {
   // an EMPTY cached row (a failed fetch's miss entry) is truthy — length is
-  // the real question, or the 24h retry inside similar() is unreachable
-  if ((similarCached(type, imdbId) || []).length) return;
+  // the real question, or the 24h retry inside similar() is unreachable. A
+  // row from an older algorithm counts as missing too.
+  const hit = store.data.rows[`${type}|${imdbId}`];
+  if (hit && (hit.items || []).length && fresh(hit)) return;
   similar(type, imdbId, tmdbHint).catch(() => {});
 };
 
 const similar = async (type, imdbId, tmdbHint) => {
   const key = `${type}|${imdbId}`;
   const hit = store.data.rows[key];
-  if (
-    hit &&
-    Date.now() - hit.at < ((hit.items || []).length ? ROW_TTL : MISS_TTL)
-  ) {
+  if (fresh(hit)) {
     return { items: hit.items, source: hit.source };
   }
 
   let result = { items: [], source: "tmdb" };
+  let failed = false;
   if (config.TMDB_KEY) {
     try {
-      const kind = type === "series" ? "tv" : "movie";
       const tmdbId = tmdbHint || (await tmdbIdFor(imdbId, type));
       if (tmdbId) {
-        let raw = (await tmdb(`${kind}/${tmdbId}/recommendations`)).results || [];
-        if (raw.length < 6) {
-          const more = (await tmdb(`${kind}/${tmdbId}/similar`)).results || [];
-          const have = new Set(raw.map((m) => m.id));
-          raw = raw.concat(more.filter((m) => !have.has(m.id)));
-        }
-        const items = await addImdbIds(mapItems(raw, type), type);
-        result.items = items.filter((m) => m.imdbId !== imdbId).slice(0, 14);
+        result.items = (await require("./vibe").vibeRow(type, tmdbId, imdbId)).slice(0, 14);
       }
-    } catch {}
+    } catch (err) {
+      console.warn(`[similar] vibe row failed for ${key}: ${err.message}`);
+      failed = true;
+    }
   }
   // Belt: a fallback failure must degrade to an empty row, never 500 the
   // detail page it decorates.
@@ -182,6 +190,8 @@ const similar = async (type, imdbId, tmdbHint) => {
     items: result.items,
     source: result.source,
     at: Date.now(),
+    algo: ALGO,
+    ...(failed ? { failed: true } : {}),
   };
   store.save();
   return result;
@@ -275,4 +285,4 @@ const seriesShelves = async (imdbId, tmdbHint) => {
   return out;
 };
 
-module.exports = { similar, similarCached, warmSimilar, collection, _internals: { mapItems, genreFallback, tmdbIdFor } };
+module.exports = { similar, similarCached, warmSimilar, collection, _internals: { mapItems, genreFallback, tmdbIdFor, fresh, ALGO, FAIL_TTL, ROW_TTL } };

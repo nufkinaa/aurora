@@ -605,6 +605,21 @@ export const renderPreferences = async (root) => {
                 toast(e.message || "Couldn't save that", "⚠️");
               }
             }
+          ),
+          prefRow(
+            "Tidy up watched episodes",
+            "An episode smart downloads fetched for you is removed from the server once you've finished it and started a later one. Never touches anything downloaded by hand, or an episode someone else is part-way through.",
+            () => ((state.profile.prefs || {}).smartCleanup === false ? "Off" : "On"),
+            async () => {
+              const next = (state.profile.prefs || {}).smartCleanup === false;
+              state.profile.prefs = { ...(state.profile.prefs || {}), smartCleanup: next };
+              try {
+                await api.updateProfile(state.profile.id, { prefs: { smartCleanup: next } });
+              } catch (e) {
+                state.profile.prefs = { ...(state.profile.prefs || {}), smartCleanup: !next };
+                toast(e.message || "Couldn't save that", "⚠️");
+              }
+            }
           )
         )),
       section("Offline",

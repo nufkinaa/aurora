@@ -14,6 +14,20 @@ import { showReportSheet } from "../report.js";
 // the ribbon. `cue`: which small animation the glyph tile plays.
 const FEATURES = [
   {
+    since: "1.6.6", cue: "look", glyph: "🧭",
+    title: "More like this, by feel",
+    what: "The row under a title now looks for the same vibe — shared themes, tone and quality — not just whatever is popular in the genre.",
+    how: "Hover a card in the row to see why it was picked: \"Same vibe: alien contact · scientist\".",
+    go: { label: "Browse movies", to: "#/movies" },
+  },
+  {
+    since: "1.6.6", cue: "smart", glyph: "⬇",
+    title: "Smart downloads tidy up after you",
+    what: "Two-thirds into an episode, the next one downloads to the server. Once you have finished an episode it fetched and started a later one, it is removed again.",
+    how: "Never touches anything downloaded by hand, or an episode someone else is part-way through. Both switches are under Preferences → Playback.",
+    go: { label: "My downloads", to: "#/downloads" },
+  },
+  {
     since: "1.6.0", cue: "trailer", glyph: "🎬",
     title: "Trailers on the billboard",
     what: "Let a title sit on the home hero for six seconds and its trailer plays, quietly, then the billboard moves on.",
@@ -47,13 +61,6 @@ const FEATURES = [
     what: "Pick a language once and it follows your profile everywhere. A title you own that lacks it gets one fetched and switched on.",
     how: "Preferences → Subtitles → Preferred subtitle language.",
     go: { label: "Set a language", to: "#/preferences" },
-  },
-  {
-    since: "1.1.0", cue: "smart", glyph: "⬇",
-    title: "Smart downloads",
-    what: "Two-thirds into an episode, the next one starts downloading to the server so it plays from disk.",
-    how: "A toast says when it queues, with Cancel on it. Off per profile under Preferences → Playback.",
-    go: { label: "My downloads", to: "#/downloads" },
   },
   {
     since: "1.1.0", cue: "offline", glyph: "📱",

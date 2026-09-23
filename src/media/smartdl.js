@@ -116,4 +116,6 @@ const onProgress = async (profileId, itemId, position, duration, meta) => {
   console.log(`[smart] queued ${m.title} S${next.season}E${next.episode} for ${profileId} (${pick.quality}, ${pick.seeders} seeders)`);
 };
 
-module.exports = { onProgress, _internals: { nextEpisode, pickSource, episodeOf, THRESHOLD } };
+// episodeOf is shared with media/smartclean.js — one answer to "which
+// episode is this progress about?" for both halves of the feature.
+module.exports = { onProgress, episodeOf, _internals: { nextEpisode, pickSource, episodeOf, THRESHOLD } };
