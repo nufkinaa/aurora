@@ -1036,6 +1036,16 @@
             [String(it.intro), "intros detected", it.analyzed ? `${Math.round((it.intro / it.analyzed) * 100)}% of analysed · ${it.chapters} from chapter names` : ""],
             [String(it.credits), "credits detected", "Up next appears when these start"],
             [String(it.manual), "marked by hand", "manual marks win over detection"],
+            // the daily re-ask of SkipDB / TheIntroDB (lib/daily.js)
+            ...((a.daily || []).filter((d) => d.name === "skip-timestamps").map((d) => [
+              d.running ? "running" : d.lastRun ? ago(d.lastRun) : "pending",
+              "databases refreshed",
+              d.error
+                ? `last try failed: ${d.error}`
+                : d.summary && d.summary.library
+                  ? `${d.summary.library.asked} library + ${(d.summary.streamed && d.summary.streamed.asked) || 0} streamed re-asked · ${d.summary.library.changed + ((d.summary.streamed && d.summary.streamed.changed) || 0)} changed · daily`
+                  : "re-asked daily so new episodes get their timestamps",
+            ])),
           ].map(([v, k, n]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div>${n ? `<div class="note">${esc(n)}</div>` : ""}</div>`).join("")
         : `<div class="empty-note">Intro detection needs ffmpeg on the server.</div>`;
 

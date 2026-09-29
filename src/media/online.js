@@ -102,6 +102,9 @@ const fetchShowMeta = async (title) => {
     rating: data.rating?.average || null,
     certificate: null,
     year: data.premiered ? parseInt(data.premiered.slice(0, 4), 10) : null,
+    // "Running" / "In Development" / "To Be Determined" / "Ended" — decides
+    // how often refresh() looks again
+    status: data.status || null,
     posterUrl: data.image?.original || data.image?.medium || null,
   };
 };
@@ -217,10 +220,18 @@ const get = (type, title) => {
 };
 
 let running = false;
+let pending = null; // items from a scan that landed mid-pass — enriched right after
+
+const afterPass = () => {
+  const next = pending;
+  pending = null;
+  if (next) setImmediate(() => enrich(next));
+};
 
 // Fetch metadata for every item that doesn't have it yet, one at a time.
 const enrich = async (items) => {
-  if (running || !config.ONLINE_METADATA) return;
+  if (!config.ONLINE_METADATA) return;
+  if (running) { pending = items; return; }
   running = true;
   let fetched = 0;
   // Poster retries are bounded per pass: enrich() runs on every scan, so a
@@ -285,6 +296,81 @@ const enrich = async (items) => {
 
   running = false;
   if (fetched > 0) events.emit("updated", fetched);
+  afterPass();
+};
+
+// The daily round (lib/daily.js): what enrich() fetched once is looked at
+// again — a show still on the air daily (new season art, a rating that is
+// still settling, a synopsis rewritten for the new season), anything else
+// monthly. A refresh only ever improves an entry: an answer that no longer
+// matches the same title, or a failed request, leaves the entry as it was;
+// new art replaces the old only once it has actually downloaded.
+const AIRING = /running|in development|to be determined/i;
+const REFRESH_AIRING_MS = 20 * 3600 * 1000;
+const REFRESH_SETTLED_MS = 30 * 24 * 3600 * 1000;
+const REFRESH_PER_DAY = 400;
+const FIELDS = ["genres", "synopsis", "rating", "year", "status"];
+
+const refreshDue = (item, entry, now = Date.now()) => {
+  if (!entry || entry.failed) return false; // enrich() owns the retries of failures
+  const last = entry.checkedAt || entry.fetchedAt || 0;
+  const airing = item.type === "show" && (entry.status == null || AIRING.test(entry.status));
+  return now - last >= (airing ? REFRESH_AIRING_MS : REFRESH_SETTLED_MS);
+};
+
+const refresh = async (items) => {
+  if (!config.ONLINE_METADATA) return "off (onlineMetadata: false)";
+  // enrich() may be mid-pass after a scan; take turns, never both at once
+  for (let waited = 0; running && waited < 20 * 60 * 1000; waited += 5000) await sleep(5000);
+  if (running) throw new Error("metadata fetch still busy");
+  running = true;
+  let asked = 0, changed = 0;
+  try {
+    const now = Date.now();
+    const due = items
+      .map((item) => ({ item, key: keyFor(item.type, item.title) }))
+      .filter(({ item, key }) => refreshDue(item, store.data[key], now))
+      .sort((a, b) => (store.data[a.key].checkedAt || store.data[a.key].fetchedAt || 0) - (store.data[b.key].checkedAt || store.data[b.key].fetchedAt || 0))
+      .slice(0, REFRESH_PER_DAY);
+    for (const { item, key } of due) {
+      const old = store.data[key];
+      asked++;
+      let meta = null;
+      try {
+        meta = item.type === "show" ? await fetchShowMeta(item.title) : await fetchMovieMeta(item.title, item.year);
+      } catch {}
+      const cur = store.data[key];
+      cur.checkedAt = Date.now();
+      if (meta && (!old.matchedTitle || normalize(meta.matchedTitle || "") === normalize(old.matchedTitle))) {
+        let diff = false;
+        for (const f of FIELDS) {
+          const v = meta[f];
+          if (v == null || (Array.isArray(v) && !v.length) || v === "") continue; // never trade a value for nothing
+          if (JSON.stringify(cur[f]) !== JSON.stringify(v)) { cur[f] = v; diff = true; }
+        }
+        if (meta.posterUrl) {
+          const name = crypto.createHash("md5").update(meta.posterUrl).digest("hex") + ".jpg";
+          if (name !== cur.poster) {
+            const poster = await cachePoster(meta.posterUrl);
+            if (poster) {
+              cur.poster = poster;
+              delete cur.posterUrl;
+              delete cur.posterFailedAt;
+              diff = true;
+            }
+          }
+        }
+        if (diff) { cur.fetchedAt = Date.now(); changed++; }
+      }
+      store.save();
+      await sleep(900); // same pace as enrich()
+    }
+  } finally {
+    running = false;
+    afterPass();
+  }
+  if (changed > 0) events.emit("updated", changed);
+  return { asked, changed };
 };
 
 const posterFile = (name) => {
@@ -292,4 +378,4 @@ const posterFile = (name) => {
   return fs.existsSync(file) ? file : null;
 };
 
-module.exports = { get, enrich, posterFile, events };
+module.exports = { get, enrich, refresh, posterFile, events, _internals: { refreshDue } };

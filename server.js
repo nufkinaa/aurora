@@ -293,6 +293,16 @@ require("./src/media/librarywarm");
 // Intros and credits, detected from the files themselves (chapters, then
 // audio that repeats across a season) — the skip button and Up Next timing.
 require("./src/media/introdetect");
+// The daily round: what came from the outside world is asked again so it
+// stays current — skip intro / recap / credits (Up next) timestamps for the
+// library and for recently streamed episodes, and library metadata + art.
+// (Episode lists and catalogue rows already expire on their own, 6–24h.)
+{
+  const daily = require("./src/lib/daily");
+  daily.register("skip-timestamps", () => require("./src/media/introdetect").refreshFromDatabases());
+  daily.register("library-metadata", () => online.refresh(scanner.allItems()));
+  daily.start();
+}
 require("./src/lib/watchdog").start();
 require("./src/lib/healer").start();
 online.events.on("updated", () => {

@@ -49,16 +49,17 @@ router.get("/api/intro/auto/:id", (req, res) => {
 // episode has nothing to fingerprint, so its Skip intro / Skip recap and its
 // credits-timed Up next come from the public databases (skipsegments.js),
 // asked by identity. Cached on disk; a cold answer takes a second or two.
+// Being played here is what enrols the episode in the daily refresh.
 router.get("/api/segments", async (req, res) => {
   const imdbId = String(req.query.imdbId || "");
   if (!/^tt\d{4,12}$/.test(imdbId)) return res.status(400).json({ error: "imdbId required" });
   try {
-    const r = await require("../media/skipsegments").lookup({
+    const { failed, ...r } = await require("../media/skipsegments").lookup({
       imdbId,
       season: parseInt(req.query.season, 10) || null,
       episode: parseInt(req.query.episode, 10) || null,
       duration: Math.max(0, parseFloat(req.query.duration) || 0),
-    });
+    }, { played: true });
     res.json(r);
   } catch {
     res.json({ intro: null, recap: null, credits: null, preview: null, source: null });

@@ -51,6 +51,22 @@ test("plausibility: intros live early and are short, credits live late", () => {
   assert.equal(s.plausible("recap", { start: 0, end: 75 }, 2700), true);
 });
 
+test("a re-ask one database missed keeps what it said last time", () => {
+  const old = { intro: { start: 60, end: 90 }, recap: { start: 0, end: 40 }, credits: null, preview: null, source: "theintrodb" };
+  const fresh = { intro: { start: 61, end: 91 }, recap: null, credits: { start: 2600, end: null }, preview: null, source: "skipdb" };
+  const out = s.keepKnown(fresh, old);
+  assert.deepEqual(out.intro, { start: 61, end: 91 }, "the new answer wins where it has one");
+  assert.deepEqual(out.recap, { start: 0, end: 40 }, "the missed recap is kept");
+  assert.deepEqual(out.credits, { start: 2600, end: null });
+  assert.equal(out.source, "skipdb+theintrodb");
+  assert.deepEqual(s.keepKnown(fresh, undefined), fresh, "nothing old, nothing to keep");
+});
+
+test("an answer is fresh for less than a day, so the daily round always re-asks it", () => {
+  assert.ok(s.FRESH_MS < 24 * 3600 * 1000);
+  assert.ok(s.FRESH_MS >= 12 * 3600 * 1000, "but not so short that every play re-asks");
+});
+
 test("cache keys separate cuts of different length, not jitter of a few seconds", () => {
   assert.equal(s.keyFor("tt1", 1, 2, 2700), s.keyFor("tt1", 1, 2, 2705));
   assert.notEqual(s.keyFor("tt1", 1, 2, 2700), s.keyFor("tt1", 1, 2, 2790));

@@ -333,54 +333,112 @@ const pass = async () => {
   if (done) console.log(`[intro] analyzed ${done} episode(s) for intros and credits`);
 };
 // ---------- the databases' turn ----------
-// Every library episode whose show has an IMDb id gets one lookup (cached on
-// disk by skipsegments; re-asked after a week when it came back empty), a
-// bounded number per pass so a big library fills in over a few passes
-// instead of a thousand requests at once.
+// Two cadences:
+//   * after every scan, episodes the databases have NEVER been asked about
+//     (a new show, a new download, a changed file) — bounded per pass so a
+//     big new library fills in over a few passes, not a thousand requests
+//     at once;
+//   * once a day (refreshFromDatabases, run by lib/daily.js), EVERY library
+//     episode whose answer is over a day old is asked again — empty answers
+//     first, since a brand-new episode usually has no timestamps on air day
+//     and gains them over the following days. That is what keeps Skip intro,
+//     Skip recap and the credits-timed Up next current.
+// A re-ask that reaches neither database keeps the answer already on file.
 const DB_PER_PASS = 150;
-const DB_RETRY_MS = 7 * 24 * 3600 * 1000;
+const DB_FRESH_MS = 20 * 3600 * 1000; // under a day, so the daily round always finds yesterday's answers due
+
+const dbRecord = (res) => ({ at: Date.now(), intro: res.intro, recap: res.recap, credits: res.credits, preview: res.preview, source: res.source });
+
+// Every library episode that can be asked about, with what's on file for it.
+const askable = () => {
+  const out = [];
+  for (const show of scanner.index.shows) {
+    if (!show.imdbId) continue;
+    for (const season of show.seasons || []) {
+      for (const ep of season.episodes || []) {
+        const entry = scanner.resolve(ep.id);
+        if (!entry) continue;
+        const seasonNo = ep.season != null ? ep.season : season.number;
+        if (!seasonNo || !ep.episode) continue;
+        const mtime = mtimeOf(entry.path);
+        const rec = store.data[ep.id];
+        const known = rec && rec.mtime === mtime ? rec : null; // a changed file starts over
+        out.push({ show, ep, entry, seasonNo, mtime, known });
+      }
+    }
+  }
+  return out;
+};
+
+const askOne = async (skipsegments, { show, ep, entry, seasonNo, mtime }, force) => {
+  const meta = metadata.getCached(entry.path);
+  const duration = (meta && meta.duration) || 0;
+  const res = await skipsegments.lookup({ imdbId: show.imdbId, season: seasonNo, episode: ep.episode, duration }, { force });
+  // re-read: the audio pass may have written this record meanwhile
+  const rec = store.data[ep.id];
+  const known = rec && rec.mtime === mtime ? rec : null;
+  if (res.failed) return { reached: false, known };
+  const db = dbRecord(res);
+  const before = known && known.db ? JSON.stringify({ ...known.db, at: 0 }) : null;
+  // a season of one episode never got a record from the audio pass
+  store.data[ep.id] = known ? { ...known, db } : { mtime, at: Date.now(), intro: null, credits: null, source: null, db };
+  return { reached: true, found: !!res.source, changed: before !== JSON.stringify({ ...db, at: 0 }) };
+};
+
 const fillFromDatabases = async () => {
   const skipsegments = require("./skipsegments");
   if (!skipsegments.enabled()) return;
   try { require("./identity").ensureStamped(); } catch {}
   let asked = 0;
   let found = 0;
-  for (const show of scanner.index.shows) {
-    if (!show.imdbId) continue;
-    for (const season of show.seasons || []) {
-      for (const ep of season.episodes || []) {
-        if (asked >= DB_PER_PASS) break;
-        const entry = scanner.resolve(ep.id);
-        if (!entry) continue;
-        const rec = store.data[ep.id];
-        const mtime = mtimeOf(entry.path);
-        if (rec && rec.mtime === mtime && rec.db && Date.now() - (rec.db.at || 0) < (rec.db.source ? Infinity : DB_RETRY_MS)) continue;
-        const meta = metadata.getCached(entry.path);
-        const duration = (meta && meta.duration) || 0;
-        const seasonNo = ep.season != null ? ep.season : season.number;
-        if (!seasonNo || !ep.episode) continue;
-        asked++;
-        const res = await skipsegments.lookup({ imdbId: show.imdbId, season: seasonNo, episode: ep.episode, duration });
-        const db = { at: Date.now(), intro: res.intro, recap: res.recap, credits: res.credits, preview: res.preview, source: res.source };
-        if (res.source) found++;
-        // a season of one episode never got a record from the audio pass
-        store.data[ep.id] = rec && rec.mtime === mtime ? { ...rec, db } : { mtime, at: Date.now(), intro: null, credits: null, source: null, db };
-        if (asked % 20 === 0) store.save();
-        await new Promise((r) => setImmediate(r));
-      }
-    }
+  for (const t of askable()) {
+    if (asked >= DB_PER_PASS) break;
+    if (t.known && t.known.db) continue; // on file — the daily round keeps it current
+    asked++;
+    const r = await askOne(skipsegments, t, false);
+    if (r.found) found++;
+    if (asked % 20 === 0) store.save();
+    await new Promise((r) => setImmediate(r));
   }
   if (asked) {
     store.save();
-    console.log(`[intro] asked the public databases about ${asked} episode(s), ${found} had timestamps`);
+    console.log(`[intro] asked the public databases about ${asked} new episode(s), ${found} had timestamps`);
   }
+};
+
+const refreshFromDatabases = async () => {
+  const skipsegments = require("./skipsegments");
+  if (!skipsegments.enabled()) return "off (skipDatabases: false)";
+  try { require("./identity").ensureStamped(); } catch {}
+  const now = Date.now();
+  const noAnswer = (t) => !(t.known && t.known.db && t.known.db.source);
+  const due = askable()
+    .filter((t) => !(t.known && t.known.db) || now - (t.known.db.at || 0) >= DB_FRESH_MS)
+    .sort((x, y) => (noAnswer(y) - noAnswer(x)) || ((x.known && x.known.db && x.known.db.at) || 0) - ((y.known && y.known.db && y.known.db.at) || 0));
+  let asked = 0, found = 0, changed = 0, unreached = 0;
+  for (const t of due) {
+    const r = await askOne(skipsegments, t, true);
+    asked++;
+    if (!r.reached) {
+      // both databases down: stop rather than walk the whole library
+      // failing — tomorrow's round (or the hourly retry) picks it up
+      if (++unreached >= 10 && unreached === asked) throw new Error("the skip databases are unreachable");
+      continue;
+    }
+    if (r.found) found++;
+    if (r.changed) changed++;
+    if (asked % 20 === 0) store.save();
+    await new Promise((r) => setImmediate(r));
+  }
+  store.save();
+  const streamed = await skipsegments.refreshRecent();
+  return { library: { asked, withTimestamps: found, changed, unreached }, streamed };
 };
 
 // One episode, right now — called the moment a download lands in the library
 // (media/downloads.js), so its intro / recap / credits are on file before
 // anyone presses Play instead of waiting for its turn in the bounded
-// background fill. Asked once and kept: the record is only re-asked if the
-// file changes, or weekly while the databases have nothing for it. Playback
+// background fill. From then on the daily round keeps it current. Playback
 // never triggers a request for a library episode — the player reads this
 // record (/api/intro/auto/:id).
 const fillEpisode = async (episodeId) => {
@@ -403,9 +461,10 @@ const fillEpisode = async (episodeId) => {
         episode: ep.episode,
         duration: (meta && meta.duration) || 0,
       });
-      const db = { at: Date.now(), intro: res.intro, recap: res.recap, credits: res.credits, preview: res.preview, source: res.source };
       const mtime = mtimeOf(entry.path);
       const rec = store.data[ep.id];
+      if (res.failed) return null; // unreachable: the next scan's fill asks again
+      const db = dbRecord(res);
       store.data[ep.id] = rec && rec.mtime === mtime ? { ...rec, db } : { mtime, at: Date.now(), intro: null, credits: null, source: null, db };
       store.save();
       if (res.source) console.log(`[intro] ${show.title} S${seasonNo}E${ep.episode}: timestamps on file from ${res.source}`);
@@ -493,4 +552,4 @@ const coverage = () => {
   return { episodes, analyzed, intro, credits, chapters, fromDb, recaps };
 };
 
-module.exports = { run, get, coverage, busy, fillEpisode, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, INVALID, FRAME, HOP, SR } };
+module.exports = { run, get, coverage, busy, fillEpisode, refreshFromDatabases, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, INVALID, FRAME, HOP, SR } };

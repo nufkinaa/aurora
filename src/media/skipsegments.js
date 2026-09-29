@@ -22,19 +22,26 @@
 // duration to compare) is dropped rather than shown as a button that skips
 // to the wrong place. Everything is sanity-bounded against the runtime.
 //
+// Kept current: an answer is fresh for a day. After that it is still served
+// at once (a stale Skip intro beats a two-second wait) while it is re-asked
+// in the background, and the daily round (lib/daily.js → refreshRecent)
+// re-asks every streamed episode someone played in the last month, so an
+// intro submitted for last night's episode shows up by tomorrow. A re-ask
+// that fails, or that one database didn't answer, never erases what was
+// already known.
+//
 // Polite by construction: one request at a time per host with a gap between
-// them, answers cached on disk (found: 30 days, nothing: 3 days), failures
-// remembered for an hour. Only a show's IMDb id, season, episode and runtime
-// ever leave the server. `"skipDatabases": false` in config.json turns the
-// whole thing off.
+// them, answers cached on disk, failures remembered for an hour. Only a
+// show's IMDb id, season, episode and runtime ever leave the server.
+// `"skipDatabases": false` in config.json turns the whole thing off.
 const path = require("path");
 const config = require("../config");
 const { JsonStore } = require("../lib/jsonstore");
 
 const SKIPDB = "https://api.skipdb.tv/api/segments";
 const TIDB = "https://api.theintrodb.org/v3/media";
-const FOUND_TTL = 30 * 24 * 3600 * 1000;
-const EMPTY_TTL = 3 * 24 * 3600 * 1000;
+const FRESH_MS = 20 * 3600 * 1000; // under a day, so the daily round always finds yesterday's answers due
+const RECENT_MS = 30 * 24 * 3600 * 1000; // a streamed episode played this recently is kept current
 const FAIL_TTL = 60 * 60 * 1000;
 const GAP_MS = 700; // per host: well under SkipDB's 120/min
 const TIMEOUT_MS = 7000;
@@ -164,33 +171,44 @@ const keyFor = (imdbId, season, episode, duration) =>
 
 const isEmpty = (r) => !r || !(r.intro || r.recap || r.credits || r.preview);
 
+const TYPES = ["intro", "recap", "credits", "preview"];
+
+// A re-ask where a database didn't answer must not forget what it said last
+// time: each segment the new answer lacks is kept from the old one. (When
+// both answered, the new answer stands as-is — a segment they withdrew is
+// gone for a reason.)
+const keepKnown = (fresh, old) => {
+  if (!old) return fresh;
+  const out = { ...fresh };
+  const used = new Set(String(fresh.source || "").split("+").filter(Boolean));
+  for (const t of TYPES) {
+    if (!out[t] && old[t]) {
+      out[t] = old[t];
+      for (const s of String(old.source || "").split("+").filter(Boolean)) used.add(s);
+    }
+  }
+  out.source = used.size ? [...used].join("+") : null;
+  return out;
+};
+
 const prune = () => {
   const keys = Object.keys(store.data);
   if (keys.length <= MAX_ENTRIES) return;
-  keys.sort((x, y) => (store.data[x].at || 0) - (store.data[y].at || 0));
+  const last = (k) => Math.max(store.data[k].at || 0, store.data[k].used || 0);
+  keys.sort((x, y) => last(x) - last(y));
   for (const k of keys.slice(0, keys.length - MAX_ENTRIES + 200)) delete store.data[k];
 };
 
-// What's cached for this episode, without touching the network.
+// What's cached for this episode, fresh or not, without touching the network.
 const cached = ({ imdbId, season, episode, duration }) => {
-  const hit = store.data[keyFor(imdbId, season, episode, duration)];
-  if (!hit) return undefined;
-  const ttl = isEmpty(hit.res) ? EMPTY_TTL : FOUND_TTL;
-  return Date.now() - hit.at < ttl ? hit.res : undefined;
+  const hit = store.data[keyFor(imdbId, season, episode, Math.max(0, Math.round(Number(duration) || 0)))];
+  return hit ? hit.res : undefined;
 };
 
-// The answer for one episode (or film, with no season/episode): cached, or
-// asked of both databases now. Never throws; nothing found is an answer too.
-const lookup = async ({ imdbId, season = null, episode = null, duration = 0 }) => {
-  const empty = { intro: null, recap: null, credits: null, preview: null, source: null };
-  if (!enabled() || !/^tt\d{4,12}$/.test(String(imdbId || ""))) return empty;
-  duration = Math.max(0, Math.round(Number(duration) || 0));
-  const key = keyFor(imdbId, season, episode, duration);
-  const have = cached({ imdbId, season, episode, duration });
-  if (have !== undefined) return have;
-  if (Date.now() - (failures.get(key) || 0) < FAIL_TTL) return empty;
+// Ask both databases now. Resolves to the merged answer, or null when
+// neither could be reached (the caller keeps whatever it had).
+const ask = (key, { imdbId, season, episode, duration }) => {
   if (inflight.has(key)) return inflight.get(key);
-
   const qs = (extra) => {
     const p = new URLSearchParams({ imdb_id: imdbId });
     if (season && episode) { p.set("season", String(season)); p.set("episode", String(episode)); }
@@ -204,14 +222,16 @@ const lookup = async ({ imdbId, season = null, episode = null, duration = 0 }) =
     ]);
     if (a.status === "rejected" && b.status === "rejected") {
       failures.set(key, Date.now());
-      return empty;
+      return null;
     }
-    const res = merge(
+    let res = merge(
       a.status === "fulfilled" ? fromSkipDb(a.value) : {},
       b.status === "fulfilled" ? fromTidb(b.value) : {},
       duration,
     );
-    store.data[key] = { at: Date.now(), res };
+    const prev = store.data[key];
+    if (a.status === "rejected" || b.status === "rejected") res = keepKnown(res, prev && prev.res);
+    store.data[key] = { ...(prev || {}), at: Date.now(), res };
     prune();
     store.save();
     return res;
@@ -220,4 +240,58 @@ const lookup = async ({ imdbId, season = null, episode = null, duration = 0 }) =
   return p;
 };
 
-module.exports = { lookup, cached, enabled, _internals: { merge, plausible, fromSkipDb, fromTidb, keyFor } };
+// The answer for one episode (or film, with no season/episode). Never throws;
+// nothing found is an answer too.
+//   * fresh cache (under a day) → served as-is;
+//   * stale cache → served at once, re-asked in the background;
+//   * nothing cached → asked now.
+// `force` (the refresh rounds) always asks, and waits for the answer.
+// `failed: true` on the result means nobody could be reached and nothing was
+// known — callers holding an older answer should keep it.
+const lookup = async ({ imdbId, season = null, episode = null, duration = 0 }, { force = false, played = false } = {}) => {
+  const empty = { intro: null, recap: null, credits: null, preview: null, source: null };
+  if (!enabled() || !/^tt\d{4,12}$/.test(String(imdbId || ""))) return empty;
+  duration = Math.max(0, Math.round(Number(duration) || 0));
+  const q = { imdbId, season, episode, duration };
+  const key = keyFor(imdbId, season, episode, duration);
+  const hit = store.data[key];
+  if (hit && played) { hit.used = Date.now(); store.save(); }
+  const recentlyFailed = Date.now() - (failures.get(key) || 0) < FAIL_TTL;
+  if (hit && !force) {
+    if (Date.now() - hit.at >= FRESH_MS && !recentlyFailed) ask(key, q).catch(() => {});
+    return hit.res;
+  }
+  if (recentlyFailed && !force) return { ...empty, failed: true };
+  const res = await ask(key, q).catch(() => null);
+  if (res && played && store.data[key] && !store.data[key].used) store.data[key].used = Date.now();
+  if (res) return res;
+  return { ...(hit ? hit.res : empty), failed: true };
+};
+
+// The daily round for STREAMED episodes: every cached answer someone played
+// in the last month and that is over a day old is asked again. (Library
+// episodes are refreshed by introdetect, which owns their records.) Empty
+// answers go first — they are the ones most likely to have changed.
+const refreshRecent = async ({ limit = 600 } = {}) => {
+  if (!enabled()) return { asked: 0, changed: 0 };
+  const now = Date.now();
+  const due = Object.entries(store.data)
+    .filter(([, v]) => v.used && now - v.used < RECENT_MS && now - (v.at || 0) >= FRESH_MS)
+    .sort(([, x], [, y]) => (isEmpty(y.res) - isEmpty(x.res)) || (x.at || 0) - (y.at || 0))
+    .slice(0, limit);
+  let asked = 0;
+  let changed = 0;
+  for (const [key, v] of due) {
+    const [imdbId, s, e, bucket] = key.split(":");
+    // the key keeps the runtime only to the nearest 20s — close enough for
+    // the databases' own duration matching
+    const q = { imdbId, season: Number(s) || null, episode: Number(e) || null, duration: Number(bucket) * 20 };
+    const before = JSON.stringify(v.res);
+    const res = await ask(key, q).catch(() => null);
+    asked++;
+    if (res && JSON.stringify(res) !== before) changed++;
+  }
+  return { asked, changed };
+};
+
+module.exports = { lookup, cached, enabled, refreshRecent, _internals: { merge, plausible, fromSkipDb, fromTidb, keyFor, keepKnown, FRESH_MS } };

@@ -303,6 +303,8 @@ router.get("/api/admin/analytics", (req, res) => {
   } catch {
     out.intros = null;
   }
+  // When each daily refresh last ran and what it changed.
+  try { out.daily = require("../lib/daily").status(); } catch { out.daily = null; }
   res.json(out);
 });
 

@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.7 — 2026-09-28
+
+- Skip intro, Skip recap and the credits-timed Up next stay current. Every day the server asks SkipDB and TheIntroDB again about every episode in the library, and about every streamed episode someone played in the last month — episodes with no timestamps yet go first, so a new show or last night's episode picks up its Skip intro as soon as someone submits it, instead of waiting a week (empty answers) or never (answers already on file). New downloads and new shows are still asked the moment they land. A streamed episode whose answer is over a day old plays with that answer at once while a fresh one is fetched behind it. A re-ask that can't reach the databases, or that only one of them answered, never erases what was already known.
+- Library details stay current too: a show still on the air has its rating, synopsis, genres and poster re-checked daily, everything else monthly. A refresh only ever improves an entry — an answer for a different title or a failed request leaves it as it was, and new art replaces the old only once it has downloaded.
+- Admin → Analytics → Skip intro shows when the databases were last refreshed and how much changed.
+
 ## 1.6.6 — 2026-09-23
 
 - More like this, rebuilt around the feel of a title. The row used to be TMDB's own "recommended" list, which leans on whatever is popular (Interstellar got Avengers: Endgame and Guardians of the Galaxy). Now Aurora gathers a wider neighbourhood — recommendations, similar titles, and films sharing the source's themes — and ranks it on shared themes weighted by how telling they are ("wormhole" says more than "space"), tone (a comedy or an action spectacle under a quiet drama loses; so does grounded politics under a sci-fi dystopia), the genre, the quality with small-sample ratings discounted, the era and the language. Cartoons never land under live action, documentaries never under fiction, kids' TV only under kids' TV; the title's own franchise stays on its own shelf and any other franchise gets one spot. Hover a card to see why it is there ("Same vibe: alien contact · scientist"). On a hand-judged set of twelve titles, good picks in the top ten went from 29 to 54 and bad ones from 12 to 7. Rows rebuild on their own the next time a title is opened.
