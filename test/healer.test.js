@@ -43,3 +43,27 @@ test("a round is as bad as its worst check", () => {
   assert.equal(h.worst(["ok", "warn", "info"]), "warn");
   assert.equal(h.worst(["warn", "fail", "ok"]), "fail");
 });
+
+test("disk forecast: silent without history or when not filling, a time when it is", () => {
+  const H = 3600 * 1000;
+  const now = 100 * H;
+  assert.equal(h.fullIn([], 50, now), null);
+  assert.equal(h.fullIn([{ at: now - H, free: 60 }, { at: now, free: 50 }], 50, now), null, "an hour is not a trend");
+  assert.equal(h.fullIn([{ at: now - 5 * H, free: 40 }, { at: now, free: 50 }], 50, now), null, "space came back");
+  // lost 10 units in 5 hours with 50 left → 25 hours to go
+  assert.equal(h.fullIn([{ at: now - 5 * H, free: 60 }, { at: now, free: 50 }], 50, now), 25 * H);
+});
+
+test("folder sizes are bounded: a huge cache is not walked to the end", async () => {
+  const fs = require("fs");
+  const os = require("os");
+  const path = require("path");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-healer-"));
+  fs.mkdirSync(path.join(dir, "sub"));
+  fs.writeFileSync(path.join(dir, "a.bin"), Buffer.alloc(1000));
+  fs.writeFileSync(path.join(dir, "sub", "b.bin"), Buffer.alloc(500));
+  assert.equal(await h.dirSize(dir), 1500);
+  assert.ok((await h.dirSize(dir, { left: 1 })) < 1500);
+  assert.equal(await h.dirSize(path.join(dir, "missing")), 0);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

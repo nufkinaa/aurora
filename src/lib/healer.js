@@ -31,6 +31,15 @@ const PROGRESS_STALL_MS = 15 * 60 * 1000; // no progress and no speed
 const QUEUE_STUCK_MS = 5 * 60 * 1000; // approved, a slot free, still waiting
 const ERROR_WINDOW_MS = 15 * 60 * 1000;
 const STAGING_ORPHAN_AGE_MS = 60 * 60 * 1000;
+// Slow-moving things are measured every few minutes, not every round.
+const SLOW_CHECK_MS = 5 * 60 * 1000;
+const TEMP_WARN_BYTES = 20 * 1024 ** 3; // temporary files worth a look
+const TIGHT_FREE_BYTES = 10 * 1024 ** 3; // below this, temporary files are cleared eagerly
+const DATA_FILE_WARN_BYTES = 25 * 1024 ** 2; // a JSON store this big makes every save slow
+const ENCODE_SATURATED_ROUNDS = 10; // both encode slots busy this many rounds running
+const OFFLINE_JOB_STUCK_MS = 3 * 3600 * 1000;
+const DISK_TREND_MIN_MS = 3 * 3600 * 1000; // history needed before forecasting
+const DISK_FORECAST_MS = 48 * 3600 * 1000; // warn when "full" is this close
 
 const state = {
   last: null, // { at, overall, checks: [...] }
@@ -39,6 +48,9 @@ const state = {
   notified: new Map(), // check id -> { status, at }
   upstream: null, // cached result of the slow check
   upstreamAt: 0,
+  slow: {}, // id -> { at, result } for the every-few-minutes checks
+  diskTrend: new Map(), // volume key -> [{ at, free }] (hourly, in memory)
+  encodeBusyRounds: 0,
   running: false,
   timer: null,
 };
@@ -158,6 +170,7 @@ const checkDisk = async () => {
   roots.push(["staging", aria2.STAGING_ROOT]);
   const seen = new Set();
   const lines = [];
+  const forecast = [];
   let status = "ok";
   for (const [kind, dir] of roots) {
     const sp = await disk.space(dir);
@@ -172,9 +185,156 @@ const checkDisk = async () => {
     if (sp.free < 2 * 1024 ** 3) { status = "fail"; tone = " — nearly full"; }
     else if (sp.free < 10 * 1024 ** 3 || (sp.freePct != null && sp.freePct < 5)) { if (status === "ok") status = "warn"; tone = " — getting tight"; }
     lines.push(`${kind}: ${fmtBytes(sp.free)} free of ${fmtBytes(sp.total)}${tone}`);
+    // Where is it heading? One sample an hour per volume; once there are a
+    // few hours of them, a disk that is filling says when it will be full —
+    // while there is still time to delete something calmly.
+    const trend = state.diskTrend.get(String(sp.total)) || [];
+    const now = Date.now();
+    if (!trend.length || now - trend[trend.length - 1].at >= 3600 * 1000) {
+      trend.push({ at: now, free: sp.free });
+      if (trend.length > 72) trend.shift();
+      state.diskTrend.set(String(sp.total), trend);
+    }
+    const eta = fullIn(trend, sp.free, now);
+    if (eta != null && eta < DISK_FORECAST_MS) {
+      if (status === "ok") status = "warn";
+      forecast.push(`${kind}: filling — full in about ${fmtAge(eta)} at this rate`);
+    }
   }
-  return { status, summary: lines.join(" · ") || "no library folders configured", detail: null };
+  return { status, summary: lines.join(" · ") || "no library folders configured", detail: forecast.join(" · ") || null };
 };
+
+// Milliseconds until the disk is full at the rate the samples show, or null
+// when it is not filling (or there is too little history to say).
+const fullIn = (trend, freeNow, now = Date.now()) => {
+  if (!trend || trend.length < 2) return null;
+  const first = trend[0];
+  const span = now - first.at;
+  if (span < DISK_TREND_MIN_MS) return null;
+  const used = first.free - freeNow; // bytes lost over the span
+  if (used <= 0) return null;
+  return Math.round((freeNow / used) * span);
+};
+
+// The size of a folder tree, bounded: a cache with a hundred thousand small
+// files is not walked to the end every few minutes.
+const dirSize = async (dir, budget = { left: 40000 }) => {
+  let total = 0;
+  let entries;
+  try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return 0; }
+  for (const e of entries) {
+    if (budget.left-- <= 0) break;
+    const abs = path.join(dir, e.name);
+    if (e.isDirectory()) total += await dirSize(abs, budget);
+    else { try { total += (await fs.promises.stat(abs)).size; } catch {} }
+  }
+  return total;
+};
+
+// Run `fn` at most every SLOW_CHECK_MS; between runs answer with the last result.
+const slowly = async (id, fn) => {
+  const hit = state.slow[id];
+  if (hit && Date.now() - hit.at < SLOW_CHECK_MS) return hit.result;
+  const result = await fn();
+  state.slow[id] = { at: Date.now(), result };
+  return result;
+};
+
+// Temporary files: everything under data/cache is a copy of something the
+// server can make again — streams being repackaged, copies prepared for a
+// phone, resized posters. Left alone they only grow, on the same small disk
+// the library lives on. Expired phone copies are cleared every time; when
+// the disk is tight, finished streams nobody is watching go too.
+const checkTemp = () => slowly("temp", async () => {
+  const config = require("../config");
+  const disk = require("./disk");
+  const offline = require("../media/offline");
+  const remux = require("../media/remux");
+  const healed = [];
+  let freed = 0;
+  try { freed += offline.sweep() || 0; } catch {}
+  const sp = await disk.space(config.CACHE_DIR);
+  const tight = !!sp && sp.free < TIGHT_FREE_BYTES;
+  if (tight) {
+    try { freed += remux.sweepIdle() || 0; } catch {}
+  }
+  if (freed > 50 * 1024 ** 2) {
+    healed.push(`cleared ${fmtBytes(freed)} of temporary files`);
+    note("temp cleared", `${fmtBytes(freed)}${tight ? " (disk is tight)" : ""}`);
+  }
+  let names = [];
+  try { names = (await fs.promises.readdir(config.CACHE_DIR, { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name); } catch {}
+  const sizes = [];
+  for (const name of names) sizes.push([name, await dirSize(path.join(config.CACHE_DIR, name))]);
+  sizes.sort((a, b) => b[1] - a[1]);
+  const total = sizes.reduce((n, s) => n + s[1], 0);
+  const top = sizes.filter((s) => s[1] > 0).slice(0, 3).map(([n, b]) => `${n} ${fmtBytes(b)}`).join(", ");
+  let status = "ok";
+  let detail = null;
+  if (total > TEMP_WARN_BYTES || (sp && total > sp.free)) {
+    status = "warn";
+    detail = "temporary files are taking real room — the biggest folders are listed; they can be deleted with the server stopped, everything in them is rebuilt on demand";
+  }
+  return { status, summary: `${fmtBytes(total)} of temporary files${top ? ` (${top})` : ""}`, detail, healed: healed.join("; ") || null };
+});
+
+// Encoding: how many of the server's encode slots are taken (a device that
+// can't play a file, or a lighter stream for a slow line), and whether a
+// copy being prepared for a phone has been running implausibly long. Both
+// slots busy round after round means people are being refused.
+const checkEncoding = async () => {
+  const remux = require("../media/remux");
+  const offline = require("../media/offline");
+  const config = require("../config");
+  if (!config.ffmpegAvailable) return { status: "info", summary: "no ffmpeg — nothing is ever converted" };
+  const e = remux.encodeLoad();
+  const o = offline.load();
+  state.encodeBusyRounds = e.active >= e.max ? state.encodeBusyRounds + 1 : 0;
+  const bits = [`${e.active} of ${e.max} encode slots in use`];
+  if (o.running) bits.push(`preparing a phone copy (${Math.round(o.progress * 100)}%${o.queued ? `, ${o.queued} waiting` : ""})`);
+  let status = "ok";
+  const notes = [];
+  if (state.encodeBusyRounds >= ENCODE_SATURATED_ROUNDS) {
+    status = "warn";
+    notes.push(`every encode slot has been busy for ${state.encodeBusyRounds} minutes — new viewers who need one are being refused`);
+  }
+  if (o.running && o.since && Date.now() - o.since > OFFLINE_JOB_STUCK_MS && o.progress < 0.99) {
+    status = "warn";
+    notes.push(`a phone copy has been converting for ${fmtAge(Date.now() - o.since)}`);
+  }
+  return { status, summary: bits.join(" · "), detail: notes.join("; ") || null };
+};
+
+// The server's own records (profiles, watch state, downloads, sessions) are
+// JSON files rewritten whole on every save. One that no longer parses is the
+// worst thing that can happen quietly; one that has grown huge makes every
+// save slow. Looked at every few minutes; nothing is changed from here.
+const checkData = () => slowly("data", async () => {
+  const config = require("../config");
+  let files = [];
+  try { files = (await fs.promises.readdir(config.DATA_DIR)).filter((f) => f.endsWith(".json")); } catch {}
+  const broken = [];
+  const big = [];
+  let total = 0;
+  for (const f of files) {
+    const abs = path.join(config.DATA_DIR, f);
+    let size = 0;
+    try { size = (await fs.promises.stat(abs)).size; } catch { continue; }
+    total += size;
+    if (size > DATA_FILE_WARN_BYTES) big.push(`${f} ${fmtBytes(size)}`);
+    if (size > 0 && size <= 8 * 1024 ** 2) {
+      try { JSON.parse(await fs.promises.readFile(abs, "utf8")); }
+      catch {
+        // a file caught mid-write reads as broken: only believe it twice
+        await new Promise((r) => setTimeout(r, 400));
+        try { JSON.parse(await fs.promises.readFile(abs, "utf8")); } catch { broken.push(f); }
+      }
+    }
+  }
+  if (broken.length) return { status: "fail", summary: `${broken.join(", ")} can't be read`, detail: "the file is not valid JSON — restore it from a backup before the server next saves over it" };
+  if (big.length) return { status: "warn", summary: `${files.length} data files, ${fmtBytes(total)}`, detail: `large: ${big.join(", ")} — every save rewrites the whole file` };
+  return { status: "ok", summary: `${files.length} data files, ${fmtBytes(total)}, all readable` };
+});
 
 const checkAria2 = async () => {
   const aria2 = require("../media/aria2");
@@ -330,6 +490,9 @@ const CHECKS = [
   ["aria2", "Download engine", checkAria2],
   ["disk", "Disk", checkDisk],
   ["staging", "Staging", checkStaging],
+  ["temp", "Temporary files", checkTemp],
+  ["encoding", "Encoding", checkEncoding],
+  ["data", "Data files", checkData],
   ["upstream", "Upstream providers", checkUpstream],
   ["scanner", "Library scan", checkScanner],
   ["streaming", "Streaming client", checkStreaming],
@@ -397,5 +560,5 @@ module.exports = {
   start,
   run,
   status,
-  _internals: { normalizeMessage, topMessages, stallReason, worst, FINDING_STALL_MS, PROGRESS_STALL_MS, state },
+  _internals: { normalizeMessage, topMessages, stallReason, worst, fullIn, dirSize, FINDING_STALL_MS, PROGRESS_STALL_MS, state },
 };

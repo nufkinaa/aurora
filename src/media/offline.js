@@ -40,6 +40,16 @@ const QUALITIES = ["original", "1080", "720", "480"];
 // anything is made (kbit/s, video + stereo AAC). An estimate, said as one.
 const KBPS = { 1080: 4200 + 128, 720: 2100 + 128, 480: 950 + 128 };
 
+// The server's disk is small and these copies are DUPLICATES of files it
+// already holds (an "original" copy is the whole film again). A copy exists
+// for one purpose — a device fetching it — so it is kept only as long as that
+// takes: removed half a day after it was last asked for, the oldest go first
+// once the folder passes its cap, and nothing is made when the disk has no
+// room for it. Making one again later costs seconds (remux) or one encode.
+const KEEP_MS = 12 * 3600 * 1000;
+const MAX_BYTES = Math.max(1, Number(config.offlineCacheGb) || 8) * 1024 ** 3;
+const HEADROOM_BYTES = 5 * 1024 ** 3; // free space that must remain after a copy is made
+
 const jobs = new Map(); // "<id>|<quality>" -> {state, progress, error, startedAt}
 const queue = [];
 let running = null;
@@ -93,6 +103,72 @@ const originalMode = (srcPath, caps = {}) => {
 const sourceHeight = (srcPath) => {
   const m = metadata.getCached(srcPath);
   return (m && m.height) || 0;
+};
+
+// What is in the folder: [{ file, size, usedAt }], oldest use first.
+const listCopies = () => {
+  let names = [];
+  try { names = fs.readdirSync(DIR); } catch { return []; }
+  const out = [];
+  for (const name of names) {
+    const file = path.join(DIR, name);
+    try {
+      const st = fs.statSync(file);
+      if (st.isFile()) out.push({ file, name, size: st.size, usedAt: st.mtimeMs });
+    } catch {}
+  }
+  return out.sort((a, b) => a.usedAt - b.usedAt);
+};
+
+// Which copies go, given the folder's contents: pure, so it can be tested.
+// `busy(file)`: a job is writing it right now.
+const toRemove = (copies, { now = Date.now(), keepMs = KEEP_MS, maxBytes = MAX_BYTES, busy = () => false } = {}) => {
+  const gone = [];
+  let total = 0;
+  const kept = [];
+  for (const c of copies) {
+    if (busy(c.file)) { total += c.size; continue; }
+    // a .part with no job behind it is a crashed conversion; a copy nobody
+    // has asked for in half a day has done its job
+    if (c.name.endsWith(".part") || now - c.usedAt > keepMs) gone.push(c);
+    else { kept.push(c); total += c.size; }
+  }
+  for (const c of kept) { // oldest use first
+    if (total <= maxBytes) break;
+    gone.push(c);
+    total -= c.size;
+  }
+  return gone;
+};
+
+const sweep = () => {
+  const writing = new Set();
+  if (running) {
+    const [id, q] = running.split("|");
+    const e = entryFor(id);
+    if (e) { const out = outFileFor(id, e.path, q); writing.add(out); writing.add(out + ".part"); }
+  }
+  const gone = toRemove(listCopies(), { busy: (f) => writing.has(f) });
+  let freed = 0;
+  for (const c of gone) {
+    try { fs.unlinkSync(c.file); freed += c.size; } catch {} // in use on Windows: next round
+  }
+  if (freed) console.log(`[offline] cleared ${gone.length} copy(ies), ${(freed / 1e9).toFixed(2)} GB back`);
+  return freed;
+};
+
+// A copy that is being fetched stays: every request for it moves its date.
+const touchCopy = (file) => {
+  try { const now = new Date(); fs.utimesSync(file, now, now); } catch {}
+};
+
+// Is there room to make a copy of about `bytes`? (null when the disk can't be asked)
+const roomFor = (bytes) => {
+  try {
+    fs.mkdirSync(DIR, { recursive: true });
+    const s = fs.statfsSync(DIR);
+    return s.bavail * s.bsize - bytes >= HEADROOM_BYTES;
+  } catch { return null; }
 };
 
 // The choices for one title, sizes included, for the client's sheet.
@@ -165,6 +241,15 @@ const prepare = (id, quality, caps = {}) => {
   const st = status(id, q, caps);
   if (st.state === "ready" || st.state === "working" || st.state === "queued") return st;
   if (st.state === "unavailable" || st.state === "error") return st;
+  // Room first: clear what is no longer needed, then refuse rather than fill
+  // the disk the library and the downloads live on.
+  sweep();
+  const e = entryFor(id);
+  const opt = (options(id, caps).options || []).find((o) => o.quality === q);
+  const need = (opt && opt.sizeBytes) || (e ? fs.statSync(e.path).size : 0);
+  if (roomFor(need) === false) {
+    return { state: "error", quality: q, error: "the server is short on disk space — try a smaller size, or again later" };
+  }
   jobs.set(jobKey(id, q), { state: "queued", progress: 0, caps });
   queue.push({ id, q });
   pump();
@@ -258,7 +343,19 @@ const fileFor = (id, quality) => {
   const e = entryFor(id);
   if (!e) return null;
   const file = outFileFor(id, e.path, normQuality(quality));
-  return fs.existsSync(file) ? file : null;
+  if (!fs.existsSync(file)) return null;
+  touchCopy(file);
+  return file;
 };
 
-module.exports = { status, prepare, fileFor, options, QUALITIES, _internals: { isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS } };
+// hourly, and once shortly after boot (leftovers from before a restart)
+setTimeout(sweep, 60 * 1000).unref();
+setInterval(sweep, 3600 * 1000).unref();
+
+// For the healer: the conversion in progress (if any) and what is queued.
+const load = () => {
+  const j = running ? jobs.get(running) : null;
+  return { running: running || null, since: j ? j.startedAt : null, progress: j ? j.progress || 0 : 0, queued: queue.length };
+};
+
+module.exports = { status, prepare, fileFor, options, sweep, load, DIR, QUALITIES, _internals: { toRemove, KEEP_MS, isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS } };

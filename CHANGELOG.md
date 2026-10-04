@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.10 — 2026-10-04
+
+- A line that stops keeping up mid-film is handled for you: after two real stalls in three minutes (or one of eight seconds) Aurora measures the connection again, and if the line is the problem the stream steps down by itself — the file → 720p → 480p — at the same spot. A small pill at the top says "720p for your connection" with Revert on it, for whoever would rather wait for the full picture; reverting, or choosing a quality by hand, ends the automatic changes for that film. A stall on a fast line changes nothing (a smaller picture would not fix it).
+- Quality is not given up for nothing: a connection that carries the file comfortably is never capped, whatever it was classed as.
+- The server looks after itself while doing this. A lighter stream never takes the last encode slot (that one stays free for a device that cannot play its file any other way). Copies prepared for phones are temporary now — removed half a day after they were last fetched, capped at 8 GB in all (`"offlineCacheGb"` in config.json), and not made at all when the disk would be left with under 5 GB; before, every prepared copy stayed on the server forever, and an Original copy is the whole film again.
+- The healer watches more: temporary files (how much, which folders; expired phone copies are cleared every round, and finished streams nobody is watching when the disk is tight), encode slots (both busy for ten minutes means people are being refused), the server's own data files (one that no longer parses is a failure; one that has grown huge is a warning), and where the disk is heading — "full in about 30 h at this rate" while there is still time to delete something calmly.
+
 ## 1.6.9 — 2026-10-04
 
 - Slow connections are noticed and Aurora goes lighter for them. Each device times a small download from the server shortly after opening and every few minutes (and reads the browser's Data Saver and 2G signals); a slow line gets pictures at the size they are drawn instead of the screen's 2–3× density, a smaller hero backdrop, nothing loaded ahead of time and no hero trailers. One quiet message says so the first time. A fast line is unaffected.

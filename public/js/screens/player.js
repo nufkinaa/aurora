@@ -10,7 +10,7 @@ import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem
 import { showReportSheet, setPlayingContext } from "../report.js";
 import * as offline from "../offline.js";
 import { track } from "../usage.js";
-import { playCap, netTier } from "../net.js";
+import { playCap, netTier, measured, probe, dataMode } from "../net.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -674,7 +674,19 @@ export const renderPlayer = async (root, { id }) => {
   // section of the settings menu changes it mid-film. Library files only —
   // a torrent stream is already limited by its swarm, not by this line.
   const canCap = !isTorrent && !item._offline && !!item.transcodeBase;
-  let capH = canCap ? playCap() : 0;
+  // The file's own bitrate. A line that carries the file comfortably is never
+  // capped, however it was classed: the picture is not given up, and the
+  // server not asked to encode, for nothing.
+  const fileKbps = item.sizeBytes && item.duration ? (item.sizeBytes * 8) / item.duration / 1000 : null;
+  const lineCarriesFile = () => {
+    const kbps = measured().kbps;
+    return fileKbps != null && kbps != null && kbps >= fileKbps * 1.3;
+  };
+  let capH = canCap && !lineCarriesFile() ? playCap() : 0;
+  // Automatic quality (the start above, the mid-film step-down below) stops
+  // the moment the viewer picks one themselves, or reverts.
+  let autoQuality = canCap && dataMode() !== "full";
+  let bootCapped = false; // the "lighter stream" pill is shown once the overlay exists
   const transcodeUrl = (ss, v) => {
     const vv = capH ? "h264" : v || currentV;
     // Native-HLS devices (iPhone) get fMP4 segments for copy jobs — Apple
@@ -780,6 +792,7 @@ export const renderPlayer = async (root, { id }) => {
   const switchQuality = (h) => {
     if (h === capH) return closeMenu();
     if (seekLocked()) return;
+    autoQuality = false; // the viewer chose — nothing changes it behind them now
     const was = capH;
     capH = h;
     closeMenu();
@@ -953,9 +966,7 @@ export const renderPlayer = async (root, { id }) => {
         mark("decision", { why: `slow line (${netTier()}) → ${capH}p` });
         startTranscode(ss, "h264", { claimed: true });
         cappedStart = true;
-        setTimeout(() => {
-          if (!exited) toast(`Slow connection — playing a lighter ${capH}p stream. Change it under ⚙ → Quality.`, "📶");
-        }, 1200);
+        bootCapped = true;
         track("feat", { f: `quality_auto_${capH}` });
       }
     } catch {}
@@ -3471,7 +3482,89 @@ export const renderPlayer = async (root, { id }) => {
       }, 600);
     }
   });
+  // ---- a line that stops keeping up, mid-film ----
+  // Two real stalls within three minutes, or one that lasts eight seconds,
+  // and the stream steps down by itself (file → 720p → 480p) at the same
+  // spot — but only after a fresh measurement agrees the LINE is the problem
+  // (a stall on a fast line is the disk or the server, and a smaller picture
+  // would fix nothing). A small pill says what happened, with Revert on it
+  // for the viewer who would rather wait for the full picture; reverting, or
+  // choosing a quality by hand, ends the automatic changes for this film.
+  let stallAt = 0;
+  let excuseUntil = Date.now() + 15000; // start-up and seeks buffer by design
+  let longStallTimer = null;
+  let steppingDown = false;
+  const stallTimes = [];
+  let qualityPill = null;
+  const showQualityPill = (hNow, prev) => {
+    if (qualityPill) qualityPill.remove();
+    const pill = (qualityPill = el(
+      "div",
+      { class: "quality-pill" },
+      el("span", {}, `${hNow}p for your connection`),
+      el("button", {
+        class: "focusable",
+        onclick: () => {
+          pill.remove();
+          excuseUntil = Date.now() + 15000;
+          track("feat", { f: "quality_revert" });
+          switchQuality(prev);
+        },
+      }, "Revert"),
+    ));
+    overlay.append(pill);
+    setTimeout(() => pill.classList.add("hide"), 9000);
+    setTimeout(() => pill.remove(), 9600);
+  };
+  const stepDown = async () => {
+    if (!autoQuality || steppingDown || exited || capH === 480 || probing || seekLocked()) return;
+    steppingDown = true;
+    try {
+      const m = await probe();
+      if (exited || !autoQuality || !m) return;
+      // thin for what is playing now: the file itself, or the 720p stream
+      const thin = capH === 720 ? m.kbps < 2600 : fileKbps != null ? m.kbps < fileKbps * 1.3 : m.kbps < 6000;
+      if (!thin) return;
+      const prev = capH;
+      const next = prev === 720 || m.kbps < 900 ? 480 : 720;
+      capH = next;
+      stallTimes.length = 0;
+      excuseUntil = Date.now() + 15000;
+      const ok = await startTranscodeAt(effTime(), "h264");
+      if (exited) return;
+      if (!ok) {
+        // the server can't spare an encode: stay as we were, and stop asking
+        capH = prev;
+        autoQuality = false;
+        return;
+      }
+      reportMark("client_switch", { reason: "stalls", to: `h264-${next}`, position: effTime() });
+      track("feat", { f: `quality_stepdown_${next}` });
+      showQualityPill(next, prev);
+    } finally {
+      steppingDown = false;
+    }
+  };
+  video.addEventListener("seeking", () => { excuseUntil = Date.now() + 8000; });
+  video.addEventListener("waiting", () => {
+    if (!autoQuality || video.paused || Date.now() < excuseUntil) return;
+    stallAt = Date.now();
+    clearTimeout(longStallTimer);
+    longStallTimer = setTimeout(stepDown, 8000);
+  });
+  if (bootCapped) setTimeout(() => { if (!exited && capH) showQualityPill(capH, 0); }, 1200);
+
   video.addEventListener("playing", () => {
+    clearTimeout(longStallTimer);
+    if (stallAt) {
+      const now = Date.now();
+      if (now - stallAt > 1500) {
+        stallTimes.push(now);
+        while (stallTimes.length && now - stallTimes[0] > 180000) stallTimes.shift();
+        if (stallTimes.length >= 2) stepDown();
+      }
+      stallAt = 0;
+    }
     spinner.classList.add("hidden");
     clearTimeout(rebufferTimer);
     hlsRecoveries = 0; // a working stream earns a fresh recovery budget

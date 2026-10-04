@@ -48,3 +48,19 @@ test("quality names: unknown falls back to 720, and 720 keeps the old file name"
   assert.ok(path.basename(outFileFor("abc", f, "720")).match(/^abc-\d+\.mp4$/));
   assert.ok(path.basename(outFileFor("abc", f, "1080")).match(/^abc-\d+-1080\.mp4$/));
 });
+
+test("copies on the server are temporary: old ones go, the folder has a cap, a copy being written stays", () => {
+  const { toRemove } = offline._internals;
+  const now = 1_000_000_000;
+  const h = 3600 * 1000;
+  const c = (name, size, hoursAgo) => ({ file: "/c/" + name, name, size, usedAt: now - hoursAgo * h });
+  // unused for over half a day → gone; a crashed .part → gone
+  let gone = toRemove([c("old.mp4", 10, 20), c("crash.mp4.part", 5, 1), c("fresh.mp4", 10, 1)], { now, maxBytes: 1000 });
+  assert.deepEqual(gone.map((g) => g.name).sort(), ["crash.mp4.part", "old.mp4"]);
+  // over the cap → the least recently used go first, only as many as needed
+  gone = toRemove([c("a.mp4", 60, 5), c("b.mp4", 60, 3), c("c.mp4", 60, 1)], { now, maxBytes: 130 });
+  assert.deepEqual(gone.map((g) => g.name), ["a.mp4"]);
+  // the conversion in progress is never removed, whatever its age
+  gone = toRemove([c("w.mp4.part", 500, 30)], { now, maxBytes: 10, busy: (f) => f === "/c/w.mp4.part" });
+  assert.equal(gone.length, 0);
+});

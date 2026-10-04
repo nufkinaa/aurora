@@ -278,6 +278,13 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
     return Promise.reject(new Error("Server is busy transcoding other streams — try again in a moment"));
   }
 
+  // A capped job is a courtesy to a slow line, not a need: the same title
+  // plays without it. It never takes the LAST encode slot — that one stays
+  // free for a device that cannot play its file any other way.
+  if (cap && activeTranscodes() - handoff >= MAX_ACTIVE_TRANSCODES - 1) {
+    return Promise.reject(new Error("Server is busy — the lighter stream isn't available right now"));
+  }
+
   fs.mkdirSync(dir, { recursive: true });
   pruneOld(dir);
 
@@ -414,4 +421,26 @@ const filePath = (dir, file) => {
 };
 
 const liveCount = () => { let n = 0; for (const j of jobs.values()) if (j.proc) n++; return n; };
-module.exports = { ensure, touch, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, HLS_ROOT, _internals: { CAPS, capOf, isHeavy } };
+// For the healer: how many encode slots are taken, of how many.
+const encodeLoad = () => ({ active: activeTranscodes(), max: MAX_ACTIVE_TRANSCODES });
+// Finished streams nobody is watching any more, removed (the healer calls
+// this when the disk is tight; in normal times the newest few are kept so a
+// re-open is instant). Returns bytes freed, roughly.
+const sweepIdle = () => {
+  let freed = 0;
+  try {
+    for (const e of fs.readdirSync(HLS_ROOT, { withFileTypes: true })) {
+      if (!e.isDirectory()) continue;
+      const abs = path.join(HLS_ROOT, e.name);
+      const j = jobs.get(abs);
+      if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
+      try {
+        for (const f of fs.readdirSync(abs)) { try { freed += fs.statSync(path.join(abs, f)).size; } catch {} }
+        fs.rmSync(abs, { recursive: true, force: true });
+        jobs.delete(abs);
+      } catch {}
+    }
+  } catch {}
+  return freed;
+};
+module.exports = { ensure, touch, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, encodeLoad, sweepIdle, HLS_ROOT, _internals: { CAPS, capOf, isHeavy } };
