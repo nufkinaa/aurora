@@ -260,6 +260,26 @@ router.get("/img/ext", async (req, res) => {
   }
 });
 
+// The backup poster for a title, by IMDb id (media/posterfallback.js): the
+// chain of other sources a card falls back to when its own cover is missing
+// or won't load. Answers the image itself (so an <img> can point straight at
+// it); 404 when no source anywhere has one — remembered for a week.
+router.get("/img/poster/:imdbId", async (req, res) => {
+  try {
+    const name = await require("../media/posterfallback").resolve({
+      imdbId: req.params.imdbId,
+      type: req.query.type === "show" ? "show" : "movie",
+      title: req.query.t ? String(req.query.t).slice(0, 80) : "",
+      year: parseInt(req.query.y, 10) || null,
+    });
+    const file = name && require("../media/online").posterFile(name);
+    if (!file) return res.status(404).send("No poster");
+    await sendArt(res, file, req.query.w);
+  } catch {
+    if (!res.headersSent) res.status(404).send("No poster");
+  }
+});
+
 // Downloaded metadata posters (cached on disk by src/media/online.js)
 router.get("/img/meta/:name", async (req, res) => {
   const online = require("../media/online");

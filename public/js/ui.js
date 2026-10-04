@@ -114,7 +114,18 @@ export const heroArtWidth = () => Math.min(1280, window.innerWidth);
 // `eager`: the card sits in the first screenful of its row, so the browser
 // may fetch it at once instead of waiting for the lazy-load margin (which on
 // a phone is what let the third card of every row arrive late).
-export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-fallback", { w = null, eager = false } = {}) => {
+// The backup-poster URL for a title we know the IMDb id of (the server
+// resolves it through its chain of other sources — media/posterfallback.js).
+export const backupPosterUrl = (item) =>
+  item && /^tt\d+$/.test(String(item.imdbId || ""))
+    ? `/img/poster/${item.imdbId}?type=${item.type === "show" ? "show" : "movie"}` +
+      (item.title || item.showTitle ? `&t=${encodeURIComponent(String(item.showTitle || item.title).slice(0, 80))}` : "") +
+      (item.year ? `&y=${encodeURIComponent(item.year)}` : "")
+    : null;
+
+// `backup`: a second address to try (the backup poster) once the first has
+// failed twice — only then does the titled tile take over.
+export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-fallback", { w = null, eager = false, backup = null } = {}) => {
   src = artUrl(src, w);
   const img = el("img", { class: cls + " img-fade", src, loading: eager ? "eager" : "lazy", decoding: "async", alt: "" });
   // Fade in on decode instead of popping — but ONLY when the picture took a
@@ -137,6 +148,11 @@ export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-f
         if (img.isConnected)
           img.src = src + (src.includes("?") ? "&" : "?") + "r=" + Date.now();
       }, 1500);
+      return;
+    }
+    if (backup && backup !== src && !img.dataset.backup) {
+      img.dataset.backup = "1";
+      img.src = backup;
       return;
     }
     img.replaceWith(el("div", { class: fallbackCls }, title || ""));

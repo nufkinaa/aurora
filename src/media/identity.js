@@ -126,11 +126,20 @@ const ensureStamped = () => {
   const key = `${scanner.index.scannedAt}|${imdb.version()}`;
   if (key === stampKey) return titleKeys;
   const next = new Map();
+  // A title with no cover of its own (no cover file in its folder, and the
+  // by-name metadata match found no image) borrows the backup poster by its
+  // IMDb id — resolved lazily, the first time a screen asks for the picture.
+  const backupCover = (item, id, type) => {
+    if (item.cover || !id) return;
+    item.cover = require("./posterfallback").urlFor({ imdbId: id, type, title: item.title, year: item.year });
+    item.coverIsBackup = true;
+  };
   for (const m of scanner.index.movies) {
     const id = imdb.cachedIdFor(m.title, "movie", m.year);
     if (id) {
       m.imdbId = id;
       next.set(m.id, id);
+      backupCover(m, id, "movie");
     } else delete m.imdbId;
   }
   for (const show of scanner.index.shows) {
@@ -138,6 +147,7 @@ const ensureStamped = () => {
     if (id) show.imdbId = id;
     else delete show.imdbId;
     if (!id) continue;
+    backupCover(show, id, "show");
     for (const season of show.seasons || []) {
       for (const ep of season.episodes || []) {
         if (ep.season != null && ep.episode != null)

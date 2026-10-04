@@ -1,5 +1,5 @@
 // Shared UI pieces: media cards and horizontal rows.
-import { el, icons, fmtDuration, toast, posterImg } from "./ui.js";
+import { el, icons, fmtDuration, toast, posterImg, backupPosterUrl } from "./ui.js";
 import { navigate } from "./router.js";
 import { state, progressFor, ratingFor } from "./state.js";
 import { api } from "./api.js";
@@ -157,8 +157,15 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
     },
     // sized for the card (wide cards are 300px, posters 176px; the server
     // scales the artwork to about twice that for sharp screens)
-    item.cover
-      ? posterImg(item.cover, item.title, "card-poster", "card-fallback", { w: wide || isEpisode ? 320 : 180, eager })
+    // no cover of its own, or one that won't load: the backup poster (by
+    // IMDb id, other sources) before the titled tile. Episode stills have no
+    // backup — a show poster in a 16:9 frame would be worse than the tile.
+    item.cover || (!isEpisode && backupPosterUrl(item))
+      ? posterImg(item.cover || backupPosterUrl(item), item.title, "card-poster", "card-fallback", {
+          w: wide || isEpisode ? 320 : 180,
+          eager,
+          backup: isEpisode || wide ? null : backupPosterUrl(item),
+        })
       : el("div", { class: "card-fallback" }, item.title),
     el("div", { class: "card-shade" }),
     // The tag words are drawn by CSS from data-t (components.css) rather than

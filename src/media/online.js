@@ -378,4 +378,4 @@ const posterFile = (name) => {
   return fs.existsSync(file) ? file : null;
 };
 
-module.exports = { get, enrich, refresh, posterFile, events, _internals: { refreshDue } };
+module.exports = { get, enrich, refresh, posterFile, cachePoster, events, _internals: { refreshDue } };
