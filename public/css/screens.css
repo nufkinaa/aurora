@@ -3507,6 +3507,80 @@
 }
 .btn.danger:hover { background: rgba(224, 64, 80, 0.16); border-color: rgba(224, 64, 80, 0.55); }
 
+/* the offline quality sheet (offlinePicker.js) */
+.offline-sheet {
+  max-width: 520px;
+}
+.offline-opts {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  text-align: left;
+}
+.offline-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  text-align: left;
+}
+.offline-opt:hover,
+.offline-opt:focus {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: var(--focus-ring);
+}
+.offline-opt.last {
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb, 139, 123, 255), 0.7);
+}
+.offline-opt-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.offline-opt-label {
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.offline-opt-tag {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #0b0c14;
+  background: #4ade80;
+}
+.offline-opt-tag.dim {
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.12);
+}
+.offline-opt-detail {
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  line-height: 1.35;
+}
+.offline-opt-size {
+  flex: none;
+  font-weight: 800;
+  font-size: 0.92rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.offline-sheet-actions {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 /* the text field inside a promptSheet (ui.js) */
 .sheet-input {
   width: 100%;

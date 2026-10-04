@@ -9,6 +9,7 @@ import { profileModal } from "./profiles.js";
 import { playerPrefs, applyCueStyle } from "./player.js";
 import { showClaimModal } from "../claim.js";
 import { showLoginScreen } from "./login.js";
+import * as offlineStore from "../offline.js";
 
 // One settings row: label + explanation on the left, a button cycling the value
 // on the right. Every row here drives behaviour that already exists in the
@@ -627,6 +628,15 @@ export const renderPreferences = async (root) => {
           ? "Save offline (📱 on any title you own) keeps a phone-playable copy inside Aurora on this device — it plays with no server in reach. Your copies live under Saved in the top bar."
           : `Save offline needs Aurora on an https address (or localhost) — browsers only allow offline storage there. You're on ${location.protocol.replace(":", "")}://${location.host}, so the 📱 buttons stay hidden on this device.`,
         el("div", { class: "pref-list page-pad" },
+          prefRow(
+            "Quality when saving",
+            "Ask shows the choices with their sizes each time. Original keeps the full picture and is the fastest to make when this device can play the file; the smaller sizes are converted on the server first.",
+            () => ({ ask: "Ask each time", original: "Original", 1080: "1080p", 720: "720p", 480: "480p" }[offlineStore.preferredQuality()] || "Ask each time"),
+            () => {
+              const order = ["ask", "original", "1080", "720", "480"];
+              offlineStore.setPreferredQuality(order[(order.indexOf(offlineStore.preferredQuality()) + 1) % order.length]);
+            }
+          ),
           prefRow(
             "Saved on this device",
             "Everything kept offline here, with how much space it takes.",

@@ -123,7 +123,7 @@ router.get("/img/still/:id", async (req, res) => {
 // phone's cache can pull it in one go and the player can seek if it ever
 // plays it straight from here).
 router.get("/offline/file/:id", (req, res) => {
-  const file = require("../media/offline").fileFor(req.params.id);
+  const file = require("../media/offline").fileFor(req.params.id, req.query.q);
   if (!file) return res.status(404).send("Not prepared");
   res.setHeader("Cache-Control", "private, max-age=0");
   res.sendFile(file);

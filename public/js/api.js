@@ -114,8 +114,10 @@ export const api = {
   segments: ({ imdbId, season, episode, duration }) =>
     json(`/api/segments?imdbId=${encodeURIComponent(imdbId)}${season ? `&season=${season}` : ""}${episode ? `&episode=${episode}` : ""}${duration ? `&duration=${Math.round(duration)}` : ""}`),
   party: (code) => json(`/api/party/${encodeURIComponent(code)}`),
-  offlinePrepare: (id) => post(`/api/offline/prepare/${encodeURIComponent(id)}`, {}),
-  offlineStatus: (id) => json(`/api/offline/status/${encodeURIComponent(id)}`),
+  // q: original | 1080 | 720 | 480; hevc: this browser plays HEVC in MP4
+  offlineOptions: (id, hevc) => json(`/api/offline/options/${encodeURIComponent(id)}${hevc ? "?hevc=1" : ""}`),
+  offlinePrepare: (id, q, hevc) => post(`/api/offline/prepare/${encodeURIComponent(id)}?q=${encodeURIComponent(q || "720")}${hevc ? "&hevc=1" : ""}`, {}),
+  offlineStatus: (id, q, hevc) => json(`/api/offline/status/${encodeURIComponent(id)}?q=${encodeURIComponent(q || "720")}${hevc ? "&hevc=1" : ""}`),
   parties: () => json("/api/party"),
   discoverSimilar: (type, id, tmdbId) =>
     json(

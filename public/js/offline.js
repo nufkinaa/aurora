@@ -52,31 +52,86 @@ export const removeSaved = async (id) => {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// What this browser can take as "original": HEVC in an MP4 plays on Safari
+// and on Chrome with a hardware decoder; elsewhere the server offers the
+// re-encoded sizes instead.
+export const canHevc = () => {
+  try {
+    return !!document.createElement("video").canPlayType('video/mp4; codecs="hvc1.1.6.L120.90"');
+  } catch {
+    return false;
+  }
+};
+
+// The quality to save at: "ask" (the default — a sheet with sizes), or one
+// of original / 1080 / 720 / 480 remembered from Preferences or the sheet.
+const QUALITY_KEY = "aurora-offline-quality";
+export const preferredQuality = () => {
+  try { return localStorage.getItem(QUALITY_KEY) || "ask"; } catch { return "ask"; }
+};
+export const setPreferredQuality = (q) => {
+  try { localStorage.setItem(QUALITY_KEY, q); } catch {}
+};
+
+// The page must be CONTROLLED by the worker for a saved copy to play (the
+// worker is what answers /offline/media/…). A first visit registers it but
+// isn't controlled until the worker claims the page — wait for that, briefly.
+const workerControls = async () => {
+  if (navigator.serviceWorker.controller) return true;
+  try { await navigator.serviceWorker.ready; } catch { return false; }
+  if (navigator.serviceWorker.controller) return true;
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve(!!navigator.serviceWorker.controller), 3000);
+    navigator.serviceWorker.addEventListener("controllerchange", () => { clearTimeout(t); resolve(true); }, { once: true });
+  });
+};
+
+const fmtGb = (b) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1)} GB` : `${Math.max(1, Math.round(b / 1024 ** 2))} MB`);
+
 // Save one library item. `onProgress({phase, pct, note})` keeps the button
 // honest: "preparing" (the server converts, with its own percentage), then
-// "saving" (bytes landing in the cache, sized by storage estimates).
-// `confirm(status)` (optional) runs once the server knows what it will send
-// — the original file, or a 720p copy — and its size; resolve false to stop.
-// `signal` (an AbortController's) cancels at any point: the poll, the
-// confirm, or the download itself — a half-saved copy is thrown away.
-export const saveItem = async (item, onProgress = () => {}, confirm = null, signal = null) => {
+// "saving" (bytes landing in the cache). `choose(options)` picks the quality
+// — the server lays out what it can make for this file and this device,
+// sizes included (original as is / repackaged in seconds, or a 1080p / 720p
+// / 480p re-encode); resolve null to stop. `signal` (an AbortController's)
+// cancels at any point: the poll, the choice, or the download itself — a
+// half-saved copy is thrown away.
+export const saveItem = async (item, onProgress = () => {}, choose = null, signal = null) => {
   if (!available()) throw new Error("offline copies need a secure (https) address");
   const aborted = () => !!(signal && signal.aborted);
   const bail = () => { const e = new Error("cancelled"); e.name = "AbortError"; throw e; };
-  // 1. a phone-playable file
-  let st = await api.offlinePrepare(item.id);
-  while (st.state === "queued" || st.state === "working") {
-    if (aborted()) bail();
-    onProgress({ phase: "preparing", pct: st.progress || 0, note: st.state === "queued" ? "waiting for the server" : "converting for this device" });
-    await sleep(2000);
-    st = await api.offlineStatus(item.id);
-  }
-  if (aborted()) bail();
-  if (st.state !== "ready") throw new Error(st.error || "the server couldn't prepare it");
-  if (confirm && !(await confirm(st))) {
+  const hevc = canHevc();
+  // 0. what can be made, and which one
+  const { options = [] } = await api.offlineOptions(item.id, hevc);
+  if (!options.length) throw new Error("the server can't make an offline copy of this file (no ffmpeg, and it isn't playable as it is)");
+  const picked = choose ? await choose(options) : (options.find((o) => o.quality === "720") || options[0]).quality;
+  if (!picked) {
     onProgress({ phase: "cancelled", pct: 0 });
     return null;
   }
+  const option = options.find((o) => o.quality === picked) || options[0];
+  const quality = option.quality;
+  // room for it? (an honest "not enough space" beats a save that dies at 90%)
+  try {
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    const est = await navigator.storage.estimate();
+    const free = est && est.quota ? est.quota - (est.usage || 0) : 0;
+    if (free && option.sizeBytes && option.sizeBytes * 1.05 > free) {
+      throw new Error(`not enough browser storage here — this copy needs about ${fmtGb(option.sizeBytes)} and ${fmtGb(free)} is free. Try a smaller size.`);
+    }
+  } catch (e) {
+    if (/not enough browser storage/.test(e.message)) throw e;
+  }
+  // 1. a playable file at that quality
+  let st = await api.offlinePrepare(item.id, quality, hevc);
+  while (st.state === "queued" || st.state === "working") {
+    if (aborted()) bail();
+    onProgress({ phase: "preparing", pct: st.progress || 0, note: st.state === "queued" ? "waiting for the server" : option.instant ? "repackaging — a few seconds" : "converting on the server" });
+    await sleep(option.instant ? 800 : 2000);
+    st = await api.offlineStatus(item.id, quality, hevc);
+  }
+  if (aborted()) bail();
+  if (st.state !== "ready") throw new Error(st.error || "the server couldn't prepare it");
   // 2. the bytes, streamed straight into the cache (never through memory).
   // Progress is the bytes that have actually passed through — counted on
   // the way in — against the size the server announced.
@@ -106,8 +161,12 @@ export const saveItem = async (item, onProgress = () => {}, confirm = null, sign
     );
     await c.put(key, new Response(counted, { status: 200, headers }));
     if (aborted()) bail();
+    // a copy that came up short is not a copy (a dropped connection used to
+    // leave a file that played for ten minutes and stopped)
+    if (len && got < len * 0.995) throw new Error("the download was cut short — try again");
   } catch (e) {
     await c.delete(key).catch(() => {}); // never leave half a film behind
+    if (e && e.name === "QuotaExceededError") throw new Error("this browser ran out of storage for the copy — try a smaller size");
     throw e;
   }
   // 3. subtitles that already exist as text tracks (best effort). Stored
@@ -137,6 +196,8 @@ export const saveItem = async (item, onProgress = () => {}, confirm = null, sign
     duration: item.duration || 0,
     sizeBytes: st.sizeBytes || 0,
     direct: !!st.direct,
+    quality,
+    controlled: await workerControls(),
     subtitles,
     savedAt: Date.now(),
   };

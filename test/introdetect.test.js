@@ -129,3 +129,46 @@ test("the cooperative fingerprint equals the synchronous one, frame for frame", 
   for (let i = 0; i < a.length; i++) if (a[i] === b[i]) same++;
   assert.ok(same / a.length > 0.97, `only ${same}/${a.length} frames agree`);
 });
+
+// ---------- credits start: dense agreement, and the picture's last word ----------
+{
+  const { tightenStart, parseBlackdetect, snapToBlack, longestRun: lr } = require("../src/media/introdetect")._internals;
+  const rnd = (seed) => { let x = seed; return () => ((x = (x * 1103515245 + 12345) & 0x7fffffff) & 0x7fff); };
+
+  test("a run's early, scattered lead-in is trimmed to where the audio really agrees", () => {
+    // 400 frames each: unrelated audio, then 60 frames that agree only now
+    // and then (the score swelling under the last scene), then 200 identical
+    // frames (the credits, the same recording in both files)
+    const ra = rnd(1), rb = rnd(2);
+    const A = new Uint16Array(400), B = new Uint16Array(400);
+    for (let i = 0; i < 400; i++) { A[i] = ra(); B[i] = rb(); }
+    for (let i = 140; i < 200; i += 5) B[i] = A[i]; // sparse hits: one in five
+    for (let i = 200; i < 400; i++) B[i] = A[i];
+    const run = lr(A, B, 0);
+    assert.ok(run.start <= 145, `the loose run starts in the lead-in (${run.start})`);
+    const tight = tightenStart(A, B, run);
+    // within ~1.5s (12 frames) of the true edge at 200 — the window's own resolution
+    assert.ok(tight.start >= 188 && tight.start <= 203, `tightened to the dense part (${tight.start})`);
+    assert.ok(tight.start - run.start >= 40, "and well clear of the loose start");
+    assert.equal(tight.end, run.end);
+  });
+
+  test("a run that is dense from its first frame is left alone", () => {
+    const ra = rnd(3), rb = rnd(4);
+    const A = new Uint16Array(300), B = new Uint16Array(300);
+    for (let i = 0; i < 300; i++) { A[i] = ra(); B[i] = rb(); }
+    for (let i = 100; i < 300; i++) B[i] = A[i];
+    const run = lr(A, B, 0);
+    assert.equal(tightenStart(A, B, run).start, run.start);
+  });
+
+  test("blackdetect lines parse, and the credits snap LATER onto the cut to black", () => {
+    const log = "[blackdetect @ 0x1] black_start:13.4 black_end:14.2 black_duration:0.8\n[blackdetect @ 0x1] black_start:20 black_end:33.9 black_duration:13.9\n";
+    const segs = parseBlackdetect(log);
+    assert.deepEqual(segs, [{ start: 13.4, end: 14.2 }, { start: 20, end: 33.9 }]);
+    assert.equal(snapToBlack(segs, 2), 13.4, "audio said 2s into the window; the picture goes dark at 13.4");
+    assert.equal(snapToBlack(segs, 13.6), null, "already in black: the audio was right");
+    assert.equal(snapToBlack([{ start: 60, end: 70 }], 2), null, "a black a minute later is not this episode's credits");
+    assert.equal(snapToBlack([], 2), null, "credits over the picture: no opinion");
+  });
+}

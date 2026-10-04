@@ -498,10 +498,24 @@ const boot = async () => {
   try {
     await loadProfiles();
   } catch {
+    // No server in reach. If this device holds saved copies, that is exactly
+    // the moment they exist for: open Saved (it and the player work from the
+    // device's own store) instead of a dead end — the old screen said "can't
+    // reach the server" and stopped, with the films right there.
+    let saved = [];
+    try { saved = await (await import("./offline.js")).listSaved(); } catch {}
+    if (saved.length) {
+      location.hash = "#/saved";
+      startRouter(document.getElementById("app"));
+      toast("No server in reach — here is what's saved on this device", "📱");
+      return;
+    }
     document.getElementById("app").append(
       el("div", { class: "empty", style: { paddingTop: "30vh" } },
         el("div", { class: "glyph" }, "📡"),
-        "Can't reach the Aurora server."
+        "Can't reach the Aurora server.",
+        el("div", { style: { marginTop: "14px" } },
+          el("button", { class: "btn small focusable", onclick: () => location.reload() }, "Try again"))
       )
     );
     return;
@@ -510,6 +524,17 @@ const boot = async () => {
   const start = () => {
     paintProfileChip();
     startRouter(document.getElementById("app"));
+    // Booted from the worker's cached answers with no network: Home would be
+    // a wall of titles that can't play. Saved is where the playable ones are.
+    if (!navigator.onLine) {
+      import("./offline.js").then(async (o) => {
+        const list = await o.listSaved().catch(() => []);
+        if (list.length && (location.hash || "#/") === "#/") {
+          navigate("#/saved");
+          toast("You're offline — these are saved on this device", "📱");
+        }
+      }).catch(() => {});
+    }
   };
 
   // Transition-mode migration must also reach devices that AUTO-enter a

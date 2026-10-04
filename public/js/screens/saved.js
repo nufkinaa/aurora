@@ -62,6 +62,7 @@ export const renderSaved = async (root) => {
                 "div",
                 { class: "dl-status" },
                 [
+                  it.quality ? (it.quality === "original" ? "Original quality" : `${it.quality}p`) : null,
                   it.sizeBytes ? fmtBytes(it.sizeBytes) : null,
                   it.duration ? fmtClock(it.duration) : null,
                   p && !p.finished && p.position > 10 ? `resume at ${fmtClock(p.position)}` : null,

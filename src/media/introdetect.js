@@ -139,6 +139,87 @@ const longestRun = (A, B, maxShift) => {
   return best;
 };
 
+// Where the run REALLY begins. longestRunAt tolerates dropouts, and two
+// episodes of one show resemble each other well before their credits — the
+// same score swelling under the last scene, the same room tone — so a run's
+// leading edge creeps early: Up next was arriving 10–20 seconds before the
+// credits (elia). The credits proper are the SAME recording in both files,
+// which shows as near-total agreement; the lead-in is scattered hits. So the
+// start moves forward to the first place where a 4-second window agrees
+// densely. Never past the point that would leave less than `minFrames`.
+const DENSE_WINDOW_S = 4;
+const DENSE_RATIO = 0.72;
+const tightenStart = (A, B, run, minFrames = 0) => {
+  if (!run) return run;
+  const W = Math.max(8, Math.round((DENSE_WINDOW_S * SR) / HOP));
+  const last = run.end - Math.max(W, minFrames);
+  if (last <= run.start) return run;
+  const hit = (i) => {
+    const j = i + run.offset;
+    return j >= 0 && j < B.length && similar(A[i], B[j]) ? 1 : 0;
+  };
+  // sliding count over [i, i+W)
+  let count = 0;
+  for (let i = run.start; i < run.start + W; i++) count += hit(i);
+  for (let start = run.start; start <= last; start++) {
+    if (count / W >= DENSE_RATIO && hit(start)) return { ...run, start };
+    count -= hit(start);
+    count += hit(start + W);
+  }
+  return run; // never dense: keep what we had rather than invent an edge
+};
+
+// ---------- the picture's opinion ----------
+// Audio says where the end music starts; the credits start where the picture
+// goes to them. ffmpeg's blackdetect over a short window after the audio's
+// answer finds the cut (or fade) to black that opens a credit roll — and a
+// roll of white text on black reads as black from its first frame. The start
+// only ever moves LATER, by at most CREDITS_SNAP_S, and only onto a black
+// segment that begins after the audio's answer; a show whose credits run over
+// the picture has no black to find and keeps the audio's answer.
+const CREDITS_SNAP_S = 28;
+const parseBlackdetect = (stderr) => {
+  const out = [];
+  const re = /black_start:\s*([\d.]+)\s+black_end:\s*([\d.]+)/g;
+  let m;
+  while ((m = re.exec(String(stderr || "")))) out.push({ start: parseFloat(m[1]), end: parseFloat(m[2]) });
+  return out;
+};
+// `at`: the audio's answer, in the same clock as the segments. Returns the
+// better start, or null for "no opinion".
+const snapToBlack = (segments, at, maxLater = CREDITS_SNAP_S) => {
+  for (const b of segments) {
+    if (b.start <= at + 0.6 && b.end >= at - 0.2) return null; // already in black: the audio was right
+  }
+  const next = segments.find((b) => b.start > at + 0.6 && b.start <= at + maxLater);
+  return next ? next.start : null;
+};
+const blackSegments = (file, from, length) =>
+  new Promise((resolve) => {
+    const args = [
+      "-hide_banner", "-nostats", "-nostdin", "-v", "info",
+      "-ss", String(Math.max(0, from)), "-i", file, "-t", String(length),
+      "-an", "-sn",
+      // a thumbnail-sized picture at 5 fps is all the detector needs
+      "-vf", "fps=5,scale=160:-2,blackdetect=d=0.3:pic_th=0.92:pix_th=0.12",
+      "-f", "null", "-",
+    ];
+    execFile(config.FFMPEG, args, { encoding: "utf-8", maxBuffer: 8 * 1024 * 1024, windowsHide: true, timeout: 90000 }, (err, stdout, stderr) => {
+      resolve(parseBlackdetect(stderr));
+    });
+  });
+const refineCreditsByPicture = async (file, start, duration) => {
+  try {
+    const from = Math.max(0, start - 2);
+    const length = Math.min(CREDITS_SNAP_S + 6, Math.max(4, duration - from));
+    const segs = await blackSegments(file, from, length);
+    const snapped = snapToBlack(segs, start - from);
+    return snapped == null ? null : Math.min(duration - 5, from + snapped);
+  } catch {
+    return null;
+  }
+};
+
 const framesToSec = (f) => (f * HOP) / SR;
 const secToFrames = (s) => Math.round((s * SR) / HOP);
 
@@ -273,7 +354,7 @@ const analyze = async (ep, siblings) => {
       }
     }
     if (me.tail && o.tail) {
-      const r = longestRun(me.tail, o.tail, secToFrames(120));
+      const r = tightenStart(me.tail, o.tail, longestRun(me.tail, o.tail, secToFrames(120)), secToFrames(CREDITS_MIN_S));
       if (r) {
         const start = me.tailStart + framesToSec(r.start);
         const end = me.tailStart + framesToSec(r.end + 1);
@@ -284,45 +365,75 @@ const analyze = async (ep, siblings) => {
   const intro = consensus(introRuns);
   const credits = consensus(creditRuns);
   if (!intro && !credits) return { intro: null, credits: null, source: "audio" };
+  // the picture gets the last word on WHEN the credits begin (later only)
+  let creditsStart = credits ? credits.start : null;
+  let snapped = false;
+  if (credits) {
+    const byPicture = await refineCreditsByPicture(entry.path, credits.start, duration);
+    if (byPicture != null && byPicture > creditsStart) { creditsStart = byPicture; snapped = true; }
+  }
   return {
     intro: intro ? { start: Math.round(intro.start * 10) / 10, end: Math.round(intro.end * 10) / 10 } : null,
-    credits: credits ? { start: Math.round(credits.start * 10) / 10 } : null,
+    credits: credits ? { start: Math.round(creditsStart * 10) / 10, ...(snapped ? { snapped: true } : {}) } : null,
     source: "audio",
   };
 };
 
+// Bumped when the analysis itself changes, so every file is looked at again
+// once. 2: credits start tightened to dense agreement and snapped to the
+// picture — and records the DATABASE fill created no longer count as
+// analysed (they carried the file's mtime, so the audio pass skipped them
+// forever: an episode whose timestamps were fetched the moment it finished
+// downloading never got its own Skip intro measured).
+const ANALYSIS_V = 2;
 let running = false;
 let again = false;
 const busy = () => running;
 const pass = async () => {
   let done = 0;
   const seen = new Set();
+  // Seasons with an episode that has NEVER been analysed go first: a download
+  // that just landed gets its Skip intro within the minute, instead of
+  // queueing behind a whole library being re-read for a new ANALYSIS_V.
+  const seasons = [];
   for (const show of scanner.index.shows) {
     for (const season of show.seasons || []) {
       const eps = season.episodes || [];
+      for (const ep of eps) if (scanner.resolve(ep.id)) seen.add(ep.id);
       if (eps.length < 2) continue;
-      for (const ep of eps) {
-        const entry = scanner.resolve(ep.id);
-        if (!entry) continue;
-        seen.add(ep.id);
-        const mtime = mtimeOf(entry.path);
+      const fresh = eps.some((ep) => {
         const have = store.data[ep.id];
-        if (have && have.mtime === mtime) continue;
-        const meta = metadata.getCached(entry.path);
-        if (!meta || !meta.duration) continue; // enrichment hasn't reached it yet
-        try {
-          const res = await analyze(ep, eps.filter((e) => e.id !== ep.id));
-          if (!res) continue;
-          store.data[ep.id] = { mtime, at: Date.now(), ...res };
-          store.save();
-          done++;
-        } catch (e) {
-          console.warn(`[intro] ${show.title} S${season.number}E${ep.episode}: ${e && e.message ? e.message : e}`);
-        }
-        await new Promise((r) => setImmediate(r));
-      }
-      fpCache.clear(); // a season's fingerprints are only useful within it
+        return !have || !have.source || !have.v && !have.intro && !have.credits && have.source !== "audio" && have.source !== "chapters";
+      });
+      seasons.push({ show, season, eps, fresh });
     }
+  }
+  seasons.sort((a, b) => (b.fresh ? 1 : 0) - (a.fresh ? 1 : 0));
+  for (const { show, season, eps } of seasons) {
+    for (const ep of eps) {
+      const entry = scanner.resolve(ep.id);
+      if (!entry) continue;
+      const mtime = mtimeOf(entry.path);
+      const have = store.data[ep.id];
+      if (have && have.mtime === mtime && have.v === ANALYSIS_V) continue;
+      const meta = metadata.getCached(entry.path);
+      if (!meta || !meta.duration) continue; // enrichment hasn't reached it yet
+      try {
+        const res = await analyze(ep, eps.filter((e) => e.id !== ep.id));
+        if (!res) continue;
+        // re-read: the database fill may have written this record while
+        // the analysis ran — its answer rides along, never overwritten
+        const now = store.data[ep.id];
+        const db = now && now.mtime === mtime && now.db ? { db: now.db } : {};
+        store.data[ep.id] = { mtime, at: Date.now(), v: ANALYSIS_V, ...res, ...db };
+        store.save();
+        done++;
+      } catch (e) {
+        console.warn(`[intro] ${show.title} S${season.number}E${ep.episode}: ${e && e.message ? e.message : e}`);
+      }
+      await new Promise((r) => setImmediate(r));
+    }
+    fpCache.clear(); // a season's fingerprints are only useful within it
   }
   // entries for episodes that left the library go with them
   let pruned = 0;
@@ -552,4 +663,4 @@ const coverage = () => {
   return { episodes, analyzed, intro, credits, chapters, fromDb, recaps };
 };
 
-module.exports = { run, get, coverage, busy, fillEpisode, refreshFromDatabases, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, INVALID, FRAME, HOP, SR } };
+module.exports = { run, get, coverage, busy, fillEpisode, refreshFromDatabases, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, tightenStart, parseBlackdetect, snapToBlack, INVALID, FRAME, HOP, SR, ANALYSIS_V } };

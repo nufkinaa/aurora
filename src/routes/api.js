@@ -197,11 +197,17 @@ router.get("/sw-manifest.json", (req, res) => {
 });
 
 // Offline copies (media/offline.js): ask for one, then poll until ready.
+// `q`: original | 1080 | 720 | 480 (default 720). `hevc=1`: this device's
+// browser plays HEVC in MP4, so "original" may be a plain repackage.
+const offlineCaps = (req) => ({ hevc: req.query.hevc === "1" });
+router.get("/api/offline/options/:id", (req, res) => {
+  res.json(require("../media/offline").options(req.params.id, offlineCaps(req)));
+});
 router.post("/api/offline/prepare/:id", (req, res) => {
-  res.json(require("../media/offline").prepare(req.params.id));
+  res.json(require("../media/offline").prepare(req.params.id, req.query.q, offlineCaps(req)));
 });
 router.get("/api/offline/status/:id", (req, res) => {
-  res.json(require("../media/offline").status(req.params.id));
+  res.json(require("../media/offline").status(req.params.id, req.query.q, offlineCaps(req)));
 });
 
 // Watch parties: what's on right now (the Home strip), and one party by

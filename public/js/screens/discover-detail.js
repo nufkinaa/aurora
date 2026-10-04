@@ -42,6 +42,7 @@ import { heroBlock, watchlistButton } from "./details.js";
 import { warmPlay } from "../prefetch.js";
 import { pushScope, popScope } from "../focus.js";
 import { showDownloadPicker } from "../downloadPicker.js";
+import { pickOfflineQuality } from "../offlinePicker.js";
 import { onMessage } from "../ws.js";
 import * as narrator from "../narrator.js";
 
@@ -2362,18 +2363,13 @@ const offlineButton = (item, { compact = false, rail = false } = {}) => {
           face(phase === "preparing" ? `Preparing ${p}%` : phase === "saving" ? `Saving ${p}%` : phase === "cancelled" ? "Save offline" : "Saved ✓", phase === "cancelled" ? "📱" : "⏳");
           btn.title = phase === "preparing" || phase === "saving" ? `${note || ""} — press again to cancel`.replace(/^ — /, "") : btn.title;
         },
-        // What it will cost this device, before a byte moves: the original
-        // file when the phone can play it as is, else a 720p copy.
-        (st) => confirmSheet({
-          icon: "📱",
-          title: st.direct ? "Save the original file?" : "Save a 720p copy?",
-          text: `${st.direct ? "This file plays as it is, so the full-quality original" : "Aurora made a phone-sized copy (720p, stereo) that"} takes ${fmtBytes(st.sizeBytes || 0)} on this device. It stays until you remove it from Saved.`,
-          ok: "Save it",
-          cancel: "Not now",
-        }),
+        // Which size, with what each one costs this device — the server
+        // lays out what it can make for this file (offlinePicker.js).
+        (options) => pickOfflineQuality(options, { title: item.title }),
         aborter.signal,
       );
-      if (saved) toast(`“${item.title}” is saved on this device`, "📱");
+      if (saved && saved.controlled === false) toast(`Saved — reload Aurora once before going offline so it can play here`, "📱");
+      else if (saved) toast(`“${item.title}” is saved on this device — find it under Saved`, "📱", { label: "Open Saved", onClick: () => navigate("#/saved") });
     } catch (e) {
       if (e && e.name === "AbortError") toast("Save cancelled", "📱");
       else toast(`Couldn't save: ${e.message}`, "⚠️");
