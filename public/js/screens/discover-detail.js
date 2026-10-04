@@ -48,6 +48,7 @@ import * as narrator from "../narrator.js";
 
 // "My List" toggle for a streamable (Discover) title — stores a stream ref.
 import * as surprise from "../surprise.js";
+import { lite } from "../net.js";
 const streamWatchlistButton = (meta) => {
   let inList = false;
   const btn = el("button", { class: "btn focusable" });
@@ -1385,6 +1386,51 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   }
   if (state.profile) {
     actions.push(lib ? watchlistButton(lib) : streamWatchlistButton(meta));
+  }
+  // X-Ray: everything under the hero gives way to who is in this, who made
+  // it and what people thought — per episode for a series (js/xray.js). The
+  // module and its data are only fetched when the button is pressed; a
+  // hover or focus warms the answer on a line that can spare it.
+  if (imdbId) {
+    const xrType = isShow ? "series" : "movie";
+    const xrEp = isShow && nextUp ? { season: nextUp.season, episode: nextUp.episode } : {};
+    const xrKeys = [lib && lib.id].filter(Boolean);
+    let xrNode = null;
+    const xrBtn = el("button", {
+      class: "btn btn-icon focusable btn-xray",
+      title: "X-Ray — cast, crew and ratings",
+      "aria-label": "X-Ray",
+      "aria-pressed": "false",
+    });
+    const toggleXray = async () => {
+      const on = !screen.classList.contains("xray-on");
+      if (on && !xrNode) {
+        const { xrayPanel } = await import("../xray.js");
+        if (!screen.isConnected) return;
+        xrNode = xrayPanel({ type: xrType, imdbId, ...xrEp, keys: xrKeys, onClose: toggleXray });
+      }
+      const hero = screen.querySelector(".detail-hero");
+      if (on && hero) hero.after(xrNode);
+      screen.classList.toggle("xray-on", on);
+      xrBtn.classList.toggle("on", on);
+      xrBtn.setAttribute("aria-pressed", String(on));
+      if (on) {
+        // bring the panel's top just under the nav — unless it is already in view
+        const top = xrNode.getBoundingClientRect().top;
+        if (top > window.innerHeight * 0.6) window.scrollBy({ top: top - window.innerHeight * 0.35, behavior: "smooth" });
+      }
+    };
+    xrBtn.addEventListener("click", toggleXray);
+    const warmXray = () => {
+      if (!lite()) api.xray({ type: xrType, imdbId, ...xrEp, keys: xrKeys }).catch(() => {});
+    };
+    xrBtn.addEventListener("pointerenter", warmXray, { once: true });
+    xrBtn.addEventListener("focus", warmXray, { once: true });
+    xrBtn.innerHTML = icons.xray;
+    // its own label for the phone's button tiles (the automatic one cuts a
+    // name at its first dash, which leaves "X")
+    xrBtn.append(el("span", { class: "btn-label" }, "X-Ray"));
+    actions.push(xrBtn);
   }
   if (!isShow && lib) {
     const ob = offlineButton(lib, { compact: true });

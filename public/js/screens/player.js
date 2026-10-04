@@ -1353,6 +1353,58 @@ export const renderPlayer = async (root, { id }) => {
   const speedBtn = btn("Speed", icons.speed, () => toggleMenu("speed"));
   const gearBtn = btn("Settings", icons.gear, () => toggleMenu("settings"));
   const partyBtn = btn("Watch together", "👥", () => togglePartyPanel());
+  // X-Ray over the film: the picture pauses, a sheet rises with who is in
+  // this episode / film, who made it and how it is rated (js/xray.js — the
+  // same panel as the title page's), and closing it picks the film back up.
+  let xraySheet = null;
+  let xrayResume = false;
+  let xrayImdb = item.imdbId || null;
+  const closeXray = () => {
+    if (!xraySheet) return;
+    const sheet = xraySheet;
+    xraySheet = null;
+    popScope(sheet);
+    sheet.classList.remove("in");
+    setTimeout(() => sheet.remove(), 280);
+    if (xrayResume && !exited) video.play().catch(() => {});
+    xrayResume = false;
+  };
+  const openXray = async () => {
+    if (xraySheet) return closeXray();
+    const show = !!item.showId || (item.season && item.episode);
+    if (!xrayImdb) {
+      try {
+        const r = await api.imdbFor(show ? "show" : "movie", show ? item.showTitle || item.title : item.title, item.year);
+        xrayImdb = (r && r.imdbId) || null;
+      } catch {}
+    }
+    if (!xrayImdb) return toast("No X-Ray for this one — it isn't matched to a known title", "🔍");
+    const { xrayPanel } = await import("../xray.js");
+    if (exited || xraySheet) return;
+    // in a watch party a pause is everyone's pause — leave the film running there
+    xrayResume = !video.paused && !party.current;
+    if (xrayResume) video.pause();
+    track("feat", { f: "xray_player" });
+    const sheet = (xraySheet = el("div", { class: "xray-sheet", onclick: (e) => { if (e.target === sheet) closeXray(); } },
+      xrayPanel({
+        type: show ? "series" : "movie",
+        imdbId: xrayImdb,
+        season: item.season,
+        episode: item.episode,
+        keys: [item.id, item.showId].filter(Boolean),
+        onClose: closeXray,
+        closeLabel: "Back to watching",
+        link: false,
+      })));
+    sheet.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.stopPropagation(); closeXray(); }
+    });
+    overlay.append(sheet);
+    pushScope(sheet);
+    requestAnimationFrame(() => sheet.classList.add("in"));
+    setTimeout(() => sheet.classList.add("in"), 60); // (a hidden tab runs no animation frames)
+  };
+  const xrayBtn = btn("X-Ray", icons.xray, () => openXray());
   const fsBtn = btn("Fullscreen", icons.fullscreen, () => toggleFullscreen());
   if ((item.subtitles || []).length === 0) ccBtn.classList.add("hidden");
 
@@ -1418,7 +1470,7 @@ export const renderPlayer = async (root, { id }) => {
           btn("Forward 10 seconds", icons.forward10, () => skip(1))),
         el("div", { class: "vol-group" }, muteBtn, volSlider),
         el("div", { class: "player-spacer" }),
-        el("div", { class: "pc-tools" }, ccBtn, speedBtn, partyBtn, gearBtn, fsBtn),
+        el("div", { class: "pc-tools" }, ccBtn, speedBtn, item._offline ? null : xrayBtn, partyBtn, gearBtn, fsBtn),
       ),
     ),
     menuHost,

@@ -157,6 +157,11 @@ const EXT_IMG_HOSTS = new Set([
   "images.metahub.space",
   "live.metahub.space",
   "static.tvmaze.com",
+  // X-Ray portraits for films (media/xray.js): Commons' FilePath redirect
+  // and the upload host it lands on
+  "commons.wikimedia.org",
+  "upload.wikimedia.org",
+  "thumb.wikimedia.org",
 ]);
 const EXT_IMG_DIR = path.join(require("../config").CACHE_DIR, "posters-web");
 const MAX_EXT_IMAGES = 4000; // count cap; the byte cap below bounds each file
@@ -201,7 +206,8 @@ const fetchExtImage = (url, file) => {
     let target = url;
     let res = null;
     for (let hop = 0; hop < 3; hop++) {
-      res = await fetch(target, { signal: AbortSignal.timeout(15000), redirect: "manual" });
+      // (Wikimedia refuses requests with no descriptive User-Agent)
+      res = await fetch(target, { signal: AbortSignal.timeout(15000), redirect: "manual", headers: { "User-Agent": "Aurora/1.6 (personal media server)" } });
       if (res.status < 300 || res.status >= 400) break;
       const loc = new URL(res.headers.get("location") || "", target).href;
       if (!extAllowed(loc)) throw new Error("redirect off allow-list");

@@ -37,6 +37,12 @@ route("/movies", lazy("./screens/browse.js", "renderMovies"));
 route("/shows", lazy("./screens/browse.js", "renderShows"));
 route("/list", lazy("./screens/browse.js", "renderMyList"));
 route("/search", lazy("./screens/search.js", "renderSearch"));
+// a search someone else started for you (a cast member's card in X-Ray)
+route("/search/:q", (root, p) => import("./screens/search.js").then((m) => {
+  m.presetSearch(p.q);
+  history.replaceState(null, "", "#/search"); // Back returns to plain Search
+  return m.renderSearch(root);
+}));
 // One detail page for everything — a title looks the same whether it is on
 // disk, streamable, or both (see screens/discover-detail.js).
 route("/movie/:id", (root, p) => renderDetailLazy(root, { source: "library", type: "movie", id: p.id }));

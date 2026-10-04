@@ -42,6 +42,11 @@ const CATALOG_MIN = 3;
 
 const touch = () => matchMedia("(hover: none)").matches;
 
+// #/search/<words> (an X-Ray cast card links there): open Search on them.
+export const presetSearch = (q) => {
+  if (q && q.trim()) searchMemory = { q: q.trim().slice(0, 80), scrollY: 0 };
+};
+
 export const renderSearch = async (root) => {
   const results = el("div", { class: "grid" });
   const status = el("div", { class: "empty hidden" });

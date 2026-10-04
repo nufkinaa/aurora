@@ -2192,3 +2192,333 @@ html[data-look="glass"] .pref-item-value.pref-switch.on {
   .pref-item { gap: 12px; }
   .pref-item-value:not(.pref-switch) { min-width: 104px; }
 }
+
+/* ---------- X-Ray (2026-10-04) ----------
+   One panel (js/xray.js), two homes: under a title's hero, where it takes
+   the place of everything else on the page, and as a sheet over the paused
+   film. Unscoped: both looks draw it the same. */
+.screen.xray-on > *:not(.detail-hero):not(.xray-panel) {
+  display: none !important;
+}
+.btn-xray.on {
+  background: var(--accent-strong);
+  color: #fff;
+}
+.xray-panel {
+  padding: 6px var(--page-x) 60px;
+  animation: xr-in 0.32s var(--ease);
+}
+@keyframes xr-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.xr-top {
+  display: flex;
+  align-items: center;
+  gap: 14px 18px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.xr-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.xr-badge {
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(var(--accent-rgb), 0.22);
+  color: #fff;
+}
+.xr-sub {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+.xr-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 260px;
+}
+.xr-stepper:empty {
+  flex: 1;
+}
+.xr-step {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 1.3rem;
+  line-height: 1;
+  flex: none;
+}
+.xr-step:disabled {
+  opacity: 0.3;
+}
+.xr-select {
+  flex: 1;
+  min-width: 0;
+  max-width: 420px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.xr-select option {
+  background: #14162a;
+  color: #fff;
+}
+.xr-close {
+  margin-left: auto;
+}
+.xr-body {
+  transition: opacity 0.2s;
+}
+.xr-body.xr-busy {
+  opacity: 0.55;
+}
+.xr-section {
+  margin-bottom: 26px;
+}
+.xr-section h3 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.xr-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.xr-episode {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  padding: 14px;
+  border-radius: var(--radius-l);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+.xr-still {
+  width: min(300px, 38%);
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 12px;
+  flex: none;
+  background: rgba(255, 255, 255, 0.05);
+}
+.xr-episode-text {
+  min-width: 0;
+}
+.xr-kicker {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.xr-episode h2 {
+  font-size: 1.35rem;
+  font-weight: 900;
+  margin: 3px 0 4px;
+}
+.xr-meta {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+  margin-bottom: 8px;
+}
+.xr-overview {
+  color: rgba(243, 244, 248, 0.86);
+  font-size: 0.94rem;
+  line-height: 1.5;
+  max-width: 70ch;
+}
+.xr-credits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-top: 10px;
+  font-size: 0.86rem;
+  color: var(--text-dim);
+}
+.xr-credits b {
+  color: var(--text);
+  font-weight: 700;
+}
+.xr-people {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+}
+.xr-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+a.xr-person:hover,
+a.xr-person:focus {
+  background: rgba(255, 255, 255, 0.1);
+}
+.xr-face {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex: none;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: rgba(var(--accent-rgb), 0.2);
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 800;
+  font-size: 0.86rem;
+}
+.xr-face img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+}
+.xr-person-text {
+  min-width: 0;
+}
+.xr-name {
+  font-weight: 700;
+  font-size: 0.94rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xr-role {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xr-more {
+  margin-top: 10px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.84rem;
+}
+.xr-ratings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.xr-rating {
+  min-width: 128px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+.xr-rating-v {
+  font-size: 1.5rem;
+  font-weight: 900;
+}
+.xr-rating-k {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.xr-rating-s {
+  font-size: 0.76rem;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+.xr-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 22px;
+  font-size: 0.92rem;
+  max-width: 760px;
+}
+.xr-facts dt {
+  color: var(--text-dim);
+}
+.xr-empty {
+  color: var(--text-dim);
+  padding: 30px 0;
+}
+/* the sheet over a paused film */
+.xray-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(4, 5, 10, 0);
+  transition: background 0.28s ease;
+}
+.xray-sheet.in {
+  background: rgba(4, 5, 10, 0.55);
+}
+.xray-sheet > .xray-panel {
+  width: min(980px, 100%);
+  max-height: 82%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px 24px 28px;
+  border-radius: 22px 22px 0 0;
+  background: rgba(14, 16, 28, 0.9);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transform: translateY(100%);
+  transition: transform 0.3s var(--ease);
+  animation: none;
+}
+.xray-sheet.in > .xray-panel {
+  transform: none;
+}
+@media (max-width: 720px) {
+  .xray-panel { padding-bottom: 110px; }
+  .xr-episode { flex-direction: column; }
+  .xr-still { width: 100%; }
+  .xr-people { grid-template-columns: 1fr 1fr; }
+  .xr-person { padding: 7px 8px; gap: 9px; }
+  .xr-face { width: 40px; height: 40px; }
+  .xr-close { margin-left: 0; }
+  .xr-stepper { order: 3; flex-basis: 100%; }
+  .xr-brand { flex: 1; }
+  .xr-rating { flex: 1 1 40%; min-width: 0; }
+  .xr-facts { grid-template-columns: 1fr; gap: 2px; }
+  .xr-facts dd { margin-bottom: 8px; }
+  .xray-sheet > .xray-panel { max-height: 88%; padding: 16px 14px 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xray-panel, .xray-sheet > .xray-panel { animation: none; transition: none; }
+}

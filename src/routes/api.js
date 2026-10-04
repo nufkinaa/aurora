@@ -183,6 +183,23 @@ router.get("/api/netprobe", (req, res) => {
   res.end(PROBE_NOISE.subarray(0, kb * 1024));
 });
 
+// X-Ray (media/xray.js): cast, crew, ratings and facts for a title — and,
+// for a series, for one episode of it (its own guest cast, director, rating).
+router.get("/api/xray", async (req, res) => {
+  try {
+    const rateKeys = String(req.query.keys || "").split(",").map((s) => s.trim()).filter((s) => /^[\w|:-]{1,80}$/.test(s)).slice(0, 4);
+    res.json(await require("../media/xray").get({
+      type: req.query.type,
+      imdbId: req.query.imdbId,
+      season: req.query.season,
+      episode: req.query.episode,
+      rateKeys,
+    }));
+  } catch (e) {
+    res.status(502).json({ error: "X-Ray couldn't reach its sources" });
+  }
+});
+
 router.get("/sw-manifest.json", (req, res) => {
   const fs = require("fs");
   const pub = path.join(__dirname, "..", "..", "public");

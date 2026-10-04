@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.12 — 2026-10-05
+
+- X-Ray. A new button on every title page (the scan-frame icon) swaps everything under the hero for who is in it, who made it and what people thought: the cast with their characters and portraits, ratings side by side (IMDb, TVMaze or TMDB, and this household's own stars), director, writers, awards, network or studio, release, runtime. Press it again, or Back to the title, and the page is as it was.
+- X-Ray knows which episode. For a series the panel is about one episode at a time — its own guest cast, director and writers, rating, air date and still — and opens on the episode you are up to; arrows and a list step through the rest. An anthology (Black Mirror, Modern Love: no cast of its own, a different film every episode) is recognised and leads with "In this episode" instead of a series cast that would be wrong; a regular series shows the episode's guest stars first and the regulars under them.
+- X-Ray in the player: the new button pauses the film and raises a sheet with the same panel, on the episode that is playing; closing it picks the film back up. In a watch party the film keeps running for everyone.
+- Light on the line and the server: nothing is fetched until X-Ray is opened (a hover warms it on a good connection), answers are kept on the server for two weeks (an episode for a month) and on the device for ten minutes, the next episode is looked up behind the one you opened so stepping is instant, portraits come through the image cache at the size they are drawn, and a slow connection loads six faces at first instead of twelve. Tapping a cast member on a title page searches for them. No key is needed: series come from TVMaze, films from TMDB when the server has a key and Wikidata when it does not.
+
 ## 1.6.11 — 2026-10-04
 
 - Settings anyone can read. The page is called Settings now; the first screen is the handful people actually change — your profile, the look, Watching, Subtitles, the genres you like — and everything else (Home rows, downloads, internet, saving for later, privacy, sign-in, what's new) is one press away under More settings. Every section and every setting leads with a plain grey icon, an On / Off setting is a switch instead of a button that says "On", and each one is explained in a single short sentence. Nothing was removed.

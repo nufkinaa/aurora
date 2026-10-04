@@ -20,7 +20,7 @@ const MEDIA = "aurora-media"; // never versioned away: it holds the saved films
 const API_KEEP = [
   /^\/api\/me$/, /^\/api\/server-info$/, /^\/api\/profiles$/, /^\/api\/profiles\/[^/]+\/state$/,
   /^\/api\/library$/, /^\/api\/item\//, /^\/api\/home/, /^\/api\/changelog$/, /^\/api\/downloads/,
-  /^\/api\/library\/for/, /^\/api\/party$/,
+  /^\/api\/library\/for/, /^\/api\/party$/, /^\/api\/xray/,
 ];
 const LIVE_ONLY = [/^\/stream\//, /^\/api\/admin\//, /^\/proxy/, /^\/avatars\//, /^\/offline\/file\//, /^\/api\/offline\//, /^\/api\/torrents\//];
 

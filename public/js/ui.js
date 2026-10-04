@@ -37,6 +37,8 @@ export const svg = (paths, attrs = "") =>
   `<svg viewBox="0 0 24 24" fill="currentColor" ${attrs}>${paths}</svg>`;
 
 export const icons = {
+  // X-Ray: a scan frame around a figure
+  xray: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5.500A1.500 1.500 0 015.500 4H8M16 4h2.500A1.500 1.500 0 0120 5.500V8M20 16v2.500a1.500 1.500 0 01-1.500 1.500H16M8 20H5.500A1.500 1.500 0 014 18.500V16"/><circle cx="12" cy="10" r="2.500"/><path d="M7.500 16.500c.800-2 2.400-3 4.500-3s3.700 1 4.500 3"/></svg>',
   play: svg('<path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l10.98-6.86a1.03 1.03 0 0 0 0-1.76L9.56 4.26A1.03 1.03 0 0 0 8 5.14z"/>'),
   pause: svg('<rect x="6" y="4" width="4.4" height="16" rx="1.4"/><rect x="13.6" y="4" width="4.4" height="16" rx="1.4"/>'),
   back: svg('<path d="M15.5 4.5 8 12l7.5 7.5-1.8 1.8L4.4 12l9.3-9.3z"/>'),
@@ -83,6 +85,8 @@ const PROXY_ART_HOSTS = new Set([
   "images.metahub.space",
   "live.metahub.space",
   "static.tvmaze.com",
+  "commons.wikimedia.org",
+  "upload.wikimedia.org",
 ]);
 // `w` (optional): the widest the picture will be drawn, in CSS px. The server
 // answers with a variant no wider than ~2× that (imgvariant.js) — a poster

@@ -113,6 +113,10 @@ export const api = {
   // databases — a stream has no file to analyse)
   segments: ({ imdbId, season, episode, duration }) =>
     json(`/api/segments?imdbId=${encodeURIComponent(imdbId)}${season ? `&season=${season}` : ""}${episode ? `&episode=${episode}` : ""}${duration ? `&duration=${Math.round(duration)}` : ""}`),
+  // cast, crew, ratings, facts — and one episode's own, for a series
+  xray: ({ type, imdbId, season, episode, keys }) =>
+    warmed(`/api/xray?type=${type}&imdbId=${encodeURIComponent(imdbId)}` +
+      (season ? `&season=${season}&episode=${episode}` : "") + (keys && keys.length ? `&keys=${encodeURIComponent(keys.join(","))}` : ""), 10 * 60 * 1000),
   party: (code) => json(`/api/party/${encodeURIComponent(code)}`),
   // q: original | 1080 | 720 | 480; hevc: this browser plays HEVC in MP4
   offlineOptions: (id, hevc) => json(`/api/offline/options/${encodeURIComponent(id)}${hevc ? "?hevc=1" : ""}`),
