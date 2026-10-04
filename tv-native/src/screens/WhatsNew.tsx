@@ -56,7 +56,7 @@ const FEATURES: Feature[] = [
   {
     glyph: '▶️',
     title: 'Resume, with the frame',
-    what: 'Coming back to a title shows the frame you stopped on, with Start over one press away for six seconds.',
+    what: 'Coming back to a title shows the frame you stopped on, with Start over one press away for four seconds — on a smaller, quieter card.',
     how: 'Nothing to set up — it appears whenever there is a place to resume.',
   },
   {

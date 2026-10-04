@@ -22,6 +22,7 @@ import {APP_VERSION, checkForUpdate, UpdateInfo} from '../update';
 import {setUsageEnabled} from '../usage';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
+import {isLite} from '../perfTier';
 
 const {colors, fontSize, spacing, radius} = theme;
 
@@ -230,8 +231,12 @@ export default function Settings({
           />
           <Row
             label="Trailers on the home billboard"
-            note="A title that holds still for six seconds plays its trailer, muted, then the billboard moves on."
-            value={prefs.heroTrailers ? 'On' : 'Off'}
+            note={
+              isLite()
+                ? 'Off on this box: it runs smoother without them. The billboard still rotates.'
+                : 'A title that holds still for six seconds plays its trailer, muted — two per visit to Home.'
+            }
+            value={isLite() ? 'Off' : prefs.heroTrailers ? 'On' : 'Off'}
             onPress={() => set('heroTrailers', !prefs.heroTrailers)}
           />
         </View>

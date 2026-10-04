@@ -63,3 +63,25 @@ fixes need is already in place where noted.
   used, so the 1.6.8 credits fix (start tightened, snapped to black) matters
   there too: the TV reads the same `/api/segments` / `/api/intro/auto` answers.
 - The audio-track picker was used once (web). Item 2 is still open on the TV.
+
+## 7. Done from the web side on 2026-10-05 (TV 5.0.2 — NOT built or run: no TV, no toolchain here)
+
+Small, deliberately conservative edits, each parsed with TypeScript for syntax
+but never compiled against React Native or run on a device. **The APK has not
+been rebuilt** — run `tv-native/build-apk.bat`; Admin → Server → TV app says
+"source is at 5.0.2 but the published APK is still 5.0.1" until then.
+
+- Item 1 (trailers): two per visit to Home instead of a loop
+  (`trailersThisVisit` in `screens/Home.tsx`), and none on a struggling box.
+- New `src/perfTier.ts`: `isLite()` — true on Android 9 and older, or when
+  150 timed frames after Home settles have a 90th percentile over 40 ms.
+  Consumers: Home (no trailers), `RailAurora` (no loop — a still), Settings
+  (the trailer row says so). Nothing else reads it yet; candidates if the
+  box is still heavy: `Image` fade durations, list window sizes.
+- Item 3 (resolution badge): `resBadge(height, width)` in `screens/Detail.tsx`.
+- Item 5 (usage look): the app reports `look: 'tv'`; the server accepts it.
+- Resume card: 4 s instead of 6.5, smaller frame, dimmer plate, smaller
+  Start over button (styles only + the timer).
+- Still open: item 2 (audio track menu), and everything under "sizing" —
+  the layout is already ratio-based and spec-pinned (`useTvMetrics`), so it
+  was left alone rather than changed blind.

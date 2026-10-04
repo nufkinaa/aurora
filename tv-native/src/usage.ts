@@ -30,7 +30,7 @@ const flush = () => {
   timer = null;
   if (!queue.length || !profile) return;
   const events = queue.splice(0, queue.length);
-  api.usage({profile, sid, device: 'tv', look: 'legacy', events}).catch(() => {});
+  api.usage({profile, sid, device: 'tv', look: 'tv', events}).catch(() => {});
 };
 
 // track('feat', {f: 'party_start'}) — props are short strings, numbers, booleans.

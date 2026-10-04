@@ -80,11 +80,14 @@ const fmtBytes = (b?: number) => {
   const gb = b / 1024 ** 3;
   return gb >= 1 ? `${gb.toFixed(1)} GB` : `${Math.round(b / 1024 ** 2)} MB`;
 };
-const resBadge = (height?: number) => {
+// By width OR height (the site's resTier): a 2.40:1 film is 1920x800, and by
+// height alone it read as 720p — which is why nearly every film said 720p.
+const resBadge = (height?: number, width?: number) => {
   if (!height) return null;
-  if (height >= 2000) return '4K';
-  if (height >= 1000) return 'HD';
-  if (height >= 700) return '720p';
+  const w = width || 0;
+  if (w >= 3200 || height >= 2000) return '4K';
+  if (w >= 1600 || height >= 1000) return 'HD';
+  if (w >= 1100 || height >= 700) return '720p';
   return 'SD';
 };
 // Cinemeta hands back HTML-escaped text — "Josh O&apos;Connor" rendered
@@ -1277,7 +1280,7 @@ export default function Detail({
         ]}
         badges={[
           full?.certificate || streamMeta?.certificate,
-          resBadge(full?.height),
+          resBadge(full?.height, full?.width),
           full?.subtitles?.length ? 'CC' : null,
         ]}
         genres={genreSource}

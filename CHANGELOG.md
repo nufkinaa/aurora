@@ -3,6 +3,17 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.13 — 2026-10-05
+
+- Ready to watch: when something you saved finishes downloading, Aurora says so once wherever you are in the app, with Play on the message (it used to be said only on the Downloads page or the title's own page). Behind a film it is one quiet line. Settings → More settings → Downloads → "Tell me when it's ready" adds a system notification for when Aurora is in the background. Smart downloads stay silent.
+- Play-ready copies, only where they are needed: when a download lands whose video is not plain H.264, and this household's devices have actually needed the slow live-encode path this month, the server makes a 1080p copy ahead of time and the player uses it instead of encoding when Play is pressed — it starts at once and seeks freely. Nothing is made for files every device plays as they are, nor when no device here has needed it; copies live in the same capped temporary folder as phone copies, for six days. `"preconvert": false` in config.json turns it off.
+- Admin → Downloads → On disk → Running low?: type how many GB to free and Aurora suggests what to delete — only things someone finished and nobody is part-way through, the longest-ago watched first, just enough to reach the number — and shows the list before anything is removed.
+- Search, when the box is empty, shows Popular in this house under your recent searches: what the household has been watching in the last six weeks, minus what you have already finished.
+- A series you own has a Save next 3 button: the next three episodes you haven't finished are saved to the device one after another, at a size asked once.
+- Resuming is quieter: a small pill at the top — "Resumed at 12:34 · Start over" — for four seconds, instead of a card with a picture over the film. On the TV the card is smaller, dimmer and gone in four seconds.
+- Good connections are protected: a single slow speed reading no longer switches a device to the light mode — it takes a second reading a few seconds later to agree.
+- TV app 5.0.2 (source only — the APK has to be rebuilt): trailers on Home are two per visit instead of an endless loop; a box that is struggling (Android 9 or older, or slow frames measured after Home settles) goes without trailers and with a still aurora, and Settings says so; resolution badges are right for widescreen films; the app reports itself as "tv" in the usage stats.
+
 ## 1.6.12 — 2026-10-05
 
 - X-Ray. A new button on every title page (the scan-frame icon) swaps everything under the hero for who is in it, who made it and what people thought: the cast with their characters and portraits, ratings side by side (IMDb, TVMaze or TMDB, and this household's own stars), director, writers, awards, network or studio, release, runtime. Press it again, or Back to the title, and the page is as it was.

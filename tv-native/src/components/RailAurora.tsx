@@ -34,6 +34,7 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Animated, Easing, View, StyleSheet} from 'react-native';
 import Svg, {Defs, LinearGradient, Path, Rect, Stop} from 'react-native-svg';
+import {isLite} from '../perfTier';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
@@ -212,6 +213,9 @@ function BandView({band, w, h}: {band: Band; w: number; h: number}) {
   );
 
   useEffect(() => {
+    // A box that can't spare it (perfTier.ts) gets the aurora as a still:
+    // the bands stay where their first frame puts them.
+    if (isLite()) return;
     const a = Animated.loop(
       Animated.timing(master, {
         toValue: 1,

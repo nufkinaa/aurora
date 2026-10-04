@@ -19,7 +19,7 @@ const SAMPLE = 400; // per-key reservoir for percentiles
 const NAME_RE = /^[a-z][a-z0-9_]{0,31}$/;
 const KEY_RE = /^[a-z][a-z0-9_]{0,23}$/;
 const DEVICES = new Set(["phone", "tablet", "desktop", "tv"]);
-const LOOKS = new Set(["glass", "legacy"]);
+const LOOKS = new Set(["glass", "legacy", "tv"]); // "tv": the Android TV app (it has one look of its own)
 const NET_TIERS = new Set(["slow", "ok", "fast"]);
 
 const monthOf = (t) => new Date(t).toISOString().slice(0, 7);

@@ -28,6 +28,7 @@ import {checkForUpdate, UpdateInfo} from '../update';
 import {canNavigate} from '../navLock';
 import {openItem} from '../openItem';
 import {openUpdate, overlayOpen} from '../overlay';
+import {isLite, measureOnce} from '../perfTier';
 import {resolvePartyRoute} from '../party';
 import {warmItem, warmSections} from '../prefetch';
 import {onMessage} from '../realtime';
@@ -298,6 +299,20 @@ export default function Home({
       heroTrailersPref.current = p.heroTrailers !== false;
     });
   }, []);
+  // Trailers are a treat, not a loop. A TV left on Home used to play one
+  // after another for as long as it sat there (the usage stats: ~80 trailer
+  // starts per visit to Home, and the trailer player's own errors) — each one
+  // a YouTube player the box has to run. Two per visit now; coming back to
+  // Home starts the count again. And on a box that is struggling as it is
+  // (perfTier.ts) there are none: the backdrops still rotate.
+  const trailersThisVisit = useRef(0);
+  useEffect(() => {
+    if (!live) return;
+    trailersThisVisit.current = 0;
+    // judge the box once Home has had a few seconds to settle
+    const t = setTimeout(measureOnce, 5000);
+    return () => clearTimeout(t);
+  }, [live]);
 
   const stopTrailer = useCallback(
     (advance = false) => {
@@ -335,6 +350,7 @@ export default function Home({
         trailerOnRef.current = true;
         startedAt.current = Date.now();
         setTrailerOn(true);
+        trailersThisVisit.current++;
         track('feat', {f: 'trailer_play'});
         Animated.timing(trailerFade, {toValue: 1, duration: 800, useNativeDriver: true, isInteraction: false}).start();
         armCap();
@@ -355,6 +371,7 @@ export default function Home({
     const hero = heroNow;
     if (!live || !hero || !heroTrailersPref.current) return;
     if (!hero.imdbId) return;
+    if (isLite() || trailersThisVisit.current >= 2) return;
     const gen = ++trailerGen.current;
     trailerBusy.current = false;
     const timer = setTimeout(async () => {
