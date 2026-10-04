@@ -2468,77 +2468,11 @@ export const renderPlayer = async (root, { id }) => {
             },
           ),
         );
-        // Skip-intro marking — episodes only (introKey is null otherwise).
-        // Two presses: one at the start of the intro, one at its end; the
-        // range is saved for the whole show, on the server, for everyone.
-        if (introKey) {
-          menu.append(el("div", { class: "menu-title" }, "Skip intro"));
-          if (!intro && autoIntro && introMarkStart == null) {
-            menu.append(
-              entry(
-                "Ignore the detected intro",
-                `found ${fmtClock(autoIntro.start)}–${fmtClock(autoIntro.end)} · wrong? mark it by hand below`,
-                () => {
-                  ignoreAutoIntro();
-                  toast("Detected intro ignored for this show on this device", "⏭");
-                  rebuild();
-                },
-              ),
-            );
-          }
-          if (intro && introMarkStart == null) {
-            menu.append(
-              entry(
-                "Clear intro marks",
-                `${fmtClock(intro.start)}–${fmtClock(intro.end)}`,
-                () => {
-                  const was = intro;
-                  api.clearIntro(introKey).catch(() => {});
-                  intro = null;
-                  skipIntroBtn.classList.add("hidden");
-                  toast("Intro marks cleared for this show", "⏭", {
-                    label: "Undo",
-                    onClick: () => {
-                      api.setIntro(introKey, was.start, was.end).then(() => { intro = was; toast("Intro marks restored", "⏭"); }).catch(() => {});
-                    },
-                  });
-                  rebuild();
-                },
-              ),
-            );
-          }
-          if (introMarkStart == null) {
-            menu.append(
-              entry(
-                intro ? "Re-mark intro start" : "Mark intro start",
-                `at ${fmtClock(effTime())}`,
-                () => {
-                  introMarkStart = Math.max(0, Math.floor(effTime()));
-                  showMarkChip();
-                  rebuild();
-                },
-              ),
-            );
-          } else {
-            menu.append(
-              entry(
-                "Mark intro end (save)",
-                `starts ${fmtClock(introMarkStart)}`,
-                async () => {
-                  await saveIntroEnd();
-                  rebuild();
-                },
-              ),
-            );
-            menu.append(
-              entry("Cancel marking", `was ${fmtClock(introMarkStart)}`, () => {
-                introMarkStart = null;
-                hideMarkChip();
-                rebuild();
-              }),
-            );
-          }
-        }
+        // (The Skip intro section that used to sit here — ignore the detected
+        // intro, mark its start and end by hand, clear the marks — is gone
+        // from the menu (elia). Detection and the public timestamp databases
+        // do that job now; a wrong mark can still be removed in the admin,
+        // under Inbox → Skip-intro marks.)
         menu.append(el("div", { class: "menu-title" }, "Help"));
         menu.append(entry("Report a problem", "with this title", () => { closeMenu(); showReportSheet({ hint: "from the player" }); }));
       };

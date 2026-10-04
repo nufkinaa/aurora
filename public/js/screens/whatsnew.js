@@ -52,7 +52,7 @@ const FEATURES = [
     since: "1.3.0", cue: "skip", glyph: "⏭",
     title: "Skip intro, Up next — detected",
     what: "Aurora listens to every episode and finds the theme and the credits by itself, so the buttons appear at the right moment.",
-    how: "Wrong on a show? Gear → Skip intro → Ignore the detected intro, or mark it by hand: Mark intro start, then the Ends here chip.",
+    how: "Nothing to set up — the Skip intro button appears by itself while the theme plays.",
     go: { label: "Open Shows", to: "#/shows" },
   },
   {
