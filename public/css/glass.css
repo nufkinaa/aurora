@@ -1991,3 +1991,13 @@ html[data-look="glass"] .menu-title,
 html[data-look="glass"] .menu-item .tag {
   color: var(--text-dim);
 }
+
+/* A quiet toast (something the app did by itself — a smart download
+   starting): no glass rim, no drop shadow, dim text. Almost unnoticeable on
+   purpose. */
+html[data-look="glass"] .toast.quiet {
+  box-shadow: none;
+  color: var(--text-dim);
+  background: rgba(14, 16, 28, 0.7);
+  border-color: rgba(255, 255, 255, 0.06);
+}

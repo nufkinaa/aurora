@@ -205,7 +205,10 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
   const pill = $("#nav-dl");
   const ACTIVE = ["pending", "approved", "downloading"];
   const paint = () => {
-    const ready = readyDownloads();
+    // Smart downloads (the next episode, fetched ahead by itself) never light
+    // the pill: nobody asked for them, so there is nothing to announce. They
+    // are on the Downloads page, marked AUTO, for whoever goes looking.
+    const ready = readyDownloads().filter((j) => !j.smart);
     if (ready.length > 0) {
       pill.textContent = `✓ ${ready.length} ready`;
       pill.title = ready.length === 1 ? `“${ready[0].label || ready[0].title}” is ready to play` : `${ready.length} downloads ready to play`;
@@ -214,7 +217,7 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     }
     pill.classList.remove("ready");
     pill.title = "Downloads in progress";
-    const act = [...downloads.values()].filter((j) => ACTIVE.includes(j.status));
+    const act = [...downloads.values()].filter((j) => ACTIVE.includes(j.status) && !j.smart);
     if (act.length === 0) return pill.classList.add("hidden");
     const pct = Math.round(
       (act.reduce((s, j) => s + (j.progress || 0), 0) / act.length) * 100,
@@ -246,24 +249,15 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
   });
   onMessage("download_update", ({ job }) => {
     if (!job) return;
-    // A smart download appearing for the first time is the one download the
-    // viewer never asked for — say so once, so the new row on the Downloads
-    // page isn't a mystery (and so they know the feature is doing its job).
-    if (!downloads.has(job.id) && job.mine && job.smart) {
+    // A smart download is the one download the viewer never asked for, and
+    // it starts two-thirds through an episode — the worst moment for a
+    // message (elia: "if we do those they need to be almost unnoticeable").
+    // So: nothing at all over a playing film, and otherwise one small dim
+    // line that is gone in two seconds. It can be cancelled, and the feature
+    // turned off, from the Downloads page and Preferences → Playback.
+    if (!downloads.has(job.id) && job.mine && job.smart && !document.querySelector(".player")) {
       const ep = job.season && job.episode ? ` S${job.season}E${job.episode}` : "";
-      let first = false;
-      try { first = !localStorage.getItem("aurora-smartdl-explained"); localStorage.setItem("aurora-smartdl-explained", "1"); } catch {}
-      const cancel = {
-        label: "Cancel",
-        onClick: () => api.downloadCancel(job.id, state.profile.id).then(() => toast("Cancelled — it won't queue this one again", "🗑")).catch(() => {}),
-      };
-      toast(
-        first
-          ? `Smart downloads: you're two-thirds through, so the next episode (${job.title || job.label}${ep}) is downloading to the server. Turn it off under Preferences → Playback.`
-          : `Next up is downloading: ${job.title || job.label}${ep} · smart downloads`,
-        "⬇",
-        cancel,
-      );
+      toast(`Next episode downloading${ep ? " ·" + ep : ""}`, "⬇", null, { quiet: true });
     }
     downloads.set(job.id, job);
     paint();

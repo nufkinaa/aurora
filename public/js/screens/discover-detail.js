@@ -940,7 +940,7 @@ const loadSources = async (
       // to the top with its ✓ DOWNLOADED badge and the "plays your copy" row.
       if (job.status === "done" && (!prev || prev.status !== "done")) {
         loadLibrary(true).catch(() => {});
-        toast(`“${job.label || job.title}” is ready to play`, "✅");
+        if (!job.smart) toast(`“${job.label || job.title}” is ready to play`, "✅");
       }
     });
 

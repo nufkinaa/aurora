@@ -364,11 +364,13 @@ export const formatRow = (item, opts) => {
 let toastRoot;
 // `action` ({label, onClick}) renders a tappable button on the toast — the
 // undo pattern. Action toasts accept pointer events; plain ones stay inert.
-export const toast = (message, icon = "ℹ️", action = null) => {
+// `quiet`: a small, dim line that is gone in two seconds — for things the
+// app did by itself that nobody needs to act on.
+export const toast = (message, icon = "ℹ️", action = null, { quiet = false } = {}) => {
   if (!toastRoot) toastRoot = document.getElementById("toasts");
   const node = el(
     "div",
-    { class: "toast" + (action ? " has-action" : "") },
+    { class: "toast" + (action ? " has-action" : "") + (quiet ? " quiet" : "") },
     el("span", {}, icon),
     el("span", {}, message),
     action &&
@@ -390,8 +392,8 @@ export const toast = (message, icon = "ℹ️", action = null) => {
       toastRoot.firstElementChild;
     victim.remove();
   }
-  setTimeout(() => node.classList.add("hide"), 5200);
-  setTimeout(() => node.remove(), 5800);
+  setTimeout(() => node.classList.add("hide"), quiet ? 2200 : 5200);
+  setTimeout(() => node.remove(), quiet ? 2800 : 5800);
 };
 
 // A yes/no sheet in the app's own dress (the same card as the one-time

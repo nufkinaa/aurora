@@ -759,6 +759,17 @@
     opacity 0.4s,
     transform 0.4s;
 }
+/* something the app did by itself: small, dim, no shadow — there if you
+   look, easy to miss if you don't */
+.toast.quiet {
+  padding: 7px 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: rgba(20, 22, 34, 0.82);
+  box-shadow: none;
+  gap: 7px;
+}
 .toast.hide {
   opacity: 0;
   transform: translateX(24px);

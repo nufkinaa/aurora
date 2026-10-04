@@ -10,6 +10,7 @@ Shown inside the app under Preferences → What's new. Newest first; one
 - Home paints at once when you come back to it, and refreshes its rows underneath, instead of showing the loading skeleton again. On a slow line the last Home is also kept on the device, so opening the app shows the shelves straight away.
 - Preferences → Data use: Automatic, Data saver (always light — for mobile data) or Full quality (never adapts), with what the connection looks like right now.
 - Admin → Insights shows how many sessions were on a slow, fine or fast connection, the typical measured speed and the slowest tenth, and which devices the slow ones were. A problem report carries the reporter's connection.
+- Smart downloads keep to themselves: no message over a film when the next episode starts downloading (elsewhere, one small dim line for two seconds), no "ready to play" when it lands, and they no longer show in the download pill at the top. They are still on the Downloads page, marked AUTO, where they can be cancelled.
 - Admin: two libraries on the same disk are one storage bar; the "nothing waiting" note no longer claims there is enough disk space when there isn't.
 
 ## 1.6.8 — 2026-10-04

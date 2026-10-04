@@ -388,7 +388,8 @@ export const renderDownloads = async (root) => {
     const prev = downloads.get(job.id);
     downloads.set(job.id, job);
     if (job.status === "done" && job.libraryId && !job.seenAt && job.mine && !(prev && prev.status === "done" && prev.libraryId)) {
-      toast(`“${job.label || job.title}” is ready to play`, "✅");
+      // a smart download landing is not news — the row itself says so
+      if (!job.smart) toast(`“${job.label || job.title}” is ready to play`, "✅");
     }
     const sameShape =
       prev && prev.status === job.status && (prev.phase || null) === (job.phase || null) &&
