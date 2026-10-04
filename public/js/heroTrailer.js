@@ -28,7 +28,15 @@ const pref = (key, fallback) => {
   }
 };
 
-const DWELL_MS = 6000; // still this long → the trailer starts
+// The trailer APPEARS after the dwell — and it used to only START LOADING
+// then: the YouTube script, then the player, then its first buffer, so the
+// picture really moved 8–9 seconds in. Now the loading happens DURING the
+// dwell: the connection is opened and the script fetched the moment a pick
+// lands, the player is built (hidden, muted) at PRELOAD_MS, and the dwell's
+// end only has to reveal a video that is already playing. The dwell itself
+// came down from 6 s to 4.
+const DWELL_MS = 4000; // still this long → the trailer is shown
+const PRELOAD_MS = 1200; // still this long → the player starts loading, unseen
 const MUTED_S = 25; // how long a muted trailer runs
 const UNMUTED_S = 50; // …and with sound
 const START_TIMEOUT_MS = 7000; // no "playing" by then → give up on this pick
@@ -63,6 +71,20 @@ export const heroTrailersWanted = () => {
   return pref("heroTrailers", !coarse);
 };
 
+// Open the connections and fetch YouTube's player script ahead of need (once).
+let warmed = false;
+const warmYt = () => {
+  if (warmed) return;
+  warmed = true;
+  for (const host of ["https://www.youtube.com", "https://www.youtube-nocookie.com", "https://i.ytimg.com"]) {
+    const l = document.createElement("link");
+    l.rel = "preconnect";
+    l.href = host;
+    document.head.append(l);
+  }
+  loadYt().catch(() => { warmed = false; });
+};
+
 export const createHeroTrailer = (heroEl, { onEnd }) => {
   const layer = el("div", { class: "hero-video", "aria-hidden": "true" });
   const mount = el("div"); // the API replaces this with the iframe
@@ -82,6 +104,9 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
   let startedAt = 0;
   let unmuted = false;
   let gen = 0;
+  let revealAt = 0; // when the current pick's dwell ends
+  let revealTimer = null; // playing already, waiting for that moment
+  let loadingTimer = null;
   const noTrailer = new Set(); // ids that failed once — not again this visit
 
   const teardown = () => {
@@ -97,6 +122,8 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
   const stop = (advance = false) => {
     gen++;
     clearTimeout(armed && armed.timer);
+    clearTimeout(revealTimer); revealTimer = null;
+    clearTimeout(loadingTimer); loadingTimer = null;
     armed = null;
     const was = active;
     active = false;
@@ -157,12 +184,22 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
   };
 
   const play = async (item, myGen) => {
+    // (`armed` now stays set while the player loads, which holds the
+    // billboard's rotation — so every way out of here that isn't a trailer
+    // has to let go of it, or the hero would never move on)
+    const giveUp = () => { if (myGen === gen) armed = null; };
     const id = await trailerIdFor(item);
-    if (myGen !== gen || !id || noTrailer.has(id)) return;
-    let YT;
-    try { YT = await loadYt(); } catch { return; }
     if (myGen !== gen) return;
-    heroEl.classList.add("trailing-loading");
+    if (!id || noTrailer.has(id)) return giveUp();
+    let YT;
+    try { YT = await loadYt(); } catch { return giveUp(); }
+    if (myGen !== gen) return;
+    // the "loading" look only once the dwell is over — before that the
+    // player is loading unseen and the art should look untouched
+    const showLoading = () => { if (myGen === gen && !active) heroEl.classList.add("trailing-loading"); };
+    clearTimeout(loadingTimer);
+    if (Date.now() >= revealAt) showLoading();
+    else loadingTimer = setTimeout(showLoading, revealAt - Date.now());
     player = new YT.Player(mount, {
       host: "https://www.youtube-nocookie.com",
       videoId: id,
@@ -184,16 +221,28 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
         onStateChange: (e) => {
           if (myGen !== gen) return;
           if (e.data === YT.PlayerState.PLAYING && !active) {
-            active = true;
-            startedAt = Date.now();
             clearTimeout(startTimer);
-            try { e.target.setPlaybackQuality("hd1080"); } catch {}
-            heroEl.classList.remove("trailing-loading");
-            heroEl.classList.add("trailing");
-            track("feat", { f: "trailer_play" });
-            paintMuteBtn(); // a new trailer always starts muted — the button says so
-            unmute.classList.remove("hidden");
-            armCap();
+            if (revealTimer) return; // already playing unseen, waiting for the dwell to end
+            const reveal = () => {
+              revealTimer = null;
+              if (myGen !== gen || active) return;
+              // the same checks the dwell's end always made: still on screen, nothing over it
+              const seen = armed && armed.visible ? armed.visible() : true;
+              if (document.hidden || !seen || document.querySelector(".ui-overlay, .screensaver")) return stop(false);
+              armed = null;
+              active = true;
+              startedAt = Date.now();
+              try { e.target.setPlaybackQuality("hd1080"); } catch {}
+              heroEl.classList.remove("trailing-loading");
+              heroEl.classList.add("trailing");
+              track("feat", { f: "trailer_play" });
+              paintMuteBtn(); // a new trailer always starts muted — the button says so
+              unmute.classList.remove("hidden");
+              armCap();
+            };
+            const wait = revealAt - Date.now();
+            if (wait > 0) revealTimer = setTimeout(reveal, wait);
+            else reveal();
           } else if (e.data === YT.PlayerState.ENDED && active) {
             stop(true);
           }
@@ -229,16 +278,26 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
     if (!heroTrailersWanted() || !item) return;
     if (!item.imdbId && !(item.trailers && item.trailers.length)) return;
     const myGen = gen;
-    // fetch the id during the dwell so the start isn't gated on the network
+    revealAt = Date.now() + DWELL_MS;
+    // everything the start needs is fetched during the dwell: the trailer's
+    // id, YouTube's script and its connections
     trailerIdFor(item).catch(() => {});
+    warmYt();
+    const clear = () => !document.hidden && visible() && !document.querySelector(".ui-overlay, .screensaver");
     armed = {
       item,
+      visible,
       timer: setTimeout(() => {
-        armed = null;
-        if (myGen !== gen || document.hidden || !visible()) return;
-        if (document.querySelector(".ui-overlay, .screensaver")) return;
-        play(item, myGen);
-      }, DWELL_MS),
+        if (myGen !== gen) return;
+        if (clear()) return void play(item, myGen); // loads unseen; shown when the dwell ends
+        // not a moment to load a player (hidden tab, a sheet open, scrolled
+        // away): look once more when the dwell ends, as before
+        armed.timer = setTimeout(() => {
+          if (myGen !== gen) return;
+          if (!clear()) { armed = null; return; }
+          play(item, myGen);
+        }, DWELL_MS - PRELOAD_MS);
+      }, PRELOAD_MS),
     };
   };
 

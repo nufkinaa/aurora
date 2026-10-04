@@ -1,6 +1,6 @@
 {
   "name": "aurora",
-  "version": "1.6.17",
+  "version": "1.6.18",
   "description": "Aurora — personal streaming platform for your local media library",
   "main": "server.js",
   "license": "MIT",

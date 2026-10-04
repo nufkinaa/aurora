@@ -30,7 +30,7 @@ const FEATURES = [
   {
     since: "1.6.0", cue: "trailer", glyph: "🎬",
     title: "Trailers on the billboard",
-    what: "Let a title sit on the home hero for six seconds and its trailer plays, quietly, then the billboard moves on.",
+    what: "Let a title sit on the home hero for four seconds and its trailer plays, quietly, then the billboard moves on.",
     how: "Press Unmute above the dots for sound — that gives it 50 seconds. A dot, a swipe or scrolling ends it.",
     go: { label: "Go home", to: "#/" },
   },

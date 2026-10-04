@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.18 — 2026-10-05
+
+- Trailers on Home start sooner. The trailer used to begin loading only after a title had sat on the billboard for six seconds — YouTube's script, then its player, then the first buffer — so the picture really moved eight or nine seconds in. Now all of that happens while the title sits there: the player is built unseen a second in, and the moment the wait ends the trailer is already playing. The wait itself is four seconds instead of six. Nothing changes on a slow connection, where trailers stay off.
+
 ## 1.6.17 — 2026-10-05
 
 - The player's settings menu no longer has a Skip intro section (ignore the detected intro, mark the start and end by hand, clear the marks). Detection and the public timestamp databases do that job; the Skip intro button itself is unchanged. A wrong mark can still be removed in Admin → Inbox → Skip-intro marks.
