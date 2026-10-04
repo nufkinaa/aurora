@@ -3,6 +3,18 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.8 — 2026-10-04
+
+- Admin, rebuilt around six places instead of nine tabs: Home, Inbox, Downloads, People, Insights (Analytics + History) and Server (Status + Logs). A sidebar on a computer, a strip on a tablet, a dock under the thumb on a phone. Every page says what it is for at the top. Old links (#live, #logs, #history…) still land.
+- Admin → Home opens with what needs you, as sentences: people waiting to be let in, downloads waiting for approval, open problem reports, title requests, an update to pull, a failing health check — each one a tap away from where you deal with it, and a green "Nothing needs you" when there is nothing. Live (who is connected, kick, ban, the broadcast message) moved onto Home; the ten equal number boxes became four plus one quiet line.
+- Admin on a phone: tables are stacks of small cards with every value labelled, instead of seven columns to scroll sideways. Scrolling no longer refetches the page every time the address bar slides away.
+- Admin asks before destructive things in its own sheet — the button says what it does ("Yes, delete", in red) instead of the browser's OK / Cancel box.
+- Admin, smaller: banned addresses live under People with the devices they came from; Storage sits at the top of Downloads; Rescan library and Clear caches moved to Server → Maintenance with a line saying what each does; a refresh button and a live-updates light on every page; the old play counter and the connection log fold away under History.
+- Skip intro is measured the moment a download lands: the audio pass runs for the new episode's season right away (never-analysed episodes first) instead of waiting for the nightly round, and an answer from the public databases no longer stops the file itself from being measured.
+- Credits start later, where they really start: the detector's start was landing 10–20 seconds early on the music that leads into the credits. It is now tightened to where the episodes agree densely, then snapped forward to the cut to black when there is one nearby. Every episode is re-measured once.
+- Offline copies ask what size you want — Original, 1080p, 720p or 480p, each with its size — and Original is ready in seconds when your device can play the file's video (it is repackaged, not re-encoded; the old way was always a full 720p conversion). The app checks there is room first, says so when there isn't, and a laptop that starts with no connection opens straight on Saved.
+- Missing covers: a title whose poster source has nothing now tries a chain of others by IMDb id (Cinemeta, TVMaze, TMDB, iTunes) and keeps the first that answers.
+
 ## 1.6.7 — 2026-09-28
 
 - Skip intro, Skip recap and the credits-timed Up next stay current. Every day the server asks SkipDB and TheIntroDB again about every episode in the library, and about every streamed episode someone played in the last month — episodes with no timestamps yet go first, so a new show or last night's episode picks up its Skip intro as soon as someone submits it, instead of waiting a week (empty answers) or never (answers already on file). New downloads and new shows are still asked the moment they land. A streamed episode whose answer is over a day old plays with that answer at once while a fresh one is fetched behind it. A re-ask that can't reach the databases, or that only one of them answered, never erases what was already known.

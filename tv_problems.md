@@ -52,3 +52,14 @@ fixes need is already in place where noted.
   events), which skews the looks split; harmless, but a `tv` look value would
   make the analytics honest.
 - `library/hls-copy` first frame on the TV: 2.5 s median, 4 s p90 — fine.
+
+## 6. Usage stats of 2026-10-01 → 04: the TV is still the slow one
+
+- 250 TV events against 125 phone and 40 desktop — the TV is the most-used
+  device and the slowest: TV screens take 10–24 s (median) to painted, where
+  web screens are well under a second. Item 1 (hero trailers) is still the
+  first suspect; nothing on the web side explains it.
+- Skip intro was pressed 12 times on the TV in those four days — it is being
+  used, so the 1.6.8 credits fix (start tightened, snapped to black) matters
+  there too: the TV reads the same `/api/segments` / `/api/intro/auto` answers.
+- The audio-track picker was used once (web). Item 2 is still open on the TV.
