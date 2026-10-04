@@ -101,6 +101,20 @@ const effectiveVcodec = (vcodec) => vcodec;
 // torrent-transcode.js for the measurements behind these numbers.
 const AUDIO_GAIN = "volume=4dB,alimiter=limit=0.7:level=disabled:latency=true";
 
+// The video codec a job is asked for: "copy", "h264", or a CAPPED encode for
+// a slow connection — "h264-720" / "h264-480": the same libx264 job folded
+// down to that height under a bitrate ceiling (about 2.4 and 1.1 Mbit/s all
+// in, against 6–15 for an untouched file). The name rides the URL's ?v= and
+// the job dir, so a capped job and a full one never share segments.
+const CAPS = {
+  "h264-720": { h: 720, maxrate: "2200k", bufsize: "4400k", audio: "128k" },
+  "h264-480": { h: 480, maxrate: "1000k", bufsize: "2000k", audio: "96k" },
+};
+const capOf = (vcodec) => CAPS[vcodec] || null;
+const isHeavy = (vcodec) => vcodec === "h264" || !!CAPS[vcodec];
+// What a route may pass through from ?v= (anything else is the full encode).
+const vcodecFromQuery = (v) => (v === "copy" ? "copy" : CAPS[v] ? v : "h264");
+
 // Job dir name. The bare `${id}-${mtime}` form is the original audio-only
 // remux (existing cached jobs stay valid); transcodes and offset jobs get a
 // suffixed dir so a cached video-copy job is never served where h264 is needed.
@@ -181,7 +195,8 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
       return Promise.reject(new Error("Server disk is nearly full — free space to stream"));
     }
   } catch {}
-  const heavy = vcodec === "h264";
+  const heavy = isHeavy(vcodec);
+  const cap = capOf(vcodec);
 
   const dir = jobDir(id, mtime, vcodec, ss, fmt, audio);
   const playlist = path.join(dir, "index.m3u8");
@@ -275,8 +290,12 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
         "-g", "48",
         "-threads", String(FFMPEG_THREADS),
         // 4K sources can't be transcoded in real time anyway — fold anything
-        // above 1080p down (never upscale smaller sources).
-        "-vf", "scale=min(1920\\,iw):-2",
+        // above 1080p down (never upscale smaller sources). A capped job
+        // (slow connection) folds to its height instead and holds a bitrate
+        // ceiling, so the stream fits the line it is going down.
+        ...(cap
+          ? ["-vf", `scale=-2:min(${cap.h}\\,ih)`, "-maxrate", cap.maxrate, "-bufsize", cap.bufsize]
+          : ["-vf", "scale=min(1920\\,iw):-2"]),
       ]
     : ["-c:v", "copy"];
 
@@ -296,7 +315,7 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
       "-i", videoPath,
       "-map", "0:v:0", "-map", `0:a:${audio}`,
       ...videoArgs,
-      "-c:a", "aac", "-ac", "2", "-b:a", "192k", "-af", AUDIO_GAIN,
+      "-c:a", "aac", "-ac", "2", "-b:a", cap ? cap.audio : "192k", "-af", AUDIO_GAIN,
       // PTS must start at 0: native HLS players (iPhone) use raw segment PTS
       // for the clock; the muxer's default ~1.4s delay skewed subtitles and
       // the scrubber on iOS relative to desktop. Measured 2026-07-24.
@@ -395,4 +414,4 @@ const filePath = (dir, file) => {
 };
 
 const liveCount = () => { let n = 0; for (const j of jobs.values()) if (j.proc) n++; return n; };
-module.exports = { ensure, touch, filePath, dirName, effectiveVcodec, bootSweep, liveCount, HLS_ROOT };
+module.exports = { ensure, touch, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, HLS_ROOT, _internals: { CAPS, capOf, isHeavy } };

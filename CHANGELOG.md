@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.9 — 2026-10-04
+
+- Slow connections are noticed and Aurora goes lighter for them. Each device times a small download from the server shortly after opening and every few minutes (and reads the browser's Data Saver and 2G signals); a slow line gets pictures at the size they are drawn instead of the screen's 2–3× density, a smaller hero backdrop, nothing loaded ahead of time and no hero trailers. One quiet message says so the first time. A fast line is unaffected.
+- A lighter stream for a slow line: a title in the library starts as a 720p stream (480p on a very thin line) when the connection can't carry the file itself, and says so. The player's ⚙ menu has a Quality section — Original, 720p, 480p — to change it mid-film at the same spot. If the server can't make the lighter stream, the title plays the way it always did. Library titles only; streamed sources are unchanged.
+- Home paints at once when you come back to it, and refreshes its rows underneath, instead of showing the loading skeleton again. On a slow line the last Home is also kept on the device, so opening the app shows the shelves straight away.
+- Preferences → Data use: Automatic, Data saver (always light — for mobile data) or Full quality (never adapts), with what the connection looks like right now.
+- Admin → Insights shows how many sessions were on a slow, fine or fast connection, the typical measured speed and the slowest tenth, and which devices the slow ones were. A problem report carries the reporter's connection.
+- Admin: two libraries on the same disk are one storage bar; the "nothing waiting" note no longer claims there is enough disk space when there isn't.
+
 ## 1.6.8 — 2026-10-04
 
 - Admin, rebuilt around six places instead of nine tabs: Home, Inbox, Downloads, People, Insights (Analytics + History) and Server (Status + Logs). A sidebar on a computer, a strip on a tablet, a dock under the thumb on a phone. Every page says what it is for at the top. Old links (#live, #logs, #history…) still land.

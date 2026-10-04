@@ -23,15 +23,21 @@
 import { api } from "./api.js";
 import { state, loadLibrary, progressFor } from "./state.js";
 import { artUrl, heroArtWidth } from "./ui.js";
+import { lite, fastNet, netTier } from "./net.js";
 
 const allowed = () => {
   if (document.hidden || !navigator.onLine) return false;
+  // a slow line (measured, hinted, or chosen under Preferences → Data use)
+  // keeps every byte for what the viewer actually asked for
+  if (lite()) return false;
   const c = navigator.connection;
   if (c && (c.saveData || /(^|-)2g$/.test(c.effectiveType || ""))) return false;
   return true;
 };
 // art is only worth fetching ahead on a connection that is not the bottleneck
 const fast = () => {
+  if (netTier() === "slow") return false;
+  if (fastNet()) return true;
   const c = navigator.connection;
   return !c || !c.effectiveType || c.effectiveType === "4g";
 };

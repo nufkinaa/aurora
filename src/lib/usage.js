@@ -20,6 +20,7 @@ const NAME_RE = /^[a-z][a-z0-9_]{0,31}$/;
 const KEY_RE = /^[a-z][a-z0-9_]{0,23}$/;
 const DEVICES = new Set(["phone", "tablet", "desktop", "tv"]);
 const LOOKS = new Set(["glass", "legacy"]);
+const NET_TIERS = new Set(["slow", "ok", "fast"]);
 
 const monthOf = (t) => new Date(t).toISOString().slice(0, 7);
 const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
@@ -38,6 +39,7 @@ const fresh = () => ({
   nav: {}, // destination -> n
   plays: {}, // `${kind}/${path}` -> { n, ms: [], byDevice: {} }
   errors: {}, // message -> n
+  net: { tiers: {}, byDevice: {}, sources: {}, kbps: [], rtt: [] }, // connection quality, per report
   profilesByDay: {}, // day -> Set
   sessionsByDay: {}, // day -> Set
 });
@@ -86,6 +88,12 @@ const apply = (batch) => {
       if (typeof p.ms === "number" && p.ms >= 0 && p.ms < 600000) sample(pl.ms, p.ms);
     } else if (ev.n === "error" && typeof p.m === "string") {
       bump(agg.errors, p.m);
+    } else if (ev.n === "net" && NET_TIERS.has(p.tier)) {
+      bump(agg.net.tiers, p.tier);
+      if (p.tier === "slow") bump(agg.net.byDevice, device);
+      if (typeof p.src === "string") bump(agg.net.sources, p.src.slice(0, 24));
+      if (typeof p.kbps === "number" && p.kbps > 0 && p.kbps < 1e7) sample(agg.net.kbps, p.kbps);
+      if (typeof p.rtt === "number" && p.rtt > 0 && p.rtt < 60000) sample(agg.net.rtt, p.rtt);
     }
   }
 };
@@ -217,6 +225,17 @@ const summary = () => {
     nav: top(agg.nav, 12).map(([to, n]) => ({ to, n })),
     plays: top(agg.plays, 12).map(([k, v]) => ({ path: k, n: v.n, p50: pct(v.ms, 50), p90: pct(v.ms, 90), byDevice: v.byDevice })),
     errors: top(agg.errors, 10).map(([m, n]) => ({ message: m, n })),
+    // connection quality as the app measured it (js/net.js): how many reports
+    // per tier, which devices the slow ones were, and the measured line
+    net: {
+      tiers: agg.net.tiers,
+      slowByDevice: agg.net.byDevice,
+      sources: agg.net.sources,
+      kbpsP10: pct(agg.net.kbps, 10),
+      kbpsP50: pct(agg.net.kbps, 50),
+      rttP50: pct(agg.net.rtt, 50),
+      rttP90: pct(agg.net.rtt, 90),
+    },
     activeByDay: days.map((d) => ({ day: d, profiles: agg.profilesByDay[d].size, sessions: (agg.sessionsByDay[d] || new Set()).size })),
   };
 };
@@ -246,6 +265,14 @@ const text = () => {
     lines.push("");
     lines.push("Client errors");
     for (const e of s.errors) lines.push(`  ${e.n}× ${e.message}`);
+  }
+  if (Object.keys(s.net.tiers).length) {
+    const kb = (v) => (v == null ? "–" : v >= 1000 ? `${(v / 1000).toFixed(1)} Mbit/s` : `${Math.round(v)} kbit/s`);
+    lines.push("");
+    lines.push("Connections (reports per tier · slow ones by device · measured line)");
+    lines.push(`  ${devs(s.net.tiers)}${Object.keys(s.net.slowByDevice).length ? ` · slow on: ${devs(s.net.slowByDevice)}` : ""}`);
+    lines.push(`  speed p10 / p50: ${kb(s.net.kbpsP10)} / ${kb(s.net.kbpsP50)} · round trip p50 / p90: ${fmtMs(s.net.rttP50)} / ${fmtMs(s.net.rttP90)}`);
+    if (Object.keys(s.net.sources).length) lines.push(`  decided by: ${devs(s.net.sources)}`);
   }
   lines.push("");
   lines.push("Active per day (profiles · tabs)");

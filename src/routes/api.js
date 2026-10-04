@@ -171,6 +171,18 @@ router.get("/api/changelog", (req, res) => {
 // so the app boots with no server in reach. Versioned by the files' mtimes,
 // so a deploy makes the worker re-fetch exactly once.
 let shellManifest = { at: 0, data: null };
+// A few dozen kilobytes of noise for the app to time (js/net.js): how fast
+// THIS device reaches THIS server. Random bytes so nothing between the two
+// can compress them, never cached, capped so it can't be used to pull data.
+const PROBE_NOISE = require("crypto").randomBytes(256 * 1024);
+router.get("/api/netprobe", (req, res) => {
+  const kb = Math.max(8, Math.min(256, parseInt(req.query.kb, 10) || 48));
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Length", String(kb * 1024));
+  res.end(PROBE_NOISE.subarray(0, kb * 1024));
+});
+
 router.get("/sw-manifest.json", (req, res) => {
   const fs = require("fs");
   const pub = path.join(__dirname, "..", "..", "public");

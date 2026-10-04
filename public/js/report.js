@@ -6,6 +6,7 @@ import { api } from "./api.js";
 import { state } from "./state.js";
 import { pushScope, popScope } from "./focus.js";
 import { track } from "./usage.js";
+import { netInfo } from "./net.js";
 
 // A small ring of the last client errors — window errors, unhandled
 // rejections, console.error calls — so a report carries what went wrong
@@ -60,6 +61,10 @@ export const showReportSheet = ({ hint = "" } = {}) => {
       ua: navigator.userAgent,
       viewport: `${innerWidth}×${innerHeight}`,
       online: navigator.onLine,
+      net: (() => {
+        const n = netInfo();
+        return [n.tier, n.source, n.kbps != null ? `${n.kbps} kbit/s` : null, n.rtt != null ? `${n.rtt} ms` : null].filter(Boolean).join(" · ");
+      })(),
       version,
       errors: errors.slice(),
       playMarks: playing && playing.marks ? playing.marks() : [],

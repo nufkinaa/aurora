@@ -15,6 +15,7 @@
 import { el } from "./ui.js";
 import { api } from "./api.js";
 import { track } from "./usage.js";
+import { lite } from "./net.js";
 
 // The device-local player settings, read straight from storage (the same
 // key playerPrefs writes) — the player module itself is loaded lazily.
@@ -56,6 +57,7 @@ export const heroTrailersWanted = () => {
   if (document.documentElement.dataset.look !== "glass") return false;
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return false;
   if (navigator.connection && navigator.connection.saveData) return false;
+  if (lite()) return false; // a slow line: the trailer would starve the page
   if (!navigator.onLine) return false;
   const coarse = matchMedia("(pointer: coarse)").matches && innerWidth < 900;
   return pref("heroTrailers", !coarse);

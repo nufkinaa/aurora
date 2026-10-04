@@ -1,4 +1,5 @@
 // Small DOM + formatting helpers shared by every screen.
+import { lite } from "./net.js";
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -90,7 +91,11 @@ const PROXY_ART_HOSTS = new Set([
 // and unknown hosts pass through untouched.
 export const artUrl = (u, w) => {
   if (!u || typeof u !== "string") return u;
-  const wq = w ? `w=${Math.min(1280, Math.round(w * Math.min(2, window.devicePixelRatio || 1)))}` : "";
+  // On a slow line (net.js) the picture is asked for at the size it is drawn,
+  // not at the screen's 2–3× density: about a third of the bytes, and on a
+  // phone-sized poster the difference is hard to see.
+  const density = lite() ? 1 : Math.min(2, window.devicePixelRatio || 1);
+  const wq = w ? `w=${Math.min(1280, Math.round(w * density))}` : "";
   if (u.startsWith("/img/")) {
     // library covers and the cached metadata posters; stills/frames untouched
     return wq && /^\/img\/(?:meta\/)?[A-Za-z0-9._-]+$/.test(u) ? `${u}?${wq}` : u;
@@ -104,7 +109,7 @@ export const artUrl = (u, w) => {
 };
 
 // How wide a full-bleed hero backdrop is worth fetching for this screen.
-export const heroArtWidth = () => Math.min(1280, window.innerWidth);
+export const heroArtWidth = () => Math.min(lite() ? 780 : 1280, window.innerWidth);
 
 // A poster <img> that can never strand a grey tile. Browsers never retry a
 // failed image on their own, so one transient CDN hiccup used to leave a

@@ -10,6 +10,7 @@ import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem
 import { showReportSheet, setPlayingContext } from "../report.js";
 import * as offline from "../offline.js";
 import { track } from "../usage.js";
+import { playCap, netTier } from "../net.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -666,8 +667,16 @@ export const renderPlayer = async (root, { id }) => {
   // the current position with the other track mapped in (server-side — a
   // browser can't switch tracks inside one stream).
   let audioIdx = 0;
+  // A height the stream is capped at — 720 or 480, 0 for the file as it is.
+  // A slow line (net.js) starts a library title on a capped h264 encode: a
+  // 1–2 Mbit/s stream that plays, where the untouched file (6–15 Mbit/s)
+  // would only ever buffer. Rides ?v= as h264-720 / h264-480; the Quality
+  // section of the settings menu changes it mid-film. Library files only —
+  // a torrent stream is already limited by its swarm, not by this line.
+  const canCap = !isTorrent && !item._offline && !!item.transcodeBase;
+  let capH = canCap ? playCap() : 0;
   const transcodeUrl = (ss, v) => {
-    const vv = v || currentV;
+    const vv = capH ? "h264" : v || currentV;
     // Native-HLS devices (iPhone) get fMP4 segments for copy jobs — Apple
     // requires them for HEVC-in-HLS, and they're fine for h264 too. HEVC in
     // fMP4 additionally MUST be tagged hvc1: ffmpeg's default (hev1) is the
@@ -678,7 +687,8 @@ export const renderPlayer = async (root, { id }) => {
       (item.video && item.video.codec === "hevc") || item.videoCodecHint === "hevc";
     const vtag = seg && isHevc ? "&vtag=hvc1" : "";
     const a = audioIdx > 0 ? `&a=${audioIdx}` : "";
-    return `${item.transcodeBase}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${vv}${seg}${vtag}${a}`;
+    const cap = capH && vv === "h264" ? `-${capH}` : "";
+    return `${item.transcodeBase}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${vv}${cap}${seg}${vtag}${a}`;
   };
   const startTranscode = (offset, v, { claimed = false, clock = null } = {}) => {
     streamOffset = Math.max(0, Math.floor(offset || 0));
@@ -686,6 +696,7 @@ export const renderPlayer = async (root, { id }) => {
     // Any offset job means we've LEFT the jit world (e.g. the media-error
     // self-heal) — keepAlive must ping the new job again.
     jitMode = false;
+    if (capH) v = "h264"; // a capped stream is always the encode
     if (v) currentV = v;
     const url = transcodeUrl(streamOffset, currentV);
     const isCopySeek = currentV === "copy" && streamOffset > 0;
@@ -763,6 +774,36 @@ export const renderPlayer = async (root, { id }) => {
     startTranscodeAt(at, v, { fallbackToZero: true });
   };
 
+  // Change the stream's quality mid-film: a capped 720p / 480p encode for a
+  // slow line, or back to the file as it is. Same restart-at-this-spot as an
+  // audio switch.
+  const switchQuality = (h) => {
+    if (h === capH) return closeMenu();
+    if (seekLocked()) return;
+    const was = capH;
+    capH = h;
+    closeMenu();
+    showControls();
+    const at = effTime();
+    track("feat", { f: h ? `quality_${h}` : "quality_original" });
+    if (h) {
+      startTranscodeAt(at, "h264").then((ok) => {
+        if (ok) return void toast(`Quality: ${h}p — lighter on a slow connection`, "📶");
+        capH = was;
+        toast("The server can't make that stream right now — staying as it is", "⚠️");
+      });
+      return;
+    }
+    toast("Quality: original", "📶");
+    // back to the untouched picture: the copy path when this device decodes
+    // the file's video (jit first — every seek native), the full encode when not
+    const copyOk = !copyRefused && (!item.video || !videoNeedsTranscode() || codecCopyable(item.video));
+    if (!copyOk) return void startTranscodeAt(at, "h264", { fallbackToZero: true });
+    tryJitSwitch(at).then((ok) => {
+      if (!ok) startTranscodeAt(at, "copy", { fallbackToZero: true });
+    });
+  };
+
   // The PTS-honest clock published by copy-at-offset playlist responses.
   const clockFromHeaders = (res) => {
     const base = parseFloat(res.headers.get("X-Aurora-Base"));
@@ -828,6 +869,7 @@ export const renderPlayer = async (root, { id }) => {
   const tryJitSwitch = async (fromSec) => {
     if (copyRefused) return false; // jit IS a copy stream — escalations are one-way
     if (audioIdx > 0) return false; // jit carries the first audio track only
+    if (capH) return false; // jit copies the file's own video — a capped stream can't be one
     if (isTorrent) {
       // The probe normalizes ffprobe's "matroska,webm" to "mkv"; accept both.
       if (!/matroska|mkv/i.test(item.container || "")) return false;
@@ -899,13 +941,36 @@ export const renderPlayer = async (root, { id }) => {
       : needA ? "copy" : item.transcodeV;
   }
 
+  // A slow line: try the capped stream first. The request below is the same
+  // claim a seek makes; if the server can't do it (no ffmpeg, both encode
+  // slots taken) the cap is dropped and the title plays the way it always did.
+  let cappedStart = false;
+  if (capH) {
+    const ss = Math.max(0, resumeAt - 2);
+    try {
+      const res = await fetch(`${transcodeUrl(ss, "h264")}&seek=1`, { cache: "no-store" });
+      if (res.ok && !exited) {
+        mark("decision", { why: `slow line (${netTier()}) → ${capH}p` });
+        startTranscode(ss, "h264", { claimed: true });
+        cappedStart = true;
+        setTimeout(() => {
+          if (!exited) toast(`Slow connection — playing a lighter ${capH}p stream. Change it under ⚙ → Quality.`, "📶");
+        }, 1200);
+        track("feat", { f: `quality_auto_${capH}` });
+      }
+    } catch {}
+    if (!cappedStart) capH = 0;
+  }
+
   const usingRemux = audioNeedsRemux(); // library file with undecodable audio
   // The !isTorrent guards below preserve flow ownership: torrents ALWAYS go
   // through their own branch (prefetch warm + fallbackToZero on resume) —
   // before the probe existed they had no item.video/audio so these library
   // branches never matched a torrent; the guard keeps that invariant now
   // that probe data fills those fields.
-  if (item._offline) {
+  if (cappedStart || exited) {
+    // already playing the capped stream (or the player closed while asking)
+  } else if (item._offline) {
     // The saved copy was made playable for this device (offline.js); play it.
     startDirect();
   } else if (
@@ -1120,7 +1185,7 @@ export const renderPlayer = async (root, { id }) => {
         // copyable — however we ENDED UP encoding (tag guess, decode-stall
         // watchdog) — except after this device actually refused a copy
         // stream (copyRefused: escalations are one-way).
-        if (currentV === "h264" && !copyRefused && codecCopyable(item.video)) {
+        if (currentV === "h264" && !capH && !copyRefused && codecCopyable(item.video)) {
           toast("This device can play this video — switching to the fast path…", "⚡");
           reportMark("client_switch", { reason: "probe-upgrade", to: "copy", position: effTime() });
           const at = effTime();
@@ -2224,6 +2289,21 @@ export const renderPlayer = async (root, { id }) => {
               ),
             );
           });
+        }
+        // Quality — a library title can be played as a lighter stream when
+        // the connection can't carry the file itself.
+        if (canCap) {
+          menu.append(el("div", { class: "menu-title" }, "Quality"));
+          for (const [h, label, tag] of [[0, "Original", "the file as it is"], [720, "720p", "data saver"], [480, "480p", "slow connection"]]) {
+            menu.append(
+              el(
+                "button",
+                { class: `menu-item focusable ${capH === h ? "active" : ""}`, onclick: () => switchQuality(h) },
+                el("span", {}, label),
+                el("span", { class: "tag" }, tag),
+              ),
+            );
+          }
         }
         menu.append(el("div", { class: "menu-title" }, "Playback"));
         menu.append(

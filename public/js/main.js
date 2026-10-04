@@ -16,6 +16,7 @@ import { initAurora } from "./aurora.js";
 import { initScreensaver } from "./screensaver.js";
 import { initPrefetch } from "./prefetch.js";
 import { track } from "./usage.js";
+import { onNet, netInfo, dataMode } from "./net.js";
 
 // Only what boot needs is imported statically: home, the profile door, the
 // sign-in screen and the shared chrome. Every other screen loads on first
@@ -137,6 +138,24 @@ initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
 }
 initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
 initPrefetch(); // the next screen's data, fetched while this one is read
+// The connection (net.js): one usage event per tab once it is known, another
+// when it changes — so the admin can see how many sessions are on a thin
+// line — and one quiet toast the first time Aurora goes lighter by itself.
+{
+  let told = false;
+  const report = () => {
+    const n = netInfo();
+    track("net", { tier: n.tier, src: n.source, ...(n.kbps != null ? { kbps: n.kbps } : {}), ...(n.rtt != null ? { rtt: n.rtt } : {}) });
+  };
+  setTimeout(report, 15000); // after the first screens have given it something to measure
+  onNet((tier) => {
+    report();
+    if (tier === "slow" && dataMode() === "auto" && !told && !document.querySelector(".player")) {
+      told = true;
+      toast("Slow connection — Aurora is loading lighter pictures. Preferences → Data use changes that.", "📶");
+    }
+  });
+}
 // usage stats: which tab gets tapped (the screens themselves report via the router)
 $("#nav").addEventListener("click", (e) => {
   const a = e.target.closest && e.target.closest(".nav-item[data-route]");

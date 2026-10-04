@@ -7,6 +7,37 @@ import { navigate } from "../router.js";
 import { onMessage } from "../ws.js";
 import { createHeroTrailer } from "../heroTrailer.js";
 import { fromHome as prefetchFromHome, warmHero } from "../prefetch.js";
+import { lite } from "../net.js";
+
+// Home's last answer, per profile. Coming back to Home paints from it at
+// once and the rows are refreshed underneath when the server answers — no
+// skeleton between a title page and the rows you just left. On a slow line
+// the answer is also kept on the device, so even a cold start shows the
+// shelves straight away instead of a blank page for as long as the request
+// takes (elia: "so they still have a good website feeling").
+const HOME_KEY = (pid) => `aurora-home-${pid}`;
+const HOME_MAX_AGE_MS = 24 * 3600 * 1000;
+const HOME_MAX_CHARS = 600 * 1024;
+const homeMemo = new Map(); // profile id -> data
+const lastHome = (pid) => {
+  if (!pid) return null;
+  if (homeMemo.has(pid)) return homeMemo.get(pid);
+  if (!lite()) return null;
+  try {
+    const kept = JSON.parse(localStorage.getItem(HOME_KEY(pid)) || "null");
+    if (kept && Date.now() - kept.at < HOME_MAX_AGE_MS && kept.data && Array.isArray(kept.data.rows)) return kept.data;
+  } catch {}
+  return null;
+};
+const rememberHome = (pid, data) => {
+  if (!pid || !data || !Array.isArray(data.rows)) return;
+  homeMemo.set(pid, data);
+  if (!lite()) return;
+  try {
+    const text = JSON.stringify({ at: Date.now(), data });
+    if (text.length <= HOME_MAX_CHARS) localStorage.setItem(HOME_KEY(pid), text);
+  } catch {}
+};
 
 // How long each billboard title holds before the next slides in. The focus-pull
 // animation in screens.css is deliberately SHORTER than this: the art reaches
@@ -60,9 +91,12 @@ export const renderHome = async (root) => {
     )
   );
 
-  let data;
-  try {
-    data = await api.home(state.profile?.id);
+  const pid = state.profile?.id;
+  let data = lastHome(pid);
+  const painted = !!data; // from the last answer: refreshed below, once the rows exist
+  if (!data) try {
+    data = await api.home(pid);
+    rememberHome(pid, data);
   } catch {
     screen.innerHTML = "";
     screen.append(
@@ -521,11 +555,18 @@ export const renderHome = async (root) => {
   };
   renderRows(data.rows);
   prefetchFromHome(data); // Continue Watching's next titles, quietly, at idle
+  if (painted) {
+    api.home(pid).then((fresh) => {
+      rememberHome(pid, fresh);
+      if (screen.isConnected) refreshRows(fresh.rows);
+    }).catch(() => {});
+  }
 
   // Refresh rows when the library changes (new files, OCR finished...)
   const unsub = onMessage("library_updated", async () => {
     try {
       const fresh = await api.home(state.profile?.id);
+      rememberHome(state.profile?.id, fresh);
       if (!screen.isConnected) return;
       refreshRows(fresh.rows);
     } catch {}

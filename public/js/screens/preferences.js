@@ -10,6 +10,7 @@ import { playerPrefs, applyCueStyle } from "./player.js";
 import { showClaimModal } from "../claim.js";
 import { showLoginScreen } from "./login.js";
 import * as offlineStore from "../offline.js";
+import { dataMode, setDataMode, netInfo } from "../net.js";
 
 // One settings row: label + explanation on the left, a button cycling the value
 // on the right. Every row here drives behaviour that already exists in the
@@ -620,6 +621,30 @@ export const renderPreferences = async (root) => {
                 state.profile.prefs = { ...(state.profile.prefs || {}), smartCleanup: !next };
                 toast(e.message || "Couldn't save that", "⚠️");
               }
+            }
+          )
+        )),
+      section("Data use",
+        (() => {
+          const n = netInfo();
+          const now = n.tier === "slow" ? "slow" : n.tier === "fast" ? "fast" : "fine";
+          // a LAN measures in the hundreds of Mbit/s — "over 100" says enough
+          const speed = n.kbps == null ? "" : n.kbps >= 100000 ? " (over 100 Mbit/s from the server)"
+            : ` (about ${n.kbps >= 1000 ? (n.kbps / 1000).toFixed(1) + " Mbit/s" : n.kbps + " kbit/s"} from the server)`;
+          const state = n.mode === "saver" ? "Data saver is on, so this device is always on the light side."
+            : n.mode === "full" ? "Full quality is on, so nothing adapts on this device."
+            : `Right now the connection looks ${now}${speed}.`;
+          return `Aurora watches how fast this device reaches the server and goes lighter when the line is slow: smaller pictures, nothing loaded ahead of time, no trailers, and a 720p or 480p stream for titles in the library. ${state}`;
+        })(),
+        el("div", { class: "pref-list page-pad" },
+          prefRow(
+            "Data use",
+            "Automatic adapts to the connection. Data saver is always light — for a phone on mobile data. Full quality never adapts.",
+            () => ({ auto: "Automatic", saver: "Data saver", full: "Full quality" }[dataMode()]),
+            () => {
+              const order = ["auto", "saver", "full"];
+              setDataMode(order[(order.indexOf(dataMode()) + 1) % order.length]);
+              setTimeout(rerenderInPlace, 0); // the note above says which mode is on
             }
           )
         )),

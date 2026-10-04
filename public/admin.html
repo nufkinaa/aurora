@@ -683,7 +683,7 @@
           <span class="note">approvals waiting on you — everything else runs by itself</span></h2></summary>
         <div class="acard-body">
           <div class="now-grid" id="dl-pending" style="margin-top:10px"></div>
-          <div class="empty-note hidden" id="dl-pending-empty">Nothing is waiting for approval — there's enough disk space, so requests start by themselves.</div>
+          <div class="empty-note hidden" id="dl-pending-empty">Nothing is waiting for approval.</div>
         </div>
       </details>
       <details class="acard" data-key="d-flight" open>
@@ -1994,7 +1994,7 @@
             <td style="max-width:460px;min-width:240px"><div style="white-space:pre-wrap">${esc(r.text)}</div>
               <details style="margin-top:6px"><summary class="muted" style="cursor:pointer;font-size:0.8rem">context${r.context.errors && r.context.errors.length ? ` · ${r.context.errors.length} error${r.context.errors.length > 1 ? "s" : ""}` : ""}</summary>
                 <div class="muted" style="font-size:0.78rem;margin-top:4px;line-height:1.5">
-                  ${esc(r.context.look || "")} · ${esc(r.context.viewport || "")} · v${esc(r.context.version || "?")}${r.context.online === false ? " · offline" : ""}<br>
+                  ${esc(r.context.look || "")} · ${esc(r.context.viewport || "")} · v${esc(r.context.version || "?")}${r.context.online === false ? " · offline" : ""}${r.context.net ? ` · connection: ${esc(r.context.net)}` : ""}<br>
                   <span style="font-family:ui-monospace,monospace">${esc(r.context.ua || "")}</span>
                   ${r.context.title ? `<br>playing: ${esc(r.context.title)} (${esc(r.context.itemId || "")})` : ""}
                   ${r.context.playMarks && r.context.playMarks.length ? `<br>start-up: ${esc(r.context.playMarks.map((m) => `+${m.ms}ms ${m.name}${m.path ? ":" + m.path : ""}`).join(" → "))}` : ""}
@@ -2038,6 +2038,16 @@
         [devs(s.devices) || "–", "devices", "events per device class"],
         [devs(s.looks) || "–", "looks", ""],
         [String(today.profiles || 0), "profiles today", today.sessions ? `${today.sessions} tabs` : ""],
+        // how good the line to this server is, as each device measured it
+        ...(s.net && Object.keys(s.net.tiers || {}).length ? [[
+          devs(s.net.tiers),
+          "connections",
+          [
+            s.net.kbpsP50 != null ? `typical ${s.net.kbpsP50 >= 1000 ? (s.net.kbpsP50 / 1000).toFixed(1) + " Mbit/s" : Math.round(s.net.kbpsP50) + " kbit/s"}` : "",
+            s.net.kbpsP10 != null ? `slowest tenth ${s.net.kbpsP10 >= 1000 ? (s.net.kbpsP10 / 1000).toFixed(1) + " Mbit/s" : Math.round(s.net.kbpsP10) + " kbit/s"}` : "",
+            Object.keys(s.net.slowByDevice || {}).length ? `slow on: ${devs(s.net.slowByDevice)}` : "",
+          ].filter(Boolean).join(" · "),
+        ]] : []),
       ].map(([v, k, note]) => `<div class="stat"><div class="v" style="font-size:1.1rem">${esc(v)}</div><div class="k">${esc(k)}</div>${note ? `<div class="note">${esc(note)}</div>` : ""}</div>`).join("");
       $("#usage-routes").innerHTML = (s.routes || []).map((r) => `<tr><td>${esc(r.route)}</td><td>${r.n}</td><td>${ms(r.p50)}</td><td>${ms(r.p90)}</td><td class="muted">${esc(devs(r.byDevice))}</td></tr>`).join("") || `<tr><td colspan="5" class="muted">—</td></tr>`;
       $("#usage-features").innerHTML = (s.features || []).map((f) => `<tr><td>${esc(f.feature)}</td><td>${f.n}</td><td class="muted">${esc(devs(f.byDevice))}</td></tr>`).join("") || `<tr><td colspan="3" class="muted">—</td></tr>`;
@@ -2154,7 +2164,7 @@
       $("#bans").innerHTML = entries.length
         ? entries.map(([ip, b]) => `<tr><td>${esc(ip)}</td><td class="muted">${esc(b.reason || "")} · ${ago(b.at)}</td>
             <td style="text-align:right"><button class="mini" onclick="unban('${esc(ip)}')">Unban</button></td></tr>`).join("")
-        : `<tr><td class="empty-note">No banned IPs.</td></tr>`;
+        : `<tr><td colspan="3" class="empty-note">No banned addresses.</td></tr>`;
     }
 
     // ---------- downloads ----------
@@ -2245,10 +2255,17 @@
         $("#disk-headline").innerHTML =
           `<b style="${low ? "color:#f87171" : ""}">${fmtBytes(minFree)} free</b>${low ? " — running low, clean up below" : ""}`;
       }
-      $("#disk-bars").innerHTML = disks.map((d) => {
+      const merged = [];
+      for (const d of disks) {
+        const same = d.total != null && merged.find((m) => m.total === d.total && m.free === d.free);
+        if (same) same.roots.push(d.root);
+        else merged.push({ ...d, roots: [d.root] });
+      }
+      $("#disk-bars").innerHTML = merged.map((d) => {
         // The folder NAME is what identifies a library ("Movies", "Shows");
         // the full path is a tooltip — on a phone it wrapped over 4 lines.
-        const shortRoot = d.root.split(/[\\/]/).filter(Boolean).slice(-2).join("/");
+        const shortRoot = d.roots.map((r) => r.split(/[\\/]/).filter(Boolean).slice(-2).join("/")).join(" + ");
+        d = { ...d, root: d.roots.join("\n") };
         if (d.total == null) {
           return `<div class="now-card"><div class="name" title="${esc(d.root)}">${esc(shortRoot)}</div><div class="meta">size unavailable</div></div>`;
         }

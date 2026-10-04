@@ -63,3 +63,18 @@ test("an oversized batch is capped at 50 events", () => {
   const many = Array.from({ length: 80 }, () => ({ n: "nav", t: now, p: { to: "#/" } }));
   assert.strictEqual(usage.record(batch(many), { persist: false }), 50);
 });
+
+test("connection reports are counted per tier, with the measured line and who was slow", () => {
+  const now = Date.now();
+  usage.record(batch([
+    { n: "net", t: now, p: { tier: "slow", src: "measured", kbps: 800, rtt: 400 } },
+    { n: "net", t: now, p: { tier: "fast", src: "measured", kbps: 40000, rtt: 20 } },
+    { n: "net", t: now, p: { tier: "bogus", kbps: 1 } },
+  ]), { persist: false });
+  const s = usage.summary();
+  assert.ok(s.net.tiers.slow >= 1 && s.net.tiers.fast >= 1);
+  assert.equal(s.net.tiers.bogus, undefined);
+  assert.ok(s.net.slowByDevice.phone >= 1);
+  assert.ok(s.net.kbpsP10 <= s.net.kbpsP50);
+  assert.match(usage.text(), /Connections \(reports per tier/);
+});

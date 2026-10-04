@@ -41,6 +41,8 @@ router.post("/api/reports", (req, res) => {
       look: clean(ctx.look, 20) || null,
       ua: clean(ctx.ua, 300),
       viewport: clean(ctx.viewport, 40),
+      // the connection as the app saw it (js/net.js): "slow · measured · 800 kbit/s"
+      net: clean(ctx.net, 60),
       online: ctx.online !== false,
       version: clean(ctx.version, 20),
       errors: Array.isArray(ctx.errors) ? ctx.errors.slice(-20).map((e) => clean(e, 400)) : [],

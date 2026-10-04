@@ -443,7 +443,7 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
   // effectiveVcodec (now the identity — offset copy is PTS-honest, see
   // remux.js) is still applied here so the segment URIs below always name
   // the same job dir the segment route computes.
-  const v = remux.effectiveVcodec(req.query.v === "copy" ? "copy" : "h264", ss);
+  const v = remux.effectiveVcodec(remux.vcodecFromQuery(req.query.v), ss);
   try {
     // ?seek=1 marks a deliberate seek by the viewer (the player probe sets it;
     // hls.js playlist refreshes never do). Only that may re-create an offset we
@@ -496,7 +496,7 @@ router.get("/stream/transcode/:id/:ss/:file", (req, res) => {
     return res.status(404).send("Not found");
   }
   const ss = Math.max(0, parseInt(req.params.ss, 10) || 0);
-  const v = remux.effectiveVcodec(req.query.v === "copy" ? "copy" : "h264", ss);
+  const v = remux.effectiveVcodec(remux.vcodecFromQuery(req.query.v), ss);
   const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
   const audio = Math.max(0, Math.min(31, parseInt(req.query.a, 10) || 0));
   remux.touch(req.params.id, mtime, v, ss, fmt, audio); // keep an actively-watched job alive
