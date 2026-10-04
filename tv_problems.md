@@ -85,3 +85,9 @@ been rebuilt** — run `tv-native/build-apk.bat`; Admin → Server → TV app sa
 - Still open: item 2 (audio track menu), and everything under "sizing" —
   the layout is already ratio-based and spec-pinned (`useTvMetrics`), so it
   was left alone rather than changed blind.
+- Player bar (also 5.0.2, same caveat — parsed, never run): 32dp slimmer
+  (`styles.bottom` padding 44/34 → 28/28, `times` and `buttons` gaps
+  tightened), the "NN% loaded" text removed (its centre slot kept, empty),
+  and the three things anchored above the bar moved down by the same 32dp
+  (subtitles 230 → 198, Skip intro and the resume card 176 → 144). The
+  menu's `bottom: 160` was left alone — it now clears the scrubber by 18dp.

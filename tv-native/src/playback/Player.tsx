@@ -2405,7 +2405,7 @@ export default function Player({
         offset={subOffset}
         sizePx={CUE_PX[prefs.cueSize]}
         background={prefs.cueBackground}
-        bottom={controls ? 230 : 48}
+        bottom={controls ? 198 : 48}
       />
 
       {/* Mid-playback stall. The site only darkens the picture and explains
@@ -2523,11 +2523,10 @@ export default function Player({
             </Focusable>
             <View style={styles.times}>
               <Text style={styles.time}>{fmt(shown)}</Text>
-              {/* Centre slot: how much is loaded ahead. Most useful while a
-                  torrent fills in; blank once it's all there, like the site. */}
-              <Text style={styles.bufferPct}>
-                {duration && bufPct < 99.5 ? `${Math.round(bufPct)}% loaded` : ''}
-              </Text>
+              {/* Centre slot, kept so the two times stay at the ends; the
+                  "NN% loaded" text is gone (elia) — the lighter bar on the
+                  track already shows how much is loaded. */}
+              <Text style={styles.bufferPct}>{''}</Text>
               <Text style={styles.time}>
                 {duration ? `-${fmt(Math.max(0, duration - shown))}` : ''}
               </Text>
@@ -2633,7 +2632,7 @@ export default function Player({
           hasTVPreferredFocus
           onFocusChange={markZone('skip')}
           onPress={skipIntro}
-          style={[styles.skipIntro, {bottom: controls ? 176 : 56}]}>
+          style={[styles.skipIntro, {bottom: controls ? 144 : 56}]}>
           <Text style={styles.skipIntroText}>Skip intro</Text>
           <Icon name="skip" size={18} color={colors.bg} />
         </Focusable>
@@ -2641,7 +2640,7 @@ export default function Player({
 
       {/* The resume card: the frame you stopped on, and Start over for six seconds. */}
       {resumeCard && uri && !menuOpen ? (
-        <View style={[styles.resumeCard, {bottom: controls ? 176 : 56}]}>
+        <View style={[styles.resumeCard, {bottom: controls ? 144 : 56}]}>
           <Image
             source={imgSrc(`/img/frame/${encodeURIComponent(id)}?t=${Math.floor(resumeCard.at)}`) || undefined}
             style={styles.resumeFrame}
@@ -3073,7 +3072,11 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     overflow: 'hidden',
   },
-  bottom: {paddingHorizontal: spacing.pageX, paddingTop: 44, paddingBottom: 34},
+  // A slimmer bar (elia): 32dp less than it was — top padding 44 → 28, the
+  // gaps under the track and above the buttons tightened. The bottom padding
+  // stays at the 5% overscan inset (27dp on a 540dp panel), so nothing moves
+  // closer to the edge of the screen than it was allowed to be.
+  bottom: {paddingHorizontal: spacing.pageX, paddingTop: 28, paddingBottom: 28},
   // .scrubber { height: 22px; display:flex; align-items:center }
   scrubber: {height: 26, justifyContent: 'center', borderRadius: radius.s},
   // .scrubber-track, and `.scrubber:focus .scrubber-track { height: 8px }`.
@@ -3103,11 +3106,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
   },
   time: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '700'},
   bufferPct: {color: colors.textFaint, fontSize: fontSize.small, fontWeight: '600'},
-  buttons: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md},
+  buttons: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm},
   // .pbtn — a circle, transparent until focused. The bg is transparent rather
   // than a surface colour so the buttons read as floating over the picture.
   pbtn: {

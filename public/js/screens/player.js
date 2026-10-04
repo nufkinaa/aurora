@@ -1472,8 +1472,11 @@ export const renderPlayer = async (root, { id }) => {
     el(
       "div",
       { class: "player-bottom" },
-      scrubber,
-      el("div", { class: "scrubber-time" }, timeNow, bufferPct, timeLeft),
+      // One row: time · timeline · time left. The times used to sit on a row
+      // of their own under the timeline, with "NN% loaded" between them —
+      // a third of the dock's height for two numbers (elia: slimmer, and the
+      // loaded text can go).
+      el("div", { class: "scrub-row" }, timeNow, scrubber, timeLeft),
       el(
         "div",
         { class: "player-controls" },
