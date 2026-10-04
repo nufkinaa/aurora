@@ -30,7 +30,7 @@ const TITLE_TTL = 14 * 24 * 3600 * 1000;
 const EPISODE_TTL = 30 * 24 * 3600 * 1000;
 const EMPTY_TTL = 24 * 3600 * 1000;
 const V = 1;
-const MAX_ENTRIES = 1500;
+const MAX_ENTRIES = 600; // a long series is ~100 kB on its own: this keeps the file to a few MB
 
 const store = new JsonStore(path.join(config.CACHE_DIR, "xray.json"), {});
 
@@ -91,7 +91,8 @@ const cinemeta = async (type, imdbId) => {
     tmdbId: m.moviedb_id || null,
     videos: (m.videos || []).filter((v) => v.season >= 1).map((v) => ({
       season: v.season, episode: v.episode || v.number, title: v.name || null,
-      overview: v.overview || v.description || "", still: v.thumbnail || null, aired: v.released || v.firstAired || null,
+      // (the fallback overview only — TVMaze's own is used when it answers — so a short one is enough to keep)
+      overview: String(v.overview || v.description || "").slice(0, 320), still: v.thumbnail || null, aired: v.released || v.firstAired || null,
     })),
   };
 };

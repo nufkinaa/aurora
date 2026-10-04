@@ -260,7 +260,7 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     // message (elia: "if we do those they need to be almost unnoticeable").
     // So: nothing at all over a playing film, and otherwise one small dim
     // line that is gone in two seconds. It can be cancelled, and the feature
-    // turned off, from the Downloads page and Preferences → Playback.
+    // turned off, from the Downloads page and Settings → More settings → Downloads.
     if (!downloads.has(job.id) && job.mine && job.smart && !document.querySelector(".player")) {
       const ep = job.season && job.episode ? ` S${job.season}E${job.episode}` : "";
       toast(`Next episode downloading${ep ? " ·" + ep : ""}`, "⬇", null, { quiet: true });

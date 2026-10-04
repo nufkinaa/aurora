@@ -1402,6 +1402,11 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       "aria-label": "X-Ray",
       "aria-pressed": "false",
     });
+    const onXrBack = (e) => {
+      if (!screen.isConnected || !screen.classList.contains("xray-on")) return document.removeEventListener("ui-back", onXrBack);
+      e.preventDefault();
+      toggleXray();
+    };
     const toggleXray = async () => {
       const on = !screen.classList.contains("xray-on");
       if (on && !xrNode) {
@@ -1412,6 +1417,11 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       const hero = screen.querySelector(".detail-hero");
       if (on && hero) hero.after(xrNode);
       screen.classList.toggle("xray-on", on);
+      // Back (Escape, the remote) closes X-Ray first, and only then leaves the
+      // page: the panel carries the marker the app's Back handler yields to.
+      xrNode.classList.toggle("ui-overlay", on);
+      document.removeEventListener("ui-back", onXrBack);
+      if (on) document.addEventListener("ui-back", onXrBack);
       xrBtn.classList.toggle("on", on);
       xrBtn.setAttribute("aria-pressed", String(on));
       if (on) {

@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.15 — 2026-10-05
+
+- Back (Escape, or a remote's Back button) closes X-Ray first — in the player it used to close the sheet and leave the film as well; on a title page it left the page with X-Ray still open behind it.
+- X-Ray with nothing to show for an episode no longer draws an empty box, and its saved answers on the server are kept to a few megabytes.
+- The "Resumed at…" pill and the lighter-stream pill no longer sit on top of each other when a film both resumes and starts lighter.
+
 ## 1.6.14 — 2026-10-05
 
 - A slimmer player dock: the elapsed and remaining times sit on the timeline's own row instead of a row beneath it, the "% loaded" text is gone (the lighter bar on the timeline already shows it), and the padding and the play button came in a little. On a computer the dock is about a third shorter. Same on the TV (source — in the next APK): 32dp shorter, with Skip intro, the resume card and subtitles following it down.

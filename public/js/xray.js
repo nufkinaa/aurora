@@ -108,7 +108,9 @@ export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = 
 
   const paint = (x) => {
     const out = [];
-    const ep = x.episode;
+    // an episode the sources know nothing about (no guests, no synopsis) is
+    // not worth an empty box — the series' own sections still show
+    const ep = x.episode && (x.episode.guests.length || x.episode.overview || x.episode.still) ? x.episode : null;
     if (ep) {
       const meta = [fmtDate(ep.aired), ep.runtime, ep.rating && `★ ${ep.rating.value} on ${ep.rating.source}`].filter(Boolean).join(" · ");
       out.push(el("section", { class: "xr-section xr-episode" },

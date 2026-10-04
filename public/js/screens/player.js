@@ -1412,9 +1412,8 @@ export const renderPlayer = async (root, { id }) => {
         closeLabel: "Back to watching",
         link: false,
       })));
-    sheet.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") { e.stopPropagation(); closeXray(); }
-    });
+    // (Back / Escape is handled by the player's own Back handler — see onBack —
+    // so a remote's Back button closes the sheet too.)
     overlay.append(sheet);
     pushScope(sheet);
     requestAnimationFrame(() => sheet.classList.add("in"));
@@ -3896,6 +3895,7 @@ export const renderPlayer = async (root, { id }) => {
   const onBack = (e) => {
     if (document.querySelector(".look-notice-wrap")) return; // a sheet owns Back
     e.preventDefault();
+    if (xraySheet) return closeXray(); // Back / Escape closes the X-Ray sheet, not the film
     if (upNextEl) return dismissUpNext();
     if (menuHost.childElementCount > 0) {
       closeMenu();

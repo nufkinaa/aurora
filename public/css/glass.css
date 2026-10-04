@@ -2583,3 +2583,11 @@ html[data-look="glass"] .pbtn.big svg {
     row-gap: 0;
   }
 }
+
+/* The "Resumed at…" pill and the "720p for your connection" pill share a
+   spot; when a film both resumes and starts on a lighter stream, the resume
+   pill sits one row lower instead of on top of the other. */
+.quality-pill ~ .resume-pill,
+.resume-pill ~ .quality-pill:not(.resume-pill) {
+  top: calc(116px + env(safe-area-inset-top));
+}
