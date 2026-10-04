@@ -183,6 +183,43 @@ router.get("/api/netprobe", (req, res) => {
   res.end(PROBE_NOISE.subarray(0, kb * 1024));
 });
 
+// What this household has been watching lately, most-watched first — the
+// shelf under an empty Search box. From the profiles' own progress (library
+// titles only): a title scores by how many profiles touched it in the last
+// 45 days, then by how recently. What the asking profile already finished
+// is left out — this is for finding something, not for looking back.
+router.get("/api/popular", (req, res) => {
+  const profiles = require("../profiles");
+  const me = String(req.query.profile || "");
+  const since = Date.now() - 45 * 24 * 3600 * 1000;
+  const byEpisode = new Map(); // episode id -> its show
+  for (const s of scanner.index.shows) for (const se of s.seasons || []) for (const e of se.episodes || []) byEpisode.set(e.id, s);
+  const movies = new Map(scanner.index.movies.map((m) => [m.id, m]));
+  const score = new Map(); // title id -> { item, who: Set, last }
+  const mineDone = new Set();
+  for (const p of profiles.list()) {
+    const prog = profiles.getProgress(p.id) || {};
+    for (const [itemId, pr] of Object.entries(prog)) {
+      if (!pr || (pr.updatedAt || 0) < since) continue;
+      const movie = movies.get(itemId);
+      const show = byEpisode.get(itemId);
+      const item = movie || show;
+      if (!item) continue;
+      if (p.id === me && movie && pr.finished) mineDone.add(item.id);
+      const hit = score.get(item.id) || { item, who: new Set(), last: 0 };
+      hit.who.add(p.id);
+      hit.last = Math.max(hit.last, pr.updatedAt || 0);
+      score.set(item.id, hit);
+    }
+  }
+  const items = [...score.values()]
+    .filter((h) => !mineDone.has(h.item.id))
+    .sort((a, b) => b.who.size - a.who.size || b.last - a.last)
+    .slice(0, 12)
+    .map((h) => (h.item.seasons ? listEntry(h.item) : h.item));
+  res.json({ items });
+});
+
 // X-Ray (media/xray.js): cast, crew, ratings and facts for a title — and,
 // for a series, for one episode of it (its own guest cast, director, rating).
 router.get("/api/xray", async (req, res) => {

@@ -1044,7 +1044,23 @@ export const renderPlayer = async (root, { id }) => {
     // the fallback, and everything undecodable gets the real h264 encode.
     const copyOk = codecCopyable(item.video || {});
     const jitOk = copyOk ? await tryJitSwitch(resumeAt) : false;
-    if (!jitOk) startTranscode(resumeAt, copyOk ? "copy" : "h264");
+    // About to encode live — is there a play-ready copy the server made
+    // when this was downloaded (media/preconvert.js)? Then play that: it
+    // starts at once, seeks natively and costs the server nothing. One small
+    // request, only on this path; anything but "ready" changes nothing.
+    let prepared = false;
+    if (!jitOk && !copyOk) {
+      try {
+        const st = await api.offlineStatus(item.id, "1080", false);
+        if (st && st.state === "ready" && st.url && !st.direct && !exited) {
+          mark("decision", { why: "play-ready copy on the server" });
+          item.videoUrl = st.url;
+          prepared = true;
+          startDirect();
+        }
+      } catch {}
+    }
+    if (!jitOk && !prepared) startTranscode(resumeAt, copyOk ? "copy" : "h264");
   } else if (!isTorrent && usingRemux) {
     // Undecodable AUDIO only. S7 JIT first: one COMPLETE playlist (exact
     // duration + boundaries from the file's own index), segments made on
@@ -3130,47 +3146,33 @@ export const renderPlayer = async (root, { id }) => {
     if (resumeAnnounced) return;
     resumeAnnounced = true;
     if (isTorrent || !overlay) {
-      return toast(`Resuming from ${fmtClock(at)}`, "▶️", { label: "Start over", onClick: () => seekTo(0) });
+      return toast(`Resumed at ${fmtClock(at)}`, "▶️", { label: "Start over", onClick: () => seekTo(0) });
     }
     if (resumeCard) resumeCard.remove();
-    const img = el("img", {
-      class: "resume-card-frame",
-      src: `/img/frame/${encodeURIComponent(item.id)}?t=${Math.floor(at)}`,
-      alt: "",
-      onerror: () => img.remove(), // no ffmpeg / no frame: the card is text-only
-    });
+    // Toned down (elia): a small dim pill at the top — "Resumed at 12:34 ·
+    // Start over" — for four seconds, instead of a card with the frame and a
+    // big button over the picture. No frame also means no ffmpeg call on the
+    // server every time someone resumes.
     const startOver = el("button", {
-      class: "btn small focusable",
-      html: "<span>Start over</span>",
+      class: "focusable",
       onclick: () => {
         seekTo(0); // understands the transcode clock; currentTime = 0 would land on the resume point
         dismiss();
-        toast("From the top", "⏮");
+        toast("From the top", "⏮", null, { quiet: true });
       },
-    });
-    resumeCard = el(
-      "div",
-      { class: "resume-card" },
-      img,
-      el(
-        "div",
-        { class: "resume-card-text" },
-        el("div", { class: "resume-card-k" }, "Resuming from"),
-        el("div", { class: "resume-card-t" }, fmtClock(at)),
-      ),
-      startOver,
-    );
+    }, "Start over");
+    resumeCard = el("div", { class: "quality-pill resume-pill" }, el("span", {}, `Resumed at ${fmtClock(at)}`), startOver);
     let timer = null;
     const dismiss = () => {
       clearTimeout(timer);
       if (!resumeCard) return;
-      resumeCard.classList.add("leaving");
+      resumeCard.classList.add("hide");
       const node = resumeCard;
       resumeCard = null;
-      setTimeout(() => node.remove(), 350);
+      setTimeout(() => node.remove(), 550);
     };
     overlay.append(resumeCard);
-    timer = setTimeout(dismiss, 6000);
+    timer = setTimeout(dismiss, 4000);
   };
 
   // ---------- progress persistence ----------

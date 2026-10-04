@@ -216,11 +216,20 @@ router.delete("/api/admin/library/:type/:id", (req, res) => {
 router.get("/api/admin/library/tree", (req, res) => {
   // watchedBy: how many profiles FINISHED each item — the number that
   // answers "is this safe to delete" (elia's catalog-cleanup ask).
+  // midway: how many profiles are PART-WAY through it (deleting it would
+  // take it from under them); lastWatched: when it was last finished — the
+  // two numbers the "free up space" helper needs to pick what is safe to go.
   const watchedBy = new Map();
+  const midway = new Map();
+  const lastWatched = new Map();
   for (const p of profiles.list()) {
     const prog = profiles.getProgress(p.id) || {};
     for (const [itemId, pr] of Object.entries(prog)) {
-      if (pr && pr.finished) watchedBy.set(itemId, (watchedBy.get(itemId) || 0) + 1);
+      if (!pr) continue;
+      if (pr.finished) {
+        watchedBy.set(itemId, (watchedBy.get(itemId) || 0) + 1);
+        lastWatched.set(itemId, Math.max(lastWatched.get(itemId) || 0, pr.updatedAt || 0));
+      } else if ((pr.position || 0) > 60) midway.set(itemId, (midway.get(itemId) || 0) + 1);
     }
   }
   const movies = scanner.index.movies.map((m) => ({
@@ -230,6 +239,8 @@ router.get("/api/admin/library/tree", (req, res) => {
     cover: m.cover || null,
     addedAt: m.addedAt || 0,
     watched: watchedBy.get(m.id) || 0,
+    midway: midway.get(m.id) || 0,
+    lastWatched: lastWatched.get(m.id) || 0,
     sizeBytes: m.sizeBytes || 0,
   }));
   const shows = scanner.index.shows.map((s) => {
@@ -244,6 +255,8 @@ router.get("/api/admin/library/tree", (req, res) => {
         fileName: e.fileName,
         addedAt: e.addedAt || 0,
         watched: watchedBy.get(e.id) || 0,
+        midway: midway.get(e.id) || 0,
+        lastWatched: lastWatched.get(e.id) || 0,
         sizeBytes: e.sizeBytes || 0,
       })),
     }));

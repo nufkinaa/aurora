@@ -117,6 +117,8 @@ export const api = {
   xray: ({ type, imdbId, season, episode, keys }) =>
     warmed(`/api/xray?type=${type}&imdbId=${encodeURIComponent(imdbId)}` +
       (season ? `&season=${season}&episode=${episode}` : "") + (keys && keys.length ? `&keys=${encodeURIComponent(keys.join(","))}` : ""), 10 * 60 * 1000),
+  // what the household has been watching lately (the empty Search screen)
+  popular: (profileId) => warmed(`/api/popular?profile=${encodeURIComponent(profileId || "")}`, 5 * 60 * 1000),
   party: (code) => json(`/api/party/${encodeURIComponent(code)}`),
   // q: original | 1080 | 720 | 480; hevc: this browser plays HEVC in MP4
   offlineOptions: (id, hevc) => json(`/api/offline/options/${encodeURIComponent(id)}${hevc ? "?hevc=1" : ""}`),

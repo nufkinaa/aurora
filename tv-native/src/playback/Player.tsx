@@ -1213,7 +1213,8 @@ export default function Player({
       if (stream) toast(`Resuming from ${fmt(r)}`);
       else {
         setResumeCard({at: r});
-        setTimeout(() => !exited.current && setResumeCard(null), 6500);
+        // toned down (elia): four seconds, and a smaller, dimmer card (see styles.resumeCard)
+        setTimeout(() => !exited.current && setResumeCard(null), 4000);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2660,8 +2661,8 @@ export default function Player({
               toast('From the top');
               showControls();
             }}
-            style={styles.btn}>
-            <Text style={styles.btnText}>Start over</Text>
+            style={styles.resumeBtn}>
+            <Text style={styles.resumeBtnText}>Start over</Text>
           </Focusable>
         </View>
       ) : null}
@@ -3318,18 +3319,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: 'rgba(13,14,24,0.94)',
+    // Toned down: quieter plate, no bright top edge, tighter padding, a
+    // thumbnail-sized frame and smaller type — there if you look for it,
+    // out of the way of the picture if you don't.
+    backgroundColor: 'rgba(13,14,24,0.72)',
     borderRadius: radius.l,
     borderWidth: 1,
     borderColor: colors.line,
-    borderTopColor: 'rgba(255,255,255,0.2)',
-    padding: 10,
-    paddingRight: spacing.md,
+    padding: 6,
+    paddingRight: spacing.sm,
+    opacity: 0.92,
   },
-  resumeFrame: {width: 128, height: 72, borderRadius: radius.s, backgroundColor: colors.bgRaised},
-  resumeText: {minWidth: 90},
-  resumeK: {color: colors.textDim, fontSize: 11, fontWeight: '800', letterSpacing: 1.6},
-  resumeT: {color: colors.text, fontSize: fontSize.row, fontWeight: '900', marginTop: 2},
+  resumeFrame: {width: 80, height: 45, borderRadius: radius.s, backgroundColor: colors.bgRaised},
+  resumeText: {minWidth: 70},
+  resumeK: {color: colors.textDim, fontSize: 9, fontWeight: '800', letterSpacing: 1.4},
+  resumeT: {color: colors.text, fontSize: fontSize.body, fontWeight: '800', marginTop: 1},
+  resumeBtn: {backgroundColor: colors.surface, paddingVertical: 7, paddingHorizontal: 14},
+  resumeBtnText: {color: colors.textDim, fontSize: 13, fontWeight: '700'},
   // The site's .toast, pinned above the transport bar so it never covers it.
   toast: {
     position: 'absolute',

@@ -174,6 +174,7 @@ const take = (entries) => {
 // already on its way when the headers arrived, so counting it flatters a
 // slow line. Resolves with the measurement (or null), and feeds the tier.
 let probing = false;
+let confirming = false; // a slow reading is waiting for its second opinion
 export const timeProbe = ({ t0, tHeaders, chunks }) => {
   // chunks: [{ t, bytes }] in arrival order
   if (!chunks || !chunks.length) return null;
@@ -204,6 +205,18 @@ export const probe = async () => {
     }
     const m = timeProbe({ t0, tHeaders, chunks });
     if (!m) return null;
+    // One slow reading is not a slow line. A probe that lands while the page
+    // is pulling a screenful of posters shares the connection with them and
+    // can read low on a perfectly good line — and "slow" costs that person
+    // picture quality and a capped stream. So a first slow reading on a line
+    // not already known to be slow is only a reason to look again in a few
+    // seconds; it counts when the second look agrees. (The caller still gets
+    // the reading: the player asks during a real stall and judges for itself.)
+    if (m.kbps < SLOW_KBPS && tier !== "slow" && !confirming) {
+      confirming = true;
+      setTimeout(() => { probe().finally(() => { confirming = false; }); }, 4000);
+      return m;
+    }
     probed = m.kbps;
     kbpsSamples.push(m.kbps);
     if (kbpsSamples.length > KEEP) kbpsSamples.shift();
@@ -277,7 +290,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
   // the first probe once the first screen has had the line to itself, then
   // every few minutes while the tab is looked at (240 kB an hour)
   // (a line already known to be slow keeps its first seconds for the page)
-  setTimeout(probe, tier === "slow" ? 6000 : 1200);
+  setTimeout(probe, tier === "slow" ? 2500 : 1200);
   // Never behind a film: the video owns the line then, so a probe would
   // measure the leftovers and call a good connection slow. The player asks
   // for its own measurement when playback actually stalls.

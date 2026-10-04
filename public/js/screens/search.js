@@ -96,6 +96,26 @@ export const renderSearch = async (root) => {
     },
   });
 
+  // An empty box is not an empty screen: under the recent searches sits what
+  // this household has been watching lately — one tap from something to watch.
+  const popularHost = el("div", { class: "search-popular hidden" });
+  let popularAsked = false;
+  const paintPopular = async () => {
+    if (input.value.trim()) return;
+    if (popularHost.childElementCount) return popularHost.classList.remove("hidden");
+    if (popularAsked) return;
+    popularAsked = true;
+    try {
+      const { items } = await api.popular(state.profile && state.profile.id);
+      if (!items || !items.length || !screen.isConnected) return;
+      popularHost.append(
+        el("h2", { class: "row-title", style: { padding: "0 var(--page-x)", margin: "18px 0 10px" } }, "Popular in this house"),
+        el("div", { class: "grid" }, items.map((it) => card(it))),
+      );
+      if (!input.value.trim()) popularHost.classList.remove("hidden");
+    } catch {}
+  };
+
   const paintRecents = () => {
     recentHost.innerHTML = "";
     const list = recents.get();
@@ -160,8 +180,10 @@ export const renderSearch = async (root) => {
       results.innerHTML = "";
       status.classList.add("hidden");
       clearBusy();
+      paintPopular();
       return;
     }
+    popularHost.classList.add("hidden");
     status.classList.add("hidden");
     setBusy("Searching…");
     const wantCatalog = committed || q.length >= CATALOG_MIN;
@@ -293,6 +315,7 @@ export const renderSearch = async (root) => {
     suggestHost,
     recentHost,
     results,
+    popularHost,
     busy,
     status
   );
@@ -313,6 +336,7 @@ export const renderSearch = async (root) => {
     stopRestore = restoreScrollY(searchMemory.scrollY);
   } else {
     setTimeout(() => input.focus(), 60);
+    paintPopular();
   }
   return () => {
     searchMemory = {

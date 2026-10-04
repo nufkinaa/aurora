@@ -754,6 +754,12 @@
             </span>
             <button class="mini" id="lib-select-watched" title="Tick every fully-watched episode currently shown">Select watched</button>
           </div>
+          <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px;margin:2px 0 8px">
+            <span class="muted" style="font-size:0.86rem">Running low?</span>
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.86rem;color:var(--text-dim)">Free
+              <input type="text" id="free-gb" value="20" inputmode="numeric" style="max-width:70px;flex:none;min-width:0;text-align:center" /> GB</label>
+            <button class="mini" id="free-suggest" title="Picks things everyone who started has finished, the longest-ago watched first — and shows you the list before anything is deleted">Suggest what to delete</button>
+          </div>
           <div id="lib-toolbar" class="empty-note" style="font-size:0.9rem;padding:2px 4px"></div>
           <div id="lib-batchbar" class="bar-row hidden" style="align-items:center;margin:6px 0">
             <button class="btn small btn-primary" id="lib-batch-delete" style="background:#b91c1c;border-color:#b91c1c">Delete selected</button>
@@ -2492,6 +2498,59 @@
       toast(`Deleted "${delTitle}"`);
       libRefresh();
     });
+    // ---------- free up space ----------
+    // What is safe to delete: finished by at least one profile, with nobody
+    // part-way through it. Longest-ago watched first (bigger first on a tie),
+    // just enough of them to reach the target. Nothing is touched until the
+    // list has been shown and confirmed.
+    const freeCandidates = (tree) => {
+      const out = [];
+      for (const m of tree.movies || []) {
+        if (m.watched > 0 && !m.midway && m.sizeBytes > 0) out.push({ kind: "movie", id: m.id, name: m.title + (m.year ? ` (${m.year})` : ""), sizeBytes: m.sizeBytes, lastWatched: m.lastWatched || 0 });
+      }
+      for (const s of tree.shows || []) for (const se of s.seasons || []) for (const e of se.episodes || []) {
+        if (e.watched > 0 && !e.midway && e.sizeBytes > 0) out.push({ kind: "file", id: e.id, name: `${s.title} S${e.season}E${e.episode}`, sizeBytes: e.sizeBytes, lastWatched: e.lastWatched || 0 });
+      }
+      return out.sort((a, b) => a.lastWatched - b.lastWatched || b.sizeBytes - a.sizeBytes);
+    };
+    const pickToFree = (tree, targetBytes) => {
+      const picked = [];
+      let total = 0;
+      for (const c of freeCandidates(tree)) {
+        if (total >= targetBytes) break;
+        picked.push(c);
+        total += c.sizeBytes;
+      }
+      return { picked, total };
+    };
+    $("#free-suggest").addEventListener("click", async () => {
+      if (!libTreeData) return;
+      const gb = parseFloat($("#free-gb").value);
+      if (!(gb > 0)) return toast("How many GB should be freed?");
+      const { picked, total } = pickToFree(libTreeData, gb * 1024 ** 3);
+      if (!picked.length) return toast("Nothing is safe to delete yet — nothing has been watched to the end");
+      const short = total < gb * 1024 ** 3;
+      const names = picked.slice(0, 12).map((c) => `${c.name} — ${fmtBytes(c.sizeBytes)}`).join("\n");
+      if (!await ask(`Delete ${picked.length} watched item${picked.length > 1 ? "s" : ""} to free ${fmtBytes(total)}?\n\n` +
+        (short ? `That is everything that is safe to delete — less than the ${gb} GB asked for.\n\n` : "") +
+        `${names}${picked.length > 12 ? `\n…and ${picked.length - 12} more` : ""}\n\n` +
+        "Each was finished by someone and nobody is part-way through it. Files are removed for good; watch progress is kept.")) return;
+      const btn = $("#free-suggest");
+      btn.disabled = true;
+      let done = 0, freed = 0;
+      for (const c of picked) {
+        btn.textContent = `Deleting ${done + 1} of ${picked.length}…`;
+        try {
+          const r = await adminFetch(c.kind === "movie" ? `/api/admin/library/movie/${c.id}` : `/api/admin/library/file/${c.id}`, { method: "DELETE" });
+          if (r.ok) { done++; freed += c.sizeBytes; }
+        } catch {}
+      }
+      btn.disabled = false;
+      btn.textContent = "Suggest what to delete";
+      toast(done === picked.length ? `Freed ${fmtBytes(freed)}` : `Deleted ${done} of ${picked.length} — ${fmtBytes(freed)} freed; the rest could not be removed`);
+      loadLibraryTree(); loadDisk();
+    });
+
     $("#lib-batch-delete").addEventListener("click", async () => {
       const checked = [...document.querySelectorAll(".lib-ep-check:checked")];
       if (!checked.length) return;

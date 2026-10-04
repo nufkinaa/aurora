@@ -265,8 +265,29 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       const ep = job.season && job.episode ? ` S${job.season}E${job.episode}` : "";
       toast(`Next episode downloading${ep ? " ·" + ep : ""}`, "⬇", null, { quiet: true });
     }
+    // "Ready to watch": something you asked for has landed and is in the
+    // library — said once, wherever you are in the app, with Play on it.
+    // (It used to be said only if you happened to be on the Downloads page or
+    // the title's own page.) Behind a film it is one quiet line, and a
+    // system notification is added when the tab is in the background and
+    // you turned those on under Settings. Smart downloads stay silent.
+    const prev = downloads.get(job.id);
+    const landed = job.status === "done" && job.libraryId && job.mine && !job.smart && !job.seenAt &&
+      !(prev && prev.status === "done" && prev.libraryId);
     downloads.set(job.id, job);
     paint();
+    if (landed && prev) { // `prev`: we watched it arrive — not a list being loaded
+      const name = job.label || job.title;
+      const playing = !!document.querySelector(".player");
+      if (playing) toast(`“${name}” is ready`, "✅", null, { quiet: true });
+      else toast(`“${name}” is ready to watch`, "✅", { label: "Play", onClick: () => navigate(`#/play/${job.libraryId}`) });
+      try {
+        if (document.hidden && localStorage.getItem("aurora-notify-ready") === "1" && "Notification" in window && Notification.permission === "granted") {
+          const n = new Notification("Ready to watch", { body: name, tag: `aurora-ready-${job.id}` });
+          n.onclick = () => { window.focus(); navigate(`#/play/${job.libraryId}`); n.close(); };
+        }
+      } catch {}
+    }
   });
   window.addEventListener("hashchange", () => setTimeout(() => { load(); paint(); }, 0));
 }

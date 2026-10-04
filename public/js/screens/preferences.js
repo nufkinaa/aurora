@@ -38,6 +38,7 @@ const ICONS = {
   // settings
   "Trailers on the home page": '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M16 5v14M3 10h5M3 14h5M16 10h5M16 14h5"/>',
   "Play the next episode": '<path d="M5 5v14l10-7z"/><path d="M19 5v14"/>',
+  "Tell me when it's ready": '<path d="M6 16V11a6 6 0 0112 0v5l1.500 2h-15z"/><path d="M10 20.500a2 2 0 004 0"/>',
   "Get the next episode ready": '<path d="M12 4v11"/><path d="M7.500 11l4.500 4.500 4.500-4.500"/><path d="M5 20h14"/>',
   "Tidy up after watching": '<path d="M4 7h16M9 7V4.500h6V7M6.500 7l1 13h9l1-13"/>',
   "Internet use": '<path d="M5 20v-4M10 20v-8M15 20V8M20 20V4"/>',
@@ -713,6 +714,27 @@ export const renderPreferences = async (root) => {
         await homeRowsSection()),
       section("Downloads", "What Aurora fetches for you while you watch.",
         el("div", { class: "pref-list page-pad" },
+          prefRow(
+            "Tell me when it's ready",
+            "A notification when something you saved has finished, even if Aurora is in the background.",
+            () => {
+              let on = false;
+              try { on = localStorage.getItem("aurora-notify-ready") === "1"; } catch {}
+              return on && "Notification" in window && Notification.permission === "granted" ? "On" : "Off";
+            },
+            async () => {
+              let on = false;
+              try { on = localStorage.getItem("aurora-notify-ready") === "1"; } catch {}
+              if (on && "Notification" in window && Notification.permission === "granted") {
+                try { localStorage.setItem("aurora-notify-ready", "0"); } catch {}
+                return;
+              }
+              if (!("Notification" in window)) return toast("This browser can't show notifications", "⚠️");
+              const p = Notification.permission === "granted" ? "granted" : await Notification.requestPermission().catch(() => "denied");
+              if (p !== "granted") return toast("Notifications are blocked for Aurora in this browser's settings", "⚠️");
+              try { localStorage.setItem("aurora-notify-ready", "1"); } catch {}
+            }
+          ),
           prefRow(
             "Get the next episode ready",
             "While you watch, Aurora fetches the next episode so it starts at once.",

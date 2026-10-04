@@ -138,7 +138,8 @@ const toRemove = (copies, { now = Date.now(), keepMs = KEEP_MS, maxBytes = MAX_B
     if (total <= maxBytes) break;
     // asked for in the last half hour: a device is probably fetching it
     // right now — a copy bigger than the whole cap must still get delivered
-    if (now - c.usedAt < IN_USE_MS) continue;
+    // (a copy dated in the future is a kept one, not one in use: the cap still wins)
+    if (now >= c.usedAt && now - c.usedAt < IN_USE_MS) continue;
     gone.push(c);
     total -= c.size;
   }
@@ -162,8 +163,13 @@ const sweep = () => {
 };
 
 // A copy that is being fetched stays: every request for it moves its date.
+// (Never backwards: a play-ready copy made ahead of time carries a date in
+// the future — its keep-until — and being played must not shorten that.)
 const touchCopy = (file) => {
-  try { const now = new Date(); fs.utimesSync(file, now, now); } catch {}
+  try {
+    const now = new Date();
+    if (fs.statSync(file).mtimeMs < now.getTime()) fs.utimesSync(file, now, now);
+  } catch {}
 };
 
 // Is there room to make a copy of about `bytes`? (null when the disk can't be asked)
@@ -240,7 +246,9 @@ const status = (id, quality, caps = {}) => {
   return { state: "idle", quality: q };
 };
 
-const prepare = (id, quality, caps = {}) => {
+// `keepMs`: keep the finished copy at least this long (preconvert.js) —
+// stamped as a date in the future, which the sweep reads as "used then".
+const prepare = (id, quality, caps = {}, { keepMs = 0 } = {}) => {
   const q = normQuality(quality);
   const st = status(id, q, caps);
   if (st.state === "ready" || st.state === "working" || st.state === "queued") return st;
@@ -254,7 +262,7 @@ const prepare = (id, quality, caps = {}) => {
   if (roomFor(need) === false) {
     return { state: "error", quality: q, error: "the server is short on disk space — try a smaller size, or again later" };
   }
-  jobs.set(jobKey(id, q), { state: "queued", progress: 0, caps });
+  jobs.set(jobKey(id, q), { state: "queued", progress: 0, caps, keepMs });
   queue.push({ id, q });
   pump();
   return status(id, q, caps);
@@ -323,6 +331,9 @@ const pump = () => {
     running = null;
     if (code === 0 && fs.existsSync(tmp)) {
       try { fs.renameSync(tmp, out); } catch {}
+      if (job.keepMs > 0) {
+        try { const until = new Date(Date.now() + job.keepMs - KEEP_MS); fs.utimesSync(out, until, until); } catch {}
+      }
       job.state = "ready";
       job.progress = 1;
       console.log(`[offline] ready ${id} at ${q} (${(fs.statSync(out).size / 1e6).toFixed(0)} MB in ${((Date.now() - job.startedAt) / 1000).toFixed(0)}s)`);
@@ -362,4 +373,4 @@ const load = () => {
   return { running: running || null, since: j ? j.startedAt : null, progress: j ? j.progress || 0 : 0, queued: queue.length };
 };
 
-module.exports = { status, prepare, fileFor, options, sweep, load, DIR, QUALITIES, _internals: { toRemove, KEEP_MS, isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS } };
+module.exports = { status, prepare, fileFor, options, sweep, load, DIR, MAX_BYTES, QUALITIES, _internals: { toRemove, KEEP_MS, isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS } };

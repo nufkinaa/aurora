@@ -820,6 +820,12 @@ const finish = async (job, destPath) => {
     const libId = scanner.idForPath(destPath);
     if (libId) require("./introdetect").fillEpisode(libId).catch(() => {});
   }
+  // A play-ready copy, when this household's devices need one (preconvert.js
+  // decides — most of the time the answer is "no", and nothing is made).
+  {
+    const libId = scanner.idForPath(destPath);
+    if (libId) require("./preconvert").consider(libId);
+  }
   console.log(`[download] ${job.id.slice(0, 6)} done "${job.title}"`);
   notify.send("Aurora: download ready", `"${job.label || job.title}" is downloaded and in the library.`);
   // The file is safely in the library now, so the staging copy can go — unless a

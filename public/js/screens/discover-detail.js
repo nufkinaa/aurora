@@ -941,7 +941,7 @@ const loadSources = async (
       // to the top with its ✓ DOWNLOADED badge and the "plays your copy" row.
       if (job.status === "done" && (!prev || prev.status !== "done")) {
         loadLibrary(true).catch(() => {});
-        if (!job.smart) toast(`“${job.label || job.title}” is ready to play`, "✅");
+        // (the "ready to watch" message is said once, app-wide, in main.js)
       }
     });
 
@@ -1435,6 +1435,17 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   if (!isShow && lib) {
     const ob = offlineButton(lib, { compact: true });
     if (ob) actions.push(ob);
+  }
+  // A series you own: one press saves the next three episodes you haven't
+  // finished to this device — the size is asked once, then they are fetched
+  // one after another (a trip, a flight). Episodes already saved are skipped.
+  if (isShow && nextUp && offline.available()) {
+    const sb = seasonOfflineButton(() => {
+      const flat = seasons.flatMap((s) => s.episodes).filter((e) => e.local);
+      const from = Math.max(0, flat.findIndex((e) => e.local.id === nextUp.local.id));
+      return flat.slice(from).filter((e) => { const p = progressFor(e.local.id); return !(p && p.finished); });
+    }, view.title);
+    if (sb) actions.push(sb);
   }
   if (!isShow && lib && lib.downloadUrl) {
     actions.push(
@@ -2426,6 +2437,72 @@ const offlineButton = (item, { compact = false, rail = false } = {}) => {
     paint();
   };
   paint();
+  return btn;
+};
+
+// "Save the next 3": the same save as the button above, run for several
+// episodes in a row at one chosen size. `nextEpisodes()` → the rows still to
+// watch, in order (each with .local, the library item).
+const SEASON_SAVE = 3;
+const seasonOfflineButton = (nextEpisodes, showTitle) => {
+  const btn = el("button", {
+    class: "btn btn-icon focusable btn-offline",
+    title: `Save the next ${SEASON_SAVE} episodes on this device — to watch with no internet`,
+    "aria-label": `Save the next ${SEASON_SAVE} episodes`,
+  });
+  let busy = false;
+  let aborter = null;
+  const face = (text, icon = "📲") => {
+    btn.innerHTML = "";
+    btn.append(el("span", {}, icon), el("span", { class: "btn-label" }, text));
+  };
+  face(`Save next ${SEASON_SAVE}`);
+  btn.onclick = async () => {
+    if (busy) {
+      if (aborter) aborter.abort(); // a press while saving cancels the rest
+      return;
+    }
+    const rows = [];
+    for (const e of nextEpisodes()) {
+      if (rows.length >= SEASON_SAVE) break;
+      if (!(await offline.isSaved(e.local.id).catch(() => false))) rows.push(e);
+    }
+    if (!rows.length) return toast("The next episodes are already saved on this device", "📱");
+    busy = true;
+    aborter = new AbortController();
+    btn.classList.add("busy");
+    let quality = null; // asked once, on the first episode, then reused
+    let done = 0;
+    try {
+      for (const [i, e] of rows.entries()) {
+        const tag = `${i + 1} of ${rows.length}`;
+        const saved = await offline.saveItem(
+          { ...e.local, title: `${showTitle} S${e.season}E${e.episode}` },
+          ({ phase, pct }) => {
+            if (phase === "preparing" || phase === "saving") face(`${tag} · ${Math.round((pct || 0) * 100)}%`, "⏳");
+          },
+          async (options) => {
+            if (quality && options.some((o) => o.quality === quality)) return quality;
+            // a later episode that can't be made at the chosen size: the nearest smaller one it offers
+            if (quality) return (options.find((o) => !o.instant) || options[0]).quality;
+            quality = await pickOfflineQuality(options, { title: `${showTitle} — the next ${rows.length} episode${rows.length > 1 ? "s" : ""}` });
+            return quality;
+          },
+          aborter.signal,
+        );
+        if (!saved) break; // the size sheet was dismissed
+        done++;
+      }
+      if (done) toast(`${done} episode${done > 1 ? "s" : ""} of “${showTitle}” saved on this device`, "📱", { label: "Open Saved", onClick: () => navigate("#/saved") });
+    } catch (e) {
+      if (e && e.name === "AbortError") toast(done ? `Stopped — ${done} saved` : "Save cancelled", "📱");
+      else toast(`Saved ${done} — then: ${e.message}`, "⚠️");
+    }
+    aborter = null;
+    busy = false;
+    btn.classList.remove("busy");
+    face(`Save next ${SEASON_SAVE}`);
+  };
   return btn;
 };
 

@@ -101,7 +101,7 @@ const FEATURES = [
     since: "1.1.0", cue: "resume", glyph: "▶️",
     title: "Resume, with the frame",
     what: "Coming back to a title shows the frame you stopped on, in the player and on its page.",
-    how: "Start over is one press away on the card, for the six seconds it stays up.",
+    how: "Start over is one press away on the small pill at the top, for the four seconds it stays up.",
     go: null,
   },
 ];
