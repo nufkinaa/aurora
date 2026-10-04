@@ -48,6 +48,7 @@ const KBPS = { 1080: 4200 + 128, 720: 2100 + 128, 480: 950 + 128 };
 // room for it. Making one again later costs seconds (remux) or one encode.
 const KEEP_MS = 12 * 3600 * 1000;
 const MAX_BYTES = Math.max(1, Number(config.offlineCacheGb) || 8) * 1024 ** 3;
+const IN_USE_MS = 30 * 60 * 1000;
 const HEADROOM_BYTES = 5 * 1024 ** 3; // free space that must remain after a copy is made
 
 const jobs = new Map(); // "<id>|<quality>" -> {state, progress, error, startedAt}
@@ -135,6 +136,9 @@ const toRemove = (copies, { now = Date.now(), keepMs = KEEP_MS, maxBytes = MAX_B
   }
   for (const c of kept) { // oldest use first
     if (total <= maxBytes) break;
+    // asked for in the last half hour: a device is probably fetching it
+    // right now — a copy bigger than the whole cap must still get delivered
+    if (now - c.usedAt < IN_USE_MS) continue;
     gone.push(c);
     total -= c.size;
   }

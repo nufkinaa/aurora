@@ -23,3 +23,19 @@ test("a capped job is an encode, under its own bitrate ceiling, in its own direc
   const dirs = new Set(["h264", "h264-720", "h264-480", "copy"].map((v) => remux.dirName("abc", 1000, v, 30)));
   assert.equal(dirs.size, 4);
 });
+
+test("every job dir the transcoder can name is one the segment route will serve", () => {
+  const { validDir } = remux._internals;
+  for (const v of ["copy", "h264", "h264-720", "h264-480"]) {
+    for (const ss of [0, 30, 5400]) {
+      for (const fmt of [null, "fmp4"]) {
+        for (const audio of [0, 2]) {
+          const d = remux.dirName("61ace07e4fa6", 1728000000000.5, v, ss, fmt, audio);
+          assert.ok(validDir(d), `${d} must be servable`);
+        }
+      }
+    }
+  }
+  assert.equal(validDir("../../etc"), false);
+  assert.equal(validDir("abc-1-h264-999-0"), false);
+});

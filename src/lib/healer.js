@@ -336,6 +336,22 @@ const checkData = () => slowly("data", async () => {
   return { status: "ok", summary: `${files.length} data files, ${fmtBytes(total)}, all readable` };
 });
 
+// The TV app: is the APK the server hands out the version the TVs are told
+// about, and the one the source says it should be? Read from the file itself.
+const checkTvApp = () => slowly("tvapp", async () => {
+  const s = require("./tvapp").status();
+  if (s.apk.error) {
+    const none = /no APK/.test(s.apk.error);
+    return { status: none ? "info" : "fail", summary: s.apk.error };
+  }
+  const worstP = s.problems.find((p) => p.level === "fail") || s.problems.find((p) => p.level === "warn");
+  return {
+    status: s.level,
+    summary: `APK is ${s.apk.versionName} (build ${s.apk.versionCode}, ${fmtBytes(s.apk.sizeBytes)})${worstP ? " — out of step" : " — announced and built versions agree"}`,
+    detail: s.problems.filter((p) => p.level !== "info").map((p) => p.text).join(" ‖ ") || null,
+  };
+});
+
 const checkAria2 = async () => {
   const aria2 = require("../media/aria2");
   const downloads = require("../media/downloads");
@@ -493,6 +509,7 @@ const CHECKS = [
   ["temp", "Temporary files", checkTemp],
   ["encoding", "Encoding", checkEncoding],
   ["data", "Data files", checkData],
+  ["tvapp", "TV app", checkTvApp],
   ["upstream", "Upstream providers", checkUpstream],
   ["scanner", "Library scan", checkScanner],
   ["streaming", "Streaming client", checkStreaming],

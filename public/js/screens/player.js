@@ -10,7 +10,7 @@ import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem
 import { showReportSheet, setPlayingContext } from "../report.js";
 import * as offline from "../offline.js";
 import { track } from "../usage.js";
-import { playCap, netTier, measured, probe, dataMode } from "../net.js";
+import { playCap, capFor, netTier, measured, probe, dataMode } from "../net.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -460,6 +460,7 @@ export const renderPlayer = async (root, { id }) => {
   // put the viewer back where they were instead of at the start of the window.
   const startHls = (url, startAt = 0) => {
     const gen = ++hlsGen;
+    excuseUntil = Date.now() + 15000; // a new stream buffers before it plays
     clearTimeout(hlsRecoverTimer);
     if (nativeHlsOnly) {
       // Same shape as the no-MSE fallback below. Skips loading the 530 KB
@@ -682,7 +683,11 @@ export const renderPlayer = async (root, { id }) => {
     const kbps = measured().kbps;
     return fileKbps != null && kbps != null && kbps >= fileKbps * 1.3;
   };
-  let capH = canCap && !lineCarriesFile() ? playCap() : 0;
+  // (Data saver is a choice about data, not about speed: it caps regardless.)
+  let capH = canCap && (dataMode() === "saver" || !lineCarriesFile()) ? playCap() : 0;
+  // Buffering right after a start, a seek or a stream change is by design;
+  // stalls only count once this time has passed (see the step-down below).
+  let excuseUntil = Date.now() + 15000;
   // Automatic quality (the start above, the mid-film step-down below) stops
   // the moment the viewer picks one themselves, or reverts.
   let autoQuality = canCap && dataMode() !== "full";
@@ -808,6 +813,29 @@ export const renderPlayer = async (root, { id }) => {
       return;
     }
     toast("Quality: original", "📶");
+    // A file this device plays as it is goes back to plain direct play — the
+    // server does nothing at all for it.
+    if (item.videoUrl && audioIdx === 0 && !videoNeedsTranscode() && !audioNeedsRemux()) {
+      ++hlsGen;
+      clearTimeout(hlsRecoverTimer);
+      if (hls) {
+        try { hls.destroy(); } catch {}
+        hls = null;
+      }
+      usingTranscode = false;
+      jitMode = false;
+      streamOffset = 0;
+      clockBase = 0;
+      windowStart = 0;
+      excuseUntil = Date.now() + 15000;
+      mark("path", { path: "direct", from: at });
+      video.addEventListener("loadedmetadata", () => {
+        try { video.currentTime = at; } catch {}
+        tryPlay();
+      }, { once: true });
+      video.src = item.videoUrl;
+      return;
+    }
     // back to the untouched picture: the copy path when this device decodes
     // the file's video (jit first — every seek native), the full encode when not
     const copyOk = !copyRefused && (!item.video || !videoNeedsTranscode() || codecCopyable(item.video));
@@ -960,8 +988,16 @@ export const renderPlayer = async (root, { id }) => {
   let cappedStart = false;
   if (capH) {
     const ss = Math.max(0, resumeAt - 2);
+    // The overlay isn't built yet, and the server may take a few seconds to
+    // produce the first segment: show a spinner meanwhile, and give up after
+    // 25 s (the server itself abandons a job that hasn't started in 20).
+    const waiting = el("div", { class: "player" }, el("div", { class: "spinner" }));
+    root.append(waiting);
+    const ctl = new AbortController();
+    const giveUp = setTimeout(() => ctl.abort(), 25000);
     try {
-      const res = await fetch(`${transcodeUrl(ss, "h264")}&seek=1`, { cache: "no-store" });
+      const res = await fetch(`${transcodeUrl(ss, "h264")}&seek=1`, { cache: "no-store", signal: ctl.signal });
+      if (location.hash !== entryHash) { clearTimeout(giveUp); waiting.remove(); return; }
       if (res.ok && !exited) {
         mark("decision", { why: `slow line (${netTier()}) → ${capH}p` });
         startTranscode(ss, "h264", { claimed: true });
@@ -970,6 +1006,9 @@ export const renderPlayer = async (root, { id }) => {
         track("feat", { f: `quality_auto_${capH}` });
       }
     } catch {}
+    clearTimeout(giveUp);
+    waiting.remove();
+    if (location.hash !== entryHash) return; // left while waiting
     if (!cappedStart) capH = 0;
   }
 
@@ -3491,8 +3530,8 @@ export const renderPlayer = async (root, { id }) => {
   // for the viewer who would rather wait for the full picture; reverting, or
   // choosing a quality by hand, ends the automatic changes for this film.
   let stallAt = 0;
-  let excuseUntil = Date.now() + 15000; // start-up and seeks buffer by design
   let longStallTimer = null;
+  let excuseTimer = null;
   let steppingDown = false;
   const stallTimes = [];
   let qualityPill = null;
@@ -3523,10 +3562,11 @@ export const renderPlayer = async (root, { id }) => {
       const m = await probe();
       if (exited || !autoQuality || !m) return;
       // thin for what is playing now: the file itself, or the 720p stream
-      const thin = capH === 720 ? m.kbps < 2600 : fileKbps != null ? m.kbps < fileKbps * 1.3 : m.kbps < 6000;
+      // (bitrate unknown: anything under 8 Mbit/s may well be the reason)
+      const thin = capH === 720 ? m.kbps < 2800 : fileKbps != null ? m.kbps < fileKbps * 1.3 : m.kbps < 8000;
       if (!thin) return;
       const prev = capH;
-      const next = prev === 720 || m.kbps < 900 ? 480 : 720;
+      const next = prev === 720 ? 480 : capFor(m.kbps);
       capH = next;
       stallTimes.length = 0;
       excuseUntil = Date.now() + 15000;
@@ -3545,17 +3585,34 @@ export const renderPlayer = async (root, { id }) => {
       steppingDown = false;
     }
   };
-  video.addEventListener("seeking", () => { excuseUntil = Date.now() + 8000; });
-  video.addEventListener("waiting", () => {
-    if (!autoQuality || video.paused || Date.now() < excuseUntil) return;
+  const beginStall = () => {
     stallAt = Date.now();
     clearTimeout(longStallTimer);
     longStallTimer = setTimeout(stepDown, 8000);
+  };
+  video.addEventListener("seeking", () => { excuseUntil = Math.max(excuseUntil, Date.now() + 8000); });
+  video.addEventListener("waiting", () => {
+    if (!autoQuality || video.paused || probing) return;
+    const left = excuseUntil - Date.now();
+    if (left <= 0) return beginStall();
+    // Still inside the grace period: look again when it ends. A start that
+    // never gets going is a stall too, it just began early.
+    clearTimeout(excuseTimer);
+    excuseTimer = setTimeout(() => {
+      if (!exited && autoQuality && !stallAt && !video.paused && !probing && video.readyState < 3) beginStall();
+    }, left + 100);
+  });
+  // A pause is the viewer's doing: whatever was being timed is void.
+  video.addEventListener("pause", () => {
+    stallAt = 0;
+    clearTimeout(longStallTimer);
+    clearTimeout(excuseTimer);
   });
   if (bootCapped) setTimeout(() => { if (!exited && capH) showQualityPill(capH, 0); }, 1200);
 
   video.addEventListener("playing", () => {
     clearTimeout(longStallTimer);
+    clearTimeout(excuseTimer);
     if (stallAt) {
       const now = Date.now();
       if (now - stallAt > 1500) {

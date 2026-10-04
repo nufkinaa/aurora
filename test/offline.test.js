@@ -60,6 +60,9 @@ test("copies on the server are temporary: old ones go, the folder has a cap, a c
   // over the cap → the least recently used go first, only as many as needed
   gone = toRemove([c("a.mp4", 60, 5), c("b.mp4", 60, 3), c("c.mp4", 60, 1)], { now, maxBytes: 130 });
   assert.deepEqual(gone.map((g) => g.name), ["a.mp4"]);
+  // a copy bigger than the cap that a device is fetching right now is left alone
+  gone = toRemove([c("huge.mp4", 500, 0.1)], { now, maxBytes: 130 });
+  assert.equal(gone.length, 0);
   // the conversion in progress is never removed, whatever its age
   gone = toRemove([c("w.mp4.part", 500, 30)], { now, maxBytes: 10, busy: (f) => f === "/c/w.mp4.part" });
   assert.equal(gone.length, 0);

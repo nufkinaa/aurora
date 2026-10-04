@@ -672,6 +672,12 @@ router.get("/api/admin/update-check", async (req, res) => {
 
 // The Pull button (admin-gated like everything under /api/admin). ff-only —
 // see updatecheck.pull() for why.
+// The published Android TV build: what the APK really is, what is announced,
+// what the source says, and where they disagree (lib/tvapp.js).
+router.get("/api/admin/tv-app", (req, res) => {
+  res.json(require("../lib/tvapp").status());
+});
+
 router.post("/api/admin/update/pull", async (req, res) => {
   const r = await require("../lib/updatecheck").pull();
   if (!r.ok) return res.status(500).json({ error: "git pull failed", output: r.output });

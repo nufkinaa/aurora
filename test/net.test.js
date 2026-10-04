@@ -78,3 +78,19 @@ test("the probe: the first chunk is left out, and a download too fast to time re
   assert.ok(lan.kbps > FAST_KBPS);
   assert.equal(timeProbe({ t0: 0, tHeaders: 1, chunks: [] }), null);
 });
+
+test("which lighter stream fits: 720p needs room for it, a slow line gets 480p", async () => {
+  const { capFor, SLOW_KBPS } = await load();
+  assert.equal(capFor(SLOW_KBPS - 1), 480, "a line classed slow cannot carry the 720p stream");
+  assert.equal(capFor(800), 480);
+  assert.equal(capFor(4000), 720);
+  assert.equal(capFor(null), 720, "Data saver on an unmeasured line");
+  assert.equal(capFor(50000, "2g"), 480);
+});
+
+test("a video element's own download is never a measurement", async () => {
+  const { sampleFrom } = await load();
+  const e = { name: "http://x/stream/video/abc", requestStart: 10, responseStart: 110, responseEnd: 60110, transferSize: 7500000 };
+  assert.equal(sampleFrom(e), null);
+  assert.equal(sampleFrom({ ...e, name: "http://x/img/a", initiatorType: "video" }), null);
+});

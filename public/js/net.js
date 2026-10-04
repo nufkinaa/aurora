@@ -137,6 +137,10 @@ const decide = () => {
 // One finished same-origin response → maybe a sample.
 export const sampleFrom = (e) => {
   if (!e || !e.name || e.responseEnd <= 0) return null;
+  // A <video> paces its own download to its buffer, not to the line: a
+  // direct-played file "arrives" at about its own bitrate however fast the
+  // connection is, and a low-bitrate episode would read as a slow line.
+  if (e.initiatorType === "video" || e.initiatorType === "audio" || /\/(stream|offline)\//.test(e.name)) return null;
   const out = {};
   // transferSize 0 = served from a cache: says nothing about the line
   if (e.transferSize > MIN_BYTES && e.responseEnd > e.responseStart && e.responseStart > 0) {
@@ -221,16 +225,19 @@ export const netSource = () => source;
 export const lite = () => tier === "slow";
 export const fastNet = () => tier === "fast";
 
+// Which capped stream fits a line: the 720p one runs at up to ~2.4 Mbit/s all
+// in, the 480p one at ~1.1 — so 720p only for a line with room for it. With
+// nothing measured (Data saver on an unmeasured line), 720p.
+export const capFor = (kbps, type = null) =>
+  type === "slow-2g" || type === "2g" || (kbps != null && kbps < 2800) ? 480 : 720;
+
 // The height to cap a stream at, or 0 for the file as it is. Only when the
 // evidence is strong (see classify); a very thin line gets 480p.
 export const playCap = () => {
   if (tier !== "slow" || !strong) return 0;
   const m = measured();
   const h = hints();
-  // 480p only on real evidence of a very thin line (the browser's downlink
-  // guess is not that); Data saver with nothing measured means 720p
-  if (h.type === "slow-2g" || h.type === "2g" || (m.kbps != null && m.kbps < 900)) return 480;
-  return 720;
+  return capFor(m.kbps, h.type);
 };
 
 export const setDataMode = (mode) => {
@@ -269,6 +276,10 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
   addEventListener("online", () => { decide(); probe(); });
   // the first probe once the first screen has had the line to itself, then
   // every few minutes while the tab is looked at (240 kB an hour)
-  setTimeout(probe, 1200);
-  setInterval(() => { if (!document.hidden) probe(); }, PROBE_EVERY_MS);
+  // (a line already known to be slow keeps its first seconds for the page)
+  setTimeout(probe, tier === "slow" ? 6000 : 1200);
+  // Never behind a film: the video owns the line then, so a probe would
+  // measure the leftovers and call a good connection slow. The player asks
+  // for its own measurement when playback actually stalls.
+  setInterval(() => { if (!document.hidden && !document.querySelector(".player")) probe(); }, PROBE_EVERY_MS);
 }

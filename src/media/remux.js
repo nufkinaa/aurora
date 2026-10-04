@@ -412,10 +412,16 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
   return job.ready;
 };
 
+// A job dir name as dirName() writes it — including the capped encodes
+// (id-mtime-h264-480-30). The segment route refuses anything else, so a name
+// this pattern doesn't know is a stream whose every segment 404s.
+const DIR_RE = /^[a-z0-9]+-\d+(-(?:h264(?:-(?:720|480))?|copy)-\d+)?(-f4)?(-a\d+)?$/;
+const validDir = (dir) => DIR_RE.test(dir);
+
 const filePath = (dir, file) => {
   // strict names only: index.m3u8 / segNNNNN.ts / fMP4's segNNNNN.m4s + init.mp4
   if (!/^(index\.m3u8|seg\d{5}\.(ts|m4s)|init\.mp4)$/.test(file)) return null;
-  if (!/^[a-z0-9]+-\d+(-(?:h264|copy)-\d+)?(-f4)?(-a\d+)?$/.test(dir)) return null;
+  if (!validDir(dir)) return null;
   const abs = path.join(HLS_ROOT, dir, file);
   return fs.existsSync(abs) ? abs : null;
 };
@@ -443,4 +449,4 @@ const sweepIdle = () => {
   } catch {}
   return freed;
 };
-module.exports = { ensure, touch, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, encodeLoad, sweepIdle, HLS_ROOT, _internals: { CAPS, capOf, isHeavy } };
+module.exports = { ensure, touch, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, encodeLoad, sweepIdle, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir } };

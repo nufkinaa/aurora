@@ -243,6 +243,19 @@ app.get("/download", (req, res) => {
   });
 });
 app.get("/aurora-tv.apk", (req, res) => res.redirect(302, "/download"));
+// What the TVs are told is available — answered from the APK itself
+// (lib/tvapp.js), not from the hand-written public/tv-version.json, so the
+// version announced is always the version /download hands over. The file
+// still supplies the release notes when it was written for this build. If
+// the APK can't be parsed, the static file is served as before.
+app.get("/tv-version.json", (req, res, next) => {
+  let a = null;
+  try { a = require("./src/lib/tvapp").announcement(); } catch {}
+  if (!a) return next();
+  res.setHeader("Cache-Control", "no-cache");
+  if (a.none) return res.status(404).json({ error: "no Android TV build has been published" });
+  res.json(a);
+});
 
 // Code revalidates on every load (cheap 304s) so updates land instantly;
 // images can cache for a day. The one exception: a CSS request that carries
