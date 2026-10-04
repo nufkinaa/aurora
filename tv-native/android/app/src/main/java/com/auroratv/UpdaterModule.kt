@@ -1,6 +1,9 @@
 package com.auroratv
 
+import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -155,6 +158,76 @@ class UpdaterModule(private val ctx: ReactApplicationContext) : ReactContextBase
     }
   }
 
+  /**
+   * The quiet update: install the downloaded APK through a PackageInstaller
+   * session that asks Android NOT to show its confirmation. Android 12+ grants
+   * that to an app updating ITSELF when it holds
+   * UPDATE_PACKAGES_WITHOUT_USER_ACTION (and may already install apps — the
+   * same one-time permission the ordinary update needs). On success the
+   * system replaces this process; the next launch is the new version.
+   *
+   * This is an ADDITION: `install` above — the ordinary prompt — is untouched
+   * and remains the path whenever this one is unsupported, refused or fails
+   * (UpdateResultReceiver records that). Resolves "unsupported" below
+   * Android 12, "committed" once the session is handed to the system.
+   */
+  @ReactMethod
+  fun installQuietly(path: String, promise: Promise) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+      promise.resolve("unsupported")
+      return
+    }
+    try {
+      val file = File(path)
+      if (!file.exists()) throw Exception("the update file is missing")
+      if (!ctx.packageManager.canRequestPackageInstalls()) throw Exception("not allowed to install apps yet")
+      val installer = ctx.packageManager.packageInstaller
+      val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+      params.setAppPackageName(ctx.packageName)
+      params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+      val sessionId = installer.createSession(params)
+      val session = installer.openSession(sessionId)
+      try {
+        session.openWrite("aurora-tv.apk", 0, file.length()).use { out ->
+          file.inputStream().use { input -> input.copyTo(out) }
+          session.fsync(out)
+        }
+        val intent = Intent(ctx, UpdateResultReceiver::class.java)
+        val pending = PendingIntent.getBroadcast(
+          ctx,
+          sessionId,
+          intent,
+          PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+        session.commit(pending.intentSender)
+      } finally {
+        session.close()
+      }
+      promise.resolve("committed")
+    } catch (e: Exception) {
+      // written down like a refusal, so the app stops holding the prompt back
+      try {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+          .edit()
+          .putInt(KEY_STATUS, PackageInstaller.STATUS_FAILURE)
+          .putLong(KEY_AT, System.currentTimeMillis())
+          .apply()
+      } catch (_: Exception) {}
+      promise.reject("quiet", e.message ?: "the quiet update could not start")
+    }
+  }
+
+  /** Can this TV update quietly at all, and how did the last attempt end? */
+  @ReactMethod
+  fun quietStatus(promise: Promise) {
+    val map = Arguments.createMap()
+    val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    map.putBoolean("supported", Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+    map.putInt("status", prefs.getInt(KEY_STATUS, -999))
+    map.putDouble("at", prefs.getLong(KEY_AT, 0L).toDouble())
+    promise.resolve(map)
+  }
+
   @ReactMethod
   fun versionName(promise: Promise) {
     try {
@@ -168,4 +241,10 @@ class UpdaterModule(private val ctx: ReactApplicationContext) : ReactContextBase
   // Required by NativeEventEmitter for legacy modules.
   @ReactMethod fun addListener(eventName: String) {}
   @ReactMethod fun removeListeners(count: Int) {}
+
+  companion object {
+    const val PREFS = "aurora_update"
+    const val KEY_STATUS = "quietStatus"
+    const val KEY_AT = "quietAt"
+  }
 }

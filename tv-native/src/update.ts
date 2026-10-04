@@ -2,7 +2,8 @@
 // ({versionName, notes}); when it names a newer build than this one, Home
 // offers it and UpdaterModule.kt fetches and installs it on the TV itself —
 // no computer, no sideloading tool. Silent no-op when the file is absent.
-import {NativeEventEmitter, NativeModules} from 'react-native';
+import {AppState, NativeEventEmitter, NativeModules} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {getBaseUrl, getSession} from './api';
 
 // Keep in lockstep with android/app/build.gradle versionName on each release.
@@ -73,3 +74,75 @@ export const installUpdate = (path: string) => {
   if (!native) throw new Error('This build cannot update itself');
   return native.install(path);
 };
+
+// ---- the quiet update ----
+// On Android 12+ the app may install its own update with no confirmation
+// dialog (UpdaterModule.installQuietly). So on those TVs a new build is not
+// announced at once: the APK is fetched in the background while the viewer
+// browses, and installed the moment the app goes to the BACKGROUND — the
+// viewer pressed Home, opened something else, or the TV went to sleep. The
+// next time Aurora is opened it is simply the new version.
+//
+// The ordinary prompt is the fallback, never removed: it is held back for at
+// most a day per version, and comes back at once if the quiet install was
+// refused or failed (the native side writes that down), or on any TV that
+// cannot do this (Android 11 and older, or a build without the native half).
+const QUIET_KEY = 'aurora.quietUpdate';
+const HOLD_MS = 24 * 3600 * 1000;
+type QuietNative = {
+  quietStatus?: () => Promise<{supported: boolean; status: number; at: number}>;
+  installQuietly?: (path: string) => Promise<string>;
+};
+const quiet = NativeModules.AuroraUpdater as (Native & QuietNative) | undefined;
+
+let quietPath: string | null = null; // the downloaded APK, waiting for the app to leave the screen
+let quietFor: string | null = null; // the version it is
+let quietFetching = false;
+let quietArmed = false;
+
+const prepareQuiet = (info: UpdateInfo) => {
+  if (!quiet || !quiet.installQuietly) return;
+  if (!quietArmed) {
+    quietArmed = true;
+    AppState.addEventListener('change', s => {
+      if (s !== 'background' || !quietPath || !quiet || !quiet.installQuietly) return;
+      const p = quietPath;
+      quietPath = null; // one attempt per download
+      quiet.installQuietly(p).catch(() => {});
+    });
+  }
+  if (quietFetching || quietFor === info.version) return;
+  quietFetching = true;
+  quiet
+    .download(info.url, getSession())
+    .then(p => {
+      quietPath = p;
+      quietFor = info.version;
+    })
+    .catch(() => {})
+    .then(() => {
+      quietFetching = false;
+    });
+};
+
+/** True when this TV is going to try the update quietly, so the prompt should
+ *  wait. Starts the background download as a side effect. Never throws. */
+export async function holdPromptFor(info: UpdateInfo): Promise<boolean> {
+  try {
+    if (!quiet || !quiet.quietStatus || !quiet.installQuietly) return false;
+    const st = await quiet.quietStatus();
+    if (!st || !st.supported) return false;
+    const raw = await AsyncStorage.getItem(QUIET_KEY);
+    let seen: {version: string; at: number} | null = raw ? JSON.parse(raw) : null;
+    if (!seen || seen.version !== info.version) {
+      seen = {version: info.version, at: Date.now()};
+      await AsyncStorage.setItem(QUIET_KEY, JSON.stringify(seen));
+    }
+    if (Date.now() - seen.at > HOLD_MS) return false; // a day has passed: just ask
+    if (st.at > seen.at && st.status !== 0) return false; // tried quietly, refused or failed: ask
+    prepareQuiet(info);
+    return true;
+  } catch {
+    return false;
+  }
+}

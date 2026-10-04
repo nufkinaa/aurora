@@ -24,7 +24,7 @@ import NavRail from '../components/NavRail';
 import {ErrorState} from '../components/States';
 import TrailerFrame, {TrailerHandle, TrailerState} from '../components/Trailer';
 import {api, imgSrc, ImgSource, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
-import {checkForUpdate, UpdateInfo} from '../update';
+import {checkForUpdate, holdPromptFor, UpdateInfo} from '../update';
 import {canNavigate} from '../navLock';
 import {openItem} from '../openItem';
 import {openUpdate, overlayOpen} from '../overlay';
@@ -162,6 +162,11 @@ export default function Home({
       const u = await checkForUpdate();
       if (!on || !u) return;
       setUpdate(u);
+      // A TV that can update itself quietly (Android 12+) is given a day to
+      // do so — the build is fetched now and installed when the app leaves
+      // the screen — before the viewer is asked. Settings still shows it.
+      if (await holdPromptFor(u)) return;
+      if (!on) return;
       if (overlayOpen() || Date.now() - lastOffer.current < 10 * 60000) return;
       lastOffer.current = Date.now();
       openUpdate(u);

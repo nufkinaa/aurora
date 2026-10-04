@@ -1,4 +1,4 @@
 {
   "versionName": "5.0.2",
-  "notes": "Smoother on older boxes: trailers on Home are now two per visit instead of an endless loop, and a box that is struggling goes without them and with a still aurora. The resume card is smaller and leaves sooner. Resolution badges are right for widescreen films."
+  "notes": "Smoother on older boxes: trailers on Home are now two per visit instead of an endless loop, and a box that is struggling goes without them and with a still aurora. The resume card is smaller and leaves sooner. Resolution badges are right for widescreen films. On newer TVs (Android 12 and up) updates after this one install themselves quietly when you leave the app — no prompt."
 }

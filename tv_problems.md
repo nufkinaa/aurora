@@ -91,3 +91,29 @@ been rebuilt** — run `tv-native/build-apk.bat`; Admin → Server → TV app sa
   and the three things anchored above the bar moved down by the same 32dp
   (subtitles 230 → 198, Skip intro and the resume card 176 → 144). The
   menu's `bottom: 160` was left alone — it now clears the scrubber by 18dp.
+
+## 8. Quiet self-update (also in 5.0.2 source — NATIVE code, never compiled here)
+
+Written without a Kotlin compiler or a device. **Build it and watch the first
+build for compile errors**; if it does not compile, the three native pieces
+below can be removed and the JS degrades to today's behaviour by itself.
+
+- `UpdaterModule.kt`: two new methods, `installQuietly(path)` (a
+  PackageInstaller session with `USER_ACTION_NOT_REQUIRED`, Android 12+ only,
+  resolves "unsupported" below that) and `quietStatus()`. The existing
+  `install` (ACTION_VIEW, the prompt) is untouched.
+- `UpdateResultReceiver.kt` (new): records a refused / failed quiet install in
+  SharedPreferences and abandons a session that wants a confirmation, so no
+  dialog appears over whatever the TV is showing.
+- `AndroidManifest.xml`: `UPDATE_PACKAGES_WITHOUT_USER_ACTION` and the receiver.
+- `update.ts` `holdPromptFor(info)`: on a TV that reports `supported`, the
+  update prompt is held for up to 24 h per version; the APK is downloaded in
+  the background and `installQuietly` is called when `AppState` goes to
+  `background`. A recorded failure, or the day running out, brings the
+  ordinary prompt back. `Home.tsx` calls it before `openUpdate`.
+- Things to verify on a device: that Android really skips the dialog (it
+  requires the "install unknown apps" permission to be already granted, and
+  the app to be updating itself); that JS still runs long enough in the
+  background to call `installQuietly`; what the launcher shows when the app
+  is replaced. The FIRST update to 5.0.2 still uses the old prompt — the quiet
+  path only exists once 5.0.2 is on the TV.

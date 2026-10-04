@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.16 — 2026-10-05
+
+- TV app (5.0.2 source — in the next APK): quiet updates. On a TV running Android 12 or newer, a new build is fetched in the background while you browse and installed the moment you leave the app (Home button, another app, the TV going to sleep) — no prompt; the next time Aurora opens it is the new version. The update prompt is held back for at most a day and returns at once if the quiet install is refused or fails. Older TVs (Android 11 and below) keep the prompt that comes back every half hour. The update that brings this in still asks once, the old way.
+
 ## 1.6.15 — 2026-10-05
 
 - Back (Escape, or a remote's Back button) closes X-Ray first — in the player it used to close the sheet and leave the film as well; on a title page it left the page with X-Ray still open behind it.
