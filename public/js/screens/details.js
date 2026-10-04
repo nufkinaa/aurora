@@ -41,6 +41,13 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null, serverInfo
   // the two pictures ride on the hero itself (custom properties inherit), so
   // the backdrop layer AND the phone's cover block can both draw from them
   hero.style.setProperty("--hero-art", item.backdrop ? `url("${artUrl(item.backdrop, heroArtWidth())}")` : "none");
+  const toneHash = location.hash;
+  import("../glassTone.js").then((g) => {
+    // the nav floats over the backdrop (the poster, on a phone): tint its glass to match
+    if (location.hash !== toneHash) return; // already on another screen
+    const phone = window.innerWidth <= 720;
+    g.toneNavFromImage(phone && item.cover ? artUrl(item.cover, Math.min(600, heroArtWidth())) : item.backdrop ? artUrl(item.backdrop, heroArtWidth()) : null);
+  }).catch(() => {});
   hero.style.setProperty("--hero-poster", item.cover ? `url("${artUrl(item.cover, Math.min(600, heroArtWidth()))}")` : "none");
   return hero;
 };

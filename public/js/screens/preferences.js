@@ -17,17 +17,70 @@ import { dataMode, setDataMode, netInfo } from "../net.js";
 // player — these settings used to be reachable only from the gear menu while
 // something was playing, which is a poor place to find "subtitles on by
 // default".
+// One plain grey line icon per section and per setting: a picture to
+// recognise a row by before reading it (elia: "my little sister also needs
+// to understand this"). 24px grid, stroke only, drawn in the dim text colour.
+const svg = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const ICONS = {
+  // sections
+  "Your profile": '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.500 4-6.500 8-6.500s7 2 8 6.500"/>',
+  "What's new": '<path d="M12 3l2.200 5.800L20 11l-5.800 2.200L12 19l-2.200-5.800L4 11l5.800-2.200z"/>',
+  "Sign-in": '<circle cx="8" cy="14" r="4"/><path d="M11 11l9-9M17 5l3 3M14 8l2 2"/>',
+  "Appearance": '<path d="M12 3a9 9 0 100 18c1.500 0 2-1 2-2 0-1.500 1-2 2.500-2H18a3 3 0 003-3c0-6-4-11-9-11z"/><circle cx="7.500" cy="11" r="1"/><circle cx="11" cy="7" r="1"/><circle cx="16" cy="8.500" r="1"/>',
+  "Your home page": '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',
+  "Watching": '<path d="M7 4.500v15l12-7.500z"/>',
+  "Downloads": '<path d="M12 4v11"/><path d="M7.500 11l4.500 4.500 4.500-4.500"/><path d="M5 20h14"/>',
+  "Internet": '<path d="M5 20v-4M10 20v-8M15 20V8M20 20V4"/>',
+  "Watch without internet": '<rect x="6" y="2.500" width="12" height="19" rx="2.500"/><path d="M12 8v6M9.500 12l2.500 2.500 2.500-2.500"/>',
+  "Subtitles": '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 14h4M14 14h3M7 10.500h2M12 10.500h5"/>',
+  "Privacy": '<path d="M12 3l8 3v6c0 4.500-3.200 8-8 9-4.800-1-8-4.500-8-9V6z"/>',
+  "Genres you like": '<path d="M12 20s-7-4.300-7-9.500A4 4 0 0112 8a4 4 0 017 2.500C19 15.700 12 20 12 20z"/>',
+  // settings
+  "Trailers on the home page": '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M16 5v14M3 10h5M3 14h5M16 10h5M16 14h5"/>',
+  "Play the next episode": '<path d="M5 5v14l10-7z"/><path d="M19 5v14"/>',
+  "Get the next episode ready": '<path d="M12 4v11"/><path d="M7.500 11l4.500 4.500 4.500-4.500"/><path d="M5 20h14"/>',
+  "Tidy up after watching": '<path d="M4 7h16M9 7V4.500h6V7M6.500 7l1 13h9l1-13"/>',
+  "Internet use": '<path d="M5 20v-4M10 20v-8M15 20V8M20 20V4"/>',
+  "Size of saved copies": '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
+  "Saved on this device": '<rect x="6" y="2.500" width="12" height="19" rx="2.500"/><path d="M10.500 18h3"/>',
+  "Subtitles on by themselves": '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 14h4M14 14h3"/>',
+  "Subtitle language": '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.500 3 14.500 0 18M12 3c-3 3.500-3 14.500 0 18"/>',
+  "Subtitle size": '<path d="M3 18l4.500-11L12 18M4.500 14.500h6"/><path d="M14 18l3-7 3 7M15 16h4"/>',
+  "Dark box behind subtitles": '<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h10"/>',
+  "Help improve Aurora": '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
+};
+const iconFor = (name) => (ICONS[name] ? el("span", { class: "pref-icon", html: svg(ICONS[name]) }) : null);
+
+// A setting: icon, name, one short line, and its control. Two-state settings
+// (On / Off) are a switch; anything with more choices is a button that steps
+// through them.
 const prefRow = (label, note, valueText, onCycle) => {
+  const isSwitch = () => valueText() === "On" || valueText() === "Off";
   const value = el("span", {}, valueText());
+  const control = el("button", {
+    class: "btn small focusable pref-item-value",
+    onclick: async () => { await onCycle(); paint(); },
+  }, value);
+  const paint = () => {
+    const v = valueText();
+    value.textContent = v;
+    const sw = isSwitch();
+    control.classList.toggle("pref-switch", sw);
+    control.classList.toggle("on", sw && v === "On");
+    if (sw) {
+      control.setAttribute("role", "switch");
+      control.setAttribute("aria-checked", v === "On" ? "true" : "false");
+      control.setAttribute("aria-label", label);
+    }
+  };
+  paint();
   return el("div", { class: "pref-item" },
+    iconFor(label),
     el("div", { class: "pref-item-text" },
       el("div", { class: "pref-item-label" }, label),
       note && el("div", { class: "pref-item-note" }, note)
     ),
-    el("button", {
-      class: "btn small focusable pref-item-value",
-      onclick: () => { onCycle(); value.textContent = valueText(); },
-    }, value)
+    control
   );
 };
 
@@ -273,7 +326,7 @@ export const renderPreferences = async (root) => {
   // big screen (elia: "we have space on the right, use it"), one on phones.
   const section = (title, note, ...content) =>
     el("div", { class: "pref-section" },
-      el("h2", { class: "row-title", style: { padding: 0 } }, title),
+      el("h2", { class: "row-title pref-head", style: { padding: 0 } }, iconFor(title.replace(/^What's new.*/, "What's new")), el("span", {}, title)),
       note && el("p", { class: "pref-note", style: { padding: 0 } }, note),
       ...content);
 
@@ -565,121 +618,65 @@ export const renderPreferences = async (root) => {
         older));
   };
 
+  // The fold for the less-used sections. Open or shut is remembered per device.
+  const MORE_KEY = "aurora-prefs-more";
+  const moreSettings = (...sections) => {
+    let open = false;
+    try { open = localStorage.getItem(MORE_KEY) === "1"; } catch {}
+    const grid = el("div", { class: "pref-grid" }, ...sections.filter(Boolean));
+    const chev = el("span", { class: "pref-more-chev" }, "›");
+    const btn = el("button", { class: "pref-more-toggle focusable", "aria-expanded": String(open) },
+      el("span", { class: "pref-icon", html: svg('<circle cx="5" cy="12" r="1.500"/><circle cx="12" cy="12" r="1.500"/><circle cx="19" cy="12" r="1.500"/>') }),
+      el("span", { class: "pref-more-text" },
+        el("b", {}, "More settings"),
+        el("small", {}, "Home rows, downloads, internet, saving for later, privacy, sign-in, what's new")),
+      chev);
+    const wrap = el("div", { class: "pref-more" + (open ? " open" : "") }, btn, grid);
+    btn.onclick = () => {
+      open = !open;
+      wrap.classList.toggle("open", open);
+      btn.setAttribute("aria-expanded", String(open));
+      try { localStorage.setItem(MORE_KEY, open ? "1" : "0"); } catch {}
+    };
+    return wrap;
+  };
+
   paint();
   screen.append(
     el("div", { class: "browse-head" },
-      el("h1", {}, "Preferences"),
+      el("h1", {}, "Settings"),
       el("span", { class: "count" }, `for ${state.profile.name}`)
     ),
     el("div", { class: "pref-grid" },
       profileSection,
-      await whatsNew(),
-      await accountCard(),
-      section("Appearance", "Yours alone — follows this profile to every device.",
+      section("Appearance", "Colours and look — just for your profile.",
         appearanceSection()),
-      section("Your home page", "Reorder or hide the rows on Home. New kinds of rows appear at the end. The TV follows this order too.",
-        await homeRowsSection()),
-      section("Playback", null,
+      section("Watching", null,
         el("div", { class: "pref-list page-pad" },
           prefRow(
-            "Trailers in the hero",
-            "Apple Horror only. A title that sits on the billboard for a few seconds plays its trailer, muted, for 25 seconds — Unmute gives it sound and 50. Off on data saver and reduce-motion; off by default on phones.",
+            "Trailers on the home page",
+            "The big picture on Home plays its trailer, without sound.",
             () => (playerPrefs.get("heroTrailers", !(matchMedia("(pointer: coarse)").matches && innerWidth < 900)) ? "On" : "Off"),
             () => playerPrefs.set("heroTrailers", !playerPrefs.get("heroTrailers", !(matchMedia("(pointer: coarse)").matches && innerWidth < 900)))
           ),
           prefRow(
-            "Autoplay next episode",
-            "Start the next episode automatically when one finishes.",
+            "Play the next episode",
+            "When an episode ends, the next one starts by itself.",
             () => (playerPrefs.get("autoplayNext", true) ? "On" : "Off"),
             () => playerPrefs.set("autoplayNext", !playerPrefs.get("autoplayNext", true))
-          ),
-          prefRow(
-            "Smart downloads",
-            "When you're two-thirds through an episode, the next one starts downloading to the server so it plays from disk. Yours alone; the disk-space rules still apply.",
-            () => ((state.profile.prefs || {}).smartDownloads === false ? "Off" : "On"),
-            async () => {
-              const next = (state.profile.prefs || {}).smartDownloads === false;
-              state.profile.prefs = { ...(state.profile.prefs || {}), smartDownloads: next };
-              try {
-                await api.updateProfile(state.profile.id, { prefs: { smartDownloads: next } });
-              } catch (e) {
-                state.profile.prefs = { ...(state.profile.prefs || {}), smartDownloads: !next };
-                toast(e.message || "Couldn't save that", "⚠️");
-              }
-            }
-          ),
-          prefRow(
-            "Tidy up watched episodes",
-            "An episode smart downloads fetched for you is removed from the server once you've finished it and started a later one. Never touches anything downloaded by hand, or an episode someone else is part-way through.",
-            () => ((state.profile.prefs || {}).smartCleanup === false ? "Off" : "On"),
-            async () => {
-              const next = (state.profile.prefs || {}).smartCleanup === false;
-              state.profile.prefs = { ...(state.profile.prefs || {}), smartCleanup: next };
-              try {
-                await api.updateProfile(state.profile.id, { prefs: { smartCleanup: next } });
-              } catch (e) {
-                state.profile.prefs = { ...(state.profile.prefs || {}), smartCleanup: !next };
-                toast(e.message || "Couldn't save that", "⚠️");
-              }
-            }
-          )
-        )),
-      section("Data use",
-        (() => {
-          const n = netInfo();
-          const now = n.tier === "slow" ? "slow" : n.tier === "fast" ? "fast" : "fine";
-          // a LAN measures in the hundreds of Mbit/s — "over 100" says enough
-          const speed = n.kbps == null ? "" : n.kbps >= 100000 ? " (over 100 Mbit/s from the server)"
-            : ` (about ${n.kbps >= 1000 ? (n.kbps / 1000).toFixed(1) + " Mbit/s" : n.kbps + " kbit/s"} from the server)`;
-          const state = n.mode === "saver" ? "Data saver is on, so this device is always on the light side."
-            : n.mode === "full" ? "Full quality is on, so nothing adapts on this device."
-            : `Right now the connection looks ${now}${speed}.`;
-          return `Aurora watches how fast this device reaches the server and goes lighter when the line is slow: smaller pictures, nothing loaded ahead of time, no trailers, and a 720p or 480p stream for titles in the library. ${state}`;
-        })(),
-        el("div", { class: "pref-list page-pad" },
-          prefRow(
-            "Data use",
-            "Automatic adapts to the connection. Data saver is always light — for a phone on mobile data. Full quality never adapts.",
-            () => ({ auto: "Automatic", saver: "Data saver", full: "Full quality" }[dataMode()]),
-            () => {
-              const order = ["auto", "saver", "full"];
-              setDataMode(order[(order.indexOf(dataMode()) + 1) % order.length]);
-              setTimeout(rerenderInPlace, 0); // the note above says which mode is on
-            }
-          )
-        )),
-      section("Offline",
-        window.isSecureContext && "serviceWorker" in navigator
-          ? "Save offline (📱 on any title you own) keeps a phone-playable copy inside Aurora on this device — it plays with no server in reach. Your copies live under Saved in the top bar."
-          : `Save offline needs Aurora on an https address (or localhost) — browsers only allow offline storage there. You're on ${location.protocol.replace(":", "")}://${location.host}, so the 📱 buttons stay hidden on this device.`,
-        el("div", { class: "pref-list page-pad" },
-          prefRow(
-            "Quality when saving",
-            "Ask shows the choices with their sizes each time. Original keeps the full picture and is the fastest to make when this device can play the file; the smaller sizes are converted on the server first.",
-            () => ({ ask: "Ask each time", original: "Original", 1080: "1080p", 720: "720p", 480: "480p" }[offlineStore.preferredQuality()] || "Ask each time"),
-            () => {
-              const order = ["ask", "original", "1080", "720", "480"];
-              offlineStore.setPreferredQuality(order[(order.indexOf(offlineStore.preferredQuality()) + 1) % order.length]);
-            }
-          ),
-          prefRow(
-            "Saved on this device",
-            "Everything kept offline here, with how much space it takes.",
-            () => (window.isSecureContext && "serviceWorker" in navigator ? "Open" : "Unavailable"),
-            () => { if (window.isSecureContext && "serviceWorker" in navigator) navigate("#/saved"); }
           )
         )),
       section("Subtitles", null,
         el("div", { class: "pref-list page-pad" },
           prefRow(
-            "Turn subtitles on automatically",
-            "When a title offers subtitles, switch one on without asking.",
+            "Subtitles on by themselves",
+            "When a title has subtitles, they switch on.",
             () => (playerPrefs.get("subsDefault", true) ? "On" : "Off"),
             () => playerPrefs.set("subsDefault", !playerPrefs.get("subsDefault", true))
           ),
           prefRow(
-            "Preferred subtitle language",
-            "Which one to switch on when a title offers several — and when a title you own doesn't have it, Aurora fetches it in the background and turns it on. Follows this profile everywhere.",
+            "Subtitle language",
+            "The language to pick. If a title doesn't have it, Aurora goes and gets it.",
             () => ({ any: "First available", he: "Hebrew", en: "English", ru: "Russian" }[playerPrefs.get("subLang", "any")] || "First available"),
             () => {
               cycle("subLang", ["any", "he", "en", "ru"], "any");
@@ -697,17 +694,105 @@ export const renderPreferences = async (root) => {
             () => { cycle("cueSize", ["S", "M", "L"], "M"); applyCueStyle(); }
           ),
           prefRow(
-            "Subtitle background",
-            "A dark box behind the text — easier to read on bright scenes.",
+            "Dark box behind subtitles",
+            "Easier to read on bright scenes.",
             () => (playerPrefs.get("cueBackground", true) ? "On" : "Off"),
             () => { playerPrefs.set("cueBackground", !playerPrefs.get("cueBackground", true)); applyCueStyle(); }
           )
         )),
-      section("Privacy", "Usage stats stay on this server. The admin's Analytics tab reads them to tune Aurora for how the household actually uses it.",
+      section("Genres you like", "Pick what you like — Home shows more of it.",
+        genres.length
+          ? chips
+          : el("div", { class: "empty-note" }, "No genres yet — they turn up once the library finishes reading itself.")),
+    ),
+    // Everything else is still here, one press away: the first screen is the
+    // handful of settings anyone might want (elia: "my little sister also
+    // needs to understand this"), the rest sits under More settings.
+    moreSettings(
+      section("Your home page", "Change the order of the rows on Home, or hide some. The TV follows too.",
+        await homeRowsSection()),
+      section("Downloads", "What Aurora fetches for you while you watch.",
         el("div", { class: "pref-list page-pad" },
           prefRow(
-            "Usage stats",
-            "Which screens, features and play paths get used, and how long they took to appear — a few bytes each, sent in batches. Never what you search for or type.",
+            "Get the next episode ready",
+            "While you watch, Aurora fetches the next episode so it starts at once.",
+            () => ((state.profile.prefs || {}).smartDownloads === false ? "Off" : "On"),
+            async () => {
+              const next = (state.profile.prefs || {}).smartDownloads === false;
+              state.profile.prefs = { ...(state.profile.prefs || {}), smartDownloads: next };
+              try {
+                await api.updateProfile(state.profile.id, { prefs: { smartDownloads: next } });
+              } catch (e) {
+                state.profile.prefs = { ...(state.profile.prefs || {}), smartDownloads: !next };
+                toast(e.message || "Couldn't save that", "⚠️");
+              }
+            }
+          ),
+          prefRow(
+            "Tidy up after watching",
+            "Episodes Aurora fetched for you are removed once you've watched them. Nothing you saved yourself is touched.",
+            () => ((state.profile.prefs || {}).smartCleanup === false ? "Off" : "On"),
+            async () => {
+              const next = (state.profile.prefs || {}).smartCleanup === false;
+              state.profile.prefs = { ...(state.profile.prefs || {}), smartCleanup: next };
+              try {
+                await api.updateProfile(state.profile.id, { prefs: { smartCleanup: next } });
+              } catch (e) {
+                state.profile.prefs = { ...(state.profile.prefs || {}), smartCleanup: !next };
+                toast(e.message || "Couldn't save that", "⚠️");
+              }
+            }
+          )
+        )),
+      section("Internet",
+        (() => {
+          const n = netInfo();
+          const now = n.tier === "slow" ? "slow" : n.tier === "fast" ? "fast" : "fine";
+          // a LAN measures in the hundreds of Mbit/s — "over 100" says enough
+          const speed = n.kbps == null ? "" : n.kbps >= 100000 ? " (over 100 Mbit/s from the server)"
+            : ` (about ${n.kbps >= 1000 ? (n.kbps / 1000).toFixed(1) + " Mbit/s" : n.kbps + " kbit/s"} from the server)`;
+          return n.mode === "saver" ? "Data saver is on: smaller pictures and a lighter video, always."
+            : n.mode === "full" ? "Full quality is on: Aurora never goes lighter on this device."
+            : `Your connection looks ${now}${speed}. When it is slow, Aurora uses smaller pictures and a lighter video by itself.`;
+        })(),
+        el("div", { class: "pref-list page-pad" },
+          prefRow(
+            "Internet use",
+            "Automatic is best. Data saver uses less internet — good on mobile data.",
+            () => ({ auto: "Automatic", saver: "Data saver", full: "Full quality" }[dataMode()]),
+            () => {
+              const order = ["auto", "saver", "full"];
+              setDataMode(order[(order.indexOf(dataMode()) + 1) % order.length]);
+              setTimeout(rerenderInPlace, 0); // the note above says which mode is on
+            }
+          )
+        )),
+      section("Watch without internet",
+        window.isSecureContext && "serviceWorker" in navigator
+          ? "Press 📱 on a title in the library to keep a copy on this device. Find your copies under Saved."
+          : `Saving for later only works on a secure (https) address. This device opened Aurora on ${location.protocol.replace(":", "")}://${location.host}, so the 📱 buttons are hidden here.`,
+        el("div", { class: "pref-list page-pad" },
+          prefRow(
+            "Size of saved copies",
+            "Ask lets you pick each time. Original looks best; smaller sizes take less space.",
+            () => ({ ask: "Ask each time", original: "Original", 1080: "1080p", 720: "720p", 480: "480p" }[offlineStore.preferredQuality()] || "Ask each time"),
+            () => {
+              const order = ["ask", "original", "1080", "720", "480"];
+              offlineStore.setPreferredQuality(order[(order.indexOf(offlineStore.preferredQuality()) + 1) % order.length]);
+            }
+          ),
+          prefRow(
+            "Saved on this device",
+            "Everything you saved to watch with no internet.",
+            () => (window.isSecureContext && "serviceWorker" in navigator ? "Open" : "Unavailable"),
+            () => { if (window.isSecureContext && "serviceWorker" in navigator) navigate("#/saved"); }
+          )
+        )),
+      section("Privacy", "Nothing leaves this server.",
+        el("div", { class: "pref-list page-pad" },
+          prefRow(
+            "Help improve Aurora",
+            "Shares which screens and buttons you use. Never what you search or type.",
             () => ((state.profile.prefs || {}).usageStats === false ? "Off" : "On"),
             async () => {
               const next = (state.profile.prefs || {}).usageStats === false; // off → on
@@ -720,10 +805,8 @@ export const renderPreferences = async (root) => {
               }
             }
           ))),
-      section("Genres you like", "We use these — plus your watch history and star ratings — to pick what shows up on Home.",
-        genres.length
-          ? chips
-          : el("div", { class: "empty-note" }, "No genres yet — they turn up once the library finishes reading itself.")),
+      await accountCard(),
+      await whatsNew(),
     ),
     el("div", { class: "detail-actions", style: { padding: "8px var(--page-x) 26px" } },
       el("button", { class: "btn btn-primary focusable", html: "<span>Done</span>", onclick: () => navigate("#/") })

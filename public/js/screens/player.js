@@ -11,6 +11,7 @@ import { showReportSheet, setPlayingContext } from "../report.js";
 import * as offline from "../offline.js";
 import { track } from "../usage.js";
 import { playCap, capFor, netTier, measured, probe, dataMode } from "../net.js";
+import { followVideo } from "../glassTone.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -1425,6 +1426,15 @@ export const renderPlayer = async (root, { id }) => {
   );
 
   root.append(overlay);
+  // The controls are glass over a moving picture: each one takes the tint
+  // the frame behind it calls for (glassTone.js), a couple of times a second
+  // while they are showing.
+  followVideo(
+    video,
+    overlay,
+    ".player-top > div, .player-top .pbtn, .player-bottom, .party-panel:not(.hidden), .party-pill, .upnext, .resume-card, .quality-pill",
+    { active: () => !exited && (!overlay.classList.contains("controls-hidden") || !partyPanel.classList.contains("hidden")) },
+  );
   pushScope(overlay);
   // The dock's real height, published as --dock-h: on a phone it is two rows
   // tall, and everything that floats above it (the CC/speed/settings menu,

@@ -152,7 +152,7 @@ initPrefetch(); // the next screen's data, fetched while this one is read
     report();
     if (tier === "slow" && dataMode() === "auto" && !told && !document.querySelector(".player")) {
       told = true;
-      toast("Slow connection — Aurora is loading lighter pictures. Preferences → Data use changes that.", "📶");
+      toast("Slow connection — Aurora is loading lighter pictures. Settings → More settings → Internet changes that.", "📶");
     }
   });
 }
@@ -316,7 +316,7 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       el("div", { class: "look-notice-title" }, "Aurora has a new look"),
       el("p", { class: "look-notice-text" },
         "Glass over a living sky, a Tonight row with what's ready for you, and a cleaner player. ",
-        "The Legacy look is still here — switch between the two any time under Preferences → Appearance → Look."),
+        "The Legacy look is still here — switch between the two any time under Settings → Appearance → Look."),
       el("div", { class: "look-notice-actions" },
         el("button", { class: "btn focusable", onclick: () => { close(); navigate("#/preferences"); } }, "Open Preferences"),
         el("button", { class: "btn btn-primary focusable", onclick: close }, "Got it")));
@@ -447,7 +447,7 @@ const showProfileMenu = () => {
       state.user && el("div", { class: "nav-menu-sub" }, `@${state.user.username || state.user.name}`)),
     state.authMode !== "closed" &&
       item("Switch profile", () => { close(); openGate(); }),
-    item("Preferences", () => { close(); navigate("#/preferences"); }),
+    item("Settings", () => { close(); navigate("#/preferences"); }),
     item("My downloads", () => { close(); navigate("#/downloads"); }),
     item("What's new", () => { close(); navigate("#/new"); }),
     item("Report a problem", () => { close(); showReportSheet(); }),

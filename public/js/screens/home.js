@@ -8,6 +8,7 @@ import { onMessage } from "../ws.js";
 import { createHeroTrailer } from "../heroTrailer.js";
 import { fromHome as prefetchFromHome, warmHero } from "../prefetch.js";
 import { lite } from "../net.js";
+import { toneNavFromImage } from "../glassTone.js";
 
 // Home's last answer, per profile. Coming back to Home paints from it at
 // once and the rows are refreshed underneath when the server answers — no
@@ -200,6 +201,8 @@ export const renderHome = async (root) => {
       // sized for this screen — the catalogue's backdrops are 1920px JPEGs
       // of up to 1.3 MB, which a phone would have drawn 360px wide
       incoming.style.setProperty("--hero-art", item.backdrop ? `url("${artUrl(item.backdrop, heroArtWidth())}")` : "none");
+      // the nav floats over this picture: tint its glass to match (glassTone.js)
+      toneNavFromImage(item.backdrop ? artUrl(item.backdrop, heroArtWidth()) : null);
       incoming.style.setProperty("--hero-poster", `url("${artUrl(item.cover, 400)}")`);
       // The focus pull lives on the ::after veil, keyed to `.on` — toggling
       // the class across rotations restarts it, no forced reflow needed.

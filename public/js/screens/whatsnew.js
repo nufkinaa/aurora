@@ -1,7 +1,7 @@
 // "New" — what Aurora can do now, and how to use it. A grid of glass cards,
 // each with a small living cue, one plain sentence, a "how", and a button
 // that takes you to where the feature lives. Curated by hand (the raw
-// changelog stays under Preferences → What's new); the cards from the
+// changelog stays under Settings → More settings → What's new); the cards from the
 // newest release carry a NEW ribbon, and the nav's dot goes out once you've
 // been here on this version.
 import { el, toast } from "../ui.js";
@@ -24,7 +24,7 @@ const FEATURES = [
     since: "1.6.6", cue: "smart", glyph: "⬇",
     title: "Smart downloads tidy up after you",
     what: "Two-thirds into an episode, the next one downloads to the server. Once you have finished an episode it fetched and started a later one, it is removed again.",
-    how: "Never touches anything downloaded by hand, or an episode someone else is part-way through. Both switches are under Preferences → Playback.",
+    how: "Never touches anything downloaded by hand, or an episode someone else is part-way through. Both switches are under Settings → More settings → Downloads.",
     go: { label: "My downloads", to: "#/downloads" },
   },
   {
@@ -59,7 +59,7 @@ const FEATURES = [
     since: "1.4.0", cue: "subs", glyph: "💬",
     title: "Subtitles that find themselves",
     what: "Pick a language once and it follows your profile everywhere. A title you own that lacks it gets one fetched and switched on.",
-    how: "Preferences → Subtitles → Preferred subtitle language.",
+    how: "Settings → Subtitles → Subtitle language.",
     go: { label: "Set a language", to: "#/preferences" },
   },
   {
@@ -80,7 +80,7 @@ const FEATURES = [
     since: "1.2.0", cue: "look", glyph: "✨",
     title: "Two looks",
     what: "Apple Horror — glass over a living sky — or the classic Legacy look. Yours alone, per profile.",
-    how: "Preferences → Appearance → Look.",
+    how: "Settings → Appearance → Look.",
     go: { label: "Change the look", to: "#/preferences" },
   },
   {
