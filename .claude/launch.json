@@ -10,6 +10,12 @@
     {
       "name": "aurora-attach",
       "url": "http://localhost:4000"
+    },
+    {
+      "name": "tv-sandbox",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["tv-native/sandbox/serve.js"],
+      "port": 4200
     }
   ]
 }

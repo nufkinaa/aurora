@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aurora TV</title>
+    <!-- Android TV draws text in Roboto; without it the browser's own UI font
+         (Segoe UI here) is a little wider and wraps in different places. -->
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800;900&display=swap" />
+    <style>
+      html,
+      body,
+      #root {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #0b0c14;
+      }
+      #root {
+        display: flex;
+      }
+      * {
+        font-family: Roboto, "Segoe UI", system-ui, sans-serif !important;
+        /* a TV has no mouse-focus outline; the app draws its own ring */
+        outline: none !important;
+        scrollbar-width: none;
+      }
+      *::-webkit-scrollbar {
+        display: none;
+      }
+      /* <Svg style={absoluteFill}> with no size of its own fills its parent on
+         the TV; in a browser an <svg> with no width is 300x150 whatever its
+         insets say, and a button's gradient spills out as a white lozenge. */
+      svg:not([width]) {
+        width: 100%;
+        height: 100%;
+      }
+      /* the 5% a set may crop from each edge (theme.ts safeBottom), on request */
+      body.overscan::after {
+        content: "";
+        position: fixed;
+        inset: 5vh 5vw;
+        border: 1px dashed rgba(255, 120, 120, 0.75);
+        box-shadow: 0 0 0 100vmax rgba(255, 60, 60, 0.08);
+        pointer-events: none;
+        z-index: 2147483647;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      addEventListener("message", (e) => {
+        if (e.data && "tvOverscan" in e.data) document.body.classList.toggle("overscan", !!e.data.tvOverscan);
+      });
+      if (new URLSearchParams(location.search).has("overscan")) document.body.classList.add("overscan");
+    </script>
+    <script src="/sandbox/app.js"></script>
+  </body>
+</html>

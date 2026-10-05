@@ -1,0 +1,13 @@
+{
+  "name": "aurora-tv-sandbox",
+  "private": true,
+  "description": "Runs the TV app's real screens in a browser at TV panel sizes, to look at layout without a TV.",
+  "scripts": {
+    "start": "node serve.js"
+  },
+  "dependencies": {
+    "esbuild": "^0.25.0",
+    "react-dom": "19.2.3",
+    "react-native-web": "^0.21.2"
+  }
+}

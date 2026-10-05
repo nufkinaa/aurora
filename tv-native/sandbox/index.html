@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aurora TV sandbox</title>
+    <style>
+      :root {
+        --bg: #0e1016;
+        --panel: #171a23;
+        --line: #272b38;
+        --text: #e8eaf1;
+        --dim: #9097aa;
+        --accent: #8b7bff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        overflow-y: scroll;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 18px;
+        padding: 10px 16px;
+        background: rgba(14, 16, 22, 0.94);
+        border-bottom: 1px solid var(--line);
+      }
+      h1 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .group {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+      }
+      .group > span {
+        color: var(--dim);
+        font-size: 12px;
+        margin-right: 2px;
+      }
+      button,
+      .chip {
+        font: inherit;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 5px 10px;
+        cursor: pointer;
+      }
+      button:hover,
+      .chip:hover {
+        border-color: #3a4054;
+      }
+      .chip.on {
+        border-color: var(--accent);
+        background: rgba(139, 123, 255, 0.16);
+      }
+      .chip small {
+        color: var(--dim);
+        margin-left: 6px;
+      }
+      .pad button {
+        min-width: 34px;
+        padding: 5px 8px;
+      }
+      label.check {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--dim);
+        cursor: pointer;
+        user-select: none;
+      }
+      input[type="number"] {
+        width: 64px;
+        font: inherit;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 5px 6px;
+      }
+      main {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        padding: 16px;
+        align-items: flex-start;
+      }
+      figure {
+        margin: 0;
+        min-width: 0;
+      }
+      figcaption {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 6px;
+        font-weight: 600;
+      }
+      figcaption small {
+        color: var(--dim);
+        font-weight: 400;
+      }
+      figcaption a {
+        margin-left: auto;
+        color: var(--dim);
+        font-weight: 400;
+        font-size: 12px;
+      }
+      .stage {
+        position: relative;
+        overflow: hidden;
+        border-radius: 6px;
+        box-shadow: 0 0 0 1px var(--line);
+        background: #000;
+      }
+      figure.live .stage {
+        box-shadow: 0 0 0 2px var(--accent);
+      }
+      iframe {
+        position: absolute;
+        left: 0;
+        top: 0;
+        border: 0;
+        transform-origin: 0 0;
+      }
+      p.hint {
+        margin: 0;
+        padding: 0 16px 20px;
+        color: var(--dim);
+        font-size: 12.5px;
+        max-width: 110ch;
+      }
+      kbd {
+        font: 12px ui-monospace, Consolas, monospace;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 1px 5px;
+        color: var(--text);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Aurora TV sandbox</h1>
+      <div class="group" id="sizes"><span>Panels</span></div>
+      <div class="group">
+        <input type="number" id="cw" min="320" max="3840" value="1600" aria-label="Custom width" />
+        ×
+        <input type="number" id="ch" min="240" max="2160" value="900" aria-label="Custom height" />
+        <button id="add">Add size</button>
+      </div>
+      <div class="group">
+        <span>Across</span>
+        <button class="chip" data-cols="1">1</button>
+        <button class="chip" data-cols="2">2</button>
+        <button class="chip" data-cols="3">3</button>
+      </div>
+      <div class="group pad">
+        <span>Remote</span>
+        <button data-key="left" title="Left">←</button>
+        <button data-key="up" title="Up">↑</button>
+        <button data-key="down" title="Down">↓</button>
+        <button data-key="right" title="Right">→</button>
+        <button data-key="select" title="OK (Enter)">OK</button>
+        <button data-key="back" title="Back (Escape)">Back</button>
+      </div>
+      <label class="check"><input type="checkbox" id="mirror" checked /> Same key to every size</label>
+      <label class="check"><input type="checkbox" id="overscan" /> Overscan guide</label>
+      <button id="reload" title="Rebuild from the files on disk and reload every frame">Reload</button>
+    </header>
+    <main id="frames"></main>
+    <p class="hint">
+      The real <code>App.tsx</code> and <code>src/</code>, bundled for the browser. <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> move focus, <kbd>Enter</kbd> is OK,
+      <kbd>Esc</kbd> is Back, <kbd>P</kbd> play/pause, <kbd>F</kbd>/<kbd>R</kbd> fast-forward/rewind. Click a frame to drive just that one when mirroring is off. Sizes are in dp, the
+      unit the app lays out in: the Google TV Streamer and most 1080p sets are 960×540, many sets 1280×720, some 4K sets 1920×1080. Layout is the browser's, not Android's — close,
+      not identical; confirm on the TV.
+    </p>
+    <script>
+      const PRESETS = [
+        { w: 960, h: 540, note: "Streamer · most 1080p sets" },
+        { w: 1280, h: 720, note: "many sets" },
+        { w: 1920, h: 1080, note: "some 4K sets" },
+        { w: 854, h: 480, note: "small / 480p" },
+      ];
+      const store = {
+        get(k, d) {
+          try {
+            const v = localStorage.getItem("tv-sandbox:" + k);
+            return v == null ? d : JSON.parse(v);
+          } catch {
+            return d;
+          }
+        },
+        set(k, v) {
+          try {
+            localStorage.setItem("tv-sandbox:" + k, JSON.stringify(v));
+          } catch {}
+        },
+      };
+      let sizes = store.get("sizes", PRESETS.map((p) => ({ ...p, on: p.w !== 854 })));
+      let cols = store.get("cols", 2);
+      const $ = (s) => document.querySelector(s);
+      const framesEl = $("#frames");
+      const frames = () => [...document.querySelectorAll("iframe")];
+      let live = null; // the frame last clicked / typed in
+
+      const save = () => store.set("sizes", sizes);
+
+      const paintChips = () => {
+        const host = $("#sizes");
+        host.querySelectorAll(".chip").forEach((c) => c.remove());
+        for (const s of sizes) {
+          const b = document.createElement("button");
+          b.className = "chip" + (s.on ? " on" : "");
+          b.innerHTML = `${s.w}×${s.h}` + (s.note ? `<small>${s.note}</small>` : "");
+          b.title = s.custom ? "Click to show or hide · right-click to remove" : "Click to show or hide";
+          b.onclick = () => {
+            s.on = !s.on;
+            save();
+            paint();
+          };
+          b.oncontextmenu = (e) => {
+            if (!s.custom) return;
+            e.preventDefault();
+            sizes = sizes.filter((x) => x !== s);
+            save();
+            paint();
+          };
+          host.append(b);
+        }
+        document.querySelectorAll("[data-cols]").forEach((b) => b.classList.toggle("on", +b.dataset.cols === cols));
+      };
+
+      const fit = () => {
+        const gap = 18;
+        const avail = Math.floor((framesEl.clientWidth - 32 - gap * (cols - 1)) / cols) - 1;
+        for (const fig of framesEl.children) {
+          const w = +fig.dataset.w,
+            h = +fig.dataset.h;
+          const k = Math.min(1, avail / w);
+          const stage = fig.querySelector(".stage");
+          stage.style.width = Math.round(w * k) + "px";
+          stage.style.height = Math.round(h * k) + "px";
+          fig.querySelector("iframe").style.transform = `scale(${k})`;
+          fig.querySelector("small").textContent = k < 1 ? `shown at ${Math.round(k * 100)}%` : "actual size";
+        }
+      };
+
+      const paint = () => {
+        paintChips();
+        const want = sizes.filter((s) => s.on);
+        // keep frames that are already up (and whatever screen they are on)
+        const have = new Map([...framesEl.children].map((f) => [f.dataset.key, f]));
+        const keep = new Set(want.map((s) => `${s.w}x${s.h}`));
+        for (const [k, f] of have) if (!keep.has(k)) f.remove();
+        for (const s of want) {
+          const key = `${s.w}x${s.h}`;
+          let fig = have.get(key);
+          if (!fig) {
+            fig = document.createElement("figure");
+            fig.dataset.key = key;
+            fig.dataset.w = s.w;
+            fig.dataset.h = s.h;
+            fig.innerHTML = `<figcaption>${s.w} × ${s.h} dp <small></small><a href="/frame" target="_blank" title="Open the app alone in a tab — size the window yourself">open alone</a></figcaption><div class="stage"><iframe src="/frame" width="${s.w}" height="${s.h}" title="Aurora TV at ${key}"></iframe></div>`;
+            const frame = fig.querySelector("iframe");
+            frame.addEventListener("load", () => frame.contentWindow.postMessage({ tvOverscan: $("#overscan").checked }, "*"));
+            fig.addEventListener("pointerdown", () => setLive(frame));
+          }
+          framesEl.append(fig); // (re)orders
+        }
+        fit();
+      };
+
+      const setLive = (frame) => {
+        live = frame;
+        for (const f of framesEl.children) f.classList.toggle("live", !!frame && f.contains(frame));
+      };
+
+      // one key, to every size (or just the live one)
+      const sendKey = (type, except = null) => {
+        const all = frames();
+        const to = $("#mirror").checked ? all : [live && all.includes(live) ? live : all[0]].filter(Boolean);
+        for (const f of to) if (f.contentWindow !== except) f.contentWindow.postMessage({ tvKey: type }, "*");
+      };
+      const KEYS = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Enter: "select", Escape: "back", Backspace: "back", p: "playPause", f: "fastForward", r: "rewind", m: "menu" };
+      addEventListener("keydown", (e) => {
+        if (e.ctrlKey || e.metaKey || e.altKey || e.target.tagName === "INPUT") return;
+        const type = KEYS[e.key];
+        if (!type) return;
+        e.preventDefault();
+        sendKey(type);
+      });
+      // a key typed INSIDE a frame: that frame already acted on it — pass it on
+      addEventListener("message", (e) => {
+        if (!e.data || typeof e.data.tvKeyFrom !== "string") return;
+        const from = frames().find((f) => f.contentWindow === e.source);
+        if (from) setLive(from);
+        if ($("#mirror").checked) sendKey(e.data.tvKeyFrom, e.source);
+      });
+      document.querySelectorAll("[data-key]").forEach((b) => (b.onclick = () => sendKey(b.dataset.key)));
+      document.querySelectorAll("[data-cols]").forEach(
+        (b) =>
+          (b.onclick = () => {
+            cols = +b.dataset.cols;
+            store.set("cols", cols);
+            paint();
+          }),
+      );
+      $("#add").onclick = () => {
+        const w = Math.round(+$("#cw").value),
+          h = Math.round(+$("#ch").value);
+        if (!(w >= 320 && h >= 240)) return;
+        const hit = sizes.find((s) => s.w === w && s.h === h);
+        if (hit) hit.on = true;
+        else sizes.push({ w, h, note: "", on: true, custom: true });
+        save();
+        paint();
+      };
+      $("#overscan").onchange = (e) => frames().forEach((f) => f.contentWindow.postMessage({ tvOverscan: e.target.checked }, "*"));
+      $("#reload").onclick = () => frames().forEach((f) => f.contentWindow.location.reload());
+      addEventListener("resize", fit);
+      paint();
+    </script>
+  </body>
+</html>
