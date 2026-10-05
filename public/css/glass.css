@@ -2989,3 +2989,55 @@ html[data-look="glass"] .pbtn.big svg {
     margin: 0 0 14px;
   }
 }
+
+/* ---------- a quality change you barely see (2026-10-05) ----------
+   elia: "as seamless as YouTube does it". The last frame of the outgoing
+   stream is held on a canvas over the picture until the new stream shows its
+   first frame (js/screens/player.js, holdFrame), so there is no black gap;
+   the spinner keeps out of it unless the change is really slow. Both looks. */
+.player-hold {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.22s ease;
+}
+.player-hold.out {
+  opacity: 0;
+}
+.player.q-hold:not(.q-hold-slow) > .spinner {
+  visibility: hidden;
+}
+/* The message that came with it is a chip in the top corner now: two words,
+   smaller type, fading in where it sits instead of a pill dropping into the
+   middle of the film. (The "Resumed at…" pill keeps its place and size.) */
+.quality-pill:not(.resume-pill),
+.resume-pill ~ .quality-pill:not(.resume-pill) {
+  top: calc(74px + env(safe-area-inset-top));
+  left: auto;
+  right: calc(18px + env(safe-area-inset-right));
+  transform: none;
+  gap: 7px;
+  padding: 3px 4px 3px 10px;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  color: rgba(243, 244, 248, 0.82);
+  transition: opacity 0.35s ease;
+}
+.quality-pill:not(.resume-pill):not(:has(button)) {
+  padding: 4px 10px;
+}
+.quality-pill:not(.resume-pill) button {
+  padding: 3px 9px;
+  font-size: 0.68rem;
+}
+/* nothing shares the resume pill's spot any more */
+.quality-pill ~ .resume-pill {
+  top: calc(72px + env(safe-area-inset-top));
+}
+@media (prefers-reduced-motion: reduce) {
+  .player-hold { transition: none; }
+}

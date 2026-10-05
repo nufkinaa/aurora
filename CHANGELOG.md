@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.20 — 2026-10-05
+
+- A quality change you barely see. Changing between the original, 720p and 480p used to put a spinner over the film, then four seconds of black, then the picture again. Now the film keeps playing while the new stream is prepared a few seconds ahead of where you are, and takes over when you get there: the last frame holds for about half a second and the film carries on — nothing replayed, nothing skipped, no spinner. A film that is paused or already stuck changes on the spot.
+- Faster to notice a struggling connection. Once a second Aurora looks at how much of the film is in hand and how fast more is arriving; when the line is falling behind it steps down to 720p or 480p before the picture freezes (it used to wait for two freezes, or one of eight seconds, and then run a separate speed test). A freeze the watcher did not see coming now counts after three seconds instead of eight.
+- And back up again. When a film that was stepped down has had room to spare for a quarter of a minute, it goes back up by itself — at most twice a film, and not again once going up was followed by trouble. Data saver never steps up.
+- The message is a small chip in the top corner — "Auto 720p" with Revert on it for six seconds, or just "720p" for two when you chose it yourself — in place of the pill in the middle of the picture and the box at the bottom.
+- Fixed: a lighter stream could fail to play at all. Where a file has no sound for the first seconds after the point you were at (a damaged stretch, a track that starts late), the stream came out without an audio track at first and the player went round in circles trying to restart it. The sound now starts with the picture, as silence if need be.
+- The New page: X-Ray, quality that follows your connection, Ready to watch, Save the next three and Popular in this house have cards; the two looks, the keyboard shortcuts and resume-with-the-frame are retired from it (the features themselves are unchanged). Everything from this month carries the New ribbon, not only the very latest release.
+
 ## 1.6.19 — 2026-10-05
 
 - A title's page on a phone, opened up. Under the cover there is now one plain line of facts (rating, year, length, director) instead of a stack of capsules; Play across the full width; and the rest of the buttons — Trailer, My List, X-Ray, Save offline, Download, Mark watched — as one strip of round buttons you slide sideways, where there used to be two rows of boxed tiles. Your rating and its stars share a line, what is on the server is two quiet lines without a box, and on a series the episodes start sooner. For a film you already have, the other versions are folded behind one row ("Other versions — stream or save a different copy"), so More like this comes right after the film instead of after a list of fifty sources.

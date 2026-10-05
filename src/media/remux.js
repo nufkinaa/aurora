@@ -322,7 +322,17 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
       "-i", videoPath,
       "-map", "0:v:0", "-map", `0:a:${audio}`,
       ...videoArgs,
-      "-c:a", "aac", "-ac", "2", "-b:a", cap ? cap.audio : "192k", "-af", AUDIO_GAIN,
+      // An ENCODE's sound starts at 0 with its picture, whatever the file has
+      // there. Where the source has no audio for the first seconds after the
+      // seek point (a damaged stretch, a late-starting track), the first
+      // segments used to come out video-only — and hls.js, having built its
+      // buffers for a film with no sound, cannot add an audio track when the
+      // sound turns up in segment 3: every append failed and the player went
+      // round its recovery loop forever (found 2026-10-05 switching quality
+      // 22s into a file with a bad cluster there). first_pts=0 fills the hole
+      // with silence. Encodes only: a copy job keeps the source's own clock.
+      "-c:a", "aac", "-ac", "2", "-b:a", cap ? cap.audio : "192k",
+      "-af", heavy ? `aresample=async=1:first_pts=0,${AUDIO_GAIN}` : AUDIO_GAIN,
       // PTS must start at 0: native HLS players (iPhone) use raw segment PTS
       // for the clock; the muxer's default ~1.4s delay skewed subtitles and
       // the scrubber on iOS relative to desktop. Measured 2026-07-24.

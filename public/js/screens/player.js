@@ -459,9 +459,62 @@ export const renderPlayer = async (root, { id }) => {
   // `startAt` is a position WITHIN this playlist (0 = its first segment, which is
   // content time streamOffset). Only the abandoned-stream restore passes it, to
   // put the viewer back where they were instead of at the start of the window.
+  // ---- a quality change without the black gap ----
+  // Changing the stream means tearing the old one down and building the new
+  // one on the same <video>, and for the second or so in between the element
+  // has nothing to show: black, then a spinner, then the film again. So the
+  // last frame of the old stream is copied onto a canvas laid exactly over
+  // the picture, and lifted (a quick fade) the moment the new stream presents
+  // its first frame. The film appears to hold for a beat, then carries on.
+  let holdNext = false; // the next startHls is a quality change: hold the frame
+  let holdEl = null;
+  const releaseHold = () => {
+    if (!holdEl) return;
+    const c = holdEl;
+    holdEl = null;
+    overlay.classList.remove("q-hold", "q-hold-slow");
+    c.classList.add("out");
+    setTimeout(() => c.remove(), 260);
+  };
+  const holdFrame = () => {
+    if (holdEl || !video.videoWidth || video.readyState < 2) return;
+    let c;
+    try {
+      const k = Math.min(1, 1920 / video.videoWidth);
+      c = document.createElement("canvas");
+      c.className = "player-hold";
+      c.width = Math.round(video.videoWidth * k);
+      c.height = Math.round(video.videoHeight * k);
+      c.getContext("2d").drawImage(video, 0, 0, c.width, c.height);
+      c.style.objectFit = getComputedStyle(video).objectFit || "contain";
+    } catch {
+      return; // a frame that can't be read is simply not held
+    }
+    video.after(c);
+    holdEl = c;
+    overlay.classList.add("q-hold");
+    const done = () => {
+      if (holdEl === c) releaseHold();
+    };
+    // the spinner stays out of it unless the new stream is really slow to come
+    setTimeout(() => holdEl === c && overlay.classList.add("q-hold-slow"), 1500);
+    // `loadeddata` is the NEW stream's (the old one fired its own long ago):
+    // there is a frame to show; wait for it to actually reach the screen.
+    video.addEventListener("loadeddata", () => {
+      if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(done);
+      setTimeout(done, 400);
+    }, { once: true });
+    setTimeout(done, 15000); // never left over a film that is playing
+  };
+
   const startHls = (url, startAt = 0) => {
+    if (holdNext) {
+      holdNext = false;
+      holdFrame();
+    }
     const gen = ++hlsGen;
     excuseUntil = Date.now() + 15000; // a new stream buffers before it plays
+    watchFrom = Date.now() + 6000; // ...and the line watcher lets it settle
     clearTimeout(hlsRecoverTimer);
     if (nativeHlsOnly) {
       // Same shape as the no-MSE fallback below. Skips loading the 530 KB
@@ -689,6 +742,9 @@ export const renderPlayer = async (root, { id }) => {
   // Buffering right after a start, a seek or a stream change is by design;
   // stalls only count once this time has passed (see the step-down below).
   let excuseUntil = Date.now() + 15000;
+  // The line watcher (further down) reads nothing into the first seconds of a
+  // stream, or the seconds after a seek.
+  let watchFrom = Date.now() + 6000;
   // Automatic quality (the start above, the mid-film step-down below) stops
   // the moment the viewer picks one themselves, or reverts.
   let autoQuality = canCap && dataMode() !== "full";
@@ -708,7 +764,7 @@ export const renderPlayer = async (root, { id }) => {
     const cap = capH && vv === "h264" ? `-${capH}` : "";
     return `${item.transcodeBase}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${vv}${cap}${seg}${vtag}${a}`;
   };
-  const startTranscode = (offset, v, { claimed = false, clock = null } = {}) => {
+  const startTranscode = (offset, v, { claimed = false, clock = null, startAt = 0 } = {}) => {
     streamOffset = Math.max(0, Math.floor(offset || 0));
     usingTranscode = true;
     // Any offset job means we've LEFT the jit world (e.g. the media-error
@@ -748,7 +804,9 @@ export const renderPlayer = async (root, { id }) => {
       } else {
         clockBase = streamOffset;
         windowStart = streamOffset;
-        startHls(url);
+        // startAt: how far into this job to begin (a quality change that was
+        // prepared a few seconds ahead and took over late) — 0 everywhere else
+        startHls(url, startAt > 0 ? startAt : 0);
       }
     };
     // Claim this offset the way a seek does (see startTranscodeAt). Only a
@@ -795,25 +853,36 @@ export const renderPlayer = async (root, { id }) => {
   // Change the stream's quality mid-film: a capped 720p / 480p encode for a
   // slow line, or back to the file as it is. Same restart-at-this-spot as an
   // audio switch.
+  let showQualityNote = () => {}; // the corner chip — bound further down, with the pill
+  let lastChangeAt = Date.now(); // when the quality last changed, by anyone
   const switchQuality = (h) => {
     if (h === capH) return closeMenu();
     if (seekLocked()) return;
     autoQuality = false; // the viewer chose — nothing changes it behind them now
-    const was = capH;
-    capH = h;
     closeMenu();
     showControls();
-    const at = effTime();
     track("feat", { f: h ? `quality_${h}` : "quality_original" });
+    applyQuality(h);
+  };
+  // The change itself — the viewer's (above) or the line watcher's step back
+  // up (`auto`). No message box either way: a small chip in the corner names
+  // the quality for a moment, and that is all.
+  const applyQuality = (h, { auto = false } = {}) => {
+    const was = capH;
+    capH = h;
+    lastChangeAt = Date.now();
+    const at = effTime();
+    const note = `${auto ? "Auto " : ""}${h ? `${h}p` : auto ? "original" : "Original"}`;
     if (h) {
-      startTranscodeAt(at, "h264").then((ok) => {
-        if (ok) return void toast(`Quality: ${h}p — lighter on a slow connection`, "📶");
+      startTranscodeAt(at, "h264", { quiet: true, live: true }).then((ok) => {
+        if (ok) return void showQualityNote(note);
         capH = was;
-        toast("The server can't make that stream right now — staying as it is", "⚠️");
+        if (!auto) toast("The server can't make that stream right now — staying as it is", "⚠️");
       });
       return;
     }
-    toast("Quality: original", "📶");
+    showQualityNote(note);
+    holdNext = true; // whichever path below rebuilds the stream holds the frame
     // A file this device plays as it is goes back to plain direct play — the
     // server does nothing at all for it.
     if (item.videoUrl && audioIdx === 0 && !videoNeedsTranscode() && !audioNeedsRemux()) {
@@ -829,7 +898,10 @@ export const renderPlayer = async (root, { id }) => {
       clockBase = 0;
       windowStart = 0;
       excuseUntil = Date.now() + 15000;
+      watchFrom = Date.now() + 6000;
       mark("path", { path: "direct", from: at });
+      holdNext = false;
+      holdFrame();
       video.addEventListener("loadedmetadata", () => {
         try { video.currentTime = at; } catch {}
         tryPlay();
@@ -840,9 +912,12 @@ export const renderPlayer = async (root, { id }) => {
     // back to the untouched picture: the copy path when this device decodes
     // the file's video (jit first — every seek native), the full encode when not
     const copyOk = !copyRefused && (!item.video || !videoNeedsTranscode() || codecCopyable(item.video));
-    if (!copyOk) return void startTranscodeAt(at, "h264", { fallbackToZero: true });
+    if (!copyOk) return void startTranscodeAt(at, "h264", { fallbackToZero: true, quiet: true, live: true });
     tryJitSwitch(at).then((ok) => {
-      if (!ok) startTranscodeAt(at, "copy", { fallbackToZero: true });
+      if (!ok) {
+        holdNext = true;
+        startTranscodeAt(at, "copy", { fallbackToZero: true, quiet: true });
+      }
     });
   };
 
@@ -861,11 +936,21 @@ export const renderPlayer = async (root, { id }) => {
   const startTranscodeAt = async (
     target,
     v,
-    { fallbackToZero = false } = {},
+    { fallbackToZero = false, quiet = false, live = false } = {},
   ) => {
-    const ss = Math.max(0, Math.floor(target) - 2);
+    // LIVE (a quality change onto an encode — an exact, 0-based timeline): the
+    // film keeps playing what it has while the new stream is made. The new one
+    // is asked to begin three seconds AHEAD of the playhead, and takes over
+    // when the playhead gets there — nothing replayed, nothing skipped, and no
+    // spinner over a picture that is still moving. A film that is paused or
+    // already stalled has nothing to keep playing, so it changes on the spot.
+    const liveMode = live && v === "h264";
+    const moving = liveMode && !video.paused && !video.seeking && video.readyState >= 3;
+    const ss = liveMode
+      ? Math.max(0, moving ? Math.ceil(target + 3) : Math.floor(target))
+      : Math.max(0, Math.floor(target) - 2);
     const token = ++probeToken;
-    spinner.classList.remove("hidden");
+    if (!quiet) spinner.classList.remove("hidden");
     // Keep the CURRENT stream loading while we probe. Pausing its loading (tried
     // 2026-07-25 via hls.stopLoad, to stop its playlist polls from superseding
     // the job this seek wants) meant a slow seek drained the buffer and playback
@@ -884,7 +969,25 @@ export const renderPlayer = async (root, { id }) => {
       if (!res.ok) throw new Error("not ready");
       // The probe above was the claim; a PTS-honest copy playlist's clock
       // rides its response headers.
-      startTranscode(ss, v, { claimed: true, clock: clockFromHeaders(res) });
+      const clock = clockFromHeaders(res);
+      let startAt = 0;
+      if (liveMode) {
+        // The claim has retired the old job on the server: stop the old
+        // stream asking for more (it would only collect errors) and let it
+        // play out what it already holds until the hand-over point.
+        try { if (hls) hls.stopLoad(); } catch {}
+        const t0 = Date.now();
+        while (
+          !exited && token === probeToken && !video.paused && !video.seeking &&
+          video.readyState >= 3 && effTime() < ss - 0.05 && Date.now() - t0 < 6000
+        ) await new Promise((r) => setTimeout(r, 50));
+        if (exited || token !== probeToken) return true;
+        // late to the hand-over (a slow probe): begin that far into the new stream
+        startAt = effTime() - ss;
+        if (!(startAt > 0 && startAt < 30)) startAt = 0;
+        holdNext = true;
+      }
+      startTranscode(ss, v, { claimed: true, clock, startAt });
       return true;
     } catch {
       if (exited || token !== probeToken) return true;
@@ -892,6 +995,7 @@ export const renderPlayer = async (root, { id }) => {
         startTranscode(0, v);
         return true;
       }
+      holdNext = false;
       spinner.classList.add("hidden");
       return false;
     } finally {
@@ -3522,55 +3626,84 @@ export const renderPlayer = async (root, { id }) => {
     }
   });
   // ---- a line that stops keeping up, mid-film ----
-  // Two real stalls within three minutes, or one that lasts eight seconds,
-  // and the stream steps down by itself (file → 720p → 480p) at the same
-  // spot — but only after a fresh measurement agrees the LINE is the problem
-  // (a stall on a fast line is the disk or the server, and a smaller picture
-  // would fix nothing). A small pill says what happened, with Revert on it
-  // for the viewer who would rather wait for the full picture; reverting, or
-  // choosing a quality by hand, ends the automatic changes for this film.
+  // The stream steps down by itself (file → 720p → 480p) at the same spot,
+  // and back up when the line has room again. Three things can call for it:
+  //  • THE WATCHER (below), once a second: the buffer ahead of the playhead is
+  //    short AND filling slower than the film plays. That is the line falling
+  //    behind, read off the stream itself, usually seconds BEFORE the picture
+  //    would freeze — so the change happens while the film is still moving.
+  //  • a stall that lasts three seconds, or two short ones within three
+  //    minutes — for whatever the watcher did not see coming. These ask for a
+  //    fresh measurement first (a stall on a fast line is the disk or the
+  //    server, and a smaller picture would fix nothing).
+  //  • the watcher again, the other way: the line has carried well over what
+  //    the next quality up needs for a quarter of a minute — step back up.
+  //    Twice a film at most, and never again once a step up is followed by
+  //    trouble: a line that cannot hold it is not asked a third time.
+  // A small chip says what happened, with Revert on a step down for the
+  // viewer who would rather wait for the full picture; reverting, or choosing
+  // a quality by hand, ends the automatic changes for this film.
   let stallAt = 0;
   let longStallTimer = null;
   let excuseTimer = null;
   let steppingDown = false;
   const stallTimes = [];
+  // One small chip in the top corner, for every kind of change: the stream
+  // stepping down by itself ("Auto 720p" with Revert, six seconds), stepping
+  // back up, and the viewer picking a quality ("720p", two seconds, nothing
+  // to press). It fades in and out where it is — nothing slides over the film.
   let qualityPill = null;
-  const showQualityPill = (hNow, prev) => {
+  const qualityChip = (text, ms, action = null) => {
     if (qualityPill) qualityPill.remove();
-    const pill = (qualityPill = el(
-      "div",
-      { class: "quality-pill" },
-      el("span", {}, `${hNow}p for your connection`),
-      el("button", {
-        class: "focusable",
-        onclick: () => {
-          pill.remove();
-          excuseUntil = Date.now() + 15000;
-          track("feat", { f: "quality_revert" });
-          switchQuality(prev);
-        },
-      }, "Revert"),
-    ));
+    const pill = (qualityPill = el("div", { class: "quality-pill hide" }, el("span", {}, text), action));
     overlay.append(pill);
-    setTimeout(() => pill.classList.add("hide"), 9000);
-    setTimeout(() => pill.remove(), 9600);
+    requestAnimationFrame(() => pill.classList.remove("hide"));
+    setTimeout(() => pill.classList.add("hide"), ms);
+    setTimeout(() => pill.remove(), ms + 600);
+    return pill;
   };
-  const stepDown = async () => {
+  showQualityNote = (text) => qualityChip(text, 2000);
+  const showQualityPill = (hNow, prev) => {
+    const pill = qualityChip(`Auto ${hNow}p`, 6000, el("button", {
+      class: "focusable",
+      title: `${hNow}p for your connection — go back to ${prev ? `${prev}p` : "the original"}`,
+      onclick: () => {
+        pill.remove();
+        excuseUntil = Date.now() + 15000;
+        track("feat", { f: "quality_revert" });
+        switchQuality(prev);
+      },
+    }, "Revert"));
+  };
+  // What the watcher last read off the stream: { kbps (null when the stream's
+  // own bitrate is unknown), at }. Fresh, it IS the measurement — no probe.
+  let lineEst = null;
+  let upsLeft = 2;
+  let steppedUpAt = 0;
+  const stepDown = async (reason = "stalls") => {
     if (!autoQuality || steppingDown || exited || capH === 480 || probing || seekLocked()) return;
     steppingDown = true;
     try {
-      const m = await probe();
-      if (exited || !autoQuality || !m) return;
-      // thin for what is playing now: the file itself, or the 720p stream
-      // (bitrate unknown: anything under 8 Mbit/s may well be the reason)
-      const thin = capH === 720 ? m.kbps < 2800 : fileKbps != null ? m.kbps < fileKbps * 1.3 : m.kbps < 8000;
-      if (!thin) return;
+      let kbps;
+      if (lineEst && Date.now() - lineEst.at < 8000) kbps = lineEst.kbps;
+      else {
+        const m = await probe();
+        if (exited || !autoQuality || !m) return;
+        // thin for what is playing now: the file itself, or the 720p stream
+        // (bitrate unknown: anything under 8 Mbit/s may well be the reason)
+        const thin = capH === 720 ? m.kbps < 2800 : fileKbps != null ? m.kbps < fileKbps * 1.3 : m.kbps < 8000;
+        if (!thin) return;
+        kbps = m.kbps;
+      }
       const prev = capH;
-      const next = prev === 720 ? 480 : capFor(m.kbps);
+      const next = prev === 720 ? 480 : kbps == null ? 720 : capFor(kbps);
+      // trouble soon after a step up: this line does not hold it — stop trying
+      if (steppedUpAt && Date.now() - steppedUpAt < 120000) upsLeft = 0;
       capH = next;
+      lastChangeAt = Date.now();
       stallTimes.length = 0;
       excuseUntil = Date.now() + 15000;
-      const ok = await startTranscodeAt(effTime(), "h264");
+      const ok = await startTranscodeAt(effTime(), "h264", { quiet: true, live: true });
       if (exited) return;
       if (!ok) {
         // the server can't spare an encode: stay as we were, and stop asking
@@ -3578,7 +3711,7 @@ export const renderPlayer = async (root, { id }) => {
         autoQuality = false;
         return;
       }
-      reportMark("client_switch", { reason: "stalls", to: `h264-${next}`, position: effTime() });
+      reportMark("client_switch", { reason, to: `h264-${next}`, position: effTime() });
       track("feat", { f: `quality_stepdown_${next}` });
       showQualityPill(next, prev);
     } finally {
@@ -3588,9 +3721,80 @@ export const renderPlayer = async (root, { id }) => {
   const beginStall = () => {
     stallAt = Date.now();
     clearTimeout(longStallTimer);
-    longStallTimer = setTimeout(stepDown, 8000);
+    longStallTimer = setTimeout(() => stepDown("stalls"), 3000);
   };
-  video.addEventListener("seeking", () => { excuseUntil = Math.max(excuseUntil, Date.now() + 8000); });
+  video.addEventListener("seeking", () => {
+    excuseUntil = Math.max(excuseUntil, Date.now() + 8000);
+    watchFrom = Math.max(watchFrom, Date.now() + 5000);
+  });
+
+  // THE WATCHER. Once a second while the film plays: where the buffer ends,
+  // against where it ended three seconds ago. `fill` is seconds of film
+  // arriving per second of clock — under 1 with little in hand means the
+  // freeze is coming; times the stream's bitrate it is the line's real speed.
+  // (With plenty buffered the browser stops fetching, so `fill` only means
+  // something when the buffer is short — which is the only time it is asked.)
+  if (canCap) {
+    const win = [];
+    let thinSince = 0;
+    let richSince = 0;
+    const bufEnd = () => {
+      const b = video.buffered;
+      const t = video.currentTime;
+      for (let i = 0; i < b.length; i++) if (b.start(i) <= t + 0.25 && b.end(i) >= t) return b.end(i);
+      return t;
+    };
+    const watcher = setInterval(() => {
+      if (exited) return clearInterval(watcher);
+      const now = Date.now();
+      if (!autoQuality || video.paused || video.seeking || probing || steppingDown || holdEl || now < watchFrom) {
+        win.length = 0;
+        thinSince = richSince = 0;
+        return;
+      }
+      const end = bufEnd();
+      const ahead = end - video.currentTime;
+      win.push({ t: now, end });
+      while (win.length > 4) win.shift();
+      if (win.length < 4) return;
+      const fill = (end - win[0].end) / ((now - win[0].t) / 1000);
+      const cur = capH === 720 ? 2500 : capH === 480 ? 1200 : fileKbps;
+
+      // falling behind: short of buffer and not gaining on the playhead
+      const starving = capH !== 480 && ahead < 8 && fill < 0.9;
+      if (starving) {
+        thinSince = thinSince || now;
+        // two seconds of it — or at once when there is almost nothing left
+        if (now - thinSince >= 2000 || (ahead < 3 && fill < 0.7)) {
+          thinSince = 0;
+          win.length = 0;
+          lineEst = { kbps: cur != null ? Math.round(cur * Math.max(fill, 0.05)) : null, at: now };
+          stepDown("starving");
+        }
+      } else thinSince = 0;
+
+      // room to spare: what hls.js measured on the segments it fetched
+      const est = hls && hls.bandwidthEstimate ? hls.bandwidthEstimate / 1000 : null;
+      const need = capH === 480 ? 2800 * 1.6 : capH === 720 && fileKbps != null ? fileKbps * 1.5 : null;
+      const rich =
+        capH && upsLeft > 0 && est != null && need != null && est >= need &&
+        ahead >= 12 && now - lastChangeAt > 45000 && dataMode() !== "saver";
+      if (rich) {
+        richSince = richSince || now;
+        if (now - richSince >= 15000) {
+          richSince = 0;
+          win.length = 0;
+          upsLeft--;
+          steppedUpAt = now;
+          const to = capH === 480 ? 720 : 0;
+          reportMark("client_switch", { reason: "recovered", to: to ? `h264-${to}` : "original", position: effTime() });
+          track("feat", { f: `quality_stepup_${to || "original"}` });
+          excuseUntil = now + 15000;
+          applyQuality(to, { auto: true });
+        }
+      } else richSince = 0;
+    }, 1000);
+  }
   video.addEventListener("waiting", () => {
     if (!autoQuality || video.paused || probing) return;
     const left = excuseUntil - Date.now();
@@ -3615,10 +3819,10 @@ export const renderPlayer = async (root, { id }) => {
     clearTimeout(excuseTimer);
     if (stallAt) {
       const now = Date.now();
-      if (now - stallAt > 1500) {
+      if (now - stallAt > 700) {
         stallTimes.push(now);
         while (stallTimes.length && now - stallTimes[0] > 180000) stallTimes.shift();
-        if (stallTimes.length >= 2) stepDown();
+        if (stallTimes.length >= 2) stepDown("stalls");
       }
       stallAt = 0;
     }

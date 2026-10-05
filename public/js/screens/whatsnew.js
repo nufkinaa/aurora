@@ -10,9 +10,48 @@ import { state } from "../state.js";
 import { navigate } from "../router.js";
 import { showReportSheet } from "../report.js";
 
-// `since`: the release a feature landed in — the newest release's cards get
-// the ribbon. `cue`: which small animation the glyph tile plays.
+// `since`: the release a feature landed in — everything from NEW_FROM on
+// carries the ribbon (move it forward when a new batch arrives, so the ribbon
+// stays on what is actually recent). `cue`: which small animation the glyph
+// tile plays. Cards are retired when the thing stops being news: the two
+// looks, the keyboard shortcuts and resume-with-the-frame went 2026-10-05.
+const NEW_FROM = "1.6.9";
 const FEATURES = [
+  {
+    since: "1.6.12", cue: "look", glyph: "🔍",
+    title: "X-Ray",
+    what: "Who is in it, who made it and what people thought — the cast with their characters and faces, ratings side by side, director, writers, awards. For a series it is about one episode at a time, guest stars included.",
+    how: "Press X-Ray on any title's page, or the X-Ray button in the player — the film pauses and picks up again when you close it.",
+    go: { label: "Open a title", to: "#/movies" },
+  },
+  {
+    since: "1.6.20", cue: "smart", glyph: "📶",
+    title: "Quality that follows your connection",
+    what: "Aurora watches how fast the film is arriving. When the line falls behind it moves to 720p or 480p before the picture freezes, and back up when there is room again — the film keeps playing through the change.",
+    how: "Nothing to do. A small \"Auto 720p\" in the corner tells you, with Revert on it. To choose yourself: the player's gear → Quality, or Settings → More settings → Data use.",
+    go: { label: "Data use", to: "#/preferences" },
+  },
+  {
+    since: "1.6.13", cue: "trailer", glyph: "✅",
+    title: "Ready to watch",
+    what: "When something you saved finishes downloading, Aurora tells you once, wherever you are in the app, with Play right on the message.",
+    how: "For a notification while Aurora is in the background: Settings → More settings → Downloads → Tell me when it's ready.",
+    go: { label: "My downloads", to: "#/downloads" },
+  },
+  {
+    since: "1.6.13", cue: "offline", glyph: "📲",
+    title: "Save the next three",
+    what: "One press on a series you own saves the next three episodes you haven't finished to this device — for a flight, a train, a weekend away.",
+    how: "Open the series and press Save next 3. The size is asked once; episodes already saved are skipped.",
+    go: { label: "Open Shows", to: "#/shows" },
+  },
+  {
+    since: "1.6.13", cue: "hold", glyph: "🏠",
+    title: "Popular in this house",
+    what: "Search, before you type anything, shows what the household has been watching these last six weeks — minus what you have already finished.",
+    how: "Open Search and look under your recent searches.",
+    go: { label: "Open Search", to: "#/search" },
+  },
   {
     since: "1.6.6", cue: "look", glyph: "🧭",
     title: "More like this, by feel",
@@ -77,32 +116,11 @@ const FEATURES = [
     go: null,
   },
   {
-    since: "1.2.0", cue: "look", glyph: "✨",
-    title: "Two looks",
-    what: "Apple Horror — glass over a living sky — or the classic Legacy look. Yours alone, per profile.",
-    how: "Settings → Appearance → Look.",
-    go: { label: "Change the look", to: "#/preferences" },
-  },
-  {
     since: "1.5.0", cue: "report", glyph: "🛠️",
     title: "Report a problem",
     what: "A few words is enough. Where you were, what was playing and the last errors this page saw come along by themselves.",
     how: "Profile menu → Report a problem, or the player's gear menu → Help.",
     go: { label: "Report something", to: "report" },
-  },
-  {
-    since: "1.4.0", cue: "keys", glyph: "⌨️",
-    title: "Keyboard shortcuts",
-    what: "Space plays, arrows skip, C for subtitles, M mutes, F fullscreen.",
-    how: "Press ? anywhere for the full list.",
-    go: { label: "Show shortcuts", to: "shortcuts" },
-  },
-  {
-    since: "1.1.0", cue: "resume", glyph: "▶️",
-    title: "Resume, with the frame",
-    what: "Coming back to a title shows the frame you stopped on, in the player and on its page.",
-    how: "Start over is one press away on the small pill at the top, for the four seconds it stays up.",
-    go: null,
   },
 ];
 
@@ -120,8 +138,7 @@ export const renderWhatsNew = async (root) => {
 
   let version = null;
   try { version = (await api.changelog()).version || null; } catch {}
-  // the newest release any card belongs to — those get the ribbon
-  const newest = FEATURES.map((f) => f.since).sort(cmpVersion).pop();
+  const isNew = (f) => cmpVersion(f.since, NEW_FROM) >= 0;
   try { if (version) localStorage.setItem(NEW_SEEN_KEY, version); } catch {}
   document.getElementById("nav-new")?.classList.remove("has-new");
 
@@ -130,19 +147,18 @@ export const renderWhatsNew = async (root) => {
     const onclick = () => {
       if (f.go.to === "join-party") return document.dispatchEvent(new CustomEvent("aurora-join-party"));
       if (f.go.to === "report") return showReportSheet();
-      if (f.go.to === "shortcuts") return document.dispatchEvent(new KeyboardEvent("keydown", { key: "?", bubbles: true }));
       navigate(f.go.to);
     };
     return el("button", { class: "btn small focusable wn-go", onclick }, f.go.label);
   };
 
   const card = (f, i) =>
-    el("article", { class: `wn-card${cmpVersion(f.since, newest) === 0 ? " is-new" : ""}`, style: { "--i": i } },
+    el("article", { class: `wn-card${isNew(f) ? " is-new" : ""}`, style: { "--i": i } },
       el("div", { class: `wn-cue cue-${f.cue}` }, el("span", { class: "wn-glyph" }, f.glyph), el("i"), el("i"), el("i")),
       el("div", { class: "wn-body" },
         el("div", { class: "wn-head" },
           el("h2", { class: "wn-title" }, f.title),
-          cmpVersion(f.since, newest) === 0 && el("span", { class: "wn-ribbon" }, "New")),
+          isNew(f) && el("span", { class: "wn-ribbon" }, "New")),
         el("p", { class: "wn-what" }, f.what),
         el("p", { class: "wn-how" }, el("b", {}, "How "), f.how),
         act(f)));
@@ -151,7 +167,7 @@ export const renderWhatsNew = async (root) => {
     el("div", { class: "wn-hero" },
       el("div", { class: "wn-kicker" }, version ? `Aurora ${version}` : "Aurora"),
       el("h1", { class: "wn-h1" }, "New in Aurora"),
-      el("p", { class: "wn-sub" }, `Hi ${state.profile ? state.profile.name : "there"} — here's what you can do now, and how. The full changelog lives under Preferences.`)),
+      el("p", { class: "wn-sub" }, `Hi ${state.profile ? state.profile.name : "there"} — here's what you can do now, and how. The full changelog lives under Settings.`)),
     el("div", { class: "wn-grid" }, FEATURES.map(card)),
     el("div", { class: "wn-foot" },
       el("button", { class: "btn focusable", onclick: () => navigate("#/preferences"), html: "<span>Full changelog</span>" }),
