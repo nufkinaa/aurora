@@ -3041,3 +3041,349 @@ html[data-look="glass"] .pbtn.big svg {
 @media (prefers-reduced-motion: reduce) {
   .player-hold { transition: none; }
 }
+
+/* ---------- the phone, lighter (2026-10-06) ----------
+   elia, with the Apple TV app beside it: everything on a phone was a size too
+   big — 150px posters two-and-a-bit to a row, 340px of page per shelf, a Home
+   billboard as tall as the screen — "and that's what makes it feel
+   claustrophobic". So: posters three-and-a-bit to a row, shelves closer
+   together, a shorter billboard that runs to the screen's edges, Continue
+   Watching cards that say what is left, episodes as a rail of picture cards,
+   and a title's cover that is shorter and drifts as the page scrolls over it.
+   The glass look only; `:root` lifts these over the rules above. */
+@media (max-width: 720px) {
+  /* --- shelves and cards --- */
+  html[data-look="glass"]:root .row {
+    margin-top: 2px;
+  }
+  html[data-look="glass"]:root .row-title {
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+  }
+  html[data-look="glass"]:root .row-scroller {
+    gap: 9px;
+  }
+  html[data-look="glass"]:root .card.poster {
+    width: 108px;
+    border-radius: 12px;
+  }
+  html[data-look="glass"]:root .card.wide {
+    width: 232px;
+    border-radius: 14px;
+  }
+  /* corner tags at this size: smaller, and the kind tag keeps its icon and
+     drops its word (the icon's colour already says film or series) */
+  html[data-look="glass"]:root .card-tag {
+    top: 6px;
+    padding: 2px 6px;
+    font-size: 0.5rem;
+    letter-spacing: 0.08em;
+  }
+  html[data-look="glass"]:root .card-tag.stream { left: 6px; }
+  html[data-look="glass"]:root .card-tag.kind { right: 6px; padding: 3px; }
+  html[data-look="glass"]:root .card-tag.kind span[data-t] { display: none; }
+  html[data-look="glass"]:root .card-tag.kind svg { width: 9px; height: 9px; }
+  html[data-look="glass"]:root .card-new {
+    top: 6px;
+    left: 6px;
+    padding: 2px 6px;
+    font-size: 0.5rem;
+  }
+  html[data-look="glass"]:root .card.poster .card-label {
+    left: 8px;
+    right: 8px;
+    font-size: 0.72rem;
+  }
+  /* Continue Watching: the title, and under it what is left — "▶ 29 min left" */
+  html[data-look="glass"]:root .card.wide .card-label {
+    left: 12px;
+    right: 12px;
+    bottom: 18px;
+    font-size: 0.86rem;
+    text-align: left;
+  }
+  html[data-look="glass"]:root .card .card-remove {
+    top: 6px;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    font-size: 0.7rem;
+  }
+  html[data-look="glass"]:root .card.wide .card-sub {
+    font-size: 0.68rem;
+  }
+  html[data-look="glass"]:root .card.wide .card-meta {
+    display: block;
+    margin-top: 1px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: rgba(243, 244, 248, 0.78);
+  }
+  html[data-look="glass"]:root .card.wide .card-meta::before {
+    content: "▶";
+    font-size: 0.58rem;
+    margin-right: 5px;
+    vertical-align: 1px;
+  }
+  html[data-look="glass"]:root .card.wide .card-progress {
+    bottom: 9px;
+    height: 2.5px;
+  }
+  html[data-look="glass"]:root .home-greeting.big {
+    margin-top: 14px;
+    margin-bottom: 12px;
+  }
+
+  /* --- Home's billboard: shorter, edge to edge, under the status bar --- */
+  html[data-look="glass"]:root .hero {
+    height: min(54vh, 470px);
+    margin: 0;
+    border-radius: 0 0 26px 26px;
+  }
+
+  /* --- chrome: only the island and the home indicator are kept clear of ---
+     The top pills sit just under the island when the page runs full screen
+     (and where they always were in a browser tab); the tab bar rides low,
+     over the home-indicator strip rather than a whole inset above it. */
+  html[data-look="glass"]:root .nav {
+    padding-top: max(10px, env(safe-area-inset-top, 0px));
+    height: calc(var(--nav-h) + max(0px, env(safe-area-inset-top, 0px) - 10px));
+  }
+  html[data-look="glass"]:root .nav-items {
+    left: max(12px, env(safe-area-inset-left, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) - 14px));
+  }
+  html[data-look="glass"]:root #app {
+    padding-bottom: 84px;
+  }
+
+  /* --- a title's cover: shorter, and it drifts (details.js sets --py) --- */
+  html[data-look="glass"]:root .detail-head {
+    min-height: 46vh;
+    overflow: hidden;
+  }
+  html[data-look="glass"]:root .detail-head::before {
+    inset: -8% 0 -14%;
+    transform: translate3d(0, calc(var(--py, 0) * 0.42px), 0) scale(calc(1 + var(--pz, 0)));
+    transform-origin: 50% 30%;
+    will-change: transform;
+  }
+  html[data-look="glass"]:root .detail-head > * {
+    opacity: calc(1 - var(--pf, 0));
+  }
+  html[data-look="glass"]:root .screen.xray-on .detail-head {
+    min-height: 30vh;
+  }
+
+  /* --- the season line --- */
+  html[data-look="glass"]:root .season-bar {
+    row-gap: 8px;
+    margin-top: 6px;
+  }
+  html[data-look="glass"]:root .season-bar-trailing {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    width: 100%;
+    margin-left: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  html[data-look="glass"]:root .season-bar-trailing::-webkit-scrollbar { display: none; }
+  html[data-look="glass"]:root .season-bar-trailing .btn,
+  html[data-look="glass"]:root .season-bar-trailing button {
+    flex: none;
+    padding: 7px 13px;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+
+  /* --- episodes: a rail of picture cards --- */
+  html[data-look="glass"]:root .episode-list {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 12px;
+    margin: 0;
+    padding: 6px var(--page-x) 12px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scroll-padding: 0 var(--page-x);
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  html[data-look="glass"]:root .episode-list::-webkit-scrollbar { display: none; }
+  html[data-look="glass"]:root .episode-list > * {
+    flex: 0 0 min(66vw, 264px);
+    width: auto;
+    min-width: 0;
+    scroll-snap-align: start;
+  }
+  html[data-look="glass"]:root .episode-list > .sources-empty {
+    flex: 1 1 auto;
+  }
+  html[data-look="glass"]:root .episode-wrap {
+    position: relative;
+    display: block;
+  }
+  html[data-look="glass"]:root .episode-wrap .episode {
+    width: 100%;
+    height: 100%;
+  }
+  html[data-look="glass"]:root .episode {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    border-radius: 16px;
+    overflow: hidden;
+    text-align: left;
+  }
+  html[data-look="glass"]:root .episode.up-next {
+    box-shadow: inset 0 0 0 1.5px rgba(var(--accent-rgb), 0.75);
+  }
+  html[data-look="glass"]:root .episode-num {
+    display: none;
+  }
+  html[data-look="glass"]:root .episode-still {
+    order: 0;
+    flex: none;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    margin: 0;
+    border-radius: 0;
+    object-fit: cover;
+  }
+  /* no picture for this one: the same space, so every card is the same card */
+  html[data-look="glass"]:root .episode:not(:has(.episode-still))::before {
+    content: "";
+    order: 0;
+    flex: none;
+    aspect-ratio: 16 / 9;
+    background: linear-gradient(160deg, #1d2036, #101120);
+  }
+  html[data-look="glass"]:root .episode-bar {
+    order: 1;
+    position: static;
+    flex: none;
+    width: 100%;
+    height: 3px;
+    margin: 0;
+    border-radius: 0;
+  }
+  html[data-look="glass"]:root .episode-body {
+    order: 2;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 10px 14px 11px;
+  }
+  html[data-look="glass"]:root .episode-kicker {
+    display: block;
+    margin: 0 0 2px;
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: rgba(243, 244, 248, 0.62);
+  }
+  html[data-look="glass"]:root .episode-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.25;
+  }
+  html[data-look="glass"]:root .episode-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  html[data-look="glass"]:root .episode-title .source-owned,
+  html[data-look="glass"]:root .episode-title .ep-up-next {
+    flex: none;
+    font-size: 0.5rem;
+    padding: 2px 6px;
+  }
+  /* the synopsis, then one line of facts at the foot beside a small ▶ */
+  html[data-look="glass"]:root .episode-sub {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    align-content: space-between;
+    gap: 8px 8px;
+    margin-top: 5px;
+    padding: 0 68px 0 19px;
+    font-size: 0.76rem;
+    color: rgba(243, 244, 248, 0.7);
+  }
+  html[data-look="glass"]:root .episode-sub .ep-overview {
+    order: -1;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    flex: 0 0 calc(100% + 87px);
+    margin: 0 -68px 0 -19px;
+    overflow: hidden;
+    white-space: normal;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: rgba(243, 244, 248, 0.72);
+  }
+  html[data-look="glass"]:root .episode-sub .ep-dur {
+    display: inline;
+  }
+  html[data-look="glass"]:root .episode-sub .badge {
+    font-size: 0.56rem;
+    padding: 1px 5px;
+  }
+  html[data-look="glass"]:root .episode .episode-play {
+    position: absolute;
+    left: 14px;
+    bottom: 12px;
+    display: block;
+    width: 12px;
+    height: 14px;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    opacity: 0.85;
+  }
+  html[data-look="glass"]:root .episode .episode-play svg {
+    width: 12px;
+    height: 12px;
+    display: block;
+  }
+  html[data-look="glass"]:root .episode-wrap .ep-action {
+    position: absolute;
+    bottom: 5px;
+    right: 6px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: none;
+    box-shadow: none;
+  }
+  html[data-look="glass"]:root .episode-wrap .ep-action:nth-last-child(2) {
+    right: 38px;
+  }
+  html[data-look="glass"]:root .episode-wrap .ep-action svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  /* X-Ray's portraits come down a size with everything else */
+  .xr-person { flex-basis: 88px; }
+  .xr-face { width: 68px; height: 68px; font-size: 1rem; }
+}

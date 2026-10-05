@@ -49,7 +49,33 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null, serverInfo
     g.toneNavFromImage(phone && item.cover ? artUrl(item.cover, Math.min(600, heroArtWidth())) : item.backdrop ? artUrl(item.backdrop, heroArtWidth()) : null);
   }).catch(() => {});
   hero.style.setProperty("--hero-poster", item.cover ? `url("${artUrl(item.cover, Math.min(600, heroArtWidth()))}")` : "none");
+  coverDrift(hero);
   return hero;
+};
+
+// The phone's cover drifts: as the page scrolls up over it the picture moves
+// at under half the page's speed and its words fade, and a pull down past the
+// top (the rubber band) swells it a little — the Apple TV app's gesture, in
+// CSS variables the cover's styles read (glass.css: --py, --pf, --pz). One
+// passive scroll listener, one frame per change, gone with the hero. Skipped
+// for reduced motion.
+const coverDrift = (hero) => {
+  if (window.innerWidth > 720 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  let raf = 0;
+  const paint = () => {
+    raf = 0;
+    if (!hero.isConnected) return window.removeEventListener("scroll", onScroll);
+    const head = hero.querySelector(".detail-head");
+    if (!head) return;
+    const y = window.scrollY || 0;
+    const h = head.offsetHeight || 1;
+    if (y > h * 1.2) return; // long gone — nothing to move
+    head.style.setProperty("--py", String(Math.max(0, Math.round(y))));
+    head.style.setProperty("--pf", Math.min(1, Math.max(0, (y - h * 0.18) / (h * 0.5))).toFixed(3));
+    head.style.setProperty("--pz", y < 0 ? Math.min(0.25, -y / 600).toFixed(3) : "0");
+  };
+  const onScroll = () => { if (!raf) raf = requestAnimationFrame(paint); };
+  window.addEventListener("scroll", onScroll, { passive: true });
 };
 
 const heroNode = (item, actions, metaParts, { rateKey = null, serverInfo = null } = {}) => {

@@ -3,6 +3,16 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.23 — 2026-10-06
+
+- The phone, a size smaller. Posters on a phone were two-and-a-bit to a row and every shelf took 340px of the page; now there are three and a peek, and the shelves sit closer together — about a third more of Aurora on each screen. Corner tags shrink with them (the film / series tag keeps its icon and drops its word).
+- Home's billboard on a phone is a little over half the screen instead of nearly all of it, and runs edge to edge and to the very top.
+- Continue Watching cards say what is left — "▶ 29 min left" under the title — for films as well as episodes.
+- Episodes on a phone are a rail of picture cards you slide through: the still, "Episode 5", the title, three lines of what happens, and the date and length at the foot beside the download and watched buttons. The rail opens on the episode you are up to.
+- A title's cover on a phone is shorter, and it drifts: as you scroll, the picture moves at under half the page's speed and the title fades over it; pulling down past the top swells it slightly.
+- The tab bar rides lower, over the home-indicator strip rather than a full inset above it, and the top buttons keep clear of the Dynamic Island when Aurora runs full screen.
+- Computers, tablets and the TV are unchanged.
+
 ## 1.6.22 — 2026-10-06
 
 - Finished streams no longer sit on the disk for good. The server keeps the last few streams it prepared so that re-opening a title is instant — but "the last few" had no clock on it, and three films streamed once in August were still holding 1.6 GB in October. A prepared stream nobody has touched for a day is now removed (the healer does it every round, and says so in its log).

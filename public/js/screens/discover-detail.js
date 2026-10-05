@@ -2109,7 +2109,17 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     // On open (and season switch), bring the next unwatched episode into
     // view when it sits deep in a long season — only when there's real
     // watching history, so a fresh show never yanks the page around.
-    if (scrollToNext && anyWatched && upNextAt > 3 && season.episodes.length > 8) {
+    // The phone's episode rail (glass look): bring the episode you are up to
+    // to the front of it — sideways, never moving the page.
+    const rail = getComputedStyle(episodeList).flexDirection === "row";
+    if (rail) {
+      const at = anyWatched && upNextAt > 0 ? upNextAt : nextUp && nextUp.season === season.number ? season.episodes.findIndex((r) => r.episode === nextUp.episode) : 0;
+      const target = at > 0 ? episodeList.children[at] : null;
+      requestAnimationFrame(() => {
+        episodeList.scrollLeft = target ? Math.max(0, target.offsetLeft - episodeList.offsetLeft - 16) : 0;
+      });
+    }
+    if (!rail && scrollToNext && anyWatched && upNextAt > 3 && season.episodes.length > 8) {
       const target = episodeList.querySelector(".up-next");
       if (target)
         setTimeout(() => {

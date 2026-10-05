@@ -117,7 +117,8 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
     if (newEp) {
       return el("div", { class: "card-label" }, `S${newEp.season} E${newEp.episode}${behind}`);
     }
-    return el("div", { class: "card-label" }, item.title);
+    // (a film mid-way says what is left too, like an episode does)
+    return el("div", { class: "card-label" }, item.title, wide && left && el("span", { class: "card-meta" }, left));
   };
   const label = labelFor();
   const showLabel = wide || isEpisode || item.upNext || !!newEp || !!item.meta;
