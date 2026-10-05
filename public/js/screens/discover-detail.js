@@ -237,7 +237,7 @@ const paintDl = (btn, job) => {
   // download button has none): says what the ⬇ DOES, so it never gets
   // confused with Play again.
   const cap = btn.querySelector(".dl-cap");
-  if (cap) cap.textContent = job && job.status === "done" ? "SAVED" : job && job.status === "error" ? "RETRY" : "SAVE";
+  if (cap) cap.textContent = job && job.status === "done" ? "Saved" : job && job.status === "error" ? "Retry" : DL_ACTIVE.includes(job && job.status) && pct != null ? `${pct}%` : "Save";
 };
 
 // The badge a source carries when it already has a download job. Saying it on
@@ -311,12 +311,20 @@ const whyNotBest = (s, best) => {
 // `job` is its current state; `best` is the ★ BEST pick, for the "why not
 // this one" line.
 const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
+  // ONE LINE PER SOURCE (redrawn 2026-10-06 — elia: "rework how the stream
+  // options look… more aligned with all of our other design… tone down all
+  // the unnecessary text"). A card reads left to right: the quality, what the
+  // copy IS in plain words (BluRay · H.265 · DD+), its size and how well it
+  // is seeded — then the two things you can do with it, Stream and Save. The
+  // release's file name, the paragraph of advice and the per-row "vs ★ BEST"
+  // sentences are gone from the page; the advice lives in the tooltips.
   const color = QUALITY_COLOR[stream.quality] || QUALITY_COLOR.SD;
   const dlStatus = job && job.status;
   const owned = dlStatus === "done";
   const seedClass =
     stream.seeders >= 30 ? "good" : stream.seeders >= 5 ? "ok" : "low";
-  const tags = (stream.tags || []).slice(0, 5);
+  const tags = (stream.tags || []).slice(0, 4);
+  const name = stream.release || stream.filename || "";
 
   let dlBtn = null;
   const save = () => {
@@ -325,119 +333,82 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
     if (dlBtn) paintDl(dlBtn, { status: "approved", progress: 0 });
     onDownload(stream);
   };
-  const playBtn = el(
+  const advice = owned
+    ? "Play your copy"
+    : stream.recommended
+      ? guidanceFor(stream)
+      : best
+        ? `Compared with the best pick: ${whyNotBest(stream, best).join(" · ")}`
+        : "Save to the library";
+  const main = el(
     "button",
     {
-      class: "source-row focusable" + (owned ? " owned" : ""),
-      title: owned ? "Play your copy" : "Save to the library (Stream is the pill on the right)",
+      class: "src-main focusable" + (owned ? " owned" : ""),
+      title: `${name}${name ? " — " : ""}${advice}`,
       onclick: () => (owned ? onPlay(stream) : save()),
     },
     el(
       "span",
       {
-        class: "source-quality",
-        style: { color, borderColor: color + "66", background: color + "1a" },
+        class: "src-q",
+        style: { color, borderColor: color + "55", background: color + "1a" },
       },
       stream.quality,
     ),
     el(
       "div",
-      { class: "source-info" },
+      { class: "src-info" },
       el(
         "div",
-        { class: "source-title" },
-        el("span", { class: "source-name" }, stream.release || stream.filename),
-        DL_BADGE[dlStatus] &&
-          el(
-            "span",
-            { class: DL_BADGE[dlStatus].class },
-            DL_BADGE[dlStatus].text,
-          ),
-        stream.lastChosen && el("span", { class: "source-last" }, "⟳ LAST"),
-        stream.recommended && el("span", { class: "source-best" }, "★ BEST"),
-        stream.cam && el("span", { class: "source-cam" }, "CAM"),
-        stream.pack &&
-          el(
-            "span",
-            {
-              class: "source-pack",
-              title:
-                "Part of a multi-movie collection torrent — weaker swarms, slower starts. Prefer a single release.",
-            },
-            "PACK",
-          ),
+        { class: "src-title" },
+        el("span", { class: "src-name" }, tags.length ? tags.join(" · ") : name),
+        stream.recommended && el("span", { class: "src-badge best" }, "Best"),
+        stream.lastChosen && el("span", { class: "src-badge" }, "Last played"),
+        stream.cam && el("span", { class: "src-badge warn" }, "Cam"),
+        stream.pack && el("span", { class: "src-badge warn", title: "Part of a multi-film collection — slower to start" }, "Pack"),
       ),
       el(
         "div",
-        { class: "source-meta" },
-        // A downloaded source plays off the disk, so seeders and swarm health
-        // stopped being the story for this row.
+        { class: "src-meta" },
+        // A downloaded source plays off the disk: seeders stopped being the story.
         owned
-          ? el("span", { class: "owned-note" }, "Plays your copy · instant")
-          : el(
-              "span",
-              { class: `source-seeds ${seedClass}` },
-              `● ${stream.seeders}`,
-            ),
+          ? el("span", { class: "src-own" }, "In your library")
+          : el("span", { class: `src-seeds ${seedClass}`, title: `${stream.seeders} seeders` }, String(stream.seeders)),
         stream.sizeString && el("span", {}, stream.sizeString),
         stream.languages &&
           stream.languages.length > 0 &&
-          el(
-            "span",
-            {
-              class: "source-langs",
-              title: "Audio: " + stream.languages.join(", "),
-            },
-            stream.languages.map((c) => langFlag(c)).join(" "),
-          ),
-        stream.provider &&
-          el("span", { class: "source-provider" }, stream.provider),
+          el("span", { title: "Audio: " + stream.languages.join(", ") }, stream.languages.map((c) => langFlag(c)).join(" ")),
+        tags.length > 0 && name && el("span", { class: "src-file" }, name),
       ),
-      tags.length > 0 &&
-        el(
-          "div",
-          { class: "source-tags" },
-          tags.map((t) => el("span", { class: "source-tag" }, t)),
-        ),
-      // What to expect, in words: the best pick says how it will go; the
-      // others say what they trade away against it (shown on focus/hover).
-      !owned && stream.recommended && el("div", { class: "source-guidance" }, guidanceFor(stream)),
-      !owned &&
-        !stream.recommended &&
-        best &&
-        el("div", { class: "source-why" }, `vs ★ BEST: ${whyNotBest(stream, best).join(" · ")}`),
     ),
   );
 
   dlBtn = el(
     "button",
-    {
-      class: "source-dl focusable",
-      onclick: save,
-    },
+    { class: "src-act src-save focusable", onclick: save },
     el("i", { class: "dl-ring" }),
     el("span", { class: "dl-face" }),
-    el("span", { class: "dl-cap" }, "SAVE"),
+    el("span", { class: "dl-cap" }, "Save"),
   );
   paintDl(dlBtn, job);
 
-  // The side door: stream this source now, nothing saved. Hidden once the
-  // source is downloaded — the library copy is the better play.
+  // Stream this source now, nothing saved. Gone once it is downloaded — the
+  // library copy is the better play.
   const streamBtn = owned
     ? null
     : el(
         "button",
         {
-          class: "source-stream focusable",
+          class: "src-act src-stream focusable",
           "aria-label": "Stream this source now, without saving",
-          title: "Stream it now — slower to start, seeks worse, and gone when you leave. Saving is the good copy.",
+          title: "Stream it now, without saving",
           onclick: () => onPlay(stream),
         },
-        el("span", { class: "source-stream-ic", html: icons.play }),
-        el("span", { class: "source-stream-t" }, "Stream"),
+        el("span", { class: "src-ic", html: icons.play }),
+        el("span", { class: "src-lbl" }, "Stream"),
       );
 
-  const wrap = el("div", { class: "source-row-wrap" }, playBtn, streamBtn, dlBtn);
+  const wrap = el("div", { class: "src-card" + (stream.recommended ? " best" : "") + (owned ? " owned" : "") }, main, streamBtn, dlBtn);
   // Let the live WebSocket updates repaint this row's button in place.
   wrap._paintDl = (j) => paintDl(dlBtn, j);
   return wrap;
@@ -704,7 +675,7 @@ const fetchDownloadStates = async () => {
 // A quality filter bar. Shows "All" plus one pill per quality actually present
 // in the results (high→low), each with a count. Clicking re-renders the list.
 const buildFilterBar = (streams, renderList) => {
-  const bar = el("div", { class: "source-filters" });
+  const bar = el("div", { class: "src-filters" });
   let active = "all";
 
   const apply = () => {
@@ -717,19 +688,19 @@ const buildFilterBar = (streams, renderList) => {
     const pill = el(
       "button",
       {
-        class: `source-filter focusable${value === active ? " active" : ""}`,
+        class: `src-filter focusable${value === active ? " active" : ""}`,
         onclick: () => {
           if (active === value) return;
           active = value;
           bar
-            .querySelectorAll(".source-filter")
+            .querySelectorAll(".src-filter")
             .forEach((p) => p.classList.remove("active"));
           pill.classList.add("active");
           apply();
         },
       },
       el("span", {}, label),
-      el("span", { class: "source-filter-count" }, String(count)),
+      el("span", { class: "src-filter-n" }, String(count)),
     );
     return pill;
   };
@@ -748,48 +719,38 @@ const buildFilterBar = (streams, renderList) => {
 const ownedRow = ({ id, label, onDownload, item }) =>
   el(
     "div",
-    { class: "source-row-wrap" },
+    { class: "src-card owned" },
     el(
       "button",
       {
-        class: "source-row owned focusable",
+        class: "src-main source-row owned focusable",
+        title: label || "Your copy",
         onclick: () => navigate(`#/play/${id}`),
       },
-      el("span", { class: "source-quality owned-chip" }, "YOURS"),
+      el("span", { class: "src-q yours" }, "Yours"),
       el(
         "div",
-        { class: "source-info" },
-        el(
-          "div",
-          { class: "source-title" },
-          el("span", { class: "source-name" }, label || "Your downloaded copy"),
-          el("span", { class: "source-owned" }, "✓ DOWNLOADED"),
-        ),
-        el(
-          "div",
-          { class: "source-meta" },
-          el(
-            "span",
-            { class: "owned-note" },
-            "Starts instantly · seek anywhere · full quality",
-          ),
-        ),
+        { class: "src-info" },
+        el("div", { class: "src-title" }, el("span", { class: "src-name" }, "In your library")),
+        el("div", { class: "src-meta" }, el("span", { class: "src-own" }, "Plays instantly")),
       ),
-      el("span", { class: "source-play", html: icons.play }),
     ),
-    // Sits where a torrent row keeps its "get this onto the server" button, and
-    // means the matching thing here: get the copy we already have onto yours.
+    // onto this device as a file…
     onDownload &&
       el("button", {
-        class: "source-dl focusable",
-        html: icons.downloadDevice + '<span class="dl-cap">DEVICE</span>',
-        title: "Download the file to this device (lands in your browser's downloads)",
+        class: "src-act src-icon focusable",
+        html: `<span class="src-ic">${icons.downloadDevice}</span><span class="src-lbl">Download</span>`,
+        title: "Download the file to this device",
         "aria-label": "Download the file to this device",
         onclick: onDownload,
       }),
-    // …and keep it inside the app, playable with no server in reach — as a
-    // third rail, the same shape as the two beside it.
+    // …or kept inside the app, playable with no server in reach
     item && offlineButton(item, { rail: true }),
+    el("button", {
+      class: "src-act src-save src-play focusable",
+      html: `<span class="src-ic">${icons.play}</span><span class="dl-cap">Play</span>`,
+      onclick: () => navigate(`#/play/${id}`),
+    }),
   );
 
 // Render a sources list into a host element (with loading + empty states)
@@ -870,15 +831,17 @@ const loadSources = async (
       .sort((a, b) => a.r - b.r || a.i - b.i)
       .map((x) => x.s);
 
-    const listHost = el("div", { class: "source-list" });
+    const listHost = el("div", { class: "src-list" });
     const best = streams.find((x) => x.recommended) || null;
     // Rows by source key, so a live download_update repaints just that button.
     const rows = new Map();
     // On a phone the box doesn't scroll inside the page (a list scrolling
     // inside a page that scrolls is two thumbs fighting): the first few
     // sources show, the rest sit behind one "Show all" press.
-    const PHONE_FIRST = 6;
+    // The first few sources show; the rest sit behind one "Show all" press —
+    // on every screen now (the list used to scroll inside a box of its own).
     const phone = () => matchMedia("(max-width: 720px)").matches;
+    const FIRST = () => (phone() ? 5 : 8);
     let expanded = false;
     const renderList = (list) => {
       listHost.innerHTML = "";
@@ -889,8 +852,8 @@ const loadSources = async (
         );
         return;
       }
-      const collapse = phone() && !expanded && list.length > PHONE_FIRST + 1;
-      const shown = collapse ? list.slice(0, PHONE_FIRST) : list;
+      const collapse = !expanded && list.length > FIRST() + 1;
+      const shown = collapse ? list.slice(0, FIRST()) : list;
       listHost.append(
         ...shown.map((s) => {
           const key = `${s.infoHash}:${s.fileIdx}`;
@@ -903,9 +866,6 @@ const loadSources = async (
               ? () => navigate(`#/play/${owned.id}`)
               : onPlay;
           const row = sourceRow(s, play, onDownload, job, best);
-          // the ★ BEST pick is the featured (full-width, gold) card; it
-          // scrolls with the list like every other row
-          if (s.recommended) row.classList.add("best-pinned");
           rows.set(key, row);
           return row;
         }),
@@ -913,12 +873,12 @@ const loadSources = async (
       if (collapse) {
         listHost.append(
           el("button", {
-            class: "btn focusable source-more",
+            class: "focusable src-more",
             onclick: () => {
               expanded = true;
               renderList(list);
             },
-          }, `Show all ${list.length} sources`),
+          }, `Show all ${list.length}`),
         );
       }
     };
@@ -947,43 +907,12 @@ const loadSources = async (
       }
     });
 
+    // No paragraph of advice and no "save it, then watch it" panel any more:
+    // the copy you own (when there is one), the quality filter, the list.
     host.append(
-      el(
-        "div",
-        { class: "source-hint" },
-        "Press a source to save it to the library. More seeders (●) = a faster download; a smaller file lands sooner. The ★ BEST pick balances both. Stream is the pill on the right, for right now.",
-      ),
-      // The copy on disk, before any torrent and outside the quality filter, so
-      // it can't be filtered away or scrolled past.
       ...(owned ? [ownedRow(owned)] : []),
-      // Nothing to sell here when they already own it.
-      ...(owned
-        ? []
-        : [
-            el(
-              "div",
-              { class: "dl-callout" },
-              el("span", { class: "dl-callout-icon" }, "⬇"),
-              el(
-                "div",
-                { class: "dl-callout-body" },
-                el(
-                  "div",
-                  { class: "dl-callout-title" },
-                  "Save it, then watch it.",
-                ),
-                el(
-                  "div",
-                  { class: "dl-callout-sub" },
-                  "One press on a source saves it to the library: it starts instantly every time, seeks anywhere without buffering, " +
-                    "and keeps full quality on every device. It lands in minutes. Streaming is there if you can't wait — slower to start, and gone when you leave.",
-                ),
-              ),
-            ),
-          ]),
-      // The compact box (elia: "a small box, not kilometres down the page"):
-      // filters are its non-scrolling header, the rows scroll inside it.
-      el("div", { class: "source-box" }, buildFilterBar(streams, renderList), listHost),
+      buildFilterBar(streams, renderList),
+      listHost,
     );
     renderList(streams);
     return { streams, best, jobs: dlStates };
@@ -1257,7 +1186,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       sourcesSection.querySelector(".focusable") ||
       screen.querySelector(".season-bar .focusable");
     target?.focus({ preventScroll: true });
-    (sourcesSection.querySelector(".source-row")
+    (sourcesSection.querySelector(".src-main")
       ? sourcesSection
       : screen.querySelector(".season-bar")
     )?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1726,7 +1655,15 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       el("span", { class: "cast-label" }, "Cast "),
       m.cast.join(" · "),
     );
-  if (meta && meta.cast && meta.cast.length) screen.append(castLine(meta));
+  // On a phone the cast sits straight under the synopsis (inside the title
+  // block, before the genres and the rating); on wider screens it stays the
+  // line under the hero.
+  const placeCast = (node) => {
+    const syn = window.innerWidth <= 720 ? screen.querySelector(".detail-hero .detail-synopsis-wrap") : null;
+    if (syn) syn.after(node);
+    else (screen.querySelector(".detail-hero") || screen.lastElementChild).after(node);
+  };
+  if (meta && meta.cast && meta.cast.length) placeCast(castLine(meta));
 
   // Late metadata: fill in what the library side doesn't know (backdrop,
   // synopsis, rating, cast, director), rebuild the hero with it, and let the
@@ -1749,9 +1686,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       oldHero.replaceWith(
         heroBlock(view, actions, metaPartsFor(null), { rateKey: imdbId || (lib && lib.id), serverInfo: serverInfoFor() }),
       );
-      if (m.cast && m.cast.length && !screen.querySelector(".detail-cast")) {
-        screen.querySelector(".detail-hero").after(castLine(m));
-      }
+      if (m.cast && m.cast.length && !screen.querySelector(".detail-cast")) placeCast(castLine(m));
     }
     for (const hook of lateMetaHooks) {
       try { hook(m); } catch {}
@@ -1851,7 +1786,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     const sourcesTitle = el(
       "h2",
       { class: "row-title sources-title", style: { marginTop: "24px" } },
-      lib ? "Other versions" : "Save to your library",
+      lib ? "Other versions" : "Sources",
     );
     if (lib) {
       screen.classList.add("has-sources-fold", "sources-folded");
@@ -1966,7 +1901,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   const openSources = (row, { scroll = true } = {}) => {
     if (!imdbId) return;
     openRow = row;
-    epSourcesLabel.textContent = `Save to your library · S${row.season} E${row.episode}`;
+    epSourcesLabel.textContent = `Sources · S${row.season} E${row.episode}`;
     loadSources(
       sourcesSection,
       {
@@ -2567,7 +2502,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
 const offlineButton = (item, { compact = false, rail = false } = {}) => {
   if (!offline.available() || !item || !item.id) return null;
   const btn = el("button", {
-    class: rail ? "source-dl focusable btn-offline" : `btn ${compact ? "btn-icon" : ""} focusable btn-offline`,
+    class: rail ? "src-act src-icon focusable btn-offline" : `btn ${compact ? "btn-icon" : ""} focusable btn-offline`,
     title: "Save offline — keep it inside Aurora on this device, playable with no server in reach",
     "aria-label": "Save offline on this device",
   });
@@ -2579,8 +2514,8 @@ const offlineButton = (item, { compact = false, rail = false } = {}) => {
     if (rail) {
       const pct = /(\d+)%/.exec(text);
       btn.append(
-        el("span", { class: "dl-face" }, icon),
-        el("span", { class: "dl-cap" }, pct ? `${pct[1]}%` : /Saved/.test(text) ? "SAVED" : "OFFLINE"),
+        el("span", { class: "src-ic" }, icon),
+        el("span", { class: "src-lbl" }, pct ? `${pct[1]}%` : /Saved/.test(text) ? "Saved" : "Offline"),
       );
       btn.title = text;
       return;

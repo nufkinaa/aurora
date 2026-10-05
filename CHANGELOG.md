@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.31 — 2026-10-06
+
+- The list of sources is redrawn, the way a versions list looks in Infuse or Plex: one calm row per source — the quality on the left, what the copy is in plain words (BluRay · H.265 · DD+), under it its size and how well it is seeded, and on the right Stream and Save. The paragraph of advice, the "Save it, then watch it" panel, the per-row "vs ★ BEST" sentences and the file names across the page are gone (a row's tooltip still carries the file name and the advice). The first eight show (five on a phone), with Show all for the rest, instead of a box that scrolled inside the page. Your own copy, when you have one, is one green row at the top with Play. Headings read "Sources" and "Sources · S1 E2".
+- On a phone the cast line sits straight under the synopsis on a title's page, before the genres and your rating.
+
 ## 1.6.30 — 2026-10-06
 
 - A hold you can feel. Holding a card to peek at it now gives a small tap under the finger the moment it opens — a vibration on Android, and on iPhones the click Safari makes for a switch (the system offers a web page nothing else). The X-Ray sheet ticks the same way when it settles on a stop.
