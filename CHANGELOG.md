@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.29 — 2026-10-06
+
+- "✓ 7 ready" is a round download button with a count badge now: the number is how many things you asked for have been downloaded and not opened yet. On a phone it stays where it is. On a computer it shows for ten seconds — when Aurora opens and whenever something new lands — then goes clear, and comes back when the pointer is over it.
+
 ## 1.6.28 — 2026-10-06
 
 - The green "✓ 7 ready" pill at the top is an announcement now, not a fixture: it shows for ten seconds when Aurora opens and again whenever something new becomes ready, then fades away. What is ready is still on Home's Tonight row and the Downloads page. (The "⬇ 2 · 47%" pill for a download in progress stays while it runs.)

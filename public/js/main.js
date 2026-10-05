@@ -1,6 +1,6 @@
 // Aurora boot: profile gate -> router -> screens.
 import "./focus.js";
-import { $, el, toast } from "./ui.js";
+import { $, el, toast, icons } from "./ui.js";
 import { route, startRouter, navigate } from "./router.js";
 import { state, loadProfiles, setProfile, savedToken, downloads, readyDownloads } from "./state.js";
 import { api, setAuthToken, forgetWarm } from "./api.js";
@@ -216,7 +216,6 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
   const ACTIVE = ["pending", "approved", "downloading"];
   const READY_SHOW_MS = 10000;
   let readySig = "";
-  let readyUntil = 0;
   let readyTimer = 0;
   const paint = () => {
     // Smart downloads (the next episode, fetched ahead by itself) never light
@@ -224,33 +223,29 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     // are on the Downloads page, marked AUTO, for whoever goes looking.
     const ready = readyDownloads().filter((j) => !j.smart);
     if (ready.length > 0) {
-      // "✓ 7 ready" is an announcement, not furniture: it shows for ten
-      // seconds — when the app opens, and again whenever the set of ready
-      // things changes — then fades and leaves the top of the screen alone
-      // (elia, 2026-10-06). What is ready is still on Home's Tonight row and
-      // the Downloads page.
+      // Ready: a download icon with a count badge — how many things you asked
+      // for have landed and you have not opened yet. On a phone it stays. On a
+      // computer it is shown for ten seconds — when the app opens, and again
+      // whenever the set changes — then rests out of sight, and comes back
+      // under the pointer or keyboard focus (CSS: .nav-dl.rest).
       const sig = ready.map((j) => j.id).sort().join(",");
       if (sig !== readySig) {
         readySig = sig;
-        readyUntil = Date.now() + READY_SHOW_MS;
+        pill.classList.remove("rest");
         clearTimeout(readyTimer);
-        readyTimer = setTimeout(() => {
-          pill.classList.add("fading");
-          setTimeout(paint, 520);
-        }, READY_SHOW_MS);
+        readyTimer = setTimeout(() => pill.classList.add("rest"), READY_SHOW_MS);
       }
-      if (Date.now() >= readyUntil) {
-        pill.classList.remove("ready", "fading");
-        return pill.classList.add("hidden");
-      }
-      pill.textContent = `✓ ${ready.length} ready`;
+      pill.innerHTML = "";
+      pill.append(el("span", { class: "nav-dl-icon", html: icons.download }), el("i", { class: "nav-dl-badge" }, ready.length > 99 ? "99+" : String(ready.length)));
       pill.title = ready.length === 1 ? `“${ready[0].label || ready[0].title}” is ready to play` : `${ready.length} downloads ready to play`;
+      pill.setAttribute("aria-label", pill.title);
       pill.classList.add("ready");
-      pill.classList.remove("fading");
       return pill.classList.remove("hidden");
     }
     readySig = "";
-    pill.classList.remove("ready", "fading");
+    clearTimeout(readyTimer);
+    pill.classList.remove("ready", "rest");
+    pill.removeAttribute("aria-label");
     pill.title = "Downloads in progress";
     const act = [...downloads.values()].filter((j) => ACTIVE.includes(j.status) && !j.smart);
     if (act.length === 0) return pill.classList.add("hidden");

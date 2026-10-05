@@ -3606,15 +3606,65 @@ html[data-look="glass"] .nav .nav-item.active[data-tone="light"] {
   background: rgba(255, 255, 255, 0.24);
 }
 
-/* the "✓ N ready" pill leaves after ten seconds (main.js) — with a fade. An
-   animation, not a transition: the pill's landing animation holds its
-   opacity at 1 (fill: both), which a plain `opacity: 0` cannot override. */
-.nav-dl.fading,
-html[data-look="glass"] .nav-dl.ready.fading {
-  animation: nav-dl-leave 0.5s ease both;
-  pointer-events: none;
+/* ---------- what has landed: an icon and a count (2026-10-06) ----------
+   The "✓ 7 ready" pill is a round download button with a badge — how many
+   things you asked for are downloaded and not opened yet. On a phone it
+   stays put. On a computer it shows for ten seconds (main.js adds .rest
+   after that) and then keeps its place but goes clear; the pointer or the
+   keyboard brings it back. */
+.nav-dl.ready,
+html[data-look="glass"] .nav-dl.ready {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  overflow: visible;
+  transition: opacity 0.5s ease;
 }
-@keyframes nav-dl-leave {
-  from { opacity: 1; transform: none; }
-  to { opacity: 0; transform: scale(0.92); }
+.nav-dl.ready.hidden {
+  display: none;
+}
+.nav-dl-icon {
+  display: grid;
+  place-items: center;
+}
+.nav-dl-icon svg {
+  width: 19px;
+  height: 19px;
+  display: block;
+}
+.nav-dl-badge {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-style: normal;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #06140b;
+  background: #4ade80;
+  box-shadow: 0 0 0 2px rgba(7, 8, 17, 0.85);
+}
+@media (hover: hover) and (min-width: 721px) {
+  .nav-dl.ready.rest,
+  html[data-look="glass"] .nav-dl.ready.rest {
+    animation: none; /* the landing animation would hold it at full strength */
+    opacity: 0;
+  }
+  .nav-dl.ready.rest:hover,
+  .nav-dl.ready.rest:focus-visible,
+  html[data-look="glass"] .nav-dl.ready.rest:hover,
+  html[data-look="glass"] .nav-dl.ready.rest:focus-visible {
+    opacity: 1;
+  }
 }
