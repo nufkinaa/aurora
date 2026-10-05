@@ -3605,3 +3605,16 @@ html[data-look="glass"] .nav .nav-item.active[data-tone="light"] {
 .xr-x:active {
   background: rgba(255, 255, 255, 0.24);
 }
+
+/* the "✓ N ready" pill leaves after ten seconds (main.js) — with a fade. An
+   animation, not a transition: the pill's landing animation holds its
+   opacity at 1 (fill: both), which a plain `opacity: 0` cannot override. */
+.nav-dl.fading,
+html[data-look="glass"] .nav-dl.ready.fading {
+  animation: nav-dl-leave 0.5s ease both;
+  pointer-events: none;
+}
+@keyframes nav-dl-leave {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: scale(0.92); }
+}

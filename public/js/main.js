@@ -214,18 +214,43 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
 {
   const pill = $("#nav-dl");
   const ACTIVE = ["pending", "approved", "downloading"];
+  const READY_SHOW_MS = 10000;
+  let readySig = "";
+  let readyUntil = 0;
+  let readyTimer = 0;
   const paint = () => {
     // Smart downloads (the next episode, fetched ahead by itself) never light
     // the pill: nobody asked for them, so there is nothing to announce. They
     // are on the Downloads page, marked AUTO, for whoever goes looking.
     const ready = readyDownloads().filter((j) => !j.smart);
     if (ready.length > 0) {
+      // "✓ 7 ready" is an announcement, not furniture: it shows for ten
+      // seconds — when the app opens, and again whenever the set of ready
+      // things changes — then fades and leaves the top of the screen alone
+      // (elia, 2026-10-06). What is ready is still on Home's Tonight row and
+      // the Downloads page.
+      const sig = ready.map((j) => j.id).sort().join(",");
+      if (sig !== readySig) {
+        readySig = sig;
+        readyUntil = Date.now() + READY_SHOW_MS;
+        clearTimeout(readyTimer);
+        readyTimer = setTimeout(() => {
+          pill.classList.add("fading");
+          setTimeout(paint, 520);
+        }, READY_SHOW_MS);
+      }
+      if (Date.now() >= readyUntil) {
+        pill.classList.remove("ready", "fading");
+        return pill.classList.add("hidden");
+      }
       pill.textContent = `✓ ${ready.length} ready`;
       pill.title = ready.length === 1 ? `“${ready[0].label || ready[0].title}” is ready to play` : `${ready.length} downloads ready to play`;
       pill.classList.add("ready");
+      pill.classList.remove("fading");
       return pill.classList.remove("hidden");
     }
-    pill.classList.remove("ready");
+    readySig = "";
+    pill.classList.remove("ready", "fading");
     pill.title = "Downloads in progress";
     const act = [...downloads.values()].filter((j) => ACTIVE.includes(j.status) && !j.smart);
     if (act.length === 0) return pill.classList.add("hidden");

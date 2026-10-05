@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.28 — 2026-10-06
+
+- The green "✓ 7 ready" pill at the top is an announcement now, not a fixture: it shows for ten seconds when Aurora opens and again whenever something new becomes ready, then fades away. What is ready is still on Home's Tonight row and the Downloads page. (The "⬇ 2 · 47%" pill for a download in progress stays while it runs.)
+
 ## 1.6.27 — 2026-10-06
 
 - X-Ray on a phone is a sheet. It rises over the title's page — the way it does over a film in the player — with a grab bar and a round ✕ in place of "Back to the title". Drag it down to put it away (from the bar at any time, or from the list when it is at its top; a quick flick is enough), or press the ✕, tap the page behind it, or go Back. The page underneath is no longer rearranged, so there is nothing to find your way back from.
