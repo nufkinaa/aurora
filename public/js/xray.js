@@ -75,7 +75,9 @@ const skeleton = () =>
 
 // { type: "movie"|"series", imdbId, season?, episode?, keys?: rating keys,
 //   onClose, closeLabel } → the panel element.
-export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = [], onClose, closeLabel = "Back to the title", link = true }) => {
+// `fallback`: an answer kept from earlier (a saved-offline copy carries its
+// own) — used when the server cannot be asked.
+export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = [], onClose, closeLabel = "Back to the title", link = true, fallback = null }) => {
   const isShow = type === "series" || type === "show";
   let cur = isShow && season && episode ? { season: +season, episode: +episode } : null;
   let episodes = [];
@@ -154,9 +156,19 @@ export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = 
     paintStepper();
     body.classList.add("xr-busy");
     try {
-      const x = await api.xray({ type: isShow ? "series" : "movie", imdbId, season: cur && cur.season, episode: cur && cur.episode, keys });
+      let x;
+      try {
+        x = await api.xray({ type: isShow ? "series" : "movie", imdbId, season: cur && cur.season, episode: cur && cur.episode, keys });
+        if (x.error) throw new Error(x.error);
+      } catch (e) {
+        if (!fallback) throw e;
+        // the kept answer is about ONE episode — it must not be shown under
+        // another one's name (the list can outlive the server in a cache)
+        const fe = fallback.episode;
+        if (fe && cur && (fe.season !== cur.season || fe.episode !== cur.episode)) throw e;
+        x = { ...fallback, episodes: [] };
+      }
       if (mine !== token) return;
-      if (x.error) throw new Error(x.error);
       episodes = x.episodes || [];
       // a series opened with no episode in mind starts at its first
       if (isShow && !cur && episodes.length) {

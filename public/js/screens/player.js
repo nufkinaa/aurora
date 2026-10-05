@@ -1492,6 +1492,8 @@ export const renderPlayer = async (root, { id }) => {
   const openXray = async () => {
     if (xraySheet) return closeXray();
     const show = !!item.showId || (item.season && item.episode);
+    // a saved copy carries its own X-Ray (offline.js extrasFor)
+    if (!xrayImdb && item._offline && item.xray) xrayImdb = item.xray.imdbId;
     if (!xrayImdb) {
       try {
         const r = await api.imdbFor(show ? "show" : "movie", show ? item.showTitle || item.title : item.title, item.year);
@@ -1515,6 +1517,7 @@ export const renderPlayer = async (root, { id }) => {
         onClose: closeXray,
         closeLabel: "Back to watching",
         link: false,
+        fallback: item._offline && item.xray ? item.xray.data : null,
       })));
     // (Back / Escape is handled by the player's own Back handler — see onBack —
     // so a remote's Back button closes the sheet too.)
@@ -1592,7 +1595,7 @@ export const renderPlayer = async (root, { id }) => {
           btn("Forward 10 seconds", icons.forward10, () => skip(1))),
         el("div", { class: "vol-group" }, muteBtn, volSlider),
         el("div", { class: "player-spacer" }),
-        el("div", { class: "pc-tools" }, ccBtn, speedBtn, item._offline ? null : xrayBtn, partyBtn, gearBtn, fsBtn),
+        el("div", { class: "pc-tools" }, ccBtn, speedBtn, item._offline && !item.xray ? null : xrayBtn, partyBtn, gearBtn, fsBtn),
       ),
     ),
     menuHost,
@@ -3272,6 +3275,13 @@ export const renderPlayer = async (root, { id }) => {
   const isStreamEpisode = !!(isTorrent && item.imdbId && item.season && item.episode);
 
   const findNextEpisode = async () => {
+    // A saved copy: the next SAVED episode, played from this device like this
+    // one — with or without a server. (None saved: fall through and ask the
+    // server, which offers the next library episode when it is in reach.)
+    if (item._offline) {
+      const n = await offline.nextSaved(item).catch(() => null);
+      if (n) return { ...n, _savedCopy: true };
+    }
     if (isEpisode) {
       const show = await api.item(item.showId);
       const flat = show.seasons.flatMap((s) => s.episodes || []);
@@ -3402,7 +3412,7 @@ export const renderPlayer = async (root, { id }) => {
       return;
     }
     if (inParty()) keepParty = false;
-    navigate(`#/play/${next.id}`);
+    navigate(`#/play/${next.id}${next._savedCopy ? "?offline=1" : ""}`);
   };
 
   // ---------- skip intro ----------
@@ -3438,6 +3448,9 @@ export const renderPlayer = async (root, { id }) => {
     },
   });
   overlay.append(skipIntroBtn);
+  // (a saved copy starts from the mark it was saved with; the server's
+  // answer, when there is one, replaces it)
+  if (item._offline && item.introMark) intro = item.introMark;
   if (introKey) {
     api
       .intro(introKey)
@@ -3473,8 +3486,23 @@ export const renderPlayer = async (root, { id }) => {
     if (r.credits && isFinite(r.credits.start)) creditsStart = r.credits.start;
     paintScrubMarks();
   };
-  if (isEpisode && !item._offline) {
-    api.introAuto(item.id).then(applyAutoSegments).catch(() => {});
+  if (isEpisode) {
+    // A saved copy plays the same timeline as the file it was made from, so
+    // the same ranges apply. It carries them (offline.js extrasFor) — Skip
+    // intro, Skip recap and the credits-timed Up next work on a plane — and
+    // when the server IS in reach its current answer wins and is kept.
+    // (a tick later: applying them repaints the scrubber's marks, which reads
+    // names declared just below this block)
+    if (item._offline && item.segments) Promise.resolve().then(() => applyAutoSegments(item.segments));
+    api
+      .introAuto(item.id)
+      .then((r) => {
+        applyAutoSegments(r);
+        if (item._offline && r) {
+          offline.patchSaved(item.id, { segments: { intro: r.intro || null, recap: r.recap || null, credits: r.credits || null }, extrasAt: Date.now() }).catch(() => {});
+        }
+      })
+      .catch(() => {});
   } else if (isStreamEpisode) {
     api
       .segments({ imdbId: item.imdbId, season: item.season, episode: item.episode, duration: item.duration || 0 })

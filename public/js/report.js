@@ -33,7 +33,7 @@ let playing = null;
 export const setPlayingContext = (ctx) => { playing = ctx; };
 
 let version = null;
-const versionP = api.changelog ? api.changelog().then((c) => { version = c && (c.version || (c.entries && c.entries[0] && c.entries[0].version)) || null; }).catch(() => {}) : Promise.resolve();
+const versionP = api.version ? api.version().then((c) => { version = (c && c.version) || null; }).catch(() => {}) : Promise.resolve();
 
 export const showReportSheet = ({ hint = "" } = {}) => {
   if (document.querySelector(".report-wrap")) return;

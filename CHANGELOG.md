@@ -3,6 +3,20 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.22 — 2026-10-06
+
+- Finished streams no longer sit on the disk for good. The server keeps the last few streams it prepared so that re-opening a title is instant — but "the last few" had no clock on it, and three films streamed once in August were still holding 1.6 GB in October. A prepared stream nobody has touched for a day is now removed (the healer does it every round, and says so in its log).
+- A lighter start. Every page load fetched the whole changelog (56 KB) just to learn the version number for the dot on the nav; it now asks for the version alone.
+
+## 1.6.21 — 2026-10-05
+
+- Saved copies do what the rest of Aurora does. A title saved to a phone used to be the picture, the sound and the subtitles and nothing more, because everything else is asked of the server while the film plays. Those answers now travel with the copy:
+  - Skip intro and Skip recap, and Up next arriving at the credits instead of at a guess — the detected ranges for that episode, and the household's hand-marked intro if there is one.
+  - Up next goes to the next episode you have saved, and plays it from the device. With nothing else saved it asks the server, as before.
+  - X-Ray in the player: the cast, crew and ratings for that film or that one episode (portraits need the server; without it the initials show).
+  - Resume: where you stopped while out of reach is remembered across closing and reopening the app, not only until the app is closed. It used to start from wherever the server last heard of.
+- Copies saved before today pick all of this up by themselves the next time the app is open with the server in reach — nothing to save again.
+
 ## 1.6.20 — 2026-10-05
 
 - A quality change you barely see. Changing between the original, 720p and 480p used to put a spinner over the film, then four seconds of black, then the picture again. Now the film keeps playing while the new stream is prepared a few seconds ahead of where you are, and takes over when you get there: the last frame holds for about half a second and the film carries on — nothing replayed, nothing skipped, no spinner. A film that is paused or already stuck changes on the spot.

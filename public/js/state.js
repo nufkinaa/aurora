@@ -149,6 +149,22 @@ export const refreshProgress = async () => {
     // resume point the moment the server is out of reach.
     if (!state.progress) state.progress = {};
   }
+  // Progress made with no server in reach is still waiting on this device
+  // (offline.js queues it). Until it is delivered it is the truth: without
+  // this, closing the app mid-film on a plane and opening it again resumed
+  // from wherever the server last heard of — the start.
+  try {
+    const { queuedProgress } = await import("./offline.js");
+    for (const r of await queuedProgress()) {
+      if (r.profileId !== state.profile.id) continue;
+      const have = state.progress[r.itemId];
+      if (have && have.updatedAt >= r.at) continue;
+      state.progress[r.itemId] = {
+        position: Math.floor(r.position), duration: Math.floor(r.duration),
+        finished: r.duration > 0 && r.position / r.duration > 0.95, updatedAt: r.at,
+      };
+    }
+  } catch {}
 };
 
 // The star rating for an item, by library id or IMDb id (0 = unrated).

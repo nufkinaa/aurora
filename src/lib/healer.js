@@ -243,8 +243,9 @@ const slowly = async (id, fn) => {
 // Temporary files: everything under data/cache is a copy of something the
 // server can make again — streams being repackaged, copies prepared for a
 // phone, resized posters. Left alone they only grow, on the same small disk
-// the library lives on. Expired phone copies are cleared every time; when
-// the disk is tight, finished streams nobody is watching go too.
+// the library lives on. Expired phone copies and streams untouched for a
+// day are cleared every time; when the disk is tight, finished streams
+// nobody is watching go too, whatever their age.
 const checkTemp = () => slowly("temp", async () => {
   const config = require("../config");
   const disk = require("./disk");
@@ -253,6 +254,9 @@ const checkTemp = () => slowly("temp", async () => {
   const healed = [];
   let freed = 0;
   try { freed += offline.sweep() || 0; } catch {}
+  // finished streams nobody has touched for a day (kept before only by count)
+  try { freed += remux.sweepStale() || 0; } catch {}
+  try { freed += require("../media/torrent-transcode").sweepStale() || 0; } catch {}
   const sp = await disk.space(config.CACHE_DIR);
   const tight = !!sp && sp.free < TIGHT_FREE_BYTES;
   if (tight) {

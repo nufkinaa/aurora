@@ -184,7 +184,11 @@ export const saveItem = async (item, onProgress = () => {}, choose = null, signa
       subtitles.push({ label: t.label, lang: t.lang, url: key });
     } catch {}
   }
+  // 4. what the player asks the server for while a film runs — taken along
+  // now, because there will be no server to ask (see extrasFor)
+  const extras = await extrasFor(item).catch(() => ({}));
   const saved = {
+    ...extras,
     id: item.id,
     title: item.title,
     showId: item.showId || null,
@@ -206,7 +210,95 @@ export const saveItem = async (item, onProgress = () => {}, choose = null, signa
   return saved;
 };
 
+// THE EXTRAS. A saved copy used to be the picture, the sound and the
+// subtitles — and nothing else: no Skip intro, no Up next at the credits, no
+// X-Ray, because the player asks the server for each of those as it starts.
+// They are small answers, so they are fetched when the copy is saved and kept
+// in its record:
+//   segments   the detected intro / recap / credits of this episode
+//   introMark  the household's hand-marked intro for the show, if any
+//   xray       cast, crew and ratings for this film or this one episode (the
+//              text; portraits need the server and fall back to initials)
+// Best effort, each on its own: a title with no IMDb match simply has no
+// X-Ray. `extrasAt` says it was tried, so backfill doesn't ask forever.
+export const extrasFor = async (item) => {
+  const out = {};
+  const show = !!item.showId;
+  if (show) {
+    try {
+      const r = await api.introAuto(item.id);
+      if (r) out.segments = { intro: r.intro || null, recap: r.recap || null, credits: r.credits || null };
+    } catch {}
+    try {
+      const m = await api.intro(`show:${item.showId}`);
+      if (m && isFinite(m.start) && isFinite(m.end)) out.introMark = { start: m.start, end: m.end };
+    } catch {}
+  }
+  try {
+    let imdbId = (!show && item.imdbId) || null;
+    if (!imdbId) {
+      const r = await api.imdbFor(show ? "show" : "movie", show ? item.showTitle || item.title : item.title, item.year);
+      imdbId = (r && r.imdbId) || null;
+    }
+    if (imdbId) {
+      const x = await api.xray({
+        type: show ? "series" : "movie", imdbId, season: item.season, episode: item.episode,
+        keys: [item.id, item.showId].filter(Boolean),
+      });
+      // the episode list is dropped: stepping to another episode needs the server
+      if (x && !x.error) out.xray = { imdbId, data: { ...x, episodes: [] } };
+    }
+  } catch {}
+  out.extrasAt = Date.now();
+  return out;
+};
+
+// Merge fields into a saved record (the player refreshes a copy's extras
+// when it finds the server in reach).
+export const patchSaved = async (id, fields) => {
+  const it = await getSaved(id);
+  if (!it) return null;
+  const next = { ...it, ...fields };
+  await tx("items", "readwrite", (s) => s.put(next));
+  return next;
+};
+
+// Copies saved before the extras existed get them the next time the server
+// answers (main.js calls this beside flushProgress). One at a time, quietly.
+let backfilling = false;
+export const backfillExtras = async () => {
+  if (!available() || backfilling) return 0;
+  backfilling = true;
+  let n = 0;
+  // "nothing known about this title" and "nobody answered" must not look the
+  // same, or a copy would be stamped as tried while the server was away
+  const serverUp = () => fetch("/api/ping", { cache: "no-store" }).then((r) => r.ok).catch(() => false);
+  try {
+    for (const it of await listSaved()) {
+      if (it.extrasAt) continue;
+      if (!(await serverUp())) break;
+      await patchSaved(it.id, await extrasFor(it));
+      n++;
+    }
+  } catch {} finally {
+    backfilling = false;
+  }
+  return n;
+};
+
+// The episode after this one AMONG THE SAVED COPIES — what Up next offers
+// when there is no server to ask what comes next.
+export const nextSaved = async (item) => {
+  if (!item || !item.showId) return null;
+  const eps = (await listSaved())
+    .filter((x) => x.showId === item.showId && x.season != null && x.episode != null)
+    .sort((a, b) => a.season - b.season || a.episode - b.episode);
+  const i = eps.findIndex((x) => x.id === item.id);
+  return i >= 0 ? eps[i + 1] || null : null;
+};
+
 // Watch progress made offline: queued, then flushed on the next contact.
+export const queuedProgress = async () => (available() ? getAll("progress") : []);
 export const queueProgress = (profileId, itemId, position, duration) =>
   available() ? tx("progress", "readwrite", (s) => s.put({ itemId, profileId, position, duration, at: Date.now() })) : null;
 export const flushProgress = async () => {

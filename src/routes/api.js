@@ -164,6 +164,10 @@ router.get("/api/changelog", (req, res) => {
     try { version = require("../../package.json").version || version; } catch {}
     changelogCache = { mtime, data: { version, releases } };
   }
+  // ?head=1: just the version. Every page load asks "is there a release this
+  // person hasn't read about?" for the dot on the nav — and was being sent
+  // the whole changelog (56 KB, 21 KB gzipped, on every boot) to answer it.
+  if (req.query.head) return res.json({ version: changelogCache.data.version });
   res.json(changelogCache.data);
 });
 

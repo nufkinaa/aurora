@@ -572,4 +572,36 @@ const filePath = (infoHash, fileIdx, ss, file, fmt = null, audio = 0) => {
   return fs.existsSync(abs) ? abs : null;
 };
 
-module.exports = { ensure, touch, filePath, bootSweep, HLS_ROOT, _internals: { jobKey } };
+// A finished stream is kept so that re-opening the title is instant — but
+// "the newest three" has no clock on it: three films streamed once in August
+// were still holding 1.6 GB in October (found 2026-10-06). A stream nobody
+// has touched for a day is not coming back to it; the healer calls this
+// every round. Never a folder with a live job. Returns bytes freed, roughly.
+const sweepStale = (maxAgeMs = 24 * 3600 * 1000) => {
+  let freed = 0;
+  try {
+    for (const e of fs.readdirSync(HLS_ROOT, { withFileTypes: true })) {
+      if (!e.isDirectory()) continue;
+      const abs = path.join(HLS_ROOT, e.name);
+      const j = jobs.get(abs);
+      if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
+      try {
+        let newest = fs.statSync(abs).mtimeMs;
+        let size = 0;
+        for (const f of fs.readdirSync(abs)) {
+          try {
+            const st = fs.statSync(path.join(abs, f));
+            size += st.size;
+            if (st.mtimeMs > newest) newest = st.mtimeMs;
+          } catch {}
+        }
+        if (Date.now() - newest < maxAgeMs) continue;
+        fs.rmSync(abs, { recursive: true, force: true });
+        jobs.delete(abs);
+        freed += size;
+      } catch {}
+    }
+  } catch {}
+  return freed;
+};
+module.exports = { ensure, touch, filePath, bootSweep, sweepStale, HLS_ROOT, _internals: { jobKey } };

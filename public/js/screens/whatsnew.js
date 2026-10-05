@@ -105,7 +105,7 @@ const FEATURES = [
     since: "1.1.0", cue: "offline", glyph: "📱",
     title: "Save a title for the road",
     what: "Keep a phone-playable copy inside Aurora on this device. It plays with no server in reach.",
-    how: "On an https address, press 📱 on any title you own. Your copies live under Saved.",
+    how: "On an https address, press 📱 on any title you own. Your copies live under Saved — Skip intro, Up next and X-Ray come along with them.",
     go: { label: "Saved on this device", to: "#/saved" },
   },
   {
@@ -137,7 +137,7 @@ export const renderWhatsNew = async (root) => {
   root.append(screen);
 
   let version = null;
-  try { version = (await api.changelog()).version || null; } catch {}
+  try { version = (await api.version()).version || null; } catch {}
   const isNew = (f) => cmpVersion(f.since, NEW_FROM) >= 0;
   try { if (version) localStorage.setItem(NEW_SEEN_KEY, version); } catch {}
   document.getElementById("nav-new")?.classList.remove("has-new");
@@ -180,7 +180,7 @@ export const paintNewDot = async () => {
   const nav = document.getElementById("nav-new");
   if (!nav) return;
   try {
-    const { version } = await api.changelog();
+    const { version } = await api.version();
     let seen = null;
     try { seen = localStorage.getItem(NEW_SEEN_KEY); } catch {}
     nav.classList.toggle("has-new", !!version && seen !== version);

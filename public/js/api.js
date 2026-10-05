@@ -37,6 +37,7 @@ const json = async (url, options = {}, attempt = 0) => {
 };
 
 let changelogP = null;
+let versionP = null;
 
 // ---- a short-lived cache for idempotent GETs a screen is likely to ask for
 // next (prefetch.js fills it; the pages read through the same api.* calls).
@@ -108,6 +109,9 @@ export const api = {
   // Asked by the gear dot, the New tab's dot, the report sheet and the
   // pages themselves — one request, shared (a failure lets the next ask retry).
   changelog: () => changelogP || (changelogP = json("/api/changelog").catch((e) => { changelogP = null; throw e; })),
+  // { version } alone — what the nav's dots need at boot (the full changelog
+  // is only fetched by the page that prints it)
+  version: () => versionP || (versionP = json("/api/changelog?head=1").catch((e) => { versionP = null; throw e; })),
   introAuto: (id) => json(`/api/intro/auto/${encodeURIComponent(id)}`),
   // intro / recap / credits for a STREAMED episode, by identity (the public
   // databases — a stream has no file to analyse)

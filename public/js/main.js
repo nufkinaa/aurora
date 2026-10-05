@@ -311,8 +311,14 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     window.addEventListener("hashchange", () => setTimeout(paint, 0));
     window.addEventListener("offline", paint);
     window.addEventListener("online", () => { paint(); offline.flushProgress().catch(() => {}); });
-    // the socket coming back is the surest "server is there" signal
-    onMessage("welcome", () => { offline.flushProgress().catch(() => {}); paint(); });
+    // the socket coming back is the surest "server is there" signal — also
+    // the moment to fetch skip-intro / X-Ray for copies saved before those
+    // travelled with them
+    onMessage("welcome", () => {
+      offline.flushProgress().catch(() => {});
+      offline.backfillExtras().catch(() => {});
+      paint();
+    });
   }).catch(() => {});
 }
 
@@ -367,7 +373,7 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     try { seen = localStorage.getItem("aurora-seen-version"); } catch {}
     gear.classList.toggle("has-new", !!version && seen !== version);
   };
-  api.changelog().then((d) => { version = d && d.version; paint(); }).catch(() => {});
+  api.version().then((d) => { version = d && d.version; paint(); }).catch(() => {});
   window.addEventListener("aurora-version-seen", paint);
 }
 
