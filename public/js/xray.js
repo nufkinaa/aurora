@@ -62,7 +62,10 @@ const ratingTile = (label, value, sub) =>
 const fmtDate = (iso) => {
   if (!iso) return null;
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+  // a date with no time is that calendar day everywhere — not the evening
+  // before, west of Greenwich
+  const dayOnly = /^\d{4}-\d{2}-\d{2}$/.test(iso);
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric", ...(dayOnly ? { timeZone: "UTC" } : {}) });
 };
 
 const skeleton = () =>
@@ -139,7 +142,8 @@ export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = 
       out.push(el("section", { class: "xr-section" }, el("h3", {}, isShow ? "About the series" : "About the film"),
         el("dl", { class: "xr-facts" },
           [...byJob.entries()].flatMap(([job, names]) => [el("dt", {}, job), el("dd", {}, names.join(", "))]),
-          facts.flatMap((f) => [el("dt", {}, f.label), el("dd", {}, f.value)]))));
+          // a bare ISO date ("2010-07-16") reads as a date, like the episode's
+          facts.flatMap((f) => [el("dt", {}, f.label), el("dd", {}, (/^\d{4}-\d{2}-\d{2}$/.test(f.value) && fmtDate(f.value)) || f.value)]))));
     }
     const shown = out.filter(Boolean);
     body.replaceChildren(...(shown.length ? shown : [el("div", { class: "xr-empty" }, "Nothing is known about this one yet.")]));

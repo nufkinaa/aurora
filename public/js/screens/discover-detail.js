@@ -1246,6 +1246,11 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
 
   // ---------- hero actions ----------
   const scrollToSources = () => {
+    // the phone folds a film's other versions away — asking for them opens them
+    if (screen.classList.contains("sources-folded")) {
+      screen.classList.remove("sources-folded");
+      screen.querySelector(".sources-fold")?.setAttribute("aria-expanded", "true");
+    }
     const target =
       sourcesSection.querySelector(".focusable") ||
       screen.querySelector(".season-bar .focusable");
@@ -1364,7 +1369,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   if (imdbId) {
     actions.push(
       el("button", {
-        class: `btn ${actions.length ? "" : "btn-primary"} focusable`,
+        class: `btn ${actions.length ? "" : "btn-primary"} focusable btn-sources`,
         html:
           icons.play +
           `<span>${isShow ? (lib ? "All episodes" : "Choose episode") : lib ? "Other versions" : "Stream instead"}</span>`,
@@ -1396,6 +1401,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     const xrEp = isShow && nextUp ? { season: nextUp.season, episode: nextUp.episode } : {};
     const xrKeys = [lib && lib.id].filter(Boolean);
     let xrNode = null;
+    let xrBackY = 0; // where the page was when X-Ray opened
     const xrBtn = el("button", {
       class: "btn btn-icon focusable btn-xray",
       title: "X-Ray — cast, crew and ratings",
@@ -1415,19 +1421,32 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         xrNode = xrayPanel({ type: xrType, imdbId, ...xrEp, keys: xrKeys, onClose: toggleXray });
       }
       const hero = screen.querySelector(".detail-hero");
+      if (on) xrBackY = window.scrollY;
       if (on && hero) hero.after(xrNode);
+      // Closing takes the panel OFF the page. It used to stay where it was
+      // with only the class gone, so "Back to the title" brought the rest of
+      // the page back around a panel that never left.
+      if (!on && xrNode) xrNode.remove();
       screen.classList.toggle("xray-on", on);
       // Back (Escape, the remote) closes X-Ray first, and only then leaves the
       // page: the panel carries the marker the app's Back handler yields to.
-      xrNode.classList.toggle("ui-overlay", on);
+      if (xrNode) xrNode.classList.toggle("ui-overlay", on);
       document.removeEventListener("ui-back", onXrBack);
       if (on) document.addEventListener("ui-back", onXrBack);
       xrBtn.classList.toggle("on", on);
       xrBtn.setAttribute("aria-pressed", String(on));
       if (on) {
-        // bring the panel's top just under the nav — unless it is already in view
+        // bring the panel's top just under the nav — unless it is already in
+        // view. On a phone the page above it has just folded down to the
+        // cover, so the panel is measured after that has been laid out.
         const top = xrNode.getBoundingClientRect().top;
-        if (top > window.innerHeight * 0.6) window.scrollBy({ top: top - window.innerHeight * 0.35, behavior: "smooth" });
+        const phone = window.innerWidth <= 720;
+        if (phone) window.scrollTo({ top: Math.max(0, window.scrollY + top - window.innerHeight * 0.3), behavior: "auto" });
+        else if (top > window.innerHeight * 0.6) window.scrollBy({ top: top - window.innerHeight * 0.35, behavior: "smooth" });
+      } else {
+        // and the title comes back where it was left
+        window.scrollTo({ top: xrBackY, behavior: "auto" });
+        xrBtn.focus({ preventScroll: true });
       }
     };
     xrBtn.addEventListener("click", toggleXray);
@@ -1686,12 +1705,31 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   if (!isShow) {
     // A local-only title (no IMDb match) simply has nothing to stream.
     if (!imdbId) return;
+    // A film you already own, on a phone: the other versions are folded behind
+    // their heading (one press opens them), so the page goes from the film
+    // straight to "More like this" instead of through a list of torrents
+    // nobody came for. Wide screens, and films not yet on disk, are as before.
+    const sourcesTitle = el(
+      "h2",
+      { class: "row-title sources-title", style: { marginTop: "24px" } },
+      lib ? "Other versions" : "Save to your library",
+    );
+    if (lib) {
+      screen.classList.add("has-sources-fold", "sources-folded");
+      const fold = el("button", {
+        class: "sources-fold focusable",
+        type: "button",
+        "aria-expanded": "false",
+        onclick: () => {
+          const open = screen.classList.toggle("sources-folded") === false;
+          fold.setAttribute("aria-expanded", String(open));
+        },
+      }, el("span", {}, "Other versions"), el("span", { class: "sources-fold-hint" }, "Stream or save a different copy"), el("span", { class: "sources-fold-chev", "aria-hidden": "true" }, "›"));
+      screen.append(sourcesTitle, fold);
+    } else {
+      screen.append(sourcesTitle);
+    }
     screen.append(
-      el(
-        "h2",
-        { class: "row-title", style: { marginTop: "24px" } },
-        lib ? "Other versions" : "Save to your library",
-      ),
       sourcesSection,
       similarHost,
     );

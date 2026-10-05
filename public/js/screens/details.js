@@ -103,9 +103,20 @@ const heroNode = (item, actions, metaParts, { rateKey = null, serverInfo = null 
               el("span", { class: "detail-server-k" }, "On this server"),
               ...serverInfo.map(([text, tone]) => el("div", { class: tone || "" }, text))),
         ),
-      el("div", { class: "detail-actions" }, labelled(actions))
+      actionsBlock(labelled(actions))
     )
   );
+};
+
+// The one thing to do (Play, Resume, Save & watch) and everything else. On a
+// wide screen the inner wrapper is `display: contents` — one row of buttons,
+// as before; on a phone it is its own strip that scrolls sideways under a
+// full-width Play (responsive.css).
+const actionsBlock = (actions) => {
+  const list = (actions || []).filter(Boolean);
+  const primary = list.filter((b) => b.classList && b.classList.contains("btn-primary"));
+  const rest = list.filter((b) => !primary.includes(b));
+  return el("div", { class: "detail-actions" }, primary, rest.length ? el("div", { class: "detail-actions-more" }, rest) : null);
 };
 
 // Both pictures handed to CSS as variables (the same trick the home

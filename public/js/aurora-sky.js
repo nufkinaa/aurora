@@ -101,15 +101,31 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
     makeBand({ violet: true, y: rand(0.58, 0.66) }),
     makeBand({ y: rand(0.78, 0.88) }),
   ];
-  for (const b of BANDS) {
-    b.thick *= 1.3;
-    b.alpha *= 1.25;
+  // A phone is a tall, narrow window: five thick curtains stacked down it read
+  // as stripes, not a sky (elia: "the app background on mobile looks really
+  // bad"). There it is three — one bright near the top, a violet behind the
+  // middle, a faint one low — thinner and quieter, with dark sky between.
+  if (mobile) {
+    BANDS.splice(3, 2);
+    BANDS[0].yBase = rand(0.12, 0.18);
+    BANDS[1].yBase = rand(0.46, 0.56);
+    BANDS[2].yBase = rand(0.84, 0.92);
+    for (const b of BANDS) {
+      b.thick *= 0.8;
+      b.alpha *= 0.72;
+      b.mAmp *= 0.7;
+    }
+  } else {
+    for (const b of BANDS) {
+      b.thick *= 1.3;
+      b.alpha *= 1.25;
+    }
   }
   for (const b of BANDS) b.speed *= pace;
   // A sparse, fixed starfield (twinkle via alpha wave — no reshuffling).
   // A fuller field, twinkling the way stars do: most flicker faintly, a few
   // bright ones swell and dim with a soft halo, each on its own slow clock.
-  const STARS = Array.from({ length: mobile ? 110 : 170 }, () => {
+  const STARS = Array.from({ length: mobile ? 64 : 170 }, () => {
     const bright = Math.random() < 0.12;
     return {
       x: Math.random(),
@@ -124,14 +140,17 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   let raf = null;
   let last = 0;
   const DOWN = mobile ? 4 : 3;
-  // Desktop paints in two layers: the curtains at 1/3 on an OFFSCREEN canvas
+  // Two layers: the curtains at 1/3 (1/4 on a phone) on an OFFSCREEN canvas
   // (the blur IS the upscale, and the per-column loop stays cheap), blitted
   // onto a visible canvas at full resolution where the stars are drawn as
   // real points. One layer at 1/3 made every star a 3px block (elia: "I can
-  // see the stars' pixels"). Phones keep the single low-res canvas.
-  const HI = !mobile;
-  const off = HI ? document.createElement("canvas") : null;
-  const bctx = HI ? off.getContext("2d") : ctx;
+  // see the stars' pixels") — and on a phone, where that single low-res
+  // canvas lasted longer, a 6px smudge, with the curtains' columns showing
+  // as a grid. Phones paint the same two layers now: one extra blit a frame.
+  const HI = true;
+  const off = document.createElement("canvas");
+  const bctx = off.getContext("2d");
+  let PX = 1; // canvas pixels per CSS pixel on the visible layer
   const size = () => {
     const w = Math.max(1, Math.round(canvas.clientWidth / DOWN));
     const h = Math.max(1, Math.round(canvas.clientHeight / DOWN));
@@ -141,8 +160,13 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
       low.height = h;
     }
     if (HI) {
-      // full CSS resolution, capped — a 4K desktop needs no 4K sky
-      const scale = Math.min(1, 1920 / Math.max(1, canvas.clientWidth));
+      // full CSS resolution, capped — a 4K desktop needs no 4K sky. A phone
+      // gets its real pixels (to 2x): it is a small canvas, and a star drawn
+      // at CSS resolution on a 3x screen is a soft dot again.
+      const scale = mobile
+        ? Math.min(2, window.devicePixelRatio || 1)
+        : Math.min(1, 1920 / Math.max(1, canvas.clientWidth));
+      PX = scale;
       const fw = Math.max(1, Math.round(canvas.clientWidth * scale));
       const fh = Math.max(1, Math.round(canvas.clientHeight * scale));
       if (canvas.width !== fw || canvas.height !== fh) {
@@ -166,7 +190,9 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
     const sctx = ctx;
     const SW = canvas.width;
     const SH = canvas.height;
-    const K = HI ? SW / W : 1; // star sizes were tuned at the low resolution
+    // star sizes were tuned at the desktop's low resolution (1/3); a phone
+    // draws them a little smaller, in its own pixels
+    const K = mobile ? 2 * PX * 0.62 : SW / W;
     sctx.fillStyle = "rgba(230, 238, 255, 1)";
     for (const s of stars ? STARS : []) {
       // a slow swell with a sharper glint on top — real twinkle isn't a sine
@@ -179,9 +205,11 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
         const r = Math.max(0.6, s.r * K * 0.5);
         if (s.bright) {
           // a soft round halo that grows with the glow
-          sctx.globalAlpha = a * 0.18;
+          // (tighter and fainter on a phone, where the full-size one reads
+          // as a bubble around the star)
+          sctx.globalAlpha = a * (mobile ? 0.1 : 0.18);
           sctx.beginPath();
-          sctx.arc(x, y, r + 2.2 * K, 0, Math.PI * 2);
+          sctx.arc(x, y, r + (mobile ? 1.1 : 2.2) * K, 0, Math.PI * 2);
           sctx.fill();
         }
         sctx.globalAlpha = Math.min(1, a * (s.bright ? 1 : 0.75));
@@ -208,7 +236,9 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
       if (presence < 0.04) continue;
 
       const center = cw * (0.5 + 0.3 * Math.sin(t * b.lenF + b.lenOff));
-      const halfLen = cw * (0.72 + 0.28 * Math.sin(t * b.lenF * 0.73 + b.lenOff * 1.9));
+      // On a phone a curtain always runs off both edges: one that ends inside
+      // a 375px window is not a curtain, it is a glowing lozenge with a tip.
+      const halfLen = cw * (mobile ? 1.25 + 0.2 * Math.sin(t * b.lenF * 0.73 + b.lenOff * 1.9) : 0.72 + 0.28 * Math.sin(t * b.lenF * 0.73 + b.lenOff * 1.9));
       const s = t * b.speed;
       const curlAmp = 0.04 * Math.max(0, Math.sin(t * 0.11 + b.phase * 2.3));
 

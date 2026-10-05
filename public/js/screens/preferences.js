@@ -308,19 +308,32 @@ export const renderPreferences = async (root) => {
     try { await api.setPreferences(state.profile.id, state.likedGenres); } catch {}
   };
 
+  // One chip per genre, however the sources spell it: the library carries
+  // "Sci-Fi", "Science Fiction" and "Science-Fiction" side by side (different
+  // metadata providers), and they showed as three choices. A chip stands for
+  // every spelling — pressing it likes or unlikes them all, so Home's matching
+  // (by the exact string) needs to know nothing about this.
+  const genreKey = (g) => {
+    const k = g.toLowerCase().replace(/[^a-z0-9]+/g, "");
+    return k === "sciencefiction" ? "scifi" : k;
+  };
+  const genreGroups = new Map();
+  for (const g of genres) genreGroups.set(genreKey(g), [...(genreGroups.get(genreKey(g)) || []), g]);
   const chips = el("div", { class: "filter-bar", style: { flexWrap: "wrap" } });
   const paint = () => {
     chips.innerHTML = "";
-    genres.forEach((g) =>
+    for (const [key, variants] of genreGroups) {
+      const on = variants.some((g) => liked.has(g));
       chips.append(el("button", {
-        class: `chip focusable ${liked.has(g) ? "on" : ""}`,
+        class: `chip focusable ${on ? "on" : ""}`,
+        "aria-pressed": String(on),
         onclick: () => {
-          liked.has(g) ? liked.delete(g) : liked.add(g);
+          for (const g of variants) on ? liked.delete(g) : liked.add(g);
           paint();
           save();
         },
-      }, g))
-    );
+      }, key === "scifi" ? "Sci-Fi" : variants[0]));
+    }
   };
 
   // Sections are self-contained cards laid out on a grid — two columns on a

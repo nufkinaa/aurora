@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.19 — 2026-10-05
+
+- A title's page on a phone, opened up. Under the cover there is now one plain line of facts (rating, year, length, director) instead of a stack of capsules; Play across the full width; and the rest of the buttons — Trailer, My List, X-Ray, Save offline, Download, Mark watched — as one strip of round buttons you slide sideways, where there used to be two rows of boxed tiles. Your rating and its stars share a line, what is on the server is two quiet lines without a box, and on a series the episodes start sooner. For a film you already have, the other versions are folded behind one row ("Other versions — stream or save a different copy"), so More like this comes right after the film instead of after a list of fifty sources.
+- X-Ray on a phone is its own screen: the page folds down to the cover and X-Ray starts right under it (it used to open a screen and a half down, under the synopsis and the rating). The cast is a row of portraits you slide through, with full names, instead of two columns of names cut short; the X-Ray bar with Back to the title stays in reach while you scroll; the episode picker gets a full-width row.
+- Back to the title works. It used to bring the rest of the page back but leave the X-Ray panel sitting in the middle of it — on every screen size. Closing X-Ray now removes it and returns you to where you were on the page.
+- The sky behind the app on a phone: stars are sharp points again (they were being drawn at a quarter of the screen's resolution and came out as soft blobs, with a faint grid in the glow), there are fewer of them, and the aurora is three calmer bands that run off both edges of the screen instead of five thick stripes and the occasional glowing lozenge.
+- Settings on a phone: a setting with a wide button (Subtitle language → "First available") no longer squeezes its explanation into a column three words wide — the button drops to the next line. Genres you like shows one Sci-Fi instead of "Sci-Fi", "Science Fiction" and "Science-Fiction" (pressing it covers all three).
+- X-Ray shows a release date as a date ("16 Jul 2010") rather than 2010-07-16, and a date with no time is that calendar day in every time zone.
+
 ## 1.6.18 — 2026-10-05
 
 - Trailers on Home start sooner. The trailer used to begin loading only after a title had sat on the billboard for six seconds — YouTube's script, then its player, then the first buffer — so the picture really moved eight or nine seconds in. Now all of that happens while the title sits there: the player is built unseen a second in, and the moment the wait ends the trailer is already playing. The wait itself is four seconds instead of six. Nothing changes on a slow connection, where trailers stay off.

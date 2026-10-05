@@ -2191,6 +2191,11 @@ html[data-look="glass"] .pref-item-value.pref-switch.on {
   .pref-icon { width: 34px; height: 34px; border-radius: 10px; }
   .pref-item { gap: 12px; }
   .pref-item-value:not(.pref-switch) { min-width: 104px; }
+  /* a wide button ("First available") beside the words left them a column
+     three words wide; when the two do not fit on one line the button takes
+     the next one, at the right */
+  .pref-item { flex-wrap: wrap; }
+  .pref-icon ~ .pref-item-text { flex: 1 1 110px; }
 }
 
 /* ---------- X-Ray (2026-10-04) ----------
@@ -2590,4 +2595,397 @@ html[data-look="glass"] .pbtn.big svg {
 .quality-pill ~ .resume-pill,
 .resume-pill ~ .quality-pill:not(.resume-pill) {
   top: calc(116px + env(safe-area-inset-top));
+}
+
+/* ---------- the phone title page, opened up (2026-10-05) ----------
+   elia: "hard to navigate, claustrophobic". What was a cover, a pile of
+   pills, eight boxed tiles in two rows, a boxed card and then fifty torrents
+   is now: the cover with one plain line of facts; Play; ONE strip of round
+   buttons that scrolls sideways; the synopsis; your rating and what is on
+   the server as plain lines; and — for a film already on disk — the other
+   versions folded behind a single row, so "More like this" is a thumb away.
+   Both looks. `html:root` only lifts these over the glass rules above. */
+.detail-actions-more {
+  display: contents;
+}
+.sources-fold {
+  display: none;
+}
+@media (max-width: 720px) {
+  html:root .detail-head {
+    min-height: 60vh;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+  }
+  /* the facts: words on the picture, not a stack of capsules */
+  html:root .detail-head .detail-meta {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    align-items: baseline;
+  }
+  html:root .detail-meta > .rating-star,
+  html:root .detail-meta > .detail-meta-parts {
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+  }
+  html:root .detail-meta > .detail-meta-parts {
+    /* the rest of the first line — the badges start a line of their own */
+    flex: 1 1 70%;
+    min-width: 0;
+    color: rgba(243, 244, 248, 0.88);
+    line-height: 1.4;
+  }
+  html:root .detail-meta > .badge,
+  html:root .detail-meta > .fmt {
+    opacity: 0.86;
+  }
+
+  /* Play, then one strip */
+  html:root .detail-hero .detail-actions {
+    display: block;
+    margin: 0 0 24px;
+  }
+  html:root .detail-hero .detail-actions .btn-primary {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    padding: 15px 18px;
+    border-radius: 16px;
+    font-size: 1.02rem;
+  }
+  html:root .detail-hero .detail-actions .btn-primary + .btn-primary {
+    margin-top: 8px;
+  }
+  html:root .detail-hero .detail-actions-more {
+    display: flex;
+    gap: 2px;
+    margin: 18px calc(-1 * var(--page-x)) 0;
+    padding: 2px calc(var(--page-x) - 8px);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scroll-padding: 0 var(--page-x);
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  html:root .detail-hero .detail-actions-more::-webkit-scrollbar {
+    display: none;
+  }
+  html:root .detail-hero .detail-actions-more .btn {
+    flex: 0 0 76px;
+    width: 76px;
+    min-width: 0;
+    max-width: none;
+    height: auto;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 8px;
+    padding: 0;
+    border-radius: 14px;
+    background: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    white-space: normal;
+    scroll-snap-align: start;
+  }
+  /* the icon in its own circle; the word under it */
+  html:root .detail-hero .detail-actions-more .btn > svg:first-child,
+  html:root .detail-hero .detail-actions-more .btn > span:first-child:not(:last-child) {
+    box-sizing: border-box;
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 52px;
+    height: 52px;
+    padding: 15px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.09);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.13);
+    font-size: 1.25rem;
+    line-height: 1;
+    overflow: visible;
+  }
+  html:root .detail-hero .detail-actions-more .btn:active > :first-child {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  html:root .detail-hero .detail-actions-more .btn > span:not(:first-child),
+  html:root .detail-hero .detail-actions-more .btn > .btn-label {
+    color: rgba(243, 244, 248, 0.8);
+  }
+  html:root .detail-hero .detail-actions-more .btn-xray.on {
+    background: none;
+  }
+  html:root .detail-hero .detail-actions-more .btn-xray.on > svg {
+    background: var(--accent-strong);
+  }
+  /* a film on disk has its other versions one row down — no button for it */
+  .screen.has-sources-fold .detail-actions-more .btn-sources {
+    display: none;
+  }
+
+  /* room to read */
+  html:root .detail-synopsis-wrap {
+    margin-bottom: 18px;
+  }
+  html:root .detail-synopsis {
+    font-size: 0.98rem;
+    line-height: 1.55;
+  }
+  html:root .detail-hero .genre-chips {
+    margin-bottom: 24px;
+  }
+  /* your rating / on this server: plain lines between hairlines */
+  html:root .detail-hero .detail-rate {
+    display: block;
+    margin: 0;
+    padding: 18px 0 6px;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+  }
+  /* "Your rating" and its stars share one line; what is on the server needs
+     no heading of its own — on a series the episodes are what the page is
+     for, and every row saved here brings them closer */
+  html:root .detail-hero .detail-rate {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 14px;
+    padding: 14px 0 6px;
+  }
+  html:root .detail-hero .detail-rate-label {
+    margin-bottom: 0;
+  }
+  html:root .detail-hero .detail-server {
+    flex: 1 1 100%;
+    margin-top: 8px;
+    padding-top: 14px;
+    font-size: 0.86rem;
+  }
+  html:root .detail-hero .detail-server-k {
+    display: none;
+  }
+  html:root .detail-cast {
+    margin-top: 0;
+    padding-top: 16px;
+    padding-bottom: 4px;
+    line-height: 1.6;
+    position: relative;
+  }
+  html:root .detail-cast::before {
+    content: "";
+    position: absolute;
+    left: var(--page-x);
+    right: var(--page-x);
+    top: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+  }
+
+  /* other versions, folded */
+  .screen.has-sources-fold > .sources-title {
+    display: none;
+  }
+  .sources-fold {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 2px;
+    width: calc(100% - 2 * var(--page-x));
+    margin: 22px var(--page-x) 6px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    font-size: 1.02rem;
+    font-weight: 800;
+    text-align: left;
+  }
+  .sources-fold-hint {
+    grid-column: 1;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-dim);
+  }
+  .sources-fold-chev {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    font-size: 1.6rem;
+    line-height: 1;
+    color: var(--text-dim);
+    transform: rotate(-90deg);
+    transition: transform 0.2s var(--ease);
+  }
+  .screen.sources-folded .sources-fold-chev {
+    transform: rotate(90deg);
+  }
+  .screen.sources-folded > .sources-section {
+    display: none;
+  }
+  .screen.has-sources-fold > .sources-section {
+    padding-top: 10px;
+  }
+  .screen.has-sources-fold > .sources-section > .source-hint,
+  /* the callout under it says the same thing in a friendlier voice */
+  .sources-section > .source-hint:has(+ .dl-callout) {
+    display: none;
+  }
+
+  /* ---- X-Ray on a phone ----
+     The "hero" here is the whole title (cover, Play, synopsis, rating), so
+     hiding "everything but the hero" hid nothing and X-Ray opened a screen
+     and a half down. The page folds to the cover and X-Ray starts under it. */
+  .screen.xray-on .detail-info > *:not(.detail-head) {
+    display: none !important;
+  }
+  html:root .screen.xray-on .detail-head {
+    min-height: 34vh;
+    margin-bottom: 0;
+  }
+  html:root .screen.xray-on .detail-hero {
+    padding-bottom: 0;
+  }
+  .xray-panel {
+    padding-top: 6px;
+  }
+  /* the way back stays in reach: the bar floats under the nav's own pills
+     while the cast and the facts scroll beneath it */
+  .xr-top {
+    position: sticky;
+    top: calc(66px + env(safe-area-inset-top, 0px));
+    z-index: 5;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 -4px 18px;
+    padding: 7px 7px 7px 12px;
+    border-radius: 20px;
+    background: rgba(18, 20, 34, 0.95);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 10px 26px rgba(0, 0, 0, 0.38);
+    backdrop-filter: blur(16px) saturate(1.3);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  }
+  .xray-sheet .xr-top {
+    top: -16px;
+    margin: -16px -14px 14px;
+    padding: 14px 14px 10px;
+    border-radius: 0;
+    box-shadow: none;
+    background: rgba(14, 16, 28, 0.96);
+  }
+  .xr-brand {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .xr-badge {
+    white-space: nowrap;
+  }
+  .xr-sub {
+    display: none;
+  }
+  .xr-close {
+    flex: none;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+  .xr-stepper {
+    order: 3;
+    flex: 1 1 100%;
+  }
+  .xr-stepper:empty {
+    display: none;
+  }
+  .xr-select {
+    max-width: none;
+    height: 44px;
+  }
+  .xr-step {
+    width: 44px;
+    height: 44px;
+  }
+  /* people: a rail of portraits instead of two columns of clipped names */
+  .xr-people {
+    display: flex;
+    grid-template-columns: none;
+    gap: 4px;
+    margin: 0 calc(-1 * var(--page-x));
+    padding: 2px calc(var(--page-x) - 6px) 6px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scroll-padding: 0 var(--page-x);
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .xray-sheet .xr-people {
+    margin: 0 -14px;
+    padding: 2px 8px 6px;
+  }
+  .xr-people::-webkit-scrollbar {
+    display: none;
+  }
+  .xr-person {
+    flex: 0 0 104px;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 6px 10px;
+    background: none;
+    text-align: center;
+    scroll-snap-align: start;
+  }
+  .xr-face {
+    width: 84px;
+    height: 84px;
+    font-size: 1.2rem;
+  }
+  .xr-person-text {
+    width: 100%;
+  }
+  .xr-name,
+  .xr-role {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-height: 1.25;
+  }
+  .xr-name {
+    font-size: 0.84rem;
+  }
+  .xr-role {
+    font-size: 0.76rem;
+    margin-top: 2px;
+  }
+  .xr-section {
+    margin-bottom: 30px;
+  }
+  .xr-rating {
+    flex: 1 1 calc(50% - 5px);
+  }
+  .xr-facts dt {
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .xr-facts dd {
+    margin: 0 0 14px;
+  }
 }
