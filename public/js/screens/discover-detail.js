@@ -237,7 +237,16 @@ const paintDl = (btn, job) => {
   // download button has none): says what the ⬇ DOES, so it never gets
   // confused with Play again.
   const cap = btn.querySelector(".dl-cap");
-  if (cap) cap.textContent = job && job.status === "done" ? "Saved" : job && job.status === "error" ? "Retry" : DL_ACTIVE.includes(job && job.status) && pct != null ? `${pct}%` : "Save";
+  if (cap) {
+    const st = job && job.status;
+    cap.textContent =
+      st === "done" ? "Saved"
+      : st === "error" ? "Retry"
+      : st === "pending" ? "Waiting"
+      : st === "approved" ? "Queued"
+      : st === "downloading" ? (job.phase === "copying" ? "Saving" : pct != null ? `${pct}%` : "Starting")
+      : "Save";
+  }
 };
 
 // The badge a source carries when it already has a download job. Saying it on
@@ -723,7 +732,7 @@ const ownedRow = ({ id, label, onDownload, item }) =>
     el(
       "button",
       {
-        class: "src-main source-row owned focusable",
+        class: "src-main focusable",
         title: label || "Your copy",
         onclick: () => navigate(`#/play/${id}`),
       },
@@ -2072,9 +2081,12 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
             (unaired ? " unaired" : " focusable") +
             (local ? " owned" : "") +
             (i === upNextAt && anyWatched ? " up-next" : ""),
+          // A downloaded episode in 1080p or better simply plays — there is
+          // nothing to choose. Anything else (not on disk, or a smaller copy)
+          // opens its sources, where your copy sits first if you have one.
           ...(unaired
             ? { disabled: true, "aria-disabled": "true" }
-            : { onclick: () => openSources(row) }),
+            : { onclick: () => (local && (local.height >= 1000 || local.width >= 1900) ? navigate(`#/play/${local.id}`) : openSources(row)) }),
         },
         el("div", { class: "episode-num" }, row.episode),
         // A still for the glass card: the episode's own thumbnail when the

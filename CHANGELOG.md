@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.32 — 2026-10-06
+
+- A downloaded episode in 1080p or better just plays when you press it — there is nothing to choose. An episode that is not on disk, or a smaller copy, still opens its sources (with your copy first when you have one).
+- The "In your library" row no longer looks like two buttons pressed together — an old style was still applied to it.
+- The Save button's states read properly again while a download runs: Waiting · Queued (dots) · Starting (dots) · 47% with a progress line · Saving · Saved ✓ · Retry. The progress line had been hidden by an older rule.
+- Home's billboard has the same one-pixel light edge as the cards.
+
 ## 1.6.31 — 2026-10-06
 
 - The list of sources is redrawn, the way a versions list looks in Infuse or Plex: one calm row per source — the quality on the left, what the copy is in plain words (BluRay · H.265 · DD+), under it its size and how well it is seeded, and on the right Stream and Save. The paragraph of advice, the "Save it, then watch it" panel, the per-row "vs ★ BEST" sentences and the file names across the page are gone (a row's tooltip still carries the file name and the advice). The first eight show (five on a phone), with Show all for the rest, instead of a box that scrolled inside the page. Your own copy, when you have one, is one green row at the top with Play. Headings read "Sources" and "Sources · S1 E2".

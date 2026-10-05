@@ -3910,12 +3910,19 @@ html[data-look="glass"] .nav-dl.ready {
   font-variant-numeric: tabular-nums;
 }
 .src-save.on .dl-face {
-  display: none; /* the percentage is the label */
+  display: none; /* the word (or the percentage) is the label */
 }
 .src-save.on .dl-face.dl-dots {
   display: inline-flex;
+  gap: 3px;
+  padding: 0 2px;
+}
+.src-save.on .dl-face.dl-dots i {
+  width: 5px;
+  height: 5px;
 }
 .src-save.has-ring .dl-ring {
+  display: block;
   position: absolute;
   left: 0;
   bottom: 0;
@@ -3994,7 +4001,8 @@ html[data-look="glass"] .nav-dl.ready {
   }
   .src-save.on {
     width: auto;
-    padding: 0 10px;
+    padding: 0 12px;
+    gap: 6px;
   }
   /* the owned card's three actions still fit beside the words */
   .src-card.owned .src-act.src-icon {
@@ -4015,4 +4023,10 @@ html[data-look="glass"] .nav-dl.ready {
   html[data-look="glass"]:root .detail-info > .detail-cast::before {
     display: none;
   }
+}
+
+/* the Home billboard carries the cards' hairline edge too */
+html[data-look="glass"] .hero {
+  outline: 1px solid rgba(226, 229, 238, 0.3);
+  outline-offset: -1px;
 }
