@@ -161,9 +161,11 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
     // no cover of its own, or one that won't load: the backup poster (by
     // IMDb id, other sources) before the titled tile. Episode stills have no
     // backup — a show poster in a 16:9 frame would be worse than the tile.
-    item.cover || (!isEpisode && backupPosterUrl(item))
-      ? posterImg(item.cover || backupPosterUrl(item), item.title, "card-poster", "card-fallback", {
-          w: wide || isEpisode ? 320 : 180,
+    // A wide card is a landscape frame: it takes the title's landscape art
+    // when there is one. A poster cropped to 16:10 is a forehead and a logo.
+    (wide && !isEpisode && item.backdrop) || item.cover || (!isEpisode && backupPosterUrl(item))
+      ? posterImg((wide && !isEpisode && item.backdrop) || item.cover || backupPosterUrl(item), item.title, "card-poster", "card-fallback", {
+          w: wide || isEpisode ? 480 : 180,
           eager,
           backup: isEpisode || wide ? null : backupPosterUrl(item),
         })
@@ -173,7 +175,8 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
     // written into the DOM: text inside the button that isn't in its name
     // trips the label-in-name accessibility rule, and the name already says
     // "stream" / "film" in words.
-    item.source === "stream" && !item.badge && el("span", { class: "card-tag stream", "aria-hidden": "true", "data-t": "STREAM" }),
+    // (the STREAM corner tag is gone — elia, 2026-10-06: most of the catalogue
+    // streams, so it was on nearly every poster and said nothing)
     // Tonight-row state (glass look): READY · plays from disk, LIVE · a party, NEW
     item.badge && el("span", { class: `card-tag ${item.badge.tone || ""}`, "aria-hidden": "true", "data-t": item.badge.text }),
     // Series or film. Only where the row it sits in mixes the two, and never on an

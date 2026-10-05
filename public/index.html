@@ -3,6 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- Opened from a phone's Home Screen, Aurora takes the WHOLE screen: the
+       page runs under the status bar and around the Dynamic Island instead of
+       stopping at a black band beneath it. The chrome keeps clear of the
+       island and the home indicator through env(safe-area-inset-*) (glass.css). -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Aurora" />
+  <meta name="theme-color" content="#070811" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/icon-180.png" />
   <title>Aurora</title>
   <meta name="description" content="Aurora — your household's own streaming platform: the films and shows on your server, on every screen." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%236c58ff'/><stop offset='.5' stop-color='%23b76cff'/><stop offset='1' stop-color='%234ea3ff'/></linearGradient></defs><rect width='100' height='100' rx='24' fill='url(%23g)'/></svg>" />

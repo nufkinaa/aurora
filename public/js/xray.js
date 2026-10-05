@@ -8,7 +8,7 @@
 // An anthology — Black Mirror, Modern Love: no cast of its own — leads with
 // the episode and has no series cast at all; a regular series shows the
 // episode's guests first and the regulars under them.
-import { el, artUrl } from "./ui.js";
+import { el, artUrl, smooth } from "./ui.js";
 import { api } from "./api.js";
 import { lite } from "./net.js";
 
@@ -83,31 +83,46 @@ export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = 
   let episodes = [];
   let token = 0;
   const body = el("div", { class: "xr-body" }, skeleton());
+  // A series opened with no episode in mind is about THE SERIES — its cast,
+  // its ratings, who made it. An episode is one step away in the picker (it
+  // used to open on the first episode, which read as "X-Ray is about episode
+  // 1" on a page that is about the whole show).
+  const subText = () => (!isShow ? "cast, crew and ratings" : cur ? "this episode, and the series" : "the whole series");
+  const sub = el("span", { class: "xr-sub" }, subText());
   const stepper = el("div", { class: "xr-stepper" });
   const panel = el("div", { class: "xray-panel" },
     el("div", { class: "xr-top" },
-      el("div", { class: "xr-brand" }, el("span", { class: "xr-badge" }, "X-Ray"), el("span", { class: "xr-sub" }, isShow ? "this episode, and the series" : "cast, crew and ratings")),
+      el("div", { class: "xr-brand" }, el("span", { class: "xr-badge" }, "X-Ray"), sub),
       stepper,
       onClose && el("button", { class: "btn small focusable xr-close", onclick: onClose }, closeLabel)),
     body);
 
   const paintStepper = () => {
     stepper.innerHTML = "";
-    if (!isShow || !cur || !episodes.length) return;
-    const i = episodes.findIndex((e) => e.season === cur.season && e.episode === cur.episode);
+    sub.textContent = subText();
+    if (!isShow || !episodes.length) return;
+    // -1 is "the whole series", sitting before the first episode
+    const i = cur ? episodes.findIndex((e) => e.season === cur.season && e.episode === cur.episode) : -1;
     const go = (d) => {
-      const next = episodes[i + d];
-      if (next) { cur = { season: next.season, episode: next.episode }; load(); }
-    };
-    const select = el("select", { class: "xr-select focusable", "aria-label": "Episode", onchange: (e) => {
-      const [s, n] = e.target.value.split("x").map(Number);
-      cur = { season: s, episode: n };
+      const at = i + d;
+      if (at < -1 || at >= episodes.length) return;
+      cur = at < 0 ? null : { season: episodes[at].season, episode: episodes[at].episode };
       load();
-    } }, episodes.map((e) => el("option", { value: `${e.season}x${e.episode}`, ...(e.season === cur.season && e.episode === cur.episode ? { selected: true } : {}) }, `S${e.season} · E${e.episode}${e.title ? ` — ${e.title}` : ""}`)));
+    };
+    const select = el("select", { class: "xr-select focusable", "aria-label": "The whole series, or one episode", onchange: (e) => {
+      if (!e.target.value) cur = null;
+      else {
+        const [s, n] = e.target.value.split("x").map(Number);
+        cur = { season: s, episode: n };
+      }
+      load();
+    } },
+      el("option", { value: "", ...(cur ? {} : { selected: true }) }, "The whole series"),
+      episodes.map((e) => el("option", { value: `${e.season}x${e.episode}`, ...(cur && e.season === cur.season && e.episode === cur.episode ? { selected: true } : {}) }, `S${e.season} · E${e.episode}${e.title ? ` — ${e.title}` : ""}`)));
     stepper.append(
-      el("button", { class: "xr-step focusable", "aria-label": "Previous episode", ...(i <= 0 ? { disabled: true } : {}), onclick: () => go(-1) }, "‹"),
+      el("button", { class: "xr-step focusable", "aria-label": "Previous", ...(i < 0 ? { disabled: true } : {}), onclick: () => go(-1) }, "‹"),
       select,
-      el("button", { class: "xr-step focusable", "aria-label": "Next episode", ...(i < 0 || i >= episodes.length - 1 ? { disabled: true } : {}), onclick: () => go(1) }, "›"),
+      el("button", { class: "xr-step focusable", "aria-label": "Next", ...(i >= episodes.length - 1 ? { disabled: true } : {}), onclick: () => go(1) }, "›"),
     );
   };
 
@@ -115,7 +130,7 @@ export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = 
     const out = [];
     // an episode the sources know nothing about (no guests, no synopsis) is
     // not worth an empty box — the series' own sections still show
-    const ep = x.episode && (x.episode.guests.length || x.episode.overview || x.episode.still) ? x.episode : null;
+    const ep = cur && x.episode && (x.episode.guests.length || x.episode.overview || x.episode.still) ? x.episode : null;
     if (ep) {
       const meta = [fmtDate(ep.aired), ep.runtime, ep.rating && `★ ${ep.rating.value} on ${ep.rating.source}`].filter(Boolean).join(" · ");
       out.push(el("section", { class: "xr-section xr-episode" },
@@ -148,7 +163,11 @@ export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = 
           facts.flatMap((f) => [el("dt", {}, f.label), el("dd", {}, (/^\d{4}-\d{2}-\d{2}$/.test(f.value) && fmtDate(f.value)) || f.value)]))));
     }
     const shown = out.filter(Boolean);
-    body.replaceChildren(...(shown.length ? shown : [el("div", { class: "xr-empty" }, "Nothing is known about this one yet.")]));
+    const put = () => body.replaceChildren(...(shown.length ? shown : [el("div", { class: "xr-empty" }, "Nothing is known about this one yet.")]));
+    // one episode to the next dissolves (not over a film: a photograph of the
+    // page would hold the picture still for a beat)
+    if (panel.isConnected && !panel.closest(".player") && !body.querySelector(".xr-loading")) smooth(put);
+    else put();
   };
 
   const load = async () => {
@@ -170,11 +189,6 @@ export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = 
       }
       if (mine !== token) return;
       episodes = x.episodes || [];
-      // a series opened with no episode in mind starts at its first
-      if (isShow && !cur && episodes.length) {
-        cur = { season: episodes[0].season, episode: episodes[0].episode };
-        return load();
-      }
       paintStepper();
       paint(x);
     } catch (e) {

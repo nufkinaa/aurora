@@ -25,6 +25,7 @@ import {
   restoreScrollY,
   rerenderInPlace,
   keptScrollFor,
+  smooth,
 } from "../ui.js";
 import { api } from "../api.js";
 import { dropdown } from "./browse.js";
@@ -1398,7 +1399,9 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   // hover or focus warms the answer on a line that can spare it.
   if (imdbId) {
     const xrType = isShow ? "series" : "movie";
-    const xrEp = isShow && nextUp ? { season: nextUp.season, episode: nextUp.episode } : {};
+    // From a show's page X-Ray is about the SHOW; an episode is picked inside
+    // it. (The player's X-Ray is about the episode that is playing.)
+    const xrEp = {};
     const xrKeys = [lib && lib.id].filter(Boolean);
     let xrNode = null;
     let xrBackY = 0; // where the page was when X-Ray opened
@@ -1422,6 +1425,9 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       }
       const hero = screen.querySelector(".detail-hero");
       if (on) xrBackY = window.scrollY;
+      // the whole change — the page folding away, the panel arriving, the
+      // scroll — happens inside one dissolve (ui.js smooth)
+      smooth(() => {
       if (on && hero) hero.after(xrNode);
       // Closing takes the panel OFF the page. It used to stay where it was
       // with only the class gone, so "Back to the title" brought the rest of
@@ -1448,6 +1454,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         window.scrollTo({ top: xrBackY, behavior: "auto" });
         xrBtn.focus({ preventScroll: true });
       }
+      });
     };
     xrBtn.addEventListener("click", toggleXray);
     const warmXray = () => {
@@ -1720,10 +1727,10 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         class: "sources-fold focusable",
         type: "button",
         "aria-expanded": "false",
-        onclick: () => {
+        onclick: () => smooth(() => {
           const open = screen.classList.toggle("sources-folded") === false;
           fold.setAttribute("aria-expanded", String(open));
-        },
+        }),
       }, el("span", {}, "Other versions"), el("span", { class: "sources-fold-hint" }, "Stream or save a different copy"), el("span", { class: "sources-fold-chev", "aria-hidden": "true" }, "›"));
       screen.append(sourcesTitle, fold);
     } else {
@@ -2139,7 +2146,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     try {
       localStorage.setItem(seasonKey, String(n));
     } catch {}
-    renderEpisodes(true);
+    smooth(() => renderEpisodes(true));
   };
   // The season picker is rebuilt when late metadata changes the season
   // count (a show we own one season of has five once Cinemeta answers);
@@ -2514,7 +2521,7 @@ const seasonOfflineButton = (nextEpisodes, showTitle) => {
     btn.innerHTML = "";
     btn.append(el("span", {}, icon), el("span", { class: "btn-label" }, text));
   };
-  face(`Save next ${SEASON_SAVE}`);
+  face(`Save ${SEASON_SAVE} offline`);
   btn.onclick = async () => {
     if (busy) {
       if (aborter) aborter.abort(); // a press while saving cancels the rest
@@ -2559,7 +2566,7 @@ const seasonOfflineButton = (nextEpisodes, showTitle) => {
     aborter = null;
     busy = false;
     btn.classList.remove("busy");
-    face(`Save next ${SEASON_SAVE}`);
+    face(`Save ${SEASON_SAVE} offline`);
   };
   return btn;
 };

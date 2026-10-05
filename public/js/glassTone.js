@@ -114,9 +114,12 @@ export const followVideo = (video, box, selector, { everyMs = 700, active = () =
 const NAV_SELECTOR = ".nav-items, .nav-logo, .nav-profile, .nav-gear, .nav-dl";
 let navUnder = null;
 let navToken = 0;
+// (2026-10-06: the nav no longer takes a dark layer over a bright picture —
+// its glass stays glass and each button's TEXT turns dark instead, measured
+// per button by navTone.js. The measurement below is kept for callers; it
+// just clears any layer left on the nav.)
 const applyNav = () => {
-  const on = navUnder != null && (window.scrollY || 0) < window.innerHeight * 0.35;
-  for (const node of document.querySelectorAll(NAV_SELECTOR)) setUnder(node, on ? navUnder : null);
+  for (const node of document.querySelectorAll(NAV_SELECTOR)) setUnder(node, null);
 };
 export const toneNavFromImage = (url) => {
   const token = ++navToken;

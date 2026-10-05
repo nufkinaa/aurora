@@ -142,6 +142,10 @@ initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
   (window.requestIdleCallback || ((fn) => setTimeout(fn, 900)))(syncSky, { timeout: 2500 });
   window.addEventListener("aurora-look", syncSky);
 }
+// each nav button's text follows the brightness behind it (navTone.js)
+(window.requestIdleCallback || ((fn) => setTimeout(fn, 700)))(() => {
+  import("./navTone.js").then((m) => m.startNavTone()).catch(() => {});
+}, { timeout: 2000 });
 initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
 initPrefetch(); // the next screen's data, fetched while this one is read
 // The connection (net.js): one usage event per tab once it is known, another

@@ -3,6 +3,18 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.24 — 2026-10-06
+
+- The nav's words follow what is behind them. Each button — every tab, the logo, the gear, your profile — reads the brightness of what it is floating over and fades between white and dark text on its own: white over a night scene, dark over a pale poster or a bright frame. The glass no longer darkens itself to protect white text; it stays glass.
+- X-Ray on a show's page is about the show: the series cast, its ratings, who made it. It used to open on one episode, which read as "X-Ray is about episode 1". An episode is one step away — "The whole series" is the first entry in the picker, and the arrows walk from it into the episodes. (In the player X-Ray is still about the episode that is playing.)
+- State changes dissolve instead of cutting: X-Ray taking over a title and giving it back, stepping between episodes inside it, a show's season switching, "Other versions" unfolding, More / Less on a synopsis.
+- The STREAM tag is gone from cards — it sat on nearly every poster and said little.
+- Every card has a hairline edge (one pixel of light grey at about a third strength), so a dark poster no longer melts into the page.
+- Continue Watching on a phone: a taller card with a landscape picture — the frame you stopped on, or the title's own backdrop — instead of a poster cropped to a strip; the title set larger on a deeper fade, the show's name leading for an episode, and "▶ 29 min left" under it.
+- On a phone: posters are a touch larger (114px), and both the Home billboard and a title's cover are taller than yesterday's cut.
+- "Save next 3" under the offline icon on a show now reads "Save 3 offline" — it saves the next three episodes you haven't finished to this device.
+- Aurora added to a phone's Home Screen takes the whole screen: the page runs under the status bar and around the Dynamic Island instead of stopping at a black band beneath it, with its own icon. The top buttons keep clear of the island and the tab bar of the home indicator.
+
 ## 1.6.23 — 2026-10-06
 
 - The phone, a size smaller. Posters on a phone were two-and-a-bit to a row and every shelf took 340px of the page; now there are three and a peek, and the shelves sit closer together — about a third more of Aurora on each screen. Corner tags shrink with them (the film / series tag keeps its icon and drops its word).

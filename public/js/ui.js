@@ -33,6 +33,20 @@ export const el = (tag, attrs = {}, ...children) => {
   return node;
 };
 
+// A change of state on a page — X-Ray taking over a title, a list unfolding,
+// another season's episodes — as one cross-fade instead of a cut: the browser
+// photographs the page, `fn` changes it, and the two are dissolved (the View
+// Transitions API). Where that does not exist, or motion is unwanted, `fn`
+// simply runs.
+export const smooth = (fn) => {
+  if (typeof document === "undefined" || !document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) return void fn();
+  try {
+    document.startViewTransition(fn);
+  } catch {
+    fn();
+  }
+};
+
 export const svg = (paths, attrs = "") =>
   `<svg viewBox="0 0 24 24" fill="currentColor" ${attrs}>${paths}</svg>`;
 

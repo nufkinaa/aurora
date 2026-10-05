@@ -1,7 +1,7 @@
 // Shared pieces of the detail page: the hero block and the library-side
 // "My List" button. The page itself lives in discover-detail.js, which serves
 // library titles and streamable titles as one screen.
-import { el, icons, resBadge, toast, posterImg, artUrl, formatRow, heroArtWidth } from "../ui.js";
+import { el, icons, resBadge, toast, posterImg, artUrl, formatRow, heroArtWidth, smooth } from "../ui.js";
 import { api } from "../api.js";
 import { state } from "../state.js";
 import { starRating } from "../components.js";
@@ -177,10 +177,10 @@ const labelled = (actions) => {
 const synopsisBlock = (text) => {
   const p = el("p", { class: "detail-synopsis" }, text);
   const more = el("button", { class: "syn-more focusable hidden", type: "button" }, "More");
-  more.addEventListener("click", () => {
+  more.addEventListener("click", () => smooth(() => {
     const open = p.classList.toggle("open");
     more.textContent = open ? "Less" : "More";
-  });
+  }));
   const check = () => {
     if (!p.isConnected || p.classList.contains("open")) return;
     more.classList.toggle("hidden", p.scrollHeight <= p.clientHeight + 2);
