@@ -53,7 +53,13 @@ export const svg = (paths, attrs = "") =>
 export const icons = {
   // X-Ray: a scan frame around a figure
   xray: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5.500A1.500 1.500 0 015.500 4H8M16 4h2.500A1.500 1.500 0 0120 5.500V8M20 16v2.500a1.500 1.500 0 01-1.500 1.500H16M8 20H5.500A1.500 1.500 0 014 18.500V16"/><circle cx="12" cy="10" r="2.500"/><path d="M7.500 16.500c.800-2 2.400-3 4.500-3s3.700 1 4.500 3"/></svg>',
-  play: svg('<path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l10.98-6.86a1.03 1.03 0 0 0 0-1.76L9.56 4.26A1.03 1.03 0 0 0 8 5.14z"/>'),
+  // Play: a triangle with properly round corners — a filled shape plus a
+  // round-joined outline of the same colour, which is what rounds it (elia:
+  // "more rounded and friendly but not too much"). Trailer has its own icon
+  // now (`clapper`), so the two no longer look like the same button twice.
+  play: svg('<path d="M9.3 6.7v10.6L17.8 12z" stroke="currentColor" stroke-width="3.3" stroke-linejoin="round"/>'),
+  // Trailer: the clapperboard — slate, striped arm lifted for "take one"
+  clapper: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.6 11h16.8v7.4a1.8 1.8 0 0 1-1.8 1.8H5.400a1.8 1.8 0 0 1-1.8-1.8z"/><path d="M3.6 11 2.800 7.300a1.200 1.200 0 0 1 .9-1.450l13.900-3.050a1.200 1.200 0 0 1 1.430.920l.570 2.600z"/><path d="m7.300 5.050 2.500 3.800M12 4l2.500 3.800"/></svg>',
   pause: svg('<rect x="6" y="4" width="4.4" height="16" rx="1.4"/><rect x="13.6" y="4" width="4.4" height="16" rx="1.4"/>'),
   back: svg('<path d="M15.5 4.5 8 12l7.5 7.5-1.8 1.8L4.4 12l9.3-9.3z"/>'),
   // Thinner than `back` on purpose: these sit on top of artwork in the row

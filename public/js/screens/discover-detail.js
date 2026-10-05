@@ -2647,7 +2647,7 @@ const showTrailer = (ytIds, title) => {
 const trailerButton = (ytIds, title) =>
   el("button", {
     class: "btn focusable btn-trailer",
-    html: icons.play + "<span>Trailer</span>",
+    html: icons.clapper + "<span>Trailer</span>",
     onclick: () => showTrailer(ytIds, title),
   });
 

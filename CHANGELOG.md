@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.26 — 2026-10-06
+
+- On a phone the top of the screen is no longer treated as a bar. The three small buttons up there (the logo, the gear, your profile) used to live in one invisible strip fixed across the top edge, and newer iPhones read a strip like that as the page's top bar — a flat band under the clock and a frosted band under that, with the picture starting below both. The strip is gone: the logo floats by itself at the left, the other two at the right, and nothing wide is pinned to the top, so a title's cover and Home's billboard are free to run to the top of the screen.
+- Play has a rounder, friendlier triangle, and Trailer has its own icon — a clapperboard — instead of a second play triangle.
+
 ## 1.6.25 — 2026-10-06
 
 - Continue Watching looks the same on a computer as on a phone: the taller card with a landscape picture, the title set large at the lower left on a deep fade, the show's name leading for an episode, and "▶ 98 min left" under it.

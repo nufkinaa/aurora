@@ -3234,6 +3234,32 @@ html[data-look="glass"]:root .card.wide .card-progress {
   html[data-look="glass"]:root .nav {
     padding-top: max(10px, env(safe-area-inset-top, 0px));
     height: calc(var(--nav-h) + max(0px, env(safe-area-inset-top, 0px) - 10px));
+    /* NOT a bar across the top of the screen. iOS 26 treats a fixed element
+       that spans the top edge as the page's top bar: it lays its own frosted
+       band behind it and fills the status-bar strip above with a flat colour
+       (elia's screenshot, 2026-10-06 — a black strip, then a grey band, then
+       the cover starting under both). On a phone this "bar" is three small
+       pills, so the box shrinks to the right-hand ones and the logo floats on
+       its own at the left: nothing wide is fixed to the top any more, and the
+       picture is free to run to the top of the screen. */
+    left: auto;
+    right: 0;
+    width: max-content;
+    max-width: 78vw;
+    padding-left: 0;
+  }
+  html[data-look="glass"]:root .nav-spacer {
+    display: none;
+  }
+  html[data-look="glass"]:root .nav.solid::after {
+    display: none; /* a scrim the width of three buttons is a smudge */
+  }
+  html[data-look="glass"]:root .nav-logo {
+    position: fixed;
+    z-index: 100;
+    left: max(var(--page-x), env(safe-area-inset-left, 0px));
+    top: calc(max(10px, env(safe-area-inset-top, 0px)) + 4px);
+    margin: 0;
   }
   html[data-look="glass"]:root .nav-items {
     left: max(12px, env(safe-area-inset-left, 0px));
