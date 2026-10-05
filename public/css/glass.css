@@ -3051,6 +3051,65 @@ html[data-look="glass"] .pbtn.big svg {
    Watching cards that say what is left, episodes as a rail of picture cards,
    and a title's cover that is shorter and drifts as the page scrolls over it.
    The glass look only; `:root` lifts these over the rules above. */
+/* Continue Watching, on every screen (2026-10-06): a taller frame for a
+   landscape picture, the title set large on a deep fade with what is left
+   under it — the show's name leading for an episode. (The phone block below
+   only makes it smaller.) */
+html[data-look="glass"]:root .card.wide {
+  width: 320px;
+  aspect-ratio: 16 / 10;
+}
+html[data-look="glass"]:root .card.wide .card-shade {
+  opacity: 1;
+  background: linear-gradient(to top, rgba(5, 6, 12, 0.95) 0%, rgba(5, 6, 12, 0.72) 24%, rgba(5, 6, 12, 0.18) 52%, transparent 68%);
+}
+html[data-look="glass"]:root .card.wide .card-label {
+  left: 16px;
+  right: 16px;
+  bottom: 24px;
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  text-align: left;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+}
+html[data-look="glass"]:root .card.wide .card-label:has(.card-sub) {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: rgba(243, 244, 248, 0.84);
+}
+html[data-look="glass"]:root .card.wide .card-sub {
+  margin-bottom: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: #fff;
+}
+html[data-look="glass"]:root .card.wide .card-meta {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: rgba(243, 244, 248, 0.8);
+}
+html[data-look="glass"]:root .card.wide .card-meta::before {
+  content: "▶";
+  font-size: 0.62rem;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+html[data-look="glass"]:root .card.wide .card-progress {
+  left: 16px;
+  right: 16px;
+  bottom: 13px;
+  height: 3px;
+}
 @media (max-width: 720px) {
   /* --- shelves and cards --- */
   html[data-look="glass"]:root .row {

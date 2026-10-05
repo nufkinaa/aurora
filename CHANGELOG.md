@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.25 — 2026-10-06
+
+- Continue Watching looks the same on a computer as on a phone: the taller card with a landscape picture, the title set large at the lower left on a deep fade, the show's name leading for an episode, and "▶ 98 min left" under it.
+
 ## 1.6.24 — 2026-10-06
 
 - The nav's words follow what is behind them. Each button — every tab, the logo, the gear, your profile — reads the brightness of what it is floating over and fades between white and dark text on its own: white over a night scene, dark over a pale poster or a bright frame. The glass no longer darkens itself to protect white text; it stays glass.
