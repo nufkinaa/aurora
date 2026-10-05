@@ -3220,11 +3220,11 @@ html[data-look="glass"]:root .card.wide .card-progress {
     margin-bottom: 12px;
   }
 
-  /* --- Home's billboard: shorter, edge to edge, under the status bar --- */
+  /* --- Home's billboard: shorter than the screen-high slab it was, but
+     still the slab — a hair in from the edges with its round corners (elia
+     asked for the roundness back after a day of it running edge to edge) --- */
   html[data-look="glass"]:root .hero {
     height: min(60vh, 530px);
-    margin: 0;
-    border-radius: 0 0 26px 26px;
   }
 
   /* --- chrome: only the island and the home indicator are kept clear of ---
@@ -3553,12 +3553,27 @@ html[data-look="glass"] .nav .nav-item.active[data-tone="light"] {
   background: rgba(4, 5, 10, 0.6);
 }
 .xray-sheet-page > .xray-panel {
+  /* as tall as the screen and moved by its top edge (discover-detail.js sets
+     the transform): three stops, the finger 1:1 in between, and a settle that
+     eases out like something with weight */
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
   width: 100%;
-  max-height: 86%;
+  height: 100%;
+  max-height: none;
   padding: 16px 16px calc(26px + env(safe-area-inset-bottom, 0px));
   border-radius: 26px 26px 0 0;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  overscroll-behavior: contain;
   touch-action: pan-y;
-  transition: transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+  transition: transform 0.46s cubic-bezier(0.22, 1, 0.28, 1);
+}
+.xray-sheet-page {
+  transition: background 0.3s ease;
 }
 .xray-sheet-page .xr-top {
   position: sticky;

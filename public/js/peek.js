@@ -5,7 +5,7 @@
 //
 // Cards wire it with `attachPeek(node, item, opts)`; the sheet itself is
 // `openPeek(item, opts)` so a keyboard/remote path can open it too.
-import { el, icons, toast, formatRow, posterImg, fmtDuration } from "./ui.js";
+import { el, icons, toast, formatRow, posterImg, fmtDuration, haptic } from "./ui.js";
 import { state, progressFor } from "./state.js";
 import { api } from "./api.js";
 import { navigate } from "./router.js";
@@ -141,7 +141,6 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
   track("feat", { f: "peek" });
   // the primary action, not the ✕, is where a remote should land
   (sheet.querySelector(".peek-actions .btn-primary") || sheet.querySelector(".peek-actions .btn"))?.focus({ preventScroll: true });
-  try { if (navigator.vibrate) navigator.vibrate(12); } catch {}
 };
 
 // Hold to peek (touch and mouse alike), right-click to peek. A hold that
@@ -159,6 +158,7 @@ export const attachPeek = (node, item, opts = {}) => {
     timer = setTimeout(() => {
       timer = null;
       fired = true;
+      haptic(); // the hold "lands" under the finger, like Haptic Touch
       openPeek(item, opts);
     }, HOLD_MS);
   });

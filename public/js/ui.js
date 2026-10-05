@@ -47,6 +47,29 @@ export const smooth = (fn) => {
   }
 };
 
+// A small tap you can feel, for the moments a press "lands" — a hold opening
+// a card's peek, a sheet settling on a stop. Android has navigator.vibrate.
+// iPhones do not, but Safari clicks its own haptic when a switch control is
+// toggled, so one is toggled off-screen (the trick the ios-haptics library
+// uses; iOS 17.4+). Where neither exists, nothing happens.
+export const haptic = (ms = 12) => {
+  try {
+    if (navigator.vibrate) return void navigator.vibrate(ms);
+  } catch {}
+  try {
+    const label = document.createElement("label");
+    label.setAttribute("aria-hidden", "true");
+    label.style.display = "none";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.setAttribute("switch", "");
+    label.append(input);
+    document.head.append(label);
+    label.click();
+    label.remove();
+  } catch {}
+};
+
 export const svg = (paths, attrs = "") =>
   `<svg viewBox="0 0 24 24" fill="currentColor" ${attrs}>${paths}</svg>`;
 

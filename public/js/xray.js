@@ -148,13 +148,34 @@ export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = 
             ep.writers.length ? el("span", {}, el("b", {}, "Written by "), ep.writers.join(", ")) : null))));
       out.push(people(x.anthology ? "In this episode" : "Guest stars in this episode", ep.guests, { link }));
     }
+    // FILMMAKERS, above the cast (elia, 2026-10-06): who directed it, wrote
+    // it, shot it, scored it — as people, like the cast, not as lines in a
+    // table at the bottom. One card per person, their jobs joined ("Director ·
+    // Writer"); for an episode its own director and writers lead.
+    {
+      const by = new Map();
+      const note = (name, job, photo) => {
+        if (!name) return;
+        const p = by.get(name) || { name, jobs: [], photo: null };
+        if (job && !p.jobs.includes(job)) p.jobs.push(job);
+        if (photo && !p.photo) p.photo = photo;
+        by.set(name, p);
+      };
+      if (ep) {
+        for (const n of ep.directors || []) note(n, "Directed this episode");
+        for (const n of ep.writers || []) note(n, "Wrote this episode");
+      }
+      for (const c of x.crew || []) note(c.name, c.job, c.photo);
+      const makers = [...by.values()].map((p) => ({ name: p.name, role: p.jobs.join(" · "), photo: p.photo }));
+      out.push(people("Filmmakers", makers, { link }));
+    }
     out.push(people(isShow ? "Series cast" : "Cast", x.cast, { link }));
 
     const tiles = (x.ratings || []).map((r) => ratingTile(r.source, `${r.value}`, r.votes ? `${r.votes.toLocaleString()} votes` : `out of ${r.scale}`));
     if (x.household) tiles.push(ratingTile("This household", `★ ${x.household.stars}`, `${x.household.count} rating${x.household.count === 1 ? "" : "s"} · out of 5`));
     if (tiles.length) out.push(el("section", { class: "xr-section" }, el("h3", {}, "Ratings"), el("div", { class: "xr-ratings" }, tiles)));
 
-    const crew = x.crew || [];
+    const crew = []; // (the people are in Filmmakers, above — the table keeps the facts)
     const facts = x.facts || [];
     if (crew.length || facts.length) {
       const byJob = new Map();

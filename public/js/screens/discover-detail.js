@@ -26,6 +26,7 @@ import {
   rerenderInPlace,
   keptScrollFor,
   smooth,
+  haptic,
 } from "../ui.js";
 import { api } from "../api.js";
 import { dropdown } from "./browse.js";
@@ -1423,6 +1424,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     // the rest of the screen to X-Ray, which read as a different page with no
     // obvious way back (elia, 2026-10-06).
     let xrSheet = null;
+    let xrSheetLeave = null; // slides the open sheet off the foot of the screen
     const onSheetBack = (e) => {
       e.preventDefault();
       closeXraySheet();
@@ -1431,6 +1433,8 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       if (!xrSheet) return;
       const s = xrSheet;
       xrSheet = null;
+      if (xrSheetLeave) xrSheetLeave();
+      xrSheetLeave = null;
       s.classList.remove("in");
       document.removeEventListener("ui-back", onSheetBack);
       window.removeEventListener("hashchange", closeXraySheet);
@@ -1450,7 +1454,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       }, panel));
       document.body.append(sheet);
       // two frames: the sheet has to be painted off-screen once to slide in
-      requestAnimationFrame(() => requestAnimationFrame(() => sheet.classList.add("in")));
+      sheet.classList.add("in");
       document.documentElement.style.overflow = "hidden"; // the page behind holds still
       document.addEventListener("ui-back", onSheetBack);
       // a tap on a cast member goes to Search: the sheet does not follow
@@ -1458,45 +1462,87 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       xrBtn.classList.add("on");
       xrBtn.setAttribute("aria-pressed", "true");
 
-      // Drag it down to dismiss. From the bar at its top at any time; from
-      // its body only when the list is at its very top (otherwise the finger
-      // is scrolling the list). Past a third of a hand, or a quick flick, and
-      // it goes; less, and it springs back.
-      let x0 = 0, y0 = null, dy = 0, t0 = 0, dragging = false, fromHead = false;
+      // THREE STOPS, and the finger in charge. The sheet rests with its top
+      // at one of: the very top of the screen (everything, scrollable),
+      // the middle (where it opens), or three-quarters down (a strip, with
+      // the title page readable above it). A drag moves it 1:1; on release
+      // it carries on the way it was thrown and settles on the nearest stop
+      // — or leaves, if it was thrown past the last one. Its list scrolls
+      // only when it is all the way up; lower down, dragging anywhere moves
+      // the sheet (dragging up is how you get to the list).
+      const vh = () => window.innerHeight;
+      const stops = () => [Math.max(54, Math.round(vh() * 0.07)), Math.round(vh() * 0.38), Math.round(vh() * 0.75)];
+      let stop = 1; // index into stops()
+      let y = vh(); // where the sheet's top is now
+      const place = (to, animate) => {
+        y = to;
+        panel.style.transition = animate ? "" : "none";
+        panel.style.transform = `translate3d(0, ${Math.round(to)}px, 0)`;
+        const top = stops()[0];
+        const k = Math.max(0, Math.min(1, 1 - (to - top) / Math.max(1, vh() - top)));
+        sheet.style.background = `rgba(4, 5, 10, ${(0.62 * k).toFixed(3)})`;
+      };
+      const settle = (i) => {
+        const moved = i !== stop;
+        stop = i;
+        panel.style.overflowY = i === 0 ? "auto" : "hidden";
+        if (i !== 0) panel.scrollTop = 0;
+        // room at the foot for the part of the sheet that hangs below the screen
+        panel.style.paddingBottom = `calc(${stops()[0] + 26}px + env(safe-area-inset-bottom, 0px))`;
+        place(stops()[i], true);
+        if (moved) haptic(8);
+      };
+      xrSheetLeave = () => place(vh(), true);
+      place(vh(), false);
+      requestAnimationFrame(() => requestAnimationFrame(() => { if (xrSheet === sheet) settle(1); }));
+      const onResize = () => { if (xrSheet === sheet) settle(stop); else window.removeEventListener("resize", onResize); };
+      window.addEventListener("resize", onResize);
+
+      let x0 = 0, y0 = null, startY = 0, dragging = false, fromHead = false;
+      const trail = []; // the last few positions, for the speed at release
       panel.addEventListener("touchstart", (e) => {
         if (e.touches.length !== 1) return;
         fromHead = !!e.target.closest(".xr-grab, .xr-brand");
-        if (!fromHead && panel.scrollTop > 0) { y0 = null; return; }
         x0 = e.touches[0].clientX;
         y0 = e.touches[0].clientY;
-        dy = 0;
-        t0 = Date.now();
+        startY = y;
         dragging = false;
+        trail.length = 0;
       }, { passive: true });
       panel.addEventListener("touchmove", (e) => {
         if (y0 == null) return;
-        dy = e.touches[0].clientY - y0;
+        const t = e.touches[0];
+        const dy = t.clientY - y0;
         if (!dragging) {
-          const dx = Math.abs(e.touches[0].clientX - x0);
-          if (dx > Math.abs(dy) + 4 || dy < -6) { y0 = null; return; } // a sideways swipe (the cast rail), or scrolling up
-          if (dy < 8) return;
+          const dx = Math.abs(t.clientX - x0);
+          if (dx > Math.abs(dy) + 4) { y0 = null; return; } // a sideways swipe: the cast rail
+          if (Math.abs(dy) < 7) return;
+          // all the way up, the list has first call on the finger: only a pull
+          // DOWN from the list's top (or from the bar) moves the sheet
+          if (stop === 0 && !fromHead && (dy < 0 || panel.scrollTop > 0)) { y0 = null; return; }
           dragging = true;
-          panel.style.transition = "none";
         }
         e.preventDefault();
-        panel.style.transform = `translateY(${Math.max(0, dy)}px)`;
-        sheet.style.background = `rgba(4, 5, 10, ${(0.6 * (1 - Math.min(1, dy / 420))).toFixed(3)})`;
+        const top = stops()[0];
+        let to = startY + dy;
+        if (to < top) to = top - Math.sqrt(top - to) * 2; // a little give past the top
+        place(to, false);
+        trail.push({ t: performance.now(), y: to });
+        if (trail.length > 6) trail.shift();
       }, { passive: false });
       const end = () => {
         if (y0 == null) return;
-        const flick = dy / Math.max(1, Date.now() - t0) > 0.55;
-        const go = dragging && (dy > 120 || (flick && dy > 40));
-        panel.style.transition = "";
-        panel.style.transform = "";
-        sheet.style.background = "";
         y0 = null;
+        if (!dragging) return;
         dragging = false;
-        if (go) closeXraySheet();
+        const a = trail[0], b = trail[trail.length - 1];
+        const v = a && b && b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0; // px per ms, down is +
+        const aim = y + v * 240;
+        const list = stops();
+        if (aim > vh() * 0.9 || (y > list[2] + 30 && v > 0.25)) return closeXraySheet();
+        let best = 0;
+        for (let k = 1; k < list.length; k++) if (Math.abs(list[k] - aim) < Math.abs(list[best] - aim)) best = k;
+        settle(best);
       };
       panel.addEventListener("touchend", end);
       panel.addEventListener("touchcancel", end);

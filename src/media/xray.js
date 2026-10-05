@@ -159,7 +159,7 @@ const tmdbMovie = async (tmdbId, imdbId) => {
     })),
     crew: (credits.crew || [])
       .filter((c) => ["Director", "Screenplay", "Writer", "Story", "Original Music Composer", "Director of Photography", "Editor"].includes(c.job))
-      .map((c) => ({ name: c.name, job: c.job })),
+      .map((c) => ({ name: c.name, job: c.job, photo: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : null })),
   };
 };
 
@@ -223,10 +223,10 @@ const buildTitle = async (type, imdbId) => {
   // some episode's actors, and belong to that episode's list, not the show's.
   const cast = anthology ? [] : mergePeople(billedFirst([...sourced, ...cm.billed.map((name) => ({ name }))], cm.billed));
   const crew = [];
-  const add = (job, names) => { for (const name of names) if (!crew.some((c) => c.name === name && c.job === job)) crew.push({ name, job }); };
+  const add = (job, names, photo = null) => { for (const name of names) if (!crew.some((c) => c.name === name && c.job === job)) crew.push({ name, job, ...(photo ? { photo } : {}) }); };
   add(isShow ? "Created / directed by" : "Director", cm.directors);
   add("Writer", cm.writers);
-  if (tm) for (const c of tm.crew) if (!["Director", "Writer", "Screenplay", "Story"].includes(c.job) || !crew.some((x) => x.name === c.name)) add(c.job, [c.name]);
+  if (tm) for (const c of tm.crew) if (!["Director", "Writer", "Screenplay", "Story"].includes(c.job) || !crew.some((x) => x.name === c.name)) add(c.job, [c.name], c.photo);
 
   const ratings = [];
   if (cm.imdbRating) ratings.push({ source: "IMDb", value: cm.imdbRating, scale: 10 });

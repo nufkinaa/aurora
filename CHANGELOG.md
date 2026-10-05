@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.30 — 2026-10-06
+
+- A hold you can feel. Holding a card to peek at it now gives a small tap under the finger the moment it opens — a vibration on Android, and on iPhones the click Safari makes for a switch (the system offers a web page nothing else). The X-Ray sheet ticks the same way when it settles on a stop.
+- The X-Ray sheet on a phone moves with the finger and has three places to rest: the very top of the screen (the whole list, scrollable), the middle (where it opens), and three-quarters down (a strip, with the title readable above it). Let go and it carries on the way it was thrown and settles on the nearest one, easing out; thrown past the last, it leaves. Its list scrolls only when the sheet is all the way up — lower down, dragging anywhere moves the sheet.
+- X-Ray leads with the filmmakers: the director, writers, cinematographer, editor and composer as people above the cast (one card each, jobs joined — "Director · Writer"), and for an episode its own director and writers first. They were lines in a table at the bottom. Portraits appear where the source has them.
+- Home's billboard on a phone has its round corners and its margin back — the slab it was — at the shorter height.
+
 ## 1.6.29 — 2026-10-06
 
 - "✓ 7 ready" is a round download button with a count badge now: the number is how many things you asked for have been downloaded and not opened yet. On a phone it stays where it is. On a computer it shows for ten seconds — when Aurora opens and whenever something new lands — then goes clear, and comes back when the pointer is over it.
