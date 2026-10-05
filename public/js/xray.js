@@ -77,7 +77,8 @@ const skeleton = () =>
 //   onClose, closeLabel } → the panel element.
 // `fallback`: an answer kept from earlier (a saved-offline copy carries its
 // own) — used when the server cannot be asked.
-export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = [], onClose, closeLabel = "Back to the title", link = true, fallback = null }) => {
+// `closeIcon`: a round ✕ instead of the worded button (the phone's sheet).
+export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = [], onClose, closeLabel = "Back to the title", closeIcon = false, link = true, fallback = null }) => {
   const isShow = type === "series" || type === "show";
   let cur = isShow && season && episode ? { season: +season, episode: +episode } : null;
   let episodes = [];
@@ -94,7 +95,9 @@ export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = 
     el("div", { class: "xr-top" },
       el("div", { class: "xr-brand" }, el("span", { class: "xr-badge" }, "X-Ray"), sub),
       stepper,
-      onClose && el("button", { class: "btn small focusable xr-close", onclick: onClose }, closeLabel)),
+      onClose && (closeIcon
+        ? el("button", { class: "focusable xr-close xr-x", "aria-label": "Close X-Ray", onclick: onClose }, "✕")
+        : el("button", { class: "btn small focusable xr-close", onclick: onClose }, closeLabel))),
     body);
 
   const paintStepper = () => {

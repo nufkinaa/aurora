@@ -3538,3 +3538,70 @@ html[data-look="glass"] .nav .nav-item.active[data-tone="light"] {
   animation-duration: 0.32s;
   animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
+
+/* ---------- X-Ray as a sheet over a title's page (2026-10-06) ----------
+   The phone's X-Ray rises over the page like the player's does over a film
+   (the sheet styles above are shared); these are the parts that differ: it is
+   fixed to the screen, sits over the tab bar, and carries a grab bar and a
+   round close button. */
+.xray-sheet-page {
+  position: fixed;
+  z-index: 300;
+  touch-action: none; /* the page behind does not scroll under a finger */
+}
+.xray-sheet-page.in {
+  background: rgba(4, 5, 10, 0.6);
+}
+.xray-sheet-page > .xray-panel {
+  width: 100%;
+  max-height: 86%;
+  padding: 16px 16px calc(26px + env(safe-area-inset-bottom, 0px));
+  border-radius: 26px 26px 0 0;
+  touch-action: pan-y;
+  transition: transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.xray-sheet-page .xr-top {
+  position: sticky;
+  top: -16px;
+  z-index: 5;
+  margin: -16px -16px 14px;
+  padding: 8px 16px 10px;
+  border-radius: 26px 26px 0 0;
+  box-shadow: none;
+  background: rgba(14, 16, 28, 0.97);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.xray-sheet-page .xr-people {
+  margin: 0 -16px;
+  padding: 2px 10px 6px;
+}
+.xr-grab {
+  order: -1;
+  flex: 0 0 100%;
+  height: 14px;
+  display: grid;
+  place-items: center;
+}
+.xr-grab::before {
+  content: "";
+  width: 38px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.3);
+}
+.xr-x {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.86rem;
+  line-height: 1;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.13);
+}
+.xr-x:active {
+  background: rgba(255, 255, 255, 0.24);
+}

@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.27 — 2026-10-06
+
+- X-Ray on a phone is a sheet. It rises over the title's page — the way it does over a film in the player — with a grab bar and a round ✕ in place of "Back to the title". Drag it down to put it away (from the bar at any time, or from the list when it is at its top; a quick flick is enough), or press the ✕, tap the page behind it, or go Back. The page underneath is no longer rearranged, so there is nothing to find your way back from.
+
 ## 1.6.26 — 2026-10-06
 
 - On a phone the top of the screen is no longer treated as a bar. The three small buttons up there (the logo, the gear, your profile) used to live in one invisible strip fixed across the top edge, and newer iPhones read a strip like that as the page's top bar — a flat band under the clock and a frosted band under that, with the picture starting below both. The strip is gone: the logo floats by itself at the left, the other two at the right, and nothing wide is pinned to the top, so a title's cover and Home's billboard are free to run to the top of the screen.

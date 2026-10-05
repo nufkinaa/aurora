@@ -1416,7 +1416,93 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       e.preventDefault();
       toggleXray();
     };
+    // ON A PHONE X-Ray is a sheet: it rises over the page (the way it does over
+    // a film in the player), with a grab bar and a round ✕, and goes away on a
+    // drag down, the ✕, a tap on the page behind it, or Back. The page under
+    // it is not rearranged at all — it used to fold down to its cover and hand
+    // the rest of the screen to X-Ray, which read as a different page with no
+    // obvious way back (elia, 2026-10-06).
+    let xrSheet = null;
+    const onSheetBack = (e) => {
+      e.preventDefault();
+      closeXraySheet();
+    };
+    const closeXraySheet = () => {
+      if (!xrSheet) return;
+      const s = xrSheet;
+      xrSheet = null;
+      s.classList.remove("in");
+      document.removeEventListener("ui-back", onSheetBack);
+      window.removeEventListener("hashchange", closeXraySheet);
+      document.documentElement.style.overflow = "";
+      xrBtn.classList.remove("on");
+      xrBtn.setAttribute("aria-pressed", "false");
+      setTimeout(() => s.remove(), 340);
+    };
+    const openXraySheet = async () => {
+      const { xrayPanel } = await import("../xray.js");
+      if (!screen.isConnected || xrSheet) return;
+      const panel = xrayPanel({ type: xrType, imdbId, ...xrEp, keys: xrKeys, onClose: closeXraySheet, closeIcon: true });
+      panel.querySelector(".xr-top")?.prepend(el("div", { class: "xr-grab", "aria-hidden": "true" }));
+      const sheet = (xrSheet = el("div", {
+        class: "xray-sheet xray-sheet-page ui-overlay",
+        onclick: (e) => { if (e.target === sheet) closeXraySheet(); },
+      }, panel));
+      document.body.append(sheet);
+      // two frames: the sheet has to be painted off-screen once to slide in
+      requestAnimationFrame(() => requestAnimationFrame(() => sheet.classList.add("in")));
+      document.documentElement.style.overflow = "hidden"; // the page behind holds still
+      document.addEventListener("ui-back", onSheetBack);
+      // a tap on a cast member goes to Search: the sheet does not follow
+      window.addEventListener("hashchange", closeXraySheet);
+      xrBtn.classList.add("on");
+      xrBtn.setAttribute("aria-pressed", "true");
+
+      // Drag it down to dismiss. From the bar at its top at any time; from
+      // its body only when the list is at its very top (otherwise the finger
+      // is scrolling the list). Past a third of a hand, or a quick flick, and
+      // it goes; less, and it springs back.
+      let x0 = 0, y0 = null, dy = 0, t0 = 0, dragging = false, fromHead = false;
+      panel.addEventListener("touchstart", (e) => {
+        if (e.touches.length !== 1) return;
+        fromHead = !!e.target.closest(".xr-grab, .xr-brand");
+        if (!fromHead && panel.scrollTop > 0) { y0 = null; return; }
+        x0 = e.touches[0].clientX;
+        y0 = e.touches[0].clientY;
+        dy = 0;
+        t0 = Date.now();
+        dragging = false;
+      }, { passive: true });
+      panel.addEventListener("touchmove", (e) => {
+        if (y0 == null) return;
+        dy = e.touches[0].clientY - y0;
+        if (!dragging) {
+          const dx = Math.abs(e.touches[0].clientX - x0);
+          if (dx > Math.abs(dy) + 4 || dy < -6) { y0 = null; return; } // a sideways swipe (the cast rail), or scrolling up
+          if (dy < 8) return;
+          dragging = true;
+          panel.style.transition = "none";
+        }
+        e.preventDefault();
+        panel.style.transform = `translateY(${Math.max(0, dy)}px)`;
+        sheet.style.background = `rgba(4, 5, 10, ${(0.6 * (1 - Math.min(1, dy / 420))).toFixed(3)})`;
+      }, { passive: false });
+      const end = () => {
+        if (y0 == null) return;
+        const flick = dy / Math.max(1, Date.now() - t0) > 0.55;
+        const go = dragging && (dy > 120 || (flick && dy > 40));
+        panel.style.transition = "";
+        panel.style.transform = "";
+        sheet.style.background = "";
+        y0 = null;
+        dragging = false;
+        if (go) closeXraySheet();
+      };
+      panel.addEventListener("touchend", end);
+      panel.addEventListener("touchcancel", end);
+    };
     const toggleXray = async () => {
+      if (window.innerWidth <= 720) return xrSheet ? closeXraySheet() : openXraySheet();
       const on = !screen.classList.contains("xray-on");
       if (on && !xrNode) {
         const { xrayPanel } = await import("../xray.js");
