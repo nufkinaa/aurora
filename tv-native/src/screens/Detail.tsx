@@ -205,6 +205,8 @@ function DetailHero({
   note,
   dense,
   bottomInset = 0,
+  poster,
+  secondary,
   children,
 }: {
   kicker: string;
@@ -223,13 +225,23 @@ function DetailHero({
   // up off the top of the screen and under the nav.
   dense?: boolean;
   bottomInset?: number;
+  // The site's `.detail-poster`: portrait art at the lockup's left (films; a
+  // show page's dock has no room for it). Skipped when the backdrop IS the
+  // poster — the same picture twice reads as broken.
+  poster?: ImgSource | null;
+  // A second, smaller row of actions under the main one (the site's icon row).
+  secondary?: React.ReactNode;
   children?: React.ReactNode; // the actions row
 }) {
   const meta = metaParts.filter(Boolean).map(String);
   const badgeList = badges.filter(Boolean) as string[];
   return (
     <View style={[styles.hero, {paddingBottom: bottomInset + spacing.lg}]} pointerEvents="box-none">
-      <View style={styles.lockup} pointerEvents="box-none">
+      <View style={styles.lockupRow} pointerEvents="box-none">
+      {poster ? (
+        <Image source={poster} style={styles.poster} resizeMode="cover" resizeMethod="resize" fadeDuration={200} />
+      ) : null}
+      <View style={[styles.lockup, poster && styles.lockupBeside]} pointerEvents="box-none">
         {/* No kicker in dense mode. "SERIES" is 22dp of vertical budget spent
             saying what the season pills and the episode rail below already say,
             and it was the line that ended up tucked behind the nav. */}
@@ -245,9 +257,14 @@ function DetailHero({
           ))}
         </View>
         {genres && genres.length ? (
-          <Text style={styles.genreLine} numberOfLines={1}>
-            {genres.slice(0, 4).join('  ·  ')}
-          </Text>
+          // Genre chips, as on the site — small, outlined, not focusable.
+          <View style={styles.genreRow}>
+            {genres.slice(0, 4).map(g => (
+              <Text key={g} style={styles.genreChip}>
+                {g}
+              </Text>
+            ))}
+          </View>
         ) : null}
         {synopsis ? (
           <Text style={styles.synopsis} numberOfLines={synopsisLines}>
@@ -263,7 +280,9 @@ function DetailHero({
         {children ? (
           <View style={[styles.actions, dense && styles.actionsDense]}>{children}</View>
         ) : null}
+        {secondary ? <View style={styles.actionsSecondary}>{secondary}</View> : null}
         {note ? <Text style={styles.note}>{note}</Text> : null}
+      </View>
       </View>
     </View>
   );
@@ -330,12 +349,14 @@ const GhostBtn = ({
   label,
   hasTVPreferredFocus,
   edgeLeft,
+  small,
   onPress,
   ref,
 }: {
   label: string;
   hasTVPreferredFocus?: boolean;
   edgeLeft?: boolean;
+  small?: boolean;
   onPress: () => void;
   // Forwarded to the Focusable so the page can register one of these as its
   // focus fallback (requestTVFocus lives on the host instance).
@@ -347,8 +368,8 @@ const GhostBtn = ({
     hasTVPreferredFocus={hasTVPreferredFocus}
     edgeLeft={edgeLeft}
     onPress={onPress}
-    style={styles.ghost}>
-    <Text style={styles.ghostText}>{label}</Text>
+    style={[styles.ghost, small && styles.ghostSmall]}>
+    <Text style={[styles.ghostText, small && styles.ghostTextSmall]}>{label}</Text>
   </Focusable>
 );
 
@@ -415,7 +436,8 @@ const EpisodeCard = React.memo(function EpisodeCardItem({ep, edgeLeft}: {ep: UiE
         {ep.durationLabel ? <Text style={styles.epDur}>{ep.durationLabel}</Text> : null}
         {ep.hasSubs ? <Text style={styles.epBadge}>CC</Text> : null}
         {ep.watched ? <Text style={styles.epBadge}>WATCHED</Text> : null}
-        {!ep.owned ? <Text style={styles.epBadge}>STREAM</Text> : null}
+        {/* No STREAM tag (the site dropped it, 2026-10-06): the ✓ on the still
+            says which episodes are on disk; the rest simply stream. */}
       </View>
     </Focusable>
   );
@@ -835,11 +857,12 @@ export default function Detail({
     setSrcPanel({type: 'movie', imdbId: id, label: item.title});
   };
   const playEpisode = useCallback(
-    (ep: Episode) => {
+    (ep: Episode, epTitle?: string) => {
       if (!canNavigate(navigation)) return;
       navigation.push('Player', {
         id: ep.id,
         title: `${item.title} · S${ep.season} E${ep.episode}`,
+        epTitle,
       });
     },
     [navigation, item.title],
@@ -920,7 +943,7 @@ export default function Detail({
         // Owned episodes play straight from disk; the rest go to Sources, which
         // is what makes the un-downloaded ones reachable at all.
         onPlay: ep
-          ? () => playEpisode(ep)
+          ? () => playEpisode(ep, title || (ep.title && !/^Episode \d+$/.test(ep.title) ? ep.title : undefined))
           : () => openEpisodeSources(seasonNo, episodeNo),
         owned: !!ep,
         durationLabel: fmtDuration(ep?.duration),
@@ -1292,7 +1315,17 @@ export default function Detail({
         synopsisLines={3}
         cast={streamMeta?.cast}
         note={srcNote}
-        bottomInset={safeBottom}>
+        bottomInset={safeBottom}
+        poster={item.backdrop ? imgSrc(item.cover || item.poster) : null}
+        secondary={
+          <>
+            {ownedMovieId && movieResume ? <GhostBtn small label="Start over" onPress={playFromStart} /> : null}
+            <GhostBtn small label="More like this" onPress={() => setLikePanel(true)} />
+            {ownedMovieId ? (
+              <GhostBtn small label={movieWatched ? '✓  Watched' : 'Mark watched'} onPress={toggleWatched} />
+            ) : null}
+          </>
+        }>
         {/* Keyed on OWNERSHIP, not on which shelf the card came from: a title
             the library holds plays the copy — starts instantly, seeks anywhere —
             and streaming becomes "Other versions". This is the site's own hero
@@ -1306,24 +1339,19 @@ export default function Detail({
             onPress={playMovie}
           />
         ) : (
-          <PrimaryBtn hasTVPreferredFocus edgeLeft label="▶  Stream now" onPress={openSources} />
+          // "Stream" — the site's word; a title not on disk streams, and the
+          // list of sources is where that choice is made.
+          <PrimaryBtn hasTVPreferredFocus edgeLeft label="▶  Stream" onPress={openSources} />
         )}
-        {ownedMovieId && movieResume ? (
-          <GhostBtn label="↺  Start over" onPress={playFromStart} />
-        ) : null}
         {ownedMovieId ? <GhostBtn label="Other versions" onPress={openSources} /> : null}
+        {streamMeta?.trailers?.length ? (
+          <GhostBtn label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
+        ) : null}
         <GhostBtn
           ref={listBtnRef}
           label={inList ? '✓  In My List' : '+  My List'}
           onPress={toggleList}
         />
-        {streamMeta?.trailers?.length ? (
-          <GhostBtn label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
-        ) : null}
-        <GhostBtn label="More like this" onPress={() => setLikePanel(true)} />
-        {ownedMovieId ? (
-          <GhostBtn label={movieWatched ? '✓  Watched' : 'Mark watched'} onPress={toggleWatched} />
-        ) : null}
       </DetailHero>
       {loading ? <ActivityIndicator color={colors.text} style={styles.loading} /> : null}
       {sourcesOverlay}
@@ -1425,6 +1453,18 @@ const styles = StyleSheet.create({
   // 64%: four actions on a film need the width, and the ramp is still
   // transparent well before the artwork's subject on the right.
   lockup: {maxWidth: '64%'},
+  lockupRow: {flexDirection: 'row', alignItems: 'flex-end', gap: spacing.lg},
+  lockupBeside: {flex: 1, maxWidth: '72%'},
+  // `.detail-poster` — 240px → 150dp, 2:3, the large radius and a deep shadow.
+  poster: {
+    width: 150,
+    height: 225,
+    borderRadius: radius.l,
+    backgroundColor: colors.bgRaised,
+    borderWidth: 1,
+    borderColor: 'rgba(226,229,238,0.3)',
+    boxShadow: '0 18px 40px rgba(0,0,0,0.55)',
+  },
   kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3},
   title: {
     color: colors.text,
@@ -1443,6 +1483,19 @@ const styles = StyleSheet.create({
   // Genres as a plain line, not chips. Five pills under a 52dp title is a second
   // row of furniture competing with the buttons for the eye.
   genreLine: {color: colors.textFaint, fontSize: fontSize.small, fontWeight: '700', marginTop: 6},
+  genreRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8},
+  genreChip: {
+    color: colors.textDim,
+    fontSize: 12,
+    fontWeight: '700',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 999,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+    overflow: 'hidden',
+  },
   synopsis: {color: colors.textDim, fontSize: fontSize.body, lineHeight: 26, marginTop: spacing.sm},
   cast: {color: colors.textDim, fontSize: fontSize.small, marginTop: 6},
   castLabel: {color: colors.textFaint, fontWeight: '800'},
@@ -1457,6 +1510,7 @@ const styles = StyleSheet.create({
   badgeText: {color: colors.text, fontSize: 12, fontWeight: '900', letterSpacing: 1},
   actions: {flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg, flexWrap: 'wrap'},
   actionsDense: {marginTop: spacing.md},
+  actionsSecondary: {flexDirection: 'row', gap: spacing.xs, marginTop: spacing.sm, flexWrap: 'wrap'},
   playBtn: {backgroundColor: colors.white, paddingVertical: 13, paddingHorizontal: 28},
   playText: {color: colors.bg, fontSize: fontSize.body, fontWeight: '800'},
   // Translucent rather than the flat surface colour: these sit on artwork now,
@@ -1470,6 +1524,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   ghostText: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
+  ghostSmall: {paddingVertical: 8, paddingHorizontal: 14, backgroundColor: 'rgba(255,255,255,0.09)'},
+  ghostTextSmall: {fontSize: fontSize.small},
   note: {color: colors.accent, fontSize: fontSize.small, fontWeight: '700', marginTop: spacing.sm},
   loading: {position: 'absolute', bottom: spacing.xl, left: spacing.contentLeft},
 

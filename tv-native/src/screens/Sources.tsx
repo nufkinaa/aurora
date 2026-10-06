@@ -485,17 +485,25 @@ export function SourcesPanel({
       // "Downloading — 47% at 3.2 MB/s", "Queued — starts when the current
       // downloads finish". Seeders stop being the story once a job owns the row.
       const jobLine = job && !isDone ? hint : null;
+      // What the copy IS, in plain words — "BluRay · DD+ · H.265" — the way the
+      // site's redrawn list reads (1.6.31). The release name is noise on a TV
+      // and is gone from the row.
+      const what = s.tags && s.tags.length ? s.tags.slice(0, 4).join(' · ') : s.release || s.filename;
       return (
         <View style={styles.rowWrap}>
-          {/* noScale: this row spans the screen, so a 4% scale grows it by ~60dp
-              and half of that lands on the download button beside it. */}
+          {/* THE ROW SAVES (or plays your copy once it is yours). Streaming a
+              source is the smaller button beside it: on the site the row is
+              Save and Stream is the secondary action, and a stream started by
+              mistake is a slow start the viewer did not ask for — so it is one
+              press further away (elia, 2026-10-06: "downloaded content easier
+              to play, harder to select a stream"). */}
           <Focusable
             scaleTo={1.01}
             hasTVPreferredFocus={
               claimOwned.current !== true &&
               dlKey(s.infoHash, s.fileIdx) === firstClaimKey.current
             }
-            onPress={() => play(s)}
+            onPress={() => (playsCopy ? play(s) : !isDone && requestDownload(s))}
             style={[styles.row, isDone && styles.rowOwned]}
             highlightColor={colors.surfaceHover}>
             {/* .source-quality.owned-chip — the quality pill turns green once the
@@ -513,25 +521,23 @@ export function SourcesPanel({
             <View style={styles.info}>
               <View style={styles.titleLine}>
                 <Text style={styles.release} numberOfLines={1}>
-                  {s.release || s.filename}
+                  {what}
                 </Text>
-                {/* The badges hold their ground and the NAME ellipsizes — the
-                    site had to fix exactly this, where a long release name cut
-                    "✓ DOWNLOADED · ★ BEST" off the end of the row. */}
+                {/* The badges hold their ground and the NAME ellipsizes. */}
                 {badge ? (
                   <Text style={badge.owned ? styles.ownedTag : styles.gettingTag}>
                     {badge.text}
                   </Text>
                 ) : null}
-                {s.recommended ? <Text style={styles.best}>★ BEST</Text> : null}
-                {s.cam ? <Text style={styles.cam}>CAM</Text> : null}
-                {s.dubbed ? <Text style={styles.dub}>DUB</Text> : null}
+                {s.recommended ? <Text style={styles.best}>Best</Text> : null}
+                {s.cam ? <Text style={styles.cam}>Cam</Text> : null}
+                {s.dubbed ? <Text style={styles.dub}>Dub</Text> : null}
               </View>
               <View style={styles.metaLine}>
                 {playsCopy ? (
                   // A downloaded source plays off the disk, so seeders and swarm
                   // health stopped being the story for this row (.owned-note).
-                  <Text style={styles.ownedNote}>Plays your copy · instant</Text>
+                  <Text style={styles.ownedNote}>In your library · plays instantly</Text>
                 ) : jobLine ? (
                   <Text
                     style={job?.status === 'error' ? styles.jobLineFailed : styles.jobLine}
@@ -539,21 +545,28 @@ export function SourcesPanel({
                     {jobLine}
                   </Text>
                 ) : (
-                  <Text style={[styles.seeds, {color: seedColor}]}>● {s.seeders}</Text>
+                  <Text style={[styles.seeds, {color: seedColor}]}>{`${s.seeders} seeders`}</Text>
                 )}
                 {s.sizeString ? <Text style={styles.meta}>{s.sizeString}</Text> : null}
-                {jobLine || playsCopy ? null : (
-                  <>
-                    {s.languages?.length ? (
-                      <Text style={styles.meta}>{s.languages.join(' · ')}</Text>
-                    ) : null}
-                    {s.provider ? <Text style={styles.meta}>{s.provider}</Text> : null}
-                  </>
-                )}
+                {jobLine || playsCopy ? null : s.languages?.length ? (
+                  <Text style={styles.meta}>{s.languages.join(' · ')}</Text>
+                ) : null}
               </View>
             </View>
-            <Icon name="play" size={22} color={colors.text} />
+            {playsCopy ? <Icon name="play" size={22} color={colors.text} /> : null}
           </Focusable>
+          {/* Stream it now, nothing saved — gone once the copy is yours. */}
+          {playsCopy ? null : (
+            <Focusable
+              scaleTo={1.03}
+              onPress={() => play(s)}
+              style={styles.streamBtn}
+              accessibilityLabel="Stream this source now, without saving"
+              highlightColor={colors.surfaceHover}>
+              <Icon name="play" size={18} color={colors.text} />
+              <Text style={styles.streamCaption}>Stream</Text>
+            </Focusable>
+          )}
           {/* A finished download is nothing to press; anything else can be
               (re)requested, including a failed one. */}
           <Focusable
@@ -584,8 +597,8 @@ export function SourcesPanel({
               // hover, so an unlabelled glyph in a dark box read as an empty
               // panel and the download option looked like it wasn't there.
               <>
-                <Icon name="download" size={24} color={colors.text} />
-                <Text style={styles.dlCaption}>SAVE</Text>
+                <Icon name="download" size={22} color={colors.text} />
+                <Text style={styles.dlCaption}>Save</Text>
               </>
             )}
           </Focusable>
@@ -637,9 +650,7 @@ export function SourcesPanel({
               {season ? `  ·  S${season} E${episode}` : ''}
             </Text>
             <Text style={styles.sub}>
-              {count
-                ? `${count} source${count === 1 ? '' : 's'} — ★ is the best pick`
-                : 'Choose a source — ★ is the best pick'}
+              {count ? `${count} source${count === 1 ? '' : 's'}` : 'Finding sources'}
             </Text>
           </View>
           <Focusable
@@ -665,22 +676,22 @@ export function SourcesPanel({
             style={[styles.row, styles.rowOwned]}
             highlightColor={colors.surfaceHover}>
             <View style={[styles.qBadge, {borderColor: OWNED}, styles.qBadgeOwned]}>
-              <Text style={[styles.qText, {color: OWNED}]}>YOURS</Text>
+              <Text style={[styles.qText, {color: OWNED}]}>Yours</Text>
             </View>
             <View style={styles.info}>
               <View style={styles.titleLine}>
                 <Text style={styles.release} numberOfLines={1}>
-                  {ownedRow.label || 'Your downloaded copy'}
+                  In your library
                 </Text>
-                <Text style={styles.ownedTag}>✓ DOWNLOADED</Text>
               </View>
               <View style={styles.metaLine}>
-                <Text style={styles.ownedNote}>
-                  Starts instantly · seek anywhere · full quality
-                </Text>
+                <Text style={styles.ownedNote}>Plays instantly</Text>
               </View>
             </View>
-            <Icon name="play" size={22} color={colors.text} />
+            <View style={styles.playPill}>
+              <Icon name="play" size={16} color={colors.bg} />
+              <Text style={styles.playPillText}>Play</Text>
+            </View>
           </Focusable>
         </View>
       ) : null}
@@ -797,9 +808,10 @@ const styles = StyleSheet.create({
   info: {flex: 1, minWidth: 0},
   titleLine: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm},
   release: {color: colors.text, fontSize: fontSize.body, fontWeight: '700', flexShrink: 1},
-  best: {color: '#f5c542', fontSize: fontSize.small, fontWeight: '900'},
-  cam: {color: '#ff8080', fontSize: fontSize.small, fontWeight: '900'},
-  dub: {color: '#fbbf24', fontSize: fontSize.small, fontWeight: '900'},
+  // The small word badges, as pills like the site's `.src-badge`.
+  best: {color: '#f5c542', fontSize: 12, fontWeight: '900', borderWidth: 1, borderColor: 'rgba(245,197,66,0.45)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden', flexShrink: 0},
+  cam: {color: '#ff8080', fontSize: 12, fontWeight: '900', borderWidth: 1, borderColor: 'rgba(255,128,128,0.45)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden', flexShrink: 0},
+  dub: {color: '#fbbf24', fontSize: 12, fontWeight: '900', borderWidth: 1, borderColor: 'rgba(251,191,36,0.45)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden', flexShrink: 0},
   metaLine: {flexDirection: 'row', gap: spacing.md, marginTop: 4, flexWrap: 'wrap'},
   seeds: {fontSize: fontSize.small, fontWeight: '800'},
   meta: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '600'},
@@ -838,4 +850,28 @@ const styles = StyleSheet.create({
   // Widened for the ring: the site went 54 -> 84 for exactly this reason, the
   // ring and the percentage inside it were fighting for the same few pixels.
   dlBtn: {width: 76, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderRadius: radius.m},
+  // The secondary Stream button: an outline, a glyph and the word — quieter
+  // than Save on purpose.
+  streamBtn: {
+    width: 76,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: radius.m,
+  },
+  streamCaption: {color: colors.textDim, fontSize: 10, fontWeight: '900', letterSpacing: 1},
+  // The owned row's Play, a filled green pill where the other rows keep their buttons.
+  playPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: OWNED,
+    borderRadius: radius.pill,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+  },
+  playPillText: {color: colors.bg, fontSize: fontSize.small, fontWeight: '900'},
 });

@@ -621,6 +621,14 @@ export const api = {
     memo(`genres:${type}`, 10 * 60000, () =>
       request<{ genres: string[] }>(`/api/catalog/genres?type=${encodeURIComponent(type)}`),
     ),
+  // The AI tab (src/routes/ai.js). status says whether a key is configured.
+  aiStatus: () => request<{enabled: boolean}>('/api/ai/status'),
+  aiRecommend: (vibe: string, mix: number, era: string, length: string) =>
+    request<{items: HeroItem[]; cached?: boolean}>('/api/ai/recommend', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({vibe, mix, era, length}),
+    }),
   discoverSearch: (q: string) =>
     request<Discover>(`/api/discover/search?q=${encodeURIComponent(q)}`),
   discoverMeta: (type: 'movie' | 'series', imdbId: string) =>

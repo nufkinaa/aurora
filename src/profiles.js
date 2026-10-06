@@ -866,7 +866,26 @@ const continueWatching = (profileId) => {
       items.push({ ...item, progress: prog });
     }
   }
-  return items;
+  return items.map(realEpisodeName);
+};
+
+// A library episode whose file carried no name is "Episode 3" in the scanner;
+// the title page shows its real name from Cinemeta, and the Continue Watching
+// card and the player's header said "Episode 3" beside it (the Mi TV pass,
+// 2026-10-06). When the show's metadata is already in memory — never a fetch
+// from here — the card gets the real name too.
+const realEpisodeName = (entry) => {
+  try {
+    if (!entry || !entry.showId || !/^Episode \d+$/.test(entry.title || "")) return entry;
+    const show = scanner.findById(entry.showId);
+    const imdbId = require("./media/identity").imdbIdFor(show);
+    const meta = imdbId ? require("./media/discover").metaCached("series", imdbId) : null;
+    const season = meta && meta.seasons && meta.seasons.find((se) => se.number === entry.season);
+    const ep = season && season.episodes.find((e) => e.episode === entry.episode);
+    return ep && ep.title && !/^Episode \d+$/.test(ep.title) ? { ...entry, title: ep.title } : entry;
+  } catch {
+    return entry;
+  }
 };
 
 const nextEpisode = (showId, episodeId) => {

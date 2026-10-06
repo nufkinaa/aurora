@@ -34,7 +34,7 @@
 //    property the card layer was rebuilt around.
 import React, {useCallback, useMemo, useState} from 'react';
 import {View, Text, StyleSheet, Animated, TVFocusGuideView} from 'react-native';
-import Card, {CARD_W, CARD_H, WIDE_W, WIDE_H} from './Card';
+import Card, {CARD_W, CARD_H, FRAME_W, FRAME_H} from './Card';
 import {HeroItem} from '../api';
 import {defer, useSlide} from '../motion';
 import theme from '../theme';
@@ -87,11 +87,12 @@ function Row({
   onRemove?: (item: HeroItem) => void;
 }) {
   // One step = a card plus the gap after it.
-  const step = (wide ? WIDE_W : CARD_W) + spacing.md;
+  // A wide shelf is Continue Watching, which draws the frame card now.
+  const step = (wide ? FRAME_W : CARD_W) + spacing.md;
   // Every card in the row is absolutely positioned, so none of them contributes
   // height and the track would collapse to nothing. Both card shapes have a
   // known size (Card.tsx owns the geometry), so the row states it outright.
-  const cardH = wide ? WIDE_H : CARD_H;
+  const cardH = wide ? FRAME_H : CARD_H;
   const tx = useSlide();
   // Where the window is centred. State, because it changes what is mounted —
   // but it only changes when focus nears the window's edge (WINDOW_SLACK), not
@@ -160,6 +161,7 @@ function Row({
                   onPress={onSelect}
                   onFocus={focusCard}
                   wide={wide}
+                  frame={wide}
                   showKind={showKind}
                   onRemove={onRemove}
                   // Nothing sits to the left of card 0, so LEFT from it belongs

@@ -13,6 +13,7 @@ import Search from './screens/Search';
 import Detail from './screens/Detail';
 import Sources from './screens/Sources';
 import WhatsNew from './screens/WhatsNew';
+import Pick from './screens/Pick';
 import Downloads from './screens/Downloads';
 import Player from './playback/Player';
 import Ambient from './components/Ambient';
@@ -29,6 +30,7 @@ export type RootStackParamList = {
   Settings: undefined;
   Search: undefined;
   WhatsNew: undefined;
+  Pick: undefined;
   Downloads: undefined;
   Detail: {item: HeroItem};
   Sources: {
@@ -50,7 +52,9 @@ export type RootStackParamList = {
   // `restart` is the site's `?restart=1`: play from 0 and ignore the saved
   // position (Detail's "Start over").
   // `party` is a watch-party code to join once the player is up.
-  Player: {id: string; title: string; stream?: TorrentPlayItem; restart?: boolean; party?: string};
+  // `epTitle` is the episode's real name from the page that launched it (the
+  // library record may only know "Episode 1").
+  Player: {id: string; title: string; epTitle?: string; stream?: TorrentPlayItem; restart?: boolean; party?: string};
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -96,6 +100,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Settings" component={Settings} />
         <Stack.Screen name="Search" component={Search} />
         <Stack.Screen name="WhatsNew" component={WhatsNew} />
+        <Stack.Screen name="Pick" component={Pick} />
         <Stack.Screen name="Downloads" component={Downloads} />
         <Stack.Screen name="Detail" component={Detail} />
         <Stack.Screen name="Sources" component={Sources} />

@@ -3,6 +3,18 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.36 — 2026-10-06
+
+- Aurora TV 5.1.0 — the TV catches up with the site's look (elia's ten points after the Mi TV pass):
+  - Cards carry the site's one-pixel light edge.
+  - **AI** takes New's place in the side rail: describe the mood, pick Movies or Shows, an era and a length, and the recommender answers with cards and a line on why each one fits. New lives under Settings → What's new (with its dot).
+  - A film's page has the poster at the lockup's left, genre chips, Play / Other versions / Trailer / My List in one row and Start over / More like this / Mark watched as smaller pills under it; "Stream now" is "Stream". No STREAM tags on episode or landscape cards.
+  - Sources read like the site's list: the quality, what the copy is in plain words (BluRay · DD+ · H.265), seeders and size — no release names. **Pressing a row saves it**; Stream is the smaller button beside Save, so a stream is one press further away than before, and your own copy is a green "Yours · In your library · Plays instantly" row with Play.
+  - A slimmer player: smaller buttons, a tighter top and bottom band, the title at the row size — more picture. Ticks on the bar where the intro starts and ends and where the credits begin, like the site. The popups are narrower and tighter and sit just above the bar; Autoplay only shows for an episode.
+  - Continue Watching cards are the site's: 16:10, the frame you stopped on (a library title) or the landscape art, the title set large on a deep fade, the episode and "▶ N min left" under it.
+  - The billboard's dots are the site's lit pill. **RIGHT on the last hero button turns the billboard a slide, LEFT on the first turns it back; UP from the hero opens the side rail.**
+  - Tidy-ups: the episode player and Continue Watching say the episode's real name, not "Episode 1"; Settings shows one chip for Sci-Fi however the sources spell it.
+
 ## 1.6.35 — 2026-10-06
 
 - Aurora TV 5.0.3, from a full pass on a Xiaomi TV (Android 14, 2 GB): the nav rail's Search is reachable again — UP from Home jumped to the profile pill because two focus claims raced as the panel opened, so Search could only be reached by wrapping the other way; pressing a lit rail item now still goes there (Movies from a film's page, Preferences from My downloads — it used to just close the rail); the Sources screen is opaque, so the title page no longer ghosts between the rows; the subtitles menu opens scrolled to the ticked track instead of on a list that looked unmarked; and the first launch after the TV wakes gives the house server a second ping before falling over to the remote one, which on a closed server meant the QR sign-in instead of the profile picker.

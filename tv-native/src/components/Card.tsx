@@ -26,6 +26,11 @@ export const CARD_H = 186; // 176 × 0.70, 2:3 (components.css:321-324)
 // place the card set is not ×0.70 — D3 pinned both shapes directly.
 export const WIDE_W = 176;
 export const WIDE_H = 99;
+// Continue Watching (glass.css, 2026-10-06): 320px at 16:10 on the site, with
+// the picture you stopped on, the title set large on a deep fade and what is
+// left under it. ×0.70 here.
+export const FRAME_W = 224;
+export const FRAME_H = 140;
 
 // `.card-shade` (components.css:348) — a two-stop axis-aligned gradient, drawn as
 // one. It was a stretched PNG, which put a single bitmap across both a 124×186 and
@@ -45,6 +50,24 @@ const Shade = React.memo(function CardShade() {
   );
 });
 
+// The frame card's fade (glass.css `.card.wide .card-shade`): deep at the
+// foot so the large title reads over any picture, clear by two-thirds up.
+const FrameShade = React.memo(function CardFrameShade() {
+  return (
+    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Defs>
+        <LinearGradient id="cardFrameShade" x1="0" y1="1" x2="0" y2="0">
+          <Stop offset="0" stopColor="#05060c" stopOpacity="0.95" />
+          <Stop offset="0.24" stopColor="#05060c" stopOpacity="0.72" />
+          <Stop offset="0.52" stopColor="#05060c" stopOpacity="0.18" />
+          <Stop offset="0.68" stopColor="#05060c" stopOpacity="0" />
+        </LinearGradient>
+      </Defs>
+      <Rect x="0" y="0" width="100%" height="100%" rx={radius.m} fill="url(#cardFrameShade)" />
+    </Svg>
+  );
+});
+
 function Card({
   item,
   index,
@@ -53,6 +76,7 @@ function Card({
   onRemove,
   hasTVPreferredFocus,
   wide,
+  frame,
   hideLabel,
   showKind,
   edgeLeft,
@@ -76,6 +100,9 @@ function Card({
   onRemove?: (item: HeroItem) => void;
   hasTVPreferredFocus?: boolean;
   wide?: boolean;
+  // Continue Watching's card: 16:10, the frame you stopped on, the title set
+  // large and what is left under it (the site's glass `.card.wide`).
+  frame?: boolean;
   hideLabel?: boolean;
   // Draw the FILM / SERIES corner tag, on rows that mix the two.
   showKind?: boolean;
@@ -90,16 +117,26 @@ function Card({
 }) {
   const isEpisode = !!item.showId && item.type !== 'show';
   const landscape = wide || isEpisode;
-  // `cover` on BOTH shapes, which is what the site does — components.js:121 hands
-  // `item.cover` to the <img> with no branch and lets `.card.wide` crop it 16:9.
-  // A landscape still would read better and elia is fixing that ON THE SITE
-  // first; see SPEC/99-open.md §I.2. Do not change it here ahead of the site.
-  const src = imgSrc(item.cover || item.poster);
-  const showLabel = !hideLabel && (landscape || item.upNext);
   const prog = item.progress;
   const pct =
     prog && prog.duration > 0 && !prog.finished
       ? Math.min(100, Math.round((prog.position / prog.duration) * 100))
+      : null;
+  // The picture. A frame card (Continue Watching) shows the moment you stopped
+  // on when the server can cut it — a library title with a position — else the
+  // title's landscape art, else the poster (components.js:164-170). Posters
+  // keep the cover.
+  const canFrame = frame && prog && prog.position > 20 && item.id && !String(item.id).startsWith('torrent|');
+  const src = imgSrc(
+    canFrame
+      ? `/img/frame/${encodeURIComponent(item.id)}?t=${Math.floor(prog!.position)}`
+      : (frame && !isEpisode && item.backdrop) || item.cover || item.poster,
+  );
+  const showLabel = !hideLabel && (landscape || item.upNext);
+  // "N min left", under the title of a card mid-way (the site's glass look).
+  const left =
+    frame && prog && pct != null && prog.duration > 0
+      ? `${Math.max(1, Math.round((prog.duration - prog.position) / 60))} min left`
       : null;
 
   // The ✕ works on "up next" cards again: the server grew a real dismissal
@@ -123,11 +160,9 @@ function Card({
   // posters"; elia took it. The type is NOT shrunk to make it fit — P11 struck
   // that, and the 14dp floor is the reason the pill is that wide in the first
   // place. A wide card has the width to spare, so it keeps the badge.
-  const leftTag: 'new' | 'stream' | null = isNew
-    ? 'new'
-    : item.source === 'stream' && landscape
-    ? 'stream'
-    : null;
+  // No STREAM pill any more (the site dropped it, 2026-10-06): NEW is the only
+  // left-corner tag.
+  const leftTag: 'new' | null = isNew ? 'new' : null;
   // components.js:129 suppresses the kind tag whenever the ✕ is present — that
   // corner belongs to the ✕.
   const kind = showKind && !landscape && !onRemove;
@@ -172,7 +207,7 @@ function Card({
           ) : null}
         </>
       }
-      style={landscape ? styles.cardWide : styles.card}>
+      style={frame ? styles.cardFrame : landscape ? styles.cardWide : styles.card}>
       {src ? (
         // resizeMethod="resize": decode at view size, not source size — dozens of
         // posters decoded full-size is a silent memory/CPU tax on a TV.
@@ -205,13 +240,27 @@ function Card({
         </View>
       )}
 
-      {showLabel ? <Shade /> : null}
+      {showLabel ? (frame ? <FrameShade /> : <Shade />) : null}
 
       {/* `.card-label` — the show name above "S1 E1 · Episode" on an episode card,
           the plain title otherwise. One line, tail-ellipsised: the CSS is
           `overflow:hidden; text-overflow:ellipsis; white-space:nowrap`
           (components.css:372-374). */}
-      {showLabel ? (
+      {showLabel && frame ? (
+        // The frame card's words: the show's name (or the film's title) set
+        // large, the episode under it, then "▶ N min left".
+        <View style={styles.frameLabel} pointerEvents="none">
+          <Text style={styles.frameTitle} numberOfLines={1} ellipsizeMode="tail">
+            {isEpisode ? item.showTitle || item.title : item.title}
+          </Text>
+          {isEpisode ? (
+            <Text style={styles.frameSub} numberOfLines={1} ellipsizeMode="tail">
+              {`S${item.season} E${item.episode} · ${item.title}`}
+            </Text>
+          ) : null}
+          {left ? <Text style={styles.frameMeta}>{`▶  ${left}`}</Text> : null}
+        </View>
+      ) : showLabel ? (
         <View style={[styles.label, pct != null && styles.labelRaised]} pointerEvents="none">
           {isEpisode ? (
             <>
@@ -233,17 +282,6 @@ function Card({
       {leftTag === 'new' ? (
         <View style={[styles.tag, styles.tagLeft, styles.tagNew]} pointerEvents="none">
           <Text style={[styles.tagText, styles.tagNewText]}>NEW</Text>
-        </View>
-      ) : null}
-      {leftTag === 'stream' ? (
-        <View style={[styles.tag, styles.tagLeft]} pointerEvents="none">
-          {/* maxWidth 81 on a 124dp card = 124 − 7 − 25 − 7 − 4 (§B row 58). At the
-              estimated advance the pill measures ~76dp and the clamp never
-              engages; it exists so the word can never reach the kind tag or the
-              card edge. NEVER shrink the type to make it fit — P11 struck that. */}
-          <Text style={styles.tagText} numberOfLines={1} ellipsizeMode="tail">
-            STREAM
-          </Text>
         </View>
       ) : null}
 
@@ -268,7 +306,7 @@ function Card({
       ) : null}
 
       {pct != null ? (
-        <View style={styles.progress} pointerEvents="none">
+        <View style={[styles.progress, frame && styles.progressFrame]} pointerEvents="none">
           <View style={[styles.progressFill, {width: `${pct}%`}]}>
             <View style={styles.progressHead} />
           </View>
@@ -283,9 +321,19 @@ export default React.memo(Card);
 const styles = StyleSheet.create({
   // No overflow:'hidden' — `.card` is explicitly not clipped (components.css:237-241),
   // and clipping here would cut the focus treatment off every card.
-  card: {width: CARD_W, height: CARD_H, borderRadius: radius.m, backgroundColor: colors.bgRaised},
-  cardWide: {width: WIDE_W, height: WIDE_H, borderRadius: radius.m, backgroundColor: colors.bgRaised},
-  poster: {width: '100%', height: '100%', borderRadius: radius.m},
+  // The site's hairline: `outline: 1px solid rgba(226,229,238,.3)` on every
+  // card (glass.css, 2026-10-06) — a light edge that lifts the artwork off the
+  // page. Drawn as the card's own border, inside the radius.
+  card: {width: CARD_W, height: CARD_H, borderRadius: radius.m, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: 'rgba(226,229,238,0.3)'},
+  cardWide: {width: WIDE_W, height: WIDE_H, borderRadius: radius.m, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: 'rgba(226,229,238,0.3)'},
+  cardFrame: {width: FRAME_W, height: FRAME_H, borderRadius: radius.m, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: 'rgba(226,229,238,0.3)'},
+  poster: {width: '100%', height: '100%', borderRadius: radius.m - 1},
+  // The frame card's words — glass.css `.card.wide .card-label`: 16/16/24 → ×0.7.
+  frameLabel: {position: 'absolute', left: 11, right: 11, bottom: 17},
+  frameTitle: {color: colors.text, fontSize: 17, fontWeight: '800', letterSpacing: -0.2, lineHeight: 20, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 10},
+  frameSub: {color: 'rgba(243,244,248,0.84)', fontSize: 13, fontWeight: '600', marginTop: 1},
+  frameMeta: {color: 'rgba(243,244,248,0.8)', fontSize: 13, fontWeight: '600', marginTop: 3},
+  progressFrame: {left: 11, right: 11, bottom: 9, height: 3},
   fallbackCentre: {
     position: 'absolute',
     top: 0,

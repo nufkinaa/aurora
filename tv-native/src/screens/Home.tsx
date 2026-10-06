@@ -34,7 +34,7 @@ import {warmItem, warmSections} from '../prefetch';
 import {onMessage} from '../realtime';
 import {loadPrefs} from '../storage';
 import {track} from '../usage';
-import {railOpen, useFocusFallback, useIsLive} from '../focus';
+import {focusJustMoved, railOpen, requestRailOpen, useFocusFallback, useIsLive, useTVKeys} from '../focus';
 import {defer, useSlide} from '../motion';
 import {useApp} from '../AppContext';
 import {RootStackParamList} from '../navigation';
@@ -434,6 +434,50 @@ export default function Home({
     ty.to(0);
   }, [setTop, ty]);
 
+  // THE HERO'S OWN KEYS (elia, 2026-10-06): RIGHT on the last button and LEFT
+  // on the first move the billboard a slide, the way the site's dots do with a
+  // mouse; UP from any of its buttons opens the nav rail (LEFT used to). The
+  // button that holds focus reports its index; `focusJustMoved` keeps a press
+  // that merely moved focus between the buttons from also turning the slide.
+  const heroBtn = useRef(-1); // index of the focused hero button, -1 = not in the band
+  const heroBtnCount = useRef(2);
+  // How many buttons the hero band draws right now — the handler's "last button".
+  heroBtnCount.current = 2 + (trailerOn ? 1 : 0) + Math.min(2, parties.length);
+  const turnHero = useCallback(
+    (dir: 1 | -1) => {
+      if (heroes.length < 2) return;
+      holdUntil.current = Date.now() + 15000;
+      if (trailerBusy.current || trailerOnRef.current) stopTrailer(false);
+      setHeroIdx(i => (i + dir + heroes.length) % heroes.length);
+    },
+    [heroes.length, stopTrailer],
+  );
+  useTVKeys(
+    useCallback(
+      (evt: {eventType: string}) => {
+        const t = evt.eventType;
+        if (heroBtn.current < 0 || !isTop.current) return;
+        if (t === 'up') {
+          requestRailOpen();
+          return;
+        }
+        if (focusJustMoved(120)) return;
+        if (t === 'right' && heroBtn.current === heroBtnCount.current - 1) turnHero(1);
+        else if (t === 'left' && heroBtn.current === 0) turnHero(-1);
+      },
+      [turnHero],
+    ),
+  );
+  const onHeroBtn = useCallback(
+    (i: number) => (f: boolean) => {
+      if (f) {
+        heroBtn.current = i;
+        toHero();
+      } else if (heroBtn.current === i) heroBtn.current = -1;
+    },
+    [toHero],
+  );
+
   const toRow = useCallback(
     (index: number) => {
       setTop(false);
@@ -675,9 +719,8 @@ export default function Home({
                 icon="play"
                 label={hero.source === 'stream' ? 'Stream' : 'Play'}
                 hasTVPreferredFocus
-                // First button of the hero band, so LEFT from it opens the rail.
-                edgeLeft
-                onFocusChange={f => f && toHero()}
+                // Not edgeLeft: LEFT here is "previous slide"; UP opens the rail.
+                onFocusChange={onHeroBtn(0)}
                 onPress={() => {
                   holdUntil.current = Date.now() + 15000;
                   heroPlay(hero);
@@ -686,7 +729,7 @@ export default function Home({
               <Btn
                 icon="info"
                 label="Details"
-                onFocusChange={f => f && toHero()}
+                onFocusChange={onHeroBtn(1)}
                 onPress={() => openDetail(hero)}
               />
               {trailerOn ? (
@@ -694,17 +737,17 @@ export default function Home({
                   small
                   glyph={unmuted ? '🔊' : '🔇'}
                   label={unmuted ? 'Mute' : 'Unmute'}
-                  onFocusChange={f => f && toHero()}
+                  onFocusChange={onHeroBtn(2)}
                   onPress={toggleMute}
                 />
               ) : null}
-              {parties.slice(0, 2).map(p => (
+              {parties.slice(0, 2).map((p, i) => (
                 <Btn
                   key={p.code}
                   small
                   glyph="👥"
                   label={`Join ${p.host}'s party`}
-                  onFocusChange={f => f && toHero()}
+                  onFocusChange={onHeroBtn(2 + (trailerOn ? 1 : 0) + i)}
                   onPress={() => joinParty(p)}
                 />
               ))}
@@ -733,7 +776,7 @@ export default function Home({
                 they would be extra stops in the hero band for something the
                 rotation already does. Same call as the card's ✕ (P12). */}
             {heroes.length > 1 ? (
-              <View style={styles.dots} pointerEvents="none">
+              <View style={[styles.dots, {bottom: heroPadBottom + 20}]} pointerEvents="none">
                 {heroes.map((h, i) => (
                   <View
                     key={h.id || h.imdbId || String(i)}
@@ -824,9 +867,11 @@ const styles = StyleSheet.create({
   // right: --page-x, bottom: 22px → 11dp (page rhythm, ×0.505). The 8dp dot is a
   // graphic at ×1.0; the site's 7px button padding becomes the gap that keeps
   // them apart.
-  dots: {position: 'absolute', right: spacing.pageX, bottom: 11, flexDirection: 'row', gap: 16},
-  dot: {width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.28)'},
-  dotOn: {backgroundColor: '#ffffff'},
+  // glass.css `.hero-dots`: 7dp dots at 0.36, the current one a 22-wide lit
+  // pill, sitting on the action buttons' row at the page's right edge.
+  dots: {position: 'absolute', right: spacing.pageX, flexDirection: 'row', alignItems: 'center', gap: 5},
+  dot: {width: 7, height: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.36)'},
+  dotOn: {width: 22, backgroundColor: '#ffffff', boxShadow: '0 0 10px rgba(255,255,255,0.5)'},
 
   noHeroBar: {paddingTop: 27, paddingLeft: spacing.contentLeft, flexDirection: 'row'},
   updateChip: {

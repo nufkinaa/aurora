@@ -1,4 +1,4 @@
 {
-  "versionName": "5.0.3",
-  "notes": "Fixes from a full pass on a Xiaomi TV: Search in the side rail is reachable again (UP from Home used to land on the profile pill); pressing a lit rail item from a title page goes there; the sources list is solid, with no page text ghosting behind it; the subtitles menu opens on the track you have on; and the first launch after the TV wakes gives the house server a second chance before using the remote one."
+  "versionName": "5.1.0",
+  "notes": "The TV catches up with the site. AI takes New’s place in the side rail: describe a mood and get picks with a line on why. A film’s page has its poster, genre chips and a tidier row of buttons. Sources read in plain words (BluRay · DD+ · H.265) — pressing a row saves it, Stream is the smaller button beside Save, and your own copy is the green row at the top. A slimmer player with intro and credits marks on the bar and smaller popups. Continue Watching shows the frame you stopped on with what is left. RIGHT on the last billboard button turns the slide, LEFT on the first turns it back, UP opens the side rail."
 }

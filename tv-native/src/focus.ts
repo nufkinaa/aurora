@@ -160,6 +160,25 @@ export const noteRail = (open: boolean) => {
 };
 export const railOpen = () => railOpenCount > 0;
 
+// The live rail registers how to open itself, so a screen can summon it from a
+// key the rail does not own — Home's hero takes LEFT for "previous slide"
+// (2026-10-06), so UP from the hero's buttons opens the rail instead.
+let railOpener: (() => void) | null = null;
+export const setRailOpener = (fn: () => void) => {
+  railOpener = fn;
+};
+// Clears only its OWN registration: two screens change places in one frame
+// (the leaving one's cleanup, the arriving one's effect), and an unconditional
+// null from the leaver could erase what the arriver had just registered.
+export const clearRailOpener = (fn: () => void) => {
+  if (railOpener === fn) railOpener = null;
+};
+export const requestRailOpen = () => {
+  if (railOpenCount > 0 || !railOpener) return false;
+  railOpener();
+  return true;
+};
+
 let traps = 0;
 
 /** A focus trap, both halves of it — §5.8(a), which is the site's own

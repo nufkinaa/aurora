@@ -34,7 +34,7 @@ import Icon, {IconName} from './Icon';
 import RailAurora from './RailAurora';
 import {useApp} from '../AppContext';
 import {imgSrc} from '../api';
-import {atLeftEdge, captureFocus, focusJustMoved, noteRail, useTVKeys} from '../focus';
+import {atLeftEdge, captureFocus, clearRailOpener, focusJustMoved, noteRail, setRailOpener, useTVKeys} from '../focus';
 import {goSection, useMe, useNewUnseen, NAV_SECTIONS, NavSection} from '../navSection';
 import theme from '../theme';
 
@@ -214,6 +214,18 @@ export default function NavRail({
   // The gates — this screen must be the live one and no trap may be up — belong
   // to useTVKeys, which every global handler in the app goes through.
   const live = useTVKeys(onTV, {deaf: disabled});
+
+  // While this screen is live and the panel is closed, a screen handler may
+  // open the rail by request (Home's hero: UP).
+  useEffect(() => {
+    if (!live || open || disabled) return;
+    const fn = () => {
+      restore.current = captureFocus();
+      setOpen(true);
+    };
+    setRailOpener(fn);
+    return () => clearRailOpener(fn);
+  }, [live, open, disabled]);
 
   // Closing on blur matters: navigating from a rail item leaves this screen with
   // the rail still open behind it, and coming back would show it expanded with

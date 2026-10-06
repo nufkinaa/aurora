@@ -15,6 +15,7 @@ export type NavSection =
   | 'shows'
   | 'list'
   | 'new'
+  | 'ai'
   | 'search'
   | 'settings';
 
@@ -33,7 +34,9 @@ export const NAV_SECTIONS: {
   {key: 'movies', label: 'Movies'},
   {key: 'shows', label: 'Shows'},
   {key: 'list', label: 'My List'},
-  {key: 'new', label: 'New'},
+  // AI sits where New was (elia, 2026-10-06); the New page is still under
+  // Settings → What's new, and its unseen dot now lives on that row.
+  {key: 'ai', label: 'AI'},
   {key: 'settings', label: 'Preferences', icon: 'gear', iconSize: 19, foot: true},
 ];
 
@@ -78,6 +81,7 @@ const SCREEN_FOR: Record<NavSection, keyof RootStackParamList> = {
   new: 'WhatsNew',
   search: 'Search',
   settings: 'Settings',
+  ai: 'Pick',
 };
 const onSectionScreen = <R extends keyof RootStackParamList>(nav: Nav<R>, section: NavSection) => {
   try {
@@ -135,6 +139,9 @@ export const goSection = <R extends keyof RootStackParamList>(
       return;
     case 'new':
       nav.push('WhatsNew');
+      return;
+    case 'ai':
+      nav.push('Pick');
       return;
     case 'settings':
       nav.push('Settings');

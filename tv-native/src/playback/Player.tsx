@@ -493,7 +493,7 @@ const PBtn = React.forwardRef<
       }}
       onPress={onPress}
       style={big ? styles.pbtnBig : styles.pbtn}>
-      <Icon name={icon} size={big ? 34 : 26} color={focused ? colors.bg : colors.white} />
+      <Icon name={icon} size={big ? 28 : 21} color={focused ? colors.bg : colors.white} />
       {badge ? (
         <Text style={[styles.pbtnBadge, focused && styles.pbtnBadgeOn]}>{badge}</Text>
       ) : null}
@@ -505,7 +505,7 @@ export default function Player({
   route,
   navigation,
 }: NativeStackScreenProps<RootStackParamList, 'Player'>) {
-  const {id, title, stream, restart, party: partyCode} = route.params;
+  const {id, title, epTitle, stream, restart, party: partyCode} = route.params;
   const isTorrent = !!stream;
   const {profileId} = useApp();
   const me = useMe(profileId);
@@ -682,6 +682,9 @@ export default function Player({
   // Intro ranges: the household's hand-marked one wins over the detected one.
   const intro = useRef<{start: number; end: number} | null>(null);
   const autoIntro = useRef<{start: number; end: number} | null>(null);
+  // Bumped when a mark lands, so the ticks on the track repaint (the marks
+  // themselves live in refs — the 4 Hz progress loop reads them).
+  const [marksTick, setMarksTick] = useState(0);
   const creditsStart = useRef<number | null>(null);
   const introKey = useRef<string | null>(null);
   // Party: mute the events our own remote-apply causes; keep the party across
@@ -1237,6 +1240,7 @@ export default function Player({
         .then(r => {
           if (live && r && isFinite(Number(r.start)) && isFinite(Number(r.end)) && Number(r.end) > Number(r.start)) {
             intro.current = {start: Number(r.start), end: Number(r.end)};
+            setMarksTick(t => t + 1);
           }
         })
         .catch(() => {});
@@ -1249,6 +1253,7 @@ export default function Player({
             autoIntro.current = {start: r.intro.start, end: r.intro.end};
           }
           if (r.credits && isFinite(r.credits.start)) creditsStart.current = r.credits.start;
+          setMarksTick(t => t + 1);
         })
         .catch(() => {});
     }
@@ -2369,9 +2374,12 @@ export default function Player({
   // "S1 E4 · Episode Title" for an episode, else the year.
   const epSeason = itemRef.current?.season ?? stream?.season;
   const epEpisode = itemRef.current?.episode ?? stream?.episode;
+  // The episode's real name wins over the library's placeholder ("Episode 1").
+  const epName =
+    epTitle || (itemRef.current?.title && !/^Episode \d+$/.test(itemRef.current.title) ? itemRef.current.title : '');
   const subtitleText =
     epSeason && epEpisode
-      ? `S${epSeason} E${epEpisode}${itemRef.current?.title ? ` · ${itemRef.current.title}` : ''}`
+      ? `S${epSeason} E${epEpisode}${epName ? ` · ${epName}` : ''}`
       : itemRef.current?.year
       ? String(itemRef.current.year)
       : '';
@@ -2522,6 +2530,19 @@ export default function Player({
               <View style={[styles.track, scrubFocused && styles.trackTall]}>
                 <View style={[styles.trackBuffer, {width: `${bufPct}%`}]} />
                 <View style={[styles.trackFill, {width: `${pct}%`}]} />
+                {/* Landmark ticks (the site's .scrubber-marks): where the intro
+                    starts and ends, where the credits begin. */}
+                {duration > 0
+                  ? [
+                      intro.current?.start ?? autoIntro.current?.start,
+                      intro.current?.end ?? autoIntro.current?.end,
+                      creditsStart.current,
+                    ]
+                      .filter((t): t is number => t != null && isFinite(t) && t > 0 && t < duration)
+                      .map((t, i) => (
+                        <View key={`${i}-${marksTick}`} style={[styles.mark, {left: `${(t / duration) * 100}%`}]} />
+                      ))
+                  : null}
               </View>
             </Focusable>
             <View style={styles.times}>
@@ -2812,14 +2833,18 @@ export default function Player({
           you set mid-film. */}
       {menu === 'settings' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
-          <Text style={styles.menuTitle}>PLAYBACK</Text>
-          <MenuItem
-            label="Autoplay next episode"
-            tag={prefs.autoplayNext ? 'On' : 'Off'}
-            hasTVPreferredFocus
-            onFocusChange={markZone('menu')}
-            onPress={() => setPref('autoplayNext', !prefs.autoplayNext)}
-          />
+          {epSeason && epEpisode ? (
+            <>
+              <Text style={styles.menuTitle}>PLAYBACK</Text>
+              <MenuItem
+                label="Autoplay next episode"
+                tag={prefs.autoplayNext ? 'On' : 'Off'}
+                hasTVPreferredFocus
+                onFocusChange={markZone('menu')}
+                onPress={() => setPref('autoplayNext', !prefs.autoplayNext)}
+              />
+            </>
+          ) : null}
           {introKey.current ? (
             <>
               <Text style={[styles.menuTitle, styles.menuTitleGap]}>SKIP INTRO</Text>
@@ -3043,13 +3068,17 @@ const styles = StyleSheet.create({
   // top/bottom insets against a content-sized parent.
   scrim: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0},
   scrimImg: {width: '100%', height: '100%'},
+  // Smaller chrome (elia, 2026-10-06): the picture is the point. Title at the
+  // section size, the top band 34/44 → 24/28, the bottom band 28/28 → 16/22,
+  // buttons 58 → 46 (the big one 68 → 54). Nothing comes closer to the edge
+  // than the 5% overscan inset.
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.lg,
+    gap: spacing.md,
     paddingHorizontal: spacing.pageX,
-    paddingTop: 34,
-    paddingBottom: 44,
+    paddingTop: 24,
+    paddingBottom: 28,
   },
   titleWrap: {flex: 1},
   // .player-title's text-shadow. Without it the heading and the episode line sit
@@ -3057,7 +3086,7 @@ const styles = StyleSheet.create({
   // is a gradient, not a backing plate.
   title: {
     color: colors.white,
-    fontSize: fontSize.title,
+    fontSize: fontSize.row,
     fontWeight: '800',
     letterSpacing: -0.3,
     textShadowColor: 'rgba(0,0,0,0.6)',
@@ -3066,9 +3095,9 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     color: colors.textDim,
-    fontSize: fontSize.body,
+    fontSize: fontSize.small,
     fontWeight: '600',
-    marginTop: 2,
+    marginTop: 1,
     textShadowColor: 'rgba(0,0,0,0.6)',
     textShadowOffset: {width: 0, height: 1},
     textShadowRadius: 10,
@@ -3091,17 +3120,28 @@ const styles = StyleSheet.create({
   // gaps under the track and above the buttons tightened. The bottom padding
   // stays at the 5% overscan inset (27dp on a 540dp panel), so nothing moves
   // closer to the edge of the screen than it was allowed to be.
-  bottom: {paddingHorizontal: spacing.pageX, paddingTop: 28, paddingBottom: 28},
+  bottom: {paddingHorizontal: spacing.pageX, paddingTop: 16, paddingBottom: 22},
   // .scrubber { height: 22px; display:flex; align-items:center }
-  scrubber: {height: 26, justifyContent: 'center', borderRadius: radius.s},
+  scrubber: {height: 22, justifyContent: 'center', borderRadius: radius.s},
   // .scrubber-track, and `.scrubber:focus .scrubber-track { height: 8px }`.
   track: {
-    height: 5,
+    height: 4,
     borderRadius: 3,
     backgroundColor: 'rgba(255,255,255,0.22)',
     overflow: 'hidden',
   },
-  trackTall: {height: 8},
+  trackTall: {height: 7},
+  // .scrubber-marks i — a 3px white tick with a dark hairline around it.
+  mark: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 3,
+    marginLeft: -1,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    boxShadow: '0 0 0 1px rgba(0,0,0,0.35)',
+  },
   trackBuffer: {
     position: 'absolute',
     top: 0,
@@ -3121,16 +3161,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 2,
   },
-  time: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '700'},
+  time: {color: colors.textDim, fontSize: 13, fontWeight: '700'},
   bufferPct: {color: colors.textFaint, fontSize: fontSize.small, fontWeight: '600'},
-  buttons: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm},
+  buttons: {flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 4},
   // .pbtn — a circle, transparent until focused. The bg is transparent rather
   // than a surface colour so the buttons read as floating over the picture.
   pbtn: {
-    width: 58,
-    height: 58,
+    width: 46,
+    height: 46,
     borderRadius: 999,
     backgroundColor: 'transparent',
     alignItems: 'center',
@@ -3139,20 +3179,20 @@ const styles = StyleSheet.create({
   // .pbtn.big — transparent like the rest; the white fill is the FOCUS state,
   // not a permanent one. Only the glyph is larger (34 vs 26 on the site).
   pbtnBig: {
-    width: 68,
-    height: 68,
+    width: 54,
+    height: 54,
     borderRadius: 999,
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
   // .pbtn-label .lbl — the current rate, tucked under the icon.
-  pbtnBadge: {position: 'absolute', bottom: 6, color: colors.white, fontSize: 11, fontWeight: '900'},
+  pbtnBadge: {position: 'absolute', bottom: 4, color: colors.white, fontSize: 10, fontWeight: '900'},
   pbtnBadgeOn: {color: colors.bg},
   // .vol-group's slider. Focusable rather than decorative so the remote can
   // reach it; the fill is the level. Collapsed to nothing until the group has
   // focus, matching .vol-slider's `width: 0; opacity: 0` -> `width: 90px`.
-  volWrap: {width: 0, height: 58, justifyContent: 'center', opacity: 0},
+  volWrap: {width: 0, height: 46, justifyContent: 'center', opacity: 0},
   volWrapOpen: {width: 96, opacity: 1, paddingHorizontal: 6, marginRight: 8},
   volTrack: {
     height: 5,
@@ -3211,26 +3251,30 @@ const styles = StyleSheet.create({
   // the top edge 20dp PAST the top and clipped the heading off — which is the
   // exact bug this maxHeight was added to fix, just at a different size. 60%
   // (324dp) clears it here and on a 720dp set.
+  // Smaller popups (elia, 2026-10-06): a narrower, tighter sheet sitting just
+  // above the slimmer bar, opaque so no subtitle cue shows through it.
   menu: {
     position: 'absolute',
     right: spacing.pageX,
-    bottom: 160,
-    maxHeight: '60%',
-    backgroundColor: 'rgba(13,14,24,0.97)',
+    bottom: 124,
+    maxHeight: '62%',
+    backgroundColor: 'rgba(13,14,24,0.985)',
     borderRadius: radius.l,
-    padding: spacing.lg,
-    minWidth: 330,
-    maxWidth: 480,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    minWidth: 280,
+    maxWidth: 400,
     borderWidth: 1,
     borderColor: colors.line,
   },
   menuScroll: {flexGrow: 0},
   menuTitle: {
     color: colors.textDim,
-    fontSize: fontSize.small,
+    fontSize: 12,
     fontWeight: '800',
     letterSpacing: 2,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
+    marginLeft: 12,
   },
   // Row, not a plain block: the site's entries put a value tag on the right.
   menuItem: {
@@ -3240,10 +3284,10 @@ const styles = StyleSheet.create({
     // and space-between would fight both. The gap still matters — without it a
     // long label shrinks until it touches its own value ("Autoplay next
     // episodeOn").
-    gap: spacing.md,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 2,
+    gap: spacing.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 1,
   },
   menuTitleGap: {marginTop: spacing.md},
   syncRow: {flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.sm},
@@ -3257,7 +3301,7 @@ const styles = StyleSheet.create({
   syncBtnText: {color: colors.text, fontSize: fontSize.small, fontWeight: '800'},
   // The ✓ column. Present on every row (transparent when off) so labels align —
   // the site reserves 13px the same way.
-  menuCheck: {width: 22, color: colors.text, fontSize: fontSize.body, fontWeight: '800'},
+  menuCheck: {width: 18, color: colors.text, fontSize: fontSize.small, fontWeight: '800'},
   menuCheckOff: {opacity: 0},
   // .sub-sync .tag — the current delay, sitting between the two pairs of nudges.
   syncValue: {
@@ -3268,12 +3312,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   // .menu-item .tag { margin-left: auto }
-  menuTag: {color: colors.textFaint, fontSize: fontSize.small, fontWeight: '700', marginLeft: 'auto'},
+  menuTag: {color: colors.textFaint, fontSize: 12, fontWeight: '700', marginLeft: 'auto'},
   // NOT flex:1. The tag is pushed right by its own auto margin (which is what
   // the site does), because a flexing label shrinks to whatever the box already
   // is instead of making the box wide enough — "Resync subtitles" came out as
   // "Resync sub…" inside a menu with room to spare.
-  menuItemText: {color: colors.textDim, fontSize: fontSize.body, fontWeight: '700', flexShrink: 1},
+  menuItemText: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '700', flexShrink: 1},
   menuItemTextOn: {color: colors.text},
   upNext: {
     position: 'absolute',

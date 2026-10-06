@@ -7,14 +7,14 @@
 //
 // Genres are toggled against the same endpoint the site uses, so a change here
 // shows up in the browser's rows too.
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {View, Text, ScrollView, StyleSheet, ActivityIndicator} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Focusable from '../components/Focusable';
 import NavRail from '../components/NavRail';
 import {api, getSession, setSession} from '../api';
 import {useApp} from '../AppContext';
-import {useMe} from '../navSection';
+import {useMe, useNewUnseen} from '../navSection';
 import {openJoinParty, openReport, openUpdate} from '../overlay';
 import {loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS, saveAuthSession} from '../storage';
 import {showToast} from '../toast';
@@ -62,6 +62,7 @@ export default function Settings({
   navigation,
 }: NativeStackScreenProps<RootStackParamList, 'Settings'>) {
   const {profileId, switchProfile} = useApp();
+  const newUnseen = useNewUnseen();
   // This TV's build, and whether the server has a newer one.
   const [update, setUpdate] = useState<UpdateInfo | null | 'checking' | 'none'>(null);
   const checkUpdate = useCallback(async () => {
@@ -109,7 +110,18 @@ export default function Settings({
       .then(([lib, st]) => {
         if (!live) return;
         const all = [...lib.movies, ...lib.shows].flatMap(i => i.genres || []);
-        setGenres([...new Set(all)].sort());
+        // One chip per genre, however the sources spell it (preferences.js
+        // genreKey): "Sci-Fi", "Science Fiction" and "Science-Fiction" were
+        // three chips. The chip's label is the first spelling (Sci-Fi for
+        // that one) and pressing it likes every spelling behind it.
+        const groups = new Map<string, string[]>();
+        for (const g of [...new Set(all)].sort()) {
+          const k0 = g.toLowerCase().replace(/[^a-z0-9]+/g, '');
+          const k = k0 === 'sciencefiction' ? 'scifi' : k0;
+          groups.set(k, [...(groups.get(k) || []), g]);
+        }
+        genreGroups.current = groups;
+        setGenres([...groups.entries()].map(([k, v]) => (k === 'scifi' ? 'Sci-Fi' : v[0])));
         setLiked(new Set(st.likedGenres || []));
       })
       .catch(() => live && setGenres([]));
@@ -121,17 +133,24 @@ export default function Settings({
   // Side effects OUTSIDE the state updaters: an updater must be pure — React is
   // allowed to run it twice (StrictMode) or discard the render, which here
   // meant a double POST or persisting a value that never committed.
+  // label → every spelling it stands for
+  const genreGroups = useRef(new Map<string, string[]>());
+  const spellingsOf = useCallback((label: string): string[] => {
+    for (const [k, v] of genreGroups.current) if ((k === 'scifi' ? 'Sci-Fi' : v[0]) === label) return v;
+    return [label];
+  }, []);
   const toggleGenre = useCallback(
     (g: string) => {
       const next = new Set(liked);
-      if (next.has(g)) next.delete(g);
-      else next.add(g);
+      const all = spellingsOf(g);
+      const on = all.some(x => next.has(x));
+      for (const x of all) on ? next.delete(x) : next.add(x);
       setLiked(next);
       // Fire and forget, like the site: the chips are the source of truth on
       // screen and a failed save is not worth interrupting the viewer for.
       api.setPreferences(profileId, [...next]).catch(() => {});
     },
-    [profileId, liked],
+    [profileId, liked, spellingsOf],
   );
 
   const set = useCallback(
@@ -178,7 +197,7 @@ export default function Settings({
         ) : (
           <View style={styles.chips}>
             {genres.map(g => {
-              const on = liked.has(g);
+              const on = spellingsOf(g).some(x => liked.has(x));
               return (
                 // The wrapper exists to MEASURE: with flexWrap, which chips
                 // start a row depends on text widths, so edgeLeft is read off
@@ -200,7 +219,12 @@ export default function Settings({
 
         <Text style={styles.h2}>Aurora</Text>
         <View style={styles.list}>
-          <Row label="What's new" note="What this TV can do now, and how." value="›" onPress={() => navigation.push('WhatsNew')} />
+          <Row
+            label={newUnseen ? "What's new  •" : "What's new"}
+            note="What this TV can do now, and how."
+            value="›"
+            onPress={() => navigation.push('WhatsNew')}
+          />
           <Row
             label="My downloads"
             note="What you asked the server to fetch — ready, on its way, waiting."
