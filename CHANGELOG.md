@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.39 — 2026-10-06
+
+- Aurora TV 5.1.3: the player's timeline is the site's (elia). The two times sit either side of the bar on one row, the track is 6dp (8 with focus), the fill is the violet → cyan → mint ramp with a mint glow, and a lit white bead marks the head and grows a little while the bar has focus. The intro and credits ticks stay.
+
 ## 1.6.38 — 2026-10-06
 
 - Aurora TV 5.1.2 — the TV's scale, measured against tvOS and the Google TV app (elia: "elements too big, claustrophobic", 2026-10-06). The type scale steps down (hero 30, title 24, row 18, body 15, small 13), buttons are 40dp tall instead of 50 (tvOS's are 33 at our canvas, Google TV's 40–48), the billboard is 66% of the height like the Apple TV app's top shelf and its lockup is wider with a brighter two-line synopsis — the poster card beside Details is gone, the backdrop is the picture. A film's page follows: smaller poster, tighter facts and chips, 40dp buttons. Stream buttons carry a ⚠ (billboard, title page, source rows) — a stream is a slow start you may not want. The background has a breath of the site's aurora green, baked into the one ambient image so it costs the box nothing.

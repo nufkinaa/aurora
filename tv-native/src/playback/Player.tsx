@@ -2517,6 +2517,8 @@ export default function Player({
                 scrubber is FOCUSABLE, exactly as it is on the site
                 (`tabindex="0"`, `.scrubber:focus`), and it takes focus when the
                 chrome appears — that is what makes "press right to skip" work. */}
+            <View style={styles.scrubRow}>
+            <Text style={styles.time}>{fmt(shown)}</Text>
             <Focusable
               noScale
               ref={scrubRef as never}
@@ -2529,7 +2531,10 @@ export default function Player({
               style={styles.scrubber}>
               <View style={[styles.track, scrubFocused && styles.trackTall]}>
                 <View style={[styles.trackBuffer, {width: `${bufPct}%`}]} />
-                <View style={[styles.trackFill, {width: `${pct}%`}]} />
+                <View style={[styles.trackFill, {width: `${pct}%`}]}>
+                  {/* the lit head bead (glass.css .scrubber-fill::after) */}
+                  <View style={[styles.head, scrubFocused && styles.headBig]} />
+                </View>
                 {/* Landmark ticks (the site's .scrubber-marks): where the intro
                     starts and ends, where the credits begin. */}
                 {duration > 0
@@ -2545,15 +2550,9 @@ export default function Player({
                   : null}
               </View>
             </Focusable>
-            <View style={styles.times}>
-              <Text style={styles.time}>{fmt(shown)}</Text>
-              {/* Centre slot, kept so the two times stay at the ends; the
-                  "NN% loaded" text is gone (elia) — the lighter bar on the
-                  track already shows how much is loaded. */}
-              <Text style={styles.bufferPct}>{''}</Text>
-              <Text style={styles.time}>
-                {duration ? `-${fmt(Math.max(0, duration - shown))}` : ''}
-              </Text>
+            <Text style={[styles.time, styles.timeRight]}>
+              {duration ? `-${fmt(Math.max(0, duration - shown))}` : ''}
+            </Text>
             </View>
             <View style={styles.buttons}>
               <PBtn
@@ -3121,16 +3120,19 @@ const styles = StyleSheet.create({
   // stays at the 5% overscan inset (27dp on a 540dp panel), so nothing moves
   // closer to the edge of the screen than it was allowed to be.
   bottom: {paddingHorizontal: spacing.pageX, paddingTop: 16, paddingBottom: 22},
+  // .scrub-row — the times sit either side of the bar, tabular, dim.
+  scrubRow: {flexDirection: 'row', alignItems: 'center', gap: 12},
   // .scrubber { height: 22px; display:flex; align-items:center }
-  scrubber: {height: 22, justifyContent: 'center', borderRadius: radius.s},
+  scrubber: {flex: 1, height: 22, justifyContent: 'center', borderRadius: radius.s},
   // .scrubber-track, and `.scrubber:focus .scrubber-track { height: 8px }`.
+  // glass.css .scrubber-track: 6dp, 8 with focus; NOT clipped, the head bead
+  // hangs over the end of the fill.
   track: {
-    height: 4,
+    height: 6,
     borderRadius: 3,
     backgroundColor: 'rgba(255,255,255,0.22)',
-    overflow: 'hidden',
   },
-  trackTall: {height: 7},
+  trackTall: {height: 8},
   // .scrubber-marks i — a 3px white tick with a dark hairline around it.
   mark: {
     position: 'absolute',
@@ -3148,24 +3150,36 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 3,
   },
+  // .scrubber-fill — the site's violet → cyan → mint ramp with a mint glow.
   trackFill: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: colors.white,
     borderRadius: 3,
+    backgroundColor: '#8cffbe',
+    experimental_backgroundImage: 'linear-gradient(90deg, #8b7bff, #7fd1e8, #8cffbe)',
+    boxShadow: '0 0 14px rgba(140,255,190,0.5)',
   },
-  times: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 2,
+  // .scrubber-fill::after — a 16px white bead with a soft ring and glow,
+  // centred on the end of the fill; it grows a little while the bar has focus.
+  head: {
+    position: 'absolute',
+    right: -7,
+    top: '50%',
+    marginTop: -7,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#ffffff',
+    boxShadow: '0 0 0 4px rgba(255,255,255,0.22), 0 0 24px rgba(140,255,190,0.7)',
   },
-  time: {color: colors.textDim, fontSize: 13, fontWeight: '700'},
-  bufferPct: {color: colors.textFaint, fontSize: fontSize.small, fontWeight: '600'},
-  buttons: {flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 4},
+  headBig: {right: -8, marginTop: -8, width: 16, height: 16, borderRadius: 8},
+  time: {color: colors.textDim, fontSize: 13, fontWeight: '700', minWidth: 44, fontVariant: ['tabular-nums']},
+  timeRight: {textAlign: 'right'},
+  buttons: {flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 6},
   // .pbtn — a circle, transparent until focused. The bg is transparent rather
   // than a surface colour so the buttons read as floating over the picture.
   pbtn: {
