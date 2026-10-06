@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.37 — 2026-10-06
+
+- Aurora TV 5.1.1: **4K and 16:10 panels look like a 1080p set.** Android TV panels report different dp sizes (the Streamer and most 1080p sets 960×540, many sets 1280×720, 4K sets 1920×1080) and the app drew fixed dp, so on a big panel the whole interface was tiny and sat low. The app now lays out on a 960-wide logical canvas and scales it to fill the screen — twice the size on a 1920-wide panel, 1.33× on 1280; a 16:10 panel gets a taller canvas and the layout flows into it. The video view switches to a TextureView on a scaled canvas (a SurfaceView ignores the scale). Nothing changes on a 960-wide panel. The sandbox's 1920×1080 frame shows it.
+
 ## 1.6.36 — 2026-10-06
 
 - Aurora TV 5.1.0 — the TV catches up with the site's look (elia's ten points after the Mi TV pass):

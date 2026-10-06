@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.0",
-  "notes": "The TV catches up with the site. AI takes New’s place in the side rail: describe a mood and get picks with a line on why. A film’s page has its poster, genre chips and a tidier row of buttons. Sources read in plain words (BluRay · DD+ · H.265) — pressing a row saves it, Stream is the smaller button beside Save, and your own copy is the green row at the top. A slimmer player with intro and credits marks on the bar and smaller popups. Continue Watching shows the frame you stopped on with what is left. RIGHT on the last billboard button turns the slide, LEFT on the first turns it back, UP opens the side rail."
+  "versionName": "5.1.1",
+  "notes": "4K and 16:10 panels draw the interface at the same size as a 1080p set: the app lays out on a 960-wide canvas and scales it to fill the screen, so cards, text and buttons are no longer tiny on sets that report a large dp size. Plus 5.1.0: the TV catches up with the site — AI in the side rail, a film page with its poster and genre chips, sources in plain words (the row saves, Stream beside it), a slimmer player with intro and credits marks, Continue Watching with the frame you stopped on, and the billboard turned by LEFT/RIGHT on its buttons (UP opens the rail)."
 }

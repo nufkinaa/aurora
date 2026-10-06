@@ -11,6 +11,7 @@
 import React, {useEffect, useState} from 'react';
 import {View, StatusBar, ActivityIndicator, StyleSheet} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
+import {TvCanvas} from './src/canvas';
 import './src/errors'; // the global error ring, installed once
 import ProfileGate from './src/screens/ProfileGate';
 import SessionWiring from './src/SessionWiring';
@@ -221,6 +222,7 @@ export default function App() {
     <SafeAreaProvider>
       <View style={styles.root}>
         <StatusBar hidden />
+        <TvCanvas>
         {stage === 'loading' ? (
           <View style={styles.center}>
             <ActivityIndicator color={theme.colors.text} size="large" />
@@ -249,6 +251,7 @@ export default function App() {
             <AppNavigator />
           </AppContext.Provider>
         ) : null}
+        </TvCanvas>
       </View>
     </SafeAreaProvider>
   );

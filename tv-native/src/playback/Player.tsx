@@ -80,6 +80,7 @@ import Video, {
   SelectedTrack,
   SelectedTrackType,
   VideoRef,
+  ViewType,
 } from 'react-native-video';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Focusable from '../components/Focusable';
@@ -108,6 +109,7 @@ import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAU
 import {track} from '../usage';
 import {RootStackParamList} from '../navigation';
 import theme from '../theme';
+import {useCanvasScale} from '../canvas';
 
 const {colors, radius, fontSize, spacing} = theme;
 
@@ -510,6 +512,7 @@ export default function Player({
   const {profileId} = useApp();
   const me = useMe(profileId);
   const videoRef = useRef<VideoRef>(null);
+  const canvasScale = useCanvasScale();
   // The web's `exited` flag: every async continuation checks it before touching
   // the player, so a late fetch can't setState on a screen that is gone.
   const exited = useRef(false);
@@ -2389,6 +2392,10 @@ export default function Player({
       <Video
         ref={videoRef}
         source={source}
+        // A SurfaceView ignores the canvas's scale (canvas.tsx); on a panel
+        // that is drawn scaled the picture has to be a TextureView to land
+        // where the layout says. On a 960-wide panel the default stays.
+        viewType={canvasScale !== 1 ? ViewType.TEXTURE : undefined}
         style={styles.video}
         paused={paused}
         rate={rate}

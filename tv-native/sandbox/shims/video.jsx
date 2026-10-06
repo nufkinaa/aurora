@@ -8,6 +8,7 @@ import {View} from 'react-native-web';
 export const SelectedTrackType = {SYSTEM: 'system', DISABLED: 'disabled', TITLE: 'title', LANGUAGE: 'language', INDEX: 'index'};
 export const SelectedVideoTrackType = {AUTO: 'auto', DISABLED: 'disabled', RESOLUTION: 'resolution', INDEX: 'index'};
 export const ResizeMode = {CONTAIN: 'contain', COVER: 'cover', STRETCH: 'stretch', NONE: 'none'};
+export const ViewType = {TEXTURE: 0, SURFACE: 1, SURFACE_SECURE: 2};
 export const TextTrackType = {SUBRIP: 'application/x-subrip', TTML: 'application/ttml+xml', VTT: 'text/vtt'};
 
 const Video = React.forwardRef(function Video(

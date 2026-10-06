@@ -5,6 +5,7 @@
 // quoting this file as corroboration for any of them — agreeing on one value out
 // of a block that disagrees on three is not a check.
 import { useWindowDimensions } from "react-native";
+import { useCanvas } from "./canvas";
 export const colors = {
   bg: "#0b0c14",
   bgRaised: "#131523",
@@ -169,7 +170,12 @@ export const motion = { fast: 160, med: 280 };
 // MORE than the whole screen and not one row was visible until you pressed
 // down. Size the big blocks off the real window instead.
 export const useTvMetrics = () => {
-  const { width, height } = useWindowDimensions();
+  // The logical canvas (canvas.tsx) when the app is drawn scaled; the window
+  // itself on a 960-wide panel.
+  const win = useWindowDimensions();
+  const canvas = useCanvas();
+  const width = canvas ? canvas.width : win.width;
+  const height = canvas ? canvas.height : win.height;
   // Android TV panels do not agree on a dp size. Measured: the Google TV
   // Streamer lays out at 960x540 (1080p at density 320); plenty of sets report
   // 1280x720, and some 4K sets 1920x1080. Every figure here is therefore a RATIO
