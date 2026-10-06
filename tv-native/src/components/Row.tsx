@@ -183,7 +183,7 @@ export default React.memo(Row);
 const styles = StyleSheet.create({
   // 11dp above the heading — the first term of 02-home §3.4's 247dp shelf pitch
   // (11 + 30 heading + 7 + 5 + 186 card + 8).
-  row: {marginTop: 11},
+  row: {marginTop: 8},
   title: {
     color: colors.text,
     fontSize: fontSize.row,

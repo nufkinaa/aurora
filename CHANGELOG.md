@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.40 — 2026-10-06
+
+- Aurora TV 5.1.4 — the title pages redrawn as a designer would (elia): the artwork is the page, the lockup sits low on the left over a wider, darker ramp (title, one facts line with the badges, a quiet genre line, a two-line synopsis, the cast), **one row of equal buttons** (Resume · Start over · Other versions · Trailer · My List · Watched), and the half of the screen that was empty carries a **"More like this" shelf** of real cards at the foot, like a show's episode rail. The poster and the genre chips are gone from the film page.
+- Home: no warning sign on the billboard's Stream (it stays on the title page and the source rows); the billboard's picture dissolves lower, under the first shelf's heading; a touch less air between the lockup and Continue Watching; content sits closer to the collapsed rail.
+- The collapsed rail's dark edge reached the bottom of the screen 27dp short — its scrim was sized against the strip's padding box. Fixed.
+- A dark-purple glow spreads from the centre of the background (~40% at its heart), baked into the one ambient image with the aurora green.
+
 ## 1.6.39 — 2026-10-06
 
 - Aurora TV 5.1.3: the player's timeline is the site's (elia). The two times sit either side of the bar on one row, the track is 6dp (8 with focus), the fill is the violet → cyan → mint ramp with a mint glow, and a lit white bead marks the head and grows a little while the bar has focus. The intro and credits ticks stay.

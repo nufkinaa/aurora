@@ -82,7 +82,8 @@ export const fontSize = {
 // on scroll, and a permanently visible rail would cover whatever slid beneath it.
 export const spacing = {
   xs: 4, sm: 8, md: 14, lg: 20, xl: 32,
-  pageX: 48, pageY: 27, contentLeft: 96,
+  // contentLeft 84: the rail (72) plus 12 — closer to the collapsed rail (elia, 2026-10-06).
+  pageX: 48, pageY: 27, contentLeft: 84,
 };
 
 // The left rail (Deviation 1), PINS P1. 72dp collapsed — a 24dp icon centred in
@@ -195,7 +196,7 @@ export const useTvMetrics = () => {
     // without a scroll (elia: "too sparse", 2026-10-06).
     heroH: Math.round(height * 0.66),
     // screens.css:7 — `padding: 0 var(--page-x) 56px`, the gap under the lockup.
-    heroPadBottom: 28,
+    heroPadBottom: 18, // a touch less air between the lockup and the first shelf (elia)
     // PINS P9 / 00-tokens finding 5: `--fs-hero` is a 4.5vw WIDTH clamp, so it
     // re-expresses as a fraction of WIDTH — 67.2/1900 = 3.54%. 34dp @960.
     heroTitle: Math.round(width * 0.03), // 29dp @960 — the Apple TV app's shelf title

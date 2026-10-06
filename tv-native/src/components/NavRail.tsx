@@ -383,7 +383,8 @@ export default function NavRail({
 // 90°: it has to fade away from the edge it hangs on.
 function Scrim({width}: {width: number}) {
   return (
-    <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <Svg width="100%" height="100%">
       <Defs>
         <LinearGradient id="railScrim" x1="0" y1="0" x2="1" y2="0">
           <Stop offset="0" stopColor="#080910" stopOpacity="0.9" />
@@ -392,6 +393,7 @@ function Scrim({width}: {width: number}) {
       </Defs>
       <Rect x="0" y="0" width={width} height="100%" fill="url(#railScrim)" />
     </Svg>
+    </View>
   );
 }
 

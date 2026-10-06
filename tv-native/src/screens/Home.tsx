@@ -718,8 +718,7 @@ export default function Home({
                 ref={escape}
                 // A stream is a slow start the viewer may not want: the warning
                 // sign says so before the press (elia, 2026-10-06).
-                icon={hero.source === 'stream' ? undefined : 'play'}
-                glyph={hero.source === 'stream' ? '⚠' : undefined}
+                icon="play"
                 label={hero.source === 'stream' ? 'Stream' : 'Play'}
                 hasTVPreferredFocus
                 // Not edgeLeft: LEFT here is "previous slide"; UP opens the rail.

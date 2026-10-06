@@ -24,7 +24,7 @@ import {
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useIsFocused} from '@react-navigation/native';
 import Focusable from '../components/Focusable';
-import Card, {CARD_W} from '../components/Card';
+import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
 import {api, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta} from '../api';
 import {canNavigate} from '../navLock';
@@ -63,6 +63,9 @@ const EP_ART_H = Math.round((EP_ART_W * 9) / 16);
 // What the Focusable is given, so its CONTENT box is exactly the still.
 const EP_THUMB_H = EP_ART_H + theme.focus.borderWidth * 2;
 const SEASON_H = 54;
+// The film page's shelf: a poster row with its heading, the focus glow's room
+// above, and the safe inset added at render.
+const LIKE_H = CARD_H + 30 + theme.CLEARANCE.above;
 // The whole dock: thumb + title + facts + padding, plus room for the focus glow.
 const RAIL_H = EP_THUMB_H + 62 + theme.CLEARANCE.above * 2;
 
@@ -258,13 +261,9 @@ function DetailHero({
         </View>
         {genres && genres.length ? (
           // Genre chips, as on the site — small, outlined, not focusable.
-          <View style={styles.genreRow}>
-            {genres.slice(0, 4).map(g => (
-              <Text key={g} style={styles.genreChip}>
-                {g}
-              </Text>
-            ))}
-          </View>
+          <Text style={styles.genreLine} numberOfLines={1}>
+            {genres.slice(0, 4).join('  ·  ')}
+          </Text>
         ) : null}
         {synopsis ? (
           <Text style={styles.synopsis} numberOfLines={synopsisLines}>
@@ -761,7 +760,9 @@ export default function Detail({
   const genreSource =
     [full?.genres, streamMeta?.genres, item.genres].find(g => g && g.length) || [];
   useEffect(() => {
-    if (!likePanel || similar !== null) return;
+    // Films load their shelf as the page opens; a show's list waits for the
+    // "More like this" button (its dock is the episode rail).
+    if ((item.type === 'show' && !likePanel) || similar !== null) return;
     // Opened before the metadata landed: hold the fetch until the genres are
     // known (or the page has given up loading), or the panel would cache a
     // generic trending list for a title whose genres arrive a second later.
@@ -1080,6 +1081,12 @@ export default function Detail({
     setLikePanel(false);
     navigation.push('Detail', {item: sim});
   }, [navigation]);
+  const renderShelfCard = useCallback(
+    ({item: sim, index}: {item: HeroItem; index: number}) => (
+      <Card item={sim} index={index} onPress={openSimilar} edgeLeft={index === 0} />
+    ),
+    [openSimilar],
+  );
   const renderSimilar = useCallback(
     ({item: sim, index}: {item: HeroItem; index: number}) => (
       <Card item={sim} index={index} onPress={openSimilar} hasTVPreferredFocus={index === 0} />
@@ -1312,20 +1319,10 @@ export default function Detail({
         // is Cinemeta; whichever arrives is richer than the card, and the card
         // stays as the fallback so this can only ever add text, never remove it.
         synopsis={full?.synopsis || streamMeta?.synopsis || item.synopsis}
-        synopsisLines={3}
+        synopsisLines={2}
         cast={streamMeta?.cast}
         note={srcNote}
-        bottomInset={safeBottom}
-        poster={item.backdrop ? imgSrc(item.cover || item.poster) : null}
-        secondary={
-          <>
-            {ownedMovieId && movieResume ? <GhostBtn small label="Start over" onPress={playFromStart} /> : null}
-            <GhostBtn small label="More like this" onPress={() => setLikePanel(true)} />
-            {ownedMovieId ? (
-              <GhostBtn small label={movieWatched ? '✓  Watched' : 'Mark watched'} onPress={toggleWatched} />
-            ) : null}
-          </>
-        }>
+        bottomInset={LIKE_H}>
         {/* Keyed on OWNERSHIP, not on which shelf the card came from: a title
             the library holds plays the copy — starts instantly, seeks anywhere —
             and streaming becomes "Other versions". This is the site's own hero
@@ -1343,6 +1340,7 @@ export default function Detail({
           // list of sources is where that choice is made.
           <PrimaryBtn hasTVPreferredFocus edgeLeft label="⚠  Stream" onPress={openSources} />
         )}
+        {ownedMovieId && movieResume ? <GhostBtn label="↺  Start over" onPress={playFromStart} /> : null}
         {ownedMovieId ? <GhostBtn label="Other versions" onPress={openSources} /> : null}
         {streamMeta?.trailers?.length ? (
           <GhostBtn label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
@@ -1352,10 +1350,34 @@ export default function Detail({
           label={inList ? '✓  In My List' : '+  My List'}
           onPress={toggleList}
         />
+        {ownedMovieId ? (
+          <GhostBtn label={movieWatched ? '✓  Watched' : 'Mark watched'} onPress={toggleWatched} />
+        ) : null}
       </DetailHero>
+      {/* The shelf: titles like this one, pinned to the foot of the page like a
+          show's episode rail. Posters, the same Card as every shelf. */}
+      <View style={[styles.bottomDock, {paddingBottom: safeBottom}]}>
+        <Text style={styles.dockTitle}>More like this</Text>
+        {similar === null ? (
+          <ActivityIndicator color={colors.text} style={styles.railSpinner} />
+        ) : similar.length === 0 ? (
+          <Text style={styles.dockEmpty}>Nothing close enough to suggest.</Text>
+        ) : (
+          <FlatList
+            data={similar}
+            horizontal
+            keyExtractor={(it, i) => `${it.imdbId || it.id}-${i}`}
+            showsHorizontalScrollIndicator={false}
+            style={styles.rail}
+            contentContainerStyle={styles.railContent}
+            initialNumToRender={8}
+            windowSize={5}
+            renderItem={renderShelfCard}
+          />
+        )}
+      </View>
       {loading ? <ActivityIndicator color={colors.text} style={styles.loading} /> : null}
       {sourcesOverlay}
-      {moreOverlay}
     </View>
   );
 }
@@ -1440,19 +1462,21 @@ const styles = StyleSheet.create({
   // Light. The site multiplies its backdrop down to 0.42 brightness because a
   // web page has to carry body text over it; here the ramps do that job on the
   // side the text is actually on, so the picture keeps its own life.
-  artDim: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(6,7,14,0.34)'},
+  artDim: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(6,7,14,0.42)'},
   // 78% wide: the ramp is transparent by its own right edge, so the artwork's
   // right side is untouched.
-  artSide: {position: 'absolute', top: 0, left: 0, bottom: 0, width: '78%', height: '100%'},
+  artSide: {position: 'absolute', top: 0, left: 0, bottom: 0, width: '84%', height: '100%'},
   artVeil: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%'},
 
   // ---- the lockup ---------------------------------------------------------
   // Bottom-anchored: the title sits low over the art, which is the Apple TV
   // composition and leaves the top two thirds of the frame to the picture.
-  hero: {flex: 1, justifyContent: 'flex-end', paddingLeft: spacing.contentLeft, paddingRight: spacing.pageX, paddingTop: 72},
+  hero: {flex: 1, justifyContent: 'flex-end', paddingLeft: spacing.contentLeft, paddingRight: spacing.pageX, paddingTop: 40},
   // 64%: four actions on a film need the width, and the ramp is still
   // transparent well before the artwork's subject on the right.
-  lockup: {maxWidth: '64%'},
+  // Full width now that no poster shares the row: six 40dp buttons sit on one
+  // line (64% wrapped them under each other and into the shelf below).
+  lockup: {maxWidth: '100%'},
   lockupRow: {flexDirection: 'row', alignItems: 'flex-end', gap: spacing.lg},
   lockupBeside: {flex: 1, maxWidth: '72%'},
   // `.detail-poster` — 240px → 150dp, 2:3, the large radius and a deep shadow.
@@ -1550,6 +1574,14 @@ const styles = StyleSheet.create({
   pillText: {color: colors.text, fontSize: fontSize.small, fontWeight: '700'},
   pillTextOn: {color: colors.bg},
   rail: {flexGrow: 0},
+  dockTitle: {
+    color: colors.text,
+    fontSize: fontSize.row,
+    fontWeight: '800',
+    paddingLeft: spacing.contentLeft,
+    marginBottom: 2,
+  },
+  dockEmpty: {color: colors.textDim, fontSize: fontSize.small, paddingLeft: spacing.contentLeft, paddingTop: spacing.md},
   // The vertical padding is the focus glow's room; without it the rail's own
   // bounds slice the light off the top and bottom of a focused card.
   // Only the ABOVE clearance both sides for now: this rail is pinned to the
