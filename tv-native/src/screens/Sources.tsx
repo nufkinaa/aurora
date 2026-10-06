@@ -549,7 +549,11 @@ export function SourcesPanel({
                 )}
                 {s.sizeString ? <Text style={styles.meta}>{s.sizeString}</Text> : null}
                 {jobLine || playsCopy ? null : s.languages?.length ? (
-                  <Text style={styles.meta}>{s.languages.join(' · ')}</Text>
+                  // Four languages at most, then "+N": a twelve-language dub
+                  // pack wrapped its row to two lines.
+                  <Text style={styles.meta} numberOfLines={1}>
+                    {s.languages.slice(0, 4).join(' · ') + (s.languages.length > 4 ? `  +${s.languages.length - 4}` : '')}
+                  </Text>
                 ) : null}
               </View>
             </View>
@@ -563,7 +567,7 @@ export function SourcesPanel({
               style={styles.streamBtn}
               accessibilityLabel="Stream this source now, without saving"
               highlightColor={colors.surfaceHover}>
-              <Icon name="play" size={18} color={colors.text} />
+              <Text style={styles.streamWarn}>⚠</Text>
               <Text style={styles.streamCaption}>Stream</Text>
             </Focusable>
           )}
@@ -863,6 +867,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.m,
   },
   streamCaption: {color: colors.textDim, fontSize: 10, fontWeight: '900', letterSpacing: 1},
+  streamWarn: {color: '#fbbf24', fontSize: 16, lineHeight: 20},
   // The owned row's Play, a filled green pill where the other rows keep their buttons.
   playPill: {
     flexDirection: 'row',

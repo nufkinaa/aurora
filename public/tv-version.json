@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.1",
-  "notes": "4K and 16:10 panels draw the interface at the same size as a 1080p set: the app lays out on a 960-wide canvas and scales it to fill the screen, so cards, text and buttons are no longer tiny on sets that report a large dp size. Plus 5.1.0: the TV catches up with the site — AI in the side rail, a film page with its poster and genre chips, sources in plain words (the row saves, Stream beside it), a slimmer player with intro and credits marks, Continue Watching with the frame you stopped on, and the billboard turned by LEFT/RIGHT on its buttons (UP opens the rail)."
+  "versionName": "5.1.2",
+  "notes": "A calmer scale, measured against Apple TV: smaller type and buttons, a shorter billboard without the poster card and with a brighter synopsis, a tidier film page. Stream buttons carry a warning sign. A breath of aurora green in the background."
 }

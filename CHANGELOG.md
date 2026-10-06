@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.38 — 2026-10-06
+
+- Aurora TV 5.1.2 — the TV's scale, measured against tvOS and the Google TV app (elia: "elements too big, claustrophobic", 2026-10-06). The type scale steps down (hero 30, title 24, row 18, body 15, small 13), buttons are 40dp tall instead of 50 (tvOS's are 33 at our canvas, Google TV's 40–48), the billboard is 66% of the height like the Apple TV app's top shelf and its lockup is wider with a brighter two-line synopsis — the poster card beside Details is gone, the backdrop is the picture. A film's page follows: smaller poster, tighter facts and chips, 40dp buttons. Stream buttons carry a ⚠ (billboard, title page, source rows) — a stream is a slow start you may not want. The background has a breath of the site's aurora green, baked into the one ambient image so it costs the box nothing.
+
 ## 1.6.37 — 2026-10-06
 
 - Aurora TV 5.1.1: **4K and 16:10 panels look like a 1080p set.** Android TV panels report different dp sizes (the Streamer and most 1080p sets 960×540, many sets 1280×720, 4K sets 1920×1080) and the app drew fixed dp, so on a big panel the whole interface was tiny and sat low. The app now lays out on a 960-wide logical canvas and scales it to fill the screen — twice the size on a 1920-wide panel, 1.33× on 1280; a 16:10 panel gets a taller canvas and the layout flows into it. The video view switches to a TextureView on a scaled canvas (a SurfaceView ignores the scale). Nothing changes on a 960-wide panel. The sandbox's 1920×1080 frame shows it.

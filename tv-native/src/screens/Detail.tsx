@@ -1341,7 +1341,7 @@ export default function Detail({
         ) : (
           // "Stream" — the site's word; a title not on disk streams, and the
           // list of sources is where that choice is made.
-          <PrimaryBtn hasTVPreferredFocus edgeLeft label="▶  Stream" onPress={openSources} />
+          <PrimaryBtn hasTVPreferredFocus edgeLeft label="⚠  Stream" onPress={openSources} />
         )}
         {ownedMovieId ? <GhostBtn label="Other versions" onPress={openSources} /> : null}
         {streamMeta?.trailers?.length ? (
@@ -1457,8 +1457,8 @@ const styles = StyleSheet.create({
   lockupBeside: {flex: 1, maxWidth: '72%'},
   // `.detail-poster` — 240px → 150dp, 2:3, the large radius and a deep shadow.
   poster: {
-    width: 150,
-    height: 225,
+    width: 120,
+    height: 180,
     borderRadius: radius.l,
     backgroundColor: colors.bgRaised,
     borderWidth: 1,
@@ -1477,9 +1477,9 @@ const styles = StyleSheet.create({
     textShadowRadius: 24,
   },
   titleDense: {fontSize: fontSize.title + 6, letterSpacing: -0.8},
-  metaRow: {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.sm},
-  rating: {color: colors.star, fontSize: fontSize.body, fontWeight: '800'},
-  meta: {color: colors.textDim, fontSize: fontSize.body, fontWeight: '600'},
+  metaRow: {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm + 2, marginTop: 6},
+  rating: {color: colors.star, fontSize: fontSize.small, fontWeight: '800'},
+  meta: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '600'},
   // Genres as a plain line, not chips. Five pills under a 52dp title is a second
   // row of furniture competing with the buttons for the eye.
   genreLine: {color: colors.textFaint, fontSize: fontSize.small, fontWeight: '700', marginTop: 6},
@@ -1496,7 +1496,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     overflow: 'hidden',
   },
-  synopsis: {color: colors.textDim, fontSize: fontSize.body, lineHeight: 26, marginTop: spacing.sm},
+  synopsis: {color: 'rgba(243,244,248,0.86)', fontSize: fontSize.body, lineHeight: 22, marginTop: spacing.sm},
   cast: {color: colors.textDim, fontSize: fontSize.small, marginTop: 6},
   castLabel: {color: colors.textFaint, fontWeight: '800'},
   badge: {
@@ -1511,7 +1511,7 @@ const styles = StyleSheet.create({
   actions: {flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg, flexWrap: 'wrap'},
   actionsDense: {marginTop: spacing.md},
   actionsSecondary: {flexDirection: 'row', gap: spacing.xs, marginTop: spacing.sm, flexWrap: 'wrap'},
-  playBtn: {backgroundColor: colors.white, paddingVertical: 13, paddingHorizontal: 28},
+  playBtn: {backgroundColor: colors.white, paddingVertical: 9, paddingHorizontal: 22, minHeight: 40, justifyContent: 'center'},
   playText: {color: colors.bg, fontSize: fontSize.body, fontWeight: '800'},
   // Translucent rather than the flat surface colour: these sit on artwork now,
   // and a solid slab there reads as a hole punched in the picture.
@@ -1519,12 +1519,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.14)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.14)',
-    paddingVertical: 13,
-    paddingHorizontal: 18,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    minHeight: 40,
+    justifyContent: 'center',
     alignSelf: 'flex-start',
   },
   ghostText: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
-  ghostSmall: {paddingVertical: 8, paddingHorizontal: 14, backgroundColor: 'rgba(255,255,255,0.09)'},
+  ghostSmall: {paddingVertical: 6, paddingHorizontal: 12, minHeight: 32, backgroundColor: 'rgba(255,255,255,0.09)'},
   ghostTextSmall: {fontSize: fontSize.small},
   note: {color: colors.accent, fontSize: fontSize.small, fontWeight: '700', marginTop: spacing.sm},
   loading: {position: 'absolute', bottom: spacing.xl, left: spacing.contentLeft},

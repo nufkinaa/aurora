@@ -70,6 +70,12 @@ BLOOMS = [
      (96, 80, 220), 0.24, 0.62),
     (to_viewport(0.24), to_viewport(0.84), 0.44 * LAYER, 0.40 * LAYER,
      (48, 112, 184), 0.17, 0.60),
+    # The site's glass look has an aurora sky (aurora-sky.js): green bands
+    # drifting across the upper half. Two wide, flat green blooms stand in for
+    # it here — very faint (elia: "subtle, easy on the GPU", 2026-10-06), and
+    # baked into the same single image, so it costs the box nothing at all.
+    (0.42, 0.20, 0.62, 0.17, (70, 200, 150), 0.11, 0.95),
+    (0.12, 0.50, 0.34, 0.13, (60, 180, 140), 0.07, 0.95),
 ]
 
 img = Image.new('RGB', (W, H), BG)
@@ -119,7 +125,7 @@ print(f'ambient.png: {os.path.getsize(path) / 1024:.1f} KB')
 # the budget that argued for it — both void (RULES rule 13, SPEC/99-open.md §I.3).
 # At 0.42 the ramp finished 34% up the screen, so with the real hero the shelves
 # sat on bright artwork.
-HERO = {'ambient-veil.png': 0.76,       # Home: screens.css:4, min-height 76vh
+HERO = {'ambient-veil.png': 0.66,       # Home: theme.ts heroH (Apple TV app top shelf)
         'ambient-veil-tall.png': 0.62}  # Detail: settled by 04/05
 DISSOLVE = [(0.70, 0.0), (0.81, 0.55), (0.87, 1.0)]
 

@@ -89,7 +89,7 @@ export default function Btn({
       {!primary && !focused ? <View style={styles.hairline} pointerEvents="none" /> : null}
       {leading}
       {icon ? (
-        <Icon name={icon} size={20} color={primary ? colors.bg : colors.text} />
+        <Icon name={icon} size={18} color={primary ? colors.bg : colors.text} />
       ) : null}
       {glyph ? <Text style={small ? styles.labelSmall : styles.label}>{glyph}</Text> : null}
       <Text
@@ -111,15 +111,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 13,
-    paddingHorizontal: 26,
-    minHeight: 48,
+    gap: 8,
+    paddingVertical: 9,
+    paddingHorizontal: 20,
+    minHeight: 40,
     borderRadius: radius.pill,
   },
   // 0.9rem = 14.4 -> 14 at the reading floor; lh 1.5 x 14 = 21. The label is
   // --text, so P14's 16dp faint-colour floor does not apply.
-  small: {paddingVertical: 9, paddingHorizontal: 18},
+  small: {paddingVertical: 7, paddingHorizontal: 14, minHeight: 34},
   surface: {backgroundColor: colors.surface},
   // The gradient is drawn as a child, so the fill underneath only shows through
   // the pill's own corners while the SVG rasterises.
@@ -135,8 +135,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   // 1rem at 0.01em tracking; lineHeight from base.css:12's 1.5.
-  label: {color: colors.text, fontSize: 16, lineHeight: 24, fontWeight: '700', letterSpacing: 0.16},
-  labelSmall: {fontSize: 14, lineHeight: 21},
+  label: {color: colors.text, fontSize: 15, lineHeight: 22, fontWeight: '700', letterSpacing: 0.16},
+  labelSmall: {fontSize: 13, lineHeight: 19},
   labelPrimary: {color: colors.bg},
   labelDim: {color: colors.textDim},
 });

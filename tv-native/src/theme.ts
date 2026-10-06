@@ -61,11 +61,11 @@ export const radius = { s: 8, m: 12, l: 18, pill: 999 };
 //             `--text-faint` is 3.53:1 on `--bg`, below AA at any size, so
 //             hierarchy is carried by COLOUR and nothing goes under 14.
 export const fontSize = {
-  hero: 34,
-  title: 26,
-  row: 20,
-  body: 16,
-  small: 14,
+  hero: 30,
+  title: 24,
+  row: 18,
+  body: 15,
+  small: 13,
 };
 
 // pageX is the TV SAFE INSET, not the site's page gutter — P2. `--page-x` is
@@ -190,12 +190,15 @@ export const useTvMetrics = () => {
     // leaves no room for shelves. That budget is void (RULES rule 13, SPEC
     // 99-open §I.3): it was reasoning about the OLD app, and the site's own
     // answer is that the shelves begin below the fold and you scroll to them.
-    heroH: Math.round(height * 0.76),
+    // 66%, the Apple TV app's top shelf rather than the site's 76vh: the
+    // billboard is the picture and a lockup, and the shelves show under it
+    // without a scroll (elia: "too sparse", 2026-10-06).
+    heroH: Math.round(height * 0.66),
     // screens.css:7 — `padding: 0 var(--page-x) 56px`, the gap under the lockup.
     heroPadBottom: 28,
     // PINS P9 / 00-tokens finding 5: `--fs-hero` is a 4.5vw WIDTH clamp, so it
     // re-expresses as a fraction of WIDTH — 67.2/1900 = 3.54%. 34dp @960.
-    heroTitle: Math.round(width * 0.0354),
+    heroTitle: Math.round(width * 0.03), // 29dp @960 — the Apple TV app's shelf title
     // TV overscan: plenty of sets crop a few percent of every edge, and a row
     // flush to the viewport bottom would lose its focus ring off-screen.
     safeBottom: Math.max(20, Math.round(short * 0.05)),

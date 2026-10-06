@@ -692,7 +692,7 @@ export default function Home({
                   ],
                 },
               ]}>
-            <View style={[styles.info, {maxWidth: Math.round(width * 0.337)}]}>
+            <View style={[styles.info, {maxWidth: Math.round(width * 0.46)}]}>
             <Text
               style={[
                 styles.kicker,
@@ -707,8 +707,8 @@ export default function Home({
             {/* `.hero-synopsis` — three lines, clamped (screens.css:261-270). */}
             {hero.synopsis ? (
               <Text
-                style={[styles.synopsis, {maxWidth: Math.round(width * 0.295)}]}
-                numberOfLines={3}>
+                style={[styles.synopsis, {maxWidth: Math.round(width * 0.42)}]}
+                numberOfLines={2}>
                 {hero.synopsis}
               </Text>
             ) : null}
@@ -716,7 +716,10 @@ export default function Home({
               <Btn
                 primary
                 ref={escape}
-                icon="play"
+                // A stream is a slow start the viewer may not want: the warning
+                // sign says so before the press (elia, 2026-10-06).
+                icon={hero.source === 'stream' ? undefined : 'play'}
+                glyph={hero.source === 'stream' ? '⚠' : undefined}
                 label={hero.source === 'stream' ? 'Stream' : 'Play'}
                 hasTVPreferredFocus
                 // Not edgeLeft: LEFT here is "previous slide"; UP opens the rail.
@@ -758,18 +761,8 @@ export default function Home({
               </Text>
             ) : null}
             </View>
-            {/* `.hero-poster` — 240px → 12.6% of width, 2:3, --radius-l, and the
-                site's deep bottom shadow (screens.css:174-181). */}
-            {imgSrc(hero.cover || hero.poster) ? (
-              <Image
-                source={imgSrc(hero.cover || hero.poster) as ImgSource}
-                style={[
-                  styles.heroPoster,
-                  {width: Math.round(width * 0.126), height: Math.round(width * 0.126 * 1.5)},
-                ]}
-                resizeMode="cover"
-              />
-            ) : null}
+            {/* No poster beside the lockup any more (elia, 2026-10-06): the
+                backdrop IS the picture, and the card competed with it. */}
             </Animated.View>
             {/* `.hero-dots` (screens.css:221-248). DRAWN, not focusable — the
                 site's are <button>s because a mouse needs a target; on a D-pad
@@ -833,16 +826,18 @@ const styles = StyleSheet.create({
   info: {flex: 1},
   heroPoster: {borderRadius: radius.l, boxShadow: '0 30px 80px -45px rgba(0,0,0,0.65)'},
   // `.hero-synopsis` — 0.98rem = 15.7 → the 16dp reading tier, line-height 1.55.
+  // Brighter than --text-dim: over artwork the dim grey was hard to read
+  // (elia). Near-white at 0.88 with the shadow doing the lifting.
   synopsis: {
-    color: colors.textDim,
-    fontSize: 16,
-    lineHeight: 25,
-    marginTop: 10,
+    color: 'rgba(243,244,248,0.88)',
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 8,
     marginBottom: 13,
   },
   // `.hero-kind` — the smallest element in the lockup, and it answers "what am I
   // looking at" before you have read a word of the name.
-  kicker: {fontSize: 14, fontWeight: '900', letterSpacing: 2, marginBottom: 6},
+  kicker: {fontSize: 12, fontWeight: '900', letterSpacing: 2, marginBottom: 4},
   title: {
     color: colors.text,
     fontWeight: '900',
@@ -860,7 +855,7 @@ const styles = StyleSheet.create({
     textShadowOffset: {width: 0, height: 1},
     textShadowRadius: 10,
   },
-  actions: {flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md, flexWrap: 'wrap', alignItems: 'center'},
+  actions: {flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm + 4, flexWrap: 'wrap', alignItems: 'center'},
   partyNote: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '600', marginTop: 8},
   trailerLayer: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000'},
 
