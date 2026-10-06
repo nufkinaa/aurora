@@ -15,9 +15,12 @@
 // Everything that reads the window size goes through useTvMetrics (theme.ts),
 // which reads THIS context first — so "76% of the height" is 76% of the canvas.
 //
-// The one native view that ignores a parent's matrix is a SurfaceView, which
-// is why the player asks for a TextureView when the canvas is scaled
-// (Player.tsx, viewType).
+// The video is a SurfaceView, and since Android 7 a SurfaceView follows its
+// ancestors' matrix (its position callback carries the transformed bounds) —
+// measured on the Mi TV at a 1920-dp override: SurfaceFlinger showed the
+// video layer with a SCALE transform filling the 1920×1080 panel. No
+// TextureView needed (react-native-video 6.19's viewType is a no-op on
+// Android anyway).
 import React, {createContext, useContext, useMemo} from 'react';
 import {View, useWindowDimensions} from 'react-native';
 
