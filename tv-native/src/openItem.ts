@@ -85,6 +85,9 @@ export const openItem = <R extends keyof RootStackParamList>(
         item.showTitle && item.season != null && item.episode != null
           ? `${item.showTitle} · S${item.season} E${item.episode}`
           : item.title,
+      // The episode's real name for the player's header; the card has it
+      // (the server names Continue Watching entries), the library may not.
+      epTitle: item.title && !/^Episode \d+$/.test(item.title) ? item.title : undefined,
     });
     return;
   }

@@ -654,7 +654,7 @@ export function SourcesPanel({
               {season ? `  ·  S${season} E${episode}` : ''}
             </Text>
             <Text style={styles.sub}>
-              {count ? `${count} source${count === 1 ? '' : 's'}` : 'Finding sources'}
+              {count ? `${count} source${count === 1 ? '' : 's'}` : streams ? 'No sources' : 'Finding sources'}
             </Text>
           </View>
           <Focusable

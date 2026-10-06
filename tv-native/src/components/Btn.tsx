@@ -91,7 +91,11 @@ export default function Btn({
       {icon ? (
         <Icon name={icon} size={18} color={primary ? colors.bg : colors.text} />
       ) : null}
-      {glyph ? <Text style={small ? styles.labelSmall : styles.label}>{glyph}</Text> : null}
+      {/* The glyph takes the label's colour — on a primary (white) button that
+          is the dark one, or a ⚠ vanished white-on-white (Mi TV, 2026-10-06). */}
+      {glyph ? (
+        <Text style={[styles.label, small && styles.labelSmall, primary && styles.labelPrimary]}>{glyph}</Text>
+      ) : null}
       <Text
         style={[
           styles.label,
