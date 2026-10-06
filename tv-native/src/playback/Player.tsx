@@ -2370,6 +2370,10 @@ export default function Player({
   const shown = seekPreview != null ? seekPreview : current;
   const pct = duration ? Math.min(100, (shown / duration) * 100) : 0;
   const bufPct = duration ? Math.min(100, (buffered / duration) * 100) : 0;
+  // The intro range the track draws (hand-marked wins over detected); the
+  // marksTick state re-renders this when a mark lands.
+  const marksRange = intro.current || autoIntro.current;
+  void marksTick;
   // Second line under the title, composed the way the site composes it:
   // "S1 E4 · Episode Title" for an episode, else the year.
   const epSeason = itemRef.current?.season ?? stream?.season;
@@ -2535,8 +2539,22 @@ export default function Player({
                   {/* the lit head bead (glass.css .scrubber-fill::after) */}
                   <View style={[styles.head, scrubFocused && styles.headBig]} />
                 </View>
+                {/* The intro as a band on the track, so the skip range reads at a
+                    glance (elia: "the skip intro timings on the timeline"). */}
+                {duration > 0 && marksRange && marksRange.end > marksRange.start ? (
+                  <View
+                    style={[
+                      styles.introBand,
+                      {
+                        left: `${(marksRange.start / duration) * 100}%`,
+                        width: `${((marksRange.end - marksRange.start) / duration) * 100}%`,
+                      },
+                    ]}
+                  />
+                ) : null}
                 {/* Landmark ticks (the site's .scrubber-marks): where the intro
-                    starts and ends, where the credits begin. */}
+                    starts and ends, where the credits begin. Drawn taller than
+                    the track and over the fill, so they stay visible under it. */}
                 {duration > 0
                   ? [
                       intro.current?.start ?? autoIntro.current?.start,
@@ -3136,13 +3154,20 @@ const styles = StyleSheet.create({
   // .scrubber-marks i — a 3px white tick with a dark hairline around it.
   mark: {
     position: 'absolute',
-    top: 0,
-    bottom: 0,
+    top: -3,
+    bottom: -3,
     width: 3,
     marginLeft: -1,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    boxShadow: '0 0 0 1px rgba(0,0,0,0.35)',
+    backgroundColor: '#ffffff',
+    boxShadow: '0 0 0 1px rgba(0,0,0,0.55)',
+  },
+  // The intro range: a pale band on the track between its two ticks.
+  introBand: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.35)',
   },
   trackBuffer: {
     position: 'absolute',
