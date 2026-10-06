@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.34 — 2026-10-06
+
+- Settings → Your profile is tidy: your avatar and name with "Password protected" under it on one line, then rows like every other setting — Edit profile & password, Upload a photo (Change / Remove photo once you have one), Your Aurora Wrapped, Pick titles you love — each with an icon, one short line and a chevron. It was a stack of mismatched pills.
+
 ## 1.6.33 — 2026-10-06
 
 - The phone's tab bar has AI first and Search last — the two swapped places.

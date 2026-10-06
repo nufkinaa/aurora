@@ -48,6 +48,13 @@ const ICONS = {
   "Subtitle language": '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.500 3 14.500 0 18M12 3c-3 3.500-3 14.500 0 18"/>',
   "Subtitle size": '<path d="M3 18l4.500-11L12 18M4.500 14.500h6"/><path d="M14 18l3-7 3 7M15 16h4"/>',
   "Dark box behind subtitles": '<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h10"/>',
+  // the profile card's rows
+  "Edit profile & password": '<path d="M4 20h4l10.500-10.500a2.100 2.100 0 00-3-3L5 17z"/><path d="M13.500 6.500l3 3"/>',
+  "Upload a photo": '<path d="M4 8.500A1.500 1.500 0 015.500 7H8l1.500-2h5L16 7h2.500A1.500 1.500 0 0120 8.500V18a1.500 1.500 0 01-1.500 1.500h-13A1.500 1.500 0 014 18z"/><circle cx="12" cy="13" r="3.200"/>',
+  "Change photo": '<path d="M4 8.500A1.500 1.500 0 015.500 7H8l1.500-2h5L16 7h2.500A1.500 1.500 0 0120 8.500V18a1.500 1.500 0 01-1.500 1.500h-13A1.500 1.500 0 014 18z"/><circle cx="12" cy="13" r="3.200"/>',
+  "Remove photo": '<path d="M4 7h16M9 7V4.500h6V7M6.500 7l1 13h9l1-13"/>',
+  "Your Aurora Wrapped": '<path d="M12 3l1.800 4.700L18.500 9.500l-4.700 1.800L12 16l-1.800-4.700L5.500 9.500l4.700-1.800z"/><path d="M19 15l.800 2.200L22 18l-2.200.800L19 21l-.800-2.200L16 18l2.200-.800z"/>',
+  "Pick titles you love": '<path d="M12 20s-7-4.300-7-9.500A4 4 0 0112 8a4 4 0 017 2.500C19 15.700 12 20 12 20z"/>',
   "Help improve Aurora": '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
 };
 const iconFor = (name) => (ICONS[name] ? el("span", { class: "pref-icon", html: svg(ICONS[name]) }) : null);
@@ -344,70 +351,60 @@ export const renderPreferences = async (root) => {
       note && el("p", { class: "pref-note", style: { padding: 0 } }, note),
       ...content);
 
+  // A row that goes somewhere (or does one thing) — the same shape as a
+  // setting's row, with a chevron where a setting has its control.
+  const linkRow = (label, note, onClick) =>
+    el("button", { class: "pref-item pref-link focusable", onclick: onClick },
+      iconFor(label),
+      el("div", { class: "pref-item-text" },
+        el("div", { class: "pref-item-label" }, label),
+        note && el("div", { class: "pref-item-note" }, note)),
+      el("span", { class: "pref-link-chev", "aria-hidden": "true" }, "›"));
+  const pickPhoto = () => {
+    const pick = el("input", { type: "file", accept: "image/jpeg,image/png,image/webp" });
+    pick.onchange = async () => {
+      const file = pick.files && pick.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) return toast("2MB max — pick a smaller image", "⚠️");
+      try {
+        const r = await api.uploadAvatar(state.profile.id, file);
+        state.profile = { ...state.profile, ...r.profile };
+        toast("Looking sharp", "📷");
+        rerenderInPlace(); // repaint the screen + nav chip
+      } catch (e) {
+        toast(e.message || "Upload failed", "⚠️");
+      }
+    };
+    pick.click();
+  };
+  // Who you are, then what you can do about it — as rows, like every other
+  // setting (it was a wall of mismatched pills; elia: "let's organize all
+  // this", 2026-10-06).
   const profileSection = section("Your profile", null,
     el("div", { class: "pref-profile page-pad" },
       el("div", { class: "big-avatar small", style: { background: state.profile.color } },
         state.profile.avatarImage
           ? el("img", { class: "avatar-photo", src: state.profile.avatarImage, alt: "" })
           : state.profile.avatar),
-      el("div", { style: { flex: "1" } },
+      el("div", { class: "pref-profile-who" },
         el("div", { class: "pref-profile-name" }, state.profile.name),
-        el("div", { class: "pref-note", style: { padding: 0, margin: "2px 0 0" } },
-          state.profile.hasPassword ? "🔒 Password protected" : "No password set")
-      ),
-      el("button", {
-        class: "btn focusable",
-        html: "<span>Edit profile & password</span>",
-        onclick: () => profileModal(state.profile, async () => { await loadProfiles(); rerenderInPlace(); }),
-      })
+        el("div", { class: "pref-profile-sub" }, state.profile.hasPassword ? "Password protected" : "No password set")),
     ),
-    // Custom avatar photo: uploaded, validated + re-encoded server-side.
-    el("div", { class: "page-pad", style: { display: "flex", gap: "10px", marginTop: "8px", flexWrap: "wrap" } },
-      el("button", {
-        class: "btn small focusable",
-        html: "<span>📷 Upload a photo</span>",
-        onclick: () => {
-          const pick = el("input", { type: "file", accept: "image/jpeg,image/png,image/webp" });
-          pick.onchange = async () => {
-            const file = pick.files && pick.files[0];
-            if (!file) return;
-            if (file.size > 2 * 1024 * 1024) return toast("2MB max — pick a smaller image", "⚠️");
-            try {
-              const r = await api.uploadAvatar(state.profile.id, file);
-              state.profile = { ...state.profile, ...r.profile };
-              toast("Looking sharp", "📷");
-              rerenderInPlace(); // repaint the screen + nav chip
-            } catch (e) {
-              toast(e.message || "Upload failed", "⚠️");
-            }
-          };
-          pick.click();
-        },
+    el("div", { class: "pref-list page-pad" },
+      linkRow("Edit profile & password", "Name, avatar, colour and your password.",
+        () => profileModal(state.profile, async () => { await loadProfiles(); rerenderInPlace(); })),
+      linkRow(state.profile.avatarImage ? "Change photo" : "Upload a photo", "A picture of you in place of the emoji — JPEG, PNG or WebP, up to 2 MB.", pickPhoto),
+      state.profile.avatarImage && linkRow("Remove photo", "Back to the emoji.", async () => {
+        try {
+          const r = await api.removeAvatar(state.profile.id);
+          state.profile = { ...state.profile, ...r.profile };
+          toast("Back to the emoji");
+          rerenderInPlace();
+        } catch { toast("Couldn't remove it", "⚠️"); }
       }),
-      state.profile.avatarImage && el("button", {
-        class: "btn small focusable",
-        html: "<span>Remove photo</span>",
-        onclick: async () => {
-          try {
-            const r = await api.removeAvatar(state.profile.id);
-            state.profile = { ...state.profile, ...r.profile };
-            toast("Back to the emoji");
-            rerenderInPlace();
-          } catch { toast("Couldn't remove it", "⚠️"); }
-        },
-      }),
+      linkRow("Your Aurora Wrapped", "Your year in numbers, with a few roasts.", () => navigate("#/wrapped")),
+      linkRow("Pick titles you love", "Teach Home your taste in a minute.", () => navigate("#/taste")),
     ),
-    el("div", { class: "page-pad", style: { marginTop: "6px", display: "flex", gap: "10px", flexWrap: "wrap" } },
-      el("button", {
-        class: "btn small focusable",
-        html: "<span>🌌 Your Aurora Wrapped — stats & roasts</span>",
-        onclick: () => navigate("#/wrapped"),
-      }),
-      el("button", {
-        class: "btn small focusable",
-        html: "<span>🎯 Pick titles you love</span>",
-        onclick: () => navigate("#/taste"),
-      })),
   );
 
   // ---------- account (sign-in) section — only when the server runs accounts ----------
