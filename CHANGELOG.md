@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.42 — 2026-10-07
+
+- Aurora TV 5.1.6 — episode cards take the site's glass look (elia: "the very small border and the glass background on the bottom half"): each card is a translucent box (white at 6%, 9% while focused) with the 1dp light edge every card has, the still inset 5dp inside it with the smaller corner radius, and the name, runtime and CC / WATCHED tags on the glass under it. A focused episode card — and a film's "More like this" card — scrolls the title page to its end, so the row never sits flush on the screen's edge (seen on the Mi TV: the box's foot at 1075 of 1080px).
+
 ## 1.6.41 — 2026-10-07
 
 - Aurora TV 5.1.5 — the title pages take the Max / HBO shape (elia's references): the picture is the title's real key art (metahub's background, not a random frame still), it lives in the **upper right** — from 30% of the width to the edge, 76% of the height — and melts into the page down its left side and at its foot; the words sit on the plain page to its left, never over it — title, one small facts line, ONE big Play / Resume / Continue button, a row of small round icon buttons with tiny labels (My List · Trailer · Versions · Start over · Watched, or Similar on a show), and only then the synopsis, genres and cast. The page scrolls: a show's season pills and episode rail, and a film's "More like this" shelf, sit below the fold and come up as focus moves down.

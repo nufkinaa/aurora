@@ -61,10 +61,17 @@ const EP_W = 202;
 // disagree. They did: the still was an absolute EP_THUMB_H inside a content box
 // 6dp shorter, so it hung 6dp below the ring. Measured on the Streamer before
 // the fix — ring 320.5..433.0dp, artwork 320.5..439.0dp.
-const EP_ART_W = EP_W - theme.focus.borderWidth * 2;
+// GLASS (elia, 2026-10-07, "the same glass look like the website"): the card
+// is a translucent box with the site's 1px edge (glass.css `.episode`), the
+// still inset inside it like the site's 176px still inside its 10px padding.
+// The 1dp edge + 5dp of glass replace the ring's reserved 3dp: the ring (3dp)
+// is drawn at inset 0 over the edge and the first 2dp of glass.
+const EP_EDGE = 1;
+const EP_PAD = 5;
+const EP_ART_W = EP_W - (EP_EDGE + EP_PAD) * 2;
 const EP_ART_H = Math.round((EP_ART_W * 9) / 16);
 // What the Focusable is given, so its CONTENT box is exactly the still.
-const EP_THUMB_H = EP_ART_H + theme.focus.borderWidth * 2;
+const EP_THUMB_H = EP_ART_H + (EP_EDGE + EP_PAD) * 2;
 const SEASON_H = 54;
 // The film page's shelf: a poster row with its heading, the focus glow's room
 // above, and the safe inset added at render.
@@ -438,7 +445,15 @@ type UiSeason = {number: number; episodes: UiEp[]};
 // under it, then the facts. This is how a TV shows a season — the old full-width
 // rows were a settings list with pictures missing, and only three of them fitted
 // on screen.
-const EpisodeCard = React.memo(function EpisodeCardItem({ep, edgeLeft}: {ep: UiEp; edgeLeft?: boolean}) {
+const EpisodeCard = React.memo(function EpisodeCardItem({
+  ep,
+  edgeLeft,
+  onFocus,
+}: {
+  ep: UiEp;
+  edgeLeft?: boolean;
+  onFocus?: () => void;
+}) {
   // The focus treatment wraps the WHOLE card — still, title and badges.
   //
   // It used to wrap only the artwork, on the argument that a ring around a
@@ -453,6 +468,10 @@ const EpisodeCard = React.memo(function EpisodeCardItem({ep, edgeLeft}: {ep: UiE
       shadow={theme.cardAura.shadow}
       edgeLeft={edgeLeft}
       onPress={ep.onPlay}
+      onFocusChange={onFocus ? f => f && onFocus() : undefined}
+      // glass.css: `.episode:focus { background: rgba(255,255,255,.09) }` —
+      // a lighter glass while focused, on top of the resting 0.06.
+      highlightColor="rgba(255,255,255,0.04)"
       style={styles.epCard}>
         <View style={styles.epThumb}>
           {ep.thumb ? (
@@ -1071,11 +1090,18 @@ export default function Detail({
     () => uiSeasons.some(se => se.episodes.some(e => e.hasSubs)),
     [uiSeasons],
   );
+  // The rail is the page's last row. RN scrolls a focused card just far enough
+  // to be visible, which left its bottom edge ON the screen edge (Mi TV,
+  // 2026-10-07: the glass box's foot at 1075 of 1080px, no air under it) — so a
+  // focused card scrolls the page to its end instead, where the bottom padding
+  // is. The film page's shelf does the same.
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollToEnd = useCallback(() => scrollRef.current?.scrollToEnd({animated: true}), []);
   const renderEpisode = useCallback(
     ({item: ep, index}: {item: UiEp; index: number}) => (
-      <EpisodeCard ep={ep} edgeLeft={index === 0} />
+      <EpisodeCard ep={ep} edgeLeft={index === 0} onFocus={scrollToEnd} />
     ),
-    [],
+    [scrollToEnd],
   );
 
   // ---------- Shows ----------
@@ -1138,9 +1164,9 @@ export default function Detail({
   }, [navigation]);
   const renderShelfCard = useCallback(
     ({item: sim, index}: {item: HeroItem; index: number}) => (
-      <Card item={sim} index={index} onPress={openSimilar} edgeLeft={index === 0} />
+      <Card item={sim} index={index} onPress={openSimilar} edgeLeft={index === 0} onFocus={scrollToEnd} />
     ),
-    [openSimilar],
+    [openSimilar, scrollToEnd],
   );
   const renderSimilar = useCallback(
     ({item: sim, index}: {item: HeroItem; index: number}) => (
@@ -1257,8 +1283,9 @@ export default function Detail({
             §5.8(a). */}
         <NavRail active={navSection} disabled={!!srcPanel || likePanel} />
         <ScrollView
+          ref={scrollRef}
           style={styles.scroll}
-          contentContainerStyle={{paddingTop: artTop, paddingBottom: safeBottom + spacing.lg}}
+          contentContainerStyle={{paddingTop: artTop, paddingBottom: safeBottom}}
           showsVerticalScrollIndicator={false}>
         <DetailHero
           kicker="SERIES"
@@ -1361,8 +1388,9 @@ export default function Detail({
           other — that has cost a full debugging cycle before. */}
       <NavRail active={navSection} disabled={!!srcPanel || likePanel} />
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={{paddingTop: artTop, paddingBottom: safeBottom + spacing.lg}}
+        contentContainerStyle={{paddingTop: artTop, paddingBottom: safeBottom}}
         showsVerticalScrollIndicator={false}>
       <DetailHero
         kicker="FILM"
@@ -1690,7 +1718,15 @@ const styles = StyleSheet.create({
   // ---- episode card -------------------------------------------------------
   // The Focusable itself now. Padding-bottom keeps the ring off the badges, and
   // the radius is what the ring follows.
-  epCard: {width: EP_W, borderRadius: radius.m, paddingBottom: 8},
+  epCard: {
+    width: EP_W,
+    borderRadius: radius.m,
+    borderWidth: EP_EDGE,
+    borderColor: 'rgba(226,229,238,0.3)',
+    backgroundColor: colors.surface,
+    padding: EP_PAD,
+    paddingBottom: 8,
+  },
   // '100%' on BOTH axes, so the still is exactly the content box and the ring
   // hugs it. The width was already '100%'; only the height was absolute, which
   // is the whole of the bug.
@@ -1700,7 +1736,9 @@ const styles = StyleSheet.create({
     // sizing it, so it states its own 16:9 box off the ART width (EP_W minus the
     // ring's reserved 3dp each side).
     height: EP_ART_H,
-    borderRadius: radius.m,
+    // The site's still is 12px-round inside its 18px box; here the box is
+    // radius.m, so the still steps down one size.
+    borderRadius: radius.s,
     backgroundColor: colors.bgRaised,
     overflow: 'hidden',
     justifyContent: 'flex-end',
@@ -1742,14 +1780,14 @@ const styles = StyleSheet.create({
     fontSize: fontSize.small,
     fontWeight: '700',
     marginTop: 8,
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
   },
   epSub: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     marginTop: 3,
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
   },
   epDur: {color: colors.textFaint, fontSize: 13, fontWeight: '700'},
   epBadge: {

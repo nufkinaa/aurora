@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.5",
-  "notes": "Title pages in the Max shape: the picture on top, the words low-left on the dark part, one big Play button with small icon buttons under it, the synopsis after; episodes and “More like this” below the fold. Plus a shorter billboard that dissolves lower, no warning on its Stream button, a dark-purple glow from the centre, and the collapsed rail's edge reaching the bottom."
+  "versionName": "5.1.6",
+  "notes": "Episode cards wear the site's glass: a translucent box with the fine light edge, the still inset inside it and the name and runtime on the glass below. A focused episode (or a film's “More like this” card) brings the page to its end so the row has air under it."
 }
