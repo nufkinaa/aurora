@@ -132,8 +132,12 @@ print(f'ambient.png: {os.path.getsize(path) / 1024:.1f} KB')
 # picture should keep going under the first shelf's heading and dissolve lower
 # (elia: "fade out lower") — gone by 75% of the screen instead of 57%.
 HERO = {'ambient-veil.png': 0.86,       # Home: dissolves lower than the hero box
-        'ambient-veil-tall.png': 0.62}  # Detail: settled by 04/05
-DISSOLVE = [(0.70, 0.0), (0.81, 0.55), (0.87, 1.0)]
+        # Detail: Max keeps the picture to ~80% of the screen and fades it long;
+        # the words sit low-left on the ramps. 0.92 → gone by 80%.
+        'ambient-veil-tall.png': 0.92}
+# A longer, softer ramp than the site's three stops: on a TV the hard edge
+# where the art ended read as a line across the page (Mi TV photos).
+DISSOLVE = [(0.50, 0.0), (0.66, 0.25), (0.78, 0.65), (0.87, 1.0)]
 
 
 def veil_alpha(t, hero):
@@ -164,3 +168,63 @@ tile.putdata([(255, 255, 255, random.randint(0, 255))
 path = os.path.join(ASSETS, 'ambient-grain.png')
 tile.save(path, optimize=True)
 print(f'ambient-grain.png: {os.path.getsize(path) / 1024:.1f} KB  (draw at opacity {GRAIN})')
+
+# ---- the title page's picture edges ----------------------------------------
+# Detail confines the picture to the upper right; these two ramps melt its left
+# edge and its foot into the page colour. Smoothstep, so neither end shows a
+# line. (RN's experimental_backgroundImage gradients did not render on the Mi
+# TV — a stretched PNG always does.)
+def smooth(t):
+    return t * t * (3 - 2 * t)
+
+
+# 64x64, not 256x1: the Mi TV's image pipeline drew the one-pixel-high
+# ramps as nothing at all; a square tile stretches fine (the veils are 480x270).
+edge = Image.new('RGBA', (64, 64))
+edge.putdata([(BG[0], BG[1], BG[2], round(255 * (1 - smooth(x / 63)))) for _ in range(64) for x in range(64)])
+path = os.path.join(ASSETS, 'edge-ramp.png')
+edge.save(path, optimize=True)
+foot = Image.new('RGBA', (64, 64))
+foot.putdata([(BG[0], BG[1], BG[2], round(255 * smooth(y / 63))) for y in range(64) for _ in range(64)])
+path = os.path.join(ASSETS, 'foot-ramp.png')
+foot.save(path, optimize=True)
+print('edge-ramp.png / foot-ramp.png baked')
+
+# ---- the title page's picture mask, one full-screen image ------------------
+# Detail's picture sits in the upper-right box (x >= 38%, y <= 76%). Every
+# smaller overlay drawn over or around that box failed to render on the Mi TV;
+# the one thing that always drew is a full-screen 480x270 RGBA stretched over
+# the page (the veils). So the two ramps are baked into ONE such image: page
+# colour at the box's left edge melting to clear across 34% of the width, and
+# at its foot from 42% down to the box's bottom; clear everywhere else.
+# The mask's COLOUR is the ambient itself (img, the blooms over the page
+# colour), not flat --bg: a flat strip over the glowing page read as a line
+# down the picture's edge on the Mi TV. Like the veils, it brings the real
+# background forward.
+# The box starts at 30% of the width (elia: "let the photo bleed more left");
+# the ramp runs 45% of the width from there. The mask's solid part begins
+# twelve screen pixels BEFORE the box edge and ends a little below its foot:
+# the mask is 480 px wide stretched 4x, so bilinear filtering spreads an
+# alpha step over ~8 screen px — starting it at the edge left a dark seam.
+BOX_L, BOX_B, RAMP_W, FOOT_T = 0.30, 0.76, 0.45, 0.40
+LEAD = 3.5 / W
+amb = img.load()
+mask = Image.new('RGBA', (W, H))
+px = []
+for y in range(H):
+    fy = y / H
+    for x in range(W):
+        fx = x / W
+        a = 0.0
+        # one mask pixel BEFORE the box's edge too, so the picture's
+        # anti-aliased first column never peeks out as a hairline
+        if fx >= BOX_L - LEAD and fy <= BOX_B + 3.5 / H:
+            left = 1 - smooth(min(1.0, max(0.0, (fx - BOX_L) / RAMP_W)))
+            foot = smooth(min(1.0, max(0.0, (fy - FOOT_T) / (BOX_B - FOOT_T))))
+            a = max(left, foot)
+        r, g, b = amb[x, y]
+        px.append((r, g, b, round(255 * a)))
+mask.putdata(px)
+path = os.path.join(ASSETS, 'detail-mask.png')
+mask.save(path, optimize=True)
+print(f'detail-mask.png: {os.path.getsize(path) / 1024:.1f} KB')

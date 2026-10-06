@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.41 — 2026-10-07
+
+- Aurora TV 5.1.5 — the title pages take the Max / HBO shape (elia's references): the picture is the title's real key art (metahub's background, not a random frame still), it lives in the **upper right** — from 30% of the width to the edge, 76% of the height — and melts into the page down its left side and at its foot; the words sit on the plain page to its left, never over it — title, one small facts line, ONE big Play / Resume / Continue button, a row of small round icon buttons with tiny labels (My List · Trailer · Versions · Start over · Watched, or Similar on a show), and only then the synopsis, genres and cast. The page scrolls: a show's season pills and episode rail, and a film's "More like this" shelf, sit below the fold and come up as focus moves down.
+
 ## 1.6.40 — 2026-10-06
 
 - Aurora TV 5.1.4 — the title pages redrawn as a designer would (elia): the artwork is the page, the lockup sits low on the left over a wider, darker ramp (title, one facts line with the badges, a quiet genre line, a two-line synopsis, the cast), **one row of equal buttons** (Resume · Start over · Other versions · Trailer · My List · Watched), and the half of the screen that was empty carries a **"More like this" shelf** of real cards at the foot, like a show's episode rail. The poster and the genre chips are gone from the film page.

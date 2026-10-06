@@ -16,6 +16,7 @@ import {
   Text,
   Image,
   FlatList,
+  ScrollView,
   StyleSheet,
   ActivityIndicator,
   BackHandler,
@@ -24,6 +25,8 @@ import {
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useIsFocused} from '@react-navigation/native';
 import Focusable from '../components/Focusable';
+import Icon, {IconName} from '../components/Icon';
+const DETAIL_MASK = require('../assets/detail-mask.png');
 import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
 import {api, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta} from '../api';
@@ -65,7 +68,9 @@ const EP_THUMB_H = EP_ART_H + theme.focus.borderWidth * 2;
 const SEASON_H = 54;
 // The film page's shelf: a poster row with its heading, the focus glow's room
 // above, and the safe inset added at render.
-const LIKE_H = CARD_H + 30 + theme.CLEARANCE.above;
+// heading (26) + the rail's own padding (20 above for the focus glow, 8
+// below) + a poster; the safe inset is added at render on both sides.
+const LIKE_H = 26 + 20 + CARD_H + 8;
 // The whole dock: thumb + title + facts + padding, plus room for the focus glow.
 const RAIL_H = EP_THUMB_H + 62 + theme.CLEARANCE.above * 2;
 
@@ -239,12 +244,15 @@ function DetailHero({
   const meta = metaParts.filter(Boolean).map(String);
   const badgeList = badges.filter(Boolean) as string[];
   return (
-    <View style={[styles.hero, {paddingBottom: bottomInset + spacing.lg}]} pointerEvents="box-none">
+    <View style={[styles.hero, {paddingBottom: bottomInset + spacing.md}]} pointerEvents="box-none">
       <View style={styles.lockupRow} pointerEvents="box-none">
       {poster ? (
         <Image source={poster} style={styles.poster} resizeMode="cover" resizeMethod="resize" fadeDuration={200} />
       ) : null}
       <View style={[styles.lockup, poster && styles.lockupBeside]} pointerEvents="box-none">
+        {/* ORDER (Max): kicker · title · facts · the buttons · the synopsis ·
+            genres · cast. The buttons sit right under the facts, so the first
+            press is one glance from the title; the paragraph reads after. */}
         {/* No kicker in dense mode. "SERIES" is 22dp of vertical budget spent
             saying what the season pills and the episode rail below already say,
             and it was the line that ended up tucked behind the nav. */}
@@ -259,15 +267,18 @@ function DetailHero({
             <Badge key={b} text={b} />
           ))}
         </View>
-        {genres && genres.length ? (
-          // Genre chips, as on the site — small, outlined, not focusable.
-          <Text style={styles.genreLine} numberOfLines={1}>
-            {genres.slice(0, 4).join('  ·  ')}
-          </Text>
+        {children ? (
+          <View style={[styles.actions, dense && styles.actionsDense]}>{children}</View>
         ) : null}
+        {secondary ? <View style={styles.actionsSecondary}>{secondary}</View> : null}
         {synopsis ? (
           <Text style={styles.synopsis} numberOfLines={synopsisLines}>
             {unescapeHtml(synopsis)}
+          </Text>
+        ) : null}
+        {genres && genres.length ? (
+          <Text style={styles.genreLine} numberOfLines={1}>
+            {genres.slice(0, 4).join('  ·  ')}
           </Text>
         ) : null}
         {cast && cast.length ? (
@@ -276,10 +287,6 @@ function DetailHero({
             {unescapeHtml(cast.slice(0, 4).join(', '))}
           </Text>
         ) : null}
-        {children ? (
-          <View style={[styles.actions, dense && styles.actionsDense]}>{children}</View>
-        ) : null}
-        {secondary ? <View style={styles.actionsSecondary}>{secondary}</View> : null}
         {note ? <Text style={styles.note}>{note}</Text> : null}
       </View>
       </View>
@@ -290,9 +297,13 @@ function DetailHero({
 // The backdrop stack every detail page sits on: art, a light overall dim, the
 // left ramp that carries the type, and the bottom ramp that lands the page.
 function HeroArt({art, sharp}: {art?: ImgSource | null; sharp: boolean}) {
-  if (!art) return <View style={styles.artFallback} />;
+  if (!art) return null;
+  // SEPARATION (elia): the picture lives in the upper right — from 30% of the
+  // width to the edge, 76% of the height — and the text column on the left
+  // sits on the plain page, never under it.
   return (
     <>
+    <View style={styles.artBox} pointerEvents="none">
       <Image
         source={art}
         style={styles.art}
@@ -314,8 +325,13 @@ function HeroArt({art, sharp}: {art?: ImgSource | null; sharp: boolean}) {
         blurRadius={sharp ? 0 : 28}
       />
       <View style={styles.artDim} />
-      <Image source={HERO_SIDE} style={styles.artSide} resizeMode="stretch" />
-      <Image source={HERO_VEIL} style={styles.artVeil} resizeMode="stretch" />
+    </View>
+    {/* The ramps are SIBLINGS of the box, positioned over it in screen terms:
+        overlays drawn inside the box did not render on the Mi TV (neither the
+        veil that works full-screen, nor PNG tiles, nor an SVG gradient), while
+        full-screen overlays always have. Left ramp over the box's first 55%,
+        foot ramp over its lower 45%. */}
+    <Image source={DETAIL_MASK} style={styles.artMask} resizeMode="stretch" fadeDuration={0} />
     </>
   );
 }
@@ -344,6 +360,36 @@ const PrimaryBtn = ({
     <Text style={styles.playText}>{label}</Text>
   </Focusable>
 );
+// A round 40dp icon with a tiny label under it — Max's My List / Trailer row.
+const IconBtn = ({
+  icon,
+  glyph,
+  label,
+  on,
+  onPress,
+  ref,
+}: {
+  icon?: IconName;
+  glyph?: string;
+  label: string;
+  on?: boolean; // a filled disc: in the list, marked watched
+  onPress: () => void;
+  ref?: React.Ref<View>;
+}) => (
+  <Focusable round ref={ref} onPress={onPress} style={styles.iconBtn} accessibilityLabel={label}>
+    <View style={[styles.iconBtnDisc, on && styles.iconBtnDiscOn]}>
+      {icon ? (
+        <Icon name={icon} size={18} color={on ? colors.bg : colors.text} />
+      ) : (
+        <Text style={[styles.iconBtnGlyph, on && {color: colors.bg}]}>{glyph}</Text>
+      )}
+    </View>
+    <Text style={styles.iconBtnLabel} numberOfLines={1}>
+      {label}
+    </Text>
+  </Focusable>
+);
+
 const GhostBtn = ({
   label,
   hasTVPreferredFocus,
@@ -452,7 +498,7 @@ export default function Detail({
   // branch TypeScript has already narrowed item.type, so an inline comparison
   // against 'show' there is a type error rather than a runtime one.
   const navSection: NavSection = item.type === 'show' ? 'shows' : 'movies';
-  const {width, safeBottom} = useTvMetrics();
+  const {width, safeBottom, height} = useTvMetrics();
   const stream = isStream(item);
 
   const [full, setFull] = useState<Item | null>(null);
@@ -887,7 +933,16 @@ export default function Detail({
     [ensureImdb, item.title],
   );
 
-  const backdrop = imgSrc(item.backdrop || item.cover || item.poster);
+  // THE PICTURE: the title's key art (metahub's background, by IMDb id) before
+  // a frame still — a library show's still is a random scene, often letterboxed.
+  const keyImdb = item.imdbId || libImdb;
+  const keyArt = keyImdb ? `https://images.metahub.space/background/medium/${keyImdb}/img` : null;
+  const backdrop = imgSrc(keyArt || item.backdrop || item.cover || item.poster);
+  const backdropSharp = !!(keyArt || item.backdrop);
+  // The lockup begins at 42% of the screen — low, on the part of the picture
+  // the ramps have already taken down (Max puts its title there too); the
+  // words and buttons never sit on the subject.
+  const artTop = Math.round(height * 0.22);
   // Portrait art beside the title, like the web's `.detail-poster`. Skipped when
   // the backdrop already IS the poster — the same picture twice looks broken.
 
@@ -1197,10 +1252,14 @@ export default function Detail({
   if (item.type === 'show') {
     return (
       <View style={styles.root}>
-        <HeroArt art={backdrop} sharp={!!item.backdrop} />
+        <HeroArt art={backdrop} sharp={backdropSharp} />
         {/* The panels trap focus, so the rail is unreachable while one is up —
             §5.8(a). */}
         <NavRail active={navSection} disabled={!!srcPanel || likePanel} />
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={{paddingTop: artTop, paddingBottom: safeBottom + spacing.lg}}
+          showsVerticalScrollIndicator={false}>
         <DetailHero
           kicker="SERIES"
           title={item.title}
@@ -1211,11 +1270,20 @@ export default function Detail({
             ownedCount ? `${ownedCount} downloaded` : null,
           ]}
           badges={[streamMeta?.certificate, anySubs ? 'CC' : null]}
-          dense
           synopsis={full?.synopsis || streamMeta?.synopsis || item.synopsis}
-          synopsisLines={1}
+          synopsisLines={2}
+          cast={streamMeta?.cast}
           note={srcNote}
-          bottomInset={RAIL_H + (uiSeasons.length > 1 ? SEASON_H : 0)}>
+          bottomInset={0}
+          secondary={
+            <>
+              <IconBtn ref={listBtnRef} icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
+              {streamMeta?.trailers?.length ? (
+                <IconBtn icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
+              ) : null}
+              <IconBtn glyph="⋯" label="Similar" onPress={() => setLikePanel(true)} />
+            </>
+          }>
           {nextUp ? (
             <PrimaryBtn
               hasTVPreferredFocus
@@ -1228,22 +1296,14 @@ export default function Detail({
               onPress={nextUp.play}
             />
           ) : null}
-          <GhostBtn
-            ref={listBtnRef}
-            hasTVPreferredFocus={!nextUp}
-            edgeLeft={!nextUp}
-            label={inList ? '✓  In My List' : '+  My List'}
-            onPress={toggleList}
-          />
-          {streamMeta?.trailers?.length ? (
-            <GhostBtn label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
+          {!nextUp ? (
+            <PrimaryBtn hasTVPreferredFocus edgeLeft label="▶  Play S1 E1" onPress={() => uiSeasons[0]?.episodes[0]?.onPlay()} />
           ) : null}
-          <GhostBtn label="More like this" onPress={() => setLikePanel(true)} />
         </DetailHero>
 
-        {/* Season pills + the episode rail, pinned to the bottom of the screen
-            so the hero above them never has to guess how much room is left. */}
-        <View style={[styles.bottomDock, {paddingBottom: safeBottom}]}>
+        {/* Season pills + the episode rail, in flow under the lockup. */}
+        <Text style={styles.dockTitle}>Episodes</Text>
+        <View>
           {uiSeasons.length > 1 ? (
             <FlatList
               data={uiSeasons}
@@ -1283,6 +1343,7 @@ export default function Detail({
             />
           )}
         </View>
+        </ScrollView>
         {sourcesOverlay}
         {moreOverlay}
       </View>
@@ -1295,10 +1356,14 @@ export default function Detail({
   // the buttons was the emptiest thing in the app.
   return (
     <View style={styles.root}>
-      <HeroArt art={backdrop} sharp={!!item.backdrop} />
+      <HeroArt art={backdrop} sharp={backdropSharp} />
       {/* Both returns need this. A change made to one is invisible on the
           other — that has cost a full debugging cycle before. */}
       <NavRail active={navSection} disabled={!!srcPanel || likePanel} />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={{paddingTop: artTop, paddingBottom: safeBottom + spacing.lg}}
+        showsVerticalScrollIndicator={false}>
       <DetailHero
         kicker="FILM"
         title={item.title}
@@ -1306,7 +1371,6 @@ export default function Detail({
         metaParts={[
           item.year && String(item.year),
           fmtDuration(full?.duration) || (streamMeta?.runtime ? String(streamMeta.runtime) : null),
-          fmtBytes(full?.sizeBytes),
         ]}
         badges={[
           full?.certificate || streamMeta?.certificate,
@@ -1319,10 +1383,22 @@ export default function Detail({
         // is Cinemeta; whichever arrives is richer than the card, and the card
         // stays as the fallback so this can only ever add text, never remove it.
         synopsis={full?.synopsis || streamMeta?.synopsis || item.synopsis}
-        synopsisLines={2}
+        synopsisLines={3}
         cast={streamMeta?.cast}
         note={srcNote}
-        bottomInset={LIKE_H}>
+        bottomInset={0}
+        secondary={
+          <>
+            <IconBtn ref={listBtnRef} icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
+            {streamMeta?.trailers?.length ? (
+              <IconBtn icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
+            ) : null}
+            {ownedMovieId ? <IconBtn glyph="≡" label="Versions" onPress={openSources} /> : null}
+            {ownedMovieId ? (
+              <IconBtn icon="check" on={movieWatched} label="Watched" onPress={toggleWatched} />
+            ) : null}
+          </>
+        }>
         {/* Keyed on OWNERSHIP, not on which shelf the card came from: a title
             the library holds plays the copy — starts instantly, seeks anywhere —
             and streaming becomes "Other versions". This is the site's own hero
@@ -1340,23 +1416,9 @@ export default function Detail({
           // list of sources is where that choice is made.
           <PrimaryBtn hasTVPreferredFocus edgeLeft label="⚠  Stream" onPress={openSources} />
         )}
-        {ownedMovieId && movieResume ? <GhostBtn label="↺  Start over" onPress={playFromStart} /> : null}
-        {ownedMovieId ? <GhostBtn label="Other versions" onPress={openSources} /> : null}
-        {streamMeta?.trailers?.length ? (
-          <GhostBtn label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
-        ) : null}
-        <GhostBtn
-          ref={listBtnRef}
-          label={inList ? '✓  In My List' : '+  My List'}
-          onPress={toggleList}
-        />
-        {ownedMovieId ? (
-          <GhostBtn label={movieWatched ? '✓  Watched' : 'Mark watched'} onPress={toggleWatched} />
-        ) : null}
       </DetailHero>
-      {/* The shelf: titles like this one, pinned to the foot of the page like a
-          show's episode rail. Posters, the same Card as every shelf. */}
-      <View style={[styles.bottomDock, {paddingBottom: safeBottom}]}>
+      {/* The shelf: titles like this one, below the fold like Max's Extras. */}
+      <View>
         <Text style={styles.dockTitle}>More like this</Text>
         {similar === null ? (
           <ActivityIndicator color={colors.text} style={styles.railSpinner} />
@@ -1369,13 +1431,14 @@ export default function Detail({
             keyExtractor={(it, i) => `${it.imdbId || it.id}-${i}`}
             showsHorizontalScrollIndicator={false}
             style={styles.rail}
-            contentContainerStyle={styles.railContent}
+            contentContainerStyle={styles.likeRailContent}
             initialNumToRender={8}
             windowSize={5}
             renderItem={renderShelfCard}
           />
         )}
       </View>
+      </ScrollView>
       {loading ? <ActivityIndicator color={colors.text} style={styles.loading} /> : null}
       {sourcesOverlay}
     </View>
@@ -1457,12 +1520,17 @@ const styles = StyleSheet.create({
   srcRight: {flex: 1},
 
   // ---- the artwork stack --------------------------------------------------
+  artBox: {position: 'absolute', top: 0, right: 0, left: '30%', height: '76%'},
+  // Screen-relative: the box is left 38% → right, top 0 → 76% high.
+  // One full-screen RGBA image (tools/gen_ambient.py detail-mask) carries both
+  // ramps — the only overlay shape this box has drawn reliably.
+  artMask: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%'},
   art: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0},
   artFallback: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.bgRaised},
   // Light. The site multiplies its backdrop down to 0.42 brightness because a
   // web page has to carry body text over it; here the ramps do that job on the
   // side the text is actually on, so the picture keeps its own life.
-  artDim: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(6,7,14,0.42)'},
+  artDim: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(6,7,14,0.18)'},
   // 78% wide: the ramp is transparent by its own right edge, so the artwork's
   // right side is untouched.
   artSide: {position: 'absolute', top: 0, left: 0, bottom: 0, width: '84%', height: '100%'},
@@ -1471,12 +1539,28 @@ const styles = StyleSheet.create({
   // ---- the lockup ---------------------------------------------------------
   // Bottom-anchored: the title sits low over the art, which is the Apple TV
   // composition and leaves the top two thirds of the frame to the picture.
-  hero: {flex: 1, justifyContent: 'flex-end', paddingLeft: spacing.contentLeft, paddingRight: spacing.pageX, paddingTop: 40},
+  hero: {paddingLeft: spacing.contentLeft, paddingRight: spacing.pageX},
+  scroll: {flex: 1},
+  // Max's icon row: a 40dp disc with a tiny label under it.
+  iconBtn: {alignItems: 'center', width: 74, paddingVertical: 2},
+  iconBtnDisc: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  iconBtnDiscOn: {backgroundColor: colors.white, borderColor: colors.white},
+  iconBtnGlyph: {color: colors.text, fontSize: 18, fontWeight: '800', lineHeight: 22},
+  iconBtnLabel: {color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 4},
   // 64%: four actions on a film need the width, and the ramp is still
   // transparent well before the artwork's subject on the right.
   // Full width now that no poster shares the row: six 40dp buttons sit on one
   // line (64% wrapped them under each other and into the shelf below).
-  lockup: {maxWidth: '100%'},
+  lockup: {maxWidth: '42%'},
   lockupRow: {flexDirection: 'row', alignItems: 'flex-end', gap: spacing.lg},
   lockupBeside: {flex: 1, maxWidth: '72%'},
   // `.detail-poster` — 240px → 150dp, 2:3, the large radius and a deep shadow.
@@ -1520,7 +1604,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     overflow: 'hidden',
   },
-  synopsis: {color: 'rgba(243,244,248,0.86)', fontSize: fontSize.body, lineHeight: 22, marginTop: spacing.sm},
+  synopsis: {color: 'rgba(243,244,248,0.86)', fontSize: fontSize.body, lineHeight: 22, marginTop: spacing.md},
   cast: {color: colors.textDim, fontSize: fontSize.small, marginTop: 6},
   castLabel: {color: colors.textFaint, fontWeight: '800'},
   badge: {
@@ -1534,7 +1618,7 @@ const styles = StyleSheet.create({
   badgeText: {color: colors.text, fontSize: 12, fontWeight: '900', letterSpacing: 1},
   actions: {flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg, flexWrap: 'wrap'},
   actionsDense: {marginTop: spacing.md},
-  actionsSecondary: {flexDirection: 'row', gap: spacing.xs, marginTop: spacing.sm, flexWrap: 'wrap'},
+  actionsSecondary: {flexDirection: 'row', gap: 2, marginTop: spacing.sm, marginLeft: -16, flexWrap: 'wrap'},
   playBtn: {backgroundColor: colors.white, paddingVertical: 9, paddingHorizontal: 22, minHeight: 40, justifyContent: 'center'},
   playText: {color: colors.bg, fontSize: fontSize.body, fontWeight: '800'},
   // Translucent rather than the flat surface colour: these sit on artwork now,
@@ -1577,6 +1661,7 @@ const styles = StyleSheet.create({
   dockTitle: {
     color: colors.text,
     fontSize: fontSize.row,
+    lineHeight: 24,
     fontWeight: '800',
     paddingLeft: spacing.contentLeft,
     marginBottom: 2,
@@ -1591,6 +1676,13 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.contentLeft,
     paddingRight: spacing.pageX,
     paddingVertical: theme.CLEARANCE.above,
+    gap: spacing.md,
+  },
+  likeRailContent: {
+    paddingLeft: spacing.contentLeft,
+    paddingRight: spacing.pageX,
+    paddingTop: 20,
+    paddingBottom: 8,
     gap: spacing.md,
   },
   railSpinner: {alignSelf: 'flex-start', marginLeft: spacing.contentLeft, marginBottom: spacing.xl},
