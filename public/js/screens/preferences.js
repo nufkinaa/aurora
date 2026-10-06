@@ -1,7 +1,7 @@
 // Preferences: your profile (name/avatar/password), playback + subtitle
 // defaults, and the liked genres used to tailor Home recommendations.
 // Reopenable anytime from the nav gear.
-import { el, toast, rerenderInPlace, keptScrollFor, restoreScrollY, promptSheet } from "../ui.js";
+import { el, toast, rerenderInPlace, keptScrollFor, restoreScrollY, promptSheet, haptic } from "../ui.js";
 import { loadLibrary, loadProfiles, state, applyAppearance } from "../state.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
@@ -60,7 +60,7 @@ const prefRow = (label, note, valueText, onCycle) => {
   const value = el("span", {}, valueText());
   const control = el("button", {
     class: "btn small focusable pref-item-value",
-    onclick: async () => { await onCycle(); paint(); },
+    onclick: async () => { if (isSwitch()) haptic(8); await onCycle(); paint(); },
   }, value);
   const paint = () => {
     const v = valueText();

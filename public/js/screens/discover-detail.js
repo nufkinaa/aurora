@@ -72,6 +72,7 @@ const streamWatchlistButton = (meta) => {
   btn.addEventListener("click", async () => {
     if (!state.profile) return;
     inList = !inList;
+    haptic(8);
     paint();
     try {
       await api.toggleWatchlist(
@@ -338,6 +339,7 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
   let dlBtn = null;
   const save = () => {
     if (dlBtn && dlBtn.disabled) return;
+    haptic(10);
     // Optimistic feedback until the first live update lands (a second or two).
     if (dlBtn) paintDl(dlBtn, { status: "approved", progress: 0 });
     onDownload(stream);
@@ -1577,6 +1579,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         "aria-label": "Toggle watched",
         style: seen && seen.finished ? { color: "#4ade80" } : null,
         onclick: async () => {
+          haptic(8);
           try {
             if (seen && seen.finished) {
               await api.clearProgress(state.profile.id, watchId);

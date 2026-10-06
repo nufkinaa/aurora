@@ -5,7 +5,7 @@
 //
 // Cards wire it with `attachPeek(node, item, opts)`; the sheet itself is
 // `openPeek(item, opts)` so a keyboard/remote path can open it too.
-import { el, icons, toast, formatRow, posterImg, fmtDuration, haptic } from "./ui.js";
+import { el, icons, toast, formatRow, posterImg, fmtDuration, hapticOnRelease } from "./ui.js";
 import { state, progressFor } from "./state.js";
 import { api } from "./api.js";
 import { navigate } from "./router.js";
@@ -158,7 +158,7 @@ export const attachPeek = (node, item, opts = {}) => {
     timer = setTimeout(() => {
       timer = null;
       fired = true;
-      haptic(); // the hold "lands" under the finger, like Haptic Touch
+      hapticOnRelease(); // the hold "lands", like Haptic Touch (an iPhone taps as the finger lifts)
       openPeek(item, opts);
     }, HOLD_MS);
   });

@@ -3269,6 +3269,13 @@ html[data-look="glass"]:root .card.wide .card-progress {
   html[data-look="glass"]:root #app {
     padding-bottom: 84px;
   }
+  /* the tab bar: AI first, Search last (elia, 2026-10-06) */
+  html[data-look="glass"]:root .nav-items > #nav-pick {
+    order: -1;
+  }
+  html[data-look="glass"]:root .nav-items > .nav-item[data-route="#/search"] {
+    order: 9;
+  }
 
   /* --- a title's cover: shorter, and it drifts (details.js sets --py) --- */
   html[data-look="glass"]:root .detail-head {

@@ -52,22 +52,47 @@ export const smooth = (fn) => {
 // iPhones do not, but Safari clicks its own haptic when a switch control is
 // toggled, so one is toggled off-screen (the trick the ios-haptics library
 // uses; iOS 17.4+). Where neither exists, nothing happens.
-export const haptic = (ms = 12) => {
-  try {
-    if (navigator.vibrate) return void navigator.vibrate(ms);
-  } catch {}
-  try {
+// On iPhones the switch only clicks while the page holds a "user activation"
+// — the moments right after a finger lifts or a key goes down. A hold (the
+// finger still down) has none, which is why peek's hold used to feel like
+// nothing there: `hapticOnRelease()` is for that — it arms a tap that fires
+// at the next pointer-up.
+let hapticInput = null;
+const iosTick = () => {
+  if (!hapticInput) {
     const label = document.createElement("label");
     label.setAttribute("aria-hidden", "true");
-    label.style.display = "none";
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.setAttribute("switch", "");
-    label.append(input);
-    document.head.append(label);
-    label.click();
-    label.remove();
+    label.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none";
+    hapticInput = document.createElement("input");
+    hapticInput.type = "checkbox";
+    hapticInput.setAttribute("switch", "");
+    hapticInput.tabIndex = -1;
+    label.append(hapticInput);
+    document.body.append(label);
+  }
+  hapticInput.click();
+};
+export const canVibrate = () => { try { return typeof navigator.vibrate === "function"; } catch { return false; } };
+export const haptic = (ms = 12) => {
+  try {
+    if (canVibrate()) return void navigator.vibrate(ms);
   } catch {}
+  try { iosTick(); } catch {}
+};
+let releaseArmed = false;
+export const hapticOnRelease = (ms = 12) => {
+  if (canVibrate()) return void haptic(ms); // Android can tap right now
+  if (releaseArmed) return;
+  releaseArmed = true;
+  const fire = () => {
+    releaseArmed = false;
+    window.removeEventListener("pointerup", fire, true);
+    window.removeEventListener("touchend", fire, true);
+    try { iosTick(); } catch {}
+  };
+  window.addEventListener("pointerup", fire, true);
+  window.addEventListener("touchend", fire, true);
+  setTimeout(() => { if (releaseArmed) fire(); }, 2500);
 };
 
 export const svg = (paths, attrs = "") =>

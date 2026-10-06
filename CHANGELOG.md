@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.33 — 2026-10-06
+
+- The phone's tab bar has AI first and Search last — the two swapped places.
+- Haptics that actually arrive on an iPhone. The tap a web page can trigger there only works in the moment after a finger lifts, so a hold-to-peek now taps as the finger comes off the card (Android taps the moment the hold lands). A tap also goes with adding to or leaving My List, marking something watched, pressing Save on a source, flipping a switch in Settings, and the X-Ray sheet settling on a stop.
+
 ## 1.6.32 — 2026-10-06
 
 - A downloaded episode in 1080p or better just plays when you press it — there is nothing to choose. An episode that is not on disk, or a smaller copy, still opens its sources (with your copy first when you have one).
