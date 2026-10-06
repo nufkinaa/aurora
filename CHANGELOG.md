@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.35 — 2026-10-06
+
+- Aurora TV 5.0.3, from a full pass on a Xiaomi TV (Android 14, 2 GB): the nav rail's Search is reachable again — UP from Home jumped to the profile pill because two focus claims raced as the panel opened, so Search could only be reached by wrapping the other way; pressing a lit rail item now still goes there (Movies from a film's page, Preferences from My downloads — it used to just close the rail); the Sources screen is opaque, so the title page no longer ghosts between the rows; the subtitles menu opens scrolled to the ticked track instead of on a list that looked unmarked; and the first launch after the TV wakes gives the house server a second ping before falling over to the remote one, which on a closed server meant the QR sign-in instead of the profile picker.
+- The APK on the server is 5.0.3 (build 58).
+
 ## 1.6.34 — 2026-10-06
 
 - Settings → Your profile is tidy: your avatar and name with "Password protected" under it on one line, then rows like every other setting — Edit profile & password, Upload a photo (Change / Remove photo once you have one), Your Aurora Wrapped, Pick titles you love — each with an icon, one short line and a chevron. It was a stack of mismatched pills.

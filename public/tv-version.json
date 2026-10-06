@@ -1,4 +1,4 @@
 {
-  "versionName": "5.0.2",
-  "notes": "Smoother on older boxes: trailers on Home are now two per visit instead of an endless loop, and a box that is struggling goes without them and with a still aurora. The resume card is smaller and leaves sooner. Resolution badges are right for widescreen films. On newer TVs (Android 12 and up) updates after this one install themselves quietly when you leave the app — no prompt."
+  "versionName": "5.0.3",
+  "notes": "Fixes from a full pass on a Xiaomi TV: Search in the side rail is reachable again (UP from Home used to land on the profile pill); pressing a lit rail item from a title page goes there; the sources list is solid, with no page text ghosting behind it; the subtitles menu opens on the track you have on; and the first launch after the TV wakes gives the house server a second chance before using the remote one."
 }

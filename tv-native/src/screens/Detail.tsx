@@ -1352,9 +1352,12 @@ const styles = StyleSheet.create({
     zIndex: 10,
     elevation: 10,
     flexDirection: 'row',
-    // Dark enough to read a list on, translucent enough that the title's own
-    // artwork still shows through and the panel reads as part of this page.
-    backgroundColor: 'rgba(8,9,16,0.985)',
+    // OPAQUE. It was 98.5%, meant to let the artwork breathe — but at that
+    // depth no artwork survives, only the page's TEXT does: the title, the
+    // synopsis and the episode names ghosted faintly between the source rows,
+    // and a TV panel's lifted blacks make faint very visible (Mi TV,
+    // 2026-10-06). Solid reads as a sheet; the poster at its left is the art.
+    backgroundColor: colors.bg,
     paddingTop: 56,
     paddingLeft: spacing.contentLeft,
     paddingRight: spacing.pageX,
@@ -1372,7 +1375,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 10,
     elevation: 10,
-    backgroundColor: 'rgba(8,9,16,0.985)',
+    backgroundColor: colors.bg, // opaque, as srcOverlay (the page ghosted through)
     paddingTop: 40,
     paddingLeft: spacing.contentLeft,
     paddingRight: spacing.pageX,

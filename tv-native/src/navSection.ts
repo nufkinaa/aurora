@@ -69,14 +69,43 @@ type Nav<R extends keyof RootStackParamList> = NativeStackNavigationProp<
   R
 >;
 
+// The screen each section lives on, to tell "I am on it" from "it is lit".
+const SCREEN_FOR: Record<NavSection, keyof RootStackParamList> = {
+  home: 'Home',
+  movies: 'Browse',
+  shows: 'Browse',
+  list: 'MyList',
+  new: 'WhatsNew',
+  search: 'Search',
+  settings: 'Settings',
+};
+const onSectionScreen = <R extends keyof RootStackParamList>(nav: Nav<R>, section: NavSection) => {
+  try {
+    const st = nav.getState();
+    const r = st.routes[st.index];
+    if (!r || r.name !== SCREEN_FOR[section]) return false;
+    if (section === 'movies' || section === 'shows') {
+      const kind = (r.params as {kind?: string} | undefined)?.kind;
+      return kind === (section === 'movies' ? 'movie' : 'show');
+    }
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export const goSection = <R extends keyof RootStackParamList>(
   nav: Nav<R>,
-  current: NavSection,
+  _current: NavSection, // the lit item — kept for the callers, no longer the test
   section: NavSection,
 ) => {
   // Pressing the section you're already on should do nothing rather than stack a
-  // second copy of the same screen behind you.
-  if (section === current) return;
+  // second copy of the same screen behind you. "Already on" is decided by the
+  // ROUTE, not by the rail's highlight: a film's Detail page lights Movies up
+  // as its section (and Downloads lights Preferences), and with `current`
+  // alone a press on that lit item did nothing at all — the rail just closed
+  // (Mi TV, 2026-10-06). From a title page, Movies must still take you there.
+  if (onSectionScreen(nav, section)) return;
   if (!canNavigate(nav as never)) return;
   // THE RAIL SWITCHES SECTIONS, IT DOES NOT DESCEND INTO THEM. Every case below
   // used to `push`, so Movies -> Shows -> My List -> Movies left four screens

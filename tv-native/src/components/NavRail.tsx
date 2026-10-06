@@ -198,6 +198,14 @@ export default function NavRail({
       }
       // The two ends wrap (§5.4). The panel traps UP and DOWN, so at an end the
       // platform does nothing and this is the only thing that moves focus.
+      //
+      // NOT when this very press already moved focus. The native focus move and
+      // this key event race, and when the focus event lands first an UP from
+      // Home has already put focus on Search by the time we read `at` — so the
+      // wrap fired on top of it and the press landed on the profile pill, with
+      // Search reachable only by wrapping the other way (Mi TV, 2026-10-06).
+      // A press made AT the end moves no focus and wraps as before.
+      if (focusJustMoved(120)) return;
       if (t === 'up' && at.current === 0) items.current[ITEMS.length - 1]?.requestTVFocus?.();
       else if (t === 'down' && at.current === ITEMS.length - 1) items.current[0]?.requestTVFocus?.();
     },
@@ -332,7 +340,8 @@ export default function NavRail({
                   ref={(n: NodeRef) => {
                     items.current[i] = n;
                   }}
-                  onFocused={() => {
+                  onFocused={f => {
+                    if (!f) return;
                     at.current = i;
                     // Focus moved to ANOTHER item: an armed switch disarms.
                     if (it.key !== 'profile' && confirmTimer.current) disarmSwitch();
@@ -407,7 +416,7 @@ function NavItem({
   on?: boolean;
   claimFocus?: boolean;
   focusDisabled?: boolean;
-  onFocused: () => void;
+  onFocused: (focused: boolean) => void;
   onPress: () => void;
   ref?: (node: NodeRef) => void;
 }) {
@@ -423,7 +432,7 @@ function NavItem({
         focusDisabled={focusDisabled}
         accessibilityLabel={name}
         hasTVPreferredFocus={claimFocus}
-        onFocusChange={f => f && onFocused()}
+        onFocusChange={onFocused}
         onPress={onPress}
         style={styles.profile}>
         <View style={[styles.avatar, {backgroundColor: profileColor || colors.surfaceHover}]}>
@@ -468,7 +477,7 @@ function NavItem({
       highlightColor={colors.white}
       onFocusChange={f => {
         setFocused(f);
-        if (f) onFocused();
+        onFocused(f);
       }}
       onPress={onPress}
       style={[styles.item, on && !focused && styles.itemOn]}>

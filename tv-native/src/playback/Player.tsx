@@ -1728,6 +1728,9 @@ export default function Player({
     [seekTo, showControls, skipAnim],
   );
 
+  // The subtitle menu's list, so opening it can scroll to the ticked track.
+  const ccScroll = useRef<ScrollView>(null);
+
   // ---------------------------------------------------------------- input
   const onTV = useCallback(
     (evt: {eventType: string}) => {
@@ -2671,7 +2674,7 @@ export default function Player({
       {menu === 'cc' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
           <Text style={styles.menuTitle}>SUBTITLES</Text>
-          <ScrollView style={styles.menuScroll}>
+          <ScrollView ref={ccScroll} style={styles.menuScroll}>
             {/* The site's first CC entry: one press that drops any manual delay
                 and re-downloads the track. Cheap insurance for "the subs look off
                 and I don't want to fiddle with ±0.5s". */}
@@ -2694,19 +2697,31 @@ export default function Player({
               }}
             />
             {tracks.map(t => (
-              <MenuItem
+              // The current track claims focus, and the list has to SHOW it:
+              // with eight tracks the ticked one sat below the fold and the menu
+              // opened on what looked like an unmarked list with no focus in it
+              // (Mi TV, 2026-10-06). Android does not scroll to a child focused
+              // before layout, so the row's own layout scrolls it into view.
+              <View
                 key={t.key}
-                label={t.label}
-                tag={t.embedded ? 'Embedded' : undefined}
-                on={subKey === t.key}
-                hasTVPreferredFocus={subKey === t.key}
-                onFocusChange={markZone('menu')}
-                onPress={() => {
-                  setSubKey(t.key);
-                  rememberSub(t);
-                  closeMenu();
-                }}
-              />
+                onLayout={
+                  subKey === t.key
+                    ? e => ccScroll.current?.scrollTo({y: Math.max(0, e.nativeEvent.layout.y - 160), animated: false})
+                    : undefined
+                }>
+                <MenuItem
+                  label={t.label}
+                  tag={t.embedded ? 'Embedded' : undefined}
+                  on={subKey === t.key}
+                  hasTVPreferredFocus={subKey === t.key}
+                  onFocusChange={markZone('menu')}
+                  onPress={() => {
+                    setSubKey(t.key);
+                    rememberSub(t);
+                    closeMenu();
+                  }}
+                />
+              </View>
             ))}
             {/* .sub-sync — the site's timing row, in its order: the two nudges
                 either side of the CURRENT delay, then Reset. External subtitle

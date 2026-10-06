@@ -739,11 +739,14 @@ export default function Sources({
 }
 
 const styles = StyleSheet.create({
-  // No backgroundColor: android:windowBackground already paints it, and painting
-  // it again cost a second full-screen fill every frame.
+  // Embedded: no backgroundColor — the host page paints behind it.
   rootEmbedded: {flex: 1},
   pageEmbedded: {flex: 1, paddingTop: 0, paddingHorizontal: 0},
-  root: {flex: 1},
+  // As a screen of its own it MUST be opaque: the navigator's background is
+  // transparent (the ambient canvas sits under the whole stack), so the Detail
+  // page it was pushed over showed through the 72% dim — its synopsis and
+  // buttons ghosting between the source rows (Mi TV, 2026-10-06).
+  root: {flex: 1, backgroundColor: colors.bg},
   art: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%'},
   artDim: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(6,7,14,0.72)'},
   artSide: {position: 'absolute', top: 0, left: 0, bottom: 0, width: '78%', height: '100%'},
