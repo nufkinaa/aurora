@@ -352,6 +352,29 @@ const Subtitles = React.memo(function CueLayer({
 // scannable at a glance. A background fill alone — which is what this app had —
 // tells you something is highlighted but not which one is ON, and at 10 feet
 // with focus ALSO drawing a background they were easy to confuse.
+// A dub's name for the menu: the language, the track's own title when it adds
+// something ("Commentary"), else its number.
+const LANG_NAMES: Record<string, string> = {
+  en: 'English', eng: 'English', he: 'Hebrew', heb: 'Hebrew', fr: 'French', fre: 'French', fra: 'French',
+  de: 'German', ger: 'German', deu: 'German', es: 'Spanish', spa: 'Spanish', it: 'Italian', ita: 'Italian',
+  ja: 'Japanese', jpn: 'Japanese', ko: 'Korean', kor: 'Korean', ru: 'Russian', rus: 'Russian',
+  pt: 'Portuguese', por: 'Portuguese', zh: 'Chinese', chi: 'Chinese', zho: 'Chinese', hi: 'Hindi', hin: 'Hindi',
+  ar: 'Arabic', ara: 'Arabic', tr: 'Turkish', tur: 'Turkish', pl: 'Polish', pol: 'Polish', nl: 'Dutch',
+  dut: 'Dutch', nld: 'Dutch', sv: 'Swedish', swe: 'Swedish', no: 'Norwegian', nor: 'Norwegian', da: 'Danish',
+  dan: 'Danish', fi: 'Finnish', fin: 'Finnish', cs: 'Czech', cze: 'Czech', ces: 'Czech', hu: 'Hungarian',
+  hun: 'Hungarian', el: 'Greek', gre: 'Greek', ell: 'Greek', th: 'Thai', tha: 'Thai', uk: 'Ukrainian',
+  ukr: 'Ukrainian', ro: 'Romanian', rum: 'Romanian', ron: 'Romanian', fa: 'Persian', per: 'Persian', fas: 'Persian',
+  id: 'Indonesian', ind: 'Indonesian', vi: 'Vietnamese', vie: 'Vietnamese', ta: 'Tamil', tam: 'Tamil',
+  te: 'Telugu', tel: 'Telugu', ms: 'Malay', may: 'Malay', msa: 'Malay', tl: 'Filipino', fil: 'Filipino', tgl: 'Filipino',
+};
+const audioLabel = (t: {index: number; language?: string | null; title?: string | null}) => {
+  const code = (t.language || '').toLowerCase().split(/[-_]/)[0];
+  const lang = LANG_NAMES[code] || (code && code !== 'und' ? code.toUpperCase() : '');
+  const title = (t.title || '').trim();
+  if (lang && title && !new RegExp(lang, 'i').test(title)) return `${lang} · ${title}`;
+  return lang || title || `Track ${t.index + 1}`;
+};
+
 const MenuItem = React.forwardRef<
   View,
   {
@@ -547,6 +570,13 @@ export default function Player({
   // Bumped by Resync to force the cue file to be fetched again.
   const [reload, setReload] = useState(0);
   const [menu, setMenu] = useState<null | 'cc' | 'speed' | 'settings' | 'party'>(null);
+  // Which audio track plays (multi-dub files): the server's index, 0 = the
+  // first. Rides every transcode URL as &a=; a track other than the first
+  // means the transcode path even for a file that would direct-play — a
+  // player cannot switch tracks inside one stream (same as the web).
+  const [audioIdx, setAudioIdx] = useState(0);
+  const audioIdxRef = useRef(0);
+  const audioChosen = useRef(false); // the viewer picked one: the default stops applying
   const menuOpen = menu !== null;
   const [rate, setRate] = useState(1);
   // Level, for the indicator and for <Video volume>. Not adjustable from here
@@ -882,7 +912,9 @@ export default function Player({
 
   const transcodeUrl = useCallback(
     (base: string, ss: number, v: 'copy' | 'h264') =>
-      `${assetUrl(base)}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${v}`,
+      `${assetUrl(base)}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${v}${
+        audioIdxRef.current > 0 ? `&a=${audioIdxRef.current}` : ''
+      }`,
     [],
   );
 
@@ -961,6 +993,22 @@ export default function Player({
       }
     },
     [startTranscode, transcodeUrl],
+  );
+
+  // Another dub (elia, 2026-10-07: "users can't change the dub"): the stream
+  // restarts at the current second with that track mapped in, server-side.
+  const switchAudio = useCallback(
+    (idx: number, label: string) => {
+      if (idx === audioIdxRef.current) return;
+      const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
+      if (!base) return;
+      audioChosen.current = true;
+      audioIdxRef.current = idx;
+      setAudioIdx(idx);
+      toast(`Audio: ${label}`);
+      startTranscodeAt(base, curRef.current, 'copy', {fallbackToZero: true});
+    },
+    [startTranscodeAt, stream],
   );
 
   // Merge newly-arrived tracks, de-duplicated by URL — the same file offered by
@@ -1168,6 +1216,15 @@ export default function Player({
     const it = meta.item;
     const base = it.transcodeBase;
     const r = resumeAt.current;
+    // The original language first: a multi-dub file starts on the track the
+    // server marked `original`, not on whichever the release listed first.
+    if (!audioChosen.current) {
+      const orig = (it.audioTracks || []).find(t => t.original);
+      if (orig && orig.index > 0) {
+        audioIdxRef.current = orig.index;
+        setAudioIdx(orig.index);
+      }
+    }
     if (stream) {
       // A source the server tagged DTS / TrueHD / Atmos / DD+ / H.265 will not
       // play as-is on this hardware, so hand ExoPlayer the remux rather than
@@ -1188,7 +1245,7 @@ export default function Player({
         // first (see prefetchRegion).
         setUri(assetUrl(stream.videoUrl) as string);
       }
-    } else if (base && ((it.audio && it.audio.compatible === false) || !it.videoUrl)) {
+    } else if (base && ((it.audio && it.audio.compatible === false) || !it.videoUrl || audioIdxRef.current > 0)) {
       // The scanner already knows whether this file's audio is playable, and the
       // browser client acts on that same flag. Walking into it instead meant
       // ExoPlayer tried to PASSTHROUGH 6-channel E-AC3 to the HDMI sink, the
@@ -2377,6 +2434,7 @@ export default function Player({
   // Second line under the title, composed the way the site composes it:
   // "S1 E4 · Episode Title" for an episode, else the year.
   const epSeason = itemRef.current?.season ?? stream?.season;
+  const audioTracks = itemRef.current?.audioTracks || [];
   const epEpisode = itemRef.current?.episode ?? stream?.episode;
   // The episode's real name wins over the library's placeholder ("Episode 1").
   const epName =
@@ -2850,13 +2908,34 @@ export default function Player({
           you set mid-film. */}
       {menu === 'settings' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
+          {audioTracks.length > 1 ? (
+            <>
+              <Text style={styles.menuTitle}>AUDIO</Text>
+              {audioTracks.map(t => (
+                <MenuItem
+                  key={`a${t.index}`}
+                  label={audioLabel(t)}
+                  tag={[t.original ? 'Original' : null, t.codec ? t.codec.toUpperCase() : null, t.channels ? `${t.channels}ch` : null]
+                    .filter(Boolean)
+                    .join(' · ')}
+                  on={audioIdx === t.index}
+                  hasTVPreferredFocus={audioIdx === t.index}
+                  onFocusChange={markZone('menu')}
+                  onPress={() => {
+                    closeMenu();
+                    switchAudio(t.index, audioLabel(t));
+                  }}
+                />
+              ))}
+            </>
+          ) : null}
           {epSeason && epEpisode ? (
             <>
-              <Text style={styles.menuTitle}>PLAYBACK</Text>
+              <Text style={[styles.menuTitle, audioTracks.length > 1 && styles.menuTitleGap]}>PLAYBACK</Text>
               <MenuItem
                 label="Autoplay next episode"
                 tag={prefs.autoplayNext ? 'On' : 'Off'}
-                hasTVPreferredFocus
+                hasTVPreferredFocus={audioTracks.length <= 1}
                 onFocusChange={markZone('menu')}
                 onPress={() => setPref('autoplayNext', !prefs.autoplayNext)}
               />

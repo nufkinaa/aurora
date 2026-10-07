@@ -120,18 +120,30 @@ class UpdaterModule(private val ctx: ReactApplicationContext) : ReactContextBase
 
   @ReactMethod
   fun openInstallSettings(promise: Promise) {
-    try {
-      val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${ctx.packageName}"))
-      } else {
-        Intent(Settings.ACTION_SECURITY_SETTINGS)
-      }
-      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      ctx.startActivity(intent)
-      promise.resolve(true)
-    } catch (e: Exception) {
-      promise.reject("settings", e.message ?: "could not open settings")
+    // The per-app "install unknown apps" screen first; TV builds that lack it
+    // get the nearest screen that exists (security, then this app's details,
+    // then Settings itself) rather than a silent failure.
+    val candidates = ArrayList<Intent>()
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      candidates.add(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${ctx.packageName}")))
+      candidates.add(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES))
     }
+    candidates.add(Intent(Settings.ACTION_SECURITY_SETTINGS))
+    candidates.add(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}")))
+    candidates.add(Intent(Settings.ACTION_SETTINGS))
+    var lastError: Exception? = null
+    for (intent in candidates) {
+      try {
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (intent.resolveActivity(ctx.packageManager) == null) continue
+        ctx.startActivity(intent)
+        promise.resolve(true)
+        return
+      } catch (e: Exception) {
+        lastError = e
+      }
+    }
+    promise.reject("settings", lastError?.message ?: "no settings screen for app installs on this TV")
   }
 
   @ReactMethod

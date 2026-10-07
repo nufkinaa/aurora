@@ -11,7 +11,11 @@ export type Overlay =
   | {kind: 'join'}
   | {kind: 'update'; info: UpdateInfo}
   | {kind: 'trailer'; ids: string[]; title: string}
+  | {kind: 'actions'; title: string; sub?: string; items: ActionItem[]}
   | null;
+
+// One row of the actions sheet (an episode's long-press menu).
+export type ActionItem = {label: string; tag?: string; danger?: boolean; onPress: () => void};
 
 let current: Overlay = null;
 const subs = new Set<(o: Overlay) => void>();
@@ -35,6 +39,7 @@ export const openTrailer = (ids: string[], title: string) => {
   if (ids.length) openOverlay({kind: 'trailer', ids, title});
 };
 export const openUpdate = (info: UpdateInfo) => openOverlay({kind: 'update', info});
+export const openActions = (o: {title: string; sub?: string; items: ActionItem[]}) => openOverlay({kind: 'actions', ...o});
 
 export const useOverlay = () => {
   const [o, setO] = useState<Overlay>(current);

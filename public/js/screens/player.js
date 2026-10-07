@@ -722,6 +722,17 @@ export const renderPlayer = async (root, { id }) => {
   // the current position with the other track mapped in (server-side — a
   // browser can't switch tracks inside one stream).
   let audioIdx = 0;
+  // The original language first (elia, 2026-10-07): a multi-dub file starts
+  // on the track the server marked `original` (TMDB's original language for
+  // the title), not on whichever track the release happened to list first.
+  // A track other than the first rides the transcode path with &a= — the
+  // same restart an audio switch does, only from the start.
+  {
+    const tracks = item.audioTracks || [];
+    const orig = tracks.find((t) => t.original);
+    const oi = orig ? (orig.index != null ? orig.index : tracks.indexOf(orig)) : 0;
+    if (oi > 0) audioIdx = oi;
+  }
   // A height the stream is capped at — 720 or 480, 0 for the file as it is.
   // A slow line (net.js) starts a library title on a capped h264 encode: a
   // 1–2 Mbit/s stream that plays, where the untouched file (6–15 Mbit/s)
@@ -2522,7 +2533,7 @@ export const renderPlayer = async (root, { id }) => {
                   onclick: () => switchAudio(idx),
                 },
                 el("span", {}, audioTrackName(t, i)),
-                el("span", { class: "tag" }, [t.codec && String(t.codec).toUpperCase(), t.channels && `${t.channels}ch`].filter(Boolean).join(" ")),
+                el("span", { class: "tag" }, [t.original && "Original", t.codec && String(t.codec).toUpperCase(), t.channels && `${t.channels}ch`].filter(Boolean).join(" · ")),
               ),
             );
           });

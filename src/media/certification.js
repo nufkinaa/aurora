@@ -98,4 +98,22 @@ const fetchCertificate = async (kind, tmdbId) => {
   }
 };
 
-module.exports = { fetchCertificate, ageLabel, pickCertificate, COUNTRY_ORDER };
+// The title's original language (ISO 639-1: "en", "he", "ja") from TMDB's
+// details — the one fact that says which audio track of a multi-dub file is
+// the real one. Null without a TMDB key or id.
+const fetchOriginalLanguage = async (kind, tmdbId) => {
+  if (!config.TMDB_KEY || !tmdbId) return null;
+  try {
+    const res = await fetch(
+      `https://api.themoviedb.org/3/${kind === "show" ? "tv" : "movie"}/${tmdbId}?api_key=${config.TMDB_KEY}`,
+      { signal: AbortSignal.timeout(6000) },
+    );
+    if (!res.ok) return null;
+    const lang = (await res.json()).original_language;
+    return typeof lang === "string" && /^[a-z]{2}$/.test(lang) ? lang : null;
+  } catch {
+    return null;
+  }
+};
+
+module.exports = { fetchCertificate, fetchOriginalLanguage, ageLabel, pickCertificate, COUNTRY_ORDER };

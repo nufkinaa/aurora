@@ -175,6 +175,17 @@ export type Season = { number: number; episodes: Episode[] };
 // What the scanner recorded about the actual media streams. `compatible` is the
 // server's own verdict on whether the audio can be played as-is.
 export type AudioInfo = { codec?: string; channels?: number; compatible?: boolean };
+// One audio stream of a multi-dub file (scanner audioTracksOf; only when there
+// are two or more). `original` = in the title's own language (TMDB), set by
+// /api/item — the track every player starts on.
+export type AudioTrack = {
+  index: number;
+  language?: string | null;
+  title?: string | null;
+  codec?: string | null;
+  channels?: number;
+  original?: boolean;
+};
 export type VideoInfo = { codec?: string; bitDepth?: number };
 
 export type Item = HeroItem & {
@@ -192,6 +203,8 @@ export type Item = HeroItem & {
   container?: string;
   duration?: number;
   subtitles?: SubtitleTrack[];
+  audioTracks?: AudioTrack[];
+  originalLanguage?: string | null;
   seasons?: Season[];
   showId?: string;
   showTitle?: string;
@@ -286,6 +299,14 @@ export type DownloadJob = {
   copyProgress?: number | null; // 0..1
   downloadSpeed?: number;
   error?: string | null;
+  // Which title and episode the job is for (publicJob), so an episode card
+  // can show its own download.
+  imdbId?: string | null;
+  season?: number | null;
+  episode?: number | null;
+  title?: string;
+  label?: string;
+  at?: number;
 };
 
 export type TorrentStatus = {

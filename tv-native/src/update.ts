@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {getBaseUrl, getSession} from './api';
 
 // Keep in lockstep with android/app/build.gradle versionName on each release.
-export const APP_VERSION = '5.1.8';
+export const APP_VERSION = '5.1.10';
 
 const cmp = (a: string, b: string) => {
   const pa = a.split('.').map(n => parseInt(n, 10) || 0);
@@ -132,6 +132,11 @@ export async function holdPromptFor(info: UpdateInfo): Promise<boolean> {
     if (!quiet || !quiet.quietStatus || !quiet.installQuietly) return false;
     const st = await quiet.quietStatus();
     if (!st || !st.supported) return false;
+    // A TV that has not yet allowed Aurora to install apps cannot install
+    // quietly either: holding the prompt here is what left those TVs with a
+    // silent failure and no way to the permission screen (elia, 2026-10-07).
+    // The ordinary sheet shows at once and asks for the permission first.
+    if (!(await canInstall())) return false;
     const raw = await AsyncStorage.getItem(QUIET_KEY);
     let seen: {version: string; at: number} | null = raw ? JSON.parse(raw) : null;
     if (!seen || seen.version !== info.version) {

@@ -437,16 +437,26 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.25)',
     overflow: 'hidden',
   },
-  progressFill: {height: '100%', backgroundColor: colors.progress, borderRadius: 2},
+  // The site's timeline (glass.css .scrubber-fill): the violet → cyan → mint
+  // ramp with a glow, and a lit bead at its head (elia, 2026-10-07: "make the
+  // resume watching timeline match how it looks really, with the green and
+  // the dot").
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: '#8cffbe',
+    experimental_backgroundImage: 'linear-gradient(90deg, #8b7bff, #7fd1e8, #8cffbe)',
+    boxShadow: '0 0 10px rgba(140,255,190,0.55)',
+  },
   // The glass look's capsule head: a lit bead at the end of the fill.
   progressHead: {
     position: 'absolute',
-    right: -1,
-    top: -1,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    right: -3,
+    top: -2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#ffffff',
-    boxShadow: '0 0 6px rgba(199,191,255,0.9)',
+    boxShadow: '0 0 8px rgba(255,255,255,0.9)',
   },
 });

@@ -18,6 +18,7 @@ import {
 import Focusable from './Focusable';
 import Sheet, {glass} from './Sheet';
 import TrailerFrame, {TrailerState} from './Trailer';
+import type {ActionItem} from '../overlay';
 import {api, HeroItem, imgSrc, ImgSource, StreamRef} from '../api';
 import {playingContext, recentErrors} from '../errors';
 import {useKeyTrap} from '../focus';
@@ -338,6 +339,13 @@ function UpdateSheet({info}: {info: UpdateInfo}) {
   }, []);
 
   const start = useCallback(async () => {
+    // The permission FIRST, before 40 MB come down: a TV that has not yet
+    // allowed Aurora to install apps goes to that screen now and downloads
+    // once it is back (the AppState hook below).
+    if (!(await canInstall())) {
+      setStage('perm');
+      return;
+    }
     setStage('downloading');
     setProg({received: 0, total: 0});
     track('feat', {f: 'tv_update'});
@@ -355,14 +363,22 @@ function UpdateSheet({info}: {info: UpdateInfo}) {
     }
   }, [info.url, install]);
 
-  // Back from Android's settings: try the install again by itself.
+  // Back from Android's settings: carry on by itself — download if that is
+  // still to do, install if the APK is already here. Nothing happens while
+  // the permission is still off (the screen stays, with the manual path).
   useEffect(() => {
     if (stage !== 'perm') return;
     const sub = AppState.addEventListener('change', s => {
-      if (s === 'active') install();
+      if (s !== 'active') return;
+      canInstall().then(ok => {
+        if (!ok) return;
+        if (path.current) install();
+        else start();
+      });
     });
     return () => sub.remove();
-  }, [stage, install]);
+  }, [stage, install, start]);
+  const [permErr, setPermErr] = useState('');
 
   const later = () => {
     if (stage === 'downloading') cancelDownload();
@@ -400,10 +416,18 @@ function UpdateSheet({info}: {info: UpdateInfo}) {
       {stage === 'perm' ? (
         <>
           <Text style={styles.body}>
-            Android needs a one-time permission to let Aurora install its own updates. Switch it on in the screen that opens, then press Back to come here.
+            Android needs a one-time permission to let Aurora install its own updates. Switch it on in the screen that opens, then press Back to come here — the update carries on by itself.
           </Text>
+          <Text style={styles.faint}>If the screen does not open: Settings → Apps → Security &amp; restrictions → Unknown sources → Aurora.</Text>
+          {permErr ? <Text style={styles.error}>{permErr}</Text> : null}
           <View style={styles.actions}>
-            <Primary focus label="Open the permission" onPress={() => openInstallSettings().catch(() => {})} />
+            <Primary
+              focus
+              label="Open the permission"
+              onPress={() =>
+                openInstallSettings().catch(e => setPermErr(`Couldn't open the settings screen (${(e as Error).message || 'no such screen'}) — use the path above.`))
+              }
+            />
             <Ghost label="Later" onPress={later} />
           </View>
         </>
@@ -429,10 +453,47 @@ function UpdateSheet({info}: {info: UpdateInfo}) {
   );
 }
 
+// ---------------------------------------------------------------- actions
+// A short list of things to do with one thing (an episode, from its card's
+// long-press): Mark watched, Sources, Play. A press closes the sheet first.
+function ActionsSheet({title, sub, items}: {title: string; sub?: string; items: ActionItem[]}) {
+  useKeyTrap(true);
+  useEffect(() => {
+    const s = BackHandler.addEventListener('hardwareBackPress', () => {
+      closeOverlay();
+      return true;
+    });
+    return () => s.remove();
+  }, []);
+  return (
+    <Sheet kicker={sub} title={title} width={520} onClose={closeOverlay}>
+      <View style={styles.actionList}>
+        {items.map((it, i) => (
+          <Focusable
+            key={it.label}
+            hasTVPreferredFocus={i === 0}
+            onPress={() => {
+              closeOverlay();
+              it.onPress();
+            }}
+            style={styles.actionRow}>
+            <Text style={[styles.actionLabel, it.danger && styles.actionDanger]}>{it.label}</Text>
+            {it.tag ? <Text style={styles.actionTag}>{it.tag}</Text> : null}
+          </Focusable>
+        ))}
+      </View>
+    </Sheet>
+  );
+}
+
 // ---------------------------------------------------------------- trailer
+// The YouTube app on the TV plays the trailer (hardware decode, its own
+// controls) when it is installed — the in-app embed stuttered and dropped
+// frames on real sets (elia, 2026-10-07). The embed is the fallback.
 function TrailerModal({ids, title}: {ids: string[]; title: string}) {
   const [at, setAt] = useState(0);
   const [state, setState] = useState<TrailerState | null>(null);
+  const [inApp, setInApp] = useState(false);
   useKeyTrap(true);
   useEffect(() => {
     track('feat', {f: 'trailer'});
@@ -440,15 +501,34 @@ function TrailerModal({ids, title}: {ids: string[]; title: string}) {
       closeOverlay();
       return true;
     });
-    return () => sub.remove();
-  }, []);
+    let live = true;
+    (async () => {
+      try {
+        // Resolves only with the manifest's <queries> for the vnd.youtube
+        // scheme (Android 11+ package visibility) — without them this was
+        // always false and "Open in YouTube" did nothing.
+        const ok = await Linking.canOpenURL(`vnd.youtube:${ids[0]}`);
+        if (ok && live) {
+          await Linking.openURL(`vnd.youtube:${ids[0]}`);
+          track('feat', {f: 'trailer_app'});
+          closeOverlay();
+          return;
+        }
+      } catch {}
+      if (live) setInApp(true);
+    })();
+    return () => {
+      live = false;
+      sub.remove();
+    };
+  }, [ids]);
   const onState = useCallback((s: TrailerState) => {
     setState(s);
     if (s === 'ended') closeOverlay();
   }, []);
   return (
     <View style={styles.trailerRoot}>
-      <TrailerFrame key={ids[at]} videoId={ids[at]} muted={false} style={styles.trailerFrame} onState={onState} />
+      {inApp ? <TrailerFrame key={ids[at]} videoId={ids[at]} muted={false} style={styles.trailerFrame} onState={onState} /> : null}
       {state === null || state === 'ready' ? (
         <View style={styles.trailerWait} pointerEvents="none">
           <ActivityIndicator color={colors.white} size="large" />
@@ -508,6 +588,7 @@ export default function Overlays() {
       {o?.kind === 'join' ? <JoinSheet /> : null}
       {o?.kind === 'update' ? <UpdateSheet info={o.info} /> : null}
       {o?.kind === 'trailer' ? <TrailerModal ids={o.ids} title={o.title} /> : null}
+      {o?.kind === 'actions' ? <ActionsSheet title={o.title} sub={o.sub} items={o.items} /> : null}
       <Toasts />
     </>
   );
@@ -530,6 +611,19 @@ const styles = StyleSheet.create({
   // right — so DOWN from a text field lands on the primary, not on Cancel.
   actionsSpread: {justifyContent: 'space-between'},
   trailerErr: {backgroundColor: '#000', paddingHorizontal: 80},
+  actionList: {gap: spacing.sm, marginTop: spacing.sm},
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: radius.m,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  actionLabel: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
+  actionTag: {color: colors.textDim, fontSize: fontSize.small, marginLeft: spacing.md},
+  actionDanger: {color: '#ff8080'},
   body: {color: colors.text, fontSize: fontSize.body, lineHeight: 24},
   faint: {color: colors.textDim, fontSize: fontSize.small, marginTop: spacing.sm},
   error: {color: '#ff8080', fontSize: fontSize.body, marginTop: spacing.sm},

@@ -322,6 +322,34 @@ router.get("/api/library/for", (req, res) => {
   res.json({ item: item ? listEntry(item) : null });
 });
 
+// The title's original language (TMDB, through the catalogue's cached meta)
+// and, on a multi-dub file, which audio track is in it — so every player can
+// start on the original by default and name it (elia, 2026-10-07). Cached
+// meta only, this route is hot; a miss kicks the fetch so the next open has
+// it. An episode asks about its show.
+const { sameLanguage } = require("../lib/lang");
+const withOriginalAudio = (item) => {
+  try {
+    const titleItem = item.showId ? scanner.findById(item.showId) || item : item;
+    const imdbId = titleItem.imdbId || identity.imdbIdFor(titleItem);
+    if (!imdbId) return item;
+    const kind = titleItem.type === "show" ? "series" : "movie";
+    const meta = discover.metaCached(kind, imdbId);
+    if (!meta) {
+      discover.meta(kind, imdbId).catch(() => {});
+      return item;
+    }
+    const lang = meta.originalLanguage || null;
+    if (!lang) return item;
+    const audioTracks = Array.isArray(item.audioTracks)
+      ? item.audioTracks.map((t) => ({ ...t, original: sameLanguage(t.language, lang) }))
+      : item.audioTracks;
+    return { ...item, originalLanguage: lang, audioTracks };
+  } catch {
+    return item;
+  }
+};
+
 router.get("/api/item/:id", (req, res) => {
   const id = req.params.id;
 
@@ -358,7 +386,7 @@ router.get("/api/item/:id", (req, res) => {
   identity.ensureStamped(); // so the item carries its imdbId
   const item = scanner.findById(id);
   if (!item) return res.status(404).json({ error: "Not found" });
-  res.json(item);
+  res.json(withOriginalAudio(item));
 });
 
 // Instant autocomplete over library + cached catalog titles: in-memory

@@ -1718,6 +1718,17 @@ html[data-look="glass"] .source-row:hover,
 html[data-look="glass"] .party-strip-item:hover {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06) 55%, rgba(255, 255, 255, 0.1));
 }
+/* An episode you hold: a soft green glass instead of a tick (elia, 2026-10-07:
+   "a green hue background or something like that"). */
+html[data-look="glass"] .episode.owned {
+  background: linear-gradient(135deg, rgba(74, 222, 128, 0.17), rgba(74, 222, 128, 0.06) 55%, rgba(74, 222, 128, 0.12));
+  box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.3);
+}
+html[data-look="glass"] .episode.owned:hover,
+html[data-look="glass"] .episode.owned:focus {
+  background: linear-gradient(135deg, rgba(74, 222, 128, 0.24), rgba(74, 222, 128, 0.1) 55%, rgba(74, 222, 128, 0.17));
+}
+html[data-look="glass"] .episode .source-owned { display: none; }
 /* the episode's hover and focus step up from ITS resting tint, not the common one */
 html[data-look="glass"] .episode:hover,
 html[data-look="glass"] .episode:focus {

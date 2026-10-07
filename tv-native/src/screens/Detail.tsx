@@ -31,7 +31,8 @@ import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
 import {api, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta} from '../api';
 import {canNavigate} from '../navLock';
-import {openTrailer} from '../overlay';
+import {openTrailer, openActions} from '../overlay';
+import {showToast} from '../toast';
 import {useFocusFallback, useKeyTrap} from '../focus';
 import {SourcesPanel} from './Sources';
 import {useApp} from '../AppContext';
@@ -451,6 +452,19 @@ type UiEp = {
   // the site's three states the episode is in (ui.js resolveAirStates).
   airLabel?: string;
   air: 'aired' | 'upcoming' | 'tba';
+  // for the card's long-press menu and the season pill
+  season: number;
+  episode: number;
+  epId?: string; // the library file, when there is one
+  durationSec?: number;
+  // a download in flight for this episode (the site's card carries the same)
+  dl?: {status: string; progress: number};
+};
+const dlText = (dl: {status: string; progress: number}) => {
+  if (dl.status === 'pending') return 'REQUESTED';
+  const pct = Math.round((dl.progress || 0) * 100);
+  if (dl.status !== 'downloading' || !(pct > 0)) return 'STARTING';
+  return `SAVING ${pct}%`;
 };
 type UiSeason = {number: number; episodes: UiEp[]};
 
@@ -504,10 +518,12 @@ const EpisodeCard = React.memo(function EpisodeCardItem({
   ep,
   edgeLeft,
   onFocus,
+  onMore,
 }: {
   ep: UiEp;
   edgeLeft?: boolean;
   onFocus?: () => void;
+  onMore?: () => void; // hold OK: Mark watched / Sources / Play
 }) {
   // The focus treatment wraps the WHOLE card — still, title and badges.
   //
@@ -523,11 +539,13 @@ const EpisodeCard = React.memo(function EpisodeCardItem({
       shadow={theme.cardAura.shadow}
       edgeLeft={edgeLeft}
       onPress={ep.onPlay}
+      onLongPress={onMore}
       onFocusChange={onFocus ? f => f && onFocus() : undefined}
       // glass.css: `.episode:focus { background: rgba(255,255,255,.09) }` —
       // a lighter glass while focused, on top of the resting 0.06.
       highlightColor="rgba(255,255,255,0.04)"
-      style={styles.epCard}>
+      // an episode we hold: a soft green glass, not a tick on the picture
+      style={[styles.epCard, ep.owned && styles.epCardOwned]}>
         <View style={styles.epThumb}>
           {ep.thumb ? (
             <Image
@@ -538,15 +556,19 @@ const EpisodeCard = React.memo(function EpisodeCardItem({
               fadeDuration={0}
             />
           ) : null}
-          {/* The number lives ON the still, like Apple TV's, so the line below is
-              free for the name at a readable size. */}
-          <Text style={styles.epNumOnArt}>{ep.num}</Text>
-          {ep.owned ? <Text style={styles.epOwnedTag}>{'✓'}</Text> : null}
+          {/* No number on the still (elia, 2026-10-07): the kicker under it says
+              "EPISODE N", and the picture is the picture. */}
         </View>
         {/* glass.css .episode-bar: a 3px track on the seam between the still
             and the glass, the violet fill with its glow, and a 7px white bead
             at the head — the site's timeline, not a slab inside the picture. */}
-        {ep.pct ? (
+        {ep.dl ? (
+          <View style={styles.epBar} pointerEvents="none">
+            <View style={[styles.epBarFill, styles.epBarFillDl, {width: `${Math.max(2, Math.round((ep.dl.progress || 0) * 100))}%`}]}>
+              <View style={styles.epBarHead} />
+            </View>
+          </View>
+        ) : ep.pct ? (
           <View style={styles.epBar} pointerEvents="none">
             <View style={[styles.epBarFill, {width: `${ep.pct}%`}]}>
               <View style={styles.epBarHead} />
@@ -560,8 +582,8 @@ const EpisodeCard = React.memo(function EpisodeCardItem({
           them. A fixed height keeps the row even when a synopsis is missing. */}
       <View style={[styles.epBody, ep.air !== 'aired' && styles.epBodyUnaired]}>
         <View>
-          <Text style={styles.epKicker} numberOfLines={1}>
-            {`EPISODE ${ep.num}${ep.durationMin ? `  ·  ${ep.durationMin} MIN` : ''}`}
+          <Text style={[styles.epKicker, ep.dl && styles.epKickerDl]} numberOfLines={1}>
+            {ep.dl ? `EPISODE ${ep.num}  ·  ${dlText(ep.dl)}` : `EPISODE ${ep.num}${ep.durationMin ? `  ·  ${ep.durationMin} MIN` : ''}`}
           </Text>
           <Text style={styles.epTitle} numberOfLines={1}>
             {unescapeHtml(ep.label)}
@@ -607,6 +629,11 @@ export default function Detail({
   // Watch progress for this profile, so an episode row can say "Watched" and
   // carry a part-watched bar the way the site's does.
   const [progress, setProgress] = useState<Record<string, Progress>>({});
+  const [fullTick, setFullTick] = useState(0);
+  const pollArmed = useRef(false);
+  // Streamed episodes' progress, keyed "imdb:season:episode" (the site's
+  // episodeProgressFor) — a TV never showed one as watched before.
+  const [epProgress, setEpProgress] = useState<Record<string, Progress>>({});
   const [streamMeta, setStreamMeta] = useState<DiscoverMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [season, setSeason] = useState<number | null>(null);
@@ -735,6 +762,30 @@ export default function Detail({
   // resolving a library title to its IMDb id (/api/imdb-for) and rendering ONE
   // merged list. `imdbId` is what Sources is keyed by, so it is needed anyway.
   const [libImdb, setLibImdb] = useState<string | null>(null);
+  // Downloads in flight for this show's episodes, by "SxE" (the site's card
+  // carries the same). The TV has no socket: polled every few seconds while
+  // one is running, once after a request, and when the page comes back.
+  const [epJobs, setEpJobs] = useState<Record<string, {status: string; progress: number}>>({});
+  const loadEpJobs = useCallback(async () => {
+    const imdb = item.imdbId || libImdb;
+    if (!imdb) return false;
+    try {
+      const jobs = await api.downloads();
+      const next: Record<string, {status: string; progress: number}> = {};
+      let live = false;
+      for (const j of jobs) {
+        if (j.imdbId !== imdb || !j.season || !j.episode) continue;
+        if (!['pending', 'approved', 'downloading'].includes(j.status)) continue;
+        const k = `${j.season}x${j.episode}`;
+        if (!next[k]) next[k] = {status: j.status, progress: j.progress || 0};
+        live = true;
+      }
+      setEpJobs(next);
+      return live;
+    } catch {
+      return false;
+    }
+  }, [item.imdbId, libImdb]);
   const imdbKind: 'movie' | 'show' = item.type === 'show' ? 'show' : 'movie';
   // Resolve the library title to its IMDb id. This used to be gated to
   // `item.type === 'show'`, which is why SOURCES WERE BROKEN FOR EVERY LIBRARY
@@ -1061,12 +1112,31 @@ export default function Detail({
     let live = true;
     api
       .state(profileId)
-      .then(st => live && setProgress(st.progress || {}))
+      .then(st => {
+        if (!live) return;
+        setProgress(st.progress || {});
+        setEpProgress(st.episodeProgress || {});
+      })
       .catch(() => {}); // best-effort: no progress just means no badges
+    // the download poll: every 4 s while something runs, then it stops by itself
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const tick = async () => {
+      const running = await loadEpJobs();
+      if (!live) return;
+      if (running) timer = setTimeout(tick, 4000);
+      else {
+        // a finished download is a new library file: the page re-reads it
+        setFullTick(t => t + 1);
+      }
+    };
+    pollArmed.current = true;
+    tick();
     return () => {
       live = false;
+      pollArmed.current = false;
+      if (timer) clearTimeout(timer);
     };
-  }, [profileId, isFocused]);
+  }, [isFocused, profileId, loadEpJobs, fullTick]);
 
   const uiSeasons: UiSeason[] = useMemo(() => {
     // Local copies, keyed by season/episode so the merged list can find them.
@@ -1087,7 +1157,13 @@ export default function Detail({
       air: UiEp['air'] = 'aired',
     ): UiEp => {
       const ep = local.get(`${seasonNo}x${episodeNo}`);
-      const pr = ep ? progress[ep.id] : undefined;
+      // Owned: the file's own progress. Streamed: the site's two keys for an
+      // episode watched without a file (episodeProgressFor + the stream|… key).
+      const imdbForKeys = item.imdbId || libImdb;
+      const pr = ep
+        ? progress[ep.id]
+        : (imdbForKeys && (epProgress[`${imdbForKeys}:${seasonNo}:${episodeNo}`] || progress[`stream|${imdbForKeys}|${seasonNo}|${episodeNo}`])) ||
+          undefined;
       const pct =
         pr && pr.duration > 0 && !pr.finished
           ? Math.min(100, Math.round((pr.position / pr.duration) * 100))
@@ -1103,9 +1179,13 @@ export default function Detail({
         label: title || ep?.title || `Episode ${episodeNo}`,
         // Owned episodes play straight from disk; the rest go to Sources, which
         // is what makes the un-downloaded ones reachable at all.
+        // Owned: play. Not owned: a press SAVES the best source, the card
+        // carries the download, and a hold brings the source list (elia,
+        // 2026-10-07: the site's flow — "press on it downloads the best source
+        // and only a long press opens the source list").
         onPlay: ep
           ? () => playEpisode(ep, title || (ep.title && !/^Episode \d+$/.test(ep.title) ? ep.title : undefined))
-          : () => openEpisodeSources(seasonNo, episodeNo),
+          : () => downloadBestRef.current(seasonNo, episodeNo, air),
         owned: !!ep,
         durationLabel: fmtDuration(ep?.duration),
         durationMin: ep?.duration ? Math.round(ep.duration / 60) : showRuntimeMin,
@@ -1116,6 +1196,11 @@ export default function Detail({
         thumb,
         airLabel: fmtAirDate(released),
         air,
+        season: seasonNo,
+        episode: episodeNo,
+        epId: ep?.id,
+        durationSec: ep?.duration,
+        dl: ep ? undefined : epJobs[`${seasonNo}x${episodeNo}`],
       };
     };
 
@@ -1144,13 +1229,155 @@ export default function Detail({
       }));
     }
     return [];
-  }, [full, streamMeta, progress, playEpisode, openEpisodeSources]);
+  }, [full, streamMeta, progress, epProgress, epJobs, playEpisode, item.imdbId, libImdb]);
 
   // Fall back to the first season rather than rendering nothing: the selected
   // number is set from whichever list arrived first, and the merged list can
   // legitimately not contain it (a library show whose only downloaded season is
   // numbered differently from Cinemeta's, a specials season, and so on).
   const curSeason = uiSeasons.find(s => s.number === season) || uiSeasons[0];
+
+  // ---- marking watched (elia, 2026-10-07: "tv should also have the control
+  // like the web for things like mark season watched"). The same two writes
+  // the site makes: the file's own id when we hold the episode, else the
+  // stream key with the episode's identity so Continue Watching and the
+  // watched tick agree across the web and the TV.
+  const reloadProgress = useCallback(
+    () =>
+      api
+        .state(profileId)
+        .then(st => {
+          setProgress(st.progress || {});
+          setEpProgress(st.episodeProgress || {});
+        })
+        .catch(() => {}),
+    [profileId],
+  );
+  const setEpisodeWatched = useCallback(
+    async (ep: UiEp, watched: boolean) => {
+      const imdb = item.imdbId || libImdb;
+      const dur = ep.durationSec && ep.durationSec > 0 ? ep.durationSec : 1;
+      if (ep.epId) {
+        if (watched) await api.saveProgress(profileId, ep.epId, dur, dur);
+        else await api.clearProgress(profileId, ep.epId);
+      } else if (imdb) {
+        const key = `stream|${imdb}|${ep.season}|${ep.episode}`;
+        if (watched) await api.saveProgress(profileId, key, dur, dur, {imdbId: imdb, season: ep.season, episode: ep.episode, title: item.title});
+        else await api.clearProgress(profileId, key);
+      }
+    },
+    [item.imdbId, item.title, libImdb, profileId],
+  );
+  // Save the best source for an episode we don't hold: the server's
+  // recommended stream (or the best-seeded one), requested with the same
+  // fields the Sources screen sends. The card shows the job from here.
+  const downloadBest = useCallback(
+    async (s: number, e: number, air: UiEp['air']) => {
+      if (air !== 'aired') {
+        showToast(air === 'tba' ? 'Not scheduled yet' : 'Not aired yet', '⏳');
+        return;
+      }
+      const running = epJobs[`${s}x${e}`];
+      if (running) {
+        showToast(`${dlText(running).toLowerCase().replace(/^\w/, c => c.toUpperCase())} — hold the episode for its sources`, '⏳');
+        return;
+      }
+      const imdb = await ensureImdb();
+      if (!imdb) {
+        openEpisodeSources(s, e);
+        return;
+      }
+      showToast(`Finding the best source for S${s} E${e}…`, '⬇');
+      try {
+        const {streams} = await api.torrentSources({type: 'series', title: imdb, year: item.year ?? undefined, season: s, episode: e});
+        const alive = (streams || []).filter(x => x.seeders > 0);
+        const pick = alive.find(x => x.recommended) || alive[0] || (streams || [])[0];
+        if (!pick) {
+          showToast('No sources for this episode yet', '⚠');
+          return;
+        }
+        const res = await api.requestDownload({
+          infoHash: pick.infoHash,
+          fileIdx: pick.fileIdx,
+          type: 'show',
+          imdbId: imdb,
+          title: item.title,
+          label: `${item.title} · S${s} E${e}`,
+          year: item.year ?? undefined,
+          quality: pick.quality,
+          sizeBytes: pick.sizeBytes,
+          provider: pick.provider,
+          seeders: pick.seeders,
+          season: s,
+          episode: e,
+          profile: profileId,
+        });
+        if (res.alreadyAvailable) showToast("Already yours — it's in the library", '✅');
+        else if (res.duplicate) showToast('Already queued. Patience.', '⏳');
+        else if (res.needsApproval) showToast(`Requested ${pick.quality} · ${pick.sizeString || ''} — waiting for approval`, '⬇');
+        else showToast(`Saving ${pick.quality} · ${pick.sizeString || ''} — the card shows the progress`, '⬇');
+        // show it on the card at once, then let the poll take over
+        setEpJobs(prev => ({...prev, [`${s}x${e}`]: {status: res.needsApproval ? 'pending' : 'approved', progress: 0}}));
+        setTimeout(() => {
+          if (!pollArmed.current) setFullTick(t => t + 1); // re-arms the poll via the focus effect
+        }, 1500);
+      } catch (err) {
+        showToast((err as Error)?.message || "Couldn't request the download", '⚠');
+      }
+    },
+    [epJobs, ensureImdb, openEpisodeSources, item.title, item.year, profileId],
+  );
+  const downloadBestRef = useRef<(s: number, e: number, air: UiEp['air']) => void>(() => {});
+  downloadBestRef.current = downloadBest;
+  const episodeActions = useCallback(
+    (ep: UiEp) => {
+      openActions({
+        title: unescapeHtml(ep.label),
+        sub: `${item.title} · S${ep.season} E${ep.episode}`,
+        items: [
+          ...(!ep.owned ? [{label: 'Sources', tag: 'streams and downloads', onPress: () => openEpisodeSources(ep.season, ep.episode)}] : []),
+          {
+            label: ep.watched ? 'Mark unwatched' : 'Mark watched',
+            tag: ep.watched ? 'back to unseen' : 'ticks it off',
+            onPress: () => {
+              setEpisodeWatched(ep, !ep.watched)
+                .then(() => {
+                  showToast(ep.watched ? `S${ep.season} E${ep.episode} marked unwatched` : `S${ep.season} E${ep.episode} marked watched`, '✓');
+                  return reloadProgress();
+                })
+                .catch(() => showToast("Couldn't save that", '⚠'));
+            },
+          },
+          ...(ep.owned ? [{label: 'Play', tag: 'your copy', onPress: ep.onPlay}, {label: 'Sources', tag: 'other versions', onPress: () => openEpisodeSources(ep.season, ep.episode)}] : []),
+        ],
+      });
+    },
+    [item.title, setEpisodeWatched, reloadProgress, openEpisodeSources],
+  );
+  const episodeActionsRef = useRef<(ep: UiEp) => void>(() => {});
+  episodeActionsRef.current = episodeActions;
+  const seasonAired = (curSeason?.episodes || []).filter(e => e.air === 'aired');
+  const seasonAllWatched = seasonAired.length > 0 && seasonAired.every(e => e.watched);
+  const [seasonBusy, setSeasonBusy] = useState(false);
+  const markSeason = useCallback(
+    async (watched: boolean) => {
+      if (!curSeason || seasonBusy) return;
+      setSeasonBusy(true);
+      try {
+        for (const e of curSeason.episodes) {
+          if (e.air !== 'aired' || e.watched === watched) continue;
+          await setEpisodeWatched(e, watched);
+        }
+        showToast(watched ? `Season ${curSeason.number} marked watched` : `Season ${curSeason.number} marked unwatched`, '✓');
+        await reloadProgress();
+      } catch {
+        showToast("Couldn't save that", '⚠');
+      } finally {
+        setSeasonBusy(false);
+      }
+    },
+    [curSeason, seasonBusy, setEpisodeWatched, reloadProgress],
+  );
 
   // What the show page's primary button does — the site's `nextUp`. In order of
   // preference: the episode you are part-way through, else the first downloaded
@@ -1193,7 +1420,7 @@ export default function Detail({
   const scrollToEnd = useCallback(() => scrollRef.current?.scrollToEnd({animated: true}), []);
   const renderEpisode = useCallback(
     ({item: ep, index}: {item: UiEp; index: number}) => (
-      <EpisodeCard ep={ep} edgeLeft={index === 0} onFocus={scrollToEnd} />
+      <EpisodeCard ep={ep} edgeLeft={index === 0} onFocus={scrollToEnd} onMore={() => episodeActionsRef.current(ep)} />
     ),
     [scrollToEnd],
   );
@@ -1446,6 +1673,17 @@ export default function Detail({
                 </Focusable>
               )}
             />
+          ) : null}
+          {/* the site's season pill: one press ticks the aired episodes off (or back) */}
+          {seasonAired.length > 0 ? (
+            <View style={styles.seasonTools}>
+              <Focusable round onPress={() => markSeason(!seasonAllWatched)} style={styles.pill}>
+                <Text style={styles.pillText}>
+                  {seasonBusy ? 'Saving…' : seasonAllWatched ? 'Mark season unwatched' : `Mark season watched${seasonAired.filter(e => !e.watched).length < seasonAired.length ? ` (${seasonAired.filter(e => !e.watched).length} left)` : ''}`}
+                </Text>
+              </Focusable>
+              <Text style={styles.seasonHint}>Hold OK on an episode for more</Text>
+            </View>
           ) : null}
           {loading && !curSeason ? (
             <ActivityIndicator color={colors.text} style={styles.railSpinner} />
@@ -1764,6 +2002,8 @@ const styles = StyleSheet.create({
   // ---- the season dock ----------------------------------------------------
   bottomDock: {position: 'absolute', left: 0, right: 0, bottom: 0},
   seasonRow: {flexGrow: 0, height: SEASON_H},
+  seasonTools: {flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingLeft: spacing.contentLeft, paddingRight: spacing.pageX, marginBottom: 4},
+  seasonHint: {color: colors.textFaint, fontSize: fontSize.small},
   seasonRowContent: {
     paddingLeft: spacing.contentLeft,
     paddingRight: spacing.pageX,
@@ -1821,6 +2061,7 @@ const styles = StyleSheet.create({
     padding: EP_PAD,
     paddingBottom: 8,
   },
+  epCardOwned: {backgroundColor: 'rgba(74,222,128,0.13)', borderColor: 'rgba(74,222,128,0.38)'},
   // '100%' on BOTH axes, so the still is exactly the content box and the ring
   // hugs it. The width was already '100%'; only the height was absolute, which
   // is the whole of the bug.
@@ -1883,6 +2124,9 @@ const styles = StyleSheet.create({
     experimental_backgroundImage: 'linear-gradient(90deg, #8b7bff, #a6c8ff)',
     boxShadow: '0 0 10px rgba(139,123,255,0.6)',
   },
+  // a download in flight: the mint ramp, like the site's card
+  epBarFillDl: {backgroundColor: '#8cffbe', experimental_backgroundImage: 'linear-gradient(90deg, #7fd1e8, #8cffbe)', boxShadow: '0 0 10px rgba(140,255,190,0.55)'},
+  epKickerDl: {color: '#8cffbe'},
   epBarHead: {
     position: 'absolute',
     right: -3,

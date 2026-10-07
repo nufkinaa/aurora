@@ -534,7 +534,7 @@ const search = async (q) => {
 // is on disk). Stale entries are pruned on load, so the file stays bounded.
 const metaCache = new Map();
 const META_TTL = 12 * 3600 * 1000;
-const META_V = 2; // bump when the shape of `data` changes, so stale entries refetch
+const META_V = 3; // bump when the shape of `data` changes, so stale entries refetch (3: originalLanguage)
 const metaStore = new JsonStore(path.join(config.CACHE_DIR, "meta.json"), {});
 for (const [key, hit] of Object.entries(metaStore.data)) {
   if (hit && hit.data && hit.v === META_V && Date.now() - (hit.at || 0) < META_TTL) metaCache.set(key, hit);
@@ -606,6 +606,12 @@ const meta = async (type, id) => {
     // Cinemeta has no age rating, but it does hand back the TMDB id, so this
     // costs one request off an id we already hold. Null without a TMDB key.
     certificate: await certification.fetchCertificate(
+      cinemetaType === "series" ? "show" : "movie",
+      m.moviedb_id,
+    ),
+    // The language the title was made in (TMDB): the players start a
+    // multi-dub file on the audio track in it (elia, 2026-10-07).
+    originalLanguage: await certification.fetchOriginalLanguage(
       cinemetaType === "series" ? "show" : "movie",
       m.moviedb_id,
     ),
