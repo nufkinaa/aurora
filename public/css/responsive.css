@@ -354,7 +354,7 @@
     position: absolute;
     inset: 0;
     z-index: -2;
-    background-image: var(--hero-poster, var(--hero-art, none));
+    background-image: var(--hero-poster, var(--hero-art, none)), var(--hero-blur, none);
     background-size: cover;
     background-position: center 20%;
   }

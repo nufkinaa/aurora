@@ -1,6 +1,7 @@
 // Home: rotating hero billboard + shelves (Continue Watching, My List, ...)
 import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, heroArtWidth, restoreScrollY } from "../ui.js";
 import { upgradeArt } from "../artUpgrade.js";
+import { blurOf } from "../blur.js";
 import { api } from "../api.js";
 import { state, progressFor } from "../state.js";
 import { shelfRow, continueRow, openItem, ensureRowFilled } from "../components.js";
@@ -205,6 +206,12 @@ export const renderHome = async (root) => {
       // the nav floats over this picture: tint its glass to match (glassTone.js)
       toneNavFromImage(item.backdrop ? artUrl(item.backdrop, heroArtWidth()) : null);
       incoming.style.setProperty("--hero-poster", `url("${artUrl(item.cover, 400)}")`);
+      // under both: the picture's 16px placeholder, so a slide is never dark
+      // while its art is on the way (blur.js)
+      {
+        const b = blurOf(item.backdrop) || blurOf(item.cover);
+        incoming.style.setProperty("--hero-blur", b ? `url("${b}")` : "none");
+      }
       // Painted small (a slow line, a narrow window)? The full-size picture
       // comes later, when the viewer is idle and the line has room
       // (artUpgrade.js) — the same picture, sharper.

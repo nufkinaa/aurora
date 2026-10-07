@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.60 — 2026-10-07
+
+- Web: blur-up placeholders (elia). A poster or hero shows its picture's colours and rough shape from the first frame, and the real picture comes into focus over it, instead of a grey shimmer. The server keeps a 16-pixel WebP of every picture it hands out (about 230 bytes, made in the background with ffmpeg and cached on disk) and sends the ones it has beside a page's data — the hero's slides and the posters first, up to 120 per answer — to browsers that ask for them; the TV app and older tabs get exactly the answers they always got. The first visit after a new title appears has none for it; the next one does. On the lite tier and with reduced motion the picture simply replaces the placeholder.
+
 ## 1.6.59 — 2026-10-07
 
 Ten of the streaming practices from the report, on the site (elia picked them):

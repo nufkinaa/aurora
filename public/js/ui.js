@@ -1,5 +1,6 @@
 // Small DOM + formatting helpers shared by every screen.
 import { lite } from "./net.js";
+import { blurOf } from "./blur.js";
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -206,8 +207,14 @@ export const backupPosterUrl = (item) =>
 // `backup`: a second address to try (the backup poster) once the first has
 // failed twice — only then does the titled tile take over.
 export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-fallback", { w = null, eager = false, backup = null } = {}) => {
+  // Blur-up (2026-10-07): when the server sent this picture's 16px
+  // placeholder, the slot shows it at once — stretched, it is the poster's
+  // colours and rough shape — and the real picture sharpens over it. No
+  // placeholder: the fade-in this always had.
+  const blur = blurOf(src);
   src = artUrl(src, w);
-  const img = el("img", { class: cls + " img-fade", src, loading: eager ? "eager" : "lazy", decoding: "async", alt: "" });
+  const img = el("img", { class: cls + (blur ? " img-blurup" : " img-fade"), src, loading: eager ? "eager" : "lazy", decoding: "async", alt: "" });
+  if (blur) img.style.backgroundImage = `url("${blur}")`;
   // Fade in on decode instead of popping — but ONLY when the picture took a
   // moment to arrive. One that lands within a few frames came from the
   // cache, and fading THAT in made every revisit of Home look like the rows
@@ -217,6 +224,8 @@ export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-f
   const reveal = () => {
     if (performance.now() - t0 < 120) img.classList.add("img-now");
     img.classList.add("img-in");
+    // the placeholder has done its job; a see-through PNG must not show it
+    if (blur) setTimeout(() => { img.style.backgroundImage = ""; }, 500);
   };
   img.onload = reveal;
   if (img.complete && img.naturalWidth > 0) reveal();

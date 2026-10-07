@@ -1,4 +1,5 @@
 // Thin API client.
+import { takeBlur } from "./blur.js";
 
 // Unlock token for the active protected profile, attached to every request so
 // the server lets through reads/writes for that profile.
@@ -7,11 +8,14 @@ export const setAuthToken = (t) => { authToken = t || null; };
 
 const withToken = (headers = {}) =>
   authToken ? { ...headers, "X-Profile-Token": authToken } : headers;
+// GETs say they can take blur-up placeholders beside the answer (lib/blurup.js)
+const withBlur = (options, headers) =>
+  !options.method || String(options.method).toUpperCase() === "GET" ? { ...headers, "X-Blur": "1" } : headers;
 
 const json = async (url, options = {}, attempt = 0) => {
   let res;
   try {
-    res = await fetch(url, { ...options, headers: withToken(options.headers) });
+    res = await fetch(url, { ...options, headers: withBlur(options, withToken(options.headers)) });
   } catch (err) {
     // A network blip (flaky wifi, server restarting). GETs are idempotent —
     // retry twice with a breath between instead of failing the screen.
@@ -33,7 +37,9 @@ const json = async (url, options = {}, attempt = 0) => {
     try { msg = (await res.json()).error || ""; } catch {}
     throw new Error(msg || `${res.status} ${url}`);
   }
-  return res.json();
+  // the tiny pictures that ride beside an answer go to blur.js; the screen
+  // gets the answer it always got
+  return takeBlur(await res.json());
 };
 
 let changelogP = null;

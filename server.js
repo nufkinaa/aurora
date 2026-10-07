@@ -159,6 +159,8 @@ app.use((req, res, next) => {
   });
 }
 
+// Blur-up placeholders ride along on JSON answers for clients that ask (lib/blurup.js).
+app.use(require("./src/lib/blurup").middleware);
 app.use(require("./src/routes/auth"));
 app.use(require("./src/routes/api"));
 app.use(require("./src/routes/profiles"));

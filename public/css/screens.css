@@ -55,7 +55,7 @@
    fallback for titles that have no backdrop at all. */
 .hero-backdrop.fade {
   opacity: 0;
-  background-image: var(--hero-art, none), var(--hero-poster, none);
+  background-image: var(--hero-art, none), var(--hero-poster, none), var(--hero-blur, none);
 }
 .hero-backdrop.fade.on {
   opacity: 1;
@@ -989,7 +989,7 @@
 }
 .detail-hero .hero-backdrop {
   /* landscape art with the poster behind it (details.js sets both) */
-  background-image: var(--hero-art, none), var(--hero-poster, none);
+  background-image: var(--hero-art, none), var(--hero-poster, none), var(--hero-blur, none);
   filter: blur(60px) saturate(1.2) brightness(0.4);
   /* Its own dissolve stops. This hero is content-height (measured 776-838px vs
      the home hero's ~500-760), so the fixed 40px inset is a much smaller share

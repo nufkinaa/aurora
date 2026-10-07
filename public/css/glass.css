@@ -4248,3 +4248,22 @@ html[data-look="glass"] .player .menu,
 /* ---- follow a show ---- */
 .btn-follow.on { color: #8cffbe; }
 .pbtn.pip-btn.hidden { display: none; }
+
+/* ---- blur-up placeholders (2026-10-07) ----
+   The slot shows the picture's 16px placeholder (set inline as a background)
+   from the first frame; when the real picture lands it starts soft and
+   sharpens, so the two read as one picture coming into focus. */
+.img-blurup {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.img-blurup.img-in:not(.img-now) { animation: blurup-in 0.4s var(--ease) both; }
+@keyframes blurup-in {
+  from { filter: blur(10px); }
+  to { filter: blur(0); }
+}
+html[data-fx="lite"] .img-blurup.img-in { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .img-blurup.img-in { animation: none !important; }
+}
