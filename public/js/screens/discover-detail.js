@@ -1302,7 +1302,8 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       : `Downloading · ${p}%`;
     saveBtn.innerHTML = `<span class="mini-spinner"></span><span>${text}</span>`;
     saveBtn.disabled = true;
-    saveBtn.classList.add("busy");
+    saveBtn.classList.add("busy", "dl-live");
+    saveBtn.style.setProperty("--p", String(Math.max(0, Math.min(1, job.progress || 0))));
   };
   if (imdbId && !isShow && !lib) {
     saveBtn = el("button", {
@@ -1883,7 +1884,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         if (DL_ACTIVE.includes(job.status)) saveState(job);
         else if (saveBtn && (job.status === "error" || job.status === "canceled" || job.status === "declined")) {
           saveBtn.disabled = false;
-          saveBtn.classList.remove("busy");
+          saveBtn.classList.remove("busy", "dl-live");
           saveBtn.innerHTML = icons.download + "<span>Save &amp; watch</span>";
         }
         return;

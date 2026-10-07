@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.58 — 2026-10-07
+
+- Web: the TV's small touches, on the site (elia). The player's menus (subtitles, timing, speed, audio, quality, playback, subtitle style, help) carry a glyph on every section title and the violet-to-green hue in the glass; the X-Ray sheet carries the same hue; a film being saved shows a mint strip along the foot of its hero button that follows the download.
+
 ## 1.6.57 — 2026-10-07
 
 - Trailers in 1080p, on the TV and the site (elia: "right now it's just on low res always, right?" — yes: YouTube sizes its quality to the player's CSS pixels, and setPlaybackQuality has been a no-op for years, so a 1100px TV frame or a 1650px laptop hero got 720p). The player is now laid out at exactly 1920 CSS pixels wide and scaled down to fit, so YouTube serves 1080p — exactly 1920, never more: at 2200 YouTube handed the Mi TV 2160p and the interface fell to 63% janky frames. A line or box that can't carry it steps down by itself: two rebuffers in the first 25 seconds (or one longer than 2.5 s) shrink the player to 1× and reload at the same second, and the session stays at 1× after that; a box the perf tier already judged lite, or a browser on the lite tier or data saver, starts at 1×. The trailer modal on the site gets the same doubling below 1100px wide.

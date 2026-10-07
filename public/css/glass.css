@@ -4175,3 +4175,44 @@ html[data-look="glass"][data-fx="lite"] .look-notice,
 html[data-look="glass"][data-fx="lite"] .hero-picks {
   background: rgba(18, 20, 34, 0.9);
 }
+
+/* ---- the TV's hue, on the site (elia, 2026-10-07) -------------------------
+   The player's menus and the X-Ray sheet carry the room's light: the violet
+   from the top-left, the aurora's green from the foot, over their own fill.
+   background-image only, so each surface keeps its colour, blur and tier. */
+.player .menu,
+html[data-look="glass"] .player .menu,
+.xray-sheet > .xray-panel,
+.xray-sheet-page > .xray-panel {
+  background-image: linear-gradient(140deg, rgba(104, 86, 226, 0.26) 0%, rgba(16, 15, 30, 0) 48%, rgba(70, 200, 150, 0.18) 100%);
+  background-attachment: local;
+}
+.menu-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.menu-title > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  opacity: 0.85;
+}
+
+/* A film being saved: the hero button carries a mint strip along its foot,
+   the TV's download strip (elia). --p is the job's progress, 0..1. */
+.btn.busy.dl-live {
+  position: relative;
+  overflow: hidden;
+}
+.btn.busy.dl-live::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: max(4%, calc(var(--p, 0) * 100%));
+  background: linear-gradient(90deg, #7fd1e8, #8cffbe);
+  box-shadow: 0 0 10px rgba(140, 255, 190, 0.55);
+  transition: width 0.6s ease;
+}

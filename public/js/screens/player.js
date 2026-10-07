@@ -26,6 +26,11 @@ const AUDIO_LANG_NAMES = {
   ara: "Arabic", ar: "Arabic", tur: "Turkish", tr: "Turkish", pol: "Polish", pl: "Polish", hin: "Hindi", hi: "Hindi",
   nld: "Dutch", dut: "Dutch", nl: "Dutch", swe: "Swedish", sv: "Swedish", tam: "Tamil", tel: "Telugu",
 };
+// A menu section's title with its glyph — the TV's menus, on the site (elia,
+// 2026-10-07: "the same changes we made on tv with the little icons").
+const menuTitle = (icon, text, gap) =>
+  el("div", { class: "menu-title", style: gap ? { marginTop: "6px" } : null, html: `${icons[icon] || ""}<span>${text}</span>` });
+
 const audioTrackName = (t, i) => {
   const code = String(t.language || "").toLowerCase();
   const lang = code && code !== "und" ? AUDIO_LANG_NAMES[code] || code.toUpperCase() : "";
@@ -2379,7 +2384,7 @@ export const renderPlayer = async (root, { id }) => {
     const menu = el("div", { class: "menu" });
 
     if (kind === "cc") {
-      menu.append(el("div", { class: "menu-title" }, "Subtitles"));
+      menu.append(menuTitle("cc", "Subtitles"));
       // One-press escape hatch: drops any manual nudge and force re-anchors
       // every track's cues to the current stream clock. Cheap insurance for
       // "subs look off and I don't want to fiddle with ±0.5s".
@@ -2432,11 +2437,7 @@ export const renderPlayer = async (root, { id }) => {
         offsetLabel.textContent = fmtOffset();
       };
       menu.append(
-        el(
-          "div",
-          { class: "menu-title", style: { marginTop: "6px" } },
-          "Subtitle timing",
-        ),
+        menuTitle("forward10", "Subtitle timing", true),
         el(
           "div",
           { class: "sub-sync" },
@@ -2489,7 +2490,7 @@ export const renderPlayer = async (root, { id }) => {
         ),
       );
     } else if (kind === "speed") {
-      menu.append(el("div", { class: "menu-title" }, "Speed"));
+      menu.append(menuTitle("speed", "Speed"));
       for (const s of SPEEDS) {
         menu.append(
           el(
@@ -2522,7 +2523,7 @@ export const renderPlayer = async (root, { id }) => {
         // position with that track mapped in.
         const tracks = item.audioTracks || [];
         if (tracks.length > 1) {
-          menu.append(el("div", { class: "menu-title" }, "Audio"));
+          menu.append(menuTitle("volume", "Audio"));
           tracks.forEach((t, i) => {
             const idx = t.index != null ? t.index : i;
             menu.append(
@@ -2541,7 +2542,7 @@ export const renderPlayer = async (root, { id }) => {
         // Quality — a library title can be played as a lighter stream when
         // the connection can't carry the file itself.
         if (canCap) {
-          menu.append(el("div", { class: "menu-title" }, "Quality"));
+          menu.append(menuTitle("film", "Quality"));
           // "Original" is the file's video bit for bit (a copy) — except on a
           // device that can't decode its codec, where it is the best re-encode,
           // and the menu says so rather than claiming the file.
@@ -2557,7 +2558,7 @@ export const renderPlayer = async (root, { id }) => {
             );
           }
         }
-        menu.append(el("div", { class: "menu-title" }, "Playback"));
+        menu.append(menuTitle("play", "Playback"));
         menu.append(
           entry(
             "Autoplay next episode",
@@ -2568,7 +2569,7 @@ export const renderPlayer = async (root, { id }) => {
             },
           ),
         );
-        menu.append(el("div", { class: "menu-title" }, "Subtitle style"));
+        menu.append(menuTitle("cc", "Subtitle style"));
         menu.append(
           entry("Size", prefs.get("cueSize", "M"), () => {
             const order = ["S", "M", "L"];
@@ -2595,7 +2596,7 @@ export const renderPlayer = async (root, { id }) => {
         // from the menu (elia). Detection and the public timestamp databases
         // do that job now; a wrong mark can still be removed in the admin,
         // under Inbox → Skip-intro marks.)
-        menu.append(el("div", { class: "menu-title" }, "Help"));
+        menu.append(menuTitle("info", "Help"));
         menu.append(entry("Report a problem", "with this title", () => { closeMenu(); showReportSheet({ hint: "from the player" }); }));
       };
       rebuild();
