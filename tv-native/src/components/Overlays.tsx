@@ -2,24 +2,12 @@
 // be up (overlay.ts says which) — peek, report a problem, join a party, the
 // update offer, a trailer. Screens never draw these themselves.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {
-  ActivityIndicator,
-  AppState,
-  BackHandler,
-  Image,
-  Linking,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TVFocusGuideView,
-  View,
-} from 'react-native';
+import {ActivityIndicator, Animated, AppState, BackHandler, Easing, FlatList, Image, Linking, Platform, ScrollView, StyleSheet, TVFocusGuideView, Text, TextInput, View} from 'react-native';
 import Focusable from './Focusable';
 import Sheet, {glass} from './Sheet';
 import TrailerFrame, {TrailerState} from './Trailer';
 import type {ActionItem} from '../overlay';
-import {api, HeroItem, imgSrc, ImgSource, StreamRef} from '../api';
+import {api, HeroItem, imgSrc, ImgSource, StreamRef, XrayData, XrayPerson, XrayQuery} from '../api';
 import {playingContext, recentErrors} from '../errors';
 import {useKeyTrap} from '../focus';
 import {closeOverlay, useOverlay} from '../overlay';
@@ -453,6 +441,186 @@ function UpdateSheet({info}: {info: UpdateInfo}) {
   );
 }
 
+// ---------------------------------------------------------------- x-ray
+// Who is in this, who made it, what people thought — the site's panel as a
+// TV sheet over the paused film (elia, 2026-10-07). For an episode: its own
+// guests first, the regulars under them, the director and writers, the air
+// date and runtime. Faces are round; a face that never arrives keeps its
+// initials.
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .map(w => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+function Face({p, index}: {p: XrayPerson; index: number}) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <Focusable hasTVPreferredFocus={index === 0} style={styles.xrPerson} accessibilityLabel={`${p.name}${p.role ? `, ${p.role}` : ''}`}>
+      <View style={styles.xrFace}>
+        <Text style={styles.xrInitials}>{initials(p.name)}</Text>
+        {p.photo && !broken ? (
+          <Image source={imgSrc(p.photo) as {uri: string}} style={styles.xrPhoto} resizeMode="cover" onError={() => setBroken(true)} />
+        ) : null}
+      </View>
+      <Text style={styles.xrName} numberOfLines={1}>
+        {p.name}
+      </Text>
+      {p.role ? (
+        <Text style={styles.xrRole} numberOfLines={1}>
+          {p.role}
+        </Text>
+      ) : null}
+    </Focusable>
+  );
+}
+const fmtAired = (iso?: string | null) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, {day: 'numeric', month: 'short', year: 'numeric'});
+};
+function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; onClose?: () => void}) {
+  const [data, setData] = useState<XrayData | null>(null);
+  const [failed, setFailed] = useState(false);
+  // Rises from the foot of the screen the way the phone's sheet does, with a
+  // little overshoot: a spring on translateY and scale, a short fade under it.
+  const rise = useRef(new Animated.Value(0)).current;
+  useKeyTrap(true);
+  const close = useCallback(() => {
+    Animated.timing(rise, {toValue: 0, duration: 160, easing: Easing.in(Easing.quad), useNativeDriver: true}).start(() => {
+      closeOverlay();
+      onClose?.();
+    });
+  }, [onClose, rise]);
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      close();
+      return true;
+    });
+    return () => sub.remove();
+  }, [close]);
+  useEffect(() => {
+    track('feat', {f: 'xray_tv'});
+    Animated.spring(rise, {toValue: 1, stiffness: 190, damping: 20, mass: 0.9, useNativeDriver: true}).start();
+    let live = true;
+    api
+      .xray(query)
+      .then(d => live && (d.error ? setFailed(true) : setData(d)))
+      .catch(() => live && setFailed(true));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const ep = data?.episode || null;
+  const guests = ep?.guests || [];
+  const cast = data?.cast || [];
+  const crew = data?.crew || [];
+  const ratings = data?.ratings || [];
+  const heading = ep ? `${title} · S${ep.season} E${ep.episode} — ${ep.title}` : data?.title || title;
+  const names = (v?: string | string[] | null) => (Array.isArray(v) ? v.filter(Boolean).join(', ') : v || '');
+  const facts = ep
+    ? [fmtAired(ep.aired) ? `Aired ${fmtAired(ep.aired)}` : null, ep.runtime, ep.rating ? `★ ${ep.rating.value} ${ep.rating.source}` : null]
+        .filter(Boolean)
+        .join('   ·   ')
+    : [
+        ...ratings.map(r => `★ ${r.value} ${r.source}`),
+        ...(data?.facts || [])
+          .filter(f => /^(Released|Runtime|Country|Box office)$/.test(f.label))
+          .map(f => (f.label === 'Released' ? fmtAired(f.value) || f.value : f.value)),
+      ].join('   ·   ');
+  const behind = ep
+    ? [names(ep.directors) ? `Directed by ${names(ep.directors)}` : null, names(ep.writers) ? `Written by ${names(ep.writers)}` : null]
+        .filter(Boolean)
+        .join('   ·   ')
+    : crew
+        .slice(0, 6)
+        .map(c => (c.job || c.role ? `${c.job || c.role}: ${c.name}` : c.name))
+        .join('   ·   ');
+  const showRegulars = cast.length > 0 && !(data?.anthology && guests.length);
+  const nobody = !!data && !guests.length && !showRegulars;
+  const row = (people: XrayPerson[], first: boolean) => (
+    <FlatList
+      data={people}
+      horizontal
+      keyExtractor={(p, i) => `${p.name}-${i}`}
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.xrRow}
+      renderItem={({item: p, index}) => <Face p={p} index={first ? index : -1} />}
+    />
+  );
+  const panelStyle = {
+    opacity: rise.interpolate({inputRange: [0, 0.4, 1], outputRange: [0, 1, 1]}),
+    transform: [
+      {translateY: rise.interpolate({inputRange: [0, 1], outputRange: [120, 0]})},
+      {scale: rise.interpolate({inputRange: [0, 1], outputRange: [0.96, 1]})},
+    ],
+  };
+  const washStyle = {opacity: rise.interpolate({inputRange: [0, 1], outputRange: [0, 1]})};
+  return (
+    <View style={styles.xrBackdrop}>
+      <Animated.View style={[styles.xrWash, washStyle]} />
+      <Animated.View style={[styles.xrPanel, panelStyle]}>
+        <TVFocusGuideView autoFocus trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.xrGuide}>
+          <View style={styles.xrHead}>
+            <View style={styles.xrHeadText}>
+              <Text style={styles.xrKicker}>X-RAY</Text>
+              <Text style={styles.xrTitle} numberOfLines={1}>
+                {heading}
+              </Text>
+              {facts ? (
+                <Text style={styles.xrFacts} numberOfLines={1}>
+                  {facts}
+                </Text>
+              ) : null}
+              {behind ? (
+                <Text style={styles.xrBehind} numberOfLines={1}>
+                  {behind}
+                </Text>
+              ) : null}
+            </View>
+            {nobody || failed ? (
+              <Ghost label="✕  Close" onPress={close} focus />
+            ) : (
+              <View style={styles.xrHint}>
+                <Text style={styles.xrHintKey}>BACK</Text>
+                <Text style={styles.xrHintText}>closes</Text>
+              </View>
+            )}
+          </View>
+          {!data && !failed ? <ActivityIndicator color={colors.white} style={styles.xrWait} /> : null}
+          {failed ? <Text style={styles.body}>X-Ray couldn't reach its sources for this title.</Text> : null}
+          {data ? (
+            <ScrollView style={styles.xrBody} showsVerticalScrollIndicator={false} fadingEdgeLength={36}>
+              {ep?.overview ? (
+                <Text style={styles.xrOverview} numberOfLines={2}>
+                  {ep.overview}
+                </Text>
+              ) : null}
+              {guests.length ? (
+                <>
+                  <Text style={styles.xrSection}>{data.anthology ? 'CAST' : 'IN THIS EPISODE'}</Text>
+                  {row(guests, true)}
+                </>
+              ) : null}
+              {showRegulars ? (
+                <>
+                  <Text style={styles.xrSection}>{ep && guests.length ? 'REGULAR CAST' : 'CAST'}</Text>
+                  {row(cast.slice(0, 18), !guests.length)}
+                </>
+              ) : null}
+              {nobody ? <Text style={styles.faint}>Nothing known about this one yet.</Text> : null}
+            </ScrollView>
+          ) : null}
+        </TVFocusGuideView>
+      </Animated.View>
+    </View>
+  );
+}
+
 // ---------------------------------------------------------------- actions
 // A short list of things to do with one thing (an episode, from its card's
 // long-press): Mark watched, Sources, Play. A press closes the sheet first.
@@ -589,6 +757,7 @@ export default function Overlays() {
       {o?.kind === 'update' ? <UpdateSheet info={o.info} /> : null}
       {o?.kind === 'trailer' ? <TrailerModal ids={o.ids} title={o.title} /> : null}
       {o?.kind === 'actions' ? <ActionsSheet title={o.title} sub={o.sub} items={o.items} /> : null}
+      {o?.kind === 'xray' ? <XraySheet query={o.query} title={o.title} onClose={o.onClose} /> : null}
       <Toasts />
     </>
   );
@@ -611,6 +780,56 @@ const styles = StyleSheet.create({
   // right — so DOWN from a text field lands on the primary, not on Cancel.
   actionsSpread: {justifyContent: 'space-between'},
   trailerErr: {backgroundColor: '#000', paddingHorizontal: 80},
+  // X-Ray: a bottom sheet over the page, the phone's shape at TV size.
+  xrBackdrop: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 500, elevation: 500, justifyContent: 'flex-end'},
+  xrWash: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(4,5,10,0.6)'},
+  xrPanel: {
+    marginHorizontal: spacing.pageX - 12,
+    maxHeight: 446,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 18,
+    paddingHorizontal: 28,
+    paddingBottom: 22,
+    // opaque: a bright subtitle line under a 96% panel still read through it
+    backgroundColor: 'rgb(14,16,28)',
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: 'rgba(255,255,255,0.10)',
+    borderTopColor: 'rgba(255,255,255,0.22)',
+    boxShadow: '0 -24px 70px rgba(0,0,0,0.6)',
+  },
+  xrGuide: {flexShrink: 1},
+  xrHead: {flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg},
+  xrHeadText: {flex: 1, minWidth: 0},
+  xrKicker: {color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 3, marginBottom: 2},
+  xrTitle: {color: colors.text, fontSize: 24, lineHeight: 30, fontWeight: '900'},
+  xrFacts: {color: colors.textDim, fontSize: fontSize.small, marginTop: 4},
+  xrHint: {flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6},
+  xrHintKey: {
+    color: colors.text,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  xrHintText: {color: colors.textFaint, fontSize: fontSize.small},
+  xrWait: {marginVertical: 48},
+  xrBody: {marginTop: 8, maxHeight: 300},
+  xrOverview: {color: colors.text, fontSize: fontSize.small, lineHeight: 20},
+  xrSection: {color: colors.textFaint, fontSize: 11, fontWeight: '800', letterSpacing: 1.2, marginTop: spacing.sm + 2, marginBottom: 2},
+  xrRow: {gap: 6, paddingVertical: 4, paddingHorizontal: 2},
+  xrPerson: {width: 114, alignItems: 'center', borderRadius: radius.m, paddingVertical: 6, paddingHorizontal: 5},
+  xrFace: {width: 58, height: 58, borderRadius: 29, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
+  xrPhoto: {position: 'absolute', top: 0, left: 0, width: 58, height: 58},
+  xrInitials: {color: colors.textDim, fontSize: 17, fontWeight: '800'},
+  xrName: {color: colors.text, fontSize: 12, fontWeight: '700', marginTop: 5, maxWidth: 104, textAlign: 'center'},
+  xrRole: {color: colors.textFaint, fontSize: 11, marginTop: 1, maxWidth: 104, textAlign: 'center'},
+  xrBehind: {color: colors.textDim, fontSize: fontSize.small, marginTop: 2},
   actionList: {gap: spacing.sm, marginTop: spacing.sm},
   actionRow: {
     flexDirection: 'row',

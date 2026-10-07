@@ -89,6 +89,7 @@ import {useApp} from '../AppContext';
 import {setPlayingContext} from '../errors';
 import {useFocusFallback} from '../focus';
 import {canNavigate} from '../navLock';
+import {openXray} from '../overlay';
 import {useMe} from '../navSection';
 import {
   createParty,
@@ -2703,6 +2704,26 @@ export default function Player({
                 badge={rate === 1 ? undefined : `${rate}x`}
                 onFocusChange={markZone('row')}
                 onPress={() => setMenu('speed')}
+              />
+              <PBtn
+                icon="xray"
+                label="X-Ray"
+                onFocusChange={markZone('row')}
+                onPress={() => {
+                  // the film waits while you read; it resumes when the sheet goes
+                  const wasPlaying = !pausedRef.current;
+                  setPaused(true);
+                  const it = itemRef.current;
+                  openXray({
+                    query: it?.id && !String(it.id).startsWith('torrent|')
+                      ? {itemId: it.id}
+                      : {type: (stream?.season ? 'series' : 'movie'), imdbId: stream?.imdbId || it?.imdbId || null, season: stream?.season ?? null, episode: stream?.episode ?? null},
+                    title: it?.showTitle || title || it?.title || '',
+                    onClose: () => {
+                      if (wasPlaying) setPaused(false);
+                    },
+                  });
+                }}
               />
               <PBtn
                 icon="people"

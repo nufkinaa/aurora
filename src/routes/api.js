@@ -229,11 +229,27 @@ router.get("/api/popular", (req, res) => {
 router.get("/api/xray", async (req, res) => {
   try {
     const rateKeys = String(req.query.keys || "").split(",").map((s) => s.trim()).filter((s) => /^[\w|:-]{1,80}$/.test(s)).slice(0, 4);
+    let { type, imdbId, season, episode } = req.query;
+    // The TV asks by LIBRARY id (2026-10-07): an episode's show, its IMDb id
+    // and its season/episode are the server's to know, not the remote's.
+    if (req.query.itemId) {
+      identity.ensureStamped();
+      const it = scanner.findById(String(req.query.itemId));
+      if (it) {
+        const titleItem = it.showId ? scanner.findById(it.showId) || it : it;
+        imdbId = titleItem.imdbId || identity.imdbIdFor(titleItem) || imdbId;
+        type = titleItem.type === "show" ? "series" : "movie";
+        if (it.showId) {
+          season = it.season;
+          episode = it.episode;
+        }
+      }
+    }
     res.json(await require("../media/xray").get({
-      type: req.query.type,
-      imdbId: req.query.imdbId,
-      season: req.query.season,
-      episode: req.query.episode,
+      type,
+      imdbId,
+      season,
+      episode,
       rateKeys,
     }));
   } catch (e) {

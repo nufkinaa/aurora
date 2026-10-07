@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.53 — 2026-10-07
+
+- Aurora TV 5.1.12: X-Ray on the TV (elia: "why not add X-Ray also to TV?"). An eye button on every title page and in the player's row: who is in this, who made it, what people thought — a sheet that rises from the foot of the screen with a small overshoot, the phone's shape at TV size. For an episode: its own guest cast first ("In this episode"), the regulars under them, the air date, runtime and rating, the director and writers; for a film or a show: cast, ratings, release, runtime, country, the crew by job. Faces are round portraits that keep their initials until the picture lands; Back closes; opened from the player the film pauses and resumes when the sheet goes. The server answers by library id now (`/api/xray?itemId=`), so the remote never needs to know a show's IMDb id or an episode's numbers.
+- Aurora TV 5.1.12: an episode that is being saved wears a small download glyph after its "STARTING" / "SAVING 34%" text (elia).
+
 ## 1.6.52 — 2026-10-07
 
 - Aurora TV 5.1.11: the collapsed rail's active dot is a lit pill like the hero's dots — taller, white, with the soft glow — instead of a plain white dot.

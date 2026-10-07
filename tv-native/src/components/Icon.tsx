@@ -34,6 +34,7 @@ export type IconName =
   | 'film'
   | 'series'
   | 'people'
+  | 'xray'
   | 'skip';
 
 type Props = {name: IconName; size?: number; color?: string};
@@ -51,6 +52,14 @@ function glyph(name: IconName, color: string) {
     case 'play':
       return (
         <Path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l10.98-6.86a1.03 1.03 0 0 0 0-1.76L9.56 4.26A1.03 1.03 0 0 0 8 5.14z" />
+      );
+    case 'xray':
+      // an eye: who is in this scene
+      return (
+        <Path
+          fillRule="evenodd"
+          d="M12 5C6.6 5 2.9 9.1 1.5 12c1.4 2.9 5.1 7 10.5 7s9.1-4.1 10.5-7C21.1 9.1 17.4 5 12 5zm0 11.2a4.2 4.2 0 1 1 0-8.4 4.2 4.2 0 0 1 0 8.4zm0-6.4a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4z"
+        />
       );
     case 'pause':
       return (

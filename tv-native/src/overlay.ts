@@ -2,7 +2,7 @@
 // components/Overlays.tsx, mounted once above the navigator; screens only
 // call open*(). One sheet at a time — a sheet over a sheet is never wanted.
 import {useEffect, useState} from 'react';
-import type {HeroItem} from './api';
+import type {HeroItem, XrayQuery} from './api';
 import type {UpdateInfo} from './update';
 
 export type Overlay =
@@ -12,6 +12,7 @@ export type Overlay =
   | {kind: 'update'; info: UpdateInfo}
   | {kind: 'trailer'; ids: string[]; title: string}
   | {kind: 'actions'; title: string; sub?: string; items: ActionItem[]}
+  | {kind: 'xray'; query: XrayQuery; title: string; onClose?: () => void}
   | null;
 
 // One row of the actions sheet (an episode's long-press menu).
@@ -40,6 +41,7 @@ export const openTrailer = (ids: string[], title: string) => {
 };
 export const openUpdate = (info: UpdateInfo) => openOverlay({kind: 'update', info});
 export const openActions = (o: {title: string; sub?: string; items: ActionItem[]}) => openOverlay({kind: 'actions', ...o});
+export const openXray = (o: {query: XrayQuery; title: string; onClose?: () => void}) => openOverlay({kind: 'xray', ...o});
 
 export const useOverlay = () => {
   const [o, setO] = useState<Overlay>(current);

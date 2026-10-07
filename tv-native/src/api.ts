@@ -286,6 +286,34 @@ export type TorrentPlayItem = {
 
 // A download-to-server job, as /api/downloads reports it (src/media/downloads.js
 // publicJob). Only the fields the TV actually renders are typed here.
+// X-Ray (media/xray.js): who is in this, who made it, what people thought.
+export type XrayPerson = {name: string; role?: string | null; job?: string | null; photo?: string | null};
+export type XrayRating = {source: string; value: number | string; scale?: number; votes?: number};
+export type XrayEpisode = {
+  season: number;
+  episode: number;
+  title: string;
+  overview?: string;
+  still?: string | null;
+  aired?: string | null;
+  runtime?: string | null;
+  rating?: XrayRating | null;
+  guests?: XrayPerson[];
+  directors?: string | string[] | null;
+  writers?: string | string[] | null;
+};
+export type XrayData = {
+  title?: string;
+  cast?: XrayPerson[];
+  crew?: XrayPerson[];
+  ratings?: XrayRating[];
+  facts?: {label: string; value: string}[];
+  anthology?: boolean;
+  episode?: XrayEpisode | null;
+  error?: string;
+};
+export type XrayQuery = {itemId?: string; type?: 'movie' | 'series'; imdbId?: string | null; season?: number | null; episode?: number | null};
+
 export type DownloadJob = {
   id: string;
   infoHash: string;
@@ -733,6 +761,15 @@ export const api = {
   // `infoHash:fileIdx` so a row can say "saved / downloading / queued" instead of
   // looking identical to the forty torrents around it.
   downloads: () => request<DownloadJob[]>('/api/downloads'),
+  xray: (q: XrayQuery) => {
+    const p = new URLSearchParams();
+    if (q.itemId) p.set('itemId', q.itemId);
+    if (q.type) p.set('type', q.type);
+    if (q.imdbId) p.set('imdbId', q.imdbId);
+    if (q.season) p.set('season', String(q.season));
+    if (q.episode) p.set('episode', String(q.episode));
+    return request<XrayData>(`/api/xray?${p.toString()}`);
+  },
   // Request a download-to-server. It starts immediately unless the server is
   // low on disk space, in which case `needsApproval` comes back true and an
   // admin has to approve it.

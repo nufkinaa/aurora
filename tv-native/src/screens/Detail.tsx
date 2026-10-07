@@ -38,7 +38,7 @@ import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
 import {api, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta} from '../api';
 import {canNavigate} from '../navLock';
-import {openTrailer, openActions} from '../overlay';
+import {openTrailer, openActions, openXray} from '../overlay';
 import {showToast} from '../toast';
 import {useFocusFallback, useKeyTrap} from '../focus';
 import {SourcesPanel} from './Sources';
@@ -598,9 +598,13 @@ const EpisodeCard = React.memo(function EpisodeCardItem({
           them. A fixed height keeps the row even when a synopsis is missing. */}
       <View style={[styles.epBody, ep.air !== 'aired' && styles.epBodyUnaired]}>
         <View>
-          <Text style={[styles.epKicker, ep.dl && styles.epKickerDl]} numberOfLines={1}>
-            {ep.dl ? `EPISODE ${ep.num}  ·  ${dlText(ep.dl)}` : `EPISODE ${ep.num}${ep.durationMin ? `  ·  ${ep.durationMin} MIN` : ''}`}
-          </Text>
+          <View style={styles.epKickerRow}>
+            <Text style={[styles.epKicker, ep.dl && styles.epKickerDl]} numberOfLines={1}>
+              {ep.dl ? `EPISODE ${ep.num}  ·  ${dlText(ep.dl)}` : `EPISODE ${ep.num}${ep.durationMin ? `  ·  ${ep.durationMin} MIN` : ''}`}
+            </Text>
+            {/* a saving episode wears a small download glyph after its text (elia, 2026-10-07) */}
+            {ep.dl ? <Icon name="download" size={11} color="#8cffbe" /> : null}
+          </View>
           <Text style={styles.epTitle} numberOfLines={1}>
             {unescapeHtml(ep.label)}
           </Text>
@@ -1649,6 +1653,11 @@ export default function Detail({
                 <IconBtn icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
               ) : null}
               <IconBtn glyph="⋯" label="Similar" onPress={() => setLikePanel(true)} />
+              <IconBtn
+                icon="xray"
+                label="X-Ray"
+                onPress={() => openXray({query: full?.id ? {itemId: full.id} : {type: 'series', imdbId: item.imdbId || libImdb}, title: item.title})}
+              />
             </>
           }>
           {nextUp ? (
@@ -1773,6 +1782,11 @@ export default function Detail({
               <IconBtn icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
             ) : null}
             {ownedMovieId ? <IconBtn glyph="≡" label="Versions" onPress={openSources} /> : null}
+            <IconBtn
+              icon="xray"
+              label="X-Ray"
+              onPress={() => openXray({query: ownedMovieId ? {itemId: ownedMovieId} : {type: 'movie', imdbId: item.imdbId || libImdb}, title: item.title})}
+            />
             {ownedMovieId ? (
               <IconBtn icon="check" on={movieWatched} label="Watched" onPress={toggleWatched} />
             ) : null}
@@ -2154,6 +2168,7 @@ const styles = StyleSheet.create({
   // a download in flight: the mint ramp, like the site's card
   epBarFillDl: {backgroundColor: '#8cffbe', experimental_backgroundImage: 'linear-gradient(90deg, #7fd1e8, #8cffbe)', boxShadow: '0 0 10px rgba(140,255,190,0.55)'},
   epKickerDl: {color: '#8cffbe'},
+  epKickerRow: {flexDirection: 'row', alignItems: 'center', gap: 5},
   epBarHead: {
     position: 'absolute',
     right: -3,
