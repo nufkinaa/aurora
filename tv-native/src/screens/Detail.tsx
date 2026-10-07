@@ -27,6 +27,13 @@ import {useIsFocused} from '@react-navigation/native';
 import Focusable from '../components/Focusable';
 import Icon, {IconName} from '../components/Icon';
 const DETAIL_MASK = require('../assets/detail-mask.png');
+// An episode we hold: green rising from the card's foot and fading toward the
+// top (elia, 2026-10-07) — baked, the one kind of gradient the Mi TV draws.
+const OWNED_GLOW = require('../assets/owned-glow.png');
+// The episode to watch next (the site's .up-next): the same rise, in the accent.
+const UPNEXT_GLOW = require('../assets/upnext-glow.png');
+// Up next AND on disk: green at the foot rising into the accent (elia).
+const OWNED_UPNEXT_GLOW = require('../assets/owned-upnext-glow.png');
 import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
 import {api, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta} from '../api';
@@ -459,6 +466,8 @@ type UiEp = {
   durationSec?: number;
   // a download in flight for this episode (the site's card carries the same)
   dl?: {status: string; progress: number};
+  // the first aired episode not yet watched, once anything in the season is
+  upNext?: boolean;
 };
 const dlText = (dl: {status: string; progress: number}) => {
   if (dl.status === 'pending') return 'REQUESTED';
@@ -544,8 +553,15 @@ const EpisodeCard = React.memo(function EpisodeCardItem({
       // glass.css: `.episode:focus { background: rgba(255,255,255,.09) }` —
       // a lighter glass while focused, on top of the resting 0.06.
       highlightColor="rgba(255,255,255,0.04)"
-      // an episode we hold: a soft green glass, not a tick on the picture
-      style={[styles.epCard, ep.owned && styles.epCardOwned]}>
+      // an episode we hold: green glass rising from the foot, not a tick on the picture
+      style={[styles.epCard, ep.owned && styles.epCardOwned, ep.upNext && styles.epCardUpNext]}>
+        {ep.upNext && ep.owned ? (
+          <Image source={OWNED_UPNEXT_GLOW} style={styles.epOwnedGlow} resizeMode="stretch" fadeDuration={0} />
+        ) : ep.upNext ? (
+          <Image source={UPNEXT_GLOW} style={styles.epOwnedGlow} resizeMode="stretch" fadeDuration={0} />
+        ) : ep.owned ? (
+          <Image source={OWNED_GLOW} style={styles.epOwnedGlow} resizeMode="stretch" fadeDuration={0} />
+        ) : null}
         <View style={styles.epThumb}>
           {ep.thumb ? (
             <Image
@@ -1212,12 +1228,15 @@ export default function Detail({
         const airs = resolveAirStates(
           se.episodes.map(ep => ({episode: ep.episode, released: ep.released, local: local.has(`${se.number}x${ep.episode}`)})),
         );
-        return {
-          number: se.number,
-          episodes: se.episodes.map((ep, i) =>
-            build(se.number, ep.episode, ep.title, ep.overview, ep.thumbnail, ep.released, airs[i]),
-          ),
-        };
+        const eps = se.episodes.map((ep, i) =>
+          build(se.number, ep.episode, ep.title, ep.overview, ep.thumbnail, ep.released, airs[i]),
+        );
+        // the site's up-next: the first aired episode not finished, once any is
+        if (eps.some(e => e.watched)) {
+          const next = eps.find(e => e.air === 'aired' && !e.watched);
+          if (next) next.upNext = true;
+        }
+        return {number: se.number, episodes: eps};
       });
     }
     // No metadata (offline, or the title didn't resolve): fall back to whatever
@@ -2061,7 +2080,15 @@ const styles = StyleSheet.create({
     padding: EP_PAD,
     paddingBottom: 8,
   },
-  epCardOwned: {backgroundColor: 'rgba(74,222,128,0.13)', borderColor: 'rgba(74,222,128,0.38)'},
+  epCardOwned: {borderColor: 'rgba(74,222,128,0.38)'},
+  epCardUpNext: {borderColor: 'rgba(139,123,255,0.5)'},
+  // Insets only, no percent size: a percent width here is of the CONTENT box
+  // (the card minus its padding), which drew the glow short of the right and
+  // bottom edges (elia's photo). The four insets fill the padding box.
+  // Sized to the card's PADDING box in dp (the Mi TV did not draw the image
+  // from insets alone, and a percent size is of the content box, which drew
+  // it short of the right and bottom edges).
+  epOwnedGlow: {position: 'absolute', top: 0, left: 0, width: EP_W - EP_EDGE * 2, height: EP_PAD + EP_ART_H + EP_BODY_H + 8, borderRadius: radius.m - 1},
   // '100%' on BOTH axes, so the still is exactly the content box and the ring
   // hugs it. The width was already '100%'; only the height was absolute, which
   // is the whole of the bug.

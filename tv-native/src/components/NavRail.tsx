@@ -581,8 +581,10 @@ const styles = StyleSheet.create({
   // capsule's mark-over-dots. Redundant wayfinding: the screen itself says where
   // you are, which is why losing them to overscan costs nothing.
   dots: {marginTop: 10, gap: spacing.sm, alignItems: 'center'},
-  dot: {width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)'},
-  dotOn: {backgroundColor: colors.text},
+  // Like the hero's dots (elia, 2026-10-07): the active one is a lit pill,
+  // taller since the rail runs down the screen, with the same soft glow.
+  dot: {width: 5, height: 5, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.3)'},
+  dotOn: {height: 16, backgroundColor: '#ffffff', boxShadow: '0 0 10px rgba(255,255,255,0.5)'},
   // `.nav-item { padding: 8px 16px }` at x1.0, with the 48dp focus floor: the
   // site's own item computes to 38.8px, so the floor bites.
   item: {
