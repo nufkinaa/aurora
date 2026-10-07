@@ -1,5 +1,6 @@
 // Home: rotating hero billboard + shelves (Continue Watching, My List, ...)
 import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, heroArtWidth, restoreScrollY } from "../ui.js";
+import { upgradeArt } from "../artUpgrade.js";
 import { api } from "../api.js";
 import { state, progressFor } from "../state.js";
 import { shelfRow, continueRow, openItem, ensureRowFilled } from "../components.js";
@@ -204,6 +205,11 @@ export const renderHome = async (root) => {
       // the nav floats over this picture: tint its glass to match (glassTone.js)
       toneNavFromImage(item.backdrop ? artUrl(item.backdrop, heroArtWidth()) : null);
       incoming.style.setProperty("--hero-poster", `url("${artUrl(item.cover, 400)}")`);
+      // Painted small (a slow line, a narrow window)? The full-size picture
+      // comes later, when the viewer is idle and the line has room
+      // (artUpgrade.js) — the same picture, sharper.
+      if (item.backdrop) upgradeArt(incoming, "--hero-art", item.backdrop, () => heroArtWidth({ full: true }));
+      if (item.cover) upgradeArt(incoming, "--hero-poster", item.cover, () => 400);
       // The focus pull lives on the ::after veil, keyed to `.on` — toggling
       // the class across rotations restarts it, no forced reflow needed.
       incoming.classList.add("on");

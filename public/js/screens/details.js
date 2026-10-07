@@ -2,6 +2,7 @@
 // "My List" button. The page itself lives in discover-detail.js, which serves
 // library titles and streamable titles as one screen.
 import { el, icons, resBadge, toast, posterImg, artUrl, formatRow, heroArtWidth, smooth, haptic } from "../ui.js";
+import { upgradeArt } from "../artUpgrade.js";
 import { api } from "../api.js";
 import { state } from "../state.js";
 import { starRating } from "../components.js";
@@ -50,6 +51,9 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null, serverInfo
     g.toneNavFromImage(phone && item.cover ? artUrl(item.cover, Math.min(600, heroArtWidth())) : item.backdrop ? artUrl(item.backdrop, heroArtWidth()) : null);
   }).catch(() => {});
   hero.style.setProperty("--hero-poster", item.cover ? `url("${artUrl(item.cover, Math.min(600, heroArtWidth()))}")` : "none");
+  // painted small on a slow line? the full picture follows when idle (artUpgrade.js)
+  if (item.backdrop) upgradeArt(hero, "--hero-art", item.backdrop, () => heroArtWidth({ full: true }));
+  if (item.cover) upgradeArt(hero, "--hero-poster", item.cover, () => Math.min(600, heroArtWidth({ full: true })));
   coverDrift(hero);
   return hero;
 };

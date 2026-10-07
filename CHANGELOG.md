@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.49 — 2026-10-07
+
+- Web: a hero picture that was served small — on a slow line the billboard and the title pages ask for a 780px picture at 1× density — is replaced by the full-size one later, by itself (elia): when the viewer has been still for a few seconds, the tab is visible, nothing is playing, and the line is neither slow nor on data saver, the full picture is fetched at low priority, decoded off-screen and swapped in — the same picture, sharper, nothing moves. A slide that has turned or a page that was left is skipped; a picture that was already full-size costs nothing. A line that recovers, a tab that returns or a window made wider tries again.
+
 ## 1.6.48 — 2026-10-07
 
 - Admin, the People tab redone (elia: "reorganize and redo the whole People tab so it's easier to use and shows what's really relevant"). The sign-in switch sits on top as a segmented control and stays there while you scroll — never folded — with the current mode's one line and the Google setup behind a "how to set it up" fold. Who is waiting for approval shows only while someone is. Everyone is ONE table — person, sign-in (username, Google badge, email), last seen, devices, downloads, status — with five tiles above it (people, claimed, online now, devices connected, banned) and a search box. "Connected now" lists every open app or tab with its device and address, and for a device that hasn't opened a profile, who has used that address before ("probably elia"). Banned addresses fold at the bottom.
