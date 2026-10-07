@@ -8,6 +8,7 @@
 // api.ts's SERVER_CANDIDATES: the LAN one is tried first, and if it does not
 // answer on the first try the remote one becomes the server for this run. The
 // setup screen that used to ask is deleted.
+import {clearHomeScreen} from './src/homeScreen';
 import React, {useEffect, useState} from 'react';
 import {View, StatusBar, ActivityIndicator, StyleSheet} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
@@ -192,6 +193,8 @@ export default function App() {
   }, []);
 
   const switchProfile = async () => {
+    // this profile's rows leave the TV's home screen with it
+    clearHomeScreen();
     await clearProfile();
     // Deliberately NOT setToken(null) here: the navigator is still mounted at
     // this point, and the Player's unmount cleanup saves the current playback

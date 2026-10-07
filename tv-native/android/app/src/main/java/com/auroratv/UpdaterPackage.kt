@@ -7,7 +7,7 @@ import com.facebook.react.uimanager.ViewManager
 
 class UpdaterPackage : ReactPackage {
   override fun createNativeModules(ctx: ReactApplicationContext): List<NativeModule> =
-    listOf(UpdaterModule(ctx))
+    listOf(UpdaterModule(ctx), HomeScreenModule(ctx))
 
   override fun createViewManagers(ctx: ReactApplicationContext): List<ViewManager<*, *>> = emptyList()
 }

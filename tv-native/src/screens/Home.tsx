@@ -26,6 +26,7 @@ import TrailerFrame, {TrailerHandle, TrailerState} from '../components/Trailer';
 import {api, imgSrc, ImgSource, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
 import {checkForUpdate, holdPromptFor, onUpdateReady, updateReady, UpdateInfo} from '../update';
 import {currentRouteName} from '../rootNav';
+import {syncHomeScreen, useHomeScreenLinks} from '../homeScreen';
 import {canNavigate} from '../navLock';
 import {openItem} from '../openItem';
 import {openUpdate, openUpdateReady, overlayOpen} from '../overlay';
@@ -144,7 +145,12 @@ export default function Home({
     lastFetch.current = Date.now();
     api
       .home(profileId)
-      .then(h => on && setData(h))
+      .then(h => {
+        if (!on) return;
+        setData(h);
+        // the TV's own home screen follows: Continue watching + recommendations
+        syncHomeScreen(h.rows);
+      })
       .catch(e => on && !data && setError(String(e?.message || e)));
     return () => {
       on = false;
@@ -227,6 +233,21 @@ export default function Home({
   }, [data]);
 
   const openDetail = useCallback((item: HeroItem) => openItem(navigation, item), [navigation]);
+  // A press on one of Aurora's entries on the TV's home screen. "play" is the
+  // Continue watching row: a library film goes straight to the player (its
+  // card in the app opens the title page; here the viewer asked to resume).
+  const openFromLauncher = useCallback(
+    (action: 'play' | 'detail', item: HeroItem) => {
+      const libraryFilm = item.type === 'movie' && item.source !== 'stream' && !String(item.id).startsWith('torrent|');
+      if (action === 'play' && libraryFilm) {
+        navigation.push('Player', {id: item.id, title: item.title});
+        return;
+      }
+      openItem(navigation, item);
+    },
+    [navigation],
+  );
+  useHomeScreenLinks(openFromLauncher);
   const heroPlay = useCallback(
     (item: HeroItem) => {
       // Library movie → straight to the player; shows and stream titles need the

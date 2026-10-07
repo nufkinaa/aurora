@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.18",
-  "notes": "Updates no longer wait for you to leave Aurora: when a new version has downloaded, Aurora offers to restart now or later."
+  "versionName": "5.1.19",
+  "notes": "Aurora now has its own row on the TV's home screen: what you were watching first, ready to resume, then recommendations. Pressing one opens it in Aurora."
 }

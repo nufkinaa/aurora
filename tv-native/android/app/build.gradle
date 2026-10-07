@@ -89,8 +89,8 @@ android {
         // after the real adaptive icon was added and verified inside the APK.
         // (Confirmed by extracting the icon layers from the installed APK: they
         // were correct; the launcher was simply showing its cache.)
-        versionCode 81
-        versionName "5.1.18"
+        versionCode 82
+        versionName "5.1.19"
     }
     signingConfigs {
         debug {
@@ -130,6 +130,8 @@ dependencies {
     implementation("com.facebook.react:react-android")
     // FileProvider, for the in-app updater (UpdaterModule.kt).
     implementation("androidx.core:core-ktx:1.13.1")
+    // The launcher's Continue watching row and Aurora's own row (HomeScreenModule.kt).
+    implementation("androidx.tvprovider:tvprovider:1.0.0")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

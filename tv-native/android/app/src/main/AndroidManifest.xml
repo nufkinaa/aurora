@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The TV's home screen: Continue watching and Aurora's own row (HomeScreenModule.kt). -->
+    <uses-permission android:name="com.android.providers.tv.permission.WRITE_EPG_DATA" />
+    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
     <!-- The in-app updater hands a downloaded APK to the system installer. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Android 12+: lets the app update ITSELF without the confirmation
@@ -57,6 +60,13 @@
         android:screenOrientation="landscape"
         android:windowSoftInputMode="adjustResize"
         android:exported="true">
+        <!-- Links from the TV's home screen rows back into the app (homeScreen.ts). -->
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="aurora" android:host="open" />
+        </intent-filter>
         <intent-filter>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
@@ -73,6 +83,11 @@
           <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
         </intent-filter>
       </receiver>
+      <!-- Read-only pictures for the TV's home-screen row (ArtProvider.kt). -->
+      <provider
+        android:name=".ArtProvider"
+        android:authorities="${applicationId}.art"
+        android:exported="true" />
       <provider
         android:name="androidx.core.content.FileProvider"
         android:authorities="${applicationId}.fileprovider"

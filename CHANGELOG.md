@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.63 — 2026-10-08
+
+- Aurora TV 5.1.19: Aurora on the TV's own home screen (elia: "like Disney+ does"). A row named Aurora sits among the other apps' rows: what this profile is part-way through comes first — the frame it stopped on, with its progress — and the recommendations follow. Pressing a resume entry opens Aurora straight into playback at that point; pressing a recommendation opens its page. The row is rewritten whenever Home loads and only when it changed, and it leaves the TV's home screen when the profile is switched. Measured on the Mi TV's Google TV home: the row shows, with pictures; the launcher's own "Continue watching" row is kept for partner apps and did not take Aurora's entry (it is still published, for launchers that do). Pictures that live on the Aurora server are fetched inside the app, with the session, and handed to the launcher through a small read-only provider — the launcher cannot sign in, and refuses a plain-http LAN address.
+
 ## 1.6.62 — 2026-10-08
 
 - Aurora TV 5.1.18: an update no longer waits for the app to leave the screen (elia: on new streamers that rarely happens, so a TV stayed on the old version for days). The build is still fetched quietly, and when it is on the TV a sheet says so: **Restart now** or **Later** — never over the player or another sheet. Restart now installs it at once (about three seconds on the Mi TV); Later keeps the old behaviour and installs when Aurora next leaves the screen. Android refuses to let an app reopen itself from the background, so after the install the TV returns to its home screen and the sheet says so honestly — unless the viewer allows "Display over other apps" for Aurora (a third button on the sheet opens that settings screen), in which case Aurora comes back by itself, measured at about ten seconds.
