@@ -316,6 +316,8 @@ require("./src/media/introdetect");
   daily.register("library-metadata", () => online.refresh(scanner.allItems()));
   daily.start();
 }
+// Followed shows: new episodes download by themselves when they air.
+require("./src/media/follows").start();
 require("./src/lib/watchdog").start();
 require("./src/lib/healer").start();
 online.events.on("updated", () => {

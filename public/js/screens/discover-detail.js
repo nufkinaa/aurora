@@ -29,6 +29,7 @@ import {
   haptic,
 } from "../ui.js";
 import { api } from "../api.js";
+import { track } from "../usage.js";
 import { dropdown } from "./browse.js";
 import {
   state,
@@ -1351,6 +1352,36 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   }
   if (state.profile) {
     actions.push(lib ? watchlistButton(lib) : streamWatchlistButton(meta));
+  }
+  // Follow a show (2026-10-07): its new episodes download by themselves when
+  // they air, and this device hears about it if notifications are on.
+  if (state.profile && isShow && imdbId) {
+    const following = () => (state.profile.follows || []).includes(imdbId);
+    const paintFollow = (b) => {
+      b.innerHTML = (following() ? icons.check : icons.plus) + `<span>${following() ? "Following" : "Follow"}</span>`;
+      b.classList.toggle("on", following());
+      b.setAttribute("aria-pressed", following() ? "true" : "false");
+      b.title = following() ? "New episodes download by themselves. Press to stop." : "Download new episodes by themselves when they air";
+    };
+    const followBtn = el("button", {
+      class: "btn focusable btn-follow",
+      onclick: async () => {
+        const next = !following();
+        followBtn.disabled = true;
+        try {
+          const r = await api.follow(state.profile.id, imdbId, next, view.title);
+          state.profile.follows = r.follows || [];
+          paintFollow(followBtn);
+          toast(next ? `Following ${view.title} — new episodes will download by themselves` : `Stopped following ${view.title}`, next ? "🔔" : "🔕");
+          track("feat", { f: next ? "follow" : "unfollow" });
+        } catch (e) {
+          toast(e.message || "Couldn't save that", "⚠️");
+        }
+        followBtn.disabled = false;
+      },
+    });
+    paintFollow(followBtn);
+    actions.push(followBtn);
   }
   // X-Ray: everything under the hero gives way to who is in this, who made
   // it and what people thought — per episode for a series (js/xray.js). The

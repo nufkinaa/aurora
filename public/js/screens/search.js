@@ -11,6 +11,7 @@ import { api } from "../api.js";
 import { track } from "../usage.js";
 import { state, loadLibrary } from "../state.js";
 import { navigate } from "../router.js";
+import { onMessage } from "../ws.js";
 import { card } from "../components.js";
 import { attachSuggest, suggestHref } from "../suggest.js";
 
@@ -327,6 +328,14 @@ export const renderSearch = async (root) => {
   // server-side) so a cold visit straight to Search isn't blind to the
   // library. Without this, an owned title could render as a STREAM card.
   loadLibrary().catch(() => {});
+  // A download that lands while results are up: the card turns into the
+  // library's copy without searching again by hand (2026-10-07).
+  const unsubLib = onMessage("library_updated", async () => {
+    if (!input.isConnected) return unsubLib();
+    try { await loadLibrary(true); } catch { return; }
+    const q = input.value.trim();
+    if (q && input.isConnected) search(q);
+  });
 
   let stopRestore = () => {};
   if (searchMemory && searchMemory.q) {

@@ -4216,3 +4216,35 @@ html[data-look="glass"] .player .menu,
   box-shadow: 0 0 10px rgba(140, 255, 190, 0.55);
   transition: width 0.6s ease;
 }
+
+/* ---- the player's error card (2026-10-07) ---- */
+.player-error {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 30;
+  width: min(440px, calc(100vw - 40px));
+  padding: 22px 22px 20px;
+  border-radius: 20px;
+  text-align: center;
+  background: linear-gradient(140deg, rgba(104, 86, 226, 0.22) 0%, rgba(16, 15, 30, 0) 55%), rgba(14, 16, 28, 0.94);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.player-error-glyph { font-size: 1.8rem; }
+.player-error h3 { margin: 8px 0 6px; font-size: 1.15rem; }
+.player-error p { margin: 0 0 16px; color: var(--text-dim); font-size: 0.92rem; line-height: 1.45; }
+.player-error-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+/* ---- a page on its way (2026-10-07) ---- */
+.route-skel { padding: calc(var(--nav-h, 64px) + 28px) var(--page-x) 40px; }
+.route-skel-head { width: min(320px, 60%); height: 38px; margin-bottom: 26px; }
+.route-skel-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.route-skel-grid .grid-skel { aspect-ratio: 2 / 3; width: 100%; height: auto; }
+@media (max-width: 720px) {
+  .route-skel-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+}
+
+/* ---- follow a show ---- */
+.btn-follow.on { color: #8cffbe; }
+.pbtn.pip-btn.hidden { display: none; }

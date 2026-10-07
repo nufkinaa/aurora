@@ -206,6 +206,10 @@ export const api = {
     }),
   removeAvatar: (id) => json(`/api/profiles/${id}/avatar-image`, { method: "DELETE" }),
   taste: (id) => json(`/api/profiles/${id}/taste`),
+  follow: (id, imdbId, on, title) => post(`/api/profiles/${id}/follow`, { imdbId, on, title }),
+  pushKey: () => json("/api/push/key"),
+  pushSet: (id, body) => post(`/api/profiles/${id}/push`, body),
+  signOutEverywhere: (id) => post(`/api/profiles/${id}/signout-everywhere`, {}),
   setTaste: (id, liked) => post(`/api/profiles/${id}/taste`, { liked }),
   updateProfile: (id, fields) =>
     json(`/api/profiles/${id}`, {

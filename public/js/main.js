@@ -38,7 +38,29 @@ import { onNet, netInfo, dataMode } from "./net.js";
 // on the network.
 const renderDetailLazy = (root, opts) =>
   import("./screens/discover-detail.js").then((m) => m.renderDetail(root, opts));
-const lazy = (file, name) => (root, p) => import(file).then((m) => m[name](root, p));
+// A page that is still on its way (the screen's code, then its first data)
+// shows its outline instead of an empty dark page (2026-10-07): a heading bar
+// and a grid of cards, shimmering. Gone the moment the screen has painted.
+const routeSkeleton = () => {
+  const d = document.createElement("div");
+  d.className = "route-skel";
+  d.setAttribute("aria-hidden", "true");
+  d.innerHTML = '<div class="skeleton route-skel-head"></div><div class="route-skel-grid">' + '<div class="skeleton grid-skel"></div>'.repeat(12) + "</div>";
+  return d;
+};
+const withSkeleton = (run) => (root, p) => {
+  const sk = routeSkeleton();
+  // only if the wait is long enough to notice — a flash of skeleton is worse than none
+  const t = setTimeout(() => { if (!root.querySelector(".screen")) root.append(sk); }, 140);
+  const done = () => { clearTimeout(t); sk.remove(); };
+  let out;
+  try { out = run(root, p); } catch (e) { done(); throw e; }
+  const mo = new MutationObserver(() => { if (root.querySelector(".screen")) { done(); mo.disconnect(); } });
+  mo.observe(root, { childList: true });
+  Promise.resolve(out).then(() => { done(); mo.disconnect(); }, () => { done(); mo.disconnect(); });
+  return out;
+};
+const lazy = (file, name) => withSkeleton((root, p) => import(file).then((m) => m[name](root, p)));
 
 route("/", renderHome);
 route("/movies", lazy("./screens/browse.js", "renderMovies"));
@@ -314,7 +336,8 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       if (playing) toast(`“${name}” is ready`, "✅", null, { quiet: true });
       else toast(`“${name}” is ready to watch`, "✅", { label: "Play", onClick: () => navigate(`#/play/${job.libraryId}`) });
       try {
-        if (document.hidden && localStorage.getItem("aurora-notify-ready") === "1" && "Notification" in window && Notification.permission === "granted") {
+        // with Web Push on, the server's notification is the one (same tag, so even a race shows once)
+        if (document.hidden && localStorage.getItem("aurora-push") !== "1" && localStorage.getItem("aurora-notify-ready") === "1" && "Notification" in window && Notification.permission === "granted") {
           const n = new Notification("Ready to watch", { body: name, tag: `aurora-ready-${job.id}` });
           n.onclick = () => { window.focus(); navigate(`#/play/${job.libraryId}`); n.close(); };
         }

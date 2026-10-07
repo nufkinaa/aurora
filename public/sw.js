@@ -189,3 +189,49 @@ self.addEventListener("fetch", (e) => {
       }),
   );
 });
+
+// ---------- push (2026-10-07) ----------
+// The push is an empty, signed tickle (src/lib/push.js): what to say waits on
+// the server under the sha256 of this subscription's endpoint. A push must
+// always end in a notification (browsers revoke a subscription that stays
+// silent), so a failed fetch still shows a plain one.
+const hex = async (text) => {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+};
+self.addEventListener("push", (e) => {
+  e.waitUntil((async () => {
+    let messages = [];
+    try {
+      const sub = await self.registration.pushManager.getSubscription();
+      if (sub) {
+        const r = await fetch(`/api/push/pending?k=${await hex(sub.endpoint)}`, { cache: "no-store" });
+        if (r.ok) messages = (await r.json()).messages || [];
+      }
+    } catch {}
+    if (!messages.length) messages = [{ title: "Aurora", body: "Something new is ready.", url: "/", tag: "aurora" }];
+    for (const m of messages) {
+      await self.registration.showNotification(m.title || "Aurora", {
+        body: m.body || "",
+        tag: m.tag || "aurora",
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        data: { url: m.url || "/" },
+      });
+    }
+  })());
+});
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || "/";
+  e.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const open = all.find((c) => new URL(c.url).origin === self.location.origin);
+    if (open) {
+      await open.focus();
+      if (open.navigate) await open.navigate(url).catch(() => {});
+      return;
+    }
+    await self.clients.openWindow(url);
+  })());
+});

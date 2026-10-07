@@ -28,6 +28,20 @@ const AUDIO_LANG_NAMES = {
 };
 // A menu section's title with its glyph — the TV's menus, on the site (elia,
 // 2026-10-07: "the same changes we made on tv with the little icons").
+// What this profile picked last in the player (an audio language, a subtitle
+// track): kept on the device and on the profile, so the next title — on any
+// device — starts the way the last one was left (2026-10-07).
+const profilePick = (key) => {
+  const p = (state.profile && state.profile.prefs) || {};
+  return p[key] != null ? p[key] : prefs.get(key, null);
+};
+const rememberPick = (key, value) => {
+  prefs.set(key, value);
+  if (!state.profile) return;
+  state.profile.prefs = { ...(state.profile.prefs || {}), [key]: value };
+  api.updateProfile(state.profile.id, { prefs: { [key]: value } }).catch(() => {});
+};
+
 const menuTitle = (icon, text, gap) =>
   el("div", { class: "menu-title", style: gap ? { marginTop: "6px" } : null, html: `${icons[icon] || ""}<span>${text}</span>` });
 
@@ -637,9 +651,15 @@ export const renderPlayer = async (root, { id }) => {
             if (hlsRecoveries >= HLS_MAX_RECOVERIES) {
               spinner.classList.add("hidden");
               stopTorrentOverlay();
-              toast(
-                "This source isn't responding — still trying, or pick another",
-                "⚠️",
+              showErrorCard(
+                isTorrent
+                  ? "This source stopped answering. Aurora keeps trying in the background — or try again now."
+                  : "The stream stopped answering. Aurora keeps trying in the background — or try again now.",
+                () => {
+                  hlsRecoveries = 0;
+                  clearTimeout(hlsRecoverTimer);
+                  startHls(url);
+                },
               );
               // Slow heartbeat: without it nothing would ever load again, so no
               // further error could fire and the window above could never
@@ -735,7 +755,12 @@ export const renderPlayer = async (root, { id }) => {
   {
     const tracks = item.audioTracks || [];
     const orig = tracks.find((t) => t.original);
-    const oi = orig ? (orig.index != null ? orig.index : tracks.indexOf(orig)) : 0;
+    // …unless this viewer chose a dub last time: the language they picked in
+    // the Audio menu follows the profile to every title that has it.
+    const liked = profilePick("audioLang");
+    const mine = liked ? tracks.find((t) => t.language && t.language === liked) : null;
+    const pick = mine || orig;
+    const oi = pick ? (pick.index != null ? pick.index : tracks.indexOf(pick)) : 0;
     if (oi > 0) audioIdx = oi;
   }
   // A height the stream is capped at — 720 or 480, 0 for the file as it is.
@@ -854,6 +879,10 @@ export const renderPlayer = async (root, { id }) => {
     if (idx === audioIdx) return closeMenu();
     if (seekLocked()) return;
     audioIdx = idx;
+    {
+      const t = (item.audioTracks || []).find((x, i) => (x.index != null ? x.index : i) === idx);
+      if (t && t.language) rememberPick("audioLang", t.language);
+    }
     closeMenu();
     showControls();
     if (!item.transcodeBase) item.transcodeBase = isTorrent ? item.transcodeBase : `/stream/transcode/${item.id}`;
@@ -1074,7 +1103,9 @@ export const renderPlayer = async (root, { id }) => {
     !prog0.finished &&
     prog0.position > 10 &&
     (!item.duration || prog0.position < item.duration - 20)
-      ? Math.floor(prog0.position)
+      // four seconds early: you come back mid-sentence otherwise, and the
+      // last thing you saw is the first thing you see (2026-10-07)
+      ? Math.max(0, Math.floor(prog0.position) - 4)
       : 0;
 
   // Probe data replaces the tag guess THROUGH the same fields library items
@@ -1544,6 +1575,28 @@ export const renderPlayer = async (root, { id }) => {
   };
   const xrayBtn = btn("X-Ray", icons.xray, () => openXray());
   const fsBtn = btn("Fullscreen", icons.fullscreen, () => toggleFullscreen());
+  // Picture in picture: the film in a floating window over other apps and
+  // tabs. The standard API on desktop and Android; Safari's own on iPhone and
+  // iPad (where it also keeps playing when you leave the app).
+  const pipOk = () =>
+    (document.pictureInPictureEnabled && !video.disablePictureInPicture) ||
+    (typeof video.webkitSupportsPresentationMode === "function" && video.webkitSupportsPresentationMode("picture-in-picture"));
+  const togglePip = async () => {
+    try {
+      if (document.pictureInPictureElement) return await document.exitPictureInPicture();
+      if (video.webkitPresentationMode === "picture-in-picture") return video.webkitSetPresentationMode("inline");
+      if (video.requestPictureInPicture) await video.requestPictureInPicture();
+      else if (video.webkitSetPresentationMode) video.webkitSetPresentationMode("picture-in-picture");
+      track("feat", { f: "pip" });
+    } catch {
+      toast("Picture in picture isn't available right now", "⚠️");
+    }
+  };
+  const pipBtn = btn("Picture in picture", icons.pip, () => togglePip(), "pip-btn hidden");
+  // offered once the video can actually do it (metadata has to be in)
+  const offerPip = () => { try { pipBtn.classList.toggle("hidden", !pipOk()); } catch {} };
+  video.addEventListener("loadedmetadata", offerPip);
+  video.addEventListener("webkitpresentationmodechanged", offerPip);
   if ((item.subtitles || []).length === 0) ccBtn.classList.add("hidden");
 
   const muteBtn = btn("Mute", icons.volume, () => toggleMute());
@@ -1611,7 +1664,7 @@ export const renderPlayer = async (root, { id }) => {
           btn("Forward 10 seconds", icons.forward10, () => skip(1))),
         el("div", { class: "vol-group" }, muteBtn, volSlider),
         el("div", { class: "player-spacer" }),
-        el("div", { class: "pc-tools" }, ccBtn, speedBtn, item._offline && !item.xray ? null : xrayBtn, partyBtn, gearBtn, fsBtn),
+        el("div", { class: "pc-tools" }, ccBtn, speedBtn, item._offline && !item.xray ? null : xrayBtn, partyBtn, gearBtn, pipBtn, fsBtn),
       ),
     ),
     menuHost,
@@ -2155,6 +2208,14 @@ export const renderPlayer = async (root, { id }) => {
   };
   const SUB_LANG_NAME = { he: "Hebrew", en: "English", ru: "Russian" };
   const autoTrackIndex = (from = 0) => {
+    // What you picked last time wins over the general rules: "off" stays off,
+    // a language (or a track's own label) is found again on the next title.
+    const last = profilePick("subPick");
+    if (last === "off") return -1;
+    if (last) {
+      const i = (item.subtitles || []).findIndex((t) => (t.lang && t.lang === last) || t.label === last);
+      if (i >= 0) return i;
+    }
     if (!prefs.get("subsDefault", true)) return -1;
     const want = prefs.get("subLang", "any");
     const test = SUB_LANG_TEST[want];
@@ -2412,6 +2473,10 @@ export const renderPlayer = async (root, { id }) => {
             onclick: () => {
               autoSubsApplied = true;
               selectTrack(idx);
+              {
+                const t = idx >= 0 ? (item.subtitles || [])[idx] : null;
+                rememberPick("subPick", idx < 0 ? "off" : (t && (t.lang || t.label)) || null);
+              }
               closeMenu();
               showControls();
             },
@@ -3889,6 +3954,82 @@ export const renderPlayer = async (root, { id }) => {
     saveProgress();
     if (!isEpisode) exit();
   });
+  // ---- the error card (2026-10-07) ----
+  // A stream that stopped for good used to leave a toast and a dead picture.
+  // The card says what happened and offers the two things a viewer wants:
+  // try again from this second, or go back.
+  let errorCard = null;
+  const hideErrorCard = () => { if (errorCard) errorCard.remove(); errorCard = null; };
+  const showErrorCard = (message, retry) => {
+    if (exited) return;
+    hideErrorCard();
+    spinner.classList.add("hidden");
+    const again = el("button", {
+      class: "btn btn-primary focusable",
+      onclick: () => {
+        hideErrorCard();
+        spinner.classList.remove("hidden");
+        track("feat", { f: "player_retry" });
+        try { retry(); } catch {}
+      },
+    }, "Try again");
+    errorCard = el("div", { class: "player-error", role: "alert" },
+      el("div", { class: "player-error-glyph" }, "⚠️"),
+      el("h3", {}, "Playback stopped"),
+      el("p", {}, message),
+      el("div", { class: "player-error-actions" },
+        again,
+        el("button", { class: "btn focusable", onclick: () => exit() }, "Back")));
+    overlay.append(errorCard);
+    setTimeout(() => { try { again.focus(); } catch {} }, 0);
+  };
+  video.addEventListener("playing", hideErrorCard);
+
+  // ---- Media Session (2026-10-07) ----
+  // The lock screen, the notification shade, a headset's buttons, a
+  // keyboard's media keys and the iPhone's Dynamic Island all talk to this:
+  // what is playing (title, episode, picture), where it is, and what the
+  // buttons do. Without it they show a bare "localhost" and a play button.
+  if ("mediaSession" in navigator) {
+    const ms = navigator.mediaSession;
+    const art = item.cover || item.poster || (item.showId ? `/img/cover/${item.showId}` : null);
+    const abs = (u) => { try { return new URL(u, location.origin).href; } catch { return null; } };
+    try {
+      ms.metadata = new MediaMetadata({
+        title: isEpisode ? `S${item.season} E${item.episode}${item.title && !/^Episode \d+$/.test(item.title) ? ` · ${item.title}` : ""}` : item.title || "Aurora",
+        artist: isEpisode ? item.showTitle || "" : item.year ? String(item.year) : "",
+        album: "Aurora",
+        artwork: art && abs(art) ? [{ src: abs(art), sizes: "512x512" }] : [],
+      });
+    } catch {}
+    const on = (name, fn) => { try { ms.setActionHandler(name, fn); } catch {} };
+    on("play", () => { if (video.paused) togglePlay(); });
+    on("pause", () => { if (!video.paused) togglePlay(); });
+    on("seekbackward", () => skip(-1));
+    on("seekforward", () => skip(1));
+    on("seekto", (d) => { if (d && Number.isFinite(d.seekTime)) seekTo(d.seekTime); });
+    on("stop", () => exit());
+    const position = () => {
+      if (exited) {
+        clearInterval(msTimer);
+        try { ms.metadata = null; ms.playbackState = "none"; } catch {}
+        for (const a of ["play", "pause", "seekbackward", "seekforward", "seekto", "stop"]) on(a, null);
+        return;
+      }
+      try {
+        ms.playbackState = video.paused ? "paused" : "playing";
+        const duration = totalDuration();
+        const pos = effTime();
+        if (duration > 0 && pos >= 0 && pos <= duration && ms.setPositionState) {
+          ms.setPositionState({ duration, position: pos, playbackRate: video.playbackRate || 1 });
+        }
+      } catch {}
+    };
+    const msTimer = setInterval(position, 1000);
+    video.addEventListener("play", position);
+    video.addEventListener("pause", position);
+  }
+
   video.addEventListener("error", () => {
     // A decode/format error on a direct torrent stream → try the transcode
     // before giving up.
@@ -3909,10 +4050,17 @@ export const renderPlayer = async (root, { id }) => {
       startTranscodeAt(effTime(), "h264", { fallbackToZero: true });
       return;
     }
-    spinner.classList.add("hidden");
-    toast(
-      "This video can't be played in the browser (codec unsupported).",
-      "⚠️",
+    showErrorCard(
+      "This device couldn't play the file as it is. Trying again re-encodes it into a format every device plays.",
+      () => {
+        if (item.transcodeBase || !isTorrent) {
+          if (!item.transcodeBase) item.transcodeBase = `/stream/transcode/${item.id}`;
+          startTranscodeAt(effTime(), "h264", { fallbackToZero: true });
+        } else {
+          video.load();
+          video.play().catch(() => {});
+        }
+      },
     );
   });
   // Single click toggles play/controls. Double action depends on the input:

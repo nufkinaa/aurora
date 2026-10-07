@@ -443,4 +443,54 @@ router.get("/api/profiles/:id/wrapped", gate, (req, res) => {
   res.json(w);
 });
 
+// ---------- follow a show, push notifications, sign out everywhere (2026-10-07) ----------
+// Follow / unfollow: the profile's new episodes of this show download by
+// themselves when they air (media/follows.js).
+router.post("/api/profiles/:id/follow", gate, (req, res) => {
+  const b = req.body || {};
+  const r = profiles.setFollow(req.params.id, b.imdbId, b.on !== false, b.title);
+  if (r.error) return res.status(400).json(r);
+  res.json(r);
+});
+
+// Web Push. The key is public by design; a subscription is filed under the
+// profile that switched it on, and the service worker reads its waiting
+// messages by the hash of its own endpoint (lib/push.js).
+const push = require("../lib/push");
+router.get("/api/push/key", (req, res) => res.json({ publicKey: push.publicKey() }));
+router.post("/api/profiles/:id/push", gate, (req, res) => {
+  const b = req.body || {};
+  if (b.on === false) return res.json(push.unsubscribe(String(b.endpoint || "")));
+  const r = push.subscribe(req.params.id, String(b.endpoint || ""), req.headers["user-agent"]);
+  if (r.error) return res.status(400).json(r);
+  if (b.test) push.send(req.params.id, { title: "Aurora", body: "Notifications are on for this device.", url: "/", tag: "aurora-test" });
+  res.json({ ...r, devices: push.countFor(req.params.id) });
+});
+router.get("/api/push/pending", (req, res) => {
+  const k = String(req.query.k || "");
+  if (!/^[0-9a-f]{64}$/.test(k)) return res.status(400).json({ error: "bad key" });
+  res.set("Cache-Control", "no-store");
+  res.json({ messages: push.takePending(k) });
+});
+
+// Sign out everywhere else: every other session and unlock token of this
+// profile dies; the device asking keeps its session and gets a fresh token.
+router.post("/api/profiles/:id/signout-everywhere", gate, (req, res) => {
+  const id = req.params.id;
+  const sessions = require("../lib/sessions");
+  const mine = authz.sessionFor(req);
+  let ended = 0;
+  for (const row of sessions.listFor(id)) {
+    if (mine && row.key === mine.sessionKey) continue;
+    sessions.revoke(row.key);
+    ended++;
+  }
+  profiles.revokeTokensFor(id);
+  // sockets of this profile on other devices drop to the profile wall
+  try {
+    realtime.broadcastAll({ type: "profile_signed_out", profileId: id, except: String((req.body || {}).deviceId || "") });
+  } catch {}
+  res.json({ ok: true, ended, token: profiles.issueToken(id) });
+});
+
 module.exports = router;

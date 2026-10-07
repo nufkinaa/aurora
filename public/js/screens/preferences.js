@@ -11,6 +11,7 @@ import { showClaimModal } from "../claim.js";
 import { showLoginScreen } from "./login.js";
 import * as offlineStore from "../offline.js";
 import { dataMode, setDataMode, netInfo } from "../net.js";
+import * as push from "../push.js";
 
 // One settings row: label + explanation on the left, a button cycling the value
 // on the right. Every row here drives behaviour that already exists in the
@@ -540,7 +541,20 @@ export const renderPreferences = async (root) => {
       el("div", { class: "pref-note", style: { padding: 0, margin: "8px 0 4px", fontSize: "0.82rem" } },
         "Password and email changes live in “Edit profile & password” above — one password opens everything."),
       devices,
-      el("div", { style: { marginTop: "14px" } },
+      el("div", { style: { marginTop: "14px", display: "flex", gap: "10px", flexWrap: "wrap" } },
+        el("button", {
+          class: "btn focusable",
+          onclick: async () => {
+            try {
+              const r = await api.signOutEverywhere(state.profile.id);
+              if (r.token) { state.token = r.token; try { sessionStorage.setItem(`aurora-token-${state.profile.id}`, r.token); } catch {} }
+              paintDevices();
+              toast(r.ended ? `Signed out ${r.ended} other device${r.ended === 1 ? "" : "s"}` : "Every other device is signed out", "🔒");
+            } catch (e) {
+              toast(e.message || "Couldn't do that", "⚠️");
+            }
+          },
+        }, "Sign out everywhere else"),
         el("button", {
           class: "btn danger focusable",
           onclick: async () => {
@@ -737,6 +751,20 @@ export const renderPreferences = async (root) => {
               try { on = localStorage.getItem("aurora-notify-ready") === "1"; } catch {}
               if (on && "Notification" in window && Notification.permission === "granted") {
                 try { localStorage.setItem("aurora-notify-ready", "0"); } catch {}
+                push.disable();
+                return;
+              }
+              // Web Push where the browser has it: the notification arrives
+              // with Aurora closed. An iPhone needs Aurora on the Home Screen
+              // first, and says so.
+              if (push.supported() || push.needsInstall()) {
+                try {
+                  await push.enable();
+                  try { localStorage.setItem("aurora-notify-ready", "1"); } catch {}
+                  toast("Notifications are on for this device", "🔔");
+                } catch (e) {
+                  toast(e.message || "Couldn't switch notifications on", "⚠️");
+                }
                 return;
               }
               if (!("Notification" in window)) return toast("This browser can't show notifications", "⚠️");

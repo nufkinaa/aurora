@@ -10,6 +10,7 @@ import { deviceDownloadedAt } from "../downloadPicker.js";
 import { pushScope, popScope } from "../focus.js";
 import { attachSuggest } from "../suggest.js";
 import { navigate } from "../router.js";
+import { onMessage } from "../ws.js";
 
 import * as narrator from "../narrator.js";
 // Imported as `dice`: `surprise` is already a destructured option name in
@@ -663,11 +664,31 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
 // to the same filters, the same fetched pages and the same scroll position.
 const browseRoute = (title, type, pick) => async (root) => {
   const lib = await loadLibrary();
-  const view = browseScreen(title, type, pick(lib), { surprise: true, restore: viewState.get(type) });
+  let view = browseScreen(title, type, pick(lib), { surprise: true, restore: viewState.get(type) });
   root.append(view.screen);
+  // The grid follows the library (2026-10-07): a download that lands, a file
+  // that is removed — the page shows it without a reload. Rebuilt in place
+  // with the same filters, pages and scroll, and only when this grid's own
+  // titles changed.
+  const idsOf = (list) => list.map((x) => x.id).join(",");
+  let shown = idsOf(pick(lib));
+  const unsub = onMessage("library_updated", async () => {
+    if (!view.screen.isConnected) return;
+    let fresh;
+    try { fresh = await loadLibrary(true); } catch { return; }
+    const ids = idsOf(pick(fresh));
+    if (ids === shown || !view.screen.isConnected) return;
+    shown = ids;
+    const snap = view.snapshot();
+    view.dispose();
+    const next = browseScreen(title, type, pick(fresh), { surprise: true, restore: snap });
+    view.screen.replaceWith(next.screen);
+    view = next;
+  });
   // Snapshot before dispose: the router calls this while the page is still
   // scrolled where the viewer left it.
   return () => {
+    unsub();
     viewState.set(type, view.snapshot());
     view.dispose();
   };

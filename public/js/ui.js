@@ -120,6 +120,7 @@ export const icons = {
   cc: svg('<path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6v-2zm0 4h8v2H6v-2zm10 0h2v2h-2v-2zm-6-4h8v2h-8v-2z"/>'),
   forward10: svg('<path d="M12 3V1.8L16.2 5 12 8.2V6c-3.3 0-6 2.7-6 6s2.7 6 6 6 6-2.7 6-6h2c0 4.4-3.6 8-8 8s-8-3.6-8-8 3.6-8 8-8z"/><text x="8.2" y="15.5" font-size="7.5" font-weight="800" fill="currentColor">10</text>'),
   back10: svg('<path d="M12 3V1.8L7.8 5 12 8.2V6c3.3 0 6 2.7 6 6s-2.7 6-6 6-6-2.7-6-6H4c0 4.4 3.6 8 8 8s8-3.6 8-8-3.6-8-8-8z"/><text x="8.2" y="15.5" font-size="7.5" font-weight="800" fill="currentColor">10</text>'),
+  pip: svg('<path d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/>'),
   fullscreen: svg('<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>'),
   speed: svg('<path d="M20.4 8.6a10 10 0 1 0 1.1 4.6h-2a8 8 0 1 1-.9-3.7l-3.4 3.4a2.5 2.5 0 1 0 1.4 1.4l5.6-5.6-1.8-.1z"/>'),
   download: svg('<path d="M12 3v10.6l-3.8-3.8-1.4 1.4L12 17.4l5.2-6.2-1.4-1.4-2.8 3.8V3h-2zM5 19h14v2H5z"/>'),

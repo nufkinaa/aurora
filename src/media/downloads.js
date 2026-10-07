@@ -828,6 +828,21 @@ const finish = async (job, destPath) => {
   }
   console.log(`[download] ${job.id.slice(0, 6)} done "${job.title}"`);
   notify.send("Aurora: download ready", `"${job.label || job.title}" is downloaded and in the library.`);
+  // …and the person who asked for it (or whose follow / smart download
+  // fetched it) hears on the devices where they switched notifications on.
+  if (job.profile) {
+    try {
+      const libId = scanner.idForPath(destPath);
+      require("../lib/push").send(job.profile, {
+        title: job.type === "show" && job.season ? `${job.title} · S${job.season} E${job.episode}` : job.title,
+        body: "Downloaded and ready to watch.",
+        url: libId ? `/#/play/${libId}` : "/#/downloads",
+        tag: `dl-${job.id}`,
+      });
+    } catch (e) {
+      console.warn("[push] not sent:", e && e.message);
+    }
+  }
   // The file is safely in the library now, so the staging copy can go — unless a
   // sibling episode from the same pack still needs it.
   purgeIfUnused(job.infoHash, job.id);

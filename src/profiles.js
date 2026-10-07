@@ -71,6 +71,7 @@ const pub = (p) => ({
   avatarImage: p.avatarImage || null,
   rows: p.rows || null, // home-row order/visibility prefs (settings UI reads these)
   prefs: p.prefs || {}, // small per-profile switches (smartDownloads …)
+  follows: (p.follows || []).map((f) => f.imdbId), // shows whose new episodes download by themselves
   hasPassword: !!p.passwordHash,
   locked: !!p.locked,
 });
@@ -309,6 +310,24 @@ const revokeTokensFor = (id) => {
   for (const [t, pid] of tokens) if (pid === id) tokens.delete(t);
 };
 
+// Followed shows: [{imdbId, title, at}] on the profile. `at` is when the
+// follow began — media/follows.js only fetches episodes that aired after it.
+const MAX_FOLLOWS = 60;
+const followsOf = (id) => (getRaw(id) || {}).follows || [];
+const setFollow = (id, imdbId, on, title) => {
+  const p = getRaw(id);
+  if (!p) return { error: "not found" };
+  if (!/^tt\d{5,10}$/.test(String(imdbId || ""))) return { error: "bad title id" };
+  const list = (p.follows || []).filter((f) => f.imdbId !== imdbId);
+  if (on) {
+    if (list.length >= MAX_FOLLOWS) return { error: `following ${MAX_FOLLOWS} shows already` };
+    list.push({ imdbId, title: String(title || "").slice(0, 120), at: Date.now() });
+  }
+  p.follows = list;
+  store.save();
+  return { ok: true, follows: list.map((f) => f.imdbId) };
+};
+
 // Set, change, or remove (empty newPassword) a profile's password. Changing or
 // removing an existing password requires the current one.
 const setPassword = async (id, newPassword, currentPassword) => {
@@ -545,6 +564,15 @@ const update = (id, fields) => {
     }
     // The subtitle language is a closed set, so it can ride along too.
     if (["any", "he", "en", "ru"].includes(fields.prefs.subLang)) p.prefs.subLang = fields.prefs.subLang;
+    // What the viewer last picked in the player, so it follows the profile to
+    // every title and device (2026-10-07): an audio language tag as the file
+    // carries it ("eng", "heb"), and a subtitle pick ("off", or a language /
+    // label). Short plain strings only; null clears.
+    for (const k of ["audioLang", "subPick"]) {
+      const v = fields.prefs[k];
+      if (v === null) delete p.prefs[k];
+      else if (typeof v === "string" && /^[\w .()\-\u0590-\u05ff]{1,40}$/.test(v)) p.prefs[k] = v;
+    }
   }
   // Home row composition: {order: [rowIds], hidden: [rowIds]}. Ids are
   // opaque strings (generated rows like liked-<genre> included) — bounded,
@@ -1056,6 +1084,8 @@ const dismissUpNext = (profileId, showId, episodeId) => {
 };
 
 module.exports = {
+  followsOf,
+  setFollow,
   list,
   publicList,
   exists,

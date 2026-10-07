@@ -3,6 +3,21 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.59 — 2026-10-07
+
+Ten of the streaming practices from the report, on the site (elia picked them):
+
+- **Lock screen and headset controls (Media Session).** What is playing — title, episode, picture — with play/pause, ±10 s and a scrubber on the phone's lock screen, the notification shade, the iPhone's Dynamic Island, a headset's buttons and a keyboard's media keys.
+- **Picture in picture.** A button in the player floats the film over other apps and tabs (desktop, Android, and Safari's own on iPhone/iPad).
+- **Your languages follow you.** The audio language you pick in the Audio menu and the subtitle track you pick (or "Off") are remembered on the profile and applied to the next title that has them, on every device.
+- **Resume four seconds early**, so you come back before the sentence, not in the middle of it.
+- **An error card instead of a dead player.** A stream that stopped for good says so, with "Try again" (from this second) and "Back".
+- **Pages follow the library.** The Movies and Shows grids and open search results update by themselves when a download lands or a file goes — same filters, same scroll.
+- **Follow a show.** A Follow button on a show's page: new episodes download by themselves when they air (checked every three hours; only episodes aired after you followed, never one already here or queued).
+- **Notifications with Aurora closed (Web Push).** "Tell me when it's ready" in Settings now reaches this device even when the tab is shut: a download you asked for, or one a follow fetched. No third-party service and no new dependency — the server signs an empty push and the service worker asks it what to say. An iPhone needs Aurora added to the Home Screen first, and the setting says so.
+- **A page on its way shows its outline** (a heading bar and a grid of shimmering cards) instead of an empty dark page, when the wait is long enough to notice.
+- **Sign out everywhere else**, next to the list of signed-in devices: every other session and unlock of the profile ends; this device stays.
+
 ## 1.6.58 — 2026-10-07
 
 - Web: the TV's small touches, on the site (elia). The player's menus (subtitles, timing, speed, audio, quality, playback, subtitle style, help) carry a glyph on every section title and the violet-to-green hue in the glass; the X-Ray sheet carries the same hue; a film being saved shows a mint strip along the foot of its hero button that follows the download.
