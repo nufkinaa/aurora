@@ -396,20 +396,36 @@ const IconBtn = ({
   on?: boolean; // a filled disc: in the list, marked watched
   onPress: () => void;
   ref?: React.Ref<View>;
-}) => (
-  <Focusable round ref={ref} onPress={onPress} style={styles.iconBtn} accessibilityLabel={label}>
-    <View style={[styles.iconBtnDisc, on && styles.iconBtnDiscOn]}>
-      {icon ? (
-        <Icon name={icon} size={18} color={on ? colors.bg : colors.text} />
-      ) : (
-        <Text style={[styles.iconBtnGlyph, on && {color: colors.bg}]}>{glyph}</Text>
-      )}
+}) => {
+  // Focus is the DISC itself filling white (the player's buttons do the same),
+  // not a ring drawn around disc and label together — that ring was a circle
+  // wider than the disc that cut straight through the label (elia, 2026-10-07:
+  // "the circle on the trailer … looks really bad").
+  const [focused, setFocused] = useState(false);
+  const lit = focused || !!on;
+  return (
+    <View style={styles.iconBtn}>
+      <Focusable
+        round
+        ring="none"
+        highlightColor={colors.white}
+        ref={ref}
+        onPress={onPress}
+        onFocusChange={setFocused}
+        style={[styles.iconBtnDisc, on && styles.iconBtnDiscOn]}
+        accessibilityLabel={label}>
+        {icon ? (
+          <Icon name={icon} size={18} color={lit ? colors.bg : colors.text} />
+        ) : (
+          <Text style={[styles.iconBtnGlyph, lit && {color: colors.bg}]}>{glyph}</Text>
+        )}
+      </Focusable>
+      <Text style={[styles.iconBtnLabel, focused && styles.iconBtnLabelOn]} numberOfLines={1}>
+        {label}
+      </Text>
     </View>
-    <Text style={styles.iconBtnLabel} numberOfLines={1}>
-      {label}
-    </Text>
-  </Focusable>
-);
+  );
+};
 
 const GhostBtn = ({
   label,
@@ -2040,7 +2056,8 @@ const styles = StyleSheet.create({
   },
   iconBtnDiscOn: {backgroundColor: colors.white, borderColor: colors.white},
   iconBtnGlyph: {color: colors.text, fontSize: 18, fontWeight: '800', lineHeight: 22},
-  iconBtnLabel: {color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 4},
+  iconBtnLabel: {color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 6},
+  iconBtnLabelOn: {color: colors.text},
   // 64%: four actions on a film need the width, and the ramp is still
   // transparent well before the artwork's subject on the right.
   // Full width now that no poster shares the row: six 40dp buttons sit on one
@@ -2106,7 +2123,8 @@ const styles = StyleSheet.create({
   actionsSecondary: {flexDirection: 'row', gap: 2, marginTop: spacing.sm, marginLeft: -16, flexWrap: 'wrap'},
   playBtn: {backgroundColor: colors.white, paddingVertical: 9, paddingHorizontal: 22, minHeight: 40, justifyContent: 'center'},
   // under the film's Play: the download's strip and the one-line hint
-  movieDl: {flexBasis: '100%', marginTop: -2, gap: 5},
+  // clear of the focused Play's ring (it reaches ~6dp past the button)
+  movieDl: {flexBasis: '100%', marginTop: 6, gap: 5},
   movieDlTrack: {width: 240, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.14)', overflow: 'hidden'},
   movieDlFill: {position: 'relative', height: 4, borderRadius: 2},
   movieDlHint: {color: colors.textFaint, fontSize: fontSize.small},

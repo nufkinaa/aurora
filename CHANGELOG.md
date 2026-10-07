@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.57 — 2026-10-07
+
+- Trailers in 1080p, on the TV and the site (elia: "right now it's just on low res always, right?" — yes: YouTube sizes its quality to the player's CSS pixels, and setPlaybackQuality has been a no-op for years, so a 1100px TV frame or a 1650px laptop hero got 720p). The player is now laid out at exactly 1920 CSS pixels wide and scaled down to fit, so YouTube serves 1080p — exactly 1920, never more: at 2200 YouTube handed the Mi TV 2160p and the interface fell to 63% janky frames. A line or box that can't carry it steps down by itself: two rebuffers in the first 25 seconds (or one longer than 2.5 s) shrink the player to 1× and reload at the same second, and the session stays at 1× after that; a box the perf tier already judged lite, or a browser on the lite tier or data saver, starts at 1×. The trailer modal on the site gets the same doubling below 1100px wide.
+- Aurora TV 5.1.16: a title page's small buttons (My List, Trailer, X-Ray, Versions, Watched) light up as a white disc when focused, like the player's buttons, instead of a ring drawn around disc and label that cut through the word (elia); the film's download strip and hint sit clear of the focused Play's ring (elia).
+
 ## 1.6.56 — 2026-10-07
 
 - Aurora TV 5.1.15: a film the library lacks gets the episodes' flow (elia: "remove the warning from the Stream button … pressing Play downloads the best and only a long press opens the sources panel"). The button reads "▶ Play"; a press saves the server's best source (recommended, else best-seeded) and the button carries the job — "⬇ Starting", "⬇ Saving 34%" — with a mint strip and a line under it ("Saving the best source · hold Play for other sources"); a hold opens the list of sources. When the download lands the page turns into the copy's Play by itself. Idle, the line says "Press Play to save the best source · hold for the list".

@@ -29,6 +29,7 @@ import {canNavigate} from '../navLock';
 import {openItem} from '../openItem';
 import {openUpdate, overlayOpen} from '../overlay';
 import {isLite, measureOnce} from '../perfTier';
+import {trailerStepDown} from '../components/Trailer';
 import {resolvePartyRoute} from '../party';
 import {warmItem, warmSections} from '../prefetch';
 import {onMessage} from '../realtime';
@@ -315,7 +316,11 @@ export default function Home({
     if (!live) return;
     trailersThisVisit.current = 0;
     // judge the box once Home has had a few seconds to settle
-    const t = setTimeout(measureOnce, 5000);
+    const t = setTimeout(() => {
+      measureOnce();
+      // a lite box plays its trailers at 1× from the start (720p at most)
+      if (isLite()) trailerStepDown();
+    }, 5000);
     return () => clearTimeout(t);
   }, [live]);
 

@@ -141,6 +141,14 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
     }
   };
 
+  // YouTube picks the quality from the player's size in CSS pixels, not the
+  // screen's: a 1.15× hero on a laptop is ~1650 px wide and got 720p (elia,
+  // 2026-10-07: "right now it's just on low res always"). Laying the frame
+  // out at TWICE the size and scaling it down by half makes it 3300 px wide
+  // to YouTube, which serves 1080p, while the picture still covers the slab.
+  // Not on the lite tier or data saver; and a trailer that rebuffers twice in
+  // its first 25 s drops the page to 1× for the rest of the session.
+  let hi = document.documentElement.dataset.fx !== "lite" && !(navigator.connection && navigator.connection.saveData);
   const sizeFrame = () => {
     const f = layer.querySelector("iframe");
     if (!f) return;
@@ -150,8 +158,13 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
     const scale = 1.15;
     let fw = w * scale, fh = (fw * 9) / 16;
     if (fh < h * scale) { fh = h * scale; fw = (fh * 16) / 9; }
-    f.style.width = `${Math.round(fw)}px`;
-    f.style.height = `${Math.round(fh)}px`;
+    // exactly 1920 px wide to YouTube, never more: past ~2200 it serves 2160p,
+    // which is a decode a laptop does not want for a muted billboard
+    const k = hi ? Math.max(1, Math.min(2, 1920 / fw)) : 1;
+    f.style.width = `${Math.round(fw * k)}px`;
+    f.style.height = `${Math.round(fh * k)}px`;
+    f.style.transformOrigin = "0 0";
+    f.style.transform = k > 1 ? `scale(${1 / k})` : "";
     f.style.left = `${Math.round((w - fw) / 2)}px`;
     f.style.top = `${Math.round((h - fh) / 2)}px`;
   };
@@ -200,6 +213,7 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
     clearTimeout(loadingTimer);
     if (Date.now() >= revealAt) showLoading();
     else loadingTimer = setTimeout(showLoading, revealAt - Date.now());
+    let stalls = 0;
     player = new YT.Player(mount, {
       host: "https://www.youtube-nocookie.com",
       videoId: id,
@@ -245,8 +259,18 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
             else reveal();
           } else if (e.data === YT.PlayerState.ENDED && active) {
             stop(true);
+          } else if (e.data === YT.PlayerState.BUFFERING && active) {
+            // the line (or the box) can't carry 1080p: back to 1×, same second
+            stalls++;
+            if (hi && stalls >= 2 && Date.now() - startedAt < 25000) {
+              hi = false;
+              sizeFrame();
+              console.debug("[trailer] step down to 1x after", stalls, "stalls");
+              try { e.target.loadVideoById({ videoId: id, startSeconds: e.target.getCurrentTime() || 0 }); } catch {}
+            }
           }
         },
+        onPlaybackQualityChange: (e) => { console.debug("[trailer] quality", e.data); },
         onError: () => { if (myGen === gen) { noTrailer.add(id); stop(false); } },
       },
     });

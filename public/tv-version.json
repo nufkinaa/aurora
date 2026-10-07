@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.15",
-  "notes": "Films you don't have: press Play to save the best source — the button shows the download — and hold Play for the list of sources. Plus X-Ray on every title page and in the player, the home picture fading with the scroll, shelves fading at the left edge, and tinted player menus."
+  "versionName": "5.1.16",
+  "notes": "Trailers play in 1080p (they were 720p at best) and step down by themselves on a line that can't carry it. Films you don't have: press Play to save the best source, hold Play for the list. The title page's small buttons light up as a disc when focused."
 }
