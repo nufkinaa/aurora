@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.44 — 2026-10-07
+
+- Aurora TV 5.1.8 — the episode timeline lies on the still's own bottom edge and the still's bottom corners are square under it (its top corners stay round), so the bar's ends no longer poke out past the picture's rounded corners (elia's photo).
+
 ## 1.6.43 — 2026-10-07
 
 - Aurora TV 5.1.7 — the episode card's glass half is written like the site's (elia: "add a bit more info … make sure all episodes have all of the data"): the kicker "EPISODE 3 · 49 MIN" — the file's length for an episode on disk, the show's typical runtime from the catalogue for the rest, since Cinemeta has none per episode — the name, two lines of synopsis, and a foot line that leads with the air date (▶ 4 Feb 2022, the year dropped when it is this year) with CC and a ✓ once watched. A part-watched episode's progress is the site's timeline — a 3dp track on the seam between the still and the glass, the violet fill with its glow and a lit white bead at the head — instead of a slab inside the picture. The date comes from Cinemeta for every episode, so cards 3 and 4 no longer sit empty under their stills — before, only an episode on disk had a runtime to show. The site's three air states are ported: a dated future episode is greyed as upcoming, a date-less one past the season's last dated episode reads "Date TBA", and a season with no dates at all is simply aired.

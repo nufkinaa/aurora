@@ -1830,9 +1830,11 @@ const styles = StyleSheet.create({
     // sizing it, so it states its own 16:9 box off the ART width (EP_W minus the
     // ring's reserved 3dp each side).
     height: EP_ART_H,
-    // The site's still is 12px-round inside its 18px box; here the box is
-    // radius.m, so the still steps down one size.
-    borderRadius: radius.s,
+    // Rounded on top only (the site's card still, glass.css:3389): the
+    // timeline lies along the still's foot, and against rounded bottom corners
+    // its ends poked out past the picture (elia's photo, 2026-10-07).
+    borderTopLeftRadius: radius.s,
+    borderTopRightRadius: radius.s,
     backgroundColor: colors.bgRaised,
     overflow: 'hidden',
     justifyContent: 'flex-end',
@@ -1870,14 +1872,13 @@ const styles = StyleSheet.create({
     // padding is added back to keep the bar on the still's own edges.
     left: EP_PAD,
     right: EP_PAD,
-    top: EP_PAD + EP_ART_H - 1,
+    // On the still's own bottom edge — 2dp over the picture, 1dp over the glass.
+    top: EP_PAD + EP_ART_H - 2,
     height: 3,
-    borderRadius: 2,
     backgroundColor: 'rgba(255,255,255,0.14)',
   },
   epBarFill: {
     height: '100%',
-    borderRadius: 2,
     backgroundColor: '#8b7bff',
     experimental_backgroundImage: 'linear-gradient(90deg, #8b7bff, #a6c8ff)',
     boxShadow: '0 0 10px rgba(139,123,255,0.6)',

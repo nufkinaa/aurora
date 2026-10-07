@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.7",
-  "notes": "Episode cards carry the site's facts: EPISODE 3 · 49 MIN over the name (the show's usual runtime when the episode is not on disk), two lines of synopsis, and the air date on the foot line with a tick once watched — so every episode has something under its picture. A part-watched episode's progress is the site's thin timeline with the lit bead, on the seam between picture and glass. Episodes announced but not yet aired are greyed, with their date or “Date TBA”."
+  "versionName": "5.1.8",
+  "notes": "The episode timeline sits on the still's own foot: the picture's bottom corners are square under it, so the bar's ends no longer poke out past rounded corners."
 }
