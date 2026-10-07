@@ -143,9 +143,11 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
   (sheet.querySelector(".peek-actions .btn-primary") || sheet.querySelector(".peek-actions .btn"))?.focus({ preventScroll: true });
 };
 
-// Hold to peek (touch and mouse alike), right-click to peek. A hold that
-// fires swallows the click that would follow it, so the card never opens.
-export const attachPeek = (node, item, opts = {}) => {
+// Hold (touch and mouse alike) or right-click to do `onHold`. A hold that
+// fires swallows the click that would follow it, so the element's own press
+// never happens as well. Shared by the peek sheet and the episode card's
+// "hold for sources" (discover-detail.js).
+export const attachHold = (node, onHold) => {
   let timer = null;
   let sx = 0, sy = 0;
   let fired = false;
@@ -159,7 +161,7 @@ export const attachPeek = (node, item, opts = {}) => {
       timer = null;
       fired = true;
       hapticOnRelease(); // the hold "lands", like Haptic Touch (an iPhone taps as the finger lifts)
-      openPeek(item, opts);
+      onHold();
     }, HOLD_MS);
   });
   node.addEventListener("pointermove", (e) => {
@@ -175,6 +177,9 @@ export const attachPeek = (node, item, opts = {}) => {
   node.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     cancel();
-    openPeek(item, opts);
+    onHold();
   });
 };
+
+// Hold to peek, right-click to peek.
+export const attachPeek = (node, item, opts = {}) => attachHold(node, () => openPeek(item, opts));

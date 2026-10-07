@@ -288,10 +288,14 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   // slab), and on a phone that work landed in the same frames as the
   // scroll — so the sky waits until the finger has been still for a beat.
   // The curtains drift over tens of seconds; a 150ms hold is invisible.
+  // Phones only (2026-10-07): on a desktop the hold made the sky visibly
+  // freeze on every scroll (elia), and the surfaces that were expensive to
+  // re-blur — the hero slab, the episode and source cards — no longer blur.
+  const holdOnScroll = matchMedia("(hover: none) and (pointer: coarse)").matches;
   let scrolledAt = 0;
   const onScroll = () => { scrolledAt = performance.now(); };
-  document.addEventListener("scroll", onScroll, { passive: true, capture: true });
-  const scrolling = (now) => now - scrolledAt < 150;
+  if (holdOnScroll) document.addEventListener("scroll", onScroll, { passive: true, capture: true });
+  const scrolling = (now) => holdOnScroll && now - scrolledAt < 150;
   // The player covers the whole viewport with black — a sky animating under
   // it is pure battery. While one is open the loop sleeps and checks back
   // once a second (a full-screen overlay, not a page, so no route event).

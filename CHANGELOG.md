@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.45 — 2026-10-07
+
+- Web, scrolling (elia: "the background animation stops and it looks bad", "scrolling is laggy and choppy, especially to or from the hero"): the aurora sky no longer pauses while a desktop scrolls — the hold stays on phones only — and the surfaces that made every sky frame expensive stopped blurring what is behind them: the hero slab (its art fills it edge to edge, so the blur was never visible) and the many small glass cards (episodes, source rows, taste tiles, party strip). They keep the tint and the edge light.
+- Web, choosing a stream for an episode (elia): the list shows the top three sources with one "Show all N" for the rest; pressing Save puts the list away and the episode card carries the job — "Requested" / "Starting" / "Downloading 34%" in the kicker and a mint progress bar, live — no "Downloading now!" modal. Pressing a downloading episode says how far it is; a HOLD (or right-click) on any episode brings its sources back. The block is away until an episode asks for it.
+- Web: episode cards a touch less see-through (each stop of the glass fill lifted by 0.03), with hover and focus stepping up from there.
+
 ## 1.6.44 — 2026-10-07
 
 - Aurora TV 5.1.8 — the episode timeline lies on the still's own bottom edge and the still's bottom corners are square under it (its top corners stay round), so the bar's ends no longer poke out past the picture's rounded corners (elia's photo).

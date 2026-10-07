@@ -46,6 +46,7 @@ import { pushScope, popScope } from "../focus.js";
 import { showDownloadPicker } from "../downloadPicker.js";
 import { pickOfflineQuality } from "../offlinePicker.js";
 import { onMessage } from "../ws.js";
+import { attachHold } from "../peek.js";
 import * as narrator from "../narrator.js";
 
 // "My List" toggle for a streamable (Discover) title — stores a stream ref.
@@ -627,7 +628,7 @@ const showDownloadRequested = (label, needsApproval, onStream = null) => {
 // Ask the server to download this exact source to the library. It starts right
 // away unless the server is low on disk, in which case an admin has to approve
 // it first (the server decides; `needsApproval` comes back in the response).
-const requestDownload = async (stream, base, label, season, episode, { onStream = null } = {}) => {
+const requestDownload = async (stream, base, label, season, episode, { onStream = null, quiet = false } = {}) => {
   const type = base.type === "show" ? "show" : "movie";
   try {
     const res = await api.requestDownload({
@@ -647,18 +648,24 @@ const requestDownload = async (stream, base, label, season, episode, { onStream 
       seeders: stream.seeders || 0,
       profile: state.profile ? state.profile.id : null,
     });
-    if (res.error) return toast(res.error, "⚠️");
-    if (res.alreadyAvailable)
-      return toast("Already yours — it's in the library", "✅");
+    // null for every "nothing started" answer, so a caller can tell a new job
+    // from a toast (the episode card acts only on a real one).
+    if (res.error) { toast(res.error, "⚠️"); return null; }
+    if (res.alreadyAvailable) { toast("Already yours — it's in the library", "✅"); return null; }
     if (res.duplicate) {
-      return toast(
+      toast(
         res.job && res.job.status === "done"
           ? "Already downloaded — go watch it"
           : "Already queued. Patience.",
         "⏳",
       );
+      // a live duplicate is still a job the episode card can show
+      return res.job && res.job.status !== "done" ? res : null;
     }
-    showDownloadRequested(label, !!res.needsApproval, onStream);
+    // quiet: the episode card shows the state (and its percent as it comes),
+    // so the "Downloading now!" modal would be a second announcement.
+    if (quiet) toast(res.needsApproval ? "Requested — waiting for approval" : "Saving — the episode shows its progress", "⬇️");
+    else showDownloadRequested(label, !!res.needsApproval, onStream);
     return res;
   } catch (e) {
     // the server's own reason when it gave one ("the download engine isn't
@@ -769,7 +776,7 @@ const ownedRow = ({ id, label, onDownload, item }) =>
 // `{ id, label }` — which gets its own row above every torrent.
 const loadSources = async (
   host,
-  { type, imdbId, year, season, episode, owned },
+  { type, imdbId, year, season, episode, owned, compact = false },
   onPlay,
   onDownload,
 ) => {
@@ -852,7 +859,9 @@ const loadSources = async (
     // The first few sources show; the rest sit behind one "Show all" press —
     // on every screen now (the list used to scroll inside a box of its own).
     const phone = () => matchMedia("(max-width: 720px)").matches;
-    const FIRST = () => (phone() ? 5 : 8);
+    // compact (an episode's list, 2026-10-07 — elia: "rank the top 3 streams
+    // and hide all the rest"): three, then "Show all".
+    const FIRST = () => (compact ? 3 : phone() ? 5 : 8);
     let expanded = false;
     const renderList = (list) => {
       listHost.innerHTML = "";
@@ -938,7 +947,7 @@ const loadSources = async (
           class: "btn small focusable",
           style: { marginLeft: "12px" },
           onclick: () =>
-            loadSources(host, { type, imdbId, year, season, episode, owned }, onPlay, onDownload),
+            loadSources(host, { type, imdbId, year, season, episode, owned, compact }, onPlay, onDownload),
         }, "Try again"),
       ),
     );
@@ -1914,6 +1923,8 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     if (!imdbId) return;
     openRow = row;
     epSourcesLabel.textContent = `Sources · S${row.season} E${row.episode}`;
+    epSourcesLabel.hidden = false;
+    sourcesSection.hidden = false;
     loadSources(
       sourcesSection,
       {
@@ -1922,6 +1933,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         year: view.year,
         season: row.season,
         episode: row.episode,
+        compact: true,
         owned: row.local
           ? {
               id: row.local.id,
@@ -1953,7 +1965,26 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
           `${view.title} · S${row.season} E${row.episode}`,
           row.season,
           row.episode,
-        ),
+          { quiet: true },
+        ).then((res) => {
+          // Chosen: the list goes away and the episode card carries the job
+          // from here (hold the card to see the list again). Optimistic until
+          // the first live update, like the Save button was.
+          if (!res || res.error || res.alreadyAvailable) return;
+          const key = epJobKey(row.season, row.episode);
+          if (!epJobs.has(key)) {
+            epJobs.set(key, res.job && DL_ACTIVE.includes(res.job.status)
+              ? res.job
+              : { status: res.needsApproval ? "pending" : "approved", progress: 0, season: row.season, episode: row.episode });
+          }
+          hideSources();
+          renderEpisodes();
+          const card = episodeList.querySelector(`[data-ep="${key}"]`);
+          if (card) {
+            card.focus({ preventScroll: true });
+            card.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }),
     );
     if (scroll)
       sourcesSection.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2006,6 +2037,37 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
           episodeProgressFor(imdbId, r.season, r.episode) ||
           progressFor(streamProgressKey(imdbId, r.season, r.episode))
         )?.finished);
+
+  // Downloads in flight for this show's episodes, by "SxE" — the card shows
+  // the job (Requested / Starting / Downloading 34%) in place of the sources
+  // list it was chosen from.
+  let epJobs = new Map();
+  const epJobKey = (s, e) => `${s}x${e}`;
+  const loadEpJobs = async () => {
+    try {
+      const jobs = await api.downloads();
+      const next = new Map();
+      // Newest first from the server; the newest live job per episode.
+      for (const j of jobs) {
+        if (j.imdbId !== imdbId || !j.season || !j.episode || !DL_ACTIVE.includes(j.status)) continue;
+        const k = epJobKey(j.season, j.episode);
+        if (!next.has(k)) next.set(k, j);
+      }
+      epJobs = next;
+    } catch {}
+  };
+  // What the card says about a job: the words downloads.js uses, shortened.
+  const epJobText = (job) => {
+    if (!job) return "";
+    if (job.status === "pending") return "Requested";
+    const pct = Math.round((job.progress || 0) * 100);
+    if (job.status !== "downloading" || !(pct > 0)) return "Starting";
+    return `Downloading ${pct}%`;
+  };
+  const hideSources = () => {
+    epSourcesLabel.hidden = true;
+    sourcesSection.hidden = true;
+  };
 
   // Assigned below, once the season bar exists — a season you own nothing in
   // has nothing to offer, so the pill comes and goes with the active season.
@@ -2072,24 +2134,34 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
           ? Math.min(100, (p.position / p.duration) * 100)
           : 0;
       const watched = !!(p && p.finished);
+      const job = epJobs.get(epJobKey(row.season, row.episode)) || null;
+      const jobPct = job ? Math.round((job.progress || 0) * 100) : 0;
+      const hd = !!(local && (local.height >= 1000 || local.width >= 1900));
 
       const epBtn = el(
         "button",
         {
-          // Every episode opens its list, downloaded or not — pressing an episode
-          // shouldn't drop you straight into playback. Your copy sits at the top of
-          // that list as the obvious first choice, so it is still one more click.
+          "data-ep": epJobKey(row.season, row.episode),
           class:
             "episode" +
             (unaired ? " unaired" : " focusable") +
             (local ? " owned" : "") +
+            (job ? " dl" : "") +
             (i === upNextAt && anyWatched ? " up-next" : ""),
           // A downloaded episode in 1080p or better simply plays — there is
-          // nothing to choose. Anything else (not on disk, or a smaller copy)
-          // opens its sources, where your copy sits first if you have one.
+          // nothing to choose. One being saved says how far it is. Anything
+          // else (not on disk, or a smaller copy) opens its sources, where your
+          // copy sits first if you have one. A HOLD (or right-click) on any
+          // episode opens its sources — the way back to the list once a source
+          // was chosen and the list went away (elia, 2026-10-07).
           ...(unaired
             ? { disabled: true, "aria-disabled": "true" }
-            : { onclick: () => (local && (local.height >= 1000 || local.width >= 1900) ? navigate(`#/play/${local.id}`) : openSources(row)) }),
+            : {
+                onclick: () =>
+                  hd ? navigate(`#/play/${local.id}`)
+                  : job ? toast(`${epJobText(job)} — hold the episode for its sources`, "⏳")
+                  : openSources(row),
+              }),
         },
         el("div", { class: "episode-num" }, row.episode),
         // A still for the glass card: the episode's own thumbnail when the
@@ -2112,7 +2184,8 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
           // to the sub-line, where there is room for it
           el("div", { class: "episode-kicker" },
             `Episode ${row.episode}`,
-            local && local.duration && el("span", { class: "episode-kicker-dur" }, ` · ${Math.round(local.duration / 60)} min`)),
+            local && local.duration && el("span", { class: "episode-kicker-dur" }, ` · ${Math.round(local.duration / 60)} min`),
+            job && el("span", { class: "episode-dl" }, ` · ${epJobText(job)}`)),
           el(
             "div",
             { class: "episode-title" },
@@ -2152,15 +2225,28 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
             row.overview && el("span", { class: "ep-overview" }, row.overview),
           ),
         ),
-        pct > 0 &&
-          !watched &&
-          el(
-            "div",
-            { class: "episode-bar" },
-            el("div", { style: { width: pct + "%" } }),
-          ),
+        // A download in flight owns the bar (mint); otherwise it is the
+        // watched-so-far bar (violet).
+        job
+          ? el("div", { class: "episode-bar dl" }, el("div", { style: { width: Math.max(2, jobPct) + "%" } }))
+          : pct > 0 &&
+            !watched &&
+            el(
+              "div",
+              { class: "episode-bar" },
+              el("div", { style: { width: pct + "%" } }),
+            ),
         !unaired && el("span", { class: "episode-play", html: icons.play }),
       );
+      if (!unaired) attachHold(epBtn, () => openSources(row));
+      // Live repaint of the job without rebuilding the list (every tick of a
+      // 24-row season was a lot of DOM for one number).
+      epBtn._paintJob = (j) => {
+        const span = epBtn.querySelector(".episode-dl");
+        if (span) span.textContent = ` · ${epJobText(j)}`;
+        const fill = epBtn.querySelector(".episode-bar.dl > div");
+        if (fill) fill.style.width = Math.max(2, Math.round((j.progress || 0) * 100)) + "%";
+      };
 
       const extras = [];
       // Only an episode we hold on disk can be handed to the viewer's machine.
@@ -2405,7 +2491,33 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   }
 
   screen.append(seasonBar, episodeList);
+  // The sources block is away until an episode asks for it (a press on one
+  // without a copy, or a hold on any), and goes away again once a source is
+  // saved — the episode card carries the download from there.
+  epSourcesLabel.hidden = true;
+  sourcesSection.hidden = true;
   if (imdbId) screen.append(epSourcesLabel, sourcesSection);
+  if (imdbId) {
+    loadEpJobs().then(() => renderEpisodes());
+    // Live: the card's percent moves with the job; a finished or failed job
+    // redraws the list (a finished one has a library file to show).
+    const unsub = onMessage("download_update", ({ job }) => {
+      if (!screen.isConnected) return unsub();
+      if (!job || job.imdbId !== imdbId || !job.season || !job.episode) return;
+      const key = epJobKey(job.season, job.episode);
+      const was = epJobs.get(key);
+      if (DL_ACTIVE.includes(job.status)) {
+        epJobs.set(key, job);
+        const card = episodeList.querySelector(`[data-ep="${key}"]`);
+        if (card && card._paintJob) card._paintJob(job);
+        else renderEpisodes();
+      } else if (was) {
+        epJobs.delete(key);
+        if (job.status === "done") loadLibrary(true).catch(() => {});
+        renderEpisodes();
+      }
+    });
+  }
   // Arriving from Up next (`?s=&e=`): that season, that episode's sources, no hunting.
   const jumpSeason = jump && seasons.find((s) => s.number === jump.season);
   const jumpRow = jumpSeason && jumpSeason.episodes.find((r) => r.episode === jump.episode);

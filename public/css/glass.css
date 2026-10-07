@@ -87,7 +87,6 @@ html[data-look="glass"] .nav-logo,
 html[data-look="glass"] .nav-profile,
 html[data-look="glass"] .nav-gear,
 html[data-look="glass"] .nav-dl,
-html[data-look="glass"] .hero,
 html[data-look="glass"] .hero-picks,
 html[data-look="glass"] .menu,
 html[data-look="glass"] .modal,
@@ -332,7 +331,13 @@ html[data-look="glass"] .hero {
   border-radius: 32px;
   overflow: hidden;
   align-items: flex-end;
+  /* No backdrop blur on the slab (2026-10-07, elia: scrolling to and from the
+     hero was choppy, and the sky froze while scrolling). The art fills the
+     slab edge to edge, so a blur of the sky behind it was never visible — yet
+     every sky frame re-blurred an 84vh surface. The edge light and the
+     corner specular stay; the fill is the strong tint. */
   background: var(--g-fill-strong);
+  box-shadow: var(--g-edge), var(--g-shadow);
 }
 /* the art is sharp from the first frame — no dreamy blur, no focus-pull veil */
 html[data-look="glass"] .hero .hero-backdrop {
@@ -650,6 +655,17 @@ html[data-look="glass"] .dl-bar-fill {
 }
 html[data-look="glass"] .progress > i::after,
 html[data-look="glass"] .progress > div::after,
+/* a download in flight: the mint ramp (the sky's green) instead of the
+   violet watched-so-far fill; the kicker's state in the same mint */
+html[data-look="glass"] .episode-bar.dl > div {
+  background: linear-gradient(90deg, #7fd1e8, #8cffbe);
+  box-shadow: 0 0 10px rgba(140, 255, 190, 0.55);
+}
+html[data-look="glass"] .episode-dl {
+  color: #8cffbe;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
 html[data-look="glass"] .episode-bar > div::after {
   content: "";
   position: absolute;
@@ -948,14 +964,14 @@ html[data-look="glass"] .season-pill.active {
 /* episodes: glass cards with a still, a kicker and the title */
 html[data-look="glass"] .episode {
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.05);
+  /* (the fill is set with the other glass cards below — one rule for all) */
   box-shadow: var(--g-edge);
   padding: 10px 14px 10px 10px;
   gap: 18px;
 }
 html[data-look="glass"] .episode:hover,
 html[data-look="glass"] .episode:focus {
-  background: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.12);
 }
 html[data-look="glass"] .episode-num {
   display: none;
@@ -1677,17 +1693,29 @@ html[data-look="glass"] .episode,
 html[data-look="glass"] .source-row,
 html[data-look="glass"] .taste-tile,
 html[data-look="glass"] .party-strip-item {
+  /* Tint, not blur: a season is 10–24 of these cards and a sources list up to
+     50 rows, and each blur re-ran on every frame of the sky and every scroll
+     step. The glass is a translucent fill with the edge light. */
   background: var(--g-fill);
   border: 0;
   box-shadow: var(--g-edge);
-  backdrop-filter: var(--g-blur);
-  -webkit-backdrop-filter: var(--g-blur);
+}
+/* episodes a touch less see-through than the rest of the glass — each stop
+   of --g-fill lifted by 0.03 (elia, 2026-10-07: "a little less transparent
+   but not by very much at all, just to give it a bit more contrast") */
+html[data-look="glass"] .episode {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.055) 55%, rgba(255, 255, 255, 0.09));
 }
 html[data-look="glass"] .episode:hover,
 html[data-look="glass"] .episode:focus,
 html[data-look="glass"] .source-row:hover,
 html[data-look="glass"] .party-strip-item:hover {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06) 55%, rgba(255, 255, 255, 0.1));
+}
+/* the episode's hover and focus step up from ITS resting tint, not the common one */
+html[data-look="glass"] .episode:hover,
+html[data-look="glass"] .episode:focus {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.085) 55%, rgba(255, 255, 255, 0.13));
 }
 /* Download rows are firm, not frosted (elia: the page read as transparent
    and random): a dark base under the glass tint, no live blur per row, the
