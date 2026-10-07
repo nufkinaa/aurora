@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {getBaseUrl, getSession} from './api';
 
 // Keep in lockstep with android/app/build.gradle versionName on each release.
-export const APP_VERSION = '5.1.17';
+export const APP_VERSION = '5.1.18';
 
 const cmp = (a: string, b: string) => {
   const pa = a.split('.').map(n => parseInt(n, 10) || 0);
@@ -92,6 +92,9 @@ const HOLD_MS = 24 * 3600 * 1000;
 type QuietNative = {
   quietStatus?: () => Promise<{supported: boolean; status: number; at: number}>;
   installQuietly?: (path: string) => Promise<string>;
+  armRelaunch?: () => Promise<boolean>;
+  canRelaunch?: () => Promise<boolean>;
+  openRelaunchSettings?: () => Promise<boolean>;
 };
 const quiet = NativeModules.AuroraUpdater as (Native & QuietNative) | undefined;
 
@@ -118,11 +121,53 @@ const prepareQuiet = (info: UpdateInfo) => {
     .then(p => {
       quietPath = p;
       quietFor = info.version;
+      // The build is on the TV. A streamer that never leaves Aurora would
+      // wait for it indefinitely (elia, 2026-10-08), so say it is ready and
+      // offer to restart now; "Later" keeps the install-on-leaving behaviour.
+      readyInfo = info;
+      readyHandler?.(info);
     })
     .catch(() => {})
     .then(() => {
       quietFetching = false;
     });
+};
+
+// ---- "the update is ready: restart now or later" ----
+let readyInfo: UpdateInfo | null = null;
+let readyHandler: ((info: UpdateInfo) => void) | null = null;
+/** Called when a quietly-fetched build is ready to install. */
+export const onUpdateReady = (fn: ((info: UpdateInfo) => void) | null) => {
+  readyHandler = fn;
+};
+/** The fetched build still waiting to be installed, if any. */
+export const updateReady = () => (quietPath ? readyInfo : null);
+/** May Aurora open itself again after the update? (Android's "display over
+ *  other apps" permission — without it the TV returns to its home screen.) */
+export const canRelaunch = async () => {
+  try {
+    return !!(quiet && quiet.canRelaunch && (await quiet.canRelaunch()));
+  } catch {
+    return false;
+  }
+};
+export const openRelaunchSettings = async () => {
+  try {
+    return !!(quiet && quiet.openRelaunchSettings && (await quiet.openRelaunchSettings()));
+  } catch {
+    return false;
+  }
+};
+/** Install the fetched build now and come back as the new version. */
+export const restartIntoUpdate = async (): Promise<void> => {
+  if (!quiet || !quiet.installQuietly || !quietPath) throw new Error('The update is no longer waiting');
+  const p = quietPath;
+  try {
+    await quiet.armRelaunch?.();
+  } catch {}
+  const r = await quiet.installQuietly(p);
+  if (r !== 'committed') throw new Error('This TV cannot install it by itself');
+  quietPath = null;
 };
 
 /** True when this TV is going to try the update quietly, so the prompt should

@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.17",
-  "notes": "A Next episode button in the player, from the start of any episode. The menu's light now drifts gently instead of the old aurora. A cover that failed to load is tried again by itself."
+  "versionName": "5.1.18",
+  "notes": "Updates no longer wait for you to leave Aurora: when a new version has downloaded, Aurora offers to restart now or later."
 }

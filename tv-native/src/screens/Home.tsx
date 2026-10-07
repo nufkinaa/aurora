@@ -24,10 +24,11 @@ import NavRail from '../components/NavRail';
 import {ErrorState} from '../components/States';
 import TrailerFrame, {TrailerHandle, TrailerState} from '../components/Trailer';
 import {api, imgSrc, ImgSource, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
-import {checkForUpdate, holdPromptFor, UpdateInfo} from '../update';
+import {checkForUpdate, holdPromptFor, onUpdateReady, updateReady, UpdateInfo} from '../update';
+import {currentRouteName} from '../rootNav';
 import {canNavigate} from '../navLock';
 import {openItem} from '../openItem';
-import {openUpdate, overlayOpen} from '../overlay';
+import {openUpdate, openUpdateReady, overlayOpen} from '../overlay';
 import {isLite, measureOnce} from '../perfTier';
 import {trailerStepDown} from '../components/Trailer';
 import {resolvePartyRoute} from '../party';
@@ -174,8 +175,22 @@ export default function Home({
     };
     const t = setTimeout(offer, data ? 1500 : 4000);
     const iv = setInterval(offer, 30 * 60000);
+    // A quietly-fetched build says it is ready: once per version, and never
+    // over the player or another sheet — it waits for a quiet moment.
+    let askedFor = '';
+    const askRestart = () => {
+      const info = updateReady();
+      if (!on || !info || askedFor === info.version) return;
+      if (overlayOpen() || currentRouteName() === 'Player') return;
+      askedFor = info.version;
+      openUpdateReady(info);
+    };
+    onUpdateReady(() => setTimeout(askRestart, 800));
+    const ready = setInterval(askRestart, 20000);
     return () => {
       on = false;
+      onUpdateReady(null);
+      clearInterval(ready);
       clearTimeout(t);
       clearInterval(iv);
     };

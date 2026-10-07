@@ -23,6 +23,9 @@ import {
   downloadUpdate,
   installUpdate,
   openInstallSettings,
+  restartIntoUpdate,
+  canRelaunch,
+  openRelaunchSettings,
   UpdateInfo,
 } from '../update';
 import {track} from '../usage';
@@ -303,6 +306,61 @@ function JoinSheet() {
 }
 
 // ---------------------------------------------------------------- update
+// The new build is already on the TV (fetched quietly): restart into it now,
+// or later — "later" installs it the next time Aurora leaves the screen.
+function UpdateReadySheet({info}: {info: UpdateInfo}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  // Whether Android will let Aurora reopen itself afterwards. Asked again
+  // whenever the app comes back to the front (the viewer may have just
+  // granted it in Settings).
+  const [reopens, setReopens] = useState<boolean | null>(null);
+  useEffect(() => {
+    let on = true;
+    const ask = () => canRelaunch().then(v => on && setReopens(v));
+    ask();
+    const sub = AppState.addEventListener('change', st => st === 'active' && ask());
+    return () => {
+      on = false;
+      sub.remove();
+    };
+  }, []);
+  const now = useCallback(async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      await restartIntoUpdate();
+      // the system replaces the app from here; this screen simply goes away
+    } catch (e) {
+      setBusy(false);
+      setErr((e as Error)?.message || "Couldn't start the update");
+    }
+  }, []);
+  const after = reopens
+    ? 'Aurora closes for a few seconds and comes back as the new version.'
+    : "Aurora closes for a few seconds. Open it again from the TV's home screen and it is the new version.";
+  return (
+    <Sheet kicker="UPDATE READY" title={`Aurora TV ${info.version}`} accent onClose={closeOverlay}>
+      <Text style={styles.body}>
+        {busy ? `Installing — ${after}` : `The new version is downloaded. Restart now to use it — ${after} Or carry on, and it installs the next time you leave Aurora.`}
+      </Text>
+      {err ? <Text style={styles.faint}>{err}</Text> : null}
+      <View style={styles.actions}>
+        <Primary label="Restart now" onPress={now} focus busy={busy} />
+        {busy ? null : <Ghost label="Later" onPress={closeOverlay} />}
+        {busy || reopens !== false ? null : (
+          <Ghost
+            label="Let Aurora reopen itself"
+            onPress={async () => {
+              if (!(await openRelaunchSettings())) showToast('Allow "Display over other apps" for Aurora under Settings → Apps → Special app access', '⚙️');
+            }}
+          />
+        )}
+      </View>
+    </Sheet>
+  );
+}
+
 const fmtMb = (b: number) => `${(b / 1048576).toFixed(b > 100 * 1048576 ? 0 : 1)} MB`;
 type Stage = 'offer' | 'downloading' | 'perm' | 'installing' | 'error';
 function UpdateSheet({info}: {info: UpdateInfo}) {
@@ -755,6 +813,7 @@ export default function Overlays() {
       {o?.kind === 'report' ? <ReportSheet hint={o.hint} /> : null}
       {o?.kind === 'join' ? <JoinSheet /> : null}
       {o?.kind === 'update' ? <UpdateSheet info={o.info} /> : null}
+      {o?.kind === 'updateReady' ? <UpdateReadySheet info={o.info} /> : null}
       {o?.kind === 'trailer' ? <TrailerModal ids={o.ids} title={o.title} /> : null}
       {o?.kind === 'actions' ? <ActionsSheet title={o.title} sub={o.sub} items={o.items} /> : null}
       {o?.kind === 'xray' ? <XraySheet query={o.query} title={o.title} onClose={o.onClose} /> : null}

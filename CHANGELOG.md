@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.62 — 2026-10-08
+
+- Aurora TV 5.1.18: an update no longer waits for the app to leave the screen (elia: on new streamers that rarely happens, so a TV stayed on the old version for days). The build is still fetched quietly, and when it is on the TV a sheet says so: **Restart now** or **Later** — never over the player or another sheet. Restart now installs it at once (about three seconds on the Mi TV); Later keeps the old behaviour and installs when Aurora next leaves the screen. Android refuses to let an app reopen itself from the background, so after the install the TV returns to its home screen and the sheet says so honestly — unless the viewer allows "Display over other apps" for Aurora (a third button on the sheet opens that settings screen), in which case Aurora comes back by itself, measured at about ten seconds.
+
 ## 1.6.61 — 2026-10-07
 
 - Next episode, on the TV and the site (elia): a button in the player's row beside +10, there from the start of any episode that has one after it — Up next at the credits can be dismissed, and was no help to someone who wants the next one now. A press saves your place and starts the next episode; a watch party's host carries the room along. Library episodes on the TV; on the site a streamed next episode opens its page to pick a source, as Up next does.

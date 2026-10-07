@@ -6,6 +6,9 @@
     <!-- Android 12+: lets the app update ITSELF without the confirmation
          dialog (UpdaterModule.installQuietly). Ignored on older versions. -->
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+    <!-- Optional, granted by the viewer: lets Aurora open itself again after
+         a "Restart now" update (Android refuses a background start without it). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- Android TV: shows in the leanback launcher, no touchscreen required -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -64,6 +67,12 @@
            as a content:// URI — a file:// path is refused since Android 7. -->
       <!-- Hears the result of a quiet update (UpdateResultReceiver.kt). -->
       <receiver android:name=".UpdateResultReceiver" android:exported="false" />
+      <!-- Opens Aurora again after a "Restart now" update (RelaunchReceiver.kt). -->
+      <receiver android:name=".RelaunchReceiver" android:exported="false">
+        <intent-filter>
+          <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+        </intent-filter>
+      </receiver>
       <provider
         android:name="androidx.core.content.FileProvider"
         android:authorities="${applicationId}.fileprovider"

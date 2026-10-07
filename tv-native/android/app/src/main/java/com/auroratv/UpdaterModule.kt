@@ -229,6 +229,54 @@ class UpdaterModule(private val ctx: ReactApplicationContext) : ReactContextBase
     }
   }
 
+  /**
+   * "Restart now" (2026-10-08): the viewer asked for the update while Aurora
+   * is on screen, so the app should come back by itself once the system has
+   * replaced it. Written down here; RelaunchReceiver reads it when Android
+   * announces the new package, and opens Aurora again if it is recent.
+   */
+  @ReactMethod
+  fun armRelaunch(promise: Promise) {
+    try {
+      ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putLong(KEY_RELAUNCH, System.currentTimeMillis())
+        .commit()
+      promise.resolve(true)
+    } catch (e: Exception) {
+      promise.resolve(false)
+    }
+  }
+
+  /**
+   * Android only lets an app open itself from the background when it may
+   * "display over other apps" (measured on the Mi TV, Android 14: without it
+   * the relaunch is refused as a background activity start). Says whether
+   * Aurora has that, and opens the screen where it is granted.
+   */
+  @ReactMethod
+  fun canRelaunch(promise: Promise) {
+    promise.resolve(try { Settings.canDrawOverlays(ctx) } catch (e: Exception) { false })
+  }
+
+  @ReactMethod
+  fun openRelaunchSettings(promise: Promise) {
+    val candidates = listOf(
+      Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${ctx.packageName}")),
+      Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
+      Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}"))
+    )
+    for (i in candidates) {
+      try {
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        ctx.startActivity(i)
+        promise.resolve(true)
+        return
+      } catch (_: Exception) {}
+    }
+    promise.resolve(false)
+  }
+
   /** Can this TV update quietly at all, and how did the last attempt end? */
   @ReactMethod
   fun quietStatus(promise: Promise) {
@@ -256,6 +304,7 @@ class UpdaterModule(private val ctx: ReactApplicationContext) : ReactContextBase
 
   companion object {
     const val PREFS = "aurora_update"
+    const val KEY_RELAUNCH = "relaunchAt"
     const val KEY_STATUS = "quietStatus"
     const val KEY_AT = "quietAt"
   }

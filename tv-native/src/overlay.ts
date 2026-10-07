@@ -10,6 +10,7 @@ export type Overlay =
   | {kind: 'report'; hint?: string}
   | {kind: 'join'}
   | {kind: 'update'; info: UpdateInfo}
+  | {kind: 'updateReady'; info: UpdateInfo}
   | {kind: 'trailer'; ids: string[]; title: string}
   | {kind: 'actions'; title: string; sub?: string; items: ActionItem[]}
   | {kind: 'xray'; query: XrayQuery; title: string; onClose?: () => void}
@@ -40,6 +41,7 @@ export const openTrailer = (ids: string[], title: string) => {
   if (ids.length) openOverlay({kind: 'trailer', ids, title});
 };
 export const openUpdate = (info: UpdateInfo) => openOverlay({kind: 'update', info});
+export const openUpdateReady = (info: UpdateInfo) => openOverlay({kind: 'updateReady', info});
 export const openActions = (o: {title: string; sub?: string; items: ActionItem[]}) => openOverlay({kind: 'actions', ...o});
 export const openXray = (o: {query: XrayQuery; title: string; onClose?: () => void}) => openOverlay({kind: 'xray', ...o});
 
