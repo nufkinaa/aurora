@@ -89,8 +89,8 @@ android {
         // after the real adaptive icon was added and verified inside the APK.
         // (Confirmed by extracting the icon layers from the installed APK: they
         // were correct; the launcher was simply showing its cache.)
-        versionCode 72
-        versionName "5.1.13"
+        versionCode 73
+        versionName "5.1.14"
     }
     signingConfigs {
         debug {

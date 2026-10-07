@@ -793,6 +793,10 @@ const styles = StyleSheet.create({
     paddingBottom: 22,
     // opaque: a bright subtitle line under a 96% panel still read through it
     backgroundColor: 'rgb(14,16,28)',
+    // the player menus' hue (elia, 2026-10-07): the site's violet from the
+    // top-left, the aurora's green from the foot
+    experimental_backgroundImage:
+      'linear-gradient(140deg, rgba(104,86,226,0.28) 0%, rgba(14,16,28,0) 48%, rgba(70,200,150,0.18) 100%)',
     borderWidth: 1,
     borderBottomWidth: 0,
     borderColor: 'rgba(255,255,255,0.10)',

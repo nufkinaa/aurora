@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.55 — 2026-10-07
+
+- Aurora TV 5.1.14: the X-Ray sheet carries the same violet-to-green hue as the player's menus (elia).
+
 ## 1.6.54 — 2026-10-07
 
 - Aurora TV 5.1.13: the Home billboard's picture is a fixed layer that fades out with the scroll instead of travelling with the page and ending in a line a third of the way down the screen (elia: "under the hero on home it gets cut and it's noticeable").
