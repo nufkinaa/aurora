@@ -73,6 +73,9 @@ const EP_ART_H = Math.round((EP_ART_W * 9) / 16);
 // What the Focusable is given, so its CONTENT box is exactly the still.
 const EP_THUMB_H = EP_ART_H + (EP_EDGE + EP_PAD) * 2;
 const SEASON_H = 54;
+// The glass body under the still: kicker 14 + title 18 + two synopsis lines 32 +
+// their gaps 5 + the foot line 18 + its gap 6 + top padding 8 = 101, rounded.
+const EP_BODY_H = 102;
 // The film page's shelf: a poster row with its heading, the focus glow's room
 // above, and the safe inset added at render.
 // heading (26) + the rail's own padding (20 above for the focus glow, 8
@@ -433,13 +436,65 @@ type UiEp = {
   // Everything below mirrors the site's .episode row.
   owned?: boolean; // in the library, so it plays instantly
   durationLabel?: string;
+  // Whole minutes for the kicker's "· 53 MIN": the file's own length when the
+  // episode is on disk, else the show's typical runtime from the catalogue —
+  // Cinemeta carries no per-episode runtime, and a card with no runtime at
+  // all read as missing data (elia, 2026-10-07: "why still there is no runtime
+  // for episode 3 and 4?").
+  durationMin?: number;
   hasSubs?: boolean;
   watched?: boolean;
   pct?: number; // part-watched progress, 0..100
   overview?: string;
   thumb?: string | null;
+  // The air date as the site shows it ("29 Sep", "12 Mar 2024"), and which of
+  // the site's three states the episode is in (ui.js resolveAirStates).
+  airLabel?: string;
+  air: 'aired' | 'upcoming' | 'tba';
 };
 type UiSeason = {number: number; episodes: UiEp[]};
+
+// ui.js fmtAirDate, ported — by hand rather than toLocaleDateString, so it does
+// not depend on the TV's Intl data. Same-year dates drop the year.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const airTime = (released?: string | null) => (released ? Date.parse(released) : NaN);
+const fmtAirDate = (released?: string | null) => {
+  const t = airTime(released);
+  if (!Number.isFinite(t)) return '';
+  const d = new Date(t);
+  const year = d.getFullYear() === new Date().getFullYear() ? '' : ` ${d.getFullYear()}`;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}${year}`;
+};
+// "49 min" / "1h 2min" / 49 → whole minutes, or undefined when the catalogue
+// has no runtime for the show.
+const parseRuntimeMin = (rt?: string | number | null): number | undefined => {
+  if (typeof rt === 'number') return rt > 0 ? Math.round(rt) : undefined;
+  if (!rt) return undefined;
+  const h = /(\d+)\s*h/i.exec(rt);
+  const m = /(\d+)\s*m/i.exec(rt);
+  const mins = (h ? Number(h[1]) * 60 : 0) + (m ? Number(m[1]) : 0);
+  if (mins > 0) return mins;
+  const n = parseInt(rt, 10);
+  return n > 0 ? n : undefined;
+};
+// ui.js resolveAirStates, ported. Cinemeta lists episodes as soon as they are
+// ANNOUNCED: a dated future episode is "upcoming", and a date-less one past the
+// last dated episode of its season is "tba". A date-less episode in a season
+// with no dates at all is simply aired — old shows carry no dates anywhere.
+const resolveAirStates = (eps: {episode: number; released?: string | null; local?: boolean}[]) => {
+  const now = Date.now();
+  let lastDated: number | null = null;
+  for (const ep of eps) {
+    if (Number.isFinite(airTime(ep.released))) lastDated = Math.max(lastDated ?? -Infinity, ep.episode || 0);
+  }
+  return eps.map((ep): UiEp['air'] => {
+    if (ep.local) return 'aired';
+    const t = airTime(ep.released);
+    if (Number.isFinite(t)) return t > now ? 'upcoming' : 'aired';
+    if (lastDated === null) return 'aired';
+    return (ep.episode || 0) > lastDated ? 'tba' : 'aired';
+  });
+};
 
 // One episode as a CARD in the season rail: a 16:9 still, the number and name
 // under it, then the facts. This is how a TV shows a season — the old full-width
@@ -487,21 +542,49 @@ const EpisodeCard = React.memo(function EpisodeCardItem({
               free for the name at a readable size. */}
           <Text style={styles.epNumOnArt}>{ep.num}</Text>
           {ep.owned ? <Text style={styles.epOwnedTag}>{'✓'}</Text> : null}
-          {ep.pct ? (
-            <View style={styles.epBar} pointerEvents="none">
-              <View style={[styles.epBarFill, {width: `${ep.pct}%`}]} />
+        </View>
+        {/* glass.css .episode-bar: a 3px track on the seam between the still
+            and the glass, the violet fill with its glow, and a 7px white bead
+            at the head — the site's timeline, not a slab inside the picture. */}
+        {ep.pct ? (
+          <View style={styles.epBar} pointerEvents="none">
+            <View style={[styles.epBarFill, {width: `${ep.pct}%`}]}>
+              <View style={styles.epBarHead} />
             </View>
+          </View>
+        ) : null}
+      {/* The body is the site's (discover-detail.js, glass look): the kicker
+          "EPISODE 2 · 53 MIN", the name, the synopsis, and a foot line that
+          leads with the air date — for an episode you don't own it is the one
+          fact there is, which is why cards 3 and 4 used to have nothing under
+          them. A fixed height keeps the row even when a synopsis is missing. */}
+      <View style={[styles.epBody, ep.air !== 'aired' && styles.epBodyUnaired]}>
+        <View>
+          <Text style={styles.epKicker} numberOfLines={1}>
+            {`EPISODE ${ep.num}${ep.durationMin ? `  ·  ${ep.durationMin} MIN` : ''}`}
+          </Text>
+          <Text style={styles.epTitle} numberOfLines={1}>
+            {unescapeHtml(ep.label)}
+          </Text>
+          {ep.overview ? (
+            <Text style={styles.epOverview} numberOfLines={2}>
+              {unescapeHtml(ep.overview)}
+            </Text>
           ) : null}
         </View>
-      <Text style={styles.epTitle} numberOfLines={1}>
-        {unescapeHtml(ep.label)}
-      </Text>
-      <View style={styles.epSub}>
-        {ep.durationLabel ? <Text style={styles.epDur}>{ep.durationLabel}</Text> : null}
-        {ep.hasSubs ? <Text style={styles.epBadge}>CC</Text> : null}
-        {ep.watched ? <Text style={styles.epBadge}>WATCHED</Text> : null}
-        {/* No STREAM tag (the site dropped it, 2026-10-06): the ✓ on the still
-            says which episodes are on disk; the rest simply stream. */}
+        <View style={styles.epFoot}>
+          {ep.air === 'tba' ? (
+            <Text style={[styles.epAir, styles.epAirDim]}>Date TBA</Text>
+          ) : ep.airLabel ? (
+            <>
+              <Icon name="play" size={11} color={ep.air === 'upcoming' ? colors.textFaint : colors.textDim} />
+              <Text style={[styles.epAir, ep.air === 'upcoming' && styles.epAirDim]}>{ep.airLabel}</Text>
+            </>
+          ) : null}
+          {ep.hasSubs ? <Text style={styles.epBadge}>CC</Text> : null}
+          <View style={styles.epFootSpacer} />
+          {ep.watched ? <Icon name="check" size={14} color={colors.textDim} /> : null}
+        </View>
       </View>
     </Focusable>
   );
@@ -987,6 +1070,7 @@ export default function Detail({
 
   const uiSeasons: UiSeason[] = useMemo(() => {
     // Local copies, keyed by season/episode so the merged list can find them.
+    const showRuntimeMin = parseRuntimeMin(streamMeta?.runtime);
     const local = new Map<string, Episode>();
     for (const se of full?.seasons || []) {
       for (const ep of se.episodes) local.set(`${se.number}x${ep.episode}`, ep);
@@ -999,6 +1083,8 @@ export default function Detail({
       title: string | undefined,
       overview: string | undefined,
       thumb?: string | null,
+      released?: string | null,
+      air: UiEp['air'] = 'aired',
     ): UiEp => {
       const ep = local.get(`${seasonNo}x${episodeNo}`);
       const pr = ep ? progress[ep.id] : undefined;
@@ -1022,11 +1108,14 @@ export default function Detail({
           : () => openEpisodeSources(seasonNo, episodeNo),
         owned: !!ep,
         durationLabel: fmtDuration(ep?.duration),
+        durationMin: ep?.duration ? Math.round(ep.duration / 60) : showRuntimeMin,
         hasSubs: !!ep?.subtitles?.length,
         watched: !!pr?.finished,
         pct,
         overview,
         thumb,
+        airLabel: fmtAirDate(released),
+        air,
       };
     };
 
@@ -1034,12 +1123,17 @@ export default function Detail({
     // available — for a library show as well as a stream one. Using the library's
     // own season list here is what hid every episode that wasn't downloaded yet.
     if (streamMeta?.seasons?.length) {
-      return streamMeta.seasons.map(se => ({
-        number: se.number,
-        episodes: se.episodes.map(ep =>
-          build(se.number, ep.episode, ep.title, ep.overview, ep.thumbnail),
-        ),
-      }));
+      return streamMeta.seasons.map(se => {
+        const airs = resolveAirStates(
+          se.episodes.map(ep => ({episode: ep.episode, released: ep.released, local: local.has(`${se.number}x${ep.episode}`)})),
+        );
+        return {
+          number: se.number,
+          episodes: se.episodes.map((ep, i) =>
+            build(se.number, ep.episode, ep.title, ep.overview, ep.thumbnail, ep.released, airs[i]),
+          ),
+        };
+      });
     }
     // No metadata (offline, or the title didn't resolve): fall back to whatever
     // is on disk rather than showing an empty page.
@@ -1770,26 +1864,61 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     overflow: 'hidden',
   },
-  epBar: {position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: 'rgba(255,255,255,0.18)'},
-  epBarFill: {height: '100%', backgroundColor: colors.progress},
+  epBar: {
+    position: 'absolute',
+    // Yoga places an absolute child against the padding box, so the glass
+    // padding is added back to keep the bar on the still's own edges.
+    left: EP_PAD,
+    right: EP_PAD,
+    top: EP_PAD + EP_ART_H - 1,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  epBarFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: '#8b7bff',
+    experimental_backgroundImage: 'linear-gradient(90deg, #8b7bff, #a6c8ff)',
+    boxShadow: '0 0 10px rgba(139,123,255,0.6)',
+  },
+  epBarHead: {
+    position: 'absolute',
+    right: -3,
+    top: -2,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#ffffff',
+    boxShadow: '0 0 8px rgba(255,255,255,0.9)',
+  },
   // 4dp horizontal inset: the caption sits inside the Focusable, and without it
   // the focus ring's stroke was drawn over the first letter (seen on-device:
   // "Thanksgiving" lost the top of its T).
+  epBody: {height: EP_BODY_H, paddingTop: 8, paddingHorizontal: 3, justifyContent: 'space-between'},
+  // Announced, not yet watchable: the site greys the whole row.
+  epBodyUnaired: {opacity: 0.6},
+  // glass.css .episode-kicker: 0.72rem 700, 0.08em tracking, uppercase, 0.7 white.
+  epKicker: {
+    color: 'rgba(243,244,248,0.7)',
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '700',
+    letterSpacing: 0.9,
+  },
   epTitle: {
     color: colors.text,
     fontSize: fontSize.small,
-    fontWeight: '700',
-    marginTop: 8,
-    paddingHorizontal: 3,
+    lineHeight: 18,
+    fontWeight: '800',
+    letterSpacing: -0.1,
+    marginTop: 2,
   },
-  epSub: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: 3,
-    paddingHorizontal: 3,
-  },
-  epDur: {color: colors.textFaint, fontSize: 13, fontWeight: '700'},
+  epOverview: {color: 'rgba(243,244,248,0.62)', fontSize: 12, lineHeight: 16, marginTop: 3},
+  epFoot: {flexDirection: 'row', alignItems: 'center', gap: 6, height: 18},
+  epFootSpacer: {flex: 1},
+  epAir: {color: colors.textDim, fontSize: 12, fontWeight: '600'},
+  epAirDim: {color: colors.textFaint},
   epBadge: {
     color: colors.textFaint,
     fontSize: 10,

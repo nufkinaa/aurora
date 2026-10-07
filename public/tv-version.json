@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.6",
-  "notes": "Episode cards wear the site's glass: a translucent box with the fine light edge, the still inset inside it and the name and runtime on the glass below. A focused episode (or a film's “More like this” card) brings the page to its end so the row has air under it."
+  "versionName": "5.1.7",
+  "notes": "Episode cards carry the site's facts: EPISODE 3 · 49 MIN over the name (the show's usual runtime when the episode is not on disk), two lines of synopsis, and the air date on the foot line with a tick once watched — so every episode has something under its picture. A part-watched episode's progress is the site's thin timeline with the lit bead, on the seam between picture and glass. Episodes announced but not yet aired are greyed, with their date or “Date TBA”."
 }
