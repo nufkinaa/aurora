@@ -361,11 +361,13 @@ const PrimaryBtn = ({
   hasTVPreferredFocus,
   edgeLeft,
   onPress,
+  onLongPress,
 }: {
   label: string;
   hasTVPreferredFocus?: boolean;
   edgeLeft?: boolean;
   onPress: () => void;
+  onLongPress?: () => void;
 }) => (
   <Focusable
     round
@@ -374,6 +376,7 @@ const PrimaryBtn = ({
     hasTVPreferredFocus={hasTVPreferredFocus}
     edgeLeft={edgeLeft}
     onPress={onPress}
+    onLongPress={onLongPress}
     style={styles.playBtn}>
     <Text style={styles.playText}>{label}</Text>
   </Focusable>
@@ -786,6 +789,12 @@ export default function Detail({
   // carries the same). The TV has no socket: polled every few seconds while
   // one is running, once after a request, and when the page comes back.
   const [epJobs, setEpJobs] = useState<Record<string, {status: string; progress: number}>>({});
+  // A FILM's own download (elia, 2026-10-07: "the same flow like the
+  // episodes" — press Play saves the best source, hold Play for the list).
+  // The Play button and a strip under it carry the job while it runs.
+  const [movieJob, setMovieJob] = useState<{status: string; progress: number} | null>(null);
+  const movieJobRef = useRef<{status: string; progress: number} | null>(null);
+  movieJobRef.current = movieJob;
   const loadEpJobs = useCallback(async () => {
     const imdb = item.imdbId || libImdb;
     if (!imdb) return false;
@@ -793,14 +802,25 @@ export default function Detail({
       const jobs = await api.downloads();
       const next: Record<string, {status: string; progress: number}> = {};
       let live = false;
+      let film: {status: string; progress: number} | null = null;
       for (const j of jobs) {
-        if (j.imdbId !== imdb || !j.season || !j.episode) continue;
+        if (j.imdbId !== imdb) continue;
         if (!['pending', 'approved', 'downloading'].includes(j.status)) continue;
+        if (!j.season || !j.episode) {
+          if (!film) film = {status: j.status, progress: j.progress || 0};
+          live = true;
+          continue;
+        }
         const k = `${j.season}x${j.episode}`;
         if (!next[k]) next[k] = {status: j.status, progress: j.progress || 0};
         live = true;
       }
       setEpJobs(next);
+      setMovieJob(film);
+      // The film's job just ended: the title may be on disk now. The library
+      // match (the `inLibrary` effect) is keyed on libraryTick, so bump it and
+      // the page turns "Play" into the copy's Play by itself.
+      if (movieJobRef.current && !film) setLibraryTick(t => t + 1);
       return live;
     } catch {
       return false;
@@ -1352,6 +1372,55 @@ export default function Detail({
   );
   const downloadBestRef = useRef<(s: number, e: number, air: UiEp['air']) => void>(() => {});
   downloadBestRef.current = downloadBest;
+  // Press Play on a film you don't hold: save the server's best source
+  // (recommended, else best-seeded) and carry the job on the button. Hold
+  // Play for the list of sources.
+  const downloadBestMovie = useCallback(async () => {
+    if (movieJob) {
+      showToast(`${dlText(movieJob).toLowerCase().replace(/^\w/, c => c.toUpperCase())} — hold Play for other sources`, '⏳');
+      return;
+    }
+    const imdb = await ensureImdb();
+    if (!imdb) return;
+    showToast(`Finding the best source for ${item.title}…`, '⬇');
+    try {
+      const {streams} = await api.torrentSources({type: 'movie', title: imdb, year: item.year ?? undefined});
+      const alive = (streams || []).filter(x => x.seeders > 0);
+      const pick = alive.find(x => x.recommended) || alive[0] || (streams || [])[0];
+      if (!pick) {
+        showToast('No sources for this title yet', '⚠');
+        return;
+      }
+      const res = await api.requestDownload({
+        infoHash: pick.infoHash,
+        fileIdx: pick.fileIdx,
+        type: 'movie',
+        imdbId: imdb,
+        title: item.title,
+        label: item.title,
+        year: item.year ?? undefined,
+        quality: pick.quality,
+        sizeBytes: pick.sizeBytes,
+        provider: pick.provider,
+        seeders: pick.seeders,
+        profile: profileId,
+      });
+      if (res.alreadyAvailable) {
+        showToast("Already yours — it's in the library", '✅');
+        setLibraryTick(t => t + 1);
+      } else if (res.duplicate) showToast('Already queued. Patience.', '⏳');
+      else if (res.needsApproval) showToast(`Requested ${pick.quality} · ${pick.sizeString || ''} — waiting for approval`, '⬇');
+      else showToast(`Saving ${pick.quality} · ${pick.sizeString || ''} — Play shows the progress`, '⬇');
+      if (!res.alreadyAvailable) {
+        setMovieJob({status: res.needsApproval ? 'pending' : 'approved', progress: 0});
+        setTimeout(() => {
+          if (!pollArmed.current) setFullTick(t => t + 1);
+        }, 1500);
+      }
+    } catch (err) {
+      showToast((err as Error)?.message || "Couldn't request the download", '⚠');
+    }
+  }, [movieJob, ensureImdb, item.title, item.year, profileId]);
   const episodeActions = useCallback(
     (ep: UiEp) => {
       openActions({
@@ -1805,9 +1874,32 @@ export default function Detail({
             onPress={playMovie}
           />
         ) : (
-          // "Stream" — the site's word; a title not on disk streams, and the
-          // list of sources is where that choice is made.
-          <PrimaryBtn hasTVPreferredFocus edgeLeft label="⚠  Stream" onPress={openSources} />
+          // A title not on disk: Play saves the best source and carries the
+          // job (the episodes' flow, elia 2026-10-07); hold Play for the list
+          // of sources. The strip under it says what is happening.
+          <>
+            <PrimaryBtn
+              hasTVPreferredFocus
+              edgeLeft
+              label={movieJob ? `⬇  ${dlText(movieJob).toLowerCase().replace(/^\w/, c => c.toUpperCase())}` : '▶  Play'}
+              onPress={downloadBestMovie}
+              onLongPress={openSources}
+            />
+            <View style={styles.movieDl}>
+              {movieJob ? (
+                <View style={styles.movieDlTrack}>
+                  <View style={[styles.epBarFill, styles.epBarFillDl, styles.movieDlFill, {width: `${Math.max(2, Math.round((movieJob.progress || 0) * 100))}%`}]} />
+                </View>
+              ) : null}
+              <Text style={styles.movieDlHint} numberOfLines={1}>
+                {movieJob
+                  ? movieJob.status === 'pending'
+                    ? 'Waiting for approval  ·  hold Play for other sources'
+                    : 'Saving the best source  ·  hold Play for other sources'
+                  : 'Press Play to save the best source  ·  hold for the list'}
+              </Text>
+            </View>
+          </>
         )}
       </DetailHero>
       {/* The shelf: titles like this one, below the fold like Max's Extras. */}
@@ -2013,6 +2105,11 @@ const styles = StyleSheet.create({
   actionsDense: {marginTop: spacing.md},
   actionsSecondary: {flexDirection: 'row', gap: 2, marginTop: spacing.sm, marginLeft: -16, flexWrap: 'wrap'},
   playBtn: {backgroundColor: colors.white, paddingVertical: 9, paddingHorizontal: 22, minHeight: 40, justifyContent: 'center'},
+  // under the film's Play: the download's strip and the one-line hint
+  movieDl: {flexBasis: '100%', marginTop: -2, gap: 5},
+  movieDlTrack: {width: 240, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.14)', overflow: 'hidden'},
+  movieDlFill: {position: 'relative', height: 4, borderRadius: 2},
+  movieDlHint: {color: colors.textFaint, fontSize: fontSize.small},
   playText: {color: colors.bg, fontSize: fontSize.body, fontWeight: '800'},
   // Translucent rather than the flat surface colour: these sit on artwork now,
   // and a solid slab there reads as a hole punched in the picture.

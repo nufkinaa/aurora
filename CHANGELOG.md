@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.56 — 2026-10-07
+
+- Aurora TV 5.1.15: a film the library lacks gets the episodes' flow (elia: "remove the warning from the Stream button … pressing Play downloads the best and only a long press opens the sources panel"). The button reads "▶ Play"; a press saves the server's best source (recommended, else best-seeded) and the button carries the job — "⬇ Starting", "⬇ Saving 34%" — with a mint strip and a line under it ("Saving the best source · hold Play for other sources"); a hold opens the list of sources. When the download lands the page turns into the copy's Play by itself. Idle, the line says "Press Play to save the best source · hold for the list".
+
 ## 1.6.55 — 2026-10-07
 
 - Aurora TV 5.1.14: the X-Ray sheet carries the same violet-to-green hue as the player's menus (elia).
