@@ -132,6 +132,12 @@ function Card({
       ? `/img/frame/${encodeURIComponent(item.id)}?t=${Math.floor(prog!.position)}`
       : (frame && !isEpisode && item.backdrop) || item.cover || item.poster,
   );
+  // A poster URL that 404s or times out used to leave an empty frame (seen in
+  // search results on the Mi TV, 2026-10-07); a failed picture falls back to
+  // the title tile like a missing one. Keyed by uri so a new picture gets its
+  // chance.
+  const [brokenUri, setBrokenUri] = React.useState<string | null>(null);
+  const broken = !!src && brokenUri === src.uri;
   const showLabel = !hideLabel && (landscape || item.upNext);
   // "N min left", under the title of a card mid-way (the site's glass look).
   const left =
@@ -208,7 +214,7 @@ function Card({
         </>
       }
       style={frame ? styles.cardFrame : landscape ? styles.cardWide : styles.card}>
-      {src ? (
+      {src && !broken ? (
         // resizeMethod="resize": decode at view size, not source size — dozens of
         // posters decoded full-size is a silent memory/CPU tax on a TV.
         // fadeDuration={0}: Android's 300ms default makes every poster feel late.
@@ -218,6 +224,7 @@ function Card({
           resizeMode="cover"
           resizeMethod="resize"
           fadeDuration={0}
+          onError={() => setBrokenUri(src.uri)}
         />
       ) : (
         // `.card-fallback` (components.css:333-342) — a 160° gradient tile with

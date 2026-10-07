@@ -74,8 +74,12 @@ BLOOMS = [
     # drifting across the upper half. Two wide, flat green blooms stand in for
     # it here — very faint (elia: "subtle, easy on the GPU", 2026-10-06), and
     # baked into the same single image, so it costs the box nothing at all.
-    (0.42, 0.20, 0.62, 0.17, (70, 200, 150), 0.11, 0.95),
-    (0.12, 0.50, 0.34, 0.13, (60, 180, 140), 0.07, 0.95),
+    # Lifted 2026-10-07 (elia: "add some green hue, just a bit — the
+    # background already got purple"): the two bands a touch stronger, and a
+    # third low on the right so the green is in the room, not only the sky.
+    (0.42, 0.20, 0.62, 0.17, (70, 200, 150), 0.19, 0.95),
+    (0.12, 0.50, 0.34, 0.13, (60, 180, 140), 0.12, 0.95),
+    (0.84, 0.74, 0.40, 0.20, (64, 190, 150), 0.10, 0.95),
     # A dark-purple glow spreading from the centre, 40% at its heart (elia,
     # 2026-10-06) — the room light the page sits in.
     (0.50, 0.50, 0.58, 0.62, (58, 38, 112), 0.40, 1.0),
@@ -189,6 +193,20 @@ foot.putdata([(BG[0], BG[1], BG[2], round(255 * smooth(y / 63))) for y in range(
 path = os.path.join(ASSETS, 'foot-ramp.png')
 foot.save(path, optimize=True)
 print('edge-ramp.png / foot-ramp.png baked')
+
+# ---- the shelves' left fade -------------------------------------------------
+# A card that has slid past a row's left edge used to end in a hard cut under
+# the rail (elia, 2026-10-07: "the cards are being cut a bit on the very left
+# ... we can add some fade there"). This strip sits over the row's first
+# `contentLeft` dp: the page colour, solid at the screen edge, melting to clear
+# where the cards begin. Smoothstep, so neither end shows a line. The colour is
+# a shade warmer than --bg so it sits in the ambient instead of under it.
+FADE = (13, 14, 24)
+rowfade = Image.new('RGBA', (64, 64))
+rowfade.putdata([(FADE[0], FADE[1], FADE[2], round(255 * (1 - smooth(x / 63)))) for _ in range(64) for x in range(64)])
+path = os.path.join(ASSETS, 'row-fade.png')
+rowfade.save(path, optimize=True)
+print('row-fade.png baked')
 
 # ---- the title page's picture mask, one full-screen image ------------------
 # Detail's picture sits in the upper-right box (x >= 38%, y <= 76%). Every

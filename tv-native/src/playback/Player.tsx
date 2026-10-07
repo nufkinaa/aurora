@@ -376,17 +376,27 @@ const audioLabel = (t: {index: number; language?: string | null; title?: string 
   return lang || title || `Track ${t.index + 1}`;
 };
 
+// A menu section's title with its glyph (elia, 2026-10-07: "add icons where
+// it makes sense"): the same icon family as the transport row, dim, 13dp.
+const MenuTitle = ({icon, label, gap}: {icon: IconName; label: string; gap?: boolean}) => (
+  <View style={[styles.menuTitleRow, gap && styles.menuTitleGap]}>
+    <Icon name={icon} size={13} color={colors.textDim} />
+    <Text style={styles.menuTitle}>{label}</Text>
+  </View>
+);
+
 const MenuItem = React.forwardRef<
   View,
   {
     label: string;
     tag?: string;
     on?: boolean;
+    icon?: IconName; // a glyph before the label, for the rows that are actions rather than choices
     hasTVPreferredFocus?: boolean;
     onPress: () => void;
     onFocusChange?: (f: boolean) => void;
   }
->(function PlayerMenuItem({label, tag, on, hasTVPreferredFocus, onPress, onFocusChange}, ref) {
+>(function PlayerMenuItem({label, tag, on, icon, hasTVPreferredFocus, onPress, onFocusChange}, ref) {
   return (
     <Focusable
       ref={ref}
@@ -399,6 +409,7 @@ const MenuItem = React.forwardRef<
       onPress={onPress}
       style={styles.menuItem}>
       <Text style={[styles.menuCheck, !on && styles.menuCheckOff]}>✓</Text>
+      {icon ? <Icon name={icon} size={14} color={on ? colors.text : colors.textDim} /> : null}
       <Text style={[styles.menuItemText, on && styles.menuItemTextOn]} numberOfLines={1}>
         {label}
       </Text>
@@ -2479,7 +2490,11 @@ export default function Player({
         offset={subOffset}
         sizePx={CUE_PX[prefs.cueSize]}
         background={prefs.cueBackground}
-        bottom={controls ? 198 : 48}
+        // 198 dated from the taller chrome; with the slimmer timeline the cue
+        // floated mid-picture while the controls were up (elia, 2026-10-07:
+        // "take the subs down a bit when the timeline is open"). 150 clears
+        // the scrubber row with a line to spare.
+        bottom={controls ? 150 : 48}
       />
 
       {/* Mid-playback stall. The site only darkens the picture and explains
@@ -2790,7 +2805,7 @@ export default function Player({
           stray D-pad press wanders to the transport bar behind the overlay. */}
       {menu === 'cc' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
-          <Text style={styles.menuTitle}>SUBTITLES</Text>
+          <MenuTitle icon="cc" label="SUBTITLES" />
           <ScrollView ref={ccScroll} style={styles.menuScroll}>
             {/* The site's first CC entry: one press that drops any manual delay
                 and re-downloads the track. Cheap insurance for "the subs look off
@@ -2804,6 +2819,7 @@ export default function Player({
             ) : null}
             <MenuItem
               label="Off"
+              icon="close"
               on={!subKey}
               hasTVPreferredFocus={!subKey}
               onFocusChange={markZone('menu')}
@@ -2848,7 +2864,7 @@ export default function Player({
                 and a useless one. The menu stays open while you nudge. */}
             {subKey ? (
               <>
-                <Text style={[styles.menuTitle, styles.menuTitleGap]}>SUBTITLE TIMING</Text>
+                <MenuTitle icon="forward10" label="SUBTITLE TIMING" gap />
                 <View style={styles.syncRow}>
                   {[-5, -0.5].map(d => (
                     <Focusable
@@ -2902,7 +2918,7 @@ export default function Player({
       {/* Speed — the site's SPEEDS menu. */}
       {menu === 'speed' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
-          <Text style={styles.menuTitle}>SPEED</Text>
+          <MenuTitle icon="speed" label="SPEED" />
           <ScrollView style={styles.menuScroll}>
             {SPEEDS.map(sp => (
               <MenuItem
@@ -2931,7 +2947,7 @@ export default function Player({
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
           {audioTracks.length > 1 ? (
             <>
-              <Text style={styles.menuTitle}>AUDIO</Text>
+              <MenuTitle icon="volume" label="AUDIO" />
               {audioTracks.map(t => (
                 <MenuItem
                   key={`a${t.index}`}
@@ -2952,7 +2968,7 @@ export default function Player({
           ) : null}
           {epSeason && epEpisode ? (
             <>
-              <Text style={[styles.menuTitle, audioTracks.length > 1 && styles.menuTitleGap]}>PLAYBACK</Text>
+              <MenuTitle icon="play" label="PLAYBACK" gap={audioTracks.length > 1} />
               <MenuItem
                 label="Autoplay next episode"
                 tag={prefs.autoplayNext ? 'On' : 'Off'}
@@ -2964,7 +2980,7 @@ export default function Player({
           ) : null}
           {introKey.current ? (
             <>
-              <Text style={[styles.menuTitle, styles.menuTitleGap]}>SKIP INTRO</Text>
+              <MenuTitle icon="skip" label="SKIP INTRO" gap />
               {autoIntro.current && !intro.current ? (
                 <MenuItem
                   label="Ignore the detected intro"
@@ -3023,7 +3039,7 @@ export default function Player({
               )}
             </>
           ) : null}
-          <Text style={[styles.menuTitle, styles.menuTitleGap]}>SUBTITLE STYLE</Text>
+          <MenuTitle icon="cc" label="SUBTITLE STYLE" gap />
           <MenuItem
             label="Size"
             tag={{S: 'Small', M: 'Medium', L: 'Large'}[prefs.cueSize]}
@@ -3045,7 +3061,7 @@ export default function Player({
       {/* Watch together — the party panel (site: .party-panel). */}
       {menu === 'party' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
-          <Text style={styles.menuTitle}>WATCH TOGETHER</Text>
+          <MenuTitle icon="people" label="WATCH TOGETHER" />
           {partyInfo ? (
             <>
               <Text style={styles.partyCode}>{partyInfo.code.split('').join(' ')}</Text>
@@ -3397,23 +3413,28 @@ const styles = StyleSheet.create({
     right: spacing.pageX,
     bottom: 124,
     maxHeight: '62%',
-    backgroundColor: 'rgba(13,14,24,0.985)',
+    // A little of the room's light in the glass (elia, 2026-10-07: "give the
+    // background there a bit hue"): the site's violet from the top-left, the
+    // aurora's green from the foot, over a near-opaque navy.
+    backgroundColor: 'rgba(16,15,30,0.97)',
+    experimental_backgroundImage:
+      'linear-gradient(140deg, rgba(104,86,226,0.30) 0%, rgba(16,15,30,0) 48%, rgba(70,200,150,0.20) 100%)',
     borderRadius: radius.l,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     minWidth: 280,
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: 'rgba(255,255,255,0.10)',
+    borderTopColor: 'rgba(255,255,255,0.20)',
   },
   menuScroll: {flexGrow: 0},
+  menuTitleRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.sm, marginLeft: 12},
   menuTitle: {
     color: colors.textDim,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 2,
-    marginBottom: spacing.sm,
-    marginLeft: 12,
   },
   // Row, not a plain block: the site's entries put a value tag on the right.
   menuItem: {

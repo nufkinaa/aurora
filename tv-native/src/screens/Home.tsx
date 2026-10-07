@@ -619,44 +619,57 @@ export default function Home({
 
   return (
     <View style={styles.root}>
+      {/* The artwork is a FIXED layer behind the column that FADES with the
+          scroll (elia, 2026-10-07: "under the hero on home it gets cut and it's
+          noticeable"). Scrolling WITH the column left a seam where the layer
+          ended — the veil's baked colour met the live ambient under the rows,
+          a horizon line a third of the way down the screen once the hero had
+          scrolled off. Fixed and fading, the art is gone by the time the
+          shelves reach the undissolved part of it (the §1.5 objection), and the
+          rows always sit on the real background: nothing to meet, no edge. */}
+      <Animated.View
+        style={[
+          styles.artFade,
+          {
+            opacity: ty.value.interpolate({
+              inputRange: [-Math.round(heroH * 0.9), -Math.round(heroH * 0.3), 0],
+              outputRange: [0, 1, 1],
+              extrapolate: 'clamp',
+            }),
+          },
+        ]}
+        pointerEvents="none">
+      {art ? (
+        <HeroArt art={art} atTop={atTop} h={height}>
+          {trailer ? (
+            <Animated.View style={[styles.trailerLayer, {opacity: trailerFade}]} pointerEvents="none">
+              <TrailerFrame
+                key={trailer.key}
+                videoId={trailer.id}
+                muted
+                handle={trailerHandle}
+                onState={onTrailerState}
+                // 16:9 at 15% over the window, so YouTube's title strip and
+                // watermark sit outside the frame (the site does the same).
+                style={{
+                  position: 'absolute',
+                  width: Math.round(width * 1.15),
+                  height: Math.round((width * 1.15 * 9) / 16),
+                  left: -Math.round(width * 0.075),
+                  top: Math.round((height - (width * 1.15 * 9) / 16) / 2),
+                }}
+              />
+            </Animated.View>
+          ) : null}
+        </HeroArt>
+      ) : null}
+      </Animated.View>
       <Animated.View
         style={[styles.column, {transform: [{translateY: ty.value}]}]}
         onLayout={e => {
           colH.current = e.nativeEvent.layout.height;
         }}
         pointerEvents="box-none">
-        {/* The artwork travels WITH the column, because on the site it is the
-            hero's own background and the hero scrolls away (screens.css:32 sits
-            inside `.hero`). 02-home §1.5 translates it as a fixed layer instead;
-            built that way and measured, the shelves slide up INTO the part of the
-            art the veil has not dissolved yet, so they end up sitting on bright
-            artwork — the one thing §1.5 itself says the site's home never does.
-            Moving it into the column costs nothing and removes the conflict: art
-            and dissolve stay registered because they move together. */}
-        {art ? (
-          <HeroArt art={art} atTop={atTop} h={height}>
-            {trailer ? (
-              <Animated.View style={[styles.trailerLayer, {opacity: trailerFade}]} pointerEvents="none">
-                <TrailerFrame
-                  key={trailer.key}
-                  videoId={trailer.id}
-                  muted
-                  handle={trailerHandle}
-                  onState={onTrailerState}
-                  // 16:9 at 15% over the window, so YouTube's title strip and
-                  // watermark sit outside the frame (the site does the same).
-                  style={{
-                    position: 'absolute',
-                    width: Math.round(width * 1.15),
-                    height: Math.round((width * 1.15 * 9) / 16),
-                    left: -Math.round(width * 0.075),
-                    top: Math.round((height - (width * 1.15 * 9) / 16) / 2),
-                  }}
-                />
-              </Animated.View>
-            ) : null}
-          </HeroArt>
-        ) : null}
         {/* No hero but real rows (a server mid-warmup can emit that): the Play
             button — this screen's focus fallback — never mounts, so give the
             fallback a home. Without one, a focused card unmounting (long-press
@@ -808,6 +821,7 @@ const styles = StyleSheet.create({
   // is baked against the window (tools/gen_ambient.py), so shrinking this would
   // compress the dissolve away from the stops it was baked at.
   artLayer: {position: 'absolute', top: 0, left: 0, right: 0},
+  artFade: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0},
   art: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%'},
   // `brightness()` as the scrim it implies. NOT --bg: painting the page colour
   // over the art is what screens.css:13-20 rejects.

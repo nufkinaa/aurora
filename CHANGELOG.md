@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.54 — 2026-10-07
+
+- Aurora TV 5.1.13: the Home billboard's picture is a fixed layer that fades out with the scroll instead of travelling with the page and ending in a line a third of the way down the screen (elia: "under the hero on home it gets cut and it's noticeable").
+- Aurora TV 5.1.13: subtitles sit lower while the controls are up — the old height dated from the taller chrome and left the cue floating mid-picture over the slimmer timeline (elia).
+- Aurora TV 5.1.13: a card that has slid past a shelf's left edge fades into the page under the rail instead of being cut (elia); the room light has a touch more of the aurora's green, a third bloom low on the right (elia: "add some green hue, just a bit"); the player's menus (subtitles, speed, settings, watch together) carry an icon on every section title and a violet-to-green hue in the glass (elia); a poster that fails to load falls back to the title tile instead of an empty frame (seen in search results on the Mi TV).
+
 ## 1.6.53 — 2026-10-07
 
 - Aurora TV 5.1.12: X-Ray on the TV (elia: "why not add X-Ray also to TV?"). An eye button on every title page and in the player's row: who is in this, who made it, what people thought — a sheet that rises from the foot of the screen with a small overshoot, the phone's shape at TV size. For an episode: its own guest cast first ("In this episode"), the regulars under them, the air date, runtime and rating, the director and writers; for a film or a show: cast, ratings, release, runtime, country, the crew by job. Faces are round portraits that keep their initials until the picture lands; Back closes; opened from the player the film pauses and resumes when the sheet goes. The server answers by library id now (`/api/xray?itemId=`), so the remote never needs to know a show's IMDb id or an episode's numbers.

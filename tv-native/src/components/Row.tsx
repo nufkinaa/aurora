@@ -33,11 +33,17 @@
 //    in blocks, so most keypresses still cost zero React renders, which is the
 //    property the card layer was rebuilt around.
 import React, {useCallback, useMemo, useState} from 'react';
-import {View, Text, StyleSheet, Animated, TVFocusGuideView} from 'react-native';
+import {View, Text, Image, StyleSheet, Animated, TVFocusGuideView} from 'react-native';
 import Card, {CARD_W, CARD_H, FRAME_W, FRAME_H} from './Card';
 import {HeroItem} from '../api';
 import {defer, useSlide} from '../motion';
 import theme from '../theme';
+
+// The page colour melting to clear over the row's left margin, so a card that
+// has slid past the edge fades out instead of ending in a cut (elia,
+// 2026-10-07). Baked by tools/gen_ambient.py; a stretched PNG always draws on
+// the Mi TV where a gradient style did not.
+const ROW_FADE = require('../assets/row-fade.png');
 
 const {colors, fontSize, spacing, CLEARANCE, CANCEL} = theme;
 
@@ -173,6 +179,9 @@ function Row({
             );
           })}
         </Animated.View>
+        <View style={styles.fade} pointerEvents="none">
+          <Image source={ROW_FADE} style={styles.fadeImg} resizeMode="stretch" fadeDuration={0} />
+        </View>
       </TVFocusGuideView>
     </View>
   );
@@ -214,5 +223,10 @@ const styles = StyleSheet.create({
   // it is set from the tallest thing a slot can hold. `alignSelf: flex-start`
   // stops the track stretching to the row's full width.
   track: {alignSelf: 'flex-start'},
+  // Over the cards, under the rail: the strip spans the row's full height
+  // (padding included, so the focus halo fades too) and a little past the
+  // content edge, where the ramp is already near clear.
+  fade: {position: 'absolute', left: 0, top: 0, bottom: 0, width: spacing.contentLeft + 10},
+  fadeImg: {position: 'absolute', left: 0, top: 0, width: spacing.contentLeft + 10, height: '100%'},
   slot: {position: 'absolute', top: 0},
 });
