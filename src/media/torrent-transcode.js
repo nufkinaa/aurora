@@ -292,8 +292,10 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
       ? ["-c:v", "copy"]
       : [
           "-c:v", "libx264",
-          "-preset", "ultrafast", // must keep up with playback in real time
-          "-crf", "23",
+          // the same encode as remux.js — see the note there: crf 18 so a forced
+          // re-encode looks like the file, superfast to keep real time
+          "-preset", "superfast",
+          "-crf", "18",
           "-pix_fmt", "yuv420p", // fold 10-bit down to 8-bit for browsers
           "-g", "48",
           "-threads", String(FFMPEG_THREADS),

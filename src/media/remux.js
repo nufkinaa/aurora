@@ -291,8 +291,14 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
   const videoArgs = heavy
     ? [
         "-c:v", "libx264",
-        "-preset", "ultrafast", // must keep up with playback in real time
-        "-crf", "23",
+        // Only a device that cannot decode the file's own codec (HEVC, AV1,
+        // 10-bit) ever gets this encode — "Original" is a bit-exact copy
+        // everywhere else. So when it does happen it must look like the file:
+        // crf 18 is visually transparent for H.264 (23 showed blocking and
+        // smeared grain — elia: "I don't want low-bitrate artifacts"), and
+        // superfast keeps real time on a modest CPU where veryfast would not.
+        "-preset", "superfast",
+        "-crf", "18",
         "-pix_fmt", "yuv420p", // fold 10-bit down to 8-bit for browsers
         "-g", "48",
         "-threads", String(FFMPEG_THREADS),

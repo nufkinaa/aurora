@@ -354,6 +354,36 @@
     .pwho small { color: var(--text-faint); font-size: 0.78rem; }
     .gbadge { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 5px;
       background: #fff; color: #4285f4; font-weight: 900; font-size: 0.7rem; vertical-align: -3px; margin-left: 5px; }
+    /* the tab's stroke icons — the same family as the side nav's */
+    .ico { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; flex: none; display: inline-block; }
+    .ro-seg button .ico { width: 15px; height: 15px; margin-right: 6px; vertical-align: -2px; }
+    .ro-note { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+    .ro-note .ro-mode b { color: var(--text); }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line);
+      font-size: 0.76rem; font-weight: 700; color: var(--text-dim); white-space: nowrap; }
+    .chip .ico { width: 13px; height: 13px; }
+    .chip.ok { color: #4ade80; border-color: rgba(74, 222, 128, 0.3); }
+    .chip.bad { color: #ff7a7a; border-color: rgba(255, 122, 122, 0.3); }
+    .pfilters { margin: 0 0 12px; flex-wrap: wrap; }
+    .pfilters button { min-height: 34px; display: inline-flex; align-items: center; gap: 6px; }
+    .pfilters button b { font-weight: 800; opacity: 0.7; font-size: 0.76rem; }
+    .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 8px rgba(74, 222, 128, 0.7); margin-right: 7px; vertical-align: 1px; }
+    .person-row .chev { color: var(--text-faint); width: 18px; height: 18px; }
+    .person-row:hover .chev { color: var(--text); }
+    .cell-ico { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+    .cell-ico .ico { color: var(--text-faint); }
+    .copy { cursor: copy; border-bottom: 1px dotted var(--text-faint); }
+    .copy:hover { color: var(--text); border-bottom-color: var(--text); }
+    .person-head .sub > span { display: inline-flex; align-items: center; gap: 5px; }
+    .person-head .sub .ico { width: 14px; height: 14px; color: var(--text-faint); }
+    .person-body h4 .ico { width: 14px; height: 14px; vertical-align: -2px; }
+    .pitem.has-thumb { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .pitem .thumb { width: 34px; height: 50px; border-radius: 6px; object-fit: cover; background: var(--surface-hover); grid-row: 1 / span 2; }
+    .pitem.has-thumb .m { grid-column: 2 / -1; }
+    .actions-grid button .ico, .danger-zone button .ico { width: 16px; height: 16px; margin-right: 8px; vertical-align: -3px; }
+    .danger-zone { margin-top: 2px; padding-top: 12px; border-top: 1px dashed var(--line); display: flex; justify-content: flex-end; }
+    .danger-zone button { flex: 0 1 300px; }
+    .people-loading { color: var(--text-faint); padding: 14px 4px !important; font-size: 0.9rem; }
     /* one person's sheet */
     dialog.person { border: 1px solid var(--line); border-radius: 20px; background: var(--bg-raised); color: var(--text); padding: 0;
       width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 40px); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); margin: auto; }
@@ -375,11 +405,12 @@
     .pitem .t { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .pitem .m { grid-column: 1 / -1; color: var(--text-faint); font-size: 0.78rem; display: flex; gap: 4px 10px; align-items: center; flex-wrap: wrap; }
     .actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; }
-    .actions-grid button { padding: 11px 13px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line);
+    .actions-grid button, .danger-zone button { padding: 11px 13px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line);
       font: inherit; font-weight: 800; font-size: 0.88rem; text-align: left; color: var(--text); min-height: 56px; }
-    .actions-grid button:hover { background: var(--surface-hover); }
-    .actions-grid button small { display: block; color: var(--text-faint); font-weight: 600; font-size: 0.74rem; margin-top: 2px; line-height: 1.35; }
-    .actions-grid button.danger { color: #ff7a7a; border-color: rgba(255, 122, 122, 0.35); }
+    .actions-grid button:hover, .danger-zone button:hover { background: var(--surface-hover); }
+    .actions-grid button small, .danger-zone button small { display: block; color: var(--text-faint); font-weight: 600; font-size: 0.74rem; margin-top: 2px; line-height: 1.35; }
+    .actions-grid button.danger, .danger-zone button.danger { color: #ff7a7a; border-color: rgba(255, 122, 122, 0.35); }
+    .danger-zone button.danger:hover { background: rgba(255, 122, 122, 0.08); }
     @media (max-width: 700px) {
       .rollout { top: 6px; padding: 10px 12px; gap: 8px; }
       .rollout .ro-seg { width: 100%; }
@@ -390,6 +421,9 @@
       .person-head { padding: 14px 14px 12px; }
       .person-body { padding: 14px 14px calc(26px + env(safe-area-inset-bottom)); gap: 16px; }
       .actions-grid { grid-template-columns: 1fr 1fr; }
+      .danger-zone button { flex: 1 1 auto; }
+      .pfilters button { flex: 1 1 auto; justify-content: center; }
+      .person-row .chev { display: none; }
     }
   </style>
 </head>
@@ -633,9 +667,10 @@
           <span class="note">Press a person for their sign-in, devices, downloads and every action.</span>
         </h2>
         <div class="stats compact" id="people-stats"></div>
+        <div class="range-chips pfilters" id="people-filters"></div>
         <div class="table-scroll"><table>
-          <thead><tr><th>Person</th><th>Sign-in</th><th>Last seen</th><th>Devices</th><th>Downloads</th><th>Status</th></tr></thead>
-          <tbody id="people-table"></tbody>
+          <thead><tr><th>Person</th><th>Sign-in</th><th>Last seen</th><th>Devices</th><th>Downloads</th><th>Status</th><th></th></tr></thead>
+          <tbody id="people-table"><tr><td colspan="7" class="people-loading">Loading people…</td></tr></tbody>
         </table></div>
         <div class="empty-note hidden" id="people-empty">Nobody matches.</div>
       </section>
@@ -1523,11 +1558,39 @@
     let PEOPLE = null;
     let openPersonId = null;
     let peopleQuery = "";
+    let peopleFilter = "all";
+
+    // stroke icons (the side nav's family), inline so a row needs no request
+    const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+    const ICO = {
+      unlock: svg('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 017.5-2"/>'),
+      key: svg('<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M15 7l2 2M18 4l2 2"/>'),
+      lock: svg('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/>'),
+      tv: svg('<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>'),
+      phone: svg('<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>'),
+      laptop: svg('<rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2 19h20"/>'),
+      download: svg('<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/>'),
+      pin: svg('<path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/>'),
+      bolt: svg('<path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/>'),
+      ban: svg('<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>'),
+      out: svg('<path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M12 3h7a2 2 0 012 2v14a2 2 0 01-2 2h-7"/>'),
+      trash: svg('<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>'),
+      chev: svg('<path d="M9 6l6 6-6 6"/>').replace('class="ico"', 'class="ico chev"'),
+      clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+      user: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c.7-4 3.7-6 8-6s7.3 2 8 6"/>'),
+      check: svg('<path d="M5 12l5 5L20 7"/>'),
+      mail: svg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>'),
+      at: svg('<circle cx="12" cy="12" r="4"/><path d="M16 12v1.5a2.5 2.5 0 005 0V12a9 9 0 10-3.5 7.1"/>'),
+      wifi: svg('<path d="M2 9a15 15 0 0120 0M5.5 12.5a10 10 0 0113 0M9 16a5 5 0 016 0"/><circle cx="12" cy="19.5" r="1"/>'),
+      shield: svg('<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/>'),
+      eye: svg('<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
+    };
+    const devIco = (d) => { const t = d && d.device; return t === "TV" ? ICO.tv : t === "Mobile" ? ICO.phone : ICO.laptop; };
 
     const AUTH_MODES = [
-      { id: "open", name: "🔓 Open", short: "No accounts, no login — the profile wall greets everyone.", desc: "How Aurora always worked. No accounts, no login — the profile wall greets everyone. Flipping back here always restores this exactly." },
-      { id: "transition", name: "🔑 Transition", short: "Everything works as before; each profile can switch sign-in on with a one-time prompt.", desc: "The app keeps working exactly as it does now, but each profile can switch sign-in on: a one-time in-app prompt to pick a username (a profile's password doubles as its sign-in password). Nobody is locked out of anything." },
-      { id: "closed", name: "🔒 Closed", short: "A real login wall: every device signs in with username or email and password.", desc: "A real login wall, like any site. Every device signs in with username/email + password and lands straight in its profile; all data and video routes require a session. Flip here once everyone shows CLAIMED." },
+      { id: "open", name: "Open", icon: ICO.unlock, short: "No accounts, no login — the profile wall greets everyone.", desc: "How Aurora always worked. No accounts, no login — the profile wall greets everyone. Flipping back here always restores this exactly." },
+      { id: "transition", name: "Transition", icon: ICO.key, short: "Everything works as before; each profile can switch sign-in on with a one-time prompt.", desc: "The app keeps working exactly as it does now, but each profile can switch sign-in on: a one-time in-app prompt to pick a username (a profile's password doubles as its sign-in password). Nobody is locked out of anything." },
+      { id: "closed", name: "Closed", icon: ICO.lock, short: "A real login wall: every device signs in with username or email and password.", desc: "A real login wall, like any site. Every device signs in with username/email + password and lands straight in its profile; all data and video routes require a session. Flip here once everyone shows CLAIMED." },
     ];
 
     const pav = (p, big) => `<span class="pav${big ? " big" : ""}" style="background:${esc(p.color || "#333")}33">${
@@ -1546,6 +1609,7 @@
       : j.status === "done" ? "last one finished" : j.status === "pending" ? "one waiting" : j.status;
 
     async function loadPeople() {
+      if (!PEOPLE) $("#people-table").innerHTML = `<tr><td colspan="7" class="people-loading">Loading people…</td></tr>`;
       let info = {};
       try { info = await json("/api/server-info"); } catch {}
       const d = await json("/api/admin/people");
@@ -1564,23 +1628,24 @@
       const mode = d.authMode || info.authMode || "open";
       const cur = AUTH_MODES.find((m) => m.id === mode) || AUTH_MODES[0];
       $("#auth-modes").innerHTML = AUTH_MODES.map((m) => `
-        <button data-auth-mode="${m.id}" class="${mode === m.id ? "on" : ""}" title="${esc(m.desc)}" ${mode === m.id ? "disabled" : ""}>${m.name}</button>`).join("");
+        <button data-auth-mode="${m.id}" class="${mode === m.id ? "on" : ""}" title="${esc(m.desc)}" ${mode === m.id ? "disabled" : ""}>${m.icon}${m.name}</button>`).join("");
       const howTo = `<details><summary>how to set it up</summary><div>To enable the normal browser popup (free): Google Cloud Console → OAuth consent screen → Credentials → Create credentials → OAuth client ID → type <strong>“Web application”</strong>, add the redirect URIs <code>http://localhost:4000/api/auth/google/web-callback</code> and <code>https://nufurora.com/api/auth/google/web-callback</code>, then put <code>GOOGLE_WEB_CLIENT_ID=…</code> and <code>GOOGLE_WEB_CLIENT_SECRET=…</code> in the server's <code>.env</code> and restart. The TV code flow (only the TV app and raw-IP devices use it) needs a second client of type “TVs and Limited Input devices” as <code>GOOGLE_TV_CLIENT_ID=…</code> + <code>GOOGLE_TV_CLIENT_SECRET=…</code>.</div></details>`;
-      const line = (g) => `<strong>${esc(cur.name.replace(/^\S+\s/, ""))}:</strong> ${esc(cur.short)} &nbsp;·&nbsp; Google sign-in: ${g}`;
+      // the current mode in one line, then the Google setup as chips
+      const modeLine = `<span class="ro-mode"><b>${esc(cur.name)}</b> · ${esc(cur.short)}</span>`;
+      const chip = (cls, ico, txt) => `<span class="chip ${cls}">${ico}${esc(txt)}</span>`;
       if (!info.google) {
-        $("#ro-note").innerHTML = line(`<span class="muted">not configured</span> · ${howTo}`);
+        $("#ro-note").innerHTML = `${modeLine}${chip("", ICO.lock, "Google sign-in not configured")}${howTo}`;
         return;
       }
-      $("#ro-note").innerHTML = line(`<span class="muted">checking…</span>`);
+      $("#ro-note").innerHTML = `${modeLine}${chip("", ICO.clock, "Google sign-in: checking…")}`;
       json("/api/admin/google-check").then((g) => {
-        const web = info.googleWeb ? `<span class="ok">browser popup ✓</span>` : `<span class="muted">browser popup not configured</span>`;
-        const tv = g.status === "ok" ? `<span class="ok">TV code flow ✓</span>`
-          : g.status === "missing" ? `<span class="muted">TV code flow not set (fine for now)</span>`
-          : g.status === "wrong_type" ? `<span class="bad">TV code flow: wrong client type</span>`
-          : `<span class="bad">TV code flow not working${g.detail ? ` — ${esc(g.detail)}` : ""}</span>`;
-        $("#ro-note").innerHTML = line(`${web} · ${tv} · ${howTo}`);
+        const web = info.googleWeb ? chip("ok", ICO.check, "Google popup works") : chip("", ICO.lock, "Google popup not configured");
+        const tv = g.status === "ok" ? chip("ok", ICO.check, "TV code flow works")
+          : g.status === "missing" ? chip("", ICO.tv, "TV code flow not set — fine for now")
+          : chip("bad", ICO.ban, g.status === "wrong_type" ? "TV code flow: wrong client type" : `TV code flow not working${g.detail ? ` — ${g.detail}` : ""}`);
+        $("#ro-note").innerHTML = `${modeLine}${web}${tv}${howTo}`;
       }).catch(() => {
-        $("#ro-note").innerHTML = line(`<span class="muted">couldn't check right now</span>`);
+        $("#ro-note").innerHTML = `${modeLine}${chip("", ICO.clock, "Google sign-in: couldn't check right now")}`;
       });
     }
 
@@ -1670,11 +1735,27 @@
         [((PEOPLE && PEOPLE.clients) || []).length, "devices connected"],
         [((PEOPLE && PEOPLE.bans) || []).length, "banned addresses"],
       ].map(([v, k]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("");
+      // quick filters, with counts — the questions you actually come here with
+      const attention = (p) => p.locked || p.mustReset || p.fails >= 5;
+      const FILTERS = [
+        ["all", "All", all.length],
+        ["online", "Online", all.filter((p) => p.live.length).length],
+        ["claimed", "Claimed", all.filter((p) => p.claimed).length],
+        ["unclaimed", "Not claimed", all.filter((p) => !p.claimed).length],
+        ["attention", "Needs attention", all.filter(attention).length],
+      ];
+      $("#people-filters").innerHTML = FILTERS.filter(([id, , n]) => id === "all" || n > 0).map(([id, label, n]) =>
+        `<button class="${peopleFilter === id ? "active" : ""}" data-filter="${id}">${esc(label)}<b>${n}</b></button>`).join("");
+      const passes = (p) =>
+        peopleFilter === "all" || (peopleFilter === "online" && p.live.length > 0) || (peopleFilter === "claimed" && p.claimed)
+        || (peopleFilter === "unclaimed" && !p.claimed) || (peopleFilter === "attention" && attention(p));
       const q = peopleQuery.trim().toLowerCase();
-      const list = q
-        ? all.filter((p) => [p.name, p.realName, p.username, p.email, ...p.access.map((a) => a.ip)]
-            .filter(Boolean).some((x) => String(x).toLowerCase().includes(q)))
-        : all;
+      const list = all
+        .filter(passes)
+        .filter((p) => !q || [p.name, p.realName, p.username, p.email, ...p.access.map((a) => a.ip)]
+          .filter(Boolean).some((x) => String(x).toLowerCase().includes(q)))
+        // who is here now first, then the most recently seen
+        .sort((a, b) => (b.live.length > 0) - (a.live.length > 0) || (b.lastSeen || 0) - (a.lastSeen || 0) || a.name.localeCompare(b.name));
       $("#people-empty").classList.toggle("hidden", list.length > 0);
       $("#people-table").innerHTML = list.map((p) => `
         <tr class="person-row" data-person="${esc(p.id)}" tabindex="0" role="button" aria-label="Open ${esc(p.name)}">
@@ -1682,12 +1763,19 @@
           <td>${p.claimed
             ? `${p.username ? "@" + esc(p.username) : ""}${p.hasGoogle ? gBadge : ""}${p.email ? `<div class="muted" style="font-size:0.78rem">${esc(p.email)}</div>` : ""}`
             : '<span class="muted">not claimed</span>'}</td>
-          <td class="muted">${esc(whenAgo(p.lastSeen))}</td>
-          <td>${p.ipCount}${p.live.length ? ` <span class="pill live">${p.live.length} on</span>` : ""}</td>
-          <td>${p.downloadsTotal}${p.downloads[0] ? ` <span class="muted" style="font-size:0.78rem">· ${esc(dlWord(p.downloads[0]))}</span>` : ""}</td>
+          <td class="muted">${p.live.length ? '<span class="live-dot"></span>now' : esc(whenAgo(p.lastSeen))}</td>
+          <td><span class="cell-ico">${devIco(p.access[0] && p.access[0].device)}${p.ipCount}</span></td>
+          <td><span class="cell-ico">${ICO.download}${p.downloadsTotal}</span>${p.downloads[0] ? ` <span class="muted" style="font-size:0.78rem">· ${esc(dlWord(p.downloads[0]))}</span>` : ""}</td>
           <td>${pills(p) || '<span class="muted">—</span>'}</td>
+          <td style="width:28px;padding-left:0">${ICO.chev}</td>
         </tr>`).join("");
     }
+    $("#people-filters").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-filter]");
+      if (!b) return;
+      peopleFilter = b.dataset.filter;
+      renderPeople();
+    });
     $("#people-table").addEventListener("click", (e) => {
       const row = e.target.closest("[data-person]");
       if (row) openPerson(row.dataset.person);
@@ -1713,10 +1801,10 @@
             ? `<span class="muted">probably</span> ${others.map(esc).join(", ")}`
             : '<span class="muted">—</span>';
         return `<tr>
-          <td>${deviceIcon(c.device?.device)} ${esc(devStr(c.device))}</td>
-          <td>${esc(c.ip)}</td>
+          <td><span class="cell-ico">${devIco(c.device)}${esc(devStr(c.device))}</span></td>
+          <td><span class="copy" data-copy="${esc(c.ip)}" title="Copy">${esc(c.ip)}</span></td>
           <td>${who}</td>
-          <td>${esc(c.activity || "")}${c.details ? ` <span class="muted">· ${esc(c.details)}</span>` : ""}</td>
+          <td>${c.activity === "watching" ? '<span class="live-dot"></span>' : ""}${esc(c.activity || "")}${c.details ? ` <span class="muted">· ${esc(c.details)}</span>` : ""}</td>
           <td class="muted">${esc(ago(c.connectedAt))}</td>
           <td style="text-align:right;white-space:nowrap">
             <button class="mini" onclick="kick('${esc(c.id)}')">Kick</button>
@@ -1725,6 +1813,13 @@
         </tr>`;
       }).join("");
     }
+
+    // tap an address anywhere in the tab to copy it
+    $("#pane-profiles").addEventListener("click", (e) => {
+      const cp = e.target.closest("[data-copy]");
+      if (!cp || !navigator.clipboard) return;
+      navigator.clipboard.writeText(cp.dataset.copy).then(() => toast(`Copied ${cp.dataset.copy}`)).catch(() => {});
+    });
 
     function renderBansFrom(bans) {
       $("#bans-count").textContent = bans.length;
@@ -1749,9 +1844,11 @@
       const p = ((PEOPLE && PEOPLE.people) || []).find((x) => x.id === id);
       if (!p) { if (sheet.open) sheet.close(); return; }
       const count = (txt) => `<span class="count">${esc(txt)}</span>`;
+      const liveIps = new Set(p.live.map((c) => c.ip));
       const dl = p.downloads.length
         ? p.downloads.map((j) => `
-          <div class="pitem">
+          <div class="pitem${j.poster ? " has-thumb" : ""}">
+            ${j.poster ? `<img class="thumb" src="${esc(j.poster)}" alt="" loading="lazy">` : ""}
             <span class="t" title="${esc(j.label || j.title || "")}">${esc(j.label || j.title || "—")}</span>
             <span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(phaseLabel(j))}${j.status === "downloading" ? ` ${Math.round((j.progress || 0) * 100)}%` : ""}</span>
             <span class="m">${esc(j.quality || "")}${j.sizeBytes ? ` · ${fmtBytes(j.sizeBytes)}` : ""} · asked ${esc(whenAgo(j.at))}${j.doneAt ? ` · finished ${esc(whenAgo(j.doneAt))}` : ""}</span>
@@ -1760,61 +1857,65 @@
       const addr = p.access.length
         ? p.access.map((a) => `
           <div class="pitem"${a.banned ? ' style="opacity:0.6"' : ""}>
-            <span class="t">${esc(a.ip)}${a.banned ? ' <span class="pill" style="color:#ff7a7a">banned</span>' : ""}</span>
+            <span class="t">${liveIps.has(a.ip) ? '<span class="live-dot"></span>' : ""}<span class="copy" data-copy="${esc(a.ip)}" title="Copy">${esc(a.ip)}</span>${a.banned ? ' <span class="pill" style="color:#ff7a7a">banned</span>' : ""}</span>
             <span>${a.banned
               ? `<button class="mini" data-unban="${esc(a.ip)}">Unban</button>`
               : `<button class="mini danger" data-ban="${esc(a.ip)}">Ban</button>`}</span>
-            <span class="m">${deviceIcon(a.device?.device)} ${esc(devStr(a.device))} · last ${esc(whenAgo(a.last))} · ${a.count} ${a.count === 1 ? "entry" : "entries"}${
+            <span class="m">${devIco(a.device)} ${esc(devStr(a.device))} · last ${esc(whenAgo(a.last))} · ${a.count} ${a.count === 1 ? "entry" : "entries"}${
               a.fails ? ` · <span style="color:#ff7a7a">${a.fails} failed</span>` : ""}</span>
           </div>`).join("")
         : `<div class="empty-note" style="padding:6px 0">Never entered from any device.</div>`;
       const live = p.live.length
-        ? `<div><h4>Online now ${count(`· ${p.live.length}`)}</h4><div class="plist">${p.live.map((c) => `
+        ? `<div><h4>${ICO.wifi} Online now ${count(`· ${p.live.length}`)}</h4><div class="plist">${p.live.map((c) => `
           <div class="pitem">
-            <span class="t">${deviceIcon(c.device?.device)} ${esc(devStr(c.device))}</span>
+            <span class="t"><span class="live-dot"></span>${devIco(c.device)} ${esc(devStr(c.device))}</span>
             <span><button class="mini" data-kick-client="${esc(c.id)}">Kick</button></span>
             <span class="m">${esc(c.ip)} · ${esc(c.activity || "")}${c.details ? ` · ${esc(c.details)}` : ""} · since ${esc(ago(c.connectedAt))}</span>
           </div>`).join("")}</div></div>`
         : "";
+      // a re-render while open (a live update, an action) keeps the scroll
+      const keepScroll = sheet.scrollTop;
       sheet.innerHTML = `
         <div class="person-head">${pav(p, true)}
           <div style="min-width:0">
             <h3>${esc(p.name)} ${pills(p)}</h3>
             <div class="sub">
-              ${p.realName ? `<span>${esc(p.realName)}</span>` : ""}
-              ${p.username ? `<span>@${esc(p.username)}</span>` : ""}
-              ${p.email ? `<span>${esc(p.email)}</span>` : ""}
+              ${p.realName ? `<span>${ICO.user}${esc(p.realName)}</span>` : ""}
+              ${p.username ? `<span>${ICO.at}<span class="copy" data-copy="${esc(p.username)}" title="Copy">${esc(p.username)}</span></span>` : ""}
+              ${p.email ? `<span>${ICO.mail}<span class="copy" data-copy="${esc(p.email)}" title="Copy">${esc(p.email)}</span></span>` : ""}
               ${p.hasGoogle ? `<span>${gBadge} Google sign-in</span>` : ""}
-              ${p.claimed ? "" : '<span class="muted">sign-in not claimed yet</span>'}
-              ${p.hasPassword ? "" : '<span class="muted">no password</span>'}
+              ${p.claimed ? "" : `<span class="muted">${ICO.key}sign-in not claimed yet</span>`}
+              ${p.hasPassword ? "" : `<span class="muted">${ICO.unlock}no password</span>`}
             </div>
           </div>
           <button class="x" data-close aria-label="Close">✕</button>
         </div>
         <div class="person-body">
           <div class="stats pstats">${[
-            [whenAgo(p.lastSeen), "last seen"],
+            [p.live.length ? "now" : whenAgo(p.lastSeen), "last seen"],
             [p.ipCount, "addresses"],
-            [p.sessions, "signed-in devices"],
+            [p.sessions, "sessions"],
             [p.started, "started"],
             [p.finished, "finished"],
-            [p.watchlistCount, "in their list"],
+            [p.watchlistCount, "in list"],
           ].map(([v, k]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("")}</div>
           ${live}
-          <div><h4>Recent downloads ${p.downloadsTotal ? count(`· last ${Math.min(5, p.downloads.length)} of ${p.downloadsTotal}`) : ""}</h4><div class="plist">${dl}</div></div>
-          <div><h4>Devices &amp; addresses ${p.access.length ? count(`· last ${p.access.length} of ${p.ipCount} ${p.ipCount === 1 ? "address" : "addresses"}`) : ""}</h4><div class="plist">${addr}</div></div>
-          <div><h4>Actions</h4><div class="actions-grid">
-            <button data-act="lock">${p.locked ? "Unsuspend" : "Suspend"}<small>${p.locked ? "let them back in" : "locks the profile — nobody can enter it, every device is signed out"}</small></button>
-            <button data-act="kick">Kick<small>sign them out of every device now; their password lets them straight back in</small></button>
-            <button data-act="reset">${p.mustReset ? "Withdraw password reset" : "Reset password"}<small>${p.mustReset ? "they still have to pick a new one — press to let it go" : "they pick a new password at their next sign-in"}</small></button>
-            <button data-act="setpw">Set password<small>you choose it — tell them in person, don't text it</small></button>
-            <button data-act="delete" class="danger">Delete<small>removes the profile with its progress, list and ratings</small></button>
-          </div></div>
+          <div><h4>${ICO.download} Recent downloads ${p.downloadsTotal ? count(`· last ${Math.min(5, p.downloads.length)} of ${p.downloadsTotal}`) : ""}</h4><div class="plist">${dl}</div></div>
+          <div><h4>${ICO.pin} Devices &amp; addresses ${p.access.length ? count(`· last ${p.access.length} of ${p.ipCount} ${p.ipCount === 1 ? "address" : "addresses"}`) : ""}</h4><div class="plist">${addr}</div></div>
+          <div><h4>${ICO.bolt} Actions</h4><div class="actions-grid">
+            <button data-act="lock">${p.locked ? ICO.unlock + "Unsuspend" : ICO.shield + "Suspend"}<small>${p.locked ? "let them back in" : "locks the profile — nobody can enter it, every device is signed out"}</small></button>
+            <button data-act="kick">${ICO.out}Kick<small>sign them out of every device now; their password lets them straight back in</small></button>
+            <button data-act="reset">${ICO.key}${p.mustReset ? "Withdraw password reset" : "Reset password"}<small>${p.mustReset ? "they still have to pick a new one — press to let it go" : "they pick a new password at their next sign-in"}</small></button>
+            <button data-act="setpw">${ICO.lock}Set password<small>you choose it — tell them in person, don't text it</small></button>
+          </div>
+          <div class="danger-zone"><button data-act="delete" class="danger">${ICO.trash}Delete profile<small>removes the profile with its progress, list and ratings</small></button></div></div>
         </div>`;
+      if (keepScroll) sheet.scrollTop = keepScroll;
     }
 
     sheet.addEventListener("click", async (e) => {
       if (e.target.closest("[data-close]")) return sheet.close();
+      if (e.target.closest("[data-copy]")) return;
       const p = ((PEOPLE && PEOPLE.people) || []).find((x) => x.id === openPersonId);
       if (!p) return;
       const fail = async (r) => { const err = await r.json().catch(() => ({})); toast(err.error || "Failed"); };

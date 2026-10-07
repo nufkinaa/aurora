@@ -2531,7 +2531,11 @@ export const renderPlayer = async (root, { id }) => {
         // the connection can't carry the file itself.
         if (canCap) {
           menu.append(el("div", { class: "menu-title" }, "Quality"));
-          for (const [h, label, tag] of [[0, "Original", "the file as it is"], [720, "720p", "data saver"], [480, "480p", "slow connection"]]) {
+          // "Original" is the file's video bit for bit (a copy) — except on a
+          // device that can't decode its codec, where it is the best re-encode,
+          // and the menu says so rather than claiming the file.
+          const origTag = currentV === "copy" ? "the file as it is" : "re-encoded — this device can't play the file's codec";
+          for (const [h, label, tag] of [[0, "Original", origTag], [720, "720p", "data saver"], [480, "480p", "slow connection"]]) {
             menu.append(
               el(
                 "button",
