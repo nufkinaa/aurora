@@ -49,9 +49,15 @@ html[data-look="glass"][data-theme="oled"] {
 html[data-look="glass"] .glass-sky {
   display: block;
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
   width: 100%;
-  height: 100%;
+  /* the LARGE viewport's height (2026-10-07): on an iPhone the toolbar
+     collapses while you scroll, and with `height: 100%` that shrank the
+     canvas, which reallocated and cleared it mid-scroll — the aurora
+     flickered and jumped exactly while scrolling. 100lvh does not move. */
+  height: 100vh;
+  height: 100lvh;
   /* behind everything in flow, above the body's own background — and no
      stacking context on #app, or the player could never rise above the nav */
   z-index: -1;
@@ -3862,11 +3868,20 @@ html[data-look="glass"] .nav-dl.ready {
   gap: 12px;
   margin-top: 4px;
   min-width: 0;
+  overflow: hidden; /* the flags line used to run out of the card and widen the page (elia's phone, 2026-10-07) */
   font-size: 0.86rem;
   color: var(--text-dim);
 }
 .src-meta > * {
   flex: none;
+}
+/* the audio languages: the one thing on the line that may give way */
+.src-meta .src-langs {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .src-seeds::before {
   content: "●";
@@ -4105,4 +4120,30 @@ button.pref-link:hover {
   font-size: 1.5rem;
   line-height: 1;
   color: var(--text-faint);
+}
+
+/* ---------- device tier ----------
+   main.js marks a weak device (two cores, 2 GB, or data saver on) with
+   data-fx="lite": every live blur goes, the chrome takes the flat tint. The
+   same surfaces the reduced-transparency block above flattens, plus the
+   rest. A capable phone keeps its glass — the blur was never the cost there. */
+html[data-look="glass"][data-fx="lite"] * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html[data-look="glass"][data-fx="lite"] .nav-items,
+html[data-look="glass"][data-fx="lite"] .nav-logo,
+html[data-look="glass"][data-fx="lite"] .nav-profile,
+html[data-look="glass"][data-fx="lite"] .nav-gear,
+html[data-look="glass"][data-fx="lite"] .nav-dl,
+html[data-look="glass"][data-fx="lite"] .menu,
+html[data-look="glass"][data-fx="lite"] .modal,
+html[data-look="glass"][data-fx="lite"] .toast,
+html[data-look="glass"][data-fx="lite"] .player-bottom,
+html[data-look="glass"][data-fx="lite"] .upnext,
+html[data-look="glass"][data-fx="lite"] .party-panel,
+html[data-look="glass"][data-fx="lite"] .peek,
+html[data-look="glass"][data-fx="lite"] .look-notice,
+html[data-look="glass"][data-fx="lite"] .hero-picks {
+  background: rgba(18, 20, 34, 0.9);
 }

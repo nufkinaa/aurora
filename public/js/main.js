@@ -1,5 +1,13 @@
 // Aurora boot: profile gate -> router -> screens.
 import "./focus.js";
+// Device tier for the glass look (glass.css, data-fx): a genuinely weak
+// device — two cores, 2 GB, or data saver on — gets no live blur. Set before
+// anything paints, so there is no frosted first frame.
+try {
+  const n = navigator;
+  const lite = (n.deviceMemory && n.deviceMemory <= 2) || (n.hardwareConcurrency && n.hardwareConcurrency <= 2) || !!(n.connection && n.connection.saveData);
+  document.documentElement.dataset.fx = lite ? "lite" : "full";
+} catch {}
 import { $, el, toast, icons } from "./ui.js";
 import { route, startRouter, navigate } from "./router.js";
 import { state, loadProfiles, setProfile, savedToken, downloads, readyDownloads } from "./state.js";

@@ -387,9 +387,17 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
           ? el("span", { class: "src-own" }, "In your library")
           : el("span", { class: `src-seeds ${seedClass}`, title: `${stream.seeders} seeders` }, String(stream.seeders)),
         stream.sizeString && el("span", {}, stream.sizeString),
+        // at most five flags, then "+N": a release with fourteen audio
+        // tracks ran its flags out of the card and widened the whole page
+        // on a phone (elia, 2026-10-07)
         stream.languages &&
           stream.languages.length > 0 &&
-          el("span", { title: "Audio: " + stream.languages.join(", ") }, stream.languages.map((c) => langFlag(c)).join(" ")),
+          el(
+            "span",
+            { class: "src-langs", title: "Audio: " + stream.languages.join(", ") },
+            stream.languages.slice(0, 5).map((c) => langFlag(c)).join(" ") +
+              (stream.languages.length > 5 ? `  +${stream.languages.length - 5}` : ""),
+          ),
         tags.length > 0 && name && el("span", { class: "src-file" }, name),
       ),
     ),

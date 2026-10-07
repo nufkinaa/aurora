@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.46 — 2026-10-07
+
+- Web, the aurora on a phone (elia, iPhone 18 Pro: "the aurora effect looks choppy when scrolling"): three causes, all fixed. The sky canvas was sized to the viewport, which shrinks and grows as Safari's toolbar collapses while you scroll — each change reallocated and cleared the canvas mid-scroll; it now keeps the large viewport's height (100lvh) and ignores a toolbar's worth of height change. A phone painted the aurora at a fixed 12 fps, a slideshow on a 120 Hz screen — the cadence now follows the measured cost of a frame (30 fps when a frame is under 4 ms, 20 when under 9, 12 beyond). And the 150 ms hold after every scroll event, which left the aurora standing still through a fling and jumping after, now applies only when a frame is measured dear, on any device.
+- Web: a device tier for the glass look — a genuinely weak device (two cores, 2 GB, or data saver) gets no live blur and flat tints on the chrome (`data-fx="lite"`); everything else keeps its glass.
+- Web: a source row's audio flags no longer run out of the card and push the whole page sideways on a phone — at most five flags then "+N", and the line clips.
+
 ## 1.6.45 — 2026-10-07
 
 - Web, scrolling (elia: "the background animation stops and it looks bad", "scrolling is laggy and choppy, especially to or from the hero"): the aurora sky no longer pauses while a desktop scrolls — the hold stays on phones only — and the surfaces that made every sky frame expensive stopped blurring what is behind them: the hero slab (its art fills it edge to edge, so the blur was never visible) and the many small glass cards (episodes, source rows, taste tiles, party strip). They keep the tint and the edge light.

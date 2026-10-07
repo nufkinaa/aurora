@@ -82,7 +82,17 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   // curtains are as soft either way — the blur IS the upscale — and the
   // per-frame column loop costs less than half as much on a weak CPU.
   const mobile = matchMedia("(pointer: coarse)").matches || innerWidth < 900;
-  const FRAME_MS = mobile ? 83 : 50;
+  // The cadence ADAPTS to what a frame costs here (2026-10-07 — elia, on an
+  // iPhone 18 Pro: "the aurora effect looks choppy when scrolling"): the
+  // fixed 12fps a phone used to get reads as a slideshow on a 120Hz screen
+  // that can paint this in a millisecond. Start at 20fps; after a few frames
+  // the measured cost picks 30fps (cheap), 20 (fine) or 12 (dear).
+  let FRAME_MS = 50;
+  let cost = 0; // smoothed ms per paint
+  const retune = (ms) => {
+    cost = cost ? cost * 0.8 + ms * 0.2 : ms;
+    FRAME_MS = cost < 4 ? 33 : cost < 9 ? 50 : 83;
+  };
   // A genuinely weak device (2 GB, two cores, or data saver on) gets one still
   // frame of the sky, like reduced-motion does — the look, without the loop.
   const weak =
@@ -151,7 +161,14 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   const off = document.createElement("canvas");
   const bctx = off.getContext("2d");
   let PX = 1; // canvas pixels per CSS pixel on the visible layer
+  // A height change alone of under a third is a browser toolbar coming or
+  // going (iPhone Safari while scrolling), not a new viewport: the canvas
+  // keeps its size rather than reallocating — which clears it — mid-scroll.
+  let sizedW = 0, sizedH = 0;
   const size = () => {
+    const cw0 = canvas.clientWidth, ch0 = canvas.clientHeight;
+    if (sizedW === cw0 && sizedH && Math.abs(ch0 - sizedH) < sizedH * 0.34) return;
+    sizedW = cw0; sizedH = ch0;
     const w = Math.max(1, Math.round(canvas.clientWidth / DOWN));
     const h = Math.max(1, Math.round(canvas.clientHeight / DOWN));
     const low = off || canvas;
@@ -288,14 +305,15 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   // slab), and on a phone that work landed in the same frames as the
   // scroll — so the sky waits until the finger has been still for a beat.
   // The curtains drift over tens of seconds; a 150ms hold is invisible.
-  // Phones only (2026-10-07): on a desktop the hold made the sky visibly
-  // freeze on every scroll (elia), and the surfaces that were expensive to
-  // re-blur — the hero slab, the episode and source cards — no longer blur.
-  const holdOnScroll = matchMedia("(hover: none) and (pointer: coarse)").matches;
+  // The hold is for a device where a frame is DEAR (measured, not guessed
+  // from the pointer): on a capable phone it made the aurora stand still
+  // through every fling and jump afterwards — the choppiness elia saw on an
+  // iPhone 18 Pro — while the surfaces that made re-blurring expensive (the
+  // hero slab, the episode and source cards) no longer blur at all.
   let scrolledAt = 0;
   const onScroll = () => { scrolledAt = performance.now(); };
-  if (holdOnScroll) document.addEventListener("scroll", onScroll, { passive: true, capture: true });
-  const scrolling = (now) => holdOnScroll && now - scrolledAt < 150;
+  document.addEventListener("scroll", onScroll, { passive: true, capture: true });
+  const scrolling = (now) => cost > 9 && now - scrolledAt < 150;
   // The player covers the whole viewport with black — a sky animating under
   // it is pure battery. While one is open the loop sleeps and checks back
   // once a second (a full-screen overlay, not a page, so no route event).
@@ -311,7 +329,9 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
     }
     if (now - last >= FRAME_MS && !scrolling(now)) {
       last = now;
+      const t0 = performance.now();
       paint(now / 1000);
+      retune(performance.now() - t0);
     }
     raf = requestAnimationFrame(loop);
   };
