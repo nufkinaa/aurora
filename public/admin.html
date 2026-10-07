@@ -320,23 +320,77 @@
       .table-scroll.dense th, .table-scroll.dense td { padding: 7px 8px; }
     }
 
-    /* Sign-in rollout switch (prompt 10) — three selectable state cards */
-    .auth-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    @media (max-width: 760px) { .auth-modes { grid-template-columns: 1fr; } }
-    .auth-mode {
-      text-align: left; padding: 13px 15px; border-radius: 12px; cursor: pointer;
-      background: var(--surface); border: 1px solid var(--line); color: inherit; font: inherit;
-      transition: border-color 0.15s, box-shadow 0.15s;
+    /* ---------- People (2026-10-07) ---------- */
+    /* the sign-in switch: on top, sticky, never folded */
+    .rollout { position: sticky; top: 8px; z-index: 5; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 12px 14px; margin-bottom: 16px; border: 1px solid var(--line); border-radius: var(--radius);
+      background: rgba(var(--bg-rgb), 0.96); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    .rollout .ro-title { font-weight: 800; font-size: 0.95rem; }
+    .rollout .ro-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); }
+    .rollout .ro-seg button { padding: 8px 14px; border-radius: 999px; font-weight: 700; font-size: 0.86rem; color: var(--text-dim); background: none; }
+    .rollout .ro-seg button:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+    .rollout .ro-seg button.on { background: var(--accent-strong); color: #fff; cursor: default; }
+    .ro-note { color: var(--text-dim); font-size: 0.84rem; line-height: 1.5; margin: -8px 4px 18px; }
+    .ro-note details { display: inline; }
+    .ro-note summary { display: inline; cursor: pointer; color: var(--accent); font-weight: 700; }
+    .ro-note details[open] summary { display: block; margin-top: 6px; }
+    .ro-note details > div { margin-top: 6px; padding: 10px 12px; border-radius: 10px; background: var(--surface); }
+    .ro-note code { font-size: 0.82em; }
+    /* the one table */
+    .stats.compact { grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; margin-bottom: 14px; }
+    .stats.compact .stat { padding: 10px 12px; }
+    .stats.compact .stat .v { font-size: 1.2rem; }
+    .stats.compact .stat .k { font-size: 0.66rem; }
+    .people-head input { margin-left: auto; min-width: 200px; padding: 9px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 0.88rem; }
+    .people-head .note { flex-basis: 100%; }
+    .person-row { cursor: pointer; }
+    .person-row:hover td { background: rgba(255, 255, 255, 0.05); }
+    .pav { width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+      font-size: 1.05rem; background: var(--surface-hover); flex: none; overflow: hidden; vertical-align: middle; }
+    .pav img { width: 100%; height: 100%; object-fit: cover; }
+    .pav.big { width: 54px; height: 54px; border-radius: 15px; font-size: 1.65rem; }
+    .pwho { display: flex; align-items: center; gap: 10px; }
+    .pwho b { display: block; font-weight: 800; }
+    .pwho small { color: var(--text-faint); font-size: 0.78rem; }
+    .gbadge { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 5px;
+      background: #fff; color: #4285f4; font-weight: 900; font-size: 0.7rem; vertical-align: -3px; margin-left: 5px; }
+    /* one person's sheet */
+    dialog.person { border: 1px solid var(--line); border-radius: 20px; background: var(--bg-raised); color: var(--text); padding: 0;
+      width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 40px); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); margin: auto; }
+    dialog.person::backdrop { background: rgba(5, 6, 12, 0.72); }
+    .person-head { display: flex; align-items: center; gap: 14px; padding: 18px 22px 14px; border-bottom: 1px solid var(--line);
+      position: sticky; top: 0; background: var(--bg-raised); z-index: 1; }
+    .person-head h3 { font-size: 1.2rem; font-weight: 900; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; line-height: 1.2; }
+    .person-head .sub { color: var(--text-dim); font-size: 0.86rem; margin-top: 3px; display: flex; gap: 6px 12px; flex-wrap: wrap; }
+    .person-head .x { margin-left: auto; width: 36px; height: 36px; border-radius: 10px; background: var(--surface); color: var(--text-dim); font-size: 1rem; flex: none; }
+    .person-head .x:hover { background: var(--surface-hover); color: var(--text); }
+    .person-body { padding: 16px 22px 22px; display: grid; gap: 20px; }
+    .person-body h4 { font-size: 0.74rem; font-weight: 800; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; display: flex; gap: 8px; align-items: baseline; }
+    .person-body h4 .count { font-weight: 600; text-transform: none; letter-spacing: 0; }
+    .pstats { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 8px; margin: 0; }
+    .pstats .stat { padding: 10px 12px; }
+    .pstats .stat .v { font-size: 1.1rem; }
+    .plist { display: grid; gap: 6px; }
+    .pitem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; align-items: center; padding: 9px 12px; border-radius: 10px; background: var(--surface); font-size: 0.88rem; }
+    .pitem .t { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .pitem .m { grid-column: 1 / -1; color: var(--text-faint); font-size: 0.78rem; display: flex; gap: 4px 10px; align-items: center; flex-wrap: wrap; }
+    .actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; }
+    .actions-grid button { padding: 11px 13px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line);
+      font: inherit; font-weight: 800; font-size: 0.88rem; text-align: left; color: var(--text); min-height: 56px; }
+    .actions-grid button:hover { background: var(--surface-hover); }
+    .actions-grid button small { display: block; color: var(--text-faint); font-weight: 600; font-size: 0.74rem; margin-top: 2px; line-height: 1.35; }
+    .actions-grid button.danger { color: #ff7a7a; border-color: rgba(255, 122, 122, 0.35); }
+    @media (max-width: 700px) {
+      .rollout { top: 6px; padding: 10px 12px; gap: 8px; }
+      .rollout .ro-seg { width: 100%; }
+      .rollout .ro-seg button { flex: 1; padding: 9px 4px; font-size: 0.8rem; }
+      .people-head input { margin-left: 0; width: 100%; min-width: 0; }
+      .person-row { grid-template-columns: 1fr 1fr; }
+      dialog.person { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; border: 0; margin: 0; }
+      .person-head { padding: 14px 14px 12px; }
+      .person-body { padding: 14px 14px calc(26px + env(safe-area-inset-bottom)); gap: 16px; }
+      .actions-grid { grid-template-columns: 1fr 1fr; }
     }
-    .auth-mode:hover { border-color: rgba(139, 123, 255, 0.5); }
-    .auth-mode .am-name { font-weight: 700; display: flex; align-items: center; gap: 8px; font-size: 0.95rem; }
-    .auth-mode .am-desc { font-size: 0.8rem; color: var(--text-faint, #9aa1b5); margin-top: 5px; line-height: 1.45; }
-    .auth-mode.on { border-color: #37d4a0; box-shadow: 0 0 0 1px rgba(55, 212, 160, 0.4), 0 4px 18px rgba(55, 212, 160, 0.1); }
-    .auth-mode.on .am-name::after {
-      content: "ACTIVE"; font-size: 0.6rem; letter-spacing: 0.09em; color: #37d4a0;
-      background: rgba(55, 212, 160, 0.12); padding: 2px 8px; border-radius: 99px; margin-left: auto;
-    }
-    .auth-mode:disabled { cursor: default; }
   </style>
 </head>
 <body>
@@ -557,45 +611,44 @@
 
     <!-- ================= PROFILES ================= -->
     <div class="pane" id="pane-profiles">
-      <details class="acard" data-key="p-req" open>
-        <summary><span class="chev">▶</span><h2>Waiting for approval <span class="pill" id="req-count">0</span></h2></summary>
-        <div class="acard-body">
-          <div class="table-scroll"><table>
-            <thead><tr><th>Asked</th><th>Profile</th><th>Real name</th><th>Note</th><th>From</th><th></th></tr></thead>
-            <tbody id="profile-requests"></tbody>
-          </table></div>
-          <div class="empty-note" id="req-empty">No one is waiting for approval.</div>
-        </div>
-      </details>
-      <details class="acard" data-key="p-profiles" open>
-        <summary><span class="chev">▶</span><h2>Profiles <span class="pill" id="profiles-count">0</span></h2></summary>
-        <div class="acard-body"><div class="now-grid" id="profiles-grid" style="margin-top:10px"></div></div>
-      </details>
-      <details class="acard" data-key="p-rollout" id="auth-mode-section">
-        <summary><span class="chev">▶</span><h2>Sign-in rollout <span class="note">live switch — no restart, reversible any time</span></h2></summary>
-        <div class="acard-body">
-          <div class="auth-modes" id="auth-modes" style="margin-top:10px"></div>
-          <div class="empty-note" id="auth-google-note" style="margin-top:10px"></div>
-        </div>
-      </details>
-      <details class="acard hidden" data-key="p-signin" id="auth-section">
-        <summary><span class="chev">▶</span><h2>Sign-in status <span class="note">each profile IS its account — “claimed” means it can log in (username set)</span></h2></summary>
-        <div class="acard-body">
-          <div class="table-scroll"><table>
-            <thead><tr><th>Profile</th><th>Username</th><th>Email</th><th>Status</th><th>Password</th><th>Google</th></tr></thead>
-            <tbody id="signin-table"></tbody>
-          </table></div>
-        </div>
-      </details>
-      <details class="acard" data-key="p-access">
-        <summary><span class="chev">▶</span><h2>Devices &amp; IPs per profile <span class="note">who has been getting in</span></h2></summary>
-        <div class="acard-body">
-          <div id="profile-access" style="margin-top:8px"></div>
-          <div class="empty-note hidden" id="access-empty">No profile has been entered yet.</div>
-        </div>
-      </details>
+      <!-- People, redone 2026-10-07 (elia: "reorganize and redo the whole People
+           tab so it's easier to use and shows what's really relevant"). The
+           sign-in switch sits on top and stays there; everyone is ONE table;
+           everything about one person is that person's sheet (the dialog). -->
+      <div class="rollout" id="rollout">
+        <div class="ro-title">Sign-in</div>
+        <div class="ro-seg" id="auth-modes"></div>
+      </div>
+      <div class="ro-note" id="ro-note"></div>
+      <section class="card hidden" id="req-card">
+        <h2>Waiting for approval <span class="pill live" id="req-count">0</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Asked</th><th>Profile</th><th>Real name</th><th>Note</th><th>From</th><th></th></tr></thead>
+          <tbody id="profile-requests"></tbody>
+        </table></div>
+      </section>
+      <section class="card">
+        <h2 class="people-head">People <span class="pill" id="profiles-count">0</span>
+          <input type="search" id="people-search" placeholder="Find a person, email or address…" aria-label="Find a person" autocomplete="off" />
+          <span class="note">Press a person for their sign-in, devices, downloads and every action.</span>
+        </h2>
+        <div class="stats compact" id="people-stats"></div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Person</th><th>Sign-in</th><th>Last seen</th><th>Devices</th><th>Downloads</th><th>Status</th></tr></thead>
+          <tbody id="people-table"></tbody>
+        </table></div>
+        <div class="empty-note hidden" id="people-empty">Nobody matches.</div>
+      </section>
+      <section class="card">
+        <h2>Connected now <span class="pill" id="live-count">0</span> <span class="note">every open app or browser tab — and, for a device that hasn't opened a profile, who has used that address before</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Device</th><th>Address</th><th>Who</th><th>Doing</th><th>Since</th><th></th></tr></thead>
+          <tbody id="people-live"></tbody>
+        </table></div>
+        <div class="empty-note hidden" id="live-empty">Nothing is connected right now.</div>
+      </section>
       <details class="acard" data-key="p-bans">
-        <summary><span class="chev">▶</span><h2>Banned addresses <span class="note">an address here can't reach the server at all</span></h2></summary>
+        <summary><span class="chev">▶</span><h2>Banned addresses <span class="pill" id="bans-count">0</span> <span class="note">an address here can't reach the server at all</span></h2></summary>
         <div class="acard-body">
           <div class="bar-row" style="margin-top:8px">
             <input type="text" id="ban-ip" placeholder="IP address" style="max-width:220px" />
@@ -608,6 +661,7 @@
           </table></div>
         </div>
       </details>
+      <dialog class="person" id="person-sheet"></dialog>
     </div>
 
     <!-- ================= SERVER ================= -->
@@ -878,8 +932,8 @@
     // The browser's own confirm()/prompt() boxes, restyled: same yes/no answer,
     // but readable on a phone, with the destructive ones in red and the button
     // saying what it does ("Yes, delete") instead of "OK".
-    const ASK_VERBS = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Kick|Close|Send|Pull|Start)\b/;
-    const ASK_DANGER = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Kick|Close)\b/;
+    const ASK_VERBS = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Kick|Close|Send|Pull|Start|Reset|Suspend)\b/;
+    const ASK_DANGER = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Kick|Close|Suspend)\b/;
     const askBox = (message, withInput) => new Promise((resolve) => {
       const paras = String(message).split("\n\n");
       const cut = paras[0].indexOf("? ");
@@ -1459,14 +1513,113 @@
       loadLogs();
     });
 
-    // ---------- new-profile approval ----------
-    // Nobody can create a profile directly any more: the gate files a request
-    // and it only becomes real when it's approved here.
-    async function loadProfileRequests() {
-      const reqs = await json("/api/admin/profile-requests");
+    // ---------- People (redone 2026-10-07 — elia: "reorganize and redo the
+    // whole People tab so it's easier to use and shows what's really
+    // relevant") ----------
+    // One payload (/api/admin/people): the sign-in switch on top, who is
+    // waiting, ONE table of everyone, who is connected right now, the banned
+    // addresses. Everything about one person — sign-in, last 8 addresses,
+    // last 5 downloads, every action — is that person's sheet.
+    let PEOPLE = null;
+    let openPersonId = null;
+    let peopleQuery = "";
+
+    const AUTH_MODES = [
+      { id: "open", name: "🔓 Open", short: "No accounts, no login — the profile wall greets everyone.", desc: "How Aurora always worked. No accounts, no login — the profile wall greets everyone. Flipping back here always restores this exactly." },
+      { id: "transition", name: "🔑 Transition", short: "Everything works as before; each profile can switch sign-in on with a one-time prompt.", desc: "The app keeps working exactly as it does now, but each profile can switch sign-in on: a one-time in-app prompt to pick a username (a profile's password doubles as its sign-in password). Nobody is locked out of anything." },
+      { id: "closed", name: "🔒 Closed", short: "A real login wall: every device signs in with username or email and password.", desc: "A real login wall, like any site. Every device signs in with username/email + password and lands straight in its profile; all data and video routes require a session. Flip here once everyone shows CLAIMED." },
+    ];
+
+    const pav = (p, big) => `<span class="pav${big ? " big" : ""}" style="background:${esc(p.color || "#333")}33">${
+      p.avatarImage ? `<img src="${esc(p.avatarImage)}" alt="">` : esc(p.avatar || "🙂")}</span>`;
+    const devStr = (d) => (d ? [d.device, d.browser, d.os].filter(Boolean).join(" · ") : "unknown device");
+    const whenAgo = (t) => (t ? ago(new Date(t).toISOString()) : "never");
+    const gBadge = '<span class="gbadge" title="Google sign-in">G</span>';
+    const pills = (p) => [
+      p.locked ? '<span class="pill" style="color:#ff7a7a">suspended</span>' : "",
+      p.mustReset ? '<span class="pill warn">new password due</span>' : "",
+      p.live && p.live.length ? '<span class="pill live">online</span>' : "",
+      p.fails >= 5 ? `<span class="pill warn">${p.fails} failed unlocks</span>` : "",
+    ].filter(Boolean).join(" ");
+    const dlWord = (j) => j.status === "downloading"
+      ? `${Math.round((j.progress || 0) * 100)}% running`
+      : j.status === "done" ? "last one finished" : j.status === "pending" ? "one waiting" : j.status;
+
+    async function loadPeople() {
+      let info = {};
+      try { info = await json("/api/server-info"); } catch {}
+      const d = await json("/api/admin/people");
+      PEOPLE = d;
+      renderRollout(d, info);
+      renderRequests(d.requests || []);
+      renderPeople();
+      renderLive(d.clients || []);
+      renderBansFrom(d.bans || []);
+      if (openPersonId) renderPersonSheet(openPersonId);
+    }
+
+    // the rollout switch — a segmented control, the current mode's one line
+    // under it, the Google setup behind a "how" that folds out
+    function renderRollout(d, info) {
+      const mode = d.authMode || info.authMode || "open";
+      const cur = AUTH_MODES.find((m) => m.id === mode) || AUTH_MODES[0];
+      $("#auth-modes").innerHTML = AUTH_MODES.map((m) => `
+        <button data-auth-mode="${m.id}" class="${mode === m.id ? "on" : ""}" title="${esc(m.desc)}" ${mode === m.id ? "disabled" : ""}>${m.name}</button>`).join("");
+      const howTo = `<details><summary>how to set it up</summary><div>To enable the normal browser popup (free): Google Cloud Console → OAuth consent screen → Credentials → Create credentials → OAuth client ID → type <strong>“Web application”</strong>, add the redirect URIs <code>http://localhost:4000/api/auth/google/web-callback</code> and <code>https://nufurora.com/api/auth/google/web-callback</code>, then put <code>GOOGLE_WEB_CLIENT_ID=…</code> and <code>GOOGLE_WEB_CLIENT_SECRET=…</code> in the server's <code>.env</code> and restart. The TV code flow (only the TV app and raw-IP devices use it) needs a second client of type “TVs and Limited Input devices” as <code>GOOGLE_TV_CLIENT_ID=…</code> + <code>GOOGLE_TV_CLIENT_SECRET=…</code>.</div></details>`;
+      const line = (g) => `<strong>${esc(cur.name.replace(/^\S+\s/, ""))}:</strong> ${esc(cur.short)} &nbsp;·&nbsp; Google sign-in: ${g}`;
+      if (!info.google) {
+        $("#ro-note").innerHTML = line(`<span class="muted">not configured</span> · ${howTo}`);
+        return;
+      }
+      $("#ro-note").innerHTML = line(`<span class="muted">checking…</span>`);
+      json("/api/admin/google-check").then((g) => {
+        const web = info.googleWeb ? `<span class="ok">browser popup ✓</span>` : `<span class="muted">browser popup not configured</span>`;
+        const tv = g.status === "ok" ? `<span class="ok">TV code flow ✓</span>`
+          : g.status === "missing" ? `<span class="muted">TV code flow not set (fine for now)</span>`
+          : g.status === "wrong_type" ? `<span class="bad">TV code flow: wrong client type</span>`
+          : `<span class="bad">TV code flow not working${g.detail ? ` — ${esc(g.detail)}` : ""}</span>`;
+        $("#ro-note").innerHTML = line(`${web} · ${tv} · ${howTo}`);
+      }).catch(() => {
+        $("#ro-note").innerHTML = line(`<span class="muted">couldn't check right now</span>`);
+      });
+    }
+
+    // the rollout switch: confirm, flip live (the server migrates profiles to
+    // accounts by itself when leaving "open"), repaint
+    $("#auth-modes").addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-auth-mode]");
+      if (!btn || btn.disabled) return;
+      const mode = btn.dataset.authMode;
+      const CONFIRM = {
+        open: "Back to Open? Sign-in switches off everywhere; accounts are kept but dormant.",
+        transition: "Start the Transition? The app keeps working exactly as now — everyone just gets a prompt to claim their account. Fully reversible.",
+        closed: "Close the wall? Every device will need to sign in from now on. Make sure everyone has claimed their account first (and remember: old TV app builds can't log in until the TV update ships).",
+      };
+      if (!await ask(CONFIRM[mode])) return;
+      btn.disabled = true;
+      const r = await adminFetch("/api/admin/auth-mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        toast(err.error || "Failed");
+        btn.disabled = false;
+        return;
+      }
+      const d = await r.json();
+      toast(`Sign-in is now ${d.mode}`);
+      loadPeople();
+    });
+
+    // ---------- who is waiting ----------
+    // Nobody can create a profile directly: the gate files a request and it
+    // only becomes real when it's approved here. The card shows only while
+    // someone is waiting.
+    function renderRequests(reqs) {
       $("#req-count").textContent = reqs.length;
-      $("#req-count").classList.toggle("live", reqs.length > 0);
-      $("#req-empty").classList.toggle("hidden", reqs.length > 0);
+      $("#req-card").classList.toggle("hidden", reqs.length === 0);
       $("#profile-requests").innerHTML = reqs.map((r) => `
         <tr>
           <td class="muted">${ago(new Date(r.requestedAt).toISOString())}</td>
@@ -1502,249 +1655,227 @@
         return;
       }
       toast(ok ? `Approved "${name}" — they can sign in now` : `Rejected "${name}"`);
-      loadProfileRequests();
-      loadProfiles();
-      loadProfileAccess();
-      loadAuth(); // the sign-in roster gains (or loses) a row too
+      loadPeople();
+      loadBadges();
     });
 
-    // ---------- devices & IPs per profile ----------
-    async function loadProfileAccess() {
-      const rows = await json("/api/admin/profile-access");
-      const withDevices = rows.filter((p) => p.devices.length);
-      $("#access-empty").classList.toggle("hidden", withDevices.length > 0);
-      $("#profile-access").innerHTML = withDevices.map((p) => `
-        <div class="card" style="margin-bottom:12px">
-          <h2 style="font-size:0.95rem">
-            ${esc(p.avatar || "🙂")} ${esc(p.name)}${p.realName ? ` <span class="note">${esc(p.realName)}</span>` : ""}
-            ${p.flags.map((f) => `<span class="pill" style="color:#ffcf6a">${esc(f)}</span>`).join(" ")}
-          </h2>
-          <div class="table-scroll"><table>
-            <thead><tr><th>IP</th><th>Device</th><th>Entries</th><th>Failed</th><th>First</th><th>Last</th><th>Flags</th><th></th></tr></thead>
-            <tbody>${p.devices.map((d) => `
-              <tr${d.banned ? ' style="opacity:0.55"' : ""}>
-                <td>${esc(d.ip)}</td>
-                <td class="muted">${esc(d.device ? `${d.device.device} / ${d.device.os} / ${d.device.browser}` : "—")}</td>
-                <td>${d.count}</td>
-                <td${d.fails ? ' style="color:#ff7a7a"' : ""}>${d.fails || 0}</td>
-                <td class="muted">${ago(new Date(d.first).toISOString())}</td>
-                <td class="muted">${ago(new Date(d.last).toISOString())}</td>
-                <td>${d.flags.map((f) => `<span class="pill" style="color:#ffcf6a">${esc(f)}</span>`).join(" ") || '<span class="muted">—</span>'}</td>
-                <td style="white-space:nowrap">${d.banned
-                  ? `<button class="mini" data-unban-ip="${esc(d.ip)}">Unban</button>`
-                  : `<button class="mini danger" data-ban-ip="${esc(d.ip)}" data-ban-profile="${esc(p.name)}">Ban IP</button>`}</td>
-              </tr>`).join("")}</tbody>
-          </table></div>
-        </div>`).join("");
-    }
-
-    // Ban / unban straight from the device row — same endpoints the Moderation
-    // tab uses, so the IP lands in the one existing ban list (and gets kicked).
-    $("#profile-access").addEventListener("click", async (e) => {
-      const ban = e.target.closest("[data-ban-ip]");
-      const unban = e.target.closest("[data-unban-ip]");
-      const btn = ban || unban;
-      if (!btn) return;
-      const ip = ban ? ban.dataset.banIp : unban.dataset.unbanIp;
-      if (ban && !await ask(`Ban ${ip}?\n\nIt loses access to the whole server, not just "${ban.dataset.banProfile}".`)) return;
-      btn.disabled = true;
-      const r = await adminFetch(`/api/admin/${ban ? "ban" : "unban"}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(ban ? { ip, reason: `Flagged on profile "${ban.dataset.banProfile}"` } : { ip }),
-      });
-      if (!r.ok) {
-        // The server refuses to ban the address you're administering from —
-        // say why, or it just looks broken.
-        const err = await r.json().catch(() => ({}));
-        toast(err.error || "Failed");
-        btn.disabled = false;
-        return;
-      }
-      toast(`${ban ? "Banned" : "Unbanned"} ${ip}`);
-      loadProfileAccess();
-    });
-
-    // ---------- sign-in rollout + accounts (prompt 10) ----------
-    const AUTH_MODES = [
-      { id: "open", name: "🔓 Open", desc: "How Aurora always worked. No accounts, no login — the profile wall greets everyone. Flipping back here always restores this exactly." },
-      { id: "transition", name: "🔑 Transition", desc: "The app keeps working exactly as it does now, but each profile can switch sign-in on: a one-time in-app prompt to pick a username (a profile's password doubles as its sign-in password). Nobody is locked out of anything." },
-      { id: "closed", name: "🔒 Closed", desc: "A real login wall, like any site. Every device signs in with username/email + password and lands straight in its profile; all data and video routes require a session. Flip here once everyone below shows CLAIMED." },
-    ];
-
-    async function loadAuth() {
-      let mode = "open";
-      let google = false;
-      let info = {};
-      try {
-        info = await json("/api/server-info");
-        mode = info.authMode || "open";
-        google = !!info.google;
-      } catch {}
-      let roster = [];
-      try { roster = (await json("/api/admin/signin")).profiles || []; } catch {}
-
-      // the rollout switch — always visible; this is where sign-in turns on
-      $("#auth-modes").innerHTML = AUTH_MODES.map((m) => `
-        <button class="auth-mode${mode === m.id ? " on" : ""}" data-auth-mode="${m.id}" ${mode === m.id ? "disabled" : ""}>
-          <div class="am-name">${m.name}</div>
-          <div class="am-desc">${m.desc}</div>
-        </button>`).join("");
-      // Google has TWO flavors now: the normal browser popup (works with a
-      // standard Web-application OAuth client — the default keys) and the TV
-      // code flow (needs a client created as "TVs and Limited Input devices";
-      // only the TV app and IP-address devices use it). Checked LIVE.
-      if (!google) {
-        $("#auth-google-note").innerHTML =
-          `Google sign-in: <span class="muted">not configured.</span> To enable the normal browser popup (free): Google Cloud Console → OAuth consent screen → Credentials → Create credentials → OAuth client ID → type <strong>“Web application”</strong>, add the redirect URIs <code>http://localhost:4000/api/auth/google/web-callback</code>, then put <code>GOOGLE_WEB_CLIENT_ID=…</code> and <code>GOOGLE_WEB_CLIENT_SECRET=…</code> in the server's <code>.env</code> and restart.`;
-      } else {
-        $("#auth-google-note").innerHTML = `Google sign-in: <span class="muted">checking the setup against Google…</span>`;
-        json("/api/admin/google-check").then((g) => {
-          const web = info.googleWeb
-            ? `<strong>Browser sign-in (the normal popup)</strong> — <code>GOOGLE_WEB_CLIENT_ID</code>: <span class="ok">configured.</span> Make sure the client's <em>Authorized redirect URIs</em> include <code>http://localhost:4000/api/auth/google/web-callback</code> and <code>https://nufurora.com/api/auth/google/web-callback</code> (Google Cloud Console → Credentials → the client).`
-            : `<strong>Browser sign-in (the normal popup)</strong> — <span class="muted">not configured:</span> add <code>GOOGLE_WEB_CLIENT_ID=…</code> + <code>GOOGLE_WEB_CLIENT_SECRET=…</code> (a “Web application” OAuth client) to <code>.env</code>.`;
-          const dev =
-            g.status === "ok"
-              ? `<strong>TV code flow</strong> — <code>GOOGLE_TV_CLIENT_ID</code>: <span class="ok">working</span>, verified live against Google.`
-              : g.status === "missing"
-                ? `<strong>TV code flow</strong> — <span class="muted">not configured (fine for now):</span> only the TV app and devices reaching the server by raw IP use it. When the TV update ships, create an OAuth client of type “TVs and Limited Input devices” and put its keys in <code>.env</code> as <code>GOOGLE_TV_CLIENT_ID=…</code> + <code>GOOGLE_TV_CLIENT_SECRET=…</code> (placeholders are already there, commented).`
-                : g.status === "wrong_type"
-                  ? `<strong>TV code flow</strong> — <span class="bad">wrong client type:</span> <code>GOOGLE_TV_CLIENT_ID</code> must be a client created as “TVs and Limited Input devices”, not a Web/Desktop one.`
-                  : `<strong>TV code flow</strong> — <span class="bad">not working:</span> ${esc(g.detail || "")}`;
-          $("#auth-google-note").innerHTML = `${web}<br>${dev}`;
-        }).catch(() => {
-          $("#auth-google-note").innerHTML = `Google sign-in: <span class="muted">couldn't check right now.</span>`;
-        });
-      }
-
-      // the per-profile sign-in roster — hidden while everything is Open and
-      // nobody has claimed (nothing to show yet)
-      const show = mode !== "open" || roster.some((r) => r.claimed);
-      $("#auth-section").classList.toggle("hidden", !show);
-      if (!show) return;
-      $("#signin-table").innerHTML = roster.map((r) => `
-        <tr>
-          <td>${esc(r.avatar || "🙂")} <strong>${esc(r.name)}</strong>${r.locked ? ' <span class="pill" style="color:#ff7a7a">locked</span>' : ""}</td>
-          <td>${r.username ? `@${esc(r.username)}` : '<span class="muted">—</span>'}</td>
-          <td>${r.email ? esc(r.email) : '<span class="muted">—</span>'}</td>
-          <td>${r.claimed
-            ? '<span class="pill live">claimed</span>'
-            : '<span class="pill warn">not yet</span>'}</td>
-          <td style="white-space:nowrap">${r.hasPassword
-            ? `🔒 <button class="mini" data-signin-pw="${esc(r.id)}" data-signin-name="${esc(r.name)}">Reset</button>`
-            : `<button class="mini" data-signin-pw="${esc(r.id)}" data-signin-name="${esc(r.name)}">Set password</button>`}</td>
-          <td>${r.hasGoogle ? "✅" : '<span class="muted">—</span>'}</td>
+    // ---------- everyone, in one table ----------
+    function renderPeople() {
+      const all = (PEOPLE && PEOPLE.people) || [];
+      $("#profiles-count").textContent = all.length;
+      $("#people-stats").innerHTML = [
+        [all.length, "people"],
+        [all.filter((p) => p.claimed).length, "claimed sign-in"],
+        [all.filter((p) => p.live.length).length, "online now"],
+        [((PEOPLE && PEOPLE.clients) || []).length, "devices connected"],
+        [((PEOPLE && PEOPLE.bans) || []).length, "banned addresses"],
+      ].map(([v, k]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("");
+      const q = peopleQuery.trim().toLowerCase();
+      const list = q
+        ? all.filter((p) => [p.name, p.realName, p.username, p.email, ...p.access.map((a) => a.ip)]
+            .filter(Boolean).some((x) => String(x).toLowerCase().includes(q)))
+        : all;
+      $("#people-empty").classList.toggle("hidden", list.length > 0);
+      $("#people-table").innerHTML = list.map((p) => `
+        <tr class="person-row" data-person="${esc(p.id)}" tabindex="0" role="button" aria-label="Open ${esc(p.name)}">
+          <td><div class="pwho">${pav(p)}<div style="min-width:0"><b>${esc(p.name)}</b><small>${esc(p.realName || "")}</small></div></div></td>
+          <td>${p.claimed
+            ? `${p.username ? "@" + esc(p.username) : ""}${p.hasGoogle ? gBadge : ""}${p.email ? `<div class="muted" style="font-size:0.78rem">${esc(p.email)}</div>` : ""}`
+            : '<span class="muted">not claimed</span>'}</td>
+          <td class="muted">${esc(whenAgo(p.lastSeen))}</td>
+          <td>${p.ipCount}${p.live.length ? ` <span class="pill live">${p.live.length} on</span>` : ""}</td>
+          <td>${p.downloadsTotal}${p.downloads[0] ? ` <span class="muted" style="font-size:0.78rem">· ${esc(dlWord(p.downloads[0]))}</span>` : ""}</td>
+          <td>${pills(p) || '<span class="muted">—</span>'}</td>
         </tr>`).join("");
     }
-
-    // the rollout switch: confirm, flip live (the server migrates profiles to
-    // accounts by itself when leaving "open"), repaint
-    $("#auth-modes").addEventListener("click", async (e) => {
-      const btn = e.target.closest("[data-auth-mode]");
-      if (!btn || btn.disabled) return;
-      const mode = btn.dataset.authMode;
-      const CONFIRM = {
-        open: "Back to Open? Sign-in switches off everywhere; accounts are kept but dormant.",
-        transition: "Start the Transition? The app keeps working exactly as now — everyone just gets a prompt to claim their account. Fully reversible.",
-        closed: "Close the wall? Every device will need to sign in from now on. Make sure everyone has CLAIMED their account first (and remember: old TV app builds can't log in until the TV update ships).",
-      };
-      if (!await ask(CONFIRM[mode])) return;
-      btn.disabled = true;
-      const r = await adminFetch("/api/admin/auth-mode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode }),
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        toast(err.error || "Failed");
-        btn.disabled = false;
-        return;
-      }
-      const d = await r.json();
-      toast(`Sign-in is now ${d.mode}`);
-      loadAuth();
+    $("#people-table").addEventListener("click", (e) => {
+      const row = e.target.closest("[data-person]");
+      if (row) openPerson(row.dataset.person);
     });
-
-    $("#signin-table").addEventListener("click", async (e) => {
-      const pw = e.target.closest("[data-signin-pw]");
-      if (!pw) return;
-      const val = await askText(`New password for "${pw.dataset.signinName}" (4+ characters).\nThis is the profile's one password — wall AND sign-in — and every signed-in device gets signed out:`);
-      if (!val) return;
-      const r = await adminFetch(`/api/admin/signin/${encodeURIComponent(pw.dataset.signinPw)}/password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPassword: val }),
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        return toast(err.error || "Failed");
-      }
-      toast(`Password set for ${pw.dataset.signinName} — go tell them in person, don't text it`);
-      loadAuth();
-      loadProfiles();
+    $("#people-table").addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const row = e.target.closest("[data-person]");
+      if (row) { e.preventDefault(); openPerson(row.dataset.person); }
     });
+    $("#people-search").addEventListener("input", (e) => { peopleQuery = e.target.value; renderPeople(); });
 
-    // ---------- profiles ----------
-    async function loadProfiles() {
-      const profs = await json("/api/admin/profiles");
-      $("#profiles-count").textContent = profs.length;
-      $("#profiles-grid").innerHTML = profs.map((p) => `
-        <div class="now-card"${p.locked ? ' style="opacity:0.6"' : ""}>
-          <div class="who">
-            <div class="avatar" style="background:${esc(p.color)}22">${esc(p.avatar || "🙂")}</div>
-            <div>
-              <div class="name">${esc(p.name)}${p.locked ? ' <span class="pill" style="color:#ff7a7a">locked</span>' : ""}${p.hasPassword ? " 🔒" : ""}</div>
-              <div class="meta">${p.realName ? esc(p.realName) + " · " : ""}${p.started} started · ${p.finished} finished · ${p.watchlistCount} in watchlist</div>
-            </div>
-          </div>
-          ${p.inProgress.length ? p.inProgress.map((ip) => {
-            const pct = ip.duration > 0 ? Math.min(100, (100 * ip.position) / ip.duration) : 0;
-            return `
-              <div class="title" style="font-size:0.85rem;margin-bottom:4px">${esc(ip.title)}</div>
-              <div class="prog" style="margin-bottom:4px"><i style="width:${pct.toFixed(0)}%"></i></div>
-              <div class="times"><span>${fmtClock(ip.position)} / ${fmtClock(ip.duration)}</span><span class="muted">${ago(new Date(ip.updatedAt).toISOString())}</span></div>`;
-          }).join("") : `<div class="muted" style="font-size:0.85rem">Nothing in progress.</div>`}
-          <div style="display:flex;gap:8px;margin-top:10px">
-            <button class="mini" data-prof-lock="${esc(p.id)}" data-prof-locked="${p.locked ? 1 : 0}" data-prof-name="${esc(p.name)}">${p.locked ? "Unlock" : "Lock"}</button>
-            <button class="mini danger" data-prof-del="${esc(p.id)}" data-prof-name="${esc(p.name)}">Delete</button>
-          </div>
-        </div>`).join("");
+    // ---------- connected now ----------
+    // A device that hasn't opened a profile still shows who has used its
+    // address before (from the per-profile device log) — "probably elia".
+    function renderLive(clients) {
+      $("#live-count").textContent = clients.length;
+      $("#live-empty").classList.toggle("hidden", clients.length > 0);
+      $("#people-live").innerHTML = clients.map((c) => {
+        const others = (c.names || []).filter((n) => n !== c.profile);
+        const who = c.profile
+          ? `<b>${esc(c.profile)}</b>${others.length ? ` <span class="muted" style="font-size:0.78rem">· also ${others.map(esc).join(", ")}</span>` : ""}`
+          : others.length
+            ? `<span class="muted">probably</span> ${others.map(esc).join(", ")}`
+            : '<span class="muted">—</span>';
+        return `<tr>
+          <td>${deviceIcon(c.device?.device)} ${esc(devStr(c.device))}</td>
+          <td>${esc(c.ip)}</td>
+          <td>${who}</td>
+          <td>${esc(c.activity || "")}${c.details ? ` <span class="muted">· ${esc(c.details)}</span>` : ""}</td>
+          <td class="muted">${esc(ago(c.connectedAt))}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="mini" onclick="kick('${esc(c.id)}')">Kick</button>
+            <button class="mini danger" onclick="banIp('${esc(c.ip)}')">Ban</button>
+          </td>
+        </tr>`;
+      }).join("");
     }
 
-    // Lock/unlock + delete actions on the profile cards. Lock is reversible so
-    // it acts immediately; delete wipes watch state, so it gets a hard confirm.
-    $("#profiles-grid").addEventListener("click", async (e) => {
-      const lockBtn = e.target.closest("[data-prof-lock]");
-      if (lockBtn) {
-        const locking = lockBtn.dataset.profLocked !== "1";
-        lockBtn.disabled = true;
-        const r = await adminFetch(`/api/admin/profiles/${lockBtn.dataset.profLock}/lock`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ locked: locking }),
+    function renderBansFrom(bans) {
+      $("#bans-count").textContent = bans.length;
+      $("#bans").innerHTML = bans.length
+        ? bans.map((b) => `<tr><td>${esc(b.ip)}</td><td class="muted">${esc(b.reason || "")} · ${b.at ? ago(b.at) : ""}</td>
+            <td style="text-align:right"><button class="mini" onclick="unban('${esc(b.ip)}')">Unban</button></td></tr>`).join("")
+        : `<tr><td colspan="3" class="empty-note">No banned addresses.</td></tr>`;
+    }
+
+    // ---------- one person's sheet ----------
+    const sheet = $("#person-sheet");
+    function openPerson(id) {
+      openPersonId = id;
+      renderPersonSheet(id);
+      if (!sheet.open) sheet.showModal();
+    }
+    sheet.addEventListener("close", () => { openPersonId = null; });
+    // a press on the dark backdrop closes it (the dialog's own box is a child)
+    sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.close(); });
+
+    function renderPersonSheet(id) {
+      const p = ((PEOPLE && PEOPLE.people) || []).find((x) => x.id === id);
+      if (!p) { if (sheet.open) sheet.close(); return; }
+      const count = (txt) => `<span class="count">${esc(txt)}</span>`;
+      const dl = p.downloads.length
+        ? p.downloads.map((j) => `
+          <div class="pitem">
+            <span class="t" title="${esc(j.label || j.title || "")}">${esc(j.label || j.title || "—")}</span>
+            <span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(phaseLabel(j))}${j.status === "downloading" ? ` ${Math.round((j.progress || 0) * 100)}%` : ""}</span>
+            <span class="m">${esc(j.quality || "")}${j.sizeBytes ? ` · ${fmtBytes(j.sizeBytes)}` : ""} · asked ${esc(whenAgo(j.at))}${j.doneAt ? ` · finished ${esc(whenAgo(j.doneAt))}` : ""}</span>
+          </div>`).join("")
+        : `<div class="empty-note" style="padding:6px 0">Hasn't asked for a download.</div>`;
+      const addr = p.access.length
+        ? p.access.map((a) => `
+          <div class="pitem"${a.banned ? ' style="opacity:0.6"' : ""}>
+            <span class="t">${esc(a.ip)}${a.banned ? ' <span class="pill" style="color:#ff7a7a">banned</span>' : ""}</span>
+            <span>${a.banned
+              ? `<button class="mini" data-unban="${esc(a.ip)}">Unban</button>`
+              : `<button class="mini danger" data-ban="${esc(a.ip)}">Ban</button>`}</span>
+            <span class="m">${deviceIcon(a.device?.device)} ${esc(devStr(a.device))} · last ${esc(whenAgo(a.last))} · ${a.count} ${a.count === 1 ? "entry" : "entries"}${
+              a.fails ? ` · <span style="color:#ff7a7a">${a.fails} failed</span>` : ""}</span>
+          </div>`).join("")
+        : `<div class="empty-note" style="padding:6px 0">Never entered from any device.</div>`;
+      const live = p.live.length
+        ? `<div><h4>Online now ${count(`· ${p.live.length}`)}</h4><div class="plist">${p.live.map((c) => `
+          <div class="pitem">
+            <span class="t">${deviceIcon(c.device?.device)} ${esc(devStr(c.device))}</span>
+            <span><button class="mini" data-kick-client="${esc(c.id)}">Kick</button></span>
+            <span class="m">${esc(c.ip)} · ${esc(c.activity || "")}${c.details ? ` · ${esc(c.details)}` : ""} · since ${esc(ago(c.connectedAt))}</span>
+          </div>`).join("")}</div></div>`
+        : "";
+      sheet.innerHTML = `
+        <div class="person-head">${pav(p, true)}
+          <div style="min-width:0">
+            <h3>${esc(p.name)} ${pills(p)}</h3>
+            <div class="sub">
+              ${p.realName ? `<span>${esc(p.realName)}</span>` : ""}
+              ${p.username ? `<span>@${esc(p.username)}</span>` : ""}
+              ${p.email ? `<span>${esc(p.email)}</span>` : ""}
+              ${p.hasGoogle ? `<span>${gBadge} Google sign-in</span>` : ""}
+              ${p.claimed ? "" : '<span class="muted">sign-in not claimed yet</span>'}
+              ${p.hasPassword ? "" : '<span class="muted">no password</span>'}
+            </div>
+          </div>
+          <button class="x" data-close aria-label="Close">✕</button>
+        </div>
+        <div class="person-body">
+          <div class="stats pstats">${[
+            [whenAgo(p.lastSeen), "last seen"],
+            [p.ipCount, "addresses"],
+            [p.sessions, "signed-in devices"],
+            [p.started, "started"],
+            [p.finished, "finished"],
+            [p.watchlistCount, "in their list"],
+          ].map(([v, k]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("")}</div>
+          ${live}
+          <div><h4>Recent downloads ${p.downloadsTotal ? count(`· last ${Math.min(5, p.downloads.length)} of ${p.downloadsTotal}`) : ""}</h4><div class="plist">${dl}</div></div>
+          <div><h4>Devices &amp; addresses ${p.access.length ? count(`· last ${p.access.length} of ${p.ipCount} ${p.ipCount === 1 ? "address" : "addresses"}`) : ""}</h4><div class="plist">${addr}</div></div>
+          <div><h4>Actions</h4><div class="actions-grid">
+            <button data-act="lock">${p.locked ? "Unsuspend" : "Suspend"}<small>${p.locked ? "let them back in" : "locks the profile — nobody can enter it, every device is signed out"}</small></button>
+            <button data-act="kick">Kick<small>sign them out of every device now; their password lets them straight back in</small></button>
+            <button data-act="reset">${p.mustReset ? "Withdraw password reset" : "Reset password"}<small>${p.mustReset ? "they still have to pick a new one — press to let it go" : "they pick a new password at their next sign-in"}</small></button>
+            <button data-act="setpw">Set password<small>you choose it — tell them in person, don't text it</small></button>
+            <button data-act="delete" class="danger">Delete<small>removes the profile with its progress, list and ratings</small></button>
+          </div></div>
+        </div>`;
+    }
+
+    sheet.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-close]")) return sheet.close();
+      const p = ((PEOPLE && PEOPLE.people) || []).find((x) => x.id === openPersonId);
+      if (!p) return;
+      const fail = async (r) => { const err = await r.json().catch(() => ({})); toast(err.error || "Failed"); };
+      const ban = e.target.closest("[data-ban]");
+      const unban = e.target.closest("[data-unban]");
+      if (ban || unban) {
+        const ip = ban ? ban.dataset.ban : unban.dataset.unban;
+        if (ban && !await ask(`Ban ${ip}?\n\nIt loses access to the whole server, not just "${p.name}".`)) return;
+        const r = await adminFetch(`/api/admin/${ban ? "ban" : "unban"}`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(ban ? { ip, reason: `From ${p.name}'s sheet` } : { ip }),
         });
-        if (!r.ok) { toast("Failed to update profile"); lockBtn.disabled = false; return; }
-        toast(`${locking ? "Locked" : "Unlocked"} "${lockBtn.dataset.profName}"`);
-        loadProfiles();
-        return;
+        if (!r.ok) return fail(r);
+        toast(`${ban ? "Banned" : "Unbanned"} ${ip}`);
+        return loadPeople();
       }
-      const delBtn = e.target.closest("[data-prof-del]");
-      if (delBtn) {
-        const name = delBtn.dataset.profName;
-        if (!await ask(`Delete profile "${name}"?\n\nThis permanently removes its watch progress, watchlist and ratings.`)) return;
-        delBtn.disabled = true;
-        delBtn.textContent = "Deleting…";
-        const r = await adminFetch(`/api/admin/profiles/${delBtn.dataset.profDel}`, { method: "DELETE" });
-        if (!r.ok) {
-          const err = await r.json().catch(() => ({}));
-          toast(err.error || "Failed to delete profile");
-          delBtn.disabled = false;
-          delBtn.textContent = "Delete";
-          return;
+      const kickC = e.target.closest("[data-kick-client]");
+      if (kickC) {
+        await post("/api/admin/kick/" + kickC.dataset.kickClient);
+        toast("Kicked");
+        return loadPeople();
+      }
+      const act = e.target.closest("[data-act]");
+      if (!act) return;
+      const a = act.dataset.act;
+      act.disabled = true;
+      try {
+        if (a === "lock") {
+          const locking = !p.locked;
+          if (locking && !await ask(`Suspend "${p.name}"?\n\nNobody can enter the profile until you unsuspend it, and every signed-in device is signed out.`)) return;
+          const r = await adminFetch(`/api/admin/profiles/${p.id}/lock`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locked: locking }),
+          });
+          if (!r.ok) return fail(r);
+          toast(locking ? `Suspended "${p.name}"` : `"${p.name}" can come back in`);
+        } else if (a === "kick") {
+          if (!await ask(`Kick "${p.name}" from every device?\n\nThey can come straight back with their password.`)) return;
+          const r = await post(`/api/admin/profiles/${p.id}/kick`);
+          toast(`Signed out everywhere${r.kicked ? ` — ${r.kicked} live ${r.kicked === 1 ? "device" : "devices"} dropped` : ""}`);
+        } else if (a === "reset") {
+          if (!p.mustReset && !await ask(`Reset "${p.name}"'s password?\n\nThey are signed out everywhere now. Their current password still opens the profile once — then they must pick a new one before going on.`)) return;
+          await post(`/api/admin/profiles/${p.id}/force-reset`, { on: !p.mustReset });
+          toast(p.mustReset ? "Reset withdrawn" : `${p.name} picks a new password at the next sign-in`);
+        } else if (a === "setpw") {
+          const val = await askText(`New password for "${p.name}" (4+ characters).\n\nThis is the profile's one password — wall AND sign-in — and every signed-in device gets signed out.`);
+          if (!val) return;
+          const r = await adminFetch(`/api/admin/signin/${encodeURIComponent(p.id)}/password`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newPassword: val }),
+          });
+          if (!r.ok) return fail(r);
+          toast(`Password set for ${p.name} — tell them in person, don't text it`);
+        } else if (a === "delete") {
+          if (!await ask(`Delete profile "${p.name}"?\n\nThis permanently removes its watch progress, watchlist and ratings.`)) return;
+          const r = await adminFetch(`/api/admin/profiles/${p.id}`, { method: "DELETE" });
+          if (!r.ok) return fail(r);
+          toast(`Deleted "${p.name}"`);
+          sheet.close();
         }
-        toast(`Deleted "${name}"`);
-        loadProfiles();
+        await loadPeople();
+      } finally {
+        act.disabled = false;
       }
     });
 
@@ -2191,11 +2322,7 @@
 
     async function loadBans() {
       const bans = await json("/api/admin/bans");
-      const entries = Object.entries(bans);
-      $("#bans").innerHTML = entries.length
-        ? entries.map(([ip, b]) => `<tr><td>${esc(ip)}</td><td class="muted">${esc(b.reason || "")} · ${ago(b.at)}</td>
-            <td style="text-align:right"><button class="mini" onclick="unban('${esc(ip)}')">Unban</button></td></tr>`).join("")
-        : `<tr><td colspan="3" class="empty-note">No banned addresses.</td></tr>`;
+      renderBansFrom(Object.entries(bans).map(([ip, b]) => ({ ip, reason: (b && b.reason) || "", at: b && b.at })));
     }
 
     // ---------- downloads ----------
@@ -2646,7 +2773,7 @@
       overview: () => { loadOverview(); loadClients(); loadTimeseries(); loadOverviewTop(); },
       analytics: () => { loadAnalytics(); loadUsage(); },
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
-      profiles: () => { loadProfileRequests(); loadProfileAccess(); loadProfiles(); loadAuth(); loadBans(); },
+      profiles: () => loadPeople(),
       server: () => { loadServer(); loadHealth(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
       downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadLimits(); },
       moderation: () => { loadReports(); loadRequests(); loadIntros(); },
@@ -2657,7 +2784,7 @@
       overview: ["Home", "What's happening right now, and what's waiting for you."],
       moderation: ["Inbox", "What people sent you: problem reports, title requests, skip-intro marks."],
       downloads: ["Downloads", "Approve what's waiting, watch what's running, clean up the disk."],
-      profiles: ["People", "Who gets in: profiles, sign-in, their devices, and banned addresses."],
+      profiles: ["People", "Sign-in on top, everyone in one table, who is connected now. Press a person for the rest."],
       analytics: ["Insights", "What gets watched, when, and how fast the app feels.", "Analytics"],
       history: ["Insights", "Every play and every connection, newest first.", "History"],
       server: ["Server", "Health, self-repair, updates and the machine itself.", "Status"],
@@ -2788,7 +2915,7 @@
             if (data.type === "request_new") toast("New request: " + (data.request?.title || ""));
             loadBadges();
           } else if (data.type === "profile_request_new") {
-            if (activeTab === "profiles") { loadProfileRequests(); loadAuth(); }
+            if (activeTab === "profiles") loadPeople();
             toast("New access request: " + (data.request?.name || "") + (data.request?.username ? " (@" + data.request.username + ")" : ""));
             loadBadges();
           } else if (data.type === "report_new") {

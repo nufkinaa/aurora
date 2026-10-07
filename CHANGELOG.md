@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.48 — 2026-10-07
+
+- Admin, the People tab redone (elia: "reorganize and redo the whole People tab so it's easier to use and shows what's really relevant"). The sign-in switch sits on top as a segmented control and stays there while you scroll — never folded — with the current mode's one line and the Google setup behind a "how to set it up" fold. Who is waiting for approval shows only while someone is. Everyone is ONE table — person, sign-in (username, Google badge, email), last seen, devices, downloads, status — with five tiles above it (people, claimed, online now, devices connected, banned) and a search box. "Connected now" lists every open app or tab with its device and address, and for a device that hasn't opened a profile, who has used that address before ("probably elia"). Banned addresses fold at the bottom.
+- Admin: press a person for their sheet — their sign-in details, last seen / addresses / signed-in devices / started / finished / list, who of theirs is online now (with Kick), their last 5 downloads with status and progress, their last 8 addresses and devices with Ban / Unban, and every action: Suspend / Unsuspend, Kick (sign out of every device), Reset password (they must pick a new one at the next sign-in), Set password, Delete. Full-screen on a phone.
+- Server: `GET /api/admin/people` (one payload for the tab), `POST /api/admin/profiles/:id/kick` (closes live sockets, revokes sign-in sessions and unlock tokens), `POST /api/admin/profiles/:id/force-reset` (a new password is required at the next sign-in; `on: false` withdraws it). The gate honours it: the current password still opens the profile, then "Pick a new password" must be saved before going on; a new password — the person's or the admin's — clears the flag. Tests cover the flag and the token revocation.
+
 ## 1.6.47 — 2026-10-07
 
 - Web, the sky on a phone (elia: the aurora still showed vertical cuts across the band on a real iPhone, not in a browser's phone mode): the curtains are painted as one-pixel columns at quarter resolution and rely on the upscale's smoothing to blend — iOS Safari ignores the high-quality smoothing hint, so the columns showed. Phones now get no curtains: a fuller starfield (210 stars, a fifth of them bright) that swings further between dim and lit, over a faint, still wash of the same violet and green so the glass keeps its tone. Desktops keep the aurora.

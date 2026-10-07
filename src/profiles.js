@@ -127,7 +127,7 @@ const login = async (identifier, password) => {
       : (await hashPassword(String(password || "x")), false);
   if (!ok) return { error: "wrong username or password" };
   if (p.locked) return { error: `that profile is locked — talk to ${config.ADMIN_NAME}` };
-  return { ok: true, profileId: p.id, user: signinPub(p), profile: pub(p) };
+  return { ok: true, profileId: p.id, user: signinPub(p), profile: pub(p), mustReset: !!p.mustReset };
 };
 
 // Can this profile still be claimed? Seeds the claim UI: a free suggested
@@ -169,7 +169,7 @@ const claimSignin = async ({ profileId, username, email, password }) => {
   if (e) p.email = e;
   p.claimedAt = Date.now();
   store.save();
-  return { ok: true, profileId: p.id, user: signinPub(p), profile: pub(p) };
+  return { ok: true, profileId: p.id, user: signinPub(p), profile: pub(p), mustReset: !!p.mustReset };
 };
 
 const linkGoogle = (profileId, sub) => {
@@ -202,6 +202,7 @@ const adminSetPassword = async (profileId, newPassword) => {
   const { salt, hash } = await hashPassword(String(newPassword));
   p.passwordHash = hash;
   p.passwordSalt = salt;
+  delete p.mustReset;
   for (const [t, pid] of tokens) if (pid === profileId) tokens.delete(t);
   store.save();
   return { ok: true };
@@ -215,6 +216,7 @@ const signinList = () =>
     color: p.color,
     hasPassword: !!p.passwordHash,
     locked: !!p.locked,
+    mustReset: !!p.mustReset,
     claimedAt: p.claimedAt || null,
   }));
 
@@ -265,11 +267,11 @@ const unlock = async (id, password) => {
   const p = getRaw(id);
   if (!p) return { error: "not found" };
   if (p.locked) return { error: "locked by admin" };
-  if (!p.passwordHash) return { ok: true, token: issueToken(id) };
+  if (!p.passwordHash) return { ok: true, token: issueToken(id), mustReset: !!p.mustReset };
   if (!(await verifyHash(password, p.passwordSalt, p.passwordHash))) {
     return { error: "wrong password" };
   }
-  return { ok: true, token: issueToken(id) };
+  return { ok: true, token: issueToken(id), mustReset: !!p.mustReset };
 };
 
 // Admin lockdown: a locked profile can't be entered, unlocked, edited, or used
@@ -286,6 +288,25 @@ const setLocked = (id, locked) => {
   }
   store.save();
   return pub(p);
+};
+
+// Admin: a new password is required at the next sign-in (People → "Reset
+// password"). The current password still opens the profile — that is how the
+// person proves who they are — and the gate then insists on a new one before
+// anything else. Live sessions and unlock tokens die at once.
+const setMustReset = (id, on) => {
+  const p = getRaw(id);
+  if (!p) return null;
+  if (on) p.mustReset = true;
+  else delete p.mustReset;
+  for (const [t, pid] of tokens) if (pid === id) tokens.delete(t);
+  store.save();
+  return pub(p);
+};
+// Admin "kick": every unlock token of this profile, gone. (Sign-in sessions
+// are lib/sessions' business; routes/admin.js revokes both.)
+const revokeTokensFor = (id) => {
+  for (const [t, pid] of tokens) if (pid === id) tokens.delete(t);
 };
 
 // Set, change, or remove (empty newPassword) a profile's password. Changing or
@@ -309,6 +330,7 @@ const setPassword = async (id, newPassword, currentPassword) => {
     const { salt, hash } = await hashPassword(String(newPassword));
     p.passwordHash = hash;
     p.passwordSalt = salt;
+    delete p.mustReset; // a fresh password is what the reset asked for
     for (const [t, pid] of tokens) if (pid === id) tokens.delete(t); // invalidate old sessions
   }
   store.save();
@@ -1040,6 +1062,8 @@ module.exports = {
   isProtected,
   isLocked,
   setLocked,
+  setMustReset,
+  revokeTokensFor,
   tokenValid,
   unlock,
   setPassword,

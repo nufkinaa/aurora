@@ -546,6 +546,105 @@ router.post("/api/admin/profiles/:id/lock", (req, res) => {
   res.json(p);
 });
 
+// ---------- the People tab, in one payload (2026-10-07) ----------
+// Everything the tab shows: the sign-in mode, who is waiting, every person
+// with their sign-in, their last 8 addresses and last 5 downloads, who is
+// connected right now (with the names that have used that address), and
+// the banned addresses. One request, so the page paints at once.
+const kickProfile = (p, reason) => {
+  let kicked = 0;
+  for (const c of realtime.clients.values()) {
+    if (!c.profile || (c.profile !== p.name && c.profile !== p.id)) continue;
+    try {
+      c.ws.send(JSON.stringify({ type: "kicked", reason: reason || "" }));
+      c.ws.close(1000, "Kicked");
+      kicked++;
+    } catch {}
+  }
+  require("../lib/sessions").revokeAllFor(p.id);
+  profiles.revokeTokensFor(p.id);
+  return kicked;
+};
+
+router.get("/api/admin/people", (req, res) => {
+  const sessions = require("../lib/sessions");
+  const downloads = require("../media/downloads");
+  const bans = realtime.bans.data || {};
+  const clients = [...realtime.clients.values()].map(realtime.publicClient);
+  const jobs = (downloads.rawJobs ? downloads.rawJobs() : []) || [];
+  const ipNames = new Map(); // address → the people who have unlocked a profile from it
+  const people = profiles.list().map((p) => {
+    const rows = profiles.accessFor(p.id);
+    for (const r of rows) {
+      if (!ipNames.has(r.ip)) ipNames.set(r.ip, new Set());
+      ipNames.get(r.ip).add(p.name);
+    }
+    const entries = Object.entries(profiles.getProgress(p.id));
+    const mine = jobs
+      .filter((j) => j.profile && (j.profile === p.id || j.profile === p.name))
+      .sort((a, b) => (b.at || 0) - (a.at || 0));
+    const live = clients.filter((c) => c.profile && (c.profile === p.name || c.profile === p.id));
+    return {
+      id: p.id,
+      name: p.name,
+      realName: p.realName || null,
+      avatar: p.avatar,
+      avatarImage: p.avatarImage || null,
+      color: p.color,
+      username: p.username || null,
+      email: p.email || null,
+      hasGoogle: !!p.googleSub,
+      claimed: profiles.isClaimed(p),
+      claimedAt: p.claimedAt || null,
+      hasPassword: !!p.passwordHash,
+      locked: !!p.locked,
+      mustReset: !!p.mustReset,
+      lastSeen: rows.reduce((m, r) => Math.max(m, r.last || 0), 0) || null,
+      ipCount: new Set(rows.map((r) => r.ip)).size,
+      fails: rows.reduce((n, r) => n + (r.fails || 0), 0),
+      access: rows.slice(0, 8).map((r) => ({
+        ip: r.ip, device: r.device, first: r.first, last: r.last,
+        count: r.count, fails: r.fails || 0, banned: !!bans[r.ip],
+      })),
+      sessions: sessions.listFor(p.id).length,
+      live: live.map((c) => ({
+        id: c.id, ip: c.ip, device: c.device, activity: c.activity, details: c.details, connectedAt: c.connectedAt,
+      })),
+      downloads: mine.slice(0, 5).map((j) => downloads.publicJob(j)),
+      downloadsTotal: mine.length,
+      started: entries.length,
+      finished: entries.filter(([, v]) => v.finished).length,
+      watchlistCount: (profiles.watchlistItems(p.id) || []).length,
+    };
+  });
+  res.json({
+    authMode: require("../lib/authmode").get(),
+    requests: profiles.pendingList(),
+    bans: Object.entries(bans).map(([ip, b]) => ({ ip, reason: (b && b.reason) || "", at: b && b.at })),
+    clients: clients.map((c) => ({ ...c, names: [...(ipNames.get(c.ip) || [])] })),
+    people,
+  });
+});
+
+// Sign a person out everywhere: live sockets closed, sign-in sessions and
+// unlock tokens revoked. They can come straight back with their password.
+router.post("/api/admin/profiles/:id/kick", (req, res) => {
+  const p = profiles.list().find((x) => x.id === req.params.id);
+  if (!p) return res.status(404).json({ error: "Not found" });
+  const kicked = kickProfile(p, "Signed out by the admin");
+  res.json({ ok: true, kicked });
+});
+
+// Require a new password at the next sign-in (and sign them out now).
+// `on: false` withdraws the requirement.
+router.post("/api/admin/profiles/:id/force-reset", (req, res) => {
+  const on = (req.body || {}).on !== false;
+  const p = profiles.setMustReset(req.params.id, on);
+  if (!p) return res.status(404).json({ error: "Not found" });
+  if (on) kickProfile(profiles.list().find((x) => x.id === req.params.id), "Please sign in again and pick a new password");
+  res.json({ ok: true, mustReset: on });
+});
+
 // Delete a profile and all its state (progress, watchlist, ratings). Admin
 // override — no profile token needed, unlike the user-facing delete.
 router.delete("/api/admin/profiles/:id", (req, res) => {

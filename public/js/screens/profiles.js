@@ -51,10 +51,15 @@ export const passwordPrompt = (profile, onSuccess) => {
     const submit = async () => {
       err.classList.add("hidden");
       try {
-        const res = await api.unlockProfile(profile.id, input.value);
+        const typed = input.value;
+        const res = await api.unlockProfile(profile.id, typed);
         close();
         narrator.call("onGoodPassword");
         onSuccess(res.token, res);
+        // The admin asked for a new password at the next sign-in (People →
+        // Reset password): the old one just proved who this is; a new one is
+        // required before going on. After onSuccess, so the token is set.
+        if (res.mustReset) newPasswordPrompt(profile, typed);
       } catch {
         err.classList.remove("hidden");
         input.value = "";
@@ -69,6 +74,41 @@ export const passwordPrompt = (profile, onSuccess) => {
       el("div", { style: { display: "flex", gap: "10px", marginTop: "22px" } },
         el("button", { class: "btn btn-primary focusable", onclick: submit }, "Unlock"),
         el("button", { class: "btn focusable", onclick: close }, "Cancel")
+      ),
+    ];
+  });
+  setTimeout(() => input.focus(), 50);
+};
+
+// "Pick a new password" — the forced reset. Not dismissable by a button: the
+// person either saves a new password or leaves the profile.
+const newPasswordPrompt = (profile, currentPassword) => {
+  const input = el("input", { type: "password", class: "focusable", placeholder: "New password (4+ characters)", autocomplete: "new-password" });
+  const again = el("input", { type: "password", class: "focusable", placeholder: "Once more", autocomplete: "new-password" });
+  const err = el("div", { class: "pw-error hidden" }, "");
+  const fail = (msg) => { err.textContent = msg; err.classList.remove("hidden"); };
+  modal((close) => {
+    const submit = async () => {
+      err.classList.add("hidden");
+      if (input.value.length < 4) return fail("At least 4 characters.");
+      if (input.value !== again.value) return fail("They don't match.");
+      try {
+        await api.setPassword(profile.id, input.value, currentPassword);
+        close();
+        toast("New password saved — it's your sign-in password too", "✅");
+      } catch (e) {
+        fail((e && e.message) || "Couldn't save it. Try again.");
+      }
+    };
+    again.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") again.focus(); });
+    return [
+      el("h2", {}, `${profile.avatar} Pick a new password`),
+      el("p", { class: "field-hint" }, `${state.adminName} asked you to choose a new password for “${profile.name}” before going on.`),
+      el("div", { class: "field" }, el("label", {}, "New password"), input),
+      el("div", { class: "field" }, el("label", {}, "Once more"), again, err),
+      el("div", { style: { display: "flex", gap: "10px", marginTop: "22px" } },
+        el("button", { class: "btn btn-primary focusable", onclick: submit }, "Save"),
       ),
     ];
   });
