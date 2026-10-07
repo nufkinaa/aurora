@@ -135,8 +135,11 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   // A sparse, fixed starfield (twinkle via alpha wave — no reshuffling).
   // A fuller field, twinkling the way stars do: most flicker faintly, a few
   // bright ones swell and dim with a soft halo, each on its own slow clock.
-  const STARS = Array.from({ length: mobile ? 64 : 170 }, () => {
-    const bright = Math.random() < 0.12;
+  // On a phone the stars ARE the sky (no curtains there — see paint), so the
+  // field is fuller, with more bright ones, and each star swings further
+  // between dim and lit (elia, 2026-10-07: "more stars that get bright and dim").
+  const STARS = Array.from({ length: mobile ? 210 : 260 }, () => {
+    const bright = Math.random() < (mobile ? 0.2 : 0.15);
     return {
       x: Math.random(),
       y: Math.random(),
@@ -146,6 +149,27 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
       bright,
     };
   });
+
+  // Shooting stars (elia, 2026-10-07: "maybe add more stars and shooting
+  // stars"): one every 7–16 s, a bright head with a tail that fades to
+  // nothing, crossing a tenth of the sky in under a second. Drawn on the
+  // star layer, so they are crisp. None in the still sky.
+  const METEORS = [];
+  let nextMeteorAt = 5 + Math.random() * 6;
+  const spawnMeteor = (t) => {
+    const dir = Math.random() < 0.5 ? 1 : -1; // left→right or right→left
+    const ang = rand(0.3, 0.6); // radians below horizontal
+    const speed = rand(0.22, 0.34); // of the width per second
+    METEORS.push({
+      t0: t,
+      life: rand(0.7, 1.1),
+      x0: dir > 0 ? rand(-0.05, 0.55) : rand(0.45, 1.05),
+      y0: rand(0.02, 0.5),
+      vx: dir * speed * Math.cos(ang),
+      vy: speed * Math.sin(ang),
+      len: rand(0.07, 0.13), // tail, of the width
+    });
+  };
 
   let raf = null;
   let last = 0;
@@ -215,7 +239,11 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
       // a slow swell with a sharper glint on top — real twinkle isn't a sine
       const w = Math.sin(t * s.tw + s.off);
       const glint = Math.max(0, Math.sin(t * s.tw * 3.1 + s.off * 1.7)) ** 6;
-      const a = still ? 0.55 : Math.max(0, 0.22 + 0.45 * w + 0.35 * glint);
+      const a = still
+        ? 0.55
+        : mobile
+          ? Math.max(0, 0.12 + 0.55 * w + 0.45 * glint) // deeper dips, brighter peaks
+          : Math.max(0, 0.22 + 0.45 * w + 0.35 * glint);
       if (a <= 0.05) continue;
       const x = s.x * SW, y = s.y * SH;
       if (HI) {
@@ -245,7 +273,67 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
     }
     sctx.globalAlpha = 1;
 
-    for (const b of BANDS) {
+    if (stars && !still) {
+      if (t >= nextMeteorAt) {
+        spawnMeteor(t);
+        nextMeteorAt = t + rand(7, 16);
+      }
+      for (let i = METEORS.length - 1; i >= 0; i--) {
+        const m = METEORS[i];
+        const p = (t - m.t0) / m.life;
+        if (p >= 1 || p < 0) {
+          METEORS.splice(i, 1);
+          continue;
+        }
+        // in fast, out slow: a meteor flares at once and dies away
+        const env = p < 0.15 ? p / 0.15 : 1 - (p - 0.15) / 0.85;
+        const hx = (m.x0 + m.vx * p * m.life) * SW;
+        const hy = (m.y0 + m.vy * p * m.life) * SH;
+        const norm = Math.hypot(m.vx, m.vy) || 1;
+        const tailLen = m.len * SW * (0.4 + 0.6 * Math.min(1, p / 0.3));
+        const tx = hx - (m.vx / norm) * tailLen;
+        const ty = hy - (m.vy / norm) * tailLen;
+        const g = sctx.createLinearGradient(hx, hy, tx, ty);
+        g.addColorStop(0, `rgba(255, 255, 255, ${(0.95 * env).toFixed(3)})`);
+        g.addColorStop(0.25, `rgba(220, 230, 255, ${(0.5 * env).toFixed(3)})`);
+        g.addColorStop(1, "rgba(200, 215, 255, 0)");
+        sctx.strokeStyle = g;
+        sctx.lineWidth = Math.max(1, K * 0.5);
+        sctx.lineCap = "round";
+        sctx.beginPath();
+        sctx.moveTo(hx, hy);
+        sctx.lineTo(tx, ty);
+        sctx.stroke();
+        // the head
+        sctx.fillStyle = `rgba(255, 255, 255, ${(0.95 * env).toFixed(3)})`;
+        sctx.beginPath();
+        sctx.arc(hx, hy, Math.max(0.8, K * 0.6), 0, Math.PI * 2);
+        sctx.fill();
+      }
+      sctx.fillStyle = "rgba(230, 238, 255, 1)";
+    }
+
+    // No curtains on a phone (2026-10-07). They are painted as 1px columns at
+    // quarter resolution and rely on the upscale's smoothing to blend; iOS
+    // Safari ignores imageSmoothingQuality, so on a real iPhone the columns
+    // showed as vertical cuts across the band (elia's photo — not visible in
+    // a desktop browser's phone emulation). A phone gets a faint, still wash
+    // of the same colours so the glass keeps its tone, and the stars do the
+    // living. Two gradients at low resolution: nothing to stutter.
+    if (mobile) {
+      const g1 = bctx.createRadialGradient(W * 0.25, H * 0.22, 0, W * 0.25, H * 0.22, Math.max(W, H) * 0.55);
+      g1.addColorStop(0, "rgba(120, 80, 220, 0.22)");
+      g1.addColorStop(1, "rgba(120, 80, 220, 0)");
+      const g2 = bctx.createRadialGradient(W * 0.8, H * 0.45, 0, W * 0.8, H * 0.45, Math.max(W, H) * 0.5);
+      g2.addColorStop(0, "rgba(60, 190, 140, 0.16)");
+      g2.addColorStop(1, "rgba(60, 190, 140, 0)");
+      bctx.globalAlpha = 1;
+      bctx.fillStyle = g1;
+      bctx.fillRect(0, 0, W, H);
+      bctx.fillStyle = g2;
+      bctx.fillRect(0, 0, W, H);
+    }
+    if (!mobile) for (const b of BANDS) {
       let presence = Math.min(1, Math.max(0, 1.6 * Math.sin(t * b.presF + b.presOff) + 0.35));
       if (b.hero) presence = Math.max(presence, 0.85);
       presence = Math.max(presence, b.violet ? 0.55 : 0.3); // nothing vanishes for long

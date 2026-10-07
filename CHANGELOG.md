@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.47 — 2026-10-07
+
+- Web, the sky on a phone (elia: the aurora still showed vertical cuts across the band on a real iPhone, not in a browser's phone mode): the curtains are painted as one-pixel columns at quarter resolution and rely on the upscale's smoothing to blend — iOS Safari ignores the high-quality smoothing hint, so the columns showed. Phones now get no curtains: a fuller starfield (210 stars, a fifth of them bright) that swings further between dim and lit, over a faint, still wash of the same violet and green so the glass keeps its tone. Desktops keep the aurora.
+- Web, the sky everywhere (elia: "add more stars and shooting stars"): the desktop field grows from 170 to 260 stars with more bright ones, and every 7–16 seconds a shooting star crosses a tenth of the sky in under a second — a bright head, a tail that fades to nothing, flaring at once and dying away.
+
 ## 1.6.46 — 2026-10-07
 
 - Web, the aurora on a phone (elia, iPhone 18 Pro: "the aurora effect looks choppy when scrolling"): three causes, all fixed. The sky canvas was sized to the viewport, which shrinks and grows as Safari's toolbar collapses while you scroll — each change reallocated and cleared the canvas mid-scroll; it now keeps the large viewport's height (100lvh) and ignores a toolbar's worth of height change. A phone painted the aurora at a fixed 12 fps, a slideshow on a 120 Hz screen — the cadence now follows the measured cost of a frame (30 fps when a frame is under 4 ms, 20 when under 9, 12 beyond). And the 150 ms hold after every scroll event, which left the aurora standing still through a fling and jumping after, now applies only when a frame is measured dear, on any device.
