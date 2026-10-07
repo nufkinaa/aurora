@@ -1574,6 +1574,11 @@ export const renderPlayer = async (root, { id }) => {
     setTimeout(() => sheet.classList.add("in"), 60); // (a hidden tab runs no animation frames)
   };
   const xrayBtn = btn("X-Ray", icons.xray, () => openXray());
+  // Next episode (elia, 2026-10-07): there from the start of an episode that
+  // has one, not only as the Up next card at the credits — which can be
+  // dismissed, and which is no help to someone who wants the next one now.
+  let nextKnown = null;
+  const nextBtn = btn("Next episode", icons.next, () => { if (nextKnown) goNext(nextKnown); }, "next-btn hidden");
   const fsBtn = btn("Fullscreen", icons.fullscreen, () => toggleFullscreen());
   // Picture in picture: the film in a floating window over other apps and
   // tabs. The standard API on desktop and Android; Safari's own on iPhone and
@@ -1661,7 +1666,8 @@ export const renderPlayer = async (root, { id }) => {
         el("div", { class: "pc-transport" },
           btn("Back 10 seconds", icons.back10, () => skip(-1)),
           playBtn,
-          btn("Forward 10 seconds", icons.forward10, () => skip(1))),
+          btn("Forward 10 seconds", icons.forward10, () => skip(1)),
+          nextBtn),
         el("div", { class: "vol-group" }, muteBtn, volSlider),
         el("div", { class: "player-spacer" }),
         el("div", { class: "pc-tools" }, ccBtn, speedBtn, item._offline && !item.xray ? null : xrayBtn, partyBtn, gearBtn, pipBtn, fsBtn),
@@ -3495,6 +3501,20 @@ export const renderPlayer = async (root, { id }) => {
     if (inParty()) keepParty = false;
     navigate(`#/play/${next.id}${next._savedCopy ? "?offline=1" : ""}`);
   };
+
+  // the Next episode button learns what is next once, a moment after start
+  if (isEpisode) {
+    setTimeout(async () => {
+      if (exited) return;
+      try {
+        const n = await findNextEpisode();
+        if (!n || exited) return;
+        nextKnown = n;
+        nextBtn.title = `Next episode — S${n.season} E${n.episode}${n.title ? ` · ${n.title}` : ""}`;
+        nextBtn.classList.remove("hidden");
+      } catch {}
+    }, 1500);
+  }
 
   // ---------- skip intro ----------
   // A per-SHOW intro range anyone in the household marks once from the

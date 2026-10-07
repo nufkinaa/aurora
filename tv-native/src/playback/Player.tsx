@@ -2060,6 +2060,52 @@ export default function Player({
     }
   }, [id, prefs.autoplayNext, profileId]);
 
+  // The episode after this one, known from the start (elia, 2026-10-07: "add
+  // a button of next episode — someone can just dismiss [Up next], and on an
+  // episode we can skip to the next one and start to play it"). Library
+  // episodes only: a streamed one needs a source picked first.
+  const [nextEp, setNextEp] = useState<{id: string; title: string} | null>(null);
+  const showIdOfItem = meta?.item?.showId || null;
+  useEffect(() => {
+    setNextEp(null);
+    if (!showIdOfItem) return;
+    let live = true;
+    api
+      .item(showIdOfItem, profileId)
+      .then(show => {
+        if (!live) return;
+        const flat = (show.seasons || []).flatMap(s => s.episodes);
+        const i = flat.findIndex(e => e.id === id);
+        const next = i >= 0 ? flat[i + 1] : null;
+        if (next) setNextEp({id: next.id, title: `S${next.season} E${next.episode} · ${next.title || ''}`.trim()});
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [showIdOfItem, id, profileId]);
+
+  const advanceTo = useCallback(
+    (target: {id: string; title: string}) => {
+      if (advancing.current) return; // guard against OK double-firing
+      advancing.current = true;
+      if (countdownTimer.current) clearInterval(countdownTimer.current);
+      setUpNext(null);
+      saveProgress();
+      if (party.current) {
+        if (party.role !== 'host') {
+          advancing.current = false;
+          return;
+        }
+        const it = itemRef.current;
+        setPartyItem({id: target.id, title: target.title, showTitle: it?.showTitle, cover: it?.cover ?? null});
+        keepParty.current = true;
+      }
+      navigation.replace('Player', {id: target.id, title: target.title, party: party.current?.code});
+    },
+    [navigation, saveProgress],
+  );
+
   const playUpNext = useCallback(() => {
     if (advancing.current || !upNext) return; // guard against OK double-firing
     advancing.current = true;
@@ -2667,6 +2713,14 @@ export default function Player({
                 onFocusChange={markZone('row')}
                 onPress={() => skip(1)}
               />
+              {nextEp ? (
+                <PBtn
+                  icon="skip"
+                  label={`Next episode — ${nextEp.title}`}
+                  onFocusChange={markZone('row')}
+                  onPress={() => advanceTo(nextEp)}
+                />
+              ) : null}
               {/* .vol-group — the mute button, with the level bar collapsed to
                   zero width until it takes focus, as the site does it.
 

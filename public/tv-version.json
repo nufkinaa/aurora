@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.16",
-  "notes": "Trailers play in 1080p (they were 720p at best) and step down by themselves on a line that can't carry it. Films you don't have: press Play to save the best source, hold Play for the list. The title page's small buttons light up as a disc when focused."
+  "versionName": "5.1.17",
+  "notes": "A Next episode button in the player, from the start of any episode. The menu's light now drifts gently instead of the old aurora. A cover that failed to load is tried again by itself."
 }

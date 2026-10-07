@@ -132,12 +132,52 @@ function Card({
       ? `/img/frame/${encodeURIComponent(item.id)}?t=${Math.floor(prog!.position)}`
       : (frame && !isEpisode && item.backdrop) || item.cover || item.poster,
   );
-  // A poster URL that 404s or times out used to leave an empty frame (seen in
-  // search results on the Mi TV, 2026-10-07); a failed picture falls back to
-  // the title tile like a missing one. Keyed by uri so a new picture gets its
-  // chance.
-  const [brokenUri, setBrokenUri] = React.useState<string | null>(null);
-  const broken = !!src && brokenUri === src.uri;
+  // A picture that fails is asked for again (elia, 2026-10-07: "if the app
+  // did not load a cover photo it will just not try again"). Android's image
+  // pipeline never retries by itself, so one hiccup on the line used to
+  // strand a card for as long as it stayed mounted:
+  //   tries 1-2  the same address again, cache-busted, after 1.5 s and 3 s;
+  //   try 3      the server's backup poster for the title (its chain of other
+  //              sources — /img/poster/<imdb id>), when the title has an id;
+  //   then       the titled tile, and a fresh round every 30 s while the card
+  //              is still on screen — a server that was down comes back.
+  // Keyed by the address, so a card that is handed a new picture starts over.
+  const [fail, setFail] = React.useState<{uri: string; n: number} | null>(null);
+  const tries = src && fail && fail.uri === src.uri ? fail.n : 0;
+  const retryTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => {
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+  }, []);
+  const backup =
+    !canFrame && /^tt\d+$/.test(String(item.imdbId || ''))
+      ? imgSrc(
+          `/img/poster/${item.imdbId}?type=${item.type === 'show' || isEpisode ? 'show' : 'movie'}` +
+            (item.showTitle || item.title ? `&t=${encodeURIComponent(String(item.showTitle || item.title).slice(0, 80))}` : '') +
+            (item.year ? `&y=${item.year}` : ''),
+        )
+      : null;
+  const TILE_AT = backup ? 4 : 3;
+  const broken = !!src && tries >= TILE_AT;
+  const shown =
+    !src || tries === 0
+      ? src
+      : tries === 3 && backup
+      ? backup
+      : {...src, uri: `${src.uri}${src.uri.includes('?') ? '&' : '?'}r=${tries}`};
+  const onImgError = () => {
+    if (!src) return;
+    const uri = src.uri;
+    const n = tries + 1;
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+    if (n >= TILE_AT) {
+      setFail({uri, n});
+      // the slow round: back to the first address in half a minute
+      retryTimer.current = setTimeout(() => setFail(f => (f && f.uri === uri ? null : f)), 30000);
+      return;
+    }
+    // (the backup poster is tried at once; a plain retry waits a breath)
+    retryTimer.current = setTimeout(() => setFail({uri, n}), n === 3 ? 0 : 1500 * n);
+  };
   const showLabel = !hideLabel && (landscape || item.upNext);
   // "N min left", under the title of a card mid-way (the site's glass look).
   const left =
@@ -214,17 +254,17 @@ function Card({
         </>
       }
       style={frame ? styles.cardFrame : landscape ? styles.cardWide : styles.card}>
-      {src && !broken ? (
+      {src && shown && !broken ? (
         // resizeMethod="resize": decode at view size, not source size — dozens of
         // posters decoded full-size is a silent memory/CPU tax on a TV.
         // fadeDuration={0}: Android's 300ms default makes every poster feel late.
         <Image
-          source={src}
+          source={shown}
           style={styles.poster}
           resizeMode="cover"
           resizeMethod="resize"
           fadeDuration={0}
-          onError={() => setBrokenUri(src.uri)}
+          onError={onImgError}
         />
       ) : (
         // `.card-fallback` (components.css:333-342) — a 160° gradient tile with

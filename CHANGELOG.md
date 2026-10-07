@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.61 — 2026-10-07
+
+- Next episode, on the TV and the site (elia): a button in the player's row beside +10, there from the start of any episode that has one after it — Up next at the credits can be dismissed, and was no help to someone who wants the next one now. A press saves your place and starts the next episode; a watch party's host carries the room along. Library episodes on the TV; on the site a streamed next episode opens its page to pick a source, as Up next does.
+- Aurora TV 5.1.17: the nav rail's aurora curtains are gone (elia: "ditch our attempt of the aurora effect and just add the hues"), replaced by the room's hue — and it moves (elia: "make them move a bit"): two soft glows, violet high and green low, drifting and breathing on the native driver. Measured on the Mi TV with the rail open: 60 frames a second, no janky frames; nothing is drawn while the rail is closed, and a slow box gets the same glows standing still.
+- Aurora TV 5.1.17: a cover that failed to load is asked for again (elia: "it will just not try again") — twice quickly, then the server's backup poster for the title, then every half minute while the card is on screen.
+
 ## 1.6.60 — 2026-10-07
 
 - Web: blur-up placeholders (elia). A poster or hero shows its picture's colours and rough shape from the first frame, and the real picture comes into focus over it, instead of a grey shimmer. The server keeps a 16-pixel WebP of every picture it hands out (about 230 bytes, made in the background with ffmpeg and cached on disk) and sends the ones it has beside a page's data — the hero's slides and the posters first, up to 120 per answer — to browsers that ask for them; the TV app and older tabs get exactly the answers they always got. The first visit after a new title appears has none for it; the next one does. On the lite tier and with reduced motion the picture simply replaces the placeholder.

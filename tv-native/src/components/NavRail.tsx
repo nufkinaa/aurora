@@ -31,11 +31,11 @@ import {useNavigation} from '@react-navigation/native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import Focusable from './Focusable';
 import Icon, {IconName} from './Icon';
-import RailAurora from './RailAurora';
 import {useApp} from '../AppContext';
 import {imgSrc} from '../api';
 import {atLeftEdge, captureFocus, clearRailOpener, focusJustMoved, noteRail, setRailOpener, useTVKeys} from '../focus';
 import {goSection, useMe, useNewUnseen, NAV_SECTIONS, NavSection} from '../navSection';
+import {isLite} from '../perfTier';
 import theme from '../theme';
 
 const {colors, focus, motion, nav, radius, spacing} = theme;
@@ -65,6 +65,73 @@ const ITEMS: Item[] = [
 const FOOT_FROM = NAV_SECTIONS.findIndex(s => s.foot);
 
 type NodeRef = {requestTVFocus?: () => void} | null;
+
+// The rail's hue, moving (elia, 2026-10-07: "make them move a bit and be
+// dynamic"). Two soft glows — the violet high on the left, the green low —
+// each one baked disc tinted and drifted by transforms on the native driver:
+// a slow figure, 16 s and 21 s, so the two never repeat together. Nothing is
+// repainted; the box composites two textures. Mounted only while the panel
+// is, and still on a box the perf tier judged slow.
+const GLOW = require('../assets/glow.png');
+function RailHues() {
+  const a = useRef(new Animated.Value(0)).current;
+  const b = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (isLite()) return;
+    const run = (v: Animated.Value, ms: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(v, {toValue: 1, duration: ms, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false}),
+          Animated.timing(v, {toValue: 0, duration: ms, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false}),
+        ]),
+      );
+    const la = run(a, 8000);
+    const lb = run(b, 10500);
+    la.start();
+    lb.start();
+    return () => {
+      la.stop();
+      lb.stop();
+    };
+  }, [a, b]);
+  return (
+    <View style={styles.hues} pointerEvents="none">
+      <Animated.Image
+        source={GLOW}
+        fadeDuration={0}
+        style={[
+          styles.hueViolet,
+          {
+            opacity: a.interpolate({inputRange: [0, 1], outputRange: [0.26, 0.46]}),
+            transform: [
+              {translateX: a.interpolate({inputRange: [0, 1], outputRange: [-14, 26]})},
+              {translateY: b.interpolate({inputRange: [0, 1], outputRange: [-10, 34]})},
+              {scale: a.interpolate({inputRange: [0, 1], outputRange: [1, 1.14]})},
+            ],
+          },
+        ]}
+      />
+      <Animated.Image
+        source={GLOW}
+        fadeDuration={0}
+        style={[
+          styles.hueGreen,
+          {
+            opacity: b.interpolate({inputRange: [0, 1], outputRange: [0.18, 0.36]}),
+            transform: [
+              {translateX: b.interpolate({inputRange: [0, 1], outputRange: [22, -18]})},
+              {translateY: a.interpolate({inputRange: [0, 1], outputRange: [16, -30]})},
+              {scale: b.interpolate({inputRange: [0, 1], outputRange: [1.08, 0.96]})},
+            ],
+          },
+        ]}
+      />
+      {/* back to the panel's own colour at the right edge, so the feather
+          beside it still melts into the page without a seam */}
+      <View style={styles.huesEdge} />
+    </View>
+  );
+}
 
 export default function NavRail({
   active,
@@ -294,13 +361,10 @@ export default function NavRail({
           {/* The opaque body, then the feather that melts its edge into the
               page — the panel View itself paints nothing. */}
           <View style={styles.panelBody} />
-          {/* The website nav's aurora, vertical, on the layer below the
-              buttons. Its opacity rides the same `slide` value that moves the
-              panel (both on the native driver), so the lights bloom in and
-              land in perfect sync with the nav itself — and mounting it here
-              means its animators only exist while the panel does. */}
+          {/* The panel's body: its hue fades in on the same `slide` value that
+              moves the panel (native driver), so it lands with the nav. */}
           <Animated.View pointerEvents="none" style={[styles.panelBody, {opacity: slide}]}>
-            <RailAurora width={nav.railOpen} />
+            <RailHues />
           </Animated.View>
           <Svg pointerEvents="none" style={styles.panelFeather} width={FEATHER} height="100%">
             <Defs>
@@ -545,7 +609,28 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: nav.railOpen,
     backgroundColor: '#0a0b14',
+    // The room's hue instead of the moving aurora curtains (elia,
+    // 2026-10-07: "ditch our attempt of the aurora effect and just add the
+    // hues we put in other places"): the menus' violet from the top-left and
+    // green from the foot, still — nothing animates, nothing to pay for. The
+    // first layer brings the right edge back to the panel's own colour so the
+    // feather beside it still melts into the page without a seam.
+    experimental_backgroundImage:
+      'linear-gradient(165deg, rgba(104,86,226,0.20) 0%, rgba(10,11,20,0) 46%, rgba(70,200,150,0.12) 100%)',
+    overflow: 'hidden',
   },
+  // the moving glows live inside the body and are clipped to it
+  hues: {position: 'absolute', top: 0, left: 0, bottom: 0, width: nav.railOpen},
+  huesEdge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: Math.round(nav.railOpen * 0.5),
+    experimental_backgroundImage: 'linear-gradient(90deg, rgba(10,11,20,0) 0%, rgba(10,11,20,1) 100%)',
+  },
+  hueViolet: {position: 'absolute', top: -150, left: -170, width: 440, height: 440, tintColor: '#6856e2'},
+  hueGreen: {position: 'absolute', bottom: -190, left: -150, width: 460, height: 460, tintColor: '#46c896'},
   panelFeather: {
     position: 'absolute',
     top: 0,

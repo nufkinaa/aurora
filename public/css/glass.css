@@ -4267,3 +4267,5 @@ html[data-fx="lite"] .img-blurup.img-in { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   .img-blurup.img-in { animation: none !important; }
 }
+
+.pbtn.next-btn.hidden { display: none; }

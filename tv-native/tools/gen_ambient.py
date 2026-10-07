@@ -208,6 +208,23 @@ path = os.path.join(ASSETS, 'row-fade.png')
 rowfade.save(path, optimize=True)
 print('row-fade.png baked')
 
+# ---- the rail's moving hue --------------------------------------------------
+# One soft white disc, alpha falling off smoothly to nothing at the rim. The
+# nav rail tints it (violet, green) and drifts two of them slowly behind its
+# buttons (NavRail.tsx) — a texture moved by transforms costs nothing, where
+# the old aurora curtains were a study in what the box could not afford.
+G = 96
+glow = Image.new('RGBA', (G, G))
+gp = []
+for y in range(G):
+    for x in range(G):
+        d = min(1.0, math.hypot((x + 0.5) / G - 0.5, (y + 0.5) / G - 0.5) * 2)
+        gp.append((255, 255, 255, round(255 * (1 - smooth(d)) ** 1.6)))
+glow.putdata(gp)
+path = os.path.join(ASSETS, 'glow.png')
+glow.save(path, optimize=True)
+print('glow.png baked')
+
 # ---- the title page's picture mask, one full-screen image ------------------
 # Detail's picture sits in the upper-right box (x >= 38%, y <= 76%). Every
 # smaller overlay drawn over or around that box failed to render on the Mi TV;

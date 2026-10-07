@@ -2,12 +2,12 @@
 //
 // Android TV hardware runs from a current Google TV Streamer down to boxes
 // with a 2016 chip and 2 GB of memory. The app is the same on all of them,
-// but two things in it are luxuries that a weak box pays for in smoothness
+// but one thing in it is a luxury that a weak box pays for in smoothness
 // everywhere else: trailers on Home's billboard (a YouTube player in a
-// WebView) and the nav rail's moving aurora (a looping animation). On a box
-// that can't spare them, both stand down — the still backdrop and the still
-// aurora are the same picture, just not moving — and everything a viewer
-// actually does (browse, focus, play) keeps its full quality.
+// WebView). On a box that can't spare them they stand down — the still
+// backdrop is the same picture, just not moving — and everything a viewer
+// actually does (browse, focus, play) keeps its full quality. (The nav
+// rail's moving aurora used to be the second; it is a still hue now.)
 //
 // "Can't spare them" is decided twice:
 //   1. up front, by age: Android 9 (API 28) and older are the generation
