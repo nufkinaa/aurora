@@ -89,7 +89,7 @@ A real native app (react-native-tvos + ExoPlayer) rather than a web page in a bo
 
 - **Four runtime dependencies** (`express`, `compression`, `ws`, `webtorrent`), vanilla ES modules on the front end, no bundler, no database — JSON stores in `data/`.
 - **A daily round** re-checks skip timestamps and library metadata; a scan picks up new files every ten minutes.
-- **A watchdog and a healer.** Memory, event-loop lag, ffmpeg children, the download queue, the download engine, temp folders and disk trend are checked continuously; caches are dropped under pressure, stuck jobs restarted, and under pm2 the server restarts itself cleanly if it must.
+- **A watchdog and a healer.** Memory, event-loop lag, ffmpeg children, the download queue, the download engine, temp folders and disk trend are checked continuously; caches are dropped under pressure, stuck jobs restarted, and under pm2 the server restarts itself cleanly if it must. The healer also reads the log (known errors by name with what to press, a never-seen error reported once, the file that keeps failing named) and the numbers (time to first frame by path, failed starts, stalls per hour watched, refused encoders, download results, a missing library drive, backup age, clock drift), and may run a handful of safe actions by itself — see `healer` in the config table.
 - **Play-ready copies only where needed**, sized artwork (WebP variants), an offline-capable service worker, and idle-time prefetch of the page you are likely to open next.
 
 ---
@@ -181,6 +181,9 @@ All of it is read once at startup by [`src/config.js`](src/config.js). Machine s
 | `prewarmStreams` | `true` | Join the recommended source's swarm as soon as a sources list opens, so Play starts warm. |
 | `notifications.ntfy.topic` | — | An [ntfy](https://ntfy.sh) topic for admin pushes. Treat it like a password. |
 | `notifications.telegram.botToken`, `.chatId` | — | Telegram bot for the same messages. |
+| `healer.autoRepair` | `true` | The healer (about thirty checks every minute: the log, playback / download / transcoding statistics, library folders, backups, updates, alert delivery) may press a few safe actions by itself — tidy stream leftovers, re-apply the torrent-library patch, rescan when a library folder comes back, back up when the newest backup is older than `health.backupMaxAgeHours`, retry a file that was replaced. Each at most a few times a day per problem; after that the finding says "tried N times, needs you" and names the button. `false` switches every automatic repair off — the checks still run and each finding names what to press. It never updates, pulls, installs, restarts, runs the tests or sends a test alert. |
+| `healer.off` | `[]` | Single automatic repairs to switch off, by name: `"sweep-streams"`, `"patch-webtorrent"`, `"rescan"`, `"backup-now"`, `"jit-forget-changed"`. |
+| `healer.ai` | `false` | With an OpenRouter key set, a kind of error the server has never seen before may be explained by the model: once per error, five requests a day at most, two sentences shown beside the error on the admin page. Only the error's normalized message is sent, with paths, addresses, hostnames, e-mails and anything key-like removed. The answer is displayed, never acted on. |
 | `aria2Path` | auto-detected | Full path to `aria2c` if it is not on `PATH`. |
 | `aria2Port` | `6801` | RPC port for Aurora's own aria2 process (bound to localhost). |
 | `aiModel` | `google/gemini-2.5-flash` | OpenRouter model for the AI picker. |

@@ -116,6 +116,14 @@ router.post("/api/play-mark/:id", (req, res) => {
     .map(([k, v]) => `${tidy(k, 16)}=${tidy(v, 40)}`)
     .join(" ");
   if (name) console.log(`[play] ${tidy(req.params.id, 12)} +${ms}ms ${name}${extra ? " " + extra : ""}`);
+  // the same mark as a number, for the healer's playback statistics (lib/playmarks.js)
+  if (name) {
+    try {
+      const rest = {};
+      for (const [k, v] of Object.entries(b).filter(([k]) => !["name", "ms"].includes(k)).slice(0, 6)) rest[tidy(k, 16)] = tidy(v, 40);
+      require("../lib/playmarks").record({ id: tidy(req.params.id, 12), name, ms, extra: rest, ip: require("../realtime").clientIp(req), ua: req.get("user-agent") });
+    } catch {}
+  }
   res.json({ ok: true });
 });
 

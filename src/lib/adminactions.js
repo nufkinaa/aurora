@@ -8,6 +8,12 @@
 // request names an action id and that is all. An admin password is already a
 // lot of power; it is deliberately NOT a remote shell.
 //
+// THE HEALER (lib/healer.js) may press a FEW of these by itself: only the
+// actions marked `healer: true` below, and never one on NEVER_BY_HEALER
+// whatever its flag says. It calls start(id, { by: "healer", why }) — the run
+// is recorded as the healer's, with the reason, and shows that way under
+// Recent runs. The route never passes `by`: a browser cannot claim to be it.
+//
 // Each run keeps its output (capped) so the page can show it while it runs
 // and afterwards. One COMMAND runs at a time — two `npm install`s or a pull
 // under a running test would only break each other; the quick in-process
@@ -30,12 +36,12 @@ const node = (...args) => ({ cmd: process.execPath, args });
 const git = (...args) => ({ cmd: "git", args });
 const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
 
-const runs = []; // newest last: { id, action, title, startedAt, endedAt, status, output, code }
+const runs = []; // newest last: { id, action, title, startedAt, endedAt, status, output, code, by, why }
 let seq = 0;
 let busy = null; // the command run in flight, if any
 
-const newRun = (a) => {
-  const run = { id: `${Date.now().toString(36)}-${++seq}`, action: a.id, title: a.title, startedAt: Date.now(), endedAt: null, status: "running", output: "", code: null };
+const newRun = (a, by = "admin", why = null) => {
+  const run = { id: `${Date.now().toString(36)}-${++seq}`, action: a.id, title: a.title, startedAt: Date.now(), endedAt: null, status: "running", output: "", code: null, by, why };
   runs.push(run);
   while (runs.length > KEEP_RUNS) runs.shift();
   return run;
@@ -115,8 +121,11 @@ const restartSoon = () => {
 // ---------------------------------------------------------------- the list
 // kind "command": `steps` — fixed commands, run in order, stopping at the
 //                 first that fails.
-// kind "task":    `run(log)` — in-process; returns a sentence or throws.
+// kind "task":    `run(log, run, ctx)` — in-process; returns a sentence or throws.
+//                 ctx = { by, subject }: who started it, and (the healer only)
+//                 the one thing it is about. Never anything from a request.
 // `confirm` is the question the page asks first; `danger` paints the button.
+// `healer: true` — the healer may run it by itself (see the note at the top).
 const ACTIONS = [
   // ---- update ----
   {
@@ -230,7 +239,7 @@ const ACTIONS = [
   {
     id: "backup-now", group: "Library and data", title: "Back up now",
     about: "Write a snapshot of profiles, progress, settings and configuration, and apply the keep rules.",
-    kind: "task",
+    kind: "task", healer: true, // only when the newest backup is older than the alert threshold
     run: async (log) => {
       const backup = require("./backup");
       const made = await backup.createNow({ prune: true });
@@ -259,13 +268,14 @@ const ACTIONS = [
   {
     id: "rescan", group: "Library and data", title: "Rescan the library",
     about: "Look at the library folders again — for files added, moved or removed by hand.",
-    kind: "task",
+    kind: "task", healer: true, // only when a library folder has just come back
     run: async () => {
       const scanner = require("../media/scanner");
       scanner.scan();
       scanner.enrich();
       require("../realtime").broadcastAll({ type: "library_updated" });
-      return `Scanned. ${((scanner.index && scanner.index.items) || []).length || ""} items in the library.`.replace("  ", " ");
+      const n = scanner.allItems().length;
+      return `Scanned. ${n} title${n === 1 ? "" : "s"} in the library.`;
     },
   },
   {
@@ -328,7 +338,7 @@ const ACTIONS = [
   {
     id: "sweep-streams", group: "Caches", title: "Tidy stream leftovers",
     about: "Stop transcodes nobody is watching and delete their temporary segments. Streams in use are left alone.",
-    kind: "task",
+    kind: "task", healer: true,
     run: async (log) => {
       for (const [name, mod] of [["library streams", "../media/remux"], ["torrent streams", "../media/torrent-transcode"]]) {
         try {
@@ -361,11 +371,37 @@ const ACTIONS = [
     },
   },
 
+  {
+    id: "jit-forget-changed", group: "Caches", title: "Retry replaced files only (fast path)",
+    about: "Of the files marked unplayable on the fast path, forget only the entries whose file has since been replaced or changed on disk. Everything else on the list is kept.",
+    kind: "task", healer: true,
+    run: async (log, run, ctx) => {
+      const jit = require("../media/jit");
+      const scanner = require("../media/scanner");
+      const mtimeOf = (id) => {
+        const e = scanner.resolve(id);
+        if (!e) return null; // not in the library right now (or its drive is away): not "changed"
+        try { return Math.floor(fs.statSync(e.path).mtimeMs); } catch { return null; }
+      };
+      // the healer names ONE entry; it is checked again here, never taken on trust
+      let stale = staleDeclined(jit.declinedList(), mtimeOf);
+      if (ctx && ctx.subject) stale = stale.filter((s) => s.key === ctx.subject);
+      let n = 0;
+      for (const s of stale) {
+        if (!jit.forgetDeclined(s.key)) continue;
+        n++;
+        const e = scanner.resolve(s.id);
+        log(`forgot ${e ? path.basename(e.path) : s.id} (declined ${new Date(s.at || 0).toISOString().slice(0, 10)}: ${s.why})\n`);
+      }
+      return n ? `Forgot ${n} entr${n === 1 ? "y" : "ies"} whose file changed; the rest of the list is untouched.` : "No declined file has changed on disk — nothing was forgotten.";
+    },
+  },
+
   // ---- repair ----
   {
     id: "patch-webtorrent", group: "Repair", title: "Re-apply the download engine patch",
     about: "The small fix Aurora applies to its torrent library after every install. Harmless to run again.",
-    kind: "command", steps: [node("tools/patch-webtorrent.js")], timeoutMs: 60000,
+    kind: "command", steps: [node("tools/patch-webtorrent.js")], timeoutMs: 60000, healer: true,
   },
 ];
 
@@ -384,17 +420,40 @@ const capture = (spec) =>
     child.on("close", () => resolve(out.trim()));
   });
 
+// Declined entries (jit.declinedList()) whose file is still in the library
+// but is no longer the file that was declined. A key is "<id>-<mtime>[|enc]";
+// `mtimeOf(id)` answers the file's mtime now, or null when it cannot be seen
+// (gone, or its drive unplugged) — which is NOT a change. Pure.
+const staleDeclined = (list, mtimeOf) => {
+  const out = [];
+  for (const d of list || []) {
+    const m = /^([0-9a-f]{12})-(\d+)(\|enc)?$/.exec(String(d.key));
+    if (!m) continue;
+    const now = mtimeOf(m[1]);
+    if (typeof now === "number" && now !== Number(m[2])) out.push({ key: d.key, id: m[1], why: d.why, at: d.at });
+  }
+  return out;
+};
+
+// Never by the healer, under any circumstances — whatever a flag says. These
+// change the code, restart the server, run for many minutes, throw away a
+// cache people would notice, or reach outside (a real notification).
+const NEVER_BY_HEALER = new Set(["update-all", "git-pull", "npm-install", "restart", "self-test", "subs-backfill", "notify-test", "clear-images", "clear-meta"]);
+const mayHealerRun = (a) => !!a && a.healer === true && !NEVER_BY_HEALER.has(a.id);
+
 const byId = new Map(ACTIONS.map((a) => [a.id, a]));
 const isExclusive = (a) => a.kind === "command" || !!a.exclusive;
 
 const publicAction = (a) => ({
   id: a.id, group: a.group, title: a.title, about: a.about,
   confirm: a.confirm || null, danger: !!a.danger, long: isExclusive(a),
+  healer: mayHealerRun(a), // the healer may press this one by itself
   // what it runs, in words a person can check against this file
   runs: a.kind === "command" ? a.steps.map((s) => [path.basename(s.cmd), ...s.args].join(" ")) : null,
 });
 const publicRun = (r, full) => ({
   id: r.id, action: r.action, title: r.title, startedAt: r.startedAt, endedAt: r.endedAt, status: r.status, code: r.code,
+  by: r.by || "admin", why: r.why || null,
   output: full ? r.output : r.output.slice(-600),
 });
 
@@ -409,16 +468,27 @@ const getRun = (id) => {
 };
 
 // Start an action by id. Returns { run } at once; the work carries on.
-const start = (id) => {
+// opts (server-side callers only — the route passes none):
+//   by: "healer"   the healer is asking: refused unless the action is one it
+//                  may run; the run is recorded as its own
+//   why            one sentence, kept with the run
+//   subject        the one thing it is about (handed to a task as ctx.subject)
+//   onDone(run)    called once with the finished run
+const start = (id, opts = {}) => {
   const a = byId.get(String(id));
   if (!a) return { status: 404, error: "No such action." };
+  const by = opts && opts.by === "healer" ? "healer" : "admin";
+  if (by === "healer" && !mayHealerRun(a)) return { status: 403, error: `The healer is not allowed to run "${a.title}".` };
+  const why = by === "healer" ? String((opts && opts.why) || "").replace(/[\x00-\x1f]/g, " ").slice(0, 300) || null : null;
   if (isExclusive(a) && busy) return { status: 409, error: `"${busy.title}" is still running — wait for it to finish.`, run: publicRun(busy, false) };
-  const run = newRun(a);
+  const run = newRun(a, by, why);
   if (isExclusive(a)) busy = run;
   const done = (ok) => {
     if (busy === run) busy = null;
     finish(run, ok, run.code);
+    if (opts && typeof opts.onDone === "function") { try { opts.onDone(publicRun(run, false)); } catch {} }
   };
+  if (by === "healer") append(run, `(started by the healer${why ? ` — ${why}` : ""})\n`);
   (async () => {
     try {
       if (a.kind === "command") {
@@ -431,7 +501,7 @@ const start = (id) => {
         append(run, ok ? "Finished.\n" : `Failed${run.code != null ? ` (exit code ${run.code})` : ""}.\n`);
         return done(ok);
       }
-      const said = await a.run((t) => append(run, t), run);
+      const said = await a.run((t) => append(run, t), run, { by, subject: by === "healer" && opts ? opts.subject || null : null });
       if (said) append(run, `${run.output && !run.output.endsWith("\n") ? "\n" : ""}${said}\n`);
       done(true);
     } catch (e) {
@@ -442,4 +512,4 @@ const start = (id) => {
   return { run: publicRun(run, false) };
 };
 
-module.exports = { list, start, getRun, _internals: { ACTIONS, emptyDir, runs, exec, isExclusive } };
+module.exports = { list, start, getRun, mayHealerRun: (id) => mayHealerRun(byId.get(String(id))), _internals: { ACTIONS, byId, emptyDir, runs, exec, isExclusive, staleDeclined, NEVER_BY_HEALER } };

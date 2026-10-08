@@ -19,6 +19,18 @@ const channels = () => {
   return out;
 };
 
+// What became of the last sends, per channel — so "alerts are not reaching
+// anyone" is itself something the healer can see (its "Alert delivery" check).
+// Memory only; the healer keeps the last known answer across restarts.
+const outcome = {}; // channel -> { lastOkAt, lastFailAt, lastError, failsInARow, sent }
+const noteOutcome = (channel, ok, error) => {
+  const o = outcome[channel] || (outcome[channel] = { lastOkAt: 0, lastFailAt: 0, lastError: null, failsInARow: 0, sent: 0 });
+  o.sent++;
+  if (ok) { o.lastOkAt = Date.now(); o.failsInARow = 0; }
+  else { o.lastFailAt = Date.now(); o.lastError = String(error || "failed").slice(0, 160); o.failsInARow++; }
+};
+const outcomes = () => JSON.parse(JSON.stringify(outcome));
+
 // opts (optional): { priority: "urgent" | "high" | "default" | "low", tags: "warning" }
 // — ntfy only; health alerts use it so a critical one breaks through.
 const send = (title, message, opts = {}) => {
@@ -30,7 +42,13 @@ const send = (title, message, opts = {}) => {
       headers: { Title: title, Tags: opts.tags || "clapper", ...(opts.priority ? { Priority: opts.priority } : {}) },
       body: message,
       signal: AbortSignal.timeout(10000),
-    }).catch((e) => console.warn("[notify] ntfy failed:", e && e.message));
+    })
+      .then((r) => {
+        // ntfy answers 4xx/5xx without throwing (a topic that is reserved, a rate limit)
+        if (r && r.ok === false) { noteOutcome("ntfy", false, `HTTP ${r.status}`); console.warn("[notify] ntfy failed:", `HTTP ${r.status}`); }
+        else noteOutcome("ntfy", true);
+      })
+      .catch((e) => { noteOutcome("ntfy", false, e && e.message); console.warn("[notify] ntfy failed:", e && e.message); });
   }
   if (n.telegram && n.telegram.botToken && n.telegram.chatId) {
     fetch(`https://api.telegram.org/bot${n.telegram.botToken}/sendMessage`, {
@@ -40,10 +58,14 @@ const send = (title, message, opts = {}) => {
       signal: AbortSignal.timeout(10000),
     })
       .then(async (r) => {
-        if (!r.ok) console.warn("[notify] telegram failed:", (await r.text()).slice(0, 200));
+        if (!r.ok) {
+          const why = (await r.text()).slice(0, 200);
+          noteOutcome("telegram", false, `HTTP ${r.status}`); // never the body: it can echo the bot token's chat
+          console.warn("[notify] telegram failed:", why);
+        } else noteOutcome("telegram", true);
       })
-      .catch((e) => console.warn("[notify] telegram failed:", e && e.message));
+      .catch((e) => { noteOutcome("telegram", false, e && e.message); console.warn("[notify] telegram failed:", e && e.message); });
   }
 };
 
-module.exports = { send, channels };
+module.exports = { send, channels, outcomes, _internals: { noteOutcome, outcome } };

@@ -48,6 +48,13 @@ const closeSession = (clientId) => {
   s.live = false;
   s.endedAt = now();
   s.watchedSec = secondsBetween(s.startedAt, s.endedAt);
+  // Did it end in trouble? A viewer who vanished mid-film with a stall that
+  // never ended (or an error) just before is an abnormal end — the healer's
+  // sessions check counts these (lib/playmarks.js has the marks).
+  try {
+    const unfinished = !(s.duration > 0 && s.position != null && s.position / s.duration > 0.93);
+    if (unfinished && require("./lib/playmarks").troubledJustNow(s.ip)) s.abnormal = true;
+  } catch {}
   // Discard accidental blips (opened and closed within a few seconds)
   if (s.watchedSec < 5) {
     const i = sessions.data.indexOf(s);

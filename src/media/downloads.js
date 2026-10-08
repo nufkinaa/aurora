@@ -297,7 +297,11 @@ const list = () => store.data.map(publicJob);
 // forever (no library id resolves for a path that is gone). Drop those on
 // every listing and tell every open page, so they vanish everywhere at once.
 const pruneGone = () => {
-  const gone = store.data.filter((j) => j.status === "done" && j.destPath && !fs.existsSync(j.destPath));
+  // "Gone" means deleted — not "its drive is unplugged": a file under a
+  // library folder that cannot be read right now is kept (lib/libroots.js).
+  let away = () => false;
+  try { away = require("../lib/libroots").under; } catch {}
+  const gone = store.data.filter((j) => j.status === "done" && j.destPath && !fs.existsSync(j.destPath) && !away(j.destPath));
   if (!gone.length) return;
   store.data = store.data.filter((j) => !gone.includes(j));
   store.save();
@@ -1057,6 +1061,7 @@ const claimWin = (job, rec, att, file, engineStatus) => {
   const hadRace = !!rec.ch;
   if (hadRace && att !== rec.main) {
     adopt(job, { ...att.src, sizeBytes: att.length || att.src.sizeBytes });
+    job.secondSourceWon = true; // for the healer's download statistics
     att.role = "original";
     att.state = null;
     rec.main = att;

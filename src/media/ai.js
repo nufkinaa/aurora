@@ -230,6 +230,7 @@ const callModel = async (messages, tag = "") => {
         max_tokens: 2000,
       }),
     });
+    try { require("../lib/signals").provider(ENDPOINT, res.status); } catch {}
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new Error(`OpenRouter ${res.status} after ${((Date.now() - t0) / 1000).toFixed(1)}s: ${body.slice(0, 200)}`);

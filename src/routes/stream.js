@@ -444,7 +444,10 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
       // no encoder free: say so now, before the player commits to the rendition
-      if (!jit.encodeRoom(key, v === "h264")) return res.status(503).send("Server is busy — that rendition isn't available right now");
+      if (!jit.encodeRoom(key, v === "h264")) {
+        try { require("../lib/signals").hit("no-encoder", "rendition"); } catch {}
+        return res.status(503).send("Server is busy — that rendition isn't available right now");
+      }
     }
     const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
@@ -493,9 +496,12 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
       if (!input) return res.status(404).send("No such rendition of this file");
     }
     const job = jit.jobFor(dir, table, { enc: v !== "copy" });
+    const askedAt = Date.now();
     const file = isInit
       ? await jit.ensureInit(dir, job, input)
       : await jit.ensureSegment(dir, job, input, parseInt(m[1], 10));
+    // how long a player waited for this segment — a tally, for the healer
+    if (!isInit) { try { require("../lib/signals").hit("seg-wait", !file ? "none" : Date.now() - askedAt >= 4000 ? "slow" : "ok"); } catch {} }
     // an encoded rendition with no encoder free: 503, so the player moves to
     // another rendition instead of waiting on this one
     if (!file && jit.refusedJustNow(job)) return res.status(503).send("Server is busy — that rendition isn't available right now");

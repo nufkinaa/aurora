@@ -36,6 +36,8 @@ const tooMany = (key) => {
   return list.length >= FAIL_MAX;
 };
 const recordFail = (key) => {
+  // the healer reads these as a statistic ("many refusals from one address")
+  if (/^(ip|unlock):(?!p:)/.test(key)) { try { require("../lib/signals").hit("auth-fail", key.replace(/^(ip|unlock):/, "")); } catch {} }
   const list = fails.get(key) || [];
   list.push(Date.now());
   fails.set(key, list);

@@ -435,9 +435,13 @@ const pass = async () => {
     }
     fpCache.clear(); // a season's fingerprints are only useful within it
   }
-  // entries for episodes that left the library go with them
+  // entries for episodes that left the library go with them — but never
+  // while a library folder cannot be read: an unplugged drive makes every
+  // episode on it "gone", and their timestamps took hours to work out
   let pruned = 0;
-  for (const id of Object.keys(store.data)) {
+  let rootAway = false;
+  try { rootAway = require("../lib/libroots").missing().length > 0; } catch {}
+  for (const id of rootAway ? [] : Object.keys(store.data)) {
     if (!seen.has(id) && !scanner.resolve(id)) { delete store.data[id]; pruned++; }
   }
   if (pruned) store.save();

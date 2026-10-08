@@ -235,6 +235,34 @@
     .ac-run:hover b { text-decoration: underline; }
     .pill.bad { background: rgba(240, 80, 80, 0.16); color: #ff8c8c; }
     @media (max-width: 640px) { .ac-row { grid-template-columns: 1fr; } .ac-row button.mini { width: 100%; min-height: 42px; } }
+    /* an action a healer finding pointed at: lit for a few seconds, never run */
+    .ac-row.ac-hot { border-radius: 12px; outline: 2px solid var(--accent-strong); outline-offset: 6px; background: rgba(139, 124, 255, 0.10); transition: background 0.4s; }
+    .ac-row b.tagged { display: inline; }
+    .ac-run .ac-by { color: #c7bfff; font-size: 0.8rem; }
+    .ac-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: rgba(139, 124, 255, 0.16); color: #c7bfff; font-size: 0.68rem; font-weight: 700; vertical-align: 2px; }
+    /* the Healer card: checks in groups, problems first, healthy groups folded to one line */
+    .hl-group { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+    .hl-group > summary { list-style: none; cursor: pointer; display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; font-size: 0.92rem; }
+    .hl-group > summary::-webkit-details-marker { display: none; }
+    .hl-group > summary::after { content: "▸"; margin-left: auto; color: var(--text-faint); flex: none; }
+    .hl-group[open] > summary::after { content: "▾"; }
+    .hl-group > summary .hl-gsum { color: var(--text-dim); font-weight: 600; min-width: 0; }
+    .hl-group.fail { border-color: rgba(255, 122, 122, 0.45); }
+    .hl-group.warn { border-color: rgba(245, 197, 66, 0.4); }
+    .hl-rows { display: grid; gap: 6px; padding: 0 10px 10px; }
+    .hl-check { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 10px; background: rgba(0, 0, 0, 0.18); border: 1px solid var(--line); min-width: 0; }
+    .hl-check > div { min-width: 0; flex: 1; }
+    .hl-check .hl-sub { font-size: 0.82rem; margin-top: 2px; word-break: break-word; }
+    .hl-find { margin-top: 8px; padding: 9px 11px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); border-left: 3px solid #9aa3b8; font-size: 0.86rem; line-height: 1.45; word-break: break-word; }
+    .hl-find.fail { border-left-color: #ff7a7a; }
+    .hl-find.warn { border-left-color: #f5c542; }
+    .hl-find .hl-f-title { font-weight: 800; }
+    .hl-find .hl-f-line { color: var(--text-dim); font-size: 0.8rem; margin-top: 4px; }
+    .hl-find .hl-f-line span { display: inline-block; margin-right: 6px; padding: 0 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); color: var(--text-faint); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .hl-find .hl-f-line.did { color: #c7bfff; }
+    .hl-find .hl-press { margin-top: 8px; background: var(--accent-strong); color: #fff; padding: 8px 14px; text-align: left; white-space: normal; }
+    .hl-rep { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 5px 0; font-size: 0.86rem; }
+    @media (max-width: 640px) { .hl-find .hl-press { width: 100%; min-height: 42px; } .hl-group > summary { font-size: 0.88rem; } }
     .mini { padding: 6px 12px; border-radius: 8px; background: var(--surface); font-size: 0.8rem; font-weight: 700; }
     .mini:hover { background: var(--surface-hover); }
     .mini.danger { color: #ff7a7a; }
@@ -774,10 +802,11 @@
         </div>
       </div>
       <div class="card">
-        <h2>Healer <span class="note">every minute: downloads and their engine, disk space and where it is heading, temporary files, encode slots, the data files, the TV app, upstream providers, errors in the log, the library scan — fixes what it safely can, and says what it found</span></h2>
+        <h2>Healer <span class="note">every minute, about thirty checks: what the log really says, how playback, downloads and transcoding are going by the numbers, the library folders, backups, updates, alerts — it fixes what it safely can, and for the rest names the button to press</span></h2>
         <div id="hl-overall" class="empty-note">Waiting for the first round…</div>
-        <div id="hl-checks" style="margin-top:10px;display:grid;gap:6px"></div>
+        <div id="hl-checks" style="margin-top:10px;display:grid;gap:8px"></div>
         <div id="hl-history" style="margin-top:10px;display:flex;gap:2px;align-items:flex-end;height:22px" title="the last four hours, one bar per round"></div>
+        <div id="hl-repairs" style="margin-top:12px"></div>
         <div id="hl-events" class="empty-note" style="margin-top:10px">No actions taken yet.</div>
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="mini" id="healer-run-btn">Run all checks now</button>
@@ -2215,6 +2244,25 @@
     // sends an action's id.
     let acPoll = null;
     let ACTIONS_BY_ID = {};
+    // A healer finding's "press this" lands here: the Actions pane opens and
+    // that one action is lit and scrolled to. It is NOT run — a person presses it.
+    let acHot = null;
+    const pressAction = (id) => {
+      acHot = id;
+      showTab("actions");
+    };
+    const lightAction = () => {
+      if (!acHot) return;
+      const btn = [...document.querySelectorAll("#ac-groups [data-action]")].find((b) => b.dataset.action === acHot);
+      if (!btn) return;
+      const row = btn.closest(".ac-row");
+      acHot = null;
+      for (const r of document.querySelectorAll(".ac-row.ac-hot")) r.classList.remove("ac-hot");
+      row.classList.add("ac-hot");
+      row.dataset.hot = "1";
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => { row.classList.remove("ac-hot"); delete row.dataset.hot; }, 9000);
+    };
     const acState = (r) => r.status === "running"
       ? '<span class="pill warn">running…</span>'
       : r.status === "ok" ? '<span class="pill live">done</span>' : '<span class="pill bad">failed</span>';
@@ -2283,7 +2331,7 @@
           ${g.items.map((a) => `
             <div class="ac-row">
               <div>
-                <b>${esc(a.title)}</b>
+                <b${a.healer ? ' class="tagged"' : ""}>${esc(a.title)}</b>${a.healer ? '<span class="ac-tag" title="The healer may run this one by itself when a check calls for it">the healer may run this</span>' : ""}
                 <div class="ac-about">${esc(a.about)}</div>
                 ${a.runs ? `<div class="ac-cmd">${a.runs.map((c) => esc(c)).join(" &nbsp;·&nbsp; ")}</div>` : ""}
               </div>
@@ -2292,9 +2340,10 @@
         </div>`).join("");
       ACTIONS_BY_ID = Object.fromEntries(d.actions.map((a) => [a.id, a]));
       $("#ac-runs").innerHTML = d.runs.length
-        ? d.runs.map((r) => `<div class="ac-run" data-run="${esc(r.id)}">${acState(r)} <b>${esc(r.title)}</b> <span class="muted">${ago(new Date(r.startedAt).toISOString())}${r.endedAt ? ` · took ${Math.max(1, Math.round((r.endedAt - r.startedAt) / 1000))}s` : ""}</span></div>`).join("")
+        ? d.runs.map((r) => `<div class="ac-run" data-run="${esc(r.id)}" data-by="${esc(r.by || "admin")}">${acState(r)} <b>${esc(r.title)}</b> <span class="muted">${ago(new Date(r.startedAt).toISOString())}${r.endedAt ? ` · took ${Math.max(1, Math.round((r.endedAt - r.startedAt) / 1000))}s` : ""}</span>${r.by === "healer" ? `<span class="ac-by">by the healer${r.why ? ` — ${esc(r.why)}` : ""}</span>` : ""}</div>`).join("")
         : "Nothing has been run yet.";
       $("#ac-runs").classList.toggle("empty-note", !d.runs.length);
+      lightAction();
     }
     $("#ac-groups").addEventListener("click", async (e) => {
       const b = e.target.closest("[data-action]");
@@ -2629,6 +2678,27 @@
     // ---------- the healer ----------
     const HL_COLOR = { ok: "#4ade80", warn: "#f5c542", fail: "#ff7a7a", info: "#9aa3b8" };
     const hlDot = (st) => `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${HL_COLOR[st] || HL_COLOR.info};box-shadow:0 0 6px ${HL_COLOR[st] || HL_COLOR.info};flex:none;margin-top:5px"></span>`;
+    // One finding: its sentence, the numbers behind it, what the healer did,
+    // and — if it needs a person — the button to press (it opens the Actions
+    // pane on that action; it never runs it).
+    const hlFinding = (f) =>
+      `<div class="hl-find ${esc(f.level || "info")}">` +
+      `<div class="hl-f-title">${esc(f.title || "")}</div>` +
+      `<div>${esc(f.text || "")}</div>` +
+      `${f.evidence ? `<div class="hl-f-line"><span>Evidence</span>${esc(f.evidence)}</div>` : ""}` +
+      `${f.ai ? `<div class="hl-f-line"><span>A model's guess</span>${esc(f.ai)}</div>` : ""}` +
+      `${f.did ? `<div class="hl-f-line did"><span>The healer</span>${esc(f.did)}</div>` : ""}` +
+      `${f.setting ? `<div class="hl-f-line"><span>What to do</span>${esc(f.setting)}</div>` : ""}` +
+      `${f.press ? `<button class="mini hl-press" data-press="${esc(f.press.action)}">${esc(f.press.label)} →</button>` : ""}` +
+      `</div>`;
+    const hlCheck = (c) =>
+      `<div class="hl-check" data-check="${esc(c.id)}" data-status="${esc(c.status)}">${hlDot(c.status)}` +
+      `<div><div><b>${esc(c.name)}</b> <span class="muted">— ${esc(c.summary)}</span></div>` +
+      `${c.detail ? `<div class="muted hl-sub">${esc(c.detail)}</div>` : ""}` +
+      `${c.healed ? `<div class="hl-sub" style="color:#c7bfff">Did: ${esc(c.healed)}</div>` : ""}` +
+      `${(c.findings || []).map(hlFinding).join("")}</div></div>`;
+    // groups a person opened or closed by hand stay that way across the minute's repaint
+    const hlOpen = {};
     function paintHealer(h) {
       const last = h.last;
       if (!last) return;
@@ -2636,28 +2706,59 @@
       const fails = last.checks.filter((c) => c.status === "fail");
       const warns = last.checks.filter((c) => c.status === "warn");
       const word = last.overall === "fail" ? "Something is wrong" : last.overall === "warn" ? "Mostly fine, a few things to look at" : "All good";
+      const off = h.autoRepair && h.autoRepair.on === false;
       $("#hl-overall").innerHTML =
-        `<div style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.05rem">${hlDot(last.overall)}<span>${esc(word)}</span>` +
-        `<span class="muted" style="font-weight:600;font-size:0.85rem">· checked ${ago(new Date(last.at).toISOString())} in ${last.tookMs} ms` +
-        `${fails.length ? ` · ${fails.length} failing` : ""}${warns.length ? ` · ${warns.length} warning${warns.length > 1 ? "s" : ""}` : ""}</span></div>`;
+        `<div style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.05rem;flex-wrap:wrap">${hlDot(last.overall)}<span>${esc(word)}</span>` +
+        `<span class="muted" style="font-weight:600;font-size:0.85rem">· ${last.checks.length} checks ${ago(new Date(last.at).toISOString())} in ${last.tookMs} ms` +
+        `${fails.length ? ` · ${fails.length} failing` : ""}${warns.length ? ` · ${warns.length} warning${warns.length > 1 ? "s" : ""}` : ""}</span></div>` +
+        `${off ? '<div class="muted" style="font-size:0.84rem;margin-top:4px">Automatic repairs are switched off in config.json ("healer": { "autoRepair": false }) — the checks still run, and each finding names the button to press.</div>' : ""}`;
+      // the checks, in their groups: groups with a problem first and open,
+      // healthy ones folded to a single line
       const order = { fail: 0, warn: 1, ok: 2, info: 3 };
-      $("#hl-checks").innerHTML = last.checks
-        .slice()
-        .sort((a, b) => order[a.status] - order[b.status])
-        .map((c) =>
-          `<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line)">${hlDot(c.status)}` +
-          `<div style="min-width:0"><div><b>${esc(c.name)}</b> <span class="muted">— ${esc(c.summary)}</span></div>` +
-          `${c.detail ? `<div class="muted" style="font-size:0.82rem;margin-top:2px;word-break:break-word">${esc(c.detail)}</div>` : ""}` +
-          `${c.healed ? `<div style="font-size:0.82rem;margin-top:2px;color:#c7bfff">Did: ${esc(c.healed)}</div>` : ""}</div></div>`)
-        .join("");
+      const names = (h.groups || []).slice();
+      for (const c of last.checks) if (!names.includes(c.group || "Other")) names.push(c.group || "Other");
+      const groups = names.map((name) => {
+        const checks = last.checks.filter((c) => (c.group || "Other") === name).sort((a, b) => order[a.status] - order[b.status]);
+        const nf = checks.filter((c) => c.status === "fail").length;
+        const nw = checks.filter((c) => c.status === "warn").length;
+        return { name, checks, nf, nw, status: nf ? "fail" : nw ? "warn" : "ok" };
+      }).filter((g) => g.checks.length).sort((a, b) => order[a.status] - order[b.status]);
+      $("#hl-checks").innerHTML = groups.map((g) => {
+        const fine = g.checks.length - g.nf - g.nw;
+        const line = g.status === "ok"
+          ? `${g.checks.length} check${g.checks.length === 1 ? "" : "s"} fine`
+          : [g.nf ? `${g.nf} failing` : "", g.nw ? `${g.nw} warning${g.nw > 1 ? "s" : ""}` : "", fine ? `${fine} fine` : ""].filter(Boolean).join(", ");
+        const open = hlOpen[g.name] != null ? hlOpen[g.name] : g.status !== "ok";
+        return `<details class="hl-group ${g.status}" data-group="${esc(g.name)}"${open ? " open" : ""}>` +
+          `<summary>${hlDot(g.status)}<span><b>${esc(g.name)}</b> <span class="hl-gsum">— ${esc(line)}</span></span></summary>` +
+          `<div class="hl-rows">${g.checks.map(hlCheck).join("")}</div></details>`;
+      }).join("");
+      // what it did by itself: the last twenty automatic repairs, each with how it ended
+      const reps = h.repairs || [];
+      const repPill = (r) => r.outcome === "ok" ? '<span class="pill live">done</span>' : r.outcome === "failed" ? '<span class="pill bad">failed</span>' : r.outcome === "running" ? '<span class="pill warn">running…</span>' : '<span class="pill">not known</span>';
+      $("#hl-repairs").innerHTML =
+        `<div style="font-weight:700;margin-bottom:4px">What the healer did <span class="muted" style="font-weight:600;font-size:0.82rem">— the last ${reps.length || "twenty"} automatic repair${reps.length === 1 ? "" : "s"}</span></div>` +
+        (reps.length
+          ? reps.map((r) => `<div class="hl-rep" data-repair="${esc(r.repair)}">${repPill(r)} <b>${esc(r.title || r.action)}</b> <span class="muted">${ago(new Date(r.at).toISOString())}</span><span>— ${esc(r.why || "")}${r.said ? ` <span class="muted">→ ${esc(r.said)}</span>` : ""}</span></div>`).join("")
+          : '<div class="empty-note">It has not pressed any action by itself yet. It may run: tidy stream leftovers, re-apply the download engine patch, rescan when a library folder comes back, back up when the newest backup is too old, retry a replaced file.</div>');
       const hist = h.history || [];
       $("#hl-history").innerHTML = hist.slice(-120).map((r) =>
         `<i title="${new Date(r.at).toLocaleTimeString()} — ${r.overall}" style="flex:1;min-width:2px;height:${r.overall === "fail" ? 22 : r.overall === "warn" ? 14 : 8}px;border-radius:2px;background:${HL_COLOR[r.overall]}"></i>`).join("");
       const ev = h.events || [];
       $("#hl-events").innerHTML = ev.length
-        ? `<div style="font-weight:700;margin-bottom:4px">What it did</div>` + ev.slice().reverse().slice(0, 25).map((e) => `<div><span class="muted">${ago(new Date(e.at).toISOString())}</span> · <b>${esc(e.kind)}</b>${e.detail ? ` — ${esc(e.detail)}` : ""}</div>`).join("")
-        : "No actions taken yet — it only acts when a check finds something to fix.";
+        ? `<details><summary style="cursor:pointer;font-weight:700">Its notes <span class="muted" style="font-weight:600">— the small fixes it applies itself and the things it noticed (${ev.length})</span></summary><div style="margin-top:6px">` + ev.slice().reverse().slice(0, 25).map((e) => `<div><span class="muted">${ago(new Date(e.at).toISOString())}</span> · <b>${esc(e.kind)}</b>${e.detail ? ` — ${esc(e.detail)}` : ""}</div>`).join("") + "</div></details>"
+        : "No notes yet — it only writes one when a check finds something to fix.";
+      $("#hl-events").classList.toggle("empty-note", !ev.length);
     }
+    // "press this": open Server → Actions on that action, lit — never run it
+    $("#hl-checks").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-press]");
+      if (b) { e.preventDefault(); pressAction(b.dataset.press); }
+    });
+    $("#hl-checks").addEventListener("toggle", (e) => {
+      const g = e.target.closest && e.target.closest(".hl-group");
+      if (g) hlOpen[g.dataset.group] = g.open;
+    }, true);
     async function loadHealer() {
       let h;
       try { h = await json("/api/admin/healer"); } catch { return; }

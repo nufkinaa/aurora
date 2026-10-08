@@ -90,6 +90,16 @@ const decline = (key, why) => {
   } catch {}
 };
 const declinedReason = (key) => loadDeclined().get(key)?.why || null;
+// The whole list, for the healer and the admin's "retry" action:
+// [{ key, why, at }]. A key is "<library id>-<file mtime>[|enc]".
+const declinedList = () => [...loadDeclined()].map(([key, v]) => ({ key, why: (v && v.why) || "", at: (v && v.at) || 0 }));
+// Forget ONE entry (the file was replaced): true when something was removed.
+const forgetDeclined = (key) => {
+  const map = loadDeclined();
+  if (!map.delete(key)) return false;
+  try { fs.writeFileSync(declinedFile, JSON.stringify({ algo: ALGO, keys: Object.fromEntries(map) })); } catch {}
+  return true;
+};
 // The key an ENCODED rendition of a source is declined under (see jobFor).
 const encKey = (key) => `${key}|enc`;
 
@@ -567,6 +577,7 @@ const admitEncode = (job, essential, replacing = null) => {
   const a = encodeAdmission(job, essential, replacing);
   if (!a.ok) {
     job.refusedAt = Date.now();
+    try { require("../lib/signals").hit("no-encoder", "rendition"); } catch {} // the healer counts these (a 503 follows)
     return false;
   }
   for (const [d, j] of a.idle) park(d, j, "its viewer moved to another rendition");
@@ -771,6 +782,7 @@ const startProducer = (dir, job, input, fromSeg) => {
     nextSeg: fromSeg, // next segment to publish
     ended: false,
     stopped: false, // killed by us: nothing more is decided from its output
+    startedAt: Date.now(),
     proc: null,
     queue: Promise.resolve(), // file work, strictly in order
   };
@@ -921,6 +933,7 @@ const ensureSegmentInner = async (dir, job, input, k) => {
           if (!busySince) busySince = now;
           if (now - busySince >= BUSY_WAIT_MS) {
             job.refusedAt = now;
+            try { require("../lib/signals").hit("no-encoder", "rendition"); } catch {}
             return null;
           }
         }
@@ -1023,6 +1036,14 @@ try {
 } catch {}
 
 const liveCount = () => { let n = 0; for (const j of jobs.values()) n += j.producers.length; return n; };
+// Every ffmpeg this module has running: what it is for, since when, and how
+// long ago anybody last asked its job for anything (the healer's "stuck
+// helper" check — the idle reaper above should never let that grow old).
+const helpers = (now = Date.now()) => {
+  const out = [];
+  for (const [dir, j] of jobs) for (const r of j.producers) out.push({ kind: "jit", name: path.basename(dir), startedAt: r.startedAt || 0, idleMs: now - (j.lastAccess || now), enc: !!j.enc });
+  return out;
+};
 
 // Stop a job and forget it (tests; the reaper does the same on idle).
 const dropJob = (dir) => {
@@ -1034,6 +1055,9 @@ const dropJob = (dir) => {
 
 module.exports = {
   liveCount,
+  helpers,
+  declinedList,
+  forgetDeclined,
   tableFor,
   playlistText,
   jobFor,

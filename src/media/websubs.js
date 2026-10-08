@@ -42,6 +42,7 @@ const fetchJson = async (url, ms = 12000) => {
     headers: { "User-Agent": "Aurora/1.0" },
     signal: AbortSignal.timeout(ms),
   });
+  try { require("../lib/signals").provider(url, res.status); } catch {}
   if (!res.ok) throw new Error(`${res.status}`);
   return res.json();
 };

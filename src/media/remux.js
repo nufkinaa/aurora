@@ -373,6 +373,7 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   // their seek was refused with "busy transcoding" (measured live).
   const handoff = victims.reduce((n, [, j]) => n + (j.heavy ? 1 : 0), 0);
   if (heavy && activeTranscodes() + ladderEncodes() - handoff >= MAX_ACTIVE_TRANSCODES) {
+    try { require("../lib/signals").hit("no-encoder", "transcode"); } catch {}
     return Promise.reject(new Error("Server is busy transcoding other streams — try again in a moment"));
   }
 
@@ -380,6 +381,7 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   // plays without it. It never takes the LAST encode slot — that one stays
   // free for a device that cannot play its file any other way.
   if (cap && activeTranscodes() + ladderEncodes() - handoff >= MAX_ACTIVE_TRANSCODES - 1) {
+    try { require("../lib/signals").hit("no-encoder", "lighter"); } catch {}
     return Promise.reject(new Error("Server is busy — the lighter stream isn't available right now"));
   }
 
@@ -463,7 +465,7 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   let stderr = "";
   proc.stderr.on("data", (d) => (stderr += d.toString()));
 
-  const job = { proc, done: false, heavy, lastAccess: Date.now() };
+  const job = { proc, done: false, heavy, lastAccess: Date.now(), startedAt: Date.now() };
   job.ready = new Promise((resolve, reject) => {
     // resolve as soon as the playlist appears so playback starts immediately
     const started = Date.now();
@@ -536,6 +538,13 @@ const filePath = (dir, file) => {
 };
 
 const liveCount = () => { let n = 0; for (const j of jobs.values()) if (j.proc) n++; return n; };
+// Every ffmpeg running here, with its age and how long since a player last
+// asked for it (the healer's "stuck helper" check).
+const helpers = (now = Date.now()) => {
+  const out = [];
+  for (const [dir, j] of jobs) if (j.proc) out.push({ kind: "remux", name: path.basename(dir), startedAt: j.startedAt || 0, idleMs: now - (j.lastAccess || now), enc: !!j.heavy });
+  return out;
+};
 // For the healer: how many encode slots are taken, of how many.
 // (`own`: this module's alone — jit.js adds its own to it for its cap)
 const encodeLoad = () => ({ active: activeTranscodes() + ladderEncodes(), own: activeTranscodes(), max: MAX_ACTIVE_TRANSCODES });
@@ -591,4 +600,4 @@ const sweepStale = (maxAgeMs = 24 * 3600 * 1000) => {
   } catch {}
   return freed;
 };
-module.exports = { ensure, touch, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr } };
+module.exports = { ensure, touch, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr } };

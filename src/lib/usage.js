@@ -283,4 +283,4 @@ const text = () => {
 // Test hooks: a fresh aggregate, and where the files live.
 const _reset = () => { agg = fresh(); pending = []; };
 
-module.exports = { record, validate, boot, summary, text, DIR, _reset };
+module.exports = { record, validate, boot, summary, text, prune, DIR, KEEP_MONTHS, _reset };

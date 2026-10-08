@@ -49,6 +49,7 @@ const tmdb = async (pathname, params = "", attempt = 0) => {
     if (attempt < 1) return tmdb(pathname, params, attempt + 1);
     throw err;
   }
+  try { require("../lib/signals").provider(TMDB, res.status); } catch {}
   if ((res.status === 429 || res.status >= 500) && attempt < 1) {
     await new Promise((r) => setTimeout(r, 400));
     return tmdb(pathname, params, attempt + 1);

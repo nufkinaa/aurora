@@ -307,5 +307,242 @@ ui.test("In flight: a job trying a second source gets one line under it; holding
   assert.match(await page.textContent("#lim-status"), /3 queued — they start when viewing stops/);
 });
 
+// ---------- Server → Status: the Healer card (src/lib/healer.js) ----------
+// The card is painted from GET /api/admin/healer. These tests hand it a made-up
+// round (the private instance is healthy, and a real fault cannot be staged
+// from here), and stop the live "healer_update" pushes so the minute's real
+// round cannot repaint the card in the middle of an assertion.
+const HL_GROUPS = ["Process & memory", "Logs", "Playback", "Streaming & transcoding", "Downloads", "Library & data", "Updates & delivery"];
+const hlCheck = (id, name, group, o = {}) => ({ id, name, group, ms: 1, status: "ok", summary: `${name} is fine`, ...o });
+const healerFixture = () => {
+  const now = Date.now();
+  const checks = [
+    hlCheck("process", "Process", "Process & memory", { summary: "412 MB resident · 20 ms lag · 1 ffmpeg · up 3 d" }),
+    hlCheck("memtrend", "Memory and load trend", "Process & memory"),
+    hlCheck("helpers", "Helper processes", "Process & memory"),
+    hlCheck("errors", "Errors in the log", "Logs", {
+      status: "warn", summary: "0 errors, 12 warnings in the last 15 min · 1 known problem",
+      findings: [{ level: "warn", title: "A provider is rate-limiting", text: "Cinemeta (the catalogue) is turning this server away for asking too often (12 refusals in 15 minutes). It recovers by itself when the requests slow down.", evidence: "counted 12 (cinemeta:429)" }],
+    }),
+    hlCheck("newerrors", "New kinds of error", "Logs", {
+      status: "warn", summary: "1 new kind of error in the last day · 14 kinds on record",
+      findings: [{ level: "warn", title: "Never seen before", text: "[xray] the cast list came back in an unexpected shape", evidence: "4 times in 15 min when first noticed, 9 in all", ai: "The cast service answered in a shape Aurora did not expect. <b>It usually clears by itself.</b>", press: { action: "clear-meta", label: "Server → Actions → Clear metadata and subtitle caches" } }],
+    }),
+    hlCheck("offenders", "Repeat offenders", "Logs"),
+    hlCheck("errtrend", "Error rate", "Logs"),
+    hlCheck("playback", "Playback health", "Playback", { summary: "23 plays in 24 h · first frame 1.2 s median, 3.4 s p90 · 0 failed to start · 0.4 stalls per hour watched" }),
+    hlCheck("sessions", "Viewers and sessions", "Playback"),
+    hlCheck("realtime", "Devices", "Playback", { status: "info", summary: "3 devices connected" }),
+    hlCheck("encoding", "Encoding", "Streaming & transcoding"),
+    hlCheck("transcoding", "Transcoding", "Streaming & transcoding"),
+    hlCheck("streaming", "Streaming client", "Streaming & transcoding"),
+    hlCheck("upstream", "Upstream providers", "Streaming & transcoding"),
+    hlCheck("downloads", "Download queue", "Downloads"),
+    hlCheck("aria2", "Download engine", "Downloads"),
+    hlCheck("staging", "Staging", "Downloads"),
+    hlCheck("dlstats", "Download results", "Downloads"),
+    hlCheck("disk", "Disk", "Library & data"),
+    hlCheck("library", "Library folders and files", "Library & data", {
+      status: "fail", summary: "1 of 2 library folders is away: D:\\Shows",
+      findings: [
+        { level: "fail", title: "A library folder is not there", text: "The shows folder D:\\Shows cannot be read — the drive is unplugged, asleep or not mounted. Its titles are NOT deleted.", evidence: "38 titles in the library come from it", setting: "Plug the drive back in (or wake / mount it). Nothing else is needed." },
+        { level: "warn", title: "Files in the library that are no longer on disk", text: "“Old Film.mkv” is listed in the library but the file is gone (its folder is fine).", evidence: "1 file", did: "tried 6 times today, needs you — Server → Actions → Rescan the library", press: { action: "rescan", label: "Server → Actions → Rescan the library" } },
+      ],
+    }),
+    hlCheck("scanner", "Library scan", "Library & data"),
+    hlCheck("temp", "Temporary files", "Library & data"),
+    hlCheck("data", "Data files", "Library & data"),
+    hlCheck("growth", "Data growth", "Library & data"),
+    hlCheck("backups", "Backups", "Library & data", { healed: "started a backup" }),
+    hlCheck("updates", "Update state", "Updates & delivery"),
+    hlCheck("delivery", "Alert delivery", "Updates & delivery"),
+    hlCheck("clock", "Clock", "Updates & delivery"),
+    hlCheck("tvapp", "TV app", "Updates & delivery", { status: "info", summary: "no APK has been published" }),
+  ];
+  return {
+    last: { at: now - 20000, tookMs: 7, overall: "fail", checks },
+    history: Array.from({ length: 40 }, (_, i) => ({ at: now - (40 - i) * 60000, overall: i > 36 ? "fail" : i > 30 ? "warn" : "ok", fail: 0, warn: 0 })),
+    events: [{ at: now - 90000, kind: "temp cleared", detail: "1.2 GB" }],
+    everyMs: 60000,
+    groups: HL_GROUPS,
+    repairs: [
+      { at: now - 5 * 60000, repair: "backup-now", action: "backup-now", title: "Back up now", subject: "stale", why: "the newest working backup is 3 d (line: 48 h)", runId: "x-1", outcome: "ok", said: "Made aurora-backup-20261008-120000.tar.gz." },
+      { at: now - 50 * 60000, repair: "sweep-streams", action: "sweep-streams", title: "Tidy stream leftovers", subject: "stuck helpers", why: "2 converters running with no viewer for 40 min", runId: "x-0", outcome: "failed", said: "library streams: EBUSY" },
+    ],
+    autoRepair: { on: true, off: [], may: ["sweep-streams", "patch-webtorrent", "rescan", "backup-now", "jit-forget-changed"] },
+    ai: false,
+  };
+};
+const healerCard = async (page, srv, fixture = healerFixture()) => {
+  await page.routeWebSocket(/.*/, (ws) => {
+    const server = ws.connectToServer();
+    server.onMessage((m) => {
+      try { if (JSON.parse(m).type === "healer_update") return; } catch {}
+      ws.send(m);
+    });
+  });
+  await page.route("**/api/admin/healer", (route) => (route.request().method() === "GET" ? route.fulfill({ json: fixture }) : route.continue()));
+  await enter(page, srv);
+  await page.click('.tab[data-tab="server"]');
+  await page.waitForSelector("#hl-checks .hl-group");
+  return fixture;
+};
+const noSidewaysScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+
+ui.test("the Healer card groups ~30 checks: groups with a problem first and open, healthy groups folded to one line, the history strip kept", { viewport: { width: 1440, height: 900 } }, async ({ page, srv }) => {
+  const fx = await healerCard(page, srv);
+  const groups = await page.evaluate(() => [...document.querySelectorAll("#hl-checks .hl-group")].map((g) => ({ name: g.dataset.group, open: g.open, cls: g.className, line: g.querySelector("summary").innerText.replace(/\s+/g, " ").trim(), checks: g.querySelectorAll(".hl-check").length })));
+  assert.equal(groups.length, 7);
+  assert.deepEqual(groups.map((g) => g.name).slice(0, 2), ["Library & data", "Logs"], "the failing group first, then the one with warnings");
+  assert.deepEqual(groups.slice(2).map((g) => g.name), HL_GROUPS.filter((n) => n !== "Library & data" && n !== "Logs"), "the healthy ones after, in their fixed order");
+  assert.equal(groups.reduce((n, g) => n + g.checks, 0), fx.last.checks.length, "every check is in exactly one group");
+  assert.deepEqual(groups.map((g) => g.open), [true, true, false, false, false, false, false]);
+  assert.match(groups[0].line, /^Library & data — 1 failing, 6 fine/);
+  assert.match(groups[1].line, /^Logs — 2 warnings, 2 fine/);
+  assert.match(groups.find((g) => g.name === "Playback").line, /^Playback — 3 checks fine/);
+  assert.match(groups.find((g) => g.name === "Downloads").line, /^Downloads — 4 checks fine/);
+  // inside an open group the problem check comes first
+  assert.equal(await page.locator('.hl-group[data-group="Library & data"] .hl-check').first().getAttribute("data-check"), "library");
+  // the headline counts, and the history strip is still there
+  assert.match(await page.innerText("#hl-overall"), /Something is wrong.*29 checks.*in 7 ms.*1 failing.*2 warnings/s);
+  assert.equal(await page.locator("#hl-history i").count(), 40);
+  // a folded group opens on a click and shows its checks; the next repaint leaves it open
+  const playback = page.locator('.hl-group[data-group="Playback"]');
+  assert.ok(!(await playback.locator(".hl-check").first().isVisible()));
+  await playback.locator("summary").click();
+  await playback.locator('.hl-check[data-check="playback"]').waitFor();
+  assert.match(await playback.innerText(), /23 plays in 24 h · first frame 1\.2 s median/);
+  await page.evaluate(() => loadHealer());
+  await page.waitForTimeout(300);
+  assert.ok(await page.locator('.hl-group[data-group="Playback"]').evaluate((g) => g.open), "opened by hand: it stays open");
+  assert.ok(await noSidewaysScroll(page));
+});
+
+ui.test("a finding shows its sentence, its evidence, what the healer did, and the button to press; a model's guess is shown as text only", async ({ page, srv }) => {
+  await healerCard(page, srv);
+  const gone = page.locator('.hl-check[data-check="library"] .hl-find', { hasText: "no longer on disk" });
+  const text = await gone.innerText();
+  assert.match(text, /“Old Film\.mkv” is listed in the library but the file is gone/);
+  assert.match(text, /EVIDENCE\s*1 file/i);
+  assert.match(text, /THE HEALER\s*tried 6 times today, needs you — Server → Actions → Rescan the library/i);
+  assert.equal((await gone.locator(".hl-press").innerText()).trim(), "Server → Actions → Rescan the library →");
+  // the unreachable drive says what to do, and has no button (nothing to press)
+  const away = page.locator('.hl-check[data-check="library"] .hl-find.fail');
+  assert.match(await away.innerText(), /cannot be read — the drive is unplugged/);
+  assert.match(await away.innerText(), /WHAT TO DO\s*Plug the drive back in/i);
+  assert.equal(await away.locator(".hl-press").count(), 0);
+  // a check that fixed something says so on its own line
+  await page.locator('.hl-group[data-group="Library & data"] .hl-check[data-check="backups"]').waitFor();
+  assert.match(await page.innerText('.hl-check[data-check="backups"]'), /Did: started a backup/);
+  // the model's words are text: the markup in them is not rendered
+  const guess = page.locator('.hl-check[data-check="newerrors"] .hl-find');
+  assert.match(await guess.innerText(), /A MODEL'S GUESS\s*The cast service answered in a shape Aurora did not expect\. <b>It usually clears by itself\.<\/b>/i);
+  assert.equal(await guess.locator("b").count(), 0, "nothing the model wrote became an element");
+});
+
+ui.test("“What the healer did” lists the automatic repairs with how each ended", async ({ page, srv }) => {
+  await healerCard(page, srv);
+  const rows = page.locator("#hl-repairs .hl-rep");
+  assert.equal(await rows.count(), 2);
+  const first = await rows.nth(0).innerText();
+  assert.match(first, /done\s+Back up now/);
+  assert.match(first, /the newest working backup is 3 d \(line: 48 h\)/);
+  assert.match(first, /→ Made aurora-backup-20261008-120000\.tar\.gz\./);
+  assert.match(await rows.nth(1).innerText(), /failed\s+Tidy stream leftovers.*2 converters running with no viewer.*EBUSY/s);
+  assert.match(await page.innerText("#hl-repairs"), /What the healer did/);
+  // with nothing done yet it says what it MAY do, and switched off says so
+  const none = healerFixture();
+  none.repairs = [];
+  none.autoRepair.on = false;
+  await page.unroute("**/api/admin/healer");
+  await page.route("**/api/admin/healer", (route) => route.fulfill({ json: none }));
+  await page.evaluate(() => loadHealer());
+  await page.waitForFunction(() => /has not pressed any action by itself yet/.test(document.querySelector("#hl-repairs").innerText));
+  assert.match(await page.innerText("#hl-overall"), /Automatic repairs are switched off in config\.json/);
+});
+
+ui.test("a finding's button lands on that action in Server → Actions, lit — and does not run it", async ({ page, srv, api }) => {
+  await healerCard(page, srv);
+  const before = (await api.adminGet("/api/admin/actions")).runs.length;
+  const posts = [];
+  page.on("request", (r) => { if (r.method() === "POST" && /\/api\/admin\/actions\//.test(r.url())) posts.push(r.url()); });
+  await page.click('.hl-check[data-check="library"] .hl-press[data-press="rescan"]');
+  await page.waitForSelector("#pane-actions.active");
+  await page.waitForSelector("#ac-groups .ac-row.ac-hot");
+  assert.equal(await page.locator("#ac-groups .ac-row.ac-hot").count(), 1, "one action is lit");
+  assert.equal(await page.locator('#ac-groups .ac-row.ac-hot [data-action]').getAttribute("data-action"), "rescan");
+  assert.match(await page.innerText("#ac-groups .ac-row.ac-hot"), /Rescan the library/);
+  assert.equal(await page.locator('#subtabs [data-sub="actions"]').getAttribute("class"), "active");
+  // …and scrolled to (smoothly, so it is waited for, not sampled)
+  await page.waitForFunction(() => { const r = document.querySelector("#ac-groups .ac-row.ac-hot"); if (!r) return false; const b = r.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight; });
+  await page.waitForTimeout(600);
+  assert.deepEqual(posts, [], "nothing was started");
+  assert.equal((await api.adminGet("/api/admin/actions")).runs.length, before);
+  // the actions the healer may press by itself are marked; the dangerous ones are not
+  assert.match(await page.innerText('#ac-groups .ac-row:has([data-action="rescan"]) .ac-tag'), /the healer may run this/);
+  assert.match(await page.innerText('#ac-groups .ac-row:has([data-action="sweep-streams"]) .ac-tag'), /the healer may run this/);
+  for (const id of ["restart", "update-all", "npm-install", "git-pull", "notify-test", "clear-images"]) {
+    assert.equal(await page.locator(`#ac-groups .ac-row:has([data-action="${id}"]) .ac-tag`).count(), 0, id);
+  }
+  // a second finding points at another action: the light moves
+  await page.click('.tab[data-tab="server"]');
+  await page.click('.hl-check[data-check="newerrors"] .hl-press');
+  await page.waitForFunction(() => { const r = document.querySelector("#ac-groups .ac-row.ac-hot [data-action]"); return r && r.dataset.action === "clear-meta"; });
+  assert.equal(await page.locator("#ac-groups .ac-row.ac-hot").count(), 1);
+});
+
+ui.test("Recent runs says who ran it: “by the healer — why”", async ({ page, srv }) => {
+  await page.route("**/api/admin/actions", async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    const body = await (await route.fetch()).json();
+    const now = Date.now();
+    body.runs = [
+      { id: "h-1", action: "rescan", title: "Rescan the library", startedAt: now - 60000, endedAt: now - 58000, status: "ok", code: null, output: "Scanned.", by: "healer", why: "D:\\Shows came back after 3 h" },
+      { id: "a-1", action: "versions", title: "Tool versions", startedAt: now - 120000, endedAt: now - 119000, status: "ok", code: null, output: "Done.", by: "admin", why: null },
+    ];
+    await route.fulfill({ json: body });
+  });
+  await enter(page, srv);
+  await actionsTab(page);
+  await page.waitForSelector('#ac-runs .ac-run[data-by="healer"]');
+  assert.match(await page.innerText('#ac-runs .ac-run[data-by="healer"]'), /Rescan the library.*by the healer — D:\\Shows came back after 3 h/s);
+  assert.doesNotMatch(await page.innerText('#ac-runs .ac-run[data-by="admin"]'), /healer/);
+});
+
+ui.test("the Healer card on a phone: nothing runs off the side, and the button is a full-width target", { viewport: { width: 390, height: 844 } }, async ({ page, srv }) => {
+  await healerCard(page, srv);
+  assert.ok(await noSidewaysScroll(page), "no sideways scroll at 390 px");
+  const card = await page.locator("#hl-checks").boundingBox();
+  for (const sel of [".hl-group", ".hl-check", ".hl-find", ".hl-press"]) {
+    const boxes = await page.locator(`#hl-checks ${sel}`).evaluateAll((els) => els.filter((e) => e.offsetParent).map((e) => { const b = e.getBoundingClientRect(); return [b.left, b.right]; }));
+    assert.ok(boxes.length > 0, sel);
+    for (const [l, r] of boxes) assert.ok(l >= card.x - 1 && r <= card.x + card.width + 1, `${sel} sticks out: ${l}–${r} of ${card.x}–${card.x + card.width}`);
+  }
+  const press = await page.locator(".hl-press").first().boundingBox();
+  assert.ok(press.height >= 40, `a thumb-sized button (${press.height}px)`);
+  await page.locator('.hl-press[data-press="rescan"]').click();
+  await page.waitForSelector("#ac-groups .ac-row.ac-hot");
+  assert.equal(await page.locator('#ac-groups .ac-row.ac-hot [data-action]').getAttribute("data-action"), "rescan");
+  assert.ok(await noSidewaysScroll(page));
+});
+
+ui.test("a real round on the private instance: every check lands in one of the seven groups, and the round is quick", async ({ page, srv, api }) => {
+  await enter(page, srv);
+  await page.click('.tab[data-tab="server"]');
+  await page.click("#healer-run-btn");
+  await page.waitForFunction(() => document.querySelectorAll("#hl-checks .hl-group").length >= 5 && document.querySelector("#healer-run-btn").textContent === "Run all checks now");
+  const h = await api.adminGet("/api/admin/healer");
+  assert.ok(h.last.checks.length >= 28, `${h.last.checks.length} checks`);
+  assert.deepEqual(h.groups, HL_GROUPS);
+  for (const c of h.last.checks) assert.ok(HL_GROUPS.includes(c.group), `${c.id} is in no group`);
+  assert.equal(await page.locator("#hl-checks .hl-check").count(), h.last.checks.length);
+  for (const id of ["errors", "newerrors", "offenders", "errtrend", "playback", "sessions", "transcoding", "dlstats", "library", "backups", "memtrend", "helpers", "updates", "delivery", "clock", "growth"]) {
+    assert.ok(h.last.checks.some((c) => c.id === id), `the ${id} check did not run`);
+  }
+  assert.ok(!h.last.checks.some((c) => /the check threw|took more than 20 s/.test(c.summary)), JSON.stringify(h.last.checks.filter((c) => /threw|20 s/.test(c.summary))));
+  assert.ok(h.last.tookMs < 3000, `the round took ${h.last.tookMs} ms`);
+  assert.deepEqual(h.repairs, [], "a healthy instance: the healer pressed nothing");
+});
+
 // one at a time: these tests share the admin's queue and the list of people
 ui.run({ concurrency: 1 });

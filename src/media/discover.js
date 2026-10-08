@@ -22,6 +22,7 @@ const UA = { "User-Agent": "Aurora/1.0 (personal media server)" };
 
 const fetchJson = async (url) => {
   const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(12000) });
+  try { require("../lib/signals").provider(url, res.status); } catch {}
   if (!res.ok) throw new Error(`${res.status} ${url}`);
   return res.json();
 };

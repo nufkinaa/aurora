@@ -172,6 +172,8 @@ const tickle = async (sub) => {
       },
       signal: AbortSignal.timeout(10000),
     });
+    // one tally per outcome, for the healer ("subscriptions failing in bulk")
+    try { require("./signals").hit("push", r.status === 404 || r.status === 410 ? "gone" : r.ok ? "ok" : `fail:${r.status}`); } catch {}
     if (r.status === 404 || r.status === 410) unsubscribe(sub.endpoint);
     else if (!r.ok) {
       // the push service's own reason (Apple answers {"reason":"BadJwtToken"} and the like) is the whole diagnosis
@@ -179,6 +181,7 @@ const tickle = async (sub) => {
       console.warn(`[push] ${new URL(sub.endpoint).host} answered ${r.status} ${why.slice(0, 160)}`);
     } else console.log(`[push] sent to ${new URL(sub.endpoint).host} (${r.status})`);
   } catch (e) {
+    try { require("./signals").hit("push", "fail:network"); } catch {}
     console.warn("[push] send failed:", e && e.message);
   }
 };

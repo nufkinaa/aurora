@@ -15,9 +15,38 @@
 // failed engine start, a poll loop that stopped, a full disk — before they
 // turn into "downloads just fail now". The watchdog (watchdog.js) still owns
 // memory and event-loop lag; this reads its numbers rather than re-measuring.
+//
+// Since 2026-10-08 the round is about thirty checks in seven groups, and it
+// looks at STATISTICS as well as the log. This file keeps the round, the
+// history, the alerts and the original checks; the newer ones live beside it:
+//
+//   healer-checks/signatures.js  the errors Aurora knows, and what each means
+//   healer-checks/logs.js        known problems, never-seen errors (reported
+//                                once), repeat-offender files, the hourly trend
+//   healer-checks/stats.js       playback, viewers, transcoding, downloads,
+//                                memory trend, helper processes left behind
+//   healer-checks/system.js      library folders and files, backups, update
+//                                state, alert delivery, the clock, data growth
+//   healer-checks/repairs.js     the few Actions (lib/adminactions.js) the
+//                                healer may press by itself, behind a circuit
+//                                breaker — "healer": { "autoRepair": false }
+//                                in config.json switches them all off
+//   healer-checks/ai.js          optional and advisory: a model's two-sentence
+//                                reading of a never-seen error (default OFF)
+//
+// A check returns { status, summary, detail?, healed?, findings?, quiet? }.
+// A finding is one thing a person should know: { level, title, text,
+// evidence?, did?, press?: { action, label }, setting?, ai? } — its sentence,
+// the numbers behind it, what the healer did about it, and the exact button
+// or setting if it needs a human.
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const util = require("./healer-checks/util");
+const repairs = require("./healer-checks/repairs");
+const logChecks = require("./healer-checks/logs");
+const statChecks = require("./healer-checks/stats");
+const sysChecks = require("./healer-checks/system");
 
 const CHECK_MS = 60 * 1000;
 const UPSTREAM_MS = 5 * 60 * 1000; // outside reachability, less often
@@ -29,7 +58,6 @@ const NOTIFY_COOLDOWN_MS = 30 * 60 * 1000;
 const FINDING_STALL_MS = 12 * 60 * 1000; // no torrent details / no first byte
 const PROGRESS_STALL_MS = 15 * 60 * 1000; // no progress and no speed
 const QUEUE_STUCK_MS = 5 * 60 * 1000; // approved, a slot free, still waiting
-const ERROR_WINDOW_MS = 15 * 60 * 1000;
 const STAGING_ORPHAN_AGE_MS = 60 * 60 * 1000;
 // Slow-moving things are measured every few minutes, not every round.
 const SLOW_CHECK_MS = 5 * 60 * 1000;
@@ -48,6 +76,7 @@ const state = {
   notified: new Map(), // check id -> { status, at }
   upstream: null, // cached result of the slow check
   upstreamAt: 0,
+  clock: null, // { skews: [ms], at } — server Date headers against this clock, from the upstream check's answers
   slow: {}, // id -> { at, result } for the every-few-minutes checks
   diskTrend: new Map(), // volume key -> [{ at, free }] (hourly, in memory)
   encodeBusyRounds: 0,
@@ -61,50 +90,14 @@ const note = (kind, detail) => {
   console.log(`[healer] ${kind}${detail ? ` — ${detail}` : ""}`);
 };
 
-const fmtBytes = (b) => {
-  if (!b && b !== 0) return "?";
-  const u = ["B", "KB", "MB", "GB", "TB"];
-  let i = 0;
-  let v = b;
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
-  return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${u[i]}`;
-};
-const fmtAge = (ms) => {
-  const m = Math.round(ms / 60000);
-  if (m < 1) return "under a minute";
-  if (m < 60) return `${m} min`;
-  const h = Math.round(m / 60);
-  return h < 48 ? `${h} h` : `${Math.round(h / 24)} d`;
-};
+const { fmtBytes, fmtAge, normalizeMessage, topMessages, worst } = util; // shared with healer-checks/*
 
 const withTimeout = (p, ms, fallback) =>
   Promise.race([p, new Promise((r) => setTimeout(() => r(fallback), ms))]);
 
 // ---------- pure helpers (tested) ----------
 
-// Collapse the variable parts of a log line so repeats group: ids, hashes,
-// numbers, paths. "[download] a1b2c3 re-queued: …" and its siblings become
-// one bucket with a count — the shape the "what keeps failing" line needs.
-const normalizeMessage = (msg) =>
-  String(msg || "")
-    .replace(/\b[0-9a-f]{6,40}\b/gi, "#")
-    .replace(/\d+(\.\d+)?/g, "N")
-    .replace(/(["'“”]).*?\1/g, "…")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 140);
-
-// Top repeated messages in a set of log rows.
-const topMessages = (rows, n = 3) => {
-  const tally = new Map();
-  for (const r of rows) {
-    const k = normalizeMessage(r.msg);
-    const cur = tally.get(k) || { key: k, n: 0, sample: r.msg.slice(0, 200) };
-    cur.n++;
-    tally.set(k, cur);
-  }
-  return [...tally.values()].sort((a, b) => b.n - a.n).slice(0, n);
-};
+// (normalizeMessage and topMessages — how log lines group — are in healer-checks/util.js.)
 
 // Is a running download stalled? `rec` is the queue's live record for it.
 // A job in the middle of a second-source race (media/dlrace.js) is never
@@ -127,9 +120,6 @@ const stallReason = (job, rec, now = Date.now()) => {
   return null;
 };
 
-const worst = (statuses) =>
-  statuses.includes("fail") ? "fail" : statuses.includes("warn") ? "warn" : "ok";
-
 // ---------- the checks ----------
 // Each returns { status: ok|warn|fail|info, summary, detail?, healed? }.
 // A throwing check is itself a finding, never a crash of the round.
@@ -149,21 +139,8 @@ const checkProcess = async () => {
   return { status, summary: bits.join(" · "), detail: notes.join("; ") || null };
 };
 
-const checkErrors = async () => {
-  const logbuffer = require("./logbuffer");
-  const since = Date.now() - ERROR_WINDOW_MS;
-  const errors = logbuffer.read({ level: "error", limit: 1500 }).filter((r) => r.t >= since);
-  const warns = logbuffer.read({ level: "warn", limit: 1500 }).filter((r) => r.t >= since && r.level === "warn");
-  const crashes = errors.filter((r) => /\[uncaughtException\]|\[unhandledRejection\]/.test(r.msg));
-  const top = topMessages([...errors, ...warns], 3);
-  let status = "ok";
-  if (crashes.length) status = "fail";
-  else if (errors.length >= 5 || warns.length >= 40) status = "warn";
-  const summary = `${errors.length} error${errors.length === 1 ? "" : "s"}, ${warns.length} warning${warns.length === 1 ? "" : "s"} in the last 15 min` +
-    (crashes.length ? ` · ${crashes.length} uncaught` : "");
-  const detail = top.length ? "Most repeated: " + top.map((t) => `${t.n}× ${t.sample}`).join(" ‖ ") : null;
-  return { status, summary, detail };
-};
+// (The "errors in the log" check used to count lines here. It now reads them:
+// healer-checks/logs.js — known problems by name, new ones reported once.)
 
 const checkDisk = async () => {
   const config = require("../config");
@@ -237,14 +214,17 @@ const dirSize = async (dir, budget = { left: 40000 }) => {
   return total;
 };
 
-// Run `fn` at most every SLOW_CHECK_MS; between runs answer with the last result.
-const slowly = async (id, fn) => {
+// Run `fn` at most every `everyMs` (five minutes unless said); between runs
+// answer with the last result. forget(id) makes the next round measure again
+// (after a repair that should have changed the answer).
+const slowly = async (id, fn, everyMs = SLOW_CHECK_MS) => {
   const hit = state.slow[id];
-  if (hit && Date.now() - hit.at < SLOW_CHECK_MS) return hit.result;
+  if (hit && Date.now() - hit.at < everyMs) return hit.result;
   const result = await fn();
   state.slow[id] = { at: Date.now(), result };
   return result;
 };
+const forget = (id) => { delete state.slow[id]; };
 
 // Temporary files: everything under data/cache is a copy of something the
 // server can make again — streams being repackaged, copies prepared for a
@@ -474,7 +454,12 @@ const checkUpstream = async () => {
       const t0 = Date.now();
       try {
         const res = await fetch(url, { method: "GET", signal: AbortSignal.timeout(6000), headers: { "User-Agent": "Aurora healer" } });
-        return { name, ok: res.ok, ms: Date.now() - t0, code: res.status };
+        // the answer's Date header against this machine's clock, for the Clock
+        // check: no request is made for it — this one was being made anyway
+        const t1 = Date.now();
+        const theirs = Date.parse(res.headers.get("date") || "");
+        const skew = Number.isFinite(theirs) && t1 - t0 < 4000 ? theirs + 500 - (t0 + t1) / 2 : null; // +500: the header is truncated to the second
+        return { name, ok: res.ok, ms: t1 - t0, code: res.status, skew };
       } catch (e) {
         return { name, ok: false, ms: Date.now() - t0, code: (e && e.name) || "error" };
       }
@@ -487,6 +472,8 @@ const checkUpstream = async () => {
       ? `${down.map((d) => `${d.name} not answering (${d.code})`).join(", ")} — ${down.length === results.length ? "the internet is out, or every provider is" : "search, sources or posters will suffer"}`
       : `all answering (${results.map((r) => `${r.name.split(" ")[0]} ${r.ms} ms`).join(", ")})`,
   };
+  const skews = results.map((r) => r.skew).filter((v) => v != null);
+  if (skews.length) state.clock = { skews, at: Date.now() };
   state.upstream = out;
   state.upstreamAt = Date.now();
   return out;
@@ -527,53 +514,110 @@ const checkRealtime = async () => {
   return { status: "info", summary: n == null ? "live connections unknown" : `${n} device${n === 1 ? "" : "s"} connected` };
 };
 
+// What a check is handed (the newer ones use it; the original ones ignore
+// it): the healer's hand for repairs, its event list, the slow-check cache,
+// and the clock reading the upstream check took.
+const context = () => ({
+  repair: (name, o) => repairs.attempt(name, o),
+  note,
+  slowly,
+  forget,
+  reading: state.clock,
+});
+
+// The groups the admin page shows the checks in, in this order.
+const GROUPS = ["Process & memory", "Logs", "Playback", "Streaming & transcoding", "Downloads", "Library & data", "Updates & delivery"];
+
+// [id, name, group, fn]
 const CHECKS = [
-  ["process", "Process", checkProcess],
-  ["errors", "Errors in the log", checkErrors],
-  ["downloads", "Download queue", checkDownloads],
-  ["aria2", "Download engine", checkAria2],
-  ["disk", "Disk", checkDisk],
-  ["staging", "Staging", checkStaging],
-  ["temp", "Temporary files", checkTemp],
-  ["encoding", "Encoding", checkEncoding],
-  ["data", "Data files", checkData],
-  ["tvapp", "TV app", checkTvApp],
-  ["upstream", "Upstream providers", checkUpstream],
-  ["scanner", "Library scan", checkScanner],
-  ["streaming", "Streaming client", checkStreaming],
-  ["realtime", "Devices", checkRealtime],
+  ["process", "Process", "Process & memory", checkProcess],
+  ["memtrend", "Memory and load trend", "Process & memory", statChecks.checkMemTrend],
+  ["helpers", "Helper processes", "Process & memory", statChecks.checkHelpers],
+
+  ["errors", "Errors in the log", "Logs", logChecks.checkErrors],
+  ["newerrors", "New kinds of error", "Logs", logChecks.checkNewErrors],
+  ["offenders", "Repeat offenders", "Logs", logChecks.checkOffenders],
+  ["errtrend", "Error rate", "Logs", logChecks.checkErrorTrend],
+
+  ["playback", "Playback health", "Playback", statChecks.checkPlayback],
+  ["sessions", "Viewers and sessions", "Playback", statChecks.checkSessions],
+  ["realtime", "Devices", "Playback", checkRealtime],
+
+  ["encoding", "Encoding", "Streaming & transcoding", checkEncoding],
+  ["transcoding", "Transcoding", "Streaming & transcoding", statChecks.checkTranscoding],
+  ["streaming", "Streaming client", "Streaming & transcoding", checkStreaming],
+  ["upstream", "Upstream providers", "Streaming & transcoding", checkUpstream],
+
+  ["downloads", "Download queue", "Downloads", checkDownloads],
+  ["aria2", "Download engine", "Downloads", checkAria2],
+  ["staging", "Staging", "Downloads", checkStaging],
+  ["dlstats", "Download results", "Downloads", statChecks.checkDownloadStats],
+
+  ["disk", "Disk", "Library & data", checkDisk],
+  ["library", "Library folders and files", "Library & data", sysChecks.checkLibrary],
+  ["scanner", "Library scan", "Library & data", checkScanner],
+  ["temp", "Temporary files", "Library & data", checkTemp],
+  ["data", "Data files", "Library & data", checkData],
+  ["growth", "Data growth", "Library & data", sysChecks.checkGrowth],
+  ["backups", "Backups", "Library & data", sysChecks.checkBackups],
+
+  ["updates", "Update state", "Updates & delivery", sysChecks.checkUpdates],
+  ["delivery", "Alert delivery", "Updates & delivery", sysChecks.checkDelivery],
+  ["clock", "Clock", "Updates & delivery", sysChecks.checkClock],
+  ["tvapp", "TV app", "Updates & delivery", checkTvApp],
 ];
 
 // A check flipping to fail (or recovering from one) goes out once, with a
-// cooldown so a flapping check can't page anyone every minute.
-const maybeNotify = (id, name, result) => {
+// cooldown so a flapping check can't page anyone every minute. This is the
+// ONE alert path of the healer — the newer checks use it like the old ones,
+// through lib/notify.js, beside (never on top of) the health alerts:
+// a check whose subject lib/health.js already announces (an unreachable
+// drive, a stale backup) answers `quiet: true` and is not sent from here, so
+// nobody is paged twice for one fault.
+const firstFinding = (r) => (r.findings || []).find((f) => f.level === "fail") || (r.findings || []).find((f) => f.level === "warn") || null;
+const alertBody = (r) => {
+  const f = firstFinding(r);
+  const lines = [r.summary];
+  if (f && f.text) lines.push(f.text);
+  const did = (f && f.did) || r.healed;
+  if (did) lines.push(`Did: ${did}`);
+  if (f && f.press) lines.push(`Press: ${f.press.label}`);
+  else if (f && f.setting) lines.push(f.setting);
+  return lines.join("\n").slice(0, 900);
+};
+const sendAlert = (title, body) => { try { require("./notify").send(title, body); } catch {} };
+const maybeNotify = (id, name, result, send = sendAlert) => {
   const prev = state.notified.get(id) || { status: "ok", at: 0 };
   const now = Date.now();
   if (result.status === "fail" && prev.status !== "fail") {
+    if (result.quiet) return;
     if (now - prev.at > NOTIFY_COOLDOWN_MS) {
-      try { require("./notify").send(`Aurora healer: ${name}`, `${result.summary}${result.healed ? `\nDid: ${result.healed}` : ""}`); } catch {}
+      send(`Aurora healer: ${name}`, alertBody(result));
       state.notified.set(id, { status: "fail", at: now });
     }
   } else if (result.status !== "fail" && prev.status === "fail") {
-    try { require("./notify").send(`Aurora healer: ${name} recovered`, result.summary); } catch {}
+    send(`Aurora healer: ${name} recovered`, result.summary);
     state.notified.set(id, { status: result.status, at: now });
   }
 };
 
-const run = async () => {
+// One round. `o` is for tests: { checks: [[id, name, group, fn]…], send }.
+const run = async (o = {}) => {
   if (state.running) return state.last;
   state.running = true;
   const t0 = Date.now();
   const checks = [];
-  for (const [id, name, fn] of CHECKS) {
+  const ctx = context();
+  for (const [id, name, group, fn] of o.checks || CHECKS) {
     let r;
+    const c0 = Date.now();
     try {
-      r = await withTimeout(fn(), 20000, { status: "warn", summary: "the check itself took more than 20 s" });
+      r = await withTimeout(fn(ctx), 20000, { status: "warn", summary: "the check itself took more than 20 s" });
     } catch (e) {
       r = { status: "warn", summary: `the check threw: ${(e && e.message) || e}` };
     }
-    checks.push({ id, name, ...r });
-    maybeNotify(id, name, r);
+    checks.push({ id, name, group, ms: Date.now() - c0, ...r });
+    maybeNotify(id, name, r, o.send);
   }
   const overall = worst(checks.map((c) => c.status));
   const report = { at: Date.now(), tookMs: Date.now() - t0, overall, checks };
@@ -585,25 +629,41 @@ const run = async () => {
   return report;
 };
 
-const status = () => ({
-  last: state.last,
-  history: state.history.slice(-HISTORY_MAX),
-  events: state.events.slice(-EVENTS_MAX),
-  everyMs: CHECK_MS,
-});
+const status = () => {
+  let auto = { auto: true, off: [] };
+  let ai = false;
+  try {
+    const config = require("../config");
+    const s = repairs.settings(config);
+    auto = { auto: s.auto, off: [...s.off] };
+    ai = require("./healer-checks/ai").enabled(config);
+  } catch {}
+  return {
+    last: state.last,
+    history: state.history.slice(-HISTORY_MAX),
+    events: state.events.slice(-EVENTS_MAX),
+    everyMs: CHECK_MS,
+    groups: GROUPS,
+    // the automatic repairs: the last twenty with their outcome, what may run, and whether it is switched off
+    repairs: repairs.recent(),
+    autoRepair: { on: auto.auto, off: auto.off, may: Object.keys(repairs.REPAIRS) },
+    ai,
+  };
+};
 
 const start = () => {
   if (state.timer) return;
+  repairs._setDeps({ note }); // an automatic repair is written into the event list like every other action
   state.timer = setInterval(() => { run().catch((e) => console.error("[healer] round failed:", e && e.message)); }, CHECK_MS);
   state.timer.unref?.();
   // first round once boot has settled and the queue has resumed
   setTimeout(() => { run().catch(() => {}); }, 15000).unref?.();
-  note("armed", `every ${CHECK_MS / 1000}s: ${CHECKS.map((c) => c[0]).join(", ")}`);
+  note("armed", `every ${CHECK_MS / 1000}s, ${CHECKS.length} checks: ${CHECKS.map((c) => c[0]).join(", ")}`);
 };
 
 module.exports = {
   start,
   run,
   status,
-  _internals: { checkAria2, checkDownloads, checkStreaming, normalizeMessage, topMessages, stallReason, worst, fullIn, dirSize, FINDING_STALL_MS, PROGRESS_STALL_MS, state },
+  _internals: { checkAria2, checkDownloads, checkStreaming, checkUpstream, normalizeMessage, topMessages, stallReason, worst, fullIn, dirSize, FINDING_STALL_MS, PROGRESS_STALL_MS, state, CHECKS, GROUPS, maybeNotify, alertBody, slowly, forget, context },
 };

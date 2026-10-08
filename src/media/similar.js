@@ -28,6 +28,7 @@ const tmdb = async (pathname, params = "") => {
     `${TMDB}/${pathname}?api_key=${config.TMDB_KEY}${params}`,
     { signal: AbortSignal.timeout(8000) },
   );
+  try { require("../lib/signals").provider(TMDB, res.status); } catch {}
   if (!res.ok) throw new Error(`tmdb ${res.status}`);
   return res.json();
 };

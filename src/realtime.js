@@ -272,6 +272,7 @@ const attach = (server) => {
 
   wss.on("connection", (ws, req) => {
     const ip = clientIp(req);
+    try { require("./lib/signals").hit("ws", ip); } catch {}
 
     // Session check at upgrade time (browsers send cookies on same-origin WS
     // upgrades; the TV can set X-Session). Only broadcastAll consults it, and

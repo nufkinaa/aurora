@@ -41,6 +41,7 @@ const fetchJson = async (url, attempt = 0) => {
     headers: { "User-Agent": "Aurora/1.0 (personal media server)" },
     signal: AbortSignal.timeout(12000),
   });
+  try { require("../lib/signals").provider(url, res.status); } catch {}
   if (res.status === 429 || res.status === 403) {
     if (attempt < 2) {
       await sleep(4000 * (attempt + 1)); // back off and retry

@@ -315,7 +315,10 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/index.m3u8", async (req, 
     const audio = ladder.audioFromQuery(req.query.a);
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
-      if (!jit.encodeRoom(key, v === "h264")) return res.status(503).send("Server is busy — that rendition isn't available right now");
+      if (!jit.encodeRoom(key, v === "h264")) {
+        try { require("../lib/signals").hit("no-encoder", "rendition"); } catch {}
+        return res.status(503).send("Server is busy — that rendition isn't available right now");
+      }
     }
     const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");

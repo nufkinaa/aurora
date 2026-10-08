@@ -344,6 +344,7 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
   // it meant one viewer could never seek — their own stream held a slot and the
   // seek was refused with "busy transcoding" (measured live).
   if (activeCount() - victims.length >= MAX_ACTIVE) {
+    try { require("../lib/signals").hit("no-encoder", "torrent"); } catch {}
     return Promise.reject(new Error("Server is busy transcoding other streams — try again in a moment"));
   }
 

@@ -18,7 +18,13 @@ const libfiles = require("../lib/libfiles");
 const router = express.Router();
 
 const adminOnly = (req, res, next) => {
-  if (!realtime.isAdmin(req)) return res.status(403).json({ error: "Admin access required" });
+  if (!realtime.isAdmin(req)) {
+    // a password WAS offered and it was wrong: one for the healer's "someone is guessing" count
+    if ((req.query && req.query.pw) || req.headers["x-admin-password"]) {
+      try { require("../lib/signals").hit("auth-fail", realtime.clientIp(req)); } catch {}
+    }
+    return res.status(403).json({ error: "Admin access required" });
+  }
   next();
 };
 

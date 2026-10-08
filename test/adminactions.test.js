@@ -57,12 +57,21 @@ test("an unknown id is refused, and nothing a caller sends becomes a command", (
 });
 
 test("an in-process action runs and keeps its output", async () => {
-  const r = actions.start("jit-forget");
-  assert.ok(r.run && r.run.id);
-  const done = await waitFor(r.run.id);
-  assert.equal(done.status, "ok");
-  assert.match(done.output, /Forgot \d+ entr|already empty/);
-  assert.ok(actions.list().runs.some((x) => x.id === r.run.id));
+  // A stand-in registered for this test only: running a real action here
+  // would act on the developer's own data (the first version of this test
+  // wiped the live "declined files" list).
+  const { byId } = actions._internals;
+  byId.set("test-echo", { id: "test-echo", group: "Test", title: "Echo", about: "test", kind: "task", run: async (log) => { log("working" + String.fromCharCode(10)); return "Said hello."; } });
+  try {
+    const r = actions.start("test-echo");
+    assert.ok(r.run && r.run.id);
+    const done = await waitFor(r.run.id);
+    assert.equal(done.status, "ok");
+    assert.match(done.output, /working\s+Said hello\./);
+    assert.ok(actions.list().runs.some((x) => x.id === r.run.id));
+  } finally {
+    byId.delete("test-echo");
+  }
 });
 
 test("a command runs with its fixed arguments; a second command waits its turn", async () => {

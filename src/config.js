@@ -189,6 +189,15 @@ module.exports = {
   // "diskCriticalPercent": 5, "diskCriticalGb": 5, "backupMaxAgeHours": 48,
   // "repeatHours": 12 }. `"health": false` switches the alerts off.
   HEALTH: userConfig.health === false ? false : (userConfig.health && typeof userConfig.health === "object" ? userConfig.health : {}),
+  // ---- the healer (lib/healer.js) ----
+  // { "autoRepair": false }   checks still run, nothing is repaired by itself
+  // { "off": ["backup-now"] } single automatic repairs switched off, by name
+  //                            (sweep-streams, patch-webtorrent, rescan,
+  //                            backup-now, jit-forget-changed)
+  // { "ai": true }            with an OpenRouter key set: a never-seen error
+  //                            may be explained by the model, once, in two
+  //                            sentences (advice only; default off)
+  HEALER: userConfig.healer && typeof userConfig.healer === "object" ? userConfig.healer : {},
   // Dead-man's switch: a URL fetched every five minutes while the server is
   // alive (healthchecks.io and the like alert when the pings STOP).
   HEALTH_PING_URL: process.env.AURORA_HEALTH_PING_URL || userConfig.healthPingUrl || null,

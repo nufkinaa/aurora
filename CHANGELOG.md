@@ -3,6 +3,17 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.73 — 2026-10-08
+
+- **The healer does a great deal more.** It ran 14 checks a minute and its log check only counted errors. It now runs 29, in seven groups, and still finishes in milliseconds:
+  - **It reads the log by meaning.** About thirty known problems — disk full, too many open files, a data file that would not save, ffmpeg missing or failing, the download engine not answering, a rejected TMDB key, a provider rate limit, a push token Apple refuses, someone guessing passwords — each get a plain sentence, and a repair or the name of the button to press. A kind of error it has never seen is reported once, with its text, instead of being a number. A film that keeps failing is named.
+  - **It looks at the numbers, not only the log.** How long films take to start and how often they stall or fail, by device and by path; viewings that ended abnormally; encoders and refusals; how downloads have gone over the week; a library folder that has gone missing (reported loudly, never read as "the library is empty"); files that vanished or are cut short; backups; memory heading for trouble hours ahead; helper processes with nothing to do; whether a restart or an install is pending; whether alerts are actually being delivered; the clock; data files growing without limit.
+  - **It can press the safe Actions itself**: tidy stream leftovers, re-apply the download-engine patch, rescan when a library drive comes back, back up when the newest backup is too old, retry a file that was replaced. Each has a daily limit and a cooldown, and after that it says "tried N times, needs you" with the button. It can never update, install, restart or send a test alert on its own — that is enforced in code and tested. `"healer": { "autoRepair": false }` switches the repairs off.
+  - **Optional AI, off by default.** With an AI key and `"healer": { "ai": true }`, a brand-new unknown error gets a two-sentence explanation — at most five a day, with paths, addresses, e-mails and keys stripped before anything is sent. The answer is only shown; it cannot trigger anything.
+  - The Healer card in admin groups all of this, problems first, healthy groups folded to one line, with a list of what the healer did by itself.
+- A library drive being away no longer erases the list of finished downloads or the skip-intro timestamps of its episodes.
+- Rescan in Actions says how many titles it found.
+
 ## 1.6.72 — 2026-10-08
 
 - **Aurora TV 5.1.24: the TV reports what the site reports.** A TV never told the server what it was watching, so it was missing from History, from sessions and from the admin's live "who is watching" (elia). It now says so every five seconds with its position, as the site does, and "browsing" when it leaves the player; a socket that reconnects mid-film says it again. It also sends the playback marks the site sends — how long a film took to start and by which path, stalls, errors — and the usage events it lacked (search, audio track, stalls). In the admin page a TV is now named for what it is ("TV · Aurora TV 5.1.24 · Xiaomi MiTV-AFMU0") instead of "Desktop · Other · Other". A side effect worth having: "hold new downloads while someone is watching" now sees people watching on a TV.
