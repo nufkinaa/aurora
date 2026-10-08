@@ -105,7 +105,7 @@ import {
   sendPartyState,
   setPartyItem,
 } from '../party';
-import {isOpen as socketOpen} from '../realtime';
+import {isOpen as socketOpen, reportActivity} from '../realtime';
 import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
 import {track} from '../usage';
 import {RootStackParamList} from '../navigation';
@@ -1057,6 +1057,7 @@ export default function Player({
       if (idx === audioIdxRef.current) return;
       const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
       if (!base) return;
+      track('feat', {f: 'audio_track'}); // the site's name for the same thing
       audioChosen.current = true;
       audioIdxRef.current = idx;
       setAudioIdx(idx);
@@ -1989,6 +1990,54 @@ export default function Player({
     };
   }, [stream, title]);
 
+  // Playback marks, as the site sends them (player.js mark): how long the
+  // film took to start and by which path, where it stalled, what failed -
+  // one line each in the server's log, which is what the admin's Logs tab
+  // and the healer read. Library titles only (a stream has no id to file
+  // them under), and never more than forty a film.
+  const markCount = useRef(0);
+  const mark = useCallback(
+    (name: string, extra: Record<string, string | number | boolean | null> = {}) => {
+      if (isTorrent || markCount.current++ > 40) return;
+      api.playMark(id, {name, ms: Date.now() - mountedAt.current, ...extra}).catch(() => {});
+    },
+    [id, isTorrent],
+  );
+  useEffect(() => {
+    mark('mount', {app: 'tv'});
+  }, [mark]);
+  // A stall is buffering that lasts: over three seconds, after the first
+  // frame, and not one the viewer caused by seeking a moment ago.
+  const bufferingSince = useRef(0);
+  const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noteBuffering = useCallback(
+    (on: boolean) => {
+      if (stallTimer.current) clearTimeout(stallTimer.current);
+      stallTimer.current = null;
+      if (!on) {
+        if (bufferingSince.current && playTracked.current) {
+          const ms = Date.now() - bufferingSince.current;
+          if (ms >= 3000) mark('stall-end', {lasted: ms, at: Math.round(curRef.current || 0), app: 'tv'});
+        }
+        bufferingSince.current = 0;
+        return;
+      }
+      if (!bufferingSince.current) bufferingSince.current = Date.now();
+      stallTimer.current = setTimeout(() => {
+        if (!playTracked.current || pausedRef.current || probing.current) return;
+        mark('stall', {at: Math.round(curRef.current || 0), transcode: usingTranscodeRef.current, app: 'tv'});
+        track('feat', {f: 'stall_tv'});
+      }, 3000);
+    },
+    [mark],
+  );
+  useEffect(
+    () => () => {
+      if (stallTimer.current) clearTimeout(stallTimer.current);
+    },
+    [],
+  );
+
   const saveProgress = useCallback(() => {
     // Never write over a history we could not read (see the load effect).
     if (progressReadFailed.current) return;
@@ -1997,6 +2046,31 @@ export default function Player({
     if (!pos || !dur) return;
     api.saveProgress(profileId, id, pos, dur, streamMeta()).catch(() => {});
   }, [id, profileId, streamMeta]);
+
+  // "Watching <title>" to the server, with the position, every five seconds -
+  // paused or not, as the site does (player.js saveTimer). History, sessions
+  // and the admin's live view are made of these; and "Browsing" on the way out.
+  const activityLabel = useCallback(() => {
+    const it = itemRef.current;
+    if (it?.showTitle && it.season != null && it.episode != null) return `${it.showTitle} S${it.season}E${it.episode}`;
+    if (stream?.season != null && stream?.episode != null) return `${title || it?.title || ''} S${stream.season}E${stream.episode}`;
+    return it?.title || title || '';
+  }, [stream, title]);
+  useEffect(() => {
+    const say = () => {
+      const label = activityLabel();
+      if (!label) return;
+      reportActivity('Watching', label, {position: curRef.current || 0, duration: durRef.current || 0});
+    };
+    say();
+    const first = setTimeout(say, 1500); // the title is known a moment after mount
+    const iv = setInterval(say, 5000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(iv);
+      reportActivity('Browsing');
+    };
+  }, [activityLabel]);
 
   const lastReported = useRef(0);
   useEffect(() => {
@@ -2300,6 +2374,7 @@ export default function Player({
     }
     if (!playTracked.current && d.currentTime > 0) {
       playTracked.current = true;
+      mark('first-frame', {transcode: usingTranscodeRef.current, v: usingTranscodeRef.current ? currentV.current : 'direct', app: 'tv'});
       track('play', {
         kind: isTorrent ? 'stream' : 'library',
         path: usingTranscodeRef.current ? `hls-${currentV.current}` : 'direct',
@@ -2358,6 +2433,7 @@ export default function Player({
   const onError = (e?: {error?: {errorString?: string; errorException?: string}}) => {
     const detail = `${e?.error?.errorString || ''} ${e?.error?.errorException || ''}`;
     console.log('[player] error:', detail);
+    mark('error', {m: detail.trim().slice(0, 40), at: Math.round(curRef.current || 0), app: 'tv'});
     const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
 
     // Errors while a far-seek probe is in flight are EXPECTED: the probe's
@@ -2598,7 +2674,10 @@ export default function Player({
         onProgress={onProgress}
         onEnd={onEnd}
         onError={onError}
-        onBuffer={({isBuffering}) => setBuffering(isBuffering)}
+        onBuffer={({isBuffering}) => {
+          setBuffering(isBuffering);
+          noteBuffering(isBuffering);
+        }}
       />
 
       {/* The cue layer. Lifted clear of the transport bar while the chrome is up

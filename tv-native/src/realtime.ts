@@ -2,7 +2,9 @@
 // the watch-party channel (src/realtime.js on the server). One socket per run,
 // opened once a profile is active and closed when it is left; reconnects with
 // backoff. Messages are dispatched by `type` to whoever subscribed.
+import {Platform} from 'react-native';
 import {getBaseUrl, getSession, forgetMemo} from './api';
+import {APP_VERSION} from './update';
 
 type Handler = (data: Record<string, unknown> & {type: string}) => void;
 const listeners = new Map<string, Set<Handler>>();
@@ -34,10 +36,33 @@ export const send = (data: Record<string, unknown>) => {
 
 // Who this socket is. Sent on every (re)open as the server's `hello`, plus the
 // avatar the party member chips want.
+// What this device is, in the app's own words: the socket has no browser
+// user-agent, so the admin page listed every TV as "Desktop - Other".
+const deviceInfo = () => {
+  const c = (Platform.constants || {}) as {Brand?: string; Manufacturer?: string; Model?: string};
+  const maker = c.Brand || c.Manufacturer || '';
+  return {app: 'tv', build: `Aurora TV ${APP_VERSION}`, model: [maker, c.Model].filter(Boolean).join(' ') || 'Android TV'};
+};
+
+// What this TV is doing, as the site reports it (ws.js reportActivity): the
+// server builds History, sessions and the live "who is watching" from these
+// messages - without them a TV was invisible there (elia, 2026-10-08).
+// Remembered, so a socket that reconnects mid-film says it again.
+let lastActivity: Record<string, unknown> | null = null;
+export const reportActivity = (
+  action: 'Watching' | 'Browsing',
+  details: string | null = null,
+  extra: Record<string, unknown> = {},
+) => {
+  lastActivity = {type: 'activity', action, details, ...extra};
+  send(lastActivity);
+};
+
 const hello = () => {
   if (!identity) return;
-  send({type: 'hello', profile: identity.name, profileId: identity.id});
+  send({type: 'hello', profile: identity.name, profileId: identity.id, ...deviceInfo()});
   send({type: 'party_avatar', avatar: identity.avatar || null, avatarImage: identity.avatarImage || null});
+  if (lastActivity) send(lastActivity);
 };
 export const setIdentity = (id: typeof identity) => {
   identity = id;

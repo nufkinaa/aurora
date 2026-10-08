@@ -7,6 +7,7 @@ import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Card, {CARD_W} from '../components/Card';
 import NavRail from '../components/NavRail';
 import {api, HeroItem, Item} from '../api';
+import {track} from '../usage';
 import {canNavigate} from '../navLock';
 import {warmItem} from '../prefetch';
 import {noteFocus, railOpen, useFocusFallback, useTVKeys} from '../focus';
@@ -95,6 +96,7 @@ export default function Search({
         .filter(i => norm(i.title).includes(ql))
         .map(i => ({...i, source: 'downloaded' as const}));
       setResults(local);
+      track('feat', {f: 'search', hits: local.length}); // how often, never what (as the site)
       // server (stream) results, debounced + race-guarded
       debounce.current = setTimeout(async () => {
         const mine = ++reqId.current;

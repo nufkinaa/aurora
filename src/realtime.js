@@ -169,6 +169,13 @@ const handleMessage = (client, data, ws) => {
       client.profileId = ws.authed && ws.profileId
         ? ws.profileId
         : String(data.profileId || "").slice(0, 24) || null;
+      // The TV app's socket carries no browser user-agent (it read as
+      // "Desktop · Other · Other"), so the app says what it is: a TV, which
+      // build, which set. Only the app's own shape is accepted, tidied.
+      if (data.app === "tv") {
+        const tidy = (v, n) => String(v == null ? "" : v).replace(/[^\w .·()+-]/g, "").slice(0, n);
+        client.device = { device: "TV", browser: tidy(data.build, 24) || "Aurora TV", os: tidy(data.model, 40) || "Android TV" };
+      }
       broadcastAdmins({ type: "client_update", client: publicClient(client) });
       break;
 

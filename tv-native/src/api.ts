@@ -948,6 +948,10 @@ export const api = {
   downloadCancel: (id: string, profile: string) =>
     post<{ok: boolean}>(`/api/downloads/${encodeURIComponent(id)}/cancel`, {profile}),
   usage: (body: unknown) => post<unknown>('/api/usage', body),
+  // One playback mark (start time, path, stall, error) - the site's
+  // /api/play-mark, which lands in the server's log.
+  playMark: (itemId: string, body: Record<string, unknown>) =>
+    post<unknown>(`/api/play-mark/${encodeURIComponent(itemId)}`, body),
   // Request access with a verified Google account (the pollId from the device
   // flow) — the TV's one-press signup when no profile is linked yet.
   signup: (fields: {name: string; pollId?: string; note?: string}) =>
