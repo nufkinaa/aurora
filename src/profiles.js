@@ -649,7 +649,7 @@ const update = (id, fields) => {
   // Boolean switches only, by name — nothing arbitrary lands in the store.
   if (fields.prefs && typeof fields.prefs === "object") {
     p.prefs = p.prefs || {};
-    for (const k of ["smartDownloads", "smartCleanup"]) {
+    for (const k of ["smartDownloads", "smartCleanup", "usageStats"]) {
       if (typeof fields.prefs[k] === "boolean") p.prefs[k] = fields.prefs[k];
     }
     // The subtitle language is a closed set, so it can ride along too.

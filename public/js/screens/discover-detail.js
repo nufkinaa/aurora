@@ -947,6 +947,8 @@ const loadSources = async (
     return { streams, best, jobs: dlStates };
   } catch {
     host.innerHTML = "";
+    // the copy you own stays playable when the provider is down
+    if (owned) host.append(ownedRow(owned));
     host.append(
       el(
         "div",
@@ -1115,8 +1117,13 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
 
 
   if (source === "library") {
-    lib = await api.item(id).catch(() => null);
-    if (!lib) return navigate("#/");
+    let libErr = null;
+    lib = await api.item(id).catch((e) => ((libErr = e), null));
+    if (!lib) {
+      // a kids profile refused it: say so in the server's words, not a silent trip Home
+      if (libErr && /kids profile/i.test(libErr.message || "")) toast(libErr.message, "🧸");
+      return navigate("#/");
+    }
     // The server already knows most library titles' IMDb ids (identity.js
     // stamps them; librarywarm.js resolves the rest in the background), so
     // this is usually free. The round-trip is the fallback, not the rule.

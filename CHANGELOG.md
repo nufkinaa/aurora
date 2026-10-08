@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.66 — 2026-10-08
+
+- **Browser tests.** `npm run test:ui` drives the real web app in the installed Chrome against a private, offline server with a generated library: 106 tests across the profile wall, navigation, library, title pages, the player (including stall recovery), settings, live updates, kids profiles, images and the admin page. See `docs/testing.md`. The first run found ten bugs; three are fixed here and the rest are pinned by tests marked todo.
+- **"Help improve Aurora" off now stays off.** The switch in Preferences → Privacy was never stored by the server, so it came back on after a reload.
+- An episode you own stays playable from its sources panel when the source provider cannot be reached.
+- A kids profile that follows a link to a library title it may not see is told so, instead of landing on Home without a word.
+
 ## 1.6.65 — 2026-10-08
 
 - **A logo.** Aurora has its own mark now, "Beam": a play triangle cut into bands of green, teal and violet on a dark purple-green ground. It is the site's icon and Home Screen icon, the notification badge, the mark in the navigation, and on the TV the launcher icon, the banner and the mark in the side rail. The sources and the script that redraws every size are in `docs/brand/`.
