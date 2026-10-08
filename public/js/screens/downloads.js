@@ -44,9 +44,21 @@ const eta = (job) => {
   return `${(s / 3600).toFixed(1)} h left`;
 };
 
+// A second source is being tried beside the first (the server races the two
+// and keeps whichever finishes first). The card stays one card; it only says
+// so, quietly. `raceNote` is what is left when that could not help.
+const raceNote = (job) =>
+  job.status !== "downloading" || job.phase === "copying" ? "" : job.race ? "trying a second source" : job.raceNote || "";
+
 // One word for the state, and the line under the title. `tone` colours the
 // row's edge and the status dot: ok / busy / wait / bad.
 const describe = (job) => {
+  const d = describeBase(job);
+  const note = raceNote(job);
+  if (note) d.line = [d.line, note].filter(Boolean).join(" · ");
+  return d;
+};
+const describeBase = (job) => {
   switch (job.status) {
     case "done":
       return job.libraryId

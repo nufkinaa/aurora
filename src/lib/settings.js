@@ -11,6 +11,10 @@ const store = new JsonStore(path.join(config.DATA_DIR, "settings.json"), {
   // restarts with a fixed arg list, so an unpersisted limit silently dies.
   aria2MaxDownload: "0",
   aria2MaxUpload: "0",
+  // "Downloads at once" (1–6, see media/dlslots.js). Read through
+  // dlslots.effectiveMaxActive(), which also covers a settings file written
+  // before this key existed.
+  maxActiveDownloads: 4,
 });
 
 module.exports = store;

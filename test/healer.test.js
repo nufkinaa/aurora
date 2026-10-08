@@ -21,6 +21,23 @@ test("progress that stopped moving with zero speed is stalled; a moving one is n
   assert.equal(h.stallReason({ status: "downloading", phase: "downloading", progress: 0.4, downloadSpeed: 0 }, { ...rec, lastProgressAt: now - MIN }, now), null);
 });
 
+test("a job mid-race is not stalled; after the race gave up, the sentence says another source was tried", () => {
+  const now = Date.now();
+  const stuck = { status: "downloading", phase: "downloading", progress: 0.4, downloadSpeed: 0 };
+  const rec = { startedAt: now - 60 * MIN, lastProgressAt: now - h.PROGRESS_STALL_MS - MIN };
+  assert.match(h.stallReason(stuck, rec, now), /stuck at 40%/);
+  // a second source is running beside it (or being looked up): hands off
+  assert.equal(h.stallReason(stuck, { ...rec, ch: { state: "racing" } }, now), null);
+  assert.equal(h.stallReason(stuck, { ...rec, raceBusy: true }, now), null);
+  assert.equal(h.stallReason({ ...stuck, race: { state: "probing" } }, rec, now), null);
+  const finding = { status: "downloading", phase: "finding", progress: 0 };
+  assert.equal(h.stallReason(finding, { startedAt: now - h.FINDING_STALL_MS - MIN, ch: { state: "probing" } }, now), null);
+  // the queue used up its other sources: the old rules apply, and it is said
+  assert.match(h.stallReason({ ...stuck, raceCount: 1 }, rec, now), /stuck at 40% .*; another source was tried and did no better/);
+  assert.match(h.stallReason({ ...finding, raceCount: 2 }, { startedAt: now - h.FINDING_STALL_MS - MIN }, now), /no torrent details .*; 2 other sources were tried/);
+  assert.doesNotMatch(h.stallReason(stuck, rec, now), /source/);
+});
+
 test("a job copying into the library is never called stalled", () => {
   const now = Date.now();
   assert.equal(h.stallReason({ status: "downloading", phase: "copying", progress: 1, downloadSpeed: 0 }, { startedAt: now - 99 * MIN, lastProgressAt: now - 99 * MIN, copying: true }, now), null);

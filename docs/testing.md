@@ -122,11 +122,16 @@ Rules that keep the suite reliable:
 | `live.test.js` | a film added to / removed from the library reaches open grids and Home without a reload, filter kept |
 | `images.test.js` | blur-up placeholders give way to sharp posters (desktop + phone); a broken poster falls back to the titled tile |
 | `kids.test.js` | a kids profile's grids / Home / Search, blocked title and its streams (403), leaving needs the PIN, a normal profile is unaffected (skips if the server has no kids routes) |
-| `admin.test.js` | admin gate, People tab, approve / reject a request (arrives live), kids controls, every tab opens |
+| `admin.test.js` | admin gate, People tab, approve / reject a request (arrives live), kids controls, every tab opens; Downloads → "Downloads at once" (set, reload, out-of-range refused) and the second-source line under a job (stubbed queue) |
+| `downloads.test.js` | My downloads: a job trying a second source keeps its one card and gains one note (stubbed queue) |
 
 ### How stall recovery is tested
 
 The ladder watches the media clock. A buffered stream cannot be frozen from outside with hls.js idle — holding or failing requests keeps the loader busy, and the ladder rightly leaves a busy loader alone — so the freeze is made on the element: `playbackRate = 0`. The clock stops; the element is not paused, ended or in error; the buffer is full. A rebuild resets the element, which puts the rate back to 1. The thresholds are real time (nudge after 6 s of stall once the 15 s start-up grace is over, rebuild at 20 s), so these tests take 40–45 s each and run side by side.
+
+### The download queue without a torrent
+
+`test/dlrace-queue.test.js` (part of `npm test`) plays the queue out against a fake engine: "Downloads at once", the hold while people watch, and the second-source race end to end (slow original → challenger → one file in the library, the loser cancelled and purged; both finishing in one tick; a cancel and a restart mid-race). It uses the same trick as the private instance, in-process: `src/` is copied to a temp root with its own `config.json`, `data/` and library and required from there, the engine is swapped through `downloads._internals.setEngine`, and the clock, timers, "who is watching" and the source lookup are `downloads._internals.seams`. No aria2 process, no network. The rules themselves are pure and pinned in `test/dlrace.test.js`.
 
 ## Known gaps
 

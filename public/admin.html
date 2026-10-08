@@ -304,7 +304,7 @@
       .hbars .hrow { grid-template-columns: minmax(80px, 1fr) 1fr 64px; gap: 8px; font-size: 0.82rem; }
       .attn-row { padding: 12px 13px; }
       .ask .ask-row button { flex: 1; }
-      #lim-down, #lim-up { max-width: none !important; flex: 1 !important; min-width: 0; width: 100%; }
+      #lim-down, #lim-up, #lim-slots { max-width: none !important; flex: 1 !important; min-width: 0; width: 100%; }
       .heatmap { font-size: 0.56rem; }
       .heatmap .cell, .heatmap .lab { height: 16px; }
       .log-list { max-height: none; }
@@ -839,9 +839,12 @@
               <input type="text" id="lim-down" placeholder="0" style="max-width:110px;flex:none" /></label>
             <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↑
               <input type="text" id="lim-up" placeholder="0" style="max-width:110px;flex:none" /></label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">Downloads at once
+              <input type="number" id="lim-slots" min="1" max="6" step="1" inputmode="numeric" aria-label="Downloads at once" style="max-width:70px;flex:none" /></label>
             <button class="btn small btn-primary" id="lim-apply">Apply</button>
             <span class="muted" style="font-size:0.8rem">0 = unlimited · e.g. <b>5M</b> or <b>500K</b> per second</span>
           </div>
+          <div class="muted" id="lim-slots-note" style="font-size:0.8rem;padding:4px">Downloads at once: 1 to 6. More at once means each one is slower, and playback can suffer.</div>
           <div class="empty-note" id="lim-status" style="padding:4px"></div>
         </div>
       </details>
@@ -2419,6 +2422,23 @@
         : l.running && eff
           ? `<span class="muted">live on the engine now: ↓ ${esc(eff.download === "0" ? "unlimited" : eff.download)} · ↑ ${esc(eff.upload === "0" ? "unlimited" : eff.upload)}</span>`
           : `<span class="muted">engine idle — the saved caps apply automatically when the next download starts.</span>`;
+      // "Downloads at once". A server that has not been restarted since this
+      // setting was added does not report it: the field waits, greyed out.
+      const sl = l.slots;
+      const slotsEl = $("#lim-slots");
+      slotsEl.disabled = !sl;
+      if (!sl) {
+        slotsEl.value = "";
+        slotsEl.title = "Restart the server to use this setting";
+      } else {
+        slotsEl.title = "";
+        slotsEl.min = sl.min; slotsEl.max = sl.max;
+        if (!slotsEl.matches(":focus")) slotsEl.value = sl.maxActive;
+        if (sl.holding) {
+          $("#lim-status").innerHTML += ` <span class="pill warn" id="lim-holding">holding at ${esc(String(sl.holdAt))} while someone is watching</span>` +
+            (sl.queued ? ` <span class="muted">${esc(String(sl.queued))} queued — ${sl.queued === 1 ? "it starts" : "they start"} when viewing stops</span>` : "");
+        }
+      }
     }
     $("#lim-apply").onclick = async () => {
       const btn = $("#lim-apply");
@@ -2427,10 +2447,14 @@
         const r = await adminFetch("/api/admin/aria2-limits", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ download: $("#lim-down").value.trim() || "0", upload: $("#lim-up").value.trim() || "0" }),
+          body: JSON.stringify({
+            download: $("#lim-down").value.trim() || "0", upload: $("#lim-up").value.trim() || "0",
+            // (sent as typed: the server is what says 1–6, in one place)
+            ...($("#lim-slots").disabled ? {} : { maxActive: $("#lim-slots").value.trim() }),
+          }),
         });
         const data = await r.json().catch(() => ({}));
-        if (!r.ok) return toast(data.error || "Failed to set limits");
+        if (!r.ok) { toast(data.error || "Failed to set limits"); loadLimits(); return; }
         toast(data.applied ? "Limits applied to the running engine" : "Limits saved — they apply when the engine starts");
         loadLimits();
       } catch {
@@ -2713,6 +2737,21 @@
         const left = (j.sizeBytes || 0) * (1 - (j.progress || 0));
         return left > 0 ? "~" + fmtEta(left / j.downloadSpeed) : "—";
       };
+      // A second source being tried beside the first (media/dlrace.js): one
+      // quiet line under the job — which sources, how each is doing, and why.
+      const raceLine = (j) => {
+        const cell = (html) => `<tr class="race-row"><td colspan="7" class="muted" style="font-size:0.8rem;padding-top:0;border-top:0;white-space:normal">↳ ${html}</td></tr>`;
+        if (!j.race) return j.raceNote && j.status === "downloading" ? cell(esc(j.raceNote)) : "";
+        const one = (a) => {
+          const left = a.etaSec != null ? "~" + fmtEta(a.etaSec) + " left" : "no end in sight";
+          const name = a.provider || (a.release ? a.release.slice(0, 40) : (a.infoHash || "").slice(0, 8) + "…");
+          return `<b>${a.role === "challenger" ? "second" : "first"}</b> ${esc(name)} · ${Math.round((a.progress || 0) * 100)}% · ${fmtSpeed(a.downloadSpeed)} · ${left}`;
+        };
+        return cell(
+          `<span class="pill warn">trying a second source</span> ${j.race.state === "racing" ? "both running, the first to finish is kept" : "checking that it connects"}` +
+          (j.race.why ? ` — the first was slow: ${esc(j.race.why)}` : "") +
+          `<br>${(j.race.attempts || []).map(one).join(" &nbsp;‖&nbsp; ")}`);
+      };
       $("#dl-jobs-empty").classList.toggle("hidden", active.length > 0);
       $("#dl-jobs").innerHTML = active.map((j) => {
         const pct = Math.round((j.progress || 0) * 100);
@@ -2725,7 +2764,7 @@
           <td class="num">${eta(j)}</td>
           <td><span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(phaseLabel(j))}</span></td>
           <td style="text-align:right;white-space:nowrap"><button class="mini danger" onclick="cancelDownload('${esc(j.id)}')">Cancel</button></td>
-        </tr>`;
+        </tr>${raceLine(j)}`;
       }).join("");
 
       // FINISHED: done / declined / failed — retry and row cleanup live here.
@@ -3296,7 +3335,7 @@
     setInterval(() => {
       if (!ADMIN_PW || document.hidden) return;
       if (activeTab === "server") loadServer();
-      if (activeTab === "downloads") loadDownloads();
+      if (activeTab === "downloads") { loadDownloads(); loadLimits(); } // (the "holding" note follows who is watching)
     }, 8000);
 
     // Live tail. Guarded the same way as the refreshers above: only the tab

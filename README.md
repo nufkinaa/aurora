@@ -174,6 +174,7 @@ All of it is read once at startup by [`src/config.js`](src/config.js). Machine s
 | `scanIntervalMinutes` | `10` | How often the library is rescanned. |
 | `adminName` | `"the admin"` | What the UI calls whoever runs the server. |
 | `downloadMinFreePercent` | `10` | Downloads start by themselves while the library drive keeps at least this much free; below it they wait for approval. `0` never asks. |
+| `downloadRace` | on | When a download is slow because of its source, the next-best source of the same resolution is tried beside it; the first to finish is kept, the other cancelled. `false` switches it off; an object overrides single thresholds (the names and defaults are `DEFAULTS` in `src/media/dlrace.js`), e.g. `{ "episodeBudgetMin": 30 }`. How many downloads run at once is set in the admin page (Downloads → Downloads at once). |
 | `autoOcrSubtitles` | `true` | Convert image-only subtitles to text in the background (needs Python 3 + Tesseract + ffmpeg). |
 | `onlineMetadata` | `true` | Fetch synopses, ratings and artwork for library titles. |
 | `skipDatabases` | `true` | Ask SkipDB and TheIntroDB for intro / recap / credits times. Only IMDb id, season, episode and runtime leave the server. |

@@ -221,5 +221,91 @@ ui.test("the actions API refuses an id that is not on the list, and anyone witho
   assert.equal(list.status, 403);
 });
 
+// ---------- Downloads tab: "Downloads at once" and the second-source line ----------
+const downloadsTab = async (page) => {
+  await page.click('.tab[data-tab="downloads"]');
+  await page.waitForFunction(() => document.querySelector("#lim-slots") && document.querySelector("#lim-slots").value !== "");
+};
+
+ui.test("Downloads at once: shown beside the speed caps, a new value sticks across a reload, out-of-range is refused", { allow: [/Failed to load resource.*400.*aria2-limits/] }, async ({ page, srv, api }) => {
+  await enter(page, srv);
+  await downloadsTab(page);
+  assert.equal(await page.inputValue("#lim-slots"), "4", "the default is four");
+  assert.match(await page.textContent("#lim-slots-note"), /More at once means each one is slower, and playback can suffer/);
+  // same card, same row, same button as the speed caps
+  assert.ok(await page.evaluate(() => document.querySelector("#lim-slots").closest(".bar-row") === document.querySelector("#lim-down").closest(".bar-row")));
+
+  await page.fill("#lim-slots", "6");
+  await page.fill("#lim-down", "5M");
+  await page.click("#lim-apply");
+  await toastSays(page, /Limits (saved|applied)/);
+  assert.equal((await api.adminGet("/api/admin/aria2-limits")).slots.maxActive, 6);
+
+  await enter(page, srv);                 // a full reload of the page
+  await downloadsTab(page);
+  assert.equal(await page.inputValue("#lim-slots"), "6", "it stuck");
+  assert.equal(await page.inputValue("#lim-down"), "5M", "and the speed cap saved with it");
+
+  for (const bad of ["9", "0"]) {
+    await page.fill("#lim-slots", bad);
+    await page.fill("#lim-down", "1M");
+    await page.click("#lim-apply");
+    await toastSays(page, /whole number from 1 to 6/);
+    const saved = await api.adminGet("/api/admin/aria2-limits");
+    assert.equal(saved.slots.maxActive, 6, `${bad} was refused`);
+    assert.equal(saved.saved.download, "5M", "a refused save changes nothing — not the speed cap either");
+  }
+  await enter(page, srv);
+  await downloadsTab(page);
+  assert.equal(await page.inputValue("#lim-slots"), "6");
+
+  // the API says the same without the page, and an older page (no maxActive) still saves its caps
+  const direct = await api.call("POST", "/api/admin/aria2-limits", { download: "0", upload: "0", maxActive: 2.5 }, api.admin);
+  assert.equal(direct.status, 400);
+  const old = await api.call("POST", "/api/admin/aria2-limits", { download: "0", upload: "0" }, api.admin);
+  assert.equal(old.status, 200);
+  assert.equal((await api.adminGet("/api/admin/aria2-limits")).slots.maxActive, 6);
+  await api.adminPost("/api/admin/aria2-limits", { download: "0", upload: "0", maxActive: 4 });
+});
+
+ui.test("In flight: a job trying a second source gets one line under it; holding for viewers is said in the card", async ({ page, srv }) => {
+  const racing = {
+    id: "aaaaaaaaaaaa", infoHash: "a".repeat(40), fileIdx: 0, imdbId: "tt9000001", title: "Slow Film", label: "Slow Film", type: "movie",
+    quality: "1080p", sizeBytes: 4e9, status: "downloading", phase: "downloading", progress: 0.12, downloadSpeed: 150000, peers: 2, at: new Date().toISOString(),
+    race: {
+      state: "racing", why: "projected to take 6.8 h more (a download this size should take under 2.0 h)",
+      attempts: [
+        { role: "original", infoHash: "a".repeat(40), provider: "FirstProvider", progress: 0.12, downloadSpeed: 150000, etaSec: 24500, peers: 2 },
+        { role: "challenger", infoHash: "b".repeat(40), provider: "SecondProvider", progress: 0.03, downloadSpeed: 4200000, etaSec: 930, peers: 31 },
+      ],
+    },
+    raceNote: null,
+  };
+  const noted = { ...racing, id: "bbbbbbbbbbbb", title: "Stuck Film", label: "Stuck Film", race: null, raceNote: "No healthy source was found at 1080p — still trying the original." };
+  const plain = { ...racing, id: "cccccccccccc", title: "Fine Film", label: "Fine Film", race: null, raceNote: null };
+  await page.route("**/api/downloads", (route) => route.fulfill({ json: [racing, noted, plain] }));
+  await page.route("**/api/admin/aria2-limits", async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    const res = await route.fetch();
+    const body = await res.json();
+    body.slots = { ...body.slots, maxActive: 4, cap: 2, holding: true, watching: 1, holdAt: 2, queued: 3 };
+    await route.fulfill({ json: body });
+  });
+  await enter(page, srv);
+  await downloadsTab(page);
+  await page.waitForSelector("#dl-jobs tr.race-row");
+  assert.equal(await page.locator("#dl-jobs tr.race-row").count(), 2, "the racing job and the one with a note — not the ordinary one");
+  const line = await page.locator("#dl-jobs tr.race-row").first().innerText();
+  assert.match(line, /trying a second source/);
+  assert.match(line, /both running/);
+  assert.match(line, /the first was slow: projected to take 6\.8 h more/);
+  assert.match(line, /first FirstProvider · 12% · 146 KB\/s · ~6\.8h left/);
+  assert.match(line, /second SecondProvider · 3% · 4\.0 MB\/s · ~16m left/);
+  assert.match(await page.locator("#dl-jobs tr.race-row").nth(1).innerText(), /No healthy source was found at 1080p/);
+  assert.equal(await page.locator("#dl-jobs > tr:not(.race-row)").count(), 3, "still one row per download");
+  assert.match(await page.textContent("#lim-holding"), /holding at 2 while someone is watching/);
+  assert.match(await page.textContent("#lim-status"), /3 queued — they start when viewing stops/);
+});
+
 // one at a time: these tests share the admin's queue and the list of people
 ui.run({ concurrency: 1 });

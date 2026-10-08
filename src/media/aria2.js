@@ -37,10 +37,23 @@ const ENDPOINT = `http://127.0.0.1:${PORT}/jsonrpc`;
 
 const available = () => !!config.ARIA2;
 
+// How many downloads aria2 itself may run, and how many peers each torrent
+// may hold — both follow the admin's "Downloads at once" setting
+// (media/dlslots.js): room for that many, plus a second-source race, plus the
+// metadata fetches; fewer peers per torrent as more torrents run.
+const enginePlan = () => {
+  const dlslots = require("./dlslots");
+  const dlrace = require("./dlrace");
+  const settings = require("../lib/settings");
+  const race = dlrace.resolveConfig(config.DOWNLOAD_RACE);
+  return dlslots.enginePlan(settings.data.maxActiveDownloads, race.enabled ? race.maxRaces : 0);
+};
+
 let proc = null;
 let startup = null;
 
 const spawnDaemon = () => {
+  const plan = enginePlan();
   const args = [
     "--enable-rpc",
     "--rpc-listen-all=false",              // localhost only
@@ -63,8 +76,8 @@ const spawnDaemon = () => {
     "--dht-entry-point=router.bittorrent.com:6881",
     "--summary-interval=0",                // no periodic console noise
     "--console-log-level=warn",
-    "--max-concurrent-downloads=4",
-    "--bt-max-peers=100",
+    `--max-concurrent-downloads=${plan.maxConcurrent}`,
+    `--bt-max-peers=${plan.btMaxPeers}`,
     // A dead tracker must not hold up the start. The defaults are 60s each, and
     // one unreachable entry near the front of the list cost 22 seconds before a
     // single peer was found (measured 2026-07-27).
@@ -103,6 +116,7 @@ const ensure = async () => {
   if (proc && startup) return startup;
   fs.mkdirSync(STAGING_ROOT, { recursive: true });
   fs.mkdirSync(path.join(config.DATA_DIR, "aria2"), { recursive: true });
+  const plan0 = enginePlan();
   proc = spawnDaemon();
   startup = (async () => {
     for (let i = 0; i < 60; i++) {
@@ -125,6 +139,9 @@ const ensure = async () => {
         } catch (err) {
           console.warn(`[aria2] could not apply speed caps: ${err.message}`);
         }
+        // The concurrency plan is in the arg list already (spawnDaemon reads
+        // the setting); say what this daemon was started with.
+        console.log(`[aria2] up to ${plan0.maxConcurrent} downloads in the engine, ${plan0.btMaxPeers} peers per torrent`);
         return true;
       } catch {
         await new Promise((r) => setTimeout(r, 250));
@@ -223,6 +240,10 @@ const add = (magnet, infoHash, fileIndex) => {
       if (st.status === "error") {
         throw new Error(st.errorMessage || "aria2 could not fetch the torrent details");
       }
+      // Taken away while its details were still being looked for
+      // (removeByInfoHash: a second source that failed its probe). Without
+      // this the loop would keep asking about a dead download for 5 minutes.
+      if (st.status === "removed") throw new Error("the download was removed before its details arrived");
       // A cached .torrent (bt-load-saved-metadata) means there was never a
       // placeholder to follow — this GID is already the real download.
       if (st.files && st.files.length && !isMetadataPlaceholder(st.files)) return gid;
@@ -232,7 +253,9 @@ const add = (magnet, infoHash, fileIndex) => {
   })();
 
   adding.set(infoHash, p);                    // synchronous: see the note above
-  p.finally(() => { if (adding.get(infoHash) === p) adding.delete(infoHash); });
+  // (.catch: `finally` returns a NEW promise that rejects with p — unhandled,
+  // it was logged as an uncaught error every time a torrent had no details)
+  p.finally(() => { if (adding.get(infoHash) === p) adding.delete(infoHash); }).catch(() => {});
 
   // Make sure this caller's file is selected even when it joined an add that was
   // started for a different episode.
@@ -280,6 +303,10 @@ const status = async (gid) => {
     error: st.errorMessage || null,
     downloadSpeed: Number(st.downloadSpeed || 0),
     peers: Number(st.numSeeders || st.connections || 0),
+    // The two numbers `peers` is made of, kept apart: "connected to someone"
+    // and "connected to someone who HAS the file" are different questions.
+    seeders: Number(st.numSeeders || 0),
+    connections: Number(st.connections || 0),
     infoHash: st.infoHash || null,
     files: (st.files || []).map((f) => ({
       index: Number(f.index),
@@ -304,6 +331,25 @@ const fileProgress = (st, fileIndex) => {
 const remove = async (gid) => {
   try { await rpc("aria2.forceRemove", [gid]); } catch {}
   try { await rpc("aria2.removeDownloadResult", [gid]); } catch {}
+};
+
+// Stop EVERYTHING aria2 holds for a torrent — the "[METADATA]" placeholder
+// included, which is the only thing there is while the details are still
+// being looked for (and which add() has not returned a GID for yet).
+const removeByInfoHash = async (infoHash) => {
+  if (!proc) return 0;
+  const wanted = String(infoHash).toLowerCase();
+  const lists = await Promise.all([
+    rpc("aria2.tellActive", [["gid", "infoHash"]]).catch(() => []),
+    rpc("aria2.tellWaiting", [0, 50, ["gid", "infoHash"]]).catch(() => []),
+  ]);
+  let n = 0;
+  for (const d of lists.flat()) {
+    if (!d.infoHash || String(d.infoHash).toLowerCase() !== wanted) continue;
+    await remove(d.gid);
+    n++;
+  }
+  return n;
 };
 
 // Delete a torrent's staging bytes. Called only once nothing wants them.
@@ -351,10 +397,28 @@ const setGlobalLimits = ({ download, upload }) =>
 // must not BOOT the daemon just to display a number).
 const running = () => !!proc;
 
+// Tell a RUNNING daemon the current plan ("Downloads at once" was changed).
+// The global options cover downloads added from now on; the per-download
+// call brings the ones already running to the same peer limit. Never spawns:
+// a daemon that starts later reads the plan in spawnDaemon().
+const applyEnginePlan = async () => {
+  const plan = enginePlan();
+  if (!proc) return { applied: false, ...plan };
+  await call("aria2.changeGlobalOption", [{
+    "max-concurrent-downloads": String(plan.maxConcurrent),
+    "bt-max-peers": String(plan.btMaxPeers),
+  }]);
+  const live = await call("aria2.tellActive", [["gid"]]).catch(() => []);
+  for (const d of live) {
+    await call("aria2.changeOption", [d.gid, { "bt-max-peers": String(plan.btMaxPeers) }]).catch(() => {});
+  }
+  return { applied: true, ...plan };
+};
+
 module.exports = {
-  available, ensure, add, status, fileProgress, select, remove, purge,
+  available, ensure, add, status, fileProgress, select, remove, removeByInfoHash, purge,
   activeDownloads, shutdown, stagingDir, STAGING_ROOT,
-  getGlobalOptions, setGlobalLimits, running, ping,
+  getGlobalOptions, setGlobalLimits, running, ping, enginePlan, applyEnginePlan,
   // Test-only: the rule that tells the real download apart from the metadata
   // placeholder. Getting this wrong parks every job at 0%, so it is pinned.
   _internals: { isMetadataPlaceholder },

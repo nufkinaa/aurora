@@ -168,6 +168,11 @@ module.exports = {
   // Override with "downloadMinFreePercent" in config.json (0 = always start).
   DOWNLOAD_MIN_FREE_PERCENT:
     typeof userConfig.downloadMinFreePercent === "number" ? userConfig.downloadMinFreePercent : 10,
+  // The second-source race for slow downloads (media/dlrace.js): unset = on
+  // with its defaults, false = off, an object overrides individual thresholds
+  // (the names are dlrace.DEFAULTS'). Passed through as written; dlrace's
+  // resolveConfig() is what reads it.
+  DOWNLOAD_RACE: userConfig.downloadRace,
   NOTIFICATIONS: userConfig.notifications || {},
   // ---- backups (lib/backup.js) ----
   // Where the daily snapshot of the household's state is written. The default

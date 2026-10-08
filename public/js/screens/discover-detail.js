@@ -165,6 +165,12 @@ const dlFace = (job) => {
         hint: "Queued — starts when the current downloads finish",
       };
     case "downloading":
+      // A second source is being tried beside the first: say so, change
+      // nothing else (the percentage is the leading attempt's).
+      if (job.race && job.phase !== "copying" && !job._raceSaid) {
+        const v = dlFace({ ...job, _raceSaid: true });
+        return { ...v, hint: `${v.hint} · trying a second source` };
+      }
       // Before any bytes move, the engine is still locating the torrent's file
       // list — showing "0%" there reads as a download that isn't working.
       if (job.phase === "finding")
@@ -1326,6 +1332,8 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       : job.phase === "copying" ? "Almost there…"
       : job.phase === "finding" || job.phase === "starting" || !(job.progress > 0) ? "Starting download…"
       : `Downloading · ${p}%`;
+    // (a second source being tried: the button's tooltip says so, the label stays)
+    saveBtn.title = job.status === "downloading" && job.race && job.phase !== "copying" ? "Trying a second source" : "";
     saveBtn.innerHTML = `<span class="mini-spinner"></span><span>${text}</span>`;
     saveBtn.disabled = true;
     saveBtn.classList.add("busy", "dl-live");

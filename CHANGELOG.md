@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.71 — 2026-10-08
+
+- **A slow download gets a second source.** When a download is slow because of where it comes from — no torrent details after two minutes, nobody to download from after three, or a finish time far beyond what its size should take — Aurora starts the next-best source of the same resolution beside it. Whichever finishes first is kept; the other is cancelled and its temporary files removed. You still see one card per title, with "trying a second source" while it happens. It is deliberately careful: the second source is given about a minute to prove it really connects before it counts; nothing is raced when the line itself is the limit, when a speed cap is set, when someone is watching, or when the download is nearly done; a race that makes nothing faster is stopped; at most two other sources are tried per download and one race runs at a time. Sources that stalled, failed to connect or lost are remembered for six weeks and ranked lower for that title. The resolution is never changed behind your back. Tried with real torrents: a dead source was noticed at two minutes, and a weak source was overtaken and replaced by a faster one. `"downloadRace": false` in config.json switches it off.
+- **Downloads at once** is a setting (admin → Downloads, beside the speed caps): 1 to 6, now 4 by default instead of 2. While someone is watching, no more than two start; the rest wait and carry on afterwards.
+- A torrent whose details never arrive no longer logs an uncaught error.
+
 ## 1.6.70 — 2026-10-08
 
 Nine things a hands-on pass through the site found.

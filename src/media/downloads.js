@@ -27,15 +27,24 @@ const torrent = require("./torrent");
 const realtime = require("../realtime");
 const notify = require("../lib/notify");
 const disk = require("../lib/disk");
-const aria2 = require("./aria2");
+let aria2 = require("./aria2"); // `let`: the tests swap in a fake engine (_internals.setEngine)
 const imdb = require("./imdb");
 const websubs = require("./websubs");
 const torrentGate = require("../lib/torrentgate");
 const { JsonStore } = require("../lib/jsonstore");
+const settings = require("../lib/settings");
+const dlslots = require("./dlslots");
+const dlrace = require("./dlrace");
+const sourceMemory = require("./sourcememory");
 
 const store = new JsonStore(path.join(config.DATA_DIR, "downloads.json"), []);
 
-const MAX_ACTIVE = 2;      // concurrent downloads
+// How many downloads run at once is the admin's "Downloads at once" setting
+// (1–6, default 4 — media/dlslots.js), held at 2 while anyone is watching.
+const maxActive = () => dlslots.effectiveMaxActive(settings.data.maxActiveDownloads);
+const HOLD_RECHECK_MS = 20 * 1000; // while holding for viewers: look again this often
+const ENGINE_QUIET_MS = 60 * 1000; // no failed status call for this long = the engine is healthy
+const raceCfg = () => dlrace.resolveConfig(config.DOWNLOAD_RACE);
 const MAX_JOBS = 200;      // cap the persisted history
 const POLL_MS = 1000;      // how often aria2 is asked where the running jobs are
 
@@ -46,6 +55,33 @@ const active = new Map();
 
 // ---------- helpers ----------
 const now = () => new Date().toISOString();
+
+// Who is using the server right now, as far as the queue cares:
+//   watching  viewers with a film on screen (realtime's "Watching") plus the
+//             live repackaging / transcoding jobs feeding one
+//   streams   torrent STREAMS in use (the WebTorrent client, not aria2)
+const liveLoad = () => {
+  let watching = 0;
+  let streams = 0;
+  try { for (const c of realtime.clients.values()) if (c.activity === "Watching") watching++; } catch {}
+  try { watching += require("./jit").liveCount(); } catch {}
+  try { watching += require("./remux").liveCount(); } catch {}
+  try {
+    const t = Date.now();
+    streams = torrent.listTorrents().filter((x) => !x.quiesced && !x.done && (x.downloadSpeed > 0 || t - (x.lastAccess || 0) < 2 * 60 * 1000)).length;
+  } catch {}
+  return { watching, streams };
+};
+
+// What a test replaces to play the queue out without aria2, the network, the
+// wall clock or timers. Nothing else reads these.
+const seams = {
+  clock: () => Date.now(),
+  auto: true, // false: no poll timer, no delayed pumps — the test calls poll() / pumpNow()
+  load: liveLoad,
+  findSources: (job) => torrent.getSources(job.type === "show" ? "series" : "movie", job.imdbId, job.year, job.season, job.episode),
+};
+const later = (fn, ms) => { if (seams.auto) { const t = setTimeout(fn, ms); t.unref?.(); } };
 
 // Every socket gets the update, each told only whether the job is ITS
 // profile's ("mine") — who asked never leaves the server (see publicJob).
@@ -82,6 +118,21 @@ const publicJob = (j) => ({
   // stays server-side (publicJobFor answers "mine" per viewer instead).
   seenAt: j.seenAt || null, smart: !!j.smart, resolvedAt: j.resolvedAt || null,
   libraryId: j.status === "done" && j.destPath ? scanner.idForPath(j.destPath) : null,
+  // A second source is being tried beside the first (media/dlrace.js). The
+  // card stays ONE card: `progress` above is the leading attempt's. `race` is
+  // null whenever no race is on; `raceNote` is the plain sentence left behind
+  // when one could not help ("No healthy source was found at 1080p…").
+  race: j.race && j.status === "downloading"
+    ? {
+      state: j.race.state, why: j.race.why || null, at: j.race.at || null,
+      attempts: (j.attempts || []).map((a) => ({
+        role: a.role, infoHash: a.infoHash, provider: a.provider || null, release: a.release || null,
+        sizeBytes: a.sizeBytes || 0, progress: a.progress || 0, downloadSpeed: a.speed || 0,
+        etaSec: a.etaSec ?? null, peers: a.peers || 0,
+      })),
+    }
+    : null,
+  raceNote: j.raceNote || null,
 });
 
 // The requester opened the finished file: the "ready to play" nudge for it
@@ -130,6 +181,11 @@ const gb = (n) => (n / 1e9).toFixed(1);
 const committedBytes = (excludeId) =>
   store.data.reduce((n, j) => {
     if (j.id === excludeId || !["approved", "downloading"].includes(j.status)) return n;
+    // A job in a second-source race has TWO copies on the way: what is left
+    // of each attempt counts (the original's own numbers when no race is on).
+    if (j.attempts && j.attempts.length > 1) {
+      return n + j.attempts.reduce((m, a) => m + Math.max(0, (a.sizeBytes || 0) * (1 - (a.progress || 0))), 0);
+    }
     return n + Math.max(0, (j.sizeBytes || 0) * (1 - (j.progress || 0)));
   }, 0);
 
@@ -291,6 +347,12 @@ const create = (fields) => {
       !["error", "declined", "canceled"].includes(j.status)
   );
   if (dupe) return { job: publicJob(dupe), duplicate: true };
+  // …or the exact file some job is already fetching as its SECOND source.
+  const racing = store.data.find(
+    (j) => j.status === "downloading" && j.attempts && j.attempts[1] &&
+      j.attempts[1].infoHash === infoHash && (j.attempts[1].fileIdx || 0) === (fileIdx || 0)
+  );
+  if (racing) return { job: publicJob(racing), duplicate: true };
 
   // Approval is only needed when the disk is tight (or unreadable).
   const gate = diskGate(wanted, sizeBytes);
@@ -444,15 +506,31 @@ const remove = (id) => {
   return { ok: true };
 };
 
-// Start any approved jobs up to the concurrency cap.
+// How many may run, and whether viewing is what holds it there.
+const slotState = () => {
+  const load = seams.load();
+  return { ...dlslots.startCap({ maxActive: maxActive(), watching: load.watching }), watching: load.watching, maxActive: maxActive() };
+};
+
+// Start any approved jobs up to the concurrency cap. Only ever STARTS: a job
+// already running is never stopped because the cap came down (the admin
+// lowered the setting, or someone pressed Play) — it finishes, new ones wait.
+let holdTimer = null;
 const pump = () => {
   // "torrents": false — queued jobs stay queued (and untouched: no disk-gate
   // demotion, no admin notification) until the owner switches torrents back on.
   if (!torrentGate.enabled()) return;
-  if (activeCount() >= MAX_ACTIVE) return;
+  const { cap, holding } = slotState();
+  // Held back for viewers with jobs still queued: nothing else will pump when
+  // the film ends, so look again shortly.
+  if (holding && seams.auto && !holdTimer && store.data.some((j) => j.status === "approved" && !active.has(j.id))) {
+    holdTimer = setTimeout(() => { holdTimer = null; pump(); }, HOLD_RECHECK_MS);
+    holdTimer.unref?.();
+  }
+  if (activeCount() >= cap) return;
   const queued = store.data.filter((j) => j.status === "approved" && !active.has(j.id));
   for (const job of queued) {
-    if (activeCount() >= MAX_ACTIVE) break;
+    if (activeCount() >= cap) break;
     // Re-run the gate at start time for self-started jobs: one may have waited
     // behind MAX_ACTIVE others for hours, and the drive it was measured against
     // can be full by now. An admin-approved job is exempt (see approve()).
@@ -575,6 +653,157 @@ const copyIntoLibrary = (from, to, onBytes) =>
     rs.pipe(ws);
   });
 
+// ---------- attempts ----------
+// A job downloads from ONE source — except during a second-source race, when
+// a challenger runs beside the original. Each of them is an "attempt": one
+// file of one aria2 download, with its own clocks and its own smoothed speed.
+//
+//   rec.main   the attempt whose source the job carries as its own
+//              (job.infoHash / fileIdx / magnet / quality / sizeBytes)
+//   rec.ch     the challenger while a race is on, else null
+//
+// The job's own fields are never a mix: when a challenger takes over (it won,
+// or the original died) adopt() copies its source onto the job in one go and
+// it becomes rec.main. What is persisted of a race is job.race + job.attempts
+// (see persisted()); the rest of an attempt lives only here.
+const newAttempt = (role, src, t) => ({
+  role,                                   // "original" | "challenger"
+  src,                                    // the source: { infoHash, fileIdx, magnet, announce, quality, sizeBytes, provider, seeders, release }
+  infoHash: src.infoHash,
+  fileIdx: src.fileIdx || 0,
+  fileIndex: (src.fileIdx || 0) + 1,      // aria2 numbers files from 1
+  gid: null,                              // set once aria2 has the torrent's details
+  dead: false,                            // released: late answers about it are ignored
+  state: role === "challenger" ? "probing" : null, // challenger: "probing" → "racing"
+  startedAt: t,
+  metaAt: 0,                              // when the details (the file list) arrived
+  connectedAt: 0,                         // first seeder / peer / byte
+  seededAt: 0,                            // first REAL seeder or byte (what the probe waits for)
+  lastProgressAt: 0,                      // the healer's stall clock
+  lastSampleAt: 0,
+  speed: 0,                               // smoothed (EWMA over ~60 s) — what every decision uses
+  rawSpeed: 0,                            // aria2's instant number — what the card shows
+  peers: 0, seeders: 0, connections: 0,
+  fraction: 0, completed: 0, length: 0,
+});
+
+// The live record of a running job. The getters are what the healer (and
+// older code) read off a record: they always answer for the job's own source.
+const makeRec = (dest, main) => ({
+  dir: dest.dir, base: dest.base,
+  copying: false,     // true from the instant an attempt WINS (see claimWin)
+  main, ch: null,
+  lead: "main",       // whose progress the card shows
+  ko: null,           // knockout state: { lead, since }
+  preRaceBps: 0,      // the original's smoothed speed when the race began
+  raceBusy: false,    // looking up sources for a challenger right now
+  raceRetryAt: 0,     // not before this (ms) is a race considered again
+  whyNot: null,       // slow, but not raced: why (text, for the healer's line)
+  get gid() { return this.main.gid; },
+  get fileIndex() { return this.main.fileIndex; },
+  get startedAt() { return this.main.startedAt; },
+  get lastProgressAt() { return this.main.lastProgressAt; },
+});
+
+function* liveAttempts() {
+  for (const rec of active.values()) {
+    if (!rec.main.dead) yield rec.main;
+    if (rec.ch && !rec.ch.dead) yield rec.ch;
+  }
+}
+
+// One attempt as the plain data dlrace's rules take.
+const viewOf = (job, att) => {
+  const size = att.length || att.src.sizeBytes || job.sizeBytes || 0;
+  return {
+    type: job.type, sizeBytes: size,
+    startedAt: att.startedAt, metaAt: att.metaAt, connectedAt: att.connectedAt, seededAt: att.seededAt,
+    speed: att.speed, fraction: att.fraction,
+    // An unknown size is "everything is still to come", never "nothing left".
+    remainingBytes: size > 0 ? Math.max(0, size * (1 - att.fraction)) : Infinity,
+  };
+};
+const etaOf = (job, att) => { const v = viewOf(job, att); return dlrace.etaSec(v.remainingBytes, v.speed); };
+
+// What is written to downloads.json for an attempt: enough to show it, and —
+// for the challenger — enough to carry on with it after a restart.
+const persisted = (job, att) => {
+  const eta = etaOf(job, att);
+  return {
+    role: att.role, infoHash: att.infoHash, fileIdx: att.fileIdx,
+    magnet: att.src.magnet, announce: att.src.announce || [],
+    quality: att.src.quality || null, sizeBytes: att.length || att.src.sizeBytes || 0,
+    provider: att.src.provider || null, seeders: att.src.seeders || 0, release: att.src.release || null,
+    bytes: att.completed, progress: att.fraction,
+    speed: Math.round(att.speed), etaSec: Number.isFinite(eta) ? Math.round(eta) : null, peers: att.peers,
+  };
+};
+
+// The job takes a source as its own (the winner's, or the survivor's).
+const adopt = (job, src) => {
+  job.infoHash = src.infoHash;
+  job.fileIdx = src.fileIdx || 0;
+  job.magnet = src.magnet;
+  job.announce = src.announce || [];
+  job.quality = src.quality || job.quality;
+  job.sizeBytes = src.sizeBytes || job.sizeBytes;
+  job.provider = src.provider || null;
+  job.seeders = src.seeders || 0;
+};
+
+const clearRace = (job) => { if (job) { job.race = null; delete job.attempts; } };
+
+const setNote = (job, text) => {
+  if ((job.raceNote || null) === (text || null)) return;
+  job.raceNote = text || null;
+  store.save();
+  broadcast(job);
+};
+
+// File a source's outcome for this title (media/sourcememory.js).
+const remember = (job, infoHash, outcome) => {
+  try {
+    const key = dlrace.titleKey(job);
+    if (key) sourceMemory.record(key, infoHash, outcome, seams.clock());
+  } catch (e) {
+    console.warn("[download] could not remember a source outcome:", e && e.message);
+  }
+};
+
+const sourceLabel = (src) => src.provider || (src.release ? String(src.release).slice(0, 48) : `${String(src.infoHash).slice(0, 8)}…`);
+
+// Let go of an attempt's download. If another attempt (a sibling episode of
+// the same pack, usually) still uses that torrent, only this file is dropped
+// from the selection. Resolves when aria2 has been told — purging the staging
+// bytes waits on it.
+const releaseAttempt = (att) => {
+  if (!att || att.dead) return Promise.resolve();
+  att.dead = true;
+  const others = [...liveAttempts()];
+  if (!att.gid) {
+    // Still looking for the torrent's details: there is no download to drop a
+    // file from, only the hunt itself — stop it, unless someone else is on
+    // the same torrent. (startJob / startChallenger tidy up if a GID arrives.)
+    if (others.some((o) => o.infoHash === att.infoHash)) return Promise.resolve();
+    if (typeof aria2.removeByInfoHash !== "function") return Promise.resolve();
+    return Promise.resolve().then(() => aria2.removeByInfoHash(att.infoHash)).catch(() => {});
+  }
+  const shared = others.some((o) => o.gid === att.gid);
+  return Promise.resolve()
+    .then(() => (shared ? aria2.select(att.gid, att.fileIndex, false) : aria2.remove(att.gid)))
+    .catch(() => {});
+};
+
+// aria2 answered with a GID for an attempt that was released meanwhile.
+const settleOrphanGid = (att, gid) => {
+  const others = [...liveAttempts()];
+  if (others.some((o) => (o.gid === gid || o.infoHash === att.infoHash) && o.fileIndex === att.fileIndex)) return;
+  const shared = others.some((o) => o.gid === gid || o.infoHash === att.infoHash);
+  (shared ? aria2.select(gid, att.fileIndex, false) : aria2.remove(gid)).catch(() => {});
+};
+
+const errText = (e) => (e && e.message ? e.message : String(e));
+
 const startJob = async (job) => {
   if (active.has(job.id)) return;
   if (!torrentGate.enabled()) throw torrentGate.offError();
@@ -592,20 +821,75 @@ const startJob = async (job) => {
 
   // Claim the slot before the first await: two pumps in the same tick would
   // otherwise both start this job.
-  active.set(job.id, { gid: null, fileIndex: (job.fileIdx || 0) + 1, ...dest, copying: false, startedAt: Date.now(), lastProgressAt: 0 });
+  const att = newAttempt("original", {
+    infoHash: job.infoHash, fileIdx: job.fileIdx || 0, magnet: job.magnet, announce: job.announce,
+    quality: job.quality, sizeBytes: job.sizeBytes, provider: job.provider, seeders: job.seeders,
+  }, seams.clock());
+  const rec = makeRec(dest, att);
+  active.set(job.id, rec);
   console.log(`[download] ${job.id.slice(0, 6)} started ${job.infoHash.slice(0, 8)}… "${job.label || job.title}"`);
+  // The poller (and with it the race check) has to run WHILE the torrent's
+  // details are being looked for, not only after they arrive: a dead source
+  // never gets past this point, and it is exactly the one a second source is
+  // for. Found with a real torrent, 2026-10-08 — a lone download sat here for
+  // five minutes and failed with nothing else tried.
+  startPolling();
 
-  const gid = await aria2.add(job.magnet, job.infoHash, (job.fileIdx || 0) + 1);
-  const rec = active.get(job.id);
-  if (!rec) {                 // canceled while the details were being fetched
-    await aria2.remove(gid).catch(() => {});
+  let gid;
+  try {
+    gid = await aria2.add(att.src.magnet, att.infoHash, att.fileIndex);
+  } catch (e) {
+    if (att.dead) return;     // canceled (or replaced by its challenger) meanwhile
+    return attemptFailed(job, rec, att, errText(e));
+  }
+  if (att.dead) {             // canceled while the details were being fetched
+    settleOrphanGid(att, gid);
     return;
   }
-  rec.gid = gid;
-  job.phase = "downloading";
-  broadcast(job);
-  console.log(`[download] ${job.id.slice(0, 6)} aria2 gid ${gid}, file #${rec.fileIndex}`);
+  att.gid = gid;
+  if (!att.metaAt) att.metaAt = seams.clock();
+  if (rec.main === att && !rec.copying) {
+    job.phase = "downloading";
+    broadcast(job);
+  }
+  console.log(`[download] ${job.id.slice(0, 6)} aria2 gid ${gid}, file #${att.fileIndex}`);
   startPolling();
+};
+
+// An attempt's download reported an error (or could not even be added).
+// With a second attempt alive the job does not fail — the other one carries it.
+const attemptFailed = (job, rec, att, message) => {
+  if (active.get(job.id) !== rec || att.dead) return;
+  if (att === rec.ch) {
+    challengerOut(job, rec, "failed", `A second source (${sourceLabel(att.src)}) failed: ${message}`);
+    return;
+  }
+  if (att !== rec.main) return;
+  if (rec.ch && !rec.copying) {
+    promote(job, rec, "failed", `The first source failed (${message}); carrying on with the second.`);
+    return;
+  }
+  fail(job, message);
+};
+
+// An attempt's download is gone from aria2 (removed behind our back, or the
+// daemon restarted). Nobody's fault: no outcome is remembered.
+const attemptVanished = (jobId, att, why) => {
+  const rec = active.get(jobId);
+  const job = findJob(jobId);
+  if (!rec || att.dead || (rec.main !== att && rec.ch !== att)) return;
+  if (!job) { requeue(jobId, why); return; }
+  if (att === rec.ch) {
+    challengerOut(job, rec, null, null);
+    return;
+  }
+  if (rec.ch && !rec.copying) {
+    // Same rule as a restart: whoever has more of the file carries on.
+    const keep = dlrace.settleOnRestart([{ bytes: rec.main.completed }, { bytes: rec.ch.completed }]);
+    if (keep === 1) { promote(job, rec, null, null); return; }
+    challengerOut(job, rec, null, null);
+  }
+  requeue(jobId, why);
 };
 
 // ---------- progress ----------
@@ -613,9 +897,13 @@ const startJob = async (job) => {
 // files[].completedLength is exactly "bytes of this episode that are on disk".
 let poller = null;
 let saveCounter = 0;
+let engineFailAt = 0;   // the last time a status call failed (see raceEnv)
+// All downloads together: the smoothed total and its decaying high-water
+// mark — how the race tells "this source is slow" from "the line is full".
+const line = { total: 0, at: 0, peak: null };
 
 const startPolling = () => {
-  if (poller || !active.size) return;
+  if (poller || !active.size || !seams.auto) return;
   // Never swallow these: a poll that throws means every running job silently
   // stops updating, which looks exactly like a stuck download.
   poller = setInterval(() => {
@@ -628,62 +916,169 @@ const stopPolling = () => {
   if (poller && !active.size) { clearInterval(poller); poller = null; }
 };
 
+// Fold one status answer into an attempt.
+const sample = (att, f, st, sharers, t, cfg) => {
+  if (f.fraction > att.fraction || !att.lastSampleAt) att.lastProgressAt = t; // the healer's stall clock
+  att.fraction = f.fraction;
+  att.completed = f.completed;
+  att.length = f.length;
+  att.peers = st.peers || 0;
+  att.seeders = st.seeders != null ? st.seeders : st.peers || 0;
+  att.connections = st.connections != null ? st.connections : st.peers || 0;
+  att.rawSpeed = st.downloadSpeed || 0;
+  if (!att.metaAt) att.metaAt = t;
+  if (!att.connectedAt && (att.seeders > 0 || att.connections > 0 || att.rawSpeed > 0 || f.completed > 0)) att.connectedAt = t;
+  if (!att.seededAt && (att.seeders > 0 || att.rawSpeed > 0 || f.completed > 0)) att.seededAt = t;
+  // aria2's speed is per TORRENT. Episodes of one pack share it, so each
+  // attempt riding on the download is credited an equal share.
+  const share = att.rawSpeed / Math.max(1, sharers);
+  att.speed = att.lastSampleAt ? dlrace.ewma(att.speed, share, t - att.lastSampleAt, cfg.speedTauSec * 1000) : share;
+  att.lastSampleAt = t;
+};
+
+// Put the job's public numbers where the card reads them: the leading
+// attempt's during a race, the only attempt's otherwise.
+const publish = (job, rec) => {
+  const main = rec.main;
+  const ch = rec.ch;
+  let lead = main;
+  if (ch) {
+    if (ch.state === "racing" && ch.lastSampleAt) {
+      rec.lead = dlrace.leader(
+        { etaMain: etaOf(job, main), etaCh: etaOf(job, ch), fracMain: main.fraction, fracCh: ch.fraction },
+        rec.lead
+      );
+      if (rec.lead === "ch") lead = ch;
+    }
+    job.attempts = [persisted(job, main), persisted(job, ch)];
+  }
+  if (!lead.lastSampleAt) return;        // torrent details not in yet
+  job.progress = lead.fraction;
+  job.downloadSpeed = lead.rawSpeed;
+  job.peers = lead.peers;
+  // Progress for one file inside a pack only moves when a whole piece of
+  // THAT file lands, so there is a real window where the engine is working
+  // hard and the number is still 0. Saying "starting" beats showing a 0%
+  // that looks like nothing is happening.
+  job.phase = lead.completed > 0 ? "downloading" : "starting";
+  broadcast(job);
+};
+
 const poll = async () => {
   if (!active.size) return stopPolling();
+  const cfg = raceCfg();
 
-  // One status call per torrent, however many jobs are riding on it.
+  // One status call per torrent, however many attempts are riding on it.
   const byGid = new Map();
   for (const [jobId, rec] of active) {
-    if (!rec.gid || rec.copying) continue;
-    if (!byGid.has(rec.gid)) byGid.set(rec.gid, []);
-    byGid.get(rec.gid).push(jobId);
+    if (rec.copying) continue;
+    for (const att of [rec.main, rec.ch]) {
+      if (!att || att.dead || !att.gid) continue;
+      if (!byGid.has(att.gid)) byGid.set(att.gid, []);
+      byGid.get(att.gid).push({ jobId, att });
+    }
   }
 
-  for (const [gid, jobIds] of byGid) {
+  let total = 0;
+  for (const [gid, users] of byGid) {
     let st;
     try {
       st = await aria2.status(gid);
     } catch (e) {
       // The download is gone from aria2 (removed behind our back, or the daemon
       // restarted). Put the jobs back in the queue rather than losing them.
-      for (const id of jobIds) requeue(id, e && e.message);
+      // (An attempt that was released while we were asking is not "gone".)
+      if (users.some((u) => !u.att.dead)) engineFailAt = seams.clock();
+      for (const u of users) attemptVanished(u.jobId, u.att, e && e.message);
       continue;
     }
+    const t = seams.clock();
+    total += st.downloadSpeed || 0;
 
-    for (const jobId of jobIds) {
+    for (const { jobId, att } of users) {
       const rec = active.get(jobId);
       const job = findJob(jobId);
-      if (!rec || !job || job.status !== "downloading") continue;
+      // Things moved while we were asking: the job ended, another attempt
+      // already WON (rec.copying), or this attempt was released.
+      if (!rec || !job || job.status !== "downloading" || rec.copying || att.dead) continue;
+      if (rec.main !== att && rec.ch !== att) continue;
 
-      if (st.state === "error") { fail(job, st.error || "aria2 reported an error"); continue; }
-      if (st.state === "removed") { requeue(jobId, "the download was removed"); continue; }
+      if (st.state === "error") { attemptFailed(job, rec, att, st.error || "aria2 reported an error"); continue; }
+      if (st.state === "removed") { attemptVanished(jobId, att, "the download was removed"); continue; }
 
-      const f = aria2.fileProgress(st, rec.fileIndex);
+      const f = aria2.fileProgress(st, att.fileIndex);
       if (!f) continue;                       // torrent details not in yet
+      sample(att, f, st, users.length, t, cfg);
 
-      if (f.fraction > (job.progress || 0)) rec.lastProgressAt = Date.now(); // the healer's stall clock
-      job.progress = f.fraction;
-      job.downloadSpeed = st.downloadSpeed;
-      job.peers = st.peers;
-      // Progress for one file inside a pack only moves when a whole piece of
-      // THAT file lands, so there is a real window where the engine is working
-      // hard and the number is still 0. Saying "starting" beats showing a 0%
-      // that looks like nothing is happening.
-      job.phase = f.completed > 0 ? "downloading" : "starting";
-      broadcast(job);
-      if (++saveCounter % 10 === 0) store.save();
-
-      // This job's file is complete — even when the torrent as a whole isn't,
-      // because a sibling episode is still coming.
-      if (f.length > 0 && f.completed >= f.length) {
-        rec.copying = true;
-        completeJob(job, rec, f, st).catch((e) => {
-          rec.copying = false;
-          fail(job, e && e.message ? e.message : String(e));
-        });
-      }
+      // This attempt's file is complete — even when the torrent as a whole
+      // isn't, because a sibling episode is still coming.
+      if (f.length > 0 && f.completed >= f.length) claimWin(job, rec, att, f, st);
     }
   }
+
+  const t = seams.clock();
+  line.total = line.at ? dlrace.ewma(line.total, total, t - line.at, cfg.speedTauSec * 1000) : total;
+  line.at = t;
+  line.peak = dlrace.updatePeak(line.peak, line.total, t, cfg);
+
+  for (const [jobId, rec] of active) {
+    const job = findJob(jobId);
+    if (job && job.status === "downloading" && !rec.copying) publish(job, rec);
+  }
+  if (++saveCounter % 10 === 0) store.save();
+
+  raceTick(t, cfg);
+};
+
+// THE WIN. An attempt's file is complete (aria2 has hash-checked every piece
+// of it). This function is synchronous from the check to the record, and the
+// record — rec.copying — is what every other path tests first, so exactly one
+// attempt per job can ever get past it:
+//
+//   1. rec.copying = true            (the win is recorded; a second attempt
+//                                     finishing in this same poll, or the next,
+//                                     returns at the first line)
+//   2. the job takes the winner's source as its own; the race is cleared
+//   3. the loser is released and its staging purged (purgeIfUnused keeps a
+//      pack a sibling episode still wants)
+//   4. the queue is written to disk NOW, so a crash during the copy restarts
+//      with one attempt, the winner
+//   5. only then does the copy into the library start (completeJob)
+//
+// poll() also skips every job whose rec.copying is set, so nothing about a
+// finished race is even asked of aria2 again.
+const claimWin = (job, rec, att, file, engineStatus) => {
+  if (rec.copying) return false;
+  rec.copying = true;
+
+  const loser = att === rec.main ? rec.ch : rec.main;
+  const raced = !!rec.ch || (job.raceCount || 0) > 0;
+  const loserHash = rec.ch ? loser.infoHash : null;
+  const hadRace = !!rec.ch;
+  if (hadRace && att !== rec.main) {
+    adopt(job, { ...att.src, sizeBytes: att.length || att.src.sizeBytes });
+    att.role = "original";
+    att.state = null;
+    rec.main = att;
+  }
+  rec.ch = null;
+  rec.ko = null;
+  rec.lead = "main";
+  clearRace(job);
+  if (raced) remember(job, att.infoHash, "won");
+  if (hadRace) {
+    job.raceNote = null;
+    remember(job, loserHash, "lost");
+    console.log(`[download] ${job.id.slice(0, 6)} race won by ${att.infoHash.slice(0, 8)}…, ${loserHash.slice(0, 8)}… cancelled`);
+    releaseAttempt(loser).then(() => purgeIfUnused(loserHash, job.id));
+    store.flush();
+  }
+
+  completeJob(job, rec, file, engineStatus).catch((e) => {
+    rec.copying = false;
+    fail(job, errText(e));
+  });
+  return true;
 };
 
 // The bytes are all there: copy the file into the library, bring its subtitles
@@ -722,45 +1117,288 @@ const completeJob = async (job, rec, file, engineStatus) => {
 // back in the queue instead of being lost or failed.
 const requeue = (jobId, why) => {
   const job = findJob(jobId);
-  active.delete(jobId);
-  stopPolling();
+  stopActive(jobId);
   if (!job || job.status !== "downloading") return;
   console.warn(`[download] ${jobId.slice(0, 6)} re-queued: ${why || "download vanished"}`);
   job.status = "approved";
   job.phase = null;
   store.save();
   broadcast(job);
-  setTimeout(pump, 2000);
+  later(pump, 2000);
 };
 
-// Stop a job's download without changing its status. If a sibling job is still
-// using that torrent, only this job's file is dropped from the selection.
+// Stop a job's download(s) without changing its status. If a sibling job is
+// still using that torrent, only this job's file is dropped from the selection.
+// A challenger goes with it: a job that is not running has no race.
 function stopActive(id, why) {
   const rec = active.get(id);
   if (!rec) return;
   active.delete(id);
   stopPolling();
   if (why) console.log(`[download] ${id.slice(0, 6)} ${why}`);
-  if (!rec.gid) return;
-  const shared = [...active.values()].some((r) => r.gid === rec.gid);
-  (async () => {
-    if (shared) await aria2.select(rec.gid, rec.fileIndex, false).catch(() => {});
-    else await aria2.remove(rec.gid).catch(() => {});
-  })();
+  const ch = rec.ch;
+  rec.ch = null;
+  releaseAttempt(rec.main);
+  if (ch) {
+    clearRace(findJob(id));
+    releaseAttempt(ch).then(() => purgeIfUnused(ch.infoHash, id));
+  }
 }
 
 // Delete a pack's staging bytes once NOTHING in the queue wants them. Only this
 // module can make that call: aria2 knows what is downloading, but the jobs that
-// matter are the queued ones it hasn't been told about yet.
+// matter are the queued ones it hasn't been told about yet. "Wants" includes a
+// job fetching that torrent as its second source.
 const LIVE_STATUSES = ["pending", "approved", "downloading"];
+const sameHash = (a, b) => String(a || "").toLowerCase() === String(b || "").toLowerCase();
+const jobWants = (j, infoHash) =>
+  sameHash(j.infoHash, infoHash) || (j.attempts || []).some((a) => sameHash(a.infoHash, infoHash));
 function purgeIfUnused(infoHash, exceptId) {
   if (!infoHash) return;
   const stillWanted = store.data.some(
-    (j) => j.id !== exceptId && j.infoHash === infoHash && LIVE_STATUSES.includes(j.status)
+    (j) => j.id !== exceptId && LIVE_STATUSES.includes(j.status) && jobWants(j, infoHash)
   );
   if (stillWanted) return;
+  // The job itself still wants it when it is the source it now carries (the
+  // loser of a race is purged by hash while its job lives on).
+  const self = exceptId && findJob(exceptId);
+  if (self && LIVE_STATUSES.includes(self.status) && active.has(self.id) && sameHash(self.infoHash, infoHash)) return;
   aria2.purge(infoHash).catch(() => {});
 }
+
+// ---------- the second-source race (rules: media/dlrace.js) ----------
+
+// The challenger is out: cancelled, remembered (when it was its fault), its
+// staging purged. The job carries on with its original, as if nothing happened.
+const challengerOut = (job, rec, outcome, note) => {
+  const ch = rec.ch;
+  if (!ch) return;
+  rec.ch = null;
+  rec.ko = null;
+  rec.lead = "main";
+  rec.raceRetryAt = outcome === "probe" || outcome === "failed" ? 0 : seams.clock() + raceCfg().retryMin * 60 * 1000;
+  clearRace(job);
+  if (outcome) remember(job, ch.infoHash, outcome);
+  job.raceNote = note || null;
+  console.log(`[download] ${job.id.slice(0, 6)} second source ${ch.infoHash.slice(0, 8)}… dropped${outcome ? ` (${outcome})` : ""}`);
+  releaseAttempt(ch).then(() => purgeIfUnused(ch.infoHash, job.id));
+  store.save();
+  broadcast(job);
+};
+
+// The challenger takes over: the original is cancelled (and remembered, when
+// it was its fault), the job carries the challenger's source from here on.
+const promote = (job, rec, oldOutcome, note) => {
+  const ch = rec.ch;
+  const old = rec.main;
+  if (!ch) return;
+  const oldHash = old.infoHash;
+  adopt(job, { ...ch.src, sizeBytes: ch.length || ch.src.sizeBytes });
+  ch.role = "original";
+  ch.state = null;
+  rec.main = ch;
+  rec.ch = null;
+  rec.ko = null;
+  rec.lead = "main";
+  clearRace(job);
+  if (oldOutcome) remember(job, oldHash, oldOutcome);
+  job.raceNote = note || null;
+  job.progress = ch.fraction;
+  job.downloadSpeed = ch.rawSpeed;
+  job.peers = ch.peers;
+  job.phase = !ch.gid ? "finding" : ch.completed > 0 ? "downloading" : "starting";
+  console.log(`[download] ${job.id.slice(0, 6)} now on its second source ${ch.infoHash.slice(0, 8)}… (first: ${oldHash.slice(0, 8)}…${oldOutcome ? `, ${oldOutcome}` : ""})`);
+  releaseAttempt(old).then(() => purgeIfUnused(oldHash, job.id));
+  store.save();
+  broadcast(job);
+};
+
+// Every source some OTHER live job is fetching (its own, and its challenger).
+const otherSources = (exceptId) => {
+  const out = [];
+  for (const j of store.data) {
+    if (j.id === exceptId || !LIVE_STATUSES.includes(j.status)) continue;
+    const running = j.status === "downloading";
+    out.push({ infoHash: j.infoHash, fileIdx: j.fileIdx || 0, running });
+    const ch = j.attempts && j.attempts[1];
+    if (ch) out.push({ infoHash: ch.infoHash, fileIdx: ch.fileIdx || 0, running });
+  }
+  return out;
+};
+
+// What the rules need to know about the server right now.
+const raceEnv = (t) => {
+  const load = seams.load();
+  let races = 0;
+  for (const r of active.values()) if (r.ch || r.raceBusy) races++;
+  return {
+    torrentsOn: torrentGate.enabled(),
+    engineHealthy: aria2.available() && (typeof aria2.running !== "function" || aria2.running()) && t - engineFailAt > ENGINE_QUIET_MS,
+    watching: load.watching,
+    streamActive: load.streams > 0,
+    capBps: dlrace.parseRate(settings.data.aria2MaxDownload),
+    totalBps: line.total,
+    peakBps: line.peak ? line.peak.bps : 0,
+    racesRunning: races,
+  };
+};
+
+const candidateView = (job, rec) => ({
+  ...viewOf(job, rec.main),
+  searchable: dlrace.searchable(job),
+  challengersStarted: job.raceCount || 0,
+  retryAt: rec.raceRetryAt,
+  racing: !!rec.ch,
+});
+
+// Start the challenger. It does NOT take a "downloads at once" slot — it
+// lives inside its job's record, and `active` (what pump() counts) has one
+// entry per job.
+const startChallenger = (job, rec, source, why, t) => {
+  const { magnet, announce } = torrent.magnetFor(source.infoHash);
+  const ch = newAttempt("challenger", {
+    infoHash: source.infoHash, fileIdx: source.fileIdx || 0, magnet, announce,
+    quality: source.quality || job.quality, sizeBytes: source.sizeBytes || 0,
+    provider: source.provider || null, seeders: source.seeders || 0, release: source.release || null,
+  }, t);
+  rec.ch = ch;
+  rec.ko = null;
+  rec.lead = "main";
+  rec.preRaceBps = rec.main.speed;
+  job.raceCount = (job.raceCount || 0) + 1;
+  job.race = { state: "probing", why, at: now() };
+  job.attempts = [persisted(job, rec.main), persisted(job, ch)];
+  job.raceNote = null;
+  // The original is what made this necessary; if it wins after all, "won"
+  // replaces this.
+  remember(job, job.infoHash, "stalled");
+  store.save();
+  broadcast(job);
+  console.log(`[download] ${job.id.slice(0, 6)} trying a second source ${ch.infoHash.slice(0, 8)}… (${sourceLabel(ch.src)}) — ${why}`);
+
+  Promise.resolve()
+    .then(() => aria2.add(magnet, ch.infoHash, ch.fileIndex))
+    .then((gid) => {
+      if (ch.dead) return settleOrphanGid(ch, gid);
+      ch.gid = gid;
+      if (!ch.metaAt) ch.metaAt = seams.clock();
+      startPolling();
+    }, (e) => {
+      if (ch.dead) return;
+      attemptFailed(job, rec, ch, errText(e));
+    });
+};
+
+// A slow job was picked: look up its title's other sources, choose one, check
+// the disk with BOTH copies counted, start it. Everything is re-checked after
+// the lookup — it can take a while, and the job may have finished, been
+// cancelled, or someone may have pressed Play.
+const beginRace = async (job, rec, why) => {
+  const main = rec.main;
+  const cfg = raceCfg();
+  const still = () => active.get(job.id) === rec && rec.main === main && !main.dead && !rec.copying && !rec.ch && job.status === "downloading";
+  const notNow = () => { rec.raceRetryAt = seams.clock() + cfg.retryMin * 60 * 1000; };
+  rec.raceBusy = true;
+  try {
+    let found;
+    try {
+      found = await seams.findSources(job);
+    } catch (e) {
+      if (still()) { notNow(); console.warn(`[download] ${job.id.slice(0, 6)} no second source: the source list could not be fetched (${errText(e)})`); }
+      return;
+    }
+    if (!still()) return;
+    rec.raceBusy = false;       // (raceEnv counts lookups in flight; not this one twice)
+    const t = seams.clock();
+    if (!dlrace.shouldRace(candidateView(job, rec), raceEnv(t), cfg, t).race) return;
+
+    const pick = dlrace.chooseChallenger({
+      job, streams: found && found.streams, history: sourceMemory.forTitle(dlrace.titleKey(job)),
+      live: otherSources(job.id), cfg, now: t,
+    });
+    if (!pick.source) {
+      notNow();
+      console.log(`[download] ${job.id.slice(0, 6)} no second source: ${pick.reason}`);
+      // The honest ending: nothing else at this resolution is healthy. The job
+      // is NOT moved to another resolution; it keeps its original.
+      setNote(job, pick.exhausted ? dlrace.exhaustedNote(pick.resolution) : `No second source: ${pick.reason}.`);
+      return;
+    }
+    // The disk gate with both copies counted: committedBytes() already holds
+    // what is left of this job's original; the challenger's size is added.
+    const gate = diskGate(job.type, pick.source.sizeBytes);
+    if (!gate.ok) {
+      notNow();
+      setNote(job, "A second source was found, but there is not enough free disk space to fetch two copies.");
+      return;
+    }
+    startChallenger(job, rec, pick.source, why, t);
+  } finally {
+    rec.raceBusy = false;
+  }
+};
+
+// Once per poll, after every attempt has its fresh numbers: move the races
+// that are on, then see whether one should start.
+const raceTick = (t, cfg) => {
+  for (const [id, rec] of [...active]) {
+    const ch = rec.ch;
+    const job = findJob(id);
+    if (!ch || rec.copying || !job || job.status !== "downloading") continue;
+
+    // 5. the probe
+    if (ch.state === "probing") {
+      const verdict = dlrace.probeVerdict(ch, t, cfg);
+      if (verdict === "pass") {
+        ch.state = "racing";
+        ch.racingAt = t;
+        if (job.race) job.race.state = "racing";
+        store.save();
+        broadcast(job);
+        console.log(`[download] ${id.slice(0, 6)} second source connected — racing`);
+      } else if (verdict === "fail") {
+        challengerOut(job, rec, "probe", `A second source (${sourceLabel(ch.src)}) did not connect.`);
+      }
+      continue;
+    }
+
+    // 8. early knockout — on time remaining
+    const etaMain = etaOf(job, rec.main);
+    const etaCh = etaOf(job, ch);
+    const ko = dlrace.knockout({ etaMain, etaCh, prev: rec.ko, now: t }, cfg);
+    rec.ko = ko.state;
+    if (ko.drop === "main") { promote(job, rec, "lost", null); continue; }
+    if (ko.drop === "ch") { challengerOut(job, rec, "lost", `A second source (${sourceLabel(ch.src)}) was tried and was slower.`); continue; }
+
+    // …and the reverse: a race that adds nothing is stopped
+    if (dlrace.noGain({
+      preRaceBps: rec.preRaceBps, mainBps: rec.main.speed, chBps: ch.speed,
+      racingMs: t - (ch.racingAt || t), remainingMain: viewOf(job, rec.main).remainingBytes, etaCh,
+    }, cfg)) {
+      challengerOut(job, rec, null, "A second source was tried and made no difference — the connection, not the source, is the limit.");
+    }
+  }
+
+  if (!cfg.enabled) return;
+  const env = raceEnv(t);
+  const cands = [];
+  for (const [id, rec] of active) {
+    const job = findJob(id);
+    if (!job || job.status !== "downloading" || rec.copying || rec.ch || rec.raceBusy) continue;
+    const d = dlrace.shouldRace(candidateView(job, rec), env, cfg, t);
+    rec.whyNot = d.slow && d.blocked ? d.blocked.text : null;
+    // 10. the lifetime limit is reached and it is still slow: say so, and
+    // leave it to the healer's stall handling.
+    if (d.slow && d.blocked && d.blocked.code === "limit") {
+      setNote(job, dlrace.limitNote(job.raceCount || 0, dlrace.resolutionOf(job.quality)));
+    }
+    if (d.race) cands.push({ job, rec, why: d.slow, smart: !!job.smart, startedAt: rec.main.startedAt });
+  }
+  const pick = dlrace.pickJobToRace(cands);
+  if (pick) {
+    beginRace(pick.job, pick.rec, pick.why).catch((e) => console.error("[download] could not start a second source:", errText(e)));
+  }
+};
 
 // Deep diagnostics for the admin panel: what aria2 says about every live
 // download, which is now the whole truth about them.
@@ -805,6 +1443,7 @@ const finish = async (job, destPath) => {
   job.copyProgress = null;
   job.destPath = destPath;
   job.doneAt = now();
+  job.raceNote = null;
   store.save();
 
   // The viewer picked this title BY IMDb id; file that under the name the
@@ -868,33 +1507,52 @@ const queueHealth = () => {
   const activeJobs = [];
   for (const [id, rec] of active) {
     const job = findJob(id);
-    if (job) activeJobs.push({ job, rec });
+    if (job) activeJobs.push({ job, rec, racing: !!rec.ch, raceState: rec.ch ? rec.ch.state : null, whyNot: rec.whyNot });
   }
   const approved = store.data.filter((j) => j.status === "approved" && !active.has(j.id));
   const oldestApproved = approved.reduce((m, j) => Math.max(m, nowMs - (Date.parse(j.approvedAt || j.at) || nowMs)), 0);
+  const slots = slotState();
   return {
     active: activeJobs,
     activeCount: active.size,
-    maxActive: MAX_ACTIVE,
+    // The number of jobs that may run RIGHT NOW (the setting, or 2 while
+    // someone is watching) — what "a slot is free" has to be measured against.
+    maxActive: slots.cap,
+    maxActiveSetting: slots.maxActive,
+    holding: slots.holding,
+    watching: slots.watching,
+    races: activeJobs.filter((a) => a.racing).length,
     approvedWaiting: approved.length,
     oldestApprovedAgeMs: oldestApproved,
     pending: store.data.filter((j) => j.status === "pending").length,
     errorsLastHour: store.data.filter((j) => j.status === "error" && nowMs - (Date.parse(j.resolvedAt || j.at) || 0) < 3600e3).length,
     lastError: (store.data.find((j) => j.status === "error") || {}).error || null,
     doneLastDay: store.data.filter((j) => j.status === "done" && nowMs - (Date.parse(j.doneAt) || 0) < 86400e3).length,
-    pollerExpected: [...active.values()].some((r) => r.gid && !r.copying),
+    pollerExpected: [...active.values()].some((r) => !r.copying && (r.main.gid || (r.ch && r.ch.gid))),
     pollerRunning: !!poller,
   };
 };
-// Every torrent some live job still wants — staging folders outside this
-// set belong to nobody.
-const liveInfoHashes = () =>
-  new Set(store.data.filter((j) => LIVE_STATUSES.includes(j.status) && j.infoHash).map((j) => String(j.infoHash).toLowerCase()));
+// Every torrent some live job still wants — its own source and, during a
+// race, its second one. Staging folders outside this set belong to nobody.
+const liveInfoHashes = () => {
+  const out = new Set();
+  for (const j of store.data) {
+    if (!LIVE_STATUSES.includes(j.status)) continue;
+    if (j.infoHash) out.add(String(j.infoHash).toLowerCase());
+    for (const a of j.attempts || []) if (a.infoHash) out.add(String(a.infoHash).toLowerCase());
+  }
+  return out;
+};
 // Start over on a job that has stopped moving: drop its aria2 download (the
-// staging bytes stay, aria2 continues from them) and queue it again.
+// staging bytes stay, aria2 continues from them) and queue it again. Never
+// while a second source is being tried — the race is the remedy then, and
+// restarting the original would throw its head start away.
 const restartJob = (id, why) => {
   const job = findJob(id);
   if (!job || job.status !== "downloading") return false;
+  const rec = active.get(id);
+  if (rec && (rec.ch || rec.raceBusy || rec.copying)) return false;
+  remember(job, job.infoHash, "stalled");
   stopActive(id, `restarted by the healer: ${why}`);
   job.status = "approved";
   job.phase = null;
@@ -902,17 +1560,56 @@ const restartJob = (id, why) => {
   job.peers = 0;
   store.save();
   broadcast(job);
-  setTimeout(pump, 1500);
+  later(pump, 1500);
   return true;
 };
 const pumpNow = () => { if (!torrentGate.enabled()) return; try { pump(); startPolling(); } catch (e) { console.error("[download] pump failed:", e && e.message); } };
+
+// ---------- "Downloads at once" (the admin's setting) ----------
+// What the admin card shows.
+const slots = () => {
+  const s = slotState();
+  return {
+    maxActive: s.maxActive, min: dlslots.MIN_ACTIVE, max: dlslots.MAX_ACTIVE,
+    cap: s.cap, holding: s.holding, watching: s.watching, holdAt: dlslots.WATCH_HOLD,
+    active: active.size,
+    queued: store.data.filter((j) => j.status === "approved" && !active.has(j.id)).length,
+  };
+};
+// Change it. Takes effect at once: a raise pumps the queue; a lower number
+// stops nothing — pump() only ever starts jobs.
+const setMaxActive = async (value) => {
+  const n = dlslots.parseMaxActive(value);
+  if (n == null) return { error: `Downloads at once must be a whole number from ${dlslots.MIN_ACTIVE} to ${dlslots.MAX_ACTIVE}.` };
+  settings.data.maxActiveDownloads = n;
+  settings.save();
+  let applied = false;
+  try {
+    if (aria2.running() && typeof aria2.applyEnginePlan === "function") applied = !!(await aria2.applyEnginePlan()).applied;
+  } catch (e) {
+    console.warn("[download] could not tell the running engine about the new limit:", errText(e));
+  }
+  pumpNow();
+  return { ok: true, maxActive: n, applied };
+};
 
 // On boot, resume anything that was approved/downloading when we stopped. The
 // staging bytes survive a restart, and aria2 continues from them.
 const resume = () => {
   let any = false;
+  const dropped = [];
   for (const job of store.data) {
     if (job.status === "downloading" || job.status === "approved") {
+      // Stopped in the middle of a second-source race: the attempt with more
+      // of the file on disk carries on alone, the other is dropped.
+      if (job.attempts && job.attempts.length > 1) {
+        const keep = dlrace.settleOnRestart(job.attempts);
+        const gone = job.attempts[1 - keep];
+        if (keep === 1) adopt(job, job.attempts[1]);
+        console.log(`[download] ${job.id.slice(0, 6)} was mid-race at shutdown — carrying on with ${String(job.infoHash).slice(0, 8)}…`);
+        dropped.push([gone.infoHash, job.id]);
+      }
+      clearRace(job);
       job.status = "approved";
       job.progress = 0;
       job.downloadSpeed = 0;
@@ -920,19 +1617,29 @@ const resume = () => {
       job.phase = null;
       job.copyProgress = null;
       any = true;
+    } else if (job.race || job.attempts) {
+      clearRace(job);
+      any = true;
     }
   }
+  for (const [hash, id] of dropped) purgeIfUnused(hash, id);
   if (any) {
     store.save();
     // Defer so the server finishes booting before we hit the network.
-    setTimeout(pump, 4000);
+    later(pump, 4000);
   }
 };
 
 module.exports = {
   list, listFor, create, approve, decline, cancel, cancelOwn, removeOwn, remove, resume, publicJob, publicJobFor, stats, markSeen, pruneGone,
-  queueHealth, liveInfoHashes, restartJob, pumpNow, smartOnDisk, rawJobs,
+  queueHealth, liveInfoHashes, restartJob, pumpNow, smartOnDisk, rawJobs, slots, setMaxActive,
   // Pure helpers, exported so test/downloads.test.js can pin the rules that
-  // decide where a file lands and whether a request needs approval.
-  _internals: { safeName, folderKey, chooseFolder, diskGate, destinationFor, store },
+  // decide where a file lands and whether a request needs approval — and the
+  // seams test/dlrace-queue.test.js uses to play the queue out against a fake
+  // engine (never in a running server).
+  _internals: {
+    safeName, folderKey, chooseFolder, diskGate, destinationFor, store,
+    active, seams, line, poll: () => poll(), raceTick: () => raceTick(seams.clock(), raceCfg()),
+    setEngine: (engine) => { aria2 = engine; },
+  },
 };

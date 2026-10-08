@@ -107,16 +107,22 @@ const topMessages = (rows, n = 3) => {
 };
 
 // Is a running download stalled? `rec` is the queue's live record for it.
+// A job in the middle of a second-source race (media/dlrace.js) is never
+// "stalled": its first attempt being slow is exactly why the race is on, and
+// the race is the remedy. Once the queue has used up its other sources
+// (job.raceCount), the old rules apply again — and the sentence says so.
 const stallReason = (job, rec, now = Date.now()) => {
   if (!job || job.status !== "downloading" || !rec) return null;
   if (rec.copying) return null; // copying into the library has its own clock
+  if (rec.ch || rec.raceBusy || job.race) return null; // being raced
   const started = rec.startedAt || 0;
   const lastMove = rec.lastProgressAt || started;
+  const tried = job.raceCount > 0 ? `; ${job.raceCount === 1 ? "another source was" : `${job.raceCount} other sources were`} tried and did no better` : "";
   if ((job.phase === "finding" || job.phase === "starting" || !(job.progress > 0)) && started && now - started > FINDING_STALL_MS) {
-    return `no ${job.phase === "finding" ? "torrent details" : "bytes"} after ${fmtAge(now - started)}`;
+    return `no ${job.phase === "finding" ? "torrent details" : "bytes"} after ${fmtAge(now - started)}${tried}`;
   }
   if (job.progress > 0 && job.progress < 1 && !(job.downloadSpeed > 0) && lastMove && now - lastMove > PROGRESS_STALL_MS) {
-    return `stuck at ${Math.round(job.progress * 100)}% for ${fmtAge(now - lastMove)}`;
+    return `stuck at ${Math.round(job.progress * 100)}% for ${fmtAge(now - lastMove)}${tried}`;
   }
   return null;
 };
@@ -417,7 +423,15 @@ const checkDownloads = async () => {
     note("poller restarted", `${q.activeCount} active job(s) had no progress poll running`);
     status = "warn";
   }
-  const summary = `${q.activeCount} downloading · ${q.approvedWaiting} queued · ${q.pending} waiting for approval · ${q.doneLastDay} finished in 24 h`;
+  // A second source being tried is not a fault — it is said, not warned about.
+  const racing = q.active.filter((a) => a.racing);
+  for (const a of racing) {
+    notes.push(`“${a.job.label || a.job.title}” is trying a second source (${a.raceState === "racing" ? "both running" : "checking that it connects"}${a.job.race && a.job.race.why ? `: ${a.job.race.why}` : ""})`);
+  }
+  const summary =
+    `${q.activeCount} downloading · ${q.approvedWaiting} queued · ${q.pending} waiting for approval · ${q.doneLastDay} finished in 24 h` +
+    (racing.length ? ` · ${racing.length} trying a second source` : "") +
+    (q.holding && q.approvedWaiting > 0 ? ` · holding at ${q.maxActive} while someone is watching` : "");
   return { status, summary, detail: notes.join("; ") || null, healed: healed.join("; ") || null };
 };
 

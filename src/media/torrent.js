@@ -687,6 +687,33 @@ const parseLanguages = (title) => {
 
 // ---------- sources ----------
 
+// What this server has LEARNED about a title's sources (media/sourcememory.js:
+// a source stalled here, failed a second-source probe, lost or won a race)
+// nudges the ranking: a small penalty or bonus on the value score. A list in
+// which no source has a history is returned exactly as it is — same array,
+// same order, same ★ pick. The cached list is never modified.
+const withHistory = (streamId, streams, ttType) => {
+  let hist = null;
+  try { hist = require("./sourcememory").forTitle(String(streamId).toLowerCase()); } catch {}
+  if (!hist || !streams || !streams.length) return streams;
+  const dlrace = require("./dlrace");
+  const cfg = dlrace.resolveConfig(config.DOWNLOAD_RACE);
+  const now = Date.now();
+  const adj = new Map(streams.map((s) => [s, dlrace.scoreAdjust(hist, s.infoHash, now, cfg)]));
+  if (![...adj.values()].some((v) => v !== 0)) return streams;
+  const sizeCap = ttType === "series" ? 1.4 : 4.5;
+  const order = new Map(streams.map((s, i) => [s, i]));
+  const sorted = streams.slice().sort((a, b) => {
+    if (a.cam !== b.cam) return a.cam ? 1 : -1;
+    return valueScore(b, sizeCap) + adj.get(b) - (valueScore(a, sizeCap) + adj.get(a)) || order.get(a) - order.get(b);
+  });
+  const out = sorted.map((s) => ({ ...s, recommended: undefined }));
+  for (const s of out) delete s.recommended;
+  const best = out.find((s) => !s.cam && !s.dubbed && !s.pack) || out.find((s) => !s.cam && !s.dubbed);
+  if (best) best.recommended = true;
+  return out;
+};
+
 // Fetch stream sources for a title. For series pass season+episode.
 const getSources = async (type, title, year, season, episode) => {
   // Sources exist to feed the two engines; with torrents off nothing is asked
@@ -712,7 +739,7 @@ const getSources = async (type, title, year, season, episode) => {
     cached.streams.length &&
     cached.v === 4 // parser/ranking version — older cached lists must recompute
   ) {
-    return { imdbId, streams: cached.streams };
+    return { imdbId, streams: withHistory(streamId, cached.streams, ttType) };
   }
 
   const data = await fetchJson(
@@ -784,7 +811,7 @@ const getSources = async (type, title, year, season, episode) => {
 
   STORE.data.streams[cacheKey] = { at: Date.now(), streams, v: 4 };
   STORE.save();
-  return { imdbId, streams };
+  return { imdbId, streams: withHistory(streamId, streams, ttType) };
 };
 
 // ---------- external subtitles ----------
@@ -1407,5 +1434,7 @@ module.exports = {
     saveMetadata,
     sweepMetadataCache,
     MAX_CACHED_TORRENTS,
+    withHistory,
+    valueScore,
   },
 };

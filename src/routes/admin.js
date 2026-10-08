@@ -858,7 +858,11 @@ router.get("/api/admin/aria2-limits", async (req, res) => {
       upload: String(settings.data.aria2MaxUpload || "0"),
     },
     effective: null,
+    // "Downloads at once": the setting, its bounds, and whether viewing is
+    // holding new starts at 2 right now (media/dlslots.js).
+    slots: null,
   };
+  try { out.slots = require("../media/downloads").slots(); } catch {}
   if (out.running) {
     try {
       const opts = await aria2.getGlobalOptions();
@@ -880,6 +884,14 @@ router.post("/api/admin/aria2-limits", async (req, res) => {
   if (!ARIA2_LIMIT.test(download) || !ARIA2_LIMIT.test(upload)) {
     return res.status(400).json({ error: "limits look like 0 (unlimited), 500K or 5M" });
   }
+  // "Downloads at once" rides on the same save. Checked BEFORE anything is
+  // stored, so a refused number leaves the speed caps as they were too. A
+  // page that does not send it (an older tab) changes only the caps.
+  const dlslots = require("../media/dlslots");
+  const wantsSlots = req.body && req.body.maxActive !== undefined && req.body.maxActive !== null && req.body.maxActive !== "";
+  if (wantsSlots && dlslots.parseMaxActive(req.body.maxActive) == null) {
+    return res.status(400).json({ error: `Downloads at once must be a whole number from ${dlslots.MIN_ACTIVE} to ${dlslots.MAX_ACTIVE}.` });
+  }
   settings.data.aria2MaxDownload = download;
   settings.data.aria2MaxUpload = upload;
   settings.save();
@@ -890,9 +902,17 @@ router.post("/api/admin/aria2-limits", async (req, res) => {
       applied = true;
     } catch {}
   }
+  // Takes effect at once: a raise pumps the queue, a lower number stops
+  // nothing (running downloads finish; new ones wait).
+  let maxActive = null;
+  if (wantsSlots) {
+    const r = await require("../media/downloads").setMaxActive(req.body.maxActive);
+    if (r.error) return res.status(400).json({ error: r.error });
+    maxActive = r.maxActive;
+  }
   // Not running = nothing to throttle right now; ensure() re-applies the
   // persisted values on the next spawn, so "saved" is the honest answer.
-  res.json({ ok: true, saved: { download, upload }, applied });
+  res.json({ ok: true, saved: { download, upload }, applied, maxActive });
 });
 
 // ---------- backups (lib/backup.js) and health alerts (lib/health.js) ----------
