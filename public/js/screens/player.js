@@ -3,7 +3,7 @@
 import { el, icons, fmtClock, toast, formatRow } from "../ui.js";
 import { api } from "../api.js";
 import { state, progressFor, titleProgressFor, refreshProgress, readyDownloads } from "../state.js";
-import { navigate } from "../router.js";
+import { navigate, cameFrom } from "../router.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
 import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem } from "../party.js";
@@ -231,6 +231,7 @@ export const applyCueStyle = () => {
 };
 
 export const renderPlayer = async (root, { id }) => {
+  const enteredFrom = cameFrom(); // where the viewer was before the player (exit() goes back there)
   const restart = location.hash.includes("restart=1");
   const itemId = id.split("?")[0];
   const entryHash = location.hash;
@@ -265,7 +266,9 @@ export const renderPlayer = async (root, { id }) => {
   } else {
     try {
       item = await api.item(itemId);
-    } catch {
+    } catch (e) {
+      // a kids profile refused it: say so in the server's words
+      if (e && /kids profile/i.test(e.message || "")) toast(e.message, "🧸");
       return navigate("#/");
     }
   }
@@ -456,7 +459,7 @@ export const renderPlayer = async (root, { id }) => {
   //  netAt    — when hls.js last did anything on the network
   //  hold     — {gen, pos, at, carded}: a rebuild is coming back to media time `pos`
   //  userAt   — when the viewer (or the party) last asked for a seek
-  const stall = { url: null, inFlight: false, netAt: 0, hold: null, userAt: 0 };
+  const stall = { url: null, lad: null, inFlight: false, netAt: 0, hold: null, userAt: 0 };
   const loadHlsScript = () =>
     new Promise((resolve, reject) => {
       if (window.Hls) return resolve();
@@ -506,6 +509,126 @@ export const renderPlayer = async (root, { id }) => {
     video.src = item.videoUrl;
     tryPlay();
   };
+  // ---- the quality ladder: hls.js levels (see ladderOn) ----
+  // The levels hls.js holds, each named by what its playlist URL asks the
+  // server for: h = 0 for the top rung (the copy, or the full encode), else
+  // the capped height. hls.js sorts them by bitrate, lowest first.
+  const ladderLevels = () => {
+    if (!hls || !hls.levels) return [];
+    return hls.levels.map((l, i) => {
+      const u = l.uri || (Array.isArray(l.url) ? l.url[0] : l.url) || "";
+      const v = (/[?&]v=([^&]+)/.exec(u) || [])[1] || "copy";
+      const m = /^h264-(\d+)$/.exec(v);
+      return { i, v, h: m ? +m[1] : 0 };
+    });
+  };
+  const ladderIdx = (h) => {
+    const l = ladderLevels().find((x) => x.h === h);
+    return l ? l.i : -1;
+  };
+  // What a rebuild of the ladder stream should come back as: the same pick,
+  // starting on the level it was playing.
+  const ladderNow = () => {
+    const cur = hls ? ladderLevels().find((l) => l.i === (hls.currentLevel >= 0 ? hls.currentLevel : hls.loadLevel)) : null;
+    return { pick: ladderPick, startH: cur ? cur.h : 0 };
+  };
+  // Data saver (Preferences → Data use) holds Auto under a height: 720p, or
+  // 480p on a line measured as very thin. -1 = no ceiling.
+  const ladderCapIdx = () => {
+    if (dataMode() !== "saver") return -1;
+    const top = playCap() || 720;
+    const fits = ladderLevels().filter((l) => l.h && l.h <= top).sort((a, b) => b.h - a.h)[0];
+    return fits ? fits.i : -1;
+  };
+  // Apply a pick to the stream that is playing: "auto" hands the choice back
+  // to hls.js; a height pins that level from the next segment on (what is
+  // already buffered past it is dropped, so the change shows within seconds).
+  // `first`: before anything has loaded — the level the stream STARTS on.
+  // false when that level is not in this ladder.
+  const ladderApply = (pick, { first = false, startH = 0 } = {}) => {
+    if (!hls || !ladderOn) return false;
+    const cap = ladderCapIdx();
+    if (pick === "auto") {
+      hls.autoLevelCapping = cap;
+      if (first) {
+        // start where the line can carry it (a slow line was measured before
+        // the film was opened), never above the data-saver ceiling
+        let i = ladderIdx(startH);
+        if (i < 0) i = ladderIdx(0);
+        if (cap >= 0 && i > cap) i = cap;
+        if (i >= 0) hls.startLevel = i;
+      } else hls.nextLevel = -1; // (drops what is buffered ahead, so Auto shows within seconds)
+      ladderPick = "auto";
+      return true;
+    }
+    const i = ladderIdx(pick);
+    if (i < 0) return false;
+    hls.autoLevelCapping = -1; // the viewer's own choice is not capped
+    if (first) {
+      hls.startLevel = i;
+      hls.loadLevel = i;
+    } else hls.nextLevel = i;
+    ladderPick = pick;
+    return true;
+  };
+  const ladderLabel = (h) => (h ? `${h}p` : "original");
+  // The ladder's side of a new hls.js instance.
+  const ladderWire = (h, gen, lad) => {
+    const E = window.Hls.Events;
+    let shown = null; // the level the corner chip last named
+    h.on(E.MANIFEST_PARSED, () => {
+      if (gen !== hlsGen || h !== hls) return;
+      if (!h.levels || h.levels.length < 2) {
+        // one rendition only (a small file, or no encoder free): an ordinary
+        // jit stream — the old quality logic applies to it again
+        ladderAsked = false;
+        return;
+      }
+      ladderOn = true;
+      const want = lad.pick != null ? lad.pick : "auto";
+      if (!ladderApply(want, { first: true, startH: lad.startH || 0 })) ladderApply("auto", { first: true });
+      mark("ladder", { levels: ladderLevels().map((l) => l.v).join(","), pick: String(ladderPick) });
+    });
+    h.on(E.LEVEL_SWITCHED, (_e, d) => {
+      if (gen !== hlsGen || !ladderOn) return;
+      const lv = ladderLevels().find((l) => l.i === d.level);
+      if (!lv) return;
+      const was = shown;
+      shown = lv.h;
+      if (was === null || was === lv.h) return; // the first level is not a change
+      lastChangeAt = Date.now();
+      // Auto moved: a small chip names where it went, as the step-down did
+      if (ladderPick === "auto") {
+        showQualityNote(`Auto ${ladderLabel(lv.h)}`);
+        mark("abr", { to: lv.v, at: Math.round(effTime()) });
+      }
+    });
+    // A lower rung the server cannot make right now (no encoder free: 503)
+    // or at all (404): take it off the ladder rather than wait on it — the
+    // rungs that remain play on. The top rung is the film itself and keeps
+    // the ordinary recovery.
+    h.on(E.ERROR, (_e, d) => {
+      if (gen !== hlsGen || !ladderOn || !d) return;
+      const code = d.response && d.response.code;
+      if (code !== 503 && code !== 404) return;
+      const at = d.frag ? d.frag.level : d.context && d.context.level != null ? d.context.level : d.level;
+      const lv = ladderLevels().find((l) => l.i === at);
+      if (!lv || !lv.h || h.levels.length < 2) return;
+      mark("ladder-drop", { v: lv.v, code });
+      if (ladderPick === lv.h) {
+        ladderPick = "auto";
+        toast("The server can't make that stream right now — back to automatic", "⚠️");
+      }
+      try {
+        h.removeLevel(at);
+        h.autoLevelCapping = ladderCapIdx();
+        if (ladderPick === "auto") h.loadLevel = -1;
+        else ladderApply(ladderPick);
+      } catch {}
+      if (h.levels.length < 2) ladderOn = false;
+    });
+  };
+
   // Every startHls call is a generation. The ERROR handler below schedules a
   // rebuild of ITS OWN url on a shared timer, so without this a playlist error
   // on the stream we are leaving would fire ~2s after a successful skip and
@@ -564,12 +687,18 @@ export const renderPlayer = async (root, { id }) => {
     setTimeout(done, 15000); // never left over a film that is playing
   };
 
-  const startHls = (url, startAt = 0) => {
+  // `lad`: this url is a ladder's master playlist — { pick, startH } (see
+  // tryJitSwitch). Anything else is a single stream and the ladder is off.
+  const startHls = (url, startAt = 0, lad = null) => {
     if (holdNext) {
       holdNext = false;
       holdFrame();
     }
     const gen = ++hlsGen;
+    ladderAsked = !!lad;
+    ladderOn = false;
+    if (!lad) ladderPick = "auto";
+    stall.lad = lad; // a rebuild of this stream is a ladder again (see ladderNow)
     stall.url = url; // (stall recovery) what a rebuild of this stream asks for
     stall.inFlight = false;
     stall.netAt = Date.now();
@@ -700,7 +829,7 @@ export const renderPlayer = async (root, { id }) => {
               // still this stream on the element? then its playhead is the truth
               const now = gen === hlsGen ? video.currentTime || 0 : 0;
               const backAt = !jitMode ? 0 : now > 0.5 ? now : wasAt;
-              startHls(url, backAt);
+              startHls(url, backAt, lad && ladderNow());
               // the same guard the stall rebuild uses: until the picture is
               // back there, saveProgress must not write the 0 the reset
               // element reports over the resume point (carded: this handler
@@ -765,6 +894,7 @@ export const renderPlayer = async (root, { id }) => {
               if (d && d.frag) stall.inFlight = false;
             });
           }
+          if (lad) ladderWire(hls, gen, lad);
           hls.loadSource(url);
           hls.attachMedia(video);
           // Rare attach race (observed on copy-seek restarts, 2026-08-26):
@@ -818,6 +948,27 @@ export const renderPlayer = async (root, { id }) => {
   // S7: a JIT stream has ONE full-length playlist — no offset jobs exist, so
   // anything that speaks offset-URLs (keepAlive pings) must stand down.
   let jitMode = false;
+  // THE QUALITY LADDER (2026-10-08). A library title played through hls.js
+  // opens the jit stream by its MASTER playlist (…/jit/master.m3u8): the
+  // file's video as it is — or the full encode, where this device cannot
+  // decode it — with 720p and 480p encodes under it, every one cut on the
+  // same segment boundaries. hls.js then moves between them by itself, up as
+  // well as down, and a Quality pick is a level change inside the one stream
+  // instead of a rebuild.
+  //  ladderAsked — the stream on the element was opened by its master
+  //  ladderOn    — …and it really has more than one level (known once the
+  //                manifest is parsed): the menu and the picks talk to hls.js
+  //  ladderPick  — "auto", or what the viewer pinned: 0 (original), 720, 480
+  // An iPhone plays HLS natively and cannot pin a level, so it keeps the
+  // single playlists and the rebuild for a manual pick — unless
+  // localStorage["aurora-ladder-native"] = "1" asks to try the master there
+  // (untested on a real phone; a file whose own codec is H.264 only, so
+  // every rendition is the same codec family).
+  let ladderAsked = false;
+  let ladderOn = false;
+  let ladderPick = "auto";
+  let ladderNative = false;
+  try { ladderNative = localStorage.getItem("aurora-ladder-native") === "1"; } catch {}
   // True while a seek is probing a new offset. Nothing may request the OLD
   // playlist during that window — the server would recreate that job and
   // supersede the one the seek is waiting for (see startTranscodeAt).
@@ -956,7 +1107,9 @@ export const renderPlayer = async (root, { id }) => {
     }
     // Unclaimed copy-at-offset (boot resume): the claim response carries the
     // clock headers — await it; the playlist production gates playback anyway.
-    fetch(`${url}&seek=1`, { cache: "no-store" })
+    // (bounded: a claim that never answers used to hold `probing` up and with
+    // it the "Playback stopped" card, indefinitely)
+    fetch(`${url}&seek=1`, { cache: "no-store", signal: AbortSignal.timeout(20000) })
       .then((res) => begin(res.ok ? clockFromHeaders(res) : null))
       .catch(() => beginH264Fallback());
   };
@@ -982,6 +1135,17 @@ export const renderPlayer = async (root, { id }) => {
     const t = (item.audioTracks || []).find((x, i) => (x.index != null ? x.index : i) === idx);
     toast(`Audio: ${audioTrackName(t || {}, idx)}`, "🔈");
     track("feat", { f: "audio_track" });
+    // On the ladder the other track is the same full-timeline stream with
+    // &a= (every rendition carries it): the pick and the quality stay as
+    // they are. Otherwise — and when the ladder cannot be had — the offset
+    // job, as before.
+    if (ladderEligible() && !capH) {
+      const keep = ladderOn ? ladderNow() : null;
+      tryJitSwitch(at, keep).then((ok) => {
+        if (!ok) startTranscodeAt(at, v, { fallbackToZero: true });
+      });
+      return;
+    }
     startTranscodeAt(at, v, { fallbackToZero: true });
   };
 
@@ -991,31 +1155,62 @@ export const renderPlayer = async (root, { id }) => {
   let showQualityNote = () => {}; // the corner chip — bound further down, with the pill
   let lastChangeAt = Date.now(); // when the quality last changed, by anyone
   const switchQuality = (h) => {
-    if (h === capH) return closeMenu();
+    if (h === (ladderOn ? ladderPick : capH)) return closeMenu();
     if (seekLocked()) return;
-    autoQuality = false; // the viewer chose — nothing changes it behind them now
+    // the viewer chose — nothing changes it behind them now (choosing Auto
+    // on a ladder gives the choice back)
+    autoQuality = h === "auto" ? canCap && dataMode() !== "full" : false;
     closeMenu();
     showControls();
-    track("feat", { f: h ? `quality_${h}` : "quality_original" });
+    track("feat", { f: h === "auto" ? "quality_auto" : h ? `quality_${h}` : "quality_original" });
     applyQuality(h);
   };
   // The change itself — the viewer's (above) or the line watcher's step back
   // up (`auto`). No message box either way: a small chip in the corner names
   // the quality for a moment, and that is all.
   const applyQuality = (h, { auto = false } = {}) => {
+    // A file this device plays as it is: "Original" is plain direct play,
+    // ladder or no ladder (further down).
+    const directOk = !!item.videoUrl && audioIdx === 0 && !videoNeedsTranscode() && !audioNeedsRemux();
+    // ON THE LADDER a quality is a level of the stream that is playing: no
+    // rebuild, no gap. (What cannot be a level — Original on a file that
+    // direct-plays, a rung the server took away — goes on below.)
+    if (ladderOn && hls && !(h === 0 && directOk)) {
+      if (ladderApply(h)) {
+        lastChangeAt = Date.now();
+        return void showQualityNote(h === "auto" ? "Auto" : h ? `${h}p` : "Original");
+      }
+    }
+    if (h === "auto") return; // only a ladder has an Auto
     const was = capH;
-    capH = h;
     lastChangeAt = Date.now();
     const at = effTime();
     const note = `${auto ? "Auto " : ""}${h ? `${h}p` : auto ? "original" : "Original"}`;
-    if (h) {
+    // the rebuild onto a capped offset job — the path before the ladder, and
+    // still the one for an iPhone, a file with no index, a busy server
+    const viaRebuild = () => {
+      capH = h;
       startTranscodeAt(at, "h264", { quiet: true, live: true }).then((ok) => {
         if (ok) return void showQualityNote(note);
         capH = was;
         if (!auto) toast("The server can't make that stream right now — staying as it is", "⚠️");
       });
+    };
+    if (h) {
+      if (!ladderEligible()) return void viaRebuild();
+      // not on a ladder yet (direct play, a single stream): open the ladder
+      // with this quality pinned; from then on every change is a level change
+      capH = 0;
+      holdNext = true;
+      tryJitSwitch(at, { pick: h }).then((ok) => {
+        if (ok) return void showQualityNote(note);
+        holdNext = false;
+        capH = was;
+        viaRebuild();
+      });
       return;
     }
+    capH = 0;
     showQualityNote(note);
     holdNext = true; // whichever path below rebuilds the stream holds the frame
     // A file this device plays as it is goes back to plain direct play — the
@@ -1029,6 +1224,9 @@ export const renderPlayer = async (root, { id }) => {
       }
       usingTranscode = false;
       jitMode = false;
+      ladderAsked = false;
+      ladderOn = false;
+      ladderPick = "auto";
       streamOffset = 0;
       clockBase = 0;
       windowStart = 0;
@@ -1047,8 +1245,20 @@ export const renderPlayer = async (root, { id }) => {
     // back to the untouched picture: the copy path when this device decodes
     // the file's video (jit first — every seek native), the full encode when not
     const copyOk = !copyRefused && (!item.video || !videoNeedsTranscode() || codecCopyable(item.video));
-    if (!copyOk) return void startTranscodeAt(at, "h264", { fallbackToZero: true, quiet: true, live: true });
-    tryJitSwitch(at).then((ok) => {
+    // (the viewer asked for Original: on a ladder that is its top rung, pinned)
+    const pin = auto ? null : { pick: 0 };
+    if (!copyOk) {
+      // the full encode: as the top of a ladder when there can be one
+      if (!ladderEligible()) return void startTranscodeAt(at, "h264", { fallbackToZero: true, quiet: true, live: true });
+      tryJitSwitch(at, pin).then((ok) => {
+        if (!ok) {
+          holdNext = false;
+          startTranscodeAt(at, "h264", { fallbackToZero: true, quiet: true, live: true });
+        }
+      });
+      return;
+    }
+    tryJitSwitch(at, pin).then((ok) => {
       if (!ok) {
         holdNext = true;
         startTranscodeAt(at, "copy", { fallbackToZero: true, quiet: true });
@@ -1147,39 +1357,92 @@ export const renderPlayer = async (root, { id }) => {
   // (+hvc1 tag for HEVC); hls.js gets TS. The producer copies the video, so
   // only codecs this device decodes qualify; resolves false when jit can't
   // serve (wrong container, no index) and the caller keeps the legacy flow.
-  const tryJitSwitch = async (fromSec) => {
-    if (copyRefused) return false; // jit IS a copy stream — escalations are one-way
-    if (audioIdx > 0) return false; // jit carries the first audio track only
-    if (capH) return false; // jit copies the file's own video — a capped stream can't be one
+  //
+  // THE LADDER: a library title on hls.js asks for the MASTER playlist of
+  // that same stream instead (see ladderOn). `lad` says how it should start:
+  //   { startH }  automatic, beginning on that height (a slow line)
+  //   { pick }    pinned by the viewer: 0 = original, 720, 480
+  //   { plain }   the single playlist, no ladder (a manual pick on an iPhone)
+  // The master can also carry what the single playlist cannot: the full
+  // encode as its top rung (a codec this device cannot decode — every seek
+  // native there too) and the file's other audio tracks.
+  const ladderEligible = () => canCap && !!item.id && (!nativeHlsOnly || ladderNative);
+  const tryJitSwitch = async (fromSec, lad = null) => {
+    const isHevc =
+      (item.video && item.video.codec === "hevc") || item.videoCodecHint === "hevc";
+    const undecodable = !isTorrent && !!item.video && videoNeedsTranscode() && !codecCopyable(item.video);
+    // the top rung: the file's video, or the encode when that cannot play here
+    const top = undecodable || copyRefused ? "h264" : "copy";
+    let useLadder = ladderEligible() && !(lad && lad.plain);
+    // a height the viewer pinned (0 = original), or null for automatic
+    const pinned = lad && typeof lad.pick === "number" ? lad.pick : null;
+    const startH = (lad && lad.startH) || 0;
+    // native HLS does not adapt across codec families, and cannot be pinned
+    if (useLadder && nativeHlsOnly && (top !== "copy" || isHevc || pinned != null || !autoQuality)) useLadder = false;
+    // A copied HEVC top over H.264 rungs is a ladder of two codecs. hls.js
+    // changes codec between levels where the browser's MediaSource can
+    // (SourceBuffer.changeType); without it, the single stream as before.
+    if (useLadder && top === "copy" && isHevc && !ladderMixedOk()) useLadder = false;
+    if (!useLadder) {
+      // the single jit playlist, exactly as before the ladder
+      if (copyRefused) return false; // jit IS a copy stream — escalations are one-way
+      if (audioIdx > 0) return false; // the single playlist carries the first audio track only
+      if (capH) return false; // jit copies the file's own video — a capped stream can't be one
+      if (pinned || startH) return false; // a lower quality needs the ladder (or the rebuild)
+    }
     if (isTorrent) {
       // The probe normalizes ffprobe's "matroska,webm" to "mkv"; accept both.
       if (!/matroska|mkv/i.test(item.container || "")) return false;
       if (!codecCopyable(item.video || {})) return false;
-    } else if (item.video && videoNeedsTranscode() && !codecCopyable(item.video)) {
+    } else if (undecodable && !useLadder) {
       return false; // truly undecodable here — needs the real h264 encode
     }
     const base = isTorrent ? item.transcodeBase : `/stream/transcode/${item.id}`;
-    const isHevc =
-      (item.video && item.video.codec === "hevc") || item.videoCodecHint === "hevc";
-    const jitUrl = `${base}/jit/index.m3u8${
-      nativeHlsOnly ? `?seg=fmp4${isHevc ? "&vtag=hvc1" : ""}` : ""
-    }`;
+    const q = [
+      nativeHlsOnly && "seg=fmp4",
+      nativeHlsOnly && isHevc && top === "copy" && "vtag=hvc1",
+      useLadder && top === "h264" && "top=h264",
+      useLadder && audioIdx > 0 && `a=${audioIdx}`,
+    ].filter(Boolean).join("&");
+    const jitUrl = `${base}/jit/${useLadder ? "master" : "index"}.m3u8${q ? `?${q}` : ""}`;
     try {
       const r = await fetch(jitUrl, { cache: "no-store" });
-      if (!r.ok) return false;
+      if (!r.ok) {
+        // no ladder for this file right now (no encoder free, no index): the
+        // single playlist is still worth asking where it could play
+        if (useLadder && !pinned && !startH) return tryJitSwitch(fromSec, { plain: true });
+        return false;
+      }
+      if (useLadder && pinned) {
+        // the pinned quality has to be one of the rungs offered
+        const text = await r.text();
+        if (!text.includes(`v=h264-${pinned}`)) return false;
+      }
     } catch {
       return false;
     }
     if (exited) return true; // switched-to-nothing: just don't start legacy
-    mark("path", { path: "jit", from: fromSec || 0 });
+    mark("path", { path: useLadder ? "ladder" : "jit", from: fromSec || 0 });
     usingTranscode = true;
     jitMode = true;
-    currentV = "copy";
+    currentV = top === "h264" && useLadder ? "h264" : "copy";
+    if (useLadder) capH = 0; // the ladder's levels are the quality now
     streamOffset = 0;
     clockBase = 0;
     windowStart = 0;
-    startHls(jitUrl, Math.max(0, fromSec || 0));
+    startHls(jitUrl, Math.max(0, fromSec || 0), useLadder ? { pick: pinned != null ? pinned : "auto", startH } : null);
     return true;
+  };
+  // Can this browser move between an HEVC level and an H.264 one in one
+  // stream? (MediaSource with changeType — hls.js uses it for exactly this.)
+  const ladderMixedOk = () => {
+    try {
+      const MS = window.ManagedMediaSource || window.MediaSource;
+      const SB = window.ManagedSourceBuffer || window.SourceBuffer;
+      return !!(MS && SB && SB.prototype && typeof SB.prototype.changeType === "function");
+    } catch {
+      return false;
+    }
   };
 
   // Resume point (baked into the transcode's start offset for streams, applied
@@ -1228,7 +1491,23 @@ export const renderPlayer = async (root, { id }) => {
   // claim a seek makes; if the server can't do it (no ffmpeg, both encode
   // slots taken) the cap is dropped and the title plays the way it always did.
   let cappedStart = false;
-  if (capH) {
+  if (capH && ladderEligible() && !item._offline) {
+    // The ladder first: the same stream, begun on the lighter level, and
+    // free to climb when the line turns out better than it measured.
+    const want = capH;
+    const waiting = el("div", { class: "player" }, el("div", { class: "spinner" }));
+    root.append(waiting);
+    let ok = false;
+    try { ok = await tryJitSwitch(resumeAt, { startH: want }); } catch {}
+    waiting.remove();
+    if (location.hash !== entryHash) return; // left while waiting
+    if (ok && !exited) {
+      mark("decision", { why: `slow line (${netTier()}) → ladder from ${want}p` });
+      cappedStart = true;
+      track("feat", { f: `quality_auto_${want}` });
+    } else if (!ok) capH = want;
+  }
+  if (capH && !cappedStart) {
     const ss = Math.max(0, resumeAt - 2);
     // The overlay isn't built yet, and the server may take a few seconds to
     // produce the first segment: show a spinner meanwhile, and give up after
@@ -1301,7 +1580,11 @@ export const renderPlayer = async (root, { id }) => {
         }
       } catch {}
     }
-    if (!jitOk && !prepared) startTranscode(resumeAt, copyOk ? "copy" : "h264");
+    // Still to be encoded live: as the top rung of a ladder when there can be
+    // one (the whole film on one timeline, lighter rungs under it), else the
+    // offset job as always.
+    const ladOk = !jitOk && !prepared && !copyOk && ladderEligible() ? await tryJitSwitch(resumeAt) : false;
+    if (!jitOk && !prepared && !ladOk) startTranscode(resumeAt, copyOk ? "copy" : "h264");
   } else if (!isTorrent && usingRemux) {
     // Undecodable AUDIO only. S7 JIT first: one COMPLETE playlist (exact
     // duration + boundaries from the file's own index), segments made on
@@ -2766,12 +3049,25 @@ export const renderPlayer = async (root, { id }) => {
           // "Original" is the file's video bit for bit (a copy) — except on a
           // device that can't decode its codec, where it is the best re-encode,
           // and the menu says so rather than claiming the file.
-          const origTag = currentV === "copy" ? "the file as it is" : "re-encoded — this device can't play the file's codec";
-          for (const [h, label, tag] of [[0, "Original", origTag], [720, "720p", "data saver"], [480, "480p", "slow connection"]]) {
+          const origTag = currentV === "copy" || !usingTranscode ? "the file as it is" : "re-encoded — this device can't play the file's codec";
+          // On a ladder the entries are the stream's own levels, with Auto on
+          // top; a pick is a level change, not a rebuild. Off it, the three
+          // qualities as before.
+          const rows = [[0, "Original", origTag], [720, "720p", "data saver"], [480, "480p", "slow connection"]];
+          let active = capH;
+          if (ladderOn) {
+            const have = ladderLevels();
+            const now = have.find((l) => l.i === (hls ? hls.currentLevel : -1));
+            const list = rows.filter(([h]) => have.some((l) => l.h === h));
+            rows.length = 0;
+            rows.push(["auto", "Auto", now ? `now ${ladderLabel(now.h)}` : "follows your connection"], ...list);
+            active = ladderPick;
+          }
+          for (const [h, label, tag] of rows) {
             menu.append(
               el(
                 "button",
-                { class: `menu-item focusable ${capH === h ? "active" : ""}`, onclick: () => switchQuality(h) },
+                { class: `menu-item focusable ${active === h ? "active" : ""}`, onclick: () => switchQuality(h) },
                 el("span", {}, label),
                 el("span", { class: "tag" }, tag),
               ),
@@ -4050,6 +4346,8 @@ export const renderPlayer = async (root, { id }) => {
   let upsLeft = 2;
   let steppedUpAt = 0;
   const stepDown = async (reason = "stalls") => {
+    // on a ladder hls.js does the stepping, both ways
+    if (ladderAsked) return;
     if (!autoQuality || steppingDown || exited || capH === 480 || probing || seekLocked()) return;
     steppingDown = true;
     try {
@@ -4068,11 +4366,22 @@ export const renderPlayer = async (root, { id }) => {
       const next = prev === 720 ? 480 : kbps == null ? 720 : capFor(kbps);
       // trouble soon after a step up: this line does not hold it — stop trying
       if (steppedUpAt && Date.now() - steppedUpAt < 120000) upsLeft = 0;
-      capH = next;
       lastChangeAt = Date.now();
       stallTimes.length = 0;
       excuseUntil = Date.now() + 15000;
-      const ok = await startTranscodeAt(effTime(), "h264", { quiet: true, live: true });
+      // Onto the ladder when there can be one — the stream begins on the
+      // lighter level and hls.js takes it from there, back up included. The
+      // capped offset job otherwise, as before.
+      let ok = false;
+      if (ladderEligible()) {
+        holdNext = true;
+        ok = await tryJitSwitch(effTime(), { startH: next });
+        if (!ok) holdNext = false;
+      }
+      if (!ok && !exited) {
+        capH = next;
+        ok = await startTranscodeAt(effTime(), "h264", { quiet: true, live: true });
+      }
       if (exited) return;
       if (!ok) {
         // the server can't spare an encode: stay as we were, and stop asking
@@ -4116,7 +4425,7 @@ export const renderPlayer = async (root, { id }) => {
     const watcher = setInterval(() => {
       if (exited) return clearInterval(watcher);
       const now = Date.now();
-      if (!autoQuality || video.paused || video.seeking || probing || steppingDown || holdEl || now < watchFrom) {
+      if (ladderAsked || !autoQuality || video.paused || video.seeking || probing || steppingDown || holdEl || now < watchFrom) {
         win.length = 0;
         thinSince = richSince = 0;
         return;
@@ -4130,7 +4439,11 @@ export const renderPlayer = async (root, { id }) => {
       const cur = capH === 720 ? 2500 : capH === 480 ? 1200 : fileKbps;
 
       // falling behind: short of buffer and not gaining on the playhead
-      const starving = capH !== 480 && ahead < 8 && fill < 0.9;
+      // (the last seconds of a film are not a thin line: the buffer stops
+      // growing because there is nothing left to fetch — found by the browser
+      // tests, 2026-10-08: every film ended on a 480p re-encode)
+      const atEnd = Number.isFinite(video.duration) && end >= video.duration - 1.5;
+      const starving = capH !== 480 && !atEnd && ahead < 8 && fill < 0.9;
       if (starving) {
         thinSince = thinSince || now;
         // two seconds of it — or at once when there is almost nothing left
@@ -4346,7 +4659,7 @@ export const renderPlayer = async (root, { id }) => {
     const info = {
       stage,
       position: Math.round(stContent(mediaT)),
-      path: jitMode ? "jit" : usingTranscode ? currentV : hls ? "hls" : "direct",
+      path: ladderOn ? "ladder" : jitMode ? "jit" : usingTranscode ? currentV : hls ? "hls" : "direct",
       ...extra,
     };
     reportMark("client_stall", info); // torrents: the per-stream perf record
@@ -4377,7 +4690,7 @@ export const renderPlayer = async (root, { id }) => {
           () => {
             // only while this is still the stream that stopped
             if (exited || stall.hold !== hold || hold.gen !== hlsGen || !stall.url) return;
-            startHls(stall.url, hold.pos);
+            startHls(stall.url, hold.pos, stall.lad && ladderNow());
             stall.hold = { gen: hlsGen, pos: hold.pos, at: Date.now(), carded: false };
           },
         );
@@ -4470,7 +4783,7 @@ export const renderPlayer = async (root, { id }) => {
       // about to be reset, so say that something is happening
       spinner.classList.remove("hidden");
       if (isTorrent && item.infoHash) startTorrentOverlay(false);
-      startHls(stall.url, ct); // same url, back at this media time
+      startHls(stall.url, ct, stall.lad && ladderNow()); // same url, back at this media time
       stall.hold = { gen: hlsGen, pos: ct, at: now, carded: false };
       stGen = hlsGen;
       stMoved = false;
@@ -4894,7 +5207,12 @@ export const renderPlayer = async (root, { id }) => {
     // Torrent sources remember where they came from (the Discover detail page)
     if (item.returnHash && item.returnHash !== location.hash)
       navigate(item.returnHash);
-    else if (isEpisode && item.showId) navigate(`#/show/${item.showId}`);
+    else if (isEpisode && item.showId) {
+      // Opened from the show's own page: go BACK to it. Pushing it again left
+      // Back on the show page pointing into the player, round and round.
+      if (enteredFrom === `#/show/${item.showId}` && history.length > 1) history.back();
+      else navigate(`#/show/${item.showId}`);
+    }
     else if (history.length > 1) history.back();
     else navigate("#/");
   };

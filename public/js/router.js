@@ -18,6 +18,12 @@ export const route = (pattern, render) => {
   routes.push({ pattern, regex, names, render });
 };
 
+// The page this one was reached from (null on a cold load), so a screen that
+// "goes back" to a known place can use the browser's Back instead of pushing
+// a second copy of that page onto the history.
+let cameFromHash = null;
+export const cameFrom = () => cameFromHash;
+
 export const navigate = (hash) => {
   if (location.hash === hash) render();
   else location.hash = hash;
@@ -73,6 +79,13 @@ const render = async () => {
 
 export const startRouter = (root) => {
   appRoot = root;
-  window.addEventListener("hashchange", render);
+  window.addEventListener("hashchange", (e) => {
+    try {
+      cameFromHash = new URL(e.oldURL).hash || "#/";
+    } catch {
+      cameFromHash = null;
+    }
+    render();
+  });
   render();
 };

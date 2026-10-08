@@ -214,6 +214,58 @@ const torrentReadRange = (t, file) => (start, len) =>
 // event-playlist path instead. The reads keep prioritizing those pieces,
 // so a retry after the swarm warms usually succeeds.
 const JIT_INDEX_TIMEOUT_MS = 20000;
+const ladder = require("../media/ladder");
+
+// What a jit producer reads for a torrent's file: the complete file straight
+// from disk; otherwise our own blocking range route, so ffmpeg's reads pull
+// the exact pieces from the swarm (same contract as torrent-transcode's http
+// mode).
+const jitTorrentInput = (t, file, infoHash, fileIdx) => {
+  let complete = false;
+  try { complete = !!file.done; } catch {}
+  return complete
+    ? { url: path.join(t.path, file.path), extra: [], http: false }
+    : {
+        url: `http://127.0.0.1:${config.PORT}/stream/torrent/${infoHash}/${fileIdx}`,
+        extra: ["-seekable", "1", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"],
+        http: true,
+      };
+};
+
+// ---------- the quality ladder (torrents) ----------
+// The master playlist over the jit stream — see the library twin in
+// routes/stream.js and media/ladder.js (master) for the parameters.
+router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/master.m3u8", async (req, res) => {
+  if (!config.ffmpegAvailable) return res.status(503).send("ffmpeg not available");
+  try {
+    const sfs = require("fs").statfsSync(config.CACHE_DIR);
+    if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
+      return res.status(503).send("Server disk is nearly full — free space to stream");
+    }
+  } catch {}
+  try {
+    const t = await torrent.readyTorrent(req.params.infoHash);
+    const fileIdx = parseInt(req.params.fileIdx, 10);
+    const file = torrent.pickVideoFile(t, fileIdx);
+    if (!file) return res.status(404).send("No video file in torrent");
+    torrent.scopeToFile(t, file);
+    const key = `jt-${req.params.infoHash}-${fileIdx}`;
+    const table = await Promise.race([
+      jit.tableFor(key, torrentReadRange(t, file), file.length),
+      new Promise((r) => setTimeout(r, JIT_INDEX_TIMEOUT_MS, "timeout")),
+    ]);
+    if (table === "timeout") return res.status(503).send("Index not ready yet");
+    if (!table) return res.status(404).send("No usable index in this file");
+    const src = jitTorrentInput(t, file, req.params.infoHash, fileIdx);
+    const m = await ladder.master(table, { key, input: src.url, http: src.http, query: req.query, jit });
+    if (!m.text) return res.status(m.status).send(m.message);
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    res.setHeader("Cache-Control", "no-cache");
+    res.send(m.text);
+  } catch (err) {
+    res.status(504).send("Torrent not ready: " + err.message);
+  }
+});
 
 router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/index.m3u8", async (req, res) => {
   if (!config.ffmpegAvailable) return res.status(503).send("ffmpeg not available");
@@ -244,7 +296,15 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/index.m3u8", async (req, 
     if (table === "timeout") return res.status(503).send("Index not ready yet");
     if (!table) return res.status(404).send("No usable index in this file");
     const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
-    const suffix = `?v=copy${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}`;
+    // ?v= / ?a=: a rendition of the ladder, an audio track (see the library
+    // twin); without them, the copy with the first track, as always.
+    const v = ladder.renditionFromQuery(req.query.v);
+    const audio = ladder.audioFromQuery(req.query.a);
+    if (v !== "copy") {
+      if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
+      if (!jit.encodeRoom(key, v === "h264")) return res.status(503).send("Server is busy — that rendition isn't available right now");
+    }
+    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
     res.send(jit.playlistText(table, suffix, fmt));
@@ -276,26 +336,24 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/:file", async (req, res) 
       ]).catch(() => null);
     }
     if (!table) return res.status(409).send("Playlist first");
-    // Producer input: the complete file straight from disk; otherwise our
-    // own blocking range route, so ffmpeg's reads pull the exact pieces
-    // from the swarm (same contract as torrent-transcode's http mode).
-    let complete = false;
-    try { complete = !!file.done; } catch {}
-    const absPath = path.join(t.path, file.path);
-    const input = complete
-      ? { url: absPath, extra: [] }
-      : {
-          url: `http://127.0.0.1:${config.PORT}/stream/torrent/${req.params.infoHash}/${fileIdx}`,
-          extra: ["-seekable", "1", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"],
-        };
-    input.fmt = fmt;
-    input.vtagHvc1 = req.query.vtag === "hvc1";
-    // fMP4 producers get their own dir — same table, different segment files.
-    const dir = path.join(config.CACHE_DIR, "jit", key + (fmt ? "-f4" : ""));
-    const job = jit.jobFor(dir, table);
+    // Producer input: the complete file from disk, else through the swarm.
+    const src = jitTorrentInput(t, file, req.params.infoHash, fileIdx);
+    const v = ladder.renditionFromQuery(req.query.v);
+    const audio = ladder.audioFromQuery(req.query.a);
+    let input = { url: src.url, extra: src.extra, fmt, vtagHvc1: req.query.vtag === "hvc1", audio };
+    if (v !== "copy") {
+      if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
+      input = await ladder.encInput(input, { key, name: v, fmt, audio, http: src.http, jit, label: file.name });
+      if (!input) return res.status(404).send("No such rendition of this file");
+    }
+    // fMP4 producers get their own dir — same table, different segment
+    // files; so does every rendition of the ladder, and every audio track.
+    const dir = path.join(config.CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
+    const job = jit.jobFor(dir, table, { enc: v !== "copy" });
     const seg = isInit
       ? await jit.ensureInit(dir, job, input)
       : await jit.ensureSegment(dir, job, input, parseInt(m[1], 10));
+    if (!seg && jit.refusedJustNow(job)) return res.status(503).send("Server is busy — that rendition isn't available right now");
     if (!seg) return res.status(504).send("Segment not ready");
     res.setHeader("Content-Type", fmt ? "video/mp4" : "video/mp2t");
     res.setHeader("Cache-Control", "no-cache");

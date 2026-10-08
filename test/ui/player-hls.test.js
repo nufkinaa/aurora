@@ -29,7 +29,7 @@ ui.test("the MKV goes through the server's repackaging and plays through hls.js"
   await player.open(page, srv, lib.film2.id);
 
   assert.equal((await marks.wait((m) => m.name === "mount", 5000)).audio, "ac3");
-  assert.equal((await marks.wait((m) => m.name === "path", 5000, "the path mark")).path, "jit");
+  assert.equal((await marks.wait((m) => m.name === "path", 5000, "the path mark")).path, "ladder"); // the master playlist (was "jit" before the quality ladder)
   const first = await marks.wait((m) => m.name === "first-frame", 10000, "the first-frame mark");
   assert.equal(first.jit, true);
   assert.equal(first.v, "copy", "the video should be copied, not re-encoded");
@@ -279,7 +279,7 @@ ui.test("a hidden tab is not a stall: nothing is nudged or rebuilt while it is i
 // the last seconds play from it (seen: offset 58 of 60, and once offset 61,
 // past the end).
 for (const [name, key] of [["a repackaged film", "film2"], ["a film that plays directly", "film1"]]) {
-  ui.test(`the end of ${name} is not mistaken for a slow connection (no 480p re-encode in the last seconds)`, { todo: "app bug: the line watcher steps down to 480p at the end of every film" }, async ({ page, srv, signIn, freshProfile, lib }) => {
+  ui.test(`the end of ${name} is not mistaken for a slow connection (no 480p re-encode in the last seconds)`, async ({ page, srv, signIn, freshProfile, lib }) => {
     await signIn(await freshProfile());
     const capped = [];
     page.on("request", (r) => { if (/[?&]v=h264-(480|720)/.test(r.url())) capped.push(r.url().replace(srv.url, "")); });

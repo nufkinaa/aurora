@@ -233,7 +233,7 @@ ui.test("leaving an episode lands on its show's page", async ({ page, srv, goto,
 // the episode. Back from there returns to the show page... and so on: the
 // viewer cannot get past the show page with Back. Films leave with
 // history.back() and do not have this.
-ui.test("after leaving an episode, Back on the show page does not go back into the player", { todo: "app bug: exit() from an episode pushes #/show/<id> instead of going back" }, async ({ page, srv, goto, signIn, freshProfile, lib }) => {
+ui.test("after leaving an episode, Back on the show page does not go back into the player", async ({ page, srv, goto, signIn, freshProfile, lib }) => {
   await signIn(await freshProfile());
   await goto("#/shows");
   await goto(`#/show/${lib.show.id}`);

@@ -123,7 +123,7 @@ kidsTest("a direct link to a blocked title does not open it, and its stream is r
 // do `api.item(id).catch(() => null)` / `catch { return navigate("#/") }`,
 // so the child is dropped on Home with no word of why.
 for (const [what, hash] of [["title page", (lib) => `#/movie/${lib.film2.id}`], ["player", (lib) => `#/play/${lib.film2.id}`]]) {
-  kidsTest(`a direct link to a blocked title's ${what} says it isn't available in a kids profile`, { allow: [REFUSED], todo: "app bug: the 403's message is swallowed; the page goes Home without a word" }, async ({ page, goto, signIn, profiles, lib }) => {
+  kidsTest(`a direct link to a blocked title's ${what} says it isn't available in a kids profile`, { allow: [REFUSED] }, async ({ page, goto, signIn, profiles, lib }) => {
     await signIn(profiles.kid);
     await goto("#/movies");
     await goto(hash(lib), { wait: false });

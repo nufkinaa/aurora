@@ -357,6 +357,54 @@ router.get("/stream/hls/:id/:file", (req, res) => {
 // MKV index; segments materialize on demand (media/jit.js). Registered
 // BEFORE the /:ss routes so the literal "jit" path can't parse as an offset.
 const jit = require("../media/jit");
+const ladder = require("../media/ladder");
+
+// The file's segment table (cached by jit; read from the file when it is not).
+const libraryTable = async (entry, key, size) => {
+  const cached = await jit.tableFor(key, null, 0).catch(() => null);
+  if (cached) return cached;
+  const fd = fs.openSync(entry.path, "r");
+  const readRange = async (start, len) => {
+    const b = Buffer.alloc(len);
+    fs.readSync(fd, b, 0, len, start);
+    return b;
+  };
+  return jit.tableFor(key, readRange, size).finally(() => {
+    try { fs.closeSync(fd); } catch {}
+  });
+};
+
+// ---------- the quality ladder (library files) ----------
+// A MASTER playlist over the jit stream: the file's video as it is (or the
+// full encode, ?top=h264) and 720p / 480p encodes below it, all cut by the
+// same segment table — the player switches between them by itself. A new
+// URL: the single-rendition playlist below answers exactly as it always did.
+// Parameters and answers: media/ladder.js (master).
+router.get("/stream/transcode/:id/jit/master.m3u8", async (req, res) => {
+  const entry = resolveKind(req.params.id, "video");
+  if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
+  if (!require("../config").ffmpegAvailable) return res.status(503).send("ffmpeg not available");
+  try {
+    const sfs = fs.statfsSync(require("../config").CACHE_DIR);
+    if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
+      return res.status(503).send("Server disk is nearly full — free space to stream");
+    }
+  } catch {}
+  try {
+    const st = fs.statSync(entry.path);
+    const key = `${req.params.id}-${Math.floor(st.mtimeMs)}`;
+    const table = await libraryTable(entry, key, st.size);
+    if (!table) return res.status(404).send("No usable index in this file");
+    const m = await ladder.master(table, { key, input: entry.path, query: req.query, jit });
+    if (!m.text) return res.status(m.status).send(m.message);
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    res.setHeader("Cache-Control", "no-cache");
+    res.send(m.text);
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
 router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
@@ -388,7 +436,17 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
     // ?seg=fmp4 → fragmented-MP4 segments (Apple native HLS; required for
     // HEVC there) with the hvc1 tag riding along when the client asked.
     const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
-    const suffix = `?v=copy${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}`;
+    // ?v= names a rendition of the ladder (h264 / h264-720 / h264-480) and
+    // ?a= an audio track; without them this is the copy with the first
+    // track, and the answer is what it always was.
+    const v = ladder.renditionFromQuery(req.query.v);
+    const audio = ladder.audioFromQuery(req.query.a);
+    if (v !== "copy") {
+      if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
+      // no encoder free: say so now, before the player commits to the rendition
+      if (!jit.encodeRoom(key, v === "h264")) return res.status(503).send("Server is busy — that rendition isn't available right now");
+    }
+    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
     res.send(jit.playlistText(table, suffix, fmt));
@@ -423,13 +481,24 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
         .finally(() => { try { fs.closeSync(fd); } catch {} });
     }
     if (!table) return res.status(409).send("Playlist first");
-    // fMP4 producers get their own dir — same table, different segment files.
-    const dir = path.join(require("../config").CACHE_DIR, "jit", key + (fmt ? "-f4" : ""));
-    const job = jit.jobFor(dir, table);
-    const input = { url: entry.path, extra: [], fmt, vtagHvc1: req.query.vtag === "hvc1" };
+    // fMP4 producers get their own dir — same table, different segment
+    // files; so does every rendition of the ladder, and every audio track.
+    const v = ladder.renditionFromQuery(req.query.v);
+    const audio = ladder.audioFromQuery(req.query.a);
+    const dir = path.join(require("../config").CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
+    let input = { url: entry.path, extra: [], fmt, vtagHvc1: req.query.vtag === "hvc1", audio };
+    if (v !== "copy") {
+      if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
+      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path) });
+      if (!input) return res.status(404).send("No such rendition of this file");
+    }
+    const job = jit.jobFor(dir, table, { enc: v !== "copy" });
     const file = isInit
       ? await jit.ensureInit(dir, job, input)
       : await jit.ensureSegment(dir, job, input, parseInt(m[1], 10));
+    // an encoded rendition with no encoder free: 503, so the player moves to
+    // another rendition instead of waiting on this one
+    if (!file && jit.refusedJustNow(job)) return res.status(503).send("Server is busy — that rendition isn't available right now");
     if (!file) return res.status(504).send("Segment not ready");
     res.setHeader("Content-Type", fmt ? "video/mp4" : "video/mp2t");
     res.setHeader("Cache-Control", "no-cache");

@@ -155,6 +155,13 @@ const videoArgsFor = (vcodec, vf = null) => {
     : ["-c:v", "copy"];
 };
 
+// Encoders running for the quality ladder (jit.js — the encoded renditions
+// of a master playlist). They share the two slots: a ladder encode is a
+// libx264 process like any job here. 0 unless a client uses the ladder.
+const ladderEncodes = () => {
+  try { return require("./jit").encodeCount(); } catch { return 0; }
+};
+
 // Live torrent-side ffmpeg jobs (they share the CPU with ours).
 const torrentEncodes = () => {
   try { return require("./torrent-transcode")._internals.activeCount(); } catch { return 0; }
@@ -365,14 +372,14 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   // watching a transcode could never seek — their own stream held a slot and
   // their seek was refused with "busy transcoding" (measured live).
   const handoff = victims.reduce((n, [, j]) => n + (j.heavy ? 1 : 0), 0);
-  if (heavy && activeTranscodes() - handoff >= MAX_ACTIVE_TRANSCODES) {
+  if (heavy && activeTranscodes() + ladderEncodes() - handoff >= MAX_ACTIVE_TRANSCODES) {
     return Promise.reject(new Error("Server is busy transcoding other streams — try again in a moment"));
   }
 
   // A capped job is a courtesy to a slow line, not a need: the same title
   // plays without it. It never takes the LAST encode slot — that one stays
   // free for a device that cannot play its file any other way.
-  if (cap && activeTranscodes() - handoff >= MAX_ACTIVE_TRANSCODES - 1) {
+  if (cap && activeTranscodes() + ladderEncodes() - handoff >= MAX_ACTIVE_TRANSCODES - 1) {
     return Promise.reject(new Error("Server is busy — the lighter stream isn't available right now"));
   }
 
@@ -389,7 +396,7 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
         outHeight: cap ? cap.h : 0,
         // another encode already running, here or on the torrent side: two
         // tone-mapped 2160p jobs at once measured 1.1x real time each
-        busy: activeTranscodes() - handoff + torrentEncodes() > 0,
+        busy: activeTranscodes() + ladderEncodes() - handoff + torrentEncodes() > 0,
         label: path.basename(videoPath),
       })
     : null;
@@ -530,7 +537,8 @@ const filePath = (dir, file) => {
 
 const liveCount = () => { let n = 0; for (const j of jobs.values()) if (j.proc) n++; return n; };
 // For the healer: how many encode slots are taken, of how many.
-const encodeLoad = () => ({ active: activeTranscodes(), max: MAX_ACTIVE_TRANSCODES });
+// (`own`: this module's alone — jit.js adds its own to it for its cap)
+const encodeLoad = () => ({ active: activeTranscodes() + ladderEncodes(), own: activeTranscodes(), max: MAX_ACTIVE_TRANSCODES });
 // Finished streams nobody is watching any more, removed (the healer calls
 // this when the disk is tight; in normal times the newest few are kept so a
 // re-open is instant). Returns bytes freed, roughly.

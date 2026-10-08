@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.68 — 2026-10-08
+
+- **A quality ladder.** A library film that is repackaged for the browser is now offered as one stream with several qualities under it — the file as it is, 720p and 480p, only those below the source — and the player moves between them by itself as the connection changes, up as well as down, with no rebuild and no black gap. The Quality menu gains Auto, and a pick is a switch inside the same stream. Every quality is cut at the same places, to the frame (checked on three films), and the lower ones are only encoded when someone is watching them. Data saver starts on 720p and stays at or under it. Direct play and the TV app are unchanged; iPhone's own player and torrents do not use the ladder yet.
+- **The end of a film is no longer taken for a slow connection.** Every film switched to a 480p re-encode for its last eight seconds.
+- **Back after an episode.** Leaving an episode opened from its show page goes back to that page instead of stacking a second copy, which had made Back bounce into the player again.
+- Quality → Original no longer claims a re-encode on a file that is playing directly.
+- A hung quality change can no longer hold back the "Playback stopped" card.
+- A kids profile following a link to a blocked title's player is told why.
+
 ## 1.6.67 — 2026-10-08
 
 - Aurora TV 5.1.22: the logo in the side rail is larger and crisp (elia: it read as low-res). It was a single image the TV shrank on the fly to 52 pixels; it is now drawn about a third larger closed and half again larger open, from files rendered at the exact pixel size each screen uses, 1080p and 4K, so nothing is rescaled.

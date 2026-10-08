@@ -40,6 +40,7 @@
 // for the same reason — the init segment is identical whatever the start.
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const { spawn } = require("child_process");
 const config = require("../config");
 const { parseMkvIndex } = require("./mkvindex");
@@ -89,6 +90,8 @@ const decline = (key, why) => {
   } catch {}
 };
 const declinedReason = (key) => loadDeclined().get(key)?.why || null;
+// The key an ENCODED rendition of a source is declined under (see jobFor).
+const encKey = (key) => `${key}|enc`;
 
 // ---------- the segment table ----------
 // `index.cues` are the VIDEO track's cue points (mkvindex). A segment starts
@@ -122,6 +125,30 @@ const buildTable = (index) => {
   return table;
 };
 
+// What the file itself weighs per second, from the same index: a cue's
+// offset is where its cluster starts, so the bytes between two segment
+// boundaries are everything the file holds for that stretch of film. Peak =
+// the busiest segment, avg = the whole film (the last segment has no end
+// offset and is left out of both). Boundaries that share a cluster are
+// measured together. For the ladder's BANDWIDTH (ladder.js); null when the
+// offsets do not make sense.
+const sourceRate = (index, table) => {
+  const at = new Map(index.cues.map((c) => [c.t, c.offset]));
+  const off = (k) => at.get(table[k].start);
+  let peak = 0;
+  let from = 0;
+  for (let k = 1; k < table.length; k++) {
+    const bytes = off(k) - off(from);
+    if (!(bytes > 0)) continue;
+    peak = Math.max(peak, (bytes * 8) / (table[k].start - table[from].start));
+    from = k;
+  }
+  const last = table.length - 1;
+  const span = table[last].start - table[0].start;
+  const avg = span > 0 ? ((off(last) - off(0)) * 8) / span : 0;
+  return peak > 0 && avg > 0 && peak >= avg ? { avg: Math.round(avg), peak: Math.round(peak) } : null;
+};
+
 // Build (or reuse) the segment table for a media source. null = this file
 // cannot be served by jit (not MKV, no video cues, or declined earlier).
 const tableFor = async (indexKey, readRange, fileSize) => {
@@ -133,7 +160,7 @@ const tableFor = async (indexKey, readRange, fileSize) => {
   if (!index) return null;
   const table = buildTable(index);
   if (!table || table.length < 2) return null;
-  const entry = { key: indexKey, table, durationSec: index.durationSec };
+  const entry = { key: indexKey, table, durationSec: index.durationSec, rate: sourceRate(index, table) };
   if (tables.size >= 100) tables.clear();
   tables.set(indexKey, entry);
   return entry;
@@ -185,12 +212,21 @@ const producerArgs = (run, input, startSec) => [
   ...(startSec != null ? ["-ss", (startSec - SEEK_BACK_SEC).toFixed(3)] : []),
   ...input.extra,
   "-i", input.url,
-  "-map", "0:v:0", "-map", "0:a:0?",
-  "-c:v", "copy",
-  // Apple requires the hvc1 sample tag for HEVC-in-fMP4 (ffmpeg's default
-  // hev1 is the black-screen tag — measured 2026-08-26).
-  ...(input.vtagHvc1 ? ["-tag:v", "hvc1"] : []),
-  "-c:a", "aac", "-ac", "2", "-b:a", "192k",
+  // `audio`: which of the file's audio tracks (0 = the first, as always)
+  "-map", "0:v:0", "-map", `0:a:${input.audio > 0 ? input.audio : 0}?`,
+  ...(input.enc
+    // An ENCODED rendition of the quality ladder (ladder.js): the encoder is
+    // forced onto the source's own keyframes and timestamps, so everything
+    // below — one file per GOP, grouped and checked against the table — is
+    // the same contract as for the copy.
+    ? input.enc.videoArgs
+    : [
+        "-c:v", "copy",
+        // Apple requires the hvc1 sample tag for HEVC-in-fMP4 (ffmpeg's default
+        // hev1 is the black-screen tag — measured 2026-08-26).
+        ...(input.vtagHvc1 ? ["-tag:v", "hvc1"] : []),
+      ]),
+  "-c:a", "aac", "-ac", "2", "-b:a", input.enc ? input.enc.audioRate : "192k",
   "-af", "volume=4dB,alimiter=limit=0.7:level=disabled:latency=true",
   "-muxdelay", "0", "-muxpreload", "0",
   // Movie time rides through, plus the same constant on every producer; with
@@ -309,6 +345,80 @@ const stopProducer = (job) => {
   if (proc) { try { proc.kill("SIGKILL"); } catch {} }
 };
 
+// ---------- encoded renditions: how many, and for how long ----------
+// A copy producer is cheap (it is the disk's speed). An ENCODING producer —
+// a rendition of the quality ladder — is a libx264 process, and the machine
+// serves other people. Three rules:
+//  • at most MAX_ENCODES encoders at once across the whole server, counted
+//    together with the single-rendition encodes (remux.js) and the torrent
+//    transcodes. A lower rung under a copy is a courtesy to a slow line —
+//    the title plays without it — so it never takes the LAST slot; the top
+//    rung of a device that cannot decode the file (`essential`) may.
+//  • the other renditions of the SAME title are this viewer's own: the one
+//    nobody is waiting on is the level the player just switched away from —
+//    it is parked (its finished segments stay). One that is still being
+//    waited on (the player's last request to the old level is in flight)
+//    is let finish, so for a moment a title may hold both slots; it never
+//    holds more, and it never refuses its own viewer a level change.
+//  • an encoder that has run ENC_LEAD_MAX segments ahead of the last one
+//    anybody asked for is parked too — a rendition the player left costs
+//    nothing more, and one being watched is resumed as its reader gets
+//    within ENC_LEAD_MIN segments of the end of what is made.
+const MAX_ENCODES = 2; // the same figure as remux.js MAX_ACTIVE_TRANSCODES
+const ENC_LEAD_MAX = 20; // ~2 minutes of film
+const ENC_LEAD_MIN = 5;
+const encodeCount = (except = null) => {
+  let n = 0;
+  for (const j of jobs.values()) if (j.enc && j.proc && j !== except) n++;
+  return n;
+};
+// Encoders running outside jit (lazy requires: those modules load this one's
+// neighbours, and the tests load this module alone).
+let outsideEncodes = () => {
+  let n = 0;
+  try { n += require("./remux").encodeLoad().own; } catch {}
+  try { n += require("./torrent-transcode")._internals.activeCount(); } catch {}
+  return n;
+};
+const park = (dir, job, why) => {
+  if (!job.proc) return;
+  console.log(`[jit] parked ${path.basename(dir)} (${why})`);
+  stopProducer(job);
+  wake(job);
+};
+// Encoders running for OTHER titles (and outside jit), and for this title:
+// those someone is waiting on, and those nobody is.
+const encodeCensus = (title, except) => {
+  let others = outsideEncodes();
+  const waited = [];
+  const idle = [];
+  for (const [d, j] of jobs) {
+    if (!j.enc || !j.proc || j === except) continue;
+    if (j.title !== title) others++;
+    else (j.waiting > 0 ? waited : idle).push([d, j]);
+  }
+  return { others, waited, idle };
+};
+// May this job start (or restart) an encoder now? Parks the renditions of
+// its own title that nobody is waiting on. Records a refusal so the route
+// can say "busy".
+const admitEncode = (job, essential) => {
+  const c = encodeCensus(job.title, job);
+  const ok = c.others < (essential ? MAX_ENCODES : MAX_ENCODES - 1) && c.others + c.waited.length < MAX_ENCODES;
+  if (!ok) {
+    job.refusedAt = Date.now();
+    return false;
+  }
+  for (const [d, j] of c.idle) park(d, j, "its viewer moved to another rendition");
+  return true;
+};
+// Would a new encoder be admitted right now? (the routes ask before they
+// offer or serve an encoded rendition; nothing is parked by asking)
+const encodeRoom = (title, essential) => {
+  const c = encodeCensus(title, null);
+  return c.others < (essential ? MAX_ENCODES : MAX_ENCODES - 1) && c.others + c.waited.length < MAX_ENCODES;
+};
+
 const failJob = (dir, job, why, declineFile) => {
   if (job.broken) return;
   job.broken = why;
@@ -399,6 +509,11 @@ const advance = (dir, job, run) => {
       .catch((err) => {
         if (job.run === run) failJob(dir, job, `could not publish segment ${seg}: ${err.message}`, false);
       });
+    // An encoder far ahead of anything asked for stops here (what it decided
+    // is still published — the queue above does not need the process).
+    if (job.enc && seg - (job.wantSeg != null ? job.wantSeg : run.fromSeg) >= ENC_LEAD_MAX && !(job.waiting > 0)) {
+      return park(dir, job, `${ENC_LEAD_MAX} segments ahead of its reader`);
+    }
   }
 };
 
@@ -475,6 +590,8 @@ const startProducer = (dir, job, input, fromSeg) => {
   const start = job.table[fromSeg].start;
   const args = producerArgs(run, input, fromSeg > 0 ? start : null);
   const proc = spawn(config.FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+  // An encoder yields the CPU to the server itself (as remux.js does).
+  if (input.enc) { try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {} }
   let errTail = "";
   eachLine(proc.stderr, (line) => {
     const open = parseOpenLine(line);
@@ -495,6 +612,7 @@ const startProducer = (dir, job, input, fromSeg) => {
       advance(dir, job, run);
     } else if (code !== 0 && code !== null) {
       console.error(`[jit] producer exited ${code} (${path.basename(dir)} @seg${fromSeg}):`, errTail.trim());
+      if (input.enc && input.enc.onExit) { try { input.enc.onExit(code, errTail); } catch {} }
     }
     // the run's scratch files go once its pending publishes are through
     run.queue.then(() => fs.promises.rm(run.pdir, { recursive: true, force: true })).catch(() => {});
@@ -538,10 +656,30 @@ const tick = (job) =>
 const ensureSegment = async (dir, job, input, k) => {
   job.lastAccess = Date.now();
   job.waiting = (job.waiting || 0) + 1;
+  // One rendition, one set of encoder arguments for as long as its job
+  // lives: whatever the first request decided (tone mapping depends on how
+  // busy the machine was) holds for every later producer of this job.
+  if (job.enc) {
+    input = { ...input, enc: job.encArgs || (job.encArgs = input.enc) };
+    job.wantSeg = k;
+  }
   try {
-    return await ensureSegmentInner(dir, job, input, k);
+    const file = await ensureSegmentInner(dir, job, input, k);
+    if (file && job.enc) resumeAhead(dir, job, input, k);
+    return file;
   } finally {
     job.waiting--;
+  }
+};
+// A parked encoder whose reader is getting close to the end of what it made:
+// start it again at the first segment that is missing, before it is asked for.
+const resumeAhead = (dir, job, input, k) => {
+  if (job.proc || job.broken) return;
+  const last = Math.min(k + ENC_LEAD_MIN, job.table.length - 1);
+  for (let m = k + 1; m <= last; m++) {
+    if (fs.existsSync(segPath(dir, m, input.fmt))) continue;
+    if (admitEncode(job, input.enc.essential)) startProducer(dir, job, input, m);
+    return;
   }
 };
 const covers = (job, k) =>
@@ -566,6 +704,8 @@ const ensureSegmentInner = async (dir, job, input, k) => {
         if (job.broken) return null;
       }
       if (spawns >= MAX_SPAWNS_PER_WAIT) return null;
+      // an encoder needs a slot (a copy never does)
+      if (job.enc && !admitEncode(job, input.enc.essential)) return null;
       spawns++;
       startProducer(dir, job, input, k);
     }
@@ -579,6 +719,7 @@ const ensureSegmentInner = async (dir, job, input, k) => {
 // it first thing, so if none is running, aim one at seg0.
 const ensureInit = async (dir, job, input) => {
   job.lastAccess = Date.now();
+  if (job.enc) input = { ...input, enc: job.encArgs || (job.encArgs = input.enc) };
   const file = path.join(dir, "init.mp4");
   let spawns = 0;
   const deadline = Date.now() + SEGMENT_WAIT_MS;
@@ -587,6 +728,7 @@ const ensureInit = async (dir, job, input) => {
     if (job.broken) return null;
     if (!job.proc) {
       if (spawns >= MAX_SPAWNS_PER_WAIT) return null;
+      if (job.enc && !admitEncode(job, input.enc.essential)) return null;
       spawns++;
       startProducer(dir, job, input, 0);
     }
@@ -597,8 +739,11 @@ const ensureInit = async (dir, job, input) => {
 };
 
 // Get-or-create the job for a stream's jit dir. `entry` is what tableFor
-// returned.
-const jobFor = (dir, entry) => {
+// returned. `enc`: this dir holds an ENCODED rendition (ladder.js) — it
+// counts against the encoder cap, and a boundary its encoder misses is held
+// against the encodes of this file only (key "…|enc"), never against the
+// copy, whose index was not the one that lied.
+const jobFor = (dir, entry, { enc = false } = {}) => {
   let job = jobs.get(dir);
   if (!job) {
     // Whatever is in the dir was left by a process that is gone — possibly
@@ -607,8 +752,9 @@ const jobFor = (dir, entry) => {
     fs.mkdirSync(dir, { recursive: true });
     job = {
       proc: null, run: null, gen: 0, fromSeg: 0, lastAccess: Date.now(),
-      table: entry.table, key: entry.key || null,
+      table: entry.table, key: entry.key ? (enc ? encKey(entry.key) : entry.key) : null,
       broken: null, waiters: new Set(), waiting: 0,
+      enc: !!enc, title: entry.key || dir, encArgs: null, wantSeg: null, refusedAt: 0,
     };
     jobs.set(dir, job);
   }
@@ -668,11 +814,19 @@ module.exports = {
   ensureInit,
   segPath,
   declinedReason,
+  // the quality ladder (ladder.js, the routes)
+  encodeCount,
+  encodeRoom,
+  encodeDeclined: (key) => declinedReason(encKey(key)),
+  refusedJustNow: (job) => Date.now() - (job.refusedAt || 0) < 2000,
   // Test-only.
   _internals: {
     buildTable, producedUpTo, nextSegment, parseOpenLine, parseListLine, producerArgs,
     dropJob, decline,
     setDeclinedFile: (f) => { declinedFile = f; declined = null; },
     TARGET_SEG_SEC, TS_OFFSET_SEC, BOUNDARY_TOL_SEC,
+    sourceRate, admitEncode, park, MAX_ENCODES, ENC_LEAD_MAX, ENC_LEAD_MIN,
+    setOutsideEncodes: (fn) => { outsideEncodes = fn; },
+    jobs,
   },
 };
