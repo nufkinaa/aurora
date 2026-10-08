@@ -536,9 +536,95 @@ const metaCache = new Map();
 const META_TTL = 12 * 3600 * 1000;
 const META_V = 3; // bump when the shape of `data` changes, so stale entries refetch (3: originalLanguage)
 const metaStore = new JsonStore(path.join(config.CACHE_DIR, "meta.json"), {});
+
+// ---------- age ratings, kept past the meta cache (kids profiles) ----------
+// The kids gate (lib/kids.js) hides every title whose rating it doesn't know,
+// and it may only read caches. The meta cache forgets after 12 hours and is
+// pruned at boot, which would empty a kids profile every morning — so the one
+// fact the gate needs is kept here for good: imdbId -> { c, t, n, y, at }
+// (the age label or null, "movie"/"show", the normalized title, the year).
+// A rating doesn't change; a null one ("nobody rated it", or no TMDB key) is
+// asked again after a week.
+const certStore = new JsonStore(path.join(config.CACHE_DIR, "certificates.json"), {});
+const CERT_RETRY = 7 * 24 * 3600 * 1000;
+const noteCertificate = (data, { save = true } = {}) => {
+  if (!data || !/^tt\d{4,12}$/.test(String(data.imdbId || ""))) return;
+  const prev = certStore.data[data.imdbId];
+  const c = data.certificate || (prev && prev.c) || null; // a failed re-ask never erases a known rating
+  certStore.data[data.imdbId] = {
+    c, t: data.type === "show" ? "show" : "movie", n: normalize(String(data.title || "")), y: data.year || null, at: Date.now(),
+  };
+  if (save) certStore.save();
+};
+// The age label we hold for this id ("12+", "ALL", "PG"), or null.
+const certificateCached = (imdbId) => {
+  const hit = certStore.data[imdbId];
+  return (hit && hit.c) || null;
+};
+// The same, asked by title — stream sources are looked up by title and year,
+// never by id. Type must match; the year too when both sides have one (a year
+// apart is tolerated: release dates differ by country). Two titles that tie
+// answer with the OLDER rating, so a clash can only hide, never reveal.
+const certificateByTitle = (type, title, year) => {
+  const t = type === "series" || type === "show" ? "show" : "movie";
+  const n = normalize(String(title || ""));
+  if (!n) return null;
+  let best = null;
+  for (const hit of Object.values(certStore.data)) {
+    if (!hit || hit.t !== t || hit.n !== n) continue;
+    if (year && hit.y && Math.abs(hit.y - year) > 1) continue;
+    if (!hit.c) return null;
+    if (!best || kidsAge(hit.c) > kidsAge(best)) best = hit.c;
+  }
+  return best;
+};
+const kidsAge = (label) => {
+  const a = require("../lib/kids").ageOf(label);
+  return a == null ? Infinity : a;
+};
+// Look a rating up in the background (a kids list just hid this title for
+// having none). Never awaited by a route: a short queue, two at a time, each
+// id at most once a week. Without a TMDB key there is nothing to learn.
+const certQueue = [];
+const certQueued = new Set();
+let certRunning = 0;
+const pumpCertificates = () => {
+  while (certRunning < 2 && certQueue.length) {
+    const { type, imdbId } = certQueue.shift();
+    certRunning++;
+    meta(type, imdbId)
+      // (a meta-cache hit never passes through the fetch path, hence the note here)
+      .then((data) => noteCertificate(data))
+      .catch(() => {
+        // remembered as "asked", so a dead id isn't retried on every home load
+        certStore.data[imdbId] = { c: null, t: type === "series" ? "show" : "movie", n: "", y: null, at: Date.now() };
+        certStore.save();
+      })
+      .finally(() => {
+        certRunning--;
+        certQueued.delete(imdbId);
+        pumpCertificates();
+      });
+  }
+};
+const warmCertificate = (type, imdbId) => {
+  if (!config.TMDB_KEY || !/^tt\d{4,12}$/.test(String(imdbId || ""))) return false;
+  const hit = certStore.data[imdbId];
+  if (hit && (hit.c || Date.now() - (hit.at || 0) < CERT_RETRY)) return false;
+  if (certQueued.has(imdbId) || certQueue.length >= 400) return false;
+  certQueued.add(imdbId);
+  certQueue.push({ type: type === "series" || type === "show" ? "series" : "movie", imdbId });
+  pumpCertificates();
+  return true;
+};
+
 for (const [key, hit] of Object.entries(metaStore.data)) {
-  if (hit && hit.data && hit.v === META_V && Date.now() - (hit.at || 0) < META_TTL) metaCache.set(key, hit);
-  else delete metaStore.data[key];
+  if (hit && hit.data && hit.v === META_V && Date.now() - (hit.at || 0) < META_TTL) {
+    metaCache.set(key, hit);
+    // what the meta cache already knows seeds the ratings (first boot with
+    // kids profiles) — in memory; it reaches the disk with the next real save
+    if (hit.data.certificate && !certStore.data[hit.data.imdbId]) noteCertificate(hit.data, { save: false });
+  } else delete metaStore.data[key];
 }
 
 const meta = async (type, id) => {
@@ -621,6 +707,7 @@ const meta = async (type, id) => {
   metaCache.set(key, entry);
   metaStore.data[key] = entry;
   metaStore.save();
+  noteCertificate(data); // the kids gate's long-lived copy of the rating
   return data;
 };
 
@@ -646,5 +733,6 @@ const trendingCached = () => {
 
 module.exports = {
   trending, trendingCached, search, meta, metaCached, catalog, genres, CATALOGS, normalize,
-  _internals: { cacheKey, isNewRelease, isFullPage, PAGE_SIZE, NEW_SPAN },
+  certificateCached, certificateByTitle, warmCertificate,
+  _internals: { cacheKey, isNewRelease, isFullPage, PAGE_SIZE, NEW_SPAN, certStore, noteCertificate },
 };

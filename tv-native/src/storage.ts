@@ -113,6 +113,13 @@ export type Prefs = {
   // chose off" is indistinguishable from `null` for "fresh install", and a fresh
   // install would come up with subtitles off — the opposite of subsDefault.
   lastSubSet: boolean;
+  // WHICH PROFILE made that pick. These prefs are the TV's, not a profile's,
+  // so without this one person's "off" was everyone's. The player uses it to
+  // decide whether the TV's memory speaks for the profile that is watching;
+  // when it does not, the profile's own remembered pick (server `subPick`,
+  // shared with the site) is tried first. null = written by a build before
+  // this field existed: treated as anyone's, which is what it always was.
+  lastSubProfile: string | null;
 };
 
 export const PREFS_DEFAULTS: Prefs = {
@@ -124,6 +131,7 @@ export const PREFS_DEFAULTS: Prefs = {
   lastSubLang: null,
   lastSubLabel: null,
   lastSubSet: false,
+  lastSubProfile: null,
   heroTrailers: true,
   usageStats: true,
 };

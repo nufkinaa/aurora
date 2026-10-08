@@ -11,6 +11,7 @@ const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
 const config = require("../config");
+const tonemap = require("./tonemap");
 
 const HLS_ROOT = path.join(config.CACHE_DIR, "hls");
 const MAX_CACHED_JOBS = 3;
@@ -66,6 +67,10 @@ const bootSweep = () => {
       }
     }
   } catch {}
+  // The server is up: find out, in the background, whether this ffmpeg can
+  // tone-map HDR re-encodes and how fast (tonemap.js — ~2s of CPU, three
+  // times in the first five minutes, never again).
+  tonemap.warmUp();
 };
 
 const activeTranscodes = () => {
@@ -114,6 +119,62 @@ const capOf = (vcodec) => CAPS[vcodec] || null;
 const isHeavy = (vcodec) => vcodec === "h264" || !!CAPS[vcodec];
 // What a route may pass through from ?v= (anything else is the full encode).
 const vcodecFromQuery = (v) => (v === "copy" ? "copy" : CAPS[v] ? v : "h264");
+
+// 4K sources can't be transcoded in real time anyway — fold anything above
+// 1080p down (never upscale smaller sources). A capped job (slow connection)
+// folds to its height instead.
+const scaleFor = (cap) => (cap ? `scale=-2:min(${cap.h}\\,ih)` : "scale=min(1920\\,iw):-2");
+
+// The video half of a job's ffmpeg arguments. `vf` is null for every job
+// except a re-encode of an HDR source (see tonemap.js), where it is the whole
+// filter chain — scale included, so there is never a second -vf. With null
+// these are, byte for byte, the arguments from before tone mapping existed
+// (test/tonemap.test.js holds them to that).
+const videoArgsFor = (vcodec, vf = null) => {
+  const cap = capOf(vcodec);
+  return isHeavy(vcodec)
+    ? [
+        "-c:v", "libx264",
+        // Only a device that cannot decode the file's own codec (HEVC, AV1,
+        // 10-bit) ever gets this encode — "Original" is a bit-exact copy
+        // everywhere else. So when it does happen it must look like the file:
+        // crf 18 is visually transparent for H.264 (23 showed blocking and
+        // smeared grain — elia: "I don't want low-bitrate artifacts"), and
+        // superfast keeps real time on a modest CPU where veryfast would not.
+        "-preset", "superfast",
+        "-crf", "18",
+        "-pix_fmt", "yuv420p", // fold 10-bit down to 8-bit for browsers
+        "-g", "48",
+        "-threads", String(FFMPEG_THREADS),
+        // A capped job also holds a bitrate ceiling, so the stream fits the
+        // line it is going down.
+        ...(cap
+          ? ["-vf", vf || scaleFor(cap), "-maxrate", cap.maxrate, "-bufsize", cap.bufsize]
+          : ["-vf", vf || scaleFor(null)]),
+      ]
+    : ["-c:v", "copy"];
+};
+
+// Live torrent-side ffmpeg jobs (they share the CPU with ours).
+const torrentEncodes = () => {
+  try { return require("./torrent-transcode")._internals.activeCount(); } catch { return 0; }
+};
+
+// Could this library file be HDR? Asked before a re-encode only, to keep the
+// colour probe (one ffprobe, ~0.1s, cached) away from every SDR title. The
+// scanner's cached probe answers for most files: `hdr` null = SDR. Entries
+// cached before the scanner kept `hdr` lack the key — 8-bit is never HDR,
+// 10-bit is asked. No entry at all: ask. The probe decides, not this.
+const maybeHdr = (videoPath) => {
+  try {
+    const v = (require("./metadata").getCached(videoPath) || {}).video;
+    if (!v) return true;
+    if ("hdr" in v) return !!v.hdr;
+    return !(v.bitDepth < 10);
+  } catch {
+    return true;
+  }
+};
 
 // Job dir name. The bare `${id}-${mtime}` form is the original audio-only
 // remux (existing cached jobs stay valid); transcodes and offset jobs get a
@@ -175,7 +236,37 @@ const pruneOld = (keepDir) => {
 
 // Ensure an HLS remux/transcode job exists for this video. Resolves with the
 // job dir once the playlist file is available (job continues in background).
-const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = null, vtag = false, audio = 0 } = {}) => {
+//
+// A re-encode of a file that may be HDR first learns the file's colours
+// (tonemap.sourceFacts — one cached ffprobe, never a rejection), then runs the
+// same synchronous job logic as everything else. Copy jobs, SDR files and
+// AURORA_TONEMAP=0 go straight through, exactly as before.
+const ensure = (videoPath, id, opts = {}) => {
+  if (!isHeavy(opts.vcodec || "copy") || !tonemap.enabled() || !maybeHdr(videoPath)) {
+    return ensureJob(videoPath, id, opts, null);
+  }
+  let mtime = 0;
+  try {
+    mtime = fs.statSync(videoPath).mtimeMs;
+  } catch {
+    return ensureJob(videoPath, id, opts, null); // rejects "Video not found"
+  }
+  // A job that is already there (every playlist refresh) needs no colours —
+  // it is reused as it is, synchronously as before.
+  const dir = jobDir(
+    id, mtime, opts.vcodec,
+    Math.max(0, Math.floor(Number(opts.ss) || 0)),
+    opts.fmt === "fmp4" ? "fmp4" : null,
+    Math.max(0, Math.min(31, parseInt(opts.audio, 10) || 0)),
+  );
+  const live = jobs.get(dir);
+  if ((live && live.proc) || fs.existsSync(path.join(dir, "index.m3u8"))) {
+    return ensureJob(videoPath, id, opts, null);
+  }
+  return tonemap.sourceFacts(`${videoPath}:${mtime}`, videoPath).then((f) => ensureJob(videoPath, id, opts, f));
+};
+
+const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = null, vtag = false, audio = 0 } = {}, hdrFacts = null) => {
   audio = Math.max(0, Math.min(31, parseInt(audio, 10) || 0));
   let mtime = 0;
   try {
@@ -288,29 +379,21 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
   fs.mkdirSync(dir, { recursive: true });
   pruneOld(dir);
 
-  const videoArgs = heavy
-    ? [
-        "-c:v", "libx264",
-        // Only a device that cannot decode the file's own codec (HEVC, AV1,
-        // 10-bit) ever gets this encode — "Original" is a bit-exact copy
-        // everywhere else. So when it does happen it must look like the file:
-        // crf 18 is visually transparent for H.264 (23 showed blocking and
-        // smeared grain — elia: "I don't want low-bitrate artifacts"), and
-        // superfast keeps real time on a modest CPU where veryfast would not.
-        "-preset", "superfast",
-        "-crf", "18",
-        "-pix_fmt", "yuv420p", // fold 10-bit down to 8-bit for browsers
-        "-g", "48",
-        "-threads", String(FFMPEG_THREADS),
-        // 4K sources can't be transcoded in real time anyway — fold anything
-        // above 1080p down (never upscale smaller sources). A capped job
-        // (slow connection) folds to its height instead and holds a bitrate
-        // ceiling, so the stream fits the line it is going down.
-        ...(cap
-          ? ["-vf", `scale=-2:min(${cap.h}\\,ih)`, "-maxrate", cap.maxrate, "-bufsize", cap.bufsize]
-          : ["-vf", "scale=min(1920\\,iw):-2"]),
-      ]
-    : ["-c:v", "copy"];
+  // An HDR source being re-encoded gets ONE filter chain: this job's own
+  // scale first, then the tone map (tonemap.js decides, and says no for SDR,
+  // for a host that is too slow, and with AURORA_TONEMAP=0). null = the
+  // arguments this job always had.
+  const vf = heavy
+    ? tonemap.vfFor(hdrFacts, {
+        scale: scaleFor(cap),
+        outHeight: cap ? cap.h : 0,
+        // another encode already running, here or on the torrent side: two
+        // tone-mapped 2160p jobs at once measured 1.1x real time each
+        busy: activeTranscodes() - handoff + torrentEncodes() > 0,
+        label: path.basename(videoPath),
+      })
+    : null;
+  const videoArgs = videoArgsFor(vcodec, vf);
 
   const proc = spawn(
     config.FFMPEG,
@@ -397,6 +480,9 @@ const ensure = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt = nu
       // code null = killed on purpose (idle sweeper) — not a failure.
       if (code !== 0 && code !== null) {
         console.error(`Remux failed for ${videoPath}:`, stderr.slice(-300));
+        // a tone-mapped job that died in its filters: this source goes back
+        // to the plain encode for every later job (see tonemap.veto)
+        if (vf) tonemap.veto(hdrFacts, stderr);
         clearInterval(check);
         // A partial playlist is a stump that stalls on every replay — evict
         // and delete so the next request re-remuxes from scratch.
@@ -497,4 +583,4 @@ const sweepStale = (maxAgeMs = 24 * 3600 * 1000) => {
   } catch {}
   return freed;
 };
-module.exports = { ensure, touch, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir } };
+module.exports = { ensure, touch, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr } };

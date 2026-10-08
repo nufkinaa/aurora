@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" color="#f3f4f8">
+  <defs>
+    <clipPath id="k"><rect width="512" height="512" rx="116"/></clipPath>
+  </defs>
+  <g clip-path="url(#k)" fill="currentColor">
+    <path fill-rule="evenodd" d="M0 0H512V512H0ZM-164 628A420 420 0 1 0 676 628A420 420 0 1 0 -164 628Z"/>
+    <path fill-rule="evenodd" d="M-148 628A404 404 0 1 0 660 628A404 404 0 1 0 -148 628ZM-94 650A350 350 0 1 0 606 650A350 350 0 1 0 -94 650Z"/>
+    <circle cx="256" cy="650" r="304"/>
+  </g>
+</svg>

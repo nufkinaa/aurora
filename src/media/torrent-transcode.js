@@ -13,6 +13,7 @@ const path = require("path");
 const { spawn } = require("child_process");
 const config = require("../config");
 const perf = require("../lib/perf");
+const tonemap = require("./tonemap");
 
 const HLS_ROOT = path.join(config.CACHE_DIR, "torrent-hls");
 const MAX_CACHED_JOBS = 3;
@@ -34,6 +35,34 @@ const deprioritize = (proc) => {
 };
 
 const jobs = new Map(); // dir -> { proc, ready, done, lastAccess }
+
+// 4K sources can't be transcoded in real time anyway — fold anything above
+// 1080p down (never upscale smaller sources).
+const SCALE = "scale=min(1920\\,iw):-2";
+
+// Live library-side encodes (they share the CPU with ours).
+const libraryEncodes = () => {
+  try { return require("./remux").encodeLoad().active; } catch { return 0; }
+};
+
+// The video half of a job's ffmpeg arguments. `vf` is null for everything but
+// a re-encode of an HDR source (tonemap.js), where it is the whole filter
+// chain, scale included — never a second -vf. With null these are byte for
+// byte the arguments from before tone mapping (test/tonemap.test.js).
+const videoArgsFor = (vcodec, vf = null) =>
+  vcodec === "copy"
+    ? ["-c:v", "copy"]
+    : [
+        "-c:v", "libx264",
+        // the same encode as remux.js — see the note there: crf 18 so a forced
+        // re-encode looks like the file, superfast to keep real time
+        "-preset", "superfast",
+        "-crf", "18",
+        "-pix_fmt", "yuv420p", // fold 10-bit down to 8-bit for browsers
+        "-g", "48",
+        "-threads", String(FFMPEG_THREADS),
+        "-vf", vf || SCALE,
+      ];
 
 // Offsets we deliberately abandoned, and when. A request that arrives for one
 // is a poll from the player we just moved off — re-creating that job would
@@ -180,7 +209,41 @@ const pruneOld = (keepDir) => {
 // bytes strictly in order (byte 0 first) and blocks until each is verified, so
 // ffmpeg never reads a hole. MKV demuxes linearly from a pipe fine (we only
 // ever read start-to-end, never seek the input).
-const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek = false, fmt = null, vtagHvc1 = false, audio = 0) => {
+//
+// A re-encode first learns the stream's colours so an HDR source can be tone
+// mapped (tonemap.js). Where they come from, since a release NAME is a guess
+// ("HDR", "DV", "HLG" tags go missing and lie — see streamprobe.js) and a wrong
+// guess would darken an SDR picture: ffprobe on the stream itself, once per
+// file per process — the file on disk when it is complete, otherwise our own
+// blocking range route (the head pieces playback needs first anyway; bounded
+// at 6s). No answer in time, or a failed probe = unknown = the encode this
+// job always got. Names are never used. Copy jobs skip all of this.
+const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ...rest) => {
+  if (vcodec === "copy" || !config.FFMPEG || !tonemap.enabled()) {
+    return ensureJob(null, file, absPath, infoHash, fileIdx, vcodec, ...rest);
+  }
+  // A job that is already there (every playlist refresh, every segment-side
+  // touch) needs no colours — it is reused as it is, synchronously as before.
+  const [ss0, , fmt0, , audio0] = rest;
+  const dir = jobDir(
+    infoHash, fileIdx,
+    Math.max(0, Math.floor(Number(ss0) || 0)),
+    fmt0 === "fmp4" ? "fmp4" : null,
+    Math.max(0, Math.min(31, parseInt(audio0, 10) || 0)),
+  );
+  const live = jobs.get(dir);
+  if ((live && live.proc) || fs.existsSync(path.join(dir, "index.m3u8"))) {
+    return ensureJob(null, file, absPath, infoHash, fileIdx, vcodec, ...rest);
+  }
+  let complete = false;
+  try { complete = !!file.done; } catch {}
+  const input = complete ? absPath : `http://127.0.0.1:${config.PORT}/stream/torrent/${infoHash}/${fileIdx}`;
+  return tonemap
+    .sourceFacts(`${infoHash}:${fileIdx}`, input, { http: !complete })
+    .then((f) => ensureJob(f, file, absPath, infoHash, fileIdx, vcodec, ...rest));
+};
+
+const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek = false, fmt = null, vtagHvc1 = false, audio = 0) => {
   audio = Math.max(0, Math.min(31, parseInt(audio, 10) || 0));
   if (!config.FFMPEG) return Promise.reject(new Error("ffmpeg not available"));
   const ensureStart = Date.now();
@@ -287,22 +350,18 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
   fs.mkdirSync(dir, { recursive: true });
   pruneOld(dir);
 
-  const videoArgs =
-    vcodec === "copy"
-      ? ["-c:v", "copy"]
-      : [
-          "-c:v", "libx264",
-          // the same encode as remux.js — see the note there: crf 18 so a forced
-          // re-encode looks like the file, superfast to keep real time
-          "-preset", "superfast",
-          "-crf", "18",
-          "-pix_fmt", "yuv420p", // fold 10-bit down to 8-bit for browsers
-          "-g", "48",
-          "-threads", String(FFMPEG_THREADS),
-          // 4K sources can't be transcoded in real time anyway — fold anything
-          // above 1080p down (never upscale smaller sources).
-          "-vf", "scale=min(1920\\,iw):-2",
-        ];
+  // An HDR source gets ONE filter chain — the scale, then the tone map — when
+  // tonemap.js says this host can afford it; null leaves the job as it was.
+  const vf = vcodec === "copy"
+    ? null
+    : tonemap.vfFor(hdrFacts, {
+        scale: SCALE,
+        // another encode already running, here or on the library side: two
+        // tone-mapped 2160p jobs at once measured 1.1x real time each
+        busy: activeCount() - victims.length + libraryEncodes() > 0,
+        label: `${infoHash.slice(0, 8)}/${fileIdx}`,
+      });
+  const videoArgs = videoArgsFor(vcodec, vf);
 
   // Two input modes:
   //  • Normal play (ss=0): pipe the torrent's in-order read stream into ffmpeg.
@@ -488,6 +547,9 @@ const ensure = (file, absPath, infoHash, fileIdx, vcodec = "h264", ss = 0, seek 
       }
       if (code !== 0 && code !== null) {
         console.error(`[torrent-transcode] ffmpeg exited ${code} (${infoHash.slice(0, 8)}…):`, stderr.slice(-300));
+        // a tone-mapped job that died in its filters: this source goes back
+        // to the plain encode for every later job (see tonemap.veto)
+        if (vf) tonemap.veto(hdrFacts, stderr);
         // A hard ffmpeg death on torrent bytes is the corruption tripwire:
         // if this torrent's verified map was restored from disk, stop
         // trusting it — the next add re-verifies the whole store.
@@ -606,4 +668,4 @@ const sweepStale = (maxAgeMs = 24 * 3600 * 1000) => {
   } catch {}
   return freed;
 };
-module.exports = { ensure, touch, filePath, bootSweep, sweepStale, HLS_ROOT, _internals: { jobKey } };
+module.exports = { ensure, touch, filePath, bootSweep, sweepStale, HLS_ROOT, _internals: { jobKey, videoArgsFor, SCALE, activeCount } };

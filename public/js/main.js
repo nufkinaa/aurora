@@ -301,6 +301,31 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       .catch(() => { fetchedFor = null; });
   };
   load();
+  // The app icon's badge (an installed Aurora, where the platform has one):
+  // a download you asked for that lands while the app is in the background
+  // puts a number on the icon; coming back to the app takes it off. The
+  // count lives in memory only — and a badge left over from a session that
+  // was closed with it showing is cleared the next time the app is looked at.
+  let badgeN = 0;
+  const bumpBadge = () => {
+    try {
+      if (!document.hidden || typeof navigator.setAppBadge !== "function") return;
+      badgeN++;
+      const p = navigator.setAppBadge(badgeN);
+      if (p && p.catch) p.catch(() => {});
+    } catch {}
+  };
+  const clearBadge = () => {
+    try {
+      if (document.hidden) return;
+      badgeN = 0;
+      if (typeof navigator.clearAppBadge !== "function") return;
+      const p = navigator.clearAppBadge();
+      if (p && p.catch) p.catch(() => {});
+    } catch {}
+  };
+  document.addEventListener("visibilitychange", clearBadge);
+  clearBadge();
   onMessage("server_notice", ({ message }) => { if (message) toast(message, "🛠️"); });
   // The admin removed a request (or its file left the library): the row goes
   // everywhere it was drawn.
@@ -331,6 +356,7 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     downloads.set(job.id, job);
     paint();
     if (landed && prev) { // `prev`: we watched it arrive — not a list being loaded
+      bumpBadge(); // (only counts while the app is in the background)
       const name = job.label || job.title;
       const playing = !!document.querySelector(".player");
       if (playing) toast(`“${name}” is ready`, "✅", null, { quiet: true });

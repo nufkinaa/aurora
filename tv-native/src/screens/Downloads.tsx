@@ -12,7 +12,7 @@ import {Empty} from '../components/States';
 import {api, imgSrc, ImgSource, MyDownload} from '../api';
 import {useApp} from '../AppContext';
 import {canNavigate} from '../navLock';
-import {onMessage} from '../realtime';
+import {isOpen, onMessage} from '../realtime';
 import {showToast} from '../toast';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
@@ -104,10 +104,16 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
         return next;
       });
     });
-    const iv = setInterval(load, 15000);
+    // the socket came back after a drop: read once what it missed
+    const c = onMessage('welcome', load);
+    // the slow poll is the fallback only — an open socket already says it all
+    const iv = setInterval(() => {
+      if (!isOpen()) load();
+    }, 15000);
     return () => {
       a();
       b();
+      c();
       clearInterval(iv);
     };
   }, [live, load]);

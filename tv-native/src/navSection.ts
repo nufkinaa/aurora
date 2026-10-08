@@ -153,6 +153,67 @@ export const goSection = <R extends keyof RootStackParamList>(
 // moving between screens doesn't refetch it on every mount — the header is on
 // every screen now, and this would otherwise be a request per navigation.
 const cache = new Map<string, Profile | null>();
+const cacheAt = new Map<string, number>();
+const loading = new Map<string, Promise<Profile | null>>();
+
+// The same record for code that is not a component — the player's remembered
+// languages, the Follow button. Answers from the cache while it is younger
+// than `maxAgeMs`, else asks the server (one request however many callers),
+// and falls back to the stale copy when the server does not answer: something
+// the site changed an hour ago is worth a request, but never a failure.
+export const loadMe = (profileId: string, maxAgeMs = Infinity): Promise<Profile | null> => {
+  const at = cacheAt.get(profileId) || 0;
+  if (cache.has(profileId) && Date.now() - at < maxAgeMs) return Promise.resolve(cache.get(profileId) ?? null);
+  const busy = loading.get(profileId);
+  if (busy) return busy;
+  const p = api
+    .profiles()
+    .then(list => {
+      const found = list.find(x => x.id === profileId) || null;
+      cache.set(profileId, found);
+      cacheAt.set(profileId, Date.now());
+      return found;
+    })
+    .catch(() => cache.get(profileId) ?? null)
+    .finally(() => loading.delete(profileId));
+  loading.set(profileId, p);
+  return p;
+};
+/** What is known right now, without asking. */
+export const peekMe = (profileId: string): Profile | null => cache.get(profileId) ?? null;
+/** This device changed the profile (a follow, a remembered language): the
+ *  cached record follows at once, so the next reader agrees with the server. */
+export const patchMe = (profileId: string, patch: Partial<Profile>) => {
+  const cur = cache.get(profileId);
+  if (cur) cache.set(profileId, {...cur, ...patch});
+};
+
+// ---- what the viewer last picked in the player, on the PROFILE ----
+// The site's profilePick / rememberPick (public/js/screens/player.js): the
+// dub's language and the subtitle choice ride the profile to every device.
+export type PickKey = 'audioLang' | 'subPick';
+export const profilePick = (profileId: string, key: PickKey): string | null => {
+  const v = cache.get(profileId)?.prefs?.[key];
+  return typeof v === 'string' && v ? v : null;
+};
+// What the server will store (profiles.js update): a short plain string.
+const PICK_OK = /^[\w .()\-֐-׿]{1,40}$/;
+export const rememberPick = (profileId: string, key: PickKey, value: string | null) => {
+  // A value the server would refuse is sent as "nothing remembered" — else the
+  // refusal is silent and the profile keeps saying whatever it said before.
+  const v = value && PICK_OK.test(value) ? value : null;
+  const cur = cache.get(profileId);
+  if (cur) {
+    const prefs = {...(cur.prefs || {})};
+    if (v == null) delete prefs[key];
+    else prefs[key] = v;
+    cache.set(profileId, {...cur, prefs});
+  }
+  api
+    .updateProfile(profileId, {prefs: {[key]: v}})
+    .then(() => console.log('[prefs] profile remembers', key, '=', v))
+    .catch(() => {});
+};
 
 export const useMe = (profileId: string): Profile | null => {
   const [me, setMe] = useState<Profile | null>(cache.get(profileId) ?? null);
@@ -162,16 +223,11 @@ export const useMe = (profileId: string): Profile | null => {
       return;
     }
     let live = true;
-    api
-      .profiles()
-      .then(list => {
-        const found = list.find(p => p.id === profileId) || null;
-        cache.set(profileId, found);
-        if (live) setMe(found);
-      })
-      // A missing avatar is not worth surfacing; the header falls back to a
-      // popcorn and the name "Profile".
-      .catch(() => {});
+    // A missing avatar is not worth surfacing; the header falls back to a
+    // popcorn and the name "Profile". (loadMe never rejects.)
+    loadMe(profileId).then(found => {
+      if (live && found) setMe(found);
+    });
     return () => {
       live = false;
     };

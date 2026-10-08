@@ -9,12 +9,16 @@
 // say what it meant would be a spinner where a film should be.
 import {useEffect} from 'react';
 import {Linking, NativeModules} from 'react-native';
-import {assetUrl, getBaseUrl, getSession, HeroItem, HomeRow} from './api';
+import {assetUrl, getBaseUrl, getSession, getToken, HeroItem, HomeRow} from './api';
 
 type Native = {
   setWatchNext: (items: object[]) => Promise<number>;
   setChannel: (name: string, items: object[], base: string | null, session: string | null) => Promise<number>;
   clear: () => Promise<boolean>;
+  // 5.1.20+: who the background refresh job asks the server as, and a way to
+  // run that job's work on demand. Optional — an older native build has neither.
+  configure?: (base: string | null, session: string | null, profileId: string | null, profileToken: string | null) => Promise<boolean>;
+  refreshNow?: () => Promise<string>;
 };
 const native = NativeModules.AuroraHomeScreen as Native | undefined;
 
@@ -48,14 +52,46 @@ const resumeArt = (i: HeroItem): string | null => {
 
 let lastNext = '';
 let lastChannel = '';
+let lastConfig = '';
+
+// The rows are also refreshed natively every few hours while the app is closed
+// (HomeScreenJob.kt). That job has no JS to ask, so the app tells the native
+// side who it is — the same four things request() in api.ts works from: the
+// server's address, the session (X-Session), the profile, and its unlock token
+// (X-Profile-Token) when it has one. They are kept in the app's private
+// storage and wiped by clearHomeScreen(). Only sent when one of them changed.
+//
+// THE MAPPING BELOW IS WRITTEN TWICE: here, and in Kotlin
+// (HomeScreenRows.entriesFromHome) for that job. Change one, change the other
+// — the link format and KEEP above all.
+const configure = (profileId: string) => {
+  if (!native?.configure) return;
+  const cfg = [getBaseUrl() || null, getSession() || null, profileId, getToken() || null];
+  const sig = JSON.stringify(cfg);
+  if (sig === lastConfig) return;
+  lastConfig = sig;
+  native
+    .configure(cfg[0], cfg[1], cfg[2], cfg[3])
+    .then(ok => console.log('[homescreen] background refresh configured:', ok))
+    .catch(() => {
+      lastConfig = '';
+    });
+};
+
+/** Runs the background job's work now and reports what it did (a test hook:
+ *  `require('./src/homeScreen').refreshHomeScreenNow()` from the dev menu, or
+ *  watch `adb logcat -s AuroraHomeScreen` when the system runs the job). */
+export const refreshHomeScreenNow = (): Promise<string> =>
+  native?.refreshNow ? native.refreshNow() : Promise.resolve('no native module');
 
 /** Publish this profile's rows to the launcher. Cheap to call: it only writes
  *  when a list has actually changed. */
-export function syncHomeScreen(rows: HomeRow[] | undefined) {
+export function syncHomeScreen(rows: HomeRow[] | undefined, profileId?: string) {
   if (!native || !rows) {
     if (!native) console.log('[homescreen] no native module');
     return;
   }
+  if (profileId) configure(profileId);
   const cont = (rows.find(r => r.id === 'continue')?.items || []).slice(0, MAX_NEXT);
   const next = cont.map(i => ({
     id: i.id,
@@ -126,6 +162,8 @@ export function syncHomeScreen(rows: HomeRow[] | undefined) {
 export function clearHomeScreen() {
   lastNext = '';
   lastChannel = '';
+  lastConfig = '';
+  // native clear() also forgets what configure() stored and cancels the job
   native?.clear().catch(() => {});
 }
 

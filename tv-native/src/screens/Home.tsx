@@ -138,6 +138,32 @@ export default function Home({
   // Watching is exactly what changed while you were away in the player, and
   // without this the row showed boot-time data until the app restarted.
   const lastFetch = useRef(0);
+  // The library changed on the server (a download landed, a rescan): the rows
+  // are asked for again through the very path a return to Home uses. Held a
+  // moment, because a season finishing says so once per episode; and when Home
+  // is not the live screen nothing is fetched at all — the throttle is simply
+  // lifted, so the next return to Home re-reads.
+  const [libTick, setLibTick] = useState(0);
+  const liveRef = useRef(live);
+  liveRef.current = live;
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const off = onMessage('library_updated', () => {
+      lastFetch.current = 0;
+      if (!liveRef.current || t) return;
+      t = setTimeout(() => {
+        t = null;
+        lastFetch.current = 0;
+        if (!liveRef.current) return;
+        console.log('[live] home: library changed, rows re-read');
+        setLibTick(n => n + 1);
+      }, 2500);
+    });
+    return () => {
+      off();
+      if (t) clearTimeout(t);
+    };
+  }, []);
   useEffect(() => {
     if (!live) return;
     if (data && Date.now() - lastFetch.current < 15000) return;
@@ -149,14 +175,14 @@ export default function Home({
         if (!on) return;
         setData(h);
         // the TV's own home screen follows: Continue watching + recommendations
-        syncHomeScreen(h.rows);
+        syncHomeScreen(h.rows, profileId);
       })
       .catch(e => on && !data && setError(String(e?.message || e)));
     return () => {
       on = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileId, reload, live]);
+  }, [profileId, reload, live, libTick]);
 
   // A new build is offered as a sheet the viewer has to answer — on every
   // return to Home and every half hour while browsing, so it is not missed.

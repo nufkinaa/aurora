@@ -224,6 +224,21 @@ const CATEGORIES = [
 // where you were: same category, same genre, same fetched pages, same scroll
 // offset. Session-lived on purpose — a reload starts clean.
 const viewState = new Map();
+// ...and one PERSON's: the remembered pages are the titles the last profile
+// was shown — a kids profile must never be handed a grown-up's (2026-10-08).
+// Every snapshot is stamped with whose it is and only that person gets it
+// back (`whose`). Clearing on the switch alone is not enough: the grid that
+// was open UNDER the profile wall saves its snapshot when the router leaves
+// it — after the switch.
+const whose = () =>
+  state.profile ? `${state.profile.id}${state.profile.kids ? `~k${state.profile.kids.maxAge}` : ""}` : "";
+const recall = (key) => {
+  const s = viewState.get(key);
+  return s && s.owner === whose() ? s : undefined;
+};
+window.addEventListener("aurora-profile", (e) => {
+  if (e.detail && e.detail.relist) viewState.clear();
+});
 
 // The genre dropdown: ~20 options, exactly the list that used to be sprayed
 // across the filter bar, behind one button.
@@ -664,7 +679,8 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
 // to the same filters, the same fetched pages and the same scroll position.
 const browseRoute = (title, type, pick) => async (root) => {
   const lib = await loadLibrary();
-  let view = browseScreen(title, type, pick(lib), { surprise: true, restore: viewState.get(type) });
+  const owner = whose(); // whoever this grid was built for
+  let view = browseScreen(title, type, pick(lib), { surprise: true, restore: recall(type) });
   root.append(view.screen);
   // The grid follows the library (2026-10-07): a download that lands, a file
   // that is removed — the page shows it without a reload. Rebuilt in place
@@ -689,7 +705,7 @@ const browseRoute = (title, type, pick) => async (root) => {
   // scrolled where the viewer left it.
   return () => {
     unsub();
-    viewState.set(type, view.snapshot());
+    viewState.set(type, { ...view.snapshot(), owner });
     view.dispose();
   };
 };

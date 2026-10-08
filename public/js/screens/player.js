@@ -83,6 +83,31 @@ export const playerPrefs = prefs;
 
 const CUE_SIZES = { S: "1.4vw", M: "2.2vw", L: "3.2vw" };
 
+// ---- "Still watching?" (2026-10-08) ----
+// How many episodes in a row started BY THEMSELVES (Up next counting down to
+// zero — never a press of Play now / Next), and which episode the run ended
+// on. The player is rendered afresh for every episode, so the count rides
+// sessionStorage across that navigation; it only counts for the episode it
+// names, so a title opened by hand never inherits a stale run.
+const AUTO_RUN_KEY = "aurora-auto-run";
+const STILL_WATCHING_AFTER = 3;
+const autoRun = {
+  read: (id) => {
+    try {
+      const r = JSON.parse(sessionStorage.getItem(AUTO_RUN_KEY) || "null");
+      return r && String(r.to) === String(id) && r.n > 0 ? Math.floor(r.n) : 0;
+    } catch {
+      return 0;
+    }
+  },
+  write: (n, to) => {
+    try {
+      if (n > 0) sessionStorage.setItem(AUTO_RUN_KEY, JSON.stringify({ n, to: String(to), at: Date.now() }));
+      else sessionStorage.removeItem(AUTO_RUN_KEY);
+    } catch {}
+  },
+};
+
 // ---------- what this device can play ----------
 // Module-level so the Play-button warm-up (warmPlayback, used by
 // prefetch.js) and the player itself decide from ONE set of rules. The
@@ -362,6 +387,8 @@ export const renderPlayer = async (root, { id }) => {
     autoplay: true,
     preload: "auto",
     playsinline: true,
+    // lets Safari hand the film to an Apple TV / AirPlay speaker (see airBtn)
+    "x-webkit-airplay": "allow",
   });
 
   // AC-3 / E-AC-3 / DTS audio is silent in most desktop browsers (fine on
@@ -419,6 +446,16 @@ export const renderPlayer = async (root, { id }) => {
   let hlsRecoveries = 0;
   let lastRecoveryAt = 0;
   let hlsRecoverTimer = null;
+  // Shared with the stall recovery block far below ("a stream that silently
+  // stops") — declared HERE because startHls, seekTo and saveProgress touch
+  // it, and startHls can run before the rest of this function has (the
+  // start-up branches await). Nothing else may live in it.
+  //  url      — what the current hls stream was built from (a rebuild re-asks it)
+  //  inFlight — hls.js has a segment request out right now
+  //  netAt    — when hls.js last did anything on the network
+  //  hold     — {gen, pos, at, carded}: a rebuild is coming back to media time `pos`
+  //  userAt   — when the viewer (or the party) last asked for a seek
+  const stall = { url: null, inFlight: false, netAt: 0, hold: null, userAt: 0 };
   const loadHlsScript = () =>
     new Promise((resolve, reject) => {
       if (window.Hls) return resolve();
@@ -532,6 +569,9 @@ export const renderPlayer = async (root, { id }) => {
       holdFrame();
     }
     const gen = ++hlsGen;
+    stall.url = url; // (stall recovery) what a rebuild of this stream asks for
+    stall.inFlight = false;
+    stall.netAt = Date.now();
     excuseUntil = Date.now() + 15000; // a new stream buffers before it plays
     watchFrom = Date.now() + 6000; // ...and the line watcher lets it settle
     clearTimeout(hlsRecoverTimer);
@@ -643,6 +683,29 @@ export const renderPlayer = async (root, { id }) => {
             // coming (worst on uncached torrents, where the first playlist can
             // legitimately take a while). Rebuild the whole stream instead, a
             // bounded number of times, then say so honestly.
+            // WHERE the rebuild comes back to. A jit stream is the whole film
+            // on one playlist (media time = content time), so rebuilding it
+            // with no position restarted the FILM at 0:00 after any fatal
+            // network error. The position: the playhead (read again when the
+            // rebuild really happens — what is buffered plays on until then);
+            // or, when a rebuild is itself still coming back, where that one
+            // was heading; or, before anything has played, where this stream
+            // was asked to start. Other streams keep the old behaviour (0 =
+            // the start of their own playlist, where their offset job begins).
+            const held = stall.hold && stall.hold.gen === gen ? stall.hold.pos : 0;
+            const ct = video.currentTime || 0;
+            const wasAt = ct > 0.5 ? ct : held || startAt || 0;
+            const rebuild = () => {
+              // still this stream on the element? then its playhead is the truth
+              const now = gen === hlsGen ? video.currentTime || 0 : 0;
+              const backAt = !jitMode ? 0 : now > 0.5 ? now : wasAt;
+              startHls(url, backAt);
+              // the same guard the stall rebuild uses: until the picture is
+              // back there, saveProgress must not write the 0 the reset
+              // element reports over the resume point (carded: this handler
+              // has its own retries and card — the stall card stays out of it)
+              if (backAt > 2) stall.hold = { gen: hlsGen, pos: backAt, at: Date.now(), carded: true };
+            };
             // A failure well after the last one starts a fresh burst.
             const now = Date.now();
             if (now - lastRecoveryAt > HLS_RECOVERY_WINDOW_MS)
@@ -658,7 +721,7 @@ export const renderPlayer = async (root, { id }) => {
                 () => {
                   hlsRecoveries = 0;
                   clearTimeout(hlsRecoverTimer);
-                  startHls(url);
+                  rebuild();
                 },
               );
               // Slow heartbeat: without it nothing would ever load again, so no
@@ -666,7 +729,7 @@ export const renderPlayer = async (root, { id }) => {
               // refresh — the screen would stay dead until the viewer acted.
               clearTimeout(hlsRecoverTimer);
               hlsRecoverTimer = setTimeout(() => {
-                if (!exited) startHls(url);
+                if (!exited) rebuild();
               }, HLS_RECOVERY_WINDOW_MS);
               return;
             }
@@ -677,9 +740,30 @@ export const renderPlayer = async (root, { id }) => {
             if (isTorrent && item.infoHash) startTorrentOverlay(false);
             clearTimeout(hlsRecoverTimer);
             hlsRecoverTimer = setTimeout(() => {
-              if (!exited) startHls(url);
+              if (!exited) rebuild();
             }, 2000);
           });
+          // (stall recovery) What the loader is doing, read off hls.js's own
+          // events: a nudge or a rebuild must never interrupt a request that
+          // is still in flight — on a slow line that request IS the progress.
+          {
+            const E = window.Hls.Events;
+            const seen = (busy) => () => {
+              if (gen !== hlsGen) return;
+              stall.netAt = Date.now();
+              if (busy !== null) stall.inFlight = busy;
+            };
+            if (E.FRAG_LOADING) hls.on(E.FRAG_LOADING, seen(true));
+            for (const n of ["FRAG_LOADED", "FRAG_LOAD_EMERGENCY_ABORTED"]) if (E[n]) hls.on(E[n], seen(false));
+            for (const n of ["MANIFEST_LOADING", "LEVEL_LOADING", "LEVEL_LOADED", "FRAG_BUFFERED"]) if (E[n]) hls.on(E[n], seen(null));
+            // an error is activity too (hls.js is retrying); one that names a
+            // segment means that request is over — the retry announces itself
+            hls.on(E.ERROR, (_e, d) => {
+              if (gen !== hlsGen) return;
+              stall.netAt = Date.now();
+              if (d && d.frag) stall.inFlight = false;
+            });
+          }
           hls.loadSource(url);
           hls.attachMedia(video);
           // Rare attach race (observed on copy-seek restarts, 2026-08-26):
@@ -722,6 +806,9 @@ export const renderPlayer = async (root, { id }) => {
   // Set by the exit cleanup; declared with the stream state because the
   // startup chain (tryJitSwitch) consults it before the UI wiring below.
   let exited = false;
+  // "Still watching?": the run of self-started episodes that led to this one
+  // (0 when a person started it). Any real input puts it back to 0.
+  let autoRunN = autoRun.read(item.id);
   // True once THIS DEVICE actually failed to play a copy stream (media
   // error) — from then on no watchdog or probe "upgrade" may steer back to
   // copy, or a device that genuinely can't decode the codec ping-pongs
@@ -1602,6 +1689,46 @@ export const renderPlayer = async (root, { id }) => {
   const offerPip = () => { try { pipBtn.classList.toggle("hidden", !pipOk()); } catch {} };
   video.addEventListener("loadedmetadata", offerPip);
   video.addEventListener("webkitpresentationmodechanged", offerPip);
+  // Leaving the tab or the app while the film plays moves it into the
+  // floating window by itself, where the browser offers that: this property
+  // (an installed Chrome app; WebKit where it has it), and Chromium's
+  // "enterpictureinpicture" media-session action in a plain tab (registered
+  // with the other Media Session handlers below). A browser without either
+  // simply behaves as before.
+  try {
+    if ("autoPictureInPicture" in video) video.autoPictureInPicture = true;
+  } catch {}
+  // AirPlay (Safari only): hand the film to an Apple TV. Offered only when
+  // Safari says a target is in reach AND the element plays a source AirPlay
+  // can fetch for itself — the file, or native HLS (iPhone). A stream built
+  // by hls.js lives in this page's memory (MSE, a blob: URL) and a saved copy
+  // lives in this device's cache; neither can be handed to another device.
+  let airAvailable = false;
+  const airOk = () =>
+    airAvailable &&
+    !hls &&
+    !item._offline &&
+    typeof video.webkitShowPlaybackTargetPicker === "function" &&
+    !!(video.currentSrc || video.src) &&
+    !/^blob:/i.test(video.currentSrc || video.src || "");
+  const airBtn = btn("AirPlay", icons.airplay, () => {
+    try {
+      video.webkitShowPlaybackTargetPicker();
+      track("feat", { f: "airplay" });
+    } catch {}
+  }, "airplay-btn hidden");
+  const offerAir = () => { try { airBtn.classList.toggle("hidden", !airOk()); } catch {} };
+  if (window.WebKitPlaybackTargetAvailabilityEvent) {
+    video.addEventListener("webkitplaybacktargetavailabilitychanged", (e) => {
+      airAvailable = !!e && e.availability === "available";
+      offerAir();
+    });
+    // the source can change under the button (direct → hls.js and back)
+    video.addEventListener("loadedmetadata", offerAir);
+    video.addEventListener("webkitcurrentplaybacktargetiswirelesschanged", () => {
+      try { airBtn.classList.toggle("active", !!video.webkitCurrentPlaybackTargetIsWireless); } catch {}
+    });
+  }
   if ((item.subtitles || []).length === 0) ccBtn.classList.add("hidden");
 
   const muteBtn = btn("Mute", icons.volume, () => toggleMute());
@@ -1670,7 +1797,7 @@ export const renderPlayer = async (root, { id }) => {
           nextBtn),
         el("div", { class: "vol-group" }, muteBtn, volSlider),
         el("div", { class: "player-spacer" }),
-        el("div", { class: "pc-tools" }, ccBtn, speedBtn, item._offline && !item.xray ? null : xrayBtn, partyBtn, gearBtn, pipBtn, fsBtn),
+        el("div", { class: "pc-tools" }, ccBtn, speedBtn, item._offline && !item.xray ? null : xrayBtn, partyBtn, gearBtn, pipBtn, airBtn, fsBtn),
       ),
     ),
     menuHost,
@@ -2837,6 +2964,9 @@ export const renderPlayer = async (root, { id }) => {
   // back to the old position and sit there until the new stream loaded — the
   // skip looked like it hadn't registered, then jumped seconds later.
   let seekPreview = null;
+  // The last seek handed to the element itself ({ target, at }) — read by the
+  // "stream ended early" recovery, which must go where the viewer asked.
+  let lastNativeSeek = null;
   const commitSeek = () => {
     seekDebounce = null;
     if (pendingSeek == null) return;
@@ -2946,11 +3076,16 @@ export const renderPlayer = async (root, { id }) => {
         return;
       }
     }
+    lastNativeSeek = { target, at: Date.now() };
     video.currentTime = Math.max(0, target - clockBase);
     updateScrubber();
   };
   const seekTo = (sec) => {
     if (seekLocked()) return; // scrubber retargets wait for the landing too
+    // (stall recovery) a seek is the viewer's own business: whatever was being
+    // timed or held is void
+    stall.userAt = Date.now();
+    stall.hold = null;
     const total = totalDuration();
     const target = Math.max(0, Math.min(total ? total - 1 : sec, sec));
     // Debounced: a burst of remote skips moves the scrubber preview instantly
@@ -3336,6 +3471,11 @@ export const renderPlayer = async (root, { id }) => {
   const saveProgress = () => {
     const d = totalDuration();
     if (!state.profile || !d) return;
+    // (stall recovery) While a rebuilt stream is still coming back, the media
+    // clock sits at 0 — saving now would move the resume point to the start
+    // of the stream (of the FILM, on a jit stream). The last good save stands
+    // until the picture is back where it was.
+    if (stall.hold && stall.hold.gen === hlsGen && (video.currentTime || 0) < stall.hold.pos - 2) return;
     // Save the EFFECTIVE content time (transcode offset + clock) so resume lands
     // where the viewer actually stopped, not where the transcode session began.
     const pos = effTime();
@@ -3373,7 +3513,32 @@ export const renderPlayer = async (root, { id }) => {
       const show = await api.item(item.showId);
       const flat = show.seasons.flatMap((s) => s.episodes || []);
       const i = flat.findIndex((e) => e.id === item.id);
-      return i >= 0 ? flat[i + 1] || null : null;
+      if (i < 0) return null;
+      const cur = flat[i];
+      const lib = flat[i + 1] || null;
+      // The library only lists the episodes that are ON DISK. With E1–E4 and
+      // E8 downloaded, "next" after E4 used to be E8 — Up next (and the Next
+      // button) jumped three episodes ahead (found 2026-10-08). The one right
+      // after this one is trusted as it is; anything else is checked against
+      // the series' real episode list, and an episode that isn't downloaded
+      // is offered the way a streamed one is: pick a source, never auto-play.
+      if (lib && lib.season === cur.season && lib.episode === cur.episode + 1) return lib;
+      const imdbId = show.imdbId || item.imdbId;
+      if (!imdbId || !cur.season || !cur.episode) return lib; // nothing to check against
+      let all;
+      try {
+        const meta = await api.discoverMeta("series", imdbId);
+        all = (meta.seasons || []).filter((s) => s.number > 0).flatMap((s) => s.episodes || []);
+      } catch {
+        return lib; // no catalogue right now: what the library has, as before
+      }
+      const j = all.findIndex((e) => e.season === cur.season && e.episode === cur.episode);
+      if (j < 0) return lib; // the catalogue doesn't know this episode
+      const real = all[j + 1];
+      if (!real) return null; // the series ends here
+      if (lib && lib.season === real.season && lib.episode === real.episode) return lib;
+      if (real.released && new Date(real.released) > new Date()) return null; // not aired yet
+      return { ...real, imdbId, _stream: true };
     }
     if (isStreamEpisode) {
       const meta = await api.discoverMeta("series", item.imdbId);
@@ -3426,6 +3591,44 @@ export const renderPlayer = async (root, { id }) => {
     // A guest never advances on its own — the host's party_item does that
     // for everyone, so two countdowns can't race and drop the guest out.
     const autoplay = !next._stream && prefs.get("autoplayNext", true) && !(inParty() && party.role === "guest");
+    // "Still watching?" — three episodes have started by themselves with no
+    // one touching anything in between: this one waits to be asked for.
+    // Never in a watch party (the room decides together), and only where an
+    // automatic start was about to happen at all.
+    if (autoplay && !inParty() && autoRunN >= STILL_WATCHING_AFTER) {
+      track("feat", { f: "still_watching_shown" });
+      upNextEl = el(
+        "div",
+        { class: "upnext still-watching" },
+        el("div", { class: "k" }, "Still watching?"),
+        el("div", { class: "t" }, `Up next · S${next.season} E${next.episode} · ${next.title}`),
+        el(
+          "div",
+          { class: "upnext-actions" },
+          el("button", {
+            class: "btn btn-primary focusable",
+            html: icons.play + `<span>Keep watching</span>`,
+            onclick: () => {
+              noteInput();
+              track("feat", { f: "still_watching_keep" });
+              goNext(next);
+            },
+          }),
+          el("button", {
+            class: "btn focusable",
+            onclick: () => {
+              noteInput();
+              track("feat", { f: "still_watching_done" });
+              dismissUpNext();
+              exit();
+            },
+          }, "I'm done"),
+        ),
+      );
+      overlay.append(upNextEl);
+      upNextEl.querySelector(".btn-primary").focus({ preventScroll: true });
+      return; // no countdown: nothing starts until someone answers
+    }
     let remaining = 15;
     const counter = el(
       "span",
@@ -3466,10 +3669,25 @@ export const renderPlayer = async (root, { id }) => {
       countdownTimer = setInterval(() => {
         remaining--;
         counter.textContent = String(remaining);
-        if (remaining <= 0) goNext(next);
+        if (remaining <= 0) {
+          // started by itself: one more in the run the next player reads
+          // (a party's episodes are never counted)
+          if (inParty()) autoRun.write(0);
+          else autoRun.write(autoRunN + 1, next.id);
+          goNext(next);
+        }
       }, 1000);
     }
   };
+
+  // Someone is there: a key, a click, a tap, a remote, a headset button. The
+  // run of self-started episodes is over. (A function declaration — hoisted —
+  // so the handlers wired anywhere in this function can name it.)
+  function noteInput() {
+    if (!autoRunN) return;
+    autoRunN = 0;
+    autoRun.write(0);
+  }
 
   const dismissUpNext = () => {
     clearInterval(countdownTimer);
@@ -3487,7 +3705,7 @@ export const renderPlayer = async (root, { id }) => {
     // Streamed episode: back to the show's page to pick a source — episode
     // deep-linked so it's one press away.
     if (next._stream) {
-      navigate(`#/discover/series/${item.imdbId}?s=${next.season}&e=${next.episode}`);
+      navigate(`#/discover/series/${next.imdbId || item.imdbId}?s=${next.season}&e=${next.episode}`);
       return;
     }
     // A hosted party comes along: the guests are told the new episode and
@@ -3968,7 +4186,17 @@ export const renderPlayer = async (root, { id }) => {
     const d = totalDuration();
     if (usingTranscode && d && d - effTime() > 90) {
       toast("Stream ended early — recovering…", "⚙️");
-      startTranscodeAt(effTime(), currentV);
+      // When this happens UNDER a seek that was still landing, the clock is
+      // not where the viewer asked to be: the browser cut the stream's
+      // duration to what it had and clamped the playhead to it (seen on a jit
+      // stream, 2026-10-08: a click at 46:42 "ended" at 42:30 and the film
+      // carried on from there). Recover at the seek's target instead.
+      const asked =
+        lastNativeSeek && Date.now() - lastNativeSeek.at < 15000 && effTime() < lastNativeSeek.target - 5
+          ? lastNativeSeek.target
+          : null;
+      lastNativeSeek = null;
+      startTranscodeAt(asked != null ? asked : effTime(), currentV);
       return;
     }
     saveProgress();
@@ -4005,11 +4233,241 @@ export const renderPlayer = async (root, { id }) => {
   };
   video.addEventListener("playing", hideErrorCard);
 
+  // ---- a stream that silently stops (2026-10-08) ----
+  // The picture freezes, nothing errors, and the viewer reaches for the
+  // remote. This watches the media clock once a second and, when a stream
+  // that WAS playing stops advancing with nobody having asked it to, tries —
+  // gently, and a bounded number of times — to get it going again.
+  //
+  // It counts a second as "stalled" only when ALL of this holds: the film has
+  // really played on this stream (so a start-up wait is never a stall), it is
+  // not paused / ended / blocked by the browser, the tab is visible, no seek
+  // is typed, in flight or landing, no quality change is being prepared, no
+  // error card is up, it is not AirPlaying, and it is not sitting at the end
+  // of what the stream has. Anything else puts the count back to zero; the
+  // grace periods every start / seek / stream change already get
+  // (excuseUntil) and a native seek still landing merely pause it.
+  //
+  // The ladder:
+  //   6 s   a nudge that cannot hurt, once per stall —
+  //           • media is buffered within half a second AHEAD of a playhead
+  //             that has none under it: hop the gap;
+  //           • else, hls.js with nothing buffered, no request in flight and
+  //             a silent loader: startLoad at this position;
+  //           • and play() is asked for again (a no-op on a playing element).
+  //  20 s   ONE rebuild of the stream at this position, the way the fatal-
+  //         error handler rebuilds (startHls, same url) — but only for an
+  //         hls.js stream whose loader is idle (no request in flight, silent
+  //         for 8 s). While hls.js is fetching or polling, it is working and
+  //         its own timeouts / retries / fatal error own the outcome; this
+  //         waits for it until 90 s and then leaves the stall alone.
+  //         Never rebuilt: a torrent that isn't fully downloaded (the wait is
+  //         the swarm's, and the overlay already says so), a watch party (the
+  //         host's clock would yank everyone back), native HLS on an iPhone
+  //         (reassigning src there throws the viewer out of fullscreen / PiP,
+  //         and AVPlayer retries by itself), and plain file playback — see
+  //         below. At most two rebuilds in five minutes.
+  //  +45 s  the rebuilt stream never came back: the error card, with Try
+  //         again at the same spot. Nothing further happens by itself.
+  //
+  // Plain file playback (no hls.js) gets the nudge and nothing more. The only
+  // stronger move is video.load() + seek back, and that is not safe here:
+  // load() resets the element, so `loadedmetadata` runs again and re-applies
+  // the SAVED resume point (seconds stale) over the position; text-track
+  // modes and the offset cues are rebuilt under the viewer; an iPhone drops
+  // out of fullscreen / PiP; and on a torrent it just re-opens the same Range
+  // request against the same cold piece. A real network failure already
+  // reaches the "error" listener below, and a decode stall has its own
+  // watchdog (fallbackToTranscode).
+  const STALL_NUDGE_S = 6;
+  const STALL_REBUILD_S = 20;
+  const STALL_LEAVE_S = 90;
+  const STALL_CARD_MS = 45000;
+  const STALL_IDLE_MS = 8000;
+  const STALL_NUDGE_EVERY_MS = 30000; // a stream that stutters is not nudged on every stutter
+  const STALL_MAX_REBUILDS = 2;
+  const STALL_BUDGET_MS = 5 * 60000;
+  let stGen = hlsGen; // the stream the counters belong to
+  let stLastCt = video.currentTime || 0;
+  let stMoved = false; // this stream has really played
+  let stStalled = 0; // seconds counted
+  let stStage = 0; // 0 watching · 1 nudged · 2 done with this stall
+  let stLastTick = Date.now();
+  let stGraceUntil = 0;
+  let stSeenUser = 0;
+  let stNudgedAt = 0;
+  const stRebuilds = [];
+  const stReset = () => {
+    stStalled = 0;
+    stStage = 0;
+  };
+  // seconds buffered from the playhead on, and the start of a range that
+  // begins just ahead of it (null when there is none)
+  const stBuffer = (ct) => {
+    let ahead = 0;
+    let gap = null;
+    try {
+      const b = video.buffered;
+      for (let i = 0; i < b.length; i++) {
+        const s = b.start(i);
+        const e = b.end(i);
+        if (s <= ct + 0.05 && e > ct) ahead = Math.max(ahead, e - ct);
+        else if (s > ct && s - ct <= 0.5 && e - s > 0.5) gap = gap == null ? s : Math.min(gap, s);
+      }
+    } catch {}
+    return { ahead, gap };
+  };
+  const stLoaderIdle = (now) => !stall.inFlight && now - stall.netAt >= STALL_IDLE_MS;
+  // content time for a media time on the current stream (for the marks)
+  const stContent = (mediaT) => (usingTranscode ? clockBase : 0) + (mediaT || 0);
+  const stNote = (stage, mediaT, extra = {}) => {
+    const info = {
+      stage,
+      position: Math.round(stContent(mediaT)),
+      path: jitMode ? "jit" : usingTranscode ? currentV : hls ? "hls" : "direct",
+      ...extra,
+    };
+    reportMark("client_stall", info); // torrents: the per-stream perf record
+    mark("stall", info); // library files: the [play] log
+    track("feat", { f: `stall_${stage}` });
+  };
+  const stallWatch = setInterval(() => {
+    if (exited) return;
+    const now = Date.now();
+    const ct = video.currentTime || 0;
+    const late = now - stLastTick > 3000; // the timer itself was held up (sleep, throttling)
+    stLastTick = now;
+
+    // A rebuild that is still coming back: released once the picture is where
+    // it was (or another stream took over); the card if it never arrives.
+    const hold = stall.hold;
+    if (hold) {
+      if (hold.gen !== hlsGen || ct >= hold.pos - 2) stall.hold = null;
+      else if (
+        !hold.carded && now - hold.at >= STALL_CARD_MS &&
+        !video.paused && !document.hidden && !errorCard && !probing && !seekWait
+      ) {
+        hold.carded = true;
+        stopTorrentOverlay();
+        stNote("card", hold.pos);
+        showErrorCard(
+          "The stream stopped and didn't come back by itself. Try again from the same spot, or go back.",
+          () => {
+            // only while this is still the stream that stopped
+            if (exited || stall.hold !== hold || hold.gen !== hlsGen || !stall.url) return;
+            startHls(stall.url, hold.pos);
+            stall.hold = { gen: hlsGen, pos: hold.pos, at: Date.now(), carded: false };
+          },
+        );
+      }
+    }
+
+    // another stream (a seek's restart, a quality change, a fatal-error
+    // rebuild): everything starts over, and it has to play before it counts
+    if (stGen !== hlsGen) {
+      stGen = hlsGen;
+      stMoved = false;
+      stLastCt = ct;
+      return stReset();
+    }
+    if (document.hidden) {
+      stGraceUntil = now + 5000; // a tab coming back gets a moment
+      stLastCt = ct;
+      return stReset();
+    }
+    const userSeek = stall.userAt !== stSeenUser;
+    stSeenUser = stall.userAt;
+    const delta = ct - stLastCt;
+    stLastCt = ct;
+    if (Math.abs(delta) > 0.2) {
+      // the clock moved: playing (a step the size of a second or so), or a jump
+      if (delta > 0 && delta <= 4 && !late) stMoved = true;
+      return stReset();
+    }
+    if (
+      late || userSeek || !stMoved ||
+      video.paused || video.ended || playBlocked || errorCard ||
+      probing || seekWait || pendingSeek != null || seekPreview != null || scrubDragging ||
+      holdEl || steppingDown || video.webkitCurrentPlaybackTargetIsWireless
+    ) return stReset();
+    // at the end of what the stream has (the film's end, or the edge of a
+    // transcode still being made): not a stall this can do anything about
+    if (isFinite(video.duration) && video.duration > 0 && ct >= video.duration - 1.5) return stReset();
+    // waits that are already understood: paused, not forgotten
+    if (video.seeking || now < excuseUntil || now < stGraceUntil) return;
+
+    stStalled++;
+
+    if (stStage === 0 && stStalled >= STALL_NUDGE_S) {
+      stStage = 1;
+      if (now - stNudgedAt < STALL_NUDGE_EVERY_MS) return;
+      stNudgedAt = now;
+      const { ahead, gap } = stBuffer(ct);
+      let did = "play";
+      try {
+        if (ahead < 0.1 && gap != null) {
+          video.currentTime = gap + 0.05;
+          did = "gap";
+        } else if (hls && ahead < 1 && stLoaderIdle(now)) {
+          // an explicit position: -1 would mean "the live edge" on a playlist
+          // that is still being written (see startPosition in startHls)
+          hls.startLoad(ct);
+          did = "load";
+        }
+      } catch {}
+      try {
+        const p = video.play();
+        if (p && p.catch) p.catch(() => {});
+      } catch {}
+      stNote("nudge", ct, { did });
+      return;
+    }
+
+    if (stStage === 1 && stStalled >= STALL_REBUILD_S) {
+      while (stRebuilds.length && now - stRebuilds[0] > STALL_BUDGET_MS) stRebuilds.shift();
+      const swarmBound = isTorrent && !(serverLoaded != null && serverLoaded >= 0.99);
+      const why =
+        !hls || nativeHlsOnly || !stall.url ? "not-hls"
+        : swarmBound ? "swarm"
+        : inParty() ? "party"
+        : stRebuilds.length >= STALL_MAX_REBUILDS ? "budget"
+        : !stLoaderIdle(now) ? "loading"
+        : null;
+      if (why) {
+        // "loading" can pass (hls.js gives up on a request); the rest cannot
+        if (why !== "loading" || stStalled >= STALL_LEAVE_S) {
+          stStage = 2;
+          stNote("left", ct, { why });
+        }
+        return;
+      }
+      stStage = 2;
+      stRebuilds.push(now);
+      stNote("rebuild", ct);
+      // what the fatal-error handler does before it rebuilds: the element is
+      // about to be reset, so say that something is happening
+      spinner.classList.remove("hidden");
+      if (isTorrent && item.infoHash) startTorrentOverlay(false);
+      startHls(stall.url, ct); // same url, back at this media time
+      stall.hold = { gen: hlsGen, pos: ct, at: now, carded: false };
+      stGen = hlsGen;
+      stMoved = false;
+      stLastCt = 0;
+      stReset();
+    }
+  }, 1000);
+
   // ---- Media Session (2026-10-07) ----
   // The lock screen, the notification shade, a headset's buttons, a
   // keyboard's media keys and the iPhone's Dynamic Island all talk to this:
   // what is playing (title, episode, picture), where it is, and what the
   // buttons do. Without it they show a bare "localhost" and a play button.
+  // Handing the session back happens IN the route cleanup (msRelease), not on
+  // this player's next timer tick: going episode to episode, the next player
+  // has already written its title and its button handlers by then, and the
+  // late tick of the old one wiped them — the lock screen went blank and the
+  // media keys went dead for the whole next episode (found 2026-10-08).
+  let msRelease = null;
   if ("mediaSession" in navigator) {
     const ms = navigator.mediaSession;
     const art = item.cover || item.poster || (item.showId ? `/img/cover/${item.showId}` : null);
@@ -4023,19 +4481,24 @@ export const renderPlayer = async (root, { id }) => {
       });
     } catch {}
     const on = (name, fn) => { try { ms.setActionHandler(name, fn); } catch {} };
-    on("play", () => { if (video.paused) togglePlay(); });
-    on("pause", () => { if (!video.paused) togglePlay(); });
-    on("seekbackward", () => skip(-1));
-    on("seekforward", () => skip(1));
-    on("seekto", (d) => { if (d && Number.isFinite(d.seekTime)) seekTo(d.seekTime); });
+    on("play", () => { noteInput(); if (video.paused) togglePlay(); });
+    on("pause", () => { noteInput(); if (!video.paused) togglePlay(); });
+    on("seekbackward", () => { noteInput(); skip(-1); });
+    on("seekforward", () => { noteInput(); skip(1); });
+    on("seekto", (d) => { noteInput(); if (d && Number.isFinite(d.seekTime)) seekTo(d.seekTime); });
     on("stop", () => exit());
+    // Chromium calls this when the tab is hidden while the film plays (auto
+    // picture-in-picture); browsers that don't know the action refuse it in
+    // `on` and nothing changes. Only a film that is really playing goes.
+    on("enterpictureinpicture", () => {
+      try {
+        if (exited || video.paused || video.ended || video.readyState < 2) return;
+        if (document.pictureInPictureElement || !video.requestPictureInPicture) return;
+        video.requestPictureInPicture().then(() => track("feat", { f: "pip_auto" })).catch(() => {});
+      } catch {}
+    });
     const position = () => {
-      if (exited) {
-        clearInterval(msTimer);
-        try { ms.metadata = null; ms.playbackState = "none"; } catch {}
-        for (const a of ["play", "pause", "seekbackward", "seekforward", "seekto", "stop"]) on(a, null);
-        return;
-      }
+      if (exited) return void clearInterval(msTimer); // (the session itself: msRelease)
       try {
         ms.playbackState = video.paused ? "paused" : "playing";
         const duration = totalDuration();
@@ -4048,6 +4511,11 @@ export const renderPlayer = async (root, { id }) => {
     const msTimer = setInterval(position, 1000);
     video.addEventListener("play", position);
     video.addEventListener("pause", position);
+    msRelease = () => {
+      clearInterval(msTimer);
+      try { ms.metadata = null; ms.playbackState = "none"; } catch {}
+      for (const a of ["play", "pause", "seekbackward", "seekforward", "seekto", "stop", "enterpictureinpicture"]) on(a, null);
+    };
   }
 
   video.addEventListener("error", () => {
@@ -4144,6 +4612,26 @@ export const renderPlayer = async (root, { id }) => {
   }, 5000);
 
   // ---------- input handling ----------
+  // "Still watching?" hears every kind of real input. Listeners on the
+  // overlay go when it does; the three on window / document are removed in
+  // the route cleanup. A pointermove only counts when the pointer actually
+  // went somewhere — browsers also fire one when the page moves under a
+  // pointer that is lying still (the Up next card appearing, the dock hiding).
+  let lastPtr = null;
+  const onRealMove = (e) => {
+    const at = `${e.screenX},${e.screenY}`;
+    if (lastPtr !== null && at !== lastPtr) noteInput();
+    lastPtr = at;
+  };
+  const onAnyInput = () => noteInput();
+  overlay.addEventListener("pointermove", onRealMove, { passive: true });
+  overlay.addEventListener("pointerdown", onAnyInput, { passive: true });
+  overlay.addEventListener("touchstart", onAnyInput, { passive: true });
+  overlay.addEventListener("wheel", onAnyInput, { passive: true });
+  window.addEventListener("keydown", onAnyInput, true); // capture: before anything can swallow it
+  document.addEventListener("nav-move", onAnyInput);
+  document.addEventListener("media-key", onAnyInput);
+
   const onPointerMove = () => showControls();
   overlay.addEventListener("pointermove", onPointerMove); // mouse, pen and finger alike
   overlay.addEventListener("touchstart", onPointerMove, { passive: true });
@@ -4413,6 +4901,8 @@ export const renderPlayer = async (root, { id }) => {
     if (stallTimer) clearInterval(stallTimer);
     if (audioProbe) clearInterval(audioProbe);
     if (keepAlive) clearInterval(keepAlive);
+    clearInterval(stallWatch); // (stall.hold is left as it is: the save below must still respect it)
+    if (msRelease) msRelease(); // now — before the next player claims the media session
     clearTimeout(rebufferTimer);
     clearTimeout(seekDebounce);
     clearTimeout(hlsRecoverTimer);
@@ -4440,6 +4930,9 @@ export const renderPlayer = async (root, { id }) => {
     document.removeEventListener("media-key", onMediaKey);
     document.removeEventListener("ui-back", onBack);
     document.removeEventListener("torrent-subs", onTorrentSubs);
+    window.removeEventListener("keydown", onAnyInput, true);
+    document.removeEventListener("nav-move", onAnyInput);
+    document.removeEventListener("media-key", onAnyInput);
     if (dockRO) dockRO.disconnect();
     else window.removeEventListener("resize", paintDockH);
     window.removeEventListener("resize", onLiftResize);

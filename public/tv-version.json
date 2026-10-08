@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.19",
-  "notes": "Aurora now has its own row on the TV's home screen: what you were watching first, ready to resume, then recommendations. Pressing one opens it in Aurora."
+  "versionName": "5.1.20",
+  "notes": "Downloads now update live on the TV, Aurora's home-screen row refreshes by itself every few hours, shows can be followed from the TV, and your dub and subtitle choice follow your profile between TV and site."
 }

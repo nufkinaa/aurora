@@ -5,7 +5,7 @@ import { el, toast, rerenderInPlace, keptScrollFor, restoreScrollY, promptSheet,
 import { loadLibrary, loadProfiles, state, applyAppearance } from "../state.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
-import { profileModal } from "./profiles.js";
+import { profileModal, kidsLabel } from "./profiles.js";
 import { playerPrefs, applyCueStyle } from "./player.js";
 import { showClaimModal } from "../claim.js";
 import { showLoginScreen } from "./login.js";
@@ -51,6 +51,7 @@ const ICONS = {
   "Dark box behind subtitles": '<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h10"/>',
   // the profile card's rows
   "Edit profile & password": '<path d="M4 20h4l10.500-10.500a2.100 2.100 0 00-3-3L5 17z"/><path d="M13.500 6.500l3 3"/>',
+  "Edit profile": '<path d="M4 20h4l10.500-10.500a2.100 2.100 0 00-3-3L5 17z"/><path d="M13.500 6.500l3 3"/>',
   "Upload a photo": '<path d="M4 8.500A1.500 1.500 0 015.500 7H8l1.500-2h5L16 7h2.500A1.500 1.500 0 0120 8.500V18a1.500 1.500 0 01-1.500 1.500h-13A1.500 1.500 0 014 18z"/><circle cx="12" cy="13" r="3.200"/>',
   "Change photo": '<path d="M4 8.500A1.500 1.500 0 015.500 7H8l1.500-2h5L16 7h2.500A1.500 1.500 0 0120 8.500V18a1.500 1.500 0 01-1.500 1.500h-13A1.500 1.500 0 014 18z"/><circle cx="12" cy="13" r="3.200"/>',
   "Remove photo": '<path d="M4 7h16M9 7V4.500h6V7M6.500 7l1 13h9l1-13"/>',
@@ -381,6 +382,10 @@ export const renderPreferences = async (root) => {
   // Who you are, then what you can do about it — as rows, like every other
   // setting (it was a wall of mismatched pills; elia: "let's organize all
   // this", 2026-10-06).
+  // A kids profile's settings leave out what a child shouldn't change: the
+  // password and sign-in, what Aurora downloads by itself, and the kids
+  // setting (it sits folded in the edit sheet, behind the household PIN).
+  const kid = state.profile.kids || null;
   const profileSection = section("Your profile", null,
     el("div", { class: "pref-profile page-pad" },
       el("div", { class: "big-avatar small", style: { background: state.profile.color } },
@@ -389,10 +394,13 @@ export const renderPreferences = async (root) => {
           : state.profile.avatar),
       el("div", { class: "pref-profile-who" },
         el("div", { class: "pref-profile-name" }, state.profile.name),
-        el("div", { class: "pref-profile-sub" }, state.profile.hasPassword ? "Password protected" : "No password set")),
+        el("div", { class: "pref-profile-sub" },
+          kid
+            ? [el("span", { class: "kids-badge" }, "Kids"), ` ${kidsLabel(kid)}`]
+            : state.profile.hasPassword ? "Password protected" : "No password set")),
     ),
     el("div", { class: "pref-list page-pad" },
-      linkRow("Edit profile & password", "Name, avatar, colour and your password.",
+      linkRow(kid ? "Edit profile" : "Edit profile & password", kid ? "Name, avatar and colour." : "Name, avatar, colour, your password — and kids mode.",
         () => profileModal(state.profile, async () => { await loadProfiles(); rerenderInPlace(); })),
       linkRow(state.profile.avatarImage ? "Change photo" : "Upload a photo", "A picture of you in place of the emoji — JPEG, PNG or WebP, up to 2 MB.", pickPhoto),
       state.profile.avatarImage && linkRow("Remove photo", "Back to the emoji.", async () => {
@@ -736,7 +744,7 @@ export const renderPreferences = async (root) => {
     moreSettings(
       section("Your home page", "Change the order of the rows on Home, or hide some. The TV follows too.",
         await homeRowsSection()),
-      section("Downloads", "What Aurora fetches for you while you watch.",
+      !kid && section("Downloads", "What Aurora fetches for you while you watch.",
         el("div", { class: "pref-list page-pad" },
           prefRow(
             "Tell me when it's ready",
@@ -865,7 +873,7 @@ export const renderPreferences = async (root) => {
               }
             }
           ))),
-      await accountCard(),
+      kid ? null : await accountCard(),
       await whatsNew(),
     ),
     el("div", { class: "detail-actions", style: { padding: "8px var(--page-x) 26px" } },

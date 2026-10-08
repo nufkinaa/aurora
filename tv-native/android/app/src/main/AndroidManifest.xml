@@ -4,6 +4,10 @@
     <!-- The TV's home screen: Continue watching and Aurora's own row (HomeScreenModule.kt). -->
     <uses-permission android:name="com.android.providers.tv.permission.WRITE_EPG_DATA" />
     <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
+    <!-- Lets the home-screen refresh job (HomeScreenJob.kt) stay scheduled across
+         a reboot. A normal permission: nothing is asked of the viewer, and no
+         receiver in this app listens for the boot itself. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- The in-app updater hands a downloaded APK to the system installer. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Android 12+: lets the app update ITSELF without the confirmation
@@ -83,6 +87,12 @@
           <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
         </intent-filter>
       </receiver>
+      <!-- Refreshes the TV's home-screen rows every few hours while the app is
+           closed (HomeScreenJob.kt). Only the system's job scheduler can bind it. -->
+      <service
+        android:name=".HomeScreenJob"
+        android:permission="android.permission.BIND_JOB_SERVICE"
+        android:exported="true" />
       <!-- Read-only pictures for the TV's home-screen row (ArtProvider.kt). -->
       <provider
         android:name=".ArtProvider"

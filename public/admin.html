@@ -381,6 +381,11 @@
     .pitem .thumb { width: 34px; height: 50px; border-radius: 6px; object-fit: cover; background: var(--surface-hover); grid-row: 1 / span 2; }
     .pitem.has-thumb .m { grid-column: 2 / -1; }
     .actions-grid button .ico, .danger-zone button .ico { width: 16px; height: 16px; margin-right: 8px; vertical-align: -3px; }
+    .pill.kids { background: rgba(134, 239, 172, 0.14); color: #86efac; }
+    .kids-admin .range-chips { flex-wrap: wrap; }
+    .kids-admin .note { display: block; margin: 10px 0 0; color: var(--text-faint); font-size: 0.8rem; line-height: 1.45; }
+    .kids-admin .note b.warn { color: #f0b132; }
+    .kids-admin .mini { margin-left: 6px; }
     .danger-zone { margin-top: 2px; padding-top: 12px; border-top: 1px dashed var(--line); display: flex; justify-content: flex-end; }
     .danger-zone button { flex: 0 1 300px; }
     .people-loading { color: var(--text-faint); padding: 14px 4px !important; font-size: 0.9rem; }
@@ -1601,6 +1606,7 @@
     const pills = (p) => [
       p.locked ? '<span class="pill" style="color:#ff7a7a">suspended</span>' : "",
       p.mustReset ? '<span class="pill warn">new password due</span>' : "",
+      p.kids ? `<span class="pill kids">kids · ${p.kids.maxAge === 0 ? "all ages" : "up to " + p.kids.maxAge + "+"}</span>` : "",
       p.live && p.live.length ? '<span class="pill live">online</span>' : "",
       p.fails >= 5 ? `<span class="pill warn">${p.fails} failed unlocks</span>` : "",
     ].filter(Boolean).join(" ");
@@ -1902,6 +1908,15 @@
           ${live}
           <div><h4>${ICO.download} Recent downloads ${p.downloadsTotal ? count(`· last ${Math.min(5, p.downloads.length)} of ${p.downloadsTotal}`) : ""}</h4><div class="plist">${dl}</div></div>
           <div><h4>${ICO.pin} Devices &amp; addresses ${p.access.length ? count(`· last ${p.access.length} of ${p.ipCount} ${p.ipCount === 1 ? "address" : "addresses"}`) : ""}</h4><div class="plist">${addr}</div></div>
+          <div><h4>${ICO.shield} Kids profile ${p.kids ? count("· on") : ""}</h4><div class="kids-admin">
+            <div class="range-chips">${[["off", "Off"], ...((PEOPLE && PEOPLE.kidsAges) || [0, 7, 12, 16]).map((a) => [String(a), a === 0 ? "All ages" : a + "+"])]
+              .map(([v, label]) => `<button data-kids="${v}" class="${(p.kids ? String(p.kids.maxAge) : "off") === v ? "active" : ""}">${esc(label)}</button>`).join("")}</div>
+            <span class="note">${p.kids
+              ? "Only titles rated at or under this age reach this profile — on the site and the TV. A title with no known rating stays hidden."
+              : "Pick an age to make this a kids profile: only titles rated at or under it are shown, and leaving the profile on the site takes the household PIN."}
+              <br>Household PIN: ${PEOPLE && PEOPLE.kidsPinSet ? "<b>set</b>" : '<b class="warn">not set</b> — without it a child can simply switch profiles'}
+              <button class="mini" data-kids-pin>${PEOPLE && PEOPLE.kidsPinSet ? "Change PIN" : "Set PIN"}</button></span>
+          </div></div>
           <div><h4>${ICO.bolt} Actions</h4><div class="actions-grid">
             <button data-act="lock">${p.locked ? ICO.unlock + "Unsuspend" : ICO.shield + "Suspend"}<small>${p.locked ? "let them back in" : "locks the profile — nobody can enter it, every device is signed out"}</small></button>
             <button data-act="kick">${ICO.out}Kick<small>sign them out of every device now; their password lets them straight back in</small></button>
@@ -1936,6 +1951,31 @@
       if (kickC) {
         await post("/api/admin/kick/" + kickC.dataset.kickClient);
         toast("Kicked");
+        return loadPeople();
+      }
+      // kids profile: the limit (or off), and the household PIN
+      const kidsBtn = e.target.closest("[data-kids]");
+      if (kidsBtn) {
+        const v = kidsBtn.dataset.kids;
+        const r = await adminFetch(`/api/admin/profiles/${encodeURIComponent(p.id)}/kids`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kids: v === "off" ? null : { maxAge: Number(v) } }),
+        });
+        if (!r.ok) return fail(r);
+        const out = await r.json().catch(() => ({}));
+        toast(v === "off" ? `Kids mode off for "${p.name}"`
+          : out.pinSet ? `"${p.name}" is a kids profile now`
+          : `"${p.name}" is a kids profile — now set the household PIN, or a child can just switch profiles`);
+        return loadPeople();
+      }
+      if (e.target.closest("[data-kids-pin]")) {
+        const val = await askText("Household PIN — 4 to 6 digits.\n\nIt is asked when someone leaves a kids profile on the site, and when kids mode is changed from the app. One PIN for the whole house; it is stored hashed.");
+        if (!val) return;
+        const r = await adminFetch("/api/admin/kids-pin", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: String(val).trim() }),
+        });
+        if (!r.ok) return fail(r);
+        toast("Household PIN saved — tell the grown-ups, not the kids");
         return loadPeople();
       }
       const act = e.target.closest("[data-act]");

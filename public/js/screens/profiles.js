@@ -27,11 +27,15 @@ const SEARCH_FROM = 7;
 const COMPACT_FROM = 13;
 
 // Small modal shell with Back handling + focus scope.
-const modal = (contentNodes) => {
+const modal = (contentNodes, onClose = null) => {
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
     document.removeEventListener("ui-back", onBack);
     popScope(backdrop);
     backdrop.remove();
+    if (onClose) onClose();
   };
   const onBack = (e) => { e.preventDefault(); close(); };
   const box = el("div", { class: "modal" }, contentNodes(close));
@@ -78,6 +82,97 @@ export const passwordPrompt = (profile, onSuccess) => {
     ];
   });
   setTimeout(() => input.focus(), 50);
+};
+
+// ---------- kids profiles: the household PIN ----------
+// The limits a kids profile can have (mirrors AGES in src/lib/kids.js).
+const KIDS_AGES = [
+  [0, "All ages"],
+  [7, "7+"],
+  [12, "12+"],
+  [16, "16+"],
+];
+export const kidsLabel = (kids) =>
+  !kids ? "" : kids.maxAge === 0 ? "all-ages titles only" : `titles up to ${kids.maxAge}+`;
+
+// Ask for the household PIN (or, with `choose`, for a new one — typed twice).
+// `action(pin)` does the real work and throws with the server's message when
+// the PIN is wrong; the sheet stays open for another try. Resolves true once
+// the action went through, false when the sheet was closed instead.
+export const pinPrompt = ({ title, note, choose = false, ok = "Continue", action }) =>
+  new Promise((resolve) => {
+    let done = false;
+    const pinInput = (placeholder) => el("input", {
+      type: "password", class: "focusable kids-pin-input", placeholder,
+      inputmode: "numeric", pattern: "[0-9]*", maxlength: "6", autocomplete: "off",
+    });
+    const input = pinInput(choose ? "New PIN (4–6 digits)" : "PIN");
+    const again = choose ? pinInput("Once more") : null;
+    const err = el("div", { class: "pw-error hidden" }, "");
+    const fail = (msg) => { err.textContent = msg; err.classList.remove("hidden"); };
+    let busy = false;
+    modal((close) => {
+      const submit = async () => {
+        if (busy) return;
+        err.classList.add("hidden");
+        const pin = input.value.trim();
+        if (!/^\d{4,6}$/.test(pin)) return fail("The PIN is 4 to 6 digits.");
+        if (again && again.value.trim() !== pin) return fail("Those two don't match.");
+        busy = true;
+        try {
+          await action(pin);
+          done = true;
+          close();
+        } catch (e) {
+          fail((e && e.message) || "That didn't work. Try again.");
+          input.value = "";
+          if (again) again.value = "";
+          input.focus();
+        } finally {
+          busy = false;
+        }
+      };
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter") (again ? again.focus() : submit()); });
+      if (again) again.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+      return [
+        el("h2", {}, title),
+        note && el("p", { class: "field-hint", style: { marginTop: "-6px" } }, note),
+        el("div", { class: "field" }, el("label", {}, choose ? "Household PIN" : "Enter the PIN"), input, again, err),
+        el("div", { style: { display: "flex", gap: "10px", marginTop: "22px" } },
+          el("button", { class: "btn btn-primary focusable", onclick: submit }, ok),
+          el("button", { class: "btn focusable", onclick: close }, "Cancel")
+        ),
+      ];
+    }, () => resolve(done));
+    setTimeout(() => input.focus(), 50);
+  });
+
+// This browser is locked to a kids profile and someone picked another one:
+// the household PIN first. Resolves true when it is fine to go on. Entering
+// the kids profile itself needs nothing; an older server (no kids routes) or
+// a blip has nothing to enforce here — the server-side gate is what counts.
+const leaveKidsFirst = async (target) => {
+  let st = null;
+  try { st = await api.kidsStatus(); } catch { return true; }
+  const lock = st && st.lock;
+  if (!lock || lock.profile === target.id) return true;
+  const from = state.profiles.find((x) => x.id === lock.profile);
+  const lift = async (pin) => {
+    await api.kidsExit(pin);
+    // the kids profile's unlock token must not ride the next profile's requests
+    setAuthToken(null);
+  };
+  if (!st.pinSet) {
+    // no PIN in the house (the admin page nags about this): nothing to ask
+    try { await lift(""); } catch {}
+    return true;
+  }
+  return pinPrompt({
+    title: "Grown-ups only",
+    note: `Enter the household PIN to leave ${from ? `“${from.name}”` : "the kids profile"}.`,
+    ok: "Unlock",
+    action: lift,
+  });
 };
 
 // "Pick a new password" — the forced reset. Not dismissable by a button: the
@@ -148,12 +243,15 @@ export const profileModal = (existing, onDone) => {
   let color = existing?.color || COLORS[Math.floor(Math.random() * COLORS.length)];
 
   const nameInput = el("input", { type: "text", class: "focusable", value: existing?.name || "", placeholder: "Name", maxlength: "24" });
+  // A kids profile's sheet has no password, email or delete (the server
+  // refuses those from inside a kids profile; the admin's People tab has them).
+  const wasKids = existing && existing.kids ? existing.kids : null;
 
   // Email — EDIT mode only (creation goes through the request-access flow).
   // Prefilled only for the signed-in profile: emails never ride the public
   // wall data, so another profile's email simply starts blank here.
   const ownEmail = existing && state.user && state.user.profileId === existing.id ? state.user.email || "" : "";
-  const emailInput = existing
+  const emailInput = existing && !wasKids
     ? el("input", {
         type: "email", class: "focusable", value: ownEmail,
         placeholder: "Email (optional)", maxlength: "80", autocomplete: "email",
@@ -196,7 +294,7 @@ export const profileModal = (existing, onDone) => {
   const confirmPw = el("input", { type: "password", class: "focusable", placeholder: "Repeat password", autocomplete: "new-password" });
   const pwErr = el("div", { class: "pw-error hidden" });
 
-  const pwSection = el("div", {},
+  const pwSection = wasKids ? null : el("div", {},
     el("label", {}, isNew || hasPw ? "Password" : "Password (optional)"),
     hasPw ? curPw : "",
     newPw,
@@ -218,6 +316,88 @@ export const profileModal = (existing, onDone) => {
   const showPwErr = (m) => { pwErr.textContent = m; pwErr.classList.remove("hidden"); };
   let onDoneClose = () => {};
 
+  // Kids profile: a switch and a limit. Changing either asks for the
+  // household PIN on Save (the profile's own password is the child's — it is
+  // not enough, and the server refuses without the PIN). Inside a kids
+  // profile the controls stay folded behind "Change…", so a child tapping
+  // around the edit sheet meets one quiet line, not a switch.
+  let kidsOn = !!wasKids;
+  let kidsAge = wasKids ? wasKids.maxAge : 7;
+  const kidsChanged = () => kidsOn !== !!wasKids || (kidsOn && wasKids && kidsAge !== wasKids.maxAge);
+  const kidsSwitch = el("button", {
+    class: "btn small focusable pref-item-value pref-switch", role: "switch", type: "button",
+    onclick: () => { kidsOn = !kidsOn; paintKids(); },
+  }, el("span", {}, ""));
+  const kidsChips = el("div", { class: "kids-ages" },
+    KIDS_AGES.map(([age, label]) => el("button", {
+      class: "chip focusable", type: "button", "data-age": String(age),
+      onclick: () => { kidsAge = age; paintKids(); },
+    }, label)));
+  const kidsHint = el("div", { class: "field-hint" }, "");
+  const paintKids = () => {
+    kidsSwitch.classList.toggle("on", kidsOn);
+    kidsSwitch.setAttribute("aria-checked", String(kidsOn));
+    kidsSwitch.firstChild.textContent = kidsOn ? "On" : "Off";
+    kidsChips.classList.toggle("hidden", !kidsOn);
+    kidsChips.querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", Number(c.dataset.age) === kidsAge));
+    kidsHint.textContent = kidsOn
+      ? `Shows only ${kidsLabel({ maxAge: kidsAge })}. Anything without a known age rating stays hidden. Leaving this profile takes the household PIN.`
+      : "A kids profile only shows titles rated for the age you pick, and takes a PIN to leave.";
+  };
+  paintKids();
+  const kidsControls = el("div", { class: "kids-controls" },
+    el("div", { class: "kids-row" }, el("span", {}, "Kids profile"), kidsSwitch),
+    kidsChips,
+    kidsHint);
+  const kidsSection = !existing ? null : wasKids
+    ? (() => {
+        kidsControls.classList.add("hidden");
+        const line = el("div", { class: "kids-row" },
+          el("span", {}, el("span", { class: "kids-badge" }, "Kids"), ` ${kidsLabel(wasKids)}`),
+          el("button", {
+            class: "btn small focusable", type: "button",
+            onclick: () => { line.classList.add("hidden"); kidsControls.classList.remove("hidden"); kidsSwitch.focus(); },
+          }, "Change…"));
+        return el("div", { class: "field kids-field" }, line, kidsControls);
+      })()
+    : el("div", { class: "field kids-field" }, kidsControls);
+
+  // Save the kids setting behind the PIN. True when there is nothing left to
+  // do (unchanged, or saved); false when the PIN sheet was closed instead.
+  const saveKids = async () => {
+    if (!existing || !kidsChanged()) return true;
+    let st = null;
+    try { st = await api.kidsStatus(); } catch {}
+    if (!st) {
+      showPwErr("Kids profiles need the newer server — it hasn't been restarted yet.");
+      return false;
+    }
+    const want = kidsOn ? { maxAge: kidsAge } : null;
+    let saved = null;
+    const done = await pinPrompt(st.pinSet
+      ? {
+          title: "Household PIN",
+          note: want ? `To make “${existing.name}” a kids profile (${kidsLabel(want)}).` : `To switch kids mode off for “${existing.name}”.`,
+          ok: "Save",
+          action: async (pin) => { saved = await api.setKids(existing.id, { kids: want, pin }); },
+        }
+      : {
+          title: "Choose a household PIN",
+          note: "4 to 6 digits, for the grown-ups. It is asked when leaving a kids profile and when changing this setting — don't tell the kids.",
+          choose: true,
+          ok: "Save",
+          action: async (pin) => { saved = await api.setKids(existing.id, { kids: want, newPin: pin }); },
+        });
+    if (!done) return false;
+    // The active profile turns into (or out of) a kids one on the spot:
+    // setProfile locks this browser to it, or the server drops the lock.
+    if (state.profile?.id === existing.id) {
+      await setProfile({ ...state.profile, kids: (saved && saved.profile && saved.profile.kids) || null }, state.token);
+    }
+    toast(want ? `“${existing.name}” is a kids profile now` : "Kids mode off", want ? "🧸" : "✅");
+    return true;
+  };
+
   const { close } = modal((close) => {
     onDoneClose = () => { close(); onDone(); };
     const save = async () => {
@@ -237,7 +417,7 @@ export const profileModal = (existing, onDone) => {
               return showPwErr(e.message || "Couldn't save that email.");
             }
           }
-          if (newPw.value) {
+          if (newPw.value && !wasKids) {
             await api.setPassword(existing.id, newPw.value, hasPw ? curPw.value : "");
             // Changing the password invalidates old tokens — re-unlock and
             // persist the fresh one (via setProfile) so this session, AND the
@@ -275,6 +455,7 @@ export const profileModal = (existing, onDone) => {
           requestSentModal(name, onDone);
           return;
         }
+        if (!(await saveKids())) return; // PIN sheet closed: stay here, nothing lost
         onDoneClose();
       } catch (e) {
         // The server rejects a duplicate name and a flooded queue with a real
@@ -305,11 +486,12 @@ export const profileModal = (existing, onDone) => {
       isNew && el("div", { class: "field" }, el("label", {}, "Note"), noteInput),
       el("div", { class: "field" }, el("label", {}, "Avatar"), avatarPick),
       el("div", { class: "field" }, el("label", {}, "Color"), colorPick),
+      kidsSection,
       el("div", { class: "field" }, pwSection, pwErr),
       el("div", { style: { display: "flex", gap: "10px", marginTop: "22px", flexWrap: "wrap" } },
         el("button", { class: "btn btn-primary focusable", onclick: save }, existing ? "Save" : "Create"),
         el("button", { class: "btn focusable", onclick: close }, "Cancel"),
-        existing && state.profiles.length > 1 &&
+        existing && !wasKids && state.profiles.length > 1 &&
           el("button", {
             class: "btn focusable", style: { marginLeft: "auto", color: "#ff7a7a" },
             onclick: async () => {
@@ -404,6 +586,8 @@ export const showProfileGate = (onChosen, opts = {}) => {
   const openProfile = async (p) => {
     // Admin-locked: no way in, not even with the password.
     if (p.locked) return toast(`That profile's been locked. Take it up with ${state.adminName}.`, "🚫");
+    // Leaving a kids profile for any other one: the household PIN first.
+    if (!(await leaveKidsFirst(p))) return;
     // Signed in as this profile? The session was minted by the same password
     // — convert it to an unlock token instead of prompting again.
     if (p.hasPassword && state.user && state.user.profileId === p.id) {
@@ -450,7 +634,8 @@ export const showProfileGate = (onChosen, opts = {}) => {
         p.avatarImage
           ? el("img", { class: "avatar-photo", src: p.avatarImage, alt: "" })
           : p.avatar,
-        (p.locked || p.hasPassword) && el("span", { class: "profile-lock" }, p.locked ? "🚫" : "🔒")
+        (p.locked || p.hasPassword) && el("span", { class: "profile-lock" }, p.locked ? "🚫" : "🔒"),
+        p.kids && el("span", { class: "profile-kids", title: `Kids profile — ${kidsLabel(p.kids)}` }, "Kids")
       ),
       el("div", { class: "name" }, p.name)
     );

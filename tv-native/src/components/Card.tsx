@@ -11,10 +11,18 @@ import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import Focusable from './Focusable';
 import Icon from './Icon';
 import {imgSrc, HeroItem} from '../api';
+import {blurOf, markDrawn, wasDrawn} from '../blur';
 import {openPeek} from '../overlay';
 import theme from '../theme';
 
 const {colors, radius, cardAura} = theme;
+
+// The placeholder is a 16-pixel-wide picture stretched over the card, which
+// is already soft; this only takes the edge off the stretch. It is applied to
+// the SOURCE bitmap (react-native's Android blur runs on the decoded picture,
+// at half this many device pixels), so a large value here would flatten 16
+// pixels into one colour. Tune on the device if the blocks show.
+const BLUR_RADIUS = 1;
 
 // .card-new — the site marks anything added in the last week, but only if you
 // haven't started it (components.js:77).
@@ -178,6 +186,25 @@ function Card({
     // (the backup poster is tried at once; a plain retry waits a breath)
     retryTimer.current = setTimeout(() => setFail({uri, n}), n === 3 ? 0 : 1500 * n);
   };
+  // Blur-up (the site's posterImg, 2026-10-07): when the server sent this
+  // picture's tiny placeholder (blur.ts), the slot shows its colours and
+  // rough shape from the first frame and the real picture lands over it.
+  // The placeholder is keyed by the address AS THE JSON CARRIED IT. A frame
+  // card's still has none of its own, so it borrows the title's art — the
+  // still takes longest of all to arrive (the server cuts it on demand).
+  // Cheap by construction: one extra Image, only while the picture is on its
+  // way, never for a picture this run has drawn before, and gone (one state
+  // change, this card only) the moment the real one has loaded.
+  const blur = blurOf(
+    canFrame ? item.backdrop || item.cover || item.poster : (frame && !isEpisode && item.backdrop) || item.cover || item.poster,
+  );
+  const [loadedUri, setLoadedUri] = React.useState<string | null>(null);
+  const showBlur = !!blur && !!src && !broken && loadedUri !== src.uri && !wasDrawn(src.uri);
+  const onImgLoad = () => {
+    if (!src) return;
+    markDrawn(src.uri);
+    if (showBlur) setLoadedUri(src.uri);
+  };
   const showLabel = !hideLabel && (landscape || item.upNext);
   // "N min left", under the title of a card mid-way (the site's glass look).
   const left =
@@ -254,6 +281,10 @@ function Card({
         </>
       }
       style={frame ? styles.cardFrame : landscape ? styles.cardWide : styles.card}>
+      {showBlur ? (
+        // under the poster, which is see-through until it has loaded
+        <Image source={{uri: blur!}} style={styles.blur} resizeMode="cover" blurRadius={BLUR_RADIUS} fadeDuration={0} />
+      ) : null}
       {src && shown && !broken ? (
         // resizeMethod="resize": decode at view size, not source size — dozens of
         // posters decoded full-size is a silent memory/CPU tax on a TV.
@@ -265,6 +296,7 @@ function Card({
           resizeMethod="resize"
           fadeDuration={0}
           onError={onImgError}
+          onLoad={onImgLoad}
         />
       ) : (
         // `.card-fallback` (components.css:333-342) — a 160° gradient tile with
@@ -375,6 +407,7 @@ const styles = StyleSheet.create({
   cardWide: {width: WIDE_W, height: WIDE_H, borderRadius: radius.m, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: 'rgba(226,229,238,0.3)'},
   cardFrame: {width: FRAME_W, height: FRAME_H, borderRadius: radius.m, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: 'rgba(226,229,238,0.3)'},
   poster: {width: '100%', height: '100%', borderRadius: radius.m - 1},
+  blur: {position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderRadius: radius.m - 1},
   // The frame card's words — glass.css `.card.wide .card-label`: 16/16/24 → ×0.7.
   frameLabel: {position: 'absolute', left: 11, right: 11, bottom: 17},
   frameTitle: {color: colors.text, fontSize: 17, fontWeight: '800', letterSpacing: -0.2, lineHeight: 20, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 10},

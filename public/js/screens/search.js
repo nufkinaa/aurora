@@ -18,6 +18,14 @@ import { attachSuggest, suggestHref } from "../suggest.js";
 // Session-lived: coming BACK to Search restores the query, its results and
 // the scroll offset — it used to start blank every time.
 let searchMemory = null;
+// The next profile does not come back to the last one's search (2026-10-08).
+// The memory is stamped with whose it is: the Search page that was open under
+// the profile wall writes it again when the router leaves it — after the switch.
+const whose = () =>
+  state.profile ? `${state.profile.id}${state.profile.kids ? `~k${state.profile.kids.maxAge}` : ""}` : "";
+window.addEventListener("aurora-profile", (e) => {
+  if (e.detail && e.detail.relist) searchMemory = null;
+});
 
 const recents = {
   get: () => {
@@ -45,10 +53,11 @@ const touch = () => matchMedia("(hover: none)").matches;
 
 // #/search/<words> (an X-Ray cast card links there): open Search on them.
 export const presetSearch = (q) => {
-  if (q && q.trim()) searchMemory = { q: q.trim().slice(0, 80), scrollY: 0 };
+  if (q && q.trim()) searchMemory = { q: q.trim().slice(0, 80), scrollY: 0, owner: whose() };
 };
 
 export const renderSearch = async (root) => {
+  const owner = whose(); // whoever this page was opened for
   const results = el("div", { class: "grid" });
   const status = el("div", { class: "empty hidden" });
   // "Searching…" / "Searching the catalogue…" — under whatever is already
@@ -338,6 +347,7 @@ export const renderSearch = async (root) => {
   });
 
   let stopRestore = () => {};
+  if (searchMemory && searchMemory.owner !== whose()) searchMemory = null; // somebody else's
   if (searchMemory && searchMemory.q) {
     input.value = searchMemory.q;
     paintClear();
@@ -351,6 +361,7 @@ export const renderSearch = async (root) => {
     searchMemory = {
       q: input.value.trim(),
       scrollY: window.scrollY || document.body.scrollTop || 0,
+      owner,
     };
     clearTimeout(busyTimer);
     clearTimeout(saveTimer);

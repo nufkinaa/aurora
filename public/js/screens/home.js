@@ -18,13 +18,18 @@ import { toneNavFromImage } from "../glassTone.js";
 // the answer is also kept on the device, so even a cold start shows the
 // shelves straight away instead of a blank page for as long as the request
 // takes (elia: "so they still have a good website feeling").
-const HOME_KEY = (pid) => `aurora-home-${pid}`;
+// A kids profile keeps its own copy, per age limit: a profile that has just
+// been MADE a kids one (or had its limit lowered) must not be painted from
+// the rows it was shown before (2026-10-08).
+const kidsTag = (pid) =>
+  state.profile && state.profile.id === pid && state.profile.kids ? `~k${state.profile.kids.maxAge}` : "";
+const HOME_KEY = (pid) => `aurora-home-${pid}${kidsTag(pid)}`;
 const HOME_MAX_AGE_MS = 24 * 3600 * 1000;
 const HOME_MAX_CHARS = 600 * 1024;
 const homeMemo = new Map(); // profile id -> data
 const lastHome = (pid) => {
   if (!pid) return null;
-  if (homeMemo.has(pid)) return homeMemo.get(pid);
+  if (homeMemo.has(pid + kidsTag(pid))) return homeMemo.get(pid + kidsTag(pid));
   if (!lite()) return null;
   try {
     const kept = JSON.parse(localStorage.getItem(HOME_KEY(pid)) || "null");
@@ -34,7 +39,7 @@ const lastHome = (pid) => {
 };
 const rememberHome = (pid, data) => {
   if (!pid || !data || !Array.isArray(data.rows)) return;
-  homeMemo.set(pid, data);
+  homeMemo.set(pid + kidsTag(pid), data);
   if (!lite()) return;
   try {
     const text = JSON.stringify({ at: Date.now(), data });

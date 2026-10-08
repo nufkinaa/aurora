@@ -198,6 +198,128 @@ router.put("/api/profiles/:id", gate, (req, res) => {
   res.json(p);
 });
 
+// ---------- kids profiles (2026-10-08) ----------
+// The rating gate itself is lib/kids.js + the middleware at the top of
+// routes/api.js. These routes are the household's side of it: mark a profile
+// as a kids one (PIN), lock this browser to it on entry, lift the lock (PIN).
+const kidsRules = require("../lib/kids");
+
+// One PIN guess, rate-limited like unlock attempts (same window, same counter
+// store). Per address: a child hammering the pad on the tablet runs out of
+// tries there without locking the parents' phones out as well.
+const pinAttempt = async (ip, pin) => {
+  const { tooMany, recordFail } = require("./auth")._internals;
+  const key = "kidspin:" + ip;
+  if (tooMany(key)) return { status: 429, error: "too many attempts — try again in a few minutes" };
+  if (await profiles.verifyKidsPin(typeof pin === "string" ? pin : "")) return { ok: true };
+  recordFail(key);
+  return { status: 401, error: "That's not the PIN.", wrongPin: true };
+};
+
+// The lock this browser carries, if it still means something: the cookie
+// names a profile that exists and is (still) a kids one. Sign-in "closed"
+// never uses the cookie — there the session is the person (see resolveKids).
+// Asked through the gate's own resolver, so the wall and the gate can never
+// disagree about whether a lock is in force (a lock voided by a later
+// grown-up sign-in reads as no lock here too).
+const liveLock = (req) => {
+  const k = require("./api")._internals.kidsFor(req);
+  return k && k.source === "lock" ? { profile: k.profile, maxAge: k.maxAge } : null;
+};
+// The kids profile this browser is SIGNED IN as, while that still restricts
+// it (no lock needed: the session names the profile on every request). Null
+// once the PIN has taken the browser out of it — and always under sign-in
+// "closed", where the session is the person and no PIN changes that.
+const kidsSession = (req) => {
+  if (require("../lib/authmode").get() === "closed") return null;
+  const sess = require("./api")._internals.kidsSession(req);
+  const k = sess ? profiles.kidsOf(sess.profileId) : null;
+  if (!k) return null;
+  const out = kidsRules.readRelease(req);
+  if (out && out.profile === sess.profileId && out.at >= (sess.createdAt || 0)) return null;
+  return { profile: sess.profileId, maxAge: k.maxAge };
+};
+
+// What the wall and the edit modal need to know before they ask for a PIN.
+router.get("/api/kids/status", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  // `lock` is what the wall asks the PIN for: the device lock, or — with no
+  // lock in force — the kids profile this browser is signed in as.
+  res.json({ pinSet: profiles.kidsPinSet(), ages: kidsRules.AGES, lock: liveLock(req) || kidsSession(req) });
+});
+
+// Entering a kids profile needs nothing extra — it only ever restricts. The
+// one exception: hopping from a kids profile to a LESS restricted kids
+// profile is a way out, so that asks for the PIN like leaving does.
+router.post("/api/kids/enter", async (req, res) => {
+  const id = String((req.body || {}).profile || "");
+  const k = profiles.kidsOf(id);
+  if (!k) return res.status(400).json({ error: "not a kids profile" });
+  const cur = liveLock(req);
+  if (cur && cur.profile !== id && k.maxAge > cur.maxAge && profiles.kidsPinSet()) {
+    const r = await pinAttempt(realtime.clientIp(req), (req.body || {}).pin);
+    if (!r.ok) return res.status(r.status).json({ error: r.error, pinRequired: true });
+  }
+  // re-entering the same profile keeps the original stamp (see resolveKids:
+  // the stamp is compared with sign-ins made after it)
+  const at = cur && cur.profile === id ? (kidsRules.readLock(req) || {}).at : Date.now();
+  // (back inside a kids profile: the "left it" mark of an earlier PIN goes)
+  res.setHeader("Set-Cookie", [kidsRules.lockCookie(id, { secure: authz.isHttps(req), at }), kidsRules.clearRelease()]);
+  res.json({ ok: true, lock: { profile: id, maxAge: k.maxAge } });
+});
+
+// Leaving a kids profile: the household PIN lifts this browser's lock. With
+// no PIN set there is nothing to check (the admin page says so, loudly).
+router.post("/api/kids/exit", async (req, res) => {
+  const signedIn = kidsSession(req);
+  if (profiles.kidsPinSet() && (liveLock(req) || signedIn)) {
+    const r = await pinAttempt(realtime.clientIp(req), (req.body || {}).pin);
+    if (!r.ok) return res.status(r.status).json({ error: r.error, pinRequired: true });
+  }
+  // Lifting the lock is not the whole of leaving: a browser signed in AS the
+  // kids profile is still named a kids one by its session on every request
+  // (the grown-up's profile, picked next, got the child's filtered library
+  // and 403s — found 2026-10-08). The PIN, just checked, takes it out of that
+  // profile too; entering the profile again puts it back.
+  const cookies = [kidsRules.clearCookie()];
+  if (signedIn) cookies.push(kidsRules.releaseCookie(signedIn.profile, { secure: authz.isHttps(req) }));
+  res.setHeader("Set-Cookie", cookies);
+  res.json({ ok: true });
+});
+
+// Mark / unmark a profile as a kids one, from the app. `gate` proves the
+// caller is inside the profile; the PIN proves they are a grown-up — the
+// profile's own password is the child's and must not be enough.
+//   body: { kids: { maxAge } | null, pin }            — a PIN exists
+//         { kids: { maxAge }, newPin }                — none yet: whoever
+//           switches kids mode on first chooses it (admin can change it later)
+router.post("/api/profiles/:id/kids", gate, async (req, res) => {
+  const b = req.body || {};
+  const want = kidsRules.cleanKids(b.kids);
+  if (want === undefined) {
+    return res.status(400).json({ error: `kids must be null or { maxAge: one of ${kidsRules.AGES.join(", ")} }` });
+  }
+  if (profiles.kidsPinSet()) {
+    const r = await pinAttempt(realtime.clientIp(req), b.pin);
+    if (!r.ok) return res.status(r.status).json({ error: r.error, pinRequired: true });
+  } else {
+    // No PIN in the house yet. Choosing one is only offered to someone turning
+    // kids mode ON for a profile that isn't a kids one — a profile the admin
+    // already marked can't be freed by whoever happens to pick a PIN first.
+    if (!want || profiles.kidsOf(req.params.id)) {
+      return res.status(403).json({ error: `The household PIN isn't set yet — ${config.ADMIN_NAME} sets it in the admin page.` });
+    }
+    if (!kidsRules.validPin(b.newPin)) {
+      return res.status(400).json({ error: "Choose a PIN of 4 to 6 digits.", pinNeeded: true });
+    }
+    const set = await profiles.setKidsPin(b.newPin);
+    if (set.error) return res.status(400).json(set);
+  }
+  const r = profiles.setKids(req.params.id, want);
+  if (r.error) return res.status(r.error === "not found" ? 404 : 400).json(r);
+  res.json({ ok: true, profile: r.profile, pinSet: true });
+});
+
 router.delete("/api/profiles/:id", gate, (req, res) => {
   if (profiles.list().length <= 1) {
     return res.status(400).json({ error: "That's the last profile standing — someone has to watch things." });
@@ -492,5 +614,8 @@ router.post("/api/profiles/:id/signout-everywhere", gate, (req, res) => {
   } catch {}
   res.json({ ok: true, ended, token: profiles.issueToken(id) });
 });
+
+// Test-only: the PIN attempt limiter (test/kids.test.js).
+router._internals = { pinAttempt };
 
 module.exports = router;

@@ -1137,12 +1137,16 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     }
   } else {
     imdbId = id;
-    meta = await api.discoverMeta(type, id).catch(() => null);
+    let metaErr = null;
+    meta = await api.discoverMeta(type, id).catch((e) => { metaErr = e; return null; });
     if (!meta) {
       // Back to where you came from — the Requests page this used to land on
       // isn't in the nav any more, and a dead end is not what "couldn't
       // load" should look like.
-      toast("Couldn't load that title — is the internet up?", "⚠️");
+      // (A kids profile refused the title: the server's own words, not a
+      // question about the internet.)
+      const kidsNo = metaErr && /kids profile/i.test(metaErr.message || "");
+      toast(kidsNo ? metaErr.message : "Couldn't load that title — is the internet up?", kidsNo ? "🧸" : "⚠️");
       if (history.length > 1) return history.back();
       return navigate("#/");
     }

@@ -13,6 +13,51 @@ const { JsonStore } = require("../lib/jsonstore");
 
 const router = express.Router();
 
+// ---------- kids profiles: the age-rating gate ----------
+// FIRST on this router, and this router is mounted ahead of profiles, stream,
+// requests (catalogue), torrent and downloads in server.js — so the one gate
+// stands in front of every route that lists or serves a title, including the
+// ones in files that know nothing about kids profiles. A request that isn't
+// made as a kids profile passes straight through, untouched (lib/kids.js has
+// the rules and says how a request is recognised as a kids one).
+const kids = require("../lib/kids");
+const kidsDeps = {
+  closed: () => require("../lib/authmode").get() === "closed",
+  session: (req) => {
+    const sid = require("../lib/authz").readCookie(req) || req.headers["x-session"] || null;
+    const row = sid ? require("../lib/sessions").get(String(sid)) : null;
+    return row ? { profileId: row.profileId, createdAt: row.createdAt } : null;
+  },
+  tokenProfile: profiles.tokenProfile,
+  kidsOf: profiles.kidsOf,
+};
+// Who is asking, as far as kids mode cares: { profile, maxAge, source } | null.
+// A household with no kids profile pays one array scan per request and no more.
+const kidsFor = (req) =>
+  profiles.list().some((p) => p.kids) ? kids.resolveKids(req, kidsDeps) : null;
+const kidsCertOf = kids.makeCertOf({
+  findById: (id) => scanner.findById(id),
+  imdbIdFor: (item) => identity.imdbIdFor(item), // the cached id — never a lookup
+  cached: (imdbId) => discover.certificateCached(imdbId),
+});
+router.use(kids.createGate({
+  kidsFor,
+  certOf: kidsCertOf,
+  findById: (id) => scanner.findById(id),
+  streamItem: (profileId, id) => profiles.getStreamItem(profileId, id),
+  certByTitle: (type, title, year) => discover.certificateByTitle(type, title, year),
+  // A title hidden for having NO rating gets one asked for in the background
+  // (two at a time, once a week per title, only with a TMDB key) — so a kids
+  // profile fills up over the next loads instead of staying empty.
+  onUnknown: (item) => {
+    if (!item || typeof item !== "object") return;
+    const show = item.showId ? scanner.findById(item.showId) : null;
+    const t = show || item;
+    const imdbId = t.imdbId || identity.imdbIdFor(t);
+    if (imdbId) discover.warmCertificate(t.type === "show" || t.type === "series" ? "series" : "movie", imdbId);
+  },
+}));
+
 // ---------- skip intro ----------
 // One intro range per SHOW, marked once by anyone in the household from the
 // player (same trust model as watch progress). Every episode of the show then
@@ -907,6 +952,6 @@ const cardStrip = (i, { synopsis = false } = {}) => {
 
 // Test-only: the home-row composer's merge rules are contracts (never drop
 // unknown rows, never hero "upcoming") — pinned in test/roworder.test.js.
-router._internals = { orderRows };
+router._internals = { orderRows, kidsFor, kidsCertOf, kidsSession: kidsDeps.session };
 
 module.exports = router;

@@ -599,6 +599,7 @@ router.get("/api/admin/people", (req, res) => {
       hasPassword: !!p.passwordHash,
       locked: !!p.locked,
       mustReset: !!p.mustReset,
+      kids: profiles.kidsOf(p.id), // { maxAge } for a kids profile, else null
       lastSeen: rows.reduce((m, r) => Math.max(m, r.last || 0), 0) || null,
       ipCount: new Set(rows.map((r) => r.ip)).size,
       fails: rows.reduce((n, r) => n + (r.fails || 0), 0),
@@ -619,11 +620,39 @@ router.get("/api/admin/people", (req, res) => {
   });
   res.json({
     authMode: require("../lib/authmode").get(),
+    // kids profiles: is the household PIN set, and the limits on offer
+    kidsPinSet: profiles.kidsPinSet(),
+    kidsAges: require("../lib/kids").AGES,
     requests: profiles.pendingList(),
     bans: Object.entries(bans).map(([ip, b]) => ({ ip, reason: (b && b.reason) || "", at: b && b.at })),
     clients: clients.map((c) => ({ ...c, names: [...(ipNames.get(c.ip) || [])] })),
     people,
   });
+});
+
+// Kids profiles, the admin's side (2026-10-08). No PIN here: this router is
+// admin-only already. `kids` is { maxAge } to switch it on (or change the
+// limit) and null to switch it off; anything else is refused by setKids.
+router.post("/api/admin/profiles/:id/kids", (req, res) => {
+  const r = profiles.setKids(req.params.id, (req.body || {}).kids);
+  if (r.error) return res.status(r.error === "not found" ? 404 : 400).json(r);
+  res.json({ ok: true, profile: r.profile, pinSet: profiles.kidsPinSet() });
+});
+
+// Set or change the household PIN (4–6 digits; stored hashed, never logged).
+// An empty pin removes it — refused while a kids profile exists, because
+// without a PIN nothing stops a child from leaving theirs.
+router.post("/api/admin/kids-pin", async (req, res) => {
+  const pin = (req.body || {}).pin;
+  if (pin === null || pin === "") {
+    if (profiles.list().some((p) => p.kids)) {
+      return res.status(400).json({ error: "A kids profile needs the PIN — change it instead, or switch kids mode off first." });
+    }
+    return res.json({ ...profiles.clearKidsPin(), pinSet: false });
+  }
+  const r = await profiles.setKidsPin(typeof pin === "string" ? pin : "");
+  if (r.error) return res.status(400).json(r);
+  res.json({ ok: true, pinSet: true });
 });
 
 // Sign a person out everywhere: live sockets closed, sign-in sessions and

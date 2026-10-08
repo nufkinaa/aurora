@@ -90,7 +90,7 @@ import {setPlayingContext} from '../errors';
 import {useFocusFallback} from '../focus';
 import {canNavigate} from '../navLock';
 import {openXray} from '../overlay';
-import {useMe} from '../navSection';
+import {loadMe, profilePick, rememberPick, useMe} from '../navSection';
 import {
   createParty,
   joinParty,
@@ -443,8 +443,26 @@ const SUB_LANG_TEST: Record<string, {code: RegExp; label: RegExp}> = {
   he: {code: /^(he|heb|iw)/i, label: /hebrew|עבר/i},
   en: {code: /^(en|eng)/i, label: /english/i},
 };
-const autoTrack = (tracks: Track[], prefs: Prefs): Track | null => {
+const autoTrack = (tracks: Track[], prefs: Prefs, profileId?: string, profileSub?: string | null): Track | null => {
   if (!tracks.length) return null;
+
+  // THE PROFILE'S OWN MEMORY (`prefs.subPick` on the server — what this
+  // viewer last picked on the site or on another TV) is honoured when THIS TV
+  // holds nothing of its own for them: it has never had a subtitle picked on
+  // it, or the last pick here was made under a different profile. The TV's
+  // own memory, below, is otherwise untouched and still wins — it is the more
+  // precise of the two (it was made on this screen, for these files).
+  const localIsMine = prefs.lastSubSet && (!prefs.lastSubProfile || !profileId || prefs.lastSubProfile === profileId);
+  if (!localIsMine && profileSub) {
+    if (profileSub === 'off') return null;
+    const want = profileSub.toLowerCase();
+    const hit =
+      tracks.find(t => (t.lang || '').toLowerCase() === want) ||
+      tracks.find(t => (t.label || '').toLowerCase() === want);
+    if (hit) return hit;
+    // The profile remembers a language this release does not have: carry on
+    // with the rules below, exactly as a local miss does.
+  }
 
   // WHAT YOU PICKED LAST TIME WINS, over everything below.
   //
@@ -807,7 +825,12 @@ export default function Player({
       setPrefs(p);
       setPrefsLoaded(true);
     });
-  }, []);
+    // The profile's remembered dub and subtitle pick (navSection's record):
+    // asked for again when the copy is over five minutes old, so a choice made
+    // on the site is known here. Not waited for — the copy already held is
+    // what arming and the subtitle auto-pick read if this is still in flight.
+    loadMe(profileId, 5 * 60000);
+  }, [profileId]);
 
   // ---------------------------------------------------------------- chrome
   const showControls = useCallback(() => {
@@ -1018,9 +1041,14 @@ export default function Player({
       audioIdxRef.current = idx;
       setAudioIdx(idx);
       toast(`Audio: ${label}`);
+      // The language follows the profile to the next title, here and on the
+      // site (its rememberPick("audioLang")). A track with no language tag has
+      // nothing to carry over, so what was remembered before stays.
+      const lang = (itemRef.current?.audioTracks || []).find(t => t.index === idx)?.language;
+      if (lang) rememberPick(profileId, 'audioLang', lang);
       startTranscodeAt(base, curRef.current, 'copy', {fallbackToZero: true});
     },
-    [startTranscodeAt, stream],
+    [startTranscodeAt, stream, profileId, toast],
   );
 
   // Merge newly-arrived tracks, de-duplicated by URL — the same file offered by
@@ -1230,11 +1258,18 @@ export default function Player({
     const r = resumeAt.current;
     // The original language first: a multi-dub file starts on the track the
     // server marked `original`, not on whichever the release listed first.
+    // …unless this viewer chose a dub last time: the language they picked in
+    // the AUDIO menu (here or on the site — the profile's `audioLang`) wins on
+    // every title that has it. The site's rule, to the letter.
     if (!audioChosen.current) {
-      const orig = (it.audioTracks || []).find(t => t.original);
-      if (orig && orig.index > 0) {
-        audioIdxRef.current = orig.index;
-        setAudioIdx(orig.index);
+      const list = it.audioTracks || [];
+      const liked = profilePick(profileId, 'audioLang');
+      const mine = liked ? list.find(t => !!t.language && t.language === liked) : undefined;
+      const pick = mine || list.find(t => t.original);
+      if (list.length > 1) console.log('[prefs] audio: remembered', liked, '→ track', pick ? pick.index : 0, mine ? '(remembered)' : '(original)');
+      if (pick && pick.index > 0) {
+        audioIdxRef.current = pick.index;
+        setAudioIdx(pick.index);
       }
     }
     if (stream) {
@@ -1520,9 +1555,9 @@ export default function Player({
     if (autoSubsApplied.current || !tracks.length || !prefsLoaded) return;
     autoSubsApplied.current = true;
     console.log(`[player] ${tracks.length} track(s):`, tracks.map(t => t.key).join(' | '));
-    const pick = autoTrack(tracks, prefs);
+    const pick = autoTrack(tracks, prefs, profileId, profilePick(profileId, 'subPick'));
     if (pick) setSubKey(pick.key);
-  }, [tracks, prefsLoaded, prefs, toast]);
+  }, [tracks, prefsLoaded, prefs, toast, profileId]);
 
   // Remember a HAND-PICKED track (or "off") so the next episode comes up the
   // same way — see autoTrack. Only called from the subtitle menu: an automatic
@@ -1539,11 +1574,15 @@ export default function Player({
       // because that uploader named the file differently.
       lastSubLabel: t && !t.lang ? t.label || null : null,
       lastSubSet: true,
+      lastSubProfile: profileId,
     };
     prefsRef.current = next;
     setPrefs(next);
     savePrefs(next);
-  }, []);
+    // And on the profile, in the site's own shape (its rememberPick("subPick")):
+    // "off", or the track's language, or its label when it has no language.
+    rememberPick(profileId, 'subPick', t ? t.lang || t.label || null : 'off');
+  }, [profileId]);
 
   const subUrl = useMemo(
     () => tracks.find(t => t.key === subKey)?.url || null,

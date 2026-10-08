@@ -4269,3 +4269,9 @@ html[data-fx="lite"] .img-blurup.img-in { animation: none; }
 }
 
 .pbtn.next-btn.hidden { display: none; }
+
+/* ---- AirPlay button (2026-10-08) ----
+   Only ever shown by Safari, when a target is in reach and the film plays
+   from a source AirPlay can fetch (js/screens/player.js, airBtn). Hidden it
+   takes no room in the tools row. */
+.pbtn.airplay-btn.hidden { display: none; }

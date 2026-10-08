@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1030 280">
+  <defs>
+    <linearGradient id="a" gradientUnits="userSpaceOnUse" x1="120" y1="448" x2="290" y2="70"><stop offset="0" stop-color="#46c896"/><stop offset="1" stop-color="#8cffbe"/></linearGradient>
+    <linearGradient id="b" gradientUnits="userSpaceOnUse" x1="300" y1="130" x2="410" y2="448"><stop offset="0" stop-color="#7fd1e8"/><stop offset="1" stop-color="#8b7bff"/></linearGradient>
+  </defs>
+  <g transform="translate(20.0 -15) scale(0.5078)">
+  <path fill="url(#a)" d="M262 58C228 190 152 350 52 448H184C246 384 320 238 262 58Z"/>
+  <path fill="url(#b)" d="M294.7 136.5C334 224 398 360 462 448H334C306 412 286 372 275.5 320C293.9 268 303.5 205.7 294.7 136.5Z"/>
+  </g>
+  <g transform="translate(300 205) scale(1.0)" fill="none" stroke="#f3f4f8" stroke-width="14" stroke-linejoin="miter" stroke-miterlimit="8">
+    <path transform="translate(0 0)" d="M0 0L62 -142L124 0M25 -48H99"/>
+    <path transform="translate(152 0)" d="M0 -100V-40A40 40 0 0 0 80 -40M80 -100V0"/>
+    <path transform="translate(282 0)" d="M0 -100V0M0 -56A44 44 0 0 1 72.3 -89.7"/>
+    <path transform="translate(366 0)" d="M0 -50A50 50 0 1 0 100 -50A50 50 0 1 0 0 -50Z"/>
+    <path transform="translate(502 0)" d="M0 -100V0M0 -56A44 44 0 0 1 72.3 -89.7"/>
+    <path transform="translate(588 0)" d="M0 -50A50 50 0 1 0 100 -50A50 50 0 1 0 0 -50ZM100 -100V0"/>
+  </g>
+</svg>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">
+  <defs><radialGradient id="tile" gradientUnits="userSpaceOnUse" cx="90" cy="30" r="330"><stop offset="0" stop-color="#161a33"/><stop offset="1" stop-color="#0b0c14"/></radialGradient>
+    <linearGradient id="s" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="512"><stop offset="0" stop-color="#15153a"/><stop offset=".34" stop-color="#4337b4"/><stop offset=".6" stop-color="#6856e2"/></linearGradient>
+    <linearGradient id="p" gradientUnits="userSpaceOnUse" x1="0" y1="360" x2="0" y2="512"><stop offset="0" stop-color="#2b2a6a"/><stop offset="1" stop-color="#15162f"/></linearGradient>
+    <linearGradient id="a" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="0"><stop offset="0" stop-color="#46c896"/><stop offset=".42" stop-color="#8cffbe"/><stop offset=".72" stop-color="#7fd1e8"/><stop offset="1" stop-color="#8b7bff"/></linearGradient>
+    <clipPath id="k"><rect width="512" height="512" rx="116"/></clipPath>
+  </defs>
+  <rect width="320" height="180" fill="url(#tile)"/>
+  <g transform="translate(31.0 47.0) scale(0.168)">
+  <g clip-path="url(#k)">
+    <rect width="512" height="512" fill="url(#s)"/>
+    <circle cx="256" cy="628" r="404" fill="url(#a)"/>
+    <circle cx="256" cy="650" r="350" fill="#0d0d22"/>
+    <circle cx="256" cy="650" r="304" fill="#d9d4ff"/>
+    <circle cx="256" cy="655" r="300" fill="url(#p)"/>
+  </g>
+  </g>
+  <g transform="translate(136 107) scale(0.23)" fill="none" stroke="#f3f4f8" stroke-width="14.5" stroke-linejoin="miter" stroke-miterlimit="8">
+    <path transform="translate(0 0)" d="M0 0L62 -142L124 0M25 -48H99"/>
+    <path transform="translate(152 0)" d="M0 -100V-40A40 40 0 0 0 80 -40M80 -100V0"/>
+    <path transform="translate(282 0)" d="M0 -100V0M0 -56A44 44 0 0 1 72.3 -89.7"/>
+    <path transform="translate(366 0)" d="M0 -50A50 50 0 1 0 100 -50A50 50 0 1 0 0 -50Z"/>
+    <path transform="translate(502 0)" d="M0 -100V0M0 -56A44 44 0 0 1 72.3 -89.7"/>
+    <path transform="translate(588 0)" d="M0 -50A50 50 0 1 0 100 -50A50 50 0 1 0 0 -50ZM100 -100V0"/>
+  </g>
+</svg>

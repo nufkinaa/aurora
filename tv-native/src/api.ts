@@ -2,6 +2,8 @@
 // The base URL is set once from storage/setup; the profile token (when a
 // protected profile is unlocked) rides on every request as X-Profile-Token,
 // mirroring the web client.
+import {takeBlur} from './blur';
+
 let baseUrl = '';
 let token: string | null = null;
 
@@ -28,6 +30,9 @@ export const setSession = (s: string | null) => {
   session = s || null;
 };
 export const getSession = () => session;
+// The profile's unlock token, for the one caller outside this file that must
+// send it itself: the home-screen row's native refresh (homeScreen.ts).
+export const getToken = () => token;
 // The auth mode the last successful ping reported: 'open' | 'transition' |
 // 'closed'. Boot reads it to pick gate-vs-login; it is advisory anywhere else
 // (the server enforces per request).
@@ -71,6 +76,13 @@ export type Profile = {
   avatarImage?: string | null;
   hasPassword: boolean;
   locked?: boolean; // admin lockdown — can't be entered at all
+  // Small switches that follow the profile to every device (profiles.js pub).
+  // The player reads and writes two of them, so the TV and the site agree:
+  // `audioLang` — the language tag of the dub last picked ("eng", "heb");
+  // `subPick`   — the subtitle last picked: "off", or a language / a label.
+  prefs?: {audioLang?: string; subPick?: string} & Record<string, unknown>;
+  // IMDb ids of the shows whose new episodes download by themselves.
+  follows?: string[];
 };
 
 export type HeroItem = {
@@ -446,6 +458,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
   if (token) headers['X-Profile-Token'] = token;
   if (session) headers['X-Session'] = session;
+  // Reads say they can take blur-up placeholders beside the answer (the
+  // server's lib/blurup.js; blur.ts keeps them, Card.tsx draws them).
+  if (!options.method || String(options.method).toUpperCase() === 'GET') headers['X-Blur'] = '1';
   let res: Response;
   try {
     res = await fetch(baseUrl + path, { ...options, headers });
@@ -474,7 +489,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     }
     throw err;
   }
-  return res.json() as Promise<T>;
+  // the tiny pictures that ride beside an answer go to blur.ts; the screen
+  // gets the answer it always got
+  return takeBlur((await res.json()) as T);
 }
 
 function post<T>(path: string, body: unknown): Promise<T> {
@@ -633,6 +650,23 @@ export const api = {
   library: (fresh = false) => memo('library', 60000, () => request<Library>('/api/library'), fresh),
   setPreferences: (profileId: string, likedGenres: string[]) =>
     post<{ ok: boolean }>(`/api/profiles/${profileId}/preferences`, { likedGenres }),
+  // Follow / unfollow a show: its new episodes download by themselves when
+  // they air (server: media/follows.js). Answers the profile's full list.
+  follow: (profileId: string, imdbId: string, on: boolean, title?: string) =>
+    post<{ ok?: boolean; follows?: string[]; error?: string }>(`/api/profiles/${profileId}/follow`, {
+      imdbId,
+      on,
+      title,
+    }),
+  // The profile's own small fields. The TV only ever sends `prefs` — the
+  // server takes the keys it knows by name (profiles.js update) and leaves the
+  // rest of the profile alone. A `null` value clears that key.
+  updateProfile: (profileId: string, fields: {prefs: Record<string, string | boolean | null>}) =>
+    request<Profile>(`/api/profiles/${profileId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    }),
   // The IMDb id for a LIBRARY title, so one detail page can offer both the local
   // copy and the stream sources (which are all keyed by IMDb id). Added to the
   // server in the same commit that unified the site's detail page.

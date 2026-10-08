@@ -4314,3 +4314,33 @@ html:not([data-fx="lite"]) .trailer-frame iframe {
 .wn-sub { color: var(--text-dim); margin: 0 0 24px; }
 .wn-kicker { font-size: 0.74rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); }
 .wn-ribbon { margin-left: 8px; font-size: 0.66rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: #86efac; }
+
+/* ---------- kids profiles (2026-10-08) ---------- */
+/* the small "Kids" mark: on the wall tile, in Settings, in the edit sheet */
+.kids-badge, .profile-kids {
+  display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px;
+  font-size: 0.66rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; line-height: 1.5;
+  color: #0b1a12; background: #86efac; white-space: nowrap;
+}
+.profile-kids { position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45); }
+.profiles-gate.compact .profile-kids { font-size: 0.58rem; padding: 1px 6px; bottom: -7px; }
+/* …and on the nav's profile chip, off the attribute state.js sets on <html> */
+html[data-kids] #nav-profile-name::after {
+  content: "Kids"; margin-left: 7px; padding: 1px 7px; border-radius: 999px; vertical-align: 1px;
+  font-size: 0.6rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase;
+  color: #0b1a12; background: #86efac;
+}
+/* A phone's nav shows the avatar alone — the name, and the mark on it, are
+   hidden there, so a kids profile looked like any other. The avatar wears a
+   mint ring at every width. */
+html[data-kids] #nav-profile .avatar { box-shadow: 0 0 0 2px #86efac; }
+/* the edit sheet's kids section */
+.kids-field { padding: 12px 14px; border-radius: var(--radius-m, 14px); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); }
+html[data-look="glass"] .kids-field { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.1); }
+.kids-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 700; }
+.kids-ages { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.kids-ages.hidden, .kids-controls.hidden, .kids-row.hidden { display: none; }
+.kids-field .field-hint { margin-top: 10px; }
+.kids-pin-input { letter-spacing: 0.35em; font-variant-numeric: tabular-nums; }
+.kids-pin-input + .kids-pin-input { margin-top: 8px; }
+.pref-profile-sub .kids-badge { margin-right: 4px; }

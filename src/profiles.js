@@ -74,6 +74,9 @@ const pub = (p) => ({
   follows: (p.follows || []).map((f) => f.imdbId), // shows whose new episodes download by themselves
   hasPassword: !!p.passwordHash,
   locked: !!p.locked,
+  // A kids profile: only titles rated at or under maxAge reach it (lib/kids.js).
+  // null for everyone else. Additive — old clients and the TV ignore it.
+  kids: p.kids && typeof p.kids.maxAge === "number" ? { maxAge: p.kids.maxAge } : null,
 });
 
 // ---------- sign-in identity (prompt 10: ACCOUNT = PROFILE) ----------
@@ -260,6 +263,61 @@ const issueToken = (id) => {
   return t;
 };
 const tokenValid = (id, token) => !!token && tokens.get(token) === id;
+// Which profile an unlock token belongs to (null for an unknown one) — the
+// kids gate reads it to know who is asking on routes that name no profile.
+const tokenProfile = (token) => (token && tokens.get(String(token))) || null;
+
+// ---------- kids profiles + the household PIN ----------
+// `kids: { maxAge }` on a profile turns the age-rating gate on for it
+// (lib/kids.js has the rules, routes/api.js the gate). It is NOT one of the
+// fields update() accepts: the profile's own password must not be enough to
+// switch it off — only the household PIN (routes/profiles.js) or the admin
+// (routes/admin.js) reach setKids.
+const kidsRules = require("./lib/kids");
+const kidsOf = (id) => {
+  const p = getRaw(id);
+  return p && p.kids && typeof p.kids.maxAge === "number" ? { maxAge: p.kids.maxAge } : null;
+};
+const setKids = (id, value) => {
+  const p = getRaw(id);
+  if (!p) return { error: "not found" };
+  const clean = kidsRules.cleanKids(value);
+  if (clean === undefined) {
+    return { error: `kids must be null or { maxAge: one of ${kidsRules.AGES.join(", ")} }` };
+  }
+  if (clean) p.kids = clean;
+  else delete p.kids;
+  store.save();
+  return { ok: true, profile: pub(p) };
+};
+
+// ONE PIN for the household, 4–6 digits, kept the way passwords are: salted
+// scrypt, never in clear, never logged. It guards switching kids mode on or
+// off from the app and leaving a kids profile.
+const kidsPinSet = () => !!(store.data.kidsPin && store.data.kidsPin.hash);
+const setKidsPin = async (pin) => {
+  if (!kidsRules.validPin(pin)) return { error: "The PIN is 4 to 6 digits." };
+  const { salt, hash } = await hashPassword(pin);
+  store.data.kidsPin = { salt, hash, setAt: Date.now() };
+  store.save();
+  return { ok: true };
+};
+const clearKidsPin = () => {
+  delete store.data.kidsPin;
+  store.save();
+  return { ok: true };
+};
+// With no PIN set there is nothing to match: always false (the routes decide
+// what an unset PIN means; this never "passes by default"). A wrong-shaped
+// guess still costs one scrypt, so timing says nothing about the PIN.
+const verifyKidsPin = async (pin) => {
+  const k = store.data.kidsPin;
+  if (!k || !k.hash || !kidsRules.validPin(pin)) {
+    await hashPassword("0000");
+    return false;
+  }
+  return verifyHash(pin, k.salt, k.hash);
+};
 
 // Verify a password and, on success, hand back an access token. Profiles with
 // no password unlock freely. An admin-locked profile never unlocks — not even
@@ -542,6 +600,8 @@ const THEMES = ["aurora", "oled", "warm"];
 const update = (id, fields) => {
   const p = store.data.profiles.find((x) => x.id === id);
   if (!p) return null;
+  // `fields.kids` is deliberately NOT read here — see setKids: this route is
+  // reachable with the profile's own password, kids mode needs the PIN.
   if (fields.name) p.name = String(fields.name).slice(0, 24);
   if (typeof fields.color === "string" && HEX_COLOR.test(fields.color)) p.color = fields.color;
   // The avatar stays SHORT text (emoji) — the TV prints it literally at
@@ -1095,6 +1155,13 @@ module.exports = {
   setMustReset,
   revokeTokensFor,
   tokenValid,
+  tokenProfile,
+  kidsOf,
+  setKids,
+  kidsPinSet,
+  setKidsPin,
+  clearKidsPin,
+  verifyKidsPin,
   unlock,
   setPassword,
   requestProfile,

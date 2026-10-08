@@ -224,6 +224,15 @@ export const api = {
       body: JSON.stringify(fields),
     }),
   deleteProfile: (id) => json(`/api/profiles/${id}`, { method: "DELETE" }),
+  // ---- kids profiles. The server locks this browser to a kids profile with
+  // a cookie of its own on enter; only the household PIN lifts it (exit).
+  // { pinSet, ages, lock: { profile, maxAge } | null }
+  kidsStatus: () => json("/api/kids/status"),
+  kidsEnter: (profile, pin) => post("/api/kids/enter", { profile, pin }),
+  kidsExit: (pin) => post("/api/kids/exit", { pin }),
+  // body: { kids: { maxAge } | null, pin } — or { kids, newPin } while the
+  // household has no PIN yet
+  setKids: (id, body) => post(`/api/profiles/${encodeURIComponent(id)}/kids`, body),
   profileState: (id) => json(`/api/profiles/${id}/state`),
   // `item` (optional) is the torrent play-item meta, so Continue Watching can
   // render + resume streamed content.

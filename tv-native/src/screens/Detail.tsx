@@ -36,13 +36,15 @@ const UPNEXT_GLOW = require('../assets/upnext-glow.png');
 const OWNED_UPNEXT_GLOW = require('../assets/owned-upnext-glow.png');
 import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
-import {api, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta} from '../api';
+import {api, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta, DownloadJob} from '../api';
+import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
 import {openTrailer, openActions, openXray} from '../overlay';
 import {showToast} from '../toast';
 import {useFocusFallback, useKeyTrap} from '../focus';
 import {SourcesPanel} from './Sources';
 import {useApp} from '../AppContext';
+import {loadMe, patchMe, peekMe} from '../navSection';
 import type {NavSection} from '../navSection';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
@@ -488,6 +490,18 @@ type UiEp = {
   // the first aired episode not yet watched, once anything in the season is
   upNext?: boolean;
 };
+// A download that is still on its way (anything else has ended).
+const ACTIVE_JOB = ['pending', 'approved', 'downloading'];
+type JobMark = {status: string; progress: number};
+// "The same" as far as a card can show: its status and a whole percent.
+const sameJob = (a: JobMark | null | undefined, b: JobMark | null | undefined) =>
+  a === b || (!!a && !!b && a.status === b.status && Math.round((a.progress || 0) * 100) === Math.round((b.progress || 0) * 100));
+const sameJobs = (a: Record<string, JobMark>, b: Record<string, JobMark>) => {
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  for (const k of ka) if (!b[k] || !sameJob(a[k], b[k])) return false;
+  return true;
+};
 const dlText = (dl: {status: string; progress: number}) => {
   if (dl.status === 'pending') return 'REQUESTED';
   const pct = Math.round((dl.progress || 0) * 100);
@@ -802,9 +816,35 @@ export default function Detail({
   // merged list. `imdbId` is what Sources is keyed by, so it is needed anyway.
   const [libImdb, setLibImdb] = useState<string | null>(null);
   // Downloads in flight for this show's episodes, by "SxE" (the site's card
-  // carries the same). The TV has no socket: polled every few seconds while
-  // one is running, once after a request, and when the page comes back.
+  // carries the same). Read once when the page arrives; after that the
+  // socket's download_update / download_removed carry every change. The 4 s
+  // poll survives only as the fallback for a socket that is not open.
   const [epJobs, setEpJobs] = useState<Record<string, {status: string; progress: number}>>({});
+  const epJobsRef = useRef(epJobs);
+  epJobsRef.current = epJobs;
+  // job id → the card it belongs to ("SxE", or "film"): download_removed
+  // carries nothing but the id.
+  const jobKeys = useRef(new Map<string, string>());
+  // A download that ended is (usually) a new file in the library: both
+  // fetches of `full` re-run. Coalesced — a season pack finishing lands as a
+  // burst of messages, and one re-read answers all of them.
+  const libBump = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bumpLibrarySoon = useCallback(() => {
+    if (libBump.current) return;
+    libBump.current = setTimeout(() => {
+      libBump.current = null;
+      forgetMemo('library');
+      forgetMemo('/api/item/');
+      console.log('[live] detail: re-reading the library copy');
+      setLibraryTick(t => t + 1);
+    }, 700);
+  }, []);
+  useEffect(
+    () => () => {
+      if (libBump.current) clearTimeout(libBump.current);
+    },
+    [],
+  );
   // A FILM's own download (elia, 2026-10-07: "the same flow like the
   // episodes" — press Play saves the best source, hold Play for the list).
   // The Play button and a strip under it carry the job while it runs.
@@ -817,31 +857,44 @@ export default function Detail({
     try {
       const jobs = await api.downloads();
       const next: Record<string, {status: string; progress: number}> = {};
+      const keys = new Map<string, string>();
       let live = false;
       let film: {status: string; progress: number} | null = null;
       for (const j of jobs) {
         if (j.imdbId !== imdb) continue;
-        if (!['pending', 'approved', 'downloading'].includes(j.status)) continue;
+        if (!ACTIVE_JOB.includes(j.status)) continue;
         if (!j.season || !j.episode) {
+          keys.set(j.id, 'film');
           if (!film) film = {status: j.status, progress: j.progress || 0};
           live = true;
           continue;
         }
         const k = `${j.season}x${j.episode}`;
+        keys.set(j.id, k);
         if (!next[k]) next[k] = {status: j.status, progress: j.progress || 0};
         live = true;
       }
-      setEpJobs(next);
-      setMovieJob(film);
-      // The film's job just ended: the title may be on disk now. The library
-      // match (the `inLibrary` effect) is keyed on libraryTick, so bump it and
-      // the page turns "Play" into the copy's Play by itself.
-      if (movieJobRef.current && !film) setLibraryTick(t => t + 1);
+      // A job that was running and is gone has ended: the title (or that
+      // episode) may be on disk now. Both fetches of `full` are keyed on
+      // libraryTick, so the card turns owned / "Play" becomes the copy's Play
+      // by itself. (Only the film did this before; an episode waited for the
+      // page to be reopened.)
+      let ended = !!movieJobRef.current && !film;
+      for (const k in epJobsRef.current) if (!next[k]) ended = true;
+      jobKeys.current = keys;
+      // unchanged → the same object, so nothing below re-renders
+      setEpJobs(prev => (sameJobs(prev, next) ? prev : next));
+      setMovieJob(prev => (sameJob(prev, film) ? prev : film));
+      if (ended) bumpLibrarySoon();
       return live;
     } catch {
       return false;
     }
-  }, [item.imdbId, libImdb]);
+  }, [item.imdbId, libImdb, bumpLibrarySoon]);
+  const loadEpJobsRef = useRef(loadEpJobs);
+  loadEpJobsRef.current = loadEpJobs;
+  const jobImdbRef = useRef<string | null>(null);
+  jobImdbRef.current = item.imdbId || libImdb || null;
   const imdbKind: 'movie' | 'show' = item.type === 'show' ? 'show' : 'movie';
   // Resolve the library title to its IMDb id. This used to be gated to
   // `item.type === 'show'`, which is why SOURCES WERE BROKEN FOR EVERY LIBRARY
@@ -956,6 +1009,48 @@ export default function Detail({
       setInList(!next); // revert on failure
     }
   };
+
+  // Follow a show (the site's button, 2026-10-07): its new episodes download
+  // by themselves when they air. The list lives on the profile (`follows`, by
+  // IMDb id); it is read from the record the rail already holds, then asked
+  // for again when that copy is more than a minute old — the site may have
+  // changed it since this TV last looked.
+  const followImdb = item.type === 'show' ? item.imdbId || libImdb || null : null;
+  const [following, setFollowing] = useState(false);
+  const followBusy = useRef(false);
+  useEffect(() => {
+    if (!followImdb) return;
+    let live = true;
+    setFollowing(!!peekMe(profileId)?.follows?.includes(followImdb));
+    loadMe(profileId, 60000).then(me => {
+      if (live && me && !followBusy.current) setFollowing(!!me.follows?.includes(followImdb));
+    });
+    return () => {
+      live = false;
+    };
+  }, [profileId, followImdb]);
+  const toggleFollow = useCallback(async () => {
+    if (!followImdb || followBusy.current) return;
+    const next = !following;
+    followBusy.current = true;
+    setFollowing(next); // optimistic
+    try {
+      const r = await api.follow(profileId, followImdb, next, item.title);
+      if (r.error) throw new Error(r.error);
+      const list = r.follows || [];
+      patchMe(profileId, {follows: list});
+      setFollowing(list.includes(followImdb));
+      console.log('[follow]', next ? 'on' : 'off', followImdb, '— following', list.length);
+      showToast(
+        next ? `Following ${item.title} — new episodes will download by themselves` : `Stopped following ${item.title}`,
+        next ? '🔔' : '🔕',
+      );
+    } catch (err) {
+      setFollowing(!next); // revert on failure
+      showToast((err as Error)?.message || "Couldn't save that", '⚠');
+    }
+    followBusy.current = false;
+  }, [followImdb, following, profileId, item.title]);
 
   // The one id a movie page plays and tracks progress against. A library card's
   // own id, or — for a stream card whose title the library-resolution effect
@@ -1174,25 +1269,84 @@ export default function Detail({
         setEpProgress(st.episodeProgress || {});
       })
       .catch(() => {}); // best-effort: no progress just means no badges
-    // the download poll: every 4 s while something runs, then it stops by itself
+    return () => {
+      live = false;
+    };
+  }, [isFocused, profileId]);
+
+  // This title's downloads, live. One read when the page arrives (or comes
+  // back, or a request was just made — `fullTick`), because the socket only
+  // says what CHANGES. After that:
+  //   socket open → download_update / download_removed move the cards, and
+  //                 nothing is asked of the server;
+  //   socket shut → the old 4 s poll, while something is running.
+  // The timer below keeps waking while a job runs either way, but with the
+  // socket open a wake-up costs one boolean — it is only there so a socket
+  // that drops mid-download is noticed and the poll takes over.
+  useEffect(() => {
+    if (!isFocused) return;
+    let live = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const tick = async () => {
-      const running = await loadEpJobs();
+    const tick = async (read: boolean) => {
+      timer = null;
+      const running =
+        read || !isOpen()
+          ? await loadEpJobs()
+          : !!movieJobRef.current || Object.keys(epJobsRef.current).length > 0;
       if (!live) return;
-      if (running) timer = setTimeout(tick, 4000);
-      else {
-        // a finished download is a new library file: the page re-reads it
-        setFullTick(t => t + 1);
-      }
+      if (running) timer = setTimeout(() => tick(false), 4000);
+      else pollArmed.current = false; // a later request re-arms it (fullTick)
     };
     pollArmed.current = true;
-    tick();
+    tick(true);
+
+    const offUpdate = onMessage('download_update', d => {
+      const j = d.job as DownloadJob | undefined;
+      const imdb = jobImdbRef.current;
+      if (!j || !imdb || j.imdbId !== imdb) return;
+      if (!ACTIVE_JOB.includes(j.status)) {
+        // done / failed / declined / canceled: one authoritative read — it
+        // clears the card and, the job having ended, re-reads the library copy
+        console.log('[live] detail: job', j.status, j.season ? `S${j.season}E${j.episode}` : 'film');
+        jobKeys.current.delete(j.id);
+        loadEpJobs();
+        return;
+      }
+      const key = j.season && j.episode ? `${j.season}x${j.episode}` : 'film';
+      const val = {status: j.status, progress: j.progress || 0};
+      const fresh = !jobKeys.current.has(j.id);
+      if (fresh) console.log('[live] detail: job', j.status, key);
+      jobKeys.current.set(j.id, key);
+      // The server reports a running job every second; only a change the
+      // card can SHOW (its status, or a whole percent) is allowed to repaint.
+      if (key === 'film') setMovieJob(prev => (sameJob(prev, val) ? prev : val));
+      else setEpJobs(prev => (sameJob(prev[key], val) ? prev : {...prev, [key]: val}));
+      // a job this page did not start itself (the site, another TV): make sure
+      // the fallback timer is alive for it
+      if (fresh && !pollArmed.current) setFullTick(t => t + 1);
+    });
+    const offRemoved = onMessage('download_removed', d => {
+      if (!jobKeys.current.has(String(d.id))) return;
+      console.log('[live] detail: job removed');
+      jobKeys.current.delete(String(d.id));
+      loadEpJobs();
+    });
+    // the socket came back after a drop: whatever it missed is read once
+    const offWelcome = onMessage('welcome', () => {
+      if (live) loadEpJobs();
+    });
+    // the library changed under the page (a rescan, a file removed)
+    const offLibrary = onMessage('library_updated', bumpLibrarySoon);
     return () => {
       live = false;
       pollArmed.current = false;
       if (timer) clearTimeout(timer);
+      offUpdate();
+      offRemoved();
+      offWelcome();
+      offLibrary();
     };
-  }, [isFocused, profileId, loadEpJobs, fullTick]);
+  }, [isFocused, loadEpJobs, fullTick, bumpLibrarySoon]);
 
   const uiSeasons: UiSeason[] = useMemo(() => {
     // Local copies, keyed by season/episode so the merged list can find them.
@@ -1378,7 +1532,10 @@ export default function Detail({
         // show it on the card at once, then let the poll take over
         setEpJobs(prev => ({...prev, [`${s}x${e}`]: {status: res.needsApproval ? 'pending' : 'approved', progress: 0}}));
         setTimeout(() => {
-          if (!pollArmed.current) setFullTick(t => t + 1); // re-arms the poll via the focus effect
+          // one read either way: it re-arms the fallback timer, and it clears a
+          // card the server answered "already yours" for (no socket message follows)
+          if (!pollArmed.current) setFullTick(t => t + 1);
+          else loadEpJobsRef.current();
         }, 1500);
       } catch (err) {
         showToast((err as Error)?.message || "Couldn't request the download", '⚠');
@@ -1431,6 +1588,7 @@ export default function Detail({
         setMovieJob({status: res.needsApproval ? 'pending' : 'approved', progress: 0});
         setTimeout(() => {
           if (!pollArmed.current) setFullTick(t => t + 1);
+          else loadEpJobsRef.current();
         }, 1500);
       }
     } catch (err) {
@@ -1734,6 +1892,10 @@ export default function Detail({
           secondary={
             <>
               <IconBtn ref={listBtnRef} icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
+              {/* Follow: only once the show's IMDb id is known — that is what the server follows by */}
+              {followImdb ? (
+                <IconBtn icon={following ? 'check' : 'plus'} on={following} label={following ? 'Following' : 'Follow'} onPress={toggleFollow} />
+              ) : null}
               {streamMeta?.trailers?.length ? (
                 <IconBtn icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
               ) : null}
@@ -2043,7 +2205,7 @@ const styles = StyleSheet.create({
   hero: {paddingLeft: spacing.contentLeft, paddingRight: spacing.pageX},
   scroll: {flex: 1},
   // Max's icon row: a 40dp disc with a tiny label under it.
-  iconBtn: {alignItems: 'center', width: 74, paddingVertical: 2},
+  iconBtn: {alignItems: 'center', width: 66, paddingVertical: 2}, // 66: five in a row fit the lockup (Follow made it five)
   iconBtnDisc: {
     width: 40,
     height: 40,

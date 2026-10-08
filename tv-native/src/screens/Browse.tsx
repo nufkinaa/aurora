@@ -37,6 +37,7 @@ import Skeleton from '../components/Skeleton';
 import {Empty} from '../components/States';
 import Card, {CARD_W} from '../components/Card';
 import {api, HeroItem, ProfileState} from '../api';
+import {onMessage} from '../realtime';
 import {warmItem} from '../prefetch';
 import {watchStateFor} from '../watchState';
 import {canNavigate} from '../navLock';
@@ -166,6 +167,31 @@ export default function Browse({
       live = false;
     };
   }, [kind, profileId]);
+
+  // The library changed on the server (a download landed, a rescan): the
+  // Downloaded shelf of this grid is read again. Only that — the catalogue
+  // pages already on screen stay as they are, so the grid under the viewer's
+  // focus does not reshuffle. Held a moment: a season landing says so per file.
+  useEffect(() => {
+    let on = true;
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const off = onMessage('library_updated', () => {
+      if (t) return;
+      t = setTimeout(() => {
+        t = null;
+        console.log('[live] browse: library changed, shelf re-read');
+        api
+          .library(true)
+          .then(l => on && setLib((kind === 'show' ? l.shows : l.movies).map(i => ({...i, source: 'downloaded' as const}))))
+          .catch(() => {});
+      }, 2500);
+    });
+    return () => {
+      on = false;
+      off();
+      if (t) clearTimeout(t);
+    };
+  }, [kind]);
 
   // What "For you" is built from: the genres you picked in Preferences if you
   // picked any, otherwise the ones your own library leans on.

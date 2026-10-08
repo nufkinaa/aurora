@@ -1,5 +1,5 @@
 // App-wide state: active profile, cached library, playback progress.
-import { api, setAuthToken } from "./api.js";
+import { api, setAuthToken, forgetWarm } from "./api.js";
 
 export const state = {
   profile: null,        // active profile object
@@ -96,11 +96,43 @@ export const applyAppearance = (profile) => {
   } catch {}
 };
 
+// Is the active profile a kids one ({ maxAge } on its public view)?
+export const isKids = () => !!(state.profile && state.profile.kids);
+
 export const setProfile = async (profile, token = null) => {
+  const changed = !state.profile || state.profile.id !== profile.id;
+  // Kids mode switched on, off or to another limit on the profile that is
+  // already active: as far as every list goes, that is a different person.
+  const kidsAge = (p) => (p && p.kids ? p.kids.maxAge : null);
+  const relist = changed || kidsAge(state.profile) !== kidsAge(profile);
   state.profile = profile;
   state.token = token;
   setAuthToken(token);
   applyAppearance(profile);
+  // Kids profiles. Answers warmed for whoever was here before are dropped —
+  // the server filters every list per profile, so the last person's must not
+  // be read back. The "Kids" mark on the nav chip is CSS off this attribute.
+  // Entering locks THIS BROWSER to the profile (a cookie the server sets, so
+  // it covers the video and image requests too); leaving takes the household
+  // PIN, asked at the profile wall. Awaited so the first requests below are
+  // already made as the kids profile. A server without the route (older
+  // build) or a blip must never block entry.
+  if (relist) forgetWarm();
+  document.documentElement.toggleAttribute("data-kids", !!profile.kids);
+  if (profile.kids) {
+    try { await api.kidsEnter(profile.id); } catch {}
+  }
+  // The library list is filtered per profile as well, and `state.library`
+  // lives for the whole session: it was never dropped on a switch, so a kids
+  // profile entered after a grown-up's showed the WHOLE library in Movies and
+  // Shows (and a grown-up coming back after a child saw only the child's) —
+  // found 2026-10-08. Asked for again here, after the lock above is in place.
+  // A kids profile that can't get its list gets an empty one, never the last
+  // person's. (Nothing loaded yet = the boot, which loads it itself.)
+  if (relist && state.library) {
+    try { state.library = await api.library(); }
+    catch { if (profile.kids) state.library = { movies: [], shows: [] }; }
+  }
   // The profile's subtitle language lands in this device's player settings
   // (the player and Preferences read those), so every device agrees.
   if (profile && profile.prefs && ["any", "he", "en", "ru"].includes(profile.prefs.subLang)) {
@@ -126,7 +158,9 @@ export const setProfile = async (profile, token = null) => {
   if (state.ws && state.ws.readyState === WebSocket.OPEN) {
     state.ws.send(JSON.stringify({ type: "hello", profile: profile.name, profileId: profile.id }));
   }
-  window.dispatchEvent(new CustomEvent("aurora-profile", { detail: { profile } }));
+  // `relist`: the lists this person may see differ from the last one's —
+  // screens drop what they remembered (browse.js, search.js).
+  window.dispatchEvent(new CustomEvent("aurora-profile", { detail: { profile, relist } }));
 };
 
 // A previously-unlocked token for this profile in this browser session, if any.

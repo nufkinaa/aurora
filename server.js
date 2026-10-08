@@ -28,19 +28,43 @@ const realtime = require("./src/realtime");
 const isDroppedWebPeer = (err) =>
   !!err && /User-Initiated Abort|Ice connection closed/i.test(err.message || "");
 let droppedWebPeers = 0;
+const noteDroppedWebPeer = () => {
+  droppedWebPeers++;
+  // One line per 25 so a genuine storm is still visible.
+  if (droppedWebPeers % 25 === 1) {
+    console.warn(`[webrtc] ${droppedWebPeers} web peer(s) dropped mid-handshake (benign)`);
+  }
+};
+
+// Under pm2 this guard is not the only listener. pm2 preloads its own APM
+// before server.js (ProcessContainerFork -> modules/pm2-io-bpm), whose
+// features/notify.js does a bare `console.error(error)` on EVERY uncaught
+// exception and unhandled rejection, then reports it to the daemon as a
+// process exception. That is where the prefix-less "OperationError:
+// User-Initiated Abort" stack in the admin log came from — printed once per
+// dropped peer, right beside our own quiet count. Listeners that were here
+// before us are re-registered behind the same benign filter; anything else
+// still reaches them untouched. Outside pm2 there are none and this is a no-op.
+for (const ev of ["uncaughtException", "unhandledRejection"]) {
+  for (const inherited of process.listeners(ev)) {
+    const filtered = function (err, ...rest) {
+      if (isDroppedWebPeer(err)) return;
+      return inherited.call(this, err, ...rest);
+    };
+    // EventEmitter's own convention: removeListener(ev, inherited) still finds
+    // it, so pm2 tearing its APM down keeps working.
+    filtered.listener = inherited;
+    process.removeListener(ev, inherited);
+    process.on(ev, filtered);
+  }
+}
 
 process.on("uncaughtException", (err) => {
-  if (isDroppedWebPeer(err)) {
-    droppedWebPeers++;
-    // One line per 25 so a genuine storm is still visible.
-    if (droppedWebPeers % 25 === 1) {
-      console.warn(`[webrtc] ${droppedWebPeers} web peer(s) dropped mid-handshake (benign)`);
-    }
-    return;
-  }
+  if (isDroppedWebPeer(err)) return noteDroppedWebPeer();
   console.error("[uncaughtException]", err && err.stack ? err.stack : err);
 });
 process.on("unhandledRejection", (reason) => {
+  if (isDroppedWebPeer(reason)) return noteDroppedWebPeer();
   console.error("[unhandledRejection]", reason);
 });
 
