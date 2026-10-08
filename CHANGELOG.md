@@ -3,6 +3,20 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.70 — 2026-10-08
+
+Nine things a hands-on pass through the site found.
+
+- **Auto quality now moves between Original and the lower qualities on HEVC films.** It stayed wherever it was put: the original is HEVC and the lower ones H.264, and the player's own automatic choice never crosses from one to the other. Aurora now makes that choice itself on such films.
+- **Back after a run of episodes** goes to where you started, not back through every episode's player — each of which started a stream and moved your place.
+- Auto stays in the Quality menu after picking Original.
+- Mute is remembered into the next episode and the next film, as the volume already was.
+- Original is no longer labelled "re-encoded" on a file that plays directly while a lower quality is showing.
+- What's new shows its bold leads as bold instead of printing the asterisks.
+- Opening an episode's sources no longer scrolls their heading under the navigation bar.
+- The loaded part of the timeline is the part around the playhead, not everything up to the furthest thing ever loaded.
+- A catalogue address with an id that does not exist says so instead of drawing a page called "Untitled".
+
 ## 1.6.69 — 2026-10-08
 
 - **Server → Actions, in the admin page.** The things that used to need a terminal are buttons: update and restart in one press, what version is this, pull, npm install, restart; run the test suite, test streaming on this machine, tool versions, the health checks, the healer, a test alert; back up now, verify the backups, rescan, the daily refresh, age ratings, missing subtitles (with a dry run); the caches; the download-engine patch. It is a fixed list — each entry shows the exact command it runs, and nothing typed in a browser is ever turned into a command. The page also gains the Backups table (with download), the Alerts card and a list of recent runs with their output.

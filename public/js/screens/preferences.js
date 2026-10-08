@@ -632,8 +632,23 @@ export const renderPreferences = async (root) => {
     window.dispatchEvent(new Event("aurora-version-seen"));
     const releases = data.releases || [];
     const latest = releases[0];
+    // The changelog is written with **bold** leads and `code`: shown as such,
+    // built from text nodes (never innerHTML) — it used to print the asterisks.
+    const rich = (t) => {
+      const out = [];
+      const re = /\*\*([^*]+)\*\*|`([^`]+)`/g;
+      let at = 0;
+      let m;
+      while ((m = re.exec(t))) {
+        if (m.index > at) out.push(t.slice(at, m.index));
+        out.push(m[1] != null ? el("b", {}, m[1]) : el("code", {}, m[2]));
+        at = re.lastIndex;
+      }
+      if (at < t.length) out.push(t.slice(at));
+      return out;
+    };
     const list = (r) =>
-      el("ul", { class: "changelog" }, (r.items || []).map((t) => el("li", {}, t)));
+      el("ul", { class: "changelog" }, (r.items || []).map((t) => el("li", {}, ...rich(String(t)))));
     const older = el("div", { class: "hidden" },
       releases.slice(1).map((r) =>
         el("div", { class: "changelog-release" },

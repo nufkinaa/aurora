@@ -230,8 +230,28 @@ export const applyCueStyle = () => {
     `font-family: inherit; line-height: 1.4; }`;
 };
 
+let playerOrigin = null; // the page the current run of players was opened from
+
 export const renderPlayer = async (root, { id }) => {
-  const enteredFrom = cameFrom(); // where the viewer was before the player (exit() goes back there)
+  // Where the viewer was before the player (exit() goes back there). An
+  // episode that started from the one before it (Up next, Next episode)
+  // REPLACES that player in the history, and keeps the place the first one
+  // was opened from.
+  {
+    const from = cameFrom();
+    if (!(from && from.startsWith("#/play/"))) playerOrigin = from;
+  }
+  const enteredFrom = playerOrigin;
+  // One player entry in the history however many episodes go by: Back from
+  // the show page used to walk through every episode's player, each one
+  // starting a stream and saving its place (QA, 2026-10-08).
+  const goPlay = (hash) => {
+    try {
+      location.replace(hash);
+    } catch {
+      navigate(hash);
+    }
+  };
   const restart = location.hash.includes("restart=1");
   const itemId = id.split("?")[0];
   const entryHash = location.hash;
@@ -548,6 +568,22 @@ export const renderPlayer = async (root, { id }) => {
     const fits = ladderLevels().filter((l) => l.h && l.h <= top).sort((a, b) => b.h - a.h)[0];
     return fits ? fits.i : -1;
   };
+  // A ladder whose top rung is the file's own HEVC and whose lower rungs are
+  // H.264 is two codec families, and hls.js's automatic choice never crosses
+  // from one to the other (QA, 2026-10-08: Auto sat on 720p with a 100 Mbit
+  // line and never returned to Original). On such a ladder Auto is done here:
+  // the highest level the measured line carries with room to spare.
+  const ladderMixed = () => !!hls && new Set((hls.levels || []).map((l) => l.codecSet || "")).size > 1;
+  const ladderBest = () => {
+    const est = (hls && hls.bandwidthEstimate) || 0;
+    const cap = ladderCapIdx();
+    let best = 0;
+    (hls.levels || []).forEach((l, i) => {
+      if (cap >= 0 && i > cap) return;
+      if ((l.bitrate || 0) * 1.4 <= est) best = Math.max(best, i);
+    });
+    return best;
+  };
   // Apply a pick to the stream that is playing: "auto" hands the choice back
   // to hls.js; a height pins that level from the next segment on (what is
   // already buffered past it is dropped, so the change shows within seconds).
@@ -565,7 +601,7 @@ export const renderPlayer = async (root, { id }) => {
         if (i < 0) i = ladderIdx(0);
         if (cap >= 0 && i > cap) i = cap;
         if (i >= 0) hls.startLevel = i;
-      } else hls.nextLevel = -1; // (drops what is buffered ahead, so Auto shows within seconds)
+      } else hls.nextLevel = ladderMixed() ? ladderBest() : -1; // (drops what is buffered ahead, so Auto shows within seconds)
       ladderPick = "auto";
       return true;
     }
@@ -596,6 +632,32 @@ export const renderPlayer = async (root, { id }) => {
       const want = lad.pick != null ? lad.pick : "auto";
       if (!ladderApply(want, { first: true, startH: lad.startH || 0 })) ladderApply("auto", { first: true });
       mark("ladder", { levels: ladderLevels().map((l) => l.v).join(","), pick: String(ladderPick) });
+      // Auto on a two-codec ladder (see ladderMixed): look every few seconds.
+      // Up only with a healthy buffer and not twice in a quarter minute; down
+      // as soon as the line no longer carries the level it is on.
+      if (!ladderMixed()) return;
+      let movedAt = 0;
+      const iv = setInterval(() => {
+        if (gen !== hlsGen || h !== hls) return void clearInterval(iv);
+        if (!ladderOn || ladderPick !== "auto" || video.paused || video.seeking) return;
+        const cur = h.loadLevel >= 0 ? h.loadLevel : h.currentLevel;
+        const lv = h.levels[cur];
+        if (!lv) return;
+        const est = h.bandwidthEstimate || 0;
+        const best = ladderBest();
+        let ahead = 0;
+        for (let i = 0; i < video.buffered.length; i++) {
+          if (video.buffered.start(i) <= video.currentTime + 0.5 && video.buffered.end(i) > video.currentTime) ahead = video.buffered.end(i) - video.currentTime;
+        }
+        const now = Date.now();
+        if (best > cur && ahead > 8 && now - movedAt > 15000) {
+          movedAt = now;
+          h.loadLevel = best;
+        } else if (best < cur && est < (lv.bitrate || 0) * 1.1) {
+          movedAt = now;
+          h.loadLevel = best;
+        }
+      }, 3000);
     });
     h.on(E.LEVEL_SWITCHED, (_e, d) => {
       if (gen !== hlsGen || !ladderOn) return;
@@ -1183,7 +1245,11 @@ export const renderPlayer = async (root, { id }) => {
     // ON THE LADDER a quality is a level of the stream that is playing: no
     // rebuild, no gap. (What cannot be a level — Original on a file that
     // direct-plays, a rung the server took away — goes on below.)
-    if (ladderOn && hls && !(h === 0 && directOk)) {
+    // (Original stays a level too, even where the file would direct-play:
+    // leaving the ladder for it took Auto out of the menu until another
+    // quality had been picked — QA, 2026-10-08. The top rung IS the file's
+    // video, copied.)
+    if (ladderOn && hls) {
       if (ladderApply(h)) {
         lastChangeAt = Date.now();
         return void showQualityNote(h === "auto" ? "Auto" : h ? `${h}p` : "Original");
@@ -2035,6 +2101,9 @@ export const renderPlayer = async (root, { id }) => {
     "aria-label": "Volume",
   });
   video.volume = prefs.get("volume", 1);
+  // muted stays muted into the next episode and the next film (it used to be
+  // forgotten on every new playback while the volume was kept)
+  if (prefs.get("muted", false)) video.muted = true;
 
   const menuHost = el("div");
 
@@ -2615,10 +2684,12 @@ export const renderPlayer = async (root, { id }) => {
   };
   const toggleMute = () => {
     video.muted = !video.muted;
+    prefs.set("muted", video.muted);
     paintVolume();
   };
   volSlider.addEventListener("input", () => {
     video.muted = false;
+    prefs.set("muted", false);
     video.volume = volSlider.value / 100;
     prefs.set("volume", video.volume);
     paintVolume();
@@ -3057,7 +3128,9 @@ export const renderPlayer = async (root, { id }) => {
           // "Original" is the file's video bit for bit (a copy) — except on a
           // device that can't decode its codec, where it is the best re-encode,
           // and the menu says so rather than claiming the file.
-          const origTag = currentV === "copy" || !usingTranscode ? "the file as it is" : "re-encoded — this device can't play the file's codec";
+          // (asked of the FILE, not of what is playing: while a 720p encode
+          // ran, a file that direct-plays was labelled as re-encoded)
+          const origTag = videoNeedsTranscode() ? "re-encoded — this device can't play the file's codec" : "the file as it is";
           // On a ladder the entries are the stream's own levels, with Auto on
           // top; a pick is a level change, not a rebuild. Off it, the three
           // qualities as before.
@@ -3438,9 +3511,13 @@ export const renderPlayer = async (root, { id }) => {
           : effTime();
     scrubFill.style.width = d ? `${(t / d) * 100}%` : "0%";
     if (video.buffered.length && d) {
-      const buffered =
-        (usingTranscode ? clockBase : 0) +
-        video.buffered.end(video.buffered.length - 1);
+      // the range the playhead is IN — after a seek back, the end of the last
+      // range painted everything up to an island far ahead as loaded
+      let end = video.currentTime;
+      for (let i = 0; i < video.buffered.length; i++) {
+        if (video.buffered.start(i) <= video.currentTime + 0.5 && video.buffered.end(i) >= video.currentTime) end = Math.max(end, video.buffered.end(i));
+      }
+      const buffered = (usingTranscode ? clockBase : 0) + end;
       scrubBuffer.style.width = `${Math.min(100, (buffered / d) * 100)}%`;
     }
     // "% loaded" under the bar: how much of the FILE exists server-side —
@@ -3692,7 +3769,7 @@ export const renderPlayer = async (root, { id }) => {
       if (String(next.id).startsWith("torrent|")) state.pendingItems[next.id] = next;
       keepParty = true;
       toast(`${p && p.host ? p.host.name : "The host"} moved on to ${next.showTitle ? `S${next.season} E${next.episode}` : next.title || "the next title"}`, "👥");
-      navigate(`#/play/${encodeURIComponent(next.id)}?party=${p ? p.code : partyCode}`);
+      goPlay(`#/play/${encodeURIComponent(next.id)}?party=${p ? p.code : partyCode}`);
     }),
   ];
   // Joining via #/play/<id>?party=CODE (the #/party/:code route lands here).
@@ -4039,11 +4116,11 @@ export const renderPlayer = async (root, { id }) => {
     if (inParty() && party.role === "host") {
       setPartyItem(partySnapshotOf(next));
       keepParty = true;
-      navigate(`#/play/${next.id}?party=${party.current.code}`);
+      goPlay(`#/play/${next.id}?party=${party.current.code}`);
       return;
     }
     if (inParty()) keepParty = false;
-    navigate(`#/play/${next.id}${next._savedCopy ? "?offline=1" : ""}`);
+    goPlay(`#/play/${next.id}${next._savedCopy ? "?offline=1" : ""}`);
   };
 
   // the Next episode button learns what is next once, a moment after start

@@ -1164,6 +1164,13 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     } catch {}
     const libId = findInLibrary(meta, imdbId);
     if (libId) lib = await api.item(libId).catch(() => null);
+    // An id the catalogue has nothing for came back as an empty shell and
+    // drew a live page called "Untitled", with buttons (QA, 2026-10-08).
+    if (!lib && !meta.title) {
+      toast("That title wasn't found.", "⚠️");
+      if (history.length > 1) return history.back();
+      return navigate("#/");
+    }
   }
   await refreshProgress().catch(() => {});
   // A server with "torrents": false (config.json) has no sources to offer:
@@ -2053,8 +2060,11 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
           }
         }),
     );
-    if (scroll)
+    if (scroll) {
+      // room for the floating nav: the heading used to end up under it
+      sourcesSection.style.scrollMarginTop = "96px";
       sourcesSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   // Mark an episode watched — the local file when we have it, otherwise against
