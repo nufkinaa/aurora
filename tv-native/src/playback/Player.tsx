@@ -75,6 +75,7 @@ import {
   View,
 } from 'react-native';
 import Video, {
+  BufferingStrategyType,
   OnLoadData,
   OnProgressData,
   SelectedTrack,
@@ -84,10 +85,10 @@ import Video, {
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Focusable from '../components/Focusable';
 import Icon, {IconName} from '../components/Icon';
-import {api, assetUrl, imgSrc, mediaHeaders, Item, Party, PartyItem, ProfileState, SubtitleTrack} from '../api';
+import {api, ApiError, assetUrl, imgSrc, mediaHeaders, Item, Party, PartyItem, ProfileState, SubtitleTrack} from '../api';
 import {useApp} from '../AppContext';
 import {setPlayingContext} from '../errors';
-import {useFocusFallback} from '../focus';
+import {acceptTvEvent, useFocusFallback} from '../focus';
 import {canNavigate} from '../navLock';
 import {openXray} from '../overlay';
 import {loadMe, profilePick, rememberPick, useMe} from '../navSection';
@@ -108,6 +109,7 @@ import {
 import {isOpen as socketOpen, reportActivity} from '../realtime';
 import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
 import {track} from '../usage';
+import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
 import theme from '../theme';
 
@@ -161,6 +163,23 @@ const BUFFER_CONFIG = {
   bufferForPlaybackAfterRebufferMs: 8000,
   backBufferDurationMs: 30000,
 };
+// LOW-RAM boxes (perfTier.ts): the same time targets, but ExoPlayer stops
+// filling the buffer once it holds ~30% of the app's heap class (memoryClass:
+// 192 MB → ~58 MB) instead of whatever 50-120 s of a high-bitrate file weighs
+// — measured ~250 MB of Java heap on a remux, on a box with 1.9 GB in all —
+// and keeps 10 s behind the playhead instead of 30. Below 8 s buffered it
+// keeps loading regardless (patches/react-native-video: a buffer that may
+// never reach the rebuffer threshold would stall forever). Viewer-invisible:
+// the picture and the start/rebuffer thresholds are the same; a box that
+// lacks the memory simply holds less ahead.
+const BUFFER_CONFIG_LOW_RAM = {
+  ...BUFFER_CONFIG,
+  backBufferDurationMs: 10000,
+  maxHeapAllocationPercent: 0.3,
+  // and stop filling while less than 10% of the Java heap is free (this check
+  // never fired before the patch: a cast zeroed the reserve)
+  minBufferMemoryReservePercent: 0.1,
+};
 // A torrent stream trickles at first — retry reads generously rather than
 // erroring on the first slow chunk. This is the ExoPlayer equivalent of the
 // web's fragLoadingMaxRetry: 8 / fragLoadingTimeOut: 60000.
@@ -180,6 +199,15 @@ const fmtSpeed = (bytesPerSec: number) => {
   return mb >= 1 ? `${mb.toFixed(1)} MB/s` : `${Math.round(bytesPerSec / 1024)} KB/s`;
 };
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+// The ?v= of a transcode job: the remux, the full re-encode, or one of the
+// server's CAPPED encodes for a slow line (media/remux.js CAPS — 720p at about
+// 2.4 Mbit/s all in, 480p at about 1.1) — the site's Quality ladder.
+type VCodec = 'copy' | 'h264' | 'h264-720' | 'h264-480';
+// No first frame from a library file after this long: say so, and offer a way
+// out (see the slow-start watchdog).
+const SLOW_START_MS = 25000;
+// …and after this long, say why it is probably happening.
+const SLOW_BIG_MS = 90000;
 
 // The site's buffering copy (screens/player.js), ported verbatim.
 //
@@ -567,6 +595,15 @@ export default function Player({
 }: NativeStackScreenProps<RootStackParamList, 'Player'>) {
   const {id, title, epTitle, stream, restart, party: partyCode} = route.params;
   const isTorrent = !!stream;
+  // Decided once per player: the buffer config is part of the video source,
+  // and changing it mid-film would reload the source.
+  const [lowRam] = useState(isLowRam);
+  // On a low-RAM box the pictures the screens behind are not drawing go from
+  // memory on the way in (Fresco keeps what a view still holds); they come
+  // back from the disk cache when the viewer returns.
+  useEffect(() => {
+    if (lowRam) clearImageMemory();
+  }, [lowRam]);
   const {profileId} = useApp();
   const me = useMe(profileId);
   const videoRef = useRef<VideoRef>(null);
@@ -582,6 +619,16 @@ export default function Player({
 
   // ---------------------------------------------------------------- state
   const [error, setError] = useState('');
+  // The item request itself failed (not: the title has no file). Kept apart
+  // from `error` because this one can be retried — `loadTry` re-runs the load.
+  const [loadErr, setLoadErr] = useState<{title: string; detail?: string} | null>(null);
+  const [loadTry, setLoadTry] = useState(0);
+  // The slow-start card (see the watchdog by that name): null, 'slow' at 25s
+  // with no first frame, 'big' at 90s. Declared up here because the remote
+  // handler, further up than the watchdog, reads it.
+  const [slowStart, setSlowStart] = useState<null | 'slow' | 'big'>(null);
+  const slowSnooze = useRef(0);
+  const slowMarked = useRef(false);
   const [meta, setMeta] = useState<{item: Item} | null>(null);
   // Every subtitle track known so far. Because the cues are rendered in JS
   // (rule 2) this list is NOT part of the video source, so it can grow whenever
@@ -674,7 +721,7 @@ export default function Player({
   const streamOffset = useRef(0);
   const localDur = useRef(0);
   const usingTranscodeRef = useRef(false);
-  const currentV = useRef<'copy' | 'h264'>('copy');
+  const currentV = useRef<VCodec>('copy');
   // True while a seek is probing a new offset. Nothing may request the OLD
   // playlist during that window — the server would recreate that job and
   // supersede the one the seek is waiting for.
@@ -966,7 +1013,7 @@ export default function Player({
   );
 
   const transcodeUrl = useCallback(
-    (base: string, ss: number, v: 'copy' | 'h264') =>
+    (base: string, ss: number, v: VCodec) =>
       `${assetUrl(base)}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${v}${
         audioIdxRef.current > 0 ? `&a=${audioIdxRef.current}` : ''
       }`,
@@ -980,7 +1027,7 @@ export default function Player({
   // transcoding". ExoPlayer is handed the URL WITHOUT the flag, exactly as
   // hls.js is.
   const startTranscode = useCallback(
-    (base: string, offset: number, v: 'copy' | 'h264', claim = true) => {
+    (base: string, offset: number, v: VCodec, claim = true) => {
       const ss = Math.max(0, Math.floor(offset || 0));
       streamOffset.current = ss;
       localDur.current = 0;
@@ -1009,7 +1056,7 @@ export default function Player({
     async (
       base: string,
       target: number,
-      v: 'copy' | 'h264',
+      v: VCodec,
       {fallbackToZero = false}: {fallbackToZero?: boolean} = {},
     ): Promise<boolean> => {
       const ss = Math.max(0, Math.floor(target) - 2);
@@ -1190,15 +1237,24 @@ export default function Player({
           setMeta({item: it});
           addSubs(it.subtitles || []);
         }
-      } catch {
-        if (live) setError('Could not load this title.');
+      } catch (e) {
+        if (!live) return;
+        // Status 0 is the client's own verdict — no answer, or none in time
+        // (api.ts request()) — so the line is to blame, not the title. Anything
+        // else carries the server's own message, which is written for viewers.
+        const unreachable = !(e instanceof ApiError) || e.status === 0;
+        setLoadErr(
+          unreachable
+            ? {title: "Couldn't reach the server", detail: e instanceof ApiError ? e.message : undefined}
+            : {title: "Couldn't load this title", detail: (e as Error).message},
+        );
       }
     })();
     return () => {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, profileId, restart]);
+  }, [id, profileId, restart, loadTry]);
 
   // ------------------------------------------- torrent kick + ready-gate
   // See rule 3 at the top. Nothing on the server adds the torrent until a stream
@@ -1695,11 +1751,11 @@ export default function Player({
             // Closed mode gates /stream/* like everything else; ExoPlayer
             // forwards these on every segment/range request.
             headers: mediaHeaders(),
-            bufferConfig: BUFFER_CONFIG,
+            bufferConfig: lowRam ? BUFFER_CONFIG_LOW_RAM : BUFFER_CONFIG,
             minLoadRetryCount: MIN_LOAD_RETRY,
           }
         : undefined,
-    [uri],
+    [uri, lowRam],
   );
 
   // ---------------------------------------------------------------- seeking
@@ -1883,6 +1939,7 @@ export default function Player({
   // ---------------------------------------------------------------- input
   const onTV = useCallback(
     (evt: {eventType: string}) => {
+      if (!acceptTvEvent(evt)) return; // one press, one event (focus.ts)
       const t = evt.eventType;
       // The web's media-key handler. A remote (or an HDMI-CEC transport control)
       // sends the discrete play/pause keys, not just the toggle — treating only
@@ -1898,7 +1955,7 @@ export default function Player({
       }
       if (t === 'fastForward') return skip(1);
       if (t === 'rewind') return skip(-1);
-      if (menuOpen || upNext) return; // the overlay's own focusables handle it
+      if (menuOpen || upNext || slowStart) return; // the overlay's own focusables handle it
       if (!controls) {
         if (t === 'left') return skip(-1);
         if (t === 'right') return skip(1);
@@ -1926,7 +1983,7 @@ export default function Player({
       }
       showControls(); // any activity keeps the chrome alive
     },
-    [controls, menuOpen, upNext, skip, togglePlay, showControls],
+    [controls, menuOpen, upNext, slowStart, skip, togglePlay, showControls],
   );
   useTVEventHandler(onTV);
 
@@ -2147,6 +2204,64 @@ export default function Player({
     }, 2000);
     return () => clearInterval(iv);
   }, [canFallback, fallbackToTranscode]);
+
+  // Slow-start watchdog (library files). The stall watchdogs above only arm
+  // once something is buffered or a transcode is running; a big file played
+  // as-is over a slow line has neither, and measured through a 2.5 Mbit line
+  // a 2 GB HEVC MKV sat on a black spinner for over 3.5 minutes with nothing
+  // said. 25s after mount with the item loaded and no frame yet, a card says
+  // so and offers a way out; at 90s it says why. Cancelled by the first frame,
+  // by an error, by leaving; a torrent never arms it — its ready-gate has its
+  // own 45s timer and its own status copy. Polled once a second (the first
+  // frame is a ref, set in onProgress) and quiet while a seek/switch probes.
+  useEffect(() => {
+    if (isTorrent || !meta || error || loadErr) {
+      setSlowStart(null);
+      return;
+    }
+    const iv = setInterval(() => {
+      if (exited.current) return;
+      if (playTracked.current) {
+        setSlowStart(null);
+        clearInterval(iv);
+        return;
+      }
+      if (probing.current || Date.now() < slowSnooze.current) return;
+      const waited = Date.now() - mountedAt.current;
+      if (waited < SLOW_START_MS) return;
+      if (!slowMarked.current) {
+        slowMarked.current = true;
+        mark('slow-start', {at: Math.round(waited / 1000), transcode: usingTranscodeRef.current, app: 'tv'});
+      }
+      const next = waited >= SLOW_BIG_MS ? 'big' : 'slow';
+      setSlowStart(cur => (cur === next ? cur : next));
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [isTorrent, meta, error, loadErr, mark]);
+  // Lower quality = the server's 480p capped encode (about 1.1 Mbit/s all
+  // in), started where the viewer is — the resume point if it never got going.
+  // Offered only when this file has a transcode route and is not on a capped
+  // encode already.
+  const canLowerQuality = !isTorrent && !!meta?.item?.transcodeBase && !currentV.current.startsWith('h264-');
+  const keepWaiting = useCallback(() => {
+    slowSnooze.current = Date.now() + SLOW_START_MS;
+    setSlowStart(null);
+  }, []);
+  const lowerQuality = useCallback(() => {
+    const base = itemRef.current?.transcodeBase;
+    if (!base) return;
+    slowSnooze.current = Date.now() + SLOW_START_MS;
+    setSlowStart(null);
+    switchedToTranscode.current = true; // the decode-stall fallback must not undo this
+    track('feat', {f: 'slow_start_lower'});
+    toast('Lower quality — 480p');
+    const at = resumeAt.current || curRef.current || 0;
+    startTranscodeAt(base, at, 'h264-480').then(ok => {
+      if (ok || exited.current) return;
+      // Probe refused (no encoder free, or no answer): the file keeps loading.
+      toast("Lower quality isn't available right now");
+    });
+  }, [startTranscodeAt, toast]);
 
   // Endless-rebuffer watchdog. The error path can only react to an error, and a
   // transcode whose ffmpeg has quietly died (or been retired by someone else's
@@ -2499,7 +2614,7 @@ export default function Player({
       // sink still refuses looks exactly like a stuck playlist from JS, and the
       // web never sees this case because a browser reports the decode error
       // directly.
-      if (!everPlayed.current && !triedH264.current && currentV.current !== 'h264') {
+      if (!everPlayed.current && !triedH264.current && !currentV.current.startsWith('h264')) {
         triedH264.current = true;
         startTranscode(base, streamOffset.current, 'h264');
         return;
@@ -2584,6 +2699,29 @@ export default function Player({
     stalled,
   });
 
+  if (loadErr) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>{loadErr.title}</Text>
+        {loadErr.detail ? <Text style={styles.statusSub}>{loadErr.detail}</Text> : null}
+        <View style={styles.upNextActions}>
+          <Focusable
+            round
+            hasTVPreferredFocus
+            onPress={() => {
+              setLoadErr(null);
+              setLoadTry(t => t + 1);
+            }}
+            style={styles.exitBtn}>
+            <Text style={styles.exitText}>Retry</Text>
+          </Focusable>
+          <Focusable round onPress={() => canNavigate(navigation) && navigation.goBack()} style={styles.exitBtn}>
+            <Text style={styles.exitText}>Back</Text>
+          </Focusable>
+        </View>
+      </View>
+    );
+  }
   if (error) {
     return (
       <View style={styles.center}>
@@ -2659,6 +2797,8 @@ export default function Player({
       <Video
         ref={videoRef}
         source={source}
+        // Low-RAM: buffer by memory, not only by time (BUFFER_CONFIG_LOW_RAM).
+        bufferingStrategy={lowRam ? BufferingStrategyType.DEPENDING_ON_MEMORY : BufferingStrategyType.DEFAULT}
         style={styles.video}
         paused={paused}
         rate={rate}
@@ -3353,6 +3493,42 @@ export default function Player({
               <Text style={styles.btnText}>
                 {upNext.countdown != null ? `Dismiss (${upNext.countdown})` : 'Dismiss'}
               </Text>
+            </Focusable>
+          </View>
+        </TVFocusGuideView>
+      ) : null}
+
+      {/* Slow start — the Up Next box and pills, over the spinner. Focus is
+          trapped for the same reason; Back still leaves the way it always does. */}
+      {slowStart && !upNext && !menuOpen ? (
+        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.upNext}>
+          <Text style={styles.upNextTitle}>
+            {slowStart === 'big'
+              ? 'This file may be too big for this connection'
+              : 'Still loading… this connection is slow'}
+          </Text>
+          <View style={styles.upNextActions}>
+            <Focusable
+              round
+              light
+              ring="violet"
+              hasTVPreferredFocus
+              onFocusChange={markZone('menu')}
+              onPress={keepWaiting}
+              style={styles.btnPrimary}>
+              <Text style={styles.btnPrimaryText}>Keep waiting</Text>
+            </Focusable>
+            {canLowerQuality ? (
+              <Focusable round onFocusChange={markZone('menu')} onPress={lowerQuality} style={styles.btn}>
+                <Text style={styles.btnText}>Lower quality</Text>
+              </Focusable>
+            ) : null}
+            <Focusable
+              round
+              onFocusChange={markZone('menu')}
+              onPress={() => canNavigate(navigation) && navigation.goBack()}
+              style={styles.btn}>
+              <Text style={styles.btnText}>Back</Text>
             </Focusable>
           </View>
         </TVFocusGuideView>

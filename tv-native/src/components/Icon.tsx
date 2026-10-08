@@ -35,7 +35,13 @@ export type IconName =
   | 'series'
   | 'people'
   | 'xray'
-  | 'skip';
+  | 'skip'
+  | 'sparkle'
+  | 'chat'
+  | 'calendar'
+  | 'clock'
+  | 'refresh'
+  | 'warning';
 
 type Props = {name: IconName; size?: number; color?: string};
 
@@ -90,6 +96,36 @@ function glyph(name: IconName, color: string) {
     // Skip to the end of a range — the Skip intro button.
     case 'skip':
       return <Path d="M5 5.5v13l9-6.5-9-6.5zM16 5h2.5v14H16z" />;
+    // The AI page's set (2026-10-08). Same weight and 24x24 box as the rest,
+    // filled silhouettes so they hold at 14-18dp on a TV.
+    // Two four-point stars and a fleck: the AI mark (the kicker, Find, picks).
+    case 'sparkle':
+      return (
+        <Path d="M10 2.5l1.9 5.6 5.6 1.9-5.6 1.9L10 17.5l-1.9-5.6L2.5 10l5.6-1.9zM18 13.5l.95 2.05L21 16.5l-2.05.95L18 19.5l-.95-2.05L15 16.5l2.05-.95zM18 2.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z" />
+      );
+    // A speech bubble with lines — "say it in your own words" (the mood field).
+    case 'chat':
+      return (
+        <Path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z" />
+      );
+    // A page of a calendar — the Era group.
+    case 'calendar':
+      return (
+        <Path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V9h14v11zM7 11h5v5H7z" />
+      );
+    // A clock face — the Length group.
+    case 'clock':
+      return (
+        <Path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z" />
+      );
+    // A circular arrow — ask again.
+    case 'refresh':
+      return (
+        <Path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+      );
+    // A triangle with a bang — notices and errors.
+    case 'warning':
+      return <Path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />;
     case 'plus':
       return <Path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z" />;
     case 'check':

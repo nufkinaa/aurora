@@ -16,14 +16,14 @@
 // card: the site puts labels on the cards that have them (wide, episode, up-next)
 // and nothing at all on a poster, and Card now does the same.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {View, Text, Image, StyleSheet, ActivityIndicator, Animated, Easing} from 'react-native';
+import {View, Text, Image, StyleSheet, ActivityIndicator, Animated, Easing, PixelRatio} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Btn from '../components/Btn';
 import Row from '../components/Row';
 import NavRail from '../components/NavRail';
 import {ErrorState} from '../components/States';
 import TrailerFrame, {TrailerHandle, TrailerState} from '../components/Trailer';
-import {api, imgSrc, ImgSource, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
+import {api, artPath, ART_LADDER, imgSrc, ImgSource, serverCanBlur, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
 import {checkForUpdate, holdPromptFor, onUpdateReady, updateReady, UpdateInfo} from '../update';
 import {currentRouteName} from '../rootNav';
 import {syncHomeScreen, useHomeScreenLinks} from '../homeScreen';
@@ -50,8 +50,14 @@ const {colors, fontSize, spacing, radius, motion} = theme;
 // --bg ramp: painting the page colour over the foot of the art is the mistake
 // screens.css:13-20 calls out by name — the covered band is the one place with no
 // ambient light in it, so the join reads as a horizon line.
-const HERO_SIDE = require('../assets/hero-side.png');
-const HERO_VEIL = require('../assets/ambient-veil.png');
+//
+// ONE picture, not two: hero-side.png (stretched over the left 72%) and then
+// ambient-veil.png (the whole window) are precomposed by tools/gen_ambient.py
+// into hero-scrim.png — "over" is associative, so the pair drawn as one layer
+// is the same picture, one full-screen layer of fill fewer on every frame.
+// tools/check_baked.py: at most 2 levels of 255 from the pair, over any art.
+// (Detail and Sources still draw the pair; they sit on a different veil.)
+const HERO_SCRIM = require('../assets/hero-scrim.png');
 
 const EASE = Easing.bezier(0.2, 0.7, 0.2, 1);
 
@@ -66,13 +72,58 @@ const EASE = Easing.bezier(0.2, 0.7, 0.2, 1);
 const REST = {blur: 1, dim: 0.45};
 const SCROLLED = {blur: 2, dim: 0.42};
 
+// THE BLUR IS DONE BY THE SERVER. `blurRadius` made Android run Fresco's
+// iterative box blur on the decoded 1920×1080 backdrop — a copy of the whole
+// bitmap plus a native blur, once per layer, on every rotation (the
+// FrescoBackgroundExecutor bursts measured on the Mi TV). The server makes
+// the same picture once and caches it (src/lib/imgvariant.js `?blur=`: the
+// identical two-pass box at the source's resolution, then 1280 wide like the
+// site's billboard), so the box only decodes a 1280×720 JPEG.
+//
+// The radius asked for is the one Android would have used, in SOURCE pixels:
+// ReactImageView.setBlurRadius takes (dp × density, truncated) / 2, with two
+// iterations — 1 px for REST and 2 px for SCROLLED on a 1080p set. A radius
+// that comes to 0 on a low-density screen meant "no blur" there, and still
+// does (the original, as before).
+const deviceBlurPx = (dp: number) => Math.floor(Math.floor(dp * PixelRatio.get()) / 2);
+// The site caps the billboard at 1280 (public/js/ui.js heroArtWidth).
+const heroPx = (dpWidth: number) => {
+  const px = Math.min(1280, Math.ceil(dpWidth * PixelRatio.get()));
+  return ART_LADDER.find(s => px <= s) || 1280;
+};
+type ArtLayer = {src: ImgSource; deviceBlur: number};
+type HeroLayers = {rest: ArtLayer; scrolled: ArtLayer | null};
+function heroLayers(raw: string, dpWidth: number): HeroLayers | null {
+  const plain = imgSrc(raw);
+  if (!plain) return null;
+  // A library still is a real video frame and stays SHARP in both states: one layer.
+  if (plain.uri.includes('/img/still')) return {rest: {src: plain, deviceBlur: 0}, scrolled: null};
+  const layer = (dp: number): ArtLayer => {
+    const r = deviceBlurPx(dp);
+    if (r <= 0) return {src: plain, deviceBlur: 0};
+    const path = serverCanBlur() ? artPath(raw, heroPx(dpWidth), r) : null;
+    // a host the server does not proxy, or a server too old to blur: on the box, as before
+    return path ? {src: imgSrc(path) || plain, deviceBlur: 0} : {src: plain, deviceBlur: dp};
+  };
+  return {rest: layer(REST.blur), scrolled: layer(SCROLLED.blur)};
+}
+
 const HeroArt = React.memo(function HeroArtLayer({
   art,
+  scrolledArt,
   atTop,
   h,
   children,
 }: {
-  art: ImgSource;
+  art: HeroLayers;
+  // The SCROLLED layer's picture (the same pick's), or null while it is not
+  // wanted. It is invisible (opacity 0) while focus is up here, so it is not
+  // mounted until focus goes down to the shelves, and it is not carried along
+  // as the billboard rotates (rotation only happens up here): a rotation
+  // decodes ONE picture, the one on show. When focus leaves the hero it is
+  // mounted for the current pick and decodes while it fades in — under a
+  // layer that is itself fading out with the scroll.
+  scrolledArt: HeroLayers | null;
   atTop: Animated.Value;
   h: number;
   // The trailer layer, drawn over the art and UNDER the scrims, so the lockup
@@ -80,31 +131,30 @@ const HeroArt = React.memo(function HeroArtLayer({
   children?: React.ReactNode;
 }) {
   // A still stays sharp in both states, so it needs one layer; blurred art needs
-  // two, because blurRadius is a prop and cannot be animated.
-  const sharp = art.uri.includes('/img/still');
+  // two, because the blur is baked into each picture and cannot be animated.
   const dim = atTop.interpolate({inputRange: [0, 1], outputRange: [SCROLLED.dim, REST.dim]});
+  const scrolled = scrolledArt?.scrolled || null;
   return (
     <View style={[styles.artLayer, {height: h}]} pointerEvents="none">
       <Image
-        source={art}
+        source={art.rest.src}
         style={styles.art}
         resizeMode="cover"
-        blurRadius={sharp ? 0 : REST.blur}
+        blurRadius={art.rest.deviceBlur}
         fadeDuration={260}
       />
-      {sharp ? null : (
+      {art.scrolled && scrolled ? (
         <Animated.Image
-          source={art}
+          source={scrolled.src}
           style={[styles.art, {opacity: atTop.interpolate({inputRange: [0, 1], outputRange: [1, 0]})}]}
           resizeMode="cover"
-          blurRadius={SCROLLED.blur}
+          blurRadius={scrolled.deviceBlur}
           fadeDuration={0}
         />
-      )}
+      ) : null}
       {children}
       <Animated.View style={[styles.artDim, {opacity: dim}]} />
-      <Image source={HERO_SIDE} style={styles.artSide} resizeMode="stretch" />
-      <Image source={HERO_VEIL} style={styles.artVeil} resizeMode="stretch" />
+      <Image source={HERO_SCRIM} style={styles.artScrim} resizeMode="stretch" fadeDuration={0} />
     </View>
   );
 });
@@ -312,16 +362,25 @@ export default function Home({
   // The intent ports, the test does not: rotate while the hero is on screen,
   // hold for 15s after a press, and stop once focus is down in the shelves.
   const [heroIdx, setHeroIdx] = useState(0);
+  const heroIdxRef = useRef(0);
+  heroIdxRef.current = heroIdx;
   const holdUntil = useRef(0);
   const swap = useRef(new Animated.Value(1)).current;
 
   // The site's `.scrolled` boolean, which is the ONLY thing scroll changes there.
   const atTop = useRef(new Animated.Value(1)).current;
   const isTop = useRef(true);
+  // Which pick the SCROLLED art layer shows (HeroArt): -1 until focus first
+  // leaves the hero, then the pick on show at the moment it left.
+  const [scrolledIdx, setScrolledIdx] = useState(-1);
   const setTop = useCallback(
     (next: boolean) => {
       if (next === isTop.current) return;
       isTop.current = next;
+      if (!next) {
+        const at = heroIdxRef.current;
+        defer(() => setScrolledIdx(at));
+      }
       Animated.timing(atTop, {
         toValue: next ? 1 : 0,
         duration: motion.med,
@@ -345,7 +404,7 @@ export default function Home({
   }, [heroes.length, live]);
 
   // ---- the billboard trailer (site: heroTrailer.js) ------------------------
-  // A pick that has held still for 6s cross-fades to its trailer, muted, for
+  // A pick that has held still for 4.5s (elia, 2026-10-08) cross-fades to its trailer, muted, for
   // 25s (50s once unmuted), then back to the art and on to the next pick.
   // Anything the viewer does — moving down to the shelves, the rotation
   // moving, leaving the screen — ends it at once. The WebView exists only
@@ -397,9 +456,18 @@ export default function Home({
       if (trailerOnRef.current) {
         trailerOnRef.current = false;
         setTrailerOn(false);
-        Animated.timing(trailerFade, {toValue: 0, duration: 700, useNativeDriver: true, isInteraction: false}).start(() =>
-          setTrailer(null),
-        );
+        // The fade, then the WebView goes. When Home is LEAVING (a press on
+        // Play, Details, a card) this screen is frozen a frame later
+        // (freezeOnBlur), and a frozen screen does not commit state: the
+        // setTrailer(null) waits until Home is shown again, and the WebView
+        // used to sit under the player all film long with YouTube still
+        // decoding behind it. So the page is also told to stop for good the
+        // moment the fade has finished — that is a native command, which a
+        // frozen screen still delivers — and the unmount follows on return.
+        Animated.timing(trailerFade, {toValue: 0, duration: 700, useNativeDriver: true, isInteraction: false}).start(() => {
+          trailerHandle.current?.cmd('stop');
+          setTrailer(null);
+        });
         if (advance) {
           holdUntil.current = 0;
           setHeroIdx(i => (i + 1) % Math.max(1, heroes.length));
@@ -463,7 +531,7 @@ export default function Home({
         return;
       }
       setTrailer({id, key: gen});
-    }, 6000);
+    }, 4500);
     return () => {
       clearTimeout(timer);
       stopTrailer(false);
@@ -503,7 +571,10 @@ export default function Home({
 
   // THE HERO'S OWN KEYS (elia, 2026-10-06): RIGHT on the last button and LEFT
   // on the first move the billboard a slide, the way the site's dots do with a
-  // mouse; UP from any of its buttons opens the nav rail (LEFT used to). The
+  // mouse; UP from any of its buttons opens the nav rail, and so does LEFT
+  // from the first one (elia, 2026-10-08: LEFT is "go to the menu" everywhere
+  // else on the screen, so it is here too; RIGHT on the last button still
+  // turns the slide). The
   // button that holds focus reports its index; `focusJustMoved` keeps a press
   // that merely moved focus between the buttons from also turning the slide.
   const heroBtn = useRef(-1); // index of the focused hero button, -1 = not in the band
@@ -524,13 +595,12 @@ export default function Home({
       (evt: {eventType: string}) => {
         const t = evt.eventType;
         if (heroBtn.current < 0 || !isTop.current) return;
-        if (t === 'up') {
+        if (t === 'up' || (t === 'left' && heroBtn.current === 0)) {
           requestRailOpen();
           return;
         }
         if (focusJustMoved(120)) return;
         if (t === 'right' && heroBtn.current === heroBtnCount.current - 1) turnHero(1);
-        else if (t === 'left' && heroBtn.current === 0) turnHero(-1);
       },
       [turnHero],
     ),
@@ -673,7 +743,14 @@ export default function Home({
   }
 
   const hero = heroes[heroIdx % Math.max(1, heroes.length)] || null;
-  const art = imgSrc(hero?.backdrop || hero?.cover);
+  const artRaw = hero?.backdrop || hero?.cover || null;
+  const art = artRaw ? heroLayers(artRaw, width) : null;
+  // The scrolled layer exists only for the pick it was mounted for: once the
+  // billboard has rotated past it (up at the top, where it is invisible) it is
+  // dropped rather than left holding a stale picture, and it is mounted again
+  // for the new pick when focus next leaves the hero.
+  const n = Math.max(1, heroes.length);
+  const scrolledArt = scrolledIdx >= 0 && scrolledIdx % n === heroIdx % n ? art : null;
   const isEpisode = !!hero?.showId && hero?.type !== 'show';
   const facts = [
     hero?.rating ? `★ ${hero.rating}` : null,
@@ -707,7 +784,7 @@ export default function Home({
         ]}
         pointerEvents="none">
       {art ? (
-        <HeroArt art={art} atTop={atTop} h={height}>
+        <HeroArt art={art} scrolledArt={scrolledArt} atTop={atTop} h={height}>
           {trailer ? (
             <Animated.View style={[styles.trailerLayer, {opacity: trailerFade}]} pointerEvents="none">
               <TrailerFrame
@@ -893,8 +970,8 @@ const styles = StyleSheet.create({
   // `brightness()` as the scrim it implies. NOT --bg: painting the page colour
   // over the art is what screens.css:13-20 rejects.
   artDim: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000000'},
-  artSide: {position: 'absolute', top: 0, left: 0, bottom: 0, width: '72%', height: '100%'},
-  artVeil: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%'},
+  // hero-side (72% wide) + ambient-veil (full), baked into one full-window layer
+  artScrim: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%'},
 
   // ---- the column ---------------------------------------------------------
   column: {position: 'absolute', top: 0, left: 0, right: 0},

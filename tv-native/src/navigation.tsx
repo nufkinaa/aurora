@@ -21,7 +21,7 @@ import Overlays from './components/Overlays';
 import {HeroItem, TorrentPlayItem} from './api';
 import {navRef} from './rootNav';
 import {track} from './usage';
-import theme from './theme';
+import {frameScreen} from './perfTier';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -74,6 +74,9 @@ export default function AppNavigator() {
       <NavigationContainer
         ref={navRef}
         theme={navTheme}
+        // The frame monitor (perfTier.ts) tags what it counts with the screen
+        // on show.
+        onReady={() => frameScreen((navRef.getCurrentRoute()?.name || 'home').toLowerCase())}
         // Usage stats: which screens are opened, and how long the last one held.
         onStateChange={() => {
           const r = navRef.getCurrentRoute();
@@ -82,6 +85,7 @@ export default function AppNavigator() {
           const name = r.name === 'Browse' && p?.kind ? `${r.name}/${p.kind}` : r.name;
           track('route', {r: `tv:${name.toLowerCase()}`, ms: Math.min(120000, Date.now() - routeAt.current)});
           routeAt.current = Date.now();
+          frameScreen(r.name.toLowerCase());
         }}>
         <Stack.Navigator
         // freezeOnBlur: screens buried in the stack stop re-rendering entirely,
@@ -116,5 +120,8 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
-  root: {flex: 1, backgroundColor: theme.colors.bg},
+  // No page colour here: Ambient (below everything) paints it until its
+  // opaque canvas has drawn, and nothing after that — a full-screen fill
+  // under an opaque picture was one more layer of overdraw on every frame.
+  root: {flex: 1},
 });

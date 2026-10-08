@@ -1,21 +1,36 @@
 // The AI tab — the site's "Pick for me" (screens/pickforme.js), on a remote.
 // Describe the mood, pick Movies or Shows and two taste dials, press Find, and
 // the server (src/media/ai.js) answers with titles and a line on why each one
-// fits. The cards are the same Card the rest of the app uses, so anything
-// picked here opens and plays like a title found any other way.
+// fits. The cards are the same Card the rest of the app uses (its compact
+// size), so anything picked here opens and plays like a title found any other
+// way.
 //
 // It replaces "New" in the nav rail (elia, 2026-10-06); the New page is still
 // one press away under Settings → What's new.
+//
+// Layout (2026-10-08, "more clear what it does … cards a bit smaller"): a
+// header that says what the page is for, ONE glass panel holding the ask (the
+// mood field + Find) over the labelled dials (What | Era, then Length), and
+// the picks under it as an eight-column grid of compact posters. The header and
+// the panel are the list's header, so moving down into the picks scrolls the
+// controls away and the grid gets the whole screen.
+//
+// Remote order: field → Find (right); down to What → Era (right along one row);
+// down to Length; down to the picks' "Try again", then into the grid. UP from
+// the grid's top row lands on Try again (or Find when there is no answer yet).
 //
 // The last answer lives at module scope: opening a result and coming Back
 // paints it straight back instead of spending another ten seconds (and real
 // money) on the same question.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {View, Text, TextInput, FlatList, StyleSheet, ActivityIndicator} from 'react-native';
+import {View, Text, TextInput, FlatList, StyleSheet} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
-import Card, {CARD_W} from '../components/Card';
+import Card, {COMPACT_W, COMPACT_H} from '../components/Card';
 import Chip from '../components/Chip';
 import Btn from '../components/Btn';
+import Icon, {IconName} from '../components/Icon';
+import MiniSpinner from '../components/MiniSpinner';
+import Skeleton from '../components/Skeleton';
 import NavRail from '../components/NavRail';
 import {api, HeroItem} from '../api';
 import {canNavigate} from '../navLock';
@@ -64,15 +79,36 @@ const STAGES = [
   'Checking which of these Aurora can actually play…',
 ];
 
+// The grid's gutter, both ways.
+const GAP = spacing.md;
+// The no-key notice: the site's amber, as text and a tinted box.
+const AMBER = '#fbbf24';
+// "On this server": the timeline's mint (Card's progress ramp).
+const MINT = '#8cffbe';
+
 type PickItem = HeroItem & {why?: string};
 type Answer = {vibe: string; kind: 'movie' | 'show'; era: string; length: string; items: PickItem[]; status: string};
 let last: Answer | null = null;
 
+// One labelled dial group: a small icon and a caps label, then its pills.
+function Group({icon, label, children}: {icon: IconName; label: string; children: React.ReactNode}) {
+  return (
+    <View style={styles.group}>
+      <View style={styles.groupLabel}>
+        <Icon name={icon} size={16} color={colors.accent} />
+        <Text style={styles.groupText}>{label}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
+
 export default function Pick({navigation}: NativeStackScreenProps<RootStackParamList, 'Pick'>) {
   const {width, safeBottom} = useTvMetrics();
+  // How many compact posters fit the content box: 8 on a 960dp canvas.
   const cols = Math.max(
-    3,
-    Math.floor((width - spacing.contentLeft - spacing.pageX + spacing.md) / (CARD_W + spacing.md)),
+    4,
+    Math.floor((width - spacing.contentLeft - spacing.pageX + GAP) / (COMPACT_W + GAP)),
   );
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [vibe, setVibe] = useState(last?.vibe || '');
@@ -83,9 +119,22 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
   const [stage, setStage] = useState(0);
   const [items, setItems] = useState<PickItem[]>(last?.items || []);
   const [status, setStatus] = useState(last?.status || '');
+  // What the last ask came to when it was not a list: 'empty' or the server's
+  // own message. Nothing while there is no answer at all.
+  const [empty, setEmpty] = useState(false);
+  const [error, setError] = useState('');
+  // Has anything been asked on this visit (or restored)? Decides whether the
+  // picks' header (and its Try again) is drawn.
+  const [asked, setAsked] = useState(!!last);
+  const [inputFocused, setInputFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const inputFallback = useRef({requestTVFocus: () => inputRef.current?.focus()});
   useFocusFallback(inputFallback);
+  // Registered after the field, so it wins: a focused card or Try again that
+  // unmounts lands on Find rather than summoning the keyboard.
+  const goBtn = useRef<{requestTVFocus?: () => void}>(null);
+  useFocusFallback(goBtn as never);
+  const againBtn = useRef<{requestTVFocus?: () => void}>(null);
 
   useEffect(() => {
     let live = true;
@@ -106,19 +155,18 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
     return () => clearInterval(t);
   }, [busy]);
 
-  // UP out of the results grid lands on the Find button, deterministically
-  // (the native focus search regularly finds nothing above a top-row card —
-  // Browse and Search carry the same escape).
+  // UP out of the results grid lands on Try again (Find before there is one),
+  // deterministically — the native focus search regularly finds nothing above
+  // a top-row card; Browse and Search carry the same escape.
   const inGrid = useRef(false);
   const gridIdx = useRef(0);
-  const goBtn = useRef<{requestTVFocus?: () => void}>(null);
   useTVKeys(
     useCallback(
       (evt: {eventType: string}) => {
         if (evt.eventType !== 'up' || railOpen()) return;
         if (!inGrid.current || gridIdx.current >= cols) return;
         inGrid.current = false;
-        goBtn.current?.requestTVFocus?.();
+        (againBtn.current || goBtn.current)?.requestTVFocus?.();
       },
       [cols],
     ),
@@ -129,38 +177,46 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
     gridIdx.current = index;
   }, []);
 
-  const ask = useCallback(async () => {
-    const q = vibe.trim();
-    if (q.length < 3) {
-      inputRef.current?.focus();
-      return;
-    }
-    if (busy) return;
-    setBusy(true);
-    setStatus('');
-    setItems([]);
-    try {
-      const mix = KINDS.find(k => k.id === kind)!.mix;
-      const res = await api.aiRecommend(q, mix, era, length);
-      const got = (res.items || []) as PickItem[];
-      if (!got.length) {
-        setStatus('Nothing came back for that. Try describing it differently.');
+  const ask = useCallback(
+    // `fresh`: Try again — the server skips its cached answer for this exact question
+    async (override?: string, fresh = false) => {
+      const q = (override ?? vibe).trim();
+      if (q.length < 3) {
+        inputRef.current?.focus();
         return;
       }
-      const noun = kind === 'show' ? (got.length === 1 ? 'show' : 'shows') : got.length === 1 ? 'film' : 'films';
-      const text =
-        `${got.length} ${noun} for “${q}”` +
-        (res.cached ? ' · from earlier' : '') +
-        (got.length < 5 && (era !== 'any' || length !== 'any') ? ' · not much fits those filters, try loosening one' : '');
-      last = {vibe: q, kind, era, length, items: got, status: text};
-      setItems(got);
-      setStatus(text);
-    } catch (e) {
-      setStatus((e as Error)?.message || 'The recommender didn’t answer.');
-    } finally {
-      setBusy(false);
-    }
-  }, [vibe, kind, era, length, busy]);
+      if (busy) return;
+      if (override != null) setVibe(override);
+      setAsked(true);
+      setBusy(true);
+      setStatus('');
+      setEmpty(false);
+      setError('');
+      setItems([]);
+      try {
+        const mix = KINDS.find(k => k.id === kind)!.mix;
+        const res = await api.aiRecommend(q, mix, era, length, fresh);
+        const got = (res.items || []) as PickItem[];
+        if (!got.length) {
+          setEmpty(true);
+          return;
+        }
+        const noun = kind === 'show' ? (got.length === 1 ? 'show' : 'shows') : got.length === 1 ? 'film' : 'films';
+        const text =
+          `${got.length} ${noun} for “${q}”` +
+          (res.cached ? ' · from earlier' : '') +
+          (got.length < 5 && (era !== 'any' || length !== 'any') ? ' · not much fits those filters, try loosening one' : '');
+        last = {vibe: q, kind, era, length, items: got, status: text};
+        setItems(got);
+        setStatus(text);
+      } catch (e) {
+        setError((e as Error)?.message || 'The recommender didn’t answer.');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [vibe, kind, era, length, busy],
+  );
 
   const openDetail = useCallback(
     (item: HeroItem) => {
@@ -170,54 +226,109 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
     [navigation],
   );
   const renderCard = useCallback(
-    ({item, index}: {item: PickItem; index: number}) => (
-      <View style={styles.pick}>
-        <Card item={item} index={index} onPress={openDetail} onFocus={onCardFocus} edgeLeft={index % cols === 0} />
-        {item.why ? (
-          <Text style={styles.why} numberOfLines={3}>
-            {item.why}
+    ({item, index}: {item: PickItem; index: number}) => {
+      const onServer = item.source === 'downloaded' || !!item.inLibrary;
+      return (
+        <View style={styles.pick}>
+          <Card compact item={item} index={index} onPress={openDetail} onFocus={onCardFocus} edgeLeft={index % cols === 0} />
+          <Text style={styles.pickTitle} numberOfLines={1} ellipsizeMode="tail">
+            {item.title}
           </Text>
-        ) : null}
-      </View>
-    ),
+          {/* The year, behind a glyph that says where it plays from: a mint
+              tick for a copy on this server, a dim play mark for a stream (the
+              legend sits in the picks' header — a word does not fit 88dp). */}
+          <View style={styles.pickMeta}>
+            <Icon name={onServer ? 'check' : 'play'} size={13} color={onServer ? MINT : colors.textFaint} />
+            <Text style={[styles.pickYear, onServer && styles.pickYearOn]} numberOfLines={1}>
+              {item.year ? String(item.year) : onServer ? 'On server' : 'Stream'}
+            </Text>
+          </View>
+          {item.why ? (
+            <Text style={styles.why} numberOfLines={2} ellipsizeMode="tail">
+              {item.why}
+            </Text>
+          ) : null}
+        </View>
+      );
+    },
     [openDetail, cols, onCardFocus],
   );
 
   const lengths = LENGTHS[kind];
   const example = EXAMPLES[Math.abs(vibe.length) % EXAMPLES.length];
+  const off = enabled === false;
 
-  return (
-    <View style={styles.root}>
-      <NavRail active="ai" />
-      <View style={styles.body}>
+  // ---- the page above the grid: header, notice, controls, picks header ----
+  const header = (
+    <View>
+      <View style={styles.kickerRow}>
+        <Icon name="sparkle" size={16} color={colors.accent} />
         <Text style={styles.kicker}>AI</Text>
-        <Text style={styles.h1}>What are you in the mood for?</Text>
-        {enabled === false ? (
-          <Text style={styles.off}>The recommender isn’t set up on this server. The admin adds a key under Admin → Server to switch it on.</Text>
-        ) : null}
-        <TextInput
-          ref={inputRef}
-          style={styles.input}
-          value={vibe}
-          onChangeText={setVibe}
-          autoFocus={!last}
-          onFocus={() => {
-            inGrid.current = false;
-            noteFocus(null, false);
-          }}
-          onSubmitEditing={ask}
-          returnKeyType="search"
-          placeholder={`e.g. ${example}`}
-          placeholderTextColor={colors.textFaint}
-          maxLength={300}
-          editable={enabled !== false}
-        />
-        {/* The dials: one row each, like the site's pill rows. */}
-        <View style={styles.dials}>
-          <View style={styles.dialRow}>
+      </View>
+      <Text style={styles.h1} numberOfLines={1}>
+        What are you in the mood for?
+      </Text>
+      <Text style={styles.sub} numberOfLines={1}>
+        Describe a mood or pick a few filters, and Aurora picks from what is on this server and what it can stream.
+      </Text>
+
+      {off ? (
+        <View style={styles.notice}>
+          <Icon name="warning" size={20} color={AMBER} />
+          <Text style={styles.noticeText}>
+            The recommender isn’t set up on this server. The admin adds a key under Admin → Server to switch it on.
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={styles.panel}>
+        {/* The ask: the mood in your own words, and the button that sends it. */}
+        <View style={styles.askRow}>
+          <View style={[styles.field, inputFocused && styles.fieldFocused, off && styles.fieldOff]}>
+            <Icon name="chat" size={18} color={inputFocused ? colors.accent : colors.textFaint} />
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              value={vibe}
+              onChangeText={setVibe}
+              // No autoFocus: a focused field opens the TV keyboard, which
+              // covered the controls the moment the page opened (Mi TV,
+              // 2026-10-08). Focus lands on "Find me something"; the field is
+              // one press left of it.
+              onFocus={() => {
+                inGrid.current = false;
+                noteFocus(null, false);
+                setInputFocused(true);
+              }}
+              onBlur={() => setInputFocused(false)}
+              onSubmitEditing={() => ask()}
+              returnKeyType="search"
+              placeholder={`e.g. ${example}`}
+              placeholderTextColor={colors.textFaint}
+              maxLength={300}
+              numberOfLines={1}
+              editable={!off}
+            />
+          </View>
+          <Btn
+            ref={goBtn as never}
+            primary
+            icon="sparkle"
+            label={busy ? 'Thinking…' : 'Find me something'}
+            hasTVPreferredFocus
+            onPress={() => ask()}
+          />
+        </View>
+
+        <View style={styles.hr} />
+
+        {/* The dials, labelled. Row one: What | Era. Row two: Length. */}
+        <View style={styles.dialRow}>
+          <Group icon={kind === 'show' ? 'series' : 'film'} label="WHAT">
             {KINDS.map((k, i) => (
               <Chip
                 key={k.id}
+                small
                 label={k.label}
                 on={kind === k.id}
                 edgeLeft={i === 0}
@@ -227,27 +338,100 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
                 }}
               />
             ))}
-            <View style={styles.dialGap} />
+          </Group>
+          <View style={styles.vr} />
+          <Group icon="calendar" label="ERA">
             {ERAS.map(e => (
-              <Chip key={e.id} label={e.label} on={era === e.id} onPress={() => setEra(e.id)} />
+              <Chip key={e.id} small label={e.label} on={era === e.id} onPress={() => setEra(e.id)} />
             ))}
-          </View>
-          <View style={styles.dialRow}>
-            {lengths.map((l, i) => (
-              <Chip key={l.id} label={l.label} on={length === l.id} edgeLeft={i === 0} onPress={() => setLength(l.id)} />
-            ))}
-            <View style={styles.dialGap} />
-            <Btn
-              ref={goBtn as never}
-              primary
-              label={busy ? STAGES[stage] : 'Find me something'}
-              hasTVPreferredFocus={!!last}
-              onPress={ask}
-            />
-          </View>
+          </Group>
         </View>
-        {busy ? <ActivityIndicator color={colors.text} style={styles.spinner} /> : null}
-        {status ? <Text style={styles.status}>{status}</Text> : null}
+        <View style={[styles.dialRow, styles.dialRowNext]}>
+          <Group icon="clock" label="LENGTH">
+            {lengths.map((l, i) => (
+              <Chip key={l.id} small label={l.label} on={length === l.id} edgeLeft={i === 0} onPress={() => setLength(l.id)} />
+            ))}
+          </Group>
+        </View>
+      </View>
+
+      {/* The picks' own header: what came back, and a way to ask again. Drawn
+          from the first ask on, and kept mounted while a new answer is on its
+          way, so the Try again you pressed keeps focus. */}
+      {asked ? (
+        <View style={styles.picksHead}>
+          <Icon name="sparkle" size={16} color={colors.accent} />
+          <Text style={styles.picksTitle}>{busy ? 'Thinking…' : items.length ? 'Picked for you' : 'No picks'}</Text>
+          <Text style={styles.picksStatus} numberOfLines={1} ellipsizeMode="tail">
+            {busy ? STAGES[stage] : status}
+          </Text>
+          {items.length > 0 && !busy ? (
+            <View style={styles.legend}>
+              <Icon name="check" size={13} color={MINT} />
+              <Text style={styles.legendText}>on this server</Text>
+              <Icon name="play" size={13} color={colors.textFaint} />
+              <Text style={styles.legendText}>streams</Text>
+            </View>
+          ) : null}
+          <Btn ref={againBtn as never} small icon="refresh" label="Try again" dim={busy} onPress={() => ask(undefined, true)} />
+        </View>
+      ) : null}
+    </View>
+  );
+
+  // ---- what sits where the grid goes when there is no grid ----
+  let body: React.ReactNode = null;
+  if (busy) {
+    // A calm placeholder in the grid's own shape, so the answer lands into it.
+    body = (
+      <View>
+        <View style={styles.waitRow}>
+          <MiniSpinner />
+          <Text style={styles.waitText}>Asking for actual opinions, not running a database query — give it a few seconds.</Text>
+        </View>
+        <View style={styles.skelRow}>
+          {Array.from({length: cols}, (_, i) => (
+            <View key={i} style={styles.pick}>
+              <Skeleton width={COMPACT_W} height={COMPACT_H} />
+              <View style={styles.skelLine} />
+              <View style={[styles.skelLine, styles.skelLineShort]} />
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  } else if (error) {
+    body = (
+      <View style={styles.state}>
+        <Icon name="warning" size={28} color="#ff7a7a" />
+        <Text style={styles.stateError}>{error}</Text>
+        <Text style={styles.stateHint}>Try again in a moment, or change the question.</Text>
+      </View>
+    );
+  } else if (empty) {
+    body = (
+      <View style={styles.state}>
+        <Icon name="search" size={28} color={colors.textDim} />
+        <Text style={styles.stateTitle}>Nothing matched — try fewer filters</Text>
+        <Text style={styles.stateHint}>Or describe it a different way.</Text>
+      </View>
+    );
+  } else if (!asked && !off) {
+    // Before the first ask: a few one-press examples, the site's "Try:" row.
+    body = (
+      <View style={styles.tryRow}>
+        <Text style={styles.tryLabel}>Try</Text>
+        {EXAMPLES.slice(0, 3).map((ex, i) => (
+          <Chip key={ex} small bare label={ex} edgeLeft={i === 0} onPress={() => ask(ex)} />
+        ))}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.root}>
+      <NavRail active="ai" />
+      <View style={styles.body}>
         <FlatList
           data={items}
           style={styles.listFill}
@@ -256,8 +440,10 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
           keyExtractor={(it, i) => `${it.id || it.imdbId}-${i}`}
           columnWrapperStyle={styles.rowGap}
           contentContainerStyle={[styles.grid, {paddingBottom: CLEARANCE.below + safeBottom}]}
-          initialNumToRender={12}
-          maxToRenderPerBatch={12}
+          ListHeaderComponent={header}
+          ListEmptyComponent={body ? <View>{body}</View> : null}
+          initialNumToRender={cols * 2}
+          maxToRenderPerBatch={cols * 2}
           windowSize={5}
           renderItem={renderCard}
         />
@@ -266,31 +452,98 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
   );
 }
 
+
 const styles = StyleSheet.create({
   root: {flex: 1},
-  body: {flex: 1, paddingLeft: spacing.contentLeft, paddingRight: spacing.pageX, paddingTop: 27},
-  kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3},
-  h1: {color: colors.text, fontSize: fontSize.title, fontWeight: '900', marginTop: 2, marginBottom: spacing.md},
-  off: {color: '#fbbf24', fontSize: fontSize.body, marginBottom: spacing.md},
-  input: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: radius.m,
-    color: colors.text,
-    fontSize: fontSize.row,
-    paddingVertical: 14,
-    paddingHorizontal: 22,
-    marginBottom: spacing.md,
-  },
-  dials: {gap: spacing.sm, marginBottom: spacing.md},
-  dialRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap'},
-  dialGap: {width: spacing.md},
-  spinner: {marginBottom: spacing.sm, alignSelf: 'flex-start'},
-  status: {color: colors.textDim, fontSize: fontSize.body, fontWeight: '600', marginBottom: spacing.sm},
+  // Same gutters as Search / Browse. The top inset is on the list's CONTENT
+  // (the header scrolls away with it), not on the list.
+  body: {flex: 1, paddingLeft: spacing.contentLeft, paddingRight: spacing.pageX},
   listFill: {flex: 1},
-  grid: {paddingTop: CLEARANCE.above, gap: spacing.lg},
-  rowGap: {gap: spacing.md},
-  pick: {width: CARD_W},
-  why: {color: colors.textDim, fontSize: 13, lineHeight: 18, marginTop: 8},
+  grid: {paddingTop: spacing.pageY},
+
+  // ---- header ----
+  kickerRow: {flexDirection: 'row', alignItems: 'center', gap: 6},
+  kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3},
+  h1: {color: colors.text, fontSize: fontSize.title, lineHeight: 30, fontWeight: '900', marginTop: 2},
+  sub: {color: colors.textDim, fontSize: 14, lineHeight: 19, marginTop: 2, marginBottom: 12},
+
+  // ---- the no-key notice ----
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: radius.m,
+    backgroundColor: 'rgba(251,191,36,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.35)',
+    marginBottom: 12,
+  },
+  noticeText: {flex: 1, color: AMBER, fontSize: 14, lineHeight: 19, fontWeight: '600'},
+
+  // ---- the controls panel (glass) ----
+  panel: {
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.l,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  askRow: {flexDirection: 'row', alignItems: 'center', gap: 12},
+  field: {
+    flex: 1,
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingLeft: 14,
+    paddingRight: 8,
+    borderRadius: radius.m,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  // The field is not a Focusable, so its focus is told by the accent edge.
+  fieldFocused: {borderColor: colors.accent, backgroundColor: colors.surfaceHover},
+  fieldOff: {opacity: 0.55},
+  input: {flex: 1, color: colors.text, fontSize: 16, paddingVertical: 0, paddingHorizontal: 0},
+  hr: {height: 1, backgroundColor: colors.line, marginVertical: 12},
+  dialRow: {flexDirection: 'row', alignItems: 'center', gap: 16},
+  dialRowNext: {marginTop: 8},
+  vr: {width: 1, alignSelf: 'stretch', backgroundColor: colors.line, marginVertical: 4},
+  group: {flexDirection: 'row', alignItems: 'center', gap: 6},
+  // A fixed label column, so the pills of What and Length start on one line.
+  groupLabel: {flexDirection: 'row', alignItems: 'center', gap: 6, width: 92},
+  groupText: {color: colors.textDim, fontSize: 13, fontWeight: '800', letterSpacing: 1.4},
+
+  // ---- the picks' header ----
+  picksHead: {flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 16},
+  picksTitle: {color: colors.text, fontSize: 16, fontWeight: '800'},
+  picksStatus: {flex: 1, color: colors.textDim, fontSize: 14, marginLeft: 4},
+
+  // ---- the grid ----
+  rowGap: {gap: GAP, marginBottom: 18},
+  pick: {width: COMPACT_W},
+  pickTitle: {color: colors.text, fontSize: 14, lineHeight: 18, fontWeight: '700', marginTop: 7},
+  pickMeta: {flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1},
+  pickYear: {color: colors.textDim, fontSize: 13, lineHeight: 17},
+  pickYearOn: {color: MINT},
+  legend: {flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 6},
+  legendText: {color: colors.textFaint, fontSize: 13, marginRight: 6},
+  why: {color: colors.textDim, fontSize: 13, lineHeight: 17, marginTop: 4},
+
+  // ---- states ----
+  waitRow: {flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14},
+  waitText: {flex: 1, color: colors.textFaint, fontSize: 14},
+  skelRow: {flexDirection: 'row', gap: GAP},
+  skelLine: {height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.06)', marginTop: 9},
+  skelLineShort: {width: '60%', marginTop: 6},
+  state: {alignItems: 'center', paddingVertical: 36, gap: 8},
+  stateTitle: {color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center'},
+  stateError: {color: '#ff7a7a', fontSize: 16, fontWeight: '700', textAlign: 'center'},
+  stateHint: {color: colors.textDim, fontSize: 14, textAlign: 'center'},
+  tryRow: {flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 14},
+  tryLabel: {color: colors.textFaint, fontSize: 14, fontWeight: '700', marginRight: 4},
 });

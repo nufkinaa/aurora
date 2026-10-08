@@ -97,6 +97,13 @@ process.on("unhandledRejection", (reason) => {
 
 const app = express();
 const server = http.createServer(app);
+// A connection idle for 5 s (Node's default) was closed just as a TV on a
+// laggy Wi-Fi reused it for its next picture — the request arrived after the
+// close and the picture ended "unexpected end of stream" (reproduced on a
+// throttled line, 2026-10-08). Idle connections now live long enough for any
+// client's pool to reuse them; headersTimeout stays above it, as Node requires.
+server.keepAliveTimeout = 75 * 1000;
+server.headersTimeout = 80 * 1000;
 
 // Failing to bind must kill the process LOUDLY, and this listener must be
 // registered FIRST: realtime.attach's WebSocketServer also listens for server

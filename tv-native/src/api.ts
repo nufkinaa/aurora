@@ -2,6 +2,7 @@
 // The base URL is set once from storage/setup; the profile token (when a
 // protected profile is unlocked) rides on every request as X-Profile-Token,
 // mirroring the web client.
+import {PixelRatio} from 'react-native';
 import {takeBlur} from './blur';
 
 let baseUrl = '';
@@ -472,6 +473,68 @@ class ApiError extends Error {
   }
 }
 
+// How long a call may take before the app gives up on it. Generous on
+// purpose: a 0.9 Mbit line was measured delivering the library list in well
+// over twenty seconds, and a slow answer that is still coming is not a dead
+// one. Small reads 45 s; the big lists (home, library, a catalogue page) and
+// the calls that think (the recommender, a source lookup, a search) 90 s;
+// writes 30 s.
+const BIG_PATHS = /^\/api\/(ai\/recommend|torrents\/sources|discover\/(search|catalog)|catalog|xray|home|library|browse)/;
+export const requestLimitMs = (path: string, options: RequestInit = {}) => {
+  if (BIG_PATHS.test(path)) return 90000;
+  const m = String(options.method || 'GET').toUpperCase();
+  return m === 'GET' ? 45000 : 30000;
+};
+
+// A fetch that gives up on a DEAD connection, not a slow one. The limit is
+// for the first byte; after that the answer may take as long as it takes
+// while bytes keep arriving, and only a silence of IDLE_MS ends it. (A fixed
+// limit on the whole answer turned a congested-but-working line into "the
+// server took too long" on every list — measured on a 0.9 Mbit line while
+// twenty pictures shared it, 2026-10-08.) XMLHttpRequest, because it is the
+// one network API here that reports progress.
+const IDLE_MS = 30000;
+const fetchBounded = (url: string, init: RequestInit, firstByteMs: number): Promise<Response> =>
+  new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let done = false;
+    const fail = (why: string) => {
+      if (done) return;
+      done = true;
+      try {
+        xhr.abort();
+      } catch {}
+      reject(new ApiError(0, why));
+    };
+    const arm = (ms: number, why: string) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => fail(why), ms);
+    };
+    xhr.open(String(init.method || 'GET').toUpperCase(), url, true);
+    for (const [k, v] of Object.entries((init.headers as Record<string, string>) || {})) xhr.setRequestHeader(k, v);
+    xhr.responseType = 'text';
+    xhr.onprogress = () => arm(IDLE_MS, 'The connection went quiet');
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState === 2) arm(IDLE_MS, 'The connection went quiet'); // headers in: the first byte
+    };
+    xhr.onerror = () => fail('Cannot reach server');
+    xhr.onabort = () => fail('The request was cancelled');
+    xhr.onload = () => {
+      if (done) return;
+      done = true;
+      if (timer) clearTimeout(timer);
+      const h = new Headers();
+      for (const line of (xhr.getAllResponseHeaders() || '').split(/[\r\n]+/)) {
+        const i = line.indexOf(':');
+        if (i > 0) h.append(line.slice(0, i).trim(), line.slice(i + 1).trim());
+      }
+      resolve(new Response(xhr.response, {status: xhr.status, statusText: xhr.statusText, headers: h}));
+    };
+    arm(firstByteMs, 'The server took too long to answer');
+    xhr.send(init.body == null ? null : (init.body as string));
+  });
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!baseUrl) throw new ApiError(0, 'No server configured');
   const headers: Record<string, string> = {
@@ -485,8 +548,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!options.method || String(options.method).toUpperCase() === 'GET') headers['X-Blur'] = '1';
   let res: Response;
   try {
-    res = await fetch(baseUrl + path, { ...options, headers });
-  } catch {
+    // Bounded. A request with no limit could wait on a stalled Wi-Fi link
+    // for minutes, and the screen behind it sat there "not responding" (a
+    // viewer's report, 2026-10-08) — nothing was wrong with the box. The
+    // timer is raced rather than relied on through AbortController (see
+    // pingUrl for why); a late answer after the race is simply dropped.
+    res = await fetchBounded(baseUrl + path, {...options, headers}, requestLimitMs(path, options));
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
     // Network-level failure (server down, wrong IP, wifi) — normalize to a
     // friendly, catchable shape instead of a raw TypeError.
     throw new ApiError(0, 'Cannot reach server');
@@ -565,6 +634,7 @@ const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
       try {
         const j = await res.json();
         if (j && typeof j.authMode === 'string') authMode = j.authMode;
+        serverBlurs = !!(j && j.imgBlur);
       } catch {}
       return true;
     })
@@ -638,6 +708,71 @@ export function imgSrc(pathOrUrl: string | null | undefined): ImgSource | null {
   const headers = ownHeaders();
   if (headers && baseUrl && uri.startsWith(baseUrl)) return {uri, headers};
   return {uri};
+}
+
+// ---- artwork at the size it is drawn ------------------------------------
+// The website's artUrl (public/js/ui.js), for the TV. Every picture used to
+// be fetched at full size (TMDB w500, metahub's posters, 1920px backdrops)
+// and then re-encoded ON THE BOX by `resizeMethod="resize"` — Fresco's JPEG
+// transcoder on a background thread — before being decoded a second time.
+// The server already makes width variants (src/lib/imgvariant.js), cached:
+// ask it for the pixels the card actually draws, and the box decodes a
+// picture that is already the right size. Same addresses as the site's, so
+// the site and the TV share one set of cached variants.
+//
+// The server's ladder (imgvariant.js LADDER), kept in step: a request is
+// snapped UP to one of these, never down, so the picture always covers the
+// box it was asked for.
+export const ART_LADDER = [240, 256, 352, 360, 448, 480, 640, 800, 960, 1280];
+// Hosts the server proxies and caches (/img/ext — its allow-list).
+const PROXY_ART_HOSTS = new Set([
+  'image.tmdb.org',
+  'images.metahub.space',
+  'live.metahub.space',
+  'static.tvmaze.com',
+  'commons.wikimedia.org',
+  'upload.wikimedia.org',
+]);
+// Whether the server can pre-blur art (?blur=, reported by /api/ping). An
+// older server ignores the parameter and would hand back a SHARP picture,
+// so the billboard keeps blurring on the box until the server says it can.
+let serverBlurs = false;
+export const serverCanBlur = () => serverBlurs;
+
+// Device pixels for a box `dp` wide, snapped up onto the ladder; null when it
+// is wider than the ladder goes (the original is the right picture then).
+export const artPx = (dp: number): number | null => {
+  const px = Math.ceil(dp * PixelRatio.get());
+  for (const step of ART_LADDER) if (px <= step) return step;
+  return null;
+};
+
+// The address that asks the server for `px` wide (and optionally `blur`
+// source pixels of Fresco's box blur, done server-side). Null when this
+// picture cannot be sized: stills, frames, a host the server does not proxy,
+// or a width off the ladder — the caller then uses the plain address.
+export function artPath(pathOrUrl: string | null | undefined, px: number | null, blur = 0): string | null {
+  if (!pathOrUrl || typeof pathOrUrl !== 'string' || !px) return null;
+  const q = `w=${px}${blur > 0 ? `&blur=${blur}` : ''}`;
+  if (pathOrUrl.startsWith('/img/')) {
+    // library covers, cached metadata posters and the backup poster chain;
+    // stills/frames are cut on demand and stay as they are
+    if (/^\/img\/(?:meta\/)?[A-Za-z0-9._-]+$/.test(pathOrUrl)) return `${pathOrUrl}?${q}`;
+    if (/^\/img\/poster\/tt\d+(?:\?|$)/.test(pathOrUrl)) return `${pathOrUrl}${pathOrUrl.includes('?') ? '&' : '?'}${q}`;
+    return null;
+  }
+  if (!pathOrUrl.startsWith('https://')) return null;
+  const host = (/^https:\/\/([^/?#]+)/.exec(pathOrUrl) || [])[1];
+  if (!host || !PROXY_ART_HOSTS.has(host)) return null;
+  return `/img/ext?u=${encodeURIComponent(pathOrUrl)}&${q}`;
+}
+
+// An <Image> source for a picture drawn `dp` wide. `sized` says the server
+// was asked for that width — the decode is then already the drawn size and
+// `resizeMethod="resize"` (a re-encode on the box) has nothing left to do.
+export function artSrc(pathOrUrl: string | null | undefined, dp: number): {src: ImgSource | null; sized: boolean} {
+  const sized = artPath(pathOrUrl, artPx(dp));
+  return sized ? {src: imgSrc(sized), sized: true} : {src: imgSrc(pathOrUrl), sized: false};
 }
 
 // What a request the JS `fetch` wrapper does NOT make must carry to be
@@ -752,11 +887,12 @@ export const api = {
     ),
   // The AI tab (src/routes/ai.js). status says whether a key is configured.
   aiStatus: () => request<{enabled: boolean}>('/api/ai/status'),
-  aiRecommend: (vibe: string, mix: number, era: string, length: string) =>
+  // `fresh`: Try again — skip the server's day-long cache for this question.
+  aiRecommend: (vibe: string, mix: number, era: string, length: string, fresh = false) =>
     request<{items: HeroItem[]; cached?: boolean}>('/api/ai/recommend', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({vibe, mix, era, length}),
+      body: JSON.stringify({vibe, mix, era, length, fresh}),
     }),
   discoverSearch: (q: string) =>
     request<Discover>(`/api/discover/search?q=${encodeURIComponent(q)}`),

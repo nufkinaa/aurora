@@ -1,4 +1,5 @@
 diff --git a/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ExoPlayerView.kt b/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ExoPlayerView.kt
+index bb945fe..41fc4a2 100644
 --- a/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ExoPlayerView.kt
 +++ b/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ExoPlayerView.kt
 @@ -214,8 +214,19 @@ class ExoPlayerView @JvmOverloads constructor(context: Context, attrs: Attribute
@@ -23,3 +24,58 @@ diff --git a/node_modules/react-native-video/android/src/main/java/com/brentvatn
  
          // Disable/enable scrubbing based on seekable
          val timeBar = playerView.findViewById<DefaultTimeBar?>(androidx.media3.ui.R.id.exo_progress)
+diff --git a/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ReactExoplayerView.java b/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ReactExoplayerView.java
+index e16ac96..31ec755 100644
+--- a/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ReactExoplayerView.java
++++ b/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ReactExoplayerView.java
+@@ -564,6 +564,7 @@ public class ReactExoplayerView extends FrameLayout implements
+     private class RNVLoadControl extends DefaultLoadControl {
+         private final int availableHeapInBytes;
+         private final Runtime runtime;
++        private final int rebufferMs;
+         public RNVLoadControl(DefaultAllocator allocator, BufferConfig config) {
+             super(allocator,
+                     config.getMinBufferMs() != BufferConfig.Companion.getBufferConfigPropUnsetInt()
+@@ -585,6 +586,9 @@ public class ReactExoplayerView extends FrameLayout implements
+                             : DefaultLoadControl.DEFAULT_BACK_BUFFER_DURATION_MS,
+                     DefaultLoadControl.DEFAULT_RETAIN_BACK_BUFFER_FROM_KEYFRAME);
+             runtime = Runtime.getRuntime();
++            rebufferMs = config.getBufferForPlaybackAfterRebufferMs() != BufferConfig.Companion.getBufferConfigPropUnsetInt()
++                    ? config.getBufferForPlaybackAfterRebufferMs()
++                    : DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS;
+             ActivityManager activityManager = (ActivityManager) themedReactContext.getSystemService(ThemedReactContext.ACTIVITY_SERVICE);
+             double maxHeap = config.getMaxHeapAllocationPercent() != BufferConfig.Companion.getBufferConfigPropUnsetDouble()
+                     ? config.getMaxHeapAllocationPercent()
+@@ -599,9 +603,17 @@ public class ReactExoplayerView extends FrameLayout implements
+             } else if (bufferingStrategy == BufferingStrategy.BufferingStrategyEnum.DependingOnMemory) {
+                 // The goal of this algorithm is to pause video loading (increasing the buffer)
+                 // when available memory on device become low.
++                long bufferedMs = bufferedDurationUs / (long) 1000;
++                // Aurora: never stop for memory below the rebuffer threshold. The heap cap is
++                // in BYTES while the start/rebuffer thresholds are in TIME
++                // (prioritizeTimeOverSizeThresholds is hardcoded true above), so on a
++                // high-bitrate file a cap that is reached before
++                // bufferForPlaybackAfterRebufferMs of media is buffered would leave the player
++                // waiting for data it has stopped loading — a stall that never ends.
++                boolean mayStop = bufferedMs > Math.max(2000, rebufferMs);
+                 int loadedBytes = getAllocator().getTotalBytesAllocated();
+                 boolean isHeapReached = availableHeapInBytes > 0 && loadedBytes >= availableHeapInBytes;
+-                if (isHeapReached) {
++                if (isHeapReached && mayStop) {
+                     return false;
+                 }
+                 long usedMemory = runtime.totalMemory() - runtime.freeMemory();
+@@ -609,9 +621,10 @@ public class ReactExoplayerView extends FrameLayout implements
+                 double minBufferMemoryReservePercent = source.getBufferConfig().getMinBufferMemoryReservePercent() != BufferConfig.Companion.getBufferConfigPropUnsetDouble()
+                         ? source.getBufferConfig().getMinBufferMemoryReservePercent()
+                         : ReactExoplayerView.DEFAULT_MIN_BUFFER_MEMORY_RESERVE;
+-                long reserveMemory = (long) minBufferMemoryReservePercent * runtime.maxMemory();
+-                long bufferedMs = bufferedDurationUs / (long) 1000;
+-                if (reserveMemory > freeMemory && bufferedMs > 2000) {
++                // Aurora: the cast applied to the PERCENT alone — (long) 0.x is 0 — so the
++                // reserve was always 0 and this check never fired. Multiply first.
++                long reserveMemory = (long) (minBufferMemoryReservePercent * runtime.maxMemory());
++                if (reserveMemory > freeMemory && mayStop) {
+                     // We don't have enough memory in reserve so we stop buffering to allow other components to use it instead
+                     return false;
+                 }

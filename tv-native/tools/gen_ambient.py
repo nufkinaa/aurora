@@ -263,3 +263,101 @@ mask.putdata(px)
 path = os.path.join(ASSETS, 'detail-mask.png')
 mask.save(path, optimize=True)
 print(f'detail-mask.png: {os.path.getsize(path) / 1024:.1f} KB')
+
+# ---- Home's billboard scrims, precomposed -----------------------------------
+# Home drew TWO full-screen overlays over the hero art: hero-side.png (a 512x1
+# left->right ramp stretched over the left 72% of the window) and then
+# ambient-veil.png (480x270, the whole window). Each is a full-screen layer
+# of fill on every frame the art is on screen. Porter-Duff "over" is
+# associative — veil over (side over art) == (veil over side) over art — so
+# the pair is baked into ONE picture here and Home draws one layer.
+#
+# Baked at the veil's own 480x270 grid, so the veil's texels are untouched;
+# the side ramp is sampled where each texel's centre falls on the screen,
+# exactly as the GPU's bilinear filter would have sampled the stretched
+# 512x1 strip there (it is zero beyond 58% of its width, so the 72% box edge
+# never shows). tools/check_baked.py composites the old pair and the new file
+# the way the device draws them and reports the difference.
+SIDE_BOX = 0.72  # Home.tsx styles.artSide width
+
+
+def sample_linear(row, u):
+    """Bilinear (1-D) sample of a texel row at normalised coordinate u, with
+    texel centres at (i + 0.5) / n and clamp-to-edge — the GPU's GL_LINEAR."""
+    n = len(row)
+    x = u * n - 0.5
+    i0 = math.floor(x)
+    f = x - i0
+    a = row[min(n - 1, max(0, i0))]
+    b = row[min(n - 1, max(0, i0 + 1))]
+    return tuple(a[k] + (b[k] - a[k]) * f for k in range(4))
+
+
+def premul(px):
+    a = px[3] / 255.0
+    return (px[0] * a, px[1] * a, px[2] * a, a)
+
+
+side_img = Image.open(os.path.join(ASSETS, 'hero-side.png')).convert('RGBA')
+# premultiplied, as the decoder hands it to the GPU
+side_row = [premul(side_img.getpixel((i, 0))) for i in range(side_img.size[0])]
+veil_img = Image.open(os.path.join(ASSETS, 'ambient-veil.png')).convert('RGBA')
+scrim = Image.new('RGBA', (W, H))
+out = []
+for y in range(H):
+    for x in range(W):
+        vr, vg, vb, va = premul(veil_img.getpixel((x, y)))
+        fx = (x + 0.5) / W
+        if fx < SIDE_BOX:
+            sr, sg, sb, sa = sample_linear(side_row, fx / SIDE_BOX)
+        else:
+            sr = sg = sb = sa = 0.0
+        # veil OVER side, premultiplied
+        a = va + sa * (1 - va)
+        r = vr + sr * (1 - va)
+        g = vg + sg * (1 - va)
+        b = vb + sb * (1 - va)
+        if a <= 0:
+            out.append((0, 0, 0, 0))
+        else:
+            out.append((min(255, round(r / a)), min(255, round(g / a)), min(255, round(b / a)), round(a * 255)))
+scrim.putdata(out)
+path = os.path.join(ASSETS, 'hero-scrim.png')
+scrim.save(path, optimize=True)
+print(f'hero-scrim.png: {os.path.getsize(path) / 1024:.1f} KB  (hero-side + ambient-veil, one layer)')
+
+# ---- the card shades ---------------------------------------------------------
+# Card.tsx drew its foot shades as react-native-svg gradients, which paint a
+# software bitmap per card (and again whenever focus changes). The gradients
+# only vary vertically, so a narrow strip stretched over the card is the same
+# picture: alpha sampled at each texel's centre, linear between stops exactly
+# as the SVG's <LinearGradient> (no smoothing — the SVG had none), so the
+# GPU's bilinear stretch reproduces the ramp between the samples. 8 wide, not
+# 1: the Mi TV's pipeline drew one-pixel strips as nothing.
+SHADE = (5, 6, 12)  # #05060c
+SHADE_H = 256
+
+
+def linear_stops(t, stops):
+    """stops: [(offset, alpha)] with offset measured from the card's FOOT."""
+    if t <= stops[0][0]:
+        return stops[0][1]
+    for (p0, a0), (p1, a1) in zip(stops, stops[1:]):
+        if t <= p1:
+            return a0 + (a1 - a0) * (t - p0) / (p1 - p0)
+    return stops[-1][1]
+
+
+CARD_SHADES = {
+    # .card-shade: 0.92 at the foot, clear 45% up
+    'card-shade-v.png': [(0.0, 0.92), (0.45, 0.0)],
+    # glass.css .card.wide .card-shade (the frame card)
+    'card-frame-shade.png': [(0.0, 0.95), (0.24, 0.72), (0.52, 0.18), (0.68, 0.0)],
+}
+for name, stops in CARD_SHADES.items():
+    strip = Image.new('RGBA', (8, SHADE_H))
+    strip.putdata([SHADE + (round(255 * linear_stops(1 - (y + 0.5) / SHADE_H, stops)),)
+                   for y in range(SHADE_H) for _ in range(8)])
+    path = os.path.join(ASSETS, name)
+    strip.save(path, optimize=True)
+    print(f'{name}: 8x{SHADE_H}')

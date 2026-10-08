@@ -370,7 +370,9 @@ const resolveAll = async (suggestions) => {
 };
 
 // ---------------------------------------------------------------- public
-const recommend = async (vibeRaw, mixRaw, eraRaw, lenRaw) => {
+// `fresh`: "Try again" — the day-long cache for this exact question is
+// skipped, so the viewer gets a different list (the per-IP budget still applies).
+const recommend = async (vibeRaw, mixRaw, eraRaw, lenRaw, { fresh = false } = {}) => {
   if (!enabled()) return { error: "The recommender isn't configured on this server." };
   // Must actually be a string: an array arrives as "a,b" once stringified, which
   // clears the length check and spends a real API call on nonsense.
@@ -388,7 +390,7 @@ const recommend = async (vibeRaw, mixRaw, eraRaw, lenRaw) => {
 
   const key = cacheKey(vibe, mix, eraId, lenId);
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_MS) return { items: hit.items, cached: true };
+  if (!fresh && hit && Date.now() - hit.at < CACHE_MS) return { items: hit.items, cached: true };
 
   const started = Date.now();
   const askFor = eraId === "any" && lenId === "any" ? ASK_LOOSE : ASK_TIGHT;

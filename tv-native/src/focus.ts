@@ -204,6 +204,30 @@ export function useKeyTrap(active: boolean) {
   }, [active]);
 }
 
+// One press, one event. react-native-tvos reports a D-pad press TWICE on
+// Android — once when the key goes down (eventKeyAction 0) and once when it
+// comes up (1) — and a handler that acts on both moves two steps for one
+// press. Seen on a touchpad remote ("sometimes two clicks", elia,
+// 2026-10-08): a swipe's down and up arrive far enough apart to read as two
+// presses. The key-down is acted on (it is the one the native focus engine
+// moves on, so the app and the system agree); the key-up is ignored when its
+// key-down was seen a moment ago, and honoured only when it was not (an
+// input path that reports only key-ups keeps working).
+const lastDown = new Map<string, number>();
+export function acceptTvEvent(evt: {eventType: string; eventKeyAction?: number | string}): boolean {
+  const action = Number(evt.eventKeyAction);
+  const now = Date.now();
+  if (action === 0) {
+    lastDown.set(evt.eventType, now);
+    return true;
+  }
+  if (action === 1) {
+    const down = lastDown.get(evt.eventType) || 0;
+    return now - down > 1500;
+  }
+  return true;
+}
+
 /** A global key handler with the two gates every one of them needs: this screen
  *  must be the live one, and no trap may be up. `deaf` is for a component that
  *  knows its own reason to stop listening. */
@@ -214,8 +238,9 @@ export function useTVKeys(
   const live = useIsLive();
   const deaf = !!opts?.deaf;
   const onTV = useCallback(
-    (evt: {eventType: string}) => {
+    (evt: {eventType: string; eventKeyAction?: number | string}) => {
       if (!live || deaf || traps > 0) return;
+      if (!acceptTvEvent(evt)) return;
       handler(evt);
     },
     [live, deaf, handler],

@@ -36,7 +36,7 @@ const UPNEXT_GLOW = require('../assets/upnext-glow.png');
 const OWNED_UPNEXT_GLOW = require('../assets/owned-upnext-glow.png');
 import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
-import {api, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta, DownloadJob} from '../api';
+import {api, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta, DownloadJob} from '../api';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
 import {openTrailer, openActions, openXray} from '../overlay';
@@ -80,6 +80,8 @@ const EP_EDGE = 1;
 const EP_PAD = 5;
 const EP_ART_W = EP_W - (EP_EDGE + EP_PAD) * 2;
 const EP_ART_H = Math.round((EP_ART_W * 9) / 16);
+// The source panel's poster (styles.srcPoster).
+const SRC_POSTER_W = 190;
 // What the Focusable is given, so its CONTENT box is exactly the still.
 const EP_THUMB_H = EP_ART_H + (EP_EDGE + EP_PAD) * 2;
 const SEASON_H = 54;
@@ -567,6 +569,7 @@ const EpisodeCard = React.memo(function EpisodeCardItem({
   onFocus?: () => void;
   onMore?: () => void; // hold OK: Mark watched / Sources / Play
 }) {
+  const thumb = artSrc(ep.thumb, EP_ART_W);
   // The focus treatment wraps the WHOLE card — still, title and badges.
   //
   // It used to wrap only the artwork, on the argument that a ring around a
@@ -596,12 +599,14 @@ const EpisodeCard = React.memo(function EpisodeCardItem({
           <Image source={OWNED_GLOW} style={styles.epOwnedGlow} resizeMode="stretch" fadeDuration={0} />
         ) : null}
         <View style={styles.epThumb}>
-          {ep.thumb ? (
+          {thumb.src ? (
+            // At the drawn width when the server can size it (api.ts artSrc);
+            // "resize" (a re-encode on the box) only for one it cannot.
             <Image
-              source={imgSrc(ep.thumb) as ImgSource}
+              source={thumb.src}
               style={styles.epThumbImg}
               resizeMode="cover"
-              resizeMethod="resize"
+              resizeMethod={thumb.sized ? 'auto' : 'resize'}
               fadeDuration={0}
             />
           ) : null}
@@ -1819,7 +1824,7 @@ export default function Detail({
       trapFocusRight>
         <View style={styles.srcLeft}>
           <Image
-            source={imgSrc(item.cover || item.poster) || undefined}
+            source={artSrc(item.cover || item.poster, SRC_POSTER_W).src || undefined}
             style={styles.srcPoster}
             resizeMode="cover"
             fadeDuration={160}
@@ -2177,7 +2182,7 @@ const styles = StyleSheet.create({
   likeRowGap: {gap: spacing.md, marginBottom: spacing.md},
 
   srcLeft: {width: 190},
-  srcPoster: {width: 190, height: 285, borderRadius: radius.m, backgroundColor: colors.bgRaised},
+  srcPoster: {width: SRC_POSTER_W, height: 285, borderRadius: radius.m, backgroundColor: colors.bgRaised},
   srcLabel: {color: colors.text, fontSize: fontSize.title, fontWeight: '900', marginTop: spacing.md},
   srcSub: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '700', marginTop: 4},
   srcRight: {flex: 1},

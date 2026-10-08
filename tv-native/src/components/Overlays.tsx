@@ -7,7 +7,7 @@ import Focusable from './Focusable';
 import Sheet, {glass} from './Sheet';
 import TrailerFrame, {TrailerState} from './Trailer';
 import type {ActionItem} from '../overlay';
-import {api, HeroItem, imgSrc, ImgSource, StreamRef, XrayData, XrayPerson, XrayQuery} from '../api';
+import {api, artSrc, HeroItem, imgSrc, ImgSource, StreamRef, XrayData, XrayPerson, XrayQuery} from '../api';
 import {playingContext, recentErrors} from '../errors';
 import {useKeyTrap} from '../focus';
 import {closeOverlay, useOverlay} from '../overlay';
@@ -112,7 +112,8 @@ function PeekSheet({item, onRemove}: {item: HeroItem; onRemove?: (item: HeroItem
     : [item.year, item.type === 'show' ? 'Series' : item.type === 'movie' ? 'Film' : null].filter(Boolean).join(' · ');
   const prog = item.progress;
   const pct = prog && prog.duration > 0 && !prog.finished ? Math.round((prog.position / prog.duration) * 100) : null;
-  const art = imgSrc(item.backdrop || item.cover || item.poster);
+  // at the 256dp the peek sheet draws it (styles.peekArt; api.ts artSrc)
+  const art = artSrc(item.backdrop || item.cover || item.poster, 256).src;
 
   const play = () => {
     closeOverlay();
@@ -719,7 +720,11 @@ function ActionsSheet({title, sub, items}: {title: string; sub?: string; items: 
 function TrailerModal({ids, title}: {ids: string[]; title: string}) {
   const [at, setAt] = useState(0);
   const [state, setState] = useState<TrailerState | null>(null);
-  const [inApp, setInApp] = useState(false);
+  // The trailer plays HERE, as on the site. It used to hand off to the
+  // YouTube app whenever one was installed — which on some sets opens
+  // YouTube's home page and not the trailer at all (a viewer's report,
+  // 2026-10-08). "Open in YouTube" below stays as a choice.
+  const inApp = true;
   useKeyTrap(true);
   useEffect(() => {
     track('feat', {f: 'trailer'});
@@ -727,26 +732,7 @@ function TrailerModal({ids, title}: {ids: string[]; title: string}) {
       closeOverlay();
       return true;
     });
-    let live = true;
-    (async () => {
-      try {
-        // Resolves only with the manifest's <queries> for the vnd.youtube
-        // scheme (Android 11+ package visibility) — without them this was
-        // always false and "Open in YouTube" did nothing.
-        const ok = await Linking.canOpenURL(`vnd.youtube:${ids[0]}`);
-        if (ok && live) {
-          await Linking.openURL(`vnd.youtube:${ids[0]}`);
-          track('feat', {f: 'trailer_app'});
-          closeOverlay();
-          return;
-        }
-      } catch {}
-      if (live) setInApp(true);
-    })();
-    return () => {
-      live = false;
-      sub.remove();
-    };
+    return () => sub.remove();
   }, [ids]);
   const onState = useCallback((s: TrailerState) => {
     setState(s);
@@ -754,7 +740,11 @@ function TrailerModal({ids, title}: {ids: string[]; title: string}) {
   }, []);
   return (
     <View style={styles.trailerRoot}>
-      {inApp ? <TrailerFrame key={ids[at]} videoId={ids[at]} muted={false} style={styles.trailerFrame} onState={onState} /> : null}
+      {/* Unmounted the moment it fails: the error panel covers it anyway, and a
+          dead WebView still holds its renderer (~120-140 MB on a 2 GB box). */}
+      {inApp && state !== 'error' ? (
+        <TrailerFrame key={ids[at]} videoId={ids[at]} muted={false} style={styles.trailerFrame} onState={onState} />
+      ) : null}
       {state === null || state === 'ready' ? (
         <View style={styles.trailerWait} pointerEvents="none">
           <ActivityIndicator color={colors.white} size="large" />

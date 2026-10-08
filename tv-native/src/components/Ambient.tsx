@@ -19,8 +19,9 @@
 // 71s/97s loop, which costs a desktop GPU nothing; here it would keep the
 // choreographer awake forever for a movement whose whole design goal is that you
 // never catch it happening.
-import React from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {View, Image, StyleSheet} from 'react-native';
+import {dropWindowBackground, restoreWindowBackground} from '../perfTier';
 import theme from '../theme';
 
 const {colors} = theme;
@@ -34,13 +35,31 @@ const AMBIENT = require('../assets/ambient.png');
 // StyleSheet.absoluteFillObject is missing from the tvos type defs.
 const fill = {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0} as const;
 
+// OVERDRAW. Under this opaque canvas sat three full-screen fills nobody ever
+// saw once it had drawn: the window's background (android:windowBackground),
+// the navigator's root colour and this view's own. Each is a full-screen pass
+// of fill rate on every frame — on a Mali-G31 at 1080p that is real time.
+// So the page colour is painted here only until the canvas has loaded (cold
+// start still opens on the page colour, never a black frame), then dropped;
+// one frame later the window's own background is dropped too, natively. The
+// window gets it back when this unmounts (sign-out: the gate screens outside
+// the navigator draw on the window's colour).
 function Ambient() {
+  const [drawn, setDrawn] = useState(false);
+  const onLoad = useCallback(() => setDrawn(true), []);
+  useEffect(() => {
+    if (!drawn) return;
+    // a frame after the canvas is on screen
+    const raf = requestAnimationFrame(() => requestAnimationFrame(dropWindowBackground));
+    return () => cancelAnimationFrame(raf);
+  }, [drawn]);
+  useEffect(() => () => restoreWindowBackground(), []);
   return (
-    <View style={styles.root} pointerEvents="none">
+    <View style={[styles.root, !drawn && styles.underlay]} pointerEvents="none">
       {/* "stretch", not "cover": the bloom positions are fractions of the frame,
           so they must follow its proportions rather than be cropped to preserve
           an aspect ratio a gradient does not have. */}
-      <Image source={AMBIENT} style={styles.wash} resizeMode="stretch" fadeDuration={0} />
+      <Image source={AMBIENT} style={styles.wash} resizeMode="stretch" fadeDuration={0} onLoad={onLoad} />
     </View>
   );
 }
@@ -48,8 +67,10 @@ function Ambient() {
 export default React.memo(Ambient);
 
 const styles = StyleSheet.create({
-  // The page colour underneath is load-bearing: the wash is 480x270 stretched,
-  // so any rounding at the edges shows whatever is behind it.
-  root: {...fill, backgroundColor: colors.bg},
+  // ambient.png is fully opaque (RGB, no alpha) and drawn at exactly the
+  // root's bounds (width/height 100%, FIT_XY), so there are no edges for a
+  // colour underneath to show through once it has drawn.
+  root: fill,
+  underlay: {backgroundColor: colors.bg},
   wash: {...fill, width: '100%', height: '100%'},
 });

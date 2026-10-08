@@ -10,7 +10,8 @@ import {View, Text, Image, StyleSheet} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import Focusable from './Focusable';
 import Icon from './Icon';
-import {imgSrc, HeroItem} from '../api';
+import {artPath, artPx, imgSrc, HeroItem} from '../api';
+import {onMessage} from '../realtime';
 import {blurOf, markDrawn, wasDrawn} from '../blur';
 import {openPeek} from '../overlay';
 import theme from '../theme';
@@ -37,44 +38,49 @@ export const WIDE_H = 99;
 // Continue Watching (glass.css, 2026-10-06): 320px at 16:10 on the site, with
 // the picture you stopped on, the title set large on a deep fade and what is
 // left under it. ×0.70 here.
+// The compact poster (the AI page's results grid, 2026-10-08): 70% of the
+// standard poster so eight columns fit a 960dp canvas. Same 2:3, same look.
+export const COMPACT_W = 88;
+export const COMPACT_H = 132;
 export const FRAME_W = 224;
 export const FRAME_H = 140;
 
-// `.card-shade` (components.css:348) — a two-stop axis-aligned gradient, drawn as
-// one. It was a stretched PNG, which put a single bitmap across both a 124×186 and
-// a 176×99 box: the anisotropy §4.3 forbids for the aura, and the reason the old
-// asset needed its width/height spelling out to render at all.
+// `.card-shade` (components.css:348) — #05060c from 0.92 at the foot to clear
+// 45% up. Baked by tools/gen_ambient.py as an 8×256 strip that varies only
+// vertically, sampled LINEARLY between the stops as the SVG gradient it
+// replaces was (the older card-shade.png was smoothstepped, 24 levels off),
+// so one strip stretched over a poster, a landscape or a compact card draws
+// the same ramp. The SVG painted a software bitmap per card, and again on
+// every focus change, on the UI thread. tools/check_baked.py: at most one
+// level of 255 from the SVG over any picture.
+// Width/height spelled out, as row-fade's are: a stretched PNG with only
+// absolute insets did not render on the Mi TV.
+const CARD_SHADE = require('../assets/card-shade-v.png');
+const FRAME_SHADE = require('../assets/card-frame-shade.png');
 const Shade = React.memo(function CardShade() {
-  return (
-    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Defs>
-        <LinearGradient id="cardShade" x1="0" y1="1" x2="0" y2="0">
-          <Stop offset="0" stopColor="#05060c" stopOpacity="0.92" />
-          <Stop offset="0.45" stopColor="#05060c" stopOpacity="0" />
-        </LinearGradient>
-      </Defs>
-      <Rect x="0" y="0" width="100%" height="100%" rx={radius.m} fill="url(#cardShade)" />
-    </Svg>
-  );
+  return <Image source={CARD_SHADE} style={styles.shade} resizeMode="stretch" fadeDuration={0} />;
 });
 
 // The frame card's fade (glass.css `.card.wide .card-shade`): deep at the
-// foot so the large title reads over any picture, clear by two-thirds up.
+// foot so the large title reads over any picture, clear by two-thirds up —
+// 0.95 / 0.72 at 24% / 0.18 at 52% / clear at 68%, baked the same way.
 const FrameShade = React.memo(function CardFrameShade() {
-  return (
-    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Defs>
-        <LinearGradient id="cardFrameShade" x1="0" y1="1" x2="0" y2="0">
-          <Stop offset="0" stopColor="#05060c" stopOpacity="0.95" />
-          <Stop offset="0.24" stopColor="#05060c" stopOpacity="0.72" />
-          <Stop offset="0.52" stopColor="#05060c" stopOpacity="0.18" />
-          <Stop offset="0.68" stopColor="#05060c" stopOpacity="0" />
-        </LinearGradient>
-      </Defs>
-      <Rect x="0" y="0" width="100%" height="100%" rx={radius.m} fill="url(#cardFrameShade)" />
-    </Svg>
-  );
+  return <Image source={FRAME_SHADE} style={styles.shade} resizeMode="stretch" fadeDuration={0} />;
 });
+
+// How wide the card's picture is drawn, in dp, for the server's width
+// variants. A cover-fitted picture fills the box's HEIGHT when it is wider
+// than the box: a 16:9 backdrop or still on the 16:10 frame card is drawn
+// FRAME_H × 16/9 wide, not FRAME_W. Posters (2:3) and anything narrower than
+// the box are width-bound.
+const FRAME_ART_W = Math.ceil((FRAME_H * 16) / 9);
+
+// A picture that will not load is asked for again, but not forever: three
+// slow rounds (30 s, 2 min, 8 min — the server remembers a failed upstream
+// fetch for five minutes, so quicker rounds would only meet that memory),
+// then the card keeps its titled tile until it is mounted again or the
+// server connection comes back.
+const ROUND_MS = [30000, 120000, 480000];
 
 function Card({
   item,
@@ -89,6 +95,7 @@ function Card({
   showKind,
   edgeLeft,
   edgeRight,
+  compact,
   ref,
 }: {
   item: HeroItem;
@@ -119,6 +126,9 @@ function Card({
   edgeLeft?: boolean;
   // Last column of a grid: RIGHT from here opens Browse's filter panel.
   edgeRight?: boolean;
+  // The smaller poster (COMPACT_W x COMPACT_H). Posters only; a landscape or
+  // frame card ignores it. The default card is untouched.
+  compact?: boolean;
   // Forwarded to the Focusable, so a grid can hold its first card as a focus
   // target (requestTVFocus lives on the host instance).
   ref?: React.Ref<View>;
@@ -135,43 +145,69 @@ function Card({
   // title's landscape art, else the poster (components.js:164-170). Posters
   // keep the cover.
   const canFrame = frame && prog && prog.position > 20 && item.id && !String(item.id).startsWith('torrent|');
-  const src = imgSrc(
-    canFrame
-      ? `/img/frame/${encodeURIComponent(item.id)}?t=${Math.floor(prog!.position)}`
-      : (frame && !isEpisode && item.backdrop) || item.cover || item.poster,
-  );
+  const picture = canFrame
+    ? `/img/frame/${encodeURIComponent(item.id)}?t=${Math.floor(prog!.position)}`
+    : (frame && !isEpisode && item.backdrop) || item.cover || item.poster;
+  // At the size it is drawn (api.ts artPath — the site's artUrl): the server
+  // sends a variant that wide, so the box decodes the picture once, at size,
+  // with no `resizeMethod="resize"` re-encode. Frames and hosts the server
+  // does not proxy keep their address (and the on-device resize).
+  const artDp = frame
+    ? (!isEpisode && item.backdrop) || isEpisode
+      ? FRAME_ART_W
+      : FRAME_W
+    : landscape
+    ? WIDE_W
+    : compact
+    ? COMPACT_W
+    : CARD_W;
+  const sizedPath = canFrame ? null : artPath(picture, artPx(artDp));
+  const src = imgSrc(sizedPath || picture);
   // A picture that fails is asked for again (elia, 2026-10-07: "if the app
   // did not load a cover photo it will just not try again"). Android's image
   // pipeline never retries by itself, so one hiccup on the line used to
   // strand a card for as long as it stayed mounted:
-  //   tries 1-2  the same address again, cache-busted, after 1.5 s and 3 s;
-  //   try 3      the server's backup poster for the title (its chain of other
-  //              sources — /img/poster/<imdb id>), when the title has an id;
-  //   then       the titled tile, and a fresh round every 30 s while the card
-  //              is still on screen — a server that was down comes back.
+  //   try 1   the same address again, cache-busted ONCE (r=1), after 1.5 s;
+  //   try 2   the server's backup poster for the title (its chain of other
+  //           sources — /img/poster/<imdb id>), when the title has an id;
+  //   then    the titled tile, and up to three slow rounds (ROUND_MS) while
+  //           the card is still on screen — a server that was down comes back.
+  //           After the third the card stops asking until it is mounted again
+  //           or the server's socket reconnects ('welcome'). It used to start
+  //           a round every 30 s forever, for every broken card on screen.
   // Keyed by the address, so a card that is handed a new picture starts over.
   const [fail, setFail] = React.useState<{uri: string; n: number} | null>(null);
   const tries = src && fail && fail.uri === src.uri ? fail.n : 0;
   const retryTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rounds = React.useRef<{uri: string; n: number}>({uri: '', n: 0});
+  const [parked, setParked] = React.useState<string | null>(null);
   React.useEffect(() => () => {
     if (retryTimer.current) clearTimeout(retryTimer.current);
   }, []);
-  const backup =
+  // A parked card listens for the server coming back, and only then.
+  React.useEffect(() => {
+    if (!parked) return;
+    return onMessage('welcome', () => {
+      rounds.current = {uri: parked, n: 0};
+      setParked(null);
+      setFail(f => (f && f.uri === parked ? null : f));
+    });
+  }, [parked]);
+  const backupPath =
     !canFrame && /^tt\d+$/.test(String(item.imdbId || ''))
-      ? imgSrc(
-          `/img/poster/${item.imdbId}?type=${item.type === 'show' || isEpisode ? 'show' : 'movie'}` +
-            (item.showTitle || item.title ? `&t=${encodeURIComponent(String(item.showTitle || item.title).slice(0, 80))}` : '') +
-            (item.year ? `&y=${item.year}` : ''),
-        )
+      ? `/img/poster/${item.imdbId}?type=${item.type === 'show' || isEpisode ? 'show' : 'movie'}` +
+        (item.showTitle || item.title ? `&t=${encodeURIComponent(String(item.showTitle || item.title).slice(0, 80))}` : '') +
+        (item.year ? `&y=${item.year}` : '')
       : null;
-  const TILE_AT = backup ? 4 : 3;
+  const backup = backupPath ? imgSrc(artPath(backupPath, artPx(artDp)) || backupPath) : null;
+  const TILE_AT = backup ? 3 : 2;
   const broken = !!src && tries >= TILE_AT;
   const shown =
     !src || tries === 0
       ? src
-      : tries === 3 && backup
+      : tries === 2 && backup
       ? backup
-      : {...src, uri: `${src.uri}${src.uri.includes('?') ? '&' : '?'}r=${tries}`};
+      : {...src, uri: `${src.uri}${src.uri.includes('?') ? '&' : '?'}r=1`};
   const onImgError = () => {
     if (!src) return;
     const uri = src.uri;
@@ -179,12 +215,18 @@ function Card({
     if (retryTimer.current) clearTimeout(retryTimer.current);
     if (n >= TILE_AT) {
       setFail({uri, n});
-      // the slow round: back to the first address in half a minute
-      retryTimer.current = setTimeout(() => setFail(f => (f && f.uri === uri ? null : f)), 30000);
+      if (rounds.current.uri !== uri) rounds.current = {uri, n: 0};
+      const round = rounds.current.n++;
+      if (round >= ROUND_MS.length) {
+        setParked(uri);
+        return;
+      }
+      // the slow round: back to the first address
+      retryTimer.current = setTimeout(() => setFail(f => (f && f.uri === uri ? null : f)), ROUND_MS[round]);
       return;
     }
-    // (the backup poster is tried at once; a plain retry waits a breath)
-    retryTimer.current = setTimeout(() => setFail({uri, n}), n === 3 ? 0 : 1500 * n);
+    // (the backup poster is tried at once; the plain retry waits a breath)
+    retryTimer.current = setTimeout(() => setFail({uri, n}), n === 2 ? 0 : 1500);
   };
   // Blur-up (the site's posterImg, 2026-10-07): when the server sent this
   // picture's tiny placeholder (blur.ts), the slot shows its colours and
@@ -280,20 +322,23 @@ function Card({
           ) : null}
         </>
       }
-      style={frame ? styles.cardFrame : landscape ? styles.cardWide : styles.card}>
+      style={frame ? styles.cardFrame : landscape ? styles.cardWide : compact ? styles.cardCompact : styles.card}>
       {showBlur ? (
         // under the poster, which is see-through until it has loaded
         <Image source={{uri: blur!}} style={styles.blur} resizeMode="cover" blurRadius={BLUR_RADIUS} fadeDuration={0} />
       ) : null}
       {src && shown && !broken ? (
         // resizeMethod="resize": decode at view size, not source size — dozens of
-        // posters decoded full-size is a silent memory/CPU tax on a TV.
+        // posters decoded full-size is a silent memory/CPU tax on a TV. Only
+        // for a picture the server could not size (a frame, an unproxied host):
+        // a sized one already IS the view's size, and "resize" would only
+        // re-encode it on the box. (The backup poster is sized too.)
         // fadeDuration={0}: Android's 300ms default makes every poster feel late.
         <Image
           source={shown}
           style={styles.poster}
           resizeMode="cover"
-          resizeMethod="resize"
+          resizeMethod={sizedPath || (tries === 2 && backup) ? 'auto' : 'resize'}
           fadeDuration={0}
           onError={onImgError}
           onLoad={onImgLoad}
@@ -404,9 +449,12 @@ const styles = StyleSheet.create({
   // card (glass.css, 2026-10-06) — a light edge that lifts the artwork off the
   // page. Drawn as the card's own border, inside the radius.
   card: {width: CARD_W, height: CARD_H, borderRadius: radius.m, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: 'rgba(226,229,238,0.3)'},
+  cardCompact: {width: COMPACT_W, height: COMPACT_H, borderRadius: radius.m, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: 'rgba(226,229,238,0.3)'},
   cardWide: {width: WIDE_W, height: WIDE_H, borderRadius: radius.m, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: 'rgba(226,229,238,0.3)'},
   cardFrame: {width: FRAME_W, height: FRAME_H, borderRadius: radius.m, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: 'rgba(226,229,238,0.3)'},
   poster: {width: '100%', height: '100%', borderRadius: radius.m - 1},
+  // The baked shades: the padding box, at the card's radius (the SVG's rx).
+  shade: {position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', borderRadius: radius.m},
   blur: {position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderRadius: radius.m - 1},
   // The frame card's words — glass.css `.card.wide .card-label`: 16/16/24 → ×0.7.
   frameLabel: {position: 'absolute', left: 11, right: 11, bottom: 17},

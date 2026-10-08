@@ -1,6 +1,83 @@
+import com.android.build.api.instrumentation.AsmClassVisitorFactory
+import com.android.build.api.instrumentation.ClassContext
+import com.android.build.api.instrumentation.ClassData
+import com.android.build.api.instrumentation.FramesComputationMode
+import com.android.build.api.instrumentation.InstrumentationParameters
+import com.android.build.api.instrumentation.InstrumentationScope
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
+
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
+
+/**
+ * react-native-tvos PR #1159, applied to the PREBUILT react-android AAR.
+ *
+ * ReactViewManager.onAfterUpdateTransaction (react-native-tvos 0.86.0-2) asks
+ * AccessibilityManager.getEnabledAccessibilityServiceList() — a synchronous binder call into
+ * system_server — on every view update, including every frame of a native-driver animation.
+ * The app links react-android from Maven, so the source patch in patches/ (kept so a
+ * build-from-source picks it up) never reaches the APK. This rewrites that ONE call, in that
+ * ONE class, to com.auroratv.A11yServices.enabledList, which answers from local state or a
+ * cache (see A11yServices.kt). Same arguments on the stack, same return type; nothing else in
+ * the class or in any other class is touched. Drop this block once the app moves to a
+ * react-native-tvos release that carries #1159.
+ */
+abstract class A11yQueryRewrite implements AsmClassVisitorFactory<InstrumentationParameters.None> {
+    static final String TARGET = 'com.facebook.react.views.view.ReactViewManager'
+
+    @Override
+    ClassVisitor createClassVisitor(ClassContext classContext, ClassVisitor next) {
+        return new A11yClassVisitor(instrumentationContext.apiVersion.get(), next)
+    }
+
+    @Override
+    boolean isInstrumentable(ClassData classData) {
+        return classData.className == TARGET
+    }
+}
+
+class A11yClassVisitor extends ClassVisitor {
+    final int api
+
+    A11yClassVisitor(int api, ClassVisitor next) {
+        super(api, next)
+        this.api = api
+    }
+
+    @Override
+    MethodVisitor visitMethod(int access, String name, String desc, String sig, String[] exceptions) {
+        return new A11yMethodVisitor(api, super.visitMethod(access, name, desc, sig, exceptions))
+    }
+}
+
+class A11yMethodVisitor extends MethodVisitor {
+    A11yMethodVisitor(int api, MethodVisitor next) {
+        super(api, next)
+    }
+
+    @Override
+    void visitMethodInsn(int opcode, String owner, String name, String desc, boolean itf) {
+        if (opcode == Opcodes.INVOKEVIRTUAL &&
+                owner == 'android/view/accessibility/AccessibilityManager' &&
+                name == 'getEnabledAccessibilityServiceList' &&
+                desc == '(I)Ljava/util/List;') {
+            super.visitMethodInsn(Opcodes.INVOKESTATIC, 'com/auroratv/A11yServices', 'enabledList',
+                    '(Landroid/view/accessibility/AccessibilityManager;I)Ljava/util/List;', false)
+        } else {
+            super.visitMethodInsn(opcode, owner, name, desc, itf)
+        }
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.instrumentation.transformClassesWith(A11yQueryRewrite.class, InstrumentationScope.ALL) {}
+        variant.instrumentation.setAsmFramesComputationMode(FramesComputationMode.COPY_FRAMES)
+    }
+}
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -89,8 +166,14 @@ android {
         // after the real adaptive icon was added and verified inside the APK.
         // (Confirmed by extracting the icon layers from the installed APK: they
         // were correct; the launcher was simply showing its cache.)
-        versionCode 87
-        versionName "5.1.24"
+        versionCode 88
+        versionName "5.1.25"
+        // QA builds: Fresco's RequestLoggingListener + verbose FLog (MainApplication.kt), for
+        // `adb logcat -s RequestLoggingListener`. On in debug, or `assembleRelease -PfrescoLog`.
+        buildConfigField "boolean", "FRESCO_LOGGING", project.hasProperty('frescoLog') ? 'true' : 'false'
+    }
+    buildFeatures {
+        buildConfig true
     }
     signingConfigs {
         debug {
@@ -116,6 +199,7 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            buildConfigField "boolean", "FRESCO_LOGGING", "true"
         }
         release {
             signingConfig signingConfigs.release
@@ -132,6 +216,8 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     // The launcher's Continue watching row and Aurora's own row (HomeScreenModule.kt).
     implementation("androidx.tvprovider:tvprovider:1.0.0")
+    // JankStats: the frame monitor behind perfTier.ts (DeviceModule.kt).
+    implementation("androidx.metrics:metrics-performance:1.0.0")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

@@ -47,12 +47,24 @@ else if(e.data===3){if(started){stalls++;stallAt=Date.now();if(stalls>=2&&Date.n
 else if(e.data===0)post({t:'ended'});else if(e.data===2)post({t:'paused'})},
 onPlaybackQualityChange:function(e){post({t:'quality',c:e.data})},
 onError:function(e){post({t:'error',c:e.data})}}})}
-window.__cmd=function(c){try{if(!player)return;if(c==='mute')player.mute();if(c==='unmute'){player.unMute();player.setVolume(100)}if(c==='pause')player.pauseVideo();if(c==='play')player.playVideo()}catch(e){}};
+window.__cmd=function(c){try{if(!player)return;if(c==='mute')player.mute();if(c==='unmute'){player.unMute();player.setVolume(100)}if(c==='pause')player.pauseVideo();if(c==='play')player.playVideo();if(c==='stop'){started=true;player.stopVideo();player.destroy();player=null;document.body.innerHTML=''}}catch(e){}};
 var s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';s.onerror=function(){post({t:'error',c:'script'})};document.head.appendChild(s);
 setTimeout(function(){if(!started)post({t:'error',c:'timeout'})},14000);
 </script></body></html>`;
 
-export type TrailerHandle = {cmd: (c: 'mute' | 'unmute' | 'pause' | 'play') => void};
+// 'stop' ends the page's work for good — the player is destroyed and the page
+// emptied — for a WebView that cannot be unmounted at once (see Home).
+export type TrailerHandle = {cmd: (c: 'mute' | 'unmute' | 'pause' | 'play' | 'stop') => void};
+
+// The WebView's layer type. "hardware" gave the WebView its own offscreen GPU
+// layer — ~2208x1242 px for Home's over-sized billboard frame — redrawn on
+// every video frame and then composited again: measured on the Mi TV, 24 fps
+// at 26 ms a frame (94% janky) while a trailer played. "none" lets the
+// WebView draw straight into the window's own hardware-accelerated canvas
+// (the platform default), which is the same picture without the extra
+// full-size pass. If a box ever plays a trailer black or torn with "none",
+// flip this one constant back to 'hardware' — nothing else depends on it.
+const WEBVIEW_LAYER: 'none' | 'software' | 'hardware' = 'none';
 
 export default function TrailerFrame({
   videoId,
@@ -107,7 +119,7 @@ export default function TrailerFrame({
         mediaPlaybackRequiresUserAction={false}
         allowsInlineMediaPlayback
         allowsFullscreenVideo={false}
-        androidLayerType="hardware"
+        androidLayerType={WEBVIEW_LAYER}
         scrollEnabled={false}
         focusable={false}
         // YouTube answers the stock Android WebView UA with "This video is
@@ -119,6 +131,12 @@ export default function TrailerFrame({
         onMessage={onMessage}
         onError={() => onState('error')}
         onHttpError={() => onState('error')}
+        // The renderer process died (the system reclaimed it — a WebView
+        // renderer is ~120-140 MB on a 2 GB box — or it crashed). The page is
+        // gone and the view would stay blank: report an error so the owner
+        // unmounts this WebView (Home goes back to its art and skips this
+        // trailer for the visit; the trailer sheet shows its message).
+        onRenderProcessGone={() => onState('error')}
       />
     </View>
   );

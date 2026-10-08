@@ -20,6 +20,7 @@ export default function Chip({
   label,
   on,
   bare,
+  small,
   hasTVPreferredFocus,
   edgeLeft,
   onPress,
@@ -33,6 +34,10 @@ export default function Chip({
   // `.cat-pill` is transparent until it is the active one; the other chips carry
   // a --surface fill and a --line edge at rest.
   bare?: boolean;
+  // A tighter pill for pages that set several labelled groups of them close
+  // together (the AI page's What / Era / Length). Same look, 36dp tall at
+  // 14dp type — the precedent is Btn's `small` (34dp).
+  small?: boolean;
   hasTVPreferredFocus?: boolean;
   edgeLeft?: boolean;
   onPress: () => void;
@@ -52,13 +57,13 @@ export default function Chip({
       edgeLeft={edgeLeft}
       onFocusChange={onFocusChange}
       onPress={onPress}
-      style={[bare ? styles.bare : styles.surface, on && styles.on, bare && on && styles.barOnLift]}>
+      style={[bare ? styles.bare : styles.surface, small && styles.small, on && styles.on, bare && on && styles.barOnLift]}>
       {/* `.picker-btn`'s 1dp --line edge, as an absolutely-positioned child —
           NOT a border on the Focusable itself. A border there replaces the 3dp
           the ring is drawn inside, so the ring ends up painted over its own
           hairline. Same shape as Btn.tsx's rest-state edge. */}
       {!bare && !on ? <View style={styles.edge} pointerEvents="none" /> : null}
-      <Text style={[bare ? styles.bareText : styles.text, on && styles.onText]} numberOfLines={1}>
+      <Text style={[bare ? styles.bareText : styles.text, small && !bare && styles.smallText, on && styles.onText]} numberOfLines={1}>
         {label}
       </Text>
     </Focusable>
@@ -94,6 +99,9 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.pill,
   },
+  small: {minHeight: 36, paddingVertical: 6, paddingHorizontal: 13},
+  // (a bare pill's faint label keeps its 16dp — P14's faint-colour floor)
+  smallText: {fontSize: 14},
   on: {backgroundColor: colors.white},
   // `.cat-pill.on` alone carries this (screens.css:427-431); the surface `.chip`
   // does not. It is what lifts the selected category off the strip.

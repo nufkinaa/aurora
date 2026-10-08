@@ -3,6 +3,21 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.74 — 2026-10-08
+
+**Aurora TV 5.1.25 — smoother on weak boxes, honest on a bad connection.** Tested on the Mi TV, including through a deliberately slow line (0.9 Mbit/s, a quarter-second of lag).
+
+- **Covers that never showed on a slow connection** (elia: "only the names"). Two real causes, both fixed. Every picture was fetched at full size and shrunk on the TV — posters, backdrops, episode stills now come from the server at the size they are drawn, about ten times smaller, through the server even for catalogue titles. And the server dropped an idle connection after five seconds, which on a laggy link cut a picture off just as the TV reused it; it now keeps connections for over a minute. On the throttled line every cover of the Movies grid is in within three seconds, where before Inception, Jolt and Knives Out stayed blank for good.
+- **A screen no longer freezes waiting for the network.** Requests had no limit at all; a stalled link left a screen waiting for minutes. A request now gives up only when the connection is actually dead (no answer for 45 s, or silence for 30 s while one is coming) — a slow answer that is still arriving is left alone.
+- **Wrong screens on a bad line, fixed.** Movies and Shows said "Nothing matches" or "0 to stream" when a request failed; now they say the load failed, retry by themselves three times, and offer Retry. A failed page no longer ends scrolling. The downloaded shelf never appears empty while the list is still coming. A film that could not load offers Retry and says whether it was the server or the title. A library file that shows nothing for 25 seconds gets a card: keep waiting, lower quality (a 480p encode from where you are), or back.
+- **Smoother.** Confirmed in the library's own source: this version of React Native TV asked the system about accessibility services on every single animated frame; that call is now answered from memory. The hero's blurred backdrops are blurred on the server instead of on the TV, three times per rotation. The trailer no longer forces the whole screen to be redrawn on every video frame, and the trailer player is dropped the moment a trailer ends instead of living on under the film. Several full-screen layers nobody could see are gone. Card shading is a picture instead of a vector drawn per card. Measured on the Mi TV: memory from 363 MB to 309 MB, graphics memory from 156 MB to 95 MB, and the app draws 34 frames in 15 seconds while a trailer plays instead of 364.
+- **The TV knows what it is running on.** A native module reports memory, GPU and frame stutter per screen to the server (usage events), and a low-memory box gets a lighter player buffer and emptier image caches without looking different.
+- **Remote: one press, one move.** A touchpad remote sometimes registered two steps for one swipe (elia). The app now acts once per press, and the native side drops a repeat of the same key within 110 ms; holding a key to scroll still works.
+- **Left on the hero's button opens the side menu**, as everywhere else. Right on the last button still turns the slide.
+- **Trailers play inside Aurora.** The TV handed trailers to the YouTube app, which on some sets opens YouTube's home page instead. "Open in YouTube" stays as a button. The hero trailer starts after 4.5 s.
+- **The AI page, redesigned:** an explanation of what it does, the controls grouped as What, Era and Length with icons, a compact grid that fits about eight picks per row, and Try again now gives a different list instead of the cached one.
+- **Server:** `?blur=` and three new sizes for the image resizer; longer keep-alive; a slow-connection test proxy in `tools/throttle-proxy.js` for testing the apps against this server on a bad line.
+
 ## 1.6.73 — 2026-10-08
 
 - **The healer does a great deal more.** It ran 14 checks a minute and its log check only counted errors. It now runs 29, in seven groups, and still finishes in milliseconds:

@@ -1,0 +1,49 @@
+diff --git a/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/views/view/ReactViewManager.kt b/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/views/view/ReactViewManager.kt
+index cf03a08..bd9af88 100644
+--- a/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/views/view/ReactViewManager.kt
++++ b/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/views/view/ReactViewManager.kt
+@@ -569,20 +569,14 @@ public open class ReactViewManager : ReactClippingViewManager<ReactViewGroup>()
+   }
+ 
+   private fun manageFocusGuideAccessibilityDelegate(view: ReactViewGroup) {
+-    val accessibilityManager = view.context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+-    val a11yServiceList = accessibilityManager.getEnabledAccessibilityServiceList(
+-      AccessibilityServiceInfo.FEEDBACK_SPOKEN)
+-    var isTalkbackInstalledAndEnabled = false
+-
+-    for (serviceInfo in a11yServiceList) {
+-      val a11yServiceId = serviceInfo.id
+-      if (a11yServiceId != null && a11yServiceId.contains("talkback")) {
+-        isTalkbackInstalledAndEnabled = true
+-      }
+-    }
++    val hasDelegate = view.hasFocusGuideTalkbackAccessibilityDelegate()
++    // A view that is not a focus guide and has no delegate is left as it is whatever the
++    // TalkBack state, so skip the synchronous binder call to AccessibilityManagerService.
++    if (!hasDelegate && !view.isTVFocusGuide) return
+ 
++    val isTalkbackInstalledAndEnabled = isTalkbackEnabled(view.context)
+     val isTVFocusable = view.descendantFocusability != ViewGroup.FOCUS_BLOCK_DESCENDANTS
+-    if (!view.hasFocusGuideTalkbackAccessibilityDelegate()) {
++    if (!hasDelegate) {
+       if (view.isTVFocusGuide && isTVFocusable && isTalkbackInstalledAndEnabled) {
+         // Custom accessibility delegate is needed only for Talkback,
+         // as it's not handling TV focus guide scenarios as well as e.g. Amazon's VoiceView
+@@ -601,6 +595,17 @@ public open class ReactViewManager : ReactClippingViewManager<ReactViewGroup>()
+     }
+   }
+ 
++  private fun isTalkbackEnabled(context: Context): Boolean {
++    val accessibilityManager =
++        context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
++    // isEnabled is answered from AccessibilityManager's local state; the service list is a
++    // binder call, so only ask for it when some accessibility service is running at all.
++    if (!accessibilityManager.isEnabled) return false
++    return accessibilityManager
++        .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_SPOKEN)
++        .any { it.id?.contains("talkback") == true }
++  }
++
+   private fun hasTouchScreen(context: Context): Boolean {
+     return context.packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
+   }

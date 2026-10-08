@@ -11,6 +11,18 @@
 //
 // Sizes are snapped to a short ladder so a fleet of slightly different
 // screens shares a handful of variants instead of minting one each.
+//
+// ?blur=<px> (optional, 1..8): the picture pre-blurred here instead of on the
+// device. The TV's billboard used to ask Android for `blurRadius`, which runs
+// Fresco's iterative box blur on the full-size decoded bitmap — a copy of the
+// whole picture and a native blur on every hero rotation, on boxes that have
+// neither the memory nor the CPU for it. The blur here is the SAME filter:
+// two passes of a (2r+1) box, horizontal then vertical, on the original
+// pixels before any downscale (r in source pixels, exactly what Android's
+// IterativeBoxBlurPostProcessor(2, r) does), so a client asks for the radius
+// it would have handed the postprocessor. Measured against a port of Fresco's
+// blur_filter.cpp: at most one level apart on any channel.
+// Without the param nothing changes — same file names, same encode.
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -22,7 +34,11 @@ try {
   fs.mkdirSync(DIR, { recursive: true });
 } catch {}
 
-const LADDER = [240, 360, 480, 640, 800, 960, 1280];
+// 256 / 352 / 448: the TV app's poster, landscape and Continue Watching cards
+// on a 1080p set (124 / 176 / 224 dp × 2), so each is fetched at the size it
+// is drawn and decoded without a re-encode on the box.
+const LADDER = [240, 256, 352, 360, 448, 480, 640, 800, 960, 1280];
+const MAX_BLUR = 8;
 const MAX_CONCURRENT = 2; // ffmpeg encodes behind the video pipeline's back
 let running = 0;
 const queue = [];
@@ -39,6 +55,12 @@ const snap = (w) => {
   if (!Number.isFinite(n) || n < 64) return null;
   for (const step of LADDER) if (n <= step) return step;
   return null; // wider than the biggest step: serve the original
+};
+
+// A blur radius from a query string → 1..MAX_BLUR, or 0 (no blur).
+const blurOf = (b) => {
+  const n = parseInt(b, 10);
+  return Number.isFinite(n) && n >= 1 && n <= MAX_BLUR ? n : 0;
 };
 
 const sweep = () => {
@@ -80,17 +102,33 @@ if (config.FFMPEG) {
 }
 const hasWebp = () => webp;
 
-const encode = (src, out, width) =>
+// The filter chain. Blurred: to planar RGB first (boxblur on YUV would blur
+// the subsampled chroma planes at twice the reach), the two-pass box at the
+// source's own resolution, then the downscale.
+// It is written as a full-chroma (4:4:4) JPEG at q 2, never WebP: WebP's
+// 4:2:0 chroma put individual pixels up to ~50 levels off the on-device blur
+// at a 1280 width, where this stays within ~25 at the worst pixel and under
+// one level on average — at ~100 KB, against the 1–1.5 MB original.
+const filterFor = (width, blur) => {
+  if (!blur) return `scale='min(${width},iw)':-2`;
+  const bb = `format=gbrp,boxblur=lr=${blur}:lp=2:cr=${blur}:cp=2`;
+  return `${width ? `${bb},scale='min(${width},iw)':-2` : bb},format=yuvj444p`;
+};
+const BLUR_CODEC = ["-q:v", "2"];
+
+const encode = (src, out, width, blur = 0) =>
   new Promise((resolve, reject) => {
     const tmp = `${out}.tmp${path.extname(out)}`;
     // -2 keeps the height even (a JPEG requirement); q 4 / webp quality 78 are
     // visually transparent for artwork at these sizes.
-    const codec = out.endsWith(".webp")
+    const codec = blur
+      ? BLUR_CODEC
+      : out.endsWith(".webp")
       ? ["-c:v", "libwebp", "-quality", "78", "-compression_level", "4"]
       : ["-q:v", "4"];
     execFile(
       config.FFMPEG,
-      ["-v", "error", "-y", "-i", src, "-vf", `scale='min(${width},iw)':-2`, "-frames:v", "1", ...codec, tmp],
+      ["-v", "error", "-y", "-i", src, "-vf", filterFor(width, blur), "-frames:v", "1", ...codec, tmp],
       { timeout: 20000, windowsHide: true },
       (err) => {
         if (err) {
@@ -112,18 +150,27 @@ const encode = (src, out, width) =>
 
 // The path of a variant of `src` at `width` (ladder-snapped), made if it
 // doesn't exist yet. Resolves null when no variant can be had — callers
-// then send the original.
-const variant = async (src, width) => {
+// then send the original. `opts.blur` (see the header): pre-blurred, at
+// `width` or, with no usable width, at the original size.
+const variant = async (src, width, opts = {}) => {
   const w = snap(width);
-  if (!w || !config.FFMPEG) return null;
+  const blur = blurOf(opts && opts.blur);
+  if ((!w && !blur) || !config.FFMPEG) return null;
   let st;
   try {
     st = fs.statSync(src);
   } catch {
     return null;
   }
-  const key = crypto.createHash("md5").update(`${src}|${st.mtimeMs}|${st.size}|${w}`).digest("hex");
-  const out = path.join(DIR, `${key}-w${w}.${hasWebp() ? "webp" : "jpg"}`);
+  // (the unblurred key and name are exactly what they always were, so every
+  // variant already on disk stays valid)
+  const key = crypto
+    .createHash("md5")
+    .update(blur ? `${src}|${st.mtimeMs}|${st.size}|${w || 0}|b${blur}` : `${src}|${st.mtimeMs}|${st.size}|${w}`)
+    .digest("hex");
+  const out = blur
+    ? path.join(DIR, `${key}-w${w || "full"}-b${blur}.jpg`)
+    : path.join(DIR, `${key}-w${w}.${hasWebp() ? "webp" : "jpg"}`);
   try {
     if (fs.statSync(out).size > 512) return out;
   } catch {}
@@ -131,7 +178,7 @@ const variant = async (src, width) => {
   let p = inflight.get(out);
   if (!p) {
     p = new Promise((resolve, reject) => {
-      queue.push(() => encode(src, out, w).then(resolve, reject));
+      queue.push(() => encode(src, out, w, blur).then(resolve, reject));
       pump();
     });
     inflight.set(out, p);
@@ -149,4 +196,4 @@ const variant = async (src, width) => {
   }
 };
 
-module.exports = { variant, snap, LADDER, DIR };
+module.exports = { variant, snap, blurOf, filterFor, LADDER, MAX_BLUR, DIR };

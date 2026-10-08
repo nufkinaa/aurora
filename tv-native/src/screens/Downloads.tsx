@@ -9,7 +9,7 @@ import {useIsFocused} from '@react-navigation/native';
 import Focusable from '../components/Focusable';
 import NavRail from '../components/NavRail';
 import {Empty} from '../components/States';
-import {api, imgSrc, ImgSource, MyDownload} from '../api';
+import {api, artSrc, ImgSource, MyDownload} from '../api';
 import {useApp} from '../AppContext';
 import {canNavigate} from '../navLock';
 import {isOpen, onMessage} from '../realtime';
@@ -152,7 +152,8 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
     const fresh = canPlay && !j.seenAt;
     const claim = first;
     first = false;
-    const art = imgSrc(j.poster);
+    // at the 44dp it is drawn (api.ts artSrc)
+    const art = artSrc(j.poster, 44).src;
     return (
       <Focusable
         key={j.id}

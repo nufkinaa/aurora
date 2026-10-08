@@ -34,7 +34,7 @@ import MiniSpinner from '../components/MiniSpinner';
 import NavRail from '../components/NavRail';
 import Picker from '../components/Picker';
 import Skeleton from '../components/Skeleton';
-import {Empty} from '../components/States';
+import {Empty, ErrorState} from '../components/States';
 import Card, {CARD_W} from '../components/Card';
 import {api, HeroItem, ProfileState} from '../api';
 import {onMessage} from '../realtime';
@@ -47,6 +47,7 @@ import {
   focusJustMoved,
   railOpen,
   useFocusFallback,
+  useIsLive,
   useListClaim,
   useTVKeys,
 } from '../focus';
@@ -72,6 +73,11 @@ const STRIP_W = 44;
 // How close to the end of the loaded list focus has to get before the next page
 // is fetched: two rows out, so the page lands before the viewer reaches it.
 const PREFETCH_ROWS = 2;
+// A failed read is tried again by itself after these waits (then it waits for
+// Retry). Measured through a 0.9 Mbit / 250 ms line: one dropped request used
+// to read as "nothing here" for good. Spaced out so a struggling line is not
+// hammered with the very requests it is struggling to carry.
+const BACKOFF = [3000, 8000, 20000];
 
 // The site's CATEGORIES, verbatim (browse.js:195-201). `withLocal` leads with
 // your own library and then continues into the catalog; `local` is the library
@@ -137,21 +143,60 @@ export default function Browse({
   const cat = CATEGORIES.find(c => c.id === category) || CATEGORIES[0];
   const localOnly = !!cat.local;
 
+  // Is this screen the one on top? The automatic retries wait while it is not
+  // (a Detail page above it has its own reads to make on the same slow line).
+  const screenLive = useIsLive();
+  const screenLiveRef = useRef(screenLive);
+  screenLiveRef.current = screenLive;
+
+  // The library list. A failure is NOT an empty library: `lib` stays null
+  // (unknown), the page says so, and the read is tried again on the backoff.
+  // Setting [] here used to open the grid without the downloaded titles and
+  // count them as "0", with only leaving and coming back to fix it.
+  const [libErr, setLibErr] = useState(false);
+  const [libTry, setLibTry] = useState(0);
+  const [libRetrying, setLibRetrying] = useState(false);
+  const libAttempts = useRef(0);
+  useEffect(() => {
+    libAttempts.current = 0;
+  }, [kind]);
   useEffect(() => {
     let live = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     api
       .library()
-      .then(
-        l =>
-          live &&
-          setLib(
-            (kind === 'show' ? l.shows : l.movies).map(i => ({
-              ...i,
-              source: 'downloaded' as const,
-            })),
-          ),
-      )
-      .catch(() => live && setLib([]));
+      .then(l => {
+        if (!live) return;
+        libAttempts.current = 0;
+        setLibErr(false);
+        setLibRetrying(false);
+        setLib((kind === 'show' ? l.shows : l.movies).map(i => ({...i, source: 'downloaded' as const})));
+      })
+      .catch(() => {
+        if (!live) return;
+        setLibErr(true);
+        const n = libAttempts.current++;
+        if (n >= BACKOFF.length) return setLibRetrying(false); // Retry is the viewer's now
+        setLibRetrying(true);
+        const fire = () => {
+          if (!live) return;
+          // Not on top: look again shortly rather than spend the line now.
+          if (!screenLiveRef.current) {
+            timer = setTimeout(fire, 2000);
+            return;
+          }
+          setLibTry(t => t + 1);
+        };
+        timer = setTimeout(fire, BACKOFF[n]);
+      });
+    return () => {
+      live = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [kind, libTry]);
+
+  useEffect(() => {
+    let live = true;
     api.catalogGenres(kind).then(r => live && setGenreList(r.genres || [])).catch(() => {});
     // Unwatched needs saved progress, and "For you" needs the genres this profile
     // said it likes — the same two things the site reads off `state`.
@@ -182,7 +227,11 @@ export default function Browse({
         console.log('[live] browse: library changed, shelf re-read');
         api
           .library(true)
-          .then(l => on && setLib((kind === 'show' ? l.shows : l.movies).map(i => ({...i, source: 'downloaded' as const}))))
+          .then(l => {
+            if (!on) return;
+            setLibErr(false);
+            setLib((kind === 'show' ? l.shows : l.movies).map(i => ({...i, source: 'downloaded' as const})));
+          })
           .catch(() => {});
       }, 2500);
     });
@@ -212,6 +261,19 @@ export default function Browse({
     new Map<string, {items: HeroItem[]; page: number; hasMore: boolean}>(),
   );
   const cacheKey = `${kind}|${category}|${genre}`;
+  // The first page failed (not: answered with nothing). Shown as an error with
+  // Retry, and tried again by itself on BACKOFF; `catTry` re-runs the fetch.
+  const [catErr, setCatErr] = useState(false);
+  const [catTry, setCatTry] = useState(0);
+  const [catRetrying, setCatRetrying] = useState(false);
+  const catAttempts = useRef(0);
+  // A new grid starts clean. NOT reset per attempt: a retry in flight keeps
+  // the error (and its focused Retry) up rather than flashing skeletons.
+  useEffect(() => {
+    catAttempts.current = 0;
+    setCatErr(false);
+    setCatRetrying(false);
+  }, [cacheKey]);
   useEffect(() => {
     if (localOnly) {
       // Bump the request id here too: an in-flight catalog fetch from the
@@ -232,12 +294,19 @@ export default function Browse({
       setLoading(false);
       return;
     }
+    let live = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     setFetched([]);
+    setPage(-1);
+    setHasMore(true);
     setLoading(true);
     api
       .catalog({type: kind, category: cat.catalog || 'trending', genre: genre || null, page: 0})
       .then(r => {
-        if (id !== reqId.current) return;
+        if (!live || id !== reqId.current) return;
+        catAttempts.current = 0;
+        setCatErr(false);
+        setCatRetrying(false);
         const list = r.items || [];
         cache.current.set(cacheKey, {items: list, page: 0, hasMore: !!r.hasMore});
         setFetched(list);
@@ -245,16 +314,74 @@ export default function Browse({
         setHasMore(!!r.hasMore);
       })
       .catch(() => {
-        if (id !== reqId.current) return;
+        if (!live || id !== reqId.current) return;
+        // Failed, not empty: `page` stays -1 (nothing to page on from) and
+        // `hasMore` stays true — nothing has said the catalogue is over.
         setFetched([]);
-        setHasMore(false);
+        setCatErr(true);
+        const n = catAttempts.current++;
+        if (n >= BACKOFF.length) return setCatRetrying(false); // Retry is the viewer's now
+        setCatRetrying(true);
+        const fire = () => {
+          if (!live || id !== reqId.current) return;
+          if (!screenLiveRef.current) {
+            timer = setTimeout(fire, 2000);
+            return;
+          }
+          setCatTry(t => t + 1);
+        };
+        timer = setTimeout(fire, BACKOFF[n]);
       })
-      .finally(() => id === reqId.current && setLoading(false));
+      .finally(() => live && id === reqId.current && setLoading(false));
+    return () => {
+      live = false;
+      if (timer) clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kind, category, genre, localOnly, cacheKey]);
+  }, [kind, category, genre, localOnly, cacheKey, catTry]);
 
+  // Retry, pressed: every read that failed, at once, each with a fresh run of
+  // automatic tries behind it.
+  const retryAll = useCallback(() => {
+    if (libErr) {
+      libAttempts.current = 0;
+      setLibRetrying(true);
+      setLibTry(t => t + 1);
+    }
+    if (catErr) {
+      catAttempts.current = 0;
+      setCatRetrying(true);
+      setCatTry(t => t + 1);
+    }
+  }, [libErr, catErr]);
+
+  // A failed NEXT page does not end the list: `hasMore` stays as it was and the
+  // next trigger (focus nearing the end) tries again — but not before the
+  // backoff has passed, so a viewer walking the last row does not fire a
+  // request per press at a line that just dropped one.
+  const nextFails = useRef(0);
+  const nextNotBefore = useRef(0);
+  const nextTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [nextErr, setNextErr] = useState(false);
+  // The last card focus rested on, so the retry timer can tell whether the
+  // viewer is still down at the end of the list.
+  const lastFocusIdx = useRef(0);
+  useEffect(() => {
+    nextFails.current = 0;
+    nextNotBefore.current = 0;
+    setNextErr(false);
+    if (nextTimer.current) clearTimeout(nextTimer.current);
+    nextTimer.current = null;
+  }, [cacheKey]);
+  useEffect(
+    () => () => {
+      if (nextTimer.current) clearTimeout(nextTimer.current);
+    },
+    [],
+  );
   const loadNext = useCallback(() => {
     if (loading || !hasMore || localOnly || page < 0) return;
+    if (Date.now() < nextNotBefore.current) return;
     const id = reqId.current;
     setLoading(true);
     api
@@ -272,14 +399,34 @@ export default function Browse({
         });
         setPage(nextPage);
         setHasMore(!!r.hasMore);
+        nextFails.current = 0;
+        nextNotBefore.current = 0;
+        setNextErr(false);
       })
-      .catch(() => id === reqId.current && setHasMore(false))
+      .catch(() => {
+        if (id !== reqId.current) return;
+        const wait = BACKOFF[Math.min(nextFails.current, BACKOFF.length - 1)];
+        nextFails.current += 1;
+        nextNotBefore.current = Date.now() + wait;
+        setNextErr(true);
+        // Someone parked on the last row moves no focus, so no trigger would
+        // ever come: try once more by itself when the wait is over, if focus
+        // is still near the end and the screen is on top.
+        if (nextTimer.current) clearTimeout(nextTimer.current);
+        nextTimer.current = setTimeout(() => {
+          nextTimer.current = null;
+          if (id !== reqId.current || !screenLiveRef.current) return;
+          if (lastFocusIdx.current >= itemCountRef.current - colsRef.current * PREFETCH_ROWS) loadNextRef.current();
+        }, wait + 50);
+      })
       .finally(() => id === reqId.current && setLoading(false));
   }, [cacheKey, cat.catalog, genre, hasMore, kind, loading, localOnly, page]);
   // Read through a ref by the card focus handler, which must keep a stable
   // identity (it is a prop on every memoized card).
   const loadNextRef = useRef(loadNext);
   loadNextRef.current = loadNext;
+  const colsRef = useRef(cols);
+  colsRef.current = cols;
 
   // ---- what to show ------------------------------------------------------
   // `visible()` transcribed (browse.js:310-327): the WHOLE downloaded library,
@@ -408,9 +555,12 @@ export default function Browse({
 
   // Claim the first card once, when the grid first fills. NOT per filter: the
   // panel hands focus back to the card you left when it closes. See focus.ts.
-  const claims = useListClaim('grid', items.length > 0);
+  // Not while the grid is held for the library: the cells do not exist yet,
+  // and a claim spent on them would leave the grid with nothing focused.
+  const claims = useListClaim('grid', items.length > 0 && !((localOnly || cat.withLocal) && lib === null));
   const onCardFocus = useCallback((item: HeroItem, index: number) => {
     warmItem(item); // the Detail page's data, if focus holds a moment
+    lastFocusIdx.current = index;
     // Automatic paging, two rows ahead of the focus. The page APPENDS, so no
     // card already on screen moves; the only visible change is more rows
     // below, which is what "scrolling" is.
@@ -434,21 +584,51 @@ export default function Browse({
     [openDetail, onCardFocus, cols, claims],
   );
 
-  // paintCount, transcribed (browse.js:411-423).
-  const count = localOnly
+  // The downloaded titles lead this grid and their list is not known yet (or
+  // failed): the grid is held — never shown without them — and the count does
+  // not claim a number it does not have.
+  const needLib = localOnly || !!cat.withLocal;
+  const holdForLib = needLib && lib === null;
+  // The first catalogue page has not answered yet (or failed).
+  const catPending = !localOnly && page < 0;
+
+  // paintCount, transcribed (browse.js:411-423) — but only numbers that are
+  // KNOWN: "Loading…" while the library is out, and no "to stream" figure
+  // until the catalogue has answered.
+  const count = holdForLib
+    ? libErr
+      ? ''
+      : 'Loading…'
+    : localOnly
     ? `${items.length} downloaded`
+    : catPending
+    ? (owned ? `${owned} downloaded · ` : '') + (catErr ? "the rest didn't load" : 'loading the rest…')
     : (owned ? `${owned} downloaded · ` : '') +
       `${items.length - owned} to stream${hasMore ? ' · more available' : ''}`;
   const taste = cat.taste && !genre ? tasteGenres.slice(0, 3) : [];
   const note = taste.length ? `From your ${taste.join(', ')}` : '';
 
-  const skeletons = (lib === null || loading) && items.length === 0;
+  // Failed rather than empty: what stands in for the grid when a read it
+  // needs did not come back.
+  const failed = holdForLib ? libErr : items.length === 0 && catErr;
+  const retrying = (libErr && libRetrying) || (catErr && catRetrying);
+  const skeletons = !failed && (holdForLib || (items.length === 0 && (loading || catPending)));
   // The spinner row under the grid while the next page is on its way. Not a
-  // focus target — there is nothing to press.
+  // focus target — there is nothing to press. When the first page failed under
+  // a grid of downloaded titles, the row carries Retry instead (DOWN from the
+  // last row reaches it); a failed NEXT page just says it will try again.
   const footer =
-    !localOnly && loading && items.length > 0 ? (
+    localOnly || items.length === 0 ? null : loading ? (
       <View style={styles.footer}>
         <MiniSpinner />
+      </View>
+    ) : catPending && catErr ? (
+      <View style={styles.footer}>
+        <Btn small label="Retry" onPress={retryAll} />
+      </View>
+    ) : nextErr && hasMore ? (
+      <View style={styles.footer}>
+        <Text style={styles.note}>Couldn't load more — trying again</Text>
       </View>
     ) : null;
 
@@ -468,7 +648,13 @@ export default function Browse({
           </Text>
         </View>
 
-        {skeletons ? (
+        {failed ? (
+          <ErrorState
+            message="Couldn't load — the server took too long or the connection dropped"
+            detail={retrying ? 'Trying again…' : undefined}
+            onAction={retryAll}
+          />
+        ) : skeletons ? (
           <View style={styles.skelGrid}>
             {Array.from({length: SKELETONS}, (_, i) => (
               <Skeleton key={i} />

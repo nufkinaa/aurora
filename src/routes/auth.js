@@ -19,8 +19,11 @@ const deviceOf = (req) => realtime.parseDevice(req.headers["user-agent"] || "");
 
 // Minimal health endpoint for the TV's server resolver: stays 200 in every
 // auth mode, carries nothing personal.
+// `imgBlur`: this server renders ?blur= art variants (lib/imgvariant.js) — the
+// TV asks for its billboard pre-blurred only when the server says so, and
+// keeps blurring on the box against an older one.
 router.get("/api/ping", (req, res) => {
-  res.json({ ok: true, name: "aurora", authMode: require("../lib/authmode").get() });
+  res.json({ ok: true, name: "aurora", authMode: require("../lib/authmode").get(), imgBlur: true });
 });
 
 // ---------- login rate limiting (per-IP and per-identifier) ----------

@@ -35,9 +35,9 @@ router.post("/api/ai/recommend", async (req, res) => {
   if (overBudget(ip)) {
     return res.status(429).json({ error: "Easy. Give it a minute before asking again." });
   }
-  const { vibe, mix, era, length } = req.body || {};
+  const { vibe, mix, era, length, fresh } = req.body || {};
   try {
-    const result = await ai.recommend(vibe, mix, era, length);
+    const result = await ai.recommend(vibe, mix, era, length, { fresh: fresh === true });
     if (result.error) return res.status(400).json(result);
     res.json(result);
   } catch (err) {
