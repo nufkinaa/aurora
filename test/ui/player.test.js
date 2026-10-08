@@ -224,8 +224,10 @@ ui.test("resume: leave part-way, reopen, and it picks up there (not at 0, not la
   assert.ok(back > 10, `reopened at ${back.toFixed(1)}s: that is the start, not a resume`);
   assert.ok(back <= left + 1.5, `reopened at ${back.toFixed(1)}s, PAST where it was left (${left.toFixed(1)}s)`);
   assert.ok(back >= left - 10, `reopened at ${back.toFixed(1)}s, more than ten seconds before where it was left (${left.toFixed(1)}s)`);
-  // and says so
-  assert.match(await page.textContent(".player .resume-pill"), /Resumed at 0:\d\d/);
+  // and says so: four seconds before the saved second, on a file that plays
+  // directly exactly as on one that is repackaged
+  const at = Math.max(0, Math.floor(saved.position) - 4);
+  assert.match(await page.textContent(".player .resume-pill"), new RegExp(`Resumed at 0:${String(at).padStart(2, "0")}(?!\\d)`));
 });
 
 ui.test("Start over from the resume pill goes back to the top", async ({ page, srv, signIn, freshProfile, api, lib }) => {

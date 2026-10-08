@@ -304,6 +304,14 @@ export const renderPlayer = async (root, { id }) => {
     location.replace(`#/play/${owned.id}${restart ? "?restart=1" : ""}`);
     return;
   }
+  // A stream item on a server with "torrents": false (a Continue Watching
+  // card from before the switch, a deep link): say so and go back, rather
+  // than open a player whose every request the server will refuse.
+  if (isTorrent && state.torrents === false) {
+    toast("Streaming from sources is switched off on this server", "🚫");
+    if (history.length > 1) return history.back();
+    return navigate("#/");
+  }
 
   // S2 probe-then-decide: for torrents, ask the server what the file's first
   // bytes actually SAY (streamprobe.js) — release tags are a guess and the
@@ -4221,8 +4229,10 @@ export const renderPlayer = async (root, { id }) => {
       prog.position > 10 &&
       prog.position < totalDuration() - 20
     ) {
-      video.currentTime = prog.position;
-      showResumeCard(prog.position);
+      // four seconds early, the same as resumeAt on the repackaged path
+      const at = Math.max(0, Math.floor(prog.position) - 4);
+      video.currentTime = at;
+      showResumeCard(at);
     } else if (usingTranscode && resumeAt > 0) {
       showResumeCard(resumeAt);
     }

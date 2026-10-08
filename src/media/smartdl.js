@@ -64,6 +64,7 @@ const pickSource = (streams, quality) => {
 };
 
 const onProgress = async (profileId, itemId, position, duration, meta) => {
+  if (!require("../lib/torrentgate").enabled()) return; // "torrents": false
   if (!(duration > 0) || position / duration < THRESHOLD) return;
   const profile = profiles.list().find((p) => p.id === profileId);
   if (!profile || (profile.prefs && profile.prefs.smartDownloads === false)) return;

@@ -4,6 +4,7 @@
 import { el, icons, debounce, posterImg } from "../ui.js";
 import { navigate } from "../router.js";
 import { api } from "../api.js";
+import { state } from "../state.js";
 import { attachRowArrows } from "../rowArrows.js";
 
 // Cache trending + searches for the session so navigating back is instant
@@ -18,7 +19,7 @@ const prefetch = (item) => {
   if (!id || prefetched.has(id)) return;
   prefetched.add(id);
   api.discoverMeta(type, id).catch(() => {});
-  if (type === "movie") api.torrentSources({ type, title: id, year: item.year }).catch(() => {});
+  if (type === "movie" && state.torrents !== false) api.torrentSources({ type, title: id, year: item.year }).catch(() => {});
 };
 
 const discoverCard = (item) =>

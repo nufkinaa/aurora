@@ -86,6 +86,8 @@ const checkOne = async (profile, follow) => {
 
 let running = false;
 const checkAll = async () => {
+  // "torrents": false — a follow has nothing to download with.
+  if (!require("../lib/torrentgate").enabled()) return 0;
   if (running) return 0;
   running = true;
   let queued = 0;
@@ -106,6 +108,7 @@ const checkAll = async () => {
 
 let timer = null;
 const start = () => {
+  if (!require("../lib/torrentgate").enabled()) return;
   if (timer) return;
   setTimeout(() => checkAll().catch(() => {}), 4 * 60 * 1000).unref();
   timer = setInterval(() => checkAll().catch(() => {}), CHECK_MS);

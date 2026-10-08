@@ -222,6 +222,19 @@
     .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--surface); font-size: 0.76rem; font-weight: 700; }
     .pill.live { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
     .pill.warn { background: rgba(240, 177, 50, 0.14); color: #f0b132; }
+    .ac-out { margin: 0; max-height: 420px; overflow: auto; padding: 12px 14px; border-radius: 10px; background: rgba(0,0,0,0.35); border: 1px solid var(--line); font: 0.78rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+    .ac-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+    .ac-row:first-of-type { border-top: 0; padding-top: 2px; }
+    .ac-row b { display: block; font-size: 0.92rem; }
+    .ac-row .ac-about { color: var(--text-dim); font-size: 0.84rem; line-height: 1.45; margin-top: 2px; }
+    .ac-row .ac-cmd { color: var(--text-faint); font: 0.72rem ui-monospace, Consolas, monospace; margin-top: 4px; word-break: break-all; }
+    .ac-row button.mini { min-width: 76px; padding: 9px 16px; background: var(--accent-strong); color: #fff; }
+    .ac-row button.mini.danger { background: rgba(240, 80, 80, 0.18); color: #ff8c8c; }
+    .ac-row button.mini:disabled { opacity: 0.45; }
+    .ac-run { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; font-size: 0.86rem; cursor: pointer; }
+    .ac-run:hover b { text-decoration: underline; }
+    .pill.bad { background: rgba(240, 80, 80, 0.16); color: #ff8c8c; }
+    @media (max-width: 640px) { .ac-row { grid-template-columns: 1fr; } .ac-row button.mini { width: 100%; min-height: 42px; } }
     .mini { padding: 6px 12px; border-radius: 8px; background: var(--surface); font-size: 0.8rem; font-weight: 700; }
     .mini:hover { background: var(--surface-hover); }
     .mini.danger { color: #ff7a7a; }
@@ -442,7 +455,7 @@
         <button class="tab" data-tab="downloads" data-panes="downloads"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></svg><span>Downloads</span><span class="tbadge" id="badge-downloads"></span></button>
         <button class="tab" data-tab="profiles" data-panes="profiles"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.900 1.900 6.500 5.500"/><path d="M16 4.800a3.500 3.500 0 010 6.400"/><path d="M18 14.800c2 .700 3.200 2.400 3.600 5.200"/></svg><span>People</span><span class="tbadge" id="badge-profiles"></span></button>
         <button class="tab" data-tab="analytics" data-panes="analytics history"><svg viewBox="0 0 24 24"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M21 20H3"/></svg><span>Insights</span></button>
-        <button class="tab" data-tab="server" data-panes="server logs"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.500h.01M7 16.500h.01"/></svg><span>Server</span><span class="tbadge" id="badge-server"></span></button>
+        <button class="tab" data-tab="server" data-panes="server actions logs"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.500h.01M7 16.500h.01"/></svg><span>Server</span><span class="tbadge" id="badge-server"></span></button>
       </nav>
       <div class="side-foot" id="conn" title="Whether this page is receiving live updates from the server"><i class="conn-dot"></i><span id="conn-text">Connecting…</span></div>
     </aside>
@@ -457,6 +470,33 @@
     <div class="subtabs" id="subtabs"></div>
 
     <!-- ================= LOGS ================= -->
+    <!-- ================= ACTIONS (lib/adminactions.js: a fixed list, never a shell) ================= -->
+    <div class="pane" id="pane-actions">
+      <div class="card hidden" id="ac-out-card">
+        <h2><span id="ac-out-title">Output</span> <span id="ac-out-state"></span></h2>
+        <pre id="ac-out" class="ac-out"></pre>
+      </div>
+      <div id="ac-groups"><div class="empty-note">Loading…</div></div>
+      <div class="card">
+        <h2>Backups <span class="note" id="ac-bk-note"></span></h2>
+        <div id="ac-bk-advice" class="empty-note hidden" style="margin-bottom:10px"></div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Snapshot</th><th>Made</th><th>Size</th><th>Check</th><th></th></tr></thead>
+          <tbody id="ac-bk-rows"></tbody>
+        </table></div>
+        <div class="empty-note hidden" id="ac-bk-empty">No backups yet — press “Back up now” above.</div>
+      </div>
+      <div class="card">
+        <h2>Alerts <span class="note">what the server tells you about by itself, and where it sends it</span></h2>
+        <div id="ac-al-delivery" class="empty-note">Checking…</div>
+        <div id="ac-al-checks" style="margin-top:10px;display:grid;gap:6px"></div>
+      </div>
+      <div class="card">
+        <h2>Recent runs <span class="note">since the server last started</span></h2>
+        <div id="ac-runs" class="empty-note">Nothing has been run yet.</div>
+      </div>
+    </div>
+
     <div class="pane" id="pane-logs">
       <section>
         <h2>Server log <span class="note" id="log-stats"></span></h2>
@@ -2167,6 +2207,169 @@
     }
     $("#update-check-btn").onclick = () => loadUpdateCheck(true);
 
+    // ---------- Actions (lib/adminactions.js) ----------
+    // The list comes from the server and is fixed there; this page only ever
+    // sends an action's id.
+    let acPoll = null;
+    let ACTIONS_BY_ID = {};
+    const acState = (r) => r.status === "running"
+      ? '<span class="pill warn">running…</span>'
+      : r.status === "ok" ? '<span class="pill live">done</span>' : '<span class="pill bad">failed</span>';
+    const waitForServer = () => {
+      const t0 = Date.now();
+      const poll = async () => {
+        try {
+          const r = await fetch("/api/ping?t=" + Date.now(), { cache: "no-store" });
+          if (r.ok && Date.now() - t0 > 2500) { location.reload(); return; }
+        } catch {}
+        if (Date.now() - t0 < 120000) setTimeout(poll, 1500);
+        else $("#ac-out-state").innerHTML = '<span class="pill bad">not back after two minutes</span>';
+      };
+      setTimeout(poll, 1500);
+    };
+    const showRun = (r) => {
+      $("#ac-out-card").classList.remove("hidden");
+      $("#ac-out-title").textContent = r.title;
+      $("#ac-out-state").innerHTML = acState(r);
+      const pre = $("#ac-out");
+      const stick = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
+      pre.textContent = r.output || (r.status === "running" ? "…" : "(no output)");
+      if (stick) pre.scrollTop = pre.scrollHeight;
+    };
+    const followRun = (id, restarts) => {
+      clearTimeout(acPoll);
+      let misses = 0;
+      const tick = async () => {
+        let r = null;
+        try {
+          const res = await adminFetch("/api/admin/actions/runs/" + encodeURIComponent(id), { cache: "no-store" });
+          if (res.ok) r = await res.json();
+        } catch {}
+        if (!r) {
+          // the server went away mid-run: for a restart that is the plan
+          if (restarts || ++misses > 4) {
+            if (restarts) { $("#ac-out-state").innerHTML = '<span class="pill warn">restarting…</span>'; waitForServer(); }
+            else $("#ac-out-state").innerHTML = '<span class="pill bad">lost contact with the server</span>';
+            return;
+          }
+          acPoll = setTimeout(tick, 1500);
+          return;
+        }
+        showRun(r);
+        if (r.status === "running") { acPoll = setTimeout(tick, 900); return; }
+        if (restarts && r.status === "ok" && /Restarting/.test(r.output)) { $("#ac-out-state").innerHTML = '<span class="pill warn">restarting…</span>'; waitForServer(); return; }
+        loadActions();
+        if (/^backup/.test(r.action)) loadBackups();
+        if (r.action === "health-run") loadAlerts();
+      };
+      tick();
+    };
+    async function loadActions() {
+      let d;
+      try { d = await json("/api/admin/actions"); } catch { return; }
+      if (!d || !d.actions) return;
+      const groups = [];
+      for (const a of d.actions) {
+        let g = groups.find((x) => x.name === a.group);
+        if (!g) groups.push((g = { name: a.group, items: [] }));
+        g.items.push(a);
+      }
+      $("#ac-groups").innerHTML = groups.map((g) => `
+        <div class="card">
+          <h2>${esc(g.name)}</h2>
+          ${g.items.map((a) => `
+            <div class="ac-row">
+              <div>
+                <b>${esc(a.title)}</b>
+                <div class="ac-about">${esc(a.about)}</div>
+                ${a.runs ? `<div class="ac-cmd">${a.runs.map((c) => esc(c)).join(" &nbsp;·&nbsp; ")}</div>` : ""}
+              </div>
+              <button class="mini${a.danger ? " danger" : ""}" data-action="${esc(a.id)}"${a.long && d.busy ? " disabled" : ""}>Run</button>
+            </div>`).join("")}
+        </div>`).join("");
+      ACTIONS_BY_ID = Object.fromEntries(d.actions.map((a) => [a.id, a]));
+      $("#ac-runs").innerHTML = d.runs.length
+        ? d.runs.map((r) => `<div class="ac-run" data-run="${esc(r.id)}">${acState(r)} <b>${esc(r.title)}</b> <span class="muted">${ago(new Date(r.startedAt).toISOString())}${r.endedAt ? ` · took ${Math.max(1, Math.round((r.endedAt - r.startedAt) / 1000))}s` : ""}</span></div>`).join("")
+        : "Nothing has been run yet.";
+      $("#ac-runs").classList.toggle("empty-note", !d.runs.length);
+    }
+    $("#ac-groups").addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-action]");
+      if (!b || b.disabled) return;
+      const a = ACTIONS_BY_ID[b.dataset.action];
+      if (!a) return;
+      if (a.confirm && !await ask(a.confirm)) return;
+      b.disabled = true;
+      let res;
+      try {
+        res = await adminFetch(`/api/admin/actions/${encodeURIComponent(a.id)}/run`, { method: "POST" });
+      } catch { toast("Can't reach the server"); b.disabled = false; return; }
+      const r = await res.json().catch(() => ({}));
+      if (!res.ok || !r.run || r.error) { toast(r.error || "That did not start"); b.disabled = false; return; }
+      showRun({ ...r.run, output: "" });
+      $("#ac-out-card").scrollIntoView({ behavior: "smooth", block: "start" });
+      followRun(r.run.id, a.id === "restart" || a.id === "update-all");
+      setTimeout(loadActions, 300);
+    });
+    $("#ac-runs").addEventListener("click", (e) => {
+      const row = e.target.closest("[data-run]");
+      if (!row) return;
+      followRun(row.dataset.run, false);
+      $("#ac-out-card").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    async function loadBackups() {
+      let d;
+      try { d = await json("/api/admin/backups"); } catch { return; }
+      if (!d || d.error) return;
+      $("#ac-bk-note").textContent = d.enabled === false ? "the daily backup is switched off in config.json" : `daily, into ${d.dir}`;
+      const adv = $("#ac-bk-advice");
+      adv.classList.toggle("hidden", !(d.sameDiskAsData && d.advice));
+      adv.textContent = d.advice || "";
+      const list = d.snapshots || [];
+      $("#ac-bk-empty").classList.toggle("hidden", list.length > 0);
+      $("#ac-bk-rows").innerHTML = list.map((b) => `<tr>
+        <td>${esc(b.name)}</td>
+        <td>${ago(new Date(b.createdAt).toISOString())}</td>
+        <td>${fmtBytes(b.size)}</td>
+        <td>${b.verified ? '<span class="pill live">intact</span>' : `<span class="pill bad" title="${esc(b.error || "")}">broken</span>`}</td>
+        <td><button class="mini" data-backup="${esc(b.name)}">Download</button></td>
+      </tr>`).join("");
+    }
+    // A backup holds config.json and .env, so it is fetched with the admin
+    // header (a plain link could not carry it) and handed over as a file.
+    $("#ac-bk-rows").addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-backup]");
+      if (!b) return;
+      if (!await ask("Download this backup? It contains the server's passwords and keys — keep the file somewhere private.")) return;
+      b.disabled = true;
+      try {
+        const res = await adminFetch(`/api/admin/backups/${encodeURIComponent(b.dataset.backup)}/download`);
+        if (!res.ok) throw new Error();
+        const url = URL.createObjectURL(await res.blob());
+        const a = document.createElement("a");
+        a.href = url; a.download = b.dataset.backup; document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+      } catch { toast("Couldn't download that backup"); }
+      b.disabled = false;
+    });
+    async function loadAlerts() {
+      let d;
+      try { d = await json("/api/admin/alerts"); } catch { return; }
+      if (!d || d.error) return;
+      const del = d.delivery || {};
+      const ch = del.channels || [];
+      $("#ac-al-delivery").innerHTML = d.enabled === false
+        ? "Alerts are switched off in config.json."
+        : (ch.length
+          ? `Alerts go to <b>${esc(ch.join(" and "))}</b> and the server log.`
+          : `<span class="pill warn">nowhere to send</span> Alerts only reach the server log. Add ntfy or Telegram under "notifications" in config.json to get them on your phone.`)
+          + (del.warning ? `<br><span class="muted">${esc(del.warning)}</span>` : "")
+          + `<br><span class="muted" style="font-size:0.85rem">${d.lastRunAt ? "last checked " + ago(new Date(d.lastRunAt).toISOString()) : "not checked yet since the server started"}${d.ping && d.ping.configured ? " · dead-man's-switch ping on" : ""}</span>`;
+      $("#ac-al-checks").innerHTML = (d.checks || []).map((c) => `<div style="display:flex;gap:10px;align-items:baseline;font-size:0.88rem">
+        <span class="pill ${c.level === "ok" ? "live" : c.level === "critical" ? "bad" : "warn"}">${esc(c.level)}</span>
+        <b>${esc(c.name)}</b> <span class="muted">${esc(c.message || "")}</span></div>`).join("");
+    }
+
     $("#update-pull-btn").onclick = async () => {
       const btn = $("#update-pull-btn");
       const log = $("#sv-update-log");
@@ -2921,6 +3124,7 @@
       downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadLimits(); },
       moderation: () => { loadReports(); loadRequests(); loadIntros(); },
       logs: () => loadLogs(),
+      actions: () => { loadActions(); loadBackups(); loadAlerts(); },
     };
     // What each page is for, said once at the top of it.
     const PAGES = {
@@ -2931,6 +3135,7 @@
       analytics: ["Insights", "What gets watched, when, and how fast the app feels.", "Analytics"],
       history: ["Insights", "Every play and every connection, newest first.", "History"],
       server: ["Server", "Health, self-repair, updates and the machine itself.", "Status"],
+      actions: ["Server", "Everything you would otherwise open a terminal for. Each button runs one fixed, named job.", "Actions"],
       logs: ["Server", "The server's own log, live.", "Logs"],
     };
     const TAB_ALIAS = { live: "overview" }; // Live merged into Home; old links still land

@@ -3,7 +3,7 @@
 // header, exact segment boundaries from the video track's Cues — and segments
 // materialize on demand: a "seek" stops being a transcode restart and becomes
 // the player fetching segment #1042, which a rolling copy producer emits at
-// stream speed.
+// stream speed. (Several people in one film: see "producers" below.)
 //
 // THE CONTRACT: the playlist is a promise about every segment — which
 // keyframe it starts on and which one ends it — and it has to hold no matter
@@ -53,7 +53,7 @@ const TS_OFFSET_SEC = 10; // constant media-clock offset (Apple's own segmenter 
 const BOUNDARY_TOL_SEC = 0.002; // cue times and packet times are both ms-exact
 const COVER_AHEAD = 3; // a producer "covers" a segment this close to its write head
 const SEEK_BACK_SEC = 1; // aim BEFORE the wanted keyframe (see producerArgs)
-const MAX_SPAWNS_PER_WAIT = 3;
+const MAX_SPAWNS_PER_WAIT = 3; // per waiting request: a producer that keeps dying
 const ALGO = 2; // bump when the table rule changes: declined files are re-tried
 
 // dir -> job (see jobFor)
@@ -338,11 +338,154 @@ const wake = (job) => {
   for (const fn of w) fn();
 };
 
-const stopProducer = (job) => {
-  const proc = job.proc;
-  job.proc = null;
-  job.run = null;
+// ---------- producers: more than one reader in a film ----------
+// A job (one rendition of one source) used to have ONE producer, re-aimed at
+// whatever segment was asked for that it was not about to deliver. Two
+// people far apart in the same film re-aimed it away from each other on
+// every request — six ffmpeg starts and a 504 inside 50ms, for the length of
+// the film. A job now has a short LIST of producers and three rules:
+//  • a producer somebody is waiting on is never taken away. Whoever starts
+//    (or re-aims) a producer is covered by it until its segment is out, so a
+//    waiter can no longer lose its producer to another waiter;
+//  • who a producer "belongs" to is read from the requests themselves: a
+//    reader is a run of requests moving along the film (job.readers), a
+//    producer is IN USE while a reader was seen in its range in the last
+//    CLAIM_MS, and its LEAD is how far it has got past that reader;
+//  • a request no producer covers takes, in this order (plan): a producer
+//    nobody reads any more; a new one, when the job is known to have two
+//    live readers and there is room; a producer far enough ahead of its
+//    reader that taking it costs that reader nothing soon; any producer
+//    nobody is waiting on, while nothing says there are two readers; a new
+//    one when there is room. Otherwise it waits its turn — for BUSY_WAIT_MS
+//    at most, then the route says 503.
+// One viewer seeking is therefore what it always was: the old producer is
+// re-aimed (a second one is started beside it only while a request is still
+// waiting on the old one, and is reaped when nobody reads it). "Two live
+// readers" is not guessed from one request: it takes requests going BACK to
+// a reader that was left for another one, twice (A, B, A, B) — one player
+// seeking does not produce that. Until it is seen, two viewers may take
+// each other's producer once or twice; nobody waiting is ever the loser.
+// Bounds: MAX_PRODUCERS_PER_JOB per rendition; second and third producers of
+// copies are MAX_EXTRA_PRODUCERS across the server; every producer of an
+// encoded rendition is one of the MAX_ENCODES encoders (below), and a second
+// encoder for the same rendition never takes the last slot unless the
+// rendition is the only way its viewers can play the file.
+// Exactness is untouched by any of this: each producer groups and checks its
+// own GOP files against the table, and a segment gets its public name once.
+const MAX_PRODUCERS_PER_JOB = 3;
+const MAX_EXTRA_PRODUCERS = 4;
+const CLAIM_MS = 20000; // a playing reader asks at least once per segment
+const READER_TTL_MS = 60000;
+const READER_NEAR = 4; // a request this close ahead of a reader is that reader
+const STEAL_LEAD = 8; // segments ahead of its reader (~50s of film)
+const CONTEND_MS = 60000;
+const BUSY_WAIT_MS = 15000; // under a player's own segment timeout
+
+// A producer is its run (see startProducer); job.producers are the live ones.
+const stopRun = (job, run) => {
+  run.stopped = true;
+  const i = job.producers.indexOf(run);
+  if (i >= 0) job.producers.splice(i, 1);
+  const proc = run.proc;
+  run.proc = null;
   if (proc) { try { proc.kill("SIGKILL"); } catch {} }
+};
+const stopProducers = (job) => { for (const run of [...job.producers]) stopRun(job, run); };
+
+// "Covered" means the producer will deliver k IMMINENTLY — k is at most a
+// few segments past the last one it decided — not merely someday: waiting
+// for a distant k would mean producing (and, for torrents, DOWNLOADING)
+// everything between, which is exactly the cold-seek cost jit exists to
+// kill. (The write head is the producer's own: segments an earlier producer
+// left further along the film say nothing about how soon this one arrives.)
+const coversRun = (run, k) => k >= run.fromSeg && k - run.nextSeg < COVER_AHEAD;
+const covering = (job, k) => job.producers.find((run) => coversRun(run, k)) || null;
+// Is somebody waiting, right now, on a segment this producer is about to make?
+const waitedOn = (job, run) => job.wanted.some((k) => coversRun(run, k));
+
+// A request for segment k: move the reader it continues, or note a new one.
+const noteReader = (job, k, now) => {
+  job.readers = job.readers.filter((r) => now - r.at < READER_TTL_MS);
+  let hit = null;
+  for (const r of job.readers) {
+    const d = k - r.seg;
+    if (d >= -2 && d <= READER_NEAR && (!hit || Math.abs(d) < Math.abs(k - hit.seg))) hit = r;
+  }
+  if (!hit) {
+    hit = { seg: k, at: now };
+    job.readers.push(hit);
+    if (job.readers.length > 8) job.readers.shift();
+  } else {
+    // back at a reader that was left for another one, and recently: twice
+    // in a row and these are two players, not one that is seeking
+    if (job.lastReader && job.lastReader !== hit && now - hit.at < CLAIM_MS) {
+      job.returns = job.returns.filter((t) => now - t < 2 * CLAIM_MS);
+      job.returns.push(now);
+      if (job.returns.length >= 2) job.contendedAt = now;
+    }
+    hit.seg = k;
+    hit.at = now;
+  }
+  job.lastReader = hit;
+};
+const contended = (job, now) => now - job.contendedAt < CONTEND_MS;
+
+// Who reads a producer's output: readers inside its range, or up to a
+// resume-ahead's distance behind where it started. `at`: when one was last
+// seen (0 = never); `lead`: segments decided past the furthest of them.
+const usage = (job, run, now) => {
+  let at = 0;
+  let seg = null;
+  for (const r of job.readers) {
+    if (now - r.at >= READER_TTL_MS) continue;
+    if (r.seg < run.fromSeg - ENC_LEAD_MIN - 1 || r.seg - run.nextSeg >= COVER_AHEAD) continue;
+    at = Math.max(at, r.at);
+    seg = seg == null ? r.seg : Math.max(seg, r.seg);
+  }
+  return { at, lead: run.nextSeg - 1 - (seg != null ? seg : run.fromSeg) };
+};
+
+// Pure: what a request for a segment NO producer covers should do.
+//   { spawn: true }   start a producer for it (beside the others, if any)
+//   { steal: run }    stop that producer and start one here in its place
+//   { wait: true }    every producer is somebody's, and there is no room
+// `room`: may this job have one more producer (the caps — the caller's).
+// `polite`: a look-ahead, not a viewer waiting — only what costs nobody.
+const plan = (job, now, { room = false, polite = false } = {}) => {
+  const live = job.producers;
+  if (!live.length) return { spawn: true };
+  const free = live
+    .filter((run) => !waitedOn(job, run))
+    .map((run) => ({ run, ...usage(job, run, now) }))
+    .sort((a, b) => a.at - b.at); // the one read longest ago first
+  const unread = free.find((f) => now - f.at >= CLAIM_MS);
+  if (unread) return { steal: unread.run };
+  const two = contended(job, now);
+  if (two && room) return { spawn: true };
+  const ahead = free.find((f) => f.lead >= STEAL_LEAD);
+  if (ahead) return { steal: ahead.run };
+  // nothing says there are two readers: this is the one viewer, seeking
+  if (!polite && !two && free.length) return { steal: free[0].run };
+  if (room) return { spawn: true };
+  return { wait: true };
+};
+
+// Second and third producers of copies, across the server.
+const extraCount = () => {
+  let n = 0;
+  for (const j of jobs.values()) if (!j.enc && j.producers.length > 1) n += j.producers.length - 1;
+  return n;
+};
+
+// Producers beyond a job's first that no reader has been near for
+// READER_TTL_MS (the viewer left, paused for long, or sought away): pure —
+// the reaper stops them. The most recently read one always stays.
+const reapable = (job, now) => {
+  if (job.producers.length < 2) return [];
+  const ranked = job.producers
+    .map((run) => ({ run, at: usage(job, run, now).at }))
+    .sort((a, b) => b.at - a.at);
+  return ranked.slice(1).filter((f) => f.at === 0 && !waitedOn(job, f.run)).map((f) => f.run);
 };
 
 // ---------- encoded renditions: how many, and for how long ----------
@@ -353,7 +496,11 @@ const stopProducer = (job) => {
 //    together with the single-rendition encodes (remux.js) and the torrent
 //    transcodes. A lower rung under a copy is a courtesy to a slow line —
 //    the title plays without it — so it never takes the LAST slot; the top
-//    rung of a device that cannot decode the file (`essential`) may.
+//    rung of a device that cannot decode the file (`essential`) may. The
+//    same goes for a SECOND encoder of one rendition (two viewers far apart
+//    in it): only an essential rendition gets one, and only into a free
+//    slot — the viewers of a courtesy rung share its one encoder (plan), or
+//    are told 503 and their players move to another rendition.
 //  • the other renditions of the SAME title are this viewer's own: the one
 //    nobody is waiting on is the level the player just switched away from —
 //    it is parked (its finished segments stay). One that is still being
@@ -361,7 +508,7 @@ const stopProducer = (job) => {
 //    is let finish, so for a moment a title may hold both slots; it never
 //    holds more, and it never refuses its own viewer a level change.
 //  • an encoder that has run ENC_LEAD_MAX segments ahead of the last one
-//    anybody asked for is parked too — a rendition the player left costs
+//    its reader asked for is parked too — a rendition the player left costs
 //    nothing more, and one being watched is resumed as its reader gets
 //    within ENC_LEAD_MIN segments of the end of what is made.
 const MAX_ENCODES = 2; // the same figure as remux.js MAX_ACTIVE_TRANSCODES
@@ -369,7 +516,7 @@ const ENC_LEAD_MAX = 20; // ~2 minutes of film
 const ENC_LEAD_MIN = 5;
 const encodeCount = (except = null) => {
   let n = 0;
-  for (const j of jobs.values()) if (j.enc && j.proc && j !== except) n++;
+  for (const j of jobs.values()) if (j.enc && j !== except) n += j.producers.length;
   return n;
 };
 // Encoders running outside jit (lazy requires: those modules load this one's
@@ -380,43 +527,56 @@ let outsideEncodes = () => {
   try { n += require("./torrent-transcode")._internals.activeCount(); } catch {}
   return n;
 };
+// Stop every encoder of a rendition (what it made stays).
 const park = (dir, job, why) => {
-  if (!job.proc) return;
+  if (!job.producers.length) return;
   console.log(`[jit] parked ${path.basename(dir)} (${why})`);
-  stopProducer(job);
+  stopProducers(job);
   wake(job);
 };
-// Encoders running for OTHER titles (and outside jit), and for this title:
-// those someone is waiting on, and those nobody is.
+// Encoders running for OTHER titles (and outside jit), and for this title's
+// other renditions: those someone is waiting on (`waited`, a count of
+// encoders), and those nobody is (`idle`, the jobs).
 const encodeCensus = (title, except) => {
   let others = outsideEncodes();
-  const waited = [];
+  let waited = 0;
   const idle = [];
   for (const [d, j] of jobs) {
-    if (!j.enc || !j.proc || j === except) continue;
-    if (j.title !== title) others++;
-    else (j.waiting > 0 ? waited : idle).push([d, j]);
+    if (!j.enc || !j.producers.length || j === except) continue;
+    if (j.title !== title) others += j.producers.length;
+    else if (j.waiting > 0) waited += j.producers.length;
+    else idle.push([d, j]);
   }
   return { others, waited, idle };
+};
+// Could this job start an encoder now? `replacing`: one of its own that
+// would be stopped for it. Nothing is changed by asking.
+const encodeAdmission = (job, essential, replacing = null) => {
+  const c = encodeCensus(job.title, job);
+  const own = job.producers.length - (replacing ? 1 : 0);
+  const limit = essential ? MAX_ENCODES : MAX_ENCODES - 1;
+  const ok = own > 0
+    ? c.others + c.waited + own < limit
+    : c.others < limit && c.others + c.waited < MAX_ENCODES;
+  return { ok, idle: c.idle };
 };
 // May this job start (or restart) an encoder now? Parks the renditions of
 // its own title that nobody is waiting on. Records a refusal so the route
 // can say "busy".
-const admitEncode = (job, essential) => {
-  const c = encodeCensus(job.title, job);
-  const ok = c.others < (essential ? MAX_ENCODES : MAX_ENCODES - 1) && c.others + c.waited.length < MAX_ENCODES;
-  if (!ok) {
+const admitEncode = (job, essential, replacing = null) => {
+  const a = encodeAdmission(job, essential, replacing);
+  if (!a.ok) {
     job.refusedAt = Date.now();
     return false;
   }
-  for (const [d, j] of c.idle) park(d, j, "its viewer moved to another rendition");
+  for (const [d, j] of a.idle) park(d, j, "its viewer moved to another rendition");
   return true;
 };
 // Would a new encoder be admitted right now? (the routes ask before they
 // offer or serve an encoded rendition; nothing is parked by asking)
 const encodeRoom = (title, essential) => {
   const c = encodeCensus(title, null);
-  return c.others < (essential ? MAX_ENCODES : MAX_ENCODES - 1) && c.others + c.waited.length < MAX_ENCODES;
+  return c.others < (essential ? MAX_ENCODES : MAX_ENCODES - 1) && c.others + c.waited < MAX_ENCODES;
 };
 
 const failJob = (dir, job, why, declineFile) => {
@@ -424,23 +584,27 @@ const failJob = (dir, job, why, declineFile) => {
   job.broken = why;
   console.error(`[jit] ${path.basename(dir)}: ${why}${declineFile ? " — declining this file" : ""}`);
   if (declineFile) decline(job.key, why);
-  stopProducer(job);
+  stopProducers(job);
   wake(job);
 };
 
 const renameRetry = async (from, to) => {
   for (let n = 0; ; n++) {
     try { return await fs.promises.rename(from, to); } catch (err) {
-      // a scanner or indexer briefly holding the file (Windows)
+      // a scanner or indexer briefly holding the file (Windows)…
       if (n >= 5 || !["EPERM", "EBUSY", "EACCES"].includes(err.code)) throw err;
+      // …or another producer of this job put the same segment there first
+      if (fs.existsSync(to)) throw err;
       await new Promise((r) => setTimeout(r, 40 * (n + 1)));
     }
   }
 };
 const unlinkQuiet = (f) => fs.promises.unlink(f).catch(() => {});
 // Give `from` its public name. Losing a race for the name is not a failure:
-// whoever won put the same segment there.
+// whoever won put the same segment there (two producers of one job can
+// reach the same segment), and a published file is never replaced.
 const moveInto = async (from, final) => {
+  if (fs.existsSync(final)) return unlinkQuiet(from);
   try {
     await renameRetry(from, final);
   } catch (err) {
@@ -455,7 +619,7 @@ const publish = async (dir, job, run, k, members) => {
   const final = segPath(dir, k, run.fmt);
   const files = members.map((i) => gopPath(run, i));
   if (fs.existsSync(final)) {
-    // already published by an earlier producer — same bytes by contract
+    // already published by another producer — same bytes by contract
     await Promise.all(files.map(unlinkQuiet));
     return;
   }
@@ -493,7 +657,7 @@ const publishInit = async (dir, run) => {
 // Something new is known about the run: publish every segment that is now
 // decidable, in order.
 const advance = (dir, job, run) => {
-  if (job.run !== run || job.broken) return;
+  if (run.stopped || job.broken) return;
   for (;;) {
     const step = nextSegment(job.table, run);
     if (step.wait) return;
@@ -507,12 +671,23 @@ const advance = (dir, job, run) => {
         await publish(dir, job, run, seg, members);
       })
       .catch((err) => {
-        if (job.run === run) failJob(dir, job, `could not publish segment ${seg}: ${err.message}`, false);
+        if (!run.stopped) failJob(dir, job, `could not publish segment ${seg}: ${err.message}`, false);
       });
-    // An encoder far ahead of anything asked for stops here (what it decided
-    // is still published — the queue above does not need the process).
-    if (job.enc && seg - (job.wantSeg != null ? job.wantSeg : run.fromSeg) >= ENC_LEAD_MAX && !(job.waiting > 0)) {
-      return park(dir, job, `${ENC_LEAD_MAX} segments ahead of its reader`);
+    // (what a producer decided before it is stopped is still published — the
+    // queue above does not need the process)
+    // It has reached where another producer of this job started and is still
+    // going: from here on the two would make the same segments. Its readers
+    // are the other one's now.
+    if (run.nextSeg < job.table.length && job.producers.some((o) => o !== run && o.fromSeg <= run.nextSeg && run.nextSeg <= o.nextSeg)) {
+      console.log(`[jit] producer ${path.basename(dir)} from seg${run.fromSeg} met another at seg${run.nextSeg}`);
+      stopRun(job, run);
+      return wake(job);
+    }
+    // An encoder far ahead of anything its reader asked for stops here.
+    if (job.enc && !waitedOn(job, run) && usage(job, run, Date.now()).lead >= ENC_LEAD_MAX) {
+      console.log(`[jit] parked ${path.basename(dir)} (${ENC_LEAD_MAX} segments ahead of its reader)`);
+      stopRun(job, run);
+      return wake(job);
     }
   }
 };
@@ -521,7 +696,7 @@ const gopOf = (run, i) => run.gops[i] || (run.gops[i] = { start: null, closed: f
 
 // ffmpeg opened GOP file i (so every earlier file is closed and complete).
 const onOpened = (dir, job, run, i, start) => {
-  if (job.run !== run) return;
+  if (run.stopped) return;
   const g = gopOf(run, i);
   if (start != null && g.start == null) g.start = start;
   // A run from the very top: file 0 is the top of the film by definition,
@@ -530,7 +705,7 @@ const onOpened = (dir, job, run, i, start) => {
   for (let j = i - 1; j >= 0 && run.gops[j] && !run.gops[j].closed; j--) run.gops[j].closed = true;
   if (i === 0 && run.fmt === "fmp4") {
     run.queue = run.queue.then(() => publishInit(dir, run)).then(() => wake(job)).catch((err) => {
-      if (job.run === run) failJob(dir, job, `could not publish init.mp4: ${err.message}`, false);
+      if (!run.stopped) failJob(dir, job, `could not publish init.mp4: ${err.message}`, false);
     });
   }
   advance(dir, job, run);
@@ -538,9 +713,9 @@ const onOpened = (dir, job, run, i, start) => {
 
 // ffmpeg finished GOP file i and listed it with its measured start.
 const onClosed = (dir, job, run, i, start) => {
-  if (job.run !== run) return;
+  if (run.stopped) return;
   if (!run.gops[i]) onOpened(dir, job, run, i, null); // the open line never came
-  if (job.run !== run) return;
+  if (run.stopped) return;
   const g = gopOf(run, i);
   // The list's start is the splitting keyframe's pts for every file but the
   // first (whose entry starts at 0 whatever the stream does).
@@ -572,10 +747,21 @@ const eachLine = (stream, onLine) => {
   stream.on("end", () => { if (buf) onLine(buf); });
 };
 
+// Once a run's process is gone and its pending publishes are through, its
+// scratch files go and the job forgets it.
+const settle = (job, run) => {
+  const q = run.queue;
+  q.then(() => {
+    if (run.queue !== q) return settle(job, run);
+    job.runs.delete(run);
+    return fs.promises.rm(run.pdir, { recursive: true, force: true });
+  }).catch(() => {});
+};
+
 // Spawn a rolling producer emitting GOP files from just before
-// table[fromSeg] to EOF.
+// table[fromSeg] to EOF — beside whatever producers the job already has
+// (who is stopped for it, if anyone, is acquire's decision).
 const startProducer = (dir, job, input, fromSeg) => {
-  stopProducer(job);
   const gen = ++job.gen;
   const run = {
     gen, fromSeg, fmt: input.fmt,
@@ -584,6 +770,8 @@ const startProducer = (dir, job, input, fromSeg) => {
     cursor: 0, // first GOP file not yet assigned to a segment
     nextSeg: fromSeg, // next segment to publish
     ended: false,
+    stopped: false, // killed by us: nothing more is decided from its output
+    proc: null,
     queue: Promise.resolve(), // file work, strictly in order
   };
   fs.mkdirSync(run.pdir, { recursive: true });
@@ -604,8 +792,10 @@ const startProducer = (dir, job, input, fromSeg) => {
   });
   proc.on("error", () => {});
   proc.on("close", (code) => {
-    if (job.proc === proc) job.proc = null;
-    if (code === 0 && job.run === run) {
+    const i = job.producers.indexOf(run);
+    if (i >= 0) job.producers.splice(i, 1);
+    run.proc = null;
+    if (code === 0 && !run.stopped) {
       // EOF: the last file is closed too, and no later keyframe will come
       run.ended = true;
       for (const g of run.gops) if (g) g.closed = true;
@@ -614,14 +804,14 @@ const startProducer = (dir, job, input, fromSeg) => {
       console.error(`[jit] producer exited ${code} (${path.basename(dir)} @seg${fromSeg}):`, errTail.trim());
       if (input.enc && input.enc.onExit) { try { input.enc.onExit(code, errTail); } catch {} }
     }
-    // the run's scratch files go once its pending publishes are through
-    run.queue.then(() => fs.promises.rm(run.pdir, { recursive: true, force: true })).catch(() => {});
+    settle(job, run);
     wake(job);
   });
-  job.proc = proc;
-  job.run = run;
-  job.fromSeg = fromSeg;
-  console.log(`[jit] producer ${path.basename(dir)} from seg${fromSeg} (${start.toFixed(1)}s)`);
+  run.proc = proc;
+  job.producers.push(run);
+  job.runs.add(run);
+  console.log(`[jit] producer ${path.basename(dir)} from seg${fromSeg} (${start.toFixed(1)}s)${job.producers.length > 1 ? ` — ${job.producers.length} running` : ""}`);
+  return run;
 };
 
 // Highest segment index already published in this dir (any producer), or -1.
@@ -645,69 +835,96 @@ const tick = (job) =>
     job.waiters.add(woken);
   });
 
-// Serve segment k: instantly if published; else (re)aim the producer and wait.
-// "Covered" means the RUNNING producer will deliver k IMMINENTLY — k is at
-// most a few segments past the last one it decided — not merely someday:
-// waiting for a distant k would mean producing (and, for torrents,
-// DOWNLOADING) everything between, which is exactly the cold-seek cost jit
-// exists to kill. Re-aim instead. (The write head is the producer's own:
-// segments an earlier producer left further along the film say nothing
-// about how soon this one arrives.)
+// Get a producer aimed at segment k, which none covers: "started",
+// "refused" (an encoded rendition with no encoder to be had — recorded, the
+// route says 503), or "busy" (every producer is somebody's: wait).
+const acquire = (dir, job, input, k, now, polite = false) => {
+  const essential = !!(job.enc && input.enc.essential);
+  const room = job.producers.length < MAX_PRODUCERS_PER_JOB
+    && (job.enc ? encodeAdmission(job, essential).ok : extraCount() < MAX_EXTRA_PRODUCERS);
+  const step = plan(job, now, { room, polite });
+  if (step.wait) return "busy";
+  // an encoder needs a slot (a copy never does)
+  if (job.enc && !admitEncode(job, essential, step.steal || null)) return "refused";
+  if (step.steal) stopRun(job, step.steal);
+  startProducer(dir, job, input, k);
+  return "started";
+};
+
+// Serve segment k: instantly if published; else wait for the producer that
+// is about to make it, or get one aimed at it (acquire) and wait.
 const ensureSegment = async (dir, job, input, k) => {
-  job.lastAccess = Date.now();
-  job.waiting = (job.waiting || 0) + 1;
+  const now = Date.now();
+  job.lastAccess = now;
+  if (!(k >= 0 && k < job.table.length)) return null;
   // One rendition, one set of encoder arguments for as long as its job
   // lives: whatever the first request decided (tone mapping depends on how
   // busy the machine was) holds for every later producer of this job.
-  if (job.enc) {
-    input = { ...input, enc: job.encArgs || (job.encArgs = input.enc) };
-    job.wantSeg = k;
-  }
+  if (job.enc) input = { ...input, enc: job.encArgs || (job.encArgs = input.enc) };
+  noteReader(job, k, now);
+  job.waiting = (job.waiting || 0) + 1;
+  job.wanted.push(k);
   try {
     const file = await ensureSegmentInner(dir, job, input, k);
     if (file && job.enc) resumeAhead(dir, job, input, k);
     return file;
   } finally {
     job.waiting--;
+    const i = job.wanted.indexOf(k);
+    if (i >= 0) job.wanted.splice(i, 1);
   }
 };
-// A parked encoder whose reader is getting close to the end of what it made:
-// start it again at the first segment that is missing, before it is asked for.
+// An encoder was parked and its reader is getting close to the end of what
+// it made: start one again at the first segment that is missing, before it
+// is asked for — if that takes nothing from anybody (plan, polite).
 const resumeAhead = (dir, job, input, k) => {
-  if (job.proc || job.broken) return;
+  if (job.broken) return;
   const last = Math.min(k + ENC_LEAD_MIN, job.table.length - 1);
   for (let m = k + 1; m <= last; m++) {
     if (fs.existsSync(segPath(dir, m, input.fmt))) continue;
-    if (admitEncode(job, input.enc.essential)) startProducer(dir, job, input, m);
+    if (covering(job, m)) return;
+    for (const run of job.runs) if (m >= run.fromSeg && m < run.nextSeg) return; // on its way to disk
+    acquire(dir, job, input, m, Date.now(), true);
     return;
   }
 };
-const covers = (job, k) =>
-  !!(job.proc && job.run && k >= job.run.fromSeg && k - job.run.nextSeg < COVER_AHEAD);
 const ensureSegmentInner = async (dir, job, input, k) => {
-  if (!(k >= 0 && k < job.table.length)) return null;
   const file = segPath(dir, k, input.fmt);
   if (fs.existsSync(file)) return file;
   let spawns = 0;
+  let busySince = 0;
   const deadline = Date.now() + SEGMENT_WAIT_MS;
   while (Date.now() < deadline) {
     if (fs.existsSync(file)) return file;
     if (job.broken) return null;
     // not coming soon — or the producer died without delivering: aim here.
-    // A producer that keeps dying is not asked a fourth time.
-    if (!covers(job, k)) {
+    if (!covering(job, k)) {
       // a publish already decided may still be on its way to disk
-      const run = job.run;
-      if (run && k >= run.fromSeg && k < run.nextSeg) {
-        await run.queue;
+      const pending = [...job.runs].find((run) => k >= run.fromSeg && k < run.nextSeg);
+      if (pending) {
+        await pending.queue;
         if (fs.existsSync(file)) return file;
         if (job.broken) return null;
       }
-      if (spawns >= MAX_SPAWNS_PER_WAIT) return null;
-      // an encoder needs a slot (a copy never does)
-      if (job.enc && !admitEncode(job, input.enc.essential)) return null;
-      spawns++;
-      startProducer(dir, job, input, k);
+      if (!covering(job, k)) {
+        // A producer that keeps dying is not asked a fourth time.
+        if (spawns >= MAX_SPAWNS_PER_WAIT) return null;
+        const now = Date.now();
+        const got = acquire(dir, job, input, k, now);
+        if (got === "refused") return null;
+        if (got === "started") {
+          spawns++;
+          busySince = 0;
+        } else {
+          // every producer is another reader's: its turn comes when one of
+          // them is far enough ahead — or the honest answer is "busy"
+          if (!busySince) busySince = now;
+          if (now - busySince >= BUSY_WAIT_MS) {
+            job.refusedAt = now;
+            return null;
+          }
+        }
+      }
     }
     await tick(job);
     job.lastAccess = Date.now();
@@ -726,7 +943,7 @@ const ensureInit = async (dir, job, input) => {
   while (Date.now() < deadline) {
     if (fs.existsSync(file)) return file;
     if (job.broken) return null;
-    if (!job.proc) {
+    if (!job.producers.length) {
       if (spawns >= MAX_SPAWNS_PER_WAIT) return null;
       if (job.enc && !admitEncode(job, input.enc.essential)) return null;
       spawns++;
@@ -751,10 +968,14 @@ const jobFor = (dir, entry, { enc = false } = {}) => {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
     fs.mkdirSync(dir, { recursive: true });
     job = {
-      proc: null, run: null, gen: 0, fromSeg: 0, lastAccess: Date.now(),
+      producers: [], // live producers (runs), see "producers" above
+      runs: new Set(), // every run whose publishes are not all on disk yet
+      gen: 0, lastAccess: Date.now(),
       table: entry.table, key: entry.key ? (enc ? encKey(entry.key) : entry.key) : null,
       broken: null, waiters: new Set(), waiting: 0,
-      enc: !!enc, title: entry.key || dir, encArgs: null, wantSeg: null, refusedAt: 0,
+      wanted: [], // the segments being waited on right now
+      readers: [], lastReader: null, returns: [], contendedAt: 0,
+      enc: !!enc, title: entry.key || dir, encArgs: null, refusedAt: 0,
     };
     jobs.set(dir, job);
   }
@@ -762,15 +983,21 @@ const jobFor = (dir, entry, { enc = false } = {}) => {
   return job;
 };
 
-// Idle reaper — same contract as the other transcoders.
+// Idle reaper — same contract as the other transcoders; and the producers a
+// job no longer has a reader for (see reapable).
 setInterval(() => {
   const now = Date.now();
   for (const [dir, job] of jobs) {
     if (now - job.lastAccess > IDLE_MS) {
-      stopProducer(job);
+      stopProducers(job);
       jobs.delete(dir);
       try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
       console.log(`[jit] idle-killed ${path.basename(dir)}`);
+      continue;
+    }
+    for (const run of reapable(job, now)) {
+      console.log(`[jit] producer ${path.basename(dir)} from seg${run.fromSeg} has no reader — stopped`);
+      stopRun(job, run);
     }
   }
 }, 30000).unref?.();
@@ -786,22 +1013,22 @@ try {
     for (const job of jobs.values()) {
       // a producer someone is waiting on, or that served a segment in the
       // last two minutes (a paused viewer, a full buffer), is not idle
-      if (now - job.lastAccess > 120000 && job.proc && !(job.waiting > 0)) {
-        stopProducer(job);
-        killed++;
+      if (now - job.lastAccess > 120000 && job.producers.length && !(job.waiting > 0)) {
+        killed += job.producers.length;
+        stopProducers(job);
       }
     }
     return `jit: ${n} tables dropped, ${killed} idle producers stopped`;
   });
 } catch {}
 
-const liveCount = () => { let n = 0; for (const j of jobs.values()) if (j.proc) n++; return n; };
+const liveCount = () => { let n = 0; for (const j of jobs.values()) n += j.producers.length; return n; };
 
 // Stop a job and forget it (tests; the reaper does the same on idle).
 const dropJob = (dir) => {
   const job = jobs.get(dir);
   if (!job) return;
-  stopProducer(job);
+  stopProducers(job);
   jobs.delete(dir);
 };
 
@@ -826,6 +1053,9 @@ module.exports = {
     setDeclinedFile: (f) => { declinedFile = f; declined = null; },
     TARGET_SEG_SEC, TS_OFFSET_SEC, BOUNDARY_TOL_SEC,
     sourceRate, admitEncode, park, MAX_ENCODES, ENC_LEAD_MAX, ENC_LEAD_MIN,
+    // producers and readers
+    plan, noteReader, usage, reapable, contended, coversRun, extraCount, stopRun,
+    MAX_PRODUCERS_PER_JOB, MAX_EXTRA_PRODUCERS, CLAIM_MS, READER_TTL_MS, STEAL_LEAD, BUSY_WAIT_MS, COVER_AHEAD,
     setOutsideEncodes: (fn) => { outsideEncodes = fn; },
     jobs,
   },

@@ -42,7 +42,11 @@ export const el = (tag, attrs = {}, ...children) => {
 export const smooth = (fn) => {
   if (typeof document === "undefined" || !document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) return void fn();
   try {
-    document.startViewTransition(fn);
+    // A second transition starting before this one finishes rejects its
+    // promises ("Transition was skipped") — the DOM change still happens, so
+    // that is not an error worth an unhandled rejection.
+    const t = document.startViewTransition(fn);
+    for (const k of ["ready", "finished", "updateCallbackDone"]) if (t && t[k] && t[k].catch) t[k].catch(() => {});
   } catch {
     fn();
   }

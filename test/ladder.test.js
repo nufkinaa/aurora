@@ -282,7 +282,7 @@ test("encoder cap: a lower rung never takes the last slot; a sibling nobody wait
     const d = path.join(tmp, name);
     dirs.push(d);
     const job = jit.jobFor(d, { key: title, table }, { enc: true });
-    if (running) job.proc = { kill() { this.killed = true; } };
+    if (running) job.producers.push({ fromSeg: 0, nextSeg: 0, proc: { kill() {} } }); // a live producer, as jit keeps them
     return job;
   };
   try {
@@ -309,7 +309,7 @@ test("encoder cap: a lower rung never takes the last slot; a sibling nobody wait
     assert.equal(jit.encodeCount(), 1);
     assert.equal(jit.encodeRoom("A", false), true, "a sibling that would be parked does not count");
     assert.equal(J.admitEncode(a480, false), true);
-    assert.equal(a720run.proc, null, "parked");
+    assert.equal(a720run.producers.length, 0, "parked");
     assert.equal(jit.encodeCount(), 0);
     // one that someone is still waiting on is let finish — the new level
     // starts beside it (the title holds both slots for a moment)…
@@ -317,26 +317,26 @@ test("encoder cap: a lower rung never takes the last slot; a sibling nobody wait
     b720.waiting = 1;
     assert.equal(jit.encodeRoom("A", false), true);
     assert.equal(J.admitEncode(a480, false), true);
-    assert.ok(b720.proc, "left running");
+    assert.equal(b720.producers.length, 1, "left running");
     // …but never a third: two renditions being waited on is the whole budget
     const b480 = mk("b-480", "A", true);
     b480.waiting = 1;
     assert.equal(jit.encodeRoom("A", false), false);
     assert.equal(J.admitEncode(a480, false), false);
     assert.equal(J.admitEncode(a480, true), false);
-    b480.proc = null;
+    b480.producers.length = 0;
     b720.waiting = 0;
     // another TITLE's encoder is never parked for us
     const c720 = mk("c-720", "C", false);
     assert.equal(J.admitEncode(c720, false), false);
-    assert.ok(b720.proc);
+    assert.equal(b720.producers.length, 1);
     assert.equal(J.admitEncode(c720, true), true, "the essential rung takes the second slot");
     // an encoded rendition is declined under its own key, never the copy's
     assert.equal(b720.key, "A|enc");
     assert.equal(jit.jobFor(path.join(tmp, "copy"), { key: "A", table }).key, "A");
     dirs.push(path.join(tmp, "copy"));
   } finally {
-    for (const d of dirs) { const j = J.jobs.get(d); if (j) j.proc = null; J.dropJob(d); }
+    for (const d of dirs) { const j = J.jobs.get(d); if (j) j.producers.length = 0; J.dropJob(d); }
     J.setOutsideEncodes(() => 0);
     fs.rmSync(tmp, { recursive: true, force: true });
   }

@@ -14,14 +14,32 @@ export const state = {
   ws: null,
   pendingItems: {},     // id -> item handed to the player without a server round-trip
   adminName: "the admin", // what UI copy calls whoever runs the server (configurable)
+  // false on a server with "torrents": false in config.json — nothing that
+  // streams or downloads from sources is offered then. The last answer is
+  // remembered on the device so a reload knows before /api/server-info lands.
+  torrents: (() => { try { return localStorage.getItem("aurora-torrents-off") !== "1"; } catch { return true; } })(),
   authMode: "open",     // "open" | "transition" | "closed" (from /api/me at boot)
   user: null,           // signed-in account {id, username, name, profileIds, hasGoogle} or null
 };
 
+// Settles once /api/server-info has answered (or failed, or two seconds have
+// gone by): a screen whose buttons depend on a server fact waits on this, so a
+// deep link opened cold does not paint buttons the server will refuse.
+let serverInfoP = null;
+export const serverFacts = () =>
+  Promise.race([serverInfoP || Promise.resolve(), new Promise((r) => setTimeout(r, 2000))]);
+
 export const loadProfiles = async () => {
   // Best-effort: copy that mentions the admin reads fine with the fallback.
-  api.serverInfo().then((info) => {
+  serverInfoP = api.serverInfo().then((info) => {
     if (info && info.adminName) state.adminName = info.adminName;
+    if (info) {
+      state.torrents = info.torrents !== false;
+      try {
+        if (state.torrents) localStorage.removeItem("aurora-torrents-off");
+        else localStorage.setItem("aurora-torrents-off", "1");
+      } catch {}
+    }
   }).catch(() => {});
   state.profiles = await api.profiles();
   const savedId = localStorage.getItem("aurora-profile");

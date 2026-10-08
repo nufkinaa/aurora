@@ -939,4 +939,22 @@ router.post("/api/admin/alerts/run", async (req, res) => {
   res.json(health.status());
 });
 
+// ---------- the Actions tab (lib/adminactions.js) ----------
+// A FIXED list of named actions — update, install, test, back up, clear a
+// cache, run a maintenance script. A request names an action id; nothing it
+// sends becomes a command or an argument.
+router.get("/api/admin/actions", (req, res) => {
+  res.json(require("../lib/adminactions").list());
+});
+router.post("/api/admin/actions/:id/run", (req, res) => {
+  const r = require("../lib/adminactions").start(req.params.id);
+  if (r.error) return res.status(r.status || 400).json(r);
+  res.json(r);
+});
+router.get("/api/admin/actions/runs/:runId", (req, res) => {
+  const run = require("../lib/adminactions").getRun(req.params.runId);
+  if (!run) return res.status(404).json({ error: "No such run (the server may have restarted)." });
+  res.json(run);
+});
+
 module.exports = router;

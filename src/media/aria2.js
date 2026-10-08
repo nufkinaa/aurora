@@ -96,6 +96,9 @@ const spawnDaemon = () => {
 
 // Bring the daemon up (idempotent) and wait until the RPC answers.
 const ensure = async () => {
+  // "torrents": false — the daemon is never spawned (lib/torrentgate.js).
+  // Every RPC goes through here, so nothing below can start it either.
+  if (!require("../lib/torrentgate").enabled()) throw require("../lib/torrentgate").offError();
   if (!available()) throw new Error("aria2 is not installed on this server");
   if (proc && startup) return startup;
   fs.mkdirSync(STAGING_ROOT, { recursive: true });

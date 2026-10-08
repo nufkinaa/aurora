@@ -207,6 +207,8 @@ ui.test("an episode resumes where it was left", async ({ page, srv, signIn, fres
   await player.open(page, srv, lib.e2.id, { min: 5 });
   const t = (await player.state(page)).t;
   assert.ok(t >= 9 && t <= 16.5, `episode 2 resumed at ${t.toFixed(1)}s, expected just before 14s`);
+  // four seconds early (saved at 14), whichever way the file plays
+  assert.match(await page.textContent(".player .resume-pill"), /Resumed at 0:10(?!\d)/);
 });
 
 ui.test("leaving an episode lands on its show's page", async ({ page, srv, goto, signIn, freshProfile, api, lib }) => {

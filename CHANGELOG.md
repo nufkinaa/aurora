@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.69 — 2026-10-08
+
+- **Server → Actions, in the admin page.** The things that used to need a terminal are buttons: update and restart in one press, what version is this, pull, npm install, restart; run the test suite, test streaming on this machine, tool versions, the health checks, the healer, a test alert; back up now, verify the backups, rescan, the daily refresh, age ratings, missing subtitles (with a dry run); the caches; the download-engine patch. It is a fixed list — each entry shows the exact command it runs, and nothing typed in a browser is ever turned into a command. The page also gains the Backups table (with download), the Alerts card and a list of recent runs with their output.
+- **Two people watching the same repackaged film** at different places no longer knock each other's stream over: each gets its own producer (up to three per film), where there used to be one that both kept re-aiming.
+- **`"torrents": false` in config.json now switches torrents off for real** — no download engine, no torrent streams or downloads, no source lookups — and the site stops offering what would only fail. Library playback is untouched.
+- Resuming a title that plays directly starts four seconds before where you stopped, like every other stream.
+- A page change interrupted by the next one no longer logs an error.
+- **Aurora TV 5.1.23.** Closing a menu in the player puts you back on the button that opened it (it used to land on Rewind, so the next OK jumped back ten seconds). The Settings menu on a film with one audio track opened with nothing selected and could not be used. Up from the outermost buttons now always reaches the timeline.
+
 ## 1.6.68 — 2026-10-08
 
 - **A quality ladder.** A library film that is repackaged for the browser is now offered as one stream with several qualities under it — the file as it is, 720p and 480p, only those below the source — and the player moves between them by itself as the connection changes, up as well as down, with no rebuild and no black gap. The Quality menu gains Auto, and a pick is a switch inside the same stream. Every quality is cut at the same places, to the frame (checked on three films), and the lower ones are only encoded when someone is watching them. Data saver starts on 720p and stays at or under it. Direct play and the TV app are unchanged; iPhone's own player and torrents do not use the ladder yet.

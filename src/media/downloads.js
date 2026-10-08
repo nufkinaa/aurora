@@ -30,6 +30,7 @@ const disk = require("../lib/disk");
 const aria2 = require("./aria2");
 const imdb = require("./imdb");
 const websubs = require("./websubs");
+const torrentGate = require("../lib/torrentgate");
 const { JsonStore } = require("../lib/jsonstore");
 
 const store = new JsonStore(path.join(config.DATA_DIR, "downloads.json"), []);
@@ -263,6 +264,9 @@ const create = (fields) => {
     quality, sizeBytes, season, episode, provider, seeders, profile, smart,
   } = fields || {};
 
+  // "torrents": false — nothing new is accepted (the route answers 403 before
+  // this; smart downloads and follows come straight here).
+  if (!torrentGate.enabled()) return { error: torrentGate.MESSAGE };
   if (!isValidHash(infoHash)) return { error: "bad infoHash" };
   if (!destRoot(type === "show" ? "show" : "movie")) {
     return { error: `No ${type === "show" ? "shows" : "movies"} library folder is configured.` };
@@ -361,6 +365,7 @@ const create = (fields) => {
 const approve = (id) => {
   const job = findJob(id);
   if (!job) return { error: "not found" };
+  if (!torrentGate.enabled()) return { error: torrentGate.MESSAGE };
   if (!["pending", "error", "canceled", "declined"].includes(job.status)) {
     return { job: publicJob(job) }; // already approved/running/done
   }
@@ -441,6 +446,9 @@ const remove = (id) => {
 
 // Start any approved jobs up to the concurrency cap.
 const pump = () => {
+  // "torrents": false — queued jobs stay queued (and untouched: no disk-gate
+  // demotion, no admin notification) until the owner switches torrents back on.
+  if (!torrentGate.enabled()) return;
   if (activeCount() >= MAX_ACTIVE) return;
   const queued = store.data.filter((j) => j.status === "approved" && !active.has(j.id));
   for (const job of queued) {
@@ -569,6 +577,7 @@ const copyIntoLibrary = (from, to, onBytes) =>
 
 const startJob = async (job) => {
   if (active.has(job.id)) return;
+  if (!torrentGate.enabled()) throw torrentGate.offError();
   if (!aria2.available()) {
     throw new Error("aria2 is not installed on this server — downloads can't run");
   }
@@ -896,7 +905,7 @@ const restartJob = (id, why) => {
   setTimeout(pump, 1500);
   return true;
 };
-const pumpNow = () => { try { pump(); startPolling(); } catch (e) { console.error("[download] pump failed:", e && e.message); } };
+const pumpNow = () => { if (!torrentGate.enabled()) return; try { pump(); startPolling(); } catch (e) { console.error("[download] pump failed:", e && e.message); } };
 
 // On boot, resume anything that was approved/downloading when we stopped. The
 // staging bytes survive a restart, and aria2 continues from them.

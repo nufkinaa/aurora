@@ -291,18 +291,16 @@ for (const [name, key] of [["a repackaged film", "film2"], ["a film that plays d
   });
 }
 
-// APPLICATION BUG (reported, not fixed here) — in the server, found by this
-// suite running several pages on one film. src/media/jit.js keeps ONE
-// producer (one ffmpeg) per title and ensureSegment re-aims it at any segment
-// the running producer is not about to deliver. Two requests for segments far
-// apart re-aim it away from each other in turn; each waiter gives up after
-// MAX_SPAWNS_PER_WAIT (3) and the route answers "504 Segment not ready" —
-// within ~50 ms, having started six ffmpeg processes. Reproduced every time:
-// seg 0 and seg 8 of this film asked for together, seg 0 gets 504. Two
-// people watching the same repackaged title at different points do this to
-// each other for the length of the film (hls.js retries, so it shows as
-// stutter rather than an error).
-ui.test("two viewers far apart in the same repackaged film are both served their next segment", { todo: "server bug: the single jit producer is re-aimed back and forth and the loser gets 504" }, async () => {
+// Found by this suite running several pages on one film, and fixed in
+// src/media/jit.js. It used to keep ONE producer (one ffmpeg) per title and
+// re-aim it at any segment it was not about to deliver: two requests for
+// segments far apart re-aimed it away from each other in turn, each waiter
+// gave up after three starts and the route answered "504 Segment not ready"
+// — within ~50 ms, having started six ffmpeg processes. Two people watching
+// the same repackaged title at different points did that to each other for
+// the length of the film. A title now keeps a producer per reader (bounded;
+// test/jit-sched.test.js), and one somebody is waiting on is never taken.
+ui.test("two viewers far apart in the same repackaged film are both served their next segment", async () => {
   assert.ok(twoViewers, "the probe did not run");
   assert.deepEqual(twoViewers.statuses, [200, 200], `segments ${twoViewers.near} and ${twoViewers.far}, asked for at the same time`);
 });

@@ -209,6 +209,9 @@ const decideTools = (x) => {
 // ping (null when not asked).
 const decideDownloader = (x) => {
   const base = { id: "downloader", name: "Download engine", recovered: "The download engine is running again." };
+  // "torrents": false in config.json: an engine that is off by design is not
+  // a stopped one, whatever is still sitting in the queue.
+  if (x.off) return { ...base, level: "ok", message: "switched off in config.json (torrents: false)" };
   const n = x.waiting || 0;
   const jobs = `${n} download${n === 1 ? " is" : "s are"} waiting`;
   if (!n) return { ...base, level: "ok", message: x.available ? "idle — nothing is downloading" : "not installed, and nothing is waiting for it" };
@@ -381,6 +384,7 @@ const gatherTools = async (config, now) => {
 };
 
 const gatherDownloader = async () => {
+  if (!require("./torrentgate").enabled()) return { off: true, available: false, running: false, answering: null, waiting: 0 };
   const aria2 = require("../media/aria2");
   const q = require("../media/downloads").queueHealth();
   const waiting = q.activeCount + q.approvedWaiting;

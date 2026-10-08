@@ -32,10 +32,11 @@ const due = (name, now = Date.now()) => {
   return !r.at || now - r.at >= DUE_MS;
 };
 
-const tick = async () => {
+// `force` (the admin page's "run it now") runs every task whether or not it is due.
+const tick = async (force = false) => {
   if (running) return;
   for (const [name, fn] of tasks) {
-    if (!due(name)) continue;
+    if (!force && !due(name)) continue;
     running = name;
     const started = Date.now();
     try {

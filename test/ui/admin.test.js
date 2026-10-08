@@ -151,5 +151,75 @@ ui.test("every tab of the panel opens without an error", async ({ page, srv }) =
   }
 });
 
+// ---- Server → Actions (src/lib/adminactions.js) ----
+const actionsTab = async (page) => {
+  await page.click('.tab[data-tab="server"]');
+  await page.click('#subtabs [data-sub="actions"]');
+  await page.waitForSelector('#pane-actions.active [data-action="versions"]');
+};
+const runAction = async (page, id, { confirm = false, timeout = 60000 } = {}) => {
+  // the output card keeps the previous run until this one answers: wait for THIS action's title
+  const title = await page.textContent(`#ac-groups .ac-row:has([data-action="${id}"]) b`);
+  await page.evaluate(() => { document.querySelector("#ac-out-title").textContent = ""; document.querySelector("#ac-out-state").textContent = ""; });
+  await page.click(`#pane-actions [data-action="${id}"]`);
+  if (confirm) await page.click("dialog.ask .ask-yes");
+  await page.waitForFunction((t) => document.querySelector("#ac-out-title").textContent === t && /done|failed/.test(document.querySelector("#ac-out-state").textContent), title, { timeout });
+  return { state: await page.textContent("#ac-out-state"), output: await page.textContent("#ac-out") };
+};
+
+ui.test("Server → Actions lists the fixed actions in their groups, each saying what it runs", async ({ page, srv }) => {
+  await enter(page, srv);
+  await actionsTab(page);
+  const groups = await page.evaluate(() => [...document.querySelectorAll("#ac-groups .card > h2")].map((h) => h.textContent.trim()));
+  assert.deepEqual(groups, ["Update", "Checks", "Library and data", "Caches", "Repair"]);
+  const cmd = await page.textContent('#ac-groups .ac-row:has([data-action="npm-install"]) .ac-cmd');
+  assert.match(cmd, /npm(\.cmd)? install --omit=dev/);
+  assert.equal(await page.locator("#ac-groups [data-action]").count(), (await srv.api.adminGet("/api/admin/actions")).actions.length);
+});
+
+ui.test("an action runs from its button: the output shows, and it lands in Recent runs", async ({ page, srv }) => {
+  await enter(page, srv);
+  await actionsTab(page);
+  const r = await runAction(page, "versions");
+  assert.match(r.state, /done/);
+  assert.match(r.output, /node v\d+\./);
+  await page.waitForFunction(() => /Tool versions/.test(document.querySelector("#ac-runs").textContent));
+  // a recorded run opens again from the list
+  await page.click("#ac-runs .ac-run");
+  await page.waitForFunction(() => /node v\d+\./.test(document.querySelector("#ac-out").textContent));
+});
+
+ui.test("Back up now makes a snapshot that shows in the Backups table as intact, and Verify agrees", async ({ page, srv }) => {
+  await enter(page, srv);
+  await actionsTab(page);
+  const made = await runAction(page, "backup-now");
+  assert.match(made.state, /done/, made.output);
+  assert.match(made.output, /Made aurora-backup-\d{8}-\d{6}\.tar\.gz/);
+  await page.waitForSelector("#ac-bk-rows tr");
+  assert.match(await page.textContent("#ac-bk-rows tr"), /aurora-backup-.*intact/s);
+  const verify = await runAction(page, "backup-verify");
+  assert.match(verify.state, /done/, verify.output);
+  assert.match(verify.output, /All \d+ snapshots? are intact/);
+});
+
+ui.test("the health checks run from the page and the Alerts card fills in", async ({ page, srv }) => {
+  await enter(page, srv);
+  await actionsTab(page);
+  const r = await runAction(page, "health-run");
+  assert.match(r.state, /done/, r.output);
+  assert.match(r.output, /Disk/);
+  await page.waitForFunction(() => document.querySelectorAll("#ac-al-checks > div").length > 0);
+  assert.match(await page.textContent("#ac-al-delivery"), /server log/);
+});
+
+ui.test("the actions API refuses an id that is not on the list, and anyone without the password", { allow: [/Failed to load resource.*40[34]/] }, async ({ srv }) => {
+  const bad = await srv.api.call("POST", `/api/admin/actions/${encodeURIComponent("versions; whoami")}/run`, {}, srv.api.admin);
+  assert.equal(bad.status, 404);
+  const anon = await srv.api.call("POST", "/api/admin/actions/versions/run", {});
+  assert.equal(anon.status, 403);
+  const list = await srv.api.call("GET", "/api/admin/actions");
+  assert.equal(list.status, 403);
+});
+
 // one at a time: these tests share the admin's queue and the list of people
 ui.run({ concurrency: 1 });

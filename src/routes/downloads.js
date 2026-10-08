@@ -3,6 +3,7 @@
 const express = require("express");
 const downloads = require("../media/downloads");
 const realtime = require("../realtime");
+const gate = require("../lib/torrentgate");
 
 const router = express.Router();
 
@@ -30,7 +31,7 @@ router.get("/api/downloads", (req, res) => {
 });
 
 // Create a download request (pending admin approval).
-router.post("/api/downloads", (req, res) => {
+router.post("/api/downloads", gate.requireOn, (req, res) => {
   const viewer = viewerFor(req, (req.body || {}).profile);
   const result = downloads.create({ ...(req.body || {}), profile: viewer.id || (req.body || {}).profile, profileName: viewer.name });
   if (result.error) return res.status(400).json(result);
@@ -82,7 +83,7 @@ router.get("/api/admin/downloads/stats", adminOnly, async (req, res) => {
 });
 
 // ---------- admin actions ----------
-router.post("/api/admin/downloads/:id/approve", adminOnly, (req, res) => {
+router.post("/api/admin/downloads/:id/approve", adminOnly, gate.requireOn, (req, res) => {
   const r = downloads.approve(req.params.id);
   if (r.error) return res.status(404).json(r);
   res.json(r);

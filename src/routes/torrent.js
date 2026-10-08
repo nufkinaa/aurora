@@ -9,6 +9,19 @@ const perf = require("../lib/perf");
 
 const router = express.Router();
 
+// "torrents": false in config.json (lib/torrentgate.js): every route here that
+// lists sources, touches the streaming client or serves from it answers 403
+// before its handler runs. The two web-subtitle routes stay — they talk to
+// subtitle providers only and never to a torrent.
+const gate = require("../lib/torrentgate");
+const TORRENT_ONLY = /^\/(api\/torrents|stream\/torrent|api\/admin\/torrents)(\/|$)/;
+const offGate = (req, res, next) => {
+  if (gate.enabled()) return next();
+  if (!TORRENT_ONLY.test(req.path) || req.path.startsWith("/api/torrents/subtitles/")) return next();
+  res.status(403).json({ error: gate.MESSAGE });
+};
+router.use(offGate);
+
 const MIME = {
   ".mp4": "video/mp4", ".m4v": "video/mp4", ".mkv": "video/x-matroska",
   ".webm": "video/webm", ".avi": "video/x-msvideo", ".mov": "video/quicktime",
@@ -565,3 +578,4 @@ router.post("/api/admin/torrents/:infoHash/remove", adminOnly, async (req, res) 
 });
 
 module.exports = router;
+module.exports._internals = { offGate };

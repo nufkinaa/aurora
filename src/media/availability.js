@@ -188,7 +188,9 @@ const warm = async (items, now = Date.now()) => {
           // run has not started yet has nothing but CAMs to find — so this stays a
           // handful of probes rather than one per pool item.
           const notInCinemasYet = verdict.theatricalAt && verdict.theatricalAt > now;
-          const worthProbing = verdict.home !== true && !notInCinemasYet;
+          // "torrents": false — the source list is never asked; the verdict is
+          // TMDB's alone, exactly as for a film that was not worth probing.
+          const worthProbing = verdict.home !== true && !notInCinemasYet && require("../lib/torrentgate").enabled();
           const streamed = worthProbing ? await hasRealStreams(imdbId).catch(() => false) : null;
           store.data.titles[imdbId] = { ...verdict, streamed, at: now };
           dirty = true;

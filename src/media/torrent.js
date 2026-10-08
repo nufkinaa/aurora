@@ -13,6 +13,7 @@ const { JsonStore } = require("../lib/jsonstore");
 const perf = require("../lib/perf");
 const config = require("../config");
 const scanner = require("./scanner");
+const gate = require("../lib/torrentgate");
 
 // WebTorrent is ESM - dynamic import avoids top-level await issues.
 let WebTorrent = null;
@@ -159,6 +160,8 @@ const VIDEO_EXT = [".mp4", ".mkv", ".webm", ".avi", ".m4v", ".mov"];
 let clientInstance = null;
 let clientPromise = null;
 const getClient = () => {
+  // "torrents": false — the client is never constructed (lib/torrentgate.js).
+  if (!gate.enabled()) return Promise.reject(gate.offError());
   if (!clientPromise) {
     clientPromise = loadWebTorrent().then((W) => {
       // Cap peer connections per torrent. A completed torrent otherwise keeps
@@ -215,6 +218,7 @@ const WARM_TTL_MS = 5 * 60 * 1000;
 const warmed = new Map(); // infoHash -> warmedAt
 const peerBoosts = new Map(); // infoHash -> last re-discovery nudge
 const warmTorrent = (infoHash) => {
+  if (!gate.enabled()) return;
   if (!config.PREWARM || !infoHash) return;
   const cl = clientInstance;
   if (cl && cl.torrents.some((t) => t.infoHash === infoHash)) return; // already live
@@ -685,6 +689,9 @@ const parseLanguages = (title) => {
 
 // Fetch stream sources for a title. For series pass season+episode.
 const getSources = async (type, title, year, season, episode) => {
+  // Sources exist to feed the two engines; with torrents off nothing is asked
+  // of Cinemeta or Torrentio on their behalf.
+  if (!gate.enabled()) throw gate.offError();
   const ttType = type === "series" || type === "show" ? "series" : "movie";
   const imdbId = /^tt\d+$/i.test(title)
     ? title
@@ -1288,6 +1295,7 @@ const listTorrents = () => {
 // they share ONE add instead of racing into a duplicate-add error.
 const readying = new Map(); // infoHash -> Promise<torrent>
 const readyTorrent = (infoHash) => {
+  if (!gate.enabled()) return Promise.reject(gate.offError());
   touchTorrent(infoHash); // mark in-use so the eviction sweeper leaves it alone
   const inflight = readying.get(infoHash);
   if (inflight) return inflight;

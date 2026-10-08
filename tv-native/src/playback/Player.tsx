@@ -770,6 +770,12 @@ export default function Player({
   // setState updater (savePrefs there could persist a render React discarded).
   const prefsRef = useRef<Prefs>(PREFS_DEFAULTS);
   const pauseBtnRef = useRef<any>(null);
+  // the control-row buttons that open a menu, and which of them opened this one
+  const ccBtnRef = useRef<any>(null);
+  const speedBtnRef = useRef<any>(null);
+  const partyBtnRef = useRef<any>(null);
+  const gearBtnRef = useRef<any>(null);
+  const menuOpener = useRef<React.RefObject<any> | null>(null);
   // Which part of the chrome holds focus. The web decides whether left/right
   // seeks by asking whether the focused element is inside .player-controls or a
   // menu; there is no DOM to ask here, so each focusable claims its zone. Only
@@ -886,10 +892,17 @@ export default function Player({
     showControls();
   }, [flashAnim, showControls, partyUser]);
 
+  // Closing a menu puts focus back on the button that opened it (found on the
+  // Mi TV, 2026-10-08: it fell on Rewind, the first button, so the next OK
+  // jumped the film back ten seconds). Asked for twice: once now, and once
+  // after the panel has really left - while it is still mounted its focus
+  // trap wins and Android then picks the row's first button by itself.
   const closeMenu = useCallback(() => {
     setMenu(null);
     showControls();
-    setTimeout(() => pauseBtnRef.current?.requestTVFocus?.(), 0);
+    const back = () => (menuOpener.current?.current || pauseBtnRef.current)?.requestTVFocus?.();
+    setTimeout(back, 0);
+    setTimeout(back, 180);
   }, [showControls]);
 
   const dismissUpNext = useCallback(() => {
@@ -2702,7 +2715,12 @@ export default function Player({
                 scrubber is FOCUSABLE, exactly as it is on the site
                 (`tabindex="0"`, `.scrubber:focus`), and it takes focus when the
                 chrome appears — that is what makes "press right to skip" work. */}
-            <View style={styles.scrubRow}>
+            {/* A focus guide the full width of the row: the bar itself stops
+                short of the two times, so UP from the outermost buttons
+                (Rewind, Settings) had nothing straight above it and went
+                nowhere (Mi TV, 2026-10-08). The guide catches it and hands
+                focus to its one focusable, the bar. */}
+            <TVFocusGuideView autoFocus trapFocusLeft trapFocusRight style={styles.scrubRow}>
             <Text style={styles.time}>{fmt(shown)}</Text>
             <Focusable
               noScale
@@ -2752,7 +2770,7 @@ export default function Player({
             <Text style={[styles.time, styles.timeRight]}>
               {duration ? `-${fmt(Math.max(0, duration - shown))}` : ''}
             </Text>
-            </View>
+            </TVFocusGuideView>
             <View style={styles.buttons}>
               <PBtn
                 icon="back10"
@@ -2822,7 +2840,11 @@ export default function Player({
                   label="Subtitles"
                   badge={subKey ? undefined : 'off'}
                   onFocusChange={markZone('row')}
-                  onPress={() => setMenu('cc')}
+                  ref={ccBtnRef}
+                  onPress={() => {
+                    menuOpener.current = ccBtnRef;
+                    setMenu('cc');
+                  }}
                 />
               ) : null}
               {/* Speed keeps the site's icon, but shows the rate underneath when
@@ -2833,7 +2855,11 @@ export default function Player({
                 label="Speed"
                 badge={rate === 1 ? undefined : `${rate}x`}
                 onFocusChange={markZone('row')}
-                onPress={() => setMenu('speed')}
+                ref={speedBtnRef}
+                onPress={() => {
+                  menuOpener.current = speedBtnRef;
+                  setMenu('speed');
+                }}
               />
               <PBtn
                 icon="xray"
@@ -2860,13 +2886,21 @@ export default function Player({
                 label="Watch together"
                 badge={partyInfo ? String(partyInfo.members.length) : undefined}
                 onFocusChange={markZone('row')}
-                onPress={() => setMenu('party')}
+                ref={partyBtnRef}
+                onPress={() => {
+                  menuOpener.current = partyBtnRef;
+                  setMenu('party');
+                }}
               />
               <PBtn
                 icon="gear"
                 label="Settings"
                 onFocusChange={markZone('row')}
-                onPress={() => setMenu('settings')}
+                ref={gearBtnRef}
+                onPress={() => {
+                  menuOpener.current = gearBtnRef;
+                  setMenu('settings');
+                }}
               />
             </View>
           </View>
@@ -3158,6 +3192,10 @@ export default function Player({
           <MenuItem
             label="Size"
             tag={{S: 'Small', M: 'Medium', L: 'Large'}[prefs.cueSize]}
+            // A film with one audio track has no section above this one, and
+            // with nothing asking for focus the panel opened dead - focus
+            // stayed on the gear behind it (found on the Mi TV, 2026-10-08).
+            hasTVPreferredFocus={audioTracks.length <= 1 && !(epSeason && epEpisode)}
             onFocusChange={markZone('menu')}
             onPress={() => {
               const order: Prefs['cueSize'][] = ['S', 'M', 'L'];

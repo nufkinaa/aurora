@@ -37,6 +37,7 @@ import {
   episodeProgressFor,
   progressFor,
   loadLibrary,
+  serverFacts,
 } from "../state.js";
 import { navigate } from "../router.js";
 import * as offline from "../offline.js";
@@ -1096,7 +1097,8 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   const serverInfoFor = () => {
     const out = [];
     if (!lib) {
-      out.push([view.type === "show" ? "No episodes on disk yet — stream, or save a source" : "Not on disk yet — stream it, or save a source", "dim"]);
+      if (!canSource) out.push([view.type === "show" ? "No episodes on this server yet" : "Not on this server yet", "dim"]);
+      else out.push([view.type === "show" ? "No episodes on disk yet — stream, or save a source" : "Not on disk yet — stream it, or save a source", "dim"]);
       return out;
     }
     if (view.type === "show") {
@@ -1164,6 +1166,11 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     if (libId) lib = await api.item(libId).catch(() => null);
   }
   await refreshProgress().catch(() => {});
+  // A server with "torrents": false (config.json) has no sources to offer:
+  // the page then shows what is on disk and the catalogue's facts, and none
+  // of the buttons that stream or save from a source. True everywhere else.
+  await serverFacts();
+  const canSource = state.torrents !== false;
 
   const isShow = (lib ? lib.type : meta.type) === "show";
   // Library metadata wins where we have it (it is what actually plays); stream
@@ -1317,7 +1324,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     saveBtn.classList.add("busy", "dl-live");
     saveBtn.style.setProperty("--p", String(Math.max(0, Math.min(1, job.progress || 0))));
   };
-  if (imdbId && !isShow && !lib) {
+  if (imdbId && !isShow && !lib && canSource) {
     saveBtn = el("button", {
       class: "btn btn-primary focusable",
       html: icons.download + "<span>Save &amp; watch</span>",
@@ -1338,7 +1345,9 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     });
     actions.push(saveBtn);
   }
-  if (imdbId) {
+  // (torrents off: a show keeps the button — it leads to the episode list —
+  // while a film's "Stream instead" / "Other versions" has nowhere to go)
+  if (imdbId && (isShow || canSource)) {
     actions.push(
       el("button", {
         class: `btn ${actions.length ? "" : "btn-primary"} focusable btn-sources`,
@@ -1366,7 +1375,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   }
   // Follow a show (2026-10-07): its new episodes download by themselves when
   // they air, and this device hears about it if notifications are on.
-  if (state.profile && isShow && imdbId) {
+  if (state.profile && isShow && imdbId && canSource) {
     const following = () => (state.profile.follows || []).includes(imdbId);
     const paintFollow = (b) => {
       b.innerHTML = (following() ? icons.check : icons.plus) + `<span>${following() ? "Following" : "Follow"}</span>`;
@@ -1851,6 +1860,13 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   if (!isShow) {
     // A local-only title (no IMDb match) simply has nothing to stream.
     if (!imdbId) return;
+    // Torrents off on this server: no sources list at all, the page goes
+    // from the film straight to "More like this".
+    if (!canSource) {
+      screen.append(similarHost);
+      fillSimilar();
+      return;
+    }
     // A film you already own, on a phone: the other versions are folded behind
     // their heading (one press opens them), so the page goes from the film
     // straight to "More like this" instead of through a list of torrents
@@ -1971,7 +1987,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   let openRow = null;
 
   const openSources = (row, { scroll = true } = {}) => {
-    if (!imdbId) return;
+    if (!imdbId || !canSource) return;
     openRow = row;
     epSourcesLabel.textContent = `Sources · S${row.season} E${row.episode}`;
     epSourcesLabel.hidden = false;
@@ -2209,8 +2225,9 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
             ? { disabled: true, "aria-disabled": "true" }
             : {
                 onclick: () =>
-                  hd ? navigate(`#/play/${local.id}`)
+                  hd || (local && !canSource) ? navigate(`#/play/${local.id}`)
                   : job ? toast(`${epJobText(job)} — hold the episode for its sources`, "⏳")
+                  : !canSource ? toast("That episode isn't on this server", "📭")
                   : openSources(row),
               }),
         },
@@ -2287,9 +2304,9 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
               { class: "episode-bar" },
               el("div", { style: { width: pct + "%" } }),
             ),
-        !unaired && el("span", { class: "episode-play", html: icons.play }),
+        !unaired && (local || canSource) && el("span", { class: "episode-play", html: icons.play }),
       );
-      if (!unaired) attachHold(epBtn, () => openSources(row));
+      if (!unaired && canSource) attachHold(epBtn, () => openSources(row));
       // Live repaint of the job without rebuilding the list (every tick of a
       // 24-row season was a lot of DOM for one number).
       epBtn._paintJob = (j) => {

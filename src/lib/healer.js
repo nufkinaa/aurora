@@ -356,7 +356,13 @@ const checkTvApp = () => slowly("tvapp", async () => {
   };
 });
 
+// "torrents": false in config.json — the four checks below have nothing to
+// watch, and must not "heal" an engine that is off on purpose.
+const torrentsOff = () => !require("./torrentgate").enabled();
+const offInfo = () => ({ status: "info", summary: "switched off in config.json (torrents: false)" });
+
 const checkAria2 = async () => {
+  if (torrentsOff()) return offInfo();
   const aria2 = require("../media/aria2");
   const downloads = require("../media/downloads");
   if (!aria2.available()) return { status: "info", summary: "aria2 is not installed — downloads to the server are off" };
@@ -379,6 +385,7 @@ const checkAria2 = async () => {
 };
 
 const checkDownloads = async () => {
+  if (torrentsOff()) return offInfo();
   const downloads = require("../media/downloads");
   const q = downloads.queueHealth();
   const now = Date.now();
@@ -446,8 +453,10 @@ const UPSTREAMS = [
 ];
 const checkUpstream = async () => {
   if (state.upstream && Date.now() - state.upstreamAt < UPSTREAM_MS) return state.upstream;
+  // "torrents": false — the source provider is not this server's business.
+  const asked = torrentsOff() ? UPSTREAMS.filter(([, url]) => !/torrentio/.test(url)) : UPSTREAMS;
   const results = await Promise.all(
-    UPSTREAMS.map(async ([name, url]) => {
+    asked.map(async ([name, url]) => {
       const t0 = Date.now();
       try {
         const res = await fetch(url, { method: "GET", signal: AbortSignal.timeout(6000), headers: { "User-Agent": "Aurora healer" } });
@@ -485,6 +494,7 @@ const checkScanner = async () => {
 };
 
 const checkStreaming = async () => {
+  if (torrentsOff()) return offInfo();
   const torrent = require("../media/torrent");
   const cl = torrent.clientIfLoaded && torrent.clientIfLoaded();
   if (!cl) return { status: "ok", summary: "streaming client idle" };
@@ -581,5 +591,5 @@ module.exports = {
   start,
   run,
   status,
-  _internals: { normalizeMessage, topMessages, stallReason, worst, fullIn, dirSize, FINDING_STALL_MS, PROGRESS_STALL_MS, state },
+  _internals: { checkAria2, checkDownloads, checkStreaming, normalizeMessage, topMessages, stallReason, worst, fullIn, dirSize, FINDING_STALL_MS, PROGRESS_STALL_MS, state },
 };

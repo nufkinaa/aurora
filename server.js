@@ -372,7 +372,9 @@ ocr.events.on("job", (job) => {
 });
 
 // Resume any downloads that were mid-flight when the server last stopped.
-require("./src/media/downloads").resume();
+// With "torrents": false nothing is resumed: the queue is left exactly as it
+// was on disk, for the day torrents are switched back on.
+if (require("./src/lib/torrentgate").enabled()) require("./src/media/downloads").resume();
 
 // Sign-in rollout (prompt 10, account = profile): nothing to migrate at boot
 // — profiles ARE the accounts; people attach their sign-in by claiming. Just

@@ -211,6 +211,9 @@ router.get("/api/server-info", (req, res) => {
     google: !!(process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_TV_CLIENT_ID || process.env.GOOGLE_CLIENT_ID),
     googleWeb: !!(process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID),
     googleDevice: !!(process.env.GOOGLE_TV_CLIENT_ID || process.env.GOOGLE_CLIENT_ID),
+    // Present only on a server with "torrents": false in config.json — the
+    // web app then offers nothing that streams or downloads from sources.
+    ...(require("../lib/torrentgate").enabled() ? {} : { torrents: false }),
   });
 });
 
