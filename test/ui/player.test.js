@@ -188,7 +188,7 @@ ui.test("the Settings menu opens with its sections, each with an icon", async ({
 // "re-encoded — this device can't play the file's codec". A file that plays
 // DIRECTLY has no currentV at all, so the one case where nothing whatsoever
 // is re-encoded is labelled as a re-encode.
-ui.test("Quality → Original does not claim a re-encode for a file that plays directly", { todo: "app bug: direct play is labelled \"re-encoded — this device can't play the file's codec\"" }, async ({ page, srv, signIn, freshProfile, lib }) => {
+ui.test("Quality → Original does not claim a re-encode for a file that plays directly", async ({ page, srv, signIn, freshProfile, lib }) => {
   await signIn(await freshProfile());
   await player.open(page, srv, lib.film1.id);
   const items = await player.menu(page, "Settings");
