@@ -273,12 +273,18 @@ def svg_shot(name, svg, w=1024, h=1024):
 
 DENSITIES = [("mdpi", 48, 108), ("hdpi", 72, 162), ("xhdpi", 96, 216), ("xxhdpi", 144, 324), ("xxxhdpi", 192, 432)]
 
+# The TV rail's mark, pre-rendered at the exact pixel size each screen density draws it (React Native picks
+# the @Nx file): closed rail 34dp, open rail 40dp; @2x is a 1080p panel, @4x a 4K one. No runtime rescaling.
+TV_MARKS = (("logo-mark", 34), ("logo-mark-open", 40))
+TV_SCALES = ((1, ""), (2, "@2x"), (3, "@3x"), (4, "@4x"))
+
 # Every bitmap `install` writes (and nothing else). The sizes are fixed and checked after writing.
 INSTALLED = (
     [(WEB / f"icon-{n}.png", n, n) for n in (180, 192, 512)] + [(WEB / "badge-96.png", 96, 96)] +
     [(RES / f"mipmap-{d}/ic_launcher{suf}.png", n, n) for d, a, b in DENSITIES
      for suf, n in (("", a), ("_round", a), ("_background", b), ("_foreground", b))] +
-    [(RES / "drawable/banner.png", 320, 180), (TV_ASSETS / "logo-mark.png", 208, 208)])
+    [(RES / "drawable/banner.png", 320, 180)] +
+    [(TV_ASSETS / f"{name}{suf}.png", dp * k, dp * k) for name, dp in TV_MARKS for k, suf in TV_SCALES])
 
 # Text that carries the logo as a data: URI. `install` rewrites the URI in place and nothing around it:
 # the favicon <link> in index.html, and every CSS declaration that ends with the comment /* brand:mark */.
@@ -304,10 +310,13 @@ def install():
         save(fg.resize((b, b), Image.LANCZOS), dst / "ic_launcher_foreground.png", alpha=True)
     banner = svg_shot("i-banner", beam_banner_svg(), 1280, 720)
     save(banner.resize((320, 180), Image.LANCZOS), RES / "drawable/banner.png", alpha=False)
-    # The TV nav rail draws this at 26dp with its own radius and violet glow (NavRail.tsx styles.mark),
+    # The TV nav rail draws this at 34dp (40dp when open) with its own radius and violet glow (NavRail.tsx styles.mark),
     # so it is the tile, corners already rounded to the same radius - not the bare mark.
     tile = svg_shot("i-tile", beam_tile_svg())
-    save(mask(tile.resize((208, 208), Image.LANCZOS), RADIUS), TV_ASSETS / "logo-mark.png", alpha=True)
+    for name, dp in TV_MARKS:
+        for k, suf in TV_SCALES:
+            n = dp * k
+            save(mask(tile.resize((n, n), Image.LANCZOS), RADIUS), TV_ASSETS / f"{name}{suf}.png", alpha=True)
 
     for path, w, h in INSTALLED:
         im = Image.open(path)

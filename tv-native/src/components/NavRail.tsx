@@ -41,7 +41,10 @@ import theme from '../theme';
 const {colors, focus, motion, nav, radius, spacing} = theme;
 
 // `.nav-logo .logo-mark` — a conic gradient, so it is baked (tools/gen_logo.py).
+// Two files per density (@1x-@4x), each rendered at exactly the pixels the
+// rail draws - 34dp closed, 40dp open - so the TV never rescales the mark.
 const LOGO = require('../assets/logo-mark.png');
+const LOGO_OPEN = require('../assets/logo-mark-open.png');
 
 const EASE = Easing.bezier(...(focus.ease as unknown as [number, number, number, number]));
 
@@ -389,7 +392,7 @@ export default function NavRail({
             style={styles.panelInner}>
             {/* `.nav-logo` — not focusable (index.html:52). */}
             <View style={styles.logo}>
-              <Image source={LOGO} style={styles.mark} />
+              <Image source={LOGO_OPEN} style={[styles.mark, styles.markOpen]} />
               <Text style={styles.wordmark}>Aurora</Text>
             </View>
             {ITEMS.map((it, i) => {
@@ -650,18 +653,22 @@ const styles = StyleSheet.create({
   },
   // 26dp icon box, P18 x1.0 (components.css:39-41). Centred in the 72dp strip,
   // so it spans x = 23-49.
+  // Drawn larger than the site's 26px (elia, 2026-10-08: it read as low-res —
+  // 52 physical pixels on a 1080p panel). Each size has its own pixel-exact
+  // asset per density (see LOGO above); the radius keeps the tile's 8/26 proportion.
   mark: {
-    width: 26,
-    height: 26,
-    borderRadius: radius.s,
+    width: 34,
+    height: 34,
+    borderRadius: 10.5,
     boxShadow: '0 0 18px rgba(124,100,255,0.55)',
   },
+  markOpen: {width: 40, height: 40, borderRadius: 12.3},
   // `.nav-logo { margin-right: 20px }` becomes a margin-bottom on a rail; gap 10
   // is the site's own (components.css:32,36).
   logo: {flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10},
   // 1.3rem = 20.8px -> the --fs-row slot, 20dp (00-tokens §3.1(ii); the spec's
   // own table says 21, which its verifier finding 7 corrects to 20).
-  wordmark: {color: colors.text, fontSize: 20, fontWeight: '800', letterSpacing: 0.4},
+  wordmark: {color: colors.text, fontSize: 23, fontWeight: '800', letterSpacing: 0.4},
   // One dot per section, the active one filled — the vertical form of the
   // capsule's mark-over-dots. Redundant wayfinding: the screen itself says where
   // you are, which is why losing them to overscan costs nothing.

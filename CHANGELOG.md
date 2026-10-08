@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.67 — 2026-10-08
+
+- Aurora TV 5.1.22: the logo in the side rail is larger and crisp (elia: it read as low-res). It was a single image the TV shrank on the fly to 52 pixels; it is now drawn about a third larger closed and half again larger open, from files rendered at the exact pixel size each screen uses, 1080p and 4K, so nothing is rescaled.
+
 ## 1.6.66 — 2026-10-08
 
 - **Browser tests.** `npm run test:ui` drives the real web app in the installed Chrome against a private, offline server with a generated library: 106 tests across the profile wall, navigation, library, title pages, the player (including stall recovery), settings, live updates, kids profiles, images and the admin page. See `docs/testing.md`. The first run found ten bugs; three are fixed here and the rest are pinned by tests marked todo.
