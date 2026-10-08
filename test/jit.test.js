@@ -1,8 +1,10 @@
-// S7 — the jit segment table and playlist. The one invariant everything
-// rests on: the table is built with ffmpeg's own splitting rule over the
-// same keyframe list ffmpeg will see, so the EXTINFs the playlist declares
-// and the segments the producer emits agree BY CONSTRUCTION. These tests
-// pin that rule and the playlist shapes (TS and fMP4).
+// S7 — the jit segment table and playlist. The table is cut from the VIDEO
+// track's cue points (a segment runs from a cue to the first cue at least
+// TARGET_SEG_SEC later); the playlist declares it. Whether the produced
+// segments then MATCH that playlist is not this file's subject — the
+// producer no longer has a splitting rule to mirror, it is grouped and
+// checked against the table (test/jit-exact.test.js). These tests pin the
+// table rule and the playlist shapes (TS and fMP4).
 const { test } = require("node:test");
 const assert = require("node:assert");
 const path = require("path");
@@ -27,7 +29,7 @@ test("split rule: GOPs longer than the target give one segment per keyframe", ()
 });
 
 test("split rule: dense keyframes pack up to the first cue >= start+target", () => {
-  // keyframes every 2s, target 6 → ffmpeg cuts at the first keyframe >= +6s,
+  // keyframes every 2s, target 6 → a boundary at the first keyframe >= +6s,
   // i.e. every 3rd cue: segments of exactly 6s.
   const cues = Array.from({ length: 30 }, (_, i) => ({ t: i * 2, offset: i }));
   const table = buildTable({ durationSec: 60, cues });
@@ -86,7 +88,7 @@ test("segPath picks the extension by format", () => {
   assert.equal(path.basename(jit.segPath("d", 7, "fmp4")), "seg00007.m4s");
 });
 
-test("producedUpTo reads the producer's write head, per format", () => {
+test("producedUpTo reads the highest published segment, per format", () => {
   const fs = require("fs");
   const os = require("os");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-jit-"));

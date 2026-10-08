@@ -232,6 +232,11 @@ app.get("/css/aurora.css", (req, res) => {
 // which crawlers (and Lighthouse) read as a broken robots file. Nothing is
 // forbidden here: every page sits behind the profile door (or the sign-in
 // wall), so a crawler that follows the shell finds no library data anyway.
+// For an uptime monitor outside the house: 200 {ok, uptime, version}, no
+// sign-in, no secrets (lib/health.js). Not under /api, so the sign-in wall
+// never covers it.
+app.get("/healthz", require("./src/lib/health").healthz);
+
 app.get("/robots.txt", (req, res) => {
   res.type("text/plain").send("User-agent: *\nDisallow:\n");
 });
@@ -340,12 +345,19 @@ require("./src/media/introdetect");
   const daily = require("./src/lib/daily");
   daily.register("skip-timestamps", () => require("./src/media/introdetect").refreshFromDatabases());
   daily.register("library-metadata", () => online.refresh(scanner.allItems()));
+  // One verified snapshot a day of what cannot be rebuilt — profiles, watch
+  // state, sign-ins, settings, config (lib/backup.js; restore steps there).
+  daily.register("backup", () => require("./src/lib/backup").runDaily());
   daily.start();
 }
 // Followed shows: new episodes download by themselves when they air.
 require("./src/media/follows").start();
 require("./src/lib/watchdog").start();
 require("./src/lib/healer").start();
+// Health alerts: disk, ffmpeg, the download engine, backup freshness, crash
+// loops — told to the admin (ntfy / Telegram) once, and again when they
+// clear; plus the dead-man's-switch ping when "healthPingUrl" is set.
+require("./src/lib/health").start();
 online.events.on("updated", () => {
   scanner.scan();
   realtime.broadcastAll({ type: "library_updated" });
@@ -366,6 +378,16 @@ require("./src/media/downloads").resume();
 // — profiles ARE the accounts; people attach their sign-in by claiming. Just
 // say which mode we woke up in.
 console.log(`[auth] mode=${require("./src/lib/authmode").get()}`);
+
+// Kids profiles judge a title by the STRICTEST rating any board gave it. The
+// ratings kept from before that rule (one country's label) are asked about
+// again here, in the background, when the house has a kids profile — until
+// then the gate falls back to the label, so nothing disappears meanwhile.
+setTimeout(() => {
+  try {
+    if (require("./src/profiles").list().some((p) => p.kids)) require("./src/media/discover").refreshCertificates();
+  } catch {}
+}, 20000).unref();
 
 // Initial scan + periodic rescan
 scanner.scan();

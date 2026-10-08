@@ -130,7 +130,7 @@ export const setProfile = async (profile, token = null) => {
   // A kids profile that can't get its list gets an empty one, never the last
   // person's. (Nothing loaded yet = the boot, which loads it itself.)
   if (relist && state.library) {
-    try { state.library = await api.library(); }
+    try { state.library = await api.library(profile.id); }
     catch { if (profile.kids) state.library = { movies: [], shows: [] }; }
   }
   // The profile's subtitle language lands in this device's player settings
@@ -210,7 +210,7 @@ export const episodeProgressFor = (imdbId, season, episode) =>
 
 export const loadLibrary = async (force = false) => {
   if (!state.library || force) {
-    state.library = await api.library();
+    state.library = await api.library(state.profile && state.profile.id);
   }
   return state.library;
 };

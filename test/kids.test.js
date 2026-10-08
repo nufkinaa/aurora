@@ -418,7 +418,7 @@ test("gate: a request that is not a kids one passes untouched", () => {
 
 test("gate: the admin panel, sign-in, kids routes and static files are never gated", () => {
   const { run } = makeGate(KID, { kidsFor: () => { throw new Error("must not even be asked"); } });
-  for (const path of ["/api/admin/people", "/api/admin/library", "/api/auth/login", "/api/kids/exit", "/api/kids/status", "/js/main.js", "/", "/img/m2"])
+  for (const path of ["/api/admin/people", "/api/admin/library", "/api/auth/login", "/api/kids/exit", "/api/kids/status", "/js/main.js", "/", "/avatars/a.png"])
     assert.equal(run({ path }).passed, true, path);
 });
 
@@ -659,4 +659,429 @@ test("discover: a rating outlives the meta cache and answers by id and by title"
     certStore.data = before;
     delete certStore.save;
   }
+});
+
+// =====================================================================
+// 2026-10-08, the three fixes: the strictest rating, the open-mode hole,
+// the TV's side of the lock.
+// =====================================================================
+
+// ---------- FIX 1: the strictest rating decides ----------
+
+test("strict age: it outranks the label the cache holds and the one an item carries", () => {
+  const STRICT = { tt0000010: 17, tt0000001: 0, tt0000004: 16 };
+  const strictCertOf = kids.makeCertOf({
+    findById: (id) => LIB[id] || null,
+    imdbIdFor: (item) => IMDB[item.title] || null,
+    cached: (imdbId) => CERTS[imdbId] || null,
+    strict: (imdbId) => (imdbId in STRICT ? STRICT[imdbId] : null),
+  });
+  // cached label says 12+, the strictest board says 17
+  assert.equal(strictCertOf({ type: "movie", title: "X", imdbId: "tt0000010" }), 17);
+  assert.equal(kids.allowed({ type: "movie", imdbId: "tt0000010" }, 12, strictCertOf), false);
+  assert.equal(kids.allowed({ type: "movie", imdbId: "tt0000010" }, 16, strictCertOf), false, "a US R is out of a 16+ profile too");
+  // a card that carries its own (lenient) label is no longer taken at its word
+  assert.equal(strictCertOf({ type: "movie", imdbId: "tt0000010", certificate: "12+" }), 17);
+  // …but an OLDER label on the item still stands: two readings, the stricter wins
+  assert.equal(strictCertOf({ type: "movie", imdbId: "tt0000001", certificate: "16+" }), 16);
+  // library item, found by its cached id
+  assert.equal(strictCertOf(LIB.m1), 0);
+  assert.equal(kids.allowed(LIB.m1, 0, strictCertOf), true);
+  // an episode is judged as its show
+  assert.equal(strictCertOf(LIB.e2), 16);
+  // no strict age worked out yet: the label decides, exactly as before
+  assert.equal(strictCertOf(LIB.m2), "18+");
+  assert.equal(strictCertOf(LIB.s1), "6+");
+  assert.equal(kids.allowed(LIB.s1, 7, strictCertOf), true, "nothing vanishes while the refresh runs");
+  // nothing known at all: still hidden
+  assert.equal(strictCertOf(LIB.m3), null);
+  assert.equal(kids.allowed(LIB.m3, 16, strictCertOf), false);
+  // a torrent play-item: its own label is still not trusted, its id is
+  assert.equal(strictCertOf({ id: "torrent|" + "a".repeat(40) + "|0", imdbId: "tt0000010", certificate: "ALL" }), 17);
+});
+
+test("strict age: the four films a 12+ profile was offered are refused once their ages are known", () => {
+  const discover = require("../src/media/discover");
+  const { strictestOf, pickCertificate } = require("../src/media/certification");
+  const { certStore, noteCertificate } = discover._internals;
+  const before = certStore.data;
+  certStore.data = {};
+  certStore.save = () => {};
+  const FILMS = [
+    ["tt15398776", "Oppenheimer", 2023, { US: "R", GB: "15", DE: "12", NL: "16", AU: "MA15+" }],
+    ["tt15239678", "Dune: Part Two", 2024, { US: "PG-13", GB: "12A", DE: "12", NL: "12", AU: "M" }],
+    ["tt0332452", "Troy", 2004, { US: "R", GB: "15", DE: "12" }],
+    ["tt0111161", "The Shawshank Redemption", 1994, { US: "R", GB: "15", DE: "12" }],
+  ];
+  const asResults = (certs) => Object.entries(certs).map(([iso_3166_1, certification]) => ({ iso_3166_1, release_dates: [{ certification }] }));
+  // the same wiring routes/api.js gives the gate (minus the background refresh)
+  const certOfLive = kids.makeCertOf({
+    cached: (id) => discover.certificateCached(id),
+    strict: (id) => discover.certificateAge(id),
+  });
+  try {
+    // yesterday's cache: one country's label, no strict age
+    for (const [imdbId, title, year] of FILMS) certStore.data[imdbId] = { c: "12+", t: "movie", n: discover.normalize(title), y: year, at: Date.now() };
+    for (const [imdbId, title] of FILMS) {
+      assert.equal(discover.certificateAge(imdbId), null, title);
+      assert.equal(kids.allowed({ imdbId }, 12, certOfLive), true, `${title}: until refreshed, the old single value (nothing is hidden on deploy)`);
+    }
+    // the refresh lands
+    for (const [imdbId, title, year, certs] of FILMS) {
+      const results = asResults(certs);
+      noteCertificate({ imdbId, type: "movie", title, year, certificate: pickCertificate(results, "movie"), kidsAge: strictestOf(certs) });
+    }
+    for (const [imdbId, title, year] of FILMS) {
+      assert.equal(discover.certificateCached(imdbId), "12+", `${title}: the badge value is unchanged`);
+      assert.ok(discover.certificateAge(imdbId) >= 15, `${title}: strict age ${discover.certificateAge(imdbId)}`);
+      assert.equal(kids.allowed({ imdbId }, 12, certOfLive), false, `${title} is refused to a 12+ profile`);
+      assert.equal(kids.allowed({ id: "disc:" + imdbId }, 12, certOfLive), false, `${title}: the catalogue card too`);
+      // …and its stream sources, which are asked for by title
+      assert.ok(kids.ageOf(discover.certificateByTitle("movie", title, year)) > 12, `${title}: by title`);
+    }
+    assert.equal(discover.certificateAge("tt15398776"), 17);
+    assert.equal(discover.certificateAge("tt15239678"), 15);
+    assert.equal(kids.allowed({ imdbId: "tt15239678" }, 16, certOfLive), true, "Dune: Part Two fits a 16+ profile");
+    assert.equal(kids.allowed({ imdbId: "tt15398776" }, 16, certOfLive), false, "Oppenheimer (US R = 17) does not");
+  } finally {
+    certStore.data = before;
+    delete certStore.save;
+  }
+});
+
+test("discover: an entry without the strict age is stale; a failed re-ask erases nothing", () => {
+  const discover = require("../src/media/discover");
+  const { certStore, noteCertificate, certFresh, CERT_V } = discover._internals;
+  const before = certStore.data;
+  certStore.data = {};
+  certStore.save = () => {};
+  try {
+    const now = Date.now();
+    // written yesterday, before strict ages: needs a refresh however recent
+    assert.equal(certFresh({ c: "12+", t: "movie", n: "x", y: 2020, at: now }), false);
+    assert.equal(certFresh(undefined), false);
+    // today's shape with its strict age: settled for good
+    assert.equal(certFresh({ c: "12+", a: 17, v: CERT_V, t: "movie", n: "x", y: 2020, at: 0 }), true);
+    // today's shape, nothing learned (unrated / TMDB down): asked again after a week, not before
+    assert.equal(certFresh({ c: null, v: CERT_V, t: "movie", n: "x", y: null, at: now }), true);
+    assert.equal(certFresh({ c: null, v: CERT_V, t: "movie", n: "x", y: null, at: now - 8 * 24 * 3600 * 1000 }), false);
+    assert.equal(certFresh({ c: "12+", v: CERT_V, t: "movie", n: "x", y: null, at: now - 8 * 24 * 3600 * 1000 }), false, "a label alone is not the end of it");
+
+    noteCertificate({ imdbId: "tt7100001", type: "movie", title: "Long Night", year: 2010, certificate: "12+", kidsAge: 17 });
+    assert.equal(certStore.data.tt7100001.v, CERT_V);
+    assert.equal(discover.certificateAge("tt7100001"), 17);
+    assert.equal(discover.certificateCached("tt7100001"), "12+");
+    assert.equal(discover.certificateByTitle("movie", "Long Night", 2010), 17, "by title: the strict age, not the label");
+    // TMDB is down on a later ask: both the label and the age survive
+    noteCertificate({ imdbId: "tt7100001", type: "movie", title: "Long Night", year: 2010, certificate: null, kidsAge: null });
+    assert.equal(discover.certificateAge("tt7100001"), 17);
+    assert.equal(discover.certificateCached("tt7100001"), "12+");
+    // an all-ages strict answer is a real 0, not "unknown"
+    noteCertificate({ imdbId: "tt7100002", type: "movie", title: "Soft Toys", year: 2015, certificate: "ALL", kidsAge: 0 });
+    assert.equal(discover.certificateAge("tt7100002"), 0);
+    assert.equal(discover.certificateByTitle("movie", "Soft Toys", 2015), 0);
+    assert.equal(kids.ageOf(discover.certificateByTitle("movie", "Soft Toys", 2015)), 0);
+    // two films tie on the title — one with a strict age, one with only a label: the older reading answers
+    noteCertificate({ imdbId: "tt7100003", type: "movie", title: "Soft Toys", year: 2015, certificate: "16+" });
+    assert.equal(discover.certificateByTitle("movie", "Soft Toys", 2015), "16+");
+    // no strict age and no label: unknown
+    assert.equal(discover.certificateAge("tt7999999"), null);
+    assert.equal(discover.certificateAge("tt7100003"), null);
+  } finally {
+    certStore.data = before;
+    delete certStore.save;
+  }
+});
+
+test("the library copy and the catalogue card of one title resolve to one id (a guessed year is not the cache key)", () => {
+  const imdb = require("../src/media/imdb");
+  const identity = require("../src/media/identity");
+  const real = imdb.cachedIdFor;
+  // what the cache holds for a folder named just "Disclosure Day": the year-less key
+  imdb.cachedIdFor = (title, type, year) => (title === "Disclosure Day" && type === "movie" && !year ? "tt15047880" : null);
+  try {
+    // the scanner filled `year` from a by-name metadata match (another film's, as it happens)
+    const lib = { id: "d9", type: "movie", title: "Disclosure Day", year: 2020, yearGuessed: true };
+    assert.equal(identity.imdbIdFor(lib), "tt15047880");
+    // a year read off the folder itself IS the key: no fallback to the year-less entry
+    assert.equal(identity.imdbIdFor({ id: "d8", type: "movie", title: "Disclosure Day", year: 2020 }), null);
+    assert.equal(identity.imdbIdFor({ id: "d7", type: "movie", title: "Disclosure Day", year: null }), "tt15047880");
+    assert.equal(identity.imdbIdFor(null), null);
+    // so both paths of the kids gate reach the same rating
+    const one = kids.makeCertOf({ imdbIdFor: identity.imdbIdFor, cached: (id) => (id === "tt15047880" ? "12+" : null) });
+    assert.equal(one(lib), "12+", "the library copy");
+    assert.equal(one({ imdbId: "tt15047880", type: "movie", title: "Disclosure Day", year: 2026 }), "12+", "the catalogue card");
+    assert.equal(kids.allowed(lib, 12, one), kids.allowed({ imdbId: "tt15047880" }, 12, one));
+  } finally {
+    imdb.cachedIdFor = real;
+  }
+});
+
+// ---------- FIX 3 (server side): the TV names its profile; a dead token fails closed ----------
+
+test("X-Profile: a request that NAMES a kids profile is a kids request, with no token and no cookie", () => {
+  assert.deepEqual(kids.resolveKids(reqOf({ path: "/stream/video/m2", headers: { "x-profile": "kid7" } }), deps()), { profile: "kid7", maxAge: 7, source: "request" });
+  assert.equal(kids.resolveKids(reqOf({ path: "/img/still/m2", headers: { "x-profile": "kid12", "x-session": "whatever" } }), deps()).profile, "kid12");
+  assert.equal(kids.resolveKids(reqOf({ headers: { "x-profile": "adult" } }), deps()), null, "a grown-up's name changes nothing");
+  assert.equal(kids.resolveKids(reqOf({ headers: { "x-profile": "ghost" } }), deps()), null);
+  assert.equal(kids.resolveKids(reqOf({ headers: { "x-profile": "../../etc" } }), deps()), null, "junk is not a name");
+  // named as a kids profile AND holding a grown-up's token: the kids name still decides
+  assert.equal(kids.resolveKids(reqOf({ headers: { "x-profile": "kid7", "x-profile-token": "tok-adult" } }), deps()).profile, "kid7");
+  // sign-in closed: only the session counts, as everywhere
+  assert.equal(kids.resolveKids(reqOf({ headers: { "x-profile": "kid7" } }), deps({ closed: () => true })), null);
+});
+
+test("a kids profile's unlock token names its profile even after it has died (server restart)", () => {
+  store().profiles = [];
+  seed("ad1", "Adult");
+  seed("kd1", "Kid", { kids: { maxAge: 7 } });
+  const { kidsFor } = require("../src/routes/api")._internals;
+  const tok = profiles.issueToken("kd1");
+  assert.match(tok, /^kid\.kd1\.[a-f0-9]{48}$/);
+  assert.equal(profiles.tokenValid("kd1", tok), true);
+  const adultTok = profiles.issueToken("ad1");
+  assert.match(adultTok, /^[a-f0-9]{48}$/, "everyone else's token is what it always was");
+
+  // the restart: RAM tokens are gone
+  profiles.revokeTokensFor("kd1");
+  profiles.revokeTokensFor("ad1");
+  assert.equal(profiles.tokenValid("kd1", tok), false, "dead: it opens nothing");
+  assert.equal(profiles.tokenProfile(tok), null);
+  assert.equal(profiles.kidsTokenProfile(tok), "kd1");
+  // FAIL CLOSED: every request still carrying it is a kids request
+  for (const path of ["/api/library", "/api/search", "/api/discover", "/api/item/m2", "/stream/video/m2"])
+    assert.deepEqual(kidsFor(reqOf({ path, headers: { "x-profile-token": tok } })), { profile: "kd1", maxAge: 7, source: "request" }, path);
+  // a dead grown-up's token names nobody, as before
+  assert.equal(kidsFor(reqOf({ path: "/api/library", headers: { "x-profile-token": adultTok } })), null);
+  // a forged kids token can only restrict the forger…
+  assert.equal(kidsFor(reqOf({ path: "/api/library", headers: { "x-profile-token": "kid.kd1." + "0".repeat(48) } })).profile, "kd1");
+  // …and never points at a profile that is not a kids one
+  assert.equal(profiles.kidsTokenProfile("kid.ad1." + "0".repeat(48)), null);
+  assert.equal(profiles.kidsTokenProfile("kid.nobody." + "0".repeat(48)), null);
+  for (const junk of ["", null, undefined, "kid.kd1.", "kid..abc", "kd1", "kid.kd1.xyz"]) assert.equal(profiles.kidsTokenProfile(junk), null, String(junk));
+  // kids mode switched off: the old token stops naming it
+  profiles.setKids("kd1", null);
+  assert.equal(profiles.kidsTokenProfile(tok), null);
+  assert.equal(kidsFor(reqOf({ path: "/api/library", headers: { "x-profile-token": tok } })), null);
+});
+
+test("the TV's requests, through the real resolver and the gate: lists filtered, an over-age stream refused, an allowed one let through", () => {
+  store().profiles = [];
+  seed("ad2", "Adult");
+  seed("kd2", "Kid", { kids: { maxAge: 12 } });
+  const { kidsFor } = require("../src/routes/api")._internals;
+  const { run } = makeGate(null, { kidsFor });
+  // what the TV app sends: no cookie; X-Profile on everything; a token that
+  // died with the server's restart on the JSON calls; only X-Session (or
+  // nothing) on <Video> and <Image>
+  const deadTok = "kid.kd2." + "f".repeat(48);
+  const json = { "x-profile": "kd2", "x-profile-token": deadTok, "x-blur": "1" };
+  const media = { "x-profile": "kd2" };
+  const mediaSignedIn = { "x-profile": "kd2", "x-session": "0".repeat(64) };
+
+  // the library list, named kids profile + dead token -> filtered
+  const lib = run({ path: "/api/library", headers: json }, (req, res) => res.json({ movies: [LIB.m1, LIB.m2, LIB.m3], shows: [LIB.s1, LIB.s2] }));
+  assert.deepEqual(lib.body.movies.map((i) => i.id), ["m1"]);
+  assert.deepEqual(lib.body.shows.map((i) => i.id), ["s1"]);
+  // the same with the header alone, and with the dead token alone (an older TV build)
+  for (const headers of [{ "x-profile": "kd2" }, { "x-profile-token": deadTok }]) {
+    const r = run({ path: "/api/library", headers }, (req, res) => res.json({ movies: [LIB.m1, LIB.m2], shows: [] }));
+    assert.deepEqual(r.body.movies.map((i) => i.id), ["m1"], JSON.stringify(headers));
+  }
+  // home asked the old way (no profile in the query) is filtered too
+  const home = run({ path: "/api/home", headers: json }, (req, res) => res.json(HOME()));
+  assert.ok(home.body.hero.every((i) => i.id !== "h1"), "the 18+ hero is gone");
+
+  // <Video>: the over-age film is refused on every stream route…
+  for (const headers of [media, mediaSignedIn]) {
+    for (const path of ["/stream/video/m2", "/stream/hls/m2/index.m3u8", "/stream/transcode/m2/jit/index.m3u8", "/stream/hls/e2/seg0.ts", "/stream/embedded/m2/0"]) {
+      const r = run({ path, headers });
+      assert.equal(r.status, 403, path);
+      assert.equal(r.passed, false, path);
+      assert.equal(r.body.kids, true, path);
+    }
+    // …and the unrated one, and frames cut from either
+    assert.equal(run({ path: "/stream/video/m3", headers }).status, 403);
+    assert.equal(run({ path: "/img/still/m2", headers }).status, 403);
+    assert.equal(run({ path: "/img/frame/m2", headers }).status, 403);
+    // an allowed title reaches the stream route untouched (which answers 200/206)
+    for (const path of ["/stream/video/m1", "/stream/hls/e1/index.m3u8", "/img/still/m1", "/stream/embedded/m1/0"]) {
+      const r = run({ path, headers }, (req, res) => res.status(206).json({ reached: true }));
+      assert.equal(r.passed, true, path);
+      assert.equal(r.status, 206, path);
+    }
+    // a torrent nobody listed for this profile stays shut
+    assert.equal(run({ path: `/stream/torrent/${HASH_NEW}/0`, headers }).status, 403);
+  }
+
+  // the grown-up on the same TV: named, not a kids profile -> nothing is touched
+  const adult = { "x-profile": "ad2" };
+  assert.equal(run({ path: "/stream/video/m2", headers: adult }).passed, true);
+  const all = run({ path: "/api/library", headers: adult }, (req, res) => res.json({ movies: [LIB.m1, LIB.m2, LIB.m3], shows: [] }));
+  assert.equal(all.body.movies.length, 3);
+  // and the callers that name nobody — the wall before a profile is picked,
+  // the TV's health check, an old build's video request — are as they were
+  for (const path of ["/api/profiles", "/api/home", "/api/ping", "/stream/video/m2", "/api/kids/status"])
+    assert.equal(run({ path, headers: {} }).passed, true, path);
+});
+
+// ---------- FIX 2: a profile with no password opens with the household PIN ----------
+
+const guardReq = ({ body = {}, token = null, ip = "10.9.0.1" } = {}) => ({
+  body,
+  headers: { "x-forwarded-for": ip },
+  socket: {},
+  get: (h) => (String(h).toLowerCase() === "x-profile-token" ? token : undefined),
+});
+
+test("needsKidsPin: only a password-free, non-kids profile — and only once the house has a PIN and a kids profile", async () => {
+  store().profiles = [];
+  delete store().kidsPin;
+  seed("open1", "Open Adult");
+  seed("pw1", "Locked Adult", { passwordHash: "x", passwordSalt: "y" });
+  // no PIN, no kids profile: nothing changes for anyone
+  assert.equal(profiles.kidsGuard(), false);
+  assert.equal(profiles.needsKidsPin("open1"), false);
+  await profiles.setKidsPin("4826");
+  assert.equal(profiles.kidsGuard(), false, "a PIN alone guards nothing: there is no kids profile");
+  assert.equal(profiles.needsKidsPin("open1"), false);
+  seed("kid1", "Kid", { kids: { maxAge: 7 } });
+  assert.equal(profiles.kidsGuard(), true);
+  assert.equal(profiles.needsKidsPin("open1"), true);
+  assert.equal(profiles.needsKidsPin("pw1"), false, "its own password is the door");
+  assert.equal(profiles.needsKidsPin("kid1"), false, "entering a kids profile only ever restricts");
+  assert.equal(profiles.needsKidsPin("ghost"), false);
+  // the PIN goes: so does the guard (the routes never 'pass by default' on an unset PIN — there is nothing to ask)
+  profiles.clearKidsPin();
+  assert.equal(profiles.needsKidsPin("open1"), false);
+});
+
+test("unlock of a password-free grown-up's profile: no PIN is a question, a wrong PIN is refused, the right one opens", async () => {
+  const { kidsPinGuard } = require("../src/routes/profiles")._internals;
+  store().profiles = [];
+  seed("open2", "Open Adult");
+  seed("pw2", "Locked Adult", { passwordHash: "x", passwordSalt: "y" });
+  seed("kid2", "Kid", { kids: { maxAge: 12 } });
+  await profiles.setKidsPin("4826");
+
+  // nothing sent: asked for, in words a wall can show — and not counted as a wrong guess
+  for (const body of [{}, { password: "" }, { pin: "" }, { pin: null }]) {
+    const r = await kidsPinGuard(guardReq({ body, ip: "10.9.0.2" }), "open2");
+    assert.equal(r.status, 401, JSON.stringify(body));
+    assert.equal(r.body.pinRequired, true);
+    assert.match(r.body.error, /household PIN/);
+    assert.equal(r.body.wrongPin, undefined);
+  }
+  // wrong
+  const wrong = await kidsPinGuard(guardReq({ body: { pin: "0000" }, ip: "10.9.0.2" }), "open2");
+  assert.equal(wrong.status, 401);
+  assert.equal(wrong.body.pinRequired, true);
+  assert.equal(wrong.body.wrongPin, true);
+  assert.match(wrong.body.error, /not the PIN/);
+  // a number is not a PIN (it would lose "0042")
+  assert.equal((await kidsPinGuard(guardReq({ body: { pin: 4826 }, ip: "10.9.0.2" }), "open2")).status, 401);
+  // right: the request goes on
+  assert.equal(await kidsPinGuard(guardReq({ body: { pin: "4826" }, ip: "10.9.0.2" }), "open2"), null);
+  // the profiles the rule is not about
+  assert.equal(await kidsPinGuard(guardReq({ ip: "10.9.0.2" }), "pw2"), null, "a password-protected profile: its password decides");
+  assert.equal(await kidsPinGuard(guardReq({ ip: "10.9.0.2" }), "kid2"), null, "a kids profile is entered freely");
+  assert.equal(await kidsPinGuard(guardReq({ ip: "10.9.0.2" }), "ghost"), null, "not a profile: the route's own 404");
+  // a device already INSIDE the profile (a live token for it) is not asked again…
+  const tok = profiles.issueToken("open2");
+  assert.equal(await kidsPinGuard(guardReq({ token: tok, ip: "10.9.0.2" }), "open2"), null);
+  // …but another profile's token, or a dead one, is no pass
+  assert.equal((await kidsPinGuard(guardReq({ token: profiles.issueToken("kid2"), ip: "10.9.0.2" }), "open2")).status, 401);
+  profiles.revokeTokensFor("open2");
+  assert.equal((await kidsPinGuard(guardReq({ token: tok, ip: "10.9.0.2" }), "open2")).status, 401);
+
+  // guessing is rate-limited like every other PIN attempt, per address
+  let limited = null;
+  for (let i = 0; i < 40 && !limited; i++) {
+    const r = await kidsPinGuard(guardReq({ body: { pin: "1111" }, ip: "10.9.0.3" }), "open2");
+    if (r.status === 429) limited = r;
+  }
+  assert.ok(limited, "the limiter kicks in");
+  assert.equal(limited.body.pinRequired, true);
+  assert.equal((await kidsPinGuard(guardReq({ body: { pin: "4826" }, ip: "10.9.0.3" }), "open2")).status, 429, "even the right PIN waits");
+  assert.equal(await kidsPinGuard(guardReq({ body: { pin: "4826" }, ip: "10.9.0.4" }), "open2"), null, "another device is not locked out");
+
+  // no kids profile left in the house: the rule is off again
+  profiles.setKids("kid2", null);
+  assert.equal(await kidsPinGuard(guardReq({ ip: "10.9.0.5" }), "open2"), null);
+  profiles.clearKidsPin();
+});
+
+test("the PIN's promise is stated per sign-in mode, and never claims more than is true", () => {
+  const open = kids.scopeNote(false);
+  const closed = kids.scopeNote(true);
+  assert.match(open, /private window/);
+  assert.match(open, /closed/);
+  assert.doesNotMatch(open, /every device/);
+  assert.match(closed, /every device/);
+  assert.notEqual(open, closed);
+});
+
+// ---------- the second pass: posters, the wish list, the suggest heading ----------
+
+test("gate: posters and covers of an over-age title are refused wherever the picture can be tied to a title", () => {
+  const ART = { "/img/c-m1": [LIB.m1], "/img/c-m2": [LIB.m2], "/img/meta/slasher.jpg": [LIB.m2], "/img/meta/shared.jpg": [LIB.m2, LIB.m1], "/img/c-m3": [LIB.m3] };
+  const { run } = makeGate(KID, { itemsByArt: (p) => ART[p] || null });
+  const refused = (r, label) => { assert.equal(r.status, 403, label); assert.equal(r.passed, false, label); };
+  // a library cover belongs to the title that lists it
+  refused(run({ path: "/img/c-m2" }), "cover of an 18+ library film");
+  refused(run({ path: "/img/meta/slasher.jpg" }), "its downloaded poster");
+  refused(run({ path: "/img/c-m3" }), "cover of an unrated film");
+  assert.equal(run({ path: "/img/c-m1" }).passed, true, "cover of an allowed film");
+  assert.equal(run({ path: "/img/meta/shared.jpg" }).passed, true, "a picture two titles share: one of them is allowed");
+  // the backup poster is asked for by IMDb id
+  refused(run({ path: "/img/poster/tt0000002", query: { type: "movie" } }), "backup poster, 18+");
+  refused(run({ path: "/img/poster/tt0000099" }), "backup poster, unrated");
+  assert.equal(run({ path: "/img/poster/tt0000001" }).passed, true);
+  // a catalogue poster through /img/ext: the address carries the id
+  refused(run({ path: "/img/ext", query: { u: "https://images.metahub.space/poster/small/tt0000002/img" } }), "metahub poster, 18+");
+  refused(run({ path: "/img/ext", query: { u: "https://episodes.metahub.space/tt0000004/1/2/w780.jpg" } }), "episode still of a 16+ show");
+  assert.equal(run({ path: "/img/ext", query: { u: "https://images.metahub.space/poster/small/tt0000001/img" } }).passed, true);
+  // what can't be tied to a title is served as before
+  assert.equal(run({ path: "/img/ext", query: { u: "https://image.tmdb.org/t/p/w500/abcDEF.jpg" } }).passed, true, "an opaque address");
+  assert.equal(run({ path: "/img/ext", query: {} }).passed, true);
+  assert.equal(run({ path: "/img/nobody-lists-this" }).passed, true);
+  assert.equal(run({ path: "/img/poster/not-an-id" }).passed, true, "the route's own 404");
+  // …and nobody but a kids profile is asked anything
+  const open = makeGate(null, { itemsByArt: () => { throw new Error("must not be asked"); } });
+  assert.equal(open.run({ path: "/img/c-m2" }).passed, true);
+});
+
+test("gate: the wish list shows a kids profile the titles it may see, and its own requests", () => {
+  const { run } = makeGate({ profile: "kid", maxAge: 12, source: "request" }, { nameOf: (id) => (id === "kid" ? "Little One" : "") });
+  const list = [
+    { id: "r1", title: "Slasher", type: "movie", profile: "Dad", status: "pending" },
+    { id: "r2", title: "Cartoon", type: "movie", profile: "Dad", status: "pending" },
+    { id: "r3", title: "Kid Show", type: "show", profile: "Mum", status: "done" },
+    { id: "r4", title: "Never Heard Of It", type: "movie", profile: "Mum", status: "pending" },
+    { id: "r5", title: "Never Heard Of It Either", type: "movie", profile: "Little One", status: "pending" },
+    null,
+  ];
+  const r = run({ path: "/api/requests" }, (req, res) => res.json(list));
+  assert.deepEqual(r.body.map((x) => x.id), ["r2", "r3", "r5"]);
+  assert.equal(list.length, 6, "the store's own array is not touched");
+  // posting one is not filtered (the answer is the child's own request)
+  assert.equal(run({ path: "/api/requests", method: "POST", body: { title: "Slasher" } }).passed, true);
+});
+
+test("gate: a suggest heading never names a title that was filtered out", () => {
+  const { run } = makeGate(KID);
+  const sug = () => ({ suggestions: [
+    { id: "m2", type: "movie", title: "Slasher" },
+    { id: "m1", type: "movie", title: "Cartoon", relatedTo: "Slasher" },
+    { imdbId: "tt0000010", type: "movie", title: "Twelve", relatedTo: "Slasher" },
+  ] });
+  const r = run({ path: "/api/search/suggest", query: { q: "slash" } }, (req, res) => res.json(sug()));
+  assert.deepEqual(r.body.suggestions.map((s) => s.title), ["Cartoon", "Twelve"]);
+  assert.ok(r.body.suggestions.every((s) => !("relatedTo" in s)), "no 'More like Slasher'");
+  assert.equal(JSON.stringify(r.body).includes("Slasher"), false);
+  // an allowed anchor keeps its heading
+  const ok = run({ path: "/api/search/suggest", query: { q: "cart" } }, (req, res) => res.json({ suggestions: [
+    { id: "m1", type: "movie", title: "Cartoon" }, { imdbId: "tt0000010", type: "movie", title: "Twelve", relatedTo: "Cartoon" },
+  ] }));
+  assert.equal(ok.body.suggestions[1].relatedTo, "Cartoon");
 });

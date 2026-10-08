@@ -106,3 +106,30 @@ def beam(kind):
 CONCEPTS = {"curtain": curtain, "horizon": horizon, "beam": beam}
 TITLES = ["1. Curtain", "2. Horizon", "3. Beam"]
 LOCKUP_OFF = {"curtain": -15}
+
+
+# ------------------------------------------------------------------ BEAM BACKGROUND
+# Beam is the chosen logo. Its tile is not flat navy: the aurora glows behind the mark -
+# a violet bloom from the top-left corner and a green one from the bottom-right, on the page navy.
+# The violet sits behind the green band and the green stays clear of the violet band, so every
+# band keeps its contrast. (violet alpha, green alpha) at the heart of each bloom:
+BG_LEVELS = {"soft": (.40, .26), "medium": (.62, .42), "vivid": (.86, .60)}
+BG_CHOSEN = "medium"
+
+
+def glow_bg(w, h, level=None, box=None, i="g"):
+    """(defs, shapes) of the hue background on a w x h canvas. `box` (x, y, bw, bh) is the part of the
+    canvas a viewer actually sees - the blooms hang off its corners (an adaptive-icon layer is 108dp of
+    which only the middle 72dp shows, so there the box is the middle two thirds)."""
+    va, ga = BG_LEVELS[level or BG_CHOSEN]
+    x, y, bw, bh = box or (0, 0, w, h)
+    d = (bw * bw + bh * bh) ** .5
+    def rad(n, cx, cy, r, stops):
+        s = "".join(f'<stop offset="{o}" stop-color="{c}" stop-opacity="{a:.3f}"/>' for o, c, a in stops)
+        return (f'\n    <radialGradient id="{i}{n}" gradientUnits="userSpaceOnUse" cx="{f(x + cx * bw)}" cy="{f(y + cy * bh)}" '
+                f'r="{f(r * d)}">{s}</radialGradient>')
+    defs = (rad("v", .06, .0, .66, [(0, VIOLET, va), (".3", DEEP, va * .66), (".62", DEEP, va * .22), (1, DEEP, 0)]) +
+            rad("n", 1.0, 1.02, .56, [(0, MINT, ga * .8), (".22", GREEN, ga * .74), (".58", GREEN, ga * .24), (1, GREEN, 0)]))
+    shapes = (f'<rect width="{w}" height="{h}" fill="{NAVY}"/>\n  <rect width="{w}" height="{h}" fill="url(#{i}v)"/>\n'
+              f'  <rect width="{w}" height="{h}" fill="url(#{i}n)"/>')
+    return defs, shapes

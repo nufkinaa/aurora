@@ -1,8 +1,14 @@
 // MKV index reader (S7): the exact total duration and the keyframe map of a
 // Matroska file, read from its own bytes — the head (EBML header, SeekHead,
-// Info) plus the Cues the SeekHead points at (usually the file's tail).
+// Info, Tracks) plus the Cues the SeekHead points at (usually the file's tail).
 // This is what lets a still-downloading stream declare a COMPLETE, truthful
 // VOD playlist up front: duration from Info, segment boundaries from Cues.
+//
+// ONLY the first video track's cues are returned. Cues index every track
+// that asked for them — on a file with subtitle tracks most cue points are
+// subtitle lines (Silo S3E1: 28,206 cue points, 618 of them video keyframes)
+// — and a segment can only ever be cut on a VIDEO keyframe, so anything else
+// in the list is a boundary that cannot exist.
 //
 // The reader is deliberately paranoid: any structural surprise returns null
 // and the caller falls back to today's event-playlist behavior — failure
@@ -16,6 +22,13 @@ const SEGMENT = 0x18538067;
 const SEEKHEAD = 0x114d9b74;
 const INFO = 0x1549a966;
 const CUES = 0x1c53bb6b;
+const TRACKS = 0x1654ae6b;
+const CLUSTER = 0x1f43b675;
+const TRACK_ENTRY = 0xae;
+const TRACK_NUMBER = 0xd7;
+const TRACK_TYPE = 0x83;
+const TRACK_TYPE_VIDEO = 1;
+const CUE_TRACK = 0xf7;
 const SEEK = 0x4dbb;
 const SEEK_ID = 0x53ab;
 const SEEK_POSITION = 0x53ac;
@@ -67,6 +80,27 @@ const readUint = (buf, start, size) => {
 
 const HEAD_BYTES = 64 * 1024;
 const MAX_CUES_BYTES = 8 * 1024 * 1024; // Cues run ~0.1-2MB even on long films
+const MAX_TRACKS_BYTES = 4 * 1024 * 1024; // Tracks is a few KB; codec-private blobs can bloat it
+
+// The number of the FIRST video track (the one ffmpeg calls 0:v:0 — streams
+// follow TrackEntry order), or null.
+const firstVideoTrack = (buf, from, to) => {
+  let found = null;
+  walk(buf, from, to, (id, start, size) => {
+    if (id !== TRACK_ENTRY || start + size > buf.length) return;
+    let number = null;
+    let type = null;
+    walk(buf, start, start + size, (tid, tstart, tsize) => {
+      if (tid === TRACK_NUMBER) number = readUint(buf, tstart, tsize);
+      if (tid === TRACK_TYPE) type = readUint(buf, tstart, tsize);
+    });
+    if (type === TRACK_TYPE_VIDEO && number != null) {
+      found = number;
+      return false;
+    }
+  });
+  return found;
+};
 
 const parseMkvIndex = async (readRange, fileSize) => {
   try {
@@ -88,6 +122,8 @@ const parseMkvIndex = async (readRange, fileSize) => {
     let timescale = 1_000_000; // MKV default: timestamps in ms
     let durationTicks = null;
     let cuesOffset = null; // absolute file offset of the Cues element
+    let tracksOffset = null; // …and of Tracks, when the SeekHead names it
+    let videoTrack = null;
 
     walk(head, segStart, head.length, (id, start, size) => {
       if (id === SEEKHEAD && start + size <= head.length) {
@@ -100,16 +136,34 @@ const parseMkvIndex = async (readRange, fileSize) => {
             if (eid === SEEK_POSITION) targetPos = readUint(head, estart, esize);
           });
           if (targetId === CUES && targetPos != null) cuesOffset = segStart + targetPos;
+          if (targetId === TRACKS && targetPos != null) tracksOffset = segStart + targetPos;
         });
       } else if (id === INFO && start + size <= head.length) {
         walk(head, start, start + size, (iid, istart, isize) => {
           if (iid === TIMESTAMP_SCALE) timescale = readUint(head, istart, isize);
           if (iid === DURATION) durationTicks = readFloat(head, istart, isize) ?? readUint(head, istart, isize);
         });
+      } else if (id === TRACKS && start + size <= head.length) {
+        videoTrack = firstVideoTrack(head, start, start + size);
       }
       // Clusters begin: nothing else useful lives in the head past them.
-      return id !== 0x1f43b675;
+      return id !== CLUSTER;
     });
+
+    // Tracks larger than the head read (many tracks, fat codec-private
+    // data): fetch exactly that element through the SeekHead's pointer.
+    if (videoTrack == null && tracksOffset != null && tracksOffset < fileSize) {
+      const th = await readRange(tracksOffset, Math.min(16, fileSize - tracksOffset));
+      const tid = readVint(th, 0, true);
+      const tsize = tid && tid.value === TRACKS ? readVint(th, tid.length, false) : null;
+      if (tsize && tsize.value <= MAX_TRACKS_BYTES) {
+        const tracks = await readRange(tracksOffset + tid.length + tsize.length, tsize.value);
+        videoTrack = firstVideoTrack(tracks, 0, tracks.length);
+      }
+    }
+    // No video track identified → no way to tell keyframes from subtitle
+    // lines in the Cues → no usable index.
+    if (videoTrack == null) return null;
 
     if (durationTicks == null || cuesOffset == null || cuesOffset >= fileSize) return null;
     const durationSec = (durationTicks * timescale) / 1e9;
@@ -124,17 +178,26 @@ const parseMkvIndex = async (readRange, fileSize) => {
     const cuesDataStart = cuesOffset + cid.length + csize.length;
     const cues = await readRange(cuesDataStart, csize.value);
 
+    // A CuePoint is one time with one CueTrackPositions per track that has
+    // something there. Keep the point only when the video track is among
+    // them (a CueTrackPositions with no CueTrack is malformed → skipped).
     const points = [];
+    let cuePoints = 0;
     walk(cues, 0, cues.length, (id, start, size) => {
       if (id !== CUE_POINT) return;
+      cuePoints++;
       let t = null;
       let cluster = null;
       walk(cues, start, start + size, (pid, pstart, psize) => {
         if (pid === CUE_TIME) t = readUint(cues, pstart, psize);
         if (pid === CUE_TRACK_POSITIONS) {
+          let track = null;
+          let pos = null;
           walk(cues, pstart, pstart + psize, (tid, tstart, tsize) => {
-            if (tid === CUE_CLUSTER_POSITION) cluster = readUint(cues, tstart, tsize);
+            if (tid === CUE_TRACK) track = readUint(cues, tstart, tsize);
+            if (tid === CUE_CLUSTER_POSITION) pos = readUint(cues, tstart, tsize);
           });
+          if (track === videoTrack && pos != null) cluster = pos;
         }
       });
       if (t != null && cluster != null) {
@@ -143,7 +206,10 @@ const parseMkvIndex = async (readRange, fileSize) => {
     });
     if (points.length < 2) return null;
     points.sort((a, b) => a.t - b.t);
-    return { durationSec, cues: points };
+    // one entry per distinct time (a muxer may repeat a cue point)
+    const unique = points.filter((p, i) => i === 0 || p.t > points[i - 1].t);
+    if (unique.length < 2) return null;
+    return { durationSec, cues: unique, videoTrack, cuePoints };
   } catch {
     return null;
   }

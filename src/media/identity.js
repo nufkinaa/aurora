@@ -23,6 +23,25 @@ const norm = (s) =>
     .replace(/\s+/g, " ")
     .trim();
 
+// The cached IMDb id for a library item (sync, no network), or null.
+//
+// The cache is keyed by (type, title, year) — the year READ OFF THE FOLDER.
+// A folder with no year in its name is filed under the year-less key (that is
+// where downloads' remember() and the first warm pass put it). But the scanner
+// later fills such an item's `year` from the by-name metadata match, and the
+// lookup then asked for a key nobody ever wrote: "Disclosure Day" (a year-less
+// folder, matched by name to a 2020 documentary) lost its id, so its library
+// copy had no rating and was hidden from a kids profile while its catalogue
+// card — which carries the id — showed (found 2026-10-08). When the year is
+// only a guess (`yearGuessed`), the year-less key is the folder's real one.
+const cachedIdOf = (item, type = item && item.type) => {
+  if (!item) return null;
+  return (
+    imdb.cachedIdFor(item.title, type, item.year) ||
+    (item.yearGuessed ? imdb.cachedIdFor(item.title, type, null) : null)
+  );
+};
+
 const titlesMatch = (aTitle, aYear, bTitle, bYear) => {
   const a = norm(aTitle);
   const b = norm(bTitle);
@@ -44,7 +63,7 @@ const libraryMaps = (allItems = scanner.allItems()) => {
   const byTitle = new Map();
   const pools = { movie: [], show: [] };
   for (const item of allItems) {
-    const id = imdb.cachedIdFor(item.title, item.type, item.year);
+    const id = cachedIdOf(item);
     if (id) byImdb.set(id, item);
     const nt = norm(item.title);
     if (!byTitle.has(nt)) byTitle.set(nt, []);
@@ -135,7 +154,7 @@ const ensureStamped = () => {
     item.coverIsBackup = true;
   };
   for (const m of scanner.index.movies) {
-    const id = imdb.cachedIdFor(m.title, "movie", m.year);
+    const id = cachedIdOf(m, "movie");
     if (id) {
       m.imdbId = id;
       next.set(m.id, id);
@@ -143,7 +162,7 @@ const ensureStamped = () => {
     } else delete m.imdbId;
   }
   for (const show of scanner.index.shows) {
-    const id = imdb.cachedIdFor(show.title, "show", show.year);
+    const id = cachedIdOf(show, "show");
     if (id) show.imdbId = id;
     else delete show.imdbId;
     if (!id) continue;
@@ -180,8 +199,7 @@ const titleKeyFor = (itemId, meta = null) => {
 };
 
 // The cached IMDb id for a library item (sync, no network), or null.
-const imdbIdFor = (item) =>
-  item ? imdb.cachedIdFor(item.title, item.type, item.year) : null;
+const imdbIdFor = (item) => cachedIdOf(item);
 
 // Mark catalog items with the library id they correspond to. Replaces the
 // old title-only map in discover.js (which had no year and no imdbId path).
@@ -202,5 +220,5 @@ module.exports = {
   imdbIdFor,
   markLibrary,
   titlesMatch,
-  _internals: { norm, titlesMatch, libraryMaps },
+  _internals: { norm, titlesMatch, libraryMaps, cachedIdOf },
 };

@@ -25,6 +25,7 @@ import {
   getAuthMode,
   onSigninRequired,
   resolveServer,
+  setActiveProfile,
   setBaseUrl,
   setSession,
   setToken,
@@ -34,6 +35,7 @@ import {
   saveAuthSession,
   saveServerUrl,
   saveProfile,
+  saveKidsLock,
   clearProfile,
   Session,
 } from './src/storage';
@@ -92,6 +94,7 @@ export default function App() {
               const t = await api.profileTokenFromSession();
               if (!alive) return;
               setToken(t.token);
+              setActiveProfile(t.profileId);
               await saveProfile(t.profileId, t.token);
               if (!alive) return;
               setLocal({...s, serverUrl: live, profileId: t.profileId, token: t.token});
@@ -129,6 +132,7 @@ export default function App() {
               const t = await api.profileTokenFromSession();
               if (!alive) return;
               setToken(t.token);
+              setActiveProfile(t.profileId);
               await saveProfile(t.profileId, t.token);
               if (!alive) return;
               setLocal({...s, serverUrl: live, profileId: t.profileId, token: t.token});
@@ -146,6 +150,30 @@ export default function App() {
         }
       }
 
+      // Said BEFORE the screens mount (their first requests go out from their
+      // own effects, which run ahead of any effect here): every request from
+      // now on names the profile — see setActiveProfile in api.ts. This is the
+      // path a kids profile takes after a server restart: its unlock token is
+      // dead, the profile needs none to open, and the name alone keeps the
+      // server filtering.
+      setActiveProfile(s.profileId);
+      if (s.profileId) console.log('[kids] boot: back in profile', s.profileId, '(X-Profile set)');
+      // A TV that was already inside a kids profile when this build arrived
+      // (or when the admin switched kids mode on) has no lock written yet:
+      // write it now, so "Switch profile" asks for the PIN. Never awaited.
+      if (s.profileId) {
+        const pid = s.profileId;
+        api
+          .profiles()
+          .then(list => {
+            const me = list.find(p => p.id === pid);
+            if (me && me.kids) {
+              console.log('[kids] boot: profile', pid, 'is a kids profile - TV locked to it');
+              saveKidsLock({id: pid, maxAge: me.kids.maxAge});
+            }
+          })
+          .catch(() => {});
+      }
       setLocal({...s, serverUrl: live});
       setStage(s.profileId ? 'home' : 'gate');
     })();
@@ -158,6 +186,7 @@ export default function App() {
   // claimed profile signed the device in (MUST #3 — the silent migration).
   const onChosen = async (profileId: string, token: string | null, sid?: string | null) => {
     setToken(token);
+    setActiveProfile(profileId);
     if (sid) {
       setSession(sid);
       await saveAuthSession(sid);
@@ -170,6 +199,7 @@ export default function App() {
   // From the login screen (closed mode, or anyone preferring QR/typed login).
   const onSignedIn = async (profileId: string, token: string, sid: string) => {
     setToken(token);
+    setActiveProfile(profileId);
     setSession(sid);
     await saveAuthSession(sid);
     await saveProfile(profileId, token);
@@ -218,7 +248,12 @@ export default function App() {
     setStage('gate');
   };
   useEffect(() => {
-    if (stage === 'gate' || stage === 'login') setToken(null);
+    if (stage === 'gate' || stage === 'login') {
+      setToken(null);
+      // (same timing as the token, for the same reason: the Player's unmount
+      // save has gone out by now)
+      setActiveProfile(null);
+    }
   }, [stage]);
 
   return (

@@ -36,30 +36,98 @@ const vapid = () => {
 
 const keyOf = (endpoint) => crypto.createHash("sha256").update(String(endpoint)).digest("hex");
 
-const jwtFor = (endpoint) => {
+// The JWT's `sub` (who to contact about this sender). Apple's push service is
+// strict about it and refuses a token whose subject it does not like — the
+// placeholder "mailto:admin@aurora.invalid" is the likely reason the first
+// iPhone test got nothing (elia, 2026-10-08). So the subject is, in order: the
+// configured contact ("pushContact" in config.json, e.g. "mailto:you@…"); the
+// site's own https origin, remembered from the subscribing request; and only
+// then the placeholder.
+const subjectFor = (origin) => {
+  const c = String(config.PUSH_CONTACT || "").trim();
+  if (/^(mailto:[^\s@]+@[^\s@]+\.[^\s@]+|https:\/\/\S+)$/.test(c)) return c;
+  if (typeof origin === "string" && /^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(origin)) return origin;
+  return "mailto:admin@aurora.invalid";
+};
+const jwtFor = (endpoint, origin) => {
   const v = vapid();
   const aud = new URL(endpoint).origin;
   const head = b64u(JSON.stringify({ typ: "JWT", alg: "ES256" }));
-  const body = b64u(JSON.stringify({ aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: config.PUSH_CONTACT || "mailto:admin@aurora.invalid" }));
+  const body = b64u(JSON.stringify({ aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: subjectFor(origin) }));
   const key = crypto.createPrivateKey({ key: v.jwk, format: "jwk" });
   const sig = crypto.sign("sha256", Buffer.from(`${head}.${body}`), { key, dsaEncoding: "ieee-p1363" });
   return `${head}.${body}.${b64u(sig)}`;
 };
 
-const okEndpoint = (endpoint) => {
+// A subscription's endpoint is a URL this server will POST to, handed in by
+// whoever is signed in — so it may only ever be one of the browsers' real
+// push services, never "any https host" (which would let a signed-in person
+// aim the server's requests wherever they like). The services, by browser:
+//   Chrome, Edge on Android, Brave, Opera, Vivaldi, Samsung Internet (FCM)
+//                         fcm.googleapis.com
+//   Firefox               updates.push.services.mozilla.com   (*.push.services.mozilla.com)
+//   Edge on Windows (WNS) <region>.notify.windows.com         (*.notify.windows.com)
+//   Safari, iOS/iPadOS    web.push.apple.com                  (*.push.apple.com)
+// A name matches exactly or as a whole-label suffix ("evilpush.apple.com"
+// and "push.apple.com.evil.net" do not). Anything else a household turns out
+// to need goes in config.json: "pushHosts": ["push.example.com", "*.push.example.net"].
+const PUSH_HOSTS = ["fcm.googleapis.com", "*.push.services.mozilla.com", "*.notify.windows.com", "*.push.apple.com"];
+const IPV4ISH = /^[0-9.]+$|^0x[0-9a-f]+$/i;
+const HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+
+// One rule, "host" or "*.suffix" -> does this hostname pass it?
+const hostMatches = (host, rule) => {
+  const r = String(rule || "").trim().toLowerCase();
+  if (r.startsWith("*.")) {
+    const suffix = r.slice(2);
+    return HOSTNAME.test(suffix) && host.endsWith(`.${suffix}`);
+  }
+  return HOSTNAME.test(r) && host === r;
+};
+
+// https, a real hostname (no IP literal, no trailing dot), the default port,
+// no user:password@, and a host on the list.
+const okEndpoint = (endpoint, extraHosts = config.PUSH_HOSTS) => {
   try {
+    if (typeof endpoint !== "string" || endpoint.length >= 1200) return false;
     const u = new URL(endpoint);
-    return u.protocol === "https:" && String(endpoint).length < 1200;
+    if (u.protocol !== "https:") return false;
+    if (u.username || u.password) return false;
+    if (u.port && u.port !== "443") return false; // (URL already drops an explicit :443)
+    const host = u.hostname.toLowerCase();
+    if (host.startsWith("[") || IPV4ISH.test(host) || !HOSTNAME.test(host)) return false;
+    const rules = [...PUSH_HOSTS, ...(Array.isArray(extraHosts) ? extraHosts : [])];
+    return rules.some((rule) => hostMatches(host, rule));
   } catch {
     return false;
   }
 };
 
-const subscribe = (profileId, endpoint, ua) => {
+// Subscriptions kept from before the rule (or from a host since taken off the
+// list) are dropped, with whatever was waiting for them. Returns how many.
+const pruneBadSubs = (data = store.data, extraHosts = config.PUSH_HOSTS) => {
+  const subs = Array.isArray(data.subs) ? data.subs : [];
+  const good = subs.filter((s) => s && okEndpoint(s.endpoint, extraHosts));
+  const dropped = subs.length - good.length;
+  if (!dropped) return 0;
+  const keys = new Set(good.map((s) => s.key));
+  for (const s of subs) if (s && !keys.has(s.key) && data.pending) delete data.pending[s.key];
+  data.subs = good;
+  return dropped;
+};
+{
+  const dropped = pruneBadSubs();
+  if (dropped) {
+    console.warn(`[push] dropped ${dropped} subscription(s) whose endpoint is not a known push service`);
+    store.save();
+  }
+}
+
+const subscribe = (profileId, endpoint, ua, origin) => {
   if (!profileId || !okEndpoint(endpoint)) return { error: "bad subscription" };
   const key = keyOf(endpoint);
   store.data.subs = (store.data.subs || []).filter((s) => s.key !== key);
-  store.data.subs.push({ key, endpoint, profileId, ua: String(ua || "").slice(0, 160), at: Date.now() });
+  store.data.subs.push({ key, endpoint, profileId, ua: String(ua || "").slice(0, 160), origin: /^https:\/\//.test(String(origin || "")) ? String(origin).slice(0, 200) : null, at: Date.now() });
   store.save();
   return { ok: true };
 };
@@ -92,18 +160,24 @@ const takePending = (key) => {
 
 const tickle = async (sub) => {
   try {
+    if (!okEndpoint(sub.endpoint)) return void unsubscribe(sub.endpoint); // never POST anywhere else
     const r = await fetch(sub.endpoint, {
       method: "POST",
+      redirect: "manual", // a push service has no business sending us elsewhere
       headers: {
         TTL: "86400",
         Urgency: "normal",
         "Content-Length": "0",
-        Authorization: `vapid t=${jwtFor(sub.endpoint)}, k=${vapid().publicKey}`,
+        Authorization: `vapid t=${jwtFor(sub.endpoint, sub.origin)}, k=${vapid().publicKey}`,
       },
       signal: AbortSignal.timeout(10000),
     });
     if (r.status === 404 || r.status === 410) unsubscribe(sub.endpoint);
-    else if (!r.ok) console.warn(`[push] ${new URL(sub.endpoint).host} answered ${r.status}`);
+    else if (!r.ok) {
+      // the push service's own reason (Apple answers {"reason":"BadJwtToken"} and the like) is the whole diagnosis
+      const why = await r.text().catch(() => "");
+      console.warn(`[push] ${new URL(sub.endpoint).host} answered ${r.status} ${why.slice(0, 160)}`);
+    } else console.log(`[push] sent to ${new URL(sub.endpoint).host} (${r.status})`);
   } catch (e) {
     console.warn("[push] send failed:", e && e.message);
   }
@@ -139,5 +213,5 @@ module.exports = {
   countFor,
   takePending,
   send,
-  _internals: { keyOf, jwtFor, store, okEndpoint },
+  _internals: { keyOf, jwtFor, store, okEndpoint, hostMatches, pruneBadSubs, PUSH_HOSTS },
 };

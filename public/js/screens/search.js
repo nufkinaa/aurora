@@ -27,10 +27,19 @@ window.addEventListener("aurora-profile", (e) => {
   if (e.detail && e.detail.relist) searchMemory = null;
 });
 
+// Recent searches are PER PROFILE (2026-10-08). They used to be one list per
+// device, so a child opening Search read what the grown-ups had looked for.
+// The old shared list is still read by a grown-up's profile that has none of
+// its own yet (nobody loses their history) — never by a kids profile.
+const RECENT_KEY = "aurora-recent-searches";
+const recentKey = () => (state.profile && state.profile.id ? `${RECENT_KEY}:${state.profile.id}` : RECENT_KEY);
 const recents = {
   get: () => {
     try {
-      return JSON.parse(localStorage.getItem("aurora-recent-searches") || "[]");
+      const own = localStorage.getItem(recentKey());
+      if (own != null) return JSON.parse(own) || [];
+      if (state.profile && state.profile.kids) return [];
+      return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
     } catch {
       return [];
     }
@@ -39,7 +48,7 @@ const recents = {
     const list = recents.get().filter((x) => x.toLowerCase() !== q.toLowerCase());
     list.unshift(q);
     try {
-      localStorage.setItem("aurora-recent-searches", JSON.stringify(list.slice(0, 8)));
+      localStorage.setItem(recentKey(), JSON.stringify(list.slice(0, 8)));
     } catch {}
   },
 };

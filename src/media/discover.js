@@ -534,26 +534,39 @@ const search = async (q) => {
 // is on disk). Stale entries are pruned on load, so the file stays bounded.
 const metaCache = new Map();
 const META_TTL = 12 * 3600 * 1000;
-const META_V = 3; // bump when the shape of `data` changes, so stale entries refetch (3: originalLanguage)
+const META_V = 4; // bump when the shape of `data` changes, so stale entries refetch (3: originalLanguage, 4: kidsAge)
 const metaStore = new JsonStore(path.join(config.CACHE_DIR, "meta.json"), {});
 
 // ---------- age ratings, kept past the meta cache (kids profiles) ----------
 // The kids gate (lib/kids.js) hides every title whose rating it doesn't know,
 // and it may only read caches. The meta cache forgets after 12 hours and is
-// pruned at boot, which would empty a kids profile every morning — so the one
-// fact the gate needs is kept here for good: imdbId -> { c, t, n, y, at }
-// (the age label or null, "movie"/"show", the normalized title, the year).
-// A rating doesn't change; a null one ("nobody rated it", or no TMDB key) is
-// asked again after a week.
+// pruned at boot, which would empty a kids profile every morning — so the
+// facts the gate needs are kept here for good:
+//   imdbId -> { c, a, v, t, n, y, at }
+//   c  the age label the badge shows ("12+", one country's — see certification.js) or null
+//   a  the STRICTEST age across the countries we trust (a number), when known.
+//      This is what the kids gate reads; `c` is only its fallback.
+//   v  CERT_V — an entry written before `a` existed has none and is asked
+//      about again in the background (until then the gate falls back to `c`,
+//      so a deploy never empties a kids profile).
+//   t  "movie"/"show", n the normalized title, y the year.
+// A rating doesn't change; an entry with no strict age ("nobody rated it",
+// no TMDB key, TMDB was down) is asked again after a week.
 const certStore = new JsonStore(path.join(config.CACHE_DIR, "certificates.json"), {});
 const CERT_RETRY = 7 * 24 * 3600 * 1000;
+const CERT_V = 2; // 2: `a`, the strictest age (2026-10-08)
+const isAge = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0;
 const noteCertificate = (data, { save = true } = {}) => {
   if (!data || !/^tt\d{4,12}$/.test(String(data.imdbId || ""))) return;
   const prev = certStore.data[data.imdbId];
-  const c = data.certificate || (prev && prev.c) || null; // a failed re-ask never erases a known rating
-  certStore.data[data.imdbId] = {
-    c, t: data.type === "show" ? "show" : "movie", n: normalize(String(data.title || "")), y: data.year || null, at: Date.now(),
+  // a failed re-ask never erases a known rating — neither the label nor the age
+  const c = data.certificate || (prev && prev.c) || null;
+  const a = isAge(data.kidsAge) ? data.kidsAge : prev && isAge(prev.a) ? prev.a : null;
+  const entry = {
+    c, t: data.type === "show" ? "show" : "movie", n: normalize(String(data.title || "")), y: data.year || null, at: Date.now(), v: CERT_V,
   };
+  if (a != null) entry.a = a;
+  certStore.data[data.imdbId] = entry;
   if (save) certStore.save();
 };
 // The age label we hold for this id ("12+", "ALL", "PG"), or null.
@@ -561,10 +574,24 @@ const certificateCached = (imdbId) => {
   const hit = certStore.data[imdbId];
   return (hit && hit.c) || null;
 };
+// The strictest age we hold for this id (a number), or null when it has not
+// been worked out yet — the caller then falls back to certificateCached.
+const certificateAge = (imdbId) => {
+  const hit = certStore.data[imdbId];
+  return hit && isAge(hit.a) ? hit.a : null;
+};
+// What the kids gate should judge an entry by: the strict age when we have
+// it, else whatever the label reads as; Infinity when neither says anything.
+const entryAge = (hit) => {
+  if (hit && isAge(hit.a)) return hit.a;
+  const a = hit && hit.c ? require("../lib/kids").ageOf(hit.c) : null;
+  return a == null ? Infinity : a;
+};
 // The same, asked by title — stream sources are looked up by title and year,
 // never by id. Type must match; the year too when both sides have one (a year
 // apart is tolerated: release dates differ by country). Two titles that tie
 // answer with the OLDER rating, so a clash can only hide, never reveal.
+// Answers the strict age (a number) when it is known, else the label.
 const certificateByTitle = (type, title, year) => {
   const t = type === "series" || type === "show" ? "show" : "movie";
   const n = normalize(String(title || ""));
@@ -573,18 +600,19 @@ const certificateByTitle = (type, title, year) => {
   for (const hit of Object.values(certStore.data)) {
     if (!hit || hit.t !== t || hit.n !== n) continue;
     if (year && hit.y && Math.abs(hit.y - year) > 1) continue;
-    if (!hit.c) return null;
-    if (!best || kidsAge(hit.c) > kidsAge(best)) best = hit.c;
+    if (!hit.c && !isAge(hit.a)) return null;
+    if (!best || entryAge(hit) > entryAge(best)) best = hit;
   }
-  return best;
+  return best ? (isAge(best.a) ? best.a : best.c) : null;
 };
-const kidsAge = (label) => {
-  const a = require("../lib/kids").ageOf(label);
-  return a == null ? Infinity : a;
-};
+// Is there nothing left to learn about this id for now? An entry of today's
+// shape that either has its strict age or was asked about within the week.
+const certFresh = (hit) =>
+  !!hit && hit.v === CERT_V && (isAge(hit.a) || Date.now() - (hit.at || 0) < CERT_RETRY);
 // Look a rating up in the background (a kids list just hid this title for
-// having none). Never awaited by a route: a short queue, two at a time, each
-// id at most once a week. Without a TMDB key there is nothing to learn.
+// having none, or judged it by an entry that predates the strict age). Never
+// awaited by a route: a short queue, two at a time, each id at most once a
+// week. Without a TMDB key there is nothing to learn.
 const certQueue = [];
 const certQueued = new Set();
 let certRunning = 0;
@@ -597,7 +625,12 @@ const pumpCertificates = () => {
       .then((data) => noteCertificate(data))
       .catch(() => {
         // remembered as "asked", so a dead id isn't retried on every home load
-        certStore.data[imdbId] = { c: null, t: type === "series" ? "show" : "movie", n: "", y: null, at: Date.now() };
+        // — keeping whatever was known about it before
+        const prev = certStore.data[imdbId] || {};
+        certStore.data[imdbId] = {
+          c: prev.c || null, t: prev.t || (type === "series" ? "show" : "movie"), n: prev.n || "", y: prev.y || null,
+          at: Date.now(), v: CERT_V, ...(isAge(prev.a) ? { a: prev.a } : {}),
+        };
         certStore.save();
       })
       .finally(() => {
@@ -607,15 +640,31 @@ const pumpCertificates = () => {
       });
   }
 };
-const warmCertificate = (type, imdbId) => {
+// `type` may be left out for an id we already hold an entry for.
+// `bulk`: the boot-time sweep, which may queue the whole store.
+const warmCertificate = (type, imdbId, { bulk = false } = {}) => {
   if (!config.TMDB_KEY || !/^tt\d{4,12}$/.test(String(imdbId || ""))) return false;
   const hit = certStore.data[imdbId];
-  if (hit && (hit.c || Date.now() - (hit.at || 0) < CERT_RETRY)) return false;
-  if (certQueued.has(imdbId) || certQueue.length >= 400) return false;
+  if (certFresh(hit)) return false;
+  if (!type && !(hit && hit.t)) return false;
+  if (certQueued.has(imdbId) || (!bulk && certQueue.length >= 400)) return false;
   certQueued.add(imdbId);
-  certQueue.push({ type: type === "series" || type === "show" ? "series" : "movie", imdbId });
+  const kind = type || hit.t;
+  certQueue.push({ type: kind === "series" || kind === "show" ? "series" : "movie", imdbId });
   pumpCertificates();
   return true;
+};
+// Every entry that predates the strict age (or never got one) is asked about
+// again, in the background. Called when a kids profile exists at boot and
+// when one is switched on — so the lenient fallback lasts minutes, not until
+// each title happens to be looked at. Returns how many were queued.
+const refreshCertificates = () => {
+  let n = 0;
+  for (const [imdbId, hit] of Object.entries(certStore.data)) {
+    if (hit && hit.t && warmCertificate(hit.t, imdbId, { bulk: true })) n++;
+  }
+  if (n) console.log(`[kids] asking again for the strictest rating of ${n} title(s)`);
+  return n;
 };
 
 for (const [key, hit] of Object.entries(metaStore.data)) {
@@ -691,10 +740,10 @@ const meta = async (type, id) => {
     ].slice(0, 3),
     // Cinemeta has no age rating, but it does hand back the TMDB id, so this
     // costs one request off an id we already hold. Null without a TMDB key.
-    certificate: await certification.fetchCertificate(
-      cinemetaType === "series" ? "show" : "movie",
-      m.moviedb_id,
-    ),
+    // (both filled in just below: the badge and the kids gate's strict age
+    // come out of one request)
+    certificate: null,
+    kidsAge: null,
     // The language the title was made in (TMDB): the players start a
     // multi-dub file on the audio track in it (elia, 2026-10-07).
     originalLanguage: await certification.fetchOriginalLanguage(
@@ -702,6 +751,12 @@ const meta = async (type, id) => {
       m.moviedb_id,
     ),
   };
+
+  // `certificate` is the badge (one country's label); `kidsAge` the strictest
+  // age across the countries certification.js trusts — the kids gate's number.
+  const rated = await certification.fetchCertificates(cinemetaType === "series" ? "show" : "movie", m.moviedb_id);
+  data.certificate = rated.certificate;
+  data.kidsAge = rated.kidsAge;
 
   const entry = { at: Date.now(), v: META_V, data };
   metaCache.set(key, entry);
@@ -733,6 +788,6 @@ const trendingCached = () => {
 
 module.exports = {
   trending, trendingCached, search, meta, metaCached, catalog, genres, CATALOGS, normalize,
-  certificateCached, certificateByTitle, warmCertificate,
-  _internals: { cacheKey, isNewRelease, isFullPage, PAGE_SIZE, NEW_SPAN, certStore, noteCertificate },
+  certificateCached, certificateAge, certificateByTitle, warmCertificate, refreshCertificates,
+  _internals: { cacheKey, isNewRelease, isFullPage, PAGE_SIZE, NEW_SPAN, certStore, noteCertificate, certFresh, CERT_V },
 };

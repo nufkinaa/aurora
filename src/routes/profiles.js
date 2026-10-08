@@ -74,6 +74,12 @@ router.post("/api/profiles/:id/unlock", async (req, res) => {
   if (tooMany("unlock:" + ip) || tooMany("unlock:p:" + req.params.id)) {
     return res.status(429).json({ error: "too many attempts — try again in a few minutes" });
   }
+  // A grown-up's profile with no password, in a house with a kids profile
+  // and a PIN: the PIN opens it (profiles.needsKidsPin has the why). Checked
+  // HERE, where the token is handed out — the wall's own prompt is only the
+  // polite half. `pinRequired` is what tells a client to ask for it.
+  const guarded = await kidsPinGuard(req, req.params.id);
+  if (guarded) return res.status(guarded.status).json(guarded.body);
   const result = await profiles.unlock(req.params.id, (req.body || {}).password);
   if (result.error === "wrong password") {
     recordFail("unlock:" + ip);
@@ -216,6 +222,24 @@ const pinAttempt = async (ip, pin) => {
   return { status: 401, error: "That's not the PIN.", wrongPin: true };
 };
 
+// The household PIN in place of a password (profiles.needsKidsPin): null when
+// this request may go on, else the answer to send. A device that already
+// holds a LIVE unlock token for this very profile is inside it — "Switch
+// profile" and straight back must not ask again. A missing PIN is a question
+// ("pinRequired"), not a wrong guess: it doesn't count against the limiter.
+const PIN_OPENS = "This profile has no password, so the household PIN opens it.";
+async function kidsPinGuard(req, id) {
+  if (!profiles.needsKidsPin(id)) return null;
+  if (profiles.isLocked(id)) return null; // the route's own "locked by admin" answers
+  if (profiles.tokenValid(id, req.get("X-Profile-Token"))) return null;
+  const pin = (req.body || {}).pin;
+  if (pin == null || pin === "") {
+    return { status: 401, body: { error: PIN_OPENS, pinRequired: true } };
+  }
+  const r = await pinAttempt(realtime.clientIp(req), pin);
+  return r.ok ? null : { status: r.status, body: { error: r.error, pinRequired: true, wrongPin: !!r.wrongPin } };
+}
+
 // The lock this browser carries, if it still means something: the cookie
 // names a profile that exists and is (still) a kids one. Sign-in "closed"
 // never uses the cookie — there the session is the person (see resolveKids).
@@ -245,7 +269,16 @@ router.get("/api/kids/status", (req, res) => {
   res.set("Cache-Control", "no-store");
   // `lock` is what the wall asks the PIN for: the device lock, or — with no
   // lock in force — the kids profile this browser is signed in as.
-  res.json({ pinSet: profiles.kidsPinSet(), ages: kidsRules.AGES, lock: liveLock(req) || kidsSession(req) });
+  res.json({
+    pinSet: profiles.kidsPinSet(),
+    ages: kidsRules.AGES,
+    lock: liveLock(req) || kidsSession(req),
+    // true: profiles with no password open with the PIN (profiles.needsKidsPin)
+    guard: profiles.kidsGuard(),
+    // What the PIN does and doesn't promise, for the places it is set — one
+    // honest sentence instead of an implied guarantee.
+    scope: kidsRules.scopeNote(require("../lib/authmode").get() === "closed"),
+  });
 });
 
 // Entering a kids profile needs nothing extra — it only ever restricts. The
@@ -270,9 +303,15 @@ router.post("/api/kids/enter", async (req, res) => {
 
 // Leaving a kids profile: the household PIN lifts this browser's lock. With
 // no PIN set there is nothing to check (the admin page says so, loudly).
+//
+// The TV app carries no cookie lock: it remembers which kids profile it is in
+// and says so here ({ pin, profile }). Naming a kids profile is asking for the
+// PIN to be checked — the answer is what lets the app open its profile wall
+// to the other profiles (its own gate; see tv-native ProfileGate.tsx).
 router.post("/api/kids/exit", async (req, res) => {
   const signedIn = kidsSession(req);
-  if (profiles.kidsPinSet() && (liveLock(req) || signedIn)) {
+  const named = !!profiles.kidsOf(String((req.body || {}).profile || ""));
+  if (profiles.kidsPinSet() && (liveLock(req) || signedIn || named)) {
     const r = await pinAttempt(realtime.clientIp(req), (req.body || {}).pin);
     if (!r.ok) return res.status(r.status).json({ error: r.error, pinRequired: true });
   }
@@ -317,6 +356,9 @@ router.post("/api/profiles/:id/kids", gate, async (req, res) => {
   }
   const r = profiles.setKids(req.params.id, want);
   if (r.error) return res.status(r.error === "not found" ? 404 : 400).json(r);
+  // a kids profile from now on: every rating we hold is brought up to the
+  // strictest-age shape in the background (media/discover.js)
+  if (want) { try { require("../media/discover").refreshCertificates(); } catch {} }
   res.json({ ok: true, profile: r.profile, pinSet: true });
 });
 
@@ -583,7 +625,7 @@ router.get("/api/push/key", (req, res) => res.json({ publicKey: push.publicKey()
 router.post("/api/profiles/:id/push", gate, (req, res) => {
   const b = req.body || {};
   if (b.on === false) return res.json(push.unsubscribe(String(b.endpoint || "")));
-  const r = push.subscribe(req.params.id, String(b.endpoint || ""), req.headers["user-agent"]);
+  const r = push.subscribe(req.params.id, String(b.endpoint || ""), req.headers["user-agent"], req.headers.origin);
   if (r.error) return res.status(400).json(r);
   if (b.test) push.send(req.params.id, { title: "Aurora", body: "Notifications are on for this device.", url: "/", tag: "aurora-test" });
   res.json({ ...r, devices: push.countFor(req.params.id) });
@@ -597,8 +639,11 @@ router.get("/api/push/pending", (req, res) => {
 
 // Sign out everywhere else: every other session and unlock token of this
 // profile dies; the device asking keeps its session and gets a fresh token.
-router.post("/api/profiles/:id/signout-everywhere", gate, (req, res) => {
+router.post("/api/profiles/:id/signout-everywhere", gate, async (req, res) => {
   const id = req.params.id;
+  // this hands out an unlock token too — same PIN rule as unlock
+  const guarded = await kidsPinGuard(req, id);
+  if (guarded) return res.status(guarded.status).json(guarded.body);
   const sessions = require("../lib/sessions");
   const mine = authz.sessionFor(req);
   let ended = 0;
@@ -616,6 +661,6 @@ router.post("/api/profiles/:id/signout-everywhere", gate, (req, res) => {
 });
 
 // Test-only: the PIN attempt limiter (test/kids.test.js).
-router._internals = { pinAttempt };
+router._internals = { pinAttempt, kidsPinGuard };
 
 module.exports = router;

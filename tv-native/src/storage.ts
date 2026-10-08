@@ -10,7 +10,28 @@ const KEYS = {
   token: 'aurora.token',
   session: 'aurora.session', // signed-in session id (prompt 10) — X-Session
   recentProfiles: 'aurora.recentProfiles',
+  kidsLock: 'aurora.kidsLock', // the kids profile this TV is in / was last left in
 } as const;
+
+// THE KIDS LOCK. Entering a kids profile writes it; it is what makes the
+// profile wall ask for the household PIN before any OTHER profile opens — and
+// it outlives "Switch profile", an app restart and a server restart (which
+// drops the TV back to the wall by itself), because it is on the device.
+// Only the PIN, checked by the server, takes it off (ProfileGate.tsx).
+export type KidsLock = {id: string; maxAge: number};
+
+export async function loadKidsLock(): Promise<KidsLock | null> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.kidsLock);
+    const v = raw ? JSON.parse(raw) : null;
+    return v && typeof v.id === 'string' && typeof v.maxAge === 'number' ? {id: v.id, maxAge: v.maxAge} : null;
+  } catch {
+    return null;
+  }
+}
+export const saveKidsLock = (lock: KidsLock) =>
+  AsyncStorage.setItem(KEYS.kidsLock, JSON.stringify(lock)).catch(() => {});
+export const clearKidsLock = () => AsyncStorage.removeItem(KEYS.kidsLock).catch(() => {});
 
 // Which profiles THIS TV has actually been used with, most recent first. A
 // household can have 50+ profiles and a remote can only step one tile at a time,

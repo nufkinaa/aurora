@@ -151,7 +151,9 @@ export const pinPrompt = ({ title, note, choose = false, ok = "Continue", action
 // the household PIN first. Resolves true when it is fine to go on. Entering
 // the kids profile itself needs nothing; an older server (no kids routes) or
 // a blip has nothing to enforce here — the server-side gate is what counts.
-const leaveKidsFirst = async (target) => {
+// `got.pin` is left holding the PIN that was just accepted, so the profile
+// being opened next doesn't ask for the same PIN a second time.
+const leaveKidsFirst = async (target, got = {}) => {
   let st = null;
   try { st = await api.kidsStatus(); } catch { return true; }
   const lock = st && st.lock;
@@ -159,6 +161,7 @@ const leaveKidsFirst = async (target) => {
   const from = state.profiles.find((x) => x.id === lock.profile);
   const lift = async (pin) => {
     await api.kidsExit(pin);
+    if (pin) got.pin = pin;
     // the kids profile's unlock token must not ride the next profile's requests
     setAuthToken(null);
   };
@@ -173,6 +176,25 @@ const leaveKidsFirst = async (target) => {
     ok: "Unlock",
     action: lift,
   });
+};
+
+// A profile with NO password, in a house that has a kids profile and a PIN:
+// the PIN opens it (otherwise it is the one-tap way round the kids profile).
+// The server decides — it answers `pinRequired` — and it is the server that
+// refuses the unlock; this only asks. Resolves the unlock answer, or null
+// when the sheet was closed (stay at the wall). A failure that is NOT about
+// the PIN resolves {} as before: there is nothing to verify, entry goes on.
+const unlockOpenProfile = async (p, pin = "") => {
+  try { return await api.unlockProfile(p.id, "", pin); }
+  catch (e) { if (!(e && e.pinRequired)) return {}; }
+  let meta = null;
+  const ok = await pinPrompt({
+    title: "Grown-ups only",
+    note: `“${p.name}” has no password, so the household PIN opens it.`,
+    ok: "Open",
+    action: async (typed) => { meta = await api.unlockProfile(p.id, "", typed); },
+  });
+  return ok ? meta || {} : null;
 };
 
 // "Pick a new password" — the forced reset. Not dismissable by a button: the
@@ -341,7 +363,7 @@ export const profileModal = (existing, onDone) => {
     kidsChips.classList.toggle("hidden", !kidsOn);
     kidsChips.querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", Number(c.dataset.age) === kidsAge));
     kidsHint.textContent = kidsOn
-      ? `Shows only ${kidsLabel({ maxAge: kidsAge })}. Anything without a known age rating stays hidden. Leaving this profile takes the household PIN.`
+      ? `Shows only ${kidsLabel({ maxAge: kidsAge })}, judged by the strictest rating any country gave a title. Anything without a known age rating stays hidden. Leaving this profile takes the household PIN.`
       : "A kids profile only shows titles rated for the age you pick, and takes a PIN to leave.";
   };
   paintKids();
@@ -377,13 +399,15 @@ export const profileModal = (existing, onDone) => {
     const done = await pinPrompt(st.pinSet
       ? {
           title: "Household PIN",
-          note: want ? `To make “${existing.name}” a kids profile (${kidsLabel(want)}).` : `To switch kids mode off for “${existing.name}”.`,
+          note: want
+            ? `To make “${existing.name}” a kids profile (${kidsLabel(want)}).${st.scope ? ` ${st.scope}` : ""}`
+            : `To switch kids mode off for “${existing.name}”.`,
           ok: "Save",
           action: async (pin) => { saved = await api.setKids(existing.id, { kids: want, pin }); },
         }
       : {
           title: "Choose a household PIN",
-          note: "4 to 6 digits, for the grown-ups. It is asked when leaving a kids profile and when changing this setting — don't tell the kids.",
+          note: `4 to 6 digits, for the grown-ups. It is asked when leaving a kids profile, when opening a profile that has no password, and when changing this setting — don't tell the kids.${st.scope ? ` ${st.scope}` : ""}`,
           choose: true,
           ok: "Save",
           action: async (pin) => { saved = await api.setKids(existing.id, { kids: want, newPin: pin }); },
@@ -587,7 +611,8 @@ export const showProfileGate = (onChosen, opts = {}) => {
     // Admin-locked: no way in, not even with the password.
     if (p.locked) return toast(`That profile's been locked. Take it up with ${state.adminName}.`, "🚫");
     // Leaving a kids profile for any other one: the household PIN first.
-    if (!(await leaveKidsFirst(p))) return;
+    const got = {};
+    if (!(await leaveKidsFirst(p, got))) return;
     // Signed in as this profile? The session was minted by the same password
     // — convert it to an unlock token instead of prompting again.
     if (p.hasPassword && state.user && state.user.profileId === p.id) {
@@ -616,10 +641,11 @@ export const showProfileGate = (onChosen, opts = {}) => {
     // session token and it's what tells the server which device entered, so the
     // admin's per-profile device list covers open profiles too. A failure here
     // must never block entry — there is nothing to verify.
-    let token = null;
-    let meta = {};
-    try { meta = await api.unlockProfile(p.id, ""); token = meta.token; } catch {}
-    maybeClaimThenEnter(p, token, meta);
+    // (The one thing that DOES block: the household PIN, when the server asks
+    // for it — see unlockOpenProfile. Closing that sheet stays at the wall.)
+    const meta = await unlockOpenProfile(p, got.pin || "");
+    if (!meta) return;
+    maybeClaimThenEnter(p, meta.token || null, meta);
   };
 
   const tile = (p) =>

@@ -105,6 +105,14 @@ const rangeResponse = async (cached, rangeHeader) => {
 
 self.addEventListener("fetch", (e) => {
   const req = e.request;
+  // Entering or leaving a kids profile changes what every kept answer may
+  // hold (the library, home, title pages): the offline copies made as the
+  // other kind of profile are dropped, so a child offline is never handed a
+  // grown-up's list, nor the reverse.
+  if (req.method === "POST" && /\/api\/kids\/(enter|exit)$/.test(req.url.split("?")[0])) {
+    e.waitUntil(caches.delete(API).catch(() => {}));
+    return;
+  }
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
@@ -215,7 +223,7 @@ self.addEventListener("push", (e) => {
         body: m.body || "",
         tag: m.tag || "aurora",
         icon: "/icon-192.png",
-        badge: "/icon-192.png",
+        badge: "/badge-96.png",
         data: { url: m.url || "/" },
       });
     }

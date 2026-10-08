@@ -91,6 +91,7 @@ import {useFocusFallback} from '../focus';
 import {canNavigate} from '../navLock';
 import {openXray} from '../overlay';
 import {loadMe, profilePick, rememberPick, useMe} from '../navSection';
+import {audioPick, bestTrackIndex, langOf, normPick, pickOf, sameAudio, SubPick} from '../lang';
 import {
   createParty,
   joinParty,
@@ -443,50 +444,56 @@ const SUB_LANG_TEST: Record<string, {code: RegExp; label: RegExp}> = {
   he: {code: /^(he|heb|iw)/i, label: /hebrew|עבר/i},
   en: {code: /^(en|eng)/i, label: /english/i},
 };
-const autoTrack = (tracks: Track[], prefs: Prefs, profileId?: string, profileSub?: string | null): Track | null => {
+const autoTrack = (tracks: Track[], prefs: Prefs, profileSub?: string | null): Track | null => {
   if (!tracks.length) return null;
-
-  // THE PROFILE'S OWN MEMORY (`prefs.subPick` on the server — what this
-  // viewer last picked on the site or on another TV) is honoured when THIS TV
-  // holds nothing of its own for them: it has never had a subtitle picked on
-  // it, or the last pick here was made under a different profile. The TV's
-  // own memory, below, is otherwise untouched and still wins — it is the more
-  // precise of the two (it was made on this screen, for these files).
-  const localIsMine = prefs.lastSubSet && (!prefs.lastSubProfile || !profileId || prefs.lastSubProfile === profileId);
-  if (!localIsMine && profileSub) {
-    if (profileSub === 'off') return null;
-    const want = profileSub.toLowerCase();
-    const hit =
-      tracks.find(t => (t.lang || '').toLowerCase() === want) ||
-      tracks.find(t => (t.label || '').toLowerCase() === want);
-    if (hit) return hit;
-    // The profile remembers a language this release does not have: carry on
-    // with the rules below, exactly as a local miss does.
-  }
 
   // WHAT YOU PICKED LAST TIME WINS, over everything below.
   //
   // Without this, every episode came up on whatever the generic rules chose, so
-  // a viewer who wants the second Hebrew track (because the first one is out of
-  // sync, which is common — see the resync row) re-picked it at the top of every
-  // single episode. Autoplay makes that worse, not better: the next episode
-  // starts by itself and the subtitles are wrong again.
+  // a viewer re-picked their subtitles at the top of every single episode.
+  // Autoplay makes that worse, not better: the next episode starts by itself
+  // and the subtitles are wrong again.
   //
-  // Matching is by LANGUAGE, not by track identity, because the next episode's
-  // subtitles are a different file from a different uploader — there is no id to
-  // carry over. Label is the fallback for tracks whose lang field is empty.
+  // PRECEDENCE (the same on the site — player.js autoTrackIndex):
+  //   1. What was last picked BY HAND in the subtitle menu: "off" stays off;
+  //      "he" / "en" / "ru" is found again on the next title. It is a
+  //      LANGUAGE, never a track's label, because the next episode's subtitles
+  //      are a different file from a different uploader (2026-10-08: a
+  //      remembered "Hebrew 2" did not match an episode that only had
+  //      "Hebrew"). The best track in it: a full one before SDH before forced,
+  //      and among equals the first listed — lang.ts bestTrackIndex. A pick in
+  //      any other language, or of a track whose language cannot be told, is a
+  //      one-off for that title and is not remembered (rememberSub).
+  //   2. The title has nothing in that language, or nothing was ever picked:
+  //      the Settings rules at the bottom, exactly as before.
+  // So the last explicit pick wins until the next one; Settings decides only
+  // where a pick has nothing to say.
+  //
+  // WHERE (1) IS READ FROM. The profile's own memory first (`prefs.subPick` on
+  // the server): every pick, here or on the site or on another TV, lands
+  // there, so it is the LATEST one, and it is this viewer's and nobody else's.
+  // This TV's own copy (`lastSub*` in storage.ts) is the fallback for when the
+  // profile says nothing — not loaded yet, or never picked. Now that both hold
+  // the same thing (a language), the TV's copy has no extra precision to win
+  // with, which is why the order changed from "the TV first when it is mine".
+  //
+  // Values older builds stored — "Hebrew 2", "eng", "English - SDH" on the
+  // profile; a raw tag in lastSubLang or a label in lastSubLabel here — are
+  // read as their language; what cannot be placed counts as nothing remembered.
+  let local: SubPick | null = null;
   if (prefs.lastSubSet) {
     // An explicit "off" carries over too. Someone who turned subtitles off meant
     // it, and `lastSubSet` is what tells that apart from a fresh install.
-    if (!prefs.lastSubLang && !prefs.lastSubLabel) return null;
-    const sameLang =
-      prefs.lastSubLang &&
-      tracks.find(t => (t.lang || '').toLowerCase() === prefs.lastSubLang!.toLowerCase());
-    if (sameLang) return sameLang;
-    const sameLabel =
-      prefs.lastSubLabel &&
-      tracks.find(t => (t.label || '').toLowerCase() === prefs.lastSubLabel!.toLowerCase());
-    if (sameLabel) return sameLabel;
+    local =
+      !prefs.lastSubLang && !prefs.lastSubLabel
+        ? 'off'
+        : langOf({lang: prefs.lastSubLang, label: prefs.lastSubLabel});
+  }
+  const last = normPick(profileSub) || local;
+  if (last === 'off') return null;
+  if (last) {
+    const i = bestTrackIndex(tracks, last);
+    if (i >= 0) return tracks[i];
     // Remembered a language this release simply does not have. Fall through to
     // the generic rules rather than showing nothing.
   }
@@ -1043,8 +1050,10 @@ export default function Player({
       toast(`Audio: ${label}`);
       // The language follows the profile to the next title, here and on the
       // site (its rememberPick("audioLang")). A track with no language tag has
-      // nothing to carry over, so what was remembered before stays.
-      const lang = (itemRef.current?.audioTracks || []).find(t => t.index === idx)?.language;
+      // nothing to carry over, so what was remembered before stays. Hebrew,
+      // English and Russian are stored as "he" / "en" / "ru" whatever the file
+      // called them; any other dub as its own tag (lang.ts audioPick).
+      const lang = audioPick((itemRef.current?.audioTracks || []).find(t => t.index === idx)?.language);
       if (lang) rememberPick(profileId, 'audioLang', lang);
       startTranscodeAt(base, curRef.current, 'copy', {fallbackToZero: true});
     },
@@ -1264,7 +1273,9 @@ export default function Player({
     if (!audioChosen.current) {
       const list = it.audioTracks || [];
       const liked = profilePick(profileId, 'audioLang');
-      const mine = liked ? list.find(t => !!t.language && t.language === liked) : undefined;
+      // Compared as a LANGUAGE, not as a string: "he" remembered on one file
+      // is the "heb" track of the next.
+      const mine = liked ? list.find(t => sameAudio(t.language, liked)) : undefined;
       const pick = mine || list.find(t => t.original);
       if (list.length > 1) console.log('[prefs] audio: remembered', liked, '→ track', pick ? pick.index : 0, mine ? '(remembered)' : '(original)');
       if (pick && pick.index > 0) {
@@ -1544,7 +1555,14 @@ export default function Player({
       const want = autoLangWanted.current;
       const test = SUB_LANG_TEST[want];
       const hit = tracks.find(t => test.code.test(t.lang || '') || test.label.test(t.label || ''));
-      if (hit) {
+      // …unless that would overrule the viewer's own last pick: "Off" stays
+      // off, and a remembered language this title already carries keeps its
+      // track. The fetched track is still in the menu.
+      const mine = normPick(profilePick(profileId, 'subPick'));
+      const overruled = mine === 'off' || (!!mine && mine !== want && bestTrackIndex(tracks, mine) >= 0);
+      if (hit && overruled) {
+        autoLangWanted.current = null;
+      } else if (hit) {
         autoLangWanted.current = null;
         autoSubsApplied.current = true;
         setSubKey(hit.key);
@@ -1555,7 +1573,7 @@ export default function Player({
     if (autoSubsApplied.current || !tracks.length || !prefsLoaded) return;
     autoSubsApplied.current = true;
     console.log(`[player] ${tracks.length} track(s):`, tracks.map(t => t.key).join(' | '));
-    const pick = autoTrack(tracks, prefs, profileId, profilePick(profileId, 'subPick'));
+    const pick = autoTrack(tracks, prefs, profilePick(profileId, 'subPick'));
     if (pick) setSubKey(pick.key);
   }, [tracks, prefsLoaded, prefs, toast, profileId]);
 
@@ -1564,24 +1582,28 @@ export default function Player({
   // pick must never write here, or the preference would be whatever the rules
   // guessed rather than what the viewer actually chose.
   const rememberSub = useCallback((t: Track | null) => {
+    // "off", or the track's language when it is Hebrew, English or Russian.
+    // Anything else — another language, a "Track 4" nobody can place — is a
+    // one-off for this title: what was remembered stays as it was, here and on
+    // the profile (see autoTrack).
+    const pick = pickOf(t);
+    if (!pick) return;
     // Computed OUTSIDE the updater: savePrefs inside one could run twice or
     // persist a render React discarded.
     const next: Prefs = {
       ...prefsRef.current,
-      lastSubLang: t?.lang || null,
-      // Label is only worth storing when there is no lang to match on; keeping
-      // both would make a remembered "Hebrew" fail on the next episode just
-      // because that uploader named the file differently.
-      lastSubLabel: t && !t.lang ? t.label || null : null,
+      // The same normalised code the profile gets ("he", never "heb" or a
+      // label), so the two memories cannot disagree about what was picked.
+      lastSubLang: pick === 'off' ? null : pick,
+      lastSubLabel: null,
       lastSubSet: true,
       lastSubProfile: profileId,
     };
     prefsRef.current = next;
     setPrefs(next);
     savePrefs(next);
-    // And on the profile, in the site's own shape (its rememberPick("subPick")):
-    // "off", or the track's language, or its label when it has no language.
-    rememberPick(profileId, 'subPick', t ? t.lang || t.label || null : 'off');
+    // And on the profile, in the site's own shape (its rememberPick("subPick")).
+    rememberPick(profileId, 'subPick', pick);
   }, [profileId]);
 
   const subUrl = useMemo(

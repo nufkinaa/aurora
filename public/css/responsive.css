@@ -32,7 +32,7 @@
     padding: 6px;
   }
   .nav-logo span:not(.logo-mark) {
-    display: none; /* keep the gradient mark, drop the wordmark */
+    display: none; /* keep the mark, drop the wordmark */
   }
   .nav-item {
     padding: 8px 12px;

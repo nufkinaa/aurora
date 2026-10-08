@@ -18,8 +18,8 @@
     .side { position: sticky; top: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column; gap: 22px;
       padding: 22px 12px 18px; border-right: 1px solid var(--line); background: rgba(var(--bg-rgb), 0.72); z-index: 40; }
     .brand { display: flex; align-items: center; gap: 11px; padding: 0 10px; }
-    .brand .logo-mark { width: 30px; height: 30px; border-radius: 9px; flex: none;
-      background: conic-gradient(from 210deg, #6c58ff, #b76cff, #4ea3ff, #6c58ff); }
+    .brand .logo-mark { width: 30px; height: 30px; flex: none;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='117 84 344 344'%3E%3Cdefs%3E%3ClinearGradient id='a' gradientUnits='userSpaceOnUse' x1='140' y1='250' x2='400' y2='110'%3E%3Cstop offset='0' stop-color='%2346c896'/%3E%3Cstop offset='1' stop-color='%238cffbe'/%3E%3C/linearGradient%3E%3ClinearGradient id='b' gradientUnits='userSpaceOnUse' x1='136' y1='0' x2='440' y2='0'%3E%3Cstop offset='0' stop-color='%235fc4d8'/%3E%3Cstop offset='1' stop-color='%239be4f2'/%3E%3C/linearGradient%3E%3ClinearGradient id='c' gradientUnits='userSpaceOnUse' x1='140' y1='430' x2='390' y2='300'%3E%3Cstop offset='0' stop-color='%236856e2'/%3E%3Cstop offset='1' stop-color='%238b7bff'/%3E%3C/linearGradient%3E%3CclipPath id='k'%3E%3Cpath d='M136 122A34 34 0 0 1 187 92.6L425 227A34 34 0 0 1 425 285L187 419.4A34 34 0 0 1 136 390Z'/%3E%3C/clipPath%3E%3C/defs%3E%3Cg clip-path='url(%23k)'%3E%3Cpath fill='url(%23a)' d='M96 240C214 292 288 190 480 226V60H96Z'/%3E%3Cpath fill='url(%23b)' d='M96 260C214 312 288 204.7 480 238.3V283.7C288 259.3 214 386 96 334Z'/%3E%3Cpath fill='url(%23c)' d='M96 354C214 406 288 274 480 296V452H96Z'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat; /* brand:mark */ }
     .brand b { font-size: 1.05rem; font-weight: 900; letter-spacing: -0.01em; display: block; line-height: 1.1; }
     .brand small { color: var(--text-faint); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 800; }
     .snav { display: flex; flex-direction: column; gap: 3px; }
@@ -93,8 +93,8 @@
     .gate { position: fixed; inset: 0; background: var(--bg); display: grid; place-items: center; z-index: 99999; padding: 20px; }
     .gate form { width: min(340px, 100%); text-align: center; background: var(--surface); border: 1px solid var(--line);
       border-radius: 20px; padding: 30px 24px 24px; }
-    .gate .logo-mark { width: 46px; height: 46px; border-radius: 14px; display: inline-block; margin-bottom: 14px;
-      background: conic-gradient(from 210deg, #6c58ff, #b76cff, #4ea3ff, #6c58ff); }
+    .gate .logo-mark { width: 46px; height: 46px; display: inline-block; margin-bottom: 14px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='117 84 344 344'%3E%3Cdefs%3E%3ClinearGradient id='a' gradientUnits='userSpaceOnUse' x1='140' y1='250' x2='400' y2='110'%3E%3Cstop offset='0' stop-color='%2346c896'/%3E%3Cstop offset='1' stop-color='%238cffbe'/%3E%3C/linearGradient%3E%3ClinearGradient id='b' gradientUnits='userSpaceOnUse' x1='136' y1='0' x2='440' y2='0'%3E%3Cstop offset='0' stop-color='%235fc4d8'/%3E%3Cstop offset='1' stop-color='%239be4f2'/%3E%3C/linearGradient%3E%3ClinearGradient id='c' gradientUnits='userSpaceOnUse' x1='140' y1='430' x2='390' y2='300'%3E%3Cstop offset='0' stop-color='%236856e2'/%3E%3Cstop offset='1' stop-color='%238b7bff'/%3E%3C/linearGradient%3E%3CclipPath id='k'%3E%3Cpath d='M136 122A34 34 0 0 1 187 92.6L425 227A34 34 0 0 1 425 285L187 419.4A34 34 0 0 1 136 390Z'/%3E%3C/clipPath%3E%3C/defs%3E%3Cg clip-path='url(%23k)'%3E%3Cpath fill='url(%23a)' d='M96 240C214 292 288 190 480 226V60H96Z'/%3E%3Cpath fill='url(%23b)' d='M96 260C214 312 288 204.7 480 238.3V283.7C288 259.3 214 386 96 334Z'/%3E%3Cpath fill='url(%23c)' d='M96 354C214 406 288 274 480 296V452H96Z'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat; /* brand:mark */ }
     .gate h2 { font-weight: 900; font-size: 1.3rem; margin-bottom: 4px; }
     .gate .sub { color: var(--text-dim); font-size: 0.88rem; margin-bottom: 18px; }
     .gate input { width: 100%; padding: 13px 16px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.3);
@@ -1913,9 +1913,11 @@
               .map(([v, label]) => `<button data-kids="${v}" class="${(p.kids ? String(p.kids.maxAge) : "off") === v ? "active" : ""}">${esc(label)}</button>`).join("")}</div>
             <span class="note">${p.kids
               ? "Only titles rated at or under this age reach this profile — on the site and the TV. A title with no known rating stays hidden."
-              : "Pick an age to make this a kids profile: only titles rated at or under it are shown, and leaving the profile on the site takes the household PIN."}
+              : "Pick an age to make this a kids profile: only titles rated at or under it are shown, and leaving the profile takes the household PIN."}
               <br>Household PIN: ${PEOPLE && PEOPLE.kidsPinSet ? "<b>set</b>" : '<b class="warn">not set</b> — without it a child can simply switch profiles'}
-              <button class="mini" data-kids-pin>${PEOPLE && PEOPLE.kidsPinSet ? "Change PIN" : "Set PIN"}</button></span>
+              <button class="mini" data-kids-pin>${PEOPLE && PEOPLE.kidsPinSet ? "Change PIN" : "Set PIN"}</button>
+              <br>With the PIN set, a grown-up's profile that has no password opens with the PIN too. ${esc((PEOPLE && PEOPLE.kidsScope) || "")}
+              <br>Ages are the strictest rating any board gave the title (a US R counts as 17 even where Germany says 12).</span>
           </div></div>
           <div><h4>${ICO.bolt} Actions</h4><div class="actions-grid">
             <button data-act="lock">${p.locked ? ICO.unlock + "Unsuspend" : ICO.shield + "Suspend"}<small>${p.locked ? "let them back in" : "locks the profile — nobody can enter it, every device is signed out"}</small></button>
@@ -1969,7 +1971,7 @@
         return loadPeople();
       }
       if (e.target.closest("[data-kids-pin]")) {
-        const val = await askText("Household PIN — 4 to 6 digits.\n\nIt is asked when someone leaves a kids profile on the site, and when kids mode is changed from the app. One PIN for the whole house; it is stored hashed.");
+        const val = await askText("Household PIN — 4 to 6 digits.\n\nIt is asked when someone leaves a kids profile (site and TV), when a profile with no password is opened, and when kids mode is changed from the app. One PIN for the whole house; it is stored hashed.\n\n" + ((PEOPLE && PEOPLE.kidsScope) || ""));
         if (!val) return;
         const r = await adminFetch("/api/admin/kids-pin", {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: String(val).trim() }),

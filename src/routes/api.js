@@ -28,7 +28,9 @@ const kidsDeps = {
     const row = sid ? require("../lib/sessions").get(String(sid)) : null;
     return row ? { profileId: row.profileId, createdAt: row.createdAt } : null;
   },
-  tokenProfile: profiles.tokenProfile,
+  // a live token's profile — or, for a token that died with a restart, the
+  // kids profile it was issued to (fail closed: see profiles.kidsTokenProfile)
+  tokenProfile: (token) => profiles.tokenProfile(token) || profiles.kidsTokenProfile(token),
   kidsOf: profiles.kidsOf,
 };
 // Who is asking, as far as kids mode cares: { profile, maxAge, source } | null.
@@ -39,10 +41,41 @@ const kidsCertOf = kids.makeCertOf({
   findById: (id) => scanner.findById(id),
   imdbIdFor: (item) => identity.imdbIdFor(item), // the cached id — never a lookup
   cached: (imdbId) => discover.certificateCached(imdbId),
+  // The strictest age across the rating boards (see lib/kids.js makeCertOf).
+  // An id judged without one — an entry from before strict ages were kept —
+  // is asked about again in the background; the label decides meanwhile.
+  strict: (imdbId) => {
+    const age = discover.certificateAge(imdbId);
+    if (age == null) discover.warmCertificate(null, imdbId);
+    return age;
+  },
 });
+// Which library titles a picture path is the cover of ("/img/<id>",
+// "/img/meta/<name>"): the kids gate refuses a poster nobody it may see owns.
+// One map per scan; a path nothing lists answers null and is left alone.
+let artMap = null;
+let artMapAt = null;
+const itemsByArt = (p) => {
+  if (!artMap || artMapAt !== scanner.index.scannedAt) {
+    const next = new Map();
+    for (const item of scanner.allItems()) {
+      const cover = typeof item.cover === "string" ? item.cover.split("?")[0] : "";
+      if (!cover.startsWith("/img/")) continue;
+      if (!next.has(cover)) next.set(cover, []);
+      next.get(cover).push(item);
+    }
+    artMap = next;
+    artMapAt = scanner.index.scannedAt;
+  }
+  let key = p;
+  try { key = decodeURIComponent(p); } catch {}
+  return artMap.get(key) || artMap.get(p) || null;
+};
 router.use(kids.createGate({
   kidsFor,
   certOf: kidsCertOf,
+  itemsByArt,
+  nameOf: (id) => { const pr = profiles.list().find((x) => x.id === id); return pr ? pr.name : ""; },
   findById: (id) => scanner.findById(id),
   streamItem: (profileId, id) => profiles.getStreamItem(profileId, id),
   certByTitle: (type, title, year) => discover.certificateByTitle(type, title, year),

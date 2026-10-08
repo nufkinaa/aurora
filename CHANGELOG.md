@@ -3,6 +3,18 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.65 — 2026-10-08
+
+- **A logo.** Aurora has its own mark now, "Beam": a play triangle cut into bands of green, teal and violet on a dark purple-green ground. It is the site's icon and Home Screen icon, the notification badge, the mark in the navigation, and on the TV the launcher icon, the banner and the mark in the side rail. The sources and the script that redraws every size are in `docs/brand/`.
+- **Seeking in transcoded streams lands where the playlist says.** The on-demand transcoder promised one set of segment lengths in its playlist and cut another, so a long film could drift, stutter at a seam or end early. It now cuts one segment per picture group at the places the playlist names, checks the first ones against the promise, and for the rare damaged file that cannot be cut that way it says no once and falls back to the ordinary stream instead of guessing. Measured exact on seven file and format combinations.
+- **Kids profiles, tightened.** A title with several ratings is judged by its strictest one. Leaving a kids profile on the TV asks for the household PIN (a number pad; the lock survives closing the app), and the profile wall shows a KIDS badge. In a house with a kids profile and a PIN, a grown-up profile with no password asks for the PIN too, so open mode is no longer a way round. A few small leaks are closed: a poster asked for by its address when the title is not one the profile may see, an unlock token issued to a kids profile being read as a grown-up one, and the offline copies a browser keeps (dropped when a kids profile is entered or left).
+- **Subtitles and dubs are remembered by language.** Pick Hebrew, English or Russian subtitles (or switch them off) and the next title starts that way, on the site and on the TV; the automatic subtitle fetch no longer overrules what you chose.
+- **Backups.** Once a day the server writes one small archive of everything a household would miss — profiles, progress, lists, follows, sign-ins, settings, usage, its own configuration — keeping seven daily, four weekly and three monthly. It is a plain `.tar.gz` that opens anywhere. By default it sits in `data/backups`, on the same disk as the data: set `"backupDir"` in config.json to another drive or a synced folder for a backup that survives the disk.
+- **Health alerts.** The server tells whoever runs it, once and in a sentence, when the disk is filling, ffmpeg is missing, the download engine is dead with jobs waiting, there has been no backup for two days, or it keeps restarting — and again when it recovers. Sent through ntfy or Telegram when configured, and listed at `/api/admin/alerts`. `"healthPingUrl"` pings a dead-man's-switch service every five minutes.
+- **Web Push.** Notifications on iPhone did not arrive: the sender's contact address was a placeholder, which Apple refuses. It is now the site's own address (or `"pushContact"` in config.json), and the log names the push service's reason when one says no. A subscription may only point at a real browser push service (Google, Mozilla, Microsoft, Apple), never an arbitrary address.
+- **Aurora TV 5.1.21** carries the logo, the kids PIN and the language memory.
+- Restarting from the admin page saves everything first.
+
 ## 1.6.64 — 2026-10-08
 
 A round built in parallel and then tested in a real browser and on the Mi TV.

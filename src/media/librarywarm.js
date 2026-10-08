@@ -20,7 +20,10 @@ const pass = async () => {
   let metas = 0;
   for (const item of scanner.allItems()) {
     const type = item.type === "show" ? "show" : "movie";
-    let imdbId = imdb.cachedIdFor(item.title, type, item.year);
+    // (a year the scanner only guessed is not the cache's key — identity.js)
+    let imdbId =
+      imdb.cachedIdFor(item.title, type, item.year) ||
+      (item.yearGuessed ? imdb.cachedIdFor(item.title, type, null) : null);
     if (!imdbId) {
       // resolve() caches misses for a week, so an unknown title is asked
       // about once, not on every scan.

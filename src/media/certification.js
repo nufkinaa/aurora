@@ -76,12 +76,101 @@ const pickCertificate = (results, kind) => {
   return null;
 };
 
+// ---------- the strictest age, for kids profiles ----------
+// The badge above answers "what does ONE board say" and asks Germany first.
+// That is the wrong question for a kids profile: the FSK is lenient (it passed
+// Oppenheimer, Dune: Part Two, Troy and The Shawshank Redemption at 12), so a
+// 12+ profile was offered all four. The kids gate asks the opposite question —
+// "what is the OLDEST age any board we trust put on this?" — and takes the
+// maximum across the countries below. Each has a real, enforced rating system
+// whose labels are either an age or map to one without guessing.
+const STRICT_COUNTRIES = ["US", "GB", "DE", "NL", "FR", "AU", "CA", "ES", "IT", "BR", "IE", "NZ"];
+
+// "Parental guidance" has no number in any system. 8 is the BBFC's own wording
+// ("should not unsettle a child aged around eight or older") and is what
+// lib/kids.js has always read PG as: outside the 0 and 7 limits, inside 12.
+const PG_AGE = 8;
+
+// Labels that carry no digits, per country. A label that is in neither table
+// and has no digits in it is NOT guessed at — it contributes nothing.
+const WORD_AGES = {
+  // MPA films + US TV Parental Guidelines. R / TV-MA: "under 17" in the
+  // bodies' own words. (PG-13, TV-14, TV-Y7, NC-17 are read off their digits.)
+  US: { G: 0, "TV-G": 0, "TV-Y": 0, PG: PG_AGE, "TV-PG": PG_AGE, R: 17, "TV-MA": 17 },
+  // BBFC. (12, 12A, 15, 18, R18 by digits.)
+  GB: { U: 0, UC: 0, PG: PG_AGE },
+  // FSK is all digits (0, 6, 12, 16, 18).
+  DE: {},
+  // Kijkwijzer: AL = alle leeftijden.
+  NL: { AL: 0 },
+  // CNC: U / TP = tous publics.
+  FR: { U: 0, TP: 0 },
+  // Australian Classification. M is ADVISORY ("recommended for mature
+  // audiences", 15 and over) — not enforced, but it is the board saying "not
+  // for under 15", so it counts as 15, the same number as the enforced MA15+.
+  // P / C are the children's TV bands. RC = refused classification. E (exempt)
+  // says nothing. (MA15+, AV15+, R18+, X18+ by digits.)
+  AU: { G: 0, P: 0, C: 0, PG: PG_AGE, M: 15, RC: 18 },
+  // Canadian Home Video ratings + TV. Here R and A are both 18-and-over —
+  // NOT the American R. (14A, 18A, C8, 14+, 18+, Québec's 13+/16+ by digits.)
+  CA: { G: 0, C: 0, PG: PG_AGE, R: 18, A: 18 },
+  // ICAA: A / APTA / TP = for everyone, X = adults only. "Infantil" and ERI
+  // are the made-for-children marks.
+  ES: { A: 0, APTA: 0, TP: 0, INFANTIL: 0, ERI: 0, X: 18 },
+  // Italy: T = per tutti; BA = "bambini accompagnati", the TV guidance mark.
+  // (VM14, VM18, 6+, 14+, 18+ by digits.)
+  IT: { T: 0, BA: PG_AGE },
+  // ClassInd: L = livre.
+  BR: { L: 0, AL: 0 },
+  // IFCO. (12A, 15A, 16, 18 by digits.)
+  IE: { G: 0, PG: PG_AGE },
+  // New Zealand: M is advisory at 16 ("suitable for mature audiences 16 years
+  // and over"); a bare R is "restricted to a specified audience" — read as 18.
+  // (R13, R15, R16, R18, RP13, RP16 by digits.)
+  NZ: { G: 0, PG: PG_AGE, M: 16, R: 18 },
+};
+
+// One country's label -> the youngest age that country rated the title for,
+// or null when the label says nothing we can stand on.
+const countryAge = (country, certification) => {
+  const words = WORD_AGES[country];
+  if (!words) return null; // not a country we take ratings from
+  const raw = String(certification == null ? "" : certification).trim().toUpperCase();
+  if (!raw || UNRATED.has(raw)) return null;
+  if (Object.prototype.hasOwnProperty.call(words, raw)) return words[raw];
+  const digits = raw.match(/\d{1,2}/);
+  if (!digits) return null;
+  const age = Number(digits[0]);
+  return age <= 21 ? age : null; // "99" is somebody's typo, not a rating
+};
+
+// country -> label (a Map, or a plain object in tests) -> the strictest age
+// across STRICT_COUNTRIES, or null when none of them rated it.
+const strictestOf = (found) => {
+  const get = found instanceof Map ? (c) => found.get(c) : (c) => (found || {})[c];
+  let max = null;
+  for (const country of STRICT_COUNTRIES) {
+    const age = countryAge(country, get(country));
+    if (age != null && (max == null || age > max)) max = age;
+  }
+  return max;
+};
+
+// The same, straight from a TMDB answer.
+const strictestAge = (results, kind) => strictestOf(byCountry(results, kind));
+
 // Cinemeta already hands us the TMDB id as `moviedb_id`, so this is one request
 // with no search or id-matching guesswork behind it. A rating is decoration on a
 // page that has to render regardless, so every failure here is a null: no key,
 // no id, a 404, a timeout, a shape we didn't expect.
-const fetchCertificate = async (kind, tmdbId) => {
-  if (!config.TMDB_KEY || !tmdbId) return null;
+//   { certificate, kidsAge } — the badge ("12+", first country in
+//   COUNTRY_ORDER) and the kids gate's number (strictest of STRICT_COUNTRIES).
+// Two answers from the one request. They are kept apart on purpose: the badge
+// is the household's familiar scale and stays what it was; only the kids gate
+// reads the strict one.
+const NOTHING = Object.freeze({ certificate: null, kidsAge: null });
+const fetchCertificates = async (kind, tmdbId) => {
+  if (!config.TMDB_KEY || !tmdbId) return NOTHING;
   const endpoint =
     kind === "show"
       ? `tv/${tmdbId}/content_ratings`
@@ -91,12 +180,14 @@ const fetchCertificate = async (kind, tmdbId) => {
       `https://api.themoviedb.org/3/${endpoint}?api_key=${config.TMDB_KEY}`,
       { signal: AbortSignal.timeout(6000) },
     );
-    if (!res.ok) return null;
-    return pickCertificate((await res.json()).results, kind);
+    if (!res.ok) return NOTHING;
+    const results = (await res.json()).results;
+    return { certificate: pickCertificate(results, kind), kidsAge: strictestAge(results, kind) };
   } catch {
-    return null;
+    return NOTHING;
   }
 };
+const fetchCertificate = async (kind, tmdbId) => (await fetchCertificates(kind, tmdbId)).certificate;
 
 // The title's original language (ISO 639-1: "en", "he", "ja") from TMDB's
 // details — the one fact that says which audio track of a multi-dub file is
@@ -116,4 +207,7 @@ const fetchOriginalLanguage = async (kind, tmdbId) => {
   }
 };
 
-module.exports = { fetchCertificate, fetchOriginalLanguage, ageLabel, pickCertificate, COUNTRY_ORDER };
+module.exports = {
+  fetchCertificate, fetchCertificates, fetchOriginalLanguage, ageLabel, pickCertificate, COUNTRY_ORDER,
+  STRICT_COUNTRIES, countryAge, strictestOf, strictestAge,
+};

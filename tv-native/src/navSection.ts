@@ -197,7 +197,7 @@ export const profilePick = (profileId: string, key: PickKey): string | null => {
   return typeof v === 'string' && v ? v : null;
 };
 // What the server will store (profiles.js update): a short plain string.
-const PICK_OK = /^[\w .()\-֐-׿]{1,40}$/;
+const PICK_OK = /^[\w .()\-֐-׿]{1,40}$/; // same pattern as the server's (escapes, not literal range bounds)
 export const rememberPick = (profileId: string, key: PickKey, value: string | null) => {
   // A value the server would refuse is sent as "nothing remembered" — else the
   // refusal is silent and the profile keeps saying whatever it said before.

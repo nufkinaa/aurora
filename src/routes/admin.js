@@ -623,6 +623,8 @@ router.get("/api/admin/people", (req, res) => {
     // kids profiles: is the household PIN set, and the limits on offer
     kidsPinSet: profiles.kidsPinSet(),
     kidsAges: require("../lib/kids").AGES,
+    // what the PIN does and doesn't promise in this sign-in mode, in a sentence
+    kidsScope: require("../lib/kids").scopeNote(require("../lib/authmode").get() === "closed"),
     requests: profiles.pendingList(),
     bans: Object.entries(bans).map(([ip, b]) => ({ ip, reason: (b && b.reason) || "", at: b && b.at })),
     clients: clients.map((c) => ({ ...c, names: [...(ipNames.get(c.ip) || [])] })),
@@ -635,6 +637,8 @@ router.get("/api/admin/people", (req, res) => {
 // limit) and null to switch it off; anything else is refused by setKids.
 router.post("/api/admin/profiles/:id/kids", (req, res) => {
   const r = profiles.setKids(req.params.id, (req.body || {}).kids);
+  // (ratings kept from before the strictest-age rule are brought up to date)
+  if (!r.error && r.profile && r.profile.kids) { try { require("../media/discover").refreshCertificates(); } catch {} }
   if (r.error) return res.status(r.error === "not found" ? 404 : 400).json(r);
   res.json({ ok: true, profile: r.profile, pinSet: profiles.kidsPinSet() });
 });
@@ -831,7 +835,12 @@ router.post("/api/admin/update/pull", async (req, res) => {
 // this just stops the server; the button's confirm says as much.)
 router.post("/api/admin/update/restart", (req, res) => {
   res.json({ ok: true });
-  setTimeout(() => process.exit(0), 400);
+  setTimeout(() => {
+    // process.exit does not fire "beforeExit", so the stores' debounced
+    // writes (up to 1.5 s of watch progress) were lost on every Restart press
+    try { require("../lib/jsonstore").flushAll(); } catch {}
+    process.exit(0);
+  }, 400);
 });
 
 // aria2 global speed caps. GET reports the EFFECTIVE daemon values when it
@@ -884,6 +893,50 @@ router.post("/api/admin/aria2-limits", async (req, res) => {
   // Not running = nothing to throttle right now; ensure() re-applies the
   // persisted values on the next spawn, so "saved" is the honest answer.
   res.json({ ok: true, saved: { download, upload }, applied });
+});
+
+// ---------- backups (lib/backup.js) and health alerts (lib/health.js) ----------
+// The snapshots of the household's state: where they go, the last run, and
+// each one with its size, date and whether it passes its check right now.
+router.get("/api/admin/backups", async (req, res) => {
+  try {
+    res.json(await require("../lib/backup").status());
+  } catch (e) {
+    res.status(500).json({ error: String((e && e.message) || e) });
+  }
+});
+// Make one now (and apply retention, as the nightly run does).
+router.post("/api/admin/backups", async (req, res) => {
+  const backup = require("../lib/backup");
+  try {
+    const made = await backup.createNow({ prune: true });
+    res.json({ ok: true, made, ...(await backup.status()) });
+  } catch (e) {
+    res.status(500).json({ error: String((e && e.message) || e) });
+  }
+});
+// Download one. The name must be one of the names in the folder's own
+// listing (backup.pathForDownload) — it is never joined to a path on trust.
+// The archive holds config.json and .env: it is as secret as they are.
+router.get("/api/admin/backups/:name/download", async (req, res) => {
+  const abs = await require("../lib/backup").pathForDownload(req.params.name).catch(() => null);
+  if (!abs) return res.status(404).json({ error: "no such backup" });
+  res.setHeader("Cache-Control", "no-store");
+  res.download(abs, path.basename(abs), (err) => {
+    if (err && !res.headersSent) res.status(500).json({ error: "could not read the backup" });
+  });
+});
+// Health alerts: every check's settled level and sentence, when each last
+// alerted and recovered, where alerts are delivered (and a warning when they
+// go nowhere), and the dead-man's-switch ping. (/api/admin/health above is
+// the watchdog's memory graph, which the Health card already reads.)
+router.get("/api/admin/alerts", (req, res) => {
+  res.json(require("../lib/health").status());
+});
+router.post("/api/admin/alerts/run", async (req, res) => {
+  const health = require("../lib/health");
+  try { await health.run(); } catch {}
+  res.json(health.status());
 });
 
 module.exports = router;

@@ -34,8 +34,13 @@ const json = async (url, options = {}, attempt = 0) => {
     // message written for the viewer ("that name is already taken"), which is
     // far more use than "400 /api/profiles". Falls back to the status line.
     let msg = "";
-    try { msg = (await res.json()).error || ""; } catch {}
-    throw new Error(msg || `${res.status} ${url}`);
+    let body = null;
+    try { body = await res.json(); msg = (body && body.error) || ""; } catch {}
+    const err = new Error(msg || `${res.status} ${url}`);
+    // the status, and the one flag a caller acts on: "ask for the household PIN"
+    err.status = res.status;
+    if (body && body.pinRequired) err.pinRequired = true;
+    throw err;
   }
   // the tiny pictures that ride beside an answer go to blur.js; the screen
   // gets the answer it always got
@@ -75,7 +80,11 @@ const post = (url, body) =>
   });
 
 export const api = {
-  library: () => json("/api/library"),
+  // `profileId` rides in the address so the offline copy the service worker
+  // keeps (it caches by URL) is one per profile: a kids profile offline must
+  // never be handed the list a grown-up loaded on the same device. The server
+  // reads `profile` only to recognise a kids profile.
+  library: (profileId) => json(profileId ? `/api/library?profile=${encodeURIComponent(profileId)}` : "/api/library"),
   home: (profileId) => json(`/api/home?profile=${encodeURIComponent(profileId || "")}`),
   // Pass the active profile so torrent items can be rebuilt from stored state
   // after a page refresh (harmless for library items).
@@ -197,7 +206,10 @@ export const api = {
   clearIntro: (key) =>
     json(`/api/intro/${encodeURIComponent(key)}`, { method: "DELETE" }),
   profiles: () => json("/api/profiles"),
-  unlockProfile: (id, password) => post(`/api/profiles/${id}/unlock`, { password }),
+  // `pin`: the household PIN, which opens a grown-up's profile that has no
+  // password once the house has a kids profile (the server answers
+  // `pinRequired` when it wants one)
+  unlockProfile: (id, password, pin) => post(`/api/profiles/${id}/unlock`, pin ? { password, pin } : { password }),
   setPassword: (id, newPassword, currentPassword) =>
     post(`/api/profiles/${id}/password`, { newPassword, currentPassword }),
   createProfile: (fields) => post("/api/profiles", fields),

@@ -30,6 +30,21 @@ export const setSession = (s: string | null) => {
   session = s || null;
 };
 export const getSession = () => session;
+// WHICH PROFILE THIS TV IS IN, said on every request as X-Profile — the JSON
+// ones, and the <Image> and <Video> ones too (imgSrc / mediaHeaders below).
+// It exists for kids profiles: the server's age gate has to know a request
+// belongs to one, and nothing else on the TV tells it reliably. The site is
+// held by a cookie the browser attaches to everything; here the picture and
+// video loaders are not the JS fetch, and the unlock token (which only rode
+// the JSON requests anyway) dies with every server restart. A NAME needs no
+// proof — it can only restrict — so the server believes it and a kids profile
+// stays filtered whatever else is missing. For any other profile it changes
+// nothing. Set by App.tsx just before a profile's screens mount.
+let activeProfile: string | null = null;
+export const setActiveProfile = (id: string | null) => {
+  activeProfile = id || null;
+};
+export const getActiveProfile = () => activeProfile;
 // The profile's unlock token, for the one caller outside this file that must
 // send it itself: the home-screen row's native refresh (homeScreen.ts).
 export const getToken = () => token;
@@ -83,6 +98,9 @@ export type Profile = {
   prefs?: {audioLang?: string; subPick?: string} & Record<string, unknown>;
   // IMDb ids of the shows whose new episodes download by themselves.
   follows?: string[];
+  // A kids profile: only titles rated at or under maxAge reach it (the server
+  // filters; lib/kids.js). null / absent for everyone else.
+  kids?: {maxAge: number} | null;
 };
 
 export type HeroItem = {
@@ -445,6 +463,9 @@ class ApiError extends Error {
   // Set when the server's error body carried {signinRequired:true} — the
   // closed-mode "you need a session" answer, distinct from a plain 401.
   signinRequired?: boolean;
+  // {pinRequired:true}: the household PIN is wanted (leaving a kids profile,
+  // or opening a profile that has no password) — or the one sent was wrong.
+  pinRequired?: boolean;
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
@@ -458,6 +479,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
   if (token) headers['X-Profile-Token'] = token;
   if (session) headers['X-Session'] = session;
+  if (activeProfile) headers['X-Profile'] = activeProfile;
   // Reads say they can take blur-up placeholders beside the answer (the
   // server's lib/blurup.js; blur.ts keeps them, Card.tsx draws them).
   if (!options.method || String(options.method).toUpperCase() === 'GET') headers['X-Blur'] = '1';
@@ -472,11 +494,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     // The server writes its error bodies for viewers ("too many attempts —
     // try again in a few minutes") — surface them instead of a status line.
-    let body: {error?: string; signinRequired?: boolean} = {};
+    let body: {error?: string; signinRequired?: boolean; pinRequired?: boolean} = {};
     try {
       body = await res.json();
     } catch {}
     const err = new ApiError(res.status, body.error || `${res.status} ${path}`);
+    if (body.pinRequired) err.pinRequired = true;
     if (body.signinRequired) {
       err.signinRequired = true;
       // The wall went up (mode flipped, session revoked/expired): route the
@@ -611,23 +634,38 @@ export type ImgSource = {uri: string; headers?: Record<string, string>};
 export function imgSrc(pathOrUrl: string | null | undefined): ImgSource | null {
   const uri = assetUrl(pathOrUrl);
   if (!uri) return null;
-  if (session && baseUrl && uri.startsWith(baseUrl)) {
-    return {uri, headers: {'X-Session': session}};
-  }
+  // (X-Profile: the kids gate covers the stills and frames cut from a film)
+  const headers = ownHeaders();
+  if (headers && baseUrl && uri.startsWith(baseUrl)) return {uri, headers};
   return {uri};
+}
+
+// What a request the JS `fetch` wrapper does NOT make must carry to be
+// recognised by the server: the session (closed mode's wall) and the profile
+// (the kids gate). Undefined when there is neither.
+function ownHeaders(): Record<string, string> | undefined {
+  if (!session && !activeProfile) return undefined;
+  const h: Record<string, string> = {};
+  if (session) h['X-Session'] = session;
+  if (activeProfile) h['X-Profile'] = activeProfile;
+  return h;
 }
 
 // The same, for the video element: react-native-video forwards source.headers
 // to ExoPlayer's data source, which is what lets /stream/* through the wall.
+// X-Profile is what makes /stream/* refuse an over-age title to a kids profile.
 export function mediaHeaders(): Record<string, string> | undefined {
-  return session ? {'X-Session': session} : undefined;
+  return ownHeaders();
 }
 
 export const api = {
   // Health check: /api/home with no profile is public and cheap.
   ping: () => request<Home>('/api/home'),
   profiles: () => request<Profile[]>('/api/profiles'),
-  unlock: (id: string, password: string) =>
+  // `pin`: the household PIN. It opens a profile that has no password once
+  // the house has a kids profile — the server answers 401 {pinRequired:true}
+  // when it wants one.
+  unlock: (id: string, password: string, pin?: string) =>
     post<{
       ok?: boolean;
       token?: string;
@@ -640,8 +678,16 @@ export const api = {
       user?: SigninUser;
     }>(
       `/api/profiles/${id}/unlock`,
-      { password },
+      pin ? { password, pin } : { password },
     ),
+  // ---- kids profiles ----
+  // Is a household PIN set at all? (No PIN: leaving a kids profile asks nothing.)
+  kidsStatus: () => request<{pinSet: boolean; guard?: boolean}>('/api/kids/status'),
+  // Leaving the kids profile this TV is in: the server checks the PIN. Throws
+  // ApiError 401 (wrong PIN — the message is the server's) or 429 (too many
+  // tries). The TV names the profile; it carries no cookie lock.
+  kidsExit: (pin: string, profile: string) =>
+    post<{ok: boolean}>('/api/kids/exit', {pin, profile}),
   // slim=1: no episode trees or track lists. A shelf draws posters and titles,
   // and Detail/Player fetch /api/item for the rest — so those fields were 60% of
   // a 450 KB payload that this device had to pull over wifi and parse on launch.

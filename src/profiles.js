@@ -257,8 +257,17 @@ const verifyHash = async (password, salt, hash) => {
 };
 
 const tokens = new Map(); // token -> profileId
+// A token issued to a KIDS profile says so in its own text: "kid.<id>.<hex>".
+// Tokens live in RAM, so after a restart a stored one resolves to nothing —
+// and "nothing" used to mean "not a kids request": a TV or tab that kept
+// going on its old token got the unfiltered library until the profile was
+// entered again (found 2026-10-08). The prefix lets the kids gate still read
+// WHICH profile a dead token was for (kidsTokenProfile). It proves nothing
+// and opens nothing — tokenValid still wants the live entry — it only ever
+// keeps a request filtered.
 const issueToken = (id) => {
-  const t = crypto.randomBytes(24).toString("hex");
+  const rand = crypto.randomBytes(24).toString("hex");
+  const t = kidsOf(id) ? `kid.${id}.${rand}` : rand;
   tokens.set(t, id);
   return t;
 };
@@ -266,6 +275,13 @@ const tokenValid = (id, token) => !!token && tokens.get(token) === id;
 // Which profile an unlock token belongs to (null for an unknown one) — the
 // kids gate reads it to know who is asking on routes that name no profile.
 const tokenProfile = (token) => (token && tokens.get(String(token))) || null;
+// The kids profile a token was issued to, read off the token itself — alive
+// or dead. Null for any other token, and for a profile that is no longer a
+// kids one.
+const kidsTokenProfile = (token) => {
+  const m = /^kid\.([\w-]{1,40})\.[a-f0-9]{48}$/.exec(String(token || ""));
+  return m && kidsOf(m[1]) ? m[1] : null;
+};
 
 // ---------- kids profiles + the household PIN ----------
 // `kids: { maxAge }` on a profile turns the age-rating gate on for it
@@ -307,6 +323,20 @@ const clearKidsPin = () => {
   store.save();
   return { ok: true };
 };
+// THE PIN ALSO STANDS IN FOR A MISSING PASSWORD (2026-10-08). Once the house
+// has a PIN and a kids profile, a grown-up's profile with NO password is the
+// obvious way round both: one tap at the wall and the child is in it. From
+// then on such a profile opens with the household PIN (routes/profiles.js
+// asks for it wherever an unlock token is handed out). Kids profiles and
+// password-protected ones are untouched; with no PIN or no kids profile,
+// nothing changes for anyone.
+const kidsGuard = () => kidsPinSet() && store.data.profiles.some((p) => p.kids && typeof p.kids.maxAge === "number");
+const needsKidsPin = (id) => {
+  if (!kidsGuard()) return false;
+  const p = getRaw(id);
+  return !!p && !p.passwordHash && !(p.kids && typeof p.kids.maxAge === "number");
+};
+
 // With no PIN set there is nothing to match: always false (the routes decide
 // what an unset PIN means; this never "passes by default"). A wrong-shaped
 // guess still costs one scrypt, so timing says nothing about the PIN.
@@ -625,13 +655,43 @@ const update = (id, fields) => {
     // The subtitle language is a closed set, so it can ride along too.
     if (["any", "he", "en", "ru"].includes(fields.prefs.subLang)) p.prefs.subLang = fields.prefs.subLang;
     // What the viewer last picked in the player, so it follows the profile to
-    // every title and device (2026-10-07): an audio language tag as the file
-    // carries it ("eng", "heb"), and a subtitle pick ("off", or a language /
-    // label). Short plain strings only; null clears.
-    for (const k of ["audioLang", "subPick"]) {
-      const v = fields.prefs[k];
-      if (v === null) delete p.prefs[k];
-      else if (typeof v === "string" && /^[\w .()\-\u0590-\u05ff]{1,40}$/.test(v)) p.prefs[k] = v;
+    // every title and device (2026-10-07): an audio language tag ("he", "en",
+    // "ru", or another dub's tag as the file carries it — "fre"). A short
+    // plain string; null clears.
+    {
+      const v = fields.prefs.audioLang;
+      if (v === null) delete p.prefs.audioLang;
+      else if (typeof v === "string" && /^[\w .()\-֐-׿]{1,40}$/.test(v)) p.prefs.audioLang = v;
+    }
+    // The subtitle pick is a closed set: "off" | "he" | "en" | "ru" (2026-10-08
+    // — it used to be the track's label, "Hebrew 2", which matched nothing on
+    // the next episode). What an older client still sends — a tag ("eng"), a
+    // label ("English - SDH", "Hebrew [Forced]") — is folded to its language by
+    // the players' own rule (public/js/lang.js normPick); a pick in any other
+    // language changes nothing, as in the players. A label an older build left
+    // in the store is folded, or dropped, on the way past. null clears.
+    {
+      const subPick = (v) => {
+        if (typeof v !== "string" || v.length > 80) return null;
+        const s = v.trim().toLowerCase();
+        if (s === "off") return "off";
+        const code = { he: "he", heb: "he", iw: "he", en: "en", eng: "en", ru: "ru", rus: "ru" };
+        const base = s.split(/[-_]/)[0];
+        if (Object.hasOwn(code, base)) return code[base];
+        const at = (re) => (re.exec(s) || { index: Infinity }).index;
+        const found = [
+          ["he", at(/hebrew|עבר|(?:^|[^a-z])heb(?:[^a-z]|$)/)],
+          ["en", at(/english|(?:^|[^a-z])eng(?:[^a-z]|$)/)],
+          ["ru", at(/russian|русск|(?:^|[^a-z])rus(?:[^a-z]|$)/)],
+        ].sort((x, y) => x[1] - y[1])[0];
+        return found[1] === Infinity ? null : found[0];
+      };
+      const v = fields.prefs.subPick;
+      const kept = subPick(p.prefs.subPick);
+      if (v === null) delete p.prefs.subPick;
+      else if (subPick(v)) p.prefs.subPick = subPick(v);
+      else if (kept) p.prefs.subPick = kept;
+      else delete p.prefs.subPick;
     }
   }
   // Home row composition: {order: [rowIds], hidden: [rowIds]}. Ids are
@@ -1156,6 +1216,9 @@ module.exports = {
   revokeTokensFor,
   tokenValid,
   tokenProfile,
+  kidsTokenProfile,
+  kidsGuard,
+  needsKidsPin,
   kidsOf,
   setKids,
   kidsPinSet,

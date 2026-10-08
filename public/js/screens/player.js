@@ -12,6 +12,7 @@ import * as offline from "../offline.js";
 import { track } from "../usage.js";
 import { playCap, capFor, netTier, measured, probe, dataMode } from "../net.js";
 import { followVideo } from "../glassTone.js";
+import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio } from "../lang.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -844,8 +845,10 @@ export const renderPlayer = async (root, { id }) => {
     const orig = tracks.find((t) => t.original);
     // …unless this viewer chose a dub last time: the language they picked in
     // the Audio menu follows the profile to every title that has it.
+    // Compared as a LANGUAGE (lang.js), not as a string: "he" remembered on
+    // one file is the "heb" track of the next.
     const liked = profilePick("audioLang");
-    const mine = liked ? tracks.find((t) => t.language && t.language === liked) : null;
+    const mine = liked ? tracks.find((t) => sameAudio(t.language, liked)) : null;
     const pick = mine || orig;
     const oi = pick ? (pick.index != null ? pick.index : tracks.indexOf(pick)) : 0;
     if (oi > 0) audioIdx = oi;
@@ -968,7 +971,7 @@ export const renderPlayer = async (root, { id }) => {
     audioIdx = idx;
     {
       const t = (item.audioTracks || []).find((x, i) => (x.index != null ? x.index : i) === idx);
-      if (t && t.language) rememberPick("audioLang", t.language);
+      if (t && audioPick(t.language)) rememberPick("audioLang", audioPick(t.language));
     }
     closeMenu();
     showControls();
@@ -2341,12 +2344,27 @@ export const renderPlayer = async (root, { id }) => {
   };
   const SUB_LANG_NAME = { he: "Hebrew", en: "English", ru: "Russian" };
   const autoTrackIndex = (from = 0) => {
-    // What you picked last time wins over the general rules: "off" stays off,
-    // a language (or a track's own label) is found again on the next title.
-    const last = profilePick("subPick");
+    // PRECEDENCE (the same on the TV — Player.tsx autoTrack):
+    //   1. `subPick`, what you last picked BY HAND in this menu, on any device:
+    //      "off" stays off; "he" / "en" / "ru" is found again on the next
+    //      title. It is a LANGUAGE, never a track's label (2026-10-08: a
+    //      remembered "Hebrew 2" did not match an episode that only had
+    //      "Hebrew"). The best track in it: a full one before SDH before
+    //      forced, and among equals the first listed — lang.js bestTrackIndex.
+    //      A pick in any other language, or of a track whose language cannot
+    //      be told, is a one-off for that title and is not remembered.
+    //   2. This title has nothing in that language (or nothing was ever
+    //      picked): the Settings rules below, exactly as before — subtitles
+    //      off if "Subtitles on by default" is off, else the Settings language
+    //      (`subLang`), else `from`.
+    // So the last explicit pick wins until the next one; Settings decides only
+    // where a pick has nothing to say. Values older builds stored ("Hebrew 2",
+    // "eng", "English - SDH") are read as their language by normPick; anything
+    // it cannot place counts as nothing remembered.
+    const last = normPick(profilePick("subPick"));
     if (last === "off") return -1;
     if (last) {
-      const i = (item.subtitles || []).findIndex((t) => (t.lang && t.lang === last) || t.label === last);
+      const i = bestTrackIndex(item.subtitles || [], last);
       if (i >= 0) return i;
     }
     if (!prefs.get("subsDefault", true)) return -1;
@@ -2608,7 +2626,11 @@ export const renderPlayer = async (root, { id }) => {
               selectTrack(idx);
               {
                 const t = idx >= 0 ? (item.subtitles || [])[idx] : null;
-                rememberPick("subPick", idx < 0 ? "off" : (t && (t.lang || t.label)) || null);
+                // "off", or the track's language when it is Hebrew, English
+                // or Russian. Anything else is a one-off: what was remembered
+                // stays (see autoTrackIndex).
+                const pick = idx < 0 ? "off" : pickOf(t);
+                if (pick) rememberPick("subPick", pick);
               }
               closeMenu();
               showControls();
@@ -4818,7 +4840,13 @@ export const renderPlayer = async (root, { id }) => {
           if (exited || !r || !r.tracks || !r.tracks.length) return;
           addTracks(r.tracks.map((t) => ({ ...t, lang: t.lang || want })));
           const i = (item.subtitles || []).findIndex(matches);
-          if (i >= 0) {
+          // The fetched track is offered either way, but it only switches on
+          // by itself when that does not overrule the viewer's own last pick:
+          // "Off" stays off, and a remembered language this title already
+          // carries keeps its track (2026-10-08).
+          const mine = normPick(profilePick("subPick"));
+          const overruled = mine === "off" || (mine && mine !== want && bestTrackIndex(item.subtitles || [], mine) >= 0);
+          if (i >= 0 && !overruled) {
             selectTrack(i);
             toast(`${SUB_LANG_NAME[want] || "Matching"} subtitles found — switched on`, "💬");
           }

@@ -151,6 +151,15 @@ module.exports = {
   // with "aiModel" in config.json.
   AI_MODEL: userConfig.aiModel || "google/gemini-2.5-flash",
   TORRENTS: userConfig.torrents !== false,
+  // These two were documented and read by their modules but never exported,
+  // so the settings did nothing (found 2026-10-08). "preconvert": false stops
+  // play-ready copies being made after a download; "offlineCacheGb" caps the
+  // disk the phone-download copies may use (default 8).
+  preconvert: userConfig.preconvert !== false,
+  offlineCacheGb: userConfig.offlineCacheGb,
+  // Who a push service may contact about this server: "mailto:you@example.com"
+  // or an https URL. Apple is strict about it; see lib/push.js.
+  PUSH_CONTACT: process.env.AURORA_PUSH_CONTACT || userConfig.pushContact || null,
   // Join the recommended source's swarm the moment its sources list opens, so
   // pressing Play lands on a warm torrent. "prewarmStreams": false disables.
   PREWARM: userConfig.prewarmStreams !== false,
@@ -160,6 +169,27 @@ module.exports = {
   DOWNLOAD_MIN_FREE_PERCENT:
     typeof userConfig.downloadMinFreePercent === "number" ? userConfig.downloadMinFreePercent : 10,
   NOTIFICATIONS: userConfig.notifications || {},
+  // ---- backups (lib/backup.js) ----
+  // Where the daily snapshot of the household's state is written. The default
+  // sits beside the data it protects, which guards against a corrupt file or
+  // a mistake but NOT against losing the disk — point "backupDir" (or
+  // AURORA_BACKUP_DIR) at another drive, a NAS share or a synced folder for
+  // that. `"backups": false` switches the daily snapshot off.
+  BACKUP_DIR: path.resolve(ROOT, process.env.AURORA_BACKUP_DIR || userConfig.backupDir || path.join(DATA_DIR, "backups")),
+  BACKUPS: userConfig.backups !== false,
+  // How many snapshots are kept: { "daily": 7, "weekly": 4, "monthly": 3 }.
+  BACKUP_KEEP: userConfig.backupKeep && typeof userConfig.backupKeep === "object" ? userConfig.backupKeep : {},
+  // ---- health alerts (lib/health.js) ----
+  // Thresholds, all optional: { "diskWarnPercent": 10, "diskWarnGb": 20,
+  // "diskCriticalPercent": 5, "diskCriticalGb": 5, "backupMaxAgeHours": 48,
+  // "repeatHours": 12 }. `"health": false` switches the alerts off.
+  HEALTH: userConfig.health === false ? false : (userConfig.health && typeof userConfig.health === "object" ? userConfig.health : {}),
+  // Dead-man's switch: a URL fetched every five minutes while the server is
+  // alive (healthchecks.io and the like alert when the pings STOP).
+  HEALTH_PING_URL: process.env.AURORA_HEALTH_PING_URL || userConfig.healthPingUrl || null,
+  // Extra Web Push hosts allowed beyond the built-in browser push services
+  // (lib/push.js): ["push.example.com", "*.push.example.net"].
+  PUSH_HOSTS: Array.isArray(userConfig.pushHosts) ? userConfig.pushHosts : [],
   // Sign-in rollout FALLBACK (prompt 10). The live value is managed from the
   // admin panel and stored in data/settings.json — see src/lib/authmode.js.
   // This config value only applies when settings carry no authMode (fresh

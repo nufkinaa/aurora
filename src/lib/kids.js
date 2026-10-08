@@ -64,21 +64,39 @@ const validPin = (pin) => typeof pin === "string" && /^\d{4,6}$/.test(pin);
 // three of its sources), so they are looked up by IMDb id in the cached
 // catalogue ratings; an episode asks about its show. Every dep is a plain
 // synchronous cache read — nothing here may touch the network.
-const makeCertOf = ({ findById = null, imdbIdFor = null, cached = null } = {}) => (item) => {
+//
+// THE STRICTEST RATING WINS (2026-10-08). A label ("12+") is ONE country's
+// verdict, and the one the badge prefers — Germany's — is lenient: FSK 12
+// covers Oppenheimer and The Shawshank Redemption. So whenever the title's
+// IMDb id is known and `strict(imdbId)` has a number for it (the oldest age
+// across every board media/certification.js trusts), THAT is the answer, even
+// over a label the item carries itself. A label only decides while the strict
+// age hasn't been worked out yet — so nothing vanishes on the day this ships,
+// and nothing lenient lasts longer than the background refresh takes.
+// Returns a number (strict age) or a label; ageOf() reads both.
+const makeCertOf = ({ findById = null, imdbIdFor = null, cached = null, strict = null } = {}) => (item) => {
   if (!item || typeof item !== "object") return null;
   const id = typeof item.id === "string" ? item.id : "";
   // A torrent play-item is stored from what the CLIENT sent with its watch
   // progress, so a rating printed on it proves nothing — only its id counts.
   const trustOwn = !id.startsWith("torrent|") && !item._isTorrent;
-  if (trustOwn && item.certificate) return item.certificate;
   let title = item;
   if (item.showId && findById) title = findById(item.showId) || item;
-  if (title !== item && title.certificate) return title.certificate;
+  const own = (trustOwn && item.certificate) || (title !== item && title.certificate) || null;
+  // (no strict lookup wired — the pure helpers and old callers: label first, id never asked)
+  if (own && !strict) return own;
   const tt = (v) => (typeof v === "string" && /^tt\d{4,12}$/.test(v) ? v : null);
   const imdbId =
     tt(title.imdbId) || tt(item.imdbId) ||
     (trustOwn && imdbIdFor ? tt(imdbIdFor(title)) : null) ||
     tt(id.replace(/^disc:/, ""));
+  const strictAge = imdbId && strict ? strict(imdbId) : null;
+  if (typeof strictAge === "number" && Number.isFinite(strictAge)) {
+    // two readings of one title: the older one stands (it can only hide)
+    const ownAge = own ? ageOf(own) : null;
+    return ownAge != null && ownAge > strictAge ? ownAge : strictAge;
+  }
+  if (own) return own;
   return imdbId && cached ? cached(imdbId) || null : null;
 };
 
@@ -107,6 +125,17 @@ const filterHome = (payload, maxAge, certOf = ownCert) => {
   };
 };
 
+// ---------- what the PIN promises, said plainly ----------
+// Shown wherever the PIN is set (the admin's People tab, the kids setup in
+// the app). One sentence, and it must stay TRUE: in sign-in mode "open" and
+// "transition" the lock on a browser is a cookie, so a private window starts
+// outside any kids profile, and a request that names no profile is not
+// filtered. Only "closed" — where the session is the person — shuts that.
+const scopeNote = (closed) =>
+  closed
+    ? "Sign-in is required on this server, so a kids profile stays a kids profile on every device."
+    : "The PIN guards the profile wall (site and TV app). It is not a guarantee: unless sign-in mode is “closed”, a private window or cleared cookies start outside any kids profile, and a hand-typed address is not filtered.";
+
 // ---------- the device lock ----------
 // Entering a kids profile in a browser sets this cookie; it rides every
 // request that browser makes — the <video> and <img> ones too, which carry no
@@ -114,6 +143,9 @@ const filterHome = (payload, maxAge, certOf = ownCert) => {
 // The value is "<profileId>.<set-at ms>". It is not signed on purpose: the
 // only thing a forged one can do is restrict the forger.
 const COOKIE = "aurora_kid";
+// The TV app has no browser around it: nothing guarantees a cookie rides its
+// video and artwork requests. It names its profile on every request instead.
+const PROFILE_HEADER = "x-profile";
 
 // ...and the mark the PIN leaves behind when it lifts the lock (2026-10-08):
 // "this browser LEFT that kids profile". Without it, a browser whose sign-in
@@ -170,9 +202,18 @@ const clearCookie = () => `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0
 //    kids one: that took a password a child doesn't have, and it is what
 //    keeps a stale lock from trapping a grown-up.
 //  - then whatever profile the request itself names: its session, its unlock
-//    token, `profile=` in the query or body, /api/profiles/:id in the path.
+//    token, the X-Profile header, `profile=` in the query or body,
+//    /api/profiles/:id in the path.
 //    A request that names no profile stays unfiltered, as before kids
 //    profiles existed — that is every old caller.
+//
+// NAMING a kids profile is enough; nothing has to prove it. A name can only
+// restrict, so it is believed from anyone — which is what makes this fail
+// CLOSED: the TV app says who it is on every request, video and artwork
+// included (X-Profile; it has no cookie jar to rely on), and a kids profile
+// stays a kids profile when its unlock token has died with a server restart
+// (deps.tokenProfile also answers for a DEAD token that was issued to a kids
+// profile — profiles.kidsTokenProfile).
 const resolveKids = (req, deps) => {
   const kidsOf = (id) => {
     const k = id && typeof id === "string" ? deps.kidsOf(id) : null;
@@ -198,6 +239,8 @@ const resolveKids = (req, deps) => {
   if (sess && !leftIt) named.push(sess.profileId);
   const token = req.headers && req.headers["x-profile-token"];
   if (token && deps.tokenProfile) named.push(deps.tokenProfile(String(token)));
+  const header = req.headers && req.headers[PROFILE_HEADER];
+  if (typeof header === "string" && /^[\w-]{1,40}$/.test(header)) named.push(header);
   if (req.query && typeof req.query.profile === "string") named.push(req.query.profile);
   if (req.body && typeof req.body === "object" && typeof req.body.profile === "string") named.push(req.body.profile);
   const inPath = /^\/api\/profiles\/([^/]+)/.exec(req.path || "");
@@ -224,6 +267,9 @@ const resolveKids = (req, deps) => {
 //   certByTitle(type, title, yr) -> age label | null         (cached catalogue meta)
 //   hashes                       -> Map infoHash -> { age, at }  (what may be streamed)
 //   onUnknown(item)              -> optional; told about hidden unrated titles
+//   itemsByArt(path)             -> optional; the library titles a picture path
+//                                   ("/img/<id>", "/img/meta/<name>") is the cover of
+//   nameOf(profileId)            -> optional; the profile's display name
 const HASH_TTL = 24 * 3600 * 1000;
 const HASH_MAX = 4000;
 
@@ -248,8 +294,10 @@ const createGate = (deps) => {
 
   return (req, res, next) => {
     const p = req.path || "";
+    // (/img/: stills and frames cut from the film itself, and — since the
+    // second pass — posters, wherever a picture can be tied to a title)
     const watched = p.startsWith("/api/") || p.startsWith("/stream/") || p.startsWith("/offline/") ||
-      p.startsWith("/img/still/") || p.startsWith("/img/frame/"); // frames cut from the film itself
+      p.startsWith("/img/");
     // the admin panel, sign-in and the kids routes themselves are never gated
     if (!watched || /^\/api\/(admin|auth|kids)(\/|$)/.test(p)) return next();
     let kid = null;
@@ -338,7 +386,39 @@ const createGate = (deps) => {
       if (p === "/api/library/for") return rewrite((b) => ({ ...b, item: b.item && ok(b.item) ? b.item : null }));
       if (p === "/api/popular" || p === "/api/catalog" || p.startsWith("/api/discover/similar/")) return fields("items");
       if (p === "/api/search") return fields("results", "catalog");
-      if (p === "/api/search/suggest") return fields("suggestions");
+      if (p === "/api/search/suggest") {
+        // Scarce matches are padded with "More like <the best match>" — and
+        // that heading NAMED the best match even when it had just been
+        // filtered out. A heading may only name a title that is still there.
+        return rewrite((body) => {
+          const kept = keep(body.suggestions);
+          if (!Array.isArray(kept)) return body;
+          const shown = new Set(kept.filter((s) => s && !s.relatedTo).map((s) => s.title));
+          return {
+            ...body,
+            suggestions: kept.map((s) => {
+              if (!s || !s.relatedTo || shown.has(s.relatedTo)) return s;
+              const { relatedTo, ...rest } = s;
+              return rest;
+            }),
+          };
+        });
+      }
+      // The household's wish list names every title anyone asked for. A kids
+      // profile sees the ones it may see (judged by title — a request carries
+      // no id) and the ones it asked for itself: it typed those.
+      if (p === "/api/requests") {
+        const mine = deps.nameOf ? String(deps.nameOf(kid.profile) || "").slice(0, 24) : "";
+        return rewrite((body) => {
+          if (!Array.isArray(body)) return body;
+          return body.filter((r) => {
+            if (!r || typeof r !== "object") return false;
+            if (mine && r.profile === mine) return true;
+            const age = ageOf(deps.certByTitle ? deps.certByTitle(r.type === "show" ? "series" : "movie", String(r.title || ""), null) : null);
+            return age != null && age <= max;
+          });
+        });
+      }
       if (p === "/api/discover" || p === "/api/discover/search") return fields("movies", "shows");
       if (p.startsWith("/api/discover/collection/")) {
         // { collection, director, creator, network }: each a shelf with items
@@ -427,6 +507,25 @@ const createGate = (deps) => {
       return !item || ok(item) ? next() : tooOld();
     }
 
+    // ----- posters and covers -----
+    // A poster is the title's name in a picture. Gated wherever the path can
+    // be tied to a title without work: a backup poster is asked for BY IMDb
+    // id; a library cover belongs to the item(s) that list it; a catalogue
+    // poster fetched through /img/ext comes from an address with the IMDb id
+    // in it (metahub's do). Anything that can't be tied to a title — an /img/ext
+    // address with no id in it, a picture nothing lists — is served as before.
+    if (p.startsWith("/img/") && method === "GET") {
+      const tt = (s) => { const m = /(?:^|[\/=])(tt\d{4,12})(?:[\/.?&]|$)/.exec(String(s || "")); return m ? m[1] : null; };
+      let imdbId = null;
+      if (p === "/img/ext") imdbId = tt((req.query || {}).u);
+      else if (p.startsWith("/img/poster/")) imdbId = tt(p.slice("/img/poster/".length));
+      if (imdbId) return ok({ imdbId }) ? next() : tooOld();
+      if (p === "/img/ext" || p.startsWith("/img/poster/")) return next();
+      const owners = deps.itemsByArt ? deps.itemsByArt(p) : null;
+      if (Array.isArray(owners) && owners.length) return owners.some(ok) ? next() : tooOld();
+      return next();
+    }
+
     // ----- asking the server to download a title -----
     if (p === "/api/downloads" && method === "POST") {
       const b = req.body || {};
@@ -441,5 +540,5 @@ const createGate = (deps) => {
 module.exports = {
   AGES, ageOf, cleanKids, validPin, makeCertOf, allowed, filterItems, filterHome,
   COOKIE, readLock, lockCookie, clearCookie, resolveKids, createGate,
-  OUT_COOKIE, readRelease, releaseCookie, clearRelease,
+  OUT_COOKIE, readRelease, releaseCookie, clearRelease, PROFILE_HEADER, scopeNote,
 };

@@ -1,169 +1,141 @@
-# Aurora logo proposals
+# Aurora logo: Beam
 
-Three directions for a real mark, to replace the plain violet gradient square (web) and the
-letter "A" (TV). **Nothing is installed** - this folder is a proposal. Start with
-`overview.png`: the three side by side at every size that matters.
+**Beam is Aurora's logo.** Three directions were proposed (Curtain, Horizon, Beam -
+`overview.png`); the owner chose Beam and asked for more of the product's purple and green
+in the background. That is done and the logo is installed on the site and in the Android TV
+app. Everything is generated - see [Regenerating](#regenerating).
 
-Files per concept (`curtain`, `horizon`, `beam`):
+## The mark
+
+A play triangle made of three bands of light - green, cyan, violet - parted by the wavy hem
+of an aurora curtain and converging on the tip like a projector beam. It says "press play"
+and "aurora" in one shape, and survives 16 px as a coloured play arrow.
+
+The mark itself is unchanged from the proposal. It is drawn in `tools/concepts.py` (`beam`)
+in a 512 box; the triangle spans x 136..442, y 88..424.
+
+## The background
+
+The proposal's tile was close to flat navy. It is now an aurora glow behind the mark, on the
+page navy `#0b0c14`:
+
+- a **violet bloom from the top-left corner** (`#8b7bff` at the heart, through `#6856e2`, to nothing);
+- an **aurora-green bloom from the bottom-right corner** (`#8cffbe` at the heart, through `#46c896`, to nothing).
+
+The corners are chosen for contrast: the violet sits behind the green band, the green stays
+clear of the violet band, and the diagonal between them stays navy, so all three bands keep
+their edge and the tile does not go muddy at 32-48 px.
+
+Three intensities were rendered - `beam-background-options.png` shows the old background and
+all three at 512 / 96 / 48 / 32 px and as the TV banner. **Medium** is the one installed:
+Soft is hard to tell from the old tile at 48 px (the request would look unanswered); Vivid
+is handsome large but its lit corners start to compete with the mark, and the green band
+loses contrast against the bright violet corner. The levels are `BG_LEVELS` in
+`tools/concepts.py` (peak alpha of the violet and green blooms: soft .40/.26, medium .62/.42,
+vivid .86/.60); change `BG_CHOSEN` and run the install to switch.
+
+## Where the logo lives
+
+Sources and previews, `docs/brand/`:
 
 | file | what it is |
 | --- | --- |
-| `<name>-mark.svg` | the mark alone, 512 box, transparent background |
-| `<name>-icon.svg` | the mark as a full-bleed square app icon on navy (source for launcher / PWA icons) |
-| `<name>-mono.svg` | one colour, `currentColor` (defaults to `#f3f4f8`) - favicon, notification, stencil |
-| `<name>-lockup.svg` | mark + drawn "Aurora" wordmark, horizontal, for dark backgrounds |
-| `<name>-tv-banner.svg` / `.png` | 320x180 Android TV banner |
-| `<name>-512.png`, `-64.png`, `-32.png` | previews of the icon on navy |
+| `beam-mark.svg` | the mark alone, 512 box, transparent |
+| `beam-icon.svg` | full-bleed square app icon: hue background + mark at 80% (source of launcher / PWA icons) |
+| `beam-mono.svg` | one colour, `currentColor` (defaults to `#f3f4f8`) |
+| `beam-lockup.svg` | mark + drawn "Aurora" wordmark, horizontal, transparent, for dark backgrounds |
+| `beam-tv-banner.svg` / `.png` | 320x180 Android TV banner on the hue background |
+| `beam-512.png`, `-64.png`, `-32.png` | previews of the icon |
+| `beam-background-options.png` | the background comparison sheet, the pick marked |
+| `overview.png`, `curtain-*`, `horizon-*` | the original three proposals, kept for the record |
 
-The wordmark is not a font: it is six monoline letters built from straight lines and circular
-arcs (x-height 100, cap height 142, stroke 14 units), so it renders identically everywhere.
+Installed - every file below is written by `build.py install`, at a fixed size:
 
-The PNGs are the SVGs themselves, rasterised by headless Chrome at 1024 px (banner at
-1280x720) and Lanczos-downscaled - not a redraw. `python docs/brand/tools/build.py`
-regenerates every SVG and PNG from `tools/concepts.py` (needs Pillow and Chrome or Edge).
+| where | file(s) | size | what |
+| --- | --- | --- | --- |
+| web | `public/icon-180.png`, `icon-192.png`, `icon-512.png` | 180 / 192 / 512 | full-bleed icon. The manifest declares both as `any maskable`; the mark is at 80%, inside the maskable safe circle |
+| web | `public/badge-96.png` | 96 | white mark on transparent - the notification badge (`badge:` in `public/sw.js`) |
+| web | `public/index.html` | - | favicon: an inline `data:` SVG, the rounded hue tile with the mark |
+| web | `public/css/components.css` `.nav-logo .logo-mark` | 26 px | the bare mark as a `data:` SVG background, with a soft violet `drop-shadow`. Glass and phone navs only style the container, so one rule covers them |
+| web | `public/admin.html` `.brand .logo-mark`, `.gate .logo-mark` | 30 / 46 px | the same `data:` SVG |
+| web | `public/browser.html` `.start .logo-mark` | 60 px | the same `data:` SVG |
+| TV | `res/mipmap-{mdpi..xxxhdpi}/ic_launcher.png` | 48 / 72 / 96 / 144 / 192 | legacy icon, rounded square |
+| TV | `res/mipmap-*/ic_launcher_round.png` | same | legacy icon, circle |
+| TV | `res/mipmap-*/ic_launcher_background.png` | 108 / 162 / 216 / 324 / 432 | adaptive layer: the hue background, the blooms hung off the corners of the visible middle 72dp |
+| TV | `res/mipmap-*/ic_launcher_foreground.png` | same | adaptive layer: the mark alone at 53% of the layer - inside the 66dp safe circle |
+| TV | `res/drawable/banner.png` | 320x180 | mark + wordmark on the hue background: the tile in the TV's apps row |
+| TV | `tv-native/src/assets/logo-mark.png` | 208 | the nav-rail mark: the rounded hue **tile** (not the bare mark), because `NavRail.tsx` `styles.mark` draws it at 26dp with `borderRadius` 8 and a violet `boxShadow`, and a glow around a transparent square would be a hollow halo |
 
-## 1. Curtain
+(`res` = `tv-native/android/app/src/main/res`.)
 
-**Idea.** An aurora is a curtain: tall blades of light hanging side by side. Two of them lean
-together into an "A" - the green blade runs the full height and owns the apex, the
-cyan-to-violet one tucks in behind it, and the dark opening between them is the curtain parting.
+The `data:` URIs in the four web files are rewritten in place by the install: the favicon
+`<link rel="icon">`, and every CSS declaration that ends with the comment `/* brand:mark */`.
+Keep that comment on the line and do not hand-edit the URI.
 
-**Works best** as the identity proper: next to the wordmark, in the nav, as the TV home-row
-logo (it answers the "plain letter A" directly), and in one colour - the silhouette alone
-carries it, down to 16 px. Two plain filled paths, no clipping, so it converts cleanly to an
-Android vector drawable.
+Not changed, on purpose:
 
-**Weakness.** It is a monogram, so it says "A", not "films and shows"; at a glance it can read
-as a tent or a sail. The apex is a fine point - below about 20 px it softens.
+- `public/manifest.webmanifest` - same paths, same sizes, `any maskable` still true.
+- `res/mipmap-anydpi-v26/ic_launcher.xml`, `ic_launcher_round.xml` - same layer names. Still
+  no `<monochrome>` layer: themed icons do not exist on Android TV, and adding one needs new
+  drawables. `beam-mono.svg` is the source if it is ever wanted.
+- `AndroidManifest.xml` - `android:icon`, `android:roundIcon`, `android:banner` keep pointing
+  at the same resource names.
+- `tv-native/src/assets/logo.png` (96 px, the old gradient square) - no longer imported
+  anywhere; safe to delete.
 
-## 2. Horizon
+## Regenerating
 
-**Idea.** The aurora seen from orbit, framed by the app's own rounded tile: the planet's dark
-limb, a hairline of atmosphere, the green arc above it and violet sky fading to night. It keeps
-the rounded violet square people already know and puts the northern lights in it.
+```
+python docs/brand/tools/build.py            # docs/brand only: SVGs, previews, overview.png, beam-background-options.png
+python docs/brand/tools/build.py install    # the Beam files in docs/brand, then every installed asset in the table above
+```
 
-**Works best** as an app icon: the richest and most cinematic of the three large, full-bleed
-(so it fills a launcher tile or a round mask edge to edge), and the most continuous with
-today's icon.
+Needs Python with Pillow, and Chrome or Edge. Nothing is redrawn by hand: every PNG is the
+SVG itself, rasterised by headless Chrome at 1024 px (banner at 1280x720) and
+Lanczos-downscaled. The install prints each file with its size and asserts the pixel
+dimensions; it does not build the app, bump a version or touch git.
 
-**Weakness.** It is a picture in a tile rather than a mark. The one-colour version is the
-weakest of the three (a tile with two arcs - it loses the idea), the hairline limb disappears
-below about 48 px, and on the app's own dark background the bottom of the tile is low-contrast.
+`tv-native/tools/gen_icons.py` and `gen_logo.py` drew the old logo and are **retired** (they
+exit with a pointer here), so nothing can overwrite Beam with the gradient square.
 
-## 3. Beam
+After an install that changes the TV files, the usual release steps still apply:
 
-**Idea.** A play triangle made of three bands of light - green, cyan, violet - parted by the
-wavy hem of the curtain and converging on the tip like a projector beam. It says "press play"
-and "aurora" in one shape.
-
-**Works best** on a TV home screen and in a launcher, beside other streaming apps: nobody has
-to be told what the app does. Solid, bold, and it survives 16 px as a coloured play arrow.
-
-**Weakness.** However well dressed, it is still a play button, the most used shape in the
-category. Below about 32 px the bands merge and only the arrow is left. It relies on a clip
-path, so the Android vector needs a `<clip-path>` group.
-
-## Recommendation: Curtain
-
-Curtain is the only one of the three that is a mark in the strict sense - it works with the
-colour taken away, it works at 16 px, and it is drawn from the name rather than from the
-category. It also fixes the two actual complaints at once: the web icon stops being an
-anonymous gradient, and the TV row gets an "A" that is Aurora's own instead of a typed letter.
-
-Beam is the safe runner-up if the priority is being instantly recognised as a streaming app
-on the TV's home row. Horizon is the prettiest tile but the weakest identity; if it is liked,
-the sensible use is Curtain as the logo with the Horizon sky kept as launch / splash artwork.
+- bump `versionCode` in `tv-native/android/app/build.gradle` - the launcher caches the icon
+  per versionCode, so a reinstall at the same code keeps showing the old one;
+- the TV home-screen row logo (`storeLogo()` in `HomeScreenRows.kt`) is drawn from the app
+  icon once per run - check on the TV that it refreshed;
+- `public/sw.js` refreshes its shell cache when the app version moves, so installed phones pick
+  the new icons and `badge-96.png` up with the next release, not before.
 
 ## Colours
 
 | role | value | from |
 | --- | --- | --- |
-| page navy | `#0b0c14` | `--bg` in `public/css/tokens.css` |
-| icon tile glow (radial, top) | `#161a33` to `#0b0c14` | new |
-| aurora green | `#46c896` | brief |
-| aurora mint (highlight) | `#8cffbe` | brief |
-| cyan | `#7fd1e8` | `--kind-series` |
-| violet | `#8b7bff` | `--accent` |
-| deep violet | `#6856e2` | brief |
+| page navy (tile base) | `#0b0c14` | `--bg` in `public/css/tokens.css` |
+| violet bloom | `#8b7bff` to `#6856e2` to transparent | `--accent`, brief |
+| green bloom | `#8cffbe` to `#46c896` to transparent | brief |
+| green band | `#46c896` to `#8cffbe` | brief |
+| cyan band | `#5fc4d8` to `#9be4f2` | around `--kind-series` `#7fd1e8` |
+| violet band | `#6856e2` to `#8b7bff` | brief, `--accent` |
 | wordmark / mono | `#f3f4f8` | `--text` |
-| Horizon sky | `#15153a`, `#4337b4`, `#6856e2` | new |
-| Horizon planet / gap / limb | `#2b2a6a` to `#15162f`, `#0d0d22`, `#d9d4ff` | new |
-| Beam cyan band | `#5fc4d8` to `#9be4f2` | around `#7fd1e8` |
 
-On light backgrounds use the mono mark in `#0b0c14`; the mint and cyan do not hold on white.
+On light backgrounds use the mono mark in `#0b0c14`, or the tile; the mint and cyan do not
+hold on white. The wordmark is not a font: six monoline letters built from straight lines
+and circular arcs (x-height 100, cap height 142, stroke 14 units), so it renders identically
+everywhere.
 
-## Install checklist (for later - nothing below has been touched)
+## Known limits
 
-All bitmaps come from `<name>-icon.svg` (full-bleed square) unless noted.
+- Below about 32 px the three bands merge and only the coloured arrow is left.
+- Under a circular mask (round launcher icon, maskable PWA icon) the corners are cut, so
+  less of the two blooms shows than on the square tile.
+- The mark relies on a clip path; an Android vector drawable of it needs a `<clip-path>` group.
 
-### Web
+## The proposals that were not chosen
 
-- [ ] `public/icon-180.png`, `public/icon-192.png`, `public/icon-512.png` - re-render from
-      `<name>-icon.svg`. Both manifest icons are declared `any maskable`, so the mark must stay
-      inside the central 80% circle; the icon SVG already scales it to 80%.
-- [ ] `public/manifest.webmanifest` - paths stay; `background_color` / `theme_color`
-      (`#070811`) already suit the navy tile. Only edit if a separate maskable file is added.
-- [ ] `public/index.html` - the inline `<link rel="icon" href="data:image/svg+xml,...">`
-      (gradient square, near line 22): replace with the mark SVG URL-encoded, or a
-      `/favicon.svg` file. `<link rel="apple-touch-icon" href="/icon-180.png">` (near line 16)
-      keeps its path.
-- [ ] `public/index.html` nav logo - `<a class="nav-logo"><span class="logo-mark"></span><span>Aurora</span></a>`
-      (near line 112). The mark is drawn in CSS, not an image:
-      `public/css/components.css` `.nav-logo .logo-mark` (line 48: 26 px, radius 8, conic
-      gradient, violet glow). Replace the gradient with the mark as an inline SVG or
-      `background: url(...)`; drop the radius and glow for Curtain / Beam.
-      Check the glass overrides of `.nav-logo` in `public/css/glass.css` (lines 92, 189, 2080,
-      3319, 3587, 4163) and `public/css/responsive.css` (line 30) - they style the container, and
-      `public/js/navTone.js` / `public/js/glassTone.js` tint `.nav-logo` text over bright art.
-- [ ] `public/admin.html` - same conic-gradient `.logo-mark` in its own `<style>`: `.brand .logo-mark`
-      (line 21, 30 px) and `.gate .logo-mark` (line 96, 46 px); used in the sidebar brand and in
-      the sign-in gate markup.
-- [ ] `public/browser.html` - `.start .logo-mark` (line 38, 60 px) and the `<span class="logo-mark">`
-      on its start screen.
-- [ ] `public/sw.js` - web-push notifications use `/icon-192.png` as both `icon` and `badge`
-      (lines 217-218). Android shows the badge as a one-colour stencil: add a PNG rendered from
-      `<name>-mono.svg` (white on transparent, 96 px) and point `badge` at it. Bump the service
-      worker cache version so the new icons are fetched.
+- **Curtain** - two hanging blades of light leaning into an "A". The strongest pure mark
+  (works in one colour, at 16 px), but a monogram: it says "A", not "films and shows".
+- **Horizon** - the aurora seen from orbit inside the rounded tile. The prettiest picture,
+  the weakest identity; its one-colour version loses the idea.
 
-### Android TV (`tv-native/`)
-
-The bitmaps are generated, not hand-placed: `tv-native/tools/gen_icons.py` writes every
-launcher file, the banner and `src/assets/logo.png`; `tv-native/tools/gen_logo.py` writes
-`src/assets/logo-mark.png`. Either teach those scripts to paste the new renders or replace
-the outputs and retire the scripts - otherwise the next run overwrites the new logo.
-
-- [ ] Legacy launcher icons, `tv-native/android/app/src/main/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher.png`
-      at 48 / 72 / 96 / 144 / 192 px, and `ic_launcher_round.png` at the same sizes (circle mask).
-- [ ] Adaptive icon layers in the same five folders: `ic_launcher_background.png` and
-      `ic_launcher_foreground.png` at 108 / 162 / 216 / 324 / 432 px. Background = the navy
-      tile gradient only; foreground = `<name>-mark.svg` on transparent, scaled so it sits
-      inside the 66/108 safe circle (about 55% of the layer). For Horizon the whole scene goes
-      in the background layer and the foreground stays empty.
-- [ ] `tv-native/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` and
-      `ic_launcher_round.xml` - unchanged if the layer file names stay. They deliberately have
-      no `<monochrome>` layer; with a real mono mark one can now be added from `<name>-mono.svg`.
-- [ ] `tv-native/android/app/src/main/res/drawable/banner.png` (320x180) - replace with
-      `<name>-tv-banner.png`. This is what the TV's apps row shows.
-- [ ] `tv-native/android/app/src/main/AndroidManifest.xml` - no edit needed; `android:icon`,
-      `android:roundIcon` and `android:banner` are set on both `<application>` and the activity
-      (lines 39-41 and 56-57) and keep pointing at the same resource names.
-- [ ] `tv-native/android/app/build.gradle` - bump `versionCode`: the comment near line 86
-      records that the launcher caches the icon per versionCode, so a reinstall at the same
-      code keeps showing the old one.
-- [ ] TV home-screen row logo (the "A" the owner sees): `storeLogo()` in
-      `tv-native/android/app/src/main/java/com/auroratv/HomeScreenRows.kt` (and the older copy in
-      `HomeScreenModule.kt`) draws the app's own icon into a 160 px bitmap, once per run. It
-      follows the launcher icon automatically; verify on the Mi TV that the row logo actually
-      refreshes after the update (the channel may need its logo stored again).
-- [ ] In-app nav rail: `tv-native/src/components/NavRail.tsx` - `const LOGO = require('../assets/logo-mark.png')`
-      (line 44), drawn twice with `styles.mark` (26 dp, `borderRadius`, violet `boxShadow`, near
-      line 653). Replace `tv-native/src/assets/logo-mark.png` (currently 208 px) with a render
-      of `<name>-mark.svg` on transparent and remove the radius / shadow for Curtain or Beam.
-      `tv-native/src/assets/logo.png` (96 px, written by `gen_icons.py`) is no longer imported
-      anywhere - replace or delete it.
-- [ ] Republish the APK (`public/aurora-tv.apk`, `public/tv-version.json`) as usual so TVs
-      pick the new icon up.
-
-### Elsewhere
-
-- [ ] `README.md` and any screenshots under `docs/` that show the old square.
+Their SVGs and previews stay in this folder and still build with `build.py`.

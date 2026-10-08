@@ -391,6 +391,10 @@ const scanMovies = () => {
         type: "movie",
         title,
         year: extractYear(entry.name) || (web && web.year) || null,
+        // The year above is the folder's own when it has one; otherwise it is
+        // whatever the by-name metadata match said — a GUESS (and sometimes
+        // another film's). Marked, so identity.js doesn't key on it.
+        ...(!extractYear(entry.name) && web && web.year ? { yearGuessed: true } : {}),
         cover: coverId
           ? `/img/${coverId}`
           : web && web.poster
@@ -542,6 +546,10 @@ const scanShows = () => {
         type: "show",
         title,
         year: extractYear(entry.name) || (web && web.year) || null,
+        // The year above is the folder's own when it has one; otherwise it is
+        // whatever the by-name metadata match said — a GUESS (and sometimes
+        // another film's). Marked, so identity.js doesn't key on it.
+        ...(!extractYear(entry.name) && web && web.year ? { yearGuessed: true } : {}),
         cover: coverId
           ? `/img/${coverId}`
           : web && web.poster

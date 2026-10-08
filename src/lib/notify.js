@@ -10,13 +10,24 @@
 // Both are optional; every configured channel gets every message.
 const config = require("../config");
 
-const send = (title, message) => {
+// Which channels are set up — [] means a message sent here reaches nobody.
+const channels = () => {
+  const n = config.NOTIFICATIONS || {};
+  const out = [];
+  if (n.ntfy && n.ntfy.topic) out.push("ntfy");
+  if (n.telegram && n.telegram.botToken && n.telegram.chatId) out.push("telegram");
+  return out;
+};
+
+// opts (optional): { priority: "urgent" | "high" | "default" | "low", tags: "warning" }
+// — ntfy only; health alerts use it so a critical one breaks through.
+const send = (title, message, opts = {}) => {
   const n = config.NOTIFICATIONS || {};
   // Keep HTTP headers ASCII-safe (titles can be Hebrew) — details go in the body.
   if (n.ntfy && n.ntfy.topic) {
     fetch(`https://ntfy.sh/${encodeURIComponent(n.ntfy.topic)}`, {
       method: "POST",
-      headers: { Title: title, Tags: "clapper" },
+      headers: { Title: title, Tags: opts.tags || "clapper", ...(opts.priority ? { Priority: opts.priority } : {}) },
       body: message,
       signal: AbortSignal.timeout(10000),
     }).catch((e) => console.warn("[notify] ntfy failed:", e && e.message));
@@ -35,4 +46,4 @@ const send = (title, message) => {
   }
 };
 
-module.exports = { send };
+module.exports = { send, channels };
