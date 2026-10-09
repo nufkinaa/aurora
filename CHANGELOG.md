@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.80 — 2026-10-09
+
+- **Aurora TV 5.1.30.** In the open menu the logo lines up with the rows (elia). The menu's rows are no longer focusable while it is shut: at a cold start Android's first focus search could land on them before the home page had drawn, and the menu came up open on its own.
+
 ## 1.6.79 — 2026-10-09
 
 - **Admin → Insights shows the TV's frame timings.** Each screen's p50 / p90 / jank as the Android TV app measured them, one row per app version and per implementation (which components draw natively), beside the boxes that reported them — model, Android level, RAM, heap, GPU, and why a box ran its low-memory economies. "Copy stats" carries the same two sections. This is the evidence base for the native-rendering work (`docs/native-rewrite`, P0).

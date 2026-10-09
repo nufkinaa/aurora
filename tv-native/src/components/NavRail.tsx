@@ -412,7 +412,13 @@ export default function NavRail({
                   iconSize={it.iconSize}
                   withLabel={it.withLabel}
                   dot={it.key === 'new' && newUnseen}
-                  focusDisabled={closing}
+                  // ...and not focusable while the panel is shut either: at a cold
+                  // start Android's first focus search ran before Home's hero had
+                  // mounted, found these rows (off-screen but focusable), and the
+                  // rail came up open on its own (seen on the Mi TV, 2026-10-09).
+                  // LEFT-at-edge and the hero's UP open the panel by state, then
+                  // `claimFocus` lands on a row.
+                  focusDisabled={closing || !open}
                   profile={it.key === 'profile' ? me?.avatar || '🍿' : undefined}
                   profileImage={it.key === 'profile' ? me?.avatarImage || null : undefined}
                   profileColor={it.key === 'profile' ? me?.color : undefined}
@@ -676,10 +682,15 @@ const styles = StyleSheet.create({
   // side, so a box-centred mark read as standing left of them (measured on
   // the Mi TV: box centre 71.5 of 72, mass ~62). Nudged a seventh of its width.
   mark: {width: 28, height: 28, transform: [{translateX: 4}]},
-  markOpen: {width: 36, height: 36},
+  // Open: no nudge (nothing to centre over) - the mark's left edge sits on the
+  // rows' text edge instead, see `logo`.
+  markOpen: {width: 36, height: 36, transform: [{translateX: 0}]},
   // `.nav-logo { margin-right: 20px }` becomes a margin-bottom on a rail; gap 10
-  // is the site's own (components.css:32,36).
-  logo: {flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10},
+  // is the site's own (components.css:32,36). marginLeft 16 = the rows' own
+  // paddingHorizontal, so the mark lines up with "Home", "Movies"... (elia,
+  // 2026-10-09: "when the navbar is open the logo should be aligned with the
+  // other elements").
+  logo: {flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, marginLeft: 16},
   // 1.3rem = 20.8px -> the --fs-row slot, 20dp (00-tokens §3.1(ii); the spec's
   // own table says 21, which its verifier finding 7 corrects to 20).
   wordmark: {color: colors.text, fontSize: 23, fontWeight: '800', letterSpacing: 0.4},

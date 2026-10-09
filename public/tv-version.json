@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.29",
-  "notes": "A smaller, centred logo mark in the rail. Plus everything in 5.1.28: YouTube trailers play again; LEFT opens the menu on a show page; Play on an undownloaded episode reports under the button; new episodes on the TV home screen; smaller NEW badge."
+  "versionName": "5.1.30",
+  "notes": "The open menu's logo lines up with its rows, and the menu no longer opens by itself at a cold start."
 }
