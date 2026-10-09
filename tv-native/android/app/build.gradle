@@ -156,7 +156,7 @@ android {
 
     namespace "com.auroratv"
     defaultConfig {
-        applicationId "com.auroratv"
+        applicationId "com.auroratv.lab" // LAB: side by side with the real app on the same TV
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // BUMP THIS ON EVERY BUILD YOU INSTALL. Google TV's launcher caches an
@@ -166,8 +166,8 @@ android {
         // after the real adaptive icon was added and verified inside the APK.
         // (Confirmed by extracting the icon layers from the installed APK: they
         // were correct; the launcher was simply showing its cache.)
-        versionCode 92
-        versionName "5.1.29"
+        versionCode 9000
+        versionName "9.9.9-lab"
         // QA builds: Fresco's RequestLoggingListener + verbose FLog (MainApplication.kt), for
         // `adb logcat -s RequestLoggingListener`. On in debug, or `assembleRelease -PfrescoLog`.
         buildConfigField "boolean", "FRESCO_LOGGING", project.hasProperty('frescoLog') ? 'true' : 'false'

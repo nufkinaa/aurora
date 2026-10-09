@@ -12,6 +12,7 @@ let token: string | null = null;
 // viewer is never asked. The LAN address is tried first; if it does not answer on
 // the first try the remote one BECOMES the server for this run.
 export const SERVER_CANDIDATES = [
+  "http://192.168.50.108:4000", // LAB: this PC; the lab app only ever talks to the local server
   "http://10.0.0.1:4000",
   'https://nufurora.com',
 ];
