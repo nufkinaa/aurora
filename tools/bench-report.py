@@ -4,6 +4,7 @@
     python tools/bench-report.py docs/qa/.../bench-js.jsonl docs/qa/.../bench-F.jsonl
 Labels are compared in the order given; a second label gets a Δ column against the first for p90 and janky %."""
 import json, sys, statistics as st
+sys.stdout.reconfigure(encoding="utf-8")  # the table has a few non-ASCII glyphs; Windows consoles default to a code page
 rows = [json.loads(l) for f in sys.argv[1:] for l in open(f, encoding="utf-8") if l.strip().startswith("{")]
 labels = list(dict.fromkeys(r["label"] for r in rows)); scen = list(dict.fromkeys(r["scenario"] for r in rows))
 def med(vals):

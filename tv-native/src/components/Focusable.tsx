@@ -197,6 +197,9 @@ type Props = {
   // right-hand panel (Browse's filters). Same write-on-focus contract.
   edgeRight?: boolean;
   onFocusChange?: (focused: boolean) => void;
+  // QA hook (tools/tv-pixel-diff/PROTOCOL.md `layout <nativeId>` and the `[anim]`
+  // trace ids `<nativeID>.ring/.spring`): forwarded to the host view, both bodies.
+  nativeID?: string;
   // Exposed so callers can imperatively move focus here
   // (instance.requestTVFocus() — react-native-tvos attaches it to View refs).
   ref?: React.Ref<View>;
@@ -235,6 +238,7 @@ function JsFocusable({
   holdLeft,
   edgeRight,
   onFocusChange,
+  nativeID,
   ref,
 }: Props) {
   const anim = useRef(new Animated.Value(0)).current;
@@ -363,6 +367,7 @@ function JsFocusable({
       {...(holdLeft && selfTag != null ? ({nextFocusLeft: selfTag} as object) : null)}
       hasTVPreferredFocus={wantsFocus}
       accessibilityLabel={accessibilityLabel}
+      nativeID={nativeID}
       onPress={onPress}
       onLongPress={onLongPress}
       onFocus={() => {
@@ -576,6 +581,7 @@ function NativeFocusable({
   holdLeft,
   edgeRight,
   onFocusChange,
+  nativeID,
   ref,
 }: Props) {
   const host = useRef<React.ElementRef<typeof AuroraFocusable> | null>(null);
@@ -624,6 +630,7 @@ function NativeFocusable({
       ref={setRef}
       style={[styles.base, round && {borderRadius: radius.pill}, style]}
       accessibilityLabel={accessibilityLabel}
+      nativeID={nativeID}
       ringKind={ring}
       ringWidth={ringWidth ?? focus.borderWidth}
       ringColor={ringColor ?? RING_COLOR[ring]}

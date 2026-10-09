@@ -5,16 +5,28 @@
 //
 // Memoized: rows re-render around it and dozens of cards re-rendering per frame is
 // what made D-pad movement stutter.
+//
+// TWO IMPLEMENTATIONS, ONE SWITCH (docs/native-rewrite/00-plan.md P2). The default
+// export reads `impl.card` once at startup and renders either today's JS body
+// (`JsCard`, the reference — unchanged apart from the nativeID QA hook) or
+// `NativeCard`, which derives exactly the same values (sizes, art paths, tags,
+// progress, blur, backup) and hands the DRAWN layers to the AuroraCard Fabric view
+// (src/specs/AuroraCardNativeComponent.ts → AuroraCardView.kt): blur-up, picture
+// (Fresco, RN's own request, shared caches), tile gradient, shades, brighten. Text,
+// the tag pills and the progress bar stay RN children in both (see NativeCard).
+// Both bodies sit inside the same `Focusable`, so the focus treatment is P1's.
 import React from 'react';
 import {View, Text, Image, StyleSheet} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import Focusable from './Focusable';
 import Icon from './Icon';
 import {artPath, artPx, imgSrc, HeroItem} from '../api';
+import {impl} from '../impl';
 import {onMessage} from '../realtime';
 import {trackError} from '../usage';
 import {blurOf, markDrawn, wasDrawn} from '../blur';
 import {openPeek} from '../overlay';
+import AuroraCard, {Commands as CardCommands, ImageFailedEvent, ImageLoadedEvent, ImageRetryEvent} from '../specs/AuroraCardNativeComponent';
 import theme from '../theme';
 
 const {colors, radius, cardAura} = theme;
@@ -85,23 +97,7 @@ const FRAME_ART_W = Math.ceil((FRAME_H * 16) / 9);
 // server connection comes back.
 const ROUND_MS = [30000, 120000, 480000];
 
-function Card({
-  item,
-  index,
-  onPress,
-  onFocus,
-  onRemove,
-  hasTVPreferredFocus,
-  wide,
-  frame,
-  hideLabel,
-  showKind,
-  edgeLeft,
-  holdLeft,
-  edgeRight,
-  compact,
-  ref,
-}: {
+type Props = {
   item: HeroItem;
   // Position in the shelf. Handed back through onFocus so the row can slide to
   // the right offset without closing over the index per card (which would give
@@ -136,10 +132,45 @@ function Card({
   // The smaller poster (COMPACT_W x COMPACT_H). Posters only; a landscape or
   // frame card ignores it. The default card is untouched.
   compact?: boolean;
+  // QA hook (tools/tv-pixel-diff/PROTOCOL.md): `layout <nativeId>` finds the
+  // card's Focusable (the outer box, both implementations); the native
+  // Focusable's `[anim]` ids become `<nativeID>.ring/.spring`.
+  nativeID?: string;
   // Forwarded to the Focusable, so a grid can hold its first card as a focus
   // target (requestTVFocus lives on the host instance).
   ref?: React.Ref<View>;
-}) {
+};
+
+/** The switch (01-architecture.md §1.4). Read once at startup; never flips while mounted. */
+function Card(props: Props) {
+  return impl.card ? <NativeCard {...props} /> : <JsCard {...props} />;
+}
+
+export default React.memo(Card);
+
+// =============================================================================
+// The JS reference implementation — today's body, untouched except for the
+// nativeID QA hook on its Focusable.
+// =============================================================================
+
+function JsCard({
+  item,
+  index,
+  onPress,
+  onFocus,
+  onRemove,
+  hasTVPreferredFocus,
+  wide,
+  frame,
+  hideLabel,
+  showKind,
+  edgeLeft,
+  holdLeft,
+  edgeRight,
+  compact,
+  nativeID,
+  ref,
+}: Props) {
   const isEpisode = !!item.showId && item.type !== 'show';
   const landscape = wide || isEpisode;
   const prog = item.progress;
@@ -310,6 +341,7 @@ function Card({
       shadow={cardAura.shadow}
       hasTVPreferredFocus={hasTVPreferredFocus}
       ref={ref}
+      nativeID={nativeID}
       edgeLeft={edgeLeft}
       holdLeft={holdLeft}
       edgeRight={edgeRight}
@@ -456,7 +488,255 @@ function Card({
   );
 }
 
-export default React.memo(Card);
+// =============================================================================
+// The native implementation. The same derivation as JsCard (every line keyed to
+// it) — sizes, picture, sized path, backup chain, blur, tags, progress — and
+// the RESULTS go to two AuroraCard views inside the same Focusable:
+//
+//   the ART layer     first child, absolute fill of the card's padding box:
+//                     blur-up → picture → tile gradient → shade at rest;
+//   the FOCUS layer   inside `focusOverlay` (alpha = ring value, driven by the
+//                     Focusable): brighten + the poster shade of a label-less
+//                     card. The ✕ follows it, so it stays above the brighten
+//                     exactly as in the JS overlay.
+//
+// What stays RN here, on purpose (10c-spec §2-5; 01-architecture.md §2.2 left
+// the choice open — this is the one that guarantees 1:1 pixels):
+//   - every Text: labels, frame label, fallback title, NEW, ✕;
+//   - the NEW pill and the kind pill: their width is the Text/Icon's, so the
+//     padded View around it is the very same StyleSheet entry as JsCard's;
+//   - the progress bar: RN's box-shadow / backgroundImage drawables, painted
+//     ABOVE the label's text shadow as the last child (an art layer under the
+//     children could not put it there). Only cards with progress pay for it.
+//
+// The failure ladder (1.5 s → r=1 → backup → tile → 30/120/480 s → park) runs
+// in AuroraCardView.kt with the same numbers; this wrapper keeps JS's duties:
+// trackError on the first failure, markDrawn on load, the tile's title, and
+// the `welcome` un-park (a native command).
+// =============================================================================
+
+const shapeOf = (uri: string) =>
+  uri.replace(/^https?:\/\/[^/]+/, '').replace(/u=[^&]+/, 'u=…').replace(/\/img\/[A-Za-z0-9]{12}/, '/img/<id>').slice(0, 60);
+
+function NativeCard({
+  item,
+  index,
+  onPress,
+  onFocus,
+  onRemove,
+  hasTVPreferredFocus,
+  wide,
+  frame,
+  hideLabel,
+  showKind,
+  edgeLeft,
+  holdLeft,
+  edgeRight,
+  compact,
+  nativeID,
+  ref,
+}: Props) {
+  // ---- the derivation, line for line with JsCard --------------------------
+  const isEpisode = !!item.showId && item.type !== 'show';
+  const landscape = wide || isEpisode;
+  const prog = item.progress;
+  const pct =
+    prog && prog.duration > 0 && !prog.finished
+      ? Math.min(100, Math.round((prog.position / prog.duration) * 100))
+      : null;
+  const canFrame = frame && prog && prog.position > 20 && item.id && !String(item.id).startsWith('torrent|');
+  const picture = canFrame
+    ? `/img/frame/${encodeURIComponent(item.id)}?t=${Math.floor(prog!.position)}`
+    : (frame && !isEpisode && item.backdrop) || item.cover || item.poster;
+  const artDp = frame
+    ? (!isEpisode && item.backdrop) || isEpisode
+      ? FRAME_ART_W
+      : FRAME_W
+    : landscape
+    ? WIDE_W
+    : compact
+    ? COMPACT_W
+    : CARD_W;
+  const sizedPath = canFrame ? null : artPath(picture, artPx(artDp));
+  const src = imgSrc(sizedPath || picture);
+  const backupPath =
+    !canFrame && /^tt\d+$/.test(String(item.imdbId || ''))
+      ? `/img/poster/${item.imdbId}?type=${item.type === 'show' || isEpisode ? 'show' : 'movie'}` +
+        (item.showTitle || item.title ? `&t=${encodeURIComponent(String(item.showTitle || item.title).slice(0, 80))}` : '') +
+        (item.year ? `&y=${item.year}` : '')
+      : null;
+  const backup = backupPath ? imgSrc(artPath(backupPath, artPx(artDp)) || backupPath) : null;
+  const retryUri = src ? `${src.uri}${src.uri.includes('?') ? '&' : '?'}r=1` : undefined;
+  const blur = blurOf(
+    canFrame ? item.backdrop || item.cover || item.poster : (frame && !isEpisode && item.backdrop) || item.cover || item.poster,
+  );
+  const showLabel = !hideLabel && (landscape || item.upNext);
+  const left =
+    frame && prog && pct != null && prog.duration > 0
+      ? `${Math.max(1, Math.round((prog.duration - prog.position) / 60))} min left`
+      : null;
+  const removable = onRemove;
+  const isNew = !!item.addedAt && Date.now() - item.addedAt < NEW_WINDOW_MS && !prog;
+  const leftTag: 'new' | null = isNew ? 'new' : null;
+  const kind = showKind && !landscape && !onRemove;
+
+  // ---- what JS still owns of the picture's life -----------------------------
+  const art = React.useRef<React.ElementRef<typeof AuroraCard> | null>(null);
+  // The tile's title is an RN Text: it mounts when native says the tile shows
+  // (JsCard: `broken`), and goes when a slow round or `welcome` asks again.
+  const [tileUri, setTileUri] = React.useState<string | null>(null);
+  const [parked, setParked] = React.useState<string | null>(null);
+  const tileShown = !!src && tileUri === src.uri;
+  React.useEffect(() => {
+    if (!parked) return;
+    return onMessage('welcome', () => {
+      if (art.current) CardCommands.unpark(art.current);
+      setParked(null);
+      setTileUri(t => (t === parked ? null : t));
+    });
+  }, [parked]);
+  const onImageLoaded = React.useCallback((e: {nativeEvent: ImageLoadedEvent}) => {
+    const {uri} = e.nativeEvent;
+    markDrawn(uri);
+    setTileUri(t => (t === uri ? null : t));
+  }, []);
+  const onImageFailed = React.useCallback((e: {nativeEvent: ImageFailedEvent}) => {
+    const {uri, error, tries, tile, parked: p} = e.nativeEvent;
+    if (tries === 1) trackError(`image ${shapeOf(uri)}: ${String(error || '').slice(0, 90)}`);
+    if (tile) setTileUri(uri);
+    if (p) setParked(uri);
+  }, []);
+  const onImageRetry = React.useCallback((e: {nativeEvent: ImageRetryEvent}) => {
+    const {uri} = e.nativeEvent;
+    setTileUri(t => (t === uri ? null : t));
+  }, []);
+
+  const headersJson = src?.headers ? JSON.stringify(src.headers) : '';
+  const backupHeadersJson = backup?.headers ? JSON.stringify(backup.headers) : '';
+  // JsCard's showBlur minus the parts native tracks itself (broken, loaded).
+  const blurUri = blur && src && !wasDrawn(src.uri) ? blur : undefined;
+
+  return (
+    <Focusable
+      scaleTo={1.055}
+      lift={cardAura.lift}
+      ringWidth={cardAura.edge.width}
+      ringColor={cardAura.edge.color}
+      shadow={cardAura.shadow}
+      hasTVPreferredFocus={hasTVPreferredFocus}
+      ref={ref}
+      nativeID={nativeID}
+      edgeLeft={edgeLeft}
+      holdLeft={holdLeft}
+      edgeRight={edgeRight}
+      onPress={() => onPress(item)}
+      onLongPress={() => openPeek(item, removable || undefined)}
+      onFocusChange={onFocus ? f => f && onFocus(item, index ?? 0) : undefined}
+      focusOverlay={
+        <>
+          {/* brighten (white @0.055, radius 12) then the poster shade of a
+              label-less card — JsCard's first two overlay children, drawn by
+              one native layer in that order. */}
+          <AuroraCard style={styles.layer} brighten shade={showLabel ? 'none' : 'poster'} />
+          {removable ? (
+            <View style={styles.remove} pointerEvents="none">
+              <Text style={styles.removeGlyph}>✕</Text>
+            </View>
+          ) : null}
+        </>
+      }
+      style={frame ? styles.cardFrame : landscape ? styles.cardWide : compact ? styles.cardCompact : styles.card}>
+      <AuroraCard
+        ref={art}
+        style={styles.layer}
+        uri={src?.uri}
+        headersJson={headersJson}
+        sized={!!sizedPath}
+        retryUri={retryUri}
+        backupUri={backup?.uri}
+        backupHeadersJson={backupHeadersJson}
+        blurUri={blurUri}
+        tile={!src}
+        shade={showLabel ? (frame ? 'frame' : 'poster') : 'none'}
+        onImageLoaded={onImageLoaded}
+        onImageFailed={onImageFailed}
+        onImageRetry={onImageRetry}
+      />
+      {!src || tileShown ? (
+        // `.card-fallback`'s title: the gradient is native, the words are RN
+        // Text in JsCard's exact boxes (styles.poster → fallbackCentre).
+        <View style={styles.poster} pointerEvents="none">
+          <View style={styles.fallbackCentre}>
+            <Text style={styles.fallbackText} numberOfLines={3}>
+              {item.title}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {showLabel && frame ? (
+        <View style={styles.frameLabel} pointerEvents="none">
+          <Text style={styles.frameTitle} numberOfLines={1} ellipsizeMode="tail">
+            {isEpisode ? item.showTitle || item.title : item.title}
+          </Text>
+          {isEpisode ? (
+            <Text style={styles.frameSub} numberOfLines={1} ellipsizeMode="tail">
+              {`S${item.season} E${item.episode} · ${item.title}`}
+            </Text>
+          ) : null}
+          {left ? <Text style={styles.frameMeta}>{`▶  ${left}`}</Text> : null}
+        </View>
+      ) : showLabel ? (
+        <View style={[styles.label, pct != null && styles.labelRaised]} pointerEvents="none">
+          {isEpisode ? (
+            <>
+              <Text style={styles.labelSub} numberOfLines={1} ellipsizeMode="tail">
+                {item.showTitle || ''}
+              </Text>
+              <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
+                {`S${item.season} E${item.episode} · ${item.title}`}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
+              {item.title}
+            </Text>
+          )}
+        </View>
+      ) : null}
+
+      {leftTag === 'new' ? (
+        <View style={[styles.tag, styles.tagLeft, styles.tagNew]} pointerEvents="none">
+          <Text style={[styles.tagText, styles.tagNewText]}>NEW</Text>
+        </View>
+      ) : null}
+
+      {kind ? (
+        <View
+          style={[
+            styles.tag,
+            styles.tagKind,
+            item.type === 'show' ? styles.kindSeries : styles.kindFilm,
+          ]}
+          pointerEvents="none">
+          <Icon
+            name={item.type === 'show' ? 'series' : 'film'}
+            size={11}
+            color={item.type === 'show' ? colors.kindSeries : colors.kindFilm}
+          />
+        </View>
+      ) : null}
+
+      {pct != null ? (
+        <View style={[styles.progress, frame && styles.progressFrame]} pointerEvents="none">
+          <View style={[styles.progressFill, {width: `${pct}%`}]}>
+            <View style={styles.progressHead} />
+          </View>
+        </View>
+      ) : null}
+    </Focusable>
+  );
+}
 
 const styles = StyleSheet.create({
   // No overflow:'hidden' — `.card` is explicitly not clipped (components.css:237-241),
@@ -472,6 +752,9 @@ const styles = StyleSheet.create({
   // The baked shades: the padding box, at the card's radius (the SVG's rx).
   shade: {position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', borderRadius: radius.m},
   blur: {position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderRadius: radius.m - 1},
+  // A native AuroraCard layer: the card's padding box (what the blur, poster
+  // and shade Images above all resolve to), so its (0,0,w,h) is their rect.
+  layer: {position: 'absolute', left: 0, top: 0, right: 0, bottom: 0},
   // The frame card's words — glass.css `.card.wide .card-label`: 16/16/24 → ×0.7.
   frameLabel: {position: 'absolute', left: 11, right: 11, bottom: 17},
   frameTitle: {color: colors.text, fontSize: 17, fontWeight: '800', letterSpacing: -0.2, lineHeight: 20, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 10},

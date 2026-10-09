@@ -1,6 +1,7 @@
 package com.auroratv.ui
 
 import com.auroratv.ui.qa.AuroraQaModule
+import com.auroratv.ui.view.AuroraCardManager
 import com.auroratv.ui.view.AuroraFocusableManager
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
@@ -17,5 +18,5 @@ class AuroraUiPackage : ReactPackage {
     listOf(AuroraImplModule(ctx), AuroraQaModule(ctx))
 
   override fun createViewManagers(ctx: ReactApplicationContext): List<ViewManager<*, *>> =
-    listOf(AuroraFocusableManager())
+    listOf(AuroraFocusableManager(), AuroraCardManager())
 }
