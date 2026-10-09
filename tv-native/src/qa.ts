@@ -79,11 +79,11 @@ export function runLoop(value: Animated.Value, loop: Animated.CompositeAnimation
 // ---- trace / focus log (JS implementation side) ------------------------------
 
 /** `[anim] <t> <id> <value>` for a native-driven Animated.Value, while tracing. */
-export function traceValue(id: string, v: Animated.Value): () => void {
+export function traceValue(id: string | (() => string), v: Animated.Value): () => void {
   if (!state.trace || !native) return () => {};
   const sub = v.addListener(({value}) => {
     try {
-      native.trace(id, value);
+      native.trace(typeof id === 'function' ? id() : id, value);
     } catch {}
   });
   return () => v.removeListener(sub);

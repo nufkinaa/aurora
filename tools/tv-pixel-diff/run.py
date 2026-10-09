@@ -162,24 +162,44 @@ def wait_idle(dev: Adb, idle: dict) -> dict:
                     "note": "idle timeout — the app kept drawing or animating; the capture is suspect"}
 
 
+def quiet_check(dev: Adb, seconds: float = 3.0) -> int:
+    """Preflight: with trace on, nothing may send keys to the app while the harness sends
+    none. Returns the number of stray [key] lines (the 2026-10-09 run failed 12/12 because
+    four orphaned tv-bench.sh loops were pressing LEFT/RIGHT the whole time)."""
+    dev.qa_expect("trace", "on")
+    if dev.pkg not in dev.shell("dumpsys activity activities | grep -E 'ResumedActivity|mResumedActivity'", check=False):
+        dev.start()
+        time.sleep(4)
+    dev.logcat_clear()
+    time.sleep(seconds)
+    n = dev.logcat_dump(adbmod.TAG_ANIM).count("[key]")
+    dev.qa_expect("trace", "off")
+    return n
+
+
 def capture_side(dev: Adb, state: dict, side: str, out_dir: Path, args) -> dict:
     letters = state["impl"]
     spec = impl_spec(letters, native=(side == "B"))
     info = {"side": side, "impl_spec": spec}
     info["impl_result"] = dev.qa_expect("impl", spec)
-    launch = state.get("launch") or {}
-    dev.restart(launch.get("data"), launch.get("extras"))
-    time.sleep(args.launch_wait_ms / 1000)
+    # the flags are written BEFORE the launch (the receiver takes them with the process
+    # dead and they persist), so the app starts frozen: no loop ever runs un-held and
+    # the JS side reads trace/focuslog at start, where it attaches its listeners
     fz = state.get("freeze") or {}
     freeze_arg = fz.get("freeze", "on")
     if isinstance(freeze_arg, bool):
         freeze_arg = "on" if freeze_arg else "off"
+    dev.force_stop()
+    time.sleep(0.5)
     ok, detail = dev.qa("freeze", freeze_arg)
     if not ok:
         raise AdbError(f"freeze {freeze_arg}: {detail}")
     traced = bool(state.get("trace")) or bool(fz.get("trace"))
     dev.qa_expect("trace", "on" if traced else "off")
     dev.qa_expect("focuslog", "on" if fz.get("focuslog", True) else "off")
+    launch = state.get("launch") or {}
+    dev.restart(launch.get("data"), launch.get("extras"))
+    time.sleep(args.launch_wait_ms / 1000)
     info["nav"] = dev.qa_expect("nav", state.get("nav", "home"))
     time.sleep(0.5)  # screen fade (260 ms) + a margin
     info["idle_before_keys"] = wait_idle(dev, state["idle"])
@@ -194,6 +214,11 @@ def capture_side(dev: Adb, state: dict, side: str, out_dir: Path, args) -> dict:
     info["png"] = str(png)
     log = dev.logcat_dump()
     (out_dir / f"{side}.logcat.txt").write_text(log, encoding="utf-8")
+    if traced:  # [key] lines exist only while tracing
+        sent = sum(st[2] for st in parse_keys(state.get("keys", [])) if st[0] == "key")
+        seen = log.count("[key]")
+        if seen > sent:
+            info["foreign_keys"] = seen - sent
     info["log"] = log
     if rec is not None:
         rec.wait(timeout=10)
@@ -271,14 +296,19 @@ def compare_state(state: dict, a: dict, b: dict, out_dir: Path, run_idx: int) ->
         "reasons": list(res.reasons) + reasons,
     }
     for side in (a, b):
+        if side.get("idle_before_keys") and not side["idle_before_keys"].get("idle", True):
+            result["reasons"].append(f"{side['side']}: not idle before the keys (the screen never settled after nav)")
         if side.get("idle") and not side["idle"].get("idle", True):
             result["reasons"].append(f"{side['side']}: idle timeout before capture")
+        if side.get("foreign_keys"):
+            result["reasons"].append(f"{side['side']}: {side['foreign_keys']} key event(s) reached the app that the harness did not send")
 
     # traces
     ids = state.get("trace") or []
     ta, tb = tracemod.parse(a.get("log", "")), tracemod.parse(b.get("log", ""))
     focus = tracemod.compare_focus(ta, tb)
-    tr = tracemod.compare(ta, tb, ids, retarget=bool(state.get("retarget"))) if ids else None
+    tr = tracemod.compare(ta, tb, ids, retarget=bool(state.get("retarget")),
+                          align=state.get("traceFrom", "first" if state.get("retarget") else "last")) if ids else None
     trace_doc = {"state": state["name"], "component": state["component"], "impl": state["impl"], "run": run_idx,
                  "ids": ids, "anim": tr, "focus": focus, "A": ta.to_dict(), "B": tb.to_dict()}
     traces_dir = out_dir.parent.parent / "traces"
@@ -287,7 +317,8 @@ def compare_state(state: dict, a: dict, b: dict, out_dir: Path, run_idx: int) ->
         json.dumps(trace_doc, indent=1), encoding="utf-8")
     if tr is not None:
         result["trace"] = {"pass": tr["pass"], "ids": {k: {"steps_a": v["steps_a"], "steps_b": v["steps_b"],
-                                                           "max_abs_err": v["max_abs_err"], "pass": v["pass"]}
+                                                           "max_abs_err": v["max_abs_err"], "pass": v["pass"],
+                                                           "key_to_first_ms": [v.get("key_to_first_ms_a"), v.get("key_to_first_ms_b")]}
                                                        for k, v in tr["ids"].items()}}
         result["reasons"] += [f"trace {r}" for r in tr["reasons"]]
     result["focus"] = {"pass": focus["pass"], "rows": len(focus["rows_a"])}
@@ -337,7 +368,7 @@ def write_summary(out: Path, env: dict, results: list[dict], args, started: str)
           "",
           "## Results", "",
           "Rule: pixelmatch YIQ threshold 0.1; Sobel edge mask (>40/255, dilated 1 px); any differing pixel OFF the edge mask fails; "
-          "ON-edge differing pixels must be <= 0.05 % of compared pixels; traces within 1e-3 x range per aligned step, step count +-1.", "",
+          "ON-edge differing pixels must be <= 0.05 % of compared pixels; traces: each step on the other run's value-vs-time curve within +-25 ms (+ 1e-3 x range), same rest value, settle times within 50 ms (trace.py).", "",
           "| component | state | run | impl | differing px | off-edge px | on-edge frac | max Δ | trace | masks+dither | result |",
           "|---|---|---|---|---|---|---|---|---|---|---|", *rows, ""]
     waived = [r for r in results if r.get("masks_applied") or r.get("dither_regions")]
@@ -468,6 +499,12 @@ def main(argv=None) -> int:
             env["token_source"] = "--token/env" if args.token else "debug keystore"
             (out / "env.json").write_text(json.dumps(env, indent=2), encoding="utf-8")
             print(f"device {env['model']} v{env['versionCode']} {env['display_mode']} · receiver {env['ping']}")
+            stray = quiet_check(dev)
+            if stray:
+                print(f"error: {stray} key event(s) reached the app in 3 s that this harness did not send — "
+                      "something else is driving the TV (a stale bench/key loop on this PC? a remote?). Stop it first.", file=sys.stderr)
+                write_summary(out, env, results, args, started)
+                return 2
             if env.get("animator_duration_scale") not in ("1.0", "1"):
                 print(f"warning: animator_duration_scale is {env.get('animator_duration_scale')} (02 §1 wants 1.0)")
 

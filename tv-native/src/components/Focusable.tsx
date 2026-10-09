@@ -249,6 +249,10 @@ function JsFocusable({
   const springAnim = useRef(new Animated.Value(0)).current;
   const idRef = useRef(0);
   if (!idRef.current) idRef.current = nextId++;
+  // QA trace only: which way the values are heading, so the `[anim]` lines of the
+  // element gaining focus (`focus.ring`) and of the one losing it (`focus.ring.out`)
+  // are two series instead of one interleaved one. A ref write per focus change.
+  const heading = useRef(false);
 
   // Held as well as forwarded: focus.ts needs this element's native node to
   // give focus back to it later (requestTVFocus lives on the host instance).
@@ -287,6 +291,7 @@ function JsFocusable({
     // rather than travel. A fade-out costs the same as the fade-in and is
     // idempotent, so it still cleans up a dropped blur event, just gracefully.
     ringRegistry.set(id, () => {
+      heading.current = false;
       Animated.timing(anim, {
         toValue: 0,
         duration: focus.duration,
@@ -318,7 +323,12 @@ function JsFocusable({
     let off: (() => void)[] = [];
     const attach = () => {
       off.forEach(f => f());
-      off = isTracing() ? [traceValue('focus.ring', anim), traceValue('focus.spring', springAnim)] : [];
+      off = isTracing()
+        ? [
+            traceValue(() => (heading.current ? 'focus.ring' : 'focus.ring.out'), anim),
+            traceValue(() => (heading.current ? 'focus.spring' : 'focus.spring.out'), springAnim),
+          ]
+        : [];
     };
     attach();
     const un = onQaChange(attach);
@@ -372,6 +382,7 @@ function JsFocusable({
       onLongPress={onLongPress}
       onFocus={() => {
         claimRing(idRef.current);
+        heading.current = true;
         if (isFocusLogging()) {
           logRing('claim', findNodeHandle(node.current as never));
           logFocus(true, findNodeHandle(node.current as never), !!edgeLeft, !!edgeRight);
@@ -412,6 +423,7 @@ function JsFocusable({
       }}
       onBlur={() => {
         releaseRing(idRef.current);
+        heading.current = false;
         if (isFocusLogging()) {
           logRing('release', findNodeHandle(node.current as never));
           logFocus(false, findNodeHandle(node.current as never), !!edgeLeft, !!edgeRight);

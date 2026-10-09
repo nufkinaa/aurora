@@ -330,7 +330,10 @@ class AuroraCardView(context: Context) : View(context) {
     rect.set(0f, 0f, w.toFloat(), h.toFloat())
     val r11 = PixelUtil.toPixelFromDIP(PICTURE_RADIUS_DP)
     val r12 = PixelUtil.toPixelFromDIP(CARD_RADIUS_DP)
-    val showTile = uri.isEmpty() || tile || ladder.show() == Show.TILE
+    // The tile is drawn only where JsCard draws it: no picture at all (`tile`, i.e. `!src`)
+    // or the ladder gave up on one. NOT merely "no uri": the FOCUS instance has none (it
+    // carries only brighten + shade) and painted the opaque tile over the art on focus.
+    val showTile = tile || (uri.isNotEmpty() && ladder.show() == Show.TILE)
     if (showTile) {
       drawTile(canvas, w, h, r12)
     } else {

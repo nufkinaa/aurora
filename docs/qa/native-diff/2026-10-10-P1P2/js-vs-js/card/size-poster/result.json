@@ -1,0 +1,90 @@
+{
+  "state": "size-poster",
+  "component": "card",
+  "impl": "-",
+  "run": 1,
+  "differing_px": 0,
+  "off_edge_px": 0,
+  "on_edge_px": 0,
+  "diff_fraction": 0.0,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 0,
+  "max_yiq": 0.0,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 812,
+      "polls": 2,
+      "anim_lines": 130,
+      "frames": 275
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 672,
+      "polls": 2,
+      "anim_lines": 128,
+      "frames": 224
+    }
+  },
+  "reasons": [],
+  "trace": {
+    "pass": true,
+    "ids": {
+      "focus.ring": {
+        "steps_a": 11,
+        "steps_b": 10,
+        "max_abs_err": 8.937391304342235e-05,
+        "pass": true,
+        "key_to_first_ms": [
+          30.0,
+          38.0
+        ]
+      },
+      "focus.spring": {
+        "steps_a": 19,
+        "steps_b": 17,
+        "max_abs_err": 0.0005599999999998939,
+        "pass": true,
+        "key_to_first_ms": [
+          31.0,
+          38.0
+        ]
+      },
+      "focus.ring.out": {
+        "steps_a": 11,
+        "steps_b": 10,
+        "max_abs_err": 0.00010426956521739127,
+        "pass": true,
+        "key_to_first_ms": [
+          31.0,
+          38.0
+        ]
+      },
+      "focus.spring.out": {
+        "steps_a": 19,
+        "steps_b": 17,
+        "max_abs_err": 0.000559999999999998,
+        "pass": true,
+        "key_to_first_ms": [
+          31.0,
+          38.0
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": true,
+    "rows": 4
+  },
+  "pass": true
+}

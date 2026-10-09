@@ -252,16 +252,41 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     layoutDecorations()
   }
 
+  /**
+   * The JS decorations are `position: absolute` children, and Yoga resolves an absolute
+   * child's insets against the parent's PADDING box — inside its border. So "inset 0" is
+   * not the element's edge: on a Btn/Chip (the 3 dp reserved border of styles.base) the
+   * ring sits 3 dp in, the light gap exactly covers the reserved border and the light ring
+   * starts at the element's edge; on a Card (borderWidth 1) the ring sits 1 dp in.
+   */
   private fun layoutDecorations() {
     val w = width
     val h = height
     if (w == 0 && h == 0) return
-    highlight?.layout(0, 0, w, h)
-    ring?.layout(0, 0, w, h)
+    val bl = borderPx(LogicalEdge.LEFT, LogicalEdge.START, LogicalEdge.HORIZONTAL)
+    val br = borderPx(LogicalEdge.RIGHT, LogicalEdge.END, LogicalEdge.HORIZONTAL)
+    val bt = borderPx(LogicalEdge.TOP, LogicalEdge.BLOCK_START, LogicalEdge.VERTICAL)
+    val bb = borderPx(LogicalEdge.BOTTOM, LogicalEdge.BLOCK_END, LogicalEdge.VERTICAL)
+    val l = bl
+    val t = bt
+    val r = w - br
+    val b = h - bb
+    highlight?.layout(l, t, r, b)
+    ring?.layout(l, t, r, b)
     val g = px(LIGHT_GAP)
-    gap?.layout(-g, -g, w + g, h + g)
+    gap?.layout(l - g, t - g, r + g, b + g)
     val lr = px(LIGHT_GAP + LIGHT_RING)
-    lightRing?.layout(-lr, -lr, w + lr, h + lr)
+    lightRing?.layout(l - lr, t - lr, r + lr, b + lr)
+  }
+
+  /** This view's own border width on one edge, in px (the style's, as RN resolved it). */
+  private fun borderPx(vararg edges: LogicalEdge): Int {
+    for (e in edges) {
+      val v = BackgroundStyleApplicator.getBorderWidth(this, e)
+      if (v != null) return px(v.toDouble())
+    }
+    val all = BackgroundStyleApplicator.getBorderWidth(this, LogicalEdge.ALL) ?: return 0
+    return px(all.toDouble())
   }
 
   /** Yoga's roundValueToPixelGrid for a non-negative inset: half-up on the scaled value. */
@@ -339,12 +364,16 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     AuroraClock.add(springDriver)
   }
 
+  private var headingLit = false
+
   private fun toLit() {
+    headingLit = true
     startRing(1.0)
     startSpring(1.0)
   }
 
   private fun toDark() {
+    headingLit = false
     startRing(0.0)
     startSpring(0.0)
   }
@@ -474,6 +503,7 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     AuroraFocusFacts.lost(this)
     ringValue = 0.0
     springValue = 0.0
+    headingLit = false
     scaleX = 1f
     scaleY = 1f
     translationY = 0f
@@ -516,10 +546,9 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
 
   fun qaTag(): String = AuroraQa.tagOf(this)
 
-  private fun traceId(prop: String): String {
-    val nid = getTag(R.id.view_tag_native_id) as? String
-    return (if (!nid.isNullOrEmpty()) nid else "focus") + "." + prop
-  }
+  /** `focus.ring` / `focus.spring` while heading to lit, `….out` while heading to dark —
+   *  the same ids the JS Focusable logs (Focusable.tsx), so A and B are comparable. */
+  private fun traceId(prop: String): String = if (headingLit) "focus.$prop" else "focus.$prop.out"
 
   companion object {
     const val OVERLAY_ID = "aurora:overlay"

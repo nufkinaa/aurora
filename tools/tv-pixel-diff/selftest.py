@@ -9,7 +9,7 @@ Cases:
   2. same gradient, a 3-px change in a flat area (off the edge mask)              -> FAIL
   3. an anti-aliased edge drawn 1 px differently (on the edge mask, tiny share)   -> PASS
   4. threshold 0: the dither noise fails unless the region is declared `dither`   -> FAIL then PASS
-  5. a trace pair within 1e-3 passes; one step off by 1 % fails
+  5. a trace pair within 1e-3 passes; a curve 1 % off or 30 % slower fails; a dropped frame passes
 Also times the full-frame diff (must be well under 10 s).
 """
 from __future__ import annotations
@@ -129,9 +129,18 @@ def main() -> int:
     lb = key + "".join(f"[anim] {base + 5000 + i * 16_666_667} row.tx {-(i / 16.0) * 260 + 0.0002:.6f}\n" for i in range(18))
     res = trace.compare(trace.parse(la), trace.parse(lb), ["row.tx"], retarget=True)
     ok &= check("identical-within-1e-3 traces pass", res["pass"], f"max_abs_err={res['ids']['row.tx']['max_abs_err']:.2g}")
-    lc = lb.replace(f"{-(9 / 16.0) * 260 + 0.0002:.6f}", f"{-(9 / 16.0) * 260 * 1.01:.6f}")
+    # (the rule is the curve in TIME, +-25 ms: one mid-flight step 1 % off sits inside the
+    #  neighbouring frames' band and is not a failure; a different rest value, or the same
+    #  curve run 30 % slower, is)
+    lc = key + "".join(f"[anim] {base + i * 16_666_667} row.tx {-(i / 16.0) * 260 * 1.01:.6f}\n" for i in range(18))
     res = trace.compare(trace.parse(la), trace.parse(lc), ["row.tx"])
-    ok &= check("a step 1 % off fails", not res["pass"], "; ".join(res["reasons"]))
+    ok &= check("a curve 1 % off (rest value included) fails", not res["pass"], "; ".join(res["reasons"])[:160])
+    le = key + "".join(f"[anim] {base + i * 16_666_667} row.tx {-(min(i / 1.3, 17) / 16.0) * 260:.6f}\n" for i in range(24))
+    res = trace.compare(trace.parse(la), trace.parse(le), ["row.tx"])
+    ok &= check("the same curve 30 % slower fails", not res["pass"], "; ".join(res["reasons"])[:160])
+    lf = key + "".join(f"[anim] {base + i * 16_666_667} row.tx {-(i / 16.0) * 260:.6f}\n" for i in range(18) if i != 7)
+    res = trace.compare(trace.parse(la), trace.parse(lf), ["row.tx"])
+    ok &= check("one dropped frame passes", res["pass"], "; ".join(res["reasons"])[:160])
     ld = la + f"[anim] {base + 99 * 16_666_667} row.tx 0\n" * 2
     res = trace.compare(trace.parse(la), trace.parse(ld), ["row.tx"])
     ok &= check("step count off by 2 fails", not res["pass"], "; ".join(res["reasons"]))

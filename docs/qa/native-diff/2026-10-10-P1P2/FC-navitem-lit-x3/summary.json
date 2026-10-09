@@ -1,0 +1,258 @@
+{
+ "env": {
+  "commit": "65ecfc53deff",
+  "pkg": "com.auroratv.lab",
+  "serial": "192.168.50.31:5555",
+  "fingerprint": "Xiaomi/twilight/twilight:14/UKG3.250826.001/V816.0.7.0.UZFAABX:user/release-keys",
+  "model": "MiTV-AFMU0",
+  "sdk": "34",
+  "locale": "en-US",
+  "timezone": "Asia/Jerusalem",
+  "animator_duration_scale": "null",
+  "transition_animation_scale": "1.0",
+  "window_animation_scale": "1.0",
+  "font_scale": "1.0",
+  "screensaver_enabled": "1",
+  "wm_size": "Physical size: 1920x1080",
+  "wm_density": "Physical density: 320",
+  "display_mode": "mActiveModeId=20",
+  "versionCode": 9000,
+  "versionName": "9.9.9-lab",
+  "ping": "v=9000 impl=-",
+  "token_source": "--token/env"
+ },
+ "args": {
+  "serial": "192.168.50.31:5555",
+  "pkg": "com.auroratv.lab",
+  "impl": "FC",
+  "states": [
+   "focusable"
+  ],
+  "only": "navitem-lit",
+  "runs": 3,
+  "out": "docs/qa/native-diff/2026-10-10-P1P2/FC-navitem-lit-x3",
+  "adb": "C:/elia/android-tools/sdk/platform-tools/adb.exe",
+  "token": "aurora-lab-qa",
+  "keystore": null,
+  "var": [],
+  "server": [],
+  "launch_wait_ms": 4000,
+  "screenrecord": false,
+  "force_lock": false,
+  "dry_run": false,
+  "diff_only": false,
+  "verbose": false
+ },
+ "results": [
+  {
+   "state": "navitem-lit",
+   "component": "focusable",
+   "impl": "FC",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 875,
+     "polls": 3,
+     "anim_lines": 84,
+     "frames": 151
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 890,
+     "polls": 3,
+     "anim_lines": 48,
+     "frames": 116
+    }
+   },
+   "reasons": [],
+   "trace": {
+    "pass": true,
+    "ids": {
+     "focus.ring": {
+      "steps_a": 11,
+      "steps_b": 6,
+      "max_abs_err": 0.0,
+      "pass": true,
+      "key_to_first_ms": [
+       176.0,
+       58.374802
+      ]
+     },
+     "focus.spring": {
+      "steps_a": 31,
+      "steps_b": 18,
+      "max_abs_err": 0.0003770000000000717,
+      "pass": true,
+      "key_to_first_ms": [
+       176.0,
+       58.374802
+      ]
+     }
+    }
+   },
+   "focus": {
+    "pass": false,
+    "rows": 2
+   },
+   "pass": true
+  },
+  {
+   "state": "navitem-lit",
+   "component": "focusable",
+   "impl": "FC",
+   "run": 2,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 625,
+     "polls": 2,
+     "anim_lines": 74,
+     "frames": 153
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 656,
+     "polls": 2,
+     "anim_lines": 48,
+     "frames": 125
+    }
+   },
+   "reasons": [],
+   "trace": {
+    "pass": true,
+    "ids": {
+     "focus.ring": {
+      "steps_a": 9,
+      "steps_b": 6,
+      "max_abs_err": 0.0,
+      "pass": true,
+      "key_to_first_ms": [
+       171.0,
+       48.638532
+      ]
+     },
+     "focus.spring": {
+      "steps_a": 28,
+      "steps_b": 18,
+      "max_abs_err": 0.0004837183622972141,
+      "pass": true,
+      "key_to_first_ms": [
+       171.0,
+       48.638532
+      ]
+     }
+    }
+   },
+   "focus": {
+    "pass": false,
+    "rows": 2
+   },
+   "pass": true
+  },
+  {
+   "state": "navitem-lit",
+   "component": "focusable",
+   "impl": "FC",
+   "run": 3,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 750,
+     "polls": 2,
+     "anim_lines": 80,
+     "frames": 150
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 812,
+     "polls": 3,
+     "anim_lines": 46,
+     "frames": 114
+    }
+   },
+   "reasons": [],
+   "trace": {
+    "pass": true,
+    "ids": {
+     "focus.ring": {
+      "steps_a": 10,
+      "steps_b": 6,
+      "max_abs_err": 0.0,
+      "pass": true,
+      "key_to_first_ms": [
+       191.0,
+       48.221699
+      ]
+     },
+     "focus.spring": {
+      "steps_a": 30,
+      "steps_b": 17,
+      "max_abs_err": 0.00018999999999991246,
+      "pass": true,
+      "key_to_first_ms": [
+       192.0,
+       48.221699
+      ]
+     }
+    }
+   },
+   "focus": {
+    "pass": false,
+    "rows": 2
+   },
+   "pass": true
+  }
+ ]
+}

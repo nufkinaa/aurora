@@ -8,14 +8,39 @@ Line formats (the payload after logcat's own prefix; the tag does not matter):
     [key]  <uptimeMs> <KEYCODE_NAME>              the receiver logs each `input keyevent` arrival
     [focus] <uptimeMs> gain tag=<id> impl=js|native edgeL=0|1 edgeR=0|1
 
-Comparison per traced id (02 §4.3):
-  * steps are taken from the first [anim] line after the first [key] line (if any key
-    was logged; else from the start) and aligned by step index;
-  * per aligned step |vA - vB| <= 1e-3 * range, range = max - min of A's values for that
-    id (1.0 when A is flat);
-  * total step count within +-1;
+Comparison per traced id (02 §4.3, as corrected 2026-10-10):
+
+  The first version aligned the two runs BY STEP INDEX and asked |vA - vB| <= 1e-3 x range.
+  That rule fails a run against itself (js vs js): the drivers step on real frame times
+  (the spring integrates the real dt; the timing driver picks frame round(elapsed/16.67)),
+  so one late or dropped frame shifts every later index, and the JS side's lines are stamped
+  on arrival at the native module, a few ms after the frame. What IS reproducible is the
+  curve - value as a function of time since the animation's first step. So:
+
+  * steps are taken from the first [anim] line after the aligning [key] line (the last key
+    of the path; the first with `traceFrom: "first"`; from the start if no key was logged); t = frameTime - (time of that first step);
+  * every B step must lie on A's curve within one and a half frames of time: vB must be
+    inside [min, max] of A's (linearly interpolated) curve over t +- 25 ms, widened by
+    1e-3 x range (range = max - min of A's values, 1.0 when A is flat); and the same with
+    A and B swapped;
+  * the rest values (last step) must agree within 1e-3 x range;
+  * the SETTLE times (the last step still further than 2e-3 x range from the rest value)
+    must agree within 3 frames (50 ms). Not the time of the last step: a spring's driver
+    stops on the first frame where |v| <= restSpeed AND |x - to| <= restDisplacement, and
+    the velocity of an under-damped spring crosses zero every half period, so which frame
+    that is depends on where the frames fall (seen on the box: 403 ms vs 504 ms for the
+    same spring, js or native alike) while the curve itself is the same;
+  * a frame gap longer than 64 ms makes RN's spring simulate only 64 ms of it
+    (MAX_DELTA_TIME_SEC), so the curve lags real time by the excess from then on: the excess
+    of both runs is added to the +-25 ms and to the 50 ms (reported as lag_ms);
   * if `retarget` is set for the state, the rest time of the last step (frameTimeNanos of
     the final step minus the aligning key) must agree within 16.7 ms.
+  key_to_first_ms (key -> first step) is reported per side, not judged: it is the input
+  latency, which the two implementations are allowed to differ in (native is the faster).
+
+  The ids `focus.ring` / `focus.spring` carry the element GAINING focus only; the element
+  losing it logs `focus.ring.out` / `focus.spring.out` (both implementations), so two
+  elements animating at once no longer interleave in one series.
 """
 from __future__ import annotations
 
@@ -24,7 +49,9 @@ import re
 from dataclasses import dataclass, field
 
 TOL_FRACTION = 1e-3
-STEP_COUNT_SLACK = 1
+TIME_SLACK_MS = 25.0       # one and a half 60 Hz frames
+DURATION_SLACK_MS = 50.0   # three frames
+STEP_COUNT_SLACK = 1       # reported only (dropped frames change the count, not the curve)
 REST_TIME_SLACK_MS = 16.7
 
 _ANIM = re.compile(r"\[anim\]\s+(\d+)\s+(\S+)\s+(-?[\d.]+(?:[eE][-+]?\d+)?)")
@@ -67,49 +94,126 @@ def parse(text: str) -> Trace:
     return tr
 
 
-def _steps_after_key(tr: Trace, anim_id: str):
-    """Steps of `anim_id` from the first one after the first key (uptimeMs*1e6 ~ frameTimeNanos:
-    both are CLOCK_MONOTONIC on Android; uptimeMillis vs frameTimeNanos share the clock)."""
+def _steps_after_key(tr: Trace, anim_id: str, align: str = "last"):
+    """Steps of `anim_id` from the first one after the aligning key — the LAST key of the path
+    by default (the one whose effect the state captures; the gaps between adb key presses are
+    not reproducible, so earlier keys' animations are not compared), the FIRST for a burst
+    (`traceFrom: "first"`). uptimeMs*1e6 ~ frameTimeNanos: both are CLOCK_MONOTONIC."""
     steps = tr.anim.get(anim_id, [])
     if not tr.keys or not steps:
         return steps, None
-    key_ns = tr.keys[0][0] * 1_000_000
+    key_ns = (tr.keys[0][0] if align == "first" else tr.keys[-1][0]) * 1_000_000
     after = [s for s in steps if s[0] >= key_ns]
     return (after if after else steps), key_ns
 
 
-def compare(a: Trace, b: Trace, ids: list[str], retarget: bool = False) -> dict:
+def _curve(steps):
+    """[(t_ms since the first step, value)]"""
+    t0 = steps[0][0]
+    return [((t - t0) / 1e6, v) for t, v in steps]
+
+
+def _at(curve, t):
+    """Linear interpolation, clamped at both ends."""
+    if t <= curve[0][0]:
+        return curve[0][1]
+    if t >= curve[-1][0]:
+        return curve[-1][1]
+    lo, hi = 0, len(curve) - 1
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if curve[mid][0] <= t:
+            lo = mid
+        else:
+            hi = mid
+    (t0, v0), (t1, v1) = curve[lo], curve[hi]
+    return v0 if t1 == t0 else v0 + (v1 - v0) * (t - t0) / (t1 - t0)
+
+
+def _band(curve, t, slack):
+    """(min, max) of the interpolated curve over [t - slack, t + slack]."""
+    vals = [_at(curve, t - slack), _at(curve, t + slack)]
+    vals += [v for tt, v in curve if t - slack <= tt <= t + slack]
+    return min(vals), max(vals)
+
+
+def _lag_ms(curve):
+    """Time a spring's simulation fell behind real time: the part of each frame gap over 64 ms."""
+    return sum(max(0.0, curve[i + 1][0] - curve[i][0] - 64.0) for i in range(len(curve) - 1))
+
+
+def _settle_ms(curve, rng):
+    """Time of the first step from which the value stays within 2e-3 x range of the rest value."""
+    rest = curve[-1][1]
+    for i in range(len(curve) - 1, -1, -1):
+        if abs(curve[i][1] - rest) > 2 * TOL_FRACTION * rng:
+            return curve[min(i + 1, len(curve) - 1)][0]
+    return curve[0][0]
+
+
+def _off_curve(ref, other, tol, slack=None):
+    """First step of `other` that is not on `ref`'s curve; -> (index, t, value, lo, hi, err) or None. Also the worst err."""
+    worst, first = 0.0, None
+    for i, (t, v) in enumerate(other):
+        lo, hi = _band(ref, t, TIME_SLACK_MS if slack is None else slack)
+        err = max(lo - v, v - hi, 0.0)
+        worst = max(worst, err)
+        if err > tol and first is None:
+            first = (i, t, v, lo, hi, err)
+    return first, worst
+
+
+def compare(a: Trace, b: Trace, ids: list[str], retarget: bool = False, align: str = "last") -> dict:
     """-> {"pass": bool, "ids": {id: {...}}, "reasons": [...]}"""
-    out = {"pass": True, "ids": {}, "reasons": [], "tolerance": TOL_FRACTION, "step_slack": STEP_COUNT_SLACK}
+    out = {"pass": True, "ids": {}, "reasons": [], "tolerance": TOL_FRACTION, "time_slack_ms": TIME_SLACK_MS,
+           "duration_slack_ms": DURATION_SLACK_MS}
     for anim_id in ids:
-        sa, ka = _steps_after_key(a, anim_id)
-        sb, kb = _steps_after_key(b, anim_id)
+        sa, ka = _steps_after_key(a, anim_id, align)
+        sb, kb = _steps_after_key(b, anim_id, align)
         rec = {"steps_a": len(sa), "steps_b": len(sb), "pass": True, "max_abs_err": 0.0, "range": 0.0,
                "first_bad_step": None}
         if not sa or not sb:
             rec["pass"] = False
-            rec["reason"] = f"no [anim] steps for {anim_id} in " + ("A" if not sa else "B")
+            rec["reason"] = f"no [anim] steps for {anim_id} in " + ("A and B" if not sa and not sb else "A" if not sa else "B")
             out["ids"][anim_id] = rec
             out["reasons"].append(rec["reason"])
             out["pass"] = False
             continue
-        va = [v for _, v in sa]
-        vb = [v for _, v in sb]
+        ca, cb = _curve(sa), _curve(sb)
+        va = [v for _, v in ca]
         rng = (max(va) - min(va)) or 1.0
         rec["range"] = rng
         tol = TOL_FRACTION * rng
         rec["tolerance_abs"] = tol
-        n = min(len(va), len(vb))
-        errs = [abs(va[i] - vb[i]) for i in range(n)]
-        rec["max_abs_err"] = max(errs) if errs else 0.0
-        bad = next((i for i, e in enumerate(errs) if e > tol), None)
-        if bad is not None:
+        lag = _lag_ms(ca) + _lag_ms(cb)
+        rec["lag_ms"] = lag
+        slack = TIME_SLACK_MS + lag
+        bad_b, worst_b = _off_curve(ca, cb, tol, slack)
+        bad_a, worst_a = _off_curve(cb, ca, tol, slack)
+        rec["max_abs_err"] = max(worst_a, worst_b)
+        for who, bad in (("B", bad_b), ("A", bad_a)):
+            if bad is not None:
+                i, t, v, lo, hi, err = bad
+                rec["pass"] = False
+                rec["first_bad_step"] = rec["first_bad_step"] or {"side": who, "index": i, "t_ms": t, "value": v, "band": [lo, hi], "err": err}
+                other = "A" if who == "B" else "B"
+                out["reasons"].append(f"{anim_id}: {who} step {i} at {t:.1f} ms = {v:.6g}, off {other}'s curve "
+                                      f"[{lo:.6g}, {hi:.6g}] within +-{slack:g} ms (|err| {err:.3g} > {tol:.3g})")
+        rest_err = abs(ca[-1][1] - cb[-1][1])
+        rec["rest_a"], rec["rest_b"] = ca[-1][1], cb[-1][1]
+        if rest_err > tol:
             rec["pass"] = False
-            rec["first_bad_step"] = {"index": bad, "a": va[bad], "b": vb[bad], "err": errs[bad]}
-            out["reasons"].append(f"{anim_id}: step {bad} A={va[bad]:.6g} B={vb[bad]:.6g} (|err| {errs[bad]:.3g} > {tol:.3g})")
-        if abs(len(va) - len(vb)) > STEP_COUNT_SLACK:
+            out["reasons"].append(f"{anim_id}: rest value A={ca[-1][1]:.6g} B={cb[-1][1]:.6g}")
+        rec["duration_ms_a"], rec["duration_ms_b"] = ca[-1][0], cb[-1][0]
+        set_a, set_b = _settle_ms(ca, rng), _settle_ms(cb, rng)
+        rec["settle_ms_a"], rec["settle_ms_b"] = set_a, set_b
+        if abs(set_a - set_b) > DURATION_SLACK_MS + lag:
             rec["pass"] = False
-            out["reasons"].append(f"{anim_id}: step count A={len(va)} B={len(vb)} (slack {STEP_COUNT_SLACK})")
+            out["reasons"].append(f"{anim_id}: settle time A={set_a:.1f} ms B={set_b:.1f} ms (> {DURATION_SLACK_MS + lag:g} ms apart)")
+        if ka is not None:
+            rec["key_to_first_ms_a"] = (sa[0][0] - ka) / 1e6
+        if kb is not None:
+            rec["key_to_first_ms_b"] = (sb[0][0] - kb) / 1e6
         if retarget and ka is not None and kb is not None:
             rest_a = (sa[-1][0] - ka) / 1e6
             rest_b = (sb[-1][0] - kb) / 1e6

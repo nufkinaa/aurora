@@ -13,8 +13,11 @@ package com.auroratv.ui.anim
  *
  * `advance` is the closed-form damped oscillator from the START of this driver with
  * v0 = -initialVelocity, evaluated at the accumulated time. Rest = |v| <= restSpeed AND
- * |to - x| <= restDisplacement; the value is NOT snapped to `to` at rest (the JS driver
- * snaps, the native one does not — the app runs the native one).
+ * |to - x| <= restDisplacement; AT REST THE VALUE IS SNAPPED TO `to` (SpringAnimation.kt's
+ * `advance`: `if (isAtRest || (overshootClampingEnabled && isOvershooting))` → position =
+ * endValue). The first port left it un-snapped, so a lit element rested at a scale up to
+ * 0.001 × (s − 1) short and its pixels differed from the JS run by a level here and there,
+ * differently on every run (2026-10-10).
  *
  * Retargeting: when JS starts a new `Animated.spring` on a value that is still moving,
  * `AnimatedValue.animate` stops the native driver (the node keeps its last value) and the
@@ -109,7 +112,9 @@ class AuroraSpring(
     position = positionOut
     velocity = velocityOut
 
-    if (!isAtRest() && overshootClamping && isOvershooting()) {
+    // RN (SpringAnimation.kt, advance): "make sure that if the spring was considered within a
+    // resting threshold that it's now snapped to its end value" — at rest OR clamped overshoot.
+    if (isAtRest() || (overshootClamping && isOvershooting())) {
       if (stiffness > 0) {
         startValue = endValue
         position = endValue

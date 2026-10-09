@@ -1,0 +1,72 @@
+{
+  "state": "navitem-lit",
+  "component": "focusable",
+  "impl": "FC",
+  "run": 1,
+  "differing_px": 0,
+  "off_edge_px": 0,
+  "on_edge_px": 0,
+  "diff_fraction": 0.0,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 0,
+  "max_yiq": 0.0,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 687,
+      "polls": 2,
+      "anim_lines": 80,
+      "frames": 134
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 672,
+      "polls": 2,
+      "anim_lines": 46,
+      "frames": 118
+    }
+  },
+  "reasons": [
+    "trace focus.ring: A step 1 at 20.0 ms = 0.638151, off B's curve [0, 0.63008] within +-28.2011 ms (|err| 0.00807 > 0.001)"
+  ],
+  "trace": {
+    "pass": false,
+    "ids": {
+      "focus.ring": {
+        "steps_a": 10,
+        "steps_b": 6,
+        "max_abs_err": 0.008070935458833084,
+        "pass": false,
+        "key_to_first_ms": [
+          176.0,
+          58.146245
+        ]
+      },
+      "focus.spring": {
+        "steps_a": 30,
+        "steps_b": 17,
+        "max_abs_err": 0.0006117564612742044,
+        "pass": true,
+        "key_to_first_ms": [
+          177.0,
+          58.146245
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": false,
+    "rows": 2
+  },
+  "pass": false
+}

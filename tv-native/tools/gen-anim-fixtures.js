@@ -10,8 +10,8 @@
 //   - TimingAnimation.js   → the pre-sampled `frames` array
 //                            (__getNativeAnimationConfig, re-stated below: 4 lines)
 // What the native drivers do per frame is NOT in the JS (the JS drivers differ: the
-// JS timing evaluates the easing per frame and the JS spring snaps to `toValue` at
-// rest); it is re-stated here from the bytecode of react-android 0.86.0-2's
+// JS timing evaluates the easing per frame; the spring snaps to `toValue` at rest in
+// both drivers); it is re-stated here from the bytecode of react-android 0.86.0-2's
 // FrameBasedAnimationDriver / SpringAnimation (see the Kotlin ports' headers), with
 // the SpringAnimation.js closed-form formulas — the same formulas the Kotlin
 // driver carries — so the Kotlin can be checked step by step.
@@ -124,6 +124,15 @@ function runSpring(cfg, from, to, frameTimesNanos) {
         const envelope = Math.exp(-omega0 * t);
         position = endValue - envelope * (x0 + (v0 + omega0 * x0) * t);
         velocity = envelope * (v0 * (t * omega0 - 1) + t * x0 * (omega0 * omega0));
+      }
+      // SpringAnimation.kt `advance`: "if the spring was considered within a resting
+      // threshold … it's now snapped to its end value" (node_modules/react-native/
+      // ReactAndroid/…/animated/SpringAnimation.kt). The first version of this file
+      // left it un-snapped; the box shows RN's own run ending on exactly 1.000000.
+      if (atRest() && stiffness > 0) {
+        startValue = endValue;
+        position = endValue;
+        velocity = 0;
       }
     }
     lastTime = ms;

@@ -71,7 +71,8 @@ sees nothing else. Formats (01 §6, 02 §4.3, §5):
 
 ```
 [anim] <frameTimeNanos> <id> <value>          one line per driver step; id = <nativeId>.<property>
-                                              ids in use: row.tx focus.ring focus.spring hero.atTop hero.ty rail.slide rail.strip hero.swap
+                                              ids in use: row.tx focus.ring focus.spring focus.ring.out focus.spring.out card.fade hero.atTop hero.ty rail.slide rail.strip hero.swap
+                                              (focus.ring/.spring: the element heading to LIT; .out: the one heading to dark — both implementations)
                                               <value> printed with %.6f (or shortest round-trip); the harness compares to 1e-3 x range
 [key]  <uptimeMs> <KEYCODE_NAME>              on every key the activity receives (while trace is on)
 [focus] <uptimeMs> gain tag=<nativeId|reactTag> impl=js|native edgeL=0|1 edgeR=0|1
@@ -111,8 +112,11 @@ app (the receiver queues a `nav` until the root navigator is ready, ≤ 10 s, an
   `err unsupported` (no text QA screen exists yet — it belongs to the phase that ports text).
 - `[focus] … loss` lines carry no `edgeL=`/`edgeR=` (as §4 shows); `tag=` is the view's `nativeID`,
   else its `testID`, else the react tag.
-- `[anim]` ids from the native Focusable are `<nativeID>.ring` / `<nativeID>.spring`, falling back
-  to `focus.ring` / `focus.spring` when the element has no `nativeID`; the JS Focusable always
-  logs `focus.ring` / `focus.spring` (stamped on arrival at the native module, uptime clock).
+- `[anim]` ids of BOTH Focusables (2026-10-10): `focus.ring` / `focus.spring` while the element
+  is heading to lit, `focus.ring.out` / `focus.spring.out` while heading to dark, so a focus
+  move is two clean series per value instead of one interleaved one. The native lines carry
+  the frame time; the JS lines are stamped on arrival at the native module (uptime clock), a
+  few ms later and late under JS load — trace.py compares curves in time with that slack.
+- The harness sends `freeze` / `trace` / `focuslog` with the process stopped, before `am start`.
 - `nav` is answered only after `navigation.tsx` dispatched the route (queued ≤ 10 s on a fresh
   launch, `err timeout` after); the broadcast is held with `goAsync()` meanwhile.

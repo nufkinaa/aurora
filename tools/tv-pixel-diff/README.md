@@ -84,14 +84,26 @@ auto-repeat; the `[key]` lines carry the true arrival times); `KEY!long` → `--
 with a `crop`, they are still given in screen px and shifted by the harness.
 
 Per state the runner does, for side A (every component `=js`) and side B (the state's
-letters `=native`): `impl` broadcast → `am force-stop` + `am start` → wait `--launch-wait-ms`
-(4000) → `freeze` / `trace` / `focuslog` broadcasts → `nav` → 500 ms (screen fade) → idle →
+letters `=native`): `impl` broadcast → `am force-stop` → `freeze` / `trace` / `focuslog`
+broadcasts (written BEFORE the launch: the receiver takes them with the process dead and
+they persist, so the app starts frozen and the JS side attaches its trace listeners at
+start) → `am start` → wait `--launch-wait-ms` (4000) → `nav` → 500 ms (screen fade) → idle →
 `logcat -c` → keys → `settleMs` → idle → `screencap -p` → `logcat -d` (saved) → resolve
 `nativeId` masks/crop with `layout` → `framestats`.
 
+**Determinism** (2026-10-10). Before the first state the runner turns `trace` on for 3 s
+and counts `[key]` lines: any key it did not send aborts the run ("something else is
+driving the TV"). The first run of this harness failed 12/12 because four orphaned
+`tools/tv-bench.sh` loops on the PC were pressing LEFT/RIGHT every 0.6 s — the hero
+"rotated", the rail opened, nothing was ever idle. A traced state also fails if more
+`[key]` lines arrive than its key path has. To prove a setup is deterministic run a state
+against itself: `--impl -` makes the B side all-js too, and every state must then come back
+with 0 differing px.
+
 **Idle** = no new `[anim]` line (`adb logcat -d -s AuroraAnim:V`) for `quietMs` **and**
 `dumpsys gfxinfo <pkg>` "Total frames rendered" unchanged for `gfxStableMs`, polled every
-`pollMs`. On `timeoutMs` the capture is taken anyway and the state fails with "idle timeout".
+`pollMs`. On `timeoutMs` the capture is taken anyway and the state fails with "idle timeout";
+a screen that never settled after `nav` (before the keys) fails the state as well.
 
 The state files assume the deterministic fixture of 02 §3.1 (`/api/home` rows: continue,
 recent, poster rows with ≥ 16 items; the "Claude QA" profile) — each file's `notes` lists its
@@ -115,10 +127,16 @@ the fixture's row order differs.
    allowance matters at `threshold: 0` — the zero-tolerance text procedure of 02 §3.4.)
 6. Size mismatch, a `layout` rect that differs between A and B, an unresolvable
    `nativeId` mask, an idle timeout, or a harness error fail the state.
-7. **Traces** (trace.py, 02 §4.3): for each id in `trace`, steps are aligned by index from
-   the first `[anim]` after the first `[key]`; per step `|vA − vB| ≤ 1e-3 × range(A)`;
-   step count within ±1; with `retarget` the final step's time after the key within
-   16.7 ms. A missing trace on either side fails. The `[focus]` table (02 §5) is written
+7. **Traces** (trace.py — its header has the reasoning): for each id in `trace`, the steps
+   after the LAST `[key]` of the path (`"traceFrom": "first"`, or `retarget`, for a burst)
+   are compared as curves in TIME since their first step: every step of one run must lie
+   on the other run's curve within ±25 ms (+ 1e-3 × range), the rest values must agree
+   within 1e-3 × range and the settle times within 50 ms; with `retarget` the final step's
+   time after the key within 16.7 ms. (The first rule — align by step index, 1e-3 per
+   step — failed a run against itself: the drivers step on real frame times.) The ids
+   `focus.ring` / `focus.spring` are the element GAINING focus; the one losing it logs
+   `focus.ring.out` / `focus.spring.out`. key→first-step latency is reported, not judged.
+   A missing trace on either side fails. The `[focus]` table (02 §5) is written
    to `traces/` and compared; it gates the state only with `"focusCheck": true`.
 
 Standalone: `python diff.py A.png B.png [--out D.png --triptych T.png --json R.json
