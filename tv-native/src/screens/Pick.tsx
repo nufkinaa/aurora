@@ -28,6 +28,7 @@ import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Card, {COMPACT_W, COMPACT_H} from '../components/Card';
 import Chip from '../components/Chip';
 import Btn from '../components/Btn';
+import Focusable from '../components/Focusable';
 import Icon, {IconName} from '../components/Icon';
 import MiniSpinner from '../components/MiniSpinner';
 import Skeleton from '../components/Skeleton';
@@ -126,6 +127,25 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
   // Has anything been asked on this visit (or restored)? Decides whether the
   // picks' header (and its Try again) is drawn.
   const [asked, setAsked] = useState(!!last);
+  // Once picks are up and the viewer is among them, the dials fold to one
+  // summary line so the grid has the screen (elia, 2026-10-09). Moving back up
+  // onto that line unfolds them and puts focus on the search bar; moving down
+  // into the picks folds them again.
+  const [collapsed, setCollapsed] = useState(false);
+  const hasPicks = useRef(false);
+  // While the panel unfolds, the summary line stays mounted (invisible) until
+  // Find has taken the focus. Unmounting a focused view makes Android hand
+  // its focus to the nearest one — the first pick — whose focus folded the
+  // panel straight back (seen on the Mi TV, 2026-10-09).
+  const [handoff, setHandoff] = useState(false);
+  const unfold = useCallback(() => {
+    setCollapsed(false);
+    setHandoff(true);
+    const back = () => goBtn.current?.requestTVFocus?.();
+    setTimeout(back, 0);
+    setTimeout(back, 150);
+    setTimeout(() => setHandoff(false), 400);
+  }, []);
   const [inputFocused, setInputFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const inputFallback = useRef({requestTVFocus: () => inputRef.current?.focus()});
@@ -175,6 +195,7 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
     warmItem(item);
     inGrid.current = true;
     gridIdx.current = index;
+    if (hasPicks.current) setCollapsed(true);
   }, []);
 
   const ask = useCallback(
@@ -209,6 +230,13 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
         last = {vibe: q, kind, era, length, items: got, status: text};
         setItems(got);
         setStatus(text);
+        // The picks have the screen now: the dials fold to their one line and
+        // focus moves to the picks' header, one press above the first pick.
+        // (Find itself is about to unmount, so it cannot keep the focus.)
+        setCollapsed(true);
+        const toPicks = () => againBtn.current?.requestTVFocus?.();
+        setTimeout(toPicks, 0);
+        setTimeout(toPicks, 150);
       } catch (e) {
         setError((e as Error)?.message || 'The recommender didn’t answer.');
       } finally {
@@ -256,6 +284,13 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
 
   const lengths = LENGTHS[kind];
   const example = EXAMPLES[Math.abs(vibe.length) % EXAMPLES.length];
+  hasPicks.current = asked && !busy && items.length > 0;
+  const folded = collapsed && hasPicks.current;
+  const summary = [
+    KINDS.find(k => k.id === kind)?.label || '',
+    ERAS.find(e => e.id === era)?.label || '',
+    lengths.find(l => l.id === length)?.label || '',
+  ].filter(Boolean);
   const off = enabled === false;
 
   // ---- the page above the grid: header, notice, controls, picks header ----
@@ -281,6 +316,33 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
         </View>
       ) : null}
 
+      {folded || handoff ? (
+        /* The dials, folded to one line while the picks have the screen.
+           Focusing it (UP from the picks' header) unfolds the panel and
+           hands focus to the search bar. */
+        <Focusable
+          round
+          style={[styles.summary, handoff && styles.summaryGhost]}
+          onFocusChange={f => f && !handoff && unfold()}
+          onPress={unfold}
+          ring="none"
+          highlightColor={colors.white}>
+          <Icon name="chat" size={16} color={colors.accent} />
+          <Text style={styles.summaryVibe} numberOfLines={1}>
+            {vibe.trim() || 'No mood given'}
+          </Text>
+          <View style={styles.summaryDials}>
+            {summary.map((t, i) => (
+              <React.Fragment key={t}>
+                {i > 0 ? <Text style={styles.summaryDot}>·</Text> : null}
+                <Text style={styles.summaryDial}>{t}</Text>
+              </React.Fragment>
+            ))}
+          </View>
+          <Text style={styles.summaryHint}>Change</Text>
+        </Focusable>
+      ) : null}
+      {!folded ? (
       <View style={styles.panel}>
         {/* The ask: the mood in your own words, and the button that sends it. */}
         <View style={styles.askRow}>
@@ -354,6 +416,7 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
           </Group>
         </View>
       </View>
+      ) : null}
 
       {/* The picks' own header: what came back, and a way to ask again. Drawn
           from the first ask on, and kept mounted while a new answer is on its
@@ -373,7 +436,17 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
               <Text style={styles.legendText}>streams</Text>
             </View>
           ) : null}
-          <Btn ref={againBtn as never} small icon="refresh" label="Try again" dim={busy} onPress={() => ask(undefined, true)} />
+          <Btn
+            ref={againBtn as never}
+            small
+            icon="refresh"
+            label="Try again"
+            dim={busy}
+            onFocusChange={f => {
+              if (f) inGrid.current = false; // UP from here is the summary's, not the grid escape's
+            }}
+            onPress={() => ask(undefined, true)}
+          />
         </View>
       ) : null}
     </View>
@@ -510,6 +583,24 @@ const styles = StyleSheet.create({
   fieldOff: {opacity: 0.55},
   input: {flex: 1, color: colors.text, fontSize: 16, paddingVertical: 0, paddingHorizontal: 0},
   hr: {height: 1, backgroundColor: colors.line, marginVertical: 12},
+  // the folded panel: one line, the same glass as the panel
+  summary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.l,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  summaryVibe: {color: colors.text, fontSize: 15, fontWeight: '700', flexShrink: 1},
+  summaryDials: {flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 6, flexShrink: 0},
+  summaryDial: {color: colors.textDim, fontSize: 14, fontWeight: '600'},
+  summaryDot: {color: colors.textFaint, fontSize: 14},
+  summaryHint: {marginLeft: 'auto', color: colors.textFaint, fontSize: 13, fontWeight: '700'},
+  summaryGhost: {opacity: 0, height: 0, paddingVertical: 0, borderWidth: 0, overflow: 'hidden'},
   dialRow: {flexDirection: 'row', alignItems: 'center', gap: 16},
   dialRowNext: {marginTop: 8},
   vr: {width: 1, alignSelf: 'stretch', backgroundColor: colors.line, marginVertical: 4},

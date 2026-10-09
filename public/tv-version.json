@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.25",
-  "notes": "Smoother on weak boxes, covers that load on a slow connection, trailers inside Aurora, one press one move on touchpad remotes, and a redesigned AI page."
+  "versionName": "5.1.26",
+  "notes": "The AI page folds its controls to one line once it has answered, and opens them again when you move back up to the search bar."
 }

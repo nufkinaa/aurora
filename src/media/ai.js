@@ -36,7 +36,29 @@ const ASK_TIGHT = 20;
 const CACHE_MS = 24 * 60 * 60 * 1000;
 const MAX_VIBE = 300;
 
-const enabled = () => !!config.OPENROUTER_KEY;
+// AURORA_AI_MOCK=1 (a TEST aid, never set in production): the recommender
+// works without a key and the "model" answers a fixed list, so the pages that
+// show its picks can be exercised on a device without spending anything.
+const MOCK = process.env.AURORA_AI_MOCK === "1";
+const MOCK_ANSWER = JSON.stringify([
+  { title: "Knives Out", year: 2019, type: "movie", why: "A whodunit with a wink — sharp, warm and very funny." },
+  { title: "Inception", year: 2010, type: "movie", why: "Big, loud and clever; a heist inside a dream." },
+  { title: "Arrival", year: 2016, type: "movie", why: "Quiet science fiction that lands emotionally." },
+  { title: "The Northman", year: 2022, type: "movie", why: "Mud, fire and revenge, told like a saga." },
+  { title: "Palmer", year: 2021, type: "movie", why: "Small, kind and better than its poster." },
+  { title: "Night Hunter", year: 2018, type: "movie", why: "A cold, twisty thriller for a dark evening." },
+  { title: "Silo", year: 2023, type: "show", why: "A mystery that keeps paying off, one level at a time." },
+  { title: "Severance", year: 2022, type: "show", why: "Office life as a puzzle box; deadpan and eerie." },
+  { title: "Slow Horses", year: 2022, type: "show", why: "Spies who are bad at their jobs, written brilliantly." },
+  { title: "Ted Lasso", year: 2020, type: "show", why: "Relentlessly decent; the comfort watch." },
+  { title: "The Pitt", year: 2025, type: "show", why: "One shift, in real time; it does not let go." },
+  { title: "Reacher", year: 2022, type: "show", why: "Big man, simple plan, great fun." },
+  { title: "About Time", year: 2013, type: "movie", why: "A love story that sneaks up on you." },
+  { title: "Greenland", year: 2020, type: "movie", why: "Disaster film with its feet on the ground." },
+  { title: "Project Hail Mary", year: 2026, type: "movie", why: "Science, friendship and a very good alien." },
+  { title: "Troy", year: 2004, type: "movie", why: "Swords, sandals and a cast having a great time." },
+]);
+const enabled = () => MOCK || !!config.OPENROUTER_KEY;
 
 // vibe|mix|era|length -> {at, items}
 const cache = new Map();
@@ -205,6 +227,10 @@ const buildPrompt = (vibe, mix, eraId, lenId, flavour, askFor) => {
 };
 
 const callModel = async (messages, tag = "") => {
+  if (MOCK) {
+    await new Promise((r) => setTimeout(r, 1200)); // a visible "thinking" moment
+    return MOCK_ANSWER;
+  }
   const t0 = Date.now();
   // AbortSignal.timeout isn't available everywhere this runs; do it by hand.
   const ctrl = new AbortController();

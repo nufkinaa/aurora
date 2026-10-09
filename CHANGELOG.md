@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.75 — 2026-10-09
+
+- **Aurora TV 5.1.26: the AI page gets out of the way once it has answered.** When the picks arrive, the mood field and the What / Era / Length dials fold to a single line ("a clever thriller · Movies · Any era · Any length · Change") and the picks take the screen. Moving up onto that line opens the controls again with the search bar ready; moving back down into the picks folds them.
+- For testing the pages that show the recommender's picks without spending anything: `AURORA_AI_MOCK=1` in the server's environment makes the recommender answer a fixed list. Never set it on a real server.
+
 ## 1.6.74 — 2026-10-08
 
 **Aurora TV 5.1.25 — smoother on weak boxes, honest on a bad connection.** Tested on the Mi TV, including through a deliberately slow line (0.9 Mbit/s, a quarter-second of lag).
