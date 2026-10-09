@@ -413,10 +413,48 @@ router.post("/api/profiles/:id/preferences", gate, (req, res) => {
   res.json({ likedGenres: saved });
 });
 
+// Mark watched / unwatched — "I've seen it", never "I watched it just now".
+// Sets or clears the finished flag through profiles.markProgress and touches
+// nothing the watching path drives: no smart download, no smart cleanup, no
+// fresh updatedAt (Continue Watching order, "Because you watched", popular),
+// no telemetry. Unwatched puts back what the mark replaced (the row's
+// `prior`), and `restore` lets a client send its own snapshot of the row
+// instead. Body: one { itemId, watched, duration?, item?, restore? } or
+// { items: [those] } for a season in one write.
+const MARK_MAX = 300;
+const markEntry = (e) => {
+  if (!e || typeof e !== "object" || badItemId(e.itemId)) return null;
+  const out = { itemId: e.itemId, watched: e.watched === true };
+  if (typeof e.duration === "number" && Number.isFinite(e.duration)) out.duration = e.duration;
+  if (e.item && typeof e.item === "object" && !Array.isArray(e.item)) out.meta = e.item;
+  if (!out.watched && "restore" in e) {
+    const r = e.restore;
+    out.restore = r && typeof r === "object" && !Array.isArray(r) ? r : null;
+  }
+  return out;
+};
+router.post("/api/profiles/:id/progress/mark", gate, (req, res) => {
+  const body = req.body || {};
+  const raw = Array.isArray(body.items) ? body.items : [body];
+  if (!raw.length || raw.length > MARK_MAX) return res.status(400).json({ error: "1-300 items" });
+  const entries = raw.map(markEntry);
+  if (entries.some((e) => !e)) return res.status(400).json({ error: "itemId required" });
+  profiles.markProgress(req.params.id, entries);
+  res.json({ ok: true, count: entries.length });
+});
+
 router.post("/api/profiles/:id/progress", gate, (req, res) => {
   const { itemId, position, duration, item } = req.body || {};
   if (badItemId(itemId) || typeof position !== "number" || typeof duration !== "number") {
     return res.status(400).json({ error: "itemId, position, duration required" });
+  }
+  // An older client marking by hand can say so with `marked: true`: the same
+  // rule as /progress/mark, never the watching path below.
+  if (req.body.marked === true) {
+    const watched =
+      typeof req.body.finished === "boolean" ? req.body.finished : duration > 0 && position / duration > 0.95;
+    profiles.markProgress(req.params.id, [markEntry({ itemId, watched, duration, item })]);
+    return res.json({ ok: true });
   }
   profiles.setProgress(req.params.id, itemId, position, duration, item);
   res.json({ ok: true });
@@ -661,6 +699,6 @@ router.post("/api/profiles/:id/signout-everywhere", gate, async (req, res) => {
 });
 
 // Test-only: the PIN attempt limiter (test/kids.test.js).
-router._internals = { pinAttempt, kidsPinGuard };
+router._internals = { pinAttempt, kidsPinGuard, markEntry };
 
 module.exports = router;

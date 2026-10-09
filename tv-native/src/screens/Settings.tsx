@@ -23,6 +23,7 @@ import {setUsageEnabled} from '../usage';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 import {isLite} from '../perfTier';
+import {askNotificationPermission, setDownloadNotices} from '../homeScreen';
 
 const {colors, fontSize, spacing, radius} = theme;
 
@@ -153,6 +154,7 @@ export default function Settings({
     [profileId, liked, spellingsOf],
   );
 
+  const [notifyNote, setNotifyNote] = useState<string | null>(null);
   const set = useCallback(
     <K extends keyof Prefs>(key: K, value: Prefs[K]) => {
       const next = {...prefs, [key]: value};
@@ -258,7 +260,7 @@ export default function Settings({
             note={
               isLite()
                 ? 'Off on this box: it runs smoother without them. The billboard still rotates.'
-                : 'A title that holds still for six seconds plays its trailer, muted — two per visit to Home.'
+                : 'A title that holds still for a few seconds plays its trailer, muted — two per visit to Home.'
             }
             value={isLite() ? 'Off' : prefs.heroTrailers ? 'On' : 'Off'}
             onPress={() => set('heroTrailers', !prefs.heroTrailers)}
@@ -289,6 +291,29 @@ export default function Settings({
             note="A dark plate behind the text. Off is cleaner; on is readable over anything."
             value={prefs.cueBackground ? 'On' : 'Off'}
             onPress={() => set('cueBackground', !prefs.cueBackground)}
+          />
+        </View>
+        <Text style={styles.h2}>Notifications</Text>
+        <View style={styles.list}>
+          <Row
+            label="Tell me when a download lands (TV notification)"
+            note={
+              notifyNote ||
+              'When something you asked for or follow has downloaded, the TV says so — and it shows as “New” in Aurora’s row on the home screen.'
+            }
+            value={prefs.downloadNotices ? 'On' : 'Off'}
+            onPress={() => {
+              const on = !prefs.downloadNotices;
+              set('downloadNotices', on);
+              setDownloadNotices(on);
+              setNotifyNote(null);
+              // Android 13+: turning it on is the moment to ask (again)
+              if (on) {
+                askNotificationPermission(true).then(ok => {
+                  if (!ok) setNotifyNote('The TV is not letting Aurora post notifications — allow them in the TV’s Settings → Apps → Aurora → Notifications.');
+                });
+              }
+            }}
           />
         </View>
         <Text style={styles.h2}>Privacy</Text>

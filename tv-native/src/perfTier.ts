@@ -6,7 +6,7 @@
 //
 // LITE — the visible luxuries stand down. One thing in the app is a luxury
 // that a weak box pays for in smoothness everywhere else: trailers on Home's
-// billboard (a YouTube player in a WebView). On a lite box there are none —
+// billboard (a second video decoder running under the UI). On a lite box there are none —
 // the still backdrop is the same picture, just not moving — and everything a
 // viewer actually does (browse, focus, play) keeps its full quality. (The nav
 // rail's moving aurora used to be the second; it is a still hue now.) Lite is

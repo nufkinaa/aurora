@@ -252,6 +252,12 @@ def mark_uri():
     return data_uri(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x} {y} {side} {side}"><defs>{d}</defs>{s}</svg>')
 
 
+def beam_mark_svg():
+    """The mark alone on a transparent square (the TV rail's picture; mark_uri is the same, as a data: URI)."""
+    d, s = concepts.beam("mark"); x, y, side = MARK_BOX
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x} {y} {side} {side}"><defs>{d}</defs>{s}</svg>'
+
+
 def favicon_uri():
     return data_uri(beam_tile_svg(rounded_clip=True))
 
@@ -310,13 +316,14 @@ def install():
         save(fg.resize((b, b), Image.LANCZOS), dst / "ic_launcher_foreground.png", alpha=True)
     banner = svg_shot("i-banner", beam_banner_svg(), 1280, 720)
     save(banner.resize((320, 180), Image.LANCZOS), RES / "drawable/banner.png", alpha=False)
-    # The TV nav rail draws this at 34dp (40dp when open) with its own radius and violet glow (NavRail.tsx styles.mark),
-    # so it is the tile, corners already rounded to the same radius - not the bare mark.
-    tile = svg_shot("i-tile", beam_tile_svg())
+    # The TV nav rail draws this at 34dp (40dp when open): the BARE mark on a transparent square, the same
+    # picture the site's `.logo-mark` shows - not the tile (elia, 2026-10-09: "the logo should be just it").
+    # Rendered big and brought down, so the gradient edges stay clean at every density.
+    mark = svg_shot("i-mark", beam_mark_svg())
     for name, dp in TV_MARKS:
         for k, suf in TV_SCALES:
             n = dp * k
-            save(mask(tile.resize((n, n), Image.LANCZOS), RADIUS), TV_ASSETS / f"{name}{suf}.png", alpha=True)
+            save(mark.resize((n, n), Image.LANCZOS), TV_ASSETS / f"{name}{suf}.png", alpha=True)
 
     for path, w, h in INSTALLED:
         im = Image.open(path)

@@ -46,10 +46,15 @@ const clearSessionCookie = (req, res) => {
 // Works on plain http.IncomingMessage too (the WS upgrade request has no
 // Express req.get), so realtime can stamp ws.authed at connection time.
 // ACCOUNT = PROFILE: a session resolves straight to its profile.
+// A DEAD cookie must not shadow a live header: the TV app stores its sid and
+// sends it as X-Session, but RN's HTTP stack also keeps whatever cookie a
+// login or profile unlock set, and that one goes stale when the session it
+// named is revoked (admin kick, a later unlock replacing it) while the TV
+// pairs afresh and holds a newer sid. With "cookie first, full stop" every
+// request of such a TV answered 401 — no pictures anywhere (2026-10-09).
+const liveRow = (sid) => (sid ? sessions.get(String(sid)) : null);
 const sessionFor = (req) => {
-  const sid = readCookie(req) || req.headers["x-session"] || null;
-  if (!sid) return null;
-  const row = sessions.get(sid);
+  const row = liveRow(readCookie(req)) || liveRow(req.headers["x-session"]);
   if (!row) return null;
   const p = profiles.list().find((x) => x.id === row.profileId);
   if (!p || p.locked) return null; // a locked profile's sessions are dead air

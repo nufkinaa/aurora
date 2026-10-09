@@ -130,6 +130,10 @@ export type Prefs = {
   heroTrailers: boolean;
   // Usage stats to the server's Analytics tab (never anything typed).
   usageStats: boolean;
+  // A TV notification when one of this profile's downloads (asked for, or
+  // fetched by a follow / smart download) lands. The native side keeps its own
+  // copy (DownloadNotices.kt) for the background job, which has no JS.
+  downloadNotices: boolean;
   // Whether lastSub* has ever been written. Without this, `null` for "the viewer
   // chose off" is indistinguishable from `null` for "fresh install", and a fresh
   // install would come up with subtitles off — the opposite of subsDefault.
@@ -155,6 +159,7 @@ export const PREFS_DEFAULTS: Prefs = {
   lastSubProfile: null,
   heroTrailers: true,
   usageStats: true,
+  downloadNotices: true,
 };
 
 const PREFS_KEY = 'aurora.prefs';

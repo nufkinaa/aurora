@@ -154,11 +154,34 @@ export function useListClaim(key: string, ready: boolean) {
 // keys while it is up: its focus containment is native-only (TVFocusGuideView
 // traps), which JS handlers cannot see.
 let railOpenCount = 0;
+// Who wants to hear the rail open and close. Home's hero trailer is the first
+// listener: it used to check `railOpen()` only before STARTING, so a trailer
+// already running kept playing behind the open rail (Mi TV, 2026-10-09).
+const railOpenFns = new Set<() => void>();
+const railCloseFns = new Set<() => void>();
 export const noteRail = (open: boolean) => {
+  const was = railOpenCount > 0;
   railOpenCount += open ? 1 : -1;
   if (railOpenCount < 0) railOpenCount = 0;
+  const now = railOpenCount > 0;
+  if (now !== was) (now ? railOpenFns : railCloseFns).forEach(fn => fn());
 };
 export const railOpen = () => railOpenCount > 0;
+/** Called whenever the nav rail's panel opens. Returns the unsubscribe. */
+export const onRailOpen = (fn: () => void) => {
+  railOpenFns.add(fn);
+  return () => {
+    railOpenFns.delete(fn);
+  };
+};
+/** Called whenever the nav rail's panel closes (after it has handed focus
+ *  back). Returns the unsubscribe. */
+export const onRailClose = (fn: () => void) => {
+  railCloseFns.add(fn);
+  return () => {
+    railCloseFns.delete(fn);
+  };
+};
 
 // The live rail registers how to open itself, so a screen can summon it from a
 // key the rail does not own — Home's hero takes LEFT for "previous slide"

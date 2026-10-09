@@ -21,6 +21,7 @@ import {
   ViewStyle,
   StyleProp,
   View,
+  findNodeHandle,
 } from 'react-native';
 import {noteFocus, noteFocusLost} from '../focus';
 import theme from '../theme';
@@ -149,6 +150,14 @@ type Props = {
   // has nowhere to go on the page and opens the nav rail instead. Written to
   // focus.ts on every focus, by every Focusable, so the flag cannot go stale.
   edgeLeft?: boolean;
+  // LEFT from this element must not MOVE focus anywhere: nextFocusLeft points
+  // at the element itself, so Android's focus search keeps focus where it is
+  // and the nav rail's LEFT handler — which opens only on a press that moved
+  // nothing (focusJustMoved) — gets the press. For an edge element whose page
+  // geometry hands LEFT to something down-left of it: Detail's icon row sits a
+  // few dp left of its Play button, so LEFT from Play dropped onto My List
+  // instead of opening the rail (Mi Box report, 2026-10-09). Pair with edgeLeft.
+  holdLeft?: boolean;
   // The mirror: rightmost focusable of its band, so RIGHT from it can open a
   // right-hand panel (Browse's filters). Same write-on-focus contract.
   edgeRight?: boolean;
@@ -178,6 +187,7 @@ export default function Focusable({
   focusDisabled,
   onLongPress,
   edgeLeft,
+  holdLeft,
   edgeRight,
   onFocusChange,
   ref,
@@ -202,14 +212,21 @@ export default function Focusable({
   // 120ms rescue) dead app-wide: a focused cell unmounting left the remote dead
   // exactly as described in focus.ts's own header.
   const lastNode = useRef<{requestTVFocus?: () => void} | null>(null);
+  // This element's own native tag, for holdLeft's nextFocusLeft. Only an
+  // element that asks for it pays the one extra render.
+  const [selfTag, setSelfTag] = useState<number | null>(null);
   const setRef = useCallback(
     (n: never) => {
       node.current = n;
       if (n) lastNode.current = n;
+      if (n && holdLeft) {
+        const tag = findNodeHandle(n);
+        if (tag != null) setSelfTag(prev => (prev === tag ? prev : tag));
+      }
       if (typeof ref === 'function') ref(n);
       else if (ref) (ref as React.MutableRefObject<unknown>).current = n;
     },
-    [ref],
+    [ref, holdLeft],
   );
 
   useEffect(() => {
@@ -281,6 +298,7 @@ export default function Focusable({
     <AnimatedPressable
       ref={setRef as never}
       {...(focusDisabled ? ({focusable: false, isTVSelectable: false} as object) : null)}
+      {...(holdLeft && selfTag != null ? ({nextFocusLeft: selfTag} as object) : null)}
       hasTVPreferredFocus={wantsFocus}
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}

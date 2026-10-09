@@ -1665,18 +1665,20 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         onclick: async () => {
           haptic(8);
           try {
+            // through the mark route: a hand-mark is never "watched it just
+            // now" (no smart download, no Continue Watching bump), and
+            // unmarking puts back what the mark replaced
             if (seen && seen.finished) {
-              await api.clearProgress(state.profile.id, watchId);
+              await api.markWatched(state.profile.id, { itemId: watchId, watched: false });
               toast("Back on the pile", "↩️");
             } else {
               const dur = (lib && lib.duration) || 1;
-              await api.saveProgress(
-                state.profile.id,
-                watchId,
-                dur,
-                dur,
-                lib ? undefined : { imdbId, title: view.title, type: "movie" },
-              );
+              await api.markWatched(state.profile.id, {
+                itemId: watchId,
+                watched: true,
+                duration: dur,
+                item: lib ? undefined : { imdbId, title: view.title, type: "movie" },
+              });
               toast("Marked watched — nicely done", "✅");
               narrator.call(
                 "onMarkWatched",
@@ -2088,24 +2090,22 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       : streamProgressKey(imdbId, row.season, row.episode);
     const dur = (local && local.duration) || 1;
     try {
-      if (watched) {
-        await api.saveProgress(
-          state.profile.id,
-          id,
-          dur,
-          dur,
-          local
-            ? undefined
-            : {
-                imdbId,
-                season: row.season,
-                episode: row.episode,
-                title: view.title,
-              },
-        );
-      } else {
-        await api.clearProgress(state.profile.id, id);
-      }
+      // the mark route, not the progress one: ticking an episode off must not
+      // queue the next one as if it had just been watched (smart downloads),
+      // and unticking restores what the tick replaced (a resume point too)
+      await api.markWatched(state.profile.id, {
+        itemId: id,
+        watched: !!watched,
+        duration: dur,
+        item: local
+          ? undefined
+          : {
+              imdbId,
+              season: row.season,
+              episode: row.episode,
+              title: view.title,
+            },
+      });
       if (!defer) {
         await refreshProgress();
         renderEpisodes();
@@ -2501,13 +2501,14 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
           progressFor(streamProgressKey(imdbId, r.season, r.episode));
     const epRestore = async (r, snap) => {
       const id = r.local ? r.local.id : streamProgressKey(imdbId, r.season, r.episode);
-      await api.saveProgress(
-        state.profile.id,
-        id,
-        snap.position,
-        snap.duration,
-        r.local ? undefined : { imdbId, season: r.season, episode: r.episode, title: view.title },
-      );
+      // a restore, not a progress save: a resume point past two-thirds would
+      // otherwise read as "just watched" and queue the next episode
+      await api.markWatched(state.profile.id, {
+        itemId: id,
+        watched: false,
+        restore: { position: snap.position, duration: snap.duration, finished: false, updatedAt: snap.updatedAt || 0 },
+        item: r.local ? undefined : { imdbId, season: r.season, episode: r.episode, title: view.title },
+      });
     };
     const applyBatch = async (ops) => {
       if (markSeasonPill.disabled) return; // an Undo tap can't race a running batch
@@ -2533,7 +2534,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
             return {
               r,
               watched: isWatchedRow(r),
-              snap: p && p.duration ? { position: p.position, duration: p.duration } : null,
+              snap: p && p.duration ? { position: p.position, duration: p.duration, updatedAt: p.updatedAt } : null,
             };
           });
           const target = !rows.every(isWatchedRow);

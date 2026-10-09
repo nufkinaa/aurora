@@ -97,6 +97,7 @@ function Card({
   hideLabel,
   showKind,
   edgeLeft,
+  holdLeft,
   edgeRight,
   compact,
   ref,
@@ -127,6 +128,9 @@ function Card({
   // First card of its row, or column 0 of a grid: LEFT from here opens the nav
   // rail rather than moving focus.
   edgeLeft?: boolean;
+  // LEFT from here stays put (Focusable's holdLeft), so nothing down-left of
+  // the row can take the press away from the rail.
+  holdLeft?: boolean;
   // Last column of a grid: RIGHT from here opens Browse's filter panel.
   edgeRight?: boolean;
   // The smaller poster (COMPACT_W x COMPACT_H). Posters only; a landscape or
@@ -307,6 +311,7 @@ function Card({
       hasTVPreferredFocus={hasTVPreferredFocus}
       ref={ref}
       edgeLeft={edgeLeft}
+      holdLeft={holdLeft}
       edgeRight={edgeRight}
       onPress={() => onPress(item)}
       // Hold OK: the peek sheet (site: peek.js). Continue Watching's ✕ lives
@@ -539,8 +544,11 @@ const styles = StyleSheet.create({
   // solved by dropping the kind tag's WORD, never by shrinking type).
   // letter-spacing 0.12em on 14dp = 1.68.
   tagText: {color: '#cbd2e6', fontSize: 14, fontWeight: '900', letterSpacing: 1.68},
-  tagNew: {backgroundColor: colors.accentStrong, borderColor: 'transparent'},
-  tagNewText: {color: colors.white},
+  // NEW is a quieter pill than the kind tag (elia, 2026-10-09: "a bit
+  // smaller"): 11dp type, 1/5 insets - still readable at 3 m, no longer the
+  // loudest thing on the card.
+  tagNew: {backgroundColor: colors.accentStrong, borderColor: 'transparent', paddingVertical: 1, paddingHorizontal: 5, borderRadius: 4},
+  tagNewText: {color: colors.white, fontSize: 11, letterSpacing: 1.2},
   // `.card-tag.kind` right 10 → 7. gap 4 → 3 is moot with the word gone.
   tagKind: {left: undefined, right: 7, flexDirection: 'row', alignItems: 'center'},
   kindFilm: {borderColor: 'rgba(240,198,126,0.32)'},

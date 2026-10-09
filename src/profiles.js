@@ -808,7 +808,9 @@ const writeTitle = (state, key, row, itemId) => {
     position: row.position,
     duration: row.duration,
     finished: !!row.finished,
-    updatedAt: row.updatedAt || Date.now(),
+    // `??`, not `||`: a row a mark created carries 0 on purpose (never
+    // "just now" — see markTitle) and must not be re-stamped by a later fold
+    updatedAt: row.updatedAt ?? Date.now(),
     itemId,
   };
   return true;
@@ -1192,6 +1194,136 @@ const clearProgress = (profileId, itemId) => {
   store.save();
 };
 
+// ---------- marked watched, not watched ----------
+//
+// "Mark watched" is a statement about the PAST ("I've seen it"), not playback:
+// it must never look like "finished it just now". So a mark sets the finished
+// flag and nothing else that the watching path drives — no smart download
+// (media/smartdl.js), no smart cleanup, no fresh updatedAt (Continue Watching,
+// "Because you watched", /api/popular and taste recency all sort on it), no
+// telemetry. A row it creates carries the title's existing stamp, or 0.
+//
+// And it is reversible: the first mark of a row keeps what was there in
+// `prior` ({position, duration, finished, updatedAt}, or null when the mark
+// created the row), so unmarking puts it back — a half-watched episode keeps
+// its resume point through a season mark + unmark. A row that is finished
+// from real watching (no prior) unmarks by clearing the flag only; its
+// position stays, unless it sits in the credits (>95%), where it goes to 0 —
+// there is nothing to resume at the end. Real progress after a mark replaces
+// the row wholesale (setProgress / writeTitle), which drops the mark with it.
+const snapRow = (r) =>
+  r ? { position: r.position || 0, duration: r.duration || 0, finished: !!r.finished, updatedAt: r.updatedAt || 0 } : null;
+
+const markRow = (row, dur, now) => {
+  if (row.finished) return;
+  if (!row.marked) row.prior = snapRow(row);
+  const d = row.duration > 0 ? row.duration : dur;
+  row.duration = d;
+  row.position = d;
+  row.finished = true;
+  row.marked = true;
+  row.markedAt = now;
+};
+
+// true = the mark created this row, so it goes
+const unmarkRow = (row) => {
+  if (row.marked) {
+    const prior = row.prior;
+    delete row.marked;
+    delete row.markedAt;
+    delete row.prior;
+    if (!prior) return true;
+    row.position = prior.position;
+    row.duration = prior.duration;
+    row.finished = !!prior.finished;
+    row.updatedAt = prior.updatedAt;
+    return false;
+  }
+  if (row.finished) {
+    row.finished = false;
+    if (row.duration > 0 && row.position / row.duration > 0.95) row.position = 0;
+  }
+  return false;
+};
+
+// Pure over the state + a key resolver (like clearTitle): the row played
+// under `itemId`, every alias of the same title, and the title row itself.
+const markTitle = (state, itemId, watched, opts, keyFor) => {
+  const { duration, meta, now = Date.now() } = opts || {};
+  const dur = Number.isFinite(duration) && duration > 0 ? Math.floor(duration) : 1;
+  if (meta && typeof meta === "object" && /^(torrent|stream)\|/.test(itemId)) state.streamItems[itemId] = meta;
+  const key = keyFor(itemId, state.streamItems[itemId]);
+  const ids = new Set([itemId]);
+  if (key) {
+    for (const id of Object.keys(state.progress || {})) {
+      if (keyFor(id, state.streamItems && state.streamItems[id]) === key) ids.add(id);
+    }
+  }
+  if (watched) {
+    const base = key && state.titles[key];
+    if (!state.progress[itemId]) {
+      state.progress[itemId] = {
+        position: dur, duration: dur, finished: true,
+        updatedAt: base ? base.updatedAt || 0 : 0,
+        marked: true, markedAt: now, prior: null,
+      };
+    }
+    for (const id of ids) if (state.progress[id]) markRow(state.progress[id], dur, now);
+    if (key) {
+      const t = state.titles[key];
+      if (!t) {
+        state.titles[key] = {
+          position: dur, duration: dur, finished: true,
+          updatedAt: state.progress[itemId].updatedAt || 0, itemId,
+          marked: true, markedAt: now, prior: null,
+        };
+      } else markRow(t, dur, now);
+    }
+    return;
+  }
+  for (const id of ids) {
+    const row = state.progress[id];
+    if (row && unmarkRow(row)) {
+      delete state.progress[id];
+      if (id.startsWith("stream|")) delete state.streamItems[id];
+    }
+  }
+  if (key && state.titles[key] && unmarkRow(state.titles[key])) delete state.titles[key];
+};
+
+// Unmark, then lay the client's own snapshot (what it saw before it marked)
+// over the row it names — the snapshot wins for that row; the server's
+// `prior` rule covers every alias. A null snapshot means "nothing was there",
+// which the prior rule already handles (a mark-created row has prior null).
+const restoreTitle = (state, itemId, snap, opts, keyFor) => {
+  markTitle(state, itemId, false, opts, keyFor);
+  if (!snap || typeof snap !== "object") return;
+  const num = (v) => (Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
+  const row = {
+    position: num(snap.position),
+    duration: num(snap.duration),
+    finished: !!snap.finished,
+    updatedAt: num(snap.updatedAt),
+  };
+  state.progress[itemId] = row;
+  const key = keyFor(itemId, state.streamItems[itemId]);
+  if (key) state.titles[key] = { ...row, itemId };
+};
+
+// entries: [{ itemId, watched, duration?, meta?, restore? }] — one save for
+// a whole season. `restore` (present, watched false) is a snapshot row/null.
+const markProgress = (profileId, entries) => {
+  bumpSignals(profileId); // the recommender's cache stamp only — not a watch
+  const state = stateFor(profileId);
+  ensureTitles();
+  for (const e of entries) {
+    const opts = { duration: e.duration, meta: e.meta };
+    if (!e.watched && "restore" in e) restoreTitle(state, e.itemId, e.restore, opts, titleKeyOf);
+    else markTitle(state, e.itemId, !!e.watched, opts, titleKeyOf);
+  }
+  store.save();
+};
+
 // Hide the synthesized "up next" card for one show. clearProgress cannot do
 // this — the card's id is the NEXT episode's, while the progress row that
 // spawns it lives under the PREVIOUS one, so deleting by the card's id was a
@@ -1251,6 +1383,7 @@ module.exports = {
   streamEpisodeProgress,
   streamTitleProgress,
   clearProgress,
+  markProgress,
   dismissUpNext,
   toggleWatchlist,
   continueWatching,
@@ -1280,5 +1413,5 @@ module.exports = {
   issueToken,
   // Test-only: the pure halves of the watchlist identity work, plus the
   // store handle + norms so auth tests can run on a stubbed store.
-  _internals: { entryKey, sameIdentity, materializeWatchlist, foldTitles, materializeProgress, clearTitle, store, normUsername, normEmail, validEmail, hashPassword, verifyHash },
+  _internals: { entryKey, sameIdentity, materializeWatchlist, foldTitles, materializeProgress, clearTitle, markTitle, restoreTitle, store, normUsername, normEmail, validEmail, hashPassword, verifyHash },
 };

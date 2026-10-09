@@ -542,6 +542,7 @@ const CHECKS = [
   ["playback", "Playback health", "Playback", statChecks.checkPlayback],
   ["sessions", "Viewers and sessions", "Playback", statChecks.checkSessions],
   ["realtime", "Devices", "Playback", checkRealtime],
+  ["trailers", "TV trailers", "Playback", statChecks.checkTrailers],
 
   ["encoding", "Encoding", "Streaming & transcoding", checkEncoding],
   ["transcoding", "Transcoding", "Streaming & transcoding", statChecks.checkTranscoding],

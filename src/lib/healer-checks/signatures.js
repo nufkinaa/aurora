@@ -152,6 +152,11 @@ const SIGNATURES = [
     means: "One of the server's own checks keeps failing to run, so that part is not being watched.",
   },
   {
+    id: "wall-refused", title: "Requests refused at the sign-in wall", level: "warn", min: 20,
+    re: /^\[auth\] 401 /, // server.js (the closed-mode wall; one line per path per minute)
+    means: "Requests keep arriving with no live session — a device whose session was revoked asking until it signs in again, or a client sending only a dead cookie. The line says which credential each one carried (cookie=dead x-session=none…); a TV with cookie=dead and x-session=live was the 2026-10-09 'no pictures' bug, fixed on the server.",
+  },
+  {
     id: "routine", title: "Routine", level: "quiet",
     // server.js (webrtc, boot banner), lib/health.js (its own alerts), media/torrent.js (self-recovering reads),
     // media/downloads.js (re-queues the healer itself causes), lib/push.js (boot prune), media/ai.js (salvaged reply)

@@ -106,6 +106,56 @@ class HomeScreenModule(private val ctx: ReactApplicationContext) : ReactContextB
     }.start()
   }
 
+  // ---- "ready to watch" notifications (DownloadNotices.kt) ----
+
+  /**
+   * The socket said one of this profile's downloads is done (SessionWiring.tsx).
+   * The job arrives as its JSON text; the rule of what gets announced, and the
+   * record of what already was, live in DownloadNotices — shared with the
+   * background job, so the two never announce the same download twice.
+   */
+  @ReactMethod
+  fun announceDownload(jobJson: String, base: String?, session: String?, promise: Promise) {
+    Thread {
+      try {
+        promise.resolve(DownloadNotices.announce(ctx.applicationContext, org.json.JSONObject(jobJson), base?.trimEnd('/'), session))
+      } catch (e: Throwable) {
+        promise.resolve(false)
+      }
+    }.start()
+  }
+
+  /** The Settings switch "Tell me when a download lands", mirrored for the job. */
+  @ReactMethod
+  fun setDownloadNotices(on: Boolean, promise: Promise) {
+    try {
+      DownloadNotices.setEnabled(ctx.applicationContext, on)
+      promise.resolve(true)
+    } catch (e: Exception) {
+      promise.resolve(false)
+    }
+  }
+
+  /**
+   * Android 13+ asks the viewer before an app may post. Asks once (or again
+   * when [force] — the viewer just turned the switch on); resolves whether
+   * notifications are allowed right now. On Android 12 and earlier there is
+   * nothing to ask and this only reports.
+   */
+  @ReactMethod
+  fun askNotificationPermission(force: Boolean, promise: Promise) {
+    val app = ctx.applicationContext
+    try {
+      val activity = ctx.currentActivity
+      if (activity != null && DownloadNotices.shouldAsk(app, force)) {
+        androidx.core.app.ActivityCompat.requestPermissions(activity, arrayOf("android.permission.POST_NOTIFICATIONS"), 4816)
+      }
+      promise.resolve(DownloadNotices.allowed(app))
+    } catch (e: Exception) {
+      promise.resolve(false)
+    }
+  }
+
   /** Signing out, or the viewer switching the feature off: take our rows away. */
   @ReactMethod
   fun clear(promise: Promise) {

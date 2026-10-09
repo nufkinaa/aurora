@@ -166,14 +166,19 @@ android {
         // after the real adaptive icon was added and verified inside the APK.
         // (Confirmed by extracting the icon layers from the installed APK: they
         // were correct; the launcher was simply showing its cache.)
-        versionCode 90
-        versionName "5.1.27"
+        versionCode 91
+        versionName "5.1.28"
         // QA builds: Fresco's RequestLoggingListener + verbose FLog (MainApplication.kt), for
         // `adb logcat -s RequestLoggingListener`. On in debug, or `assembleRelease -PfrescoLog`.
         buildConfigField "boolean", "FRESCO_LOGGING", project.hasProperty('frescoLog') ? 'true' : 'false'
     }
     buildFeatures {
         buildConfig true
+    }
+    // NewPipeExtractor (trailers, TrailersModule.kt) uses Java 11+ library APIs that Android
+    // below 13 lacks; its README requires desugaring with the _nio artifact under minSdk 33.
+    compileOptions {
+        coreLibraryDesugaringEnabled true
     }
     signingConfigs {
         debug {
@@ -218,6 +223,12 @@ dependencies {
     implementation("androidx.tvprovider:tvprovider:1.0.0")
     // JankStats: the frame monitor behind perfTier.ts (DeviceModule.kt).
     implementation("androidx.metrics:metrics-performance:1.0.0")
+    // YouTube trailers resolved on the TV (TrailersModule.kt). When YouTube changes its player
+    // and trailers stop resolving (the server's healer says so), bump this to the latest
+    // release at github.com/TeamNewPipe/NewPipeExtractor/releases — nothing else changes.
+    // Licence: GPL-3.0-or-later (the APK that carries it is a combined work under the GPL).
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

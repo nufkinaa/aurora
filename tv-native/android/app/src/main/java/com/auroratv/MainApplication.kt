@@ -74,9 +74,11 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this, frescoConfig()).packages.apply {
           // Aurora's own native modules: the in-app updater (and home-screen rows),
-          // and what the box is / how it is coping (perfTier.ts).
+          // what the box is / how it is coping (perfTier.ts), and YouTube trailers
+          // resolved on the TV (trailers.ts).
           add(UpdaterPackage())
           add(DevicePackage())
+          add(TrailersPackage())
         },
     )
   }

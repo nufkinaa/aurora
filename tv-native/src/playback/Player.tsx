@@ -3245,10 +3245,10 @@ export default function Player({
                       onFocusChange={markZone('menu')}
                       onPress={() => nudgeSubs(d)}
                       style={styles.syncBtn}>
-                      <Text style={styles.syncBtnText}>{`−${Math.abs(d)}s`}</Text>
+                      <Text style={styles.syncBtnText} numberOfLines={1}>{`−${Math.abs(d)}s`}</Text>
                     </Focusable>
                   ))}
-                  <Text style={styles.syncValue}>
+                  <Text style={styles.syncValue} numberOfLines={1}>
                     {`${subOffset >= 0 ? '+' : '−'}${Math.abs(subOffset).toFixed(1)}s`}
                   </Text>
                   {[0.5, 5].map(d => (
@@ -3262,7 +3262,7 @@ export default function Player({
                       onFocusChange={markZone('menu')}
                       onPress={() => nudgeSubs(d)}
                       style={styles.syncBtn}>
-                      <Text style={styles.syncBtnText}>{`+${d}s`}</Text>
+                      <Text style={styles.syncBtnText} numberOfLines={1}>{`+${d}s`}</Text>
                     </Focusable>
                   ))}
                   <Focusable
@@ -3274,7 +3274,7 @@ export default function Player({
                     onFocusChange={markZone('menu')}
                     onPress={() => nudgeSubs(-subOffset)}
                     style={styles.syncBtn}>
-                    <Text style={styles.syncBtnText}>Reset</Text>
+                    <Text style={styles.syncBtnText} numberOfLines={1}>Reset</Text>
                   </Focusable>
                 </View>
               </>
@@ -3858,9 +3858,17 @@ const styles = StyleSheet.create({
     marginBottom: 1,
   },
   menuTitleGap: {marginTop: spacing.md},
-  syncRow: {flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.sm},
+  // Wraps by WHOLE items, never inside one: with `flex: 1` cells in a 280dp
+  // sheet the labels broke mid-word ("−0.5 / s", "Res / et" — Mi TV,
+  // 2026-10-09). Each cell now keeps its label's width (flexShrink 0) and
+  // grows into spare room; the sheet widens up to its maxWidth, and anything
+  // still left over moves to a second line as a whole cell.
+  syncRow: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm},
   syncBtn: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 0,
+    minWidth: 52,
+    paddingHorizontal: 8,
     backgroundColor: colors.surface,
     paddingVertical: 10,
     alignItems: 'center',
@@ -3874,6 +3882,7 @@ const styles = StyleSheet.create({
   // .sub-sync .tag — the current delay, sitting between the two pairs of nudges.
   syncValue: {
     minWidth: 62,
+    flexShrink: 0,
     textAlign: 'center',
     color: colors.text,
     fontSize: fontSize.small,

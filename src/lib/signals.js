@@ -12,6 +12,8 @@
 //   ws         "<ip>"              a websocket connection opened
 //   no-encoder "<what>"            a 503 served because no encoder was free
 //   push       "ok" | "gone" | "fail:<status>"
+//   trailer-apple "wikidata:<status|code>" | "apple:<status|code>"  (media/trailers.js)
+//   trailer-fail  "<apple|youtube>:<resolve|play>"  a TV reporting a trailer that failed
 "use strict";
 
 const KEEP_MS = 24 * 3600 * 1000;
@@ -48,6 +50,8 @@ const PROVIDERS = [
   [/opensubtitles|wizdom|ktuvit|subs/i, "subtitles"],
   [/openrouter/i, "ai"],
   [/imdb/i, "imdb"],
+  [/wikidata\.org/i, "wikidata"],
+  [/uts-api\.itunes\.apple\.com/i, "apple-tv"],
 ];
 const providerOf = (url) => {
   let host = "";

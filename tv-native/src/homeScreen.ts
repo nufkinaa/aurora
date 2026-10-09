@@ -9,7 +9,7 @@
 // say what it meant would be a spinner where a film should be.
 import {useEffect} from 'react';
 import {Linking, NativeModules} from 'react-native';
-import {assetUrl, getBaseUrl, getSession, getToken, HeroItem, HomeRow} from './api';
+import {api, assetUrl, getBaseUrl, getSession, getToken, HeroItem, HomeRow, MyDownload} from './api';
 
 type Native = {
   setWatchNext: (items: object[]) => Promise<number>;
@@ -19,11 +19,18 @@ type Native = {
   // run that job's work on demand. Optional — an older native build has neither.
   configure?: (base: string | null, session: string | null, profileId: string | null, profileToken: string | null) => Promise<boolean>;
   refreshNow?: () => Promise<string>;
+  // 5.1.28+: "ready to watch" notifications (DownloadNotices.kt).
+  announceDownload?: (jobJson: string, base: string | null, session: string | null) => Promise<boolean>;
+  setDownloadNotices?: (on: boolean) => Promise<boolean>;
+  askNotificationPermission?: (force: boolean) => Promise<boolean>;
 };
 const native = NativeModules.AuroraHomeScreen as Native | undefined;
 
 const MAX_NEXT = 8;
 const MAX_CHANNEL = 20;
+// "New: …" entries: downloads that landed in the last week (HomeScreenRows MAX_NEW / NEW_MS)
+const MAX_NEW = 6;
+const NEW_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Only what opening the title needs — a link is not the place for a synopsis.
 const KEEP: (keyof HeroItem)[] = [
@@ -53,6 +60,76 @@ const resumeArt = (i: HeroItem): string | null => {
 let lastNext = '';
 let lastChannel = '';
 let lastConfig = '';
+// What the row was last built from, so a download landing can rebuild it
+// without waiting for Home to fetch again.
+let lastRows: HomeRow[] | null = null;
+let lastProfile: string | null = null;
+let lastJobs: MyDownload[] = [];
+
+// ---- a landed download → what opens it. THE SAME RULES AS HomeScreenRows.landedItem (Kotlin). ----
+const isLandedEpisode = (j: MyDownload) => j.type === 'show' && j.season != null && j.episode != null;
+const landedName = (j: MyDownload) => {
+  const t = j.title || j.label || 'A download';
+  return isLandedEpisode(j) ? `${t} S${j.season} E${j.episode}` : t;
+};
+const landedEpisodeTitle = (j: MyDownload) =>
+  isLandedEpisode(j) && j.epTitle && !/^Episode \d+$/.test(j.epTitle) ? j.epTitle : null;
+// An episode opens straight in the player (openItem's episode case: no type,
+// a showId); a film too (Home's openFromLauncher, action "play").
+const landedItem = (j: MyDownload): HeroItem | null => {
+  if (!j.libraryId) return null;
+  const item: Record<string, unknown> = {id: j.libraryId};
+  if (isLandedEpisode(j)) {
+    item.title = j.epTitle || `Episode ${j.episode}`;
+    if (j.poster) item.cover = j.poster;
+    if (j.imdbId) item.imdbId = j.imdbId;
+    item.inLibrary = true;
+    if (j.showId) item.showId = j.showId;
+    item.showTitle = j.title || '';
+    item.season = j.season;
+    item.episode = j.episode;
+  } else {
+    item.type = 'movie';
+    item.title = j.title || j.label || '';
+    if (j.poster) item.cover = j.poster;
+    if (j.imdbId) item.imdbId = j.imdbId;
+    item.inLibrary = true;
+  }
+  return item as unknown as HeroItem;
+};
+const doneMs = (j: MyDownload) => {
+  const t = j.doneAt ? Date.parse(j.doneAt) : NaN;
+  return Number.isFinite(t) ? t : 0;
+};
+// This profile's finished, unopened downloads of the last week, newest first.
+// "This profile's" = the server's `mine`: what it asked for, and what its
+// follows / smart downloads fetched (both are filed under the follower).
+const landedEntries = (jobs: MyDownload[], skip: Set<string>) => {
+  const now = Date.now();
+  return jobs
+    .filter(j => j.status === 'done' && j.mine && !j.seenAt && j.libraryId && !skip.has(j.libraryId))
+    .filter(j => doneMs(j) > 0 && now - doneMs(j) <= NEW_MS)
+    .sort((a, b) => doneMs(b) - doneMs(a))
+    .slice(0, MAX_NEW)
+    .map(j => {
+      const item = landedItem(j)!;
+      const ep = isLandedEpisode(j);
+      const epTitle = landedEpisodeTitle(j);
+      const wide = ep || !j.poster;
+      return {
+        id: `new-${j.id || j.libraryId}`,
+        kind: ep ? 'show' : 'movie',
+        title: `New: ${landedName(j)}` + (epTitle ? ` — ${epTitle}` : ''),
+        description: 'Just downloaded — ready to watch',
+        // an episode's own frame (wide); a film's poster when it has one
+        art: assetUrl(wide ? `/img/still/${encodeURIComponent(j.libraryId!)}` : j.poster) || null,
+        shape: wide ? 'wide' : 'poster',
+        position: 0,
+        duration: 0,
+        link: linkFor('play', item),
+      };
+    });
+};
 
 // The rows are also refreshed natively every few hours while the app is closed
 // (HomeScreenJob.kt). That job has no JS to ask, so the app tells the native
@@ -116,6 +193,27 @@ export function syncHomeScreen(rows: HomeRow[] | undefined, profileId?: string) 
       });
   }
 
+  // another profile's downloads never stand in for this one's
+  if (profileId && profileId !== lastProfile) lastJobs = [];
+  lastRows = rows;
+  lastProfile = profileId || lastProfile;
+  // The row waits for this profile's downloads (its "New: …" entries); if they
+  // cannot be read, the last list known stands in.
+  const pid = lastProfile;
+  if (!pid) return writeChannel(rows, cont);
+  api
+    .myDownloads(pid)
+    .then(jobs => {
+      if (Array.isArray(jobs)) lastJobs = jobs;
+    })
+    .catch(() => {})
+    .then(() => {
+      if (lastRows === rows) writeChannel(rows, cont);
+    });
+}
+
+function writeChannel(rows: HomeRow[], cont: HeroItem[]) {
+  if (!native) return;
   // Aurora's own row. Measured on the Mi TV (Google TV home, 2026-10-08): the
   // launcher shows this row, with pictures, but keeps its own "Continue
   // watching" for partner apps — so what the viewer is part-way through leads
@@ -144,8 +242,11 @@ export function syncHomeScreen(rows: HomeRow[] | undefined, profileId?: string) 
     duration: 0,
     link: linkFor('detail', i),
   }));
-  const row = [...resume, ...picks];
-  const sigChannel = JSON.stringify(row.map(p => [p.id, Math.round(p.position / 30)]));
+  // what the viewer is part-way through, then what just landed, then picks
+  const landed = landedEntries(lastJobs, new Set(cont.map(i => i.id)));
+  const row = [...resume, ...landed, ...picks];
+  // the title too: a "New: …" entry learns its episode name after indexing
+  const sigChannel = JSON.stringify(row.map(p => [p.id, Math.round(p.position / 30), p.title]));
   if (row.length && sigChannel !== lastChannel) {
     lastChannel = sigChannel;
     native
@@ -158,11 +259,48 @@ export function syncHomeScreen(rows: HomeRow[] | undefined, profileId?: string) 
   }
 }
 
+/**
+ * The socket said a download is done (SessionWiring.tsx): the row is rebuilt
+ * with it, and — when it is this profile's and new — the TV posts "… is ready
+ * to watch". Which downloads get a notification, and the record of which
+ * already did, is the native side's (DownloadNotices.kt), shared with the
+ * background job so nothing is announced twice.
+ */
+export function onDownloadLanded(job: MyDownload) {
+  if (!job || job.status !== 'done') return;
+  if (noticesOn && job.mine && job.libraryId && native?.announceDownload) {
+    native
+      .announceDownload(JSON.stringify(job), getBaseUrl() || null, getSession() || null)
+      .then(ok => ok && console.log('[homescreen] announced:', landedName(job)))
+      .catch(() => {});
+  }
+  if (!lastRows) return;
+  const i = lastJobs.findIndex(j => j.id === job.id);
+  lastJobs = i >= 0 ? lastJobs.map(j => (j.id === job.id ? job : j)) : [job, ...lastJobs];
+  const cont = (lastRows.find(r => r.id === 'continue')?.items || []).slice(0, MAX_NEXT);
+  writeChannel(lastRows, cont);
+}
+
+// The Settings switch "Tell me when a download lands" (storage.ts downloadNotices).
+let noticesOn = true;
+/** The Settings switch: kept here for the socket path, and mirrored natively for the background job. */
+export const setDownloadNotices = (on: boolean) => {
+  noticesOn = on;
+  native?.setDownloadNotices?.(on).catch(() => {});
+};
+
+/** Android 13+: ask once (or again when `force`) to post notifications. Resolves whether they are allowed. */
+export const askNotificationPermission = (force: boolean): Promise<boolean> =>
+  native?.askNotificationPermission ? native.askNotificationPermission(force).catch(() => false) : Promise.resolve(false);
+
 /** A profile leaves this TV: its rows leave the launcher with it. */
 export function clearHomeScreen() {
   lastNext = '';
   lastChannel = '';
   lastConfig = '';
+  lastRows = null;
+  lastProfile = null;
+  lastJobs = [];
   // native clear() also forgets what configure() stored and cancels the job
   native?.clear().catch(() => {});
 }

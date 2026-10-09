@@ -23,7 +23,7 @@
 // paints it straight back instead of spending another ten seconds (and real
 // money) on the same question.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {View, Text, TextInput, FlatList, StyleSheet} from 'react-native';
+import {View, Text, TextInput, FlatList, StyleSheet, TVFocusGuideView} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Card, {COMPACT_W, COMPACT_H} from '../components/Card';
 import Chip from '../components/Chip';
@@ -36,7 +36,8 @@ import NavRail from '../components/NavRail';
 import {api, HeroItem} from '../api';
 import {canNavigate} from '../navLock';
 import {warmItem} from '../prefetch';
-import {noteFocus, railOpen, useFocusFallback, useTVKeys} from '../focus';
+import {noteFocus, railOpen, requestRailOpen, useFocusFallback, useTVKeys} from '../focus';
+import {showToast} from '../toast';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 
@@ -79,6 +80,10 @@ const STAGES = [
   'Arguing with itself about your taste…',
   'Checking which of these Aurora can actually play…',
 ];
+
+// What the page says when the server has no recommender key — the notice
+// above the controls, and the toast a press on Find gets instead of nothing.
+const OFF_TEXT = 'The recommender isn’t set up on this server. The admin adds a key under Admin → Server to switch it on.';
 
 // The grid's gutter, both ways.
 const GAP = spacing.md;
@@ -155,6 +160,11 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
   const goBtn = useRef<{requestTVFocus?: () => void}>(null);
   useFocusFallback(goBtn as never);
   const againBtn = useRef<{requestTVFocus?: () => void}>(null);
+  // The first pill of the What row ("Movies"): where LEFT from Find goes when
+  // the mood field is switched off (no recommender) — see the key handler.
+  const firstKind = useRef<{requestTVFocus?: () => void}>(null);
+  const findFocused = useRef(false);
+  const offRef = useRef(false);
 
   useEffect(() => {
     let live = true;
@@ -183,7 +193,18 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
   useTVKeys(
     useCallback(
       (evt: {eventType: string}) => {
-        if (evt.eventType !== 'up' || railOpen()) return;
+        if (railOpen()) return;
+        // LEFT from Find with the field off: native focus search skipped the
+        // disabled field and dropped on whichever Era pill was nearest ("Not
+        // too old", Mi TV 2026-10-09). Find is wrapped in a left trap while
+        // the field is off, so the press moves nothing natively and lands here:
+        // the first pill of the row below, or the rail if it is not there.
+        if (evt.eventType === 'left' && findFocused.current && offRef.current) {
+          if (firstKind.current?.requestTVFocus) firstKind.current.requestTVFocus();
+          else requestRailOpen();
+          return;
+        }
+        if (evt.eventType !== 'up') return;
         if (!inGrid.current || gridIdx.current >= cols) return;
         inGrid.current = false;
         (againBtn.current || goBtn.current)?.requestTVFocus?.();
@@ -201,6 +222,10 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
   const ask = useCallback(
     // `fresh`: Try again — the server skips its cached answer for this exact question
     async (override?: string, fresh = false) => {
+      if (enabled === false) {
+        showToast(OFF_TEXT, '⚠️');
+        return;
+      }
       const q = (override ?? vibe).trim();
       if (q.length < 3) {
         inputRef.current?.focus();
@@ -243,7 +268,7 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
         setBusy(false);
       }
     },
-    [vibe, kind, era, length, busy],
+    [vibe, kind, era, length, busy, enabled],
   );
 
   const openDetail = useCallback(
@@ -292,6 +317,7 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
     lengths.find(l => l.id === length)?.label || '',
   ].filter(Boolean);
   const off = enabled === false;
+  offRef.current = off;
 
   // ---- the page above the grid: header, notice, controls, picks header ----
   const header = (
@@ -310,9 +336,7 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
       {off ? (
         <View style={styles.notice}>
           <Icon name="warning" size={20} color={AMBER} />
-          <Text style={styles.noticeText}>
-            The recommender isn’t set up on this server. The admin adds a key under Admin → Server to switch it on.
-          </Text>
+          <Text style={styles.noticeText}>{OFF_TEXT}</Text>
         </View>
       ) : null}
 
@@ -372,14 +396,19 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
               editable={!off}
             />
           </View>
-          <Btn
-            ref={goBtn as never}
-            primary
-            icon="sparkle"
-            label={busy ? 'Thinking…' : 'Find me something'}
-            hasTVPreferredFocus
-            onPress={() => ask()}
-          />
+          <TVFocusGuideView trapFocusLeft={off}>
+            <Btn
+              ref={goBtn as never}
+              primary
+              icon="sparkle"
+              label={busy ? 'Thinking…' : 'Find me something'}
+              hasTVPreferredFocus
+              onFocusChange={f => {
+                findFocused.current = f;
+              }}
+              onPress={() => ask()}
+            />
+          </TVFocusGuideView>
         </View>
 
         <View style={styles.hr} />
@@ -390,6 +419,7 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
             {KINDS.map((k, i) => (
               <Chip
                 key={k.id}
+                ref={i === 0 ? (firstKind as never) : undefined}
                 small
                 label={k.label}
                 on={kind === k.id}

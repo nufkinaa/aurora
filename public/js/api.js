@@ -252,6 +252,11 @@ export const api = {
     post(`/api/profiles/${id}/progress`, { itemId, position, duration, item }),
   clearProgress: (id, itemId) =>
     json(`/api/profiles/${id}/progress/${itemId}`, { method: "DELETE" }),
+  // Mark watched / unwatched by hand — never read as "watched it just now"
+  // (no smart download, no Continue Watching bump). Unwatched puts back what
+  // the mark replaced; `restore` sends a snapshot row ({position, duration,
+  // finished, updatedAt}) to put back instead. One entry, or { items: [...] }.
+  markWatched: (id, entry) => post(`/api/profiles/${id}/progress/mark`, entry),
   // Hide a show's synthesized "up next" card. clearProgress can't — the card's
   // id is the NEXT episode's, while the progress row lives under the previous
   // one, so deleting by the card's id was a silent no-op.

@@ -6,6 +6,7 @@ import {ActivityIndicator, Animated, AppState, BackHandler, Easing, FlatList, Im
 import Focusable from './Focusable';
 import Sheet, {glass} from './Sheet';
 import TrailerFrame, {TrailerState} from './Trailer';
+import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import type {ActionItem} from '../overlay';
 import {api, artSrc, HeroItem, imgSrc, ImgSource, StreamRef, XrayData, XrayPerson, XrayQuery} from '../api';
 import {playingContext, recentErrors} from '../errors';
@@ -714,17 +715,29 @@ function ActionsSheet({title, sub, items}: {title: string; sub?: string; items: 
 }
 
 // ---------------------------------------------------------------- trailer
-// The YouTube app on the TV plays the trailer (hardware decode, its own
-// controls) when it is installed — the in-app embed stuttered and dropped
-// frames on real sets (elia, 2026-10-07). The embed is the fallback.
-function TrailerModal({ids, title}: {ids: string[]; title: string}) {
-  const [at, setAt] = useState(0);
-  const [state, setState] = useState<TrailerState | null>(null);
-  // The trailer plays HERE, as on the site. It used to hand off to the
-  // YouTube app whenever one was installed — which on some sets opens
-  // YouTube's home page and not the trailer at all (a viewer's report,
-  // 2026-10-08). "Open in YouTube" below stays as a choice.
-  const inApp = true;
+// The trailer plays HERE, in ExoPlayer: Apple's when the title has one, else a
+// YouTube trailer resolved on this TV (trailers.ts), else nothing — the sheet
+// says so. No embedded web player (elia, 2026-10-09). "Open in YouTube" stays
+// as a choice whenever a YouTube key is known.
+function TrailerModal({
+  ids,
+  title,
+  imdbId,
+  type,
+  year,
+}: {
+  ids: string[];
+  title: string;
+  imdbId?: string | null;
+  type: 'movie' | 'show';
+  year?: number | null;
+}) {
+  const [trailer, setTrailer] = useState<ResolvedTrailer | null>(null);
+  const [phase, setPhase] = useState<'resolving' | 'loading' | 'playing' | 'none'>('resolving');
+  // a trailer that fails in the player sends the sheet back for the next
+  // source (Apple → YouTube → the next YouTube key), twice at most
+  const [attempt, setAttempt] = useState(0);
+  const attemptRef = useRef(0);
   useKeyTrap(true);
   useEffect(() => {
     track('feat', {f: 'trailer'});
@@ -733,59 +746,64 @@ function TrailerModal({ids, title}: {ids: string[]; title: string}) {
       return true;
     });
     return () => sub.remove();
-  }, [ids]);
-  const onState = useCallback((s: TrailerState) => {
-    setState(s);
-    if (s === 'ended') closeOverlay();
   }, []);
+  useEffect(() => {
+    let live = true;
+    setPhase('resolving');
+    setTrailer(null);
+    prepareTrailer({imdbId, type, title, year, youtubeIds: ids}) // ready already when the page pre-resolved it
+      .then(r => {
+        if (!live) return;
+        setTrailer(r);
+        setPhase(r ? 'loading' : 'none');
+      })
+      .catch(() => live && setPhase('none'));
+    return () => {
+      live = false;
+    };
+  }, [ids, imdbId, type, title, year, attempt]);
+  const onState = useCallback((s: TrailerState) => {
+    if (s === 'playing') setPhase('playing');
+    else if (s === 'ended') closeOverlay();
+    else if (s === 'error') {
+      setTrailer(null);
+      if (attemptRef.current >= 2) setPhase('none');
+      else setAttempt(++attemptRef.current);
+    }
+  }, []);
+  const ytId = trailer?.ytId || ids[0] || null;
   return (
     <View style={styles.trailerRoot}>
-      {/* Unmounted the moment it fails: the error panel covers it anyway, and a
-          dead WebView still holds its renderer (~120-140 MB on a 2 GB box). */}
-      {inApp && state !== 'error' ? (
-        <TrailerFrame key={ids[at]} videoId={ids[at]} muted={false} style={styles.trailerFrame} onState={onState} />
+      {trailer ? (
+        <TrailerFrame key={trailer.uri} trailer={trailer} muted={false} style={styles.trailerFrame} onState={onState} />
       ) : null}
-      {state === null || state === 'ready' ? (
+      {phase === 'resolving' || phase === 'loading' ? (
         <View style={styles.trailerWait} pointerEvents="none">
           <ActivityIndicator color={colors.white} size="large" />
         </View>
       ) : null}
-      {state === 'error' ? (
+      {phase === 'none' ? (
         <View style={[styles.trailerWait, styles.trailerErr]} pointerEvents="none">
-          <Text style={styles.body}>This trailer won't play inside Aurora — YouTube refused the embed.</Text>
-          <Text style={styles.faint}>Open in YouTube plays it in the YouTube app instead.</Text>
+          <Text style={styles.body}>No trailer available for this title</Text>
         </View>
       ) : null}
       <TVFocusGuideView autoFocus trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.trailerHead}>
         <Text style={styles.trailerTitle} numberOfLines={1}>
           {`${title} — trailer`}
         </Text>
-        {ids.length > 1
-          ? ids.map((id, i) => (
-              <Focusable
-                key={id}
-                round
-                light={i === at}
-                onPress={() => {
-                  setState(null);
-                  setAt(i);
-                }}
-                style={[styles.pill, i === at && styles.pillOn]}>
-                <Text style={[styles.pillText, i === at && styles.pillTextOn]}>{`Trailer ${i + 1}`}</Text>
-              </Focusable>
-            ))
-          : null}
-        <Focusable
-          round
-          onPress={() => {
-            // The YouTube app on the TV, by intent; the web URL is the fallback.
-            Linking.openURL(`vnd.youtube:${ids[at]}`).catch(() =>
-              Linking.openURL(`https://www.youtube.com/watch?v=${ids[at]}`).catch(() => {}),
-            );
-          }}
-          style={styles.ghost}>
-          <Text style={styles.ghostText}>Open in YouTube</Text>
-        </Focusable>
+        {ytId ? (
+          <Focusable
+            round
+            onPress={() => {
+              // The YouTube app on the TV, by intent; the web URL is the fallback.
+              Linking.openURL(`vnd.youtube:${ytId}`).catch(() =>
+                Linking.openURL(`https://www.youtube.com/watch?v=${ytId}`).catch(() => {}),
+              );
+            }}
+            style={styles.ghost}>
+            <Text style={styles.ghostText}>Open in YouTube</Text>
+          </Focusable>
+        ) : null}
         <Focusable round hasTVPreferredFocus onPress={closeOverlay} style={styles.ghost}>
           <Text style={styles.ghostText}>✕  Close</Text>
         </Focusable>
@@ -804,7 +822,7 @@ export default function Overlays() {
       {o?.kind === 'join' ? <JoinSheet /> : null}
       {o?.kind === 'update' ? <UpdateSheet info={o.info} /> : null}
       {o?.kind === 'updateReady' ? <UpdateReadySheet info={o.info} /> : null}
-      {o?.kind === 'trailer' ? <TrailerModal ids={o.ids} title={o.title} /> : null}
+      {o?.kind === 'trailer' ? <TrailerModal ids={o.ids} title={o.title} imdbId={o.imdbId} type={o.type} year={o.year} /> : null}
       {o?.kind === 'actions' ? <ActionsSheet title={o.title} sub={o.sub} items={o.items} /> : null}
       {o?.kind === 'xray' ? <XraySheet query={o.query} title={o.title} onClose={o.onClose} /> : null}
       <Toasts />
@@ -962,8 +980,4 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
   },
   trailerTitle: {flex: 1, color: colors.text, fontSize: fontSize.row, fontWeight: '800'},
-  pill: {backgroundColor: 'rgba(255,255,255,0.12)', paddingVertical: 8, paddingHorizontal: 16},
-  pillOn: {backgroundColor: colors.white},
-  pillText: {color: colors.text, fontSize: fontSize.small, fontWeight: '700'},
-  pillTextOn: {color: colors.bg},
 });

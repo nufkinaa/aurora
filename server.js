@@ -180,12 +180,31 @@ app.use((req, res, next) => {
   // before it can ever sign in; it carries no personal data).
   const GATED = (p) =>
     /^\/(api|stream|avatars|img)\//.test(p) || p === "/proxy";
+  const wallSaid = new Map();
   app.use((req, res, next) => {
     if (authmode.get() !== "closed") return next();
     if (!GATED(req.path)) return next();
     if (OPEN_PATHS.test(req.path)) return next();
     if (authz.sessionFor(req)) return next();
     if (realtime.isAdmin(req)) return next();
+    // Say what a refused request carried — a TV with no pictures (every
+    // /img/* answered 401, 2026-10-09) is otherwise a silent wall. One line
+    // per path prefix per minute, no secrets: only which credential was
+    // present and whether the server knows it.
+    const sessions = require("./src/lib/sessions");
+    const cookieSid = authz.readCookie(req);
+    const headerSid = req.headers["x-session"];
+    const bucket = req.path.split("/").slice(0, 3).join("/");
+    const now = Date.now();
+    if (now - (wallSaid.get(bucket) || 0) > 60 * 1000) {
+      wallSaid.set(bucket, now);
+      console.warn(
+        `[auth] 401 ${bucket} ua=${String(req.headers["user-agent"] || "").slice(0, 40)}` +
+          ` cookie=${cookieSid ? (sessions.get(cookieSid) ? "live" : "dead") : "none"}` +
+          ` x-session=${headerSid ? (sessions.get(String(headerSid)) ? "live" : "dead") : "none"}` +
+          ` token=${req.headers["x-profile-token"] ? "yes" : "no"}`,
+      );
+    }
     res.status(401).json({ error: "sign in first", signinRequired: true });
   });
 }

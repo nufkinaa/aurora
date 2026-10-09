@@ -21,8 +21,8 @@ const FEATURES: Feature[] = [
   {
     glyph: '🎬',
     title: 'Trailers on the billboard',
-    what: 'Let a title sit on the home hero for six seconds and its trailer plays, quietly, then the billboard moves on.',
-    how: 'Press Unmute beside Details for sound. Moving down to the shelves ends it. Off under Settings → Home.',
+    what: 'Let a title sit on the home hero for a few seconds and its trailer plays, quietly, then the billboard moves on.',
+    how: 'Press Unmute beside Details for sound. Moving down to the shelves or opening the menu ends it. Off under Settings → Playback.',
     go: {label: 'Go home', act: 'home'},
   },
   {

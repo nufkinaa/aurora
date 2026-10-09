@@ -17,6 +17,7 @@ const src = (f) => fs.readFileSync(path.join(ROOT, f), "utf8");
 const REAL = [
   ["crash", "server.js", 'console.error("[uncaughtException]"', "[uncaughtException] TypeError: Cannot read properties of null (reading 'reserve')\n    at Torrent._request (C:\\elia\\aurora\\node_modules\\webtorrent\\lib\\torrent.js:1790:30)"],
   ["crash", "server.js", 'console.error("[unhandledRejection]"', "[unhandledRejection] Error: fetch failed"],
+  ["wall-refused", "server.js", "`[auth] 401 ${bucket}", "[auth] 401 /img/a009d1dfcfaa ua=okhttp/4.12.0 cookie=dead x-session=none token=yes"],
   ["port-in-use", "server.js", '"[fatal] server failed to listen:"', "[fatal] server failed to listen: listen EADDRINUSE: address already in use :::4000"],
   ["store-save", "src/lib/jsonstore.js", "Failed to save ${this.filePath}:", "Failed to save C:\\elia\\aurora\\data\\profiles.json: EBUSY: resource busy or locked, rename"],
   ["store-corrupt", "src/lib/jsonstore.js", "Corrupt store ${filePath} — backed up to ${backup}", "Corrupt store C:\\elia\\aurora\\data\\profiles.json — backed up to C:\\elia\\aurora\\data\\profiles.json.corrupt-1760000000000, starting from defaults"],

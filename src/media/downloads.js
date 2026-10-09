@@ -98,7 +98,34 @@ const isRequester = (job, viewer) =>
 
 // publicJob plus "mine" for a given viewer — the shape the downloads page,
 // the nav pill and the player read.
-const publicJobFor = (job, viewer) => ({ ...publicJob(job), mine: isRequester(job, viewer) });
+//
+// A finished EPISODE also says where it sits in the library — its show's id and
+// the episode's own name — so the TV can put "New: Silo · S1 E3 — <name>" on
+// the launcher's row and in a notification, and open the episode straight in
+// the player (tv-native homeScreen.ts / DownloadNotices.kt). `lookup` is a
+// prebuilt map for a whole listing; one job at a time asks the scanner.
+const publicJobFor = (job, viewer, lookup) => {
+  const pj = publicJob(job);
+  return { ...pj, ...episodeInfo(job, pj.libraryId, lookup), mine: isRequester(job, viewer) };
+};
+const episodeInfo = (job, libId, lookup) => {
+  if (!libId || job.type !== "show") return {};
+  const it = lookup ? lookup(libId) : scanner.findById(libId);
+  return it && it.showId ? { showId: it.showId, epTitle: it.title || null } : {};
+};
+// One pass over the library's episodes instead of one per finished job.
+const episodeLookup = () => {
+  let map = null;
+  return (id) => {
+    if (!map) {
+      map = new Map();
+      for (const s of (scanner.index && scanner.index.shows) || []) {
+        for (const se of s.seasons || []) for (const ep of se.episodes || []) map.set(ep.id, { showId: s.id, title: ep.title });
+      }
+    }
+    return map.get(id) || null;
+  };
+};
 
 // Strip fields nobody outside needs; keep it small for WS.
 const publicJob = (j) => ({
@@ -315,7 +342,8 @@ const smartOnDisk = () =>
 const rawJobs = () => store.data.slice();
 const listFor = (viewer) => {
   pruneGone();
-  return store.data.map((j) => publicJobFor(j, viewer));
+  const lookup = episodeLookup();
+  return store.data.map((j) => publicJobFor(j, viewer, lookup));
 };
 
 const create = (fields) => {

@@ -56,13 +56,21 @@ const FEATHER = 48;
 // `.nav-item` 0.95rem = 15.2px, reading tier x1.0 (components.css:53).
 const ITEM_TEXT = 15;
 
-type Item = {key: NavSection | 'profile'; label: string; icon?: IconName; iconSize?: number};
+type Item = {key: NavSection | 'profile'; label: string; icon?: IconName; iconSize?: number; withLabel?: boolean};
 
 // One flat traversal order, so UP/DOWN and the wrap at both ends have a single
 // list to index into. `.nav-spacer` is a <span> with no focusable class
 // (index.html:65), so nothing sits between Games and the gear.
+//
+// The gear carries its word in the open panel, "Settings", in the same type as
+// every other row — it used to be the only foot item drawn as a bare glyph
+// (Mi TV, 2026-10-09).
 const ITEMS: Item[] = [
-  ...NAV_SECTIONS.map(s => ({key: s.key, label: s.label, icon: s.icon, iconSize: s.iconSize})),
+  ...NAV_SECTIONS.map(s =>
+    s.key === 'settings'
+      ? {key: s.key, label: 'Settings', icon: s.icon, iconSize: s.iconSize, withLabel: true}
+      : {key: s.key, label: s.label, icon: s.icon, iconSize: s.iconSize},
+  ),
   {key: 'profile', label: 'Profile'},
 ];
 const FOOT_FROM = NAV_SECTIONS.findIndex(s => s.foot);
@@ -402,6 +410,7 @@ export default function NavRail({
                   label={it.label}
                   icon={it.icon}
                   iconSize={it.iconSize}
+                  withLabel={it.withLabel}
                   dot={it.key === 'new' && newUnseen}
                   focusDisabled={closing}
                   profile={it.key === 'profile' ? me?.avatar || '🍿' : undefined}
@@ -473,6 +482,7 @@ function NavItem({
   label,
   icon,
   iconSize,
+  withLabel,
   profile,
   profileImage,
   profileColor,
@@ -488,6 +498,8 @@ function NavItem({
   label: string;
   icon?: IconName;
   iconSize?: number;
+  // Draw the label beside the icon instead of the icon alone.
+  withLabel?: boolean;
   // A small accent dot after the label — "there is something new here".
   dot?: boolean;
   profile?: string;
@@ -562,9 +574,10 @@ function NavItem({
       }}
       onPress={onPress}
       style={[styles.item, on && !focused && styles.itemOn]}>
-      {icon ? <Icon name={icon} size={iconSize || 18} color={fg} /> : null}
-      {icon ? null : (
+      {icon && !withLabel ? <Icon name={icon} size={iconSize || 18} color={fg} /> : null}
+      {icon && !withLabel ? null : (
         <View style={styles.itemRow}>
+          {icon ? <Icon name={icon} size={iconSize || 18} color={fg} /> : null}
           <Text
             style={[styles.itemText, {color: fg}, !focused && styles.itemTextLift]}
             numberOfLines={1}>
@@ -656,13 +669,11 @@ const styles = StyleSheet.create({
   // Drawn larger than the site's 26px (elia, 2026-10-08: it read as low-res —
   // 52 physical pixels on a 1080p panel). Each size has its own pixel-exact
   // asset per density (see LOGO above); the radius keeps the tile's 8/26 proportion.
-  mark: {
-    width: 34,
-    height: 34,
-    borderRadius: 10.5,
-    boxShadow: '0 0 18px rgba(124,100,255,0.55)',
-  },
-  markOpen: {width: 40, height: 40, borderRadius: 12.3},
+  // The bare mark on a transparent square (docs/brand/tools/build.py), as the
+  // site's `.logo-mark` - no tile behind it, so no radius and no box glow
+  // (elia, 2026-10-09: "the logo should be just it").
+  mark: {width: 34, height: 34},
+  markOpen: {width: 40, height: 40},
   // `.nav-logo { margin-right: 20px }` becomes a margin-bottom on a rail; gap 10
   // is the site's own (components.css:32,36).
   logo: {flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10},

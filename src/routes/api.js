@@ -127,6 +127,25 @@ router.post("/api/play-mark/:id", (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- trailers for the TV (media/trailers.js) ----------
+// Which trailer a TV should play: Apple's HLS when the title has one, else the
+// YouTube keys for the TV to resolve itself, else none. The site keeps its
+// own YouTube embed and does not ask this.
+router.get("/api/trailer", async (req, res) => {
+  try {
+    res.json(await require("../media/trailers").trailerFor({ imdbId: req.query.imdbId, type: req.query.type }));
+  } catch (err) {
+    res.json({ source: "none", why: "trailer lookup failed" });
+  }
+});
+// A TV saying a trailer failed ({ imdbId, source, stage: resolve|play, why, id? }).
+router.post("/api/trailer/report", (req, res) => {
+  let who = "";
+  try { who = require("../realtime").clientIp(req) || ""; } catch {}
+  require("../media/trailers").report(req.body || {}, who);
+  res.json({ ok: true });
+});
+
 router.get("/api/intro/auto/:id", (req, res) => {
   res.json(require("../media/introdetect").get(req.params.id));
 });

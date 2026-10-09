@@ -3,6 +3,18 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.77 — 2026-10-09
+
+- **No pictures on a TV, fixed on the server** (elia, from a HOT Streamer on nufurora.com: "No cover photos anywhere", every `/img/…` answered 401). The sign-in wall read the browser cookie first and stopped there; a TV carries a cookie from an earlier unlock or login *and* its stored session in the X-Session header, and once the cookie's session had been revoked (an admin kick, a later unlock replacing it) the dead cookie shadowed the live header on every request. The wall now takes whichever of the two is alive, and signing out revokes both. A refused request is logged once a minute per path (`[auth] 401 … cookie=dead x-session=live`) so the next such report reads straight off the log. No TV update needed for this one.
+- **Aurora TV 5.1.28.**
+  - Trailers from YouTube play again on the box. Three things stood in the way, all seen on the Mi TV: Google's abuse wall answered the resolver's Firefox user agent with a "Sorry…" page (it presents itself as Chrome now — replayed from the same network: Firefox 403, Chrome 200); the web player call still gets that page now and then, so the resolver also asks as the iOS app; and the whole extraction (several calls plus the player cipher run through a JavaScript interpreter on the box) takes 10–20 s on a Mi TV, so the 15 s limit cut most of them off — it is 30 s, and a page starts resolving the moment it opens, so the Trailer button plays at once. Apple's trailers were never affected.
+  - The show page: LEFT from the Play button or the first action opens the menu instead of doing nothing (DorM). Play on an episode that is not downloaded says so right under the button — "Getting sources…", "Downloading · 34%", "Ready" — instead of a toast far away, and the episode card's download state clears within seconds of a cancel from the site or admin, with or without the live socket.
+  - A new episode that finished downloading shows up on the Android TV home screen's Aurora channel as "New: Silo S3 E5" and, when the switch in Settings is on, as a TV notification (DorM's idea).
+  - Marking a season watched no longer starts smart downloads for it, and "mark unwatched" gives every episode back the position it had (one request for the whole season, with a restore of what was there). The same mark route serves the website's Watched buttons.
+  - The rail's logo is the bare Beam mark, as on the site — no tile behind it (elia).
+  - The NEW badge on cards is smaller.
+  - Trailers on the hero stop when the menu opens; Surprise me returns focus to its button on BACK; the AI page's off state answers LEFT and a press with a hint; the subtitle timing row no longer wraps; "Settings" is labelled in the rail.
+
 ## 1.6.76 — 2026-10-09
 
 - **Aurora TV 5.1.27.** The AI page's cards are wider (six to a row instead of eight) so the title and the reason read from the sofa, with three lines for the reason. A card whose picture fails to load now tells the server why (the route, the size asked for and the player's own error text), as a client error in Insights → usage — so a TV with no pictures in someone else's living room can be diagnosed from the admin page.

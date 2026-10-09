@@ -471,9 +471,26 @@ export default function Browse({
   );
   // The site rolls over everything the screen could show, not over what is
   // currently filtered in (browse.js:534).
+  //
+  // The panel is closed FIRST — focus handed back to the card it was opened
+  // from (or the first card when a filter changed) — and the page opens a beat
+  // later. Navigating straight from the panel unmounted the focused Surprise
+  // button under the new page, and BACK came home to a screen with nothing
+  // lit (Mi TV, 2026-10-09). The same card is asked for again when this screen
+  // is back on top, in case Android dropped it in between.
   const surprise = () => {
     const pool = [...(lib || []), ...fetched];
-    if (pool.length) openDetail(pool[Math.floor(Math.random() * pool.length)]);
+    if (!pool.length) return;
+    const chosen = pool[Math.floor(Math.random() * pool.length)];
+    const back = panel ? closePanel() : captureFocus();
+    setTimeout(() => {
+      if (!canNavigate(navigation)) return;
+      const off = navigation.addListener('focus', () => {
+        off();
+        back();
+      });
+      navigation.push('Detail', {item: chosen});
+    }, 60);
   };
 
   // ---- the filter panel --------------------------------------------------
@@ -494,19 +511,25 @@ export default function Browse({
     dirty.current = false;
     setPanel(true);
   }, []);
+  // Returns the focus restore it used, so a caller that leaves the screen right
+  // after (Surprise me) can ask for the same element again on the way back.
   const closePanel = useCallback(() => {
     setPanel(false);
     slide.setValue(0);
+    let back: () => void;
     if (dirty.current) {
       // New results: start them from the top, on the first card. Restoring to
       // the old card would aim at a cell the filter may have unmounted —
       // focus would land nowhere.
       listRef.current?.scrollToOffset({offset: 0, animated: false});
-      (firstCard.current as {requestTVFocus?: () => void} | null)?.requestTVFocus?.();
+      back = () => (firstCard.current as {requestTVFocus?: () => void} | null)?.requestTVFocus?.();
     } else {
-      restore.current?.();
+      const r = restore.current;
+      back = () => r?.();
     }
+    back();
     restore.current = null;
+    return back;
   }, [slide]);
   const pick = useCallback((fn: () => void) => {
     dirty.current = true;

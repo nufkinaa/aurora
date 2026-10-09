@@ -55,6 +55,9 @@ object HomeScreenRows {
   private const val PERIOD_MS = 3 * 60 * 60 * 1000L
   private const val MAX_NEXT = 8
   private const val MAX_CHANNEL = 20
+  // "New: …" entries — downloads that landed lately (homeScreen.ts MAX_NEW, NEW_DAYS)
+  private const val MAX_NEW = 6
+  private const val NEW_MS = 7 * 24 * 60 * 60 * 1000L
   private const val DAY_MS = 24 * 60 * 60 * 1000L
 
   private val lock = Any()
@@ -290,6 +293,7 @@ object HomeScreenRows {
     put(KEY_PROFILE, profileId)
     put(KEY_TOKEN, profileToken)
     e.apply()
+    DownloadNotices.profileIs(ctx, profileId)
     if (base.isNullOrEmpty() || profileId.isNullOrEmpty()) cancel(ctx) else schedule(ctx)
   }
 
@@ -370,13 +374,27 @@ object HomeScreenRows {
       conn.disconnect()
     }
     val rows = JSONObject(body).optJSONArray("rows") ?: return "skipped: no rows in the answer"
-    val (next, row) = entriesFromHome(rows, base)
+    // This profile's downloads, for the row's "New: …" entries and the
+    // notifications. Best effort: without them the row is what it was before.
+    val jobs: JSONArray? = try {
+      val dl = open("$base/api/downloads?profile=$pid", session, token)
+      try {
+        if (dl.responseCode == 200) JSONArray(dl.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }) else null
+      } finally {
+        dl.disconnect()
+      }
+    } catch (e: Exception) {
+      Log.w(TAG, "downloads not read: ${e.message}")
+      null
+    }
+    val (next, row) = entriesFromHome(rows, base, jobs)
 
     // the profile may have left the TV while the server was answering
     if (prefs.getString(KEY_PROFILE, null) != profile) return "skipped: the profile changed"
     val n1 = writeWatchNext(ctx, next)
     val n2 = if (row.isNotEmpty()) writeChannel(ctx, CHANNEL_NAME, row, base, session) else 0
-    return "continue watching $n1 of ${next.size}, row $n2 of ${row.size}"
+    val n3 = if (jobs != null) DownloadNotices.announceAll(ctx, jobs, base, session) else 0
+    return "continue watching $n1 of ${next.size}, row $n2 of ${row.size}, announced $n3"
   }
 
   // ---- /api/home → entries. A port of homeScreen.ts syncHomeScreen(); keep the two in step. ----
@@ -407,7 +425,7 @@ object HomeScreenRows {
   // `aurora://open?a=play|detail&d=<encodeURIComponent(JSON of the kept fields)>`.
   // Uri.encode leaves exactly the characters encodeURIComponent leaves, and
   // writes a space as %20 (URLEncoder's "+" would not survive decodeURIComponent).
-  private fun linkFor(action: String, item: JSONObject): String {
+  internal fun linkFor(action: String, item: JSONObject): String {
     val slim = JSONObject()
     for (k in KEEP) if (!item.isNull(k)) slim.put(k, item.get(k))
     return "aurora://open?a=$action&d=" + Uri.encode(slim.toString())
@@ -443,8 +461,103 @@ object HomeScreenRows {
     return out
   }
 
-  /** (Watch Next entries, the row's entries) for a /api/home `rows` array. */
-  fun entriesFromHome(rows: JSONArray, base: String): Pair<List<Map<String, Any?>>, List<Map<String, Any?>>> {
+  // ---- a landed download → what opens it. Ported from homeScreen.ts landedItem(); keep in step. ----
+
+  private fun isLandedEpisode(job: JSONObject) =
+    text(job, "type") == "show" && intOrNull(job, "season") != null && intOrNull(job, "episode") != null
+
+  /** "Silo S1 E3" / "Dune" — what a landed download is called on the row and in a notification. */
+  fun landedName(job: JSONObject): String {
+    val title = text(job, "title") ?: text(job, "label") ?: "A download"
+    return if (isLandedEpisode(job)) "$title S${intOrNull(job, "season")} E${intOrNull(job, "episode")}" else title
+  }
+
+  /** The episode's own name, when the library knows one better than "Episode 3". */
+  fun landedEpisodeTitle(job: JSONObject): String? {
+    if (!isLandedEpisode(job)) return null
+    val t = text(job, "epTitle") ?: return null
+    return if (PLAIN_EPISODE.matches(t)) null else t
+  }
+
+  /**
+   * (the item the app opens, its `aurora://open?a=play` link) for a finished
+   * download in the library — an episode straight into the player (openItem's
+   * episode case: no type, a showId), a film too. null when it is not playable yet.
+   */
+  fun landedItem(job: JSONObject): Pair<JSONObject, String>? {
+    val lib = text(job, "libraryId") ?: return null
+    val item = JSONObject()
+    item.put("id", lib)
+    if (isLandedEpisode(job)) {
+      val s = intOrNull(job, "season")!!
+      val e = intOrNull(job, "episode")!!
+      item.put("title", text(job, "epTitle") ?: "Episode $e")
+      text(job, "poster")?.let { item.put("cover", it) }
+      text(job, "imdbId")?.let { item.put("imdbId", it) }
+      item.put("inLibrary", true)
+      text(job, "showId")?.let { item.put("showId", it) }
+      item.put("showTitle", text(job, "title") ?: "")
+      item.put("season", s)
+      item.put("episode", e)
+    } else {
+      item.put("type", "movie")
+      item.put("title", text(job, "title") ?: text(job, "label") ?: "")
+      text(job, "poster")?.let { item.put("cover", it) }
+      text(job, "imdbId")?.let { item.put("imdbId", it) }
+      item.put("inLibrary", true)
+    }
+    return Pair(item, linkFor("play", item))
+  }
+
+  private fun doneMs(job: JSONObject): Long {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return 0
+    val s = text(job, "doneAt") ?: return 0
+    return try { java.time.Instant.parse(s).toEpochMilli() } catch (_: Exception) { 0 }
+  }
+
+  /** The row's "New: …" entries: this profile's finished, unopened downloads of the last week, newest first. */
+  private fun landedEntries(jobs: JSONArray?, base: String, skip: Set<String>): List<Map<String, Any?>> {
+    if (jobs == null) return emptyList()
+    val now = System.currentTimeMillis()
+    val picked = ArrayList<Pair<Long, JSONObject>>()
+    for (i in 0 until jobs.length()) {
+      val j = jobs.optJSONObject(i) ?: continue
+      if (text(j, "status") != "done" || !j.optBoolean("mine", false) || text(j, "seenAt") != null) continue
+      val lib = text(j, "libraryId") ?: continue
+      if (skip.contains(lib)) continue
+      val at = doneMs(j)
+      if (at <= 0 || now - at > NEW_MS) continue
+      picked.add(Pair(at, j))
+    }
+    picked.sortByDescending { it.first }
+    val out = ArrayList<Map<String, Any?>>()
+    for ((_, j) in picked) {
+      if (out.size >= MAX_NEW) break
+      val (_, link) = landedItem(j) ?: continue
+      val lib = text(j, "libraryId")!!
+      val ep = isLandedEpisode(j)
+      val epTitle = landedEpisodeTitle(j)
+      val poster = text(j, "poster")
+      out.add(
+        mapOf<String, Any?>(
+          "id" to "new-${text(j, "id") ?: lib}",
+          "kind" to (if (ep) "show" else "movie"),
+          "title" to "New: ${landedName(j)}" + (if (epTitle != null) " — $epTitle" else ""),
+          "description" to "Just downloaded — ready to watch",
+          // an episode's own frame (wide); a film's poster when it has one
+          "art" to assetUrl(base, if (ep || poster == null) "/img/still/${Uri.encode(lib)}" else poster),
+          "shape" to (if (ep || poster == null) "wide" else "poster"),
+          "position" to 0.0,
+          "duration" to 0.0,
+          "link" to link,
+        )
+      )
+    }
+    return out
+  }
+
+  /** (Watch Next entries, the row's entries) for a /api/home `rows` array, plus the profile's /api/downloads. */
+  fun entriesFromHome(rows: JSONArray, base: String, jobs: JSONArray? = null): Pair<List<Map<String, Any?>>, List<Map<String, Any?>>> {
     var contRow: JSONObject? = null
     var recById: JSONObject? = null
     var recByTitle: JSONObject? = null
@@ -497,6 +610,8 @@ object HomeScreenRows {
         )
       )
     }
+    // then what landed lately, before the recommendations
+    row.addAll(landedEntries(jobs, base, cont.mapNotNull { text(it, "id") }.toSet()))
     for (o in itemsOf(recById ?: recByTitle, MAX_CHANNEL)) {
       val id = firstText(o, "imdbId", "id") ?: continue
       row.add(

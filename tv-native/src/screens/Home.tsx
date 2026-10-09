@@ -31,13 +31,22 @@ import {canNavigate} from '../navLock';
 import {openItem} from '../openItem';
 import {openUpdate, openUpdateReady, overlayOpen} from '../overlay';
 import {isLite, measureOnce} from '../perfTier';
-import {trailerStepDown} from '../components/Trailer';
+import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import {resolvePartyRoute} from '../party';
 import {warmItem, warmSections} from '../prefetch';
 import {onMessage} from '../realtime';
 import {loadPrefs} from '../storage';
 import {track} from '../usage';
-import {focusJustMoved, railOpen, requestRailOpen, useFocusFallback, useIsLive, useTVKeys} from '../focus';
+import {
+  focusJustMoved,
+  onRailClose,
+  onRailOpen,
+  railOpen,
+  requestRailOpen,
+  useFocusFallback,
+  useIsLive,
+  useTVKeys,
+} from '../focus';
 import {defer, useSlide} from '../motion';
 import {useApp} from '../AppContext';
 import {RootStackParamList} from '../navigation';
@@ -319,6 +328,19 @@ export default function Home({
         navigation.push('Player', {id: item.id, title: item.title});
         return;
       }
+      // A "New: …" entry or notification for a downloaded episode
+      // (homeScreen.ts landedItem): straight into the player, even when the
+      // library did not say which show it belongs to.
+      const libraryEpisode = !item.type && item.season != null && item.episode != null && !String(item.id).startsWith('torrent|');
+      if (action === 'play' && libraryEpisode && !item.showId) {
+        if (!canNavigate(navigation)) return;
+        navigation.push('Player', {
+          id: item.id,
+          title: `${item.showTitle || item.title} · S${item.season} E${item.episode}`,
+          epTitle: item.title && !/^Episode \d+$/.test(item.title) ? item.title : undefined,
+        });
+        return;
+      }
       openItem(navigation, item);
     },
     [navigation],
@@ -407,9 +429,11 @@ export default function Home({
   // A pick that has held still for 4.5s (elia, 2026-10-08) cross-fades to its trailer, muted, for
   // 25s (50s once unmuted), then back to the art and on to the next pick.
   // Anything the viewer does — moving down to the shelves, the rotation
-  // moving, leaving the screen — ends it at once. The WebView exists only
-  // while a trailer plays.
-  const [trailer, setTrailer] = useState<{id: string; key: number} | null>(null);
+  // moving, leaving the screen — ends it at once. The player exists only
+  // while a trailer plays. What plays is resolved first (trailers.ts: Apple's
+  // trailer, else a YouTube one resolved on this TV); a title with neither
+  // stays on its art, quietly, for the rest of the visit.
+  const [trailer, setTrailer] = useState<{t: ResolvedTrailer; key: number} | null>(null);
   const [trailerOn, setTrailerOn] = useState(false);
   const [unmuted, setUnmuted] = useState(false);
   const trailerFade = useRef(new Animated.Value(0)).current;
@@ -419,7 +443,7 @@ export default function Home({
   const capTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startedAt = useRef(0);
   const unmutedRef = useRef(false);
-  const noTrailer = useRef(new Set<string>()); // ids that failed once this visit
+  const noTrailer = useRef(new Set<string>()); // YouTube keys and titles that failed once this visit
   const heroTrailersPref = useRef(true);
   useEffect(() => {
     loadPrefs().then(p => {
@@ -439,8 +463,6 @@ export default function Home({
     // judge the box once Home has had a few seconds to settle
     const t = setTimeout(() => {
       measureOnce();
-      // a lite box plays its trailers at 1× from the start (720p at most)
-      if (isLite()) trailerStepDown();
     }, 5000);
     return () => clearTimeout(t);
   }, [live]);
@@ -456,14 +478,13 @@ export default function Home({
       if (trailerOnRef.current) {
         trailerOnRef.current = false;
         setTrailerOn(false);
-        // The fade, then the WebView goes. When Home is LEAVING (a press on
+        // The fade, then the player goes. When Home is LEAVING (a press on
         // Play, Details, a card) this screen is frozen a frame later
         // (freezeOnBlur), and a frozen screen does not commit state: the
-        // setTrailer(null) waits until Home is shown again, and the WebView
-        // used to sit under the player all film long with YouTube still
-        // decoding behind it. So the page is also told to stop for good the
-        // moment the fade has finished — that is a native command, which a
-        // frozen screen still delivers — and the unmount follows on return.
+        // setTrailer(null) waits until Home is shown again, and the old
+        // WebView used to sit under the player all film long still decoding
+        // behind it. So the trailer is also told to stop for good the moment
+        // the fade has finished, and the unmount follows on return.
         Animated.timing(trailerFade, {toValue: 0, duration: 700, useNativeDriver: true, isInteraction: false}).start(() => {
           trailerHandle.current?.cmd('stop');
           setTrailer(null);
@@ -497,7 +518,9 @@ export default function Home({
       } else if (s === 'ended') {
         stopTrailer(true);
       } else if (s === 'error') {
-        if (trailer) noTrailer.current.add(trailer.id);
+        // (TrailerFrame has already reported it and retried a YouTube stream once)
+        if (trailer?.t.ytId) noTrailer.current.add(trailer.t.ytId);
+        if (trailer?.t.source === 'apple' && trailer.t.imdbId) noTrailer.current.add(trailer.t.imdbId);
         stopTrailer(false);
       }
     },
@@ -507,37 +530,59 @@ export default function Home({
   // changes or the screen goes away.
   const heroNow = heroes[heroIdx % Math.max(1, heroes.length)] || null;
   const heroId = heroNow ? heroNow.id || heroNow.imdbId : null;
+  // Bumped when the nav rail closes over the hero: the pick's hold starts
+  // again, as for a fresh pick (the rail opening stopped it — below).
+  const [railEpoch, setRailEpoch] = useState(0);
   useEffect(() => {
     const hero = heroNow;
     if (!live || !hero || !heroTrailersPref.current) return;
-    if (!hero.imdbId) return;
+    if (!hero.imdbId || noTrailer.current.has(hero.imdbId)) return;
     if (isLite() || trailersThisVisit.current >= 2) return;
     const gen = ++trailerGen.current;
     trailerBusy.current = false;
+    // Resolve NOW, during the hold, not when it ends (elia, 2026-10-09): the
+    // 1-2 s of lookups run while the still art shows, so the trailer is ready
+    // at 4.5 s. prepareTrailer remembers the answer for the visit.
+    const prep: Promise<ResolvedTrailer | null> = (async () => {
+      let keys: string[] = [];
+      try {
+        // the keys this TV already knows — what plays if the server is one
+        // without /api/trailer (an older nufurora.com) or cannot be asked
+        const m = await api.discoverMeta(hero.type === 'show' ? 'series' : 'movie', hero.imdbId!);
+        keys = m.trailers || [];
+      } catch {}
+      if (gen !== trailerGen.current) return null;
+      try {
+        return await prepareTrailer({
+          imdbId: hero.imdbId,
+          type: hero.type === 'show' ? 'show' : 'movie',
+          title: hero.title,
+          year: hero.year,
+          youtubeIds: keys,
+          maxYoutube: 2,
+          skip: noTrailer.current,
+        });
+      } catch {
+        return null;
+      }
+    })();
     const timer = setTimeout(async () => {
       if (gen !== trailerGen.current || !isTop.current || railOpen()) return;
-      trailerBusy.current = true; // holds the rotation while the id loads and the trailer runs
-      let id: string | null = null;
-      try {
-        const m = await api.discoverMeta(hero.type === 'show' ? 'series' : 'movie', hero.imdbId!);
-        id = (m.trailers || []).find(t => !noTrailer.current.has(t)) || null;
-      } catch {}
-      if (gen !== trailerGen.current || !isTop.current || railOpen()) {
+      trailerBusy.current = true; // holds the rotation while the trailer runs
+      const t = await prep;
+      if (!t && gen === trailerGen.current) noTrailer.current.add(hero.imdbId!);
+      if (gen !== trailerGen.current || !isTop.current || railOpen() || !t) {
         trailerBusy.current = false;
         return;
       }
-      if (!id) {
-        trailerBusy.current = false;
-        return;
-      }
-      setTrailer({id, key: gen});
+      setTrailer({t, key: gen});
     }, 4500);
     return () => {
       clearTimeout(timer);
       stopTrailer(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [heroId, live]);
+  }, [heroId, live, railEpoch]);
   const toggleMute = useCallback(() => {
     if (!trailerOnRef.current) return;
     const next = !unmutedRef.current;
@@ -590,12 +635,16 @@ export default function Home({
     },
     [heroes.length, stopTrailer],
   );
+  // The hero button the rail was summoned from (UP / LEFT above), so closing
+  // it can tell whether that button is still there.
+  const railFromBtn = useRef(-1);
   useTVKeys(
     useCallback(
       (evt: {eventType: string}) => {
         const t = evt.eventType;
         if (heroBtn.current < 0 || !isTop.current) return;
         if (t === 'up' || (t === 'left' && heroBtn.current === 0)) {
+          railFromBtn.current = heroBtn.current;
           requestRailOpen();
           return;
         }
@@ -605,6 +654,33 @@ export default function Home({
       [turnHero],
     ),
   );
+  // THE RAIL OPENS OVER A TRAILER (Mi TV, 2026-10-09): the start check reads
+  // `railOpen()`, but nothing stopped a trailer already running, so it played
+  // on behind the panel. Opening the rail now ends it — and any pending hold —
+  // by the same path as moving down to the shelves; closing it over the hero
+  // re-arms the hold for the pick on show.
+  useEffect(() => {
+    if (!live) return;
+    let stoppedPlaying = false;
+    const offOpen = onRailOpen(() => {
+      stoppedPlaying = trailerOnRef.current;
+      stopTrailer(false);
+    });
+    const offClose = onRailClose(() => {
+      // The rail hands focus back to the button it was opened from; when that
+      // was Unmute, it went with the trailer, so Play takes it instead.
+      if (stoppedPlaying && railFromBtn.current === 2 && isTop.current) {
+        setTimeout(() => (escape.current as {requestTVFocus?: () => void} | null)?.requestTVFocus?.(), 0);
+      }
+      stoppedPlaying = false;
+      railFromBtn.current = -1;
+      if (isTop.current) setRailEpoch(e => e + 1);
+    });
+    return () => {
+      offOpen();
+      offClose();
+    };
+  }, [live, stopTrailer]);
   const onHeroBtn = useCallback(
     (i: number) => (f: boolean) => {
       if (f) {
@@ -789,12 +865,14 @@ export default function Home({
             <Animated.View style={[styles.trailerLayer, {opacity: trailerFade}]} pointerEvents="none">
               <TrailerFrame
                 key={trailer.key}
-                videoId={trailer.id}
+                trailer={trailer.t}
                 muted
+                hero
                 handle={trailerHandle}
                 onState={onTrailerState}
-                // 16:9 at 15% over the window, so YouTube's title strip and
-                // watermark sit outside the frame (the site does the same).
+                // 16:9 at 15% over the window: the trailer's own letterbox
+                // and burnt-in edges sit outside the frame (the site does the
+                // same).
                 style={{
                   position: 'absolute',
                   width: Math.round(width * 1.15),

@@ -53,6 +53,12 @@ export default function Chip({
       // A white fill needs the ring held off it by a --bg gap, or a white ring on
       // white is invisible from the sofa (§4.1).
       light={on}
+      // A SMALL selected pill takes the accent for its ring. Small pills sit
+      // shoulder to shoulder in groups (the AI page), and with the same white
+      // ring on both, a focused pill read the same whether it was the chosen
+      // one or not (Mi TV, 2026-10-09). The large chips keep the white ring:
+      // their selected fill is big enough to read on its own.
+      ring={on && small ? 'violet' : 'white'}
       hasTVPreferredFocus={hasTVPreferredFocus}
       edgeLeft={edgeLeft}
       onFocusChange={onFocusChange}

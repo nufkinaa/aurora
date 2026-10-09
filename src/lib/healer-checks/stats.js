@@ -401,7 +401,84 @@ const checkHelpers = async (ctx = {}) => {
   };
 };
 
+// ------------------------------------------------------------ TV trailers
+
+// The TV plays trailers itself (media/trailers.js): Apple's HLS when the title
+// has one, else a YouTube video resolved ON THE TV by NewPipeExtractor. Both
+// break from the outside — YouTube changes its player and the extractor has to
+// catch up; Apple may move its catalogue API — so the TVs report every
+// failure (signals "trailer-fail", "<source>:<stage>") and the server counts
+// what Apple and Wikidata answer ("trailer-apple").
+//   x: { ytResolve, ytPlay, appleResolve, applePlay, appleApi: Map(key → n) } over 24 h
+const TRAILER_MIN = 5;
+const judgeTrailers = (x) => {
+  const findings = [];
+  const extractorFix = "Update the TV's trailer extractor: bump com.github.TeamNewPipe:NewPipeExtractor in tv-native/android/app/build.gradle to its latest release (github.com/TeamNewPipe/NewPipeExtractor/releases), rebuild the TV app and publish it.";
+  if (x.ytResolve >= TRAILER_MIN) {
+    findings.push({
+      level: "warn",
+      title: `Trailers failing on TVs: ${x.ytResolve} in 24 h (YouTube resolve) — update the TV's trailer extractor`,
+      text: `The TVs could not turn ${plural(x.ytResolve, "YouTube trailer")} into a playable stream in the last 24 hours. YouTube changes its player every few weeks and the extractor in the TV app has to catch up; until then those titles show no trailer (Apple trailers are not affected).`,
+      evidence: `${x.ytResolve} resolve failures reported by TVs in 24 h`,
+      setting: extractorFix,
+    });
+  }
+  if (x.ytPlay >= TRAILER_MIN) {
+    findings.push({
+      level: "warn",
+      title: `YouTube trailers stop playing on TVs: ${x.ytPlay} in 24 h`,
+      text: `${plural(x.ytPlay, "YouTube trailer")} resolved but then failed in the player (typically YouTube refusing the stream part-way, HTTP 403). The TV already retries once with a fresh address.`,
+      evidence: `${x.ytPlay} play failures reported by TVs in 24 h`,
+      setting: extractorFix,
+    });
+  }
+  if (x.applePlay + x.appleResolve >= TRAILER_MIN) {
+    findings.push({
+      level: "warn",
+      title: `Apple trailers fail on TVs: ${x.applePlay + x.appleResolve} in 24 h`,
+      text: "The TVs could not play Apple's trailer playlists. Apple may have changed how its trailer streams are served; the TVs fall back to YouTube meanwhile.",
+      evidence: `${x.applePlay} play failures, ${x.appleResolve} other failures reported by TVs in 24 h`,
+    });
+  }
+  const api = [...(x.appleApi || new Map())];
+  const appleErr = api.filter(([k]) => k.startsWith("apple:")).reduce((n, [, c]) => n + c, 0);
+  if (appleErr >= 3) {
+    findings.push({
+      level: "warn",
+      title: "Apple's trailer catalogue answers differently",
+      text: `Apple's TV catalogue refused or answered in an unexpected shape ${appleErr} times in 24 h (${api.filter(([k]) => k.startsWith("apple:")).map(([k, c]) => `${k.slice(6)} ×${c}`).join(", ")}). Titles fall back to their YouTube trailer.`,
+      evidence: `${appleErr} Apple catalogue errors in 24 h`,
+      setting: "Open tv.apple.com in a browser, find any film's page, and compare the uts-api request's utsk / sf / v parameters with APPLE_QS in src/media/trailers.js.",
+    });
+  }
+  const wdErr = api.filter(([k]) => k.startsWith("wikidata:")).reduce((n, [, c]) => n + c, 0);
+  if (wdErr >= 10) {
+    findings.push({ level: "info", title: "Wikidata lookups failing", text: `${wdErr} Wikidata lookups failed in 24 h; those titles try again tomorrow and play their YouTube trailer meanwhile.` });
+  }
+  return findings;
+};
+
+const checkTrailers = async (ctx = {}) => {
+  const now = ctx.now || Date.now();
+  const signals = ctx.signals || require("../signals");
+  const fail = signals.byKey("trailer-fail", DAY, now);
+  const x = {
+    ytResolve: fail.get("youtube:resolve") || 0,
+    ytPlay: fail.get("youtube:play") || 0,
+    appleResolve: fail.get("apple:resolve") || 0,
+    applePlay: fail.get("apple:play") || 0,
+    appleApi: signals.byKey("trailer-apple", DAY, now),
+  };
+  const findings = judgeTrailers(x);
+  const apiN = [...x.appleApi.values()].reduce((a, b) => a + b, 0);
+  return {
+    status: findings.some((f) => f.level === "warn") ? "warn" : "ok",
+    summary: `in 24 h TVs reported ${x.ytResolve} YouTube resolve and ${x.ytPlay} YouTube play failures, ${x.applePlay + x.appleResolve} Apple failures · ${apiN} Apple/Wikidata lookup errors`,
+    findings,
+  };
+};
+
 module.exports = {
-  checkPlayback, checkSessions, checkTranscoding, checkDownloadStats, checkMemTrend, checkHelpers,
-  _internals: { judgePlayback, judgeSessions, judgeTranscoding, downloadNumbers, judgeDownloads, memTrend, stuckHelpers, watchSecIn, baselineDays, pruneDays, pathLine },
+  checkPlayback, checkSessions, checkTranscoding, checkDownloadStats, checkMemTrend, checkHelpers, checkTrailers,
+  _internals: { judgeTrailers, TRAILER_MIN, judgePlayback, judgeSessions, judgeTranscoding, downloadNumbers, judgeDownloads, memTrend, stuckHelpers, watchSecIn, baselineDays, pruneDays, pathLine },
 };

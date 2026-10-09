@@ -36,12 +36,13 @@ const UPNEXT_GLOW = require('../assets/upnext-glow.png');
 const OWNED_UPNEXT_GLOW = require('../assets/owned-upnext-glow.png');
 import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
-import {api, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta, DownloadJob} from '../api';
+import {api, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry} from '../api';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
 import {openTrailer, openActions, openXray} from '../overlay';
+import {prepareTrailer} from '../trailers';
 import {showToast} from '../toast';
-import {useFocusFallback, useKeyTrap} from '../focus';
+import {focusJustMoved, useFocusFallback, useKeyTrap} from '../focus';
 import {SourcesPanel} from './Sources';
 import {useApp} from '../AppContext';
 import {loadMe, patchMe, peekMe} from '../navSection';
@@ -360,16 +361,26 @@ function HeroArt({art, sharp}: {art?: ImgSource | null; sharp: boolean}) {
 
 // The two button shapes the site uses on this page: .btn.btn-primary (white
 // fill, violet offset ring on focus) and .btn (surface).
+//
+// edgeLeft ALSO holds LEFT (Focusable's holdLeft): the icon row under Play
+// starts a few dp further left than Play itself (actionsSecondary's -16), so
+// Android's focus search answered LEFT from Play with "My List" — focus moved,
+// and the rail, which only opens on a press that moved nothing, stayed shut.
+// That was "on a show's page I cannot press LEFT to the menu" (Mi Box,
+// 2026-10-09). The same holds for every left-column element on this page.
 const PrimaryBtn = ({
   label,
   hasTVPreferredFocus,
   edgeLeft,
+  busy,
   onPress,
   onLongPress,
 }: {
   label: string;
   hasTVPreferredFocus?: boolean;
   edgeLeft?: boolean;
+  // a small spinner before the label: the press landed and something is on its way
+  busy?: boolean;
   onPress: () => void;
   onLongPress?: () => void;
 }) => (
@@ -379,10 +390,18 @@ const PrimaryBtn = ({
     ring="violet"
     hasTVPreferredFocus={hasTVPreferredFocus}
     edgeLeft={edgeLeft}
+    holdLeft={edgeLeft}
     onPress={onPress}
     onLongPress={onLongPress}
     style={styles.playBtn}>
-    <Text style={styles.playText}>{label}</Text>
+    {busy ? (
+      <View style={styles.playRow}>
+        <ActivityIndicator size="small" color={colors.bg} style={styles.playSpin} />
+        <Text style={styles.playText}>{label}</Text>
+      </View>
+    ) : (
+      <Text style={styles.playText}>{label}</Text>
+    )}
   </Focusable>
 );
 // A round 40dp icon with a tiny label under it — Max's My List / Trailer row.
@@ -391,6 +410,7 @@ const IconBtn = ({
   glyph,
   label,
   on,
+  edgeLeft,
   onPress,
   ref,
 }: {
@@ -398,6 +418,8 @@ const IconBtn = ({
   glyph?: string;
   label: string;
   on?: boolean; // a filled disc: in the list, marked watched
+  // the row's first disc: LEFT opens the nav rail (and is held — see PrimaryBtn)
+  edgeLeft?: boolean;
   onPress: () => void;
   ref?: React.Ref<View>;
 }) => {
@@ -414,6 +436,8 @@ const IconBtn = ({
         ring="none"
         highlightColor={colors.white}
         ref={ref}
+        edgeLeft={edgeLeft}
+        holdLeft={edgeLeft}
         onPress={onPress}
         onFocusChange={setFocused}
         style={[styles.iconBtnDisc, on && styles.iconBtnDiscOn]}
@@ -453,6 +477,7 @@ const GhostBtn = ({
     ref={ref}
     hasTVPreferredFocus={hasTVPreferredFocus}
     edgeLeft={edgeLeft}
+    holdLeft={edgeLeft}
     onPress={onPress}
     style={[styles.ghost, small && styles.ghostSmall]}>
     <Text style={[styles.ghostText, small && styles.ghostTextSmall]}>{label}</Text>
@@ -494,6 +519,14 @@ type UiEp = {
 };
 // A download that is still on its way (anything else has ended).
 const ACTIVE_JOB = ['pending', 'approved', 'downloading'];
+// With the socket open, the jobs list is still read this often while a card
+// shows a job — the net under a missed download_update.
+const SLOW_READ_MS = 10000;
+function dropKey<T>(o: Record<string, T>, key: string): Record<string, T> {
+  const next = {...o};
+  delete next[key];
+  return next;
+}
 type JobMark = {status: string; progress: number};
 // "The same" as far as a card can show: its status and a whole percent.
 const sameJob = (a: JobMark | null | undefined, b: JobMark | null | undefined) =>
@@ -509,6 +542,66 @@ const dlText = (dl: {status: string; progress: number}) => {
   const pct = Math.round((dl.progress || 0) * 100);
   if (dl.status !== 'downloading' || !(pct > 0)) return 'STARTING';
   return `SAVING ${pct}%`;
+};
+// The Play button's download story, past what a job carries (see dlNote):
+//   finding — pressed, the best source is being looked up / requested
+//   already — pressed again while it was on its way
+//   ended   — the job left the list; ready once the copy shows up
+//   ready   — on disk: "Ready — press Play"
+//   failed  — `text` says why
+type DlNote = {key: string; kind: 'finding' | 'already' | 'ended' | 'ready' | 'failed'; text?: string};
+// "S1 E1" for an episode key, the title for the film.
+const dlName = (key: string, title: string) => {
+  const m = /^(\d+)x(\d+)$/.exec(key);
+  return m ? `S${m[1]} E${m[2]}` : unescapeHtml(title);
+};
+const fmtRate = (bps?: number) =>
+  !bps || bps < 30000 ? '' : bps >= 1e6 ? `${(bps / 1e6).toFixed(1)} MB/s` : `${Math.round(bps / 1024)} KB/s`;
+// How a job that ended badly reads on the status line.
+const endedText = (name: string, status: string) =>
+  status === 'declined'
+    ? `${name} was declined  ·  hold Play for other sources`
+    : status === 'removed' || status === 'canceled' || status === 'cancelled' || status === 'dismissed'
+      ? `${name}'s download was removed  ·  press Play to try again`
+      : `Couldn't get ${name}  ·  hold Play for other sources`;
+// Everything the Play button and the line under it say, from the job, the
+// note and whether the copy is on disk. `busy` puts the spinner on the button.
+const dlStatus = (
+  name: string,
+  job: JobMark | null | undefined,
+  note: DlNote | null,
+  owned: boolean,
+  live: {speed: number; phase: string | null} | null,
+): {busy: boolean; line: string | null; pct: number | null; tone: 'hint' | 'live' | 'ok' | 'warn'} => {
+  if (job) {
+    const pre = note?.kind === 'already' ? 'Already on its way  ·  ' : '';
+    if (job.status === 'pending') {
+      return {busy: true, line: `${pre}Requested ${name}  ·  waiting for approval`, pct: null, tone: 'live'};
+    }
+    const pct = Math.round((job.progress || 0) * 100);
+    if (live?.phase === 'copying') {
+      return {busy: true, line: `${pre}${name} is moving into the library…`, pct: job.progress || 0, tone: 'live'};
+    }
+    const rate = job.status === 'downloading' ? fmtRate(live?.speed) : '';
+    return {
+      busy: true,
+      line: `${pre}Downloading ${name}  ·  best source  ·  ${pct}%${rate ? `  ·  ${rate}` : ''}`,
+      pct: job.progress || 0,
+      tone: 'live',
+    };
+  }
+  if (note) {
+    if (note.kind === 'finding') return {busy: true, line: `Getting ${name}  ·  finding the best source…`, pct: null, tone: 'live'};
+    if (note.kind === 'already') return {busy: true, line: `${name} is already on its way…`, pct: null, tone: 'live'};
+    if (note.kind === 'ended' || note.kind === 'ready') {
+      return owned
+        ? {busy: false, line: 'Ready — press Play', pct: null, tone: 'ok'}
+        : {busy: true, line: `Finishing ${name}…`, pct: 1, tone: 'live'};
+    }
+    if (note.kind === 'failed') return {busy: false, line: note.text || `Couldn't get ${name}  ·  hold Play for other sources`, pct: null, tone: 'warn'};
+  }
+  if (!owned) return {busy: false, line: 'Press Play to save the best source  ·  hold for the list', pct: null, tone: 'hint'};
+  return {busy: false, line: null, pct: null, tone: 'hint'};
 };
 type UiSeason = {number: number; episodes: UiEp[]};
 
@@ -563,13 +656,28 @@ const EpisodeCard = React.memo(function EpisodeCardItem({
   edgeLeft,
   onFocus,
   onMore,
+  onCardFocus,
+  registerCard,
 }: {
   ep: UiEp;
   edgeLeft?: boolean;
   onFocus?: () => void;
   onMore?: () => void; // hold OK: Mark watched / Sources / Play
+  // the page's focus keeper (see cardFocus in Detail): which card holds
+  // focus, and each card's native node so focus can be handed back to it
+  onCardFocus?: (key: string, focused: boolean) => void;
+  registerCard?: (key: string, node: View | null) => void;
 }) {
   const thumb = artSrc(ep.thumb, EP_ART_W);
+  const key = ep.key;
+  const setCardRef = useCallback((n: View | null) => registerCard?.(key, n), [registerCard, key]);
+  const focusChange = useCallback(
+    (f: boolean) => {
+      onCardFocus?.(key, f);
+      if (f) onFocus?.();
+    },
+    [onCardFocus, onFocus, key],
+  );
   // The focus treatment wraps the WHOLE card — still, title and badges.
   //
   // It used to wrap only the artwork, on the argument that a ring around a
@@ -583,9 +691,13 @@ const EpisodeCard = React.memo(function EpisodeCardItem({
       lift={theme.cardAura.lift}
       shadow={theme.cardAura.shadow}
       edgeLeft={edgeLeft}
+      // the first card: LEFT stays put and opens the rail (see PrimaryBtn) —
+      // without it the press could land on My List up the page
+      holdLeft={edgeLeft}
+      ref={setCardRef}
       onPress={ep.onPlay}
       onLongPress={onMore}
-      onFocusChange={onFocus ? f => f && onFocus() : undefined}
+      onFocusChange={focusChange}
       // glass.css: `.episode:focus { background: rgba(255,255,255,.09) }` —
       // a lighter glass while focused, on top of the resting 0.06.
       highlightColor="rgba(255,255,255,0.04)"
@@ -693,6 +805,20 @@ export default function Detail({
   // episodeProgressFor) — a TV never showed one as watched before.
   const [epProgress, setEpProgress] = useState<Record<string, Progress>>({});
   const [streamMeta, setStreamMeta] = useState<DiscoverMeta | null>(null);
+  // The trailer is resolved as soon as the title's details are in, so the
+  // Trailer button plays at once instead of after 1-2 s of lookups (elia,
+  // 2026-10-09). Fire and forget; trailers.ts remembers the answer.
+  useEffect(() => {
+    if (!streamMeta?.imdbId || !streamMeta.trailers?.length) return;
+    prepareTrailer({
+      imdbId: streamMeta.imdbId,
+      type: streamMeta.type === 'show' ? 'show' : 'movie',
+      title: item.title,
+      year: streamMeta.year ?? item.year ?? null,
+      youtubeIds: streamMeta.trailers,
+      maxYoutube: 2,
+    }).catch(() => {});
+  }, [streamMeta?.imdbId, streamMeta?.trailers, streamMeta?.type, streamMeta?.year, item.title, item.year]);
   const [loading, setLoading] = useState(true);
   const [season, setSeason] = useState<number | null>(null);
   const [inList, setInList] = useState(false);
@@ -856,28 +982,100 @@ export default function Detail({
   const [movieJob, setMovieJob] = useState<{status: string; progress: number} | null>(null);
   const movieJobRef = useRef<{status: string; progress: number} | null>(null);
   movieJobRef.current = movieJob;
-  const loadEpJobs = useCallback(async () => {
+  // WHAT THE PLAY BUTTON SAYS ABOUT A DOWNLOAD (Mi Box reports, 2026-10-09:
+  // "I press Play on Chapter One and nothing happens — it is downloading, but
+  // I don't know until I scroll down"). The job itself lives in epJobs /
+  // movieJob; this is the part a job list cannot carry — the seconds between
+  // the press and the request landing, "already on its way", and how it ended.
+  // Keyed like the jobs ("SxE" or "film"); one at a time, the latest press.
+  const [dlNote, setDlNote] = useState<DlNote | null>(null);
+  const dlNoteRef = useRef(dlNote);
+  dlNoteRef.current = dlNote;
+  // The Play button's own episode ("SxE"; "film" on a film page). Written by
+  // the render once the target is known; the socket handler reads it.
+  const heroKeyRef = useRef<string | null>(null);
+  // Speed and stage of the Play button's job, for the status line only — the
+  // cards never show them, so they are kept out of epJobs (whose sameJob
+  // compare is what keeps the cards from repainting every second).
+  const [dlLive, setDlLive] = useState<{key: string; speed: number; phase: string | null} | null>(null);
+  const dlLiveAt = useRef(0);
+  const noteLive = useCallback((key: string, j: DownloadJob) => {
+    if (key !== heroKeyRef.current) return;
+    const speed = j.downloadSpeed || 0;
+    const phase = j.phase || null;
+    setDlLive(prev => {
+      if (prev && prev.key === key && prev.phase === phase) {
+        // a repaint at most every 2 s, and only for a change the line can show
+        if (Date.now() - dlLiveAt.current < 2000) return prev;
+        if (Math.round(prev.speed / 1e5) === Math.round(speed / 1e5)) return prev;
+      }
+      dlLiveAt.current = Date.now();
+      return {key, speed, phase};
+    });
+  }, []);
+  // How a job ended, by key, when the socket said (done / error / declined…).
+  // The poll only sees a job vanish; this is what tells "ready" from "failed".
+  const endStatus = useRef(new Map<string, string>());
+  // A press whose request is still in flight: a second press must not start
+  // a second download (the server dedups, but the button should say so).
+  const inflight = useRef(new Set<string>());
+  // A download that FINISHED while this page was not mounted: the page reads
+  // the library when it opens, but through a 45 s memo that only a
+  // library_updated message empties — and a socket that was down when the
+  // copy landed never got one. The first read of the jobs list asks once: a
+  // job for this title that finished in the last 10 minutes re-reads the
+  // library copy fresh, so its card and Play say Ready instead of "Press Play
+  // to save".
+  const mountCheck = useRef(false);
+  // true = something here is still on its way; false = nothing is; null = the
+  // read failed (the poll keeps going on what the page already shows)
+  const loadEpJobs = useCallback(async (): Promise<boolean | null> => {
     const imdb = item.imdbId || libImdb;
     if (!imdb) return false;
     try {
       const jobs = await api.downloads();
+      if (!mountCheck.current) {
+        mountCheck.current = true;
+        const recent = jobs.some(j => {
+          if (j.imdbId !== imdb || j.status !== 'done' || !j.doneAt) return false;
+          const at = typeof j.doneAt === 'number' ? j.doneAt : Date.parse(j.doneAt);
+          return at > 0 && Date.now() - at < 10 * 60 * 1000;
+        });
+        if (recent) bumpLibrarySoon();
+      }
       const next: Record<string, {status: string; progress: number}> = {};
       const keys = new Map<string, string>();
       let live = false;
       let film: {status: string; progress: number} | null = null;
+      // the newest ENDED job per key: how a job that just vanished ended
+      const endedJobs = new Map<string, {status: string; at: number}>();
       for (const j of jobs) {
         if (j.imdbId !== imdb) continue;
-        if (!ACTIVE_JOB.includes(j.status)) continue;
+        const jk = j.season && j.episode ? `${j.season}x${j.episode}` : 'film';
+        if (!ACTIVE_JOB.includes(j.status)) {
+          const prev = endedJobs.get(jk);
+          if (!prev || (j.at || 0) >= prev.at) endedJobs.set(jk, {status: j.status, at: j.at || 0});
+          continue;
+        }
+        noteLive(jk, j);
         if (!j.season || !j.episode) {
           keys.set(j.id, 'film');
           if (!film) film = {status: j.status, progress: j.progress || 0};
           live = true;
           continue;
         }
-        const k = `${j.season}x${j.episode}`;
+        const k = jk;
         keys.set(j.id, k);
         if (!next[k]) next[k] = {status: j.status, progress: j.progress || 0};
         live = true;
+      }
+      // a running job that is gone now: remember how it ended, unless the
+      // socket already said
+      if (movieJobRef.current && !film && endedJobs.has('film') && !endStatus.current.has('film')) {
+        endStatus.current.set('film', endedJobs.get('film')!.status);
+      }
+      for (const k in epJobsRef.current) {
+        if (!next[k] && endedJobs.has(k) && !endStatus.current.has(k)) endStatus.current.set(k, endedJobs.get(k)!.status);
       }
       // A job that was running and is gone has ended: the title (or that
       // episode) may be on disk now. Both fetches of `full` are keyed on
@@ -893,9 +1091,9 @@ export default function Detail({
       if (ended) bumpLibrarySoon();
       return live;
     } catch {
-      return false;
+      return null;
     }
-  }, [item.imdbId, libImdb, bumpLibrarySoon]);
+  }, [item.imdbId, libImdb, bumpLibrarySoon, noteLive]);
   const loadEpJobsRef = useRef(loadEpJobs);
   loadEpJobsRef.current = loadEpJobs;
   const jobImdbRef = useRef<string | null>(null);
@@ -1063,6 +1261,37 @@ export default function Detail({
   // the page is a genuine stream page.
   const ownedMovieId = !stream ? item.id : full?.videoUrl ? full.id : null;
 
+  // MARK WATCHED IS NOT WATCHING (Mi TV QA, 2026-10-09: "Mark season watched"
+  // on Silo S3 queued real downloads of S3E5 and S3E9, and "Mark season
+  // unwatched" then wiped E1-E4's resume points). Marks go through the
+  // server's mark route, and this page keeps what each row looked like
+  // before IT marked it — the first mark only, keyed by the id it marked —
+  // so unwatched sends exactly that back (`restore`; null = there was no
+  // row). Without a snapshot (the page was reopened, the app restarted) the
+  // server's own rule applies: what the mark replaced comes back, and a row
+  // finished by real watching just loses its finished flag.
+  const markSnap = useRef(new Map<string, Progress | null>());
+  const markEntry = useCallback(
+    (itemId: string, watched: boolean, duration: number, seen: Progress | undefined, meta?: Record<string, unknown>): MarkEntry => {
+      const e: MarkEntry = {itemId, watched, duration, item: meta};
+      if (watched) {
+        if (!markSnap.current.has(itemId)) {
+          markSnap.current.set(
+            itemId,
+            seen
+              ? {position: seen.position, duration: seen.duration, finished: !!seen.finished, updatedAt: seen.updatedAt || 0}
+              : null,
+          );
+        }
+      } else if (markSnap.current.has(itemId)) {
+        e.restore = markSnap.current.get(itemId) ?? null;
+        markSnap.current.delete(itemId);
+      }
+      return e;
+    },
+    [],
+  );
+
   const playMovie = () => {
     if (!ownedMovieId || !canNavigate(navigation)) return;
     navigation.push('Player', {id: ownedMovieId, title: item.title});
@@ -1074,9 +1303,11 @@ export default function Detail({
     if (!ownedMovieId || !canNavigate(navigation)) return;
     navigation.push('Player', {id: ownedMovieId, title: item.title, restart: true});
   };
-  // Mark watched / unwatched, against the library id. The site saves a full-
-  // duration progress entry rather than inventing a "watched" flag, so Continue
-  // Watching and every progress bar agree with it for free.
+  // Mark watched / unwatched, against the library id, through the server's
+  // MARK route (src/routes/profiles.js /progress/mark): a hand-mark is never
+  // "watched it just now", so it queues no smart download and does not move
+  // Continue Watching. Unwatched sends back the row this page saw before it
+  // marked (markSnap) — a half-watched film keeps its resume point.
   const movieProg = ownedMovieId ? progress[ownedMovieId] : undefined;
   const movieWatched = !!movieProg?.finished;
   const movieResume =
@@ -1094,8 +1325,10 @@ export default function Detail({
         : {position: 0, duration: dur, finished: false},
     }));
     try {
-      if (next) await api.saveProgress(profileId, ownedMovieId, dur, dur);
-      else await api.clearProgress(profileId, ownedMovieId);
+      await api.markWatched(profileId, [markEntry(ownedMovieId, next, dur, movieProg)]);
+      const st = await api.state(profileId);
+      setProgress(st.progress || {});
+      setEpProgress(st.episodeProgress || {});
     } catch {}
   };
   // ---- More like this -------------------------------------------------------
@@ -1281,23 +1514,31 @@ export default function Detail({
 
   // This title's downloads, live. One read when the page arrives (or comes
   // back, or a request was just made — `fullTick`), because the socket only
-  // says what CHANGES. After that:
-  //   socket open → download_update / download_removed move the cards, and
-  //                 nothing is asked of the server;
-  //   socket shut → the old 4 s poll, while something is running.
-  // The timer below keeps waking while a job runs either way, but with the
-  // socket open a wake-up costs one boolean — it is only there so a socket
-  // that drops mid-download is noticed and the poll takes over.
+  // says what CHANGES. After that, while anything this page shows is on its
+  // way:
+  //   socket open → download_update / download_removed move the cards, AND
+  //                 a slow read every 10 s. A socket can be "open" and still
+  //                 miss a message (the Mi TV QA pass, 2026-10-09: a card
+  //                 stuck at "EPISODE 6 · STARTING" after its download was
+  //                 cancelled), and without the read nothing ever corrected
+  //                 it — the timer only looked at its own refs.
+  //   socket shut → the old 4 s poll.
+  // A failed read keeps the timer going on what the page shows; only a read
+  // that says "nothing is running" (or a page with nothing shown) stops it.
   useEffect(() => {
     if (!isFocused) return;
     let live = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastRead = 0;
+    const shown = () => !!movieJobRef.current || Object.keys(epJobsRef.current).length > 0;
     const tick = async (read: boolean) => {
       timer = null;
-      const running =
-        read || !isOpen()
-          ? await loadEpJobs()
-          : !!movieJobRef.current || Object.keys(epJobsRef.current).length > 0;
+      let running: boolean;
+      if (read || !isOpen() || Date.now() - lastRead >= SLOW_READ_MS) {
+        lastRead = Date.now();
+        const r = await loadEpJobs();
+        running = r === null ? shown() : r;
+      } else running = shown();
       if (!live) return;
       if (running) timer = setTimeout(() => tick(false), 4000);
       else pollArmed.current = false; // a later request re-arms it (fullTick)
@@ -1310,10 +1551,22 @@ export default function Detail({
       const imdb = jobImdbRef.current;
       if (!j || !imdb || j.imdbId !== imdb) return;
       if (!ACTIVE_JOB.includes(j.status)) {
-        // done / failed / declined / canceled: one authoritative read — it
-        // clears the card and, the job having ended, re-reads the library copy
+        // done / error / declined / canceled / dismissed: the card lets go of
+        // it NOW (not after the read below — a read that fails or is slow
+        // left "STARTING" on the card), then one authoritative read, which
+        // also re-reads the library copy for a job that ended
+        const key = j.season && j.episode ? `${j.season}x${j.episode}` : 'film';
         console.log('[live] detail: job', j.status, j.season ? `S${j.season}E${j.episode}` : 'film');
+        // how it ended, for the Play button's status line (ready vs failed);
+        // the line itself changes when the job leaves epJobs / movieJob (the
+        // prevJobs effect), so clearing the card clears the line the same way
+        endStatus.current.set(key, j.status);
         jobKeys.current.delete(j.id);
+        if (key === 'film') setMovieJob(null);
+        else setEpJobs(prev => (prev[key] ? dropKey(prev, key) : prev));
+        // the read below no longer sees the card "vanish" (it is already
+        // gone), so a finished copy is fetched from here
+        if (j.status === 'done') bumpLibrarySoon();
         loadEpJobs();
         return;
       }
@@ -1321,6 +1574,7 @@ export default function Detail({
       const val = {status: j.status, progress: j.progress || 0};
       const fresh = !jobKeys.current.has(j.id);
       if (fresh) console.log('[live] detail: job', j.status, key);
+      noteLive(key, j);
       jobKeys.current.set(j.id, key);
       // The server reports a running job every second; only a change the
       // card can SHOW (its status, or a whole percent) is allowed to repaint.
@@ -1331,9 +1585,18 @@ export default function Detail({
       if (fresh && !pollArmed.current) setFullTick(t => t + 1);
     });
     const offRemoved = onMessage('download_removed', d => {
-      if (!jobKeys.current.has(String(d.id))) return;
+      const key = jobKeys.current.get(String(d.id));
+      if (!key) {
+        // an id this page never learned (the job was made and removed between
+        // two reads): if a card is showing a job, ask — it may be this one
+        if (shown()) loadEpJobs();
+        return;
+      }
       console.log('[live] detail: job removed');
+      endStatus.current.set(key, 'removed');
       jobKeys.current.delete(String(d.id));
+      if (key === 'film') setMovieJob(null);
+      else setEpJobs(prev => (prev[key] ? dropKey(prev, key) : prev));
       loadEpJobs();
     });
     // the socket came back after a drop: whatever it missed is read once
@@ -1351,7 +1614,7 @@ export default function Detail({
       offWelcome();
       offLibrary();
     };
-  }, [isFocused, loadEpJobs, fullTick, bumpLibrarySoon]);
+  }, [isFocused, loadEpJobs, fullTick, bumpLibrarySoon, noteLive]);
 
   const uiSeasons: UiSeason[] = useMemo(() => {
     // Local copies, keyed by season/episode so the merged list can find them.
@@ -1471,47 +1734,142 @@ export default function Detail({
         .catch(() => {}),
     [profileId],
   );
-  const setEpisodeWatched = useCallback(
-    async (ep: UiEp, watched: boolean) => {
+  // One episode's mark entry: the file's own id when we hold it, else the
+  // stream key with the episode's identity (the site's two writes). `seen` is
+  // the row the card is drawn from — what markEntry snapshots.
+  const episodeMark = useCallback(
+    (ep: UiEp, watched: boolean): MarkEntry | null => {
       const imdb = item.imdbId || libImdb;
       const dur = ep.durationSec && ep.durationSec > 0 ? ep.durationSec : 1;
-      if (ep.epId) {
-        if (watched) await api.saveProgress(profileId, ep.epId, dur, dur);
-        else await api.clearProgress(profileId, ep.epId);
-      } else if (imdb) {
-        const key = `stream|${imdb}|${ep.season}|${ep.episode}`;
-        if (watched) await api.saveProgress(profileId, key, dur, dur, {imdbId: imdb, season: ep.season, episode: ep.episode, title: item.title});
-        else await api.clearProgress(profileId, key);
+      if (ep.epId) return markEntry(ep.epId, watched, dur, progress[ep.epId]);
+      if (!imdb) return null;
+      const key = `stream|${imdb}|${ep.season}|${ep.episode}`;
+      const seen = epProgress[`${imdb}:${ep.season}:${ep.episode}`] || progress[key];
+      return markEntry(key, watched, dur, seen, {imdbId: imdb, season: ep.season, episode: ep.episode, title: item.title});
+    },
+    [item.imdbId, item.title, libImdb, progress, epProgress, markEntry],
+  );
+  const setEpisodeWatched = useCallback(
+    async (ep: UiEp, watched: boolean) => {
+      const e = episodeMark(ep, watched);
+      if (e) await api.markWatched(profileId, [e]);
+    },
+    [episodeMark, profileId],
+  );
+  // ---- the focus keeper (Mi TV QA, 2026-10-09: "Play on a not-downloaded
+  // episode card — after the toasts nothing is focused, and the next UP jumps
+  // to the top of the page"). A press on a card it does not hold saves a
+  // source, and the state that follows (the job on the card, the line under
+  // Play, the library re-read) repaints the rail. The cards keep their keys
+  // ("SxE", never the library id) and so stay mounted, but Android can still
+  // drop the focused view's focus in a relayout without any element taking
+  // it — no unmount, so the page's useFocusFallback never hears of it. So
+  // while a press-to-save from a card is in flight (and 3 s after), the card
+  // that was pressed is watched: if it loses focus and NOTHING else gains it
+  // (focusJustMoved says no element was focused since), focus goes back to
+  // the same card — re-registered under the same key if it was remounted.
+  const cardNodes = useRef(new Map<string, View>());
+  const focusedCard = useRef<string | null>(null);
+  const keepFocus = useRef<{key: string; until: number} | null>(null);
+  const screenFocused = useRef(isFocused);
+  screenFocused.current = isFocused;
+  const srcPanelOpen = useRef(false);
+  srcPanelOpen.current = !!srcPanel;
+  const restoreCardFocus = useCallback((key: string, since: number, why: string) => {
+    const k = keepFocus.current;
+    if (!k || k.key !== key || Date.now() > k.until) return;
+    if (!screenFocused.current || srcPanelOpen.current) return; // a panel or the Player owns focus now
+    if (focusedCard.current) return; // a card has it (this one or another)
+    if (focusJustMoved(Date.now() - since)) return; // something else took it on purpose
+    const node = cardNodes.current.get(key) as unknown as {requestTVFocus?: () => void} | undefined;
+    if (!node?.requestTVFocus) return;
+    console.log('[focus] detail: card', key, 'lost focus (' + why + ') — handed back');
+    node.requestTVFocus();
+  }, []);
+  const onCardFocus = useCallback(
+    (key: string, focused: boolean) => {
+      if (focused) {
+        focusedCard.current = key;
+        return;
+      }
+      if (focusedCard.current === key) focusedCard.current = null;
+      const k = keepFocus.current;
+      if (k && k.key === key && Date.now() <= k.until) {
+        const at = Date.now();
+        setTimeout(() => restoreCardFocus(key, at, 'blur'), 180);
       }
     },
-    [item.imdbId, item.title, libImdb, profileId],
+    [restoreCardFocus],
   );
+  const registerCard = useCallback(
+    (key: string, node: View | null) => {
+      if (node) {
+        cardNodes.current.set(key, node);
+        return;
+      }
+      cardNodes.current.delete(key);
+      // the focused card itself went away mid-save: if it comes straight back
+      // (same key), give it the focus before the page's 120 ms fallback does
+      if (focusedCard.current === key) {
+        focusedCard.current = null;
+        const k = keepFocus.current;
+        if (k && k.key === key && Date.now() <= k.until) {
+          const at = Date.now();
+          setTimeout(() => restoreCardFocus(key, at, 'remount'), 0);
+        }
+      }
+    },
+    [restoreCardFocus],
+  );
+
   // Save the best source for an episode we don't hold: the server's
   // recommended stream (or the best-seeded one), requested with the same
-  // fields the Sources screen sends. The card shows the job from here.
+  // fields the Sources screen sends. The card shows the job from here, and
+  // so does the Play button when the episode is its own (dlNote / dlStatus):
+  // the press is answered AT the button the moment it lands, not only on a
+  // card further down the page.
   const downloadBest = useCallback(
     async (s: number, e: number, air: UiEp['air']) => {
+      const key = `${s}x${e}`;
+      const name = `S${s} E${e}`;
       if (air !== 'aired') {
         showToast(air === 'tba' ? 'Not scheduled yet' : 'Not aired yet', '⏳');
+        setDlNote({key, kind: 'failed', text: air === 'tba' ? `${name} isn't scheduled yet` : `${name} hasn't aired yet`});
         return;
       }
-      const running = epJobs[`${s}x${e}`];
-      if (running) {
-        showToast(`${dlText(running).toLowerCase().replace(/^\w/, c => c.toUpperCase())} — hold the episode for its sources`, '⏳');
+      // Pressed again while it is on its way — running, or the first press's
+      // request still in flight: say so, never ask twice.
+      const running = epJobsRef.current[key];
+      if (running || inflight.current.has(key)) {
+        setDlNote({key, kind: 'already'});
+        showToast(
+          running
+            ? `${name} is already on its way · ${dlText(running).toLowerCase()} — hold for its sources`
+            : `${name} is already on its way`,
+          '⏳',
+        );
         return;
       }
-      const imdb = await ensureImdb();
-      if (!imdb) {
-        openEpisodeSources(s, e);
-        return;
-      }
-      showToast(`Finding the best source for S${s} E${e}…`, '⬇');
+      inflight.current.add(key);
+      endStatus.current.delete(key);
+      // pressed on its own card (not on Play): keep that card focused through
+      // what follows (see the focus keeper)
+      if (focusedCard.current === key) keepFocus.current = {key, until: Number.MAX_SAFE_INTEGER};
+      setDlNote({key, kind: 'finding'});
       try {
+        const imdb = await ensureImdb();
+        if (!imdb) {
+          setDlNote(n => (n?.key === key ? null : n));
+          openEpisodeSources(s, e);
+          return;
+        }
+        showToast(`Finding the best source for ${name}…`, '⬇');
         const {streams} = await api.torrentSources({type: 'series', title: imdb, year: item.year ?? undefined, season: s, episode: e});
         const alive = (streams || []).filter(x => x.seeders > 0);
         const pick = alive.find(x => x.recommended) || alive[0] || (streams || [])[0];
         if (!pick) {
           showToast('No sources for this episode yet', '⚠');
+          setDlNote({key, kind: 'failed', text: `No sources for ${name} yet  ·  try again later`});
           return;
         }
         const res = await api.requestDownload({
@@ -1530,12 +1888,21 @@ export default function Detail({
           episode: e,
           profile: profileId,
         });
-        if (res.alreadyAvailable) showToast("Already yours — it's in the library", '✅');
-        else if (res.duplicate) showToast('Already queued. Patience.', '⏳');
+        if (res.alreadyAvailable) {
+          showToast("Already yours — it's in the library", '✅');
+          // the copy is on disk: re-read the library and the button says Ready
+          setDlNote({key, kind: 'ended'});
+          bumpLibrarySoon();
+          return;
+        }
+        if (res.duplicate) showToast(`${name} is already on its way`, '⏳');
         else if (res.needsApproval) showToast(`Requested ${pick.quality} · ${pick.sizeString || ''} — waiting for approval`, '⬇');
         else showToast(`Saving ${pick.quality} · ${pick.sizeString || ''} — the card shows the progress`, '⬇');
+        // From here the job speaks for itself (dlStatus reads the job first);
+        // a duplicate keeps its "already on its way".
+        setDlNote(n => (n?.key === key ? (res.duplicate ? {key, kind: 'already'} : null) : n));
         // show it on the card at once, then let the poll take over
-        setEpJobs(prev => ({...prev, [`${s}x${e}`]: {status: res.needsApproval ? 'pending' : 'approved', progress: 0}}));
+        setEpJobs(prev => (prev[key] ? prev : {...prev, [key]: {status: res.needsApproval ? 'pending' : 'approved', progress: 0}}));
         setTimeout(() => {
           // one read either way: it re-arms the fallback timer, and it clears a
           // card the server answered "already yours" for (no socket message follows)
@@ -1544,29 +1911,49 @@ export default function Detail({
         }, 1500);
       } catch (err) {
         showToast((err as Error)?.message || "Couldn't request the download", '⚠');
+        setDlNote({key, kind: 'failed', text: `Couldn't get ${name}  ·  hold Play for other sources`});
+      } finally {
+        inflight.current.delete(key);
+        // the 1.5 s re-read and the first socket updates land after this
+        if (keepFocus.current?.key === key) keepFocus.current = {key, until: Date.now() + 3000};
       }
     },
-    [epJobs, ensureImdb, openEpisodeSources, item.title, item.year, profileId],
+    [ensureImdb, openEpisodeSources, item.title, item.year, profileId, bumpLibrarySoon],
   );
   const downloadBestRef = useRef<(s: number, e: number, air: UiEp['air']) => void>(() => {});
   downloadBestRef.current = downloadBest;
   // Press Play on a film you don't hold: save the server's best source
   // (recommended, else best-seeded) and carry the job on the button. Hold
-  // Play for the list of sources.
+  // Play for the list of sources. The line under Play tells the same story an
+  // episode's does (dlStatus, key "film").
   const downloadBestMovie = useCallback(async () => {
-    if (movieJob) {
-      showToast(`${dlText(movieJob).toLowerCase().replace(/^\w/, c => c.toUpperCase())} — hold Play for other sources`, '⏳');
+    const key = 'film';
+    if (movieJobRef.current || inflight.current.has(key)) {
+      setDlNote({key, kind: 'already'});
+      showToast(
+        movieJobRef.current
+          ? `Already on its way · ${dlText(movieJobRef.current).toLowerCase()} — hold Play for other sources`
+          : 'Already on its way',
+        '⏳',
+      );
       return;
     }
-    const imdb = await ensureImdb();
-    if (!imdb) return;
-    showToast(`Finding the best source for ${item.title}…`, '⬇');
+    inflight.current.add(key);
+    endStatus.current.delete(key);
+    setDlNote({key, kind: 'finding'});
     try {
+      const imdb = await ensureImdb();
+      if (!imdb) {
+        setDlNote({key, kind: 'failed', text: 'Could not match this title to a source catalogue'});
+        return;
+      }
+      showToast(`Finding the best source for ${item.title}…`, '⬇');
       const {streams} = await api.torrentSources({type: 'movie', title: imdb, year: item.year ?? undefined});
       const alive = (streams || []).filter(x => x.seeders > 0);
       const pick = alive.find(x => x.recommended) || alive[0] || (streams || [])[0];
       if (!pick) {
         showToast('No sources for this title yet', '⚠');
+        setDlNote({key, kind: 'failed', text: 'No sources for this title yet  ·  try again later'});
         return;
       }
       const res = await api.requestDownload({
@@ -1585,12 +1972,14 @@ export default function Detail({
       });
       if (res.alreadyAvailable) {
         showToast("Already yours — it's in the library", '✅');
+        setDlNote({key, kind: 'ended'});
         setLibraryTick(t => t + 1);
-      } else if (res.duplicate) showToast('Already queued. Patience.', '⏳');
+      } else if (res.duplicate) showToast('Already on its way', '⏳');
       else if (res.needsApproval) showToast(`Requested ${pick.quality} · ${pick.sizeString || ''} — waiting for approval`, '⬇');
       else showToast(`Saving ${pick.quality} · ${pick.sizeString || ''} — Play shows the progress`, '⬇');
       if (!res.alreadyAvailable) {
-        setMovieJob({status: res.needsApproval ? 'pending' : 'approved', progress: 0});
+        setDlNote(n => (n?.key === key ? (res.duplicate ? {key, kind: 'already'} : null) : n));
+        setMovieJob(prev => prev || {status: res.needsApproval ? 'pending' : 'approved', progress: 0});
         setTimeout(() => {
           if (!pollArmed.current) setFullTick(t => t + 1);
           else loadEpJobsRef.current();
@@ -1598,8 +1987,11 @@ export default function Detail({
       }
     } catch (err) {
       showToast((err as Error)?.message || "Couldn't request the download", '⚠');
+      setDlNote({key, kind: 'failed', text: "Couldn't get it  ·  hold Play for other sources"});
+    } finally {
+      inflight.current.delete(key);
     }
-  }, [movieJob, ensureImdb, item.title, item.year, profileId]);
+  }, [ensureImdb, item.title, item.year, profileId]);
   const episodeActions = useCallback(
     (ep: UiEp) => {
       openActions({
@@ -1635,10 +2027,14 @@ export default function Detail({
       if (!curSeason || seasonBusy) return;
       setSeasonBusy(true);
       try {
+        // the whole season in ONE write (it was a request per episode)
+        const entries: MarkEntry[] = [];
         for (const e of curSeason.episodes) {
           if (e.air !== 'aired' || e.watched === watched) continue;
-          await setEpisodeWatched(e, watched);
+          const m = episodeMark(e, watched);
+          if (m) entries.push(m);
         }
+        if (entries.length) await api.markWatched(profileId, entries);
         showToast(watched ? `Season ${curSeason.number} marked watched` : `Season ${curSeason.number} marked unwatched`, '✓');
         await reloadProgress();
       } catch {
@@ -1647,7 +2043,7 @@ export default function Detail({
         setSeasonBusy(false);
       }
     },
-    [curSeason, seasonBusy, setEpisodeWatched, reloadProgress],
+    [curSeason, seasonBusy, episodeMark, profileId, reloadProgress],
   );
 
   // What the show page's primary button does — the site's `nextUp`. In order of
@@ -1673,6 +2069,120 @@ export default function Detail({
     }
     return null;
   }, [uiSeasons]);
+
+  // ---- the Play button's own download (see dlNote) ----
+  // The episode a show's Play stands for: nextUp, else the first episode of
+  // season 1 (of the first season listed when there is no season 1 — the
+  // label used to say "S1 E1" whatever it played).
+  const heroEp = useMemo(() => {
+    if (item.type !== 'show') return null;
+    if (nextUp) {
+      const se = uiSeasons.find(x => x.number === nextUp.season);
+      const ep = se?.episodes.find(x => x.num === nextUp.episode);
+      if (ep) return ep;
+    }
+    const se = uiSeasons.find(x => x.number === 1) || uiSeasons[0];
+    return se?.episodes[0] || null;
+  }, [item.type, nextUp, uiSeasons]);
+  const heroKey = item.type === 'show' ? (heroEp ? heroEp.key : null) : 'film';
+  heroKeyRef.current = heroKey;
+  const heroName = heroEp ? `S${heroEp.season} E${heroEp.episode}` : item.type === 'show' ? 'S1 E1' : unescapeHtml(item.title);
+  const heroOwned = item.type === 'show' ? !!heroEp?.owned : !!ownedMovieId;
+  const heroJob = heroOwned || !heroKey ? null : heroKey === 'film' ? movieJob : epJobs[heroKey];
+  // no target yet (a show whose episode list has not landed): nothing to say
+  const heroDl = !heroKey
+    ? ({busy: false, line: null, pct: null, tone: 'hint'} as ReturnType<typeof dlStatus>)
+    : dlStatus(
+        heroName,
+        heroJob,
+        dlNote && dlNote.key === heroKey ? dlNote : null,
+        heroOwned,
+        dlLive && dlLive.key === heroKey ? dlLive : null,
+      );
+  // Which episodes are on disk, as one string so a progress tick elsewhere
+  // does not look like a change.
+  const ownedSig = useMemo(
+    () => uiSeasons.flatMap(se => se.episodes.filter(e => e.owned).map(e => e.key)).join(','),
+    [uiSeasons],
+  );
+  // A job that LEFT the list ended: say how, at the button. The socket told
+  // endStatus when it knew (done / error / declined / removed); a job that
+  // only vanished from the poll is taken as done until the library says
+  // otherwise.
+  const prevJobs = useRef<{eps: Record<string, JobMark>; film: JobMark | null}>({eps: {}, film: null});
+  useEffect(() => {
+    const prev = prevJobs.current;
+    prevJobs.current = {eps: epJobs, film: movieJob};
+    const watch = new Set<string>();
+    if (heroKeyRef.current) watch.add(heroKeyRef.current);
+    if (dlNoteRef.current) watch.add(dlNoteRef.current.key);
+    for (const k of watch) {
+      const was = k === 'film' ? prev.film : prev.eps[k];
+      const now = k === 'film' ? movieJob : epJobs[k];
+      if (!was || now) continue;
+      const st = endStatus.current.get(k);
+      endStatus.current.delete(k);
+      setDlNote(
+        st && st !== 'done'
+          ? {key: k, kind: 'failed', text: endedText(dlName(k, item.title), st)}
+          : {key: k, kind: 'ended'},
+      );
+    }
+  }, [epJobs, movieJob, item.title]);
+  // ended → ready the moment the copy shows up (the library re-read that
+  // bumpLibrarySoon starts); "Ready — press Play" then fades after 30 s. A
+  // copy that has not shown up after 12 s gets one more re-read, and after
+  // 30 s the line says so — pressing Play again asks the server, which
+  // answers "already yours" for a finished copy.
+  useEffect(() => {
+    const n = dlNote;
+    if (!n || (n.kind !== 'ended' && n.kind !== 'ready')) return;
+    const owned = n.key === 'film' ? !!ownedMovieId : ownedSig.split(',').includes(n.key);
+    if (n.kind === 'ended' && owned) {
+      setDlNote({key: n.key, kind: 'ready'});
+      return;
+    }
+    if (n.kind === 'ready') {
+      const t = setTimeout(() => setDlNote(cur => (cur === n ? null : cur)), 30000);
+      return () => clearTimeout(t);
+    }
+    const again = setTimeout(bumpLibrarySoon, 12000);
+    const give = setTimeout(
+      () =>
+        setDlNote(cur =>
+          cur === n ? {key: n.key, kind: 'failed', text: `${dlName(n.key, item.title)} isn't in the library yet  ·  press Play to check`} : cur,
+        ),
+      30000,
+    );
+    return () => {
+      clearTimeout(again);
+      clearTimeout(give);
+    };
+  }, [dlNote, ownedSig, ownedMovieId, item.title, bumpLibrarySoon]);
+  // The line under Play: a strip while it saves, then one muted sentence.
+  const heroStatusLine = heroDl.line ? (
+    <View style={styles.movieDl}>
+      {heroDl.pct != null ? (
+        <View style={styles.movieDlTrack}>
+          <View style={[styles.epBarFill, styles.epBarFillDl, styles.movieDlFill, {width: `${Math.max(2, Math.round(heroDl.pct * 100))}%`}]} />
+        </View>
+      ) : null}
+      <View style={styles.dlLineRow}>
+        {heroDl.tone === 'live' ? <Icon name="download" size={11} color="#8cffbe" /> : null}
+        {heroDl.tone === 'ok' ? <Icon name="check" size={11} color="#8cffbe" /> : null}
+        <Text
+          style={[
+            styles.movieDlHint,
+            heroDl.tone === 'live' && styles.dlLineLive,
+            heroDl.tone === 'ok' && styles.dlLineOk,
+            heroDl.tone === 'warn' && styles.dlLineWarn,
+          ]}
+          numberOfLines={1}>
+          {heroDl.line}
+        </Text>
+      </View>
+    </View>
+  ) : null;
   // The two facts the site puts in a show's meta line.
   const ownedCount = useMemo(
     () => uiSeasons.reduce((n, se) => n + se.episodes.filter(e => e.owned).length, 0),
@@ -1691,9 +2201,16 @@ export default function Detail({
   const scrollToEnd = useCallback(() => scrollRef.current?.scrollToEnd({animated: true}), []);
   const renderEpisode = useCallback(
     ({item: ep, index}: {item: UiEp; index: number}) => (
-      <EpisodeCard ep={ep} edgeLeft={index === 0} onFocus={scrollToEnd} onMore={() => episodeActionsRef.current(ep)} />
+      <EpisodeCard
+        ep={ep}
+        edgeLeft={index === 0}
+        onFocus={scrollToEnd}
+        onMore={() => episodeActionsRef.current(ep)}
+        onCardFocus={onCardFocus}
+        registerCard={registerCard}
+      />
     ),
-    [scrollToEnd],
+    [scrollToEnd, onCardFocus, registerCard],
   );
 
   // ---------- Shows ----------
@@ -1756,7 +2273,7 @@ export default function Detail({
   }, [navigation]);
   const renderShelfCard = useCallback(
     ({item: sim, index}: {item: HeroItem; index: number}) => (
-      <Card item={sim} index={index} onPress={openSimilar} edgeLeft={index === 0} onFocus={scrollToEnd} />
+      <Card item={sim} index={index} onPress={openSimilar} edgeLeft={index === 0} holdLeft={index === 0} onFocus={scrollToEnd} />
     ),
     [openSimilar, scrollToEnd],
   );
@@ -1896,13 +2413,13 @@ export default function Detail({
           bottomInset={0}
           secondary={
             <>
-              <IconBtn ref={listBtnRef} icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
+              <IconBtn ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
               {/* Follow: only once the show's IMDb id is known — that is what the server follows by */}
               {followImdb ? (
                 <IconBtn icon={following ? 'check' : 'plus'} on={following} label={following ? 'Following' : 'Follow'} onPress={toggleFollow} />
               ) : null}
               {streamMeta?.trailers?.length ? (
-                <IconBtn icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
+                <IconBtn icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title, {imdbId: streamMeta.imdbId, type: streamMeta.type || item.type, year: streamMeta.year})} />
               ) : null}
               <IconBtn glyph="⋯" label="Similar" onPress={() => setLikePanel(true)} />
               <IconBtn
@@ -1912,21 +2429,27 @@ export default function Detail({
               />
             </>
           }>
-          {nextUp ? (
-            <PrimaryBtn
-              hasTVPreferredFocus
-              edgeLeft
-              label={
-                nextUp.resume
+          {/* ONE button for every state, so a download that finishes (the
+              episode turning owned, nextUp appearing) relabels the focused
+              button instead of swapping it for a new one — a swap dropped
+              focus onto My List. Not on disk: a press saves the best source
+              and the button + the line under it carry it; hold for the
+              episode's sources. */}
+          <PrimaryBtn
+            hasTVPreferredFocus
+            edgeLeft
+            busy={heroDl.busy}
+            label={
+              heroDl.busy
+                ? `Getting ${heroName}…`
+                : nextUp?.resume
                   ? `▶  Continue S${nextUp.season} E${nextUp.episode}`
-                  : `▶  Play S${nextUp.season} E${nextUp.episode}`
-              }
-              onPress={nextUp.play}
-            />
-          ) : null}
-          {!nextUp ? (
-            <PrimaryBtn hasTVPreferredFocus edgeLeft label="▶  Play S1 E1" onPress={() => uiSeasons[0]?.episodes[0]?.onPlay()} />
-          ) : null}
+                  : `▶  Play ${heroName}`
+            }
+            onPress={() => heroEp?.onPlay()}
+            onLongPress={heroEp && !heroEp.owned ? () => openEpisodeSources(heroEp.season, heroEp.episode) : undefined}
+          />
+          {heroStatusLine}
         </DetailHero>
 
         {/* Season pills + the episode rail, in flow under the lockup. */}
@@ -1945,6 +2468,7 @@ export default function Detail({
                   round
                   light={se.number === season}
                   edgeLeft={index === 0}
+                  holdLeft={index === 0}
                   onPress={() => setSeason(se.number)}
                   style={[styles.pill, se.number === season && styles.pillOn]}>
                   <Text style={[styles.pillText, se.number === season && styles.pillTextOn]}>
@@ -1957,7 +2481,8 @@ export default function Detail({
           {/* the site's season pill: one press ticks the aired episodes off (or back) */}
           {seasonAired.length > 0 ? (
             <View style={styles.seasonTools}>
-              <Focusable round onPress={() => markSeason(!seasonAllWatched)} style={styles.pill}>
+              {/* leftmost on its line: LEFT opens the rail, held so it cannot drop onto My List */}
+              <Focusable round edgeLeft holdLeft onPress={() => markSeason(!seasonAllWatched)} style={styles.pill}>
                 <Text style={styles.pillText}>
                   {seasonBusy ? 'Saving…' : seasonAllWatched ? 'Mark season unwatched' : `Mark season watched${seasonAired.filter(e => !e.watched).length < seasonAired.length ? ` (${seasonAired.filter(e => !e.watched).length} left)` : ''}`}
                 </Text>
@@ -2029,9 +2554,9 @@ export default function Detail({
         bottomInset={0}
         secondary={
           <>
-            <IconBtn ref={listBtnRef} icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
+            <IconBtn ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
             {streamMeta?.trailers?.length ? (
-              <IconBtn icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title)} />
+              <IconBtn icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title, {imdbId: streamMeta.imdbId, type: streamMeta.type || item.type, year: streamMeta.year})} />
             ) : null}
             {ownedMovieId ? <IconBtn glyph="≡" label="Versions" onPress={openSources} /> : null}
             <IconBtn
@@ -2049,41 +2574,30 @@ export default function Detail({
             and streaming becomes "Other versions". This is the site's own hero
             logic, and its absence is why the TV preferred streaming titles it
             already had on disk. */}
-        {ownedMovieId ? (
-          <PrimaryBtn
-            hasTVPreferredFocus
-            edgeLeft
-            label={movieResume ? `▶  Resume ${fmtClock(movieResume)}` : '▶  Play'}
-            onPress={playMovie}
-          />
-        ) : (
-          // A title not on disk: Play saves the best source and carries the
-          // job (the episodes' flow, elia 2026-10-07); hold Play for the list
-          // of sources. The strip under it says what is happening.
-          <>
-            <PrimaryBtn
-              hasTVPreferredFocus
-              edgeLeft
-              label={movieJob ? `⬇  ${dlText(movieJob).toLowerCase().replace(/^\w/, c => c.toUpperCase())}` : '▶  Play'}
-              onPress={downloadBestMovie}
-              onLongPress={openSources}
-            />
-            <View style={styles.movieDl}>
-              {movieJob ? (
-                <View style={styles.movieDlTrack}>
-                  <View style={[styles.epBarFill, styles.epBarFillDl, styles.movieDlFill, {width: `${Math.max(2, Math.round((movieJob.progress || 0) * 100))}%`}]} />
-                </View>
-              ) : null}
-              <Text style={styles.movieDlHint} numberOfLines={1}>
-                {movieJob
-                  ? movieJob.status === 'pending'
-                    ? 'Waiting for approval  ·  hold Play for other sources'
-                    : 'Saving the best source  ·  hold Play for other sources'
-                  : 'Press Play to save the best source  ·  hold for the list'}
-              </Text>
-            </View>
-          </>
-        )}
+        {/* A title not on disk: Play saves the best source and carries the
+            job (the episodes' flow, elia 2026-10-07); hold Play for the list
+            of sources. The line under it says what is happening, from the
+            press on. ONE button for both states, so the download finishing
+            relabels the focused button rather than remounting it. */}
+        <PrimaryBtn
+          hasTVPreferredFocus
+          edgeLeft
+          busy={!ownedMovieId && !movieJob && heroDl.busy}
+          label={
+            ownedMovieId
+              ? movieResume
+                ? `▶  Resume ${fmtClock(movieResume)}`
+                : '▶  Play'
+              : movieJob
+                ? `⬇  ${dlText(movieJob).toLowerCase().replace(/^\w/, c => c.toUpperCase())}`
+                : heroDl.busy
+                  ? 'Getting it…'
+                  : '▶  Play'
+          }
+          onPress={ownedMovieId ? playMovie : downloadBestMovie}
+          onLongPress={ownedMovieId ? undefined : openSources}
+        />
+        {heroStatusLine}
       </DetailHero>
       {/* The shelf: titles like this one, below the fold like Max's Extras. */}
       <View>
@@ -2294,7 +2808,15 @@ const styles = StyleSheet.create({
   movieDl: {flexBasis: '100%', marginTop: 6, gap: 5},
   movieDlTrack: {width: 240, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.14)', overflow: 'hidden'},
   movieDlFill: {position: 'relative', height: 4, borderRadius: 2},
-  movieDlHint: {color: colors.textFaint, fontSize: fontSize.small},
+  movieDlHint: {color: colors.textFaint, fontSize: fontSize.small, flexShrink: 1},
+  // the status line's glyph + sentence, and its three voices
+  dlLineRow: {flexDirection: 'row', alignItems: 'center', gap: 6},
+  dlLineLive: {color: colors.textDim},
+  dlLineOk: {color: '#8cffbe'},
+  dlLineWarn: {color: colors.kindFilm},
+  // Play with its spinner: the press landed, something is on its way
+  playRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
+  playSpin: {width: 16, height: 16, transform: [{scale: 0.8}]},
   playText: {color: colors.bg, fontSize: fontSize.body, fontWeight: '800'},
   // Translucent rather than the flat surface colour: these sit on artwork now,
   // and a solid slab there reads as a hole punched in the picture.

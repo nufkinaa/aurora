@@ -97,8 +97,8 @@ router.post("/api/auth/login", async (req, res) => {
 });
 
 router.post("/api/auth/logout", (req, res) => {
-  const sid = readCookie(req) || req.get("X-Session");
-  if (sid) sessions.revoke(sid);
+  // both: a TV may carry a cookie from an unlock AND its stored header sid
+  for (const sid of [readCookie(req), req.get("X-Session")]) if (sid) sessions.revoke(sid);
   clearSessionCookie(req, res);
   res.json({ ok: true });
 });

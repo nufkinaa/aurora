@@ -171,6 +171,13 @@ export type Progress = {
   // List's "Last watched" sort and `watchState`'s `at` are the two readers.
   updatedAt?: number;
 };
+export type MarkEntry = {
+  itemId: string;
+  watched: boolean;
+  duration?: number;
+  item?: Record<string, unknown>;
+  restore?: Progress | null;
+};
 export type ProfileState = {
   progress: Record<string, Progress>;
   // The two maps a downloaded-only `progress` lookup misses entirely
@@ -366,6 +373,8 @@ export type DownloadJob = {
   title?: string;
   label?: string;
   at?: number;
+  // when it finished (publicJob's doneAt): an ISO string, null until then
+  doneAt?: string | number | null;
 };
 
 export type TorrentStatus = {
@@ -421,6 +430,10 @@ export type MyDownload = DownloadJob & {
   quality?: string;
   imdbId?: string | null;
   type?: string;
+  // A finished episode: its show's library id and the episode's own name
+  // (server publicJobFor) — the home-screen row and the TV notification.
+  showId?: string;
+  epTitle?: string | null;
 };
 
 // A watch party as the server describes it (src/lib/party.js publicParty).
@@ -456,6 +469,10 @@ export type PartySummary = {
   members: number;
 };
 
+export type TrailerAnswer =
+  | {source: 'apple'; hls: string; id: string; quality?: number}
+  | {source: 'youtube'; ids: string[]}
+  | {source: 'none'; why?: string};
 export type Library = { movies: Item[]; shows: Item[] };
 export type Discover = { movies: HeroItem[]; shows: HeroItem[] };
 
@@ -900,6 +917,15 @@ export const api = {
     memo(`meta:${type}:${imdbId}`, 10 * 60000, () =>
       request<DiscoverMeta>(`/api/discover/meta/${type}/${imdbId}`),
     ),
+  // Which trailer to play (src/media/trailers.js): Apple's HLS, or YouTube keys
+  // for the TV to resolve itself (trailers.ts), or none. Memoised a while — the
+  // answer barely changes and the hero asks again on every pass.
+  trailer: (imdbId: string, type: 'movie' | 'show') =>
+    memo(`trailer:${type}:${imdbId}`, 30 * 60000, () =>
+      request<TrailerAnswer>(`/api/trailer?imdbId=${encodeURIComponent(imdbId)}&type=${type}`),
+    ),
+  trailerReport: (body: {imdbId?: string | null; source: string; stage: 'resolve' | 'play'; why: string; id?: string}) =>
+    post<unknown>('/api/trailer/report', body),
   // `fresh` bypasses the memo — Detail asks for that after a download lands.
   item: (id: string, profileId?: string, fresh = false) => {
     const path =
@@ -922,6 +948,13 @@ export const api = {
       `/api/profiles/${profileId}/progress/${encodeURIComponent(itemId)}`,
       { method: 'DELETE' },
     ),
+  // Mark watched / unwatched by hand (src/routes/profiles.js /progress/mark):
+  // never read as "watched it just now" — no smart download of the next
+  // episode, no Continue Watching bump. Unwatched puts back what the mark
+  // replaced; `restore` sends this client's own snapshot of the row instead
+  // (null = there was none). One call for a whole season.
+  markWatched: (profileId: string, items: MarkEntry[]) =>
+    post<{ok: boolean; count: number}>(`/api/profiles/${profileId}/progress/mark`, {items}),
   saveProgress: (
     profileId: string,
     itemId: string,
