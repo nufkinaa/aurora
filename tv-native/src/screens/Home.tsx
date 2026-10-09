@@ -31,7 +31,12 @@ import {canNavigate} from '../navLock';
 import {openItem} from '../openItem';
 import {openUpdate, openUpdateReady, overlayOpen} from '../overlay';
 import {isLite, measureOnce} from '../perfTier';
-import {isFrozen, trailerAllowed} from '../qa';
+import {isFrozen, trailerAllowed, traceValue} from '../qa';
+import {traceDerived, useTraces} from '../qaExtra';
+import {impl} from '../impl';
+import {artFadeAt, artFadeStops, COL_TOP_ID, colRowId, columnTargets} from '../homeMath';
+import AuroraHeroArt from '../specs/AuroraHeroArtNativeComponent';
+import AuroraSlideColumn, {RowFocusEvent} from '../specs/AuroraSlideColumnNativeComponent';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import {resolvePartyRoute} from '../party';
 import {warmItem, warmSections} from '../prefetch';
@@ -168,6 +173,106 @@ const HeroArt = React.memo(function HeroArtLayer({
     </View>
   );
 });
+
+// =============================================================================
+// THE NATIVE BILLBOARD AND COLUMN (docs/native-rewrite, P4; `impl.hero`).
+//
+// Home reads `impl.hero` once at startup and renders either today's JS — the
+// `artFade` wrapper + `HeroArt` above and the `Animated.View` column, untouched
+// but for the QA trace hooks — or these two, which stand in the same places:
+//
+//   NativeHeroArt  one AuroraHeroArt view for the wrapper and the five layers.
+//                  Same sources (`heroLayers`), same dims, the fade's two stops;
+//                  the trailer layer is still its React child.
+//   NativeColumn   an AuroraSlideColumn where the Animated.View was. It slides
+//                  itself, inside the focus change, to the target Home measured
+//                  for the row focus landed in.
+//
+// What stays here, and why: every number (the art's addresses and blur, the
+// row targets from the measured layout — src/homeMath.ts), the lockup, buttons
+// and dots (text is not ported), the trailer, the rotation, `isTop` and the
+// mounted shelves — the column reports `onRowFocus {index}` for those.
+// =============================================================================
+const headersJson = (src: ImgSource) => (src.headers ? JSON.stringify(src.headers) : '');
+
+const NativeHeroArt = React.memo(function NativeHeroArtLayer({
+  art,
+  scrolledArt,
+  h,
+  heroH,
+  link,
+  children,
+}: {
+  art: HeroLayers;
+  scrolledArt: HeroLayers | null;
+  h: number;
+  heroH: number;
+  link: string;
+  children?: React.ReactNode;
+}) {
+  // The same condition HeroArt mounts its second <Image> on.
+  const scrolled = art.scrolled && scrolledArt?.scrolled ? scrolledArt.scrolled : null;
+  const {fadeOutAt, fadeInAt} = artFadeStops(heroH);
+  return (
+    <AuroraHeroArt
+      style={[styles.artLayer, {height: h}]}
+      pointerEvents="none"
+      link={link}
+      restUri={art.rest.src.uri}
+      restHeadersJson={headersJson(art.rest.src)}
+      restBlur={art.rest.deviceBlur}
+      scrolledUri={scrolled ? scrolled.src.uri : ''}
+      scrolledHeadersJson={scrolled ? headersJson(scrolled.src) : ''}
+      scrolledBlur={scrolled ? scrolled.deviceBlur : 0}
+      restDim={REST.dim}
+      scrolledDim={SCROLLED.dim}
+      fadeOutAt={fadeOutAt}
+      fadeInAt={fadeInAt}>
+      {children}
+    </AuroraHeroArt>
+  );
+});
+
+type ColumnApi = {setTargets: (next: number[]) => void};
+// Holds `targets` as its OWN state, so a layout event re-renders this wrapper
+// and commits one prop — not Home (its `children` keep their identity, so
+// React does not walk the shelves again).
+function NativeColumn({
+  link,
+  api,
+  onRowFocus,
+  onLayout,
+  children,
+}: {
+  link: string;
+  api: React.MutableRefObject<ColumnApi | null>;
+  onRowFocus: (e: {nativeEvent: RowFocusEvent}) => void;
+  onLayout: (e: {nativeEvent: {layout: {height: number}}}) => void;
+  children?: React.ReactNode;
+}) {
+  const [targets, setTargets] = useState<number[]>([]);
+  useEffect(() => {
+    api.current = {
+      setTargets: next =>
+        setTargets(prev => (prev.length === next.length && prev.every((v, i) => v === next[i]) ? prev : next)),
+    };
+    return () => {
+      api.current = null;
+    };
+  }, [api]);
+  return (
+    <AuroraSlideColumn
+      style={styles.column}
+      pointerEvents="box-none"
+      link={link}
+      targets={targets}
+      onRowFocus={onRowFocus}
+      onLayout={onLayout}>
+      {children}
+    </AuroraSlideColumn>
+  );
+}
+let columnLinks = 0;
 
 export default function Home({
   navigation,
@@ -404,6 +509,8 @@ export default function Home({
         const at = heroIdxRef.current;
         defer(() => setScrolledIdx(at));
       }
+      // (impl.hero: the native art runs this fade itself, from the column's focus change)
+      if (impl.hero) return;
       Animated.timing(atTop, {
         toValue: next ? 1 : 0,
         duration: motion.med,
@@ -616,6 +723,8 @@ export default function Home({
 
   const toHero = useCallback(() => {
     setTop(true);
+    // (impl.hero: the native column has already started for 0 — AuroraSlideColumn)
+    if (impl.hero) return;
     ty.to(0);
   }, [setTop, ty]);
 
@@ -719,6 +828,50 @@ export default function Home({
     [setTop, ty, height, stopTrailer],
   );
 
+  // ---- impl.hero: the native column's side of toRow / toHero -----------------
+  // The slide has already started on the UI thread; this is the rest of what
+  // toRow and toHero do, in the same order, fed by the column's one event.
+  const link = useRef(`home-${++columnLinks}`).current;
+  const columnApi = useRef<ColumnApi | null>(null);
+  const syncTargets = useCallback(() => {
+    columnApi.current?.setTargets(columnTargets(rowY.current, colH.current, height, spacing.pageY));
+  }, [height]);
+  // (also when `height` itself changes, and once the column has registered)
+  useEffect(() => {
+    if (impl.hero) syncTargets();
+  }, [syncTargets]);
+  const onColumnFocus = useCallback(
+    (e: {nativeEvent: RowFocusEvent}) => {
+      const index = e.nativeEvent.index;
+      if (index < 0) {
+        setTop(true);
+        return;
+      }
+      setTop(false);
+      if (trailerBusy.current || trailerOnRef.current) stopTrailer(false);
+      if (rowY.current[index] == null) return;
+      defer(() => setReach(r => (index + 3 > r ? index + 3 : r)));
+    },
+    [setTop, stopTrailer],
+  );
+
+  // QA traces (tools/tv-pixel-diff/PROTOCOL.md §4): `[anim] … hero.ty / hero.atTop /
+  // hero.art / hero.swap` while the receiver has tracing on — a JS round-trip per
+  // frame, never on during a perf run. With impl.hero the first three come from
+  // the native views (same ids); the lockup's `swap` is JS in both.
+  useTraces(
+    () =>
+      impl.hero
+        ? [traceValue('hero.swap', swap)]
+        : [
+            traceValue('hero.ty', ty.value),
+            traceValue('hero.atTop', atTop),
+            traceDerived('hero.art', ty.value, v => artFadeAt(v, heroH)),
+            traceValue('hero.swap', swap),
+          ],
+    [ty, atTop, swap, heroH],
+  );
+
   // Continue Watching's ✕ — drawn on the focused card, removed by LONG-PRESS OK
   // (P12/P20). The card is dropped locally as well as on the server, because the
   // site does the same (`components.js:187-191`: `node.remove()` then the call).
@@ -752,24 +905,32 @@ export default function Home({
     (r: HomeRow, i: number) => (
       <View
         key={r.id}
+        // (impl.hero: the marker the native column reads, on a view that must exist)
+        nativeID={impl.hero ? colRowId(i) : undefined}
+        collapsable={impl.hero ? false : undefined}
         onLayout={e => {
           rowY.current[i] = e.nativeEvent.layout.y;
+          if (impl.hero) syncTargets();
         }}>
         <Row
           title={r.title}
           items={r.items}
           onSelect={openDetail}
-          onItemFocus={it => {
-            toRow(i);
-            warmItem(it);
-          }}
+          onItemFocus={
+            impl.hero
+              ? warmItem
+              : it => {
+                  toRow(i);
+                  warmItem(it);
+                }
+          }
           showKind
           wide={r.id === 'continue'}
           onRemove={r.id === 'continue' ? removeFromContinue : undefined}
         />
       </View>
     ),
-    [openDetail, toRow, removeFromContinue],
+    [openDetail, toRow, removeFromContinue, syncTargets],
   );
 
   if (!data && !error) {
@@ -842,8 +1003,186 @@ export default function Home({
     .filter(Boolean)
     .join('   ·   ');
 
+  // The trailer layer and the column's content are the same elements in both
+  // implementations; only the views that hold them differ (impl.hero).
+  const trailerLayer = trailer ? (
+    <Animated.View style={[styles.trailerLayer, {opacity: trailerFade}]} pointerEvents="none">
+      <TrailerFrame
+        key={trailer.key}
+        trailer={trailer.t}
+        muted
+        hero
+        handle={trailerHandle}
+        onState={onTrailerState}
+        // 16:9 at 15% over the window: the trailer's own letterbox
+        // and burnt-in edges sit outside the frame (the site does the
+        // same).
+        style={{
+          position: 'absolute',
+          width: Math.round(width * 1.15),
+          height: Math.round((width * 1.15 * 9) / 16),
+          left: -Math.round(width * 0.075),
+          top: Math.round((height - (width * 1.15 * 9) / 16) / 2),
+        }}
+      />
+    </Animated.View>
+  ) : null;
+  const columnBody = (
+    <>
+      {/* No hero but real rows (a server mid-warmup can emit that): the Play
+          button — this screen's focus fallback — never mounts, so give the
+          fallback a home. Without one, a focused card unmounting (long-press
+          ✕) had nowhere to rescue focus to, at the stack root. */}
+      {!hero ? (
+        <View style={styles.noHeroBar}>
+          <Btn
+            ref={escape}
+            small
+            label="Refresh"
+            edgeLeft
+            onPress={() => {
+              setData(null);
+              setReload(n => n + 1);
+            }}
+          />
+        </View>
+      ) : null}
+      {/* `.hero` — 76vh, its lockup bottom-anchored with the 56px→28dp gap
+          under it (screens.css:2-7). It is INSIDE the column, so it scrolls
+          away with the page exactly as the site's does. */}
+      {hero ? (
+        <View
+          style={[styles.hero, {height: heroH, paddingBottom: heroPadBottom}]}
+          // (impl.hero: the marker the native column reads, on a view that must exist)
+          nativeID={impl.hero ? COL_TOP_ID : undefined}
+          collapsable={impl.hero ? false : undefined}>
+          {/* `.hero-inner` — the info column and the poster, bottom-aligned
+              with a 48px→24dp gap between them (screens.css:138-142). */}
+          <Animated.View
+            style={[
+              styles.heroInner,
+              {
+                opacity: swap,
+                transform: [
+                  {translateX: swap.interpolate({inputRange: [0, 1], outputRange: [52, 0]})},
+                ],
+              },
+            ]}>
+          <View style={[styles.info, {maxWidth: Math.round(width * 0.46)}]}>
+          <Text
+            style={[
+              styles.kicker,
+              {color: hero.type === 'show' ? colors.kindSeries : colors.kindFilm},
+            ]}>
+            {hero.type === 'show' ? 'SERIES' : 'FILM'}
+          </Text>
+          <Text style={[styles.title, {fontSize: heroTitle}]} numberOfLines={2}>
+            {isEpisode ? hero.showTitle || hero.title : hero.title}
+          </Text>
+          {facts ? <Text style={styles.facts}>{facts}</Text> : null}
+          {/* `.hero-synopsis` — three lines, clamped (screens.css:261-270). */}
+          {hero.synopsis ? (
+            <Text
+              style={[styles.synopsis, {maxWidth: Math.round(width * 0.42)}]}
+              numberOfLines={2}>
+              {hero.synopsis}
+            </Text>
+          ) : null}
+          <View style={styles.actions}>
+            <Btn
+              primary
+              ref={escape}
+              // A stream is a slow start the viewer may not want: the warning
+              // sign says so before the press (elia, 2026-10-06).
+              icon="play"
+              label={hero.source === 'stream' ? 'Stream' : 'Play'}
+              hasTVPreferredFocus
+              // Not edgeLeft: LEFT here is "previous slide"; UP opens the rail.
+              onFocusChange={onHeroBtn(0)}
+              onPress={() => {
+                holdUntil.current = Date.now() + 15000;
+                heroPlay(hero);
+              }}
+            />
+            <Btn
+              icon="info"
+              label="Details"
+              onFocusChange={onHeroBtn(1)}
+              onPress={() => openDetail(hero)}
+            />
+            {trailerOn ? (
+              <Btn
+                small
+                glyph={unmuted ? '🔊' : '🔇'}
+                label={unmuted ? 'Mute' : 'Unmute'}
+                onFocusChange={onHeroBtn(2)}
+                onPress={toggleMute}
+              />
+            ) : null}
+            {parties.slice(0, 2).map((p, i) => (
+              <Btn
+                key={p.code}
+                small
+                glyph="👥"
+                label={`Join ${p.host}'s party`}
+                onFocusChange={onHeroBtn(2 + (trailerOn ? 1 : 0) + i)}
+                onPress={() => joinParty(p)}
+              />
+            ))}
+          </View>
+          {parties.length ? (
+            <Text style={styles.partyNote} numberOfLines={1}>
+              {parties.slice(0, 2).map(p => `${p.host} is watching ${p.title} · ${p.members} in · code ${p.code}`).join('   ·   ')}
+            </Text>
+          ) : null}
+          </View>
+          {/* No poster beside the lockup any more (elia, 2026-10-06): the
+              backdrop IS the picture, and the card competed with it. */}
+          </Animated.View>
+          {/* `.hero-dots` (screens.css:221-248). DRAWN, not focusable — the
+              site's are <button>s because a mouse needs a target; on a D-pad
+              they would be extra stops in the hero band for something the
+              rotation already does. Same call as the card's ✕ (P12). */}
+          {heroes.length > 1 ? (
+            <View style={[styles.dots, {bottom: heroPadBottom + 20}]} pointerEvents="none">
+              {heroes.map((h, i) => (
+                <View
+                  key={h.id || h.imdbId || String(i)}
+                  style={[styles.dot, i === heroIdx % heroes.length && styles.dotOn]}
+                />
+              ))}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      {(data!.rows || []).slice(0, reach + 1).map(renderRow)}
+      <View style={{height: safeBottom}} />
+    </>
+  );
+
   return (
     <View style={styles.root}>
+      {impl.hero ? (
+        <>
+          {art ? (
+            <NativeHeroArt art={art} scrolledArt={scrolledArt} h={height} heroH={heroH} link={link}>
+              {trailerLayer}
+            </NativeHeroArt>
+          ) : null}
+          <NativeColumn
+            link={link}
+            api={columnApi}
+            onRowFocus={onColumnFocus}
+            onLayout={e => {
+              colH.current = e.nativeEvent.layout.height;
+              syncTargets();
+            }}>
+            {columnBody}
+          </NativeColumn>
+        </>
+      ) : (
+        <>
       {/* The artwork is a FIXED layer behind the column that FADES with the
           scroll (elia, 2026-10-07: "under the hero on home it gets cut and it's
           noticeable"). Scrolling WITH the column left a seam where the layer
@@ -866,28 +1205,7 @@ export default function Home({
         pointerEvents="none">
       {art ? (
         <HeroArt art={art} scrolledArt={scrolledArt} atTop={atTop} h={height}>
-          {trailer ? (
-            <Animated.View style={[styles.trailerLayer, {opacity: trailerFade}]} pointerEvents="none">
-              <TrailerFrame
-                key={trailer.key}
-                trailer={trailer.t}
-                muted
-                hero
-                handle={trailerHandle}
-                onState={onTrailerState}
-                // 16:9 at 15% over the window: the trailer's own letterbox
-                // and burnt-in edges sit outside the frame (the site does the
-                // same).
-                style={{
-                  position: 'absolute',
-                  width: Math.round(width * 1.15),
-                  height: Math.round((width * 1.15 * 9) / 16),
-                  left: -Math.round(width * 0.075),
-                  top: Math.round((height - (width * 1.15 * 9) / 16) / 2),
-                }}
-              />
-            </Animated.View>
-          ) : null}
+          {trailerLayer}
         </HeroArt>
       ) : null}
       </Animated.View>
@@ -897,132 +1215,10 @@ export default function Home({
           colH.current = e.nativeEvent.layout.height;
         }}
         pointerEvents="box-none">
-        {/* No hero but real rows (a server mid-warmup can emit that): the Play
-            button — this screen's focus fallback — never mounts, so give the
-            fallback a home. Without one, a focused card unmounting (long-press
-            ✕) had nowhere to rescue focus to, at the stack root. */}
-        {!hero ? (
-          <View style={styles.noHeroBar}>
-            <Btn
-              ref={escape}
-              small
-              label="Refresh"
-              edgeLeft
-              onPress={() => {
-                setData(null);
-                setReload(n => n + 1);
-              }}
-            />
-          </View>
-        ) : null}
-        {/* `.hero` — 76vh, its lockup bottom-anchored with the 56px→28dp gap
-            under it (screens.css:2-7). It is INSIDE the column, so it scrolls
-            away with the page exactly as the site's does. */}
-        {hero ? (
-          <View style={[styles.hero, {height: heroH, paddingBottom: heroPadBottom}]}>
-            {/* `.hero-inner` — the info column and the poster, bottom-aligned
-                with a 48px→24dp gap between them (screens.css:138-142). */}
-            <Animated.View
-              style={[
-                styles.heroInner,
-                {
-                  opacity: swap,
-                  transform: [
-                    {translateX: swap.interpolate({inputRange: [0, 1], outputRange: [52, 0]})},
-                  ],
-                },
-              ]}>
-            <View style={[styles.info, {maxWidth: Math.round(width * 0.46)}]}>
-            <Text
-              style={[
-                styles.kicker,
-                {color: hero.type === 'show' ? colors.kindSeries : colors.kindFilm},
-              ]}>
-              {hero.type === 'show' ? 'SERIES' : 'FILM'}
-            </Text>
-            <Text style={[styles.title, {fontSize: heroTitle}]} numberOfLines={2}>
-              {isEpisode ? hero.showTitle || hero.title : hero.title}
-            </Text>
-            {facts ? <Text style={styles.facts}>{facts}</Text> : null}
-            {/* `.hero-synopsis` — three lines, clamped (screens.css:261-270). */}
-            {hero.synopsis ? (
-              <Text
-                style={[styles.synopsis, {maxWidth: Math.round(width * 0.42)}]}
-                numberOfLines={2}>
-                {hero.synopsis}
-              </Text>
-            ) : null}
-            <View style={styles.actions}>
-              <Btn
-                primary
-                ref={escape}
-                // A stream is a slow start the viewer may not want: the warning
-                // sign says so before the press (elia, 2026-10-06).
-                icon="play"
-                label={hero.source === 'stream' ? 'Stream' : 'Play'}
-                hasTVPreferredFocus
-                // Not edgeLeft: LEFT here is "previous slide"; UP opens the rail.
-                onFocusChange={onHeroBtn(0)}
-                onPress={() => {
-                  holdUntil.current = Date.now() + 15000;
-                  heroPlay(hero);
-                }}
-              />
-              <Btn
-                icon="info"
-                label="Details"
-                onFocusChange={onHeroBtn(1)}
-                onPress={() => openDetail(hero)}
-              />
-              {trailerOn ? (
-                <Btn
-                  small
-                  glyph={unmuted ? '🔊' : '🔇'}
-                  label={unmuted ? 'Mute' : 'Unmute'}
-                  onFocusChange={onHeroBtn(2)}
-                  onPress={toggleMute}
-                />
-              ) : null}
-              {parties.slice(0, 2).map((p, i) => (
-                <Btn
-                  key={p.code}
-                  small
-                  glyph="👥"
-                  label={`Join ${p.host}'s party`}
-                  onFocusChange={onHeroBtn(2 + (trailerOn ? 1 : 0) + i)}
-                  onPress={() => joinParty(p)}
-                />
-              ))}
-            </View>
-            {parties.length ? (
-              <Text style={styles.partyNote} numberOfLines={1}>
-                {parties.slice(0, 2).map(p => `${p.host} is watching ${p.title} · ${p.members} in · code ${p.code}`).join('   ·   ')}
-              </Text>
-            ) : null}
-            </View>
-            {/* No poster beside the lockup any more (elia, 2026-10-06): the
-                backdrop IS the picture, and the card competed with it. */}
-            </Animated.View>
-            {/* `.hero-dots` (screens.css:221-248). DRAWN, not focusable — the
-                site's are <button>s because a mouse needs a target; on a D-pad
-                they would be extra stops in the hero band for something the
-                rotation already does. Same call as the card's ✕ (P12). */}
-            {heroes.length > 1 ? (
-              <View style={[styles.dots, {bottom: heroPadBottom + 20}]} pointerEvents="none">
-                {heroes.map((h, i) => (
-                  <View
-                    key={h.id || h.imdbId || String(i)}
-                    style={[styles.dot, i === heroIdx % heroes.length && styles.dotOn]}
-                  />
-                ))}
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
-        {(data!.rows || []).slice(0, reach + 1).map(renderRow)}
-        <View style={{height: safeBottom}} />
+        {columnBody}
       </Animated.View>
+        </>
+      )}
 
       <NavRail active="home" />
 
