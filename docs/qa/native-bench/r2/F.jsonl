@@ -1,0 +1,16 @@
+{"label":"F","scenario":"S1","run":1,"frames":413,"janky_pct":5.57,"p50":21,"p90":38,"p95":46,"p99":65,"input_p50":0.299446,"input_p90":0.345237,"pss_mb":300,"views":404}
+{"label":"F","scenario":"S2","run":1,"frames":462,"janky_pct":7.79,"p50":27,"p90":46,"p95":57,"p99":150,"input_p50":7.46617,"input_p90":17.124,"pss_mb":342,"views":888}
+{"label":"F","scenario":"S3","run":1,"frames":437,"janky_pct":5.49,"p50":20,"p90":34,"p95":48,"p99":150,"input_p50":0.302259,"input_p90":0.463843,"pss_mb":369,"views":342}
+{"label":"F","scenario":"S4","run":1,"frames":360,"janky_pct":4.72,"p50":26,"p90":46,"p95":61,"p99":121,"input_p50":0.30677,"input_p90":14.5325,"pss_mb":277,"views":342}
+{"label":"F","scenario":"S1","run":2,"frames":400,"janky_pct":6.50,"p50":21,"p90":42,"p95":48,"p99":65,"input_p50":0.300998,"input_p90":0.360206,"pss_mb":287,"views":404}
+{"label":"F","scenario":"S2","run":2,"frames":453,"janky_pct":7.73,"p50":28,"p90":46,"p95":61,"p99":150,"input_p50":6.75359,"input_p90":17.9448,"pss_mb":337,"views":888}
+{"label":"F","scenario":"S3","run":2,"frames":449,"janky_pct":4.90,"p50":16,"p90":34,"p95":42,"p99":150,"input_p50":0.294019,"input_p90":0.605394,"pss_mb":362,"views":342}
+{"label":"F","scenario":"S4","run":2,"frames":361,"janky_pct":3.60,"p50":28,"p90":42,"p95":57,"p99":117,"input_p50":0.318155,"input_p90":14.3719,"pss_mb":273,"views":342}
+{"label":"F","scenario":"S1","run":3,"frames":401,"janky_pct":5.49,"p50":21,"p90":40,"p95":46,"p99":61,"input_p50":0.305173,"input_p90":0.378756,"pss_mb":289,"views":404}
+{"label":"F","scenario":"S2","run":3,"frames":469,"janky_pct":7.46,"p50":26,"p90":48,"p95":61,"p99":150,"input_p50":6.21381,"input_p90":17.5004,"pss_mb":338,"views":888}
+{"label":"F","scenario":"S3","run":3,"frames":447,"janky_pct":4.92,"p50":21,"p90":34,"p95":44,"p99":150,"input_p50":0.301112,"input_p90":0.465737,"pss_mb":364,"views":342}
+{"label":"F","scenario":"S4","run":3,"frames":365,"janky_pct":3.56,"p50":27,"p90":44,"p95":61,"p99":113,"input_p50":12.326,"input_p90":15.0099,"pss_mb":250,"views":342}
+{"label":"F","scenario":"S1","run":4,"frames":399,"janky_pct":5.76,"p50":22,"p90":38,"p95":46,"p99":61,"input_p50":0.298308,"input_p90":0.366891,"pss_mb":288,"views":404}
+{"label":"F","scenario":"S2","run":4,"frames":456,"janky_pct":8.11,"p50":26,"p90":46,"p95":53,"p99":133,"input_p50":4.96369,"input_p90":18.0779,"pss_mb":339,"views":888}
+{"label":"F","scenario":"S3","run":4,"frames":441,"janky_pct":4.76,"p50":20,"p90":32,"p95":42,"p99":150,"input_p50":0.302329,"input_p90":0.486204,"pss_mb":367,"views":342}
+{"label":"F","scenario":"S4","run":4,"frames":361,"janky_pct":4.43,"p50":27,"p90":42,"p95":61,"p99":117,"input_p50":12.0118,"input_p90":15.7598,"pss_mb":275,"views":342}

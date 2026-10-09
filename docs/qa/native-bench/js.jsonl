@@ -1,0 +1,12 @@
+{"label":"js","scenario":"S1","run":1,"frames":924,"janky_pct":9.63,"p50":24,"p90":42,"p95":48,"p99":65,"input_p50":0.410259,"input_p90":17.3795,"pss_mb":431,"views":342}
+{"label":"js","scenario":"S2","run":1,"frames":664,"janky_pct":12.20,"p50":32,"p90":53,"p95":61,"p99":121,"input_p50":10.3746,"input_p90":17.0184,"pss_mb":411,"views":757}
+{"label":"js","scenario":"S3","run":1,"frames":744,"janky_pct":7.12,"p50":17,"p90":36,"p95":46,"p99":85,"input_p50":0.306873,"input_p90":5.95375,"pss_mb":400,"views":343}
+{"label":"js","scenario":"S4","run":1,"frames":608,"janky_pct":4.93,"p50":26,"p90":36,"p95":44,"p99":101,"input_p50":0.356303,"input_p90":6.39959,"pss_mb":399,"views":403}
+{"label":"js","scenario":"S1","run":2,"frames":587,"janky_pct":4.26,"p50":25,"p90":34,"p95":48,"p99":93,"input_p50":0.327941,"input_p90":7.35281,"pss_mb":414,"views":403}
+{"label":"js","scenario":"S2","run":2,"frames":493,"janky_pct":13.59,"p50":32,"p90":53,"p95":65,"p99":150,"input_p50":10.4898,"input_p90":22.7647,"pss_mb":416,"views":687}
+{"label":"js","scenario":"S3","run":2,"frames":679,"janky_pct":7.51,"p50":30,"p90":38,"p95":44,"p99":61,"input_p50":0.574297,"input_p90":6.57876,"pss_mb":402,"views":399}
+{"label":"js","scenario":"S4","run":2,"frames":506,"janky_pct":6.32,"p50":26,"p90":38,"p95":46,"p99":97,"input_p50":0.331099,"input_p90":3.74768,"pss_mb":406,"views":403}
+{"label":"js","scenario":"S1","run":3,"frames":563,"janky_pct":14.03,"p50":30,"p90":48,"p95":53,"p99":109,"input_p50":5.72478,"input_p90":14.6885,"pss_mb":419,"views":343}
+{"label":"js","scenario":"S2","run":3,"frames":479,"janky_pct":15.03,"p50":30,"p90":53,"p95":65,"p99":150,"input_p50":9.23708,"input_p90":20.043,"pss_mb":414,"views":718}
+{"label":"js","scenario":"S3","run":3,"frames":580,"janky_pct":11.03,"p50":30,"p90":48,"p95":65,"p99":150,"input_p50":null,"input_p90":null,"pss_mb":210,"views":853}
+{"label":"js","scenario":"S4","run":3,"frames":579,"janky_pct":2.25,"p50":24,"p90":34,"p95":40,"p99":77,"input_p50":0.339563,"input_p90":3.27002,"pss_mb":389,"views":341}
