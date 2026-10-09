@@ -4,6 +4,7 @@ import com.auroratv.ui.qa.AuroraQaModule
 import com.auroratv.ui.view.AuroraCardManager
 import com.auroratv.ui.view.AuroraFocusableManager
 import com.auroratv.ui.view.AuroraHeroArtManager
+import com.auroratv.ui.view.AuroraRailPanelManager
 import com.auroratv.ui.view.AuroraRowManager
 import com.auroratv.ui.view.AuroraSlideColumnManager
 import com.facebook.react.ReactPackage
@@ -21,5 +22,5 @@ class AuroraUiPackage : ReactPackage {
     listOf(AuroraImplModule(ctx), AuroraQaModule(ctx))
 
   override fun createViewManagers(ctx: ReactApplicationContext): List<ViewManager<*, *>> =
-    listOf(AuroraFocusableManager(), AuroraCardManager(), AuroraRowManager(), AuroraSlideColumnManager(), AuroraHeroArtManager())
+    listOf(AuroraFocusableManager(), AuroraCardManager(), AuroraRowManager(), AuroraSlideColumnManager(), AuroraHeroArtManager(), AuroraRailPanelManager())
 }

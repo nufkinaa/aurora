@@ -46,6 +46,8 @@ const loadAnimated = rel =>
         if (!c) throw new Error(msg);
       };
     }
+    // Easing.js asks for its sibling lazily (`require('./bezier')` inside Easing.bezier)
+    if (name.startsWith('./')) return loadAnimated(name.slice(2) + '.js');
     throw new Error(`unexpected require ${name} from ${rel}`);
   });
 
