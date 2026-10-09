@@ -1,0 +1,3 @@
+{"label":"js-baseline","scenario":"S1","run":1,"frames":503,"janky_pct":5.77,"p50":22,"p90":40,"p95":48,"p99":97,"input_p50":0.297046,"input_p90":0.367921,"pss_mb":351,"views":403}
+{"label":"js-baseline","scenario":"S2","run":1,"frames":534,"janky_pct":8.80,"p50":27,"p90":48,"p95":57,"p99":117,"input_p50":5.73452,"input_p90":17.9368,"pss_mb":368,"views":892}
+{"label":"js-baseline","scenario":"S3","run":1,"frames":642,"janky_pct":3.58,"p50":24,"p90":34,"p95":48,"p99":109,"input_p50":0.33957,"input_p90":5.84982,"pss_mb":392,"views":403}

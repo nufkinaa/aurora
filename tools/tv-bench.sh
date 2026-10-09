@@ -12,7 +12,8 @@ PKG=com.auroratv.lab; SERIAL=""; RUNS=3; LABEL=${LABEL:-}
 while getopts "p:s:n:l:" o; do case $o in p) PKG=$OPTARG;; s) SERIAL=$OPTARG;; n) RUNS=$OPTARG;; l) LABEL=$OPTARG;; esac; done
 shift $((OPTIND-1))
 SC=("$@"); [ ${#SC[@]} -eq 0 ] && SC=(S1 S2 S3 S4)
-A() { if [ -n "$SERIAL" ]; then "$ADB" -s "$SERIAL" "$@"; else "$ADB" "$@"; fi; }
+# every adb call is bounded: a box that drops off the network mid-run must not hang the bench
+A() { if [ -n "$SERIAL" ]; then timeout 90 "$ADB" -s "$SERIAL" "$@"; else timeout 90 "$ADB" "$@"; fi; }
 keys() { # keys CODE COUNT GAP_MS — one shell call, so the cadence is the box's own
   local k=$1 n=$2 gap=$3 cmd=""; for ((j=0;j<n;j++)); do cmd+="input keyevent $k; sleep $(awk "BEGIN{print $gap/1000}"); "; done; A shell "$cmd" >/dev/null; }
 # A cold start before every run: the only way to be sure of the screen (BACK on Home leaves the app),
