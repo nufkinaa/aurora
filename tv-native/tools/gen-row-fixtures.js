@@ -185,6 +185,13 @@ function runSpring(cfg, from, to, frameTimesNanos) {
         position = endValue - envelope * (x0 + (v0 + omega0 * x0) * t);
         velocity = envelope * (v0 * (t * omega0 - 1) + t * x0 * (omega0 * omega0));
       }
+      // SpringAnimation.kt `advance` snaps to the end value once at rest (as
+      // gen-anim-fixtures.js and AuroraSpring.kt do since the device run).
+      if (atRest() && stiffness > 0) {
+        startValue = endValue;
+        position = endValue;
+        velocity = 0;
+      }
     }
     lastTime = ms;
     out.push(position);
