@@ -545,4 +545,33 @@ ui.test("a real round on the private instance: every check lands in one of the s
 });
 
 // one at a time: these tests share the admin's queue and the list of people
+
+// ---- Insights → the TV app's frame timings (lib/usage.js perf) ----
+ui.test("Insights shows the TV frames and TV boxes tables from a stubbed usage summary, and hides them when there is none", async ({ page, srv }) => {
+  const perf = {
+    screens: [
+      { screen: "home", v: "92", impl: "-", n: 412, frames: 180000, p50: 29, p90: 41, p90hi: 58, jank: 3.4, low: 74, lite: 16 },
+      { screen: "home", v: "93", impl: "F", n: 120, frames: 52000, p50: 24, p90: 33, p90hi: 40, jank: 1.1, low: 0, lite: 0 },
+    ],
+    devices: [{ model: "MiTV-AFMU0", n: 30, sdk: { 34: 28, 30: 2 }, mem_mb: 2048, heap_mb: 256, gpu: "Mali-G31", lowram: 0, low: { no: 18, android: 0, mem: 0, heap: 0, frames: 12, trim: 0 } }],
+    trims: { 15: 3 },
+  };
+  let withPerf = true;
+  await page.route("**/api/admin/usage", (route) => route.fulfill({ json: { summary: { events: 9, batches: 2, devices: { tv: 9 }, looks: { tv: 9 }, routes: [], features: [], nav: [], plays: [], errors: [], activeByDay: [], perf: withPerf ? perf : { screens: [], devices: [], trims: {} } }, text: "stub" } }));
+  await enter(page, srv);
+  await page.click('.tab[data-tab="analytics"]');
+  await page.waitForFunction(() => !document.getElementById("usage-tv").classList.contains("hidden"));
+  const rows = await page.evaluate(() => [...document.querySelectorAll("#usage-tv-screens tr")].map((tr) => [...tr.cells].map((c) => c.textContent)));
+  assert.deepEqual(rows[0], ["home", "92", "-", "412", "180000", "29ms", "41ms", "58ms", "3.4%", "18%", "4%"]);
+  assert.deepEqual(rows[1].slice(0, 3), ["home", "93", "F"]);
+  assert.equal(rows[1][9], "–", "no low sessions reads as a dash");
+  const box = await page.evaluate(() => [...document.querySelector("#usage-tv-boxes tr").cells].map((c) => c.textContent));
+  assert.deepEqual(box, ["MiTV-AFMU0", "30 / 34", "2048", "256", "Mali-G31", "0 / 30", "no 18, frames 12"]);
+  // without perf data the block hides again
+  withPerf = false;
+  await page.click('.tab[data-tab="overview"]');
+  await page.click('.tab[data-tab="analytics"]');
+  await page.waitForFunction(() => document.getElementById("usage-tv").classList.contains("hidden"));
+});
+
 ui.run({ concurrency: 1 });

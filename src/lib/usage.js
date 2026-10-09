@@ -21,6 +21,18 @@ const KEY_RE = /^[a-z][a-z0-9_]{0,23}$/;
 const DEVICES = new Set(["phone", "tablet", "desktop", "tv"]);
 const LOOKS = new Set(["glass", "legacy", "tv"]); // "tv": the Android TV app (it has one look of its own)
 const NET_TIERS = new Set(["slow", "ok", "fast"]);
+// The TV app's frame monitor (tv-native/src/perfTier.ts): a `perf` event per
+// screen a few times a session, one `device` event, a `trim` event when the
+// system warned about memory. Aggregated per screen × app version × which
+// components are native (`impl`, "-" when none) so a before/after read is two
+// rows of one table — the evidence base for the native-rendering work.
+const PERF_SCREEN_RE = /^[a-z]{1,24}$/;
+const PERF_V_RE = /^[A-Za-z0-9._-]{1,12}$/;
+const PERF_IMPL_RE = /^[A-Za-z-]{1,8}$/;
+const PERF_LOW_REASONS = ["no", "android", "mem", "heap", "frames", "trim"];
+const PERF_MAX_SCREEN_KEYS = 500;
+const PERF_MAX_DEVICES = 200;
+const PERF_ROWS = 40;
 
 const monthOf = (t) => new Date(t).toISOString().slice(0, 7);
 const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
@@ -40,6 +52,11 @@ const fresh = () => ({
   plays: {}, // `${kind}/${path}` -> { n, ms: [], byDevice: {} }
   errors: {}, // message -> n
   net: { tiers: {}, byDevice: {}, sources: {}, kbps: [], rtt: [] }, // connection quality, per report
+  perf: {
+    screens: {}, // `${screen}|${v}|${impl}` -> { n, frames, p50: [], p90: [], jank: [], low, lite }
+    devices: {}, // model -> { n, sdk: {}, mem_mb, heap_mb, gpu, lowram, low: { no, android, mem, heap, frames, trim } }
+    trims: {}, // ComponentCallbacks2 level -> n
+  },
   profilesByDay: {}, // day -> Set
   sessionsByDay: {}, // day -> Set
 });
@@ -94,7 +111,44 @@ const apply = (batch) => {
       if (typeof p.src === "string") bump(agg.net.sources, p.src.slice(0, 24));
       if (typeof p.kbps === "number" && p.kbps > 0 && p.kbps < 1e7) sample(agg.net.kbps, p.kbps);
       if (typeof p.rtt === "number" && p.rtt > 0 && p.rtt < 60000) sample(agg.net.rtt, p.rtt);
+    } else if (ev.n === "perf" && typeof p.screen === "string" && PERF_SCREEN_RE.test(p.screen)) {
+      applyPerf(p);
     }
+  }
+};
+
+const applyPerf = (p) => {
+  const perf = agg.perf;
+  if (p.screen === "device") {
+    const model = typeof p.model === "string" && p.model.trim() ? p.model.trim().slice(0, 40) : "?";
+    if (!perf.devices[model] && Object.keys(perf.devices).length >= PERF_MAX_DEVICES) return;
+    const d = (perf.devices[model] = perf.devices[model] || {
+      n: 0, sdk: {}, mem_mb: null, heap_mb: null, gpu: "", lowram: 0,
+      low: Object.fromEntries(PERF_LOW_REASONS.map((r) => [r, 0])),
+    });
+    d.n++;
+    if (Number.isInteger(p.sdk) && p.sdk > 0 && p.sdk < 100) bump(d.sdk, String(p.sdk));
+    if (typeof p.mem_mb === "number" && p.mem_mb > 0 && p.mem_mb < 1e6) d.mem_mb = Math.round(p.mem_mb); // the latest wins
+    if (typeof p.heap_mb === "number" && p.heap_mb > 0 && p.heap_mb < 1e6) d.heap_mb = Math.round(p.heap_mb);
+    if (typeof p.gpu === "string" && p.gpu.trim()) d.gpu = p.gpu.trim().slice(0, 60);
+    if (p.lowram === true) d.lowram++;
+    if (typeof p.low === "string" && PERF_LOW_REASONS.includes(p.low)) d.low[p.low]++;
+  } else if (p.screen === "trim") {
+    if (Number.isInteger(p.level) && p.level >= 0 && p.level <= 100) bump(perf.trims, String(p.level));
+  } else {
+    // a screen's frames: `v` (versionCode) and `impl` arrive from newer builds; older ones get the defaults
+    const v = typeof p.v === "number" && Number.isInteger(p.v) && p.v > 0 ? String(p.v) : typeof p.v === "string" && PERF_V_RE.test(p.v) ? p.v : "?";
+    const impl = typeof p.impl === "string" && PERF_IMPL_RE.test(p.impl) ? p.impl : "-";
+    const key = `${p.screen}|${v}|${impl}`;
+    if (!perf.screens[key] && Object.keys(perf.screens).length >= PERF_MAX_SCREEN_KEYS) return;
+    const s = (perf.screens[key] = perf.screens[key] || { screen: p.screen, v, impl, n: 0, frames: 0, p50: [], p90: [], jank: [], low: 0, lite: 0 });
+    s.n++;
+    if (typeof p.frames === "number" && p.frames > 0 && p.frames < 1e7) s.frames += Math.round(p.frames);
+    if (typeof p.p50 === "number" && p.p50 > 0 && p.p50 < 1000) sample(s.p50, p.p50);
+    if (typeof p.p90 === "number" && p.p90 > 0 && p.p90 < 1000) sample(s.p90, p.p90);
+    if (typeof p.jank === "number" && p.jank >= 0 && p.jank <= 100) sample(s.jank, p.jank);
+    if (p.low === true) s.low++;
+    if (p.lite === true) s.lite++;
   }
 };
 
@@ -237,10 +291,26 @@ const summary = () => {
       rttP90: pct(agg.net.rtt, 90),
     },
     activeByDay: days.map((d) => ({ day: d, profiles: agg.profilesByDay[d].size, sessions: (agg.sessionsByDay[d] || new Set()).size })),
+    // the TV app's frame timings: one row per screen × version × impl (p50 and
+    // p90 are medians over the sessions' own p50/p90, p90hi the 90th of the
+    // p90s, jank the median jank%; `low` and `lite` count the sessions that
+    // reported under those economies), and the boxes that sent them
+    perf: {
+      screens: top(agg.perf.screens, PERF_ROWS, (s) => s.frames).map(([, s]) => ({
+        screen: s.screen, v: s.v, impl: s.impl, n: s.n, frames: s.frames,
+        p50: pct(s.p50, 50), p90: pct(s.p90, 50), p90hi: pct(s.p90, 90), jank: pct(s.jank, 50),
+        low: s.low, lite: s.lite,
+      })),
+      devices: top(agg.perf.devices, PERF_ROWS).map(([model, d]) => ({
+        model, n: d.n, sdk: d.sdk, mem_mb: d.mem_mb, heap_mb: d.heap_mb, gpu: d.gpu, lowram: d.lowram, low: { ...d.low },
+      })),
+      trims: { ...agg.perf.trims },
+    },
   };
 };
 
 const fmtMs = (v) => (v == null ? "–" : v >= 1000 ? `${(v / 1000).toFixed(1)}s` : `${v}ms`);
+const fmtCount = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}k` : String(n));
 const devs = (o) => Object.entries(o || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(", ");
 
 // The same numbers as text — for the admin's Copy button.
@@ -273,6 +343,27 @@ const text = () => {
     lines.push(`  ${devs(s.net.tiers)}${Object.keys(s.net.slowByDevice).length ? ` · slow on: ${devs(s.net.slowByDevice)}` : ""}`);
     lines.push(`  speed p10 / p50: ${kb(s.net.kbpsP10)} / ${kb(s.net.kbpsP50)} · round trip p50 / p90: ${fmtMs(s.net.rttP50)} / ${fmtMs(s.net.rttP90)}`);
     if (Object.keys(s.net.sources).length) lines.push(`  decided by: ${devs(s.net.sources)}`);
+  }
+  if (s.perf.screens.length) {
+    const n1 = (v) => (v == null ? "–" : `${Math.round(v)}`);
+    const pc = (k, n) => (n ? `${Math.round((100 * k) / n)}%` : "–");
+    lines.push("");
+    lines.push("TV frames (screen · v · impl · sessions · frames · p50 / p90 ms, medians of sessions · p90 of p90s · jank% · low / lite sessions)");
+    for (const r of s.perf.screens) {
+      let line = `  ${r.screen}  v${r.v} ${r.impl}  ${r.n} sess · ${fmtCount(r.frames)} frames · ${n1(r.p50)} / ${n1(r.p90)} ms · p90s ${n1(r.p90hi)} ms · ${r.jank == null ? "–" : `${r.jank.toFixed(1)}%`}`;
+      if (r.low) line += `   low ${pc(r.low, r.n)}`;
+      if (r.lite) line += `  lite ${pc(r.lite, r.n)}`;
+      lines.push(line);
+    }
+  }
+  if (s.perf.devices.length || Object.keys(s.perf.trims).length) {
+    lines.push("");
+    lines.push("TV boxes (model · sessions · sdk · RAM · heap · GPU · low-RAM flag · why low)");
+    for (const d of s.perf.devices) {
+      const sdk = Object.keys(d.sdk).sort((a, b) => a - b).map((k) => `sdk${k}`).join("/") || "sdk?";
+      lines.push(`  ${d.model}  ${d.n} sess · ${sdk}  ${d.mem_mb == null ? "?" : d.mem_mb}MB heap${d.heap_mb == null ? "?" : d.heap_mb}  ${d.gpu || "gpu ?"}  lowram ${d.lowram}  low: ${devs(d.low) || "–"}`);
+    }
+    if (Object.keys(s.perf.trims).length) lines.push(`  memory warnings (trim level · times): ${devs(s.perf.trims)}`);
   }
   lines.push("");
   lines.push("Active per day (profiles · tabs)");

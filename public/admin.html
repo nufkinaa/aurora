@@ -622,6 +622,22 @@
             </table></div>
           </div>
         </div>
+        <div class="grid-2 hidden" id="usage-tv" style="margin-top:12px">
+          <div>
+            <div class="muted" style="font-weight:800;margin:6px 0">TV frames <span class="note">screen · app version · impl · sessions · frames · p50 / p90 (medians of sessions) · p90 of p90s · jank · low-RAM / lite sessions</span></div>
+            <div class="table-scroll dense"><table>
+              <thead><tr><th>Screen</th><th>v</th><th>impl</th><th>Sessions</th><th>Frames</th><th>p50</th><th>p90</th><th>p90 hi</th><th>Jank</th><th>Low</th><th>Lite</th></tr></thead>
+              <tbody id="usage-tv-screens"></tbody>
+            </table></div>
+          </div>
+          <div>
+            <div class="muted" style="font-weight:800;margin:6px 0">TV boxes <span class="note">model · Android SDK · RAM · heap · GPU · how often the box flags itself low-RAM · why the app ran low</span></div>
+            <div class="table-scroll dense"><table>
+              <thead><tr><th>Model</th><th>SDK</th><th>RAM MB</th><th>Heap MB</th><th>GPU</th><th>Low-RAM</th><th>Low reasons</th></tr></thead>
+              <tbody id="usage-tv-boxes"></tbody>
+            </table></div>
+          </div>
+        </div>
         <div class="grid-2" style="margin-top:12px">
           <div>
             <div class="muted" style="font-weight:800;margin:6px 0">Play starts <span class="note">kind / path · starts · to first frame (p50 / p90)</span></div>
@@ -2637,6 +2653,15 @@
         ...(s.nav || []).map((n) => `<tr><td>nav → ${esc(n.to)}</td><td>${n.n}</td></tr>`),
         ...(s.errors || []).map((e) => `<tr><td class="muted">error: ${esc(e.message)}</td><td>${e.n}</td></tr>`),
       ].join("") || `<tr><td colspan="2" class="muted">—</td></tr>`;
+      // the TV app's frame timings (lib/usage.js perf): one row per screen × version × impl, and the boxes behind them
+      const perf = s.perf || {};
+      const tvScreens = perf.screens || [];
+      const tvBoxes = perf.devices || [];
+      $("#usage-tv").classList.toggle("hidden", !tvScreens.length && !tvBoxes.length);
+      const n1 = (v) => (v == null ? "–" : `${Math.round(v)}ms`);
+      const pc = (k, n) => (k && n ? `${Math.round((100 * k) / n)}%` : "–");
+      $("#usage-tv-screens").innerHTML = tvScreens.map((r) => `<tr><td>${esc(r.screen)}</td><td>${esc(r.v)}</td><td>${esc(r.impl)}</td><td>${r.n}</td><td>${r.frames}</td><td>${n1(r.p50)}</td><td>${n1(r.p90)}</td><td>${n1(r.p90hi)}</td><td>${r.jank == null ? "–" : `${Number(r.jank).toFixed(1)}%`}</td><td class="muted">${pc(r.low, r.n)}</td><td class="muted">${pc(r.lite, r.n)}</td></tr>`).join("") || `<tr><td colspan="11" class="muted">—</td></tr>`;
+      $("#usage-tv-boxes").innerHTML = tvBoxes.map((d) => `<tr><td>${esc(d.model)}</td><td>${esc(Object.keys(d.sdk || {}).sort((a, b) => a - b).join(" / ") || "–")}</td><td>${d.mem_mb == null ? "–" : d.mem_mb}</td><td>${d.heap_mb == null ? "–" : d.heap_mb}</td><td class="muted">${esc(d.gpu || "–")}</td><td>${d.lowram || 0} / ${d.n}</td><td class="muted">${esc(devs(Object.fromEntries(Object.entries(d.low || {}).filter(([, v]) => v > 0))) || "–")}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">—</td></tr>`;
     }
     $("#usage-copy").onclick = async () => {
       if (!usageText) await loadUsage();

@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.79 — 2026-10-09
+
+- **Admin → Insights shows the TV's frame timings.** Each screen's p50 / p90 / jank as the Android TV app measured them, one row per app version and per implementation (which components draw natively), beside the boxes that reported them — model, Android level, RAM, heap, GPU, and why a box ran its low-memory economies. "Copy stats" carries the same two sections. This is the evidence base for the native-rendering work (`docs/native-rewrite`, P0).
+
 ## 1.6.78 — 2026-10-09
 
 - **Aurora TV 5.1.29.** The rail's logo mark is smaller (28dp closed, 36dp open) and optically centred over the section dots — the beam's weight is on its flat side, so a box-centred mark read as standing left of them (elia).
