@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.78 — 2026-10-09
+
+- **Aurora TV 5.1.29.** The rail's logo mark is smaller (28dp closed, 36dp open) and optically centred over the section dots — the beam's weight is on its flat side, so a box-centred mark read as standing left of them (elia).
+
 ## 1.6.77 — 2026-10-09
 
 - **No pictures on a TV, fixed on the server** (elia, from a HOT Streamer on nufurora.com: "No cover photos anywhere", every `/img/…` answered 401). The sign-in wall read the browser cookie first and stopped there; a TV carries a cookie from an earlier unlock or login *and* its stored session in the X-Session header, and once the cookie's session had been revoked (an admin kick, a later unlock replacing it) the dead cookie shadowed the live header on every request. The wall now takes whichever of the two is alive, and signing out revokes both. A refused request is logged once a minute per path (`[auth] 401 … cookie=dead x-session=live`) so the next such report reads straight off the log. No TV update needed for this one.

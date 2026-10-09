@@ -42,7 +42,7 @@ const {colors, focus, motion, nav, radius, spacing} = theme;
 
 // `.nav-logo .logo-mark` — a conic gradient, so it is baked (tools/gen_logo.py).
 // Two files per density (@1x-@4x), each rendered at exactly the pixels the
-// rail draws - 34dp closed, 40dp open - so the TV never rescales the mark.
+// rail draws - 28dp closed, 36dp open - so the TV never rescales the mark.
 const LOGO = require('../assets/logo-mark.png');
 const LOGO_OPEN = require('../assets/logo-mark-open.png');
 
@@ -672,8 +672,11 @@ const styles = StyleSheet.create({
   // The bare mark on a transparent square (docs/brand/tools/build.py), as the
   // site's `.logo-mark` - no tile behind it, so no radius and no box glow
   // (elia, 2026-10-09: "the logo should be just it").
-  mark: {width: 34, height: 34},
-  markOpen: {width: 40, height: 40},
+  // Optically centred over the dots: the beam's mass sits on its flat left
+  // side, so a box-centred mark read as standing left of them (measured on
+  // the Mi TV: box centre 71.5 of 72, mass ~62). Nudged a seventh of its width.
+  mark: {width: 28, height: 28, transform: [{translateX: 4}]},
+  markOpen: {width: 36, height: 36},
   // `.nav-logo { margin-right: 20px }` becomes a margin-bottom on a rail; gap 10
   // is the site's own (components.css:32,36).
   logo: {flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10},

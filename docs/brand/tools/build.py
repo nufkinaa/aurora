@@ -280,8 +280,9 @@ def svg_shot(name, svg, w=1024, h=1024):
 DENSITIES = [("mdpi", 48, 108), ("hdpi", 72, 162), ("xhdpi", 96, 216), ("xxhdpi", 144, 324), ("xxxhdpi", 192, 432)]
 
 # The TV rail's mark, pre-rendered at the exact pixel size each screen density draws it (React Native picks
-# the @Nx file): closed rail 34dp, open rail 40dp; @2x is a 1080p panel, @4x a 4K one. No runtime rescaling.
-TV_MARKS = (("logo-mark", 34), ("logo-mark-open", 40))
+# the @Nx file): closed rail 28dp, open rail 36dp (elia, 2026-10-09: "a bit smaller"); @2x is a 1080p panel,
+# @4x a 4K one. No runtime rescaling.
+TV_MARKS = (("logo-mark", 28), ("logo-mark-open", 36))
 TV_SCALES = ((1, ""), (2, "@2x"), (3, "@3x"), (4, "@4x"))
 
 # Every bitmap `install` writes (and nothing else). The sizes are fixed and checked after writing.
@@ -316,7 +317,7 @@ def install():
         save(fg.resize((b, b), Image.LANCZOS), dst / "ic_launcher_foreground.png", alpha=True)
     banner = svg_shot("i-banner", beam_banner_svg(), 1280, 720)
     save(banner.resize((320, 180), Image.LANCZOS), RES / "drawable/banner.png", alpha=False)
-    # The TV nav rail draws this at 34dp (40dp when open): the BARE mark on a transparent square, the same
+    # The TV nav rail draws this at 28dp (36dp when open): the BARE mark on a transparent square, the same
     # picture the site's `.logo-mark` shows - not the tile (elia, 2026-10-09: "the logo should be just it").
     # Rendered big and brought down, so the gradient edges stay clean at every density.
     mark = svg_shot("i-mark", beam_mark_svg())

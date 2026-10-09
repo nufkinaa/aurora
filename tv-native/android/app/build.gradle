@@ -166,8 +166,8 @@ android {
         // after the real adaptive icon was added and verified inside the APK.
         // (Confirmed by extracting the icon layers from the installed APK: they
         // were correct; the launcher was simply showing its cache.)
-        versionCode 91
-        versionName "5.1.28"
+        versionCode 92
+        versionName "5.1.29"
         // QA builds: Fresco's RequestLoggingListener + verbose FLog (MainApplication.kt), for
         // `adb logcat -s RequestLoggingListener`. On in debug, or `assembleRelease -PfrescoLog`.
         buildConfigField "boolean", "FRESCO_LOGGING", project.hasProperty('frescoLog') ? 'true' : 'false'
