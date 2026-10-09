@@ -1,7 +1,9 @@
 package com.auroratv
 
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
+import com.auroratv.ui.qa.AuroraQa
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -63,6 +65,11 @@ class MainActivity : ReactActivity() {
 
   override fun dispatchKeyEvent(event: KeyEvent): Boolean {
     val code = event.keyCode
+    // QA trace (tools/tv-pixel-diff/PROTOCOL.md §4): every key the activity receives,
+    // on the key's own uptime clock, so the harness can align [anim] steps on it.
+    if (AuroraQa.trace && event.action == KeyEvent.ACTION_DOWN) {
+      Log.d(AuroraQa.TAG_ANIM, "[key] ${event.eventTime} ${KeyEvent.keyCodeToString(code)}")
+    }
     val dpad = code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN ||
       code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT
     if (dpad) {

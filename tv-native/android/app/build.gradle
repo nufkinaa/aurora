@@ -171,6 +171,13 @@ android {
         // QA builds: Fresco's RequestLoggingListener + verbose FLog (MainApplication.kt), for
         // `adb logcat -s RequestLoggingListener`. On in debug, or `assembleRelease -PfrescoLog`.
         buildConfigField "boolean", "FRESCO_LOGGING", project.hasProperty('frescoLog') ? 'true' : 'false'
+        // The native rendering layer's switch defaults (ui/AuroraImpl.kt, 01-architecture.md §4):
+        // "focusable=native,card=js" style; empty = every component on the JS reference. A
+        // release flips a default here without code; the QA broadcast overrides per box.
+        buildConfigField "String", "IMPL_DEFAULTS", "\"${project.findProperty('implDefaults') ?: ''}\""
+        // An extra token the QA receiver accepts BESIDES the one derived from the signing
+        // certificate (tools/tv-pixel-diff/PROTOCOL.md §1) — lab builds only; empty = none.
+        buildConfigField "String", "QA_TOKEN", "\"${project.findProperty('qaToken') ?: 'aurora-lab-qa'}\""
     }
     buildFeatures {
         buildConfig true
@@ -229,6 +236,11 @@ dependencies {
     // Licence: GPL-3.0-or-later (the APK that carries it is a combined work under the GPL).
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
+    // JVM tests of the animation-driver ports (ui/anim) against fixtures generated from
+    // React Native's own JS (tools/gen-anim-fixtures.js): `./gradlew.bat :app:testReleaseUnitTest`.
+    testImplementation("junit:junit:4.13.2")
+    // the real org.json for the fixture file (the android.jar on the unit-test classpath is a stub)
+    testImplementation("org.json:json:20240303")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

@@ -54,6 +54,7 @@ class DeviceModule(private val ctx: ReactApplicationContext) :
   init {
     ctx.applicationContext.registerComponentCallbacks(this)
     ctx.addLifecycleEventListener(this)
+    current = this
   }
 
   override fun invalidate() {
@@ -62,7 +63,37 @@ class DeviceModule(private val ctx: ReactApplicationContext) :
     } catch (_: Throwable) {}
     ctx.removeLifecycleEventListener(this)
     main.post { stopMonitor() }
+    if (current === this) current = null
     super.invalidate()
+  }
+
+  /** The QA receiver's `framestats`: the per-screen snapshot as one JSON line, then reset. */
+  private fun snapshotJson(): Pair<String, Int> {
+    val snapshot = synchronized(stats) { HashMap(stats).also { stats.clear() } }
+    val sb = StringBuilder("{")
+    var total = 0
+    var first = true
+    for ((name, h) in snapshot) {
+      if (h.frames == 0) continue
+      if (!first) sb.append(',')
+      first = false
+      total += h.frames
+      sb.append('"').append(name.replace("\"", "")).append("\":{")
+        .append("\"frames\":").append(h.frames)
+        .append(",\"p50\":").append(h.pct(0.5))
+        .append(",\"p90\":").append(h.pct(0.9))
+        .append(",\"jank\":").append(Math.round(h.janky * 1000.0 / h.frames) / 10.0)
+        .append('}')
+    }
+    sb.append('}')
+    return sb.toString() to total
+  }
+
+  companion object {
+    @Volatile private var current: DeviceModule? = null
+
+    /** `[frames] {…}` payload + the frame count, or null when no module is alive. */
+    fun qaSnapshot(): Pair<String, Int>? = current?.snapshotJson()
   }
 
   override fun getConstants(): Map<String, Any> {

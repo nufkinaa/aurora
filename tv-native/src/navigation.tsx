@@ -1,9 +1,9 @@
 // The authenticated app's screen stack. Mounted only once a profile is chosen
 // (App.tsx owns the setup/gate flow outside the navigator). Android TV's
 // hardware Back pops this stack automatically via react-navigation.
-import React, {useRef} from 'react';
-import {View, StyleSheet} from 'react-native';
-import {DefaultTheme, NavigationContainer} from '@react-navigation/native';
+import React, {useEffect, useRef} from 'react';
+import {DeviceEventEmitter, View, StyleSheet} from 'react-native';
+import {DefaultTheme, NavigationContainer, StackActions} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import Home from './screens/Home';
 import Browse from './screens/Browse';
@@ -22,6 +22,7 @@ import {HeroItem, TorrentPlayItem} from './api';
 import {navRef} from './rootNav';
 import {track} from './usage';
 import {frameScreen} from './perfTier';
+import {navDone} from './qa';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -66,8 +67,74 @@ const navTheme = {
   colors: {...DefaultTheme.colors, background: 'transparent'},
 };
 
+// The QA receiver's `nav` command (tools/tv-pixel-diff/PROTOCOL.md §3): steer the
+// app to a known route, popping to the root first, and answer once the navigation
+// was dispatched (`route=<name>`) — or `err …`. Queued until the navigator is ready
+// (a fresh launch), up to 10 s. Inert unless the broadcast ever arrives.
+const QA_NAV_WAIT_MS = 10000;
+const qaNavigate = (target: string): string => {
+  const [kind, rest] = target.split(':');
+  const dispatch = (name: keyof RootStackParamList, params?: object) => {
+    if (navRef.getState()?.routes.length > 1) navRef.dispatch(StackActions.popToTop());
+    if (name === 'Home') return;
+    navRef.dispatch(StackActions.push(name as string, params as object));
+  };
+  switch (kind) {
+    case 'home':
+      dispatch('Home');
+      return 'Home';
+    case 'browse':
+      if (rest !== 'movie' && rest !== 'show') return 'err bad kind';
+      dispatch('Browse', {kind: rest});
+      return `Browse/${rest}`;
+    case 'detail':
+      if (!rest) return 'err no id';
+      // a stub item: Detail fetches /api/item for the rest (Overlays.tsx does the same)
+      dispatch('Detail', {item: {id: rest, title: rest, type: 'movie'} as HeroItem});
+      return 'Detail';
+    case 'mylist':
+      dispatch('MyList');
+      return 'MyList';
+    case 'search':
+    case 'ai':
+      dispatch('Search');
+      return 'Search';
+    case 'settings':
+      dispatch('Settings');
+      return 'Settings';
+    default:
+      return 'err unsupported';
+  }
+};
+function useQaNav() {
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('qaNav', (e: {target?: string; rid?: string}) => {
+      const rid = String(e?.rid || '');
+      const target = String(e?.target || '');
+      const started = Date.now();
+      const attempt = () => {
+        if (!navRef.isReady()) {
+          if (Date.now() - started > QA_NAV_WAIT_MS) navDone(rid, 'err not ready');
+          else setTimeout(attempt, 100);
+          return;
+        }
+        let route: string;
+        try {
+          route = qaNavigate(target);
+        } catch (err) {
+          route = `err ${String((err as Error)?.message || err)}`;
+        }
+        navDone(rid, route);
+      };
+      attempt();
+    });
+    return () => sub.remove();
+  }, []);
+}
+
 export default function AppNavigator() {
   const routeAt = useRef(Date.now());
+  useQaNav();
   return (
     <View style={styles.root}>
       <Ambient />

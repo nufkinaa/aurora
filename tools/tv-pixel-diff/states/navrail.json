@@ -1,0 +1,53 @@
+{
+  "component": "navrail",
+  "impl": "N",
+  "notes": [
+    "P5: NavRail (10b-spec). Closed = the passive 44 dp strip; open = the 288 dp panel (strip alpha 1->0, panel -288->0 over 280 ms).",
+    "Opened by LEFT on the hero's Play (10d §4: left on button 0 -> requestRailOpen). Focus lands on the active section's item (Home, index 1).",
+    "Items in order: 0 search (icon only), 1 home, 2 movies, 3 shows, 4 list, 5 ai, [spacer], 6 settings, 7 profile pill.",
+    "UP at item 0 wraps to the profile pill unless focusJustMoved(120): the states reach each item with DOWN steps 150 ms apart (keyGapMs) so no wrap is triggered, except 'item-profile-wrap' which tests the wrap after a pause.",
+    "RailHues loops hold phase 0.37 under freeze."
+  ],
+  "defaults": {
+    "launch": {"data": null, "extras": {}},
+    "nav": "home",
+    "freeze": {"freeze": "on", "trace": false, "focuslog": true},
+    "idle": {"quietMs": 600, "gfxStableMs": 500, "pollMs": 100, "timeoutMs": 10000},
+    "settleMs": 900,
+    "keyGapMs": 150,
+    "tolerance": {"threshold": 0.1, "maxDiffFraction": 0.0005, "edgeDilate": 1},
+    "masks": [],
+    "dither": [],
+    "crop": null,
+    "trace": [],
+    "server": {}
+  },
+  "states": [
+    {"name": "closed", "keys": [],
+     "note": "collapsed strip only (passive): the rail mark over the dots, hues frozen"},
+    {"name": "open", "keys": ["DPAD_LEFT"],
+     "trace": ["rail.slide", "rail.strip"],
+     "note": "panel open, strip faded, focus on 'Home' (lit); the slide and the strip alpha traced"},
+    {"name": "item-search", "keys": ["DPAD_LEFT", "wait:500", "DPAD_UP"],
+     "note": "'Search' (lone 18 dp magnifier) lit"},
+    {"name": "item-home", "keys": ["DPAD_LEFT"],
+     "note": "same as 'open' — kept as its own row so the per-item table is complete"},
+    {"name": "item-movies", "keys": ["DPAD_LEFT", "wait:500", "DPAD_DOWN"],
+     "note": "'Movies' lit"},
+    {"name": "item-shows", "keys": ["DPAD_LEFT", "wait:500", "DPAD_DOWN", "DPAD_DOWN"],
+     "note": "'Shows' lit"},
+    {"name": "item-list", "keys": ["DPAD_LEFT", "wait:500", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN"],
+     "note": "'My List' lit"},
+    {"name": "item-ai", "keys": ["DPAD_LEFT", "wait:500", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN"],
+     "note": "'AI' lit"},
+    {"name": "item-settings", "keys": ["DPAD_LEFT", "wait:500", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN"],
+     "note": "'Settings' (icon gear 19 + label) lit, across the flex spacer"},
+    {"name": "item-profile", "keys": ["DPAD_LEFT", "wait:500", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN"],
+     "note": "the profile pill lit (avatar + name of the 'Claude QA' profile)"},
+    {"name": "item-profile-wrap", "keys": ["DPAD_LEFT", "wait:500", "DPAD_UP", "wait:500", "DPAD_UP"],
+     "note": "UP at Search after a pause wraps to the profile pill; must equal 'item-profile'"},
+    {"name": "closed-again", "keys": ["DPAD_LEFT", "wait:800", "DPAD_RIGHT"],
+     "trace": ["rail.slide", "rail.strip"],
+     "note": "RIGHT closes; focus returns to the captured element (Play); must equal 'closed'"}
+  ]
+}

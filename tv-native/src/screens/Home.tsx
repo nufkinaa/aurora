@@ -31,6 +31,7 @@ import {canNavigate} from '../navLock';
 import {openItem} from '../openItem';
 import {openUpdate, openUpdateReady, overlayOpen} from '../overlay';
 import {isLite, measureOnce} from '../perfTier';
+import {isFrozen, trailerAllowed} from '../qa';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import {resolvePartyRoute} from '../party';
 import {warmItem, warmSections} from '../prefetch';
@@ -419,6 +420,8 @@ export default function Home({
   useEffect(() => {
     if (heroes.length < 2 || !live) return;
     const t = setInterval(() => {
+      // (`freeze on` from the QA receiver: the timer ticks but never turns — qa.ts)
+      if (isFrozen()) return;
       if (!isTop.current || Date.now() < holdUntil.current || trailerBusy.current) return;
       setHeroIdx(i => (i + 1) % heroes.length);
     }, 9000);
@@ -538,6 +541,8 @@ export default function Home({
     if (!live || !hero || !heroTrailersPref.current) return;
     if (!hero.imdbId || noTrailer.current.has(hero.imdbId)) return;
     if (isLite() || trailersThisVisit.current >= 2) return;
+    // (`freeze on` from the QA receiver: as if heroTrailers were off; `on,trailer` lets one start — qa.ts)
+    if (!trailerAllowed()) return;
     const gen = ++trailerGen.current;
     trailerBusy.current = false;
     // Resolve NOW, during the hold, not when it ends (elia, 2026-10-09): the

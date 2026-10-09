@@ -3,6 +3,7 @@
 import React, {useEffect, useRef} from 'react';
 import {Animated, Easing} from 'react-native';
 import theme from '../theme';
+import {runLoop} from '../qa';
 
 const {colors} = theme;
 
@@ -18,8 +19,8 @@ export default function MiniSpinner({size = 18}: {size?: number}) {
         isInteraction: false,
       }),
     );
-    loop.start();
-    return () => loop.stop();
+    // (`freeze on` from the QA receiver holds the loop at phase 0.37 — qa.ts)
+    return runLoop(t, loop);
   }, [t]);
   return (
     <Animated.View

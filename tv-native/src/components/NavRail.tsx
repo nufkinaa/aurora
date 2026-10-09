@@ -36,6 +36,7 @@ import {imgSrc} from '../api';
 import {atLeftEdge, captureFocus, clearRailOpener, focusJustMoved, noteRail, setRailOpener, useTVKeys} from '../focus';
 import {goSection, useMe, useNewUnseen, NAV_SECTIONS, NavSection} from '../navSection';
 import {isLite} from '../perfTier';
+import {runLoop} from '../qa';
 import theme from '../theme';
 
 const {colors, focus, motion, nav, radius, spacing} = theme;
@@ -96,13 +97,12 @@ function RailHues() {
           Animated.timing(v, {toValue: 0, duration: ms, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false}),
         ]),
       );
-    const la = run(a, 8000);
-    const lb = run(b, 10500);
-    la.start();
-    lb.start();
+    // (`freeze on` from the QA receiver holds both at phase 0.37 — qa.ts)
+    const sa = runLoop(a, run(a, 8000));
+    const sb = runLoop(b, run(b, 10500));
     return () => {
-      la.stop();
-      lb.stop();
+      sa();
+      sb();
     };
   }, [a, b]);
   return (

@@ -84,6 +84,15 @@
            as a content:// URI — a file:// path is refused since Android 7. -->
       <!-- Hears the result of a quiet update (UpdateResultReceiver.kt). -->
       <receiver android:name=".UpdateResultReceiver" android:exported="false" />
+      <!-- The QA harness's door (tools/tv-pixel-diff/PROTOCOL.md, ui/qa/QaReceiver.kt).
+           Exported so an explicit `am broadcast -n` reaches it with the process cold;
+           inert unless adb is enabled on the box AND the intent carries the token
+           derived from this APK's own signing certificate. -->
+      <receiver android:name=".ui.qa.QaReceiver" android:exported="true">
+        <intent-filter>
+          <action android:name="com.auroratv.QA" />
+        </intent-filter>
+      </receiver>
       <!-- Opens Aurora again after a "Restart now" update (RelaunchReceiver.kt). -->
       <receiver android:name=".RelaunchReceiver" android:exported="false">
         <intent-filter>

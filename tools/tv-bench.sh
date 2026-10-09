@@ -15,7 +15,9 @@ SC=("$@"); [ ${#SC[@]} -eq 0 ] && SC=(S1 S2 S3 S4)
 A() { if [ -n "$SERIAL" ]; then "$ADB" -s "$SERIAL" "$@"; else "$ADB" "$@"; fi; }
 keys() { # keys CODE COUNT GAP_MS — one shell call, so the cadence is the box's own
   local k=$1 n=$2 gap=$3 cmd=""; for ((j=0;j<n;j++)); do cmd+="input keyevent $k; sleep $(awk "BEGIN{print $gap/1000}"); "; done; A shell "$cmd" >/dev/null; }
-home() { A shell am start -n "$PKG/com.auroratv.MainActivity" -a android.intent.action.MAIN -c android.intent.category.LEANBACK_LAUNCHER >/dev/null 2>&1; sleep 1.5; keys BACK 1 300; keys BACK 1 300; sleep 0.8; }
+# A cold start before every run: the only way to be sure of the screen (BACK on Home leaves the app),
+# and the same warm-up for JS and native alike. ~9 s on a Mi TV.
+home() { A shell am force-stop "$PKG"; sleep 1; A shell am start -n "$PKG/com.auroratv.MainActivity" -a android.intent.action.MAIN -c android.intent.category.LEANBACK_LAUNCHER >/dev/null 2>&1; sleep ${WARM_S:-10}; }
 drive() {
   case $1 in
     S1) keys DPAD_DOWN 1 400; keys DPAD_RIGHT 20 50; sleep 1; keys DPAD_LEFT 20 50; sleep 0.8; keys DPAD_UP 1 400;;

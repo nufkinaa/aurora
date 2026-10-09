@@ -1,0 +1,34 @@
+{
+  "component": "browse",
+  "impl": "G",
+  "notes": [
+    "P6: the Browse grid (10e-spec). 6 columns @960 (cols = max(3, floor((width - 84 - 44 - 8 + 13) / 137))), GRID_GAP 13, poster cards.",
+    "nav browse:movie opens Movies/All with the first page; focus lands in the grid (row 0 col 0) once it has loaded.",
+    "'focus-r2c3' = row 2, column 3 (0-based): DOWN x2, RIGHT x3. The grid scrolls its FlatList so row 2 sits at the focus line.",
+    "The header count string depends on the fixture ('16 downloaded · N to stream'); it is deterministic on the private instance.",
+    "The skeleton state needs the instance started with --art-delay (the catalogue page itself is local, so skeletons only show for the art): kept out; blur-up is covered in card.json."
+  ],
+  "defaults": {
+    "launch": {"data": null, "extras": {}},
+    "nav": "browse:movie",
+    "freeze": {"freeze": "on", "trace": false, "focuslog": true},
+    "idle": {"quietMs": 600, "gfxStableMs": 500, "pollMs": 100, "timeoutMs": 12000},
+    "settleMs": 900,
+    "keyGapMs": 150,
+    "tolerance": {"threshold": 0.1, "maxDiffFraction": 0.0005, "edgeDilate": 1},
+    "masks": [],
+    "dither": [],
+    "crop": null,
+    "trace": [],
+    "server": {}
+  },
+  "states": [
+    {"name": "first-page", "keys": ["wait:800"],
+     "note": "Movies / All, first page; header (h1, count, active), grid rows 0-2 visible, card 0 lit, the edge strip at the right"},
+    {"name": "focus-r2c3", "keys": ["wait:800", "DPAD_DOWN", "DPAD_DOWN", "DPAD_RIGHT", "DPAD_RIGHT", "DPAD_RIGHT"],
+     "trace": ["focus.ring", "focus.spring"],
+     "note": "row 2 col 3 lit; the list scrolled two rows; the ring is on one card only"},
+    {"name": "panel-open", "keys": ["wait:800", "DPAD_RIGHT"],
+     "note": "RIGHT at the grid's right edge opens the filter panel (300 dp, 280 ms); 'All' chip on + lit (same frame as focusable chip-on-lit, listed here for the grid's own edge strip and dimming)"}
+  ]
+}

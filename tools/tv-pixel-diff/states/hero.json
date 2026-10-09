@@ -1,0 +1,44 @@
+{
+  "component": "hero",
+  "impl": "H",
+  "notes": [
+    "P4: Home's billboard art + the sliding column (10d-spec §2-5). Rotation (9 s) is frozen; the hero shows pick 0 at launch.",
+    "scrolled: DOWN from Play -> atTop 1->0 over 280 ms, ty -> -(rowY[0] - 27), the art fades with the column (artFade = f(ty)).",
+    "first-slide: RIGHT on the last hero button (Details, index 1) turns the slide (swap 280 ms); a 15 s hold follows — irrelevant while frozen.",
+    "mute-pill: the Unmute/Mute small Btn exists only while a trailer plays; needs freeze on,trailer and the instance's fixture HLS (/fixture/trailer.m3u8) with TrailerFrame paused at t=0. The trailer surface is a TextureView whose decoded frame may differ by a level between runs: declared as a dither region (reported), not masked.",
+    "Window px = dp x 2 (1920x1080 over a 960x540 canvas)."
+  ],
+  "defaults": {
+    "launch": {"data": null, "extras": {}},
+    "nav": "home",
+    "freeze": {"freeze": "on", "trace": false, "focuslog": true},
+    "idle": {"quietMs": 600, "gfxStableMs": 500, "pollMs": 100, "timeoutMs": 10000},
+    "settleMs": 700,
+    "keyGapMs": 150,
+    "tolerance": {"threshold": 0.1, "maxDiffFraction": 0.0005, "edgeDilate": 1},
+    "masks": [],
+    "dither": [],
+    "crop": null,
+    "trace": [],
+    "server": {}
+  },
+  "states": [
+    {"name": "rest", "keys": [],
+     "dither": [{"rect": [0, 0, 1920, 1080], "why": "hero scrim gradient (hero-scrim.png stretched) — Android may dither the stretched 480x270 RGBA; only matters at threshold 0"}],
+     "note": "hero pick 0 at rest: art, scrim, lockup, Play lit, Details, dots (active dot 22 px wide)"},
+    {"name": "scrolled", "keys": ["DPAD_DOWN"], "settleMs": 900,
+     "trace": ["hero.atTop", "hero.ty"],
+     "note": "column slid up by rowY[0] - 27, art faded by f(ty); the scrolled layer is mounted only now"},
+    {"name": "scrolled-back", "keys": ["DPAD_DOWN", "wait:900", "DPAD_UP"], "settleMs": 900,
+     "trace": ["hero.atTop", "hero.ty"],
+     "note": "back to the top: atTop -> 1, ty -> 0; must equal 'rest' pixel-for-pixel too"},
+    {"name": "first-slide", "keys": ["DPAD_RIGHT", "wait:400", "DPAD_RIGHT"], "settleMs": 1000,
+     "trace": ["hero.swap"],
+     "note": "RIGHT to Details, RIGHT on the last button turns to pick 1 (swap 280 ms); dots show the second dot active; Details still lit"},
+    {"name": "mute-pill", "keys": ["wait:5500"], "settleMs": 1200,
+     "freeze": {"freeze": "on,trailer", "trace": false, "focuslog": true},
+     "server": {"fixtureTrailer": true},
+     "dither": [{"rect": [0, 0, 1920, 1080], "why": "trailer TextureView: a decoded static HLS frame may differ by a level between runs"}],
+     "note": "a trailer holds after 4.5 s -> trailerFade 0->1 over 800 ms, the Unmute pill (small Btn, 🔇) appears as hero button 2; the fixture HLS is a static colour frame paused at t=0"}
+  ]
+}

@@ -37,6 +37,7 @@
 // Nothing is stored: a box is judged fresh every launch, so an update that
 // makes it faster is noticed.
 import {AppState, NativeEventEmitter, NativeModules, Platform} from 'react-native';
+import {implLetters, versionCode} from './impl';
 import {track} from './usage';
 
 export type DeviceInfo = {
@@ -179,7 +180,10 @@ const report = async () => {
     delete all[screen];
     if (s.frames < MIN_FRAMES || perfSent >= PERF_EVENTS_MAX) continue;
     perfSent++;
-    track('perf', {screen, p50: s.p50, p90: s.p90, jank: s.jank, frames: s.frames, low: isLowRam(), lite});
+    // `v` (versionCode) and `impl` (which components are native, "-" when none)
+    // split the admin's TV-frames table so a native step reads before/after
+    // (docs/native-rewrite/00-plan.md P0; 02-verification.md §6.3).
+    track('perf', {screen, p50: s.p50, p90: s.p90, jank: s.jank, frames: s.frames, low: isLowRam(), lite, v: versionCode, impl: implLetters});
   }
 };
 

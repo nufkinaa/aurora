@@ -2,6 +2,8 @@ package com.auroratv
 
 import android.app.Application
 import android.content.ComponentCallbacks2
+import com.auroratv.ui.AuroraUiPackage
+import com.auroratv.ui.qa.AuroraQa
 import com.facebook.common.logging.FLog
 import com.facebook.common.memory.MemoryTrimType
 import com.facebook.common.memory.MemoryTrimmable
@@ -79,12 +81,18 @@ class MainApplication : Application(), ReactApplication {
           add(UpdaterPackage())
           add(DevicePackage())
           add(TrailersPackage())
+          // The native rendering layer (docs/native-rewrite): Fabric components behind
+          // the AuroraImpl switch, plus the QA module (tools/tv-pixel-diff/PROTOCOL.md).
+          add(AuroraUiPackage())
         },
     )
   }
 
   override fun onCreate() {
     super.onCreate()
+    // QA flags (freeze / trace / focuslog) before any view exists, so the first frame
+    // already honours them; inert unless the QA broadcast ever set one.
+    AuroraQa.load(this)
     loadReactNative(this)
   }
 

@@ -1,0 +1,47 @@
+{
+  "component": "card",
+  "impl": "C",
+  "notes": [
+    "P2: Card (10c-spec §1-6). Sizes: poster 124x186 dp (home rows, grids), compact 116x174 (AI page), wide 176x99 (episode cards), frame 224x140 (Continue Watching).",
+    "Fixture assumption (02 §3.1): row 0 = continue (two frame cards with progress + one episode card (wide) + one up-next), row 1 = recent (NEW tags), row 2+ = mixed poster rows.",
+    "The compact card only exists on the AI page, which needs an answer: the state requires the instance started with AURORA_AI_MOCK (declare --server aiMock).",
+    "blur-up and broken->tile need the instance started with --art-delay 600000 / --art-fail 1 (02 §3.3); declare --server artDelay / --server artFail, otherwise the states are skipped.",
+    "Compares in F already native? No: the A side is ALWAYS all-js; B flips only this file's letters (C). To test C on top of a native F, run with --impl FC."
+  ],
+  "defaults": {
+    "launch": {"data": null, "extras": {}},
+    "nav": "home",
+    "freeze": {"freeze": "on", "trace": false, "focuslog": true},
+    "idle": {"quietMs": 600, "gfxStableMs": 500, "pollMs": 100, "timeoutMs": 10000},
+    "settleMs": 700,
+    "keyGapMs": 150,
+    "tolerance": {"threshold": 0.1, "maxDiffFraction": 0.0005, "edgeDilate": 1},
+    "masks": [],
+    "dither": [],
+    "crop": null,
+    "trace": [],
+    "server": {}
+  },
+  "states": [
+    {"name": "size-frame", "keys": ["DPAD_DOWN"], "settleMs": 900,
+     "note": "continue row (frame cards 224x140 incl. the frame-card label, 'N min left', progress bar) with card 0 lit"},
+    {"name": "size-wide", "keys": ["DPAD_DOWN", "DPAD_RIGHT", "DPAD_RIGHT"], "settleMs": 900,
+     "note": "continue row scrolled to the episode card (wide 176x99 with showTitle + 'S1 E2 · title' label); the fixture places the episode third"},
+    {"name": "size-poster", "keys": ["DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN"], "settleMs": 900,
+     "note": "row 2 (poster 124x186) with card 0 lit; the NEW row above is also in frame at rest"},
+    {"name": "size-compact", "nav": "ai", "keys": ["wait:800", "DPAD_CENTER"], "settleMs": 2500,
+     "server": {"aiMock": true},
+     "note": "AI page: OK on the ask button runs the mocked answer -> compact cards (116x174); the page folds its controls once answered"},
+    {"name": "new-tag", "keys": ["DPAD_DOWN", "DPAD_DOWN"], "settleMs": 900,
+     "note": "recent row: three cards with NEW (#6c58ff, 'NEW' 11/1.2 weight 900) in the left corner; card 0 lit"},
+    {"name": "progress-bar", "keys": ["DPAD_DOWN", "DPAD_RIGHT"], "settleMs": 900,
+     "note": "continue row card 1 lit: the 300 s / 3600 s and 1500 s / 3600 s bars (pct 8.3 % and 41.7 %) both in frame"},
+    {"name": "blur-up", "keys": ["DPAD_DOWN"], "settleMs": 900,
+     "server": {"artDelay": 600000},
+     "note": "the instance holds every /img response -> the blur-up placeholder (_blur from blurup.js) is the steady state on every card",
+     "masks": []},
+    {"name": "broken-tile", "keys": ["DPAD_DOWN"], "settleMs": 3500,
+     "server": {"artFail": 1},
+     "note": "the instance 404s the first /img of each card once -> retryUri at +1.5 s, backup, then the title tile; captured well after the retry (3.5 s), so the tile is the steady state"}
+  ]
+}

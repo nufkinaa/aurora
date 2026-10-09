@@ -1,0 +1,43 @@
+{
+  "component": "row",
+  "impl": "R",
+  "notes": [
+    "P3: Row (10c-spec §7). tx = -max(0, (index - LEAD) * step), LEAD = 1: cards 0 and 1 both rest at offset 0; card 2 rests at -step.",
+    "Shelf offsets: 'offset-N' = focus on card N of row 2 (the first poster row, so step = CARD_W + gap in poster units).",
+    "The hold (12 presses at 50 ms) is the retargeting spring test: the trace compares the one bent journey and its rest time (02 §4.3, retarget: true).",
+    "Fixture assumption: row 2 is a poster row with >= 16 items so the window [from,to) matters."
+  ],
+  "defaults": {
+    "launch": {"data": null, "extras": {}},
+    "nav": "home",
+    "freeze": {"freeze": "on", "trace": false, "focuslog": true},
+    "idle": {"quietMs": 600, "gfxStableMs": 500, "pollMs": 100, "timeoutMs": 10000},
+    "settleMs": 700,
+    "keyGapMs": 150,
+    "tolerance": {"threshold": 0.1, "maxDiffFraction": 0.0005, "edgeDilate": 1},
+    "masks": [],
+    "dither": [],
+    "crop": null,
+    "trace": [],
+    "server": {}
+  },
+  "states": [
+    {"name": "offset-0", "keys": ["DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN"], "settleMs": 900,
+     "trace": ["row.tx"],
+     "note": "row 2, card 0 lit, tx = 0"},
+    {"name": "offset-1", "keys": ["DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_RIGHT"], "settleMs": 900,
+     "trace": ["row.tx"],
+     "note": "card 1 lit, tx still 0 (LEAD = 1): no slide, the trace must show zero steps or a flat 0"},
+    {"name": "lead", "keys": ["DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_RIGHT", "DPAD_RIGHT"], "settleMs": 900,
+     "trace": ["row.tx"],
+     "note": "card 2 lit: the first slide, tx -> -step; the focused card rests one card in from the left margin"},
+    {"name": "offset-5", "keys": ["DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_RIGHT", "DPAD_RIGHT", "DPAD_RIGHT", "DPAD_RIGHT", "DPAD_RIGHT"], "settleMs": 900,
+     "trace": ["row.tx"],
+     "note": "card 5 lit, tx = -4 * step; the window has advanced past its first page"},
+    {"name": "hold-right-12", "keys": ["DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "wait:800", "DPAD_RIGHT*12@50"], "settleMs": 1200,
+     "trace": ["row.tx", "focus.ring", "focus.spring"], "retarget": true,
+     "note": "12 presses ~50 ms apart from one shell loop: the spring is retargeted, never restarted; rest frame within 16.7 ms; focused card never unmounted (no [focus] loss without a gain)"},
+    {"name": "left-at-0", "keys": ["DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "wait:800", "DPAD_LEFT"], "settleMs": 900,
+     "note": "LEFT at card 0 with focusJustMoved not set: the rail opens (the first LEFT after an 800 ms pause); the [focus] table must show no card-to-card move"}
+  ]
+}

@@ -2,6 +2,14 @@
 // element MUST be obvious, so focus adds a bright ring + slight scale (matching
 // the web app's cue). Wraps Pressable so onPress works from the remote's OK.
 //
+// TWO IMPLEMENTATIONS, ONE SWITCH (docs/native-rewrite/00-plan.md P1). The
+// default export reads `impl.focusable` once at startup and renders either
+// today's JS body (`JsFocusable`, the reference — unchanged apart from the QA
+// trace hooks) or the native Fabric component (`NativeFocusable` →
+// AuroraFocusableView.kt), which answers the key in the same frame Android
+// moved focus, with no JS on the path. Card / Btn / Chip / NavItem pass the
+// same props to both and do not know which they got.
+//
 // Performance: focus/blur do NOT setState. The ring + scale live on an
 // Animated.Value driven natively, so a D-pad move costs zero React renders —
 // re-rendering two component subtrees per keypress (the old approach) is what
@@ -15,7 +23,9 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Animated,
+  DeviceEventEmitter,
   Easing,
+  NativeModules,
   Pressable,
   StyleSheet,
   ViewStyle,
@@ -24,6 +34,9 @@ import {
   findNodeHandle,
 } from 'react-native';
 import {noteFocus, noteFocusLost} from '../focus';
+import {impl} from '../impl';
+import {isFocusLogging, isTracing, logFocus, logRing, onQaChange, traceValue} from '../qa';
+import AuroraFocusable, {Commands, FocusChangeEvent} from '../specs/AuroraFocusableNativeComponent';
 import theme from '../theme';
 
 const {colors, radius, focus} = theme;
@@ -47,6 +60,8 @@ const EASE = Easing.bezier(...(focus.ease as unknown as [number, number, number,
 // a white ring work on a white fill.
 const LIGHT_GAP = 3;
 const LIGHT_RING = focus.borderWidth + 1;
+// The second half of --focus-ring: `0 10px 24px rgba(0,0,0,.5)`.
+const TOKEN_SHADOW = '0 10px 24px rgba(0,0,0,0.5)';
 
 // Ring colour, per the two tokens above.
 export type FocusRing = 'white' | 'violet' | 'none';
@@ -69,9 +84,29 @@ const ringRegistry = new Map<number, () => void>();
 // 6% — the app wasn't dropping frames, it was answering the remote late, which
 // is exactly what "feels heavy" means.
 let litRing = 0;
+// The native registry's half of the "one ring" rule in a mixed tree (01 §5.2):
+// once a NATIVE ring has ever lit in this process, every JS claim tells native
+// so its ring fades; and a native claim asks us (AuroraRingClear) to fade ours.
+// With the switch flipped for the whole app neither side ever hears the other,
+// so the JS reference run pays nothing for this.
+let nativeEverLit = false;
+try {
+  DeviceEventEmitter.addListener('AuroraRingLit', () => {
+    nativeEverLit = true;
+  });
+  DeviceEventEmitter.addListener('AuroraRingClear', () => {
+    if (litRing) ringRegistry.get(litRing)?.();
+    litRing = 0;
+  });
+} catch {}
 const claimRing = (owner: number) => {
   if (litRing && litRing !== owner) ringRegistry.get(litRing)?.();
   litRing = owner;
+  if (nativeEverLit) {
+    try {
+      NativeModules.AuroraImpl?.jsRingClaimed();
+    } catch {}
+  }
 };
 const releaseRing = (owner: number) => {
   if (litRing === owner) litRing = 0;
@@ -167,7 +202,17 @@ type Props = {
   ref?: React.Ref<View>;
 };
 
-export default function Focusable({
+/** The switch (01-architecture.md §1.4). Read once at startup; never flips while mounted. */
+export default function Focusable(props: Props) {
+  return impl.focusable ? <NativeFocusable {...props} /> : <JsFocusable {...props} />;
+}
+
+// =============================================================================
+// The JS reference implementation — today's body, untouched except for the QA
+// trace / focus-log hooks (each a boolean read on the hot path).
+// =============================================================================
+
+function JsFocusable({
   children,
   onPress,
   style,
@@ -262,6 +307,23 @@ export default function Focusable({
     };
   }, [anim, springAnim]);
 
+  // QA trace (tools/tv-pixel-diff/PROTOCOL.md §4): `[anim]` lines for the two
+  // values while the receiver has tracing on — a JS round-trip per frame, so
+  // never on during a perf run. Nothing is attached otherwise.
+  useEffect(() => {
+    let off: (() => void)[] = [];
+    const attach = () => {
+      off.forEach(f => f());
+      off = isTracing() ? [traceValue('focus.ring', anim), traceValue('focus.spring', springAnim)] : [];
+    };
+    attach();
+    const un = onQaChange(attach);
+    return () => {
+      un();
+      off.forEach(f => f());
+    };
+  }, [anim, springAnim]);
+
   // Fabric re-applies `hasTVPreferredFocus` to the native view at unpredictable
   // times (react-native-tvos#670), yanking focus back to this element long
   // after mount. So the prop is only forwarded briefly: once this element has
@@ -305,6 +367,10 @@ export default function Focusable({
       onLongPress={onLongPress}
       onFocus={() => {
         claimRing(idRef.current);
+        if (isFocusLogging()) {
+          logRing('claim', findNodeHandle(node.current as never));
+          logFocus(true, findNodeHandle(node.current as never), !!edgeLeft, !!edgeRight);
+        }
         noteFocus(node.current, !!edgeLeft, !!edgeRight);
         // focus.duration (110ms) with a decelerating curve, up from a linear
         // 60ms. 60ms is below the threshold where the eye reads a transition at
@@ -341,6 +407,10 @@ export default function Focusable({
       }}
       onBlur={() => {
         releaseRing(idRef.current);
+        if (isFocusLogging()) {
+          logRing('release', findNodeHandle(node.current as never));
+          logFocus(false, findNodeHandle(node.current as never), !!edgeLeft, !!edgeRight);
+        }
         Animated.timing(anim, {
           toValue: 0,
           duration: focus.duration,
@@ -449,6 +519,149 @@ export default function Focusable({
   );
 }
 
+// =============================================================================
+// The native implementation: the same props, mapped one to one onto
+// AuroraFocusable (src/specs/AuroraFocusableNativeComponent.ts). Everything the
+// JS body animates or decides on focus is done in AuroraFocusableView.kt; this
+// wrapper only (a) flattens the style for the ring radius, as the JS does,
+// (b) parses the shadow with the same grammar, (c) keeps focus.ts's facts fed
+// from the one `onFocusChange` event, and (d) gives callers a ref with
+// `requestTVFocus`, which is all focus.ts and the screens ever use.
+// =============================================================================
+
+type FocusNode = {requestTVFocus: () => void};
+
+// `<offsetX> <offsetY> <blur> <color>` — the two shapes the app writes
+// ('0 10px 24px rgba(0,0,0,0.5)', '0 18px 36px rgba(0,0,0,0.6)'), read the way
+// RN's processBoxShadow reads them: lengths in dp (a trailing `px` allowed),
+// the colour left to processColor via the ColorValue prop.
+const parseShadow = (s: string) => {
+  const parts = s.trim().split(/\s+/);
+  const nums: number[] = [];
+  const colorParts: string[] = [];
+  for (const p of parts) {
+    const n = /^-?\d*\.?\d+(px)?$/.test(p) ? parseFloat(p) : NaN;
+    if (!Number.isNaN(n) && colorParts.length === 0) nums.push(n);
+    else colorParts.push(p);
+  }
+  return {
+    offsetX: nums[0] ?? 0,
+    offsetY: nums[1] ?? 0,
+    blur: nums[2] ?? 0,
+    spread: nums[3] ?? 0,
+    color: colorParts.join(' ') || 'black',
+  };
+};
+
+function NativeFocusable({
+  children,
+  onPress,
+  style,
+  highlightColor,
+  hasTVPreferredFocus,
+  round,
+  light,
+  noScale,
+  scaleTo,
+  lift,
+  ring = 'white',
+  shadow,
+  accessibilityLabel,
+  focusOverlay,
+  ringWidth,
+  ringColor,
+  focusDisabled,
+  onLongPress,
+  edgeLeft,
+  holdLeft,
+  edgeRight,
+  onFocusChange,
+  ref,
+}: Props) {
+  const host = useRef<React.ElementRef<typeof AuroraFocusable> | null>(null);
+  // One stable object per instance, so focus.ts's identity checks
+  // (`node !== held`) behave as they do with a host instance.
+  const facade = useRef<FocusNode | null>(null);
+  if (!facade.current) {
+    facade.current = {
+      requestTVFocus: () => {
+        if (host.current) Commands.requestTVFocus(host.current);
+      },
+    };
+  }
+  const setRef = useCallback(
+    (n: React.ElementRef<typeof AuroraFocusable> | null) => {
+      host.current = n;
+      const out = n ? (facade.current as unknown as View) : null;
+      if (typeof ref === 'function') ref(out);
+      else if (ref) (ref as React.MutableRefObject<View | null>).current = out;
+    },
+    [ref],
+  );
+  // The unmounting cell may hold focus: say so, as the JS body does.
+  useEffect(() => {
+    const node = facade.current;
+    return () => noteFocusLost(node);
+  }, []);
+
+  const flat = StyleSheet.flatten([styles.base, round && {borderRadius: radius.pill}, style]) as ViewStyle;
+  const ringRadius = (flat.borderRadius as number) ?? radius.m;
+  const sh = parseShadow(shadow ?? TOKEN_SHADOW);
+
+  const handleFocusChange = useCallback(
+    (e: {nativeEvent: FocusChangeEvent}) => {
+      const {focused, edgeLeft: l, edgeRight: r} = e.nativeEvent;
+      if (focused) noteFocus(facade.current, l, r);
+      onFocusChange?.(focused);
+    },
+    [onFocusChange],
+  );
+  const handlePress = useCallback(() => onPress?.(), [onPress]);
+  const handleLongPress = useCallback(() => onLongPress?.(), [onLongPress]);
+
+  return (
+    <AuroraFocusable
+      ref={setRef}
+      style={[styles.base, round && {borderRadius: radius.pill}, style]}
+      accessibilityLabel={accessibilityLabel}
+      ringKind={ring}
+      ringWidth={ringWidth ?? focus.borderWidth}
+      ringColor={ringColor ?? RING_COLOR[ring]}
+      ringRadius={ringRadius}
+      shadowOffsetX={sh.offsetX}
+      shadowOffsetY={sh.offsetY}
+      shadowBlur={sh.blur}
+      shadowSpread={sh.spread}
+      shadowColor={sh.color}
+      light={!!light}
+      lightRingColor={RING_COLOR[ring === 'none' ? 'white' : ring]}
+      lightGapColor={colors.bg}
+      highlightColor={highlightColor}
+      scaleTo={scaleTo ?? focus.scale}
+      noScale={!!noScale}
+      lift={lift ?? 0}
+      edgeLeft={!!edgeLeft}
+      edgeRight={!!edgeRight}
+      holdLeft={!!holdLeft}
+      focusDisabled={!!focusDisabled}
+      preferredFocus={!!hasTVPreferredFocus}
+      hasPress={!!onPress}
+      hasLongPress={!!onLongPress}
+      onFocusChange={handleFocusChange}
+      onPress={handlePress}
+      onLongPress={handleLongPress}>
+      {children}
+      {focusOverlay ? (
+        // The native view finds this child by its nativeID and drives its alpha
+        // with the ring value — the JS body's Animated.View, minus the JS.
+        <View nativeID="aurora:overlay" pointerEvents="none" style={StyleSheet.absoluteFill}>
+          {focusOverlay}
+        </View>
+      ) : null}
+    </AuroraFocusable>
+  );
+}
+
 // A non-Pressable focus ring container is occasionally handy; export the style.
 export const focusRing: ViewStyle = {
   borderWidth: focus.borderWidth,
@@ -484,7 +697,7 @@ const styles = StyleSheet.create({
     // read as a halo rather than a hairline: `0 10px 24px rgba(0,0,0,.5)`.
     // React Native 0.76+ takes the CSS shorthand directly, so this is the token's
     // own value rather than an elevation approximation of it.
-    boxShadow: '0 10px 24px rgba(0,0,0,0.5)',
+    boxShadow: TOKEN_SHADOW,
   },
   // Light-fill variant: gap first, then the ring outside it. Both are drawn
   // beyond the element's own box; every parent that holds a light button is a
@@ -511,7 +724,7 @@ const styles = StyleSheet.create({
     bottom: -(LIGHT_GAP + LIGHT_RING),
     borderWidth: LIGHT_RING,
     borderColor: colors.focusRing,
-    boxShadow: '0 10px 24px rgba(0,0,0,0.5)',
+    boxShadow: TOKEN_SHADOW,
   },
   // Centred on the ring and square, so rotating it does not wobble. Size comes
   // from the measured button; `position:absolute` keeps it out of layout so it

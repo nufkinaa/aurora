@@ -8,6 +8,7 @@ import React, {useEffect, useRef} from 'react';
 import {Animated, StyleSheet, View} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import theme from '../theme';
+import {runLoop} from '../qa';
 import {CARD_W, CARD_H} from './Card';
 
 const {radius} = theme;
@@ -34,8 +35,8 @@ export default function Skeleton({
         isInteraction: false,
       }),
     );
-    loop.start();
-    return () => loop.stop();
+    // (`freeze on` from the QA receiver holds the loop at phase 0.37 — qa.ts)
+    return runLoop(x, loop);
   }, [x]);
   return (
     <View style={[styles.box, {width, height, borderRadius: round}]}>
