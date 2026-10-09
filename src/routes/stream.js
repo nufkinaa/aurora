@@ -262,7 +262,9 @@ router.get("/img/ext", async (req, res) => {
       await fetchExtImage(url, file);
     }
     await sendArt(res, file, req.query.w, req.query.blur);
-  } catch {
+  } catch (e) {
+    // said out loud: a TV with no pictures is otherwise a silent 502 (2026-10-09)
+    console.warn(`[img] ext ${url.slice(0, 80)} w=${req.query.w || "-"} failed: ${(e && e.message) || e}`);
     if (!res.headersSent) res.status(502).send("artwork unavailable");
   }
 });
@@ -308,7 +310,8 @@ router.get("/img/:id", async (req, res) => {
     const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, { blur: req.query.blur }) : null;
     res.setHeader("Cache-Control", "public, max-age=86400");
     res.sendFile(v || entry.path);
-  } catch {
+  } catch (e) {
+    console.warn(`[img] ${req.params.id} w=${req.query.w || "-"} blur=${req.query.blur || "-"} failed: ${(e && e.message) || e}`);
     if (!res.headersSent) res.status(404).send("Not found");
   }
 });

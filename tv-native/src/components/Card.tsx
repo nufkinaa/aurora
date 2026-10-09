@@ -12,6 +12,7 @@ import Focusable from './Focusable';
 import Icon from './Icon';
 import {artPath, artPx, imgSrc, HeroItem} from '../api';
 import {onMessage} from '../realtime';
+import {trackError} from '../usage';
 import {blurOf, markDrawn, wasDrawn} from '../blur';
 import {openPeek} from '../overlay';
 import theme from '../theme';
@@ -40,8 +41,10 @@ export const WIDE_H = 99;
 // left under it. ×0.70 here.
 // The compact poster (the AI page's results grid, 2026-10-08): 70% of the
 // standard poster so eight columns fit a 960dp canvas. Same 2:3, same look.
-export const COMPACT_W = 88;
-export const COMPACT_H = 132;
+// Wider than the first cut (88dp): the title and the reason under it were
+// not readable from the sofa (elia, 2026-10-09). Six per row at 1080p.
+export const COMPACT_W = 116;
+export const COMPACT_H = 174;
 export const FRAME_W = 224;
 export const FRAME_H = 140;
 
@@ -208,10 +211,18 @@ function Card({
       : tries === 2 && backup
       ? backup
       : {...src, uri: `${src.uri}${src.uri.includes('?') ? '&' : '?'}r=1`};
-  const onImgError = () => {
+  // Why a picture failed, said to the server (usage "error" events, a few per
+  // run): a TV with no pictures in someone's living room is otherwise
+  // undiagnosable from here (2026-10-09). The address is reduced to its
+  // shape — the route and the size asked for — never the title.
+  const onImgError = (e?: {nativeEvent?: {error?: string}}) => {
     if (!src) return;
     const uri = src.uri;
     const n = tries + 1;
+    if (n === 1) {
+      const shape = uri.replace(/^https?:\/\/[^/]+/, '').replace(/u=[^&]+/, 'u=…').replace(/\/img\/[A-Za-z0-9]{12}/, '/img/<id>').slice(0, 60);
+      trackError(`image ${shape}: ${String(e?.nativeEvent?.error || '').slice(0, 90)}`);
+    }
     if (retryTimer.current) clearTimeout(retryTimer.current);
     if (n >= TILE_AT) {
       setFail({uri, n});

@@ -272,7 +272,7 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
             </Text>
           </View>
           {item.why ? (
-            <Text style={styles.why} numberOfLines={2} ellipsizeMode="tail">
+            <Text style={styles.why} numberOfLines={3} ellipsizeMode="tail">
               {item.why}
             </Text>
           ) : null}

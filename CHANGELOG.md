@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.76 — 2026-10-09
+
+- **Aurora TV 5.1.27.** The AI page's cards are wider (six to a row instead of eight) so the title and the reason read from the sofa, with three lines for the reason. A card whose picture fails to load now tells the server why (the route, the size asked for and the player's own error text), as a client error in Insights → usage — so a TV with no pictures in someone else's living room can be diagnosed from the admin page.
+- The server logs an artwork request that fails (`[img] …`) instead of answering a silent 502 or 404.
+
 ## 1.6.75 — 2026-10-09
 
 - **Aurora TV 5.1.26: the AI page gets out of the way once it has answered.** When the picks arrive, the mood field and the What / Era / Length dials fold to a single line ("a clever thriller · Movies · Any era · Any length · Change") and the picks take the screen. Moving up onto that line opens the controls again with the search bar ready; moving back down into the picks folds them.

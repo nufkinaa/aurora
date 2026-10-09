@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.26",
-  "notes": "The AI page folds its controls to one line once it has answered, and opens them again when you move back up to the search bar."
+  "versionName": "5.1.27",
+  "notes": "Wider, readable cards on the AI page; a picture that fails to load now reports why."
 }
