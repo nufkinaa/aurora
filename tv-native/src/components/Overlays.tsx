@@ -17,6 +17,7 @@ import {resolvePartyRoute} from '../party';
 import {currentRouteName, pushScreen, rootNav} from '../rootNav';
 import {dismissUpdate} from '../storage';
 import {showToast, useToasts} from '../toast';
+import {isOpen as socketOpen} from '../realtime';
 import {
   APP_VERSION,
   canInstall,
@@ -223,7 +224,8 @@ function ReportSheet({hint}: {hint?: string}) {
           look: 'tv',
           ua: `Aurora TV ${APP_VERSION} · Android ${c.Release || ''} · ${c.Model || 'TV'}`,
           viewport: 'tv',
-          online: true,
+          // (was always `true`: whether the app's socket to the server is up)
+          online: socketOpen(),
           version: APP_VERSION,
           errors: recentErrors(),
         },
@@ -438,7 +440,7 @@ function UpdateSheet({info}: {info: UpdateInfo}) {
   const pct = prog.total > 0 ? Math.min(100, Math.round((prog.received / prog.total) * 100)) : null;
 
   return (
-    <Sheet kicker="UPDATE AVAILABLE" title={`Aurora TV ${info.version} is ready`} width={680} accent onClose={later}>
+    <Sheet kicker="UPDATE AVAILABLE" title={`Aurora TV ${info.version} is available`} width={680} accent onClose={later}>
       {stage === 'offer' ? (
         <>
           <Text style={styles.body}>{info.notes || 'A new version of the TV app is available.'}</Text>

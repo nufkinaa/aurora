@@ -52,6 +52,7 @@ import {
   visibleBetween,
 } from '../homeWindow';
 import {onMessage} from '../realtime';
+import {showToast} from '../toast';
 import {loadPrefs} from '../storage';
 import {track} from '../usage';
 import {
@@ -977,20 +978,43 @@ export default function Home({
   const removeFromContinue = useCallback(
     (item: HeroItem) => {
       if (!item.id) return;
+      let at = -1; // where it stood, for putting it back
       setData(d =>
         d
           ? {
               ...d,
-              rows: d.rows.map(r =>
-                r.id === 'continue' ? {...r, items: r.items.filter(i => i.id !== item.id)} : r,
-              ),
+              rows: d.rows.map(r => {
+                if (r.id !== 'continue') return r;
+                at = r.items.findIndex(i => i.id === item.id);
+                return {...r, items: r.items.filter(i => i.id !== item.id)};
+              }),
             }
           : d,
       );
+      // Said, and undone when the server did not take it (the site's card
+      // does both; here the failure was swallowed and the card came back on
+      // the next visit with no word why).
+      const done = () => showToast('Removed from Continue Watching', '✓');
+      const back = () => {
+        showToast("Couldn't remove it — it is back in Continue Watching", '⚠');
+        setData(d =>
+          d
+            ? {
+                ...d,
+                rows: d.rows.map(r => {
+                  if (r.id !== 'continue' || r.items.some(i => i.id === item.id)) return r;
+                  const items = r.items.slice();
+                  items.splice(at >= 0 ? Math.min(at, items.length) : 0, 0, item);
+                  return {...r, items};
+                }),
+              }
+            : d,
+        );
+      };
       if (item.upNext && item.showId) {
-        api.dismissUpNext(profileId, item.showId, item.id).catch(() => {});
+        api.dismissUpNext(profileId, item.showId, item.id).then(done, back);
       } else {
-        api.clearProgress(profileId, item.id).catch(() => {});
+        api.clearProgress(profileId, item.id).then(done, back);
       }
     },
     [profileId],

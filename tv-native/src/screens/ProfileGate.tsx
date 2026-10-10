@@ -204,7 +204,34 @@ export default function ProfileGate({
   };
 
   // Past the kids lock (or there was none): the profile's own door.
-  const open = (p: Profile) => {
+  //
+  // YOUR OWN PROFILE, ON A TV THAT IS SIGNED IN AS YOU, asks for no password:
+  // the session this TV holds was made by that very password (the website
+  // does the same at its picker). The server decides — /api/me says whose
+  // session it is and /api/auth/profile-token turns it into an unlock token;
+  // anything short of that (no session, someone else's, a refusal, no
+  // answer) falls through to the password, as before.
+  const open = async (p: Profile) => {
+    if (p.hasPassword && getSession() && !busy) {
+      setBusy(true);
+      try {
+        const who = await api.me();
+        if (who.user && who.user.profileId === p.id) {
+          const t = await api.profileTokenFromSession();
+          if (t.token && t.profileId === p.id) {
+            await pushRecentProfile(p.id);
+            if (p.kids) await saveKidsLock({id: p.id, maxAge: p.kids.maxAge});
+            else await clearKidsLock();
+            onChosen(p.id, t.token, null, who.user.mustReset || who.mustReset ? {mustReset: true, typed: null} : undefined);
+            return;
+          }
+        }
+      } catch {
+        // the password it is
+      } finally {
+        setBusy(false);
+      }
+    }
     if (p.hasPassword) {
       setPinFor(null);
       setPwFor(p);

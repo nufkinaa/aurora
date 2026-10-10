@@ -160,7 +160,9 @@ export default function WhatsNew({navigation}: NativeStackScreenProps<RootStackP
               <View key={r.version} style={styles.release}>
                 <Text style={styles.relHead}>{`${r.version}${r.date ? ` — ${r.date}` : ''}`}</Text>
                 {r.items.map((it, i) => (
-                  <Text key={i} style={styles.relItem}>{`•  ${it}`}</Text>
+                  // (the changelog is written in Markdown: the site draws
+                  // **bold**, this list printed the asterisks)
+                  <Text key={i} style={styles.relItem}>{`•  ${it.replace(/\*\*(.+?)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1')}`}</Text>
                 ))}
               </View>
             ))
