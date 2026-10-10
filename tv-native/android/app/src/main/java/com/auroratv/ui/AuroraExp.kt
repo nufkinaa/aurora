@@ -27,6 +27,7 @@ object AuroraExp {
     "cardlayer",   // a card that rests dark is ONE hardware layer (AuroraFocusableView.syncLayer)
     "taglayer",    // the progress bar and the NEW / kind pills are each one hardware layer (Card.tsx)
     "shadowcache", // a box-shadow is blurred once into a layered host, then composited (ShadowLayer.kt)
+    "pool",        // a shelf keeps its card slots mounted and rebinds them: no Fabric mounts on a window move (PoolHost.kt, POOL-PLAN.md)
   )
 
   /** Removals, for attribution only — every one of these changes the picture. */

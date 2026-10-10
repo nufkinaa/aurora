@@ -40,17 +40,18 @@
 // AuroraRow (src/specs/AuroraRowNativeComponent.ts → AuroraRowView.kt). That view
 // starts the slide itself, on the UI thread, in the call that moved focus; JS
 // keeps the mounted window, fed by its one `onItemFocus {index}` event.
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {View, Text, Image, StyleSheet, Animated, TVFocusGuideView} from 'react-native';
 import Card, {CARD_W, CARD_H, FRAME_W, FRAME_H} from './Card';
 import {HeroItem} from '../api';
 import {defer, useSlide} from '../motion';
 import {impl} from '../impl';
 import {isTracing, onQaChange, traceValue} from '../qa';
-import {LEAD as NATIVE_LEAD, nextAnchor, windowRange} from '../rowMath';
+import {LEAD as NATIVE_LEAD, VISIBLE_AHEAD as AHEAD, VISIBLE_BEHIND as BEHIND, WINDOW_SLACK as SLACK, nextAnchor, windowRange} from '../rowMath';
+import {poolAnchor, poolSize, slotItems} from '../poolMath';
 import AuroraRow, {ItemFocusEvent} from '../specs/AuroraRowNativeComponent';
 import theme from '../theme';
-import {gone} from '../exp';
+import {exp, gone} from '../exp';
 
 // The page colour melting to clear over the row's left margin, so a card that
 // has slid past the edge fades out instead of ending in a cut (elia,
@@ -241,22 +242,44 @@ function JsRow({title, items, onSelect, onItemFocus, showKind, wide, onRemove}: 
 //     to carry its texts first; rowMath.ts / RowMath.kt already hold the rule
 //     for that step.
 // =============================================================================
+// THE RECYCLING SHELF (LAB experiment `pool`, docs/qa/native-bench/POOL-PLAN.md).
+// Same window, same rule, same moment — but the cards are mounted in SLOTS,
+// keyed by slot and listed in slot order, item i in slot i mod 9 (poolMath.ts).
+// A card that stays in the window keeps its slot and is not re-rendered; a slot
+// whose card left is handed the card that came in, as new props on the views it
+// already has. So a window move is one commit that creates and deletes nothing,
+// where the keyed-by-title window mounts three cards and unmounts three. The
+// track (AuroraRowView + PoolHost.kt) paints the slots in shelf order.
+const POOL = exp('pool') && impl.card;
+const POOL_SLOTS = poolSize(BEHIND, AHEAD);
+
 function NativeRow({title, items, onSelect, onItemFocus, showKind, wide, onRemove}: Props) {
   const step = (wide ? FRAME_W : CARD_W) + spacing.md;
   const cardH = wide ? FRAME_H : CARD_H;
   const [anchor, setAnchor] = useState(0);
+  // (pool) the newest focus this thread has heard of, and the shelf's length,
+  // read when the deferred anchor update finally runs — poolAnchor's guard.
+  const latest = useRef(0);
+  const countRef = useRef(0);
+  countRef.current = items ? items.length : 0;
   const onTrackFocus = useCallback(
     (e: {nativeEvent: ItemFocusEvent}) => {
       const index = e.nativeEvent.index;
       const item = items[index];
       if (item) onItemFocus?.(item);
-      defer(() => setAnchor(prev => nextAnchor(prev, index)));
+      latest.current = index;
+      defer(() =>
+        setAnchor(prev =>
+          POOL ? poolAnchor(prev, index, latest.current, countRef.current, SLACK, BEHIND, AHEAD) : nextAnchor(prev, index),
+        ),
+      );
     },
     [items, onItemFocus],
   );
 
   const {from, to} = windowRange(anchor, items ? items.length : 0);
   const window = useMemo(() => (items ? items.slice(from, to) : []), [items, from, to]);
+  const slots = useMemo(() => (POOL ? slotItems(from, to, POOL_SLOTS) : null), [from, to]);
 
   if (!items || items.length === 0) return null;
   return (
@@ -276,7 +299,26 @@ function NativeRow({title, items, onSelect, onItemFocus, showKind, wide, onRemov
           contentLeft={spacing.contentLeft}
           count={items.length}
           onItemFocus={onTrackFocus}>
-          {window.map((item, i) => {
+          {slots
+            ? slots.map((index, slot) =>
+                // An unfilled slot (the window is shorter than the pool at either
+                // end of the shelf) renders nothing and keeps its place and key.
+                index < 0 || !items[index] ? null : (
+                  <View key={slot} style={[styles.slot, {left: spacing.contentLeft + index * step}]}>
+                    <Card
+                      item={items[index]}
+                      index={index}
+                      onPress={onSelect}
+                      wide={wide}
+                      frame={wide}
+                      showKind={showKind}
+                      onRemove={onRemove}
+                      edgeLeft={index === 0}
+                    />
+                  </View>
+                ),
+              )
+            : window.map((item, i) => {
             const index = from + i;
             return (
               <View
