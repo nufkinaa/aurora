@@ -474,6 +474,7 @@ export type MyDownload = DownloadJob & {
   quality?: string;
   imdbId?: string | null;
   type?: string;
+  provider?: string | null;
   // A finished episode: its show's library id and the episode's own name
   // (server publicJobFor) — the home-screen row and the TV notification.
   showId?: string;
@@ -1321,6 +1322,10 @@ export const api = {
     post<{ok: boolean}>(`/api/downloads/${encodeURIComponent(id)}/seen`, {profile}),
   downloadCancel: (id: string, profile: string) =>
     post<{ok: boolean}>(`/api/downloads/${encodeURIComponent(id)}/cancel`, {profile}),
+  // Clear a DEAD request of your own (failed / declined / cancelled) off the
+  // page. A live one is refused with 409 — that one is cancelled first.
+  downloadDismiss: (id: string, profile: string) =>
+    post<{ok: boolean}>(`/api/downloads/${encodeURIComponent(id)}/dismiss`, {profile}),
   usage: (body: unknown) => post<unknown>('/api/usage', body),
   // One playback mark (start time, path, stall, error) - the site's
   // /api/play-mark, which lands in the server's log.
