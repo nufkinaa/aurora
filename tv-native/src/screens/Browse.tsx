@@ -76,6 +76,39 @@ const STRIP_W = 44;
 // How close to the end of the loaded list focus has to get before the next page
 // is fetched: two rows out, so the page lands before the viewer reaches it.
 const PREFETCH_ROWS = 2;
+// HOW MUCH OF THE GRID EXISTS — IN ROWS. With numColumns the list's "items"
+// are ROWS (FlatList hands VirtualizedList ceil(n / numColumns) of them), so
+// the three numbers below count rows of six cards, not cards. They used to be
+// 24 / 12 / 3, written as if they counted cards: the first commit of Movies
+// mounted up to 24 ROWS — every title of the library and the whole first
+// catalogue page, 78 cards on this server, ~900 views and 78 picture requests
+// — before the screen could show its first three; a batch was 72 cards; and
+// beyond those first rows only one viewport either side was kept.
+//
+// Geometry (960×540 canvas): a row is 186 + 13 = 199dp; the list is 472dp
+// tall under the heading, so three rows show at the top and parts of four
+// once it has scrolled — 2.4 rows to a viewport.
+//
+//  • FIRST COMMIT: 5 rows (30 cards) — what shows, and a row and a half
+//    under it. These first rows are never unmounted (VirtualizedList keeps
+//    them), so focus restore, "Change filters" → first card and the scroll
+//    back to the top always find them.
+//  • THEN, BY THEMSELVES, 2 rows (12 cards) per batch, 50 ms apart, until the
+//    window is full — small commits after the first picture instead of one
+//    huge one in front of it.
+//  • THE WINDOW: 11 viewports — 5 either side, ≈ 12 rows. A held DOWN moves
+//    a row every ~110 ms, so that is 1.3 s of rows already mounted (with
+//    their pictures asked for) ahead of focus, against a fill rate of 2 rows
+//    per batch; before it was the first 24 rows and then one viewport (0.26
+//    s) ahead. Mounted at most: 5 + 12 + 3.4 + 12 ≈ 30 rows, about what the
+//    old numbers held (24 + 6).
+// A grid of up to ~15 rows ends up fully mounted, as it always was — only no
+// longer in its first commit.
+const GRID_FIRST_ROWS = 5;
+const GRID_BATCH_ROWS = 2;
+const GRID_WINDOW = 11;
+// Rows the list keeps rendered beyond the viewport, each way.
+const GRID_AHEAD = Math.round(((GRID_WINDOW - 1) / 2) * 2.4);
 // A failed read is tried again by itself after these waits (then it waits for
 // Retry). Measured through a 0.9 Mbit / 250 ms line: one dropped request used
 // to read as "nothing here" for good. Spaced out so a struggling line is not
@@ -670,18 +703,21 @@ export default function Browse({
   const onCardFocus = useCallback((item: HeroItem, index: number) => {
     warmItem(item); // the Detail page's data, if focus holds a moment
     lastFocusIdx.current = index;
-    // The rows BELOW. Every row is a real cell from the start, so there is no
-    // mount to see here; what can show is a picture arriving. The list keeps
-    // about a screen of rows rendered under the viewport (windowSize 3) and
-    // their cards ask for their own pictures; while the remote rests, the
-    // rows after those are fetched ahead (artPrefetch.ts), so holding DOWN
-    // runs onto pictures that are already decoded. Anything already drawn or
-    // asked for is skipped there, so the overlap with rendered rows is free.
+    // The rows BELOW. The list keeps about twelve rows rendered under the
+    // viewport (GRID_WINDOW) and their cards ask for their own pictures, so
+    // there is no mount to see here; what can show is a picture arriving
+    // while the list is still filling, in the first second after it opens.
+    // While the remote rests, the next rows' pictures are fetched ahead
+    // (artPrefetch.ts), so holding DOWN runs onto pictures that are already
+    // decoded. Anything already drawn or asked for is skipped there, so the
+    // overlap with rendered rows is free.
     artIdle('grid', () => {
       const rows = artLimits().gridRows;
       if (!rows) return [];
       const row = Math.floor(index / cols);
-      return itemsRef.current.slice((row + 2) * cols, (row + 4 + rows) * cols).map(i => prefetchable(i));
+      // (from the edge of what the list keeps rendered below: ~2 rows on screen under focus + GRID_AHEAD)
+      const from = row + 2 + GRID_AHEAD;
+      return itemsRef.current.slice(from * cols, (from + 2 + rows) * cols).map(i => prefetchable(i));
     });
     // Automatic paging, two rows ahead of the focus. The page APPENDS, so no
     // card already on screen moves; the only visible change is more rows
@@ -806,14 +842,14 @@ export default function Browse({
             keyExtractor={keyOf}
             columnWrapperStyle={styles.rowGap}
             contentContainerStyle={[styles.grid, {paddingBottom: CLEARANCE.below + safeBottom}]}
-            initialNumToRender={24}
-            maxToRenderPerBatch={12}
+            initialNumToRender={GRID_FIRST_ROWS}
+            maxToRenderPerBatch={GRID_BATCH_ROWS}
             // Measured on the Streamer (see git history for the numbers): with
             // clipping off the grid degraded to 750ms frames the longer you
             // browsed; on, it stays flat. The clearance is contentContainer
             // padding, so a focused card's ring on the last row is never clipped.
             removeClippedSubviews
-            windowSize={3}
+            windowSize={GRID_WINDOW}
             renderItem={renderCard}
             ListFooterComponent={footer}
           />
