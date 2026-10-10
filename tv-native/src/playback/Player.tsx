@@ -110,6 +110,7 @@ import {
 import {isOpen as socketOpen, reportActivity} from '../realtime';
 import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
 import {PERSON_KEYS, PersonKey, SUB_LANG_LABEL} from '../personPrefs';
+import {resumePoint, SKIP_STEPS} from '../episodeRules';
 import {onPersonPrefs, setPersonPref} from '../personSync';
 import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
@@ -126,9 +127,9 @@ const SCRIM_TOP = require('../assets/player-top.png');
 const SCRIM_BOTTOM = require('../assets/player-bottom.png');
 
 // ---------------------------------------------------------------- constants
-// All ported verbatim from player.js.
+// From player.js. (The skip steps and the resume rule live in episodeRules.ts,
+// where a test holds them to the website's.)
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
-const SKIP_STEPS = [10, 10, 10, 30, 60, 60, 120, 300];
 const SKIP_CHAIN_MS = 900;
 // The site hides its chrome 3200ms after the last input. That is a mouse-era
 // number and it does not survive a remote: reaching Subtitles is six D-pad
@@ -1203,15 +1204,10 @@ export default function Player({
             episode: stream.episode,
             year: stream.year ?? undefined,
           } as Item;
-          const p = restart ? null : st.progress?.[id];
-          if (
-            p &&
-            !p.finished &&
-            p.position > 10 &&
-            (!it.duration || p.position < it.duration - 20)
-          ) {
-            resumeAt.current = Math.floor(p.position);
-          }
+          // Where it resumes (episodeRules.ts resumePoint — the site's rule:
+          // past ten seconds, not in the last twenty, four seconds early).
+          const at = restart ? null : resumePoint(st.progress?.[id], it.duration);
+          if (at != null) resumeAt.current = at;
           durRef.current = it.duration || 0;
           setDuration(it.duration || 0);
           setMeta({item: it});
@@ -1241,15 +1237,8 @@ export default function Player({
             return;
           }
           // `restart` (Detail's "Start over") means ignore the saved position.
-          const p = restart ? null : st.progress?.[id];
-          if (
-            p &&
-            !p.finished &&
-            p.position > 10 &&
-            (!it.duration || p.position < it.duration - 20)
-          ) {
-            resumeAt.current = Math.floor(p.position);
-          }
+          const at = restart ? null : resumePoint(st.progress?.[id], it.duration);
+          if (at != null) resumeAt.current = at;
           durRef.current = it.duration || 0;
           setDuration(it.duration || 0);
           setMeta({item: it});

@@ -46,6 +46,8 @@ import {focusJustMoved, useFocusFallback, useKeyTrap} from '../focus';
 import {SourcesPanel} from './Sources';
 import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
+import {pickUp, startSeason} from '../episodeRules';
+import {registerProfileCache} from '../profileScope';
 import {loadMe, patchMe, peekMe} from '../navSection';
 import type {NavSection} from '../navSection';
 import {RootStackParamList} from '../navigation';
@@ -485,11 +487,23 @@ const GhostBtn = ({
   </Focusable>
 );
 
+// The season last picked BY HAND on a show's page, per show, for this run —
+// the site keeps the same in localStorage (`aurora-season-<id>`). A profile's:
+// dropped when the profile is left (profileScope.ts).
+const seasonPicks = new Map<string, number>();
+registerProfileCache('Detail', () => {
+  seasonPicks.clear();
+});
+
 type UiEp = {
   key: string;
   num: number;
   label: string;
   onPlay: () => void;
+  // the file's progress row, for the "which episode does Play stand for" rule
+  // (episodeRules.ts pickUp): where it was left and when it was last touched
+  position?: number;
+  touchedAt?: number | null;
   // Everything below mirrors the site's .episode row.
   owned?: boolean; // in the library, so it plays instantly
   durationLabel?: string;
@@ -1680,6 +1694,8 @@ export default function Detail({
           ? () => playEpisode(ep, title || (ep.title && !/^Episode \d+$/.test(ep.title) ? ep.title : undefined))
           : () => downloadBestRef.current(seasonNo, episodeNo, air),
         owned: !!ep,
+        position: ep && pr ? pr.position : 0,
+        touchedAt: ep && pr ? pr.updatedAt || 0 : null,
         durationLabel: fmtDuration(ep?.duration),
         durationMin: ep?.duration ? Math.round(ep.duration / 60) : showRuntimeMin,
         hasSubs: !!ep?.subtitles?.length,
@@ -1727,11 +1743,41 @@ export default function Detail({
     return [];
   }, [full, streamMeta, progress, epProgress, epJobs, playEpisode, item.imdbId, libImdb]);
 
-  // Fall back to the first season rather than rendering nothing: the selected
-  // number is set from whichever list arrived first, and the merged list can
-  // legitimately not contain it (a library show whose only downloaded season is
-  // numbered differently from Cinemeta's, a specials season, and so on).
-  const curSeason = uiSeasons.find(s => s.number === season) || uiSeasons[0];
+  // What the show page's primary button does — the site's `nextUp`, by the
+  // site's rule (episodeRules.ts pickUp): the episode on disk you touched
+  // last — the one after it when that one is finished — else the first on
+  // disk. `at` is where it resumes (0: from the start). A show page whose
+  // only action is "My List" makes you hunt for your own place in it, which
+  // is the one thing you came for.
+  const nextUp = useMemo(() => {
+    const hit = pickUp(uiSeasons.flatMap(se => se.episodes));
+    if (!hit) return null;
+    return {season: hit.ep.season, episode: hit.ep.num, resume: hit.resumed, at: hit.mid ? hit.ep.position || 0 : 0, play: hit.ep.onPlay};
+  }, [uiSeasons]);
+
+  // WHICH SEASON IS OPEN (episodeRules.ts startSeason): the one picked by hand
+  // (now, or earlier this run for this show), else the season of the episode
+  // Play stands for, else whichever list arrived first set — and the first
+  // season rather than nothing when the merged list does not contain it (a
+  // library show whose only downloaded season is numbered differently from
+  // Cinemeta's, a specials season, and so on).
+  const seasonKey = `${item.imdbId || libImdb || item.id}`;
+  const [seasonPick, setSeasonPick] = useState<number | null>(seasonPicks.get(seasonKey) ?? null);
+  const pickSeason = useCallback(
+    (n: number) => {
+      seasonPicks.set(seasonKey, n);
+      setSeasonPick(n);
+      setSeason(n);
+    },
+    [seasonKey],
+  );
+  const openSeason = startSeason(
+    uiSeasons.map(s => s.number),
+    seasonPick ?? seasonPicks.get(seasonKey),
+    nextUp?.season,
+    season,
+  );
+  const curSeason = uiSeasons.find(s => s.number === openSeason) || uiSeasons[0];
 
   // ---- marking watched (elia, 2026-10-07: "tv should also have the control
   // like the web for things like mark season watched"). The same two writes
@@ -2061,29 +2107,7 @@ export default function Detail({
     [curSeason, seasonBusy, episodeMark, profileId, reloadProgress],
   );
 
-  // What the show page's primary button does — the site's `nextUp`. In order of
-  // preference: the episode you are part-way through, else the first downloaded
-  // one you haven't finished. A show page whose only action is "My List" makes
-  // you hunt for your own place in it, which is the one thing you came for.
-  const nextUp = useMemo(() => {
-    let firstUnwatched: {season: number; ep: UiEp} | null = null;
-    for (const se of uiSeasons) {
-      for (const ep of se.episodes) {
-        if (!ep.owned) continue;
-        if (ep.pct) return {season: se.number, episode: ep.num, resume: true, play: ep.onPlay};
-        if (!ep.watched && !firstUnwatched) firstUnwatched = {season: se.number, ep};
-      }
-    }
-    if (firstUnwatched) {
-      return {
-        season: firstUnwatched.season,
-        episode: firstUnwatched.ep.num,
-        resume: false,
-        play: firstUnwatched.ep.onPlay,
-      };
-    }
-    return null;
-  }, [uiSeasons]);
+  // (nextUp is worked out with the seasons, above: the open season depends on it)
 
   // ---- the Play button's own download (see dlNote) ----
   // The episode a show's Play stands for: nextUp, else the first episode of
@@ -2458,7 +2482,8 @@ export default function Detail({
               heroDl.busy
                 ? `Getting ${heroName}…`
                 : nextUp?.resume
-                  ? `▶  Continue S${nextUp.season} E${nextUp.episode}`
+                  ? // the clock when it is part-way through (past 10 s), as the site's
+                    `▶  Continue S${nextUp.season} E${nextUp.episode}${nextUp.at ? ` · ${fmtClock(nextUp.at)}` : ''}`
                   : `▶  Play ${heroName}`
             }
             onPress={() => heroEp?.onPlay()}
@@ -2481,12 +2506,12 @@ export default function Detail({
               renderItem={({item: se, index}) => (
                 <Focusable
                   round
-                  light={se.number === season}
+                  light={se.number === curSeason?.number}
                   edgeLeft={index === 0}
                   holdLeft={index === 0}
-                  onPress={() => setSeason(se.number)}
-                  style={[styles.pill, se.number === season && styles.pillOn]}>
-                  <Text style={[styles.pillText, se.number === season && styles.pillTextOn]}>
+                  onPress={() => pickSeason(se.number)}
+                  style={[styles.pill, se.number === curSeason?.number && styles.pillOn]}>
+                  <Text style={[styles.pillText, se.number === curSeason?.number && styles.pillTextOn]}>
                     {`Season ${se.number}`}
                   </Text>
                 </Focusable>

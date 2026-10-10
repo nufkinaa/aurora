@@ -30,6 +30,7 @@ const PROFILE: Record<string, string[]> = {
   'personSync.ts': ['active', 'asking', 'entering'],
   'prefetch.ts': ['profileId', 'idleTimer', 'idleRest', 'warmedSections', 'dwell'],
   'realtime.ts': ['identity', 'lastActivity'],
+  'screens/Detail.tsx': ['seasonPicks'],
   'screens/Pick.tsx': ['last'],
   'trailers.ts': ['resolved', 'prepared'],
   'usage.ts': ['queue', 'profile', 'errors'],
