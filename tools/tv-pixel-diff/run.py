@@ -182,13 +182,22 @@ def capture_side(dev: Adb, state: dict, side: str, out_dir: Path, args) -> dict:
     # --exp (lab, docs/qa/native-bench/RENDER.md): BOTH sides run the native letters; A with every
     # rendering experiment off, B with the given ones on. Without --exp the experiments are forced
     # off on both sides (a build that does not know `exp` answers err, which is ignored).
+    # --exp-a / --impl-a (2026-10-10, docs/qa/native-bench/POOL.md): what the A side runs when the
+    # reference is not "everything js, no experiment" - e.g. A = the recommended switches, B = the
+    # same plus `pool`; or A = FCRHN, B = FCRHNG. `--impl-a -` = all js.
     exp = getattr(args, "exp", None)
-    spec = impl_spec(letters, native=(side == "B" or bool(exp)))
+    exp_a = getattr(args, "exp_a", None)
+    impl_a = getattr(args, "impl_a", None)
+    if side == "A" and impl_a is not None:
+        spec = impl_spec("" if impl_a == "-" else impl_a.upper(), native=True)
+    else:
+        spec = impl_spec(letters, native=(side == "B" or bool(exp) or bool(exp_a)))
     info = {"side": side, "impl_spec": spec}
     info["impl_result"] = dev.qa_expect("impl", spec)
     dev.qa("exp", "none")
-    if exp and side == "B":
-        info["exp_result"] = dev.qa_expect("exp", exp)
+    side_exp = exp if side == "B" else exp_a
+    if side_exp:
+        info["exp_result"] = dev.qa_expect("exp", side_exp)
     # the flags are written BEFORE the launch (the receiver takes them with the process
     # dead and they persist), so the app starts frozen: no loop ever runs un-held and
     # the JS side reads trace/focuslog at start, where it attaches its listeners
@@ -444,6 +453,8 @@ def main(argv=None) -> int:
     ap.add_argument("--impl", default=None, help="letters to flip =native on the B side (F C R H N G); default: each state file's own")
     ap.add_argument("--states", default="all", help="comma list of component names (focusable,card,row,hero,navrail,browse), 'all', or .json paths")
     ap.add_argument("--exp", default=None, help="lab: rendering experiments (AuroraExp.kt) on the B side, e.g. cull=1,bake=1; both sides then run the --impl letters native")
+    ap.add_argument("--exp-a", default=None, help="lab: experiments on the A side too (default none), e.g. A = the recommended set, B = the same + pool")
+    ap.add_argument("--impl-a", default=None, help="lab: letters native on the A side (default: all js, or the --impl letters under --exp); '-' = all js")
     ap.add_argument("--only", default="", help="comma list of state names to run (name or component/name)")
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--out", default=None, help="default docs/qa/native-diff/<date>/ under the repo root")

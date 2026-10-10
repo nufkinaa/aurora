@@ -30,6 +30,9 @@ object AuroraExp {
     "unstuff",     // one vsync without a frame when the UI thread runs a frame behind (AuroraClock.stuffed)
     "unstuffq",    // the same, also when only a finished buffer is queued (FOLLOWUP.md, problem 3)
     "pool",        // a shelf keeps its card slots mounted and rebinds them: no Fabric mounts on a window move (PoolHost.kt, POOL-PLAN.md)
+    "recycle",     // React Native's own view recycling + optimized view registry (feature flags, MainApplication.onCreate; POOL.md)
+    "gridfree",    // the recycling grid lets a press reach a row that is wholly off screen (the FlatList cannot: AuroraGridView.addFocusables)
+    "prepdraw",    // Bitmap.prepareToDraw() when a card's picture arrives: the texture upload leaves its first frame (AuroraCardView)
   )
 
   /** Removals, for attribution only — every one of these changes the picture. */

@@ -58,6 +58,8 @@ _ANIM = re.compile(r"\[anim\]\s+(\d+)\s+(\S+)\s+(-?[\d.]+(?:[eE][-+]?\d+)?)")
 _KEY = re.compile(r"\[key\]\s+(\d+)\s+(\S+)")
 _FOCUS = re.compile(r"\[focus\]\s+(\d+)\s+(\w+)\s+(.*)")
 _RING = re.compile(r"\[ring\]\s+(\d+)\s+(claim|release)\s+(\S+)")
+# PoolHost.kt (docs/qa/native-bench/POOL.md): a native shelf / grid names the ITEM that took focus
+_POOL = re.compile(r"\[pool\]\s+(\d+)\s+(row|grid)\s+tag=(\S+)\s+focus=(\d+)")
 
 
 @dataclass
@@ -66,6 +68,7 @@ class Trace:
     keys: list = field(default_factory=list)  # [(uptimeMs, keycode)]
     focus: list = field(default_factory=list)  # [(uptimeMs, event, {k: v})]
     ring: list = field(default_factory=list)  # [(uptimeMs, claim|release, id)]
+    pool: list = field(default_factory=list)  # [(uptimeMs, row|grid, host tag, item index)]
 
     def to_dict(self):
         return {"anim": {k: [[t, v] for t, v in steps] for k, steps in self.anim.items()},
@@ -91,6 +94,10 @@ def parse(text: str) -> Trace:
         m = _RING.search(line)
         if m:
             tr.ring.append((int(m.group(1)), m.group(2), m.group(3)))
+            continue
+        m = _POOL.search(line)
+        if m:
+            tr.pool.append((int(m.group(1)), m.group(2), m.group(3), int(m.group(4))))
     return tr
 
 
@@ -258,12 +265,29 @@ def compare(a: Trace, b: Trace, ids: list[str], retarget: bool = False, align: s
     return out
 
 
-def focus_table(tr: Trace) -> list[dict]:
-    """The behaviour table of 02 §5: focus target after each key, as text-diffable rows."""
+def focus_table(tr: Trace, by_item: bool = False) -> list[dict]:
+    """The behaviour table of 02 §5: focus target after each key, as text-diffable rows.
+
+    `by_item` (2026-10-10, the recycling shelf): a gain inside a native shelf or grid is named
+    by the ITEM that took focus - `row0[9]` = the first shelf this run focused, its card 9 -
+    from the container's own `[pool] … focus=<index>` line, written in the same focus change
+    (PoolHost.kt; with the pool off as well). A react tag names a VIEW, and a recycled slot is
+    one view showing item 0, then 9, then 18: by tag, two runs that focus the same cards in
+    the same order would read differently. Naming the item is the stricter statement."""
     rows = []
     keys = list(tr.keys)
+    hosts: dict = {}
+    used: set = set()
     for t, ev, kv in tr.focus:
         last_key = next((k for k in reversed(keys) if k[0] <= t), None)
+        kv = dict(kv)
+        if by_item and ev == "gain":
+            # the container writes its line from requestChildFocus, the card its gain from
+            # onFocusChanged right after: the newest [pool] line not yet used, at most 50 ms old
+            hit = next((p for p in reversed(tr.pool) if 0 <= t - p[0] <= 50 and p not in used), None)
+            if hit:
+                used.add(hit)
+                kv["tag"] = f"{hosts.setdefault(hit[2], hit[1] + str(len(hosts)))}[{hit[3]}]"
         rows.append({"after_key": last_key[1] if last_key else None, "event": ev, **kv, "_t": t})
     # ONE focus move is a loss and a gain. The JS Focusable logs them from its onBlur/onFocus
     # handlers, always loss first. The native one logs from View.onFocusChanged, and when the
@@ -306,8 +330,14 @@ def compare_focus(a: Trace, b: Trace) -> dict:
     Loss rows are written to the file but not compared - whether one is logged depends on the
     logger, not on the app: the JS Focusable cannot log the blur of an element that is being
     unmounted (the rail's item when OK closes the panel), the native one does."""
-    ta, tb = focus_table(a), focus_table(b)
-    gains = lambda rows: [r for r in _canon(rows) if r.get("event") == "gain"]
+    by_item = bool(a.pool) and bool(b.pool)  # both sides run a native shelf / grid
+    ta, tb = focus_table(a, by_item), focus_table(b, by_item)
+    if by_item:
+        # the loss rows still carry react tags, and a recycled shelf has fewer views than a keyed
+        # one: number the remaining tags (hero buttons, rail items) over the gain rows alone
+        gains = lambda rows: _canon([r for r in rows if r.get("event") == "gain"])
+    else:
+        gains = lambda rows: [r for r in _canon(rows) if r.get("event") == "gain"]
     same = gains(ta) == gains(tb)
     return {"pass": same, "rows_a": ta, "rows_b": tb,
             "reasons": [] if same else [f"focus table differs ({len(ta)} vs {len(tb)} rows)"]}

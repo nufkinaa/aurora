@@ -98,6 +98,21 @@ class MainApplication : Application(), ReactApplication {
     // LAB: the rendering experiments (AuroraExp.kt), read once per process.
     com.auroratv.ui.AuroraExp.ensureLoaded(this)
     loadReactNative(this)
+    // LAB experiment `recycle` (docs/qa/native-bench/POOL.md): React Native's own pooling of host views
+    // (off on Android in 0.86) and its int-keyed view registry. The stock entry point has already
+    // set the STABLE flags, and flags may be set once - hence the forced override, made before any
+    // React instance exists. It answers with the flags that were read before it (none expected).
+    if (com.auroratv.ui.AuroraExp.on("recycle")) {
+      val read =
+          com.facebook.react.internal.featureflags.ReactNativeFeatureFlags.dangerouslyForceOverride(
+              object : com.facebook.react.internal.featureflags.ReactNativeNewArchitectureFeatureFlagsDefaults() {
+                override fun enableViewRecycling(): Boolean = true
+
+                override fun useOptimizedViewRegistryOnAndroid(): Boolean = true
+              }
+          )
+      android.util.Log.i("AuroraExp", "[recycle] view recycling + optimized registry on; flags read before: ${read ?: "-"}")
+    }
   }
 
   /**

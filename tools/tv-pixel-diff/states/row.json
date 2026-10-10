@@ -76,6 +76,18 @@
      "note": "Continue Watching card 2: tx 0 -> -238 — one frame step is 238 dp"},
     {"name": "continue-step-2", "keys": ["DPAD_DOWN", "DPAD_RIGHT", "DPAD_RIGHT", "wait:800", "DPAD_RIGHT"],
      "trace": ["row.tx"], "focusCheck": true,
-     "note": "Continue Watching card 3: tx -238 -> -476"}
+     "note": "Continue Watching card 3: tx -238 -> -476"},
+    {"name": "pool-wrap-shadow", "keys": ["DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "wait:800", "DPAD_RIGHT*8@150"], "settleMs": 1200,
+     "focusCheck": true,
+     "note": "(pool) card 8 lit = slot 8, its right neighbour card 9 = slot 0: the pair furthest apart in child order - the lit card's shadow must lie over 7 and under 9 as in the keyed row"},
+    {"name": "pool-hold-right-left-end", "keys": ["DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "wait:800", "DPAD_RIGHT*24@50", "wait:1500", "DPAD_LEFT*24@50"], "settleMs": 1500,
+     "focusCheck": true,
+     "note": "(pool) to the far end of a 20-card shelf and all the way back: every slot rebound out and back, the tail slots unmounted and mounted again; rests on card 0 exactly as offset-0"},
+    {"name": "pool-continue-far", "keys": ["DPAD_DOWN", "wait:800", "DPAD_RIGHT*7@200"], "settleMs": 1200,
+     "focusCheck": true,
+     "note": "(pool) Continue Watching, 7 presses right (or its last card): frame cards with labels and progress bars after two window moves"},
+    {"name": "pool-continue-far-back", "keys": ["DPAD_DOWN", "wait:800", "DPAD_RIGHT*7@200", "wait:1000", "DPAD_LEFT*5@200"], "settleMs": 1200,
+     "focusCheck": true,
+     "note": "(pool) Continue Watching out 7 and back 5: slots rebound back the other way"}
   ]
 }

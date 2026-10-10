@@ -26,7 +26,10 @@ class AuroraFocusableManager : ReactViewManager() {
 
   override fun getName() = NAME
 
-  override fun createViewInstance(context: ThemedReactContext): ReactViewGroup = AuroraFocusableView(context)
+  override fun createViewInstance(context: ThemedReactContext): ReactViewGroup {
+    com.auroratv.ui.qa.AuroraQa.viewMade(0)
+    return AuroraFocusableView(context)
+  }
 
   // ---- props -------------------------------------------------------------------------
 
@@ -167,6 +170,7 @@ class AuroraFocusableManager : ReactViewManager() {
   }
 
   override fun onDropViewInstance(view: ReactViewGroup) {
+    com.auroratv.ui.qa.AuroraQa.viewDropped(0)
     f(view).onDropped()
     super.onDropViewInstance(view)
   }

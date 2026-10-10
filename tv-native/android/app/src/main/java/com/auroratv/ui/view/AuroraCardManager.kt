@@ -19,7 +19,10 @@ class AuroraCardManager : SimpleViewManager<AuroraCardView>() {
 
   override fun getName() = NAME
 
-  override fun createViewInstance(context: ThemedReactContext): AuroraCardView = AuroraCardView(context)
+  override fun createViewInstance(context: ThemedReactContext): AuroraCardView {
+    com.auroratv.ui.qa.AuroraQa.viewMade(1)
+    return AuroraCardView(context)
+  }
 
   // ---- props -------------------------------------------------------------------------
 
@@ -83,6 +86,7 @@ class AuroraCardManager : SimpleViewManager<AuroraCardView>() {
   }
 
   override fun onDropViewInstance(view: AuroraCardView) {
+    com.auroratv.ui.qa.AuroraQa.viewDropped(1)
     view.onDropped()
     super.onDropViewInstance(view)
   }

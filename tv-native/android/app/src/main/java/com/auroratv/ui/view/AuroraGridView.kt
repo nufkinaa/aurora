@@ -2,8 +2,11 @@ package com.auroratv.ui.view
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Rect
 import android.view.View
 import android.view.ViewTreeObserver
+import android.widget.ScrollView
+import com.auroratv.ui.AuroraExp
 import com.auroratv.ui.pool.PoolMath
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.uimanager.PixelUtil
@@ -86,6 +89,51 @@ class AuroraGridView(context: Context) : ReactViewGroup(context) {
     } catch (_: Throwable) {}
   }
 
+  // ---- which cards a D-pad press can reach ---------------------------------------------------
+  //
+  // Found on the device (docs/qa/native-bench/POOL.md): the FlatList has `removeClippedSubviews`,
+  // which DETACHES every row that lies wholly outside the scroll view's window. A detached row
+  // cannot be found by Android's focus search, and that is part of how the grid moves: when the
+  // row below the focused one is still wholly off screen, DOWN finds no card, and the ScrollView
+  // pages by half its height instead (ScrollView.arrowScroll) with focus staying where it is;
+  // the press after that finds the row. In Browse that is every third DOWN.
+  //
+  // The pool keeps its eight rows attached, so every press found a card and the two grids came
+  // to rest on different rows at different scroll positions. To be the same grid, rows that do
+  // not intersect the scroll view's window are left out of the focus search here - the same
+  // test ReactViewGroup.updateSubviewClipStatus makes (`clippingRect.intersects(child…)`), on
+  // the scroll position of this moment. LAB switch `gridfree` turns it off (every press moves).
+  private val window = Rect()
+
+  /** The scroll view's window in THIS view's coordinates; false when there is no scroll view above. */
+  private fun readWindow(): Boolean {
+    var p = parent
+    while (p != null && p !is ScrollView) p = p.parent
+    val sv = p as? ScrollView ?: return false
+    window.set(0, 0, 0, 0)
+    try {
+      sv.offsetDescendantRectToMyCoords(this, window)
+    } catch (_: IllegalArgumentException) {
+      return false
+    }
+    val dx = window.left
+    val dy = window.top
+    window.set(sv.scrollX - dx, sv.scrollY - dy, sv.scrollX + sv.width - dx, sv.scrollY + sv.height - dy)
+    return true
+  }
+
+  override fun addFocusables(views: ArrayList<View>, direction: Int, focusableMode: Int) {
+    if (FREE || !readWindow()) {
+      super.addFocusables(views, direction, focusableMode)
+      return
+    }
+    for (i in 0 until childCount) {
+      val c = getChildAt(i)
+      if (c.visibility != VISIBLE) continue
+      if (c.hasFocus() || window.intersects(c.left, c.top, c.right, c.bottom)) c.addFocusables(views, direction, focusableMode)
+    }
+  }
+
   // ---- drawing ---------------------------------------------------------------------------
 
   override fun getChildDrawingOrder(childCount: Int, drawingPosition: Int): Int = slots.order(childCount, drawingPosition)
@@ -136,5 +184,10 @@ class AuroraGridView(context: Context) : ReactViewGroup(context) {
     colPitch = 0.0
     rowPitch = 0.0
     count = 0
+  }
+
+  companion object {
+    /** LAB switch `gridfree`: rows outside the window stay reachable (not the FlatList's behaviour). */
+    private val FREE = AuroraExp.on("gridfree")
   }
 }

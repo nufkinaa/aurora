@@ -236,7 +236,16 @@ class AuroraCardView(context: Context) : View(context) {
     val token = ++requestSeq
     val listener = object : BaseControllerListener<ImageInfo>() {
       override fun onFinalImageSet(id: String?, imageInfo: ImageInfo?, animatable: Animatable?) {
-        if (token == requestSeq) onPictureLoaded(address)
+        if (token == requestSeq) {
+          // LAB experiment `prepdraw`: start the texture upload now, on the RenderThread, instead of
+          // inside the first frame that draws the picture (Bitmap.prepareToDraw, Android N+).
+          if (PREPDRAW) {
+            try {
+              (imageInfo as? com.facebook.imagepipeline.image.CloseableBitmap)?.underlyingBitmap?.prepareToDraw()
+            } catch (_: Throwable) {}
+          }
+          onPictureLoaded(address)
+        }
       }
 
       override fun onFailure(id: String?, throwable: Throwable?) {
@@ -490,6 +499,7 @@ class AuroraCardView(context: Context) : View(context) {
 
   companion object {
     const val TRACE_FADE = "card.fade"
+    private val PREPDRAW = AuroraExp.on("prepdraw")
     // Card.tsx:27 BLUR_RADIUS = 1 (dp); :471/:474 radius.m − 1; :473/:503 radius.m
     const val BLUR_RADIUS_DP = 1f
     const val PICTURE_RADIUS_DP = 11f
