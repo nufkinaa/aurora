@@ -172,13 +172,18 @@ const PROXY_ART_HOSTS = new Set([
 // and unknown hosts pass through untouched.
 // `full` (artUpgrade.js): the address the picture deserves regardless of the
 // line — the one the idle-time upgrade swaps in later.
+const ART_MAX = 1920;
 export const artUrl = (u, w, { full = false } = {}) => {
   if (!u || typeof u !== "string") return u;
   // On a slow line (net.js) the picture is asked for at the size it is drawn,
   // not at the screen's 2–3× density: about a third of the bytes, and on a
   // phone-sized poster the difference is hard to see.
   const density = lite() && !full ? 1 : Math.min(2, window.devicePixelRatio || 1);
-  const wq = w ? `w=${Math.min(1280, Math.round(w * density))}` : "";
+  // 1920: as wide as the catalogue's backdrops come. (This stopped at 1280
+  // until 1.6.81, and the billboard — drawn ~2100px wide on a 1080p monitor,
+  // more on a scaled laptop — was that picture stretched: elia's "the hero
+  // always has low res photos".)
+  const wq = w ? `w=${Math.min(ART_MAX, Math.round(w * density))}` : "";
   if (u.startsWith("/img/")) {
     // library covers and the cached metadata posters; stills/frames untouched
     return wq && /^\/img\/(?:meta\/)?[A-Za-z0-9._-]+$/.test(u) ? `${u}?${wq}` : u;
@@ -192,7 +197,9 @@ export const artUrl = (u, w, { full = false } = {}) => {
 };
 
 // How wide a full-bleed hero backdrop is worth fetching for this screen.
-export const heroArtWidth = ({ full = false } = {}) => Math.min(lite() && !full ? 780 : 1280, window.innerWidth);
+// (CSS pixels — artUrl multiplies by the screen's density and stops at the
+// source's own 1920.)
+export const heroArtWidth = ({ full = false } = {}) => Math.min(lite() && !full ? 780 : ART_MAX, window.innerWidth);
 
 // A poster <img> that can never strand a grey tile. Browsers never retry a
 // failed image on their own, so one transient CDN hiccup used to leave a

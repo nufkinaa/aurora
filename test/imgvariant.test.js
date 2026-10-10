@@ -14,7 +14,7 @@ const config = require("../src/config");
 const iv = require("../src/lib/imgvariant");
 
 test("the ladder snaps up, never down, and knows the TV card widths", () => {
-  assert.deepEqual(iv.LADDER, [240, 256, 352, 360, 448, 480, 640, 800, 960, 1280]);
+  assert.deepEqual(iv.LADDER, [240, 256, 352, 360, 448, 480, 640, 800, 960, 1280, 1600, 1920]);
   assert.equal(iv.snap(248), 256); // poster, 124 dp × 2
   assert.equal(iv.snap(256), 256);
   assert.equal(iv.snap(352), 352); // landscape card, 176 dp × 2
@@ -23,7 +23,9 @@ test("the ladder snaps up, never down, and knows the TV card widths", () => {
   assert.equal(iv.snap(240), 240); // the blur-up placeholder's size is untouched
   assert.equal(iv.snap(176), 240);
   assert.equal(iv.snap(1280), 1280);
-  assert.equal(iv.snap(1281), null);
+  assert.equal(iv.snap(1281), 1600); // the website's hero on a desktop monitor
+  assert.equal(iv.snap(1920), 1920);
+  assert.equal(iv.snap(1921), null); // wider than any source: the original
   assert.equal(iv.snap(10), null);
   assert.equal(iv.snap("x"), null);
 });

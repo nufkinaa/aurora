@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.81 — 2026-10-10
+
+- **The hero is sharp on a desktop screen** (elia: "on web the hero always has low res photos"). The website never asked for a backdrop wider than 1280 pixels, whatever the screen — and the billboard draws it about 2100 wide on a 1080p monitor, more on a scaled laptop or a retina display, so every hero was a 1280 picture stretched by half again. The "sharper picture when idle" upgrade had the same ceiling, so it never helped. The site now asks for the width the hero is drawn at, up to the 1920 the artwork comes in; the server gained 1600 and 1920 steps so that arrives as a WebP rather than the 0.5–1.3 MB original. Title pages and the screensaver get the same. A slow line or Data saver still gets the small picture first, and phones ask for what they always did. Website only — the TV app is untouched and receives exactly what it did.
+
 ## 1.6.80 — 2026-10-09
 
 - **Aurora TV 5.1.30.** In the open menu the logo lines up with the rows (elia). The menu's rows are no longer focusable while it is shut: at a cold start Android's first focus search could land on them before the home page had drawn, and the menu came up open on its own.

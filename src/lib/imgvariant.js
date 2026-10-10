@@ -37,7 +37,14 @@ try {
 // 256 / 352 / 448: the TV app's poster, landscape and Continue Watching cards
 // on a 1080p set (124 / 176 / 224 dp × 2), so each is fetched at the size it
 // is drawn and decoded without a re-encode on the box.
-const LADDER = [240, 256, 352, 360, 448, 480, 640, 800, 960, 1280];
+// 1600 / 1920: the website's full-bleed hero on a desktop monitor, which is
+// drawn wider than 1280 and used to be handed the 1280 step stretched. (The
+// TV app's own ladder stops at 1280 — above it the box asks for the plain
+// address, so these two steps are never what a TV receives.)
+const LADDER = [240, 256, 352, 360, 448, 480, 640, 800, 960, 1280, 1600, 1920];
+// From here up the picture fills a monitor and is looked at, not glanced at:
+// a finer WebP (1920: ~0.98 SSIM against the source at 84, ~0.967 at 78).
+const HERO_STEP = 1600;
 const MAX_BLUR = 8;
 const MAX_CONCURRENT = 2; // ffmpeg encodes behind the video pipeline's back
 let running = 0;
@@ -124,7 +131,7 @@ const encode = (src, out, width, blur = 0) =>
     const codec = blur
       ? BLUR_CODEC
       : out.endsWith(".webp")
-      ? ["-c:v", "libwebp", "-quality", "78", "-compression_level", "4"]
+      ? ["-c:v", "libwebp", "-quality", width >= HERO_STEP ? "84" : "78", "-compression_level", "4"]
       : ["-q:v", "4"];
     execFile(
       config.FFMPEG,
