@@ -35,7 +35,7 @@
 //    the right-most cards on screen did not exist until the block moved, and
 //    then three mounted at once in view.) A press now re-renders this Row —
 //    eleven memoised cards that bail out — and mounts one card, off screen.
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {View, Text, Image, StyleSheet, Animated, TVFocusGuideView, useWindowDimensions} from 'react-native';
 import Card, {CARD_W, CARD_H, FRAME_W, FRAME_H} from './Card';
 import {HeroItem} from '../api';
@@ -71,6 +71,12 @@ export const shelfGeom = (wide: boolean, viewportW: number): RowGeom => ({
   lead: LEAD,
 });
 
+// What a shelf remembers while it is not mounted (Home's vertical window,
+// homeWindow.ts): the card focus was on, and which way it was travelling.
+// From those two the shelf comes back exactly as it was left — the same slide
+// offset, the same cards mounted, and focus returning to that card.
+export type ShelfMemory = {f: number; dir: Dir};
+
 // THE MOUNTED WINDOW, IN NUMBERS (960dp canvas; rowWindow.ts has the rule).
 // Posters (step 138): cards f-2 … f+5 intersect the viewport around focus f;
 // with two ahead and one behind that is f-3 … f+7 — 11 cards (it was 9, at
@@ -91,6 +97,8 @@ function Row({
   showKind,
   wide,
   onRemove,
+  store,
+  storeKey,
 }: {
   title: string;
   items: HeroItem[];
@@ -109,6 +117,12 @@ function Row({
   wide?: boolean;
   // Continue Watching only — draws the ✕ and binds long-press OK to removal.
   onRemove?: (item: HeroItem) => void;
+  // Given by a caller that may unmount this shelf and mount it again (Home's
+  // vertical window): where this shelf's ShelfMemory is kept, and under which
+  // key. Written on every card focus (no render); read ONCE, at mount. Without
+  // it the shelf is what it always was.
+  store?: Map<string, ShelfMemory>;
+  storeKey?: string;
 }) {
   const {width} = useWindowDimensions();
   const geom = useMemo(() => shelfGeom(!!wide, width), [wide, width]);
@@ -116,11 +130,23 @@ function Row({
   // height and the track would collapse to nothing. Both card shapes have a
   // known size (Card.tsx owns the geometry), so the row states it outright.
   const cardH = wide ? FRAME_H : CARD_H;
-  const tx = useSlide();
   const n = items ? items.length : 0;
+  // MOUNTED AGAIN (a shelf Home had replaced with a spacer): it starts where
+  // it was left, in its first commit —
+  //   • the slide already at that card's offset (no travel to see),
+  //   • the same cards mounted as when focus was last here,
+  //   • and the focus guide pointed at that card (below): a new guide has no
+  //     "last focused child", and would hand focus to its first card.
+  const kept = store && storeKey != null && n > 0 ? store.get(storeKey) : undefined;
+  // (a copy: the kept one is written on every focus)
+  const back = useRef(kept ? {f: kept.f, dir: kept.dir} : undefined).current;
+  const backF = back ? Math.max(0, Math.min(back.f, n - 1)) : -1;
+  const tx = useSlide(back ? -slideFor(backF, geom) : 0);
   // Where focus is and which way it is travelling: what the window is derived
   // from. `m` null = nobody has focused this shelf yet (it holds what shows).
-  const [at, setAt] = useState<{f: number; dir: Dir; m: Margins | null}>({f: 0, dir: 1, m: null});
+  const [at, setAt] = useState<{f: number; dir: Dir; m: Margins | null}>(() =>
+    back ? {f: backF, dir: back.dir, m: isLowRam() ? MARGINS_LOW : MARGINS} : {f: 0, dir: 1, m: null},
+  );
   const win = at.m ? rowWindow(Math.max(0, Math.min(at.f, n - 1)), at.dir, n, geom, at.m) : restWindow(n, geom);
   const from = win.from;
   const to = win.to;
@@ -133,11 +159,29 @@ function Row({
   // new onFocus (and a re-render) each time Home's data is replaced.
   const itemsRef = useRef(items);
   itemsRef.current = items;
-  const lastIdx = useRef(0);
-  const dirRef = useRef<Dir>(1);
+  const lastIdx = useRef(back ? backF : 0);
+  const dirRef = useRef<Dir>(back ? back.dir : 1);
+  // The focus guide, and the card it is pointed at until focus has come in
+  // once. `destinations` outranks the guide's own memory (ReactViewGroup
+  // .requestFocus), so it is taken away again on the first focus inside:
+  // from then on the guide remembers by itself, as it does on a shelf that
+  // was never unmounted.
+  const guide = useRef<React.ComponentRef<typeof TVFocusGuideView> | null>(null);
+  const backCard = useRef<View | null>(null);
+  const aimed = useRef(false);
+  useLayoutEffect(() => {
+    if (!back || !backCard.current || !guide.current?.setDestinations) return;
+    guide.current.setDestinations([backCard.current]);
+    aimed.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const focusCard = useCallback(
     (item: HeroItem, index: number) => {
       onItemFocus?.(item, rowIndex ?? 0);
+      if (aimed.current) {
+        aimed.current = false;
+        guide.current?.setDestinations?.([]);
+      }
 
       // Moves the TARGET of the spring that is already running (motion.ts).
       tx.to(-slideFor(index, geom));
@@ -145,6 +189,13 @@ function Row({
       if (index !== lastIdx.current) dirRef.current = index > lastIdx.current ? 1 : -1;
       lastIdx.current = index;
       const dir = dirRef.current;
+      if (store && storeKey != null) {
+        const mem = store.get(storeKey);
+        if (mem) {
+          mem.f = index;
+          mem.dir = dir;
+        } else store.set(storeKey, {f: index, dir});
+      }
       const m = isLowRam() ? MARGINS_LOW : MARGINS;
       const list = itemsRef.current || [];
       const count = list.length;
@@ -167,7 +218,7 @@ function Row({
         return aheadOf(w, dir, count, limits().row).map(i => prefetchable(list[i], {wide, frame: wide}));
       });
     },
-    [onItemFocus, rowIndex, geom, tx, wide],
+    [onItemFocus, rowIndex, geom, tx, wide, store, storeKey],
   );
 
   const window = useMemo(() => items.slice(from, to), [items, from, to]);
@@ -184,6 +235,7 @@ function Row({
           bypass a focus guide entirely (react-native-tvos#1087), and there is no
           longer a scroller in the way. */}
       <TVFocusGuideView
+        ref={guide}
         autoFocus
         trapFocusLeft
         trapFocusRight
@@ -212,6 +264,7 @@ function Row({
                 <Card
                   item={item}
                   index={index}
+                  ref={index === backF ? backCard : undefined}
                   onPress={onSelect}
                   onFocus={focusCard}
                   wide={wide}

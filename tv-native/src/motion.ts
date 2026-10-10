@@ -36,9 +36,11 @@ import {Animated, Easing} from 'react-native';
 export const SLIDE_SPRING = {speed: 12, bounciness: 0};
 
 /** A retargetable translation. `to()` may be called at input rate — every call
- *  moves the target of the running spring rather than starting a new one. */
-export function useSlide() {
-  const value = useRef(new Animated.Value(0)).current;
+ *  moves the target of the running spring rather than starting a new one.
+ *  `initial`: where it stands before anything has moved it (a shelf that is
+ *  mounted again already slid to where it was — Row.tsx). Read once. */
+export function useSlide(initial = 0) {
+  const value = useRef(new Animated.Value(initial)).current;
   const to = useCallback(
     (offset: number) => {
       Animated.spring(value, {

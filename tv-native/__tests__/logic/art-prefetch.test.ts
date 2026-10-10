@@ -140,6 +140,33 @@ describe('at rest only, a few at a time', () => {
     expect(calls.length + _artInternals.queued()).toBe(LIMITS.total);
   });
 
+  test('pictures wanted BACK (a shelf about to be mounted again): asked for although drawn before, first, and not twice at once', async () => {
+    // a first rest fetches six; all land
+    artIdle('row', wish(700, 6));
+    jest.advanceTimersByTime(IDLE_MS);
+    for (let i = 0; i < 6; i++) {
+      calls[i].done('ok');
+      await flush();
+    }
+    expect(calls.length).toBe(6);
+    expect(wasDrawn(calls[0].uri)).toBe(true);
+    // an ordinary wish for the same six: nothing to do
+    artIdle('row', wish(700, 6));
+    jest.advanceTimersByTime(IDLE_MS);
+    expect(calls.length).toBe(6);
+    // wanted back: asked again (the native side answers 'hit' when still decoded), ahead of new ones
+    artIdle('row', wish(800, 3));
+    artIdle('shelves-back', wish(700, 6), true);
+    jest.advanceTimersByTime(IDLE_MS);
+    expect(calls.length).toBe(10);
+    expect(calls.slice(6).map(c => c.uri)).toEqual(wish(700, 4)().map(s => s!.uri));
+    // a rest that comes while they are in flight does not ask for them again
+    artIdle('shelves-back', wish(700, 6), true);
+    jest.advanceTimersByTime(IDLE_MS);
+    const uris = calls.slice(6).map(c => c.uri).concat();
+    expect(new Set(uris).size).toBe(uris.length);
+  });
+
   test('without the native module nothing happens', () => {
     _artInternals.setNative(undefined);
     artIdle('row', wish(600, 6));

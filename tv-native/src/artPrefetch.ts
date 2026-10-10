@@ -75,7 +75,15 @@ export function planPrefetch(
 
 // One wish per place that has one (the focused shelf, Home's shelves below,
 // a grid); each is a function, so nothing is computed until the rest comes.
-const wants = new Map<string, () => (ImgSource | null | undefined)[]>();
+//
+// `again`: pictures this run HAS drawn, wanted back in memory — the cards of
+// a shelf Home unmounted and is about to mount again (homeWindow.ts). "Drawn
+// before" normally means "nothing to do"; for these it means "probably still
+// decoded, make sure": the native side answers 'hit' at once when it is, and
+// decodes it again from the disk cache when the memory cache let it go.
+const wants = new Map<string, {sources: () => (ImgSource | null | undefined)[]; again: boolean}>();
+// In flight or queued right now (an `again` picture is not asked for twice at once).
+const busy = new Set<string>();
 // (the way to withdraw the pending rest, settle.ts)
 let timer: (() => void) | null = null;
 let queue: ImgSource[] = [];
@@ -98,6 +106,7 @@ const pump = () => {
       )
       .then(r => {
         flying--;
+        busy.delete(s.uri);
         b[r === 'hit' || r === 'ok' ? r : 'fail']++;
         // In the cache: a card that mounts now draws it at once, so it skips
         // the blur-up placeholder (blur.ts wasDrawn), as for any picture this
@@ -117,15 +126,23 @@ const fire = () => {
   timer = null;
   if (!native) return;
   const all: (ImgSource | null | undefined)[] = [];
-  for (const f of wants.values()) {
+  const back: (ImgSource | null | undefined)[] = [];
+  for (const w of wants.values()) {
     try {
-      all.push(...f());
+      (w.again ? back : all).push(...w.sources());
     } catch {}
   }
   if (asked.size > 3000) asked.clear();
-  const plan = planPrefetch(all, u => asked.has(u) || wasDrawn(u), limits().total);
-  if (!plan.length) return;
+  const total = limits().total;
+  // what is to come BACK first: it is the nearer need, and mostly costs nothing
+  const plan = planPrefetch(back, u => busy.has(u), total);
   for (const s of plan) asked.add(s.uri);
+  plan.push(...planPrefetch(all, u => asked.has(u) || wasDrawn(u), total - plan.length));
+  if (!plan.length) return;
+  for (const s of plan) {
+    asked.add(s.uri);
+    busy.add(s.uri);
+  }
   // (what an interrupted rest left unstarted was un-asked in artIdle)
   queue = plan;
   batch = {n: plan.length, hit: 0, ok: 0, fail: 0, t0: Date.now()};
@@ -135,7 +152,10 @@ const fire = () => {
 // What a rest had queued and not started is dropped by the next move.
 const dropQueued = () => {
   if (!queue.length) return;
-  for (const s of queue) asked.delete(s.uri);
+  for (const s of queue) {
+    asked.delete(s.uri);
+    busy.delete(s.uri);
+  }
   batch.n -= queue.length;
   queue = [];
 };
@@ -146,9 +166,9 @@ onMove(dropQueued);
 
 /** Focus moved. `slot` now wants these pictures when the remote next rests;
  *  whatever an earlier rest had queued and not started is dropped. */
-export function artIdle(slot: string, sources: () => (ImgSource | null | undefined)[]) {
+export function artIdle(slot: string, sources: () => (ImgSource | null | undefined)[], again = false) {
   if (!native) return;
-  wants.set(slot, sources);
+  wants.set(slot, {sources, again});
   dropQueued();
   // (two shelves' handlers call this for one press: the second finds the
   // rest already asked for at this very moment and leaves it)
@@ -177,6 +197,7 @@ export const _artInternals = {
     queue = [];
     flying = 0;
     asked.clear();
+    busy.clear();
   },
   flying: () => flying,
   queued: () => queue.length,

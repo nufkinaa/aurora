@@ -19,7 +19,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {View, Text, Image, StyleSheet, ActivityIndicator, Animated, Easing, PixelRatio} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Btn from '../components/Btn';
-import Row, {shelfGeom} from '../components/Row';
+import Row, {shelfGeom, ShelfMemory} from '../components/Row';
 import NavRail from '../components/NavRail';
 import {ErrorState} from '../components/States';
 import TrailerFrame, {TrailerHandle, TrailerState} from '../components/Trailer';
@@ -36,7 +36,21 @@ import {resolvePartyRoute} from '../party';
 import {warmItem, warmSections} from '../prefetch';
 import {artIdle, artForget, limits as artLimits} from '../artPrefetch';
 import {prefetchable} from '../cardArt';
-import {restWindow} from '../rowWindow';
+import {restWindow, rowWindow} from '../rowWindow';
+import {
+  HOME_WINDOW,
+  EST_SHELF_H,
+  EST_WIDE_H,
+  Layout,
+  Win,
+  layoutOf,
+  nextWindow,
+  restOffset,
+  sameWin,
+  spacerHeight,
+  stepToward,
+  visibleBetween,
+} from '../homeWindow';
 import {onMessage} from '../realtime';
 import {loadPrefs} from '../storage';
 import {track} from '../usage';
@@ -432,6 +446,58 @@ export default function Home({
   const settling = useRef(false);
   // The shelf that holds focus (-1: the hero band).
   const curRow = useRef(-1);
+  const rowsRef = useRef<HomeRow[]>([]);
+  rowsRef.current = data?.rows || [];
+  // ---- the vertical window (homeWindow.ts) ---------------------------------
+  // OFF unless HOME_WINDOW: then `win` never changes and every shelf up to
+  // `reach` is mounted, as above. ON: shelves outside `win` that have been
+  // measured stand as spacers of their measured height (renderRow), so the
+  // column's height, every rowY and so every slide target stay what they were.
+  const [win, setWin] = useState<Win>({from: 0, to: 3});
+  // What is committed, for the press that comes before the next commit.
+  const winShown = useRef(win);
+  const reachShown = useRef(reach);
+  // Each shelf's measured height, by row id (a re-read of Home may reorder).
+  const rowH = useRef(new Map<string, number>()).current;
+  // What each shelf remembers while it is a spacer (Row.tsx ShelfMemory).
+  const shelfStore = useRef(new Map<string, ShelfMemory>()).current;
+  // The column as the window maths sees it: measured heights where a shelf
+  // has been laid out, Row's pitch where it has not (below everything mounted).
+  const layoutNow = useCallback(
+    (): Layout =>
+      layoutOf(
+        rowY.current[0] ?? heroH,
+        rowsRef.current.map(r => (r.items.length === 0 ? 0 : rowH.get(r.id) ?? (r.id === 'continue' ? EST_WIDE_H : EST_SHELF_H))),
+        safeBottom,
+        height,
+        spacing.pageY,
+      ),
+    [heroH, safeBottom, height, rowH],
+  );
+  // One step of the window toward where focus needs it: ONE shelf mounted and
+  // one dropped per commit, as a transition; the commit's effect (below) asks
+  // for the next step a frame later, until there is nothing left to do.
+  const pump = useCallback(() => {
+    if (!HOME_WINDOW) return;
+    const L = layoutNow();
+    if (!L.tops.length) return;
+    const cur = winShown.current;
+    const rows = rowsRef.current;
+    const f = curRow.current;
+    const next = stepToward(cur, nextWindow(cur, f, L), f, i => !!rows[i] && rowH.has(rows[i].id));
+    if (next === cur) return;
+    defer(() => {
+      setWin(w => (sameWin(w, next) ? w : next));
+      setReach(r => (next.to > r ? next.to : r));
+    });
+  }, [layoutNow, rowH]);
+  useEffect(() => {
+    winShown.current = win;
+    reachShown.current = reach;
+    if (!HOME_WINDOW) return;
+    const raf = requestAnimationFrame(pump);
+    return () => cancelAnimationFrame(raf);
+  }, [win, reach, pump]);
   // ---- hero rotation -------------------------------------------------------
   // home.js:168-173 — one title every 9s, and `holdUntil` freezes it for 15s
   // after the viewer moves it themselves.
@@ -735,7 +801,8 @@ export default function Home({
     curRow.current = -1;
     setTop(true);
     slideTo(0);
-  }, [setTop, slideTo]);
+    if (HOME_WINDOW) pump();
+  }, [setTop, slideTo, pump]);
 
   // THE HERO'S OWN KEYS (elia, 2026-10-06): RIGHT on the last button and LEFT
   // on the first move the billboard a slide, the way the site's dots do with a
@@ -824,11 +891,6 @@ export default function Home({
     (index: number) => {
       curRow.current = index;
       const y = rowY.current[index];
-      // Does the art still show where this shelf comes to rest? (see setTop)
-      const rest = y == null ? 0 : -Math.min(Math.max(0, y - spacing.pageY), Math.max(0, colH.current - height));
-      setTop(false, y == null || rest > -Math.round(heroH * 0.9));
-      if (trailerBusy.current || trailerOnRef.current) stopTrailer(false);
-      if (y == null) return;
       // The focused row comes to rest at the page's top inset — "scroll until
       // this row is at the top", which is what a viewer does on the site. The
       // hero travels off above it.
@@ -837,13 +899,38 @@ export default function Home({
       // past its own bottom. Without this the last few rows each slid to the top
       // and left a screenful of dead space under them — measured on the Streamer,
       // and it reads as a broken page rather than as the end of one.
-      const max = Math.max(0, colH.current - height);
-      slideTo(-Math.min(Math.max(0, y - spacing.pageY), max));
+      // (restOffset: the same formula the window is derived from.)
+      const rest = restOffset(y, colH.current, height, spacing.pageY);
+      // Does the art still show where this shelf comes to rest? (see setTop)
+      setTop(false, y == null || rest < Math.round(heroH * 0.9));
+      if (trailerBusy.current || trailerOnRef.current) stopTrailer(false);
+      if (y == null) {
+        if (HOME_WINDOW) pump();
+        return;
+      }
+      // Should never print: a shelf that the slide from where the column was
+      // to where it is going brings into the viewport is not mounted — the
+      // commits are running more presses late than the margin allows for.
+      // (adb logcat -s ReactNativeJS | grep "\[home\] behind")
+      const v = visibleBetween(-tyTarget.current, rest, layoutNow());
+      if (v) {
+        const from = HOME_WINDOW ? winShown.current.from : 0;
+        const to = HOME_WINDOW ? Math.min(reachShown.current, winShown.current.to) : reachShown.current;
+        const rows = rowsRef.current;
+        let missing = false;
+        for (let i = v.from; i <= v.to && !missing; i++) {
+          // (with the window on, a shelf outside it that was never measured is still mounted)
+          missing = i > reachShown.current || (HOME_WINDOW && (i < from || i > to) && !!rows[i] && rowH.has(rows[i].id));
+        }
+        if (missing) console.log(`[home] behind row=${index} visible=${v.from}..${v.to} mounted=${from}..${to}`);
+      }
+      slideTo(-rest);
       // Mounting another shelf changes what is mounted, so it goes off the input
       // path — a held DOWN must never wait for a row to render.
-      defer(() => setReach(r => (index + 3 > r ? index + 3 : r)));
+      if (HOME_WINDOW) pump();
+      else defer(() => setReach(r => (index + 3 > r ? index + 3 : r)));
     },
-    [setTop, slideTo, height, heroH, stopTrailer],
+    [setTop, slideTo, height, heroH, stopTrailer, layoutNow, pump, rowH],
   );
 
   // Continue Watching's ✕ — drawn on the focused card, removed by LONG-PRESS OK
@@ -903,47 +990,100 @@ export default function Home({
   // shelf after those; while the remote rests its first cards' pictures (the
   // ones that will show when it mounts) are fetched ahead (artPrefetch.ts).
   // Shelves above stay mounted, so going up needs nothing.
-  const rowsRef = useRef<HomeRow[]>([]);
-  rowsRef.current = data?.rows || [];
-  useEffect(() => () => artForget('shelves'), []);
+  //
+  // With the vertical window on (homeWindow.ts) there are also shelves that
+  // WERE mounted and are spacers now, above and below. The ones next to the
+  // window are the next to be mounted again, so at rest their cards' pictures
+  // — the cards each will come back with (its ShelfMemory) — are asked for
+  // again: still decoded, nothing happens; let go by the memory cache, they
+  // are decoded again before the shelf is.
+  useEffect(
+    () => () => {
+      artForget('shelves');
+      artForget('shelves-back');
+    },
+    [],
+  );
   const onRowItemFocus = useCallback(
     (it: HeroItem, rowIndex: number) => {
       toRow(rowIndex);
       warmItem(it);
       artIdle('shelves', () => {
         const out = [];
-        // (rows up to rowIndex + 3 are mounted — toRow's reach)
-        for (const r of rowsRef.current.slice(rowIndex + 4, rowIndex + 4 + artLimits().shelves)) {
+        // (rows up to rowIndex + 3 are mounted — toRow's reach; with the
+        // window on, up to the window's last shelf)
+        const first = HOME_WINDOW ? Math.max(winShown.current.to, reachShown.current) + 1 : rowIndex + 4;
+        for (const r of rowsRef.current.slice(first, first + artLimits().shelves)) {
           const wide = r.id === 'continue';
           const w = restWindow(r.items.length, shelfGeom(wide, width));
           for (const item of r.items.slice(w.from, w.to)) out.push(prefetchable(item, {wide, frame: wide}));
         }
         return out;
       });
+      if (!HOME_WINDOW) return;
+      artIdle(
+        'shelves-back',
+        () => {
+          const out: ReturnType<typeof prefetchable>[] = [];
+          const rows = rowsRef.current;
+          const {from, to} = winShown.current;
+          const add = (r: HomeRow | undefined) => {
+            if (!r || !r.items.length || !rowH.has(r.id)) return;
+            const wide = r.id === 'continue';
+            const g = shelfGeom(wide, width);
+            const mem = shelfStore.get(r.id);
+            const w = mem
+              ? rowWindow(Math.max(0, Math.min(mem.f, r.items.length - 1)), mem.dir, r.items.length, g)
+              : restWindow(r.items.length, g);
+            for (const item of r.items.slice(w.from, w.to)) out.push(prefetchable(item, {wide, frame: wide}));
+          };
+          for (let k = 1; k <= artLimits().shelves; k++) {
+            add(rows[to + k]);
+            add(rows[from - k]);
+          }
+          return out;
+        },
+        true,
+      );
     },
-    [toRow, width],
+    [toRow, width, rowH, shelfStore],
   );
 
   const renderRow = useCallback(
-    (r: HomeRow, i: number) => (
-      <View
-        key={r.id}
-        onLayout={e => {
-          rowY.current[i] = e.nativeEvent.layout.y;
-        }}>
-        <Row
-          title={r.title}
-          items={r.items}
-          onSelect={openDetail}
-          onItemFocus={onRowItemFocus}
-          rowIndex={i}
-          showKind
-          wide={r.id === 'continue'}
-          onRemove={r.id === 'continue' ? removeFromContinue : undefined}
-        />
-      </View>
-    ),
-    [openDetail, onRowItemFocus, removeFromContinue],
+    (r: HomeRow, i: number) => {
+      // A SPACER stands in for a shelf outside the window: the same wrapper
+      // (same key, so its place in the column and its rowY are untouched),
+      // with the height the shelf was measured at and nothing inside. Only a
+      // shelf that HAS been measured — one that has not stays mounted — and
+      // never an empty one (Row draws nothing for it; its height is 0).
+      const h = spacerHeight(HOME_WINDOW, i, win, r.items.length, rowH.get(r.id));
+      const spacer = h != null;
+      return (
+        <View
+          key={r.id}
+          style={spacer ? {height: h} : undefined}
+          onLayout={e => {
+            rowY.current[i] = e.nativeEvent.layout.y;
+            if (!spacer) rowH.set(r.id, e.nativeEvent.layout.height);
+          }}>
+          {spacer ? null : (
+            <Row
+              title={r.title}
+              items={r.items}
+              onSelect={openDetail}
+              onItemFocus={onRowItemFocus}
+              rowIndex={i}
+              showKind
+              wide={r.id === 'continue'}
+              onRemove={r.id === 'continue' ? removeFromContinue : undefined}
+              store={HOME_WINDOW ? shelfStore : undefined}
+              storeKey={r.id}
+            />
+          )}
+        </View>
+      );
+    },
+    [openDetail, onRowItemFocus, removeFromContinue, win, rowH, shelfStore],
   );
 
   if (!data && !error) {
