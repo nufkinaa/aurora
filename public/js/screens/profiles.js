@@ -173,16 +173,27 @@ export const pinPrompt = ({ title, note, choose = false, ok = "Continue", action
   });
 
 // This browser is locked to a kids profile and someone picked another one:
-// the household PIN first. Resolves true when it is fine to go on. Entering
-// the kids profile itself needs nothing; an older server (no kids routes) or
-// a blip has nothing to enforce here — the server-side gate is what counts.
+// the household PIN first — when the pick is a way OUT. Resolves true when it
+// is fine to go on. An older server (no kids routes) or a blip has nothing to
+// enforce here — the server-side gate is what counts.
 // `got.pin` is left holding the PIN that was just accepted, so the profile
 // being opened next doesn't ask for the same PIN a second time.
+//
+// What is not a way out, and so asks for nothing (the server's own rule —
+// POST /api/kids/enter in src/routes/profiles.js — and the TV app's):
+//   - the kids profile the browser is already locked to;
+//   - another KIDS profile that is at least as strict (its age limit is the
+//     same or lower): it can only restrict. Entering it moves the lock there.
+// A kids profile with a HIGHER limit, and any profile that is not a kids one,
+// is a way out: the PIN. Either way the profile's own password is still
+// asked where it has one (openProfile, below) — this is only about the PIN.
 const leaveKidsFirst = async (target, got = {}) => {
   let st = null;
   try { st = await api.kidsStatus(); } catch { return true; }
   const lock = st && st.lock;
   if (!lock || lock.profile === target.id) return true;
+  const limit = target.kids && typeof target.kids.maxAge === "number" ? target.kids.maxAge : null;
+  if (limit !== null && typeof lock.maxAge === "number" && limit <= lock.maxAge) return true;
   const from = state.profiles.find((x) => x.id === lock.profile);
   const lift = async (pin) => {
     await api.kidsExit(pin);
@@ -600,7 +611,8 @@ export const showProfileGate = (onChosen, opts = {}) => {
   const openProfile = async (p) => {
     // Admin-locked: no way in, not even with the password.
     if (p.locked) return toast(`That profile's been locked. Take it up with ${state.adminName}.`, "🚫");
-    // Leaving a kids profile for any other one: the household PIN first.
+    // Leaving a kids profile for a less restricted one: the household PIN
+    // first (leaveKidsFirst has the rule).
     const got = {};
     if (!(await leaveKidsFirst(p, got))) return;
     // Signed in as this profile? The session was minted by the same password
