@@ -1,0 +1,166 @@
+{
+  "host": {
+    "cpu": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+    "logical": 16,
+    "memGb": 31.9,
+    "node": "v22.13.1",
+    "when": "2026-10-10T19:33:49.447Z"
+  },
+  "threadpool": "4 (node default)",
+  "rows": [
+    {
+      "test": "1 x 8 Mbit at film speed",
+      "mbitTotal": 8,
+      "srvCores": 0.075,
+      "cpuMsPerMbit": 9.437,
+      "lagP99": 295.2,
+      "lagMax": 295.2,
+      "rssMb": 75,
+      "handles": 266,
+      "threads": 16
+    },
+    {
+      "test": "5 x 8 Mbit at film speed",
+      "mbitTotal": 40,
+      "srvCores": 0.051,
+      "cpuMsPerMbit": 1.273,
+      "lagP99": 5.5,
+      "lagMax": 5.5,
+      "rssMb": 76,
+      "handles": 284,
+      "threads": 16
+    },
+    {
+      "test": "10 x 8 Mbit at film speed",
+      "mbitTotal": 80,
+      "srvCores": 0.075,
+      "cpuMsPerMbit": 0.934,
+      "lagP99": 33,
+      "lagMax": 33,
+      "rssMb": 83,
+      "handles": 302,
+      "threads": 14
+    },
+    {
+      "test": "25 x 8 Mbit at film speed",
+      "mbitTotal": 200,
+      "srvCores": 0.177,
+      "cpuMsPerMbit": 0.886,
+      "lagP99": 16.4,
+      "lagMax": 16.4,
+      "rssMb": 79,
+      "handles": 361,
+      "threads": 14
+    },
+    {
+      "test": "50 x 8 Mbit at film speed",
+      "mbitTotal": 400,
+      "srvCores": 0.241,
+      "cpuMsPerMbit": 0.603,
+      "lagP99": 104.3,
+      "lagMax": 104.3,
+      "rssMb": 100,
+      "handles": 461,
+      "threads": 14
+    },
+    {
+      "test": "1 x 25 Mbit at film speed",
+      "mbitTotal": 25,
+      "srvCores": 0.029,
+      "cpuMsPerMbit": 1.142,
+      "lagP99": 216.7,
+      "lagMax": 216.7,
+      "rssMb": 89,
+      "handles": 265,
+      "threads": 14
+    },
+    {
+      "test": "5 x 25 Mbit at film speed",
+      "mbitTotal": 125,
+      "srvCores": 0.104,
+      "cpuMsPerMbit": 0.832,
+      "lagP99": 165.2,
+      "lagMax": 165.2,
+      "rssMb": 96,
+      "handles": 281,
+      "threads": 14
+    },
+    {
+      "test": "10 x 25 Mbit at film speed",
+      "mbitTotal": 250,
+      "srvCores": 0.168,
+      "cpuMsPerMbit": 0.671,
+      "lagP99": 49.5,
+      "lagMax": 49.5,
+      "rssMb": 113,
+      "handles": 301,
+      "threads": 14
+    },
+    {
+      "test": "25 x 25 Mbit at film speed",
+      "mbitTotal": 625,
+      "srvCores": 0.383,
+      "cpuMsPerMbit": 0.613,
+      "lagP99": 46.6,
+      "lagMax": 46.6,
+      "rssMb": 113,
+      "handles": 359,
+      "threads": 13
+    },
+    {
+      "test": "50 x 25 Mbit at film speed",
+      "mbitTotal": 1250,
+      "srvCores": 0.474,
+      "cpuMsPerMbit": 0.38,
+      "lagP99": 39.5,
+      "lagMax": 39.5,
+      "rssMb": 110,
+      "handles": 459,
+      "threads": 13
+    },
+    {
+      "test": "flat out, 1 connection(s)",
+      "mbitTotal": 250,
+      "srvCores": 0.13,
+      "cpuMsPerMbit": 0.534,
+      "lagP99": 34.2,
+      "lagMax": 34.2,
+      "rssMb": 116,
+      "handles": 260,
+      "threads": 13
+    },
+    {
+      "test": "flat out, 4 connection(s)",
+      "mbitTotal": 3277,
+      "srvCores": 1.14,
+      "cpuMsPerMbit": 0.3478,
+      "lagP99": 25.1,
+      "lagMax": 25.1,
+      "rssMb": 117,
+      "handles": 263,
+      "threads": 13
+    },
+    {
+      "test": "flat out, 16 connection(s)",
+      "mbitTotal": 5054,
+      "srvCores": 1.63,
+      "cpuMsPerMbit": 0.3217,
+      "lagP99": 32.5,
+      "lagMax": 32.5,
+      "rssMb": 86,
+      "handles": 275,
+      "threads": 13
+    },
+    {
+      "test": "20 clients that never read (198 MB file each)",
+      "rssBeforeMb": 86,
+      "rssAfterMb": 93,
+      "handles": 298
+    },
+    {
+      "test": "…after they disconnect",
+      "rssAfterMb": 93,
+      "handles": 258
+    }
+  ]
+}

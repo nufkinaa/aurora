@@ -1,0 +1,100 @@
+{
+  "host": {
+    "cpu": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+    "logical": 16,
+    "memGb": 31.9,
+    "node": "v22.13.1",
+    "when": "2026-10-10T19:37:06.719Z"
+  },
+  "rows": [
+    {
+      "test": "100 requests, the SAME uncached picture variant",
+      "n": 100,
+      "wallMs": 612,
+      "p50": 557,
+      "max": 595,
+      "codes": "{\"200\":100}",
+      "jitProducersStarted": 0,
+      "lagMax": 296.8,
+      "srvCpuSec": 0
+    },
+    {
+      "test": "100 requests, 50 DIFFERENT uncached variants (2 each)",
+      "n": 100,
+      "wallMs": 4605,
+      "p50": 1789,
+      "max": 4601,
+      "codes": "{\"200\":100}",
+      "jitProducersStarted": 0,
+      "lagMax": 51.5,
+      "srvCpuSec": 1.25
+    },
+    {
+      "test": "the same 100 again (now cached)",
+      "n": 100,
+      "wallMs": 243,
+      "p50": 222,
+      "max": 236,
+      "codes": "{\"200\":100}",
+      "jitProducersStarted": 0,
+      "lagMax": 96,
+      "srvCpuSec": 0.38
+    },
+    {
+      "test": "60 requests, arbitrary ?w= values on one picture (ladder snapping)",
+      "n": 60,
+      "wallMs": 692,
+      "p50": 573,
+      "max": 685,
+      "codes": "{\"200\":60}",
+      "jitProducersStarted": 0,
+      "lagMax": 7.2,
+      "srvCpuSec": 0.34
+    },
+    {
+      "test": "40 requests, blur 1..8 x 5 widths on one picture",
+      "n": 40,
+      "wallMs": 22608,
+      "p50": 17311,
+      "max": 22605,
+      "codes": "{\"200\":40}",
+      "jitProducersStarted": 0,
+      "lagMax": 351.6,
+      "srvCpuSec": 1.92
+    },
+    {
+      "test": "30 viewers ask for the same uncached remux segment 0",
+      "n": 30,
+      "wallMs": 911,
+      "p50": 905,
+      "max": 910,
+      "codes": "{\"200\":30}",
+      "jitProducersStarted": 1,
+      "lagMax": 7.8,
+      "srvCpuSec": 1.25
+    },
+    {
+      "test": "30 viewers ask for the same uncached ENCODED segment 0",
+      "n": 30,
+      "wallMs": 3488,
+      "p50": 3479,
+      "max": 3488,
+      "codes": "{\"200\":30}",
+      "jitProducersStarted": 1,
+      "lagMax": 26.1,
+      "srvCpuSec": 2.14
+    },
+    {
+      "test": "20 embedded-subtitle requests for the same uncached track",
+      "n": 20,
+      "wallMs": 156,
+      "p50": 152,
+      "max": 155,
+      "codes": "{\"200\":20}",
+      "jitProducersStarted": 0,
+      "lagMax": 3.2,
+      "srvCpuSec": 0.06
+    }
+  ],
+  "vttLines": []
+}

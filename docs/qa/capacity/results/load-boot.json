@@ -1,0 +1,32 @@
+{
+  "host": {
+    "cpu": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+    "logical": 16,
+    "memGb": 31.9,
+    "node": "v22.13.1",
+    "when": "2026-10-10T19:40:29.862Z"
+  },
+  "rows": [
+    {
+      "library": "27 films, 2 shows (43 files)",
+      "coldBootToProbedSec": 5.3,
+      "probeMsPerFile": 45,
+      "rssMb": 76,
+      "handles": 261
+    },
+    {
+      "library": "157 films, 30 shows (397 files)",
+      "coldBootToProbedSec": 46.6,
+      "probeMsPerFile": 106,
+      "rssMb": 93,
+      "handles": 269
+    },
+    {
+      "library": "607 films, 60 shows (1087 files)",
+      "coldBootToProbedSec": 142.2,
+      "probeMsPerFile": 123,
+      "rssMb": 113,
+      "handles": 259
+    }
+  ]
+}

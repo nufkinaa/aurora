@@ -1,0 +1,95 @@
+{
+  "host": {
+    "cpu": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+    "logical": 16,
+    "memGb": 31.9,
+    "node": "v22.13.1",
+    "when": "2026-10-10T19:47:49.766Z"
+  },
+  "rows": [
+    {
+      "test": "100 idle WebSockets",
+      "open": 100,
+      "rssMb": 95,
+      "kbPerSocket": 140.7,
+      "handles": 371,
+      "idleCores": 0.229,
+      "lagP99": 14.1
+    },
+    {
+      "test": "library_updated to 100 devices -> each refetches library+state+home",
+      "stormSecs": 6.9,
+      "requests": 600,
+      "errors": 0,
+      "codes": "{\"200\":600}",
+      "homeP50": 5165.6,
+      "homeP99": 5387.7,
+      "homeMax": 5395,
+      "lagP99": 4357.2,
+      "lagMax": 4357.2,
+      "srvCpuSec": 8.5,
+      "rssMb": 195
+    },
+    {
+      "test": "500 idle WebSockets",
+      "open": 500,
+      "rssMb": 165,
+      "kbPerSocket": 171.4,
+      "handles": 1372,
+      "idleCores": 0.646,
+      "lagP99": 109.4
+    },
+    {
+      "test": "library_updated to 500 devices -> each refetches library+state+home",
+      "stormSecs": 4.1,
+      "requests": 2232,
+      "errors": 2168,
+      "codes": "{\"0\":2168,\"200\":64}",
+      "homeP50": 1541.9,
+      "homeP99": 1922.1,
+      "homeMax": 1926.3,
+      "lagP99": 4043.5,
+      "lagMax": 4043.5,
+      "srvCpuSec": 3.8,
+      "rssMb": 407
+    },
+    {
+      "test": "1000 idle WebSockets",
+      "open": 500,
+      "rssMb": 978,
+      "kbPerSocket": 917.8,
+      "handles": 1396,
+      "idleCores": 0.756,
+      "lagP99": 1049.5
+    },
+    {
+      "test": "2000 idle WebSockets",
+      "open": 500,
+      "rssMb": 174,
+      "kbPerSocket": 47.2,
+      "handles": 1603,
+      "idleCores": 0.895,
+      "lagP99": 1964.5
+    },
+    {
+      "test": "library_updated to 500 devices -> each refetches library+state+home",
+      "stormSecs": 1.2,
+      "requests": 2011,
+      "errors": 1936,
+      "codes": "{\"0\":1936,\"200\":75}",
+      "homeP50": 398.6,
+      "homeP99": 570.7,
+      "homeMax": 578.1,
+      "lagP99": 1403.9,
+      "lagMax": 1403.9,
+      "srvCpuSec": 2.2,
+      "rssMb": 448
+    },
+    {
+      "test": "all sockets closed",
+      "rssMb": 236,
+      "handles": 270,
+      "secs": 5.1
+    }
+  ]
+}

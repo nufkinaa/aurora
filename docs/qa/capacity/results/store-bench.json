@@ -1,0 +1,95 @@
+{
+  "when": "2026-10-10T18:39:32.034Z",
+  "disk": "this machine's system SSD (NVMe) — a hard disk adds a seek and a slower write to every save",
+  "rows": [
+    {
+      "store": "profiles.json — today's size class (5 profiles x 150 played)",
+      "sizeKb": 226,
+      "loopBlockedMsPerSave": 6.98,
+      "ofWhichStringifyMs": 3.11,
+      "bootParseMs": 10.59,
+      "savesPerHour": 720,
+      "mbWrittenPerHour": 159,
+      "loopBlockedSecPerHour": 5,
+      "note": "1 viewer"
+    },
+    {
+      "store": "profiles.json — a year on (8 profiles x 1500 played)",
+      "sizeKb": 3597,
+      "loopBlockedMsPerSave": 64.32,
+      "ofWhichStringifyMs": 49.46,
+      "bootParseMs": 80.43,
+      "savesPerHour": 2400,
+      "mbWrittenPerHour": 8432,
+      "loopBlockedSecPerHour": 154.4,
+      "note": "4+ viewers"
+    },
+    {
+      "store": "profiles.json — big household (20 profiles x 3000 played)",
+      "sizeKb": 18028,
+      "loopBlockedMsPerSave": 442.81,
+      "ofWhichStringifyMs": 349.73,
+      "bootParseMs": 514.55,
+      "savesPerHour": 2400,
+      "mbWrittenPerHour": 42252,
+      "loopBlockedSecPerHour": 1062.7,
+      "note": "4+ viewers"
+    },
+    {
+      "store": "profiles.json — far end (50 profiles x 5000 played)",
+      "sizeKb": 75183,
+      "loopBlockedMsPerSave": 2164.02,
+      "ofWhichStringifyMs": 1616.2,
+      "bootParseMs": 2309.88,
+      "savesPerHour": 2400,
+      "mbWrittenPerHour": 176210,
+      "loopBlockedSecPerHour": 5193.6,
+      "note": "4+ viewers"
+    },
+    {
+      "store": "watch-sessions.json — today (300 sessions)",
+      "sizeKb": 114,
+      "loopBlockedMsPerSave": 6.12,
+      "ofWhichStringifyMs": 0.7,
+      "bootParseMs": 13.43,
+      "savesPerHour": 720,
+      "mbWrittenPerHour": 80,
+      "loopBlockedSecPerHour": 4.4,
+      "note": "1 viewer"
+    },
+    {
+      "store": "watch-sessions.json — at its cap (8000 sessions)",
+      "sizeKb": 3047,
+      "loopBlockedMsPerSave": 35.05,
+      "ofWhichStringifyMs": 21.35,
+      "bootParseMs": 47.16,
+      "savesPerHour": 2400,
+      "mbWrittenPerHour": 7141,
+      "loopBlockedSecPerHour": 84.1,
+      "note": "4+ viewers"
+    },
+    {
+      "store": "telemetry-hours.json — 90 days (its cap)",
+      "sizeKb": 230,
+      "loopBlockedMsPerSave": 6.01,
+      "ofWhichStringifyMs": 2.45,
+      "bootParseMs": 18.85,
+      "savesPerHour": 120,
+      "mbWrittenPerHour": 27,
+      "loopBlockedSecPerHour": 0.7,
+      "note": "always, viewers or not"
+    },
+    {
+      "store": "usage/events-<month>.jsonl at its 30 MB cap — replay at boot",
+      "sizeKb": 30825,
+      "loopBlockedMsPerSave": null,
+      "bootParseMs": 2673,
+      "note": "59000 batches re-applied on the event loop before the server answers"
+    },
+    {
+      "store": "…process memory after that replay",
+      "sizeKb": null,
+      "note": "heapUsed 433 MB, rss 515 MB"
+    }
+  ]
+}

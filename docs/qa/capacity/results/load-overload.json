@@ -1,0 +1,86 @@
+{
+  "host": {
+    "cpu": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+    "logical": 16,
+    "memGb": 31.9,
+    "node": "v22.13.1",
+    "when": "2026-10-10T19:36:20.533Z"
+  },
+  "rows": [
+    {
+      "step": "viewer 1: title A, full encode (h264) seg0",
+      "status": 200,
+      "ms": 3792,
+      "said": "(14002293 bytes)"
+    },
+    {
+      "step": "viewer 2: title B, full encode (h264) seg0",
+      "status": 200,
+      "ms": 3290,
+      "said": "(13994264 bytes)"
+    },
+    {
+      "step": "viewer 3: title C master?top=h264 (needs an encoder)",
+      "status": 503,
+      "ms": 87,
+      "said": "Server is busy transcoding other streams"
+    },
+    {
+      "step": "viewer 3: title C seg0 v=h264",
+      "status": 503,
+      "ms": 7,
+      "said": "Server is busy — that rendition isn't available right now"
+    },
+    {
+      "step": "viewer 3: title C playlist v=h264",
+      "status": 503,
+      "ms": 4,
+      "said": "Server is busy — that rendition isn't available right now"
+    },
+    {
+      "step": "viewer 4: title A again, same rendition (shares the segments)",
+      "status": 200,
+      "ms": 101,
+      "said": "(14002293 bytes)"
+    },
+    {
+      "step": "viewer 5: title A far ahead (seg 4) while viewer 1 is at seg 0",
+      "status": 200,
+      "ms": 32477,
+      "said": "(12385434 bytes)"
+    },
+    {
+      "step": "viewer 6: a copy (remux) of another title — copies are not capped",
+      "status": 200,
+      "ms": 539,
+      "said": "(6995702 bytes)"
+    },
+    {
+      "step": "viewer 7: lower rung 720p of the remux title (courtesy rung)",
+      "status": 503,
+      "ms": 116,
+      "said": "Server is busy — that rendition isn't available right now"
+    },
+    {
+      "step": "viewer 7: its master playlist (which rungs are offered now?)",
+      "status": 200,
+      "ms": 4,
+      "said": "#EXTM3U #EXT-X-VERSION:3 #EXT-X-INDEPENDENT-SEGMENTS #EXT-X-STREAM-INF"
+    },
+    {
+      "step": "ffmpeg processes alive (watchdog's count)",
+      "status": 3
+    },
+    {
+      "step": "legacy route: title C /0/index.m3u8?v=h264 while 2 encodes run",
+      "status": 500,
+      "ms": 6,
+      "said": "Server is busy transcoding other streams — try again in a moment"
+    }
+  ],
+  "serverLog": [
+    "[jit] producer 53469da96ab9-1791656782312-h264 from seg0 (0.0s)",
+    "[jit] producer 3f70af9daafa-1791656782312-h264 from seg0 (0.0s)",
+    "[jit] producer eb1b3379c10b-1791656748850 from seg0 (0.0s)"
+  ]
+}

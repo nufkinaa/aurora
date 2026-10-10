@@ -1,0 +1,134 @@
+{
+  "hardkill": [
+    {
+      "what": "process killed 40 times mid-save (1.3 MB store, saving flat out)",
+      "platform": "win32 10.0.26200",
+      "fileUnreadableAfterKill": 0,
+      "bootsThatFellBackToDefaults": 0,
+      "savesLostBackwards": 0,
+      "leftoverTmpFiles": 4,
+      "corruptCopiesMade": 0,
+      "finalCounter": 253
+    }
+  ],
+  "when": "2026-10-10T18:51:04.972Z",
+  "corrupt": [
+    {
+      "what": "profiles.json cut off at 60%, sessions.json empty (0 bytes)",
+      "serverStarted": true,
+      "profilesNow": [
+        "Watcher"
+      ],
+      "filesInData": [
+        "profiles.json",
+        "profiles.json.corrupt-1791657780014",
+        "sessions.json",
+        "sessions.json.corrupt-1791657779892",
+        "watch-sessions.json"
+      ],
+      "logged": [
+        "Corrupt store <data>\\sessions.json — backed up to C:\\Users\\netan\\AppData\\Local\\Temp\\aurora-ui-K6sJyR\\data\\sessions.json.corrupt-1791657779892, starting from defaults",
+        "Corrupt store <data>\\profiles.json — backed up to C:\\Users\\netan\\AppData\\Local\\Temp\\aurora-ui-K6sJyR\\data\\profiles.json.corrupt-1791657780014, starting from defaults"
+      ]
+    },
+    {
+      "what": "after the first save",
+      "profilesJsonNowHolds": [
+        "Watcher"
+      ],
+      "theBrokenCopySurvives": true,
+      "alertRaised": false
+    }
+  ],
+  "ffmpegkill": [
+    {
+      "what": "encoder killed under a viewer",
+      "firstSegment": "200 in 85384 ms",
+      "encodersKilled": 2,
+      "lastSegmentAfterKill": "200 in 85865 ms",
+      "earlierSegmentAfterKill": "200 in 45069 ms",
+      "log": [
+        "[jit] producer 53469da96ab9-1791656782312-h264 from seg0 (0.0s)",
+        "[jit] producer 53469da96ab9-1791656782312-h264 from seg5 (50.0s)",
+        "[jit] producer exited 1 (53469da96ab9-1791656782312-h264 @seg0): ",
+        "[jit] producer 53469da96ab9-1791656782312-h264 from seg1 (10.0s)"
+      ]
+    },
+    {
+      "what": "(the harness kills the whole process tree on stop, so orphaned encoders after a server crash are judged by reading, not here)",
+      "encodersRunningAtStop": 1
+    }
+  ],
+  "wsbig": [
+    {
+      "what": "32 MB WebSocket message from a socket with no session (sign-in wall closed)",
+      "result": {
+        "sent": true,
+        "ms": 3184
+      },
+      "eventLoopStalledMs": 158.3,
+      "rssBeforeMb": 73,
+      "rssAfterMb": 199,
+      "wsMaxPayloadConfigured": false
+    },
+    {
+      "what": "3000 WebSockets opened from one address, none signed in",
+      "accepted": 3000,
+      "secs": 7.2,
+      "rssMb": 120,
+      "handles": 3275
+    }
+  ],
+  "adminguess": [
+    {
+      "what": "wrong admin passwords, 32 connections, 6 s",
+      "guessesPerSec": 901.8,
+      "answers": {
+        "401": 5411
+      },
+      "afterwardsTheRightPasswordStillWorks": true,
+      "lockoutOrDelaySeen": false
+    }
+  ],
+  "flood": [
+    {
+      "what": "no session, /api/home (the wall answers 401)",
+      "rps": 943.3,
+      "codes": {
+        "401": 5754
+      },
+      "p99": 414.4,
+      "otherUsersWaitP50": 61.7,
+      "otherUsersWaitP99": 419.1,
+      "otherUsersWaitMax": 419.1,
+      "srvCores": 0.72,
+      "rateLimited": false
+    },
+    {
+      "what": "no session, /api/ping (open by design)",
+      "rps": 711.7,
+      "codes": {
+        "200": 4779
+      },
+      "p99": 781,
+      "otherUsersWaitP50": 64.3,
+      "otherUsersWaitP99": 792.1,
+      "otherUsersWaitMax": 792.1,
+      "srvCores": 0.52,
+      "rateLimited": false
+    },
+    {
+      "what": "ONE signed-in device, /api/home on 64 connections",
+      "rps": 9.7,
+      "codes": {
+        "200": 88
+      },
+      "p99": 9038.7,
+      "otherUsersWaitP50": 2.5,
+      "otherUsersWaitP99": 6444.6,
+      "otherUsersWaitMax": 6444.6,
+      "srvCores": 0.55,
+      "rateLimited": false
+    }
+  ]
+}

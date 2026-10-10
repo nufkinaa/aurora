@@ -1,0 +1,248 @@
+{
+  "endpoint": "/api/home?profile=cap0000",
+  "requests": 234,
+  "byFunction": [
+    {
+      "pct": 12.1,
+      "name": "init  (native)"
+    },
+    {
+      "pct": 10.7,
+      "name": "recencyTerm  src/media/hero.js:215"
+    },
+    {
+      "pct": 10.1,
+      "name": "spawn  (native)"
+    },
+    {
+      "pct": 5.3,
+      "name": "getNearestParentPackageJSON  (native)"
+    },
+    {
+      "pct": 4.5,
+      "name": "norm  src/media/identity.js:18"
+    },
+    {
+      "pct": 4.4,
+      "name": "fingerprint  src/media/introdetect.js:57"
+    },
+    {
+      "pct": 2.8,
+      "name": "(garbage collector)  (native)"
+    },
+    {
+      "pct": 2.8,
+      "name": "norm  src/media/imdb.js:18"
+    },
+    {
+      "pct": 2.2,
+      "name": "setCiphers  (native)"
+    },
+    {
+      "pct": 2.1,
+      "name": "libraryMaps  src/media/identity.js:61"
+    },
+    {
+      "pct": 1.6,
+      "name": "net.Socket.connect  ui-preload.js:24"
+    },
+    {
+      "pct": 1.5,
+      "name": "stringify  node_modules/express/lib/response.js:1155"
+    },
+    {
+      "pct": 1.5,
+      "name": "cachedIdFor  src/media/imdb.js:76"
+    },
+    {
+      "pct": 1.3,
+      "name": "findLibraryFor  src/media/identity.js:82"
+    },
+    {
+      "pct": 1.3,
+      "name": "NodeError  node:internal/errors:466"
+    },
+    {
+      "pct": 1.2,
+      "name": "defaultPrepareStackTrace  node:internal/errors:94"
+    },
+    {
+      "pct": 1.1,
+      "name": "cardStrip  src/routes/api.js:1003"
+    },
+    {
+      "pct": 1,
+      "name": "close  (native)"
+    },
+    {
+      "pct": 0.9,
+      "name": "(anonymous)  src/media/hero.js:400"
+    },
+    {
+      "pct": 0.8,
+      "name": "(idle)  (native)"
+    },
+    {
+      "pct": 0.7,
+      "name": "select  src/media/hero.js:374"
+    },
+    {
+      "pct": 0.7,
+      "name": "(anonymous)  node:internal/deps/undici/undici:10334"
+    },
+    {
+      "pct": 0.6,
+      "name": "markLibrary  src/media/identity.js:206"
+    },
+    {
+      "pct": 0.6,
+      "name": "(anonymous)  node:internal/deps/undici/undici:13500"
+    },
+    {
+      "pct": 0.6,
+      "name": "(anonymous)  src/media/hero.js:403"
+    },
+    {
+      "pct": 0.6,
+      "name": "wrap  (native)"
+    },
+    {
+      "pct": 0.5,
+      "name": "connect  node:internal/deps/undici/undici:2496"
+    },
+    {
+      "pct": 0.5,
+      "name": "nextTick  node:internal/process/task_queues:113"
+    },
+    {
+      "pct": 0.5,
+      "name": "getMaxListeners  node:events:950"
+    },
+    {
+      "pct": 0.5,
+      "name": "(anonymous)  src/routes/api.js:671"
+    },
+    {
+      "pct": 0.5,
+      "name": "_Request  node:internal/deps/undici/undici:9561"
+    },
+    {
+      "pct": 0.5,
+      "name": "candidates  src/media/hero.js:305"
+    },
+    {
+      "pct": 0.5,
+      "name": "connect  node:_tls_wrap:1744"
+    },
+    {
+      "pct": 0.4,
+      "name": "normalizeSpawnArguments  node:child_process:538"
+    },
+    {
+      "pct": 0.4,
+      "name": "(anonymous)  src/media/hero.js:469"
+    },
+    {
+      "pct": 0.4,
+      "name": "(program)  (native)"
+    },
+    {
+      "pct": 0.4,
+      "name": "TLSSocket  node:_tls_wrap:505"
+    },
+    {
+      "pct": 0.4,
+      "name": "recommend  src/media/hero.js:427"
+    },
+    {
+      "pct": 0.4,
+      "name": "fetch2  node:internal/deps/undici/undici:10302"
+    },
+    {
+      "pct": 0.3,
+      "name": "stat  (native)"
+    }
+  ],
+  "byFile": [
+    {
+      "pct": 38.7,
+      "name": "(native)"
+    },
+    {
+      "pct": 15.1,
+      "name": "src/media/hero.js"
+    },
+    {
+      "pct": 8.5,
+      "name": "src/media/identity.js"
+    },
+    {
+      "pct": 6.4,
+      "name": "node:internal/deps/undici/undici"
+    },
+    {
+      "pct": 4.5,
+      "name": "src/media/introdetect.js"
+    },
+    {
+      "pct": 4.4,
+      "name": "src/media/imdb.js"
+    },
+    {
+      "pct": 2.9,
+      "name": "node:internal/errors"
+    },
+    {
+      "pct": 2.2,
+      "name": "src/routes/api.js"
+    },
+    {
+      "pct": 1.7,
+      "name": "ui-preload.js"
+    },
+    {
+      "pct": 1.6,
+      "name": "node_modules/express/lib/response.js"
+    },
+    {
+      "pct": 1.6,
+      "name": "node:_tls_wrap"
+    },
+    {
+      "pct": 1.3,
+      "name": "node:events"
+    },
+    {
+      "pct": 0.7,
+      "name": "node:internal/process/task_queues"
+    },
+    {
+      "pct": 0.6,
+      "name": "src/media/discover.js"
+    },
+    {
+      "pct": 0.6,
+      "name": "node:net"
+    },
+    {
+      "pct": 0.6,
+      "name": "node:internal/modules/cjs/loader"
+    },
+    {
+      "pct": 0.6,
+      "name": "node:internal/tls/secure-context"
+    },
+    {
+      "pct": 0.5,
+      "name": "src/profiles.js"
+    },
+    {
+      "pct": 0.5,
+      "name": "src/media/taste.js"
+    },
+    {
+      "pct": 0.5,
+      "name": "node:child_process"
+    }
+  ]
+}
