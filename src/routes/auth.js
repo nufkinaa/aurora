@@ -280,9 +280,21 @@ router.post("/api/auth/device/start", (req, res) => {
 });
 
 // What the phone's confirm screen needs: who is asking (and code validity).
+// A code can be TYPED now (the /link page's code field), so a miss is counted
+// per address like a failed sign-in: ten in fifteen minutes, then 429. A code
+// only ever lets the asker give THEIR OWN session to that TV (devicepair.js),
+// so this is not what keeps pairing safe — it keeps the "who is asking"
+// answer (the TV's address and model) from being fished for by a script.
 router.get("/api/auth/device/describe/:code", (req, res) => {
+  const ip = realtime.clientIp(req);
+  if (tooMany("pairlook:" + ip)) {
+    return res.status(429).json({ error: "too many attempts — try again in a few minutes" });
+  }
   const d = devicepair.describe(req.params.code);
-  if (!d) return res.status(404).json({ error: "that code expired — ask the TV for a fresh one" });
+  if (!d) {
+    recordFail("pairlook:" + ip);
+    return res.status(404).json({ error: "that code expired — ask the TV for a fresh one" });
+  }
   res.json(d);
 });
 

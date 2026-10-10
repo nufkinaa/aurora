@@ -110,6 +110,8 @@ route("/taste", lazy("./screens/taste.js", "renderTaste"));
 route("/pick", lazy("./screens/pickforme.js", "renderPickForMe"));
 route("/new", lazy("./screens/whatsnew.js", "renderWhatsNew"));
 route("/pair/:code", (root, p) => import("./screens/pair.js").then((m) => m.renderPair(root, p)));
+// no code in the address ({host}/link, typed by hand off the TV): the code field
+route("/pair", (root) => import("./screens/pair.js").then((m) => m.renderPair(root, {})));
 
 // "?" anywhere opens the keyboard shortcuts overlay
 document.addEventListener("keydown", (e) => {
