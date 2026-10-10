@@ -5199,7 +5199,7 @@ export const renderPlayer = async (root, { id }) => {
   document.addEventListener("media-key", onMediaKey);
 
   const onBack = (e) => {
-    if (document.querySelector(".look-notice-wrap")) return; // a sheet owns Back
+    if (document.querySelector(".look-notice-wrap, .person-wrap")) return; // a sheet owns Back
     e.preventDefault();
     if (xraySheet) return closeXray(); // Back / Escape closes the X-Ray sheet, not the film
     if (upNextEl) return dismissUpNext();

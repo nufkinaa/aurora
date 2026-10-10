@@ -365,6 +365,92 @@ router.get("/api/xray", async (req, res) => {
   }
 });
 
+// A PERSON (media/person.js): who they are, a few portraits, what they made
+// — the sheet behind a press on an actor or a director. `:id` is whatever
+// X-Ray handed out for them: "tmdb:525", an IMDb "nm…", or "name:<their
+// name>" with ?of=<the title's IMDb id> (&type=movie|series) to tell two
+// people of one name apart. ?profile= says whose My List and history the
+// titles are marked against.
+//
+// Kids profiles: the same gate as everywhere (lib/kids.js) decides who is
+// asking; a title is shown only when its age rating is KNOWN and within the
+// limit — judged by the strictest reading on hand (this title's own lookup,
+// and the household's certificate cache). No biography either: it is prose
+// nobody rated.
+const personHits = new Map(); // ip -> number[] timestamps
+const PERSON_WINDOW_MS = 60 * 1000;
+const PERSON_MAX = 40;
+const personOverBudget = (ip, now = Date.now()) => {
+  const list = (personHits.get(ip) || []).filter((t) => now - t < PERSON_WINDOW_MS);
+  list.push(now);
+  personHits.set(ip, list);
+  if (personHits.size > 300) {
+    for (const [k, v] of personHits) if (!v.some((t) => now - t < PERSON_WINDOW_MS)) personHits.delete(k);
+  }
+  return list.length > PERSON_MAX;
+};
+// Pure: one credit from media/person.js → what the client gets, or null when
+// this asker may not see it. Everything it needs is handed in.
+//   maps: identity library maps; list: the profile's raw watchlist entries;
+//   row(imdbId): the profile's history row for a film; kid: { maxAge } | null;
+//   certOf(item): the kids gate's own reading.
+const personCredit = (c, { findLibrary, list = [], row = () => null, kid = null, certOf = () => null }) => {
+  const lib = findLibrary({ imdbId: c.imdbId, type: c.type, title: c.title, year: c.year });
+  if (kid) {
+    const ages = [c.kidsAge, kids.ageOf(c.certificate), kids.ageOf(certOf({ imdbId: c.imdbId, type: c.type })), lib ? kids.ageOf(certOf(lib)) : null]
+      .filter((a) => typeof a === "number" && Number.isFinite(a));
+    if (!ages.length || Math.max(...ages) > kid.maxAge) return null;
+  }
+  const inList = list.some((e) => (typeof e === "string" ? !!lib && e === lib.id : e && e.imdbId === c.imdbId));
+  const r = c.type === "movie" ? row(c.imdbId) : null;
+  const { kidsAge, ownedHint, ...pub } = c;
+  return {
+    ...pub,
+    inLibrary: lib ? lib.id : null,
+    inList,
+    watched: !!(r && r.finished),
+    ...(r && !r.finished && r.duration > 0 && r.position > 30 ? { progress: Math.min(0.99, Math.round((r.position / r.duration) * 100) / 100) } : {}),
+  };
+};
+router.get("/api/person/:id", async (req, res) => {
+  const ip = (req.ip || "").replace("::ffff:", "");
+  if (personOverBudget(ip)) return res.status(429).json({ error: "Easy — give it a minute before looking up more people." });
+  try {
+    const maps = identity._internals.libraryMaps();
+    const findLibrary = (ref) => identity.findLibraryFor(ref, maps);
+    const out = await require("../media/person").get(req.params.id, {
+      of: typeof req.query.of === "string" ? req.query.of : null,
+      type: typeof req.query.type === "string" ? req.query.type : null,
+      owned: (ref) => findLibrary(ref),
+    });
+    if (out.error) return res.status(out.status || 502).json({ error: out.error, ...(out.noKey ? { noKey: true } : {}) });
+    // whose list and history: the same test /api/home applies to ?profile=
+    const authz = require("../lib/authz");
+    const reqProfile = typeof req.query.profile === "string" ? req.query.profile : null;
+    const sess = authz.sessionFor(req);
+    const profileId =
+      reqProfile && profiles.list().some((p) => p.id === reqProfile) &&
+      authz.profileAllowed(req, reqProfile) && !profiles.isLocked(reqProfile) &&
+      ((sess && sess.profile.id === reqProfile) || !profiles.isProtected(reqProfile) || profiles.tokenValid(reqProfile, req.get("X-Profile-Token")))
+        ? reqProfile
+        : null;
+    const kid = req.kids || null;
+    const ctx = {
+      findLibrary,
+      list: profileId ? profiles.getWatchlist(profileId) : [],
+      row: profileId ? (imdbId) => profiles.getTitleRow(profileId, imdbId) : () => null,
+      kid,
+      certOf: kidsCertOf,
+    };
+    const credits = out.credits.map((c) => personCredit(c, ctx)).filter(Boolean);
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ ...out, credits, ...(kid ? { bio: null, kids: true } : {}) });
+  } catch (e) {
+    console.warn("[person] failed:", e && e.message ? e.message : e);
+    res.status(502).json({ error: "Couldn't reach the people catalogue right now." });
+  }
+});
+
 router.get("/sw-manifest.json", (req, res) => {
   const fs = require("fs");
   const pub = path.join(__dirname, "..", "..", "public");
@@ -513,11 +599,38 @@ router.get("/api/item/:id", (req, res) => {
   res.json(withOriginalAudio(item));
 });
 
-// Instant autocomplete over library + cached catalog titles: in-memory
-// index, typo-tolerant, tiny payload. See src/media/searchindex.js.
+// ---------- search (src/media/search.js) ----------
+// One ranked answer for the website and the TV app: library, cached catalogue
+// and live catalogue scored together by how well they match, then a related
+// tail. `v=2` asks for that; without it the answer keeps its old two fields
+// (`results` = library items, `catalog` = cached catalogue hits) for clients
+// from before — in the new order.
+//
+//   GET /api/search?v=2&q=…            what is in memory, at once; `pending`
+//                                      says the catalogue has more to add
+//   GET /api/search?v=2&q=…&wait=1     the same, after waiting (on a budget)
+//       &pin=<key of the first card>   for the live catalogue and the related
+//                                      row; the pinned card stays first unless
+//                                      something matches better
+//       &commit=1                      the person pressed Search: ask the
+//                                      catalogue whatever the length
+//   → { q, results, related, relatedLabel, relatedKind, anchor, pending,
+//       catalogFailed, tookMs }
+//
+// A kids profile: req.kidsAllows (set by the gate at the top of this file)
+// filters candidates BEFORE the related tail is built, so a tail is never
+// "more like" a title the profile cannot see; the gate filters the lists
+// once more on the way out.
+const searchEngine = require("../media/search");
 router.get("/api/search/suggest", (req, res) => {
   const q = String(req.query.q || "").slice(0, 80);
   if (!q.trim()) return res.json({ suggestions: [] });
+  if (String(req.query.v || "") === "2") {
+    return res.json({
+      suggestions: searchEngine.suggest(q, { limit: req.query.limit, type: req.query.type, allow: req.kidsAllows || null }),
+    });
+  }
+  // before v2: titles only, padded with genre neighbours
   res.json({
     suggestions: require("../media/searchindex").suggest(q, {
       limit: req.query.limit,
@@ -526,61 +639,23 @@ router.get("/api/search/suggest", (req, res) => {
   });
 });
 
-router.get("/api/search", (req, res) => {
-  const q = (req.query.q || "").trim().toLowerCase();
-  if (!q) return res.json({ results: [] });
-
-  // Normalized + fuzzy tiers under the exact ones: before these, ANY
-  // one-character typo returned zero library results and punctuation was
-  // load-bearing ("honey dont" found nothing) — measured in the search audit.
-  const { norm, fuzzyWordMatch } = require("../media/searchindex")._internals;
-  const nq = norm(q);
-  const nqWords = nq.split(" ").filter(Boolean);
-  const score = (title) => {
-    const t = title.toLowerCase();
-    if (t === q) return 3;
-    if (t.startsWith(q)) return 2;
-    if (t.includes(q)) return 1;
-    // every word of the query appears somewhere
-    const words = q.split(/\s+/);
-    if (words.length > 1 && words.every((w) => t.includes(w))) return 0.5;
-    const nt = norm(title);
-    if (nq && (nt === nq || nt.startsWith(nq) || nt.includes(nq))) return 0.45;
-    if (nqWords.length && fuzzyWordMatch(nqWords, nt.split(" ").filter(Boolean)))
-      return 0.42;
-    return 0;
-  };
-
-  const results = [];
-  for (const m of scanner.index.movies) {
-    const s = score(m.title);
-    if (s > 0) results.push({ score: s, item: m });
-  }
-  for (const show of scanner.index.shows) {
-    const s = score(show.title);
-    if (s > 0) results.push({ score: s, item: show });
-    else {
-      // Surface episode-title matches under their show
-      for (const season of show.seasons) {
-        for (const ep of season.episodes) {
-          if (ep.title && score(ep.title) > 0) {
-            results.push({ score: 0.4, item: show });
-            break;
-          }
-        }
-        if (results.length && results[results.length - 1].item === show) break;
-      }
-    }
-  }
-
-  results.sort((a, b) => b.score - a.score || a.item.title.localeCompare(b.item.title));
-  // `catalog`: typo-tolerant hits from the cached streamable catalogue, so the
-  // Search screen has stream cards to show while the live lookup is out.
-  let catalog = [];
+router.get("/api/search", async (req, res) => {
+  const q = String(req.query.q || "").trim().slice(0, 80);
+  const v2 = String(req.query.v || "") === "2";
+  if (!q) return res.json(v2 ? { q: "", results: [], related: [], relatedLabel: null, relatedKind: null, anchor: null, pending: false, catalogFailed: false } : { results: [] });
   try {
-    catalog = require("../media/searchindex").searchCatalog(q, 24);
-  } catch {}
-  res.json({ results: results.slice(0, 40).map((r) => r.item), catalog });
+    if (!v2) return res.json(searchEngine.legacy(q, { allow: req.kidsAllows || null }));
+    res.json(await searchEngine.search(q, {
+      wait: req.query.wait === "1",
+      commit: req.query.commit === "1",
+      pin: req.query.pin ? String(req.query.pin).slice(0, 60) : null,
+      type: req.query.type === "movie" || req.query.type === "show" ? req.query.type : null,
+      limit: req.query.limit,
+      allow: req.kidsAllows || null,
+    }));
+  } catch (err) {
+    res.status(500).json({ error: "search failed" });
+  }
 });
 
 // The order home reads in, top to bottom.
@@ -611,9 +686,16 @@ const orderRows = (rows, prefs = null) => {
   const rankOf = (id) => {
     const r = ROW_ORDER.indexOf(id);
     if (r !== -1) return r;
-    if (id.startsWith("because-")) {
-      const rec = ROW_ORDER.indexOf("recommended");
-      return rec === -1 ? ROW_ORDER.length : rec + 0.5;
+    // …and so do the recommender's other generated rows (media/recs/rank.js),
+    // in the order a person reads them: why-rows first, the stretch row last.
+    const GENERATED = [["because-", 0.5], ["theme-", 0.6], ["person-", 0.7]];
+    const rec = ROW_ORDER.indexOf("recommended");
+    for (const [prefix, offset] of GENERATED) {
+      if (id.startsWith(prefix)) return rec === -1 ? ROW_ORDER.length : rec + offset;
+    }
+    if (id === "stretch") {
+      const at = ROW_ORDER.indexOf("next-watch");
+      return at === -1 ? ROW_ORDER.length : at + 0.5;
     }
     return ROW_ORDER.length;
   };
@@ -776,6 +858,7 @@ router.get("/api/home", (req, res) => {
   });
 
   const rows = [];
+  let recsEngine = null; // the recommender's answer for this profile, if any
 
   if (profileId) {
     const cw = profiles.continueWatching(profileId);
@@ -796,11 +879,14 @@ router.get("/api/home", (req, res) => {
     });
     if (fresh.length > 0) rows.push({ id: "new-episodes", title: "New Episodes", items: fresh });
 
-    // Recommended for You — the taste model (prompt 9): explainable, per
-    // person, built from what they DID. Cold start (a profile with few
-    // signals) falls back to the old genre-tally recommender — never worse
-    // than today.
+    // Recommended for You, Because you finished X, More <theme>, From the
+    // director of X, Something Different — the recommender (media/recs):
+    // one set of personalised rows that the website and the TV both read.
+    // It answers null until its index is in memory (a moment after boot) and
+    // for a profile it knows nothing about; then the older taste model below
+    // runs, and after that the oldest genre tally — never worse than before.
     let tasteRows = null;
+    let engine = null;
     try {
       const streamItems = profiles.getStreamItems(profileId);
       const seen = new Set();
@@ -823,7 +909,22 @@ router.get("/api/home", (req, res) => {
         const f = scanner.findById(id);
         if (f && f.showId) seen.add(f.showId);
       }
-      tasteRows = require("../media/taste").homeRecommendations({
+      const kid = kidsFor(req);
+      engine = require("../media/recs").homeRows({
+        profileId,
+        // already on the page (the billboard, Continue Watching, My List) or
+        // already watched / rated / listed: never repeated in a row below
+        used: [
+          ...heroItems.flatMap((i) => [i.id, i.imdbId]),
+          ...cw.flatMap((i) => [i.id, i.imdbId, i.showId]),
+          ...seen,
+        ].filter((k) => typeof k === "string" && k),
+        // a kids profile is ranked from what it may see, so its rows are full
+        // rows — the gate in front of this router still has the last word
+        allow: kid ? (item) => kids.allowed(item, kid.maxAge, kidsCertOf) : null,
+        allowKey: kid ? String(kid.maxAge) : "",
+      });
+      if (!engine) tasteRows = require("../media/taste").homeRecommendations({
         profileId,
         // hero.recommend's old playable contract, kept: an unreleased film
         // must never be recommended — its detail page has nothing to play
@@ -835,7 +936,10 @@ router.get("/api/home", (req, res) => {
         exclude: heroItems,
       });
     } catch {}
-    if (tasteRows && tasteRows.forYou.length >= 4) {
+    if (engine) {
+      recsEngine = engine;
+      for (const r of engine.rows) rows.push(r);
+    } else if (tasteRows && tasteRows.forYou.length >= 4) {
       rows.push({ id: "recommended", title: "Recommended for You", items: tasteRows.forYou });
       for (const b of tasteRows.because) {
         rows.push({ id: `because-${b.anchor.imdbId}`, title: `Because you loved ${b.anchor.title}`, items: b.items });
@@ -872,8 +976,14 @@ router.get("/api/home", (req, res) => {
       const nxStreams = wanted.size
         ? byRating(unseen(streamAll.filter((i) => (i.genres || []).some((g) => wanted.has(g)))))
         : [];
-      const items = blendStreamFirst(nxStreams, unseen(nx.items));
-      if (items.length >= 3) rows.push({ id: "next-watch", title: "Your Next Watch", items });
+      // nothing the recommender's rows above already show
+      const placed = engine ? engine.usedKeys : null;
+      const fresh = (arr) => (placed ? arr.filter((i) => !placed.has(i.id) && !placed.has(i.imdbId)) : arr);
+      const items = blendStreamFirst(fresh(nxStreams), fresh(unseen(nx.items)));
+      if (items.length >= 3) {
+        rows.push({ id: "next-watch", title: "Your Next Watch", items });
+        if (placed) for (const i of items) { if (i.id) placed.add(i.id); if (i.imdbId) placed.add(i.imdbId); }
+      }
     }
   }
 
@@ -886,10 +996,18 @@ router.get("/api/home", (req, res) => {
     const topRated = local.filter((i) => userRating(i) >= 4).sort((a, b) => userRating(b) - userRating(a));
     if (topRated.length >= 2) rows.push({ id: "top-rated", title: "Top Rated by You", items: topRated });
 
+    // "More <genre>" for the genres picked in Settings. With the recommender
+    // up, each shelf is in the person's own order (their fit first, then the
+    // public rating) and skips what the rows above already show.
+    const placed = recsEngine ? recsEngine.usedKeys : null;
     for (const genre of likedGenres.slice(0, 4)) {
       const items = [...local, ...streamAll]
         .filter((i) => (i.genres || []).includes(genre))
-        .sort((a, b) => (userRating(b) - userRating(a)) || ((b.rating || 0) - (a.rating || 0)));
+        .filter((i) => !placed || (!placed.has(i.id) && !placed.has(i.imdbId)))
+        .sort((a, b) =>
+          (userRating(b) - userRating(a)) ||
+          (recsEngine ? recsEngine.scoreOf(b) - recsEngine.scoreOf(a) : 0) ||
+          ((b.rating || 0) - (a.rating || 0)));
       if (items.length >= 3) rows.push({ id: `liked-${genre}`, title: `More ${genre}`, items: dedupeByTitle(items, 24) });
     }
   }
@@ -1030,6 +1148,6 @@ const tvStrip = (i) => {
 
 // Test-only: the home-row composer's merge rules are contracts (never drop
 // unknown rows, never hero "upcoming") — pinned in test/roworder.test.js.
-router._internals = { orderRows, kidsFor, kidsCertOf, kidsSession: kidsDeps.session, tvStrip, cardStrip };
+router._internals = { orderRows, kidsFor, kidsCertOf, kidsSession: kidsDeps.session, tvStrip, cardStrip, personCredit, personOverBudget };
 
 module.exports = router;

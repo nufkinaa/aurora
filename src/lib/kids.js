@@ -325,6 +325,9 @@ const createGate = (deps) => {
       return true;
     };
     const keep = (list) => (Array.isArray(list) ? list.filter(ok) : list);
+    // for a handler that has to choose BEFORE it answers (search builds its
+    // "more like …" tail on the best match: that match must be one it may show)
+    req.kidsAllows = ok;
 
     // Filter the answer on its way out. Only 2xx object bodies; a filter that
     // throws fails CLOSED — better an error than an unfiltered list.
@@ -385,7 +388,18 @@ const createGate = (deps) => {
       if (p === "/api/library") return fields("movies", "shows");
       if (p === "/api/library/for") return rewrite((b) => ({ ...b, item: b.item && ok(b.item) ? b.item : null }));
       if (p === "/api/popular" || p === "/api/catalog" || p.startsWith("/api/discover/similar/")) return fields("items");
-      if (p === "/api/search") return fields("results", "catalog");
+      if (p === "/api/search") return fields("results", "catalog", "related");
+      if (p === "/api/search/suggest" && String((req.query || {}).v || "") === "2") {
+        // v2 rows are titles, people and genres. Titles are judged; a person
+        // or a genre is only listed by the engine when it has a title this
+        // profile may see (it was handed req.kidsAllows).
+        return rewrite((body) => ({
+          ...body,
+          suggestions: Array.isArray(body.suggestions)
+            ? body.suggestions.filter((s) => s && (s.kind === "person" || s.kind === "genre" || ok(s)))
+            : [],
+        }));
+      }
       if (p === "/api/search/suggest") {
         // Scarce matches are padded with "More like <the best match>" — and
         // that heading NAMED the best match even when it had just been

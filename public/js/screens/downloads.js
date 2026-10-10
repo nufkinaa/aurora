@@ -77,6 +77,20 @@ const describeBase = (job) => {
       };
     }
     case "approved":
+      // A My List download that was running and gave way (the server keeps
+      // what it has, and carries on from there): `held`, with its progress.
+      if (job.held) {
+        return {
+          tone: "wait",
+          head: "On hold",
+          line: [
+            job.heldReason === "watching" ? "waiting while someone is watching" : "waiting for other downloads",
+            `${Math.round((job.progress || 0) * 100)}% so far`,
+          ].join(" · "),
+        };
+      }
+      // …and one that has not started: every other download goes first.
+      if (job.auto === "mylist") return { tone: "wait", head: "Queued", line: "Starts after the other downloads" };
       return { tone: "wait", head: "Queued", line: "Starts when a download slot frees up" };
     case "pending":
       return {
@@ -177,7 +191,7 @@ const row = (job, { others = false } = {}) => {
           disabled: busy.has(job.id) || undefined,
           onclick: async (e) => {
             const b = e.currentTarget; // gone from the event once the await returns
-            if (job.status === "downloading" && (job.progress || 0) > 0.05) {
+            if ((job.status === "downloading" || job.held) && (job.progress || 0) > 0.05) {
               const ok = await confirmSheet({
                 title: `Cancel “${job.label || job.title}”?`,
                 text: `It's ${Math.round((job.progress || 0) * 100)}% down. Cancelling throws that away; you can always ask for it again.`,
@@ -231,14 +245,15 @@ const row = (job, { others = false } = {}) => {
       );
     }
   }
-  const pct = job.status === "downloading" && job.phase !== "copying" ? Math.round((job.progress || 0) * 100) : null;
+  // (a job on hold keeps its bar: that much is on disk and is not lost)
+  const pct = (job.status === "downloading" && job.phase !== "copying") || job.held ? Math.round((job.progress || 0) * 100) : null;
   const sub = [];
   if (job.type === "show" && job.season && job.episode && !/S\d+ ?E\d+/i.test(job.label || "")) sub.push(`S${job.season} E${job.episode}`);
   if (job.quality) sub.push(job.quality);
   if (job.provider && !others) sub.push(job.provider);
   return el(
     "div",
-    { class: `dl-row tone-${d.tone} ${job.status}${fresh ? " fresh" : ""}${others ? " others" : ""}`, "data-id": job.id },
+    { class: `dl-row tone-${d.tone} ${job.status}${job.held ? " held" : ""}${fresh ? " fresh" : ""}${others ? " others" : ""}`, "data-id": job.id },
     el(
       "div",
       { class: "dl-poster" },
@@ -280,7 +295,7 @@ const row = (job, { others = false } = {}) => {
 // it, and only rows whose state actually changed are rebuilt.
 const rowCache = new Map(); // id -> { sig, node }
 const rowSig = (j, others) =>
-  [j.status, j.phase || "", j.libraryId || "", !!j.seenAt, j.error || "", j.holdReason || "", j.label || j.title, others, busy.has(j.id)].join("|");
+  [j.status, j.phase || "", j.libraryId || "", !!j.seenAt, j.error || "", j.holdReason || "", j.label || j.title, others, busy.has(j.id), j.held ? j.heldReason || "held" : "", j.auto || ""].join("|");
 const rowFor = (j, others) => {
   const sig = rowSig(j, others);
   const hit = rowCache.get(j.id);
@@ -409,7 +424,7 @@ export const renderDownloads = async (root) => {
     }
     const sameShape =
       prev && prev.status === job.status && (prev.phase || null) === (job.phase || null) &&
-      (prev.libraryId || null) === (job.libraryId || null) && !!prev.seenAt === !!job.seenAt;
+      (prev.libraryId || null) === (job.libraryId || null) && !!prev.seenAt === !!job.seenAt && !!prev.held === !!job.held;
     if (!(sameShape && patchRow(job))) paint();
   });
   return () => {

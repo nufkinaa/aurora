@@ -893,6 +893,66 @@
   position: static;
   flex-shrink: 0;
 }
+/* the letters that matched what was typed */
+.suggest-title mark {
+  background: none;
+  color: var(--accent);
+  font-weight: 800;
+}
+/* a person or a genre: an icon where a title has its poster */
+.suggest-icon {
+  display: grid;
+  place-items: center;
+  height: 34px;
+  border-radius: 50%;
+  color: var(--text-dim);
+  font-size: inherit;
+}
+.suggest-genre .suggest-icon {
+  border-radius: 8px;
+}
+
+/* a recent search: the chip that runs it, and a small ✕ that forgets it */
+.recent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.recent-x {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--text-faint);
+}
+.recent-x:hover,
+.recent-x:focus {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.recent-clear {
+  margin-left: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: var(--text-faint);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.recent-clear:hover,
+.recent-clear:focus {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+/* the related tail under the matches: a row heading, then the grid goes on */
+.search-related {
+  margin-top: 0;
+}
+.search-related .row-title {
+  margin-bottom: 4px;
+}
 
 .search-wrap {
   padding: calc(var(--nav-h) + 42px) var(--page-x) 10px;
@@ -3719,6 +3779,9 @@
 .dl-row.tone-ok { --dl-tone: #4ade80; }
 .dl-row.tone-busy { --dl-tone: var(--accent, #7c64ff); }
 .dl-row.tone-wait { --dl-tone: #f5c542; }
+/* On hold (a My List download that gave way to the others): the bar stays —
+   that much is on disk — but it is plainly not moving. */
+.dl-row.held .dl-bar-fill { background: var(--dl-tone); opacity: 0.55; }
 .dl-row.tone-bad { --dl-tone: #ff7a7a; }
 .dl-row.fresh {
   border-color: rgba(74, 222, 128, 0.45);

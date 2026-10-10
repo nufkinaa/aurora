@@ -25,6 +25,12 @@ export const watchlistButton = (item) => {
     }).catch(() => {});
   }
   paint();
+  // the same title put on (or taken off) the list from a person's sheet
+  const onElsewhere = (e) => {
+    if (!btn.isConnected) return window.removeEventListener("aurora-watchlist", onElsewhere);
+    if (e.detail && e.detail.libraryId === item.id) { inList = !!e.detail.inList; paint(); }
+  };
+  window.addEventListener("aurora-watchlist", onElsewhere);
 
   btn.addEventListener("click", async () => {
     if (!state.profile) return;

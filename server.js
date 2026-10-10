@@ -384,7 +384,22 @@ require("./src/media/introdetect");
   // stale, then leave, when nobody watches them; failed ones get their one
   // more try (media/mylistdl.js has the rules).
   daily.register("my-list-downloads", () => require("./src/media/mylistdl").daily());
+  // The recommender's knowledge of titles (media/recs): what people watched,
+  // the catalogue they browse, and a bounded step along what each person
+  // likes — so Home is not limited to this week's trending. TMDB only, free,
+  // counted and capped (recs/index.js BUDGET); without a key it still learns
+  // the catalogue's own genres and plots.
+  daily.register("recommendations", () => require("./src/media/recs").sync());
   daily.start();
+}
+// The recommender reads its index into memory a little after boot and again
+// after each scan (a no-op when nothing changed). No network; until the first
+// build finishes Home falls back to the older taste model.
+{
+  const warmRecs = () => require("./src/media/recs").warm().catch(() => {});
+  const t = setTimeout(warmRecs, 15 * 1000);
+  t.unref?.();
+  scanner.events.on("scanned", warmRecs);
 }
 // Followed shows: new episodes download by themselves when they air.
 require("./src/media/follows").start();

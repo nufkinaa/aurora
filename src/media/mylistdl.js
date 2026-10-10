@@ -30,6 +30,12 @@
 //             `auto: "mylist"` and `smart: true`: the queue, the slots, the
 //             second-source race, the disk gate at start time and the
 //             "tidy up after watching" rule for episodes all apply unchanged.
+//   Last      In the queue it is the LOWEST priority of all, and it is put on
+//             hold — what it has is kept — while anything else needs to be
+//             downloaded (the owner, 2026-10-10; the rule is dlslots.plan(),
+//             the setting is myListYield). Waiting or on hold, its job is
+//             simply still "approved" in the queue: nothing here changes, and
+//             the clocks below start when it LANDS, however much later.
 //
 //   Watched   Any profile has real progress on the copy SINCE it was asked
 //             for: finished (a hand mark counts) or at least a minute in.
@@ -82,6 +88,10 @@ const DEFAULTS = Object.freeze({
   myListAutoDelete: true,  // false: nothing is deleted by itself, stale copies only show as suggestions
   myListDailyCap: 5,       // downloads one profile's list may start per 24 hours
   myListRetries: 1,        // how many later daily passes may try a failed one again
+  // How a My List download gives way to the others (media/dlslots.js):
+  // "always" — on hold while any other download is waiting or running;
+  // "slots"  — only while another download is waiting for a slot.
+  myListYield: "always",
 });
 const LIMITS = Object.freeze({
   myListStaleDays: [1, 365],
@@ -90,6 +100,7 @@ const LIMITS = Object.freeze({
   myListRetries: [0, 5],
 });
 const BOOLS = ["myListDownloads", "myListShows", "myListAutoDelete"];
+const YIELD_MODES = require("./dlslots").YIELD_MODES;
 const NUMS = Object.keys(LIMITS);
 
 const wholeIn = (v, [lo, hi]) => {
@@ -105,6 +116,7 @@ const readSettings = (data) => {
   const out = {};
   for (const k of BOOLS) out[k] = typeof d[k] === "boolean" ? d[k] : DEFAULTS[k];
   for (const k of NUMS) out[k] = wholeIn(d[k], LIMITS[k]) ?? DEFAULTS[k];
+  out.myListYield = YIELD_MODES.includes(d.myListYield) ? d.myListYield : DEFAULTS.myListYield;
   if (out.myListDeleteDays < out.myListStaleDays) out.myListDeleteDays = out.myListStaleDays;
   return out;
 };
@@ -128,6 +140,10 @@ const parseSettings = (body, current) => {
     const n = wholeIn(b[k], LIMITS[k]);
     if (n == null) return { error: `${names[k]} must be a whole number from ${LIMITS[k][0]} to ${LIMITS[k][1]}.` };
     next[k] = n;
+  }
+  if (b.myListYield !== undefined) {
+    if (!YIELD_MODES.includes(b.myListYield)) return { error: `Gives way must be one of: ${YIELD_MODES.join(", ")}.` };
+    next.myListYield = b.myListYield;
   }
   if (next.myListDeleteDays < next.myListStaleDays) {
     return { error: "Delete after must not be sooner than Stale after." };
@@ -677,6 +693,8 @@ const make = (deps) => {
     d.saveSettings();
     const changed = Object.keys(r.value).filter((k) => r.value[k] !== before[k]);
     if (changed.length) log(`settings changed: ${changed.map((k) => `${k}=${r.value[k]}`).join(", ")}`);
+    // The queue reads myListYield on its next look — make that look now.
+    if (changed.includes("myListYield") && d.requeue) { try { d.requeue(); } catch (e) { warn(`pass failed: ${(e && e.message) || e}`); } }
     return { ok: true, settings: r.value };
   };
 
@@ -760,6 +778,7 @@ const realDeps = () => {
     jobs: () => downloads.rawJobs(),
     createJob: (fields) => downloads.create(fields),
     cancelJob: (id) => downloads.cancel(id),
+    requeue: () => downloads.pumpNow(),
     diskGate: (type, sizeBytes) => downloads.diskGate(type, sizeBytes),
     listsWith: (title) => {
       const lib = identity.findLibraryFor(title);

@@ -367,7 +367,9 @@ export type TorrentPlayItem = {
 // A download-to-server job, as /api/downloads reports it (src/media/downloads.js
 // publicJob). Only the fields the TV actually renders are typed here.
 // X-Ray (media/xray.js): who is in this, who made it, what people thought.
-export type XrayPerson = {name: string; role?: string | null; job?: string | null; photo?: string | null};
+// `id`: who this is to /api/person ("tmdb:525") — only some sources give one;
+// everyone else is asked for by name (components/PersonSheet.tsx).
+export type XrayPerson = {name: string; role?: string | null; job?: string | null; photo?: string | null; id?: string | null};
 export type XrayRating = {source: string; value: number | string; scale?: number; votes?: number};
 export type XrayEpisode = {
   season: number;
@@ -390,6 +392,47 @@ export type XrayData = {
   facts?: {label: string; value: string}[];
   anthology?: boolean;
   episode?: XrayEpisode | null;
+  error?: string;
+  // the title this answer is about, as the server resolved it
+  imdbId?: string | null;
+  type?: 'movie' | 'series';
+};
+
+// A person (the server's media/person.js): portraits of them and what they
+// made, each title marked for the asking profile. `photos[].url` is an
+// address the image proxy sizes (artSrc); `credits` arrive grouped by `dept`,
+// the person's own department first.
+export type PersonCredit = {
+  key: string;
+  imdbId: string;
+  type: 'movie' | 'show';
+  title: string;
+  year?: number | null;
+  role?: string;
+  dept: string;
+  deptLabel?: string;
+  poster?: string | null;
+  rating?: number | null;
+  genres?: string[];
+  certificate?: string | null;
+  inLibrary?: string | null;
+  inList?: boolean;
+  watched?: boolean;
+  progress?: number;
+};
+export type PersonData = {
+  id: string;
+  imdbId?: string | null;
+  name: string;
+  knownFor?: string | null;
+  born?: string | null;
+  died?: string | null;
+  place?: string | null;
+  bio?: string | null;
+  photos: {url: string; thumb?: string; full?: string}[];
+  credits: PersonCredit[];
+  partial?: boolean;
+  kids?: boolean;
   error?: string;
 };
 export type XrayQuery = {itemId?: string; type?: 'movie' | 'series'; imdbId?: string | null; season?: number | null; episode?: number | null};
@@ -538,6 +581,32 @@ export type TrailerAnswer =
   | {source: 'none'; why?: string};
 export type Library = { movies: Item[]; shows: Item[] };
 export type Discover = { movies: HeroItem[]; shows: HeroItem[] };
+
+// /api/search?v=2 (src/media/search.js): one ranked list — library and
+// catalogue together — then a related tail. `key` identifies a card across
+// the two answers of one search; `meta` says why a card is there when its
+// title is not what matched ("S2 E5 · Pine Barrens", "With Tom Hardy").
+export type SearchCard = HeroItem & {key?: string; meta?: string};
+export type SearchAnswer = {
+  results: SearchCard[];
+  related: SearchCard[];
+  relatedLabel: string | null;
+  pending: boolean;
+  catalogFailed?: boolean;
+};
+// /api/search/suggest?v=2: a title, a person or a genre.
+export type SearchSuggestion = {
+  kind: 'title' | 'person' | 'genre';
+  id?: string;
+  imdbId?: string;
+  type?: 'movie' | 'show';
+  title?: string;
+  year?: number | null;
+  cover?: string | null;
+  inLibrary?: boolean;
+  name?: string;
+  count?: number;
+};
 
 class ApiError extends Error {
   status: number;
@@ -1107,6 +1176,17 @@ export const api = {
     const run = () => request<{ items: HeroItem[]; page: number; hasMore: boolean }>(path);
     return (params.page ?? 0) === 0 ? memo(path, 60000, run) : run();
   },
+  // "More like this" for one title — the server's row, the same one the website
+  // shows (src/media/similar.js). With a profile it comes back in that
+  // person's order, without what they have already watched.
+  similar: (type: 'movie' | 'series', imdbId: string, profileId?: string | null) => {
+    const path =
+      `/api/discover/similar/${type}/${encodeURIComponent(imdbId)}` +
+      (profileId ? `?profile=${encodeURIComponent(profileId)}` : '');
+    return memo(path, 10 * 60000, () =>
+      request<{ items: HeroItem[]; source?: string; personalised?: boolean }>(path),
+    );
+  },
   // The genres the catalog can actually serve, so the picker never offers one
   // that comes back empty.
   catalogGenres: (type: 'movie' | 'show') =>
@@ -1124,6 +1204,30 @@ export const api = {
     }),
   discoverSearch: (q: string) =>
     request<Discover>(`/api/discover/search?q=${encodeURIComponent(q)}`),
+  // The one ranked search, the same the website uses. Without `wait` the
+  // server answers from memory at once (`pending`: the catalogue has more);
+  // with it, after the live catalogue and the related row. `pin`: the card
+  // that is first on screen stays first unless something matches better.
+  searchAll: (q: string, o: {wait?: boolean; commit?: boolean; pin?: string | null; profileId?: string} = {}) =>
+    request<SearchAnswer>(
+      `/api/search?v=2&q=${encodeURIComponent(q)}${o.wait ? '&wait=1' : ''}${o.commit ? '&commit=1' : ''}` +
+        `${o.pin ? `&pin=${encodeURIComponent(o.pin)}` : ''}${o.profileId ? `&profile=${encodeURIComponent(o.profileId)}` : ''}`,
+    ),
+  searchSuggest: (q: string, profileId?: string) =>
+    request<{suggestions: SearchSuggestion[]}>(
+      `/api/search/suggest?v=2&limit=6&q=${encodeURIComponent(q)}${profileId ? `&profile=${encodeURIComponent(profileId)}` : ''}`,
+    ),
+  // Recent searches, kept per profile on the server (the website's list too).
+  recentSearches: (profileId: string) => request<{items: string[]}>(`/api/profiles/${profileId}/searches`),
+  addRecentSearch: (profileId: string, q: string) => post<{items: string[]}>(`/api/profiles/${profileId}/searches`, {q}),
+  removeRecentSearch: (profileId: string, q?: string) =>
+    request<{items: string[]}>(`/api/profiles/${profileId}/searches`, {
+      method: 'DELETE',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(q == null ? {} : {q}),
+    }),
+  // "Popular in this house": what the household has been watching lately.
+  popular: (profileId: string) => request<{items: HeroItem[]}>(`/api/popular?profile=${encodeURIComponent(profileId)}`),
   discoverMeta: (type: 'movie' | 'series', imdbId: string) =>
     memo(`meta:${type}:${imdbId}`, 10 * 60000, () =>
       request<DiscoverMeta>(`/api/discover/meta/${type}/${imdbId}`),
@@ -1232,6 +1336,15 @@ export const api = {
     if (q.season) p.set('season', String(q.season));
     if (q.episode) p.set('episode', String(q.episode));
     return request<XrayData>(`/api/xray?${p.toString()}`);
+  },
+  // A person, by what X-Ray handed out for them ("tmdb:525") or by name
+  // ("name:Bryan Cranston") with the title they were pressed on.
+  person: (id: string, o: {of?: string | null; type?: 'movie' | 'series' | null; profile?: string | null} = {}) => {
+    const p = new URLSearchParams();
+    if (o.of) p.set('of', o.of);
+    if (o.type) p.set('type', o.type);
+    if (o.profile) p.set('profile', o.profile);
+    return request<PersonData>(`/api/person/${encodeURIComponent(id)}?${p.toString()}`);
   },
   // Request a download-to-server. It starts immediately unless the server is
   // low on disk space, in which case `needsApproval` comes back true and an

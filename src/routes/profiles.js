@@ -677,6 +677,24 @@ router.post("/api/profiles/:id/follow", gate, (req, res) => {
   res.json(r);
 });
 
+// Recent searches, on the server so every device of a profile shows the same
+// list (they used to live in each browser's storage; the TV had none).
+//   GET    → { items: ["dune", …] }      newest first
+//   POST   { q }  → remembers one        (a search that found something)
+//   DELETE { q }  → forgets one;  DELETE with no q → forgets them all
+router.get("/api/profiles/:id/searches", gate, (req, res) => {
+  res.json({ items: profiles.searchesOf(req.params.id) });
+});
+router.post("/api/profiles/:id/searches", gate, (req, res) => {
+  const q = (req.body || {}).q;
+  if (typeof q !== "string" || q.trim().length < 2) return res.status(400).json({ error: "q required" });
+  res.json({ items: profiles.addSearch(req.params.id, q) });
+});
+router.delete("/api/profiles/:id/searches", gate, (req, res) => {
+  const q = (req.body || {}).q != null ? (req.body || {}).q : req.query.q;
+  res.json({ items: profiles.removeSearch(req.params.id, typeof q === "string" ? q : null) });
+});
+
 // Web Push. The key is public by design; a subscription is filed under the
 // profile that switched it on, and the service worker reads its waiting
 // messages by the hash of its own endpoint (lib/push.js).

@@ -3,6 +3,27 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.89 — 2026-10-10
+
+- **Search finds what you typed, first.** Type a title's exact name and it is the first card — it used to sit in the second or third row, because the page showed every library hit, then cached catalogue hits, then all films before all series, whatever matched best ("The Office" was the 14th card, behind thirteen films with "office" in the name). Now one list is ranked by how well each title matches: the exact name (ignoring capitals, accents, punctuation, a leading "the", and with or without the year), then names that start with what you typed, then whole-word matches, then near-misses and typos, then episode titles, then cast and directors, then the synopsis. A library copy and its catalogue twin are one card.
+- **More to browse after the matches.** Under the accurate results there is a "More like …" row: the same franchise, the same makers and cast, and close neighbours of the top match — or, when you searched a person or a genre, their titles.
+- **Suggestions rebuilt.** They start from the first letter, show titles you can actually open (the library first), and include people and genres with their own icons — "tom h" offers Tom Hardy, Tom Hanks, Tom Holland instead of unrelated films. No more padding with loosely related titles, and the top suggestion does not jump around as you keep typing.
+- Search can now find an episode by its title ("pine barrens" → The Sopranos, S3 E11) and titles by a cast member's name.
+- Recent searches are kept with your profile, so they follow you between devices, each with its own ✕ and a Clear. An empty search shows "Popular in this house".
+- The TV app uses the same search from its next update (it used to match plain text in the library only).
+
+## 1.6.88 — 2026-10-10
+
+- **Recommendations that know more about titles and about you.** Aurora now keeps a record of each title beyond its genres — its themes and moods (108 of them: heists, slow-burn mysteries, courtroom dramas, found families, dystopias…), who made it and who is in it, its franchise, and which other titles people who liked it also liked — and it reads more from what you do: finishing a film, binging a series, coming back to rewatch, following a show, adding to My List, dropping something after the pilot, or removing it from Continue Watching all count, with recent weeks weighing more than last year. It also looks further afield for candidates: the neighbours of your favourite titles, other work by the makers you return to, and more of the themes you like, not only this week's trending list.
+- Home gets rows that say why: "Because you finished …", "More heists & capers", "From the director of …", and "Something Different" for a deliberate step outside your usual. Nothing you have watched appears in them, nothing repeats between them, and the mix follows your own proportions instead of piling up one genre. A new profile starts from its Settings picks and from what the rest of the house has liked.
+- "More like this" is now the same on the website and the TV app (the TV used a plain genre list), ordered for the person asking.
+- The title records are collected a few hundred a day from TMDB, so the new rows get fuller over the first few days after this update.
+
+## 1.6.87 — 2026-10-10
+
+- **Press a person, see their work.** On the website (phone and desktop), pressing an actor or the director — in X-Ray or in the cast line of a title page — opens a sheet on top of what you were doing instead of jumping to search: a few portraits of them, a short biography, and their films and shows, the ones already in the library first. Pressing a title adds it to My List (the card shows a tick; press again or use Undo to take it off); "Details", a long press, a right-click or the I key opens the title's page instead. It works over a film, in fullscreen too, and the film stays as you left it. A kids profile only sees titles it is allowed. Photos and filmographies come from TMDB (IMDb offers no way to fetch them); the sheet links to the person's IMDb page. The TV app gets the same sheet with its next update.
+- **My List downloads wait their turn.** A download that started because someone added a title to their list is now the lowest priority: it starts after every other download, and while anything else is waiting or downloading it goes on hold, keeping what it already has, and carries on by itself about a minute after the queue is quiet. Downloads people ask for come first, then next-episode and followed-show downloads, then My List. Held downloads show as "On hold" with their progress; Admin → Downloads has "Start now" for them, and a setting to let them run alongside other downloads whenever a slot is free instead.
+
 ## 1.6.86 — 2026-10-10
 
 Fixes on the website and the server, from a side-by-side check of the website and the TV app.
