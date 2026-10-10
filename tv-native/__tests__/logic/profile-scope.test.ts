@@ -231,6 +231,38 @@ describe('the request cache', () => {
     expect(sent).toHaveLength(2);
   });
 
+  test('More like this is one person’s row: asked again for the next profile, and gone on a switch', async () => {
+    setActiveProfile('grownup');
+    queue(ok({items: [{id: 'x', imdbId: 'tt9', title: 'Not for kids'}], personalised: true}));
+    expect((await api.similar('movie', 'tt1', 'grownup')).items).toHaveLength(1);
+    await api.similar('movie', 'tt1', 'grownup');
+    expect(sent).toHaveLength(1); // kept for the same person
+    expect(sent[0].url).toContain('/api/discover/similar/movie/tt1?profile=grownup');
+    setActiveProfile('kid');
+    queue(ok({items: []}));
+    expect((await api.similar('movie', 'tt1', 'kid')).items).toHaveLength(0);
+    expect(sent).toHaveLength(2);
+    clearProfileCaches();
+    expect(_memoInternals.keys()).toEqual([]);
+  });
+
+  test('search, its suggestions, recents, the popular shelf and a person are never kept: each is asked as whoever is active', async () => {
+    setActiveProfile('grownup');
+    queue(ok({results: [], related: [], relatedLabel: null, pending: false}), ok({suggestions: []}), ok({items: ['dune']}), ok({items: []}), ok({id: 'tmdb:1', name: 'A', photos: [], credits: []}));
+    await api.searchAll('dune', {profileId: 'grownup'});
+    await api.searchSuggest('dune', 'grownup');
+    await api.recentSearches('grownup');
+    await api.popular('grownup');
+    await api.person('tmdb:1', {profile: 'grownup'});
+    expect(_memoInternals.keys()).toEqual([]);
+    expect(sent.map((s: {headers: Record<string, string>}) => s.headers['X-Profile'])).toEqual(['grownup', 'grownup', 'grownup', 'grownup', 'grownup']);
+    setActiveProfile('kid');
+    queue(ok({items: []}));
+    await api.recentSearches('kid');
+    expect(sent).toHaveLength(6);
+    expect(sent[5].headers['X-Profile']).toBe('kid');
+  });
+
   test('a profile change empties it: the library list, the first catalogue page, Home’s kept rows', async () => {
     setActiveProfile('grownup');
     queue(ok({movies: [], shows: []}), ok({items: [], page: 0, hasMore: false}), {status: 200, body: JSON.stringify({rows: []}), etag: 'W/"1"'});

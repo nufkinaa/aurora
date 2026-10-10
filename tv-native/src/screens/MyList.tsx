@@ -23,7 +23,7 @@ import {api, HeroItem, ProfileState} from '../api';
 import {openItem} from '../openItem';
 import {warmItem} from '../prefetch';
 import {goSection} from '../navSection';
-import {railOpen, useFocusFallback, useListClaim, useTVKeys} from '../focus';
+import {noteOwnFocusMove, pressMovedFocus, railOpen, useFocusFallback, useListClaim, useTVKeys} from '../focus';
 import {useScreenIn} from '../motion';
 import {watchStateFor, Marks} from '../watchState';
 import {useApp} from '../AppContext';
@@ -111,7 +111,11 @@ export default function MyList({
         if (evt.eventType !== 'up') return;
         // Never while the nav rail's panel is up (see Browse's escape).
         if (railOpen()) return;
+        // not on the release of the UP that carried focus INTO the top row
+        // (focus.ts pressMovedFocus) — that one press would climb two bands
+        if (pressMovedFocus()) return;
         if (!inGrid.current || gridIdx.current >= cols) return;
+        noteOwnFocusMove();
         const target =
           (firstChipRef.current as {requestTVFocus?: () => void} | null) ||
           (sortRef.current as {requestTVFocus?: () => void} | null);

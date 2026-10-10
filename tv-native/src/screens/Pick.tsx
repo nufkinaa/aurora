@@ -37,7 +37,7 @@ import {api, HeroItem} from '../api';
 import {canNavigate} from '../navLock';
 import {useRouteShown} from '../useRouteShown';
 import {warmItem} from '../prefetch';
-import {noteFocus, railOpen, requestRailOpen, useFocusFallback, useTVKeys} from '../focus';
+import {noteFocus, railOpen, requestRailOpen, useFocusFallback, useTVKeys, pressMovedFocus} from '../focus';
 import {showToast} from '../toast';
 import {registerProfileCache} from '../profileScope';
 import {RootStackParamList} from '../navigation';
@@ -205,6 +205,9 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
     useCallback(
       (evt: {eventType: string}) => {
         if (railOpen()) return;
+        // never on the release of the press that carried focus to where it is
+        // now (focus.ts pressMovedFocus): one press would move twice
+        if (pressMovedFocus()) return;
         // LEFT from Find with the field off: native focus search skipped the
         // disabled field and dropped on whichever Era pill was nearest ("Not
         // too old", Mi TV 2026-10-09). Find is wrapped in a left trap while

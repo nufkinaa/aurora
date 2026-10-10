@@ -568,6 +568,8 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
   const [person, setPerson] = useState<XrayPerson | null>(null);
   const openPerson = useCallback((p: XrayPerson) => setPerson(p), []);
   const closePerson = useCallback(() => setPerson(null), []);
+  const personUp = useRef(false);
+  personUp.current = !!person;
   // Rises from the foot of the screen the way the phone's sheet does, with a
   // little overshoot: a spring on translateY and scale, a short fade under it.
   const rise = useRef(new Animated.Value(0)).current;
@@ -580,6 +582,12 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
   }, [onClose, rise]);
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      // The person sheet is up: this BACK is its own. Its listener is the
+      // newer one as long as this effect has not run again since it opened —
+      // and `close` changes whenever the opener passes a new onClose, which
+      // would put THIS listener first and close X-Ray under the person sheet.
+      // Declining here hands the press to the next listener, which is that one.
+      if (personUp.current) return false;
       close();
       return true;
     });

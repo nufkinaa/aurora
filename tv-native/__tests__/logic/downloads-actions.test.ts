@@ -1,5 +1,5 @@
 // What one press, and holding, does on a row of My downloads (downloadsLogic.ts).
-import {downloadActions, isReady} from '../../src/downloadsLogic';
+import {downloadActions, heldLine, isHeld, isReady} from '../../src/downloadsLogic';
 
 const job = (o: Record<string, unknown>) => ({status: 'downloading', mine: true, imdbId: 'tt1', infoHash: 'abc', ...o} as never);
 
@@ -36,4 +36,16 @@ test('declined and cancelled rows can be removed too; a declined one is not aske
 
 test("someone else's download has no action", () => {
   expect(downloadActions(job({status: 'downloading', mine: false}), false)).toEqual({press: null, all: [], label: ''});
+});
+
+test('a My List download on hold says so, with what it has - and cancels like any queued one (asking first past 5%)', () => {
+  const j = job({status: 'approved', held: true, heldReason: 'downloads', progress: 0.42});
+  expect(isHeld(j)).toBe(true);
+  expect(heldLine(j)).toBe('On hold — waiting for other downloads · 42 %');
+  expect(heldLine(job({status: 'approved', held: true, heldReason: 'watching', progress: 0}))).toBe('On hold — waiting while someone is watching · 0 %');
+  expect(downloadActions(j, true)).toEqual({press: 'confirmCancel', all: ['title', 'confirmCancel'], label: 'Cancel'});
+  expect(downloadActions(job({status: 'approved', held: true, progress: 0.01}), true).press).toBe('cancel');
+  // `held` on anything but a queued job means nothing (the server only sets it there)
+  expect(isHeld(job({status: 'downloading', held: true}))).toBe(false);
+  expect(isHeld(job({status: 'approved'}))).toBe(false);
 });

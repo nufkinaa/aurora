@@ -80,6 +80,7 @@ function Card({
   holdLeft,
   edgeRight,
   compact,
+  noPeek,
   ref,
 }: {
   item: HeroItem;
@@ -116,6 +117,10 @@ function Card({
   // The smaller poster (COMPACT_W x COMPACT_H). Posters only; a landscape or
   // frame card ignores it. The default card is untouched.
   compact?: boolean;
+  // No hold-OK peek: the card sits inside a sheet already (the person sheet
+  // over X-Ray) — overlay.ts holds ONE sheet, so a peek opened from there
+  // would replace X-Ray and take the person sheet down with it.
+  noPeek?: boolean;
   // Forwarded to the Focusable, so a grid can hold its first card as a focus
   // target (requestTVFocus lives on the host instance).
   ref?: React.Ref<View>;
@@ -274,7 +279,7 @@ function Card({
       onPress={() => onPress(item)}
       // Hold OK: the peek sheet (site: peek.js). Continue Watching's ✕ lives
       // inside it as "Remove", so the drawn hint still tells the truth.
-      onLongPress={() => openPeek(item, removable || undefined)}
+      onLongPress={noPeek ? undefined : () => openPeek(item, removable || undefined)}
       onFocusChange={onFocus ? f => f && onFocus(item, index ?? 0) : undefined}
       focusOverlay={
         <>

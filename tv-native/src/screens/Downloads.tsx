@@ -19,7 +19,7 @@ import Focusable from '../components/Focusable';
 import NavRail from '../components/NavRail';
 import {Empty} from '../components/States';
 import {api, ApiError, artSrc, HeroItem, ImgSource, MyDownload} from '../api';
-import {downloadActions, DownloadAction, isReady} from '../downloadsLogic';
+import {downloadActions, DownloadAction, heldLine, isHeld, isReady} from '../downloadsLogic';
 import {openActions} from '../overlay';
 import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
@@ -66,6 +66,9 @@ const statusLine = (j: MyDownload) => {
             .filter(Boolean)
             .join(' · ');
     case 'approved':
+      // a My List download that gave way to a person's own (downloadsLogic.ts)
+      if (isHeld(j)) return heldLine(j);
+      if (j.auto === 'mylist') return 'Queued — starts after the other downloads';
       return 'Queued — starts when a slot frees up';
     case 'pending':
       return j.holdReason ? `Waiting for approval — ${j.holdReason}` : 'Waiting for approval';

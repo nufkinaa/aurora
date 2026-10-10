@@ -513,6 +513,10 @@ export type MyDownload = DownloadJob & {
   doneAt?: string | null;
   at?: string;
   holdReason?: string | null;
+  // A My List download that was running and gave way (publicJob): still
+  // `approved`, with the progress it keeps.
+  held?: boolean;
+  heldReason?: string | null;
   poster?: string | null;
   quality?: string;
   imdbId?: string | null;

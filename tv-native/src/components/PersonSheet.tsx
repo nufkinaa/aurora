@@ -104,7 +104,7 @@ const TitleCard = React.memo(function TitleCard({
   const flag = downloading ? 'DOWNLOADING' : credit.watched ? 'WATCHED' : credit.inLibrary ? 'IN LIBRARY' : null;
   return (
     <View style={styles.title} accessibilityLabel={`${credit.title}${listed ? ', on My List' : ''}`}>
-      <Card item={item} compact hideLabel onPress={onPress} hasTVPreferredFocus={focus} />
+      <Card item={item} compact hideLabel noPeek onPress={onPress} hasTVPreferredFocus={focus} />
       {listed ? (
         <View style={styles.check} pointerEvents="none">
           <Text style={styles.checkGlyph}>✓</Text>
