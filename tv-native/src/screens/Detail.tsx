@@ -36,7 +36,7 @@ const UPNEXT_GLOW = require('../assets/upnext-glow.png');
 const OWNED_UPNEXT_GLOW = require('../assets/owned-upnext-glow.png');
 import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
-import {api, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry} from '../api';
+import {api, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, listAddedLine, ListDownload, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry} from '../api';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
 import {openTrailer, openActions, openXray} from '../overlay';
@@ -1190,6 +1190,7 @@ export default function Detail({
     const next = !inList;
     setInList(next); // optimistic
     try {
+      let res: {download?: ListDownload | null} | null = null;
       if (stream) {
         const ref: StreamRef = {
           imdbId: item.imdbId || libImdb || item.id,
@@ -1204,10 +1205,13 @@ export default function Detail({
           genres: genreSource.length ? genreSource : undefined,
           rating: item.rating ?? streamMeta?.rating ?? undefined,
         };
-        await api.toggleWatchlist(profileId, ref, next);
+        res = await api.toggleWatchlist(profileId, ref, next);
       } else {
-        await api.toggleWatchlist(profileId, item.id, next);
+        res = await api.toggleWatchlist(profileId, item.id, next);
       }
+      // The button itself shows the add; a line is only said when the add
+      // also started a download (My List downloads), so that is not a surprise.
+      if (next && res?.download?.queued) showToast(listAddedLine(res), '⬇');
     } catch {
       setInList(!next); // revert on failure
     }

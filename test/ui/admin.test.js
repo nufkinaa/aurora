@@ -307,6 +307,147 @@ ui.test("In flight: a job trying a second source gets one line under it; holding
   assert.match(await page.textContent("#lim-status"), /3 queued — they start when viewing stops/);
 });
 
+// ---------- Downloads tab: My List downloads (src/media/mylistdl.js) ----------
+const myListCard = async (page) => {
+  await page.waitForSelector("#ml-card:not(.hidden)", { state: "attached" });
+  if (!(await page.evaluate(() => document.querySelector("#ml-card").open))) await page.click("#ml-card > summary");
+  await page.waitForFunction(() => document.querySelector("#ml-stale").value !== "");
+};
+
+ui.test("My List downloads: the owner's defaults, a change sticks across a reload, a refused value changes nothing", { allow: [/Failed to load resource.*400.*mylist\/settings/] }, async ({ page, srv, api }) => {
+  await enter(page, srv);
+  await downloadsTab(page);
+  await myListCard(page);
+  assert.equal(await page.isChecked("#ml-on"), true, "on, as asked");
+  assert.equal(await page.isChecked("#ml-shows"), true);
+  assert.equal(await page.isChecked("#ml-autodelete"), true);
+  assert.equal(await page.inputValue("#ml-stale"), "14");
+  assert.equal(await page.inputValue("#ml-delete"), "21");
+  assert.equal(await page.inputValue("#ml-cap"), "5");
+  assert.equal(await page.inputValue("#ml-retries"), "1");
+  assert.match(await page.textContent("#ml-empty"), /Nothing has been fetched from a list yet/);
+
+  await page.fill("#ml-stale", "10");
+  await page.fill("#ml-delete", "30");
+  await page.uncheck("#ml-shows");
+  await page.click("#ml-apply");
+  await toastSays(page, /My List downloads: saved/);
+  const saved = (await api.adminGet("/api/admin/mylist")).settings;
+  assert.equal(saved.myListStaleDays, 10);
+  assert.equal(saved.myListDeleteDays, 30);
+  assert.equal(saved.myListShows, false);
+  assert.equal(saved.myListDownloads, true, "what was not touched stays");
+
+  await enter(page, srv);
+  await downloadsTab(page);
+  await myListCard(page);
+  assert.equal(await page.inputValue("#ml-stale"), "10", "it stuck");
+  assert.equal(await page.isChecked("#ml-shows"), false);
+
+  // deleting before it was ever stale makes no sense, and neither does day 0
+  await page.fill("#ml-delete", "5");
+  await page.click("#ml-apply");
+  await toastSays(page, /Delete after must not be sooner than Stale after/);
+  await page.fill("#ml-delete", "30");
+  await page.fill("#ml-stale", "0");
+  await page.click("#ml-apply");
+  await toastSays(page, /Stale after must be a whole number from 1 to 365/);
+  const after = (await api.adminGet("/api/admin/mylist")).settings;
+  assert.equal(after.myListStaleDays, 10);
+  assert.equal(after.myListDeleteDays, 30);
+  await api.adminPost("/api/admin/mylist/settings", { myListStaleDays: 14, myListDeleteDays: 21, myListShows: true });
+});
+
+// A stale copy cannot be staged in the private instance (it has no network to
+// download with, and no clock to wind): the server's answers are made up here,
+// in the shapes the routes really send (test/mylistdl-queue.test.js pins those).
+ui.test("My List downloads: a job is tagged, a stale copy is marked on disk and is the first delete suggestion, with why", async ({ page, srv }) => {
+  const DAY = 86400e3;
+  const now = Date.now();
+  const mark = { state: "stale", why: "added to My List on 2026-09-20, never watched", by: "Ann", addedAt: now - 16 * DAY, staleAt: now - 2 * DAY, deleteAt: now + 5 * DAY };
+  const fresh = { state: "fresh", why: "added to My List on 2026-10-08", by: "Ben", addedAt: now - 2 * DAY, staleAt: now + 12 * DAY, deleteAt: now + 19 * DAY };
+  const job = {
+    id: "dddddddddddd", infoHash: "d".repeat(40), fileIdx: 0, imdbId: "tt9000009", title: "Listed Film", label: "Listed Film", type: "movie",
+    quality: "1080p", sizeBytes: 3e9, status: "downloading", phase: "downloading", progress: 0.4, downloadSpeed: 2e6, peers: 9, at: new Date().toISOString(),
+    smart: true, auto: "mylist", race: null, raceNote: null,
+  };
+  await page.route("**/api/downloads", (route) => route.fulfill({ json: [job, { ...job, id: "eeeeeeeeeeee", title: "Asked Film", label: "Asked Film", smart: false, auto: null }] }));
+  await page.route("**/api/admin/library/tree", async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    body.movies = [
+      { id: "m-stale", title: "Stale Film", year: 2020, cover: null, addedAt: now - 16 * DAY, mylist: mark, watched: 0, midway: 0, lastWatched: 0, sizeBytes: 4 * 1024 ** 3 },
+      { id: "m-fresh", title: "Fresh Film", year: 2021, cover: null, addedAt: now - 2 * DAY, mylist: fresh, watched: 0, midway: 0, lastWatched: 0, sizeBytes: 3 * 1024 ** 3 },
+      { id: "m-watched", title: "Watched Film", year: 2019, cover: null, addedAt: now - 90 * DAY, mylist: null, watched: 1, midway: 0, lastWatched: now - 30 * DAY, sizeBytes: 2 * 1024 ** 3 },
+      { id: "m-plain", title: "Plain Film", year: 2018, cover: null, addedAt: now - 200 * DAY, mylist: null, watched: 0, midway: 0, lastWatched: 0, sizeBytes: 5 * 1024 ** 3 },
+    ];
+    body.shows = [];
+    await route.fulfill({ json: body });
+  });
+  await page.route("**/api/admin/mylist", async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    body.records = [
+      { key: "tt1", label: "Stale Film", by: "Ann", addedAt: mark.addedAt, state: "stale", due: false, why: mark.why, staleAt: mark.staleAt, deleteAt: mark.deleteAt },
+      { key: "tt2", label: "Fresh Film", by: "Ben", addedAt: fresh.addedAt, state: "fresh", why: fresh.why, staleAt: fresh.staleAt, deleteAt: fresh.deleteAt },
+      { key: "tt3:1:1", label: "Some Show · S1 E1", by: "Ann", addedAt: now - 40 * DAY, state: "deleted", why: "added to My List on 2026-08-30, never watched", staleAt: null, deleteAt: null },
+      { key: "tt4", label: "No Source Film", by: "Ben", addedAt: now - DAY, state: "failed", why: "no source", staleAt: null, deleteAt: null },
+    ];
+    await route.fulfill({ json: body });
+  });
+  let deletes = 0;
+  await page.route("**/api/admin/library/movie/*", (route) => { deletes++; return route.fulfill({ status: 500, json: { error: "not in this test" } }); });
+
+  await enter(page, srv);
+  await downloadsTab(page);
+  // the queue: the list's job says so, somebody's own does not
+  await page.waitForSelector("#dl-jobs tr");
+  assert.match(await page.locator("#dl-jobs tr", { hasText: "Listed Film" }).innerText(), /My List/);
+  assert.doesNotMatch(await page.locator("#dl-jobs tr", { hasText: "Asked Film" }).innerText(), /My List/);
+
+  // the card: one row per copy, with its state and its clock
+  await myListCard(page);
+  await page.waitForSelector('#ml-rows tr[data-ml-key="tt1"]');
+  const row = (key) => page.locator(`#ml-rows tr[data-ml-key="${key}"]`).innerText();
+  assert.match(await row("tt1"), /Stale Film\s+Ann\s+\d{4}-\d\d-\d\d\s+stale deleted in 5 d — added to My List on 2026-09-20, never watched/);
+  assert.match(await row("tt2"), /on disk stale in 12 d, deleted in 19 d/);
+  assert.match(await row("tt3:1:1"), /Some Show · S1 E1[\s\S]*deleted/);
+  assert.match(await row("tt4"), /failed no source/);
+  assert.equal(await page.locator("#ml-rows [data-ml-keep]").count(), 2, "Keep is offered for the copies still on disk, nothing else");
+
+  // on disk: the two copies carry their mark, the others none
+  await page.waitForSelector("#lib-tree .lib-row");
+  const lib = (name) => page.locator("#lib-tree .lib-row", { hasText: name }).innerText();
+  assert.match(await lib("Stale Film"), /My List · stale/);
+  assert.match(await lib("Fresh Film"), /My List · 12 d/);
+  assert.doesNotMatch(await lib("Watched Film"), /My List/);
+  assert.doesNotMatch(await lib("Plain Film"), /My List/);
+
+  // "Suggest what to delete": the stale copy first, with why; then the watched film; never the fresh or the plain one
+  await page.fill("#free-gb", "5");
+  await page.click("#free-suggest");
+  await page.waitForSelector("dialog.ask");
+  const text = await page.locator("dialog.ask").innerText();
+  assert.match(text, /Delete 2 items to free 6\.0 GB\?/);
+  assert.ok(text.indexOf("Stale Film (2020)") >= 0 && text.indexOf("Stale Film (2020)") < text.indexOf("Watched Film (2019)"), "the stale one is offered first");
+  assert.match(text, /Stale Film \(2020\) — 4\.0 GB \(added to My List on 2026-09-20, never watched\)/);
+  assert.match(text, /1 of them was fetched because it was added to My List and has not been watched since/);
+  assert.doesNotMatch(text, /Fresh Film|Plain Film/);
+  await page.click("dialog.ask .ask-no");
+  await page.waitForSelector("dialog.ask", { state: "detached" });
+  assert.equal(deletes, 0, "nothing is deleted without a yes");
+
+  // a small target is met by the stale copy alone
+  await page.fill("#free-gb", "3");
+  await page.click("#free-suggest");
+  await page.waitForSelector("dialog.ask");
+  const one = await page.locator("dialog.ask").innerText();
+  assert.match(one, /Delete 1 item to free 4\.0 GB\?/);
+  assert.match(one, /Each was fetched because it was added to My List/);
+  assert.doesNotMatch(one, /Watched Film/);
+  await page.click("dialog.ask .ask-no");
+});
+
 // ---------- Server → Status: the Healer card (src/lib/healer.js) ----------
 // The card is painted from GET /api/admin/healer. These tests hand it a made-up
 // round (the private instance is healthy, and a real fault cannot be staged

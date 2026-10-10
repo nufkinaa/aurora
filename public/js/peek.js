@@ -5,7 +5,7 @@
 //
 // Cards wire it with `attachPeek(node, item, opts)`; the sheet itself is
 // `openPeek(item, opts)` so a keyboard/remote path can open it too.
-import { el, icons, toast, formatRow, posterImg, fmtDuration, hapticOnRelease } from "./ui.js";
+import { el, icons, toast, savedLine, formatRow, posterImg, fmtDuration, hapticOnRelease } from "./ui.js";
 import { state, progressFor } from "./state.js";
 import { api } from "./api.js";
 import { navigate } from "./router.js";
@@ -97,8 +97,8 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
       const ref = item.source === "stream"
         ? { imdbId: item.imdbId, type: item.type === "show" ? "show" : "movie", title: item.title, poster: item.cover || null, year: item.year || null, genres: item.genres || [], rating: item.rating || null }
         : item.id;
-      await api.toggleWatchlist(state.profile.id, ref, inList);
-      toast(inList ? `“${item.title}” saved for later` : "Off the list. Bold.", inList ? "➕" : "➖");
+      const res = await api.toggleWatchlist(state.profile.id, ref, inList);
+      toast(inList ? savedLine(item.title, res) : "Off the list. Bold.", inList ? "➕" : "➖");
     } catch {}
   };
 

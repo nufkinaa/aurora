@@ -375,6 +375,10 @@ require("./src/media/introdetect");
   // One verified snapshot a day of what cannot be rebuilt — profiles, watch
   // state, sign-ins, settings, config (lib/backup.js; restore steps there).
   daily.register("backup", () => require("./src/lib/backup").runDaily());
+  // My List downloads: copies fetched because a title was added to a list go
+  // stale, then leave, when nobody watches them; failed ones get their one
+  // more try (media/mylistdl.js has the rules).
+  daily.register("my-list-downloads", () => require("./src/media/mylistdl").daily());
   daily.start();
 }
 // Followed shows: new episodes download by themselves when they air.

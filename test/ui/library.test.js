@@ -134,6 +134,54 @@ ui.test("My List: add from a title page, see it in the list, survive a reload, r
   assert.deepEqual((await api.get(`/api/profiles/${me.id}/watchlist`, headers)).items, []);
 });
 
+// My List downloads (src/media/mylistdl.js): the add's answer says what the
+// server started fetching, and the toast says it. The private instance has no
+// network and its whole library is already on disk, so the server's answer is
+// made up here — what is tested is the page's wording for each answer.
+ui.test("My List: the toast says what the add started downloading — and nothing more when it started nothing", async ({ page, goto, signIn, freshProfile, lib }) => {
+  await signIn(await freshProfile());
+  let download = null;
+  await page.route("**/api/profiles/*/watchlist", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const res = await route.fetch();
+    const body = await res.json();
+    if (JSON.parse(route.request().postData() || "{}").add && download) body.download = download;
+    await route.fulfill({ json: body });
+  });
+  const add = page.locator('.detail-actions button:has(span:text-is("My List"))');
+  const added = page.locator('.detail-actions button:has(span:text-is("In My List"))');
+  const toasts = () => page.evaluate(() => document.getElementById("toasts").innerText);
+  const cycle = async (id, expected) => {
+    await goto(id);
+    await add.click();
+    await added.waitFor();
+    await page.waitForFunction((src) => new RegExp(src).test(document.getElementById("toasts").innerText), expected.source);
+    await added.click();
+    await add.waitFor();
+  };
+
+  // the real answer here: the film is in the library, nothing is fetched (an older server: no field at all)
+  await goto(`#/movie/${lib.film1.id}`);
+  await add.click();
+  await added.waitFor();
+  await page.waitForFunction(() => /saved for later/.test(document.getElementById("toasts").innerText));
+  assert.doesNotMatch(await toasts(), /downloading/);
+  await added.click();
+  await add.waitFor();
+
+  download = { queued: true, what: "film" };
+  await cycle(`#/movie/${lib.film1.id}`, /“Test Film One” saved for later — downloading the film/);
+  download = { queued: true, what: "episode", season: 1, episode: 1 };
+  await cycle(`#/show/${lib.show.id}`, /“Test Show” saved for later — downloading the first episode/);
+  // asked for nothing (already started, already queued, switched off…): the plain line
+  download = { queued: false, reason: "started" };
+  await goto(`#/movie/${lib.film2.id}`);
+  await add.click();
+  await added.waitFor();
+  await page.waitForFunction(() => /“Test Film Two” saved for later/.test(document.getElementById("toasts").innerText));
+  assert.doesNotMatch((await toasts()).split("\n").filter((l) => /Test Film Two/.test(l)).join(" "), /downloading/);
+});
+
 ui.test("My List sorts and filters what is in it", async ({ page, goto, signIn, freshProfile, api, lib }) => {
   const me = await freshProfile();
   const headers = await api.as(me);

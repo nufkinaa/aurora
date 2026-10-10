@@ -8,7 +8,7 @@ import Sheet, {glass} from './Sheet';
 import TrailerFrame, {TrailerState} from './Trailer';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import type {ActionItem} from '../overlay';
-import {api, artSrc, HeroItem, imgSrc, ImgSource, StreamRef, XrayData, XrayPerson, XrayQuery} from '../api';
+import {api, artSrc, HeroItem, imgSrc, ImgSource, listAddedLine, ListDownload, StreamRef, XrayData, XrayPerson, XrayQuery} from '../api';
 import {playingContext, recentErrors} from '../errors';
 import {useKeyTrap} from '../focus';
 import {closeOverlay, useOverlay} from '../overlay';
@@ -136,6 +136,7 @@ function PeekSheet({item, onRemove}: {item: HeroItem; onRemove?: (item: HeroItem
     const next = !inList;
     setInList(next);
     try {
+      let res: {download?: ListDownload | null} | null = null;
       if (item.source === 'stream' || !item.id) {
         const ref: StreamRef = {
           imdbId: item.imdbId || item.id,
@@ -146,11 +147,12 @@ function PeekSheet({item, onRemove}: {item: HeroItem; onRemove?: (item: HeroItem
           genres: item.genres,
           rating: item.rating ?? undefined,
         };
-        await api.toggleWatchlist(profileId, ref, next);
+        res = await api.toggleWatchlist(profileId, ref, next);
       } else {
-        await api.toggleWatchlist(profileId, isEpisode ? item.showId! : item.id, next);
+        res = await api.toggleWatchlist(profileId, isEpisode ? item.showId! : item.id, next);
       }
-      showToast(next ? 'Added to My List' : 'Removed from My List', '✓');
+      // (an add says what it started downloading, when it started anything)
+      showToast(next ? listAddedLine(res) : 'Removed from My List', '✓');
     } catch {
       setInList(!next);
     }

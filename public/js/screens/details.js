@@ -1,7 +1,7 @@
 // Shared pieces of the detail page: the hero block and the library-side
 // "My List" button. The page itself lives in discover-detail.js, which serves
 // library titles and streamable titles as one screen.
-import { el, icons, resBadge, toast, posterImg, artUrl, formatRow, heroArtWidth, smooth, haptic } from "../ui.js";
+import { el, icons, resBadge, toast, savedLine, posterImg, artUrl, formatRow, heroArtWidth, smooth, haptic } from "../ui.js";
 import { upgradeArt } from "../artUpgrade.js";
 import { blurOf } from "../blur.js";
 import { api } from "../api.js";
@@ -32,8 +32,8 @@ export const watchlistButton = (item) => {
     haptic(8);
     paint();
     try {
-      await api.toggleWatchlist(state.profile.id, item.id, inList);
-      toast(inList ? `“${item.title}” saved for later` : "Off the list. Bold.", inList ? "➕" : "➖");
+      const res = await api.toggleWatchlist(state.profile.id, item.id, inList);
+      toast(inList ? savedLine(item.title, res) : "Off the list. Bold.", inList ? "➕" : "➖");
     } catch {}
   });
   return btn;

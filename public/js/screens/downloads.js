@@ -252,7 +252,12 @@ const row = (job, { others = false } = {}) => {
         { class: "dl-title" },
         el("span", { class: "dl-name" }, job.label || job.title),
         fresh && el("span", { class: "dl-new" }, "NEW"),
-        job.smart && el("span", { class: "dl-auto", title: "Queued by smart downloads — the next episode, fetched ahead of you" }, "AUTO"),
+        job.smart && el("span", {
+          class: "dl-auto",
+          title: job.auto === "mylist"
+            ? "Fetched because it was added to My List — removed again if nobody watches it"
+            : "Queued by smart downloads — the next episode, fetched ahead of you",
+        }, job.auto === "mylist" ? "MY LIST" : "AUTO"),
       ),
       sub.length > 0 && el("div", { class: "dl-sub" }, sub.join(" · ")),
       el(

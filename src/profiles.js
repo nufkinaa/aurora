@@ -908,6 +908,14 @@ const titleRows = (profileId, wantEpisodes) => {
   return out;
 };
 
+// One title's shared history row as stored ("tt123" / "tt123:1:4"), marks
+// and all — My List downloads asks "has anyone watched this since …?"
+// (media/mylistdl.js). Null when this profile has no history of it.
+const getTitleRow = (profileId, key) => {
+  ensureTitles();
+  return stateFor(profileId).titles[key] || null;
+};
+
 // The stored play-item for a streamed title (used to rebuild a torrent item
 // after a page refresh, when the client's in-memory pendingItems is gone).
 const getStreamItem = (profileId, itemId) => stateFor(profileId).streamItems[itemId] || null;
@@ -1378,6 +1386,7 @@ module.exports = {
   getProgress,
   getProgressView,
   getStreamItem,
+  getTitleRow,
   getStreamItems,
   getWatchlist,
   streamEpisodeProgress,
