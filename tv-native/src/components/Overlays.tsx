@@ -295,7 +295,7 @@ function JoinSheet() {
         autoFocus
         autoCapitalize="characters"
         autoCorrect={false}
-        maxLength={6}
+        maxLength={4}
         placeholder="ABCD"
         placeholderTextColor={colors.textFaint}
         onSubmitEditing={join}
