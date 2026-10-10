@@ -50,6 +50,8 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="true"
       android:supportsRtl="true">
+      <!-- LAB: lets `simpleperf`/perfetto run from the adb shell against this release build (docs/qa/native-bench/RENDER.md). -->
+      <profileable android:shell="true" />
       <!-- icon AND banner are repeated on the ACTIVITY, not left on the
            application alone. The leanback launcher reads the launchable
            activity's own attributes: `aapt2 dump badging` reported

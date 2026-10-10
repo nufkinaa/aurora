@@ -24,9 +24,14 @@ import android.view.View
 internal object RoundClip {
   private val path = Path()
   private val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+  private val X_CLIP = com.auroratv.ui.AuroraExp.on("x_clip")
   private val dstInPaint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN) }
 
   fun draw(view: View, canvas: Canvas, rect: RectF, radiusPx: Float, drawContent: () -> Unit) {
+    if (X_CLIP) { // LAB removal: no clip at all
+      drawContent()
+      return
+    }
     if (radiusPx <= 0f) {
       val s = canvas.save()
       canvas.clipRect(rect)

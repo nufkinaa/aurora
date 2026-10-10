@@ -1,6 +1,7 @@
 package com.auroratv.ui.view
 
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Rect
 import android.media.AudioManager
 import android.os.Handler
@@ -17,6 +18,7 @@ import com.auroratv.ui.focus.AuroraRingRegistry
 import com.auroratv.ui.qa.AuroraQa
 import com.facebook.react.R
 import com.facebook.react.bridge.ReactContext
+import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.uimanager.BackgroundStyleApplicator
@@ -98,6 +100,13 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
   /** How many of the children are React's (the manager maintains it). */
   var rnChildCount = 0
 
+  // ---- LAB experiment `shadowcache` (ShadowLayer.kt) ---------------------------------------
+  /** The element's own `boxShadow` style, kept from RN's setter by the manager while the experiment is on. */
+  var ownShadows: ReadableArray? = null
+  private var ownShadow: ShadowLayer? = null
+  /** The lit ring's shadow (the ring's, or the light ring's — one of the two exists). */
+  private var ringShadow: ShadowLayer? = null
+
   // ---- animation state -----------------------------------------------------------------
   private var ringValue = 0.0
   private var springValue = 0.0
@@ -109,7 +118,10 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
       ringValue = d.step(frameTimeNanos, ringValue)
       applyRing()
       AuroraClock.trace(frameTimeNanos, traceId("ring"), ringValue)
-      if (d.finished) timing = null
+      if (d.finished) {
+        timing = null
+        syncLayer()
+      }
       return d.finished
     }
   }
@@ -119,7 +131,10 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
       springValue = d.step(frameTimeNanos, springValue)
       applySpring()
       AuroraClock.trace(frameTimeNanos, traceId("spring"), springValue)
-      if (d.finished) spring = null
+      if (d.finished) {
+        spring = null
+        syncLayer()
+      }
       return d.finished
     }
   }
@@ -151,12 +166,27 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
 
   /** Called by the manager after every props transaction (and on first mount). */
   fun applyProps() {
+    if (SHADOW_CACHE) {
+      val os = ownShadows
+      if (os != null && os.size() > 0) {
+        val s = ownShadow ?: ShadowLayer(context).also {
+          ownShadow = it
+          super.addView(it, 0)
+          setWillNotDraw(false) // draw() must run: it paints the shadow under the background
+        }
+        s.set(os, BackgroundStyleApplicator.getBorderRadius(this, BorderRadiusProp.BORDER_RADIUS))
+        s.show(1f)
+      } else {
+        ownShadow?.let { super.removeView(it) }
+        ownShadow = null
+      }
+    }
     // highlight wash, under the children
     val hc = highlightColor
     if (hc != null) {
       val h = highlight ?: newDecoration().also {
         highlight = it
-        super.addView(it, 0)
+        super.addView(it, if (ownShadow != null) 1 else 0)
       }
       BackgroundStyleApplicator.setBackgroundColor(h, hc)
       BackgroundStyleApplicator.setBorderRadius(h, BorderRadiusProp.BORDER_RADIUS, dp(ringRadius))
@@ -182,7 +212,9 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
       BackgroundStyleApplicator.setBorderWidth(lr, LogicalEdge.ALL, LIGHT_RING.toFloat())
       BackgroundStyleApplicator.setBorderColor(lr, LogicalEdge.ALL, lightRingColor ?: ringColor ?: FOCUS_RING_COLOR)
       BackgroundStyleApplicator.setBorderRadius(lr, BorderRadiusProp.BORDER_RADIUS, dp(ringRadius + LIGHT_GAP + LIGHT_RING))
-      BackgroundStyleApplicator.setBoxShadow(lr, shadowArray(0.0, 10.0, 24.0, 0.0, TOKEN_SHADOW_COLOR))
+      val lightShadow = shadowArray(0.0, 10.0, 24.0, 0.0, TOKEN_SHADOW_COLOR)
+      if (SHADOW_CACHE) syncRingShadow(lr, lightShadow, dp(ringRadius + LIGHT_GAP + LIGHT_RING))
+      else if (!X_SHADOW) BackgroundStyleApplicator.setBoxShadow(lr, lightShadow)
     } else {
       gap?.let { super.removeView(it) }
       gap = null
@@ -191,6 +223,7 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
       if (ringKind == "none") {
         ring?.let { super.removeView(it) }
         ring = null
+        syncRingShadow(null, null, null)
       } else {
         val r = ring ?: newDecoration().also {
           ring = it
@@ -199,12 +232,44 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
         BackgroundStyleApplicator.setBorderWidth(r, LogicalEdge.ALL, ringWidth.toFloat())
         BackgroundStyleApplicator.setBorderColor(r, LogicalEdge.ALL, ringColor ?: FOCUS_RING_COLOR)
         BackgroundStyleApplicator.setBorderRadius(r, BorderRadiusProp.BORDER_RADIUS, dp(ringRadius))
-        BackgroundStyleApplicator.setBoxShadow(r, shadowArray(shadowOffsetX, shadowOffsetY, shadowBlur, shadowSpread, shadowColor ?: TOKEN_SHADOW_COLOR))
+        val ringShadowArray = shadowArray(shadowOffsetX, shadowOffsetY, shadowBlur, shadowSpread, shadowColor ?: TOKEN_SHADOW_COLOR)
+        if (SHADOW_CACHE) syncRingShadow(r, ringShadowArray, dp(ringRadius))
+        else if (!X_SHADOW) BackgroundStyleApplicator.setBoxShadow(r, ringShadowArray)
       }
     }
     layoutDecorations()
     applyRing()
     applySpring()
+  }
+
+  /** `shadowcache`: the ring's shadow lives in its own layered host, just under the ring view. */
+  private fun syncRingShadow(ringView: ReactViewGroup?, shadows: ReadableArray?, radius: LengthPercentage?) {
+    if (!SHADOW_CACHE) return
+    if (ringView == null || shadows == null) {
+      ringShadow?.let { super.removeView(it) }
+      ringShadow = null
+      return
+    }
+    val s = ringShadow ?: ShadowLayer(context).also {
+      ringShadow = it
+      super.addView(it, indexOfChild(ringView))
+    }
+    s.set(shadows, radius)
+  }
+
+  /**
+   * RN paints an outset shadow as the first layer of the view's own background, i.e. UNDER
+   * the fill. `shadowcache` keeps that order: the element's own shadow host is drawn here,
+   * before `View.draw` paints the background, and skipped in the normal child pass.
+   */
+  override fun draw(canvas: Canvas) {
+    ownShadow?.let { super.drawChild(canvas, it, drawingTime) }
+    super.draw(canvas)
+  }
+
+  override fun drawChild(canvas: Canvas, child: View, drawingTime: Long): Boolean {
+    if (child === ownShadow) return false
+    return super.drawChild(canvas, child, drawingTime)
   }
 
   private fun newDecoration(): ReactViewGroup =
@@ -218,7 +283,7 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
   private fun dp(v: Double) = LengthPercentage(v.toFloat(), LengthPercentageType.POINT)
 
   /** The map RN's own `boxShadow` prop setter receives (processBoxShadow's output, in dp). */
-  private fun shadowArray(ox: Double, oy: Double, blur: Double, spread: Double, color: Int): com.facebook.react.bridge.ReadableArray {
+  private fun shadowArray(ox: Double, oy: Double, blur: Double, spread: Double, color: Int): ReadableArray {
     val m: WritableMap = Arguments.createMap()
     m.putDouble("offsetX", ox)
     m.putDouble("offsetY", oy)
@@ -230,7 +295,7 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
   }
 
   /** `rnOffset`: how many decorations sit BEFORE the React children. */
-  fun rnOffset() = if (highlight != null) 1 else 0
+  fun rnOffset() = (if (ownShadow != null) 1 else 0) + (if (highlight != null) 1 else 0)
 
   /** Remove every React child (manager's removeAllViews), keeping the decorations. */
   fun removeRnChildren() {
@@ -277,6 +342,8 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     gap?.layout(l - g, t - g, r + g, b + g)
     val lr = px(LIGHT_GAP + LIGHT_RING)
     lightRing?.layout(l - lr, t - lr, r + lr, b + lr)
+    ownShadow?.place(0, 0, w, h)
+    ringShadow?.let { if (lightRing != null) it.place(l - lr, t - lr, r + lr, b + lr) else it.place(l, t, r, b) }
   }
 
   /** This view's own border width on one edge, in px (the style's, as RN resolved it). */
@@ -301,6 +368,10 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
 
   override fun onViewAdded(child: View) {
     super.onViewAdded(child)
+    if (child is AuroraCardView && !isCard) {
+      isCard = true
+      syncLayer()
+    }
     if (child.getTag(R.id.view_tag_native_id) == OVERLAY_ID) {
       overlay = child
       setAlpha(child, ringValue)
@@ -322,6 +393,7 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     ring?.setOpacityIfPossible(v.toFloat())
     gap?.setOpacityIfPossible(v.toFloat())
     lightRing?.setOpacityIfPossible(v.toFloat())
+    ringShadow?.show(v.toFloat())
     overlay?.let { setAlpha(it, v) }
   }
 
@@ -352,6 +424,57 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     }
   }
 
+  // ---- LAB experiment `cardlayer` (AuroraExp.kt; docs/qa/native-bench/RENDER.md) ---------
+  // A card that is dark and at rest draws nothing outside its own box (the ring, the overlay
+  // and the shadow are at alpha 0), so its whole content — border, picture, shade, words,
+  // tags — can live in ONE hardware layer: the RenderThread then issues one textured quad for
+  // it instead of replaying ~20 ops (clips, a rounded picture, text runs with blurred
+  // shadows…) every frame of a slide. The layer is dropped the moment the card is focused or
+  // either animation runs (a layer clips to the box and would cut the ring's shadow), and
+  // taken again when it has come to rest dark.
+  private var isCard = false
+  private var layered = false
+
+  private fun syncLayer() {
+    if (!CARD_LAYER && !TAG_LAYER) return
+    val resting = !isFocused && timing == null && spring == null && ringValue == 0.0 && springValue == 0.0
+    if (TAG_LAYER) syncChildLayers(resting)
+    if (!CARD_LAYER) return
+    val want = isCard && resting
+    if (want == layered) return
+    layered = want
+    setLayerType(if (want) LAYER_TYPE_HARDWARE else LAYER_TYPE_NONE, null)
+  }
+
+  /**
+   * LAB experiment `taglayer`: Card.tsx gives the progress bar and the pills a hardware layer
+   * (`renderToHardwareTextureAndroid`). A layer is a bitmap at the element's own size, so on
+   * the LIT card — which is drawn 5.5 % larger — it would be a stretched bitmap instead of a
+   * bar drawn at that size (measured: up to 100/255 off along the bar's edge). So while this
+   * element is lit or moving, its children's layers are suspended and they draw directly, as
+   * without the experiment; they get their layers back when it rests dark.
+   */
+  private var suspendedLayers: ArrayList<View>? = null
+
+  private fun syncChildLayers(resting: Boolean) {
+    if (!resting) {
+      if (suspendedLayers != null) return
+      val list = ArrayList<View>()
+      for (i in 0 until childCount) {
+        val c = getChildAt(i)
+        if (c !is ShadowLayer && c.layerType == LAYER_TYPE_HARDWARE) {
+          c.setLayerType(LAYER_TYPE_NONE, null)
+          list.add(c)
+        }
+      }
+      suspendedLayers = list
+    } else {
+      val list = suspendedLayers ?: return
+      suspendedLayers = null
+      for (c in list) if (c.parent === this) c.setLayerType(LAYER_TYPE_HARDWARE, null)
+    }
+  }
+
   private fun startRing(to: Double) {
     // like Animated.timing on a running value: the old driver is dropped, the node keeps
     // its value, the new driver starts from it on its first frame
@@ -370,12 +493,14 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     headingLit = true
     startRing(1.0)
     startSpring(1.0)
+    syncLayer()
   }
 
   private fun toDark() {
     headingLit = false
     startRing(0.0)
     startSpring(0.0)
+    syncLayer()
   }
 
   /** Another ring was claimed: fade out (Focusable.tsx:240-254). Fades, never snaps. */
@@ -392,6 +517,7 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     spring = null
     AuroraClock.remove(ringDriver)
     AuroraClock.remove(springDriver)
+    syncLayer()
   }
 
   // =====================================================================================
@@ -514,6 +640,15 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     lightRing = null
     overlay = null
     rnChildCount = 0
+    ownShadow = null
+    ringShadow = null
+    ownShadows = null
+    suspendedLayers = null
+    isCard = false
+    if (layered) {
+      layered = false
+      setLayerType(LAYER_TYPE_NONE, null)
+    }
     preferredArmed = false
     preferredDisarmed = false
     ringKind = "white"; ringWidth = 3.0; ringColor = null; ringRadius = 12.0
@@ -552,6 +687,11 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
 
   companion object {
     const val OVERLAY_ID = "aurora:overlay"
+    /** LAB removal (AuroraExp.kt): no box-shadow on any ring. */
+    private val X_SHADOW = com.auroratv.ui.AuroraExp.on("x_shadow")
+    private val CARD_LAYER = com.auroratv.ui.AuroraExp.on("cardlayer")
+    val SHADOW_CACHE = com.auroratv.ui.AuroraExp.on("shadowcache")
+    private val TAG_LAYER = com.auroratv.ui.AuroraExp.on("taglayer")
     // Focusable.tsx:48-49 — LIGHT_GAP 3, LIGHT_RING = focus.borderWidth + 1 = 4
     const val LIGHT_GAP = 3.0
     const val LIGHT_RING = 4.0

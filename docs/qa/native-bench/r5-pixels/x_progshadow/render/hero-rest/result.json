@@ -1,0 +1,48 @@
+{
+  "state": "hero-rest",
+  "component": "render",
+  "impl": "FCRHN",
+  "run": 1,
+  "differing_px": 94,
+  "off_edge_px": 14,
+  "on_edge_px": 80,
+  "diff_fraction": 3.8580246913580246e-05,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 46,
+  "max_yiq": 0.16960790753364563,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 797,
+      "polls": 2,
+      "anim_lines": 0,
+      "frames": 110
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 875,
+      "polls": 3,
+      "anim_lines": 0,
+      "frames": 106
+    }
+  },
+  "reasons": [
+    "14 differing px off the edge mask (bbox [432, 1057, 1834, 1059])"
+  ],
+  "focus": {
+    "pass": true,
+    "rows": 0
+  },
+  "focus_checked": false,
+  "pass": false
+}

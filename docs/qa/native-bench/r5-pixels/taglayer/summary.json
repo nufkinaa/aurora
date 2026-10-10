@@ -1,0 +1,555 @@
+{
+ "env": {
+  "commit": "94e492caa134",
+  "pkg": "com.auroratv.lab",
+  "serial": "192.168.50.31:5555",
+  "fingerprint": "Xiaomi/twilight/twilight:14/UKG3.250826.001/V816.0.7.0.UZFAABX:user/release-keys",
+  "model": "MiTV-AFMU0",
+  "sdk": "34",
+  "locale": "en-US",
+  "timezone": "Asia/Jerusalem",
+  "animator_duration_scale": "null",
+  "transition_animation_scale": "1.0",
+  "window_animation_scale": "1.0",
+  "font_scale": "1.0",
+  "screensaver_enabled": "1",
+  "wm_size": "Physical size: 1920x1080",
+  "wm_density": "Physical density: 320",
+  "display_mode": "mActiveModeId=20",
+  "versionCode": 9000,
+  "versionName": "9.9.9-lab",
+  "ping": "v=9000 impl=- exp=shadowcache",
+  "token_source": "--token/env"
+ },
+ "args": {
+  "serial": "192.168.50.31:5555",
+  "pkg": "com.auroratv.lab",
+  "impl": null,
+  "states": [
+   "tools/tv-pixel-diff/states/render.json"
+  ],
+  "exp": "taglayer=1",
+  "only": "",
+  "runs": 1,
+  "out": "docs/qa/native-bench/r5-pixels/taglayer",
+  "adb": "C:/elia/android-tools/sdk/platform-tools/adb.exe",
+  "token": "aurora-lab-qa",
+  "keystore": null,
+  "var": [],
+  "server": [],
+  "launch_wait_ms": 4000,
+  "screenrecord": false,
+  "force_lock": false,
+  "dry_run": false,
+  "diff_only": false,
+  "verbose": false
+ },
+ "results": [
+  {
+   "state": "hero-rest",
+   "component": "render",
+   "impl": "FCRHN",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 2,
+   "max_yiq": 0.005763504654169083,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 687,
+     "polls": 1,
+     "anim_lines": 0,
+     "frames": 103
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 766,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 107
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 0
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "hero-details",
+   "component": "render",
+   "impl": "FCRHN",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 2,
+   "max_yiq": 0.005763504654169083,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 655,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 129
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 859,
+     "polls": 3,
+     "anim_lines": 0,
+     "frames": 137
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 0
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "row0-card0",
+   "component": "render",
+   "impl": "FCRHN",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 2,
+   "max_yiq": 0.005763504654169083,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 719,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 151
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 921,
+     "polls": 3,
+     "anim_lines": 0,
+     "frames": 155
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 0
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "row0-card2",
+   "component": "render",
+   "impl": "FCRHN",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 2,
+   "max_yiq": 0.005555611103773117,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 672,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 218
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 640,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 217
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 0
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "row1-card0",
+   "component": "render",
+   "impl": "FCRHN",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 2,
+   "max_yiq": 0.005763504654169083,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 952,
+     "polls": 3,
+     "anim_lines": 0,
+     "frames": 209
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 640,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 206
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 0
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "row1-card3",
+   "component": "render",
+   "impl": "FCRHN",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 2,
+   "max_yiq": 0.005763504654169083,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 655,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 253
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 797,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 258
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 0
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "row2-card0",
+   "component": "render",
+   "impl": "FCRHN",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 2,
+   "max_yiq": 0.004832825623452663,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 609,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 215
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 859,
+     "polls": 3,
+     "anim_lines": 0,
+     "frames": 215
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 0
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "row2-hold-12",
+   "component": "render",
+   "impl": "FCRHN",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 2,
+   "max_yiq": 0.00392159353941679,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 875,
+     "polls": 3,
+     "anim_lines": 0,
+     "frames": 315
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 844,
+     "polls": 3,
+     "anim_lines": 0,
+     "frames": 310
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 0
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "row3-and-back",
+   "component": "render",
+   "impl": "FCRHN",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 2,
+   "max_yiq": 0.005914344917982817,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 859,
+     "polls": 3,
+     "anim_lines": 0,
+     "frames": 427
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 641,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 447
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 0
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "row0-back",
+   "component": "render",
+   "impl": "FCRHN",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 2,
+   "max_yiq": 0.005763504654169083,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 609,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 379
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 890,
+     "polls": 3,
+     "anim_lines": 0,
+     "frames": 382
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 0
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "rail-from-row",
+   "component": "render",
+   "impl": "FCRHN",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 2,
+   "max_yiq": 0.005763504654169083,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 984,
+     "polls": 3,
+     "anim_lines": 0,
+     "frames": 181
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 875,
+     "polls": 3,
+     "anim_lines": 0,
+     "frames": 169
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 0
+   },
+   "focus_checked": false,
+   "pass": true
+  }
+ ]
+}

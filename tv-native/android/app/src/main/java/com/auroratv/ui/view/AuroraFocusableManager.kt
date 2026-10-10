@@ -99,6 +99,14 @@ class AuroraFocusableManager : ReactViewManager() {
   @ReactProp(name = "preferredFocus")
   fun setPreferredFocus(view: ReactViewGroup, v: Boolean) { f(view).setPreferredFocus(v) }
 
+  /**
+   * LAB experiment `shadowcache` (ShadowLayer.kt): the element's own `boxShadow` style is not
+   * handed to RN's background drawable but kept for a layered shadow host. Off: RN's setter.
+   */
+  override fun setBoxShadow(view: ReactViewGroup, shadows: ReadableArray?) {
+    if (AuroraFocusableView.SHADOW_CACHE) f(view).ownShadows = shadows else super.setBoxShadow(view, shadows)
+  }
+
   /** The stock prop, should anything pass it: same disarmed path. */
   override fun setTVPreferredFocus(view: ReactViewGroup, hasTVPreferredFocus: Boolean) {
     f(view).setPreferredFocus(hasTVPreferredFocus)

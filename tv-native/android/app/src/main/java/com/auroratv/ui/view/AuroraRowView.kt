@@ -1,7 +1,9 @@
 package com.auroratv.ui.view
 
 import android.content.Context
+import android.graphics.Canvas
 import android.view.View
+import com.auroratv.ui.AuroraExp
 import com.auroratv.ui.anim.AuroraClock
 import com.auroratv.ui.anim.AuroraDriver
 import com.auroratv.ui.anim.AuroraSpring
@@ -108,6 +110,20 @@ class AuroraRowView(context: Context) : ReactViewGroup(context) {
 
   private fun apply() {
     translationX = PixelUtil.toPixelFromDIP(value.toFloat())
+    cull?.moved()
+  }
+
+  // ---- LAB experiment `cull` (Cull.kt): cards wholly off screen are left out of the track's list
+  private val cull: Cull? = if (AuroraExp.on("cull")) Cull(this, vertical = false) else null
+
+  override fun dispatchDraw(canvas: Canvas) {
+    cull?.beginDraw()
+    super.dispatchDraw(canvas)
+  }
+
+  override fun drawChild(canvas: Canvas, child: View, drawingTime: Long): Boolean {
+    if (cull?.hidden(child) == true) return false
+    return super.drawChild(canvas, child, drawingTime)
   }
 
   private fun dispatchItemFocus(index: Int) {

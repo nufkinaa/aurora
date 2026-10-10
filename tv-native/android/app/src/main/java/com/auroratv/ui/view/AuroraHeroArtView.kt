@@ -7,6 +7,7 @@ import android.graphics.RectF
 import android.graphics.drawable.Drawable
 import android.view.View
 import com.auroratv.R
+import com.auroratv.ui.AuroraExp
 import com.auroratv.ui.anim.AuroraClock
 import com.auroratv.ui.anim.AuroraDriver
 import com.auroratv.ui.anim.AuroraTiming
@@ -204,6 +205,10 @@ class AuroraHeroArtView(context: Context) : ReactViewGroup(context), ColumnLink.
   // =========================================================================================
 
   override fun dispatchDraw(canvas: Canvas) {
+    if (X_HERO) { // LAB removal: no art, no dim, no scrim
+      super.dispatchDraw(canvas)
+      return
+    }
     val w = width
     val h = height
     if (w > 0 && h > 0) {
@@ -318,5 +323,6 @@ class AuroraHeroArtView(context: Context) : ReactViewGroup(context), ColumnLink.
     /** PROTOCOL.md §4. The JS billboard traces the same ids. */
     const val TRACE_AT_TOP = "hero.atTop"
     const val TRACE_ART = "hero.art"
+    private val X_HERO = AuroraExp.on("x_hero")
   }
 }

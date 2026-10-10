@@ -1,0 +1,37 @@
+{
+  "component": "render",
+  "impl": "FCRHN",
+  "notes": [
+    "Rest states for the rendering experiments of docs/qa/native-bench/RENDER.md (AuroraExp.kt). Run with --exp: BOTH sides are all-native, A with every experiment off, B with the given ones on:",
+    "  python run.py --token aurora-lab-qa --states states/render.json --exp cull=1 --out <dir>   then   python strict.py <dir>",
+    "run.py's verdict uses the perceptual threshold; strict.py counts every pixel that differs at all.",
+    "Local library, profile Claude QA: row 0 = Continue Watching (frame cards, progress bars), row 1 = Recommended (posters, kind pills), row 2 = New Movies."
+  ],
+  "defaults": {
+    "launch": {"data": null, "extras": {}},
+    "nav": "home",
+    "freeze": {"freeze": "on", "trace": false, "focuslog": false},
+    "idle": {"quietMs": 600, "gfxStableMs": 500, "pollMs": 100, "timeoutMs": 10000},
+    "settleMs": 1200,
+    "keyGapMs": 150,
+    "tolerance": {"threshold": 0.1, "maxDiffFraction": 0.0005, "edgeDilate": 1},
+    "masks": [],
+    "dither": [],
+    "crop": null,
+    "trace": [],
+    "server": {}
+  },
+  "states": [
+    {"name": "hero-rest", "keys": [], "note": "the billboard, Play lit (its own shadow and the light ring's)"},
+    {"name": "hero-details", "keys": ["DPAD_RIGHT"], "note": "Details lit: Play at rest with its permanent shadow"},
+    {"name": "row0-card0", "keys": ["DPAD_DOWN"], "note": "Continue Watching, card 0 lit: progress bars, the art fading with the scroll"},
+    {"name": "row0-card2", "keys": ["DPAD_DOWN", "DPAD_RIGHT", "wait:800", "DPAD_RIGHT"], "note": "the shelf has slid once"},
+    {"name": "row1-card0", "keys": ["DPAD_DOWN", "wait:900", "DPAD_DOWN"], "note": "posters with kind pills; the hero has scrolled away"},
+    {"name": "row1-card3", "keys": ["DPAD_DOWN", "DPAD_DOWN", "DPAD_RIGHT", "DPAD_RIGHT", "wait:800", "DPAD_RIGHT"], "note": "cards have left on the left edge"},
+    {"name": "row2-card0", "keys": ["DPAD_DOWN", "DPAD_DOWN", "wait:800", "DPAD_DOWN"], "note": "third shelf"},
+    {"name": "row2-hold-12", "keys": ["DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "wait:800", "DPAD_RIGHT*12@50"], "settleMs": 1500, "note": "a burst: every card focused and released on the way; rest on card 12"},
+    {"name": "row3-and-back", "keys": ["DPAD_DOWN", "wait:900", "DPAD_DOWN", "wait:900", "DPAD_DOWN", "wait:900", "DPAD_DOWN", "wait:900", "DPAD_UP", "wait:900", "DPAD_UP"], "note": "down four shelves and back up two: shelves come back from off screen"},
+    {"name": "row0-back", "keys": ["DPAD_DOWN", "wait:900", "DPAD_DOWN", "wait:900", "DPAD_DOWN", "wait:900", "DPAD_UP", "wait:900", "DPAD_UP"], "note": "to the third shelf and back to the first: the billboard's art fades back in. (Not back onto the hero: UP from the first shelf races the rail under adb keys - run.py capture_guarded - and opened it in 2 of 5 runs here.)"},
+    {"name": "rail-from-row", "keys": ["DPAD_DOWN", "wait:800", "DPAD_LEFT"], "note": "the rail open over the first shelf"}
+  ]
+}

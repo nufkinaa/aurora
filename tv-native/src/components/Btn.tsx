@@ -10,6 +10,7 @@
 import React, {useState} from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
+import {exp} from '../exp';
 import Focusable from './Focusable';
 import Icon, {IconName} from './Icon';
 import theme from '../theme';
@@ -127,7 +128,7 @@ const styles = StyleSheet.create({
   surface: {backgroundColor: colors.surface},
   // The gradient is drawn as a child, so the fill underneath only shows through
   // the pill's own corners while the SVG rasterises.
-  primary: {backgroundColor: '#ffffff', boxShadow: '0 8px 24px rgba(0,0,0,0.38)'},
+  primary: {backgroundColor: '#ffffff', ...(exp('x_shadow') ? null : {boxShadow: '0 8px 24px rgba(0,0,0,0.38)'})},
   hairline: {
     position: 'absolute',
     top: 0,

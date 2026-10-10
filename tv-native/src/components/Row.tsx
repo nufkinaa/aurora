@@ -50,6 +50,7 @@ import {isTracing, onQaChange, traceValue} from '../qa';
 import {LEAD as NATIVE_LEAD, nextAnchor, windowRange} from '../rowMath';
 import AuroraRow, {ItemFocusEvent} from '../specs/AuroraRowNativeComponent';
 import theme from '../theme';
+import {gone} from '../exp';
 
 // The page colour melting to clear over the row's left margin, so a card that
 // has slid past the edge fades out instead of ending in a cut (elia,
@@ -260,7 +261,7 @@ function NativeRow({title, items, onSelect, onItemFocus, showKind, wide, onRemov
   if (!items || items.length === 0) return null;
   return (
     <View style={styles.row}>
-      <Text style={styles.title}>{title}</Text>
+      <Text style={[styles.title, gone('x_rowtitle')]}>{title}</Text>
       <TVFocusGuideView
         autoFocus
         trapFocusLeft
@@ -295,7 +296,7 @@ function NativeRow({title, items, onSelect, onItemFocus, showKind, wide, onRemov
             );
           })}
         </AuroraRow>
-        <View style={styles.fade} pointerEvents="none">
+        <View style={[styles.fade, gone('x_fade')]} pointerEvents="none">
           <Image source={ROW_FADE} style={styles.fadeImg} resizeMode="stretch" fadeDuration={0} />
         </View>
       </TVFocusGuideView>

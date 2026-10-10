@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import com.auroratv.R
+import com.auroratv.ui.AuroraExp
 import com.auroratv.ui.anim.AuroraClock
 import com.auroratv.ui.anim.AuroraDriver
 import com.auroratv.ui.anim.AuroraTiming
@@ -326,7 +327,7 @@ class AuroraCardView(context: Context) : View(context) {
     super.onDraw(canvas)
     val w = width
     val h = height
-    if (w <= 0 || h <= 0) return
+    if (w <= 0 || h <= 0 || X_ART) return
     rect.set(0f, 0f, w.toFloat(), h.toFloat())
     val r11 = PixelUtil.toPixelFromDIP(PICTURE_RADIUS_DP)
     val r12 = PixelUtil.toPixelFromDIP(CARD_RADIUS_DP)
@@ -352,7 +353,7 @@ class AuroraCardView(context: Context) : View(context) {
       }
     }
     if (brighten) canvas.drawRoundRect(rect, r12, r12, brightenPaint)
-    shadeBitmap(shade)?.let { bmp ->
+    if (!X_SHADE) shadeBitmap(shade)?.let { bmp ->
       RoundClip.draw(this, canvas, rect, r12) { canvas.drawBitmap(bmp, null, rect, AuroraImages.BITMAP_PAINT) }
     }
   }
@@ -500,5 +501,8 @@ class AuroraCardView(context: Context) : View(context) {
     const val TILE_TO = 0xFF101120.toInt()
     // fadeDuration={0} (Card.tsx:358): a 0 ms timing is a single frame to the target
     val FADE_FRAMES: DoubleArray = AuroraTiming.sample(0.0) { it }
+    // LAB removals (AuroraExp.kt)
+    private val X_ART = AuroraExp.on("x_cardart")
+    private val X_SHADE = AuroraExp.on("x_shade")
   }
 }

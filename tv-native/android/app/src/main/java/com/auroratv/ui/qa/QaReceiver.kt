@@ -14,6 +14,7 @@ import android.view.View
 import android.view.ViewGroup
 import com.auroratv.BuildConfig
 import com.auroratv.DeviceModule
+import com.auroratv.ui.AuroraExp
 import com.auroratv.ui.AuroraImpl
 import com.facebook.react.R
 import com.facebook.react.ReactApplication
@@ -49,13 +50,14 @@ class QaReceiver : BroadcastReceiver() {
     try {
       when (cmd) {
         "impl" -> cmdImpl(app, arg, rid)
+        "exp" -> cmdExp(app, arg, rid)
         "freeze" -> cmdFreeze(app, arg, rid)
         "trace" -> cmdFlag(app, "trace", arg, rid)
         "focuslog" -> cmdFlag(app, "focuslog", arg, rid)
         "framestats" -> cmdFrameStats(rid)
         "layout" -> cmdLayout(app, arg, rid)
         "nav" -> cmdNav(app, arg, rid)
-        "ping" -> ok("ping", rid, "v=${BuildConfig.VERSION_CODE} impl=${AuroraImpl.letters(AuroraImpl.read(app))}")
+        "ping" -> ok("ping", rid, "v=${BuildConfig.VERSION_CODE} impl=${AuroraImpl.letters(AuroraImpl.read(app))} exp=${AuroraExp.tag(AuroraExp.read(app))}")
         else -> err(cmd.ifEmpty { "?" }, rid, "unknown")
       }
     } catch (t: Throwable) {
@@ -69,6 +71,13 @@ class QaReceiver : BroadcastReceiver() {
     val m = AuroraImpl.write(app, arg)
     if (m == null) err("impl", rid, "bad arg '$arg' (keys ${AuroraImpl.KEYS.joinToString("|")}|all = js|native)")
     else ok("impl", rid, AuroraImpl.format(m))
+  }
+
+  /** LAB: `exp "cull=1,flat=0"` / `exp none` — the rendering experiments (AuroraExp.kt); next launch. */
+  private fun cmdExp(app: Context, arg: String, rid: String?) {
+    val set = AuroraExp.write(app, arg)
+    if (set == null) err("exp", rid, "bad arg '$arg' (none | key=0|1,… ; keys ${AuroraExp.KEYS.joinToString("|")})")
+    else ok("exp", rid, AuroraExp.tag(set))
   }
 
   private fun cmdFreeze(app: Context, arg: String, rid: String?) {

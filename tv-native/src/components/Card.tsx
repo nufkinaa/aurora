@@ -18,6 +18,7 @@
 import React from 'react';
 import {View, Text, Image, StyleSheet} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
+import {exp, gone} from '../exp';
 import Focusable from './Focusable';
 import Icon from './Icon';
 import {artPath, artPx, imgSrc, HeroItem} from '../api';
@@ -515,6 +516,28 @@ function JsCard({
 // the `welcome` un-park (a native command).
 // =============================================================================
 
+// LAB (src/exp.ts): the attribution removals of docs/qa/native-bench/RENDER.md, native card only.
+const X_BORDER = exp('x_border') ? ({borderColor: 'transparent', backgroundColor: 'transparent'} as const) : null;
+const X_TS = exp('x_textshadow') ? ({textShadowRadius: 0, textShadowColor: 'transparent'} as const) : null;
+const X_TAGS = exp('x_tags');
+const X_PROGRESS = exp('x_progress');
+const X_KIND = exp('x_kind');
+const X_NEW = exp('x_new');
+// x_progshadow: the bar without its two glows; x_proggrad: without the gradient fill.
+const X_PROGFILL = exp('x_progshadow') || exp('x_proggrad')
+  ? ({
+      ...(exp('x_progshadow') ? {boxShadow: undefined} : null),
+      ...(exp('x_proggrad') ? {experimental_backgroundImage: undefined} : null),
+    } as const)
+  : null;
+const X_PROGHEAD = exp('x_progshadow') ? ({boxShadow: undefined} as const) : null;
+// FIX `taglayer`: the progress bar and the pills are each ONE hardware layer (RN's own
+// `renderToHardwareTextureAndroid`) — HWUI draws them once, with the same code, and then
+// composites a single textured quad per frame instead of re-issuing the gradient, the two
+// blurred glows and the rounded clip. Every one of them already clips to its own box (the
+// bar is `overflow: hidden`; the pills draw nothing outside), which is all a layer does.
+const TAG_LAYER = exp('taglayer');
+
 const shapeOf = (uri: string) =>
   uri.replace(/^https?:\/\/[^/]+/, '').replace(/u=[^&]+/, 'u=…').replace(/\/img\/[A-Za-z0-9]{12}/, '/img/<id>').slice(0, 60);
 
@@ -645,7 +668,7 @@ function NativeCard({
           ) : null}
         </>
       }
-      style={frame ? styles.cardFrame : landscape ? styles.cardWide : compact ? styles.cardCompact : styles.card}>
+      style={[frame ? styles.cardFrame : landscape ? styles.cardWide : compact ? styles.cardCompact : styles.card, X_BORDER, gone('x_cards')]}>
       <AuroraCard
         ref={art}
         style={styles.layer}
@@ -675,8 +698,8 @@ function NativeCard({
       ) : null}
 
       {showLabel && frame ? (
-        <View style={styles.frameLabel} pointerEvents="none">
-          <Text style={styles.frameTitle} numberOfLines={1} ellipsizeMode="tail">
+        <View style={[styles.frameLabel, gone('x_text')]} pointerEvents="none">
+          <Text style={[styles.frameTitle, X_TS]} numberOfLines={1} ellipsizeMode="tail">
             {isEpisode ? item.showTitle || item.title : item.title}
           </Text>
           {isEpisode ? (
@@ -687,37 +710,38 @@ function NativeCard({
           {left ? <Text style={styles.frameMeta}>{`▶  ${left}`}</Text> : null}
         </View>
       ) : showLabel ? (
-        <View style={[styles.label, pct != null && styles.labelRaised]} pointerEvents="none">
+        <View style={[styles.label, pct != null && styles.labelRaised, gone('x_text')]} pointerEvents="none">
           {isEpisode ? (
             <>
-              <Text style={styles.labelSub} numberOfLines={1} ellipsizeMode="tail">
+              <Text style={[styles.labelSub, X_TS]} numberOfLines={1} ellipsizeMode="tail">
                 {item.showTitle || ''}
               </Text>
-              <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
+              <Text style={[styles.labelText, X_TS]} numberOfLines={1} ellipsizeMode="tail">
                 {`S${item.season} E${item.episode} · ${item.title}`}
               </Text>
             </>
           ) : (
-            <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
+            <Text style={[styles.labelText, X_TS]} numberOfLines={1} ellipsizeMode="tail">
               {item.title}
             </Text>
           )}
         </View>
       ) : null}
 
-      {leftTag === 'new' ? (
-        <View style={[styles.tag, styles.tagLeft, styles.tagNew]} pointerEvents="none">
+      {leftTag === 'new' && !X_TAGS && !X_NEW ? (
+        <View style={[styles.tag, styles.tagLeft, styles.tagNew]} pointerEvents="none" renderToHardwareTextureAndroid={TAG_LAYER}>
           <Text style={[styles.tagText, styles.tagNewText]}>NEW</Text>
         </View>
       ) : null}
 
-      {kind ? (
+      {kind && !X_TAGS && !X_KIND ? (
         <View
           style={[
             styles.tag,
             styles.tagKind,
             item.type === 'show' ? styles.kindSeries : styles.kindFilm,
           ]}
+          renderToHardwareTextureAndroid={TAG_LAYER}
           pointerEvents="none">
           <Icon
             name={item.type === 'show' ? 'series' : 'film'}
@@ -727,10 +751,13 @@ function NativeCard({
         </View>
       ) : null}
 
-      {pct != null ? (
-        <View style={[styles.progress, frame && styles.progressFrame]} pointerEvents="none">
-          <View style={[styles.progressFill, {width: `${pct}%`}]}>
-            <View style={styles.progressHead} />
+      {pct != null && !X_TAGS && !X_PROGRESS ? (
+        <View
+          style={[styles.progress, frame && styles.progressFrame]}
+          renderToHardwareTextureAndroid={TAG_LAYER}
+          pointerEvents="none">
+          <View style={[styles.progressFill, X_PROGFILL, {width: `${pct}%`}]}>
+            <View style={[styles.progressHead, X_PROGHEAD]} />
           </View>
         </View>
       ) : null}

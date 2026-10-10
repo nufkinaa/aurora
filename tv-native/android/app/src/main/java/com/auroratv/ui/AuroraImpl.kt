@@ -79,7 +79,7 @@ object AuroraImpl {
   }
 }
 
-/** JS: `NativeModules.AuroraImpl` — constants {impl, letters, versionCode}, read once at startup. */
+/** JS: `NativeModules.AuroraImpl` — constants {impl, letters, versionCode, exp, expTag}, read once at startup. */
 class AuroraImplModule(private val ctx: ReactApplicationContext) : ReactContextBaseJavaModule(ctx) {
   override fun getName() = "AuroraImpl"
 
@@ -87,10 +87,16 @@ class AuroraImplModule(private val ctx: ReactApplicationContext) : ReactContextB
     val m = AuroraImpl.read(ctx)
     val impl = HashMap<String, Any>()
     for ((k, v) in m) impl[k] = v
+    // LAB: the rendering experiments this process started with (AuroraExp.kt → src/exp.ts)
+    AuroraExp.ensureLoaded(ctx)
+    val exp = HashMap<String, Any>()
+    for (k in AuroraExp.active()) exp[k] = true
     return mapOf(
       "impl" to impl,
       "letters" to AuroraImpl.letters(m),
       "versionCode" to BuildConfig.VERSION_CODE,
+      "exp" to exp,
+      "expTag" to AuroraExp.tag(AuroraExp.active()),
     )
   }
 

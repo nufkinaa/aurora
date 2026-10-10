@@ -10,6 +10,7 @@
 import React from 'react';
 import Svg, {Path, Rect, Text as SvgText, G} from 'react-native-svg';
 import theme from '../theme';
+import {gone} from '../exp';
 
 const {colors} = theme;
 
@@ -47,7 +48,7 @@ type Props = {name: IconName; size?: number; color?: string};
 
 export default function Icon({name, size = 24, color = colors.white}: Props) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={gone('x_svg')}>
       {glyph(name, color)}
     </Svg>
   );

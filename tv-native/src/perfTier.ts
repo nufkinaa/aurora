@@ -38,6 +38,7 @@
 // makes it faster is noticed.
 import {AppState, NativeEventEmitter, NativeModules, Platform} from 'react-native';
 import {implLetters, versionCode} from './impl';
+import {expTag} from './exp';
 import {track} from './usage';
 
 export type DeviceInfo = {
@@ -183,7 +184,7 @@ const report = async () => {
     // `v` (versionCode) and `impl` (which components are native, "-" when none)
     // split the admin's TV-frames table so a native step reads before/after
     // (docs/native-rewrite/00-plan.md P0; 02-verification.md §6.3).
-    track('perf', {screen, p50: s.p50, p90: s.p90, jank: s.jank, frames: s.frames, low: isLowRam(), lite, v: versionCode, impl: implLetters});
+    track('perf', {screen, p50: s.p50, p90: s.p90, jank: s.jank, frames: s.frames, low: isLowRam(), lite, v: versionCode, impl: implLetters, exp: expTag});
   }
 };
 

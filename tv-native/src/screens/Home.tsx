@@ -57,6 +57,7 @@ import {defer, useSlide} from '../motion';
 import {useApp} from '../AppContext';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
+import {exp, gone} from '../exp';
 
 const {colors, fontSize, spacing, radius, motion} = theme;
 
@@ -1068,7 +1069,7 @@ export default function Home({
           away with the page exactly as the site's does. */}
       {hero ? (
         <View
-          style={[styles.hero, {height: heroH, paddingBottom: heroPadBottom}]}
+          style={[styles.hero, {height: heroH, paddingBottom: heroPadBottom}, gone('x_herocol')]}
           // (impl.hero: the marker the native column reads, on a view that must exist)
           nativeID={impl.hero ? COL_TOP_ID : undefined}
           collapsable={impl.hero ? false : undefined}>
@@ -1319,7 +1320,7 @@ const styles = StyleSheet.create({
   // pill, sitting on the action buttons' row at the page's right edge.
   dots: {position: 'absolute', right: spacing.pageX, flexDirection: 'row', alignItems: 'center', gap: 5},
   dot: {width: 7, height: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.36)'},
-  dotOn: {width: 22, backgroundColor: '#ffffff', boxShadow: '0 0 10px rgba(255,255,255,0.5)'},
+  dotOn: {width: 22, backgroundColor: '#ffffff', ...(exp('x_shadow') ? null : {boxShadow: '0 0 10px rgba(255,255,255,0.5)'})},
 
   noHeroBar: {paddingTop: 27, paddingLeft: spacing.contentLeft, flexDirection: 'row'},
   updateChip: {

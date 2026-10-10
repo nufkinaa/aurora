@@ -23,6 +23,7 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {View, Image, StyleSheet} from 'react-native';
 import {dropWindowBackground, restoreWindowBackground} from '../perfTier';
 import theme from '../theme';
+import {exp} from '../exp';
 
 const {colors} = theme;
 
@@ -54,6 +55,8 @@ function Ambient() {
     return () => cancelAnimationFrame(raf);
   }, [drawn]);
   useEffect(() => () => restoreWindowBackground(), []);
+  // LAB removal (src/exp.ts): no canvas at all — the window's own colour shows.
+  if (exp('x_ambient')) return null;
   return (
     <View style={[styles.root, !drawn && styles.underlay]} pointerEvents="none">
       {/* "stretch", not "cover": the bloom positions are fractions of the frame,

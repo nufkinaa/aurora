@@ -1,0 +1,71 @@
+RenderThread samples: 2614
+
+stage
+   33.8%  2 replay display lists into Skia (renderFrame)
+   24.8%  1 sync: prepareTree
+   21.3%  3 Skia flush (GL calls)
+    7.2%  5 other DrawFrameTask
+    6.0%  7 unrooted stack (libGLES_mali.so)
+    2.4%  7 unrooted stack ([kernel.kallsyms])
+    1.7%  6 other RenderThread work
+    1.5%  4 swap/queueBuffer
+    0.8%  7 unrooted stack (libc.so)
+    0.3%  7 unrooted stack (libhwui.so)
+    0.1%  7 unrooted stack (libc++.so)
+    0.1%  7 unrooted stack ([vdso])
+
+renderFrame by canvas op
+   11.6%  (tree walk: RenderNodeDrawable/ReorderBarrier/setViewProperties)
+    6.6%  SkCanvas::drawTextBlob
+    3.9%  SkCanvas::drawPath [blur mask filter]
+    2.7%  SkCanvas::onDrawImageRect2
+    2.6%  SkCanvas::drawRRect
+    2.1%  (tree walk: RenderNodeDrawable/DisplayListData self)
+    1.1%  SkCanvas::clipRect
+    0.8%  SkCanvas::onClipRRect
+    0.7%  SkCanvas::drawRect
+    0.4%  SkCanvas::drawImage
+    0.4%  SkCanvas::restore
+    0.2%  android::uirenderer::$_27::__invoke
+    0.2%  SkCanvas::drawPath
+    0.1%  SkCanvas::drawImageRect
+    0.1%  android::uirenderer::$_29::__invoke
+    0.1%  android::uirenderer::$_26::__invoke
+    0.0%  SkCanvas::drawTextBlob [blur mask filter]
+    0.0%  android::uirenderer::$_2::__invoke
+    0.0%  android::uirenderer::$_24::__invoke
+    0.0%  SkCanvas::translate
+    0.0%  android::uirenderer::$_10::__invoke
+    0.0%  SkCanvas::restoreToCount
+
+flush by GrOp
+    5.0%  AtlasTextOp::onPrepareDraws
+    3.2%  TextureOpImpl::onExecute
+    2.3%  FillRectOpImpl::onExecute
+    1.7%  (other flush)
+    1.7%  OpsTask::onExecute
+    1.3%  (GrResourceAllocator)
+    1.2%  (removeRenderTasks)
+    1.1%  CircularRRectOp::onExecute
+    0.8%  AtlasTextOp::onExecute
+    0.6%  PathStencilCoverOp::onExecute
+    0.5%  PathStencilCoverOp::onPrepare
+    0.3%  (GrOnFlush)
+    0.3%  TextureOpImpl::onPrepareDraws
+    0.3%  CircularRRectOp::onPrepareDraws
+    0.2%  CircleOp::onPrepareDraws
+    0.2%  OpsTask::onPrepare
+    0.2%  GrCopyRenderTask::onExecute
+    0.1%  CircleOp::onExecute
+    0.1%  FillRectOpImpl::onPrepareDraws
+    0.0%  GrMeshDrawOp::onPrepare
+
+prepareTree leaf
+    9.6%  android::uirenderer::RenderNode::prepareTreeImpl
+    4.3%  oid::uirenderer::skiapipeline::SkiaDisplayList::prepareListAndChildren
+    1.0%  android::uirenderer::RenderProperties::effectiveLayerType
+    0.7%  android::uirenderer::Matrix4::load
+    0.6%  android::uirenderer::DamageAccumulator::popTransform
+    0.5%  scudo::Allocator<scudo::AndroidConfig, &
+    0.4%  SkImage_Raster::onPinAsTexture
+    0.3%  GrProxyProvider::findOrCreateProxyByUniqueKey

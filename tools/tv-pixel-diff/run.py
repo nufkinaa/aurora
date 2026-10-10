@@ -179,9 +179,16 @@ def quiet_check(dev: Adb, seconds: float = 3.0) -> int:
 
 def capture_side(dev: Adb, state: dict, side: str, out_dir: Path, args) -> dict:
     letters = state["impl"]
-    spec = impl_spec(letters, native=(side == "B"))
+    # --exp (lab, docs/qa/native-bench/RENDER.md): BOTH sides run the native letters; A with every
+    # rendering experiment off, B with the given ones on. Without --exp the experiments are forced
+    # off on both sides (a build that does not know `exp` answers err, which is ignored).
+    exp = getattr(args, "exp", None)
+    spec = impl_spec(letters, native=(side == "B" or bool(exp)))
     info = {"side": side, "impl_spec": spec}
     info["impl_result"] = dev.qa_expect("impl", spec)
+    dev.qa("exp", "none")
+    if exp and side == "B":
+        info["exp_result"] = dev.qa_expect("exp", exp)
     # the flags are written BEFORE the launch (the receiver takes them with the process
     # dead and they persist), so the app starts frozen: no loop ever runs un-held and
     # the JS side reads trace/focuslog at start, where it attaches its listeners
@@ -436,6 +443,7 @@ def main(argv=None) -> int:
     ap.add_argument("--pkg", default="com.auroratv.lab")
     ap.add_argument("--impl", default=None, help="letters to flip =native on the B side (F C R H N G); default: each state file's own")
     ap.add_argument("--states", default="all", help="comma list of component names (focusable,card,row,hero,navrail,browse), 'all', or .json paths")
+    ap.add_argument("--exp", default=None, help="lab: rendering experiments (AuroraExp.kt) on the B side, e.g. cull=1,bake=1; both sides then run the --impl letters native")
     ap.add_argument("--only", default="", help="comma list of state names to run (name or component/name)")
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--out", default=None, help="default docs/qa/native-diff/<date>/ under the repo root")

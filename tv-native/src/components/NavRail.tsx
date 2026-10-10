@@ -41,6 +41,7 @@ import {
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
+import {gone} from '../exp';
 import Focusable from './Focusable';
 import Icon, {IconName} from './Icon';
 import {useApp} from '../AppContext';
@@ -475,7 +476,7 @@ export default function NavRail({
   if (impl.rail) {
     return (
       <>
-        <AuroraRailPanel part="strip" link={link} open={open} closing={closing} onSlideEnd={onSlideEnd} pointerEvents="none" style={styles.strip}>
+        <AuroraRailPanel part="strip" link={link} open={open} closing={closing} onSlideEnd={onSlideEnd} pointerEvents="none" style={[styles.strip, gone('x_rail')]}>
           {marks}
         </AuroraRailPanel>
         {open ? (

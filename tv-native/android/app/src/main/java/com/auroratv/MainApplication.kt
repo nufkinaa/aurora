@@ -93,6 +93,8 @@ class MainApplication : Application(), ReactApplication {
     // QA flags (freeze / trace / focuslog) before any view exists, so the first frame
     // already honours them; inert unless the QA broadcast ever set one.
     AuroraQa.load(this)
+    // LAB: the rendering experiments (AuroraExp.kt), read once per process.
+    com.auroratv.ui.AuroraExp.ensureLoaded(this)
     loadReactNative(this)
   }
 

@@ -1,0 +1,48 @@
+{
+  "state": "row0-card2",
+  "component": "render",
+  "impl": "FCRHN",
+  "run": 1,
+  "differing_px": 69,
+  "off_edge_px": 10,
+  "on_edge_px": 59,
+  "diff_fraction": 2.845293209876543e-05,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 46,
+  "max_yiq": 0.16960790753364563,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 625,
+      "polls": 2,
+      "anim_lines": 0,
+      "frames": 216
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 655,
+      "polls": 2,
+      "anim_lines": 0,
+      "frames": 222
+    }
+  },
+  "reasons": [
+    "10 differing px off the edge mask (bbox [200, 399, 1358, 401])"
+  ],
+  "focus": {
+    "pass": true,
+    "rows": 0
+  },
+  "focus_checked": false,
+  "pass": false
+}
