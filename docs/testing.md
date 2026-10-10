@@ -111,7 +111,7 @@ Rules that keep the suite reliable:
 
 | File | Covers |
 |---|---|
-| `wall.test.js` | profile wall, wrong / right password, what the password sheet says for a rate limit / a locked profile / no server, reload keeps the unlock, the one-time "new look" note, Switch profile |
+| `wall.test.js` | profile wall, wrong / right password, what the password sheet says for a rate limit / a locked profile / no server, a password-less profile that does not open while the server cannot confirm it (no connection, 503, rate limit, locked, a password set since) and Try again, reload keeps the unlock, the one-time "new look" note, Switch profile |
 | `navigation.test.js` | every `route()` in `main.js` at 1280×720 and 390×844: renders, no console errors, no sideways scroll, no skeleton left; deep links; Back / Forward / Escape; unknown routes. Fails when `main.js` gains a route the table does not have |
 | `library.test.js` | Movies / Shows grids, Unwatched, category pills, the in-page search box, Search, My List add / remove / reload / sort / filter; the add's toast for each answer of My List downloads (stubbed answer) — the TV app's wording, word for word; a failed add or removal puts the button back and says so (title page and peek sheet) |
 | `title.test.js` | film Play / Resume / Start over / watched; show episode list and card states; X-Ray with no network; Follow; rating |
@@ -121,7 +121,7 @@ Rules that keep the suite reliable:
 | `settings.test.js` | every section, More settings, every switch across navigation and reload, subtitle language, look, notifications refused; every Settings place a What's new card names exists under that name |
 | `live.test.js` | a film added to / removed from the library reaches open grids and Home without a reload, filter kept |
 | `images.test.js` | blur-up placeholders give way to sharp posters (desktop + phone); a broken poster falls back to the titled tile |
-| `kids.test.js` | a kids profile's grids / Home / Search, blocked title and its streams (403), leaving needs the PIN, a normal profile is unaffected (skips if the server has no kids routes) |
+| `kids.test.js` | a kids profile's grids / Home / Search, blocked title and its streams (403), leaving needs the PIN, hopping between kids profiles (stricter or equal: no PIN; looser or a grown-up's: the PIN; a password is still asked), a normal profile is unaffected (skips if the server has no kids routes) |
 | `admin.test.js` | admin gate, People tab, approve / reject a request (arrives live), kids controls, every tab opens; Downloads → "Downloads at once" (set, reload, out-of-range refused) and the second-source line under a job (stubbed queue); My List downloads → the settings (set, reload, refused values), the tag on a job, the stale mark on disk and the stale copy leading "Suggest what to delete" (stubbed answers) |
 | `downloads.test.js` | My downloads: a job trying a second source keeps its one card and gains one note (stubbed queue); a download that finished while the socket was down is caught up on reconnect (the test closes the page's socket) |
 | `pair.test.js` | signing a TV in from a phone: `/link` with no code opens the code field, a typed code goes on to the confirm screen the QR opens, approval hands the TV a session once; not signed in asks for the sign-in first; an expired code |

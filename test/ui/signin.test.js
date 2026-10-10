@@ -325,6 +325,42 @@ ui.test("a refusal that says a new password is due raises the screen over a runn
   assert.equal(await page.locator(wall).count(), 1);
 });
 
+ui.test("transition mode: a password-less profile does not open while the wall's check fails, and goes on once it is answered", {
+  allow: [/Failed to load resource.*\/unlock/],
+}, async ({ page, goto, api, profiles }) => {
+  const p = profiles.stub;
+  await setMode(api, "transition");
+  try {
+    const seen = [];
+    page.on("response", (r) => {
+      const path = new URL(r.url()).pathname;
+      if (/^\/api\/profiles\/[^/]+\/unlock$/.test(path)) seen.push(`unlock ${r.status()}`);
+      else if (/^\/api\/auth\/claimable\//.test(path)) seen.push(`claimable ${r.status()}`);
+    });
+    await goto("#/", { wait: false });
+    const tile = `.profiles-gate .profile-tile[title="${p.name}"]`;
+    await page.waitForSelector(tile);
+    await page.route("**/api/profiles/*/unlock", (route) => route.abort("connectionrefused"));
+    await page.click(tile);
+    const notice = page.locator(".profiles-gate .profiles-notice");
+    await notice.waitFor({ state: "visible" });
+    assert.match(await notice.textContent(), /^Can't reach the server — try again\./);
+    assert.equal(await page.locator("#app .screen").count(), 0);
+    assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), null);
+    assert.deepEqual(seen, [], "nothing went on to the one-time sign-in step either");
+
+    await page.unroute("**/api/profiles/*/unlock");
+    await notice.locator("button").click();
+    // answered: the door's next step in this mode is the one-time sign-in setup
+    await page.waitForFunction(() => !!document.querySelector(".modal") || !!document.querySelector("#app .screen"));
+    await page.waitForFunction(() => true); // (let the last response land in `seen`)
+    assert.deepEqual(seen.slice(0, 2), ["unlock 200", "claimable 200"]);
+    assert.equal(await notice.isVisible(), false);
+  } finally {
+    await setMode(api, "open");
+  }
+});
+
 // Another device of the same person: a sign-in of its own, by the API.
 const otherDevice = async (api, p) => {
   const r = await api.post("/api/auth/login", { username: p.username, password: p.password });

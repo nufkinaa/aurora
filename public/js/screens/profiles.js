@@ -214,15 +214,27 @@ const leaveKidsFirst = async (target, got = {}) => {
   });
 };
 
-// A profile with NO password, in a house that has a kids profile and a PIN:
-// the PIN opens it (otherwise it is the one-tap way round the kids profile).
-// The server decides — it answers `pinRequired` — and it is the server that
-// refuses the unlock; this only asks. Resolves the unlock answer, or null
-// when the sheet was closed (stay at the wall). A failure that is NOT about
-// the PIN resolves {} as before: there is nothing to verify, entry goes on.
+// A profile with NO password. "No password" is what the wall's list said when
+// it was drawn; whether it is still true — and whether the profile may be
+// entered at all — is the server's to say, so it is ASKED (the unlock, which
+// also hands this device its token and puts it in the admin's device list),
+// and the answer is what opens the profile.
+//
+// FAILS CLOSED: no answer is not a yes. This used to resolve {} on any
+// failure that was not about the PIN and the profile was entered anyway —
+// with no server in reach, with the profile locked by the admin a moment
+// ago, with a password set on it since the list was drawn. The TV app always
+// refused; now this does (openProfile shows why, with a way to try again).
+//
+// In a house that has a kids profile and a PIN, the PIN opens such a profile
+// (otherwise it is the one-tap way round the kids profile). The server
+// decides — it answers `pinRequired` — and it is the server that refuses the
+// unlock; this only asks.
+// Resolves the unlock answer, or null when the PIN sheet was closed (stay at
+// the wall). Throws what the server (or the network) said otherwise.
 const unlockOpenProfile = async (p, pin = "") => {
   try { return await api.unlockProfile(p.id, "", pin); }
-  catch (e) { if (!(e && e.pinRequired)) return {}; }
+  catch (e) { if (!(e && e.pinRequired)) throw e; }
   let meta = null;
   const ok = await pinPrompt({
     title: "Grown-ups only",
@@ -230,7 +242,7 @@ const unlockOpenProfile = async (p, pin = "") => {
     ok: "Open",
     action: async (typed) => { meta = await api.unlockProfile(p.id, "", typed); },
   });
-  return ok ? meta || {} : null;
+  return ok && meta ? meta : null;
 };
 
 // Shown once a new-profile request is filed. Creating a profile isn't instant
@@ -608,7 +620,52 @@ export const showProfileGate = (onChosen, opts = {}) => {
     enter(p, token, meta);
   };
 
+  // Why a profile did not open, said at the wall itself, with "Try again"
+  // where trying again can help. Gone on the next pick.
+  const notice = el("div", { class: "profiles-notice hidden", role: "alert" });
+  const clearNotice = () => { notice.classList.add("hidden"); notice.innerHTML = ""; };
+  const showNotice = (text, retry = null) => {
+    notice.innerHTML = "";
+    notice.append(el("span", {}, text));
+    if (retry) {
+      const again = el("button", { class: "btn small focusable", type: "button", onclick: retry }, "Try again");
+      notice.append(again);
+      setTimeout(() => again.focus({ preventScroll: true }), 30);
+    }
+    notice.classList.remove("hidden");
+  };
+  // The unlock of a password-less profile was not answered with a yes.
+  const refuseOpen = async (p, e) => {
+    const status = e && e.status;
+    const said = String((e && e.message) || "");
+    if (status === 401 && /wrong password/i.test(said)) {
+      // it has a password now (set since this wall was drawn): ask for it
+      await render();
+      const now = state.profiles.find((x) => x.id === p.id);
+      if (now && now.hasPassword) return openProfile(now);
+      return showNotice(`Couldn't open “${p.name}”.`, () => openProfile(now || p));
+    }
+    if (status === 404) {
+      await render();
+      return showNotice(`“${p.name}” isn't there any more.`);
+    }
+    if (status === 403 && /locked by admin/i.test(said)) {
+      await render(); // the tile shows the lock from here on
+      return showNotice(`“${p.name}” has been locked. Take it up with ${state.adminName}.`);
+    }
+    // the server's own words where it gave a reason a person can act on
+    if (status === 403 || status === 429) {
+      return showNotice(said ? said.replace(/^./, (c) => c.toUpperCase()) + (/[.!?]$/.test(said) ? "" : ".") : `Couldn't open “${p.name}”.`,
+        status === 429 ? () => openProfile(p) : null);
+    }
+    // a refusal the app already acts on (sign in again, pick a new password)
+    if (e && (e.signinRequired || e.passwordResetRequired || e.signedOut)) return;
+    // no answer at all, or the server fell over
+    showNotice("Can't reach the server — try again.", () => openProfile(p));
+  };
+
   const openProfile = async (p) => {
+    clearNotice();
     // Admin-locked: no way in, not even with the password.
     if (p.locked) return toast(`That profile's been locked. Take it up with ${state.adminName}.`, "🚫");
     // Leaving a kids profile for a less restricted one: the household PIN
@@ -639,13 +696,13 @@ export const showProfileGate = (onChosen, opts = {}) => {
       }
       return passwordPrompt(p, (token, meta) => maybeClaimThenEnter(p, token, meta));
     }
-    // No password to check, but still call unlock: it hands this device a
-    // session token and it's what tells the server which device entered, so the
-    // admin's per-profile device list covers open profiles too. A failure here
-    // must never block entry — there is nothing to verify.
-    // (The one thing that DOES block: the household PIN, when the server asks
-    // for it — see unlockOpenProfile. Closing that sheet stays at the wall.)
-    const meta = await unlockOpenProfile(p, got.pin || "");
+    // No password to type — but the server is still asked (unlockOpenProfile
+    // has the why), and only its yes opens the profile: with no answer the
+    // wall says so and offers to try again. Closing the PIN sheet, when the
+    // server asked for the household PIN, stays at the wall.
+    let meta = null;
+    try { meta = await unlockOpenProfile(p, got.pin || ""); }
+    catch (e) { return refuseOpen(p, e); }
     if (!meta) return;
     maybeClaimThenEnter(p, meta.token || null, meta);
   };
@@ -759,6 +816,7 @@ export const showProfileGate = (onChosen, opts = {}) => {
             searchInput
           )
       ),
+      notice,
       body
     );
     paint();
