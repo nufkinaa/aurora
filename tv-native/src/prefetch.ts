@@ -28,7 +28,9 @@ export const warmSections = () => {
     () => api.catalog({type: 'show', category: 'trending', page: 0}),
     () => api.catalogGenres('movie'),
     () => api.catalogGenres('show'),
-    () => api.changelog(),
+    // (Not the changelog. It was warmed here too: 123 KB of JSON parsed in
+    // Home's first seconds, for a list only Settings → What's new shows, and
+    // only behind its "Full changelog" button — that screen reads it itself.)
   ];
   let i = 0;
   const next = () => {

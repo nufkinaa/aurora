@@ -78,6 +78,7 @@ const EASE = Easing.bezier(0.2, 0.7, 0.2, 1);
 // blur. `brightness()` is transcribed as the black scrim the value implies —
 // 0.55 → α 0.45 at rest, 0.58 → α 0.42 once scrolled — rather than as the --bg
 // wash this screen used to paint, which is the darkening the CSS rejects.
+const FIRST_PREP_DELAY_MS = 2000;
 const REST = {blur: 1, dim: 0.45};
 const SCROLLED = {blur: 2, dim: 0.42};
 
@@ -510,6 +511,8 @@ export default function Home({
   // Home starts the count again. And on a box that is struggling as it is
   // (perfTier.ts) there are none: the backdrops still rotate.
   const trailersThisVisit = useRef(0);
+  // When the billboard first had a pick to show this run (see the prepare below).
+  const heroSince = useRef(0);
   useEffect(() => {
     if (!live) return;
     trailersThisVisit.current = 0;
@@ -588,6 +591,7 @@ export default function Home({
   const [railEpoch, setRailEpoch] = useState(0);
   useEffect(() => {
     const hero = heroNow;
+    if (hero && !heroSince.current) heroSince.current = Date.now();
     if (!live || !hero || !heroTrailersPref.current) return;
     if (!hero.imdbId || noTrailer.current.has(hero.imdbId)) return;
     if (isLite() || trailersThisVisit.current >= 2) return;
@@ -596,7 +600,21 @@ export default function Home({
     // Resolve NOW, during the hold, not when it ends (elia, 2026-10-09): the
     // 1-2 s of lookups run while the still art shows, so the trailer is ready
     // at 4.5 s. prepareTrailer remembers the answer for the visit.
+    //
+    // Except in the first 2 s after the billboard first appears (in effect:
+    // the first pick of a run), when the lookups wait: at launch they (a
+    // metadata read, /api/trailer, and for YouTube the extractor's network and
+    // deciphering on a pool thread) ran against the first posters and the hero
+    // backdrop on the same few cores.
+    // The trailer still cannot start before 4.5 s, and 2 s + the 1-2 s of
+    // lookups is inside that; only a lookup slower than 2.5 s now ends later
+    // than it did (the 4.5 s timer waits for it, as it always has).
+    const holdPrep = Math.max(0, heroSince.current + FIRST_PREP_DELAY_MS - Date.now());
     const prep: Promise<ResolvedTrailer | null> = (async () => {
+      if (holdPrep) {
+        await new Promise<void>(r => setTimeout(r, holdPrep));
+        if (gen !== trailerGen.current) return null;
+      }
       let keys: string[] = [];
       try {
         // the keys this TV already knows — what plays if the server is one
