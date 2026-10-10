@@ -28,8 +28,8 @@ const FEATURES = [
     since: "1.6.20", cue: "smart", glyph: "📶",
     title: "Quality that follows your connection",
     what: "Aurora watches how fast the film is arriving. When the line falls behind it moves to 720p or 480p before the picture freezes, and back up when there is room again — the film keeps playing through the change.",
-    how: "Nothing to do. A small \"Auto 720p\" in the corner tells you, with Revert on it. To choose yourself: the player's gear → Quality, or Settings → More settings → Data use.",
-    go: { label: "Data use", to: "#/preferences" },
+    how: "Nothing to do. A small \"Auto 720p\" in the corner tells you, with Revert on it. To choose yourself: the player's gear → Quality, or Settings → More settings → Internet → Internet use.",
+    go: { label: "Internet use", to: "#/preferences" },
   },
   {
     since: "1.6.13", cue: "trailer", glyph: "✅",

@@ -71,6 +71,17 @@ router.get("/api/me", (req, res) => {
 // body for the TV), the profile card, and a profile unlock TOKEN — login
 // verified the very same password, so asking for it again at the wall would
 // be theater.
+//
+// `mustReset` (the admin's People → "Reset password"): every answer that
+// hands out a session says whether a new password is due — this one, claim,
+// the TV's pairing poll and both Google flows — exactly as the wall's unlock
+// (/api/profiles/:id/unlock) always has. It is a NOTE TO THE CLIENT, which
+// asks for the new password before going on. The rule on the server is the
+// unlock's rule, no stricter and no looser: the session works in full, the
+// flag stays on the profile until a new password is saved (profiles.
+// setPassword clears it), and saving one needs the current password. An
+// older client (a TV build that predates this) ignores the extra field and
+// behaves as before.
 router.post("/api/auth/login", async (req, res) => {
   const { username, password } = req.body || {};
   const ip = realtime.clientIp(req);
@@ -96,6 +107,7 @@ router.post("/api/auth/login", async (req, res) => {
     profile: result.profile,
     profileToken: profiles.issueToken(result.profileId),
     session: sid, // the TV stores this and sends it as X-Session
+    mustReset: !!result.mustReset,
   });
 });
 
@@ -206,7 +218,7 @@ router.post("/api/auth/claim", async (req, res) => {
   // claiming signs you in on the spot
   const sid = sessions.create(result.profileId, { ip, device: deviceOf(req) });
   setSessionCookie(req, res, sid);
-  res.json({ ok: true, user: result.user, profile: result.profile, session: sid });
+  res.json({ ok: true, user: result.user, profile: result.profile, session: sid, mustReset: !!result.mustReset });
 });
 
 // ---------- signed-in self-service ----------
@@ -280,9 +292,21 @@ router.post("/api/auth/device/start", (req, res) => {
 });
 
 // What the phone's confirm screen needs: who is asking (and code validity).
+// A code can be TYPED now (the /link page's code field), so a miss is counted
+// per address like a failed sign-in: ten in fifteen minutes, then 429. A code
+// only ever lets the asker give THEIR OWN session to that TV (devicepair.js),
+// so this is not what keeps pairing safe — it keeps the "who is asking"
+// answer (the TV's address and model) from being fished for by a script.
 router.get("/api/auth/device/describe/:code", (req, res) => {
+  const ip = realtime.clientIp(req);
+  if (tooMany("pairlook:" + ip)) {
+    return res.status(429).json({ error: "too many attempts — try again in a few minutes" });
+  }
   const d = devicepair.describe(req.params.code);
-  if (!d) return res.status(404).json({ error: "that code expired — ask the TV for a fresh one" });
+  if (!d) {
+    recordFail("pairlook:" + ip);
+    return res.status(404).json({ error: "that code expired — ask the TV for a fresh one" });
+  }
   res.json(d);
 });
 
@@ -311,6 +335,7 @@ router.post("/api/auth/device/poll", (req, res) => {
     profile: profiles.pub(p),
     profileToken: profiles.issueToken(p.id),
     session: sid, // the TV stores this and sends it as X-Session
+    mustReset: !!p.mustReset,
   });
 });
 
@@ -395,6 +420,7 @@ const googleOutcomeFor = (info, req) => {
       user: profiles.signinPub(prof),
       profile: profiles.pub(prof),
       profileToken: profiles.issueToken(prof.id),
+      mustReset: !!prof.mustReset,
     };
   }
   return { signupSub: { sub: info.sub, email: info.email || null, name: info.name || null } };
@@ -479,7 +505,7 @@ router.post("/api/auth/google/poll", async (req, res) => {
     if (p.signupSub) return res.json({ ok: true, signup: { email: p.signupSub.email, name: p.signupSub.name } });
     gPolls.delete((req.body || {}).pollId);
     setSessionCookie(req, res, p.session);
-    return res.json({ ok: true, user: p.user, profile: p.profile, profileToken: p.profileToken, session: p.session });
+    return res.json({ ok: true, user: p.user, profile: p.profile, profileToken: p.profileToken, session: p.session, mustReset: !!p.mustReset });
   }
   if (Date.now() > p.expiresAt) {
     gPolls.delete((req.body || {}).pollId);
@@ -632,7 +658,7 @@ router.post("/api/auth/google/web-finish", (req, res) => {
     return res.json({ ok: true, signup: { email: o.signupSub.email, name: o.signupSub.name }, pollId });
   }
   setSessionCookie(req, res, o.session);
-  res.json({ ok: true, user: o.user, profile: o.profile, profileToken: o.profileToken, session: o.session });
+  res.json({ ok: true, user: o.user, profile: o.profile, profileToken: o.profileToken, session: o.session, mustReset: !!o.mustReset });
 });
 
 // Link the signed-in profile to a Google identity (same device flow; the
@@ -654,4 +680,4 @@ router.post("/api/auth/google/link", (req, res) => {
 });
 
 module.exports = router;
-module.exports._internals = { tooMany, recordFail, fails, FAIL_MAX, FAIL_WINDOW };
+module.exports._internals = { tooMany, recordFail, fails, FAIL_MAX, FAIL_WINDOW, googleOutcomeFor, gPolls, gStates };

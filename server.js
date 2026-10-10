@@ -281,9 +281,13 @@ app.get("/web", (req, res) => shell(res, "browser.html"));
 // The TV-pairing QR encodes this short path; it lands the phone in the SPA's
 // confirm screen. A plain redirect so the QR stays small and the page gets
 // the full app (sign-in included) for free.
+// With no code — what the TV's "No camera handy? open {host}/link and type
+// this code" sends a person to — it lands on the same screen's code field
+// (#/pair): the old redirect went to "/#/pair/", which matched no route and
+// dropped the phone on Home.
 app.get("/link", (req, res) => {
   const code = String(req.query.code || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 12);
-  res.redirect(`/#/pair/${code}`);
+  res.redirect(code ? `/#/pair/${code}` : "/#/pair");
 });
 
 // The Android TV build. /download is the one path a person has to remember:

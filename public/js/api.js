@@ -40,6 +40,14 @@ const json = async (url, options = {}, attempt = 0) => {
     // the status, and the one flag a caller acts on: "ask for the household PIN"
     err.status = res.status;
     if (body && body.pinRequired) err.pinRequired = true;
+    // The sign-in wall refused this (the server began to require sign-in, or
+    // this session was revoked or ran out). The caller still gets its error;
+    // the app is told too, so it can go to the sign-in screen (session.js)
+    // instead of every screen failing on its own.
+    if (res.status === 401 && body && body.signinRequired) {
+      err.signinRequired = true;
+      try { window.dispatchEvent(new CustomEvent("aurora-signin-required", { detail: { url } })); } catch {}
+    }
     throw err;
   }
   // the tiny pictures that ride beside an answer go to blur.js; the screen
@@ -227,7 +235,9 @@ export const api = {
   follow: (id, imdbId, on, title) => post(`/api/profiles/${id}/follow`, { imdbId, on, title }),
   pushKey: () => json("/api/push/key"),
   pushSet: (id, body) => post(`/api/profiles/${id}/push`, body),
-  signOutEverywhere: (id) => post(`/api/profiles/${id}/signout-everywhere`, {}),
+  // `clientId`: this tab's own socket (ws.js keeps it), so the server does not
+  // tell the tab that asked that it was signed out
+  signOutEverywhere: (id, clientId) => post(`/api/profiles/${id}/signout-everywhere`, clientId ? { clientId } : {}),
   setTaste: (id, liked) => post(`/api/profiles/${id}/taste`, { liked }),
   updateProfile: (id, fields) =>
     json(`/api/profiles/${id}`, {

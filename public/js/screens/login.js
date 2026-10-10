@@ -84,14 +84,27 @@ export const showLoginScreen = (opts = {}) =>
       popScope(wrap);
       wrap.remove();
     };
-    const done = (res) => {
+    // `typed`: the password this sign-in just verified (none for Google).
+    const done = (res, typed = null) => {
       cleanup();
       opts.onSignedIn?.(res && res.user);
       resolve(res);
+      // The admin asked for a new password at the next sign-in (People →
+      // Reset password): the same sheet the profile wall raises after an
+      // unlock, for every way of signing in. The session is already in place
+      // (the cookie came with the answer), so the save goes through.
+      if (res && res.mustReset && res.profile) {
+        import("./profiles.js").then((m) => m.newPasswordPrompt(res.profile, typed)).catch(() => {});
+      }
     };
 
     let serverInfo = null; // {googleWeb, googleDevice, ...} once fetched
-    const infoReady = api.serverInfo().then((i) => (serverInfo = i)).catch(() => null);
+    const infoReady = api.serverInfo().then((i) => {
+      // with the wall closed this screen comes before anything else has
+      // asked: its own copy (and the reset sheet) name the admin
+      if (i && i.adminName) state.adminName = i.adminName;
+      return (serverInfo = i);
+    }).catch(() => null);
 
     // One entry point for every Google button: the web popup where the
     // browser can use it (localhost/domain), the code flow otherwise.
@@ -140,8 +153,9 @@ export const showLoginScreen = (opts = {}) =>
         submitBtn.disabled = true;
         submitBtn.classList.add("busy");
         try {
-          const res = await api.login(user.input.value.trim(), pass.input.value);
-          done(res);
+          const typed = pass.input.value;
+          const res = await api.login(user.input.value.trim(), typed);
+          done(res, typed);
         } catch (e) {
           showErr(err, e.message || "Sign-in failed.");
           pass.input.value = "";

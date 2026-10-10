@@ -247,4 +247,30 @@ ui.test("Sign out everywhere else keeps this device in", async ({ page, goto, si
   assert.equal(await page.locator(".profiles-gate").count(), 0, "this device was signed out too");
 });
 
+// The "New in Aurora" cards send people to places in Settings by name. A
+// card once said "More settings → Data use"; the section is "Internet" and
+// the row "Internet use".
+ui.test("every Settings place a What's new card names exists under that name", async ({ page, goto, signIn, freshProfile }) => {
+  await signIn(await freshProfile());
+  await goto("#/new");
+  const named = await page.evaluate(() => {
+    const out = [];
+    const text = document.getElementById("app").innerText;
+    for (const m of text.matchAll(/Settings → (?:More settings → )?([A-Z][A-Za-z' ]+?)(?: → ([A-Z][A-Za-z' ]+?))?(?=[.,;:)\n]|$)/g)) out.push({ section: m[1].trim(), row: m[2] ? m[2].trim() : null, said: m[0] });
+    return out;
+  });
+  assert.ok(named.length >= 3, `only ${named.length} Settings paths found on the page — did the cards change shape?`);
+  await goto("#/preferences");
+  await openMore(page);
+  const sections = await headings(page);
+  const pageText = await page.textContent("#app");
+  for (const n of named) {
+    assert.ok(sections.includes(n.section), `a What's new card says "${n.said}", but Settings has no "${n.section}" section (it has ${JSON.stringify(sections)})`);
+    if (n.row) assert.ok(pageText.includes(n.row), `a What's new card says "${n.said}", but Settings shows no "${n.row}"`);
+  }
+  // the card's own button is named after the row it leads to
+  await goto("#/new");
+  assert.equal(await page.locator('.wn-go:has-text("Data use")').count(), 0);
+});
+
 ui.run({ concurrency: 3 });

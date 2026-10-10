@@ -318,8 +318,30 @@ export const renderPlayer = async (root, { id }) => {
           })
           .catch(() => null)
       : Promise.resolve(null);
-  const [owned] = await Promise.all([ownedP, refreshProgress()]);
+  const [owned, historyRead0] = await Promise.all([ownedP, refreshProgress()]);
   if (location.hash !== entryHash) return;
+  // The saved position is read here, and the save loop below WRITES over it.
+  // A read that fails leaves "no progress": the film would start at 0:00 and
+  // a few seconds later the real resume point (an hour in) would be replaced
+  // by those few seconds. So, the TV app's rule (tv-native Player.tsx): try
+  // once more after a second, and if the history still cannot be read,
+  // refuse to save for this playback — and say so.
+  // A copy saved on this device is the exception: it plays with no server by
+  // design, its progress is kept on the device and delivered later
+  // (offline.js), and state.js folds that queue into the resume point.
+  // (A read that fails while this tab already holds the profile's history
+  // from earlier is not that case: the resume point is the real one, as of
+  // that read, and state.js keeps it.)
+  const historyKnown = () => !!state.profile && state.historyOf === state.profile.id;
+  let progressReadFailed = false;
+  if (state.profile && !item._offline && !historyRead0 && !historyKnown()) {
+    await new Promise((r) => setTimeout(r, 1000));
+    if (location.hash !== entryHash) return;
+    await refreshProgress();
+    if (location.hash !== entryHash) return;
+    progressReadFailed = !historyKnown();
+    if (progressReadFailed) toast("Couldn't read your watch history — resume and progress saving are off", "⚠️");
+  }
   if (owned && owned.id) {
     location.replace(`#/play/${owned.id}${restart ? "?restart=1" : ""}`);
     return;
@@ -3872,6 +3894,8 @@ export const renderPlayer = async (root, { id }) => {
   };
 
   const saveProgress = () => {
+    // Never write over a history we could not read (see where it is read).
+    if (progressReadFailed) return;
     const d = totalDuration();
     if (!state.profile || !d) return;
     // (stall recovery) While a rebuilt stream is still coming back, the media

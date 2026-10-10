@@ -12,7 +12,8 @@ import { $, el, toast, icons } from "./ui.js";
 import { route, startRouter, navigate } from "./router.js";
 import { state, loadProfiles, setProfile, savedToken, downloads, readyDownloads } from "./state.js";
 import { api, setAuthToken, forgetWarm } from "./api.js";
-import { connect, onMessage } from "./ws.js";
+import { connect, reconnect, onMessage, emit } from "./ws.js";
+import { appRunning, onSigninRequired } from "./session.js";
 import { renderHome } from "./screens/home.js";
 import { showProfileGate } from "./screens/profiles.js";
 import { showLoginScreen } from "./screens/login.js";
@@ -110,6 +111,8 @@ route("/taste", lazy("./screens/taste.js", "renderTaste"));
 route("/pick", lazy("./screens/pickforme.js", "renderPickForMe"));
 route("/new", lazy("./screens/whatsnew.js", "renderWhatsNew"));
 route("/pair/:code", (root, p) => import("./screens/pair.js").then((m) => m.renderPair(root, p)));
+// no code in the address ({host}/link, typed by hand off the TV): the code field
+route("/pair", (root) => import("./screens/pair.js").then((m) => m.renderPair(root, {})));
 
 // "?" anywhere opens the keyboard shortcuts overlay
 document.addEventListener("keydown", (e) => {
@@ -301,6 +304,28 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       .catch(() => { fetchedFor = null; });
   };
   load();
+  // The socket came back (every welcome after the first). Whatever happened
+  // to a download in between never reached this tab: a download that finished
+  // during the outage stayed "downloading" on the pill, My downloads and the
+  // title's page until a reload, and its "ready to watch" was never said.
+  // Ask for the list again and hand each job to the same listeners the live
+  // messages reach, so every open screen catches up — a job seen moving to
+  // "done" is announced exactly as if its message had arrived.
+  let welcomes = 0;
+  onMessage("welcome", () => {
+    if (++welcomes === 1) return; // boot's own list is `load()` above
+    const pid = state.profile ? state.profile.id : null;
+    api.downloads(pid)
+      .then((res) => {
+        if ((state.profile ? state.profile.id : null) !== pid) return;
+        const list = Array.isArray(res) ? res : res.downloads || [];
+        fetchedFor = pid;
+        const ids = new Set(list.map((j) => j.id));
+        for (const id of [...downloads.keys()]) if (!ids.has(id)) emit({ type: "download_removed", id });
+        for (const job of list) emit({ type: "download_update", job, caughtUp: true });
+      })
+      .catch(() => {});
+  });
   // The app icon's badge (an installed Aurora, where the platform has one):
   // a download you asked for that lands while the app is in the background
   // puts a number on the icon; coming back to the app takes it off. The
@@ -332,7 +357,8 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
   onMessage("download_removed", ({ id }) => {
     if (id && downloads.delete(id)) paint();
   });
-  onMessage("download_update", ({ job }) => {
+  // `caughtUp`: from the list asked for after a reconnect (above), not live
+  onMessage("download_update", ({ job, caughtUp }) => {
     if (!job) return;
     // A smart download is the one download the viewer never asked for, and
     // it starts two-thirds through an episode — the worst moment for a
@@ -342,7 +368,7 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     // turned off, from the Downloads page and Settings → More settings → Downloads.
     // (A My List download is announced by the add itself — "saved for later —
     // downloading the film" — so it gets no second line here.)
-    if (!downloads.has(job.id) && job.mine && job.smart && job.auto !== "mylist" && !document.querySelector(".player")) {
+    if (!caughtUp && !downloads.has(job.id) && job.mine && job.smart && job.auto !== "mylist" && !document.querySelector(".player")) {
       const ep = job.season && job.episode ? ` S${job.season}E${job.episode}` : "";
       toast(`Next episode downloading${ep ? " ·" + ep : ""}`, "⬇", null, { quiet: true });
     }
@@ -431,7 +457,7 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       el("div", { class: "look-notice-glyph" }),
       el("div", { class: "look-notice-title" }, "Aurora has a new look"),
       el("p", { class: "look-notice-text" },
-        "Glass over a living sky, a Tonight row with what's ready for you, and a cleaner player. ",
+        "Glass over a living sky and a cleaner player. ",
         "The Legacy look is still here — switch between the two any time under Settings → Appearance → Look."),
       el("div", { class: "look-notice-actions" },
         el("button", { class: "btn focusable", onclick: () => { close(); navigate("#/preferences"); } }, "Open Preferences"),
@@ -444,6 +470,34 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
   // after the profile is in and the first screen has painted
   window.addEventListener("aurora-profile", () => setTimeout(showLookNotice, 900));
 }
+
+// Web Push follows the profile: this browser has ONE subscription, and it was
+// filed under whoever switched notifications on. Every time a profile is
+// entered (boot, a switch at the wall, a sign-in) it is filed again under
+// that profile; signing out takes it off the server (signOutHere below).
+// push.js is only loaded where the switch is on.
+const pushOn = () => { try { return localStorage.getItem("aurora-push") === "1"; } catch { return false; } };
+window.addEventListener("aurora-profile", () => {
+  if (pushOn()) import("./push.js").then((m) => m.rebind()).catch(() => {});
+});
+// "Sign out", from the profile menu and from Settings: out means out.
+const signOutHere = async () => {
+  // while the server still knows who this is; never allowed to hold the sign-out up
+  if (pushOn()) {
+    await Promise.race([
+      import("./push.js").then((m) => m.release()).catch(() => {}),
+      new Promise((r) => setTimeout(r, 2000)),
+    ]);
+  }
+  try { await api.logout(); } catch {}
+  // forget the device's shortcuts back in
+  try {
+    localStorage.removeItem("aurora-profile");
+    if (state.profile) sessionStorage.removeItem(`aurora-token-${state.profile.id}`);
+  } catch {}
+  location.reload();
+};
+document.addEventListener("aurora-sign-out", () => signOutHere());
 
 // A dot on the gear while there's a release the person hasn't read about
 // (Preferences → What's new marks it seen). One fetch at boot; the server
@@ -569,15 +623,9 @@ const showProfileMenu = () => {
     item("Report a problem", () => { close(); showReportSheet(); }),
     item("Join a watch party", () => { close(); showJoinParty(); }),
     state.user &&
-      item("Sign out", async () => {
+      item("Sign out", () => {
         close();
-        try { await api.logout(); } catch {}
-        // out means out: forget the device's shortcuts back in
-        try {
-          localStorage.removeItem("aurora-profile");
-          if (state.profile) sessionStorage.removeItem(`aurora-token-${state.profile.id}`);
-        } catch {}
-        location.reload();
+        signOutHere();
       }, "danger"),
   );
   const wrap = el("div", { class: "nav-menu-wrap ui-overlay", onclick: (e) => e.target === wrap && close() }, menu);
@@ -600,6 +648,10 @@ $("#nav-profile").addEventListener("click", () => {
   if (!state.profile) return openGate();
   showProfileMenu();
 });
+
+// The sign-in wall went up under a running app (api.js saw a 401
+// { signinRequired }): to the sign-in screen, not a page of failed requests.
+window.addEventListener("aurora-signin-required", () => onSigninRequired());
 
 const boot = async () => {
   connect();
@@ -653,6 +705,7 @@ const boot = async () => {
   const start = () => {
     paintProfileChip();
     startRouter(document.getElementById("app"));
+    appRunning(); // from here on, losing the sign-in is session.js's business
     // Booted from the worker's cached answers with no network: Home would be
     // a wall of titles that can't play. Saved is where the playable ones are.
     if (!navigator.onLine) {
@@ -689,6 +742,9 @@ const boot = async () => {
 
   // Fresh login on a closed wall: enter the signed-in profile directly.
   if (loginEntry) {
+    // the socket above connected before there was a session: connect again,
+    // signed in, or the server keeps treating it as a stranger's (ws.js)
+    reconnect();
     await setProfile(loginEntry.profile, loginEntry.profileToken || null);
     start();
     return;

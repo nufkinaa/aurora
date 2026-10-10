@@ -111,19 +111,23 @@ Rules that keep the suite reliable:
 
 | File | Covers |
 |---|---|
-| `wall.test.js` | profile wall, wrong / right password, reload keeps the unlock, the one-time "new look" note, Switch profile |
+| `wall.test.js` | profile wall, wrong / right password, what the password sheet says for a rate limit / a locked profile / no server, reload keeps the unlock, the one-time "new look" note, Switch profile |
 | `navigation.test.js` | every `route()` in `main.js` at 1280×720 and 390×844: renders, no console errors, no sideways scroll, no skeleton left; deep links; Back / Forward / Escape; unknown routes. Fails when `main.js` gains a route the table does not have |
 | `library.test.js` | Movies / Shows grids, Unwatched, category pills, the in-page search box, Search, My List add / remove / reload / sort / filter; the add's toast for each answer of My List downloads (stubbed answer) |
 | `title.test.js` | film Play / Resume / Start over / watched; show episode list and card states; X-Ray with no network; Follow; rating |
-| `player.test.js` | direct play: transport, ±10 s, keys, timeline, speed, subtitles (+ saved to the profile, carried to the next title), settings menu, resume, leaving, Media Session, PiP / AirPlay, mute, playing to the end, 10 quiet seconds after leaving |
+| `player.test.js` | direct play: transport, ±10 s, keys, timeline, speed, subtitles (+ saved to the profile, carried to the next title), settings menu, resume, leaving, Media Session, PiP / AirPlay, mute, playing to the end, 10 quiet seconds after leaving; watch history that cannot be read (plays, saves nothing, the resume point on the server survives) |
 | `player-episodes.test.js` | Next episode, Up next + countdown + auto-advance, Play now / Dismiss, autoplay off, Still watching?, subtitle carried to the next episode, resume, leaving |
 | `player-hls.test.js` | the repackaged path: hls.js, seeking, embedded subtitles, audio switch + remembered language, resume; **stall recovery** (nudge → one rebuild at the same position; refused server → "Playback stopped" → Try again; pause and hidden tab do not trigger it) |
-| `settings.test.js` | every section, More settings, every switch across navigation and reload, subtitle language, look, notifications refused |
+| `settings.test.js` | every section, More settings, every switch across navigation and reload, subtitle language, look, notifications refused; every Settings place a What's new card names exists under that name |
 | `live.test.js` | a film added to / removed from the library reaches open grids and Home without a reload, filter kept |
 | `images.test.js` | blur-up placeholders give way to sharp posters (desktop + phone); a broken poster falls back to the titled tile |
 | `kids.test.js` | a kids profile's grids / Home / Search, blocked title and its streams (403), leaving needs the PIN, a normal profile is unaffected (skips if the server has no kids routes) |
 | `admin.test.js` | admin gate, People tab, approve / reject a request (arrives live), kids controls, every tab opens; Downloads → "Downloads at once" (set, reload, out-of-range refused) and the second-source line under a job (stubbed queue); My List downloads → the settings (set, reload, refused values), the tag on a job, the stale mark on disk and the stale copy leading "Suggest what to delete" (stubbed answers) |
-| `downloads.test.js` | My downloads: a job trying a second source keeps its one card and gains one note (stubbed queue) |
+| `downloads.test.js` | My downloads: a job trying a second source keeps its one card and gains one note (stubbed queue); a download that finished while the socket was down is caught up on reconnect (the test closes the page's socket) |
+| `pair.test.js` | signing a TV in from a phone: `/link` with no code opens the code field, a typed code goes on to the confirm screen the QR opens, approval hands the TV a session once; not signed in asks for the sign-in first; an expired code |
+| `signin.test.js` | the sign-in modes, one test at a time (the mode is one switch for the whole instance; each test sets it and puts "open" back): a forced password reset asked for after signing in to a server that requires sign-in, and at the wall; "Sign out everywhere else" from another device and from this tab; the server starting to require sign-in under an open tab |
+| `push.test.js` | Web Push follows the profile: entering a profile files the browser's subscription under it, a switch moves it, signing out withdraws it (the browser's push objects are stand-ins; nothing is sent) |
+| `ai.test.js` | the AI page keeps its last answer for the profile that asked and for nobody else (stubbed answer) |
 
 ### How stall recovery is tested
 
@@ -145,7 +149,7 @@ Not covered, because they cannot be exercised deterministically offline — noth
 - trailers (YouTube), catalogue shelves and catalogue title pages (`#/discover/...` is only checked for failing politely)
 - real metadata: synopsis, genres, cast, X-Ray content (only its "nothing known" state)
 - Web Push delivery and the notifications switch's "allowed" path; anything that needs the service worker (it is blocked in tests): offline copies, the Saved screen's contents, the installed-app badge
-- sign-in modes "transition" and "closed": claiming, the login screen, Google, **"Sign out everywhere else"** (the test for it skips: the button is only rendered for a claimed profile)
+- sign-in modes "transition" and "closed": claiming at the wall, requesting access, Google (`signin.test.js` covers the login screen, a forced reset, "Sign out everywhere else" and the wall going up; the older test for that button in `settings.test.js` still skips in mode "open")
 - watch parties, AI picks, reports, Wrapped's numbers, avatar upload
 - the stall ladder's own "+45 s" card (reached only when a rebuilt stream neither loads nor fails; see the bug list in the report), torrent-bound and party-bound stand-downs, native HLS (iPhone)
 - AirPlay and Safari / iOS behaviour in general: the suite runs Chromium only
