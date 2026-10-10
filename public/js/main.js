@@ -12,7 +12,8 @@ import { $, el, toast, icons } from "./ui.js";
 import { route, startRouter, navigate } from "./router.js";
 import { state, loadProfiles, setProfile, savedToken, downloads, readyDownloads } from "./state.js";
 import { api, setAuthToken, forgetWarm } from "./api.js";
-import { connect, onMessage } from "./ws.js";
+import { connect, reconnect, onMessage } from "./ws.js";
+import { appRunning } from "./session.js";
 import { renderHome } from "./screens/home.js";
 import { showProfileGate } from "./screens/profiles.js";
 import { showLoginScreen } from "./screens/login.js";
@@ -655,6 +656,7 @@ const boot = async () => {
   const start = () => {
     paintProfileChip();
     startRouter(document.getElementById("app"));
+    appRunning(); // from here on, losing the sign-in is session.js's business
     // Booted from the worker's cached answers with no network: Home would be
     // a wall of titles that can't play. Saved is where the playable ones are.
     if (!navigator.onLine) {
@@ -691,6 +693,9 @@ const boot = async () => {
 
   // Fresh login on a closed wall: enter the signed-in profile directly.
   if (loginEntry) {
+    // the socket above connected before there was a session: connect again,
+    // signed in, or the server keeps treating it as a stranger's (ws.js)
+    reconnect();
     await setProfile(loginEntry.profile, loginEntry.profileToken || null);
     start();
     return;

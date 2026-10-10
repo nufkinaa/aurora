@@ -17,6 +17,8 @@ const ui = suite({
     srv.profiles.reset = await claimed("Resetter");
     // a password, no username: the profile wall's unlock is its only way in
     srv.profiles.walled = await srv.api.createProfile("Walled");
+    srv.profiles.mover = await claimed("Mover");
+    srv.profiles.keeper = await claimed("Keeper");
   },
 });
 
@@ -104,6 +106,81 @@ ui.test("the wall: after a forced reset is saved, the tab is still inside the pr
   await page.reload();
   await waitForScreen(page);
   assert.equal(await page.locator(".profiles-gate").count(), 0, "a reload stays inside");
+});
+
+// Another device of the same person: a sign-in of its own, by the API.
+const otherDevice = async (api, p) => {
+  const r = await api.post("/api/auth/login", { username: p.username, password: p.password });
+  return { session: r.session, headers: { "X-Session": r.session } };
+};
+const toastSays = (page, text) =>
+  page.waitForFunction((t) => document.getElementById("toasts").innerText.includes(t), text);
+
+ui.test("\"Sign out everywhere else\" on another device sends this tab to the sign-in screen at once", {
+  allow: [WALL_401],
+}, async ({ page, goto, api, profiles }) => {
+  const p = profiles.mover;
+  await setMode(api, "closed");
+  try {
+    await goto("#/", { wait: false });
+    await signInWith(page, p.username, p.password);
+    await waitForScreen(page);
+    const phone = await otherDevice(api, p);
+    // The tab's socket connected before the sign-in; it has to have connected
+    // again, signed in, for the server to know it as this profile's (a closed
+    // server drops what a stranger's socket says). Wait for that.
+    await assert.doesNotReject(async () => {
+      for (let i = 0; i < 40; i++) {
+        const people = await api.adminGet("/api/admin/people");
+        if ((people.clients || []).some((c) => c.profile === p.name)) return;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      throw new Error("the signed-in tab never showed up among the connected clients");
+    });
+
+    const r = await api.post(`/api/profiles/${p.id}/signout-everywhere`, {}, phone.headers);
+    assert.ok(r.ended >= 1, "the tab's session was ended");
+    assert.equal(r.told, 1, "one socket — the tab's — was told");
+    await toastSays(page, "signed out from another device");
+    await page.waitForSelector(loginCard, { timeout: 10000 });
+    assert.equal(await page.locator("#app .screen").count(), 0, "nothing of the app is left behind the sign-in screen");
+  } finally {
+    await setMode(api, "open");
+  }
+});
+
+ui.test("the tab that presses \"Sign out everywhere else\" stays signed in; the other device is out", {
+  allow: [WALL_401],
+}, async ({ page, goto, api, profiles }) => {
+  const p = profiles.keeper;
+  await setMode(api, "closed");
+  try {
+    await goto("#/", { wait: false });
+    await signInWith(page, p.username, p.password);
+    await waitForScreen(page);
+    const tv = await otherDevice(api, p);
+    assert.ok((await api.get("/api/me", tv.headers)).user, "the other device is signed in");
+
+    await goto("#/preferences");
+    const more = page.locator(".pref-more-toggle");
+    if ((await more.getAttribute("aria-expanded")) !== "true") await more.click();
+    const button = page.locator('#app button:has-text("Sign out everywhere else")');
+    await button.scrollIntoViewIfNeeded();
+    await button.click();
+    await toastSays(page, "Signed out");
+    assert.equal((await api.get("/api/me", tv.headers)).user, null, "the other device's session is gone");
+
+    // this tab: no sign-in screen, no reload, and its requests still go through
+    await page.waitForTimeout(2500);
+    assert.equal(await page.locator(loginCard).count(), 0);
+    assert.equal(await page.locator("#toasts", { hasText: "signed out from another device" }).count(), 0);
+    const status = await page.evaluate(async (id) => (await fetch(`/api/profiles/${id}/state`)).status, p.id);
+    assert.equal(status, 200);
+    await goto("#/list");
+    await page.waitForFunction(() => document.getElementById("app").innerText.includes("My List"));
+  } finally {
+    await setMode(api, "open");
+  }
 });
 
 ui.run({ concurrency: 1 });

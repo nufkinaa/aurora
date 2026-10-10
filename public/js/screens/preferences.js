@@ -3,7 +3,7 @@
 // Reopenable anytime from the nav gear.
 import { el, toast, rerenderInPlace, keptScrollFor, restoreScrollY, promptSheet, haptic } from "../ui.js";
 import { loadLibrary, loadProfiles, state, applyAppearance } from "../state.js";
-import { api } from "../api.js";
+import { api, setAuthToken } from "../api.js";
 import { navigate } from "../router.js";
 import { profileModal, kidsLabel } from "./profiles.js";
 import { playerPrefs, applyCueStyle } from "./player.js";
@@ -554,8 +554,12 @@ export const renderPreferences = async (root) => {
           class: "btn focusable",
           onclick: async () => {
             try {
-              const r = await api.signOutEverywhere(state.profile.id);
-              if (r.token) { state.token = r.token; try { sessionStorage.setItem(`aurora-token-${state.profile.id}`, r.token); } catch {} }
+              const r = await api.signOutEverywhere(state.profile.id, state.clientId);
+              // every unlock token of the profile just ended, this tab's too:
+              // the fresh one goes on the very next request (it used to be
+              // stored for the next reload only — a profile with a password
+              // and no sign-in was refused everything until then)
+              if (r.token) { state.token = r.token; setAuthToken(r.token); try { sessionStorage.setItem(`aurora-token-${state.profile.id}`, r.token); } catch {} }
               paintDevices();
               toast(r.ended ? `Signed out ${r.ended} other device${r.ended === 1 ? "" : "s"}` : "Every other device is signed out", "🔒");
             } catch (e) {

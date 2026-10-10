@@ -12,6 +12,7 @@ export const state = {
   episodeProgress: {},  // "imdbId:season:episode" -> progress (streamed episodes)
   streamProgress: {},   // imdbId -> progress (streamed films)
   ws: null,
+  clientId: null,       // this tab's socket, as the server names it (the welcome message)
   pendingItems: {},     // id -> item handed to the player without a server round-trip
   adminName: "the admin", // what UI copy calls whoever runs the server (configurable)
   // false on a server with "torrents": false in config.json — nothing that

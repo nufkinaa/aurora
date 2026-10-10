@@ -1,6 +1,7 @@
 // WebSocket client: presence, activity reporting, live notifications.
 import { state, loadLibrary, refreshProgress } from "./state.js";
 import { toast } from "./ui.js";
+import { backToSignIn, onProfileSignedOut } from "./session.js";
 
 const listeners = new Map(); // type -> Set<fn>
 
@@ -25,6 +26,7 @@ const handle = (data) => {
 
   switch (data.type) {
     case "welcome":
+      state.clientId = data.clientId || null; // this socket's name on the server
       if (state.profile) send({ type: "hello", profile: state.profile.name, profileId: state.profile.id });
       break;
     case "subtitle_ocr":
@@ -40,8 +42,11 @@ const handle = (data) => {
       toast(data.message, "📢");
       break;
     case "kicked":
-      toast(`${state.adminName} pulled the plug on this session`, "🚫");
-      setTimeout(() => location.reload(), 1500);
+      backToSignIn(`${state.adminName} pulled the plug on this session`, "🚫");
+      break;
+    // "Sign out everywhere else", pressed on another device of this profile
+    case "profile_signed_out":
+      onProfileSignedOut(data.profileId);
       break;
     case "banned": {
       document.body.innerHTML =
@@ -84,6 +89,19 @@ const showOfflineBanner = () => {
 };
 const hideOfflineBanner = () => document.getElementById(BANNER_ID)?.remove();
 
+// Drop the socket and let the reconnect below open a new one. The server
+// reads who a socket belongs to once, when it connects — so a tab that signs
+// in AFTER connecting (the sign-in screen of a server that requires sign-in
+// comes up after the socket) has to connect again to be known: until it did,
+// such a tab got no live updates at all and was missing from the admin's
+// list of who is connected.
+let planned = false; // a close we asked for: connect again at once, it is not an outage
+export const reconnect = () => {
+  if (!state.ws) return; // already between sockets — the next one connects signed in
+  planned = true;
+  try { state.ws.close(); } catch { planned = false; }
+};
+
 export const connect = () => {
   try {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -119,6 +137,10 @@ export const connect = () => {
     };
     ws.onclose = () => {
       state.ws = null;
+      if (planned) {
+        planned = false;
+        return connect();
+      }
       failedAttempts++;
       if (failedAttempts >= 2) showOfflineBanner();
       setTimeout(connect, reconnectDelay);
