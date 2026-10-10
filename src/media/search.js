@@ -159,7 +159,11 @@ const wordHits = (qw, qm, t) => {
 const tierView = (q, t, fuzzy = true) => {
   if (!q.s || !t.s) return 0;
   if (q.s === t.s || q.a === t.a || (q.q.length >= 3 && q.q === t.q)) return 1000;
-  if (t.s.startsWith(q.s) || t.a.startsWith(q.a) || (q.q.length >= 3 && (t.q.startsWith(q.q) || t.aq.startsWith(q.aq)))) return 900;
+  // (the TITLE's article never counts: "sopr" → The Sopranos. The QUERY's is
+  // only set aside once three letters follow it — "the o" is the start of
+  // "The Office", not of everything beginning with O)
+  if (t.s.startsWith(q.s) || t.a.startsWith(q.s) || (q.aq.length >= 3 && (t.a.startsWith(q.a) || t.aq.startsWith(q.aq))) ||
+    (q.q.length >= 3 && (t.q.startsWith(q.q) || t.aq.startsWith(q.q)))) return 900;
   const L = q.q.length;
   if (L < 2) return 0; // one letter: what starts with it, nothing looser
   if ((q.m & ~t.m) === 0) {
@@ -391,8 +395,9 @@ let src = {
       for (const t of require("./xray").titleCasts()) {
         out.push({
           imdbId: t.imdbId,
-          cast: t.cast.map((p) => p.name).filter(Boolean),
-          roles: t.cast.filter((p) => p.name && p.role).map((p) => ({ name: p.name, role: p.role })),
+          // the first-billed: a search for "tom" is not for every Tom with one line
+          cast: t.cast.slice(0, 10).map((p) => p.name).filter(Boolean),
+          roles: t.cast.slice(0, 10).filter((p) => p.name && p.role).map((p) => ({ name: p.name, role: p.role })),
         });
       }
     } catch {}
@@ -571,6 +576,10 @@ const ensureIndex = () => {
 // The live catalogue's answer for THIS query, as documents: a twin of a
 // title already indexed lends it its name and its place in the catalogue's
 // order; anything new becomes a document for this one query.
+// Popularity is what the index knows (the library, the trending position,
+// earlier searches) PLUS half the catalogue's place for this query: the
+// catalogue's order alone is not popularity while a word is half typed
+// ("interste" → "Interstellar Ella" ahead of Interstellar).
 const withLive = (idx, live) => {
   const extra = [];
   const pops = new Map(); // doc.key → popularity for this query
@@ -595,7 +604,8 @@ const withLive = (idx, live) => {
         return;
       }
       if (!m.imdbId || !(m.poster || m.cover)) return;
-      const d = catalogDoc(m, pop);
+      const d = catalogDoc(m, 0);
+      pops.set(d.key, pop);
       fresh.set(d.imdbId, d);
       extra.push(d);
     });
@@ -622,7 +632,7 @@ const rank = (Q, idx, { live = null, allow = null, pin = null, limit = 60, type 
     // one slip from a title the household owns, or from the catalogue's own
     // first answer for these letters: it goes right under "starts with"
     if (m.tier === FUZZY_WHOLE && (m.kind === "title" || m.kind === "aka") && (d.inLibrary || livePop >= 0.9)) m.tier = LIFTED;
-    cands.push({ doc: d, ...m, pop: Math.max(d.pop, livePop) });
+    cands.push({ doc: d, ...m, pop: d.pop + 0.5 * livePop });
   };
   for (const d of idx.docs) consider(d);
   for (const d of extra) consider(d);
@@ -1000,25 +1010,37 @@ const suggest = (q, opts = {}) => {
   const type = opts.type === "movie" || opts.type === "show" ? opts.type : null;
   const allow = typeof opts.allow === "function" ? opts.allow : null;
   const floor = Q.len === 1 ? 900 : Q.len === 2 ? 760 : 580;
+  // what the live catalogue already answered for these very letters is in
+  // memory: its titles can be suggested too (never fetched for a suggestion)
+  let live = null;
+  try { live = src.liveCached(liveText(Q.text)); } catch {}
+  const { extra, pops } = withLive(idx, live);
   const cands = [];
-  for (const d of idx.docs) {
+  for (const d of [...idx.docs, ...extra]) {
     if (type && d.type !== type) continue;
     if (!d.cover && !d.inLibrary) continue;
     const m = scoreDoc(Q, d, { titlesOnly: true });
-    if (m && m.tier >= floor) cands.push({ doc: d, ...m, pop: d.pop });
+    if (!m || m.tier < floor) continue;
+    if (m.tier === FUZZY_WHOLE && d.inLibrary) m.tier = LIFTED;
+    cands.push({ doc: d, ...m, pop: d.pop + 0.5 * (pops.get(d.key) || 0) });
   }
   cands.sort(cmp);
-  const titles = [];
+  const all = [];
   for (const c of cands) {
     if (allow && !allow(cardItem(c.doc))) continue;
-    titles.push(c);
-    if (titles.length >= limit) break;
+    all.push(c);
+    if (all.length >= limit) break;
   }
+  // letters found in the MIDDLE of a word ("rea" in Scream) are a result, not
+  // a suggestion — unless there is next to nothing else to offer
+  const solid = all.filter((c) => c.tier !== 700);
+  const titles = solid.length >= 3 ? solid : all;
   const people = [];
-  if (Q.len >= 2 && !type) {
+  // people from three letters; a surname (any word but the first) from four
+  if (Q.len >= 3 && !type) {
     for (const p of idx.people.values()) {
       const t = tierView(Q.f.raw, p.v, false);
-      if (t < 760) continue;
+      if (t < (Q.len >= 4 ? 760 : 900)) continue;
       let count = 0;
       for (const key of p.keys) {
         const d = key.startsWith("lib:") ? idx.byLib.get(key.slice(4)) : idx.byImdb.get(key);
@@ -1029,7 +1051,7 @@ const suggest = (q, opts = {}) => {
     people.sort((a, b) => b.t - a.t || b.count - a.count || (a.name < b.name ? -1 : 1));
   }
   const genres = [];
-  if (Q.len >= 2 && !type) {
+  if (Q.len >= 3 && !type) {
     const seenG = new Set();
     for (const [k, name] of idx.genres) {
       if (!k.startsWith(Q.f.raw.s) || seenG.has(name)) continue;

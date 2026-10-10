@@ -216,7 +216,8 @@ test("Dune 1984 / 2021 / Part Two: exact before 'starts with', library before ca
   assert.equal(first.pending, true, "the catalogue has not been asked yet");
 
   const r = await full("dune");
-  assert.deepEqual(names(r), ["Dune 1984", "Dune 2021", "Dune 2000", "Dune: Part Two 2024", "Dune Drifter 2020"]);
+  // (the library's, then the one that is also trending, then the catalogue's own order)
+  assert.deepEqual(names(r), ["Dune 1984", "Dune 2000", "Dune 2021", "Dune: Part Two 2024", "Dune Drifter 2020"]);
   assert.equal(r.results[0].id, "L5", "the library's copy");
   assert.equal(r.results.filter((x) => x.imdbId === "tt0087182").length, 1, "the catalogue twin of the library's Dune is not a second card");
   assert.equal(r.pending, false);
@@ -318,7 +319,12 @@ test("order inside a tier: the typed year, the library, popularity — never acr
 });
 
 test("the card that was first stays first when the catalogue answers — unless something matches better", async () => {
-  fixture({ libraryItems: () => [] });
+  // nothing on disk, the UK Office only known from an earlier search
+  fixture({
+    libraryItems: () => [],
+    trending: () => ({ movies: TRENDING.movies, shows: TRENDING.shows.filter((x) => x.title !== "The Office") }),
+    seenTitles: () => [{ ...cat("show", "The Office", 2001, "tt0290978", ["Comedy"]), r: 13 }],
+  });
   const before = await engine.search("the office");
   assert.equal(top(before), "The Office 2001"); // the only one in memory
   const pinned = await full("the office", { pin: before.results[0].key });
@@ -328,6 +334,14 @@ test("the card that was first stays first when the catalogue answers — unless 
   const b2 = await engine.search("dune 2021");
   const after = await full("dune 2021", { pin: b2.results[0].key });
   assert.equal(top(after), "Dune 2021");
+});
+
+test("popularity: a trending title beats the catalogue's own order for half a word", async () => {
+  fixture({
+    libraryItems: () => [],
+    live: async () => ({ movies: [cat("movie", "Interstellar Ella", 2022, "tt9900030"), cat("movie", "Interster", 1981, "tt9900031"), cat("movie", "Interstellar", 2014, "tt0816692")], shows: [] }),
+  });
+  assert.deepEqual(names(await full("interste")), ["Interstellar 2014", "Interstellar Ella 2022", "Interster 1981"]);
 });
 
 // ---------- the related tail ----------
