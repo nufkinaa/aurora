@@ -347,4 +347,15 @@ const get = async ({ type, imdbId, season = null, episode = null, rateKeys = [] 
   return { ...pub, imdbId, type, episode: ep, household: home };
 };
 
-module.exports = { get, _internals: { mergePeople, billedFirst, isAnthology, crewLine } };
+// The cast lists already on disk, per title: [{ imdbId, cast: [{name, role, photo}] }].
+// Sync, cache only — the search index reads actor and character names from it.
+const titleCasts = () => {
+  const out = [];
+  for (const [key, hit] of Object.entries(store.data)) {
+    const m = /^t\|(?:movie|series)\|(tt\d+)$/.exec(key);
+    if (m && hit && hit.data && Array.isArray(hit.data.cast)) out.push({ imdbId: m[1], cast: hit.data.cast });
+  }
+  return out;
+};
+
+module.exports = { get, titleCasts, _internals: { mergePeople, billedFirst, isAnthology, crewLine } };

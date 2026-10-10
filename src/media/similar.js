@@ -306,4 +306,11 @@ const seriesShelves = async (imdbId, tmdbHint) => {
   return out;
 };
 
-module.exports = { similar, similarCached, warmSimilar, collection, SHOW_MAX, _internals: { mapItems, genreFallback, tmdbIdFor, fresh, ALGO, FAIL_TTL, ROW_TTL, ROW_KEEP, SHOW_MAX } };
+// The franchise / director shelves already built for a film, or null — sync,
+// cache only (search's related tail must not wait on TMDB for these).
+const collectionCached = (imdbId) => {
+  const hit = store.data.rows[`coll|movie|${imdbId}`];
+  return hit ? { collection: hit.collection || null, director: hit.director || null } : null;
+};
+
+module.exports = { similar, similarCached, warmSimilar, collection, SHOW_MAX, collectionCached, tmdb, addImdbIds, mapItems, _internals: { mapItems, genreFallback, tmdbIdFor, fresh, ALGO, FAIL_TTL, ROW_TTL, ROW_KEEP, SHOW_MAX } };

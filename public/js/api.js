@@ -17,6 +17,8 @@ const json = async (url, options = {}, attempt = 0) => {
   try {
     res = await fetch(url, { ...options, headers: withBlur(options, withToken(options.headers)) });
   } catch (err) {
+    // the caller gave up on this one (a newer search replaced it): not a blip
+    if (err && err.name === "AbortError") throw err;
     // A network blip (flaky wifi, server restarting). GETs are idempotent —
     // retry twice with a breath between instead of failing the screen.
     // HTTP error statuses are NOT retried here: some are meaningful signals
@@ -103,6 +105,23 @@ export const api = {
     return warmed(`/api/item/${encodeURIComponent(id)}${profile ? `?profile=${encodeURIComponent(profile)}` : ""}`, 60 * 1000, { low });
   },
   search: (q) => json(`/api/search?q=${encodeURIComponent(q)}`),
+  // The one ranked search (library + catalogue + a related tail). `wait`:
+  // also wait for the live catalogue; `pin`: the card that is first now.
+  searchAll: (q, { wait = false, commit = false, pin = null, profileId = "", signal } = {}) =>
+    json(
+      `/api/search?v=2&q=${encodeURIComponent(q)}${wait ? "&wait=1" : ""}${commit ? "&commit=1" : ""}` +
+        `${pin ? `&pin=${encodeURIComponent(pin)}` : ""}${profileId ? `&profile=${encodeURIComponent(profileId)}` : ""}`,
+      { signal },
+    ),
+  // Recent searches live on the server, per profile: every device shows the same list.
+  recentSearches: (profileId) => json(`/api/profiles/${profileId}/searches`),
+  addRecentSearch: (profileId, q) => post(`/api/profiles/${profileId}/searches`, { q }),
+  removeRecentSearch: (profileId, q) =>
+    json(`/api/profiles/${profileId}/searches`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(q == null ? {} : { q }),
+    }),
 
   // Torrent stream sources for a title (movies + per-episode series)
   torrentSources: ({ type, title, year, season, episode }) => {
@@ -210,8 +229,12 @@ export const api = {
   googleStart: () => post("/api/auth/google/start", {}),
   googlePoll: (pollId) => post("/api/auth/google/poll", { pollId }),
   googleLink: (pollId) => post("/api/auth/google/link", { pollId }),
-  suggest: (q, type, limit) =>
-    json(`/api/search/suggest?q=${encodeURIComponent(q)}${type ? `&type=${type}` : ""}${limit ? `&limit=${limit}` : ""}`),
+  suggest: (q, type, limit, { profileId = "", signal } = {}) =>
+    json(
+      `/api/search/suggest?v=2&q=${encodeURIComponent(q)}${type ? `&type=${type}` : ""}${limit ? `&limit=${limit}` : ""}` +
+        `${profileId ? `&profile=${encodeURIComponent(profileId)}` : ""}`,
+      { signal },
+    ),
   intro: (key) => json(`/api/intro/${encodeURIComponent(key)}`),
   subtitlesFetch: (id, lang) => post("/api/subtitles/fetch", { id, lang }),
   report: (text, context, profile) => post("/api/reports", { text, context, profile }),
