@@ -365,6 +365,92 @@ router.get("/api/xray", async (req, res) => {
   }
 });
 
+// A PERSON (media/person.js): who they are, a few portraits, what they made
+// — the sheet behind a press on an actor or a director. `:id` is whatever
+// X-Ray handed out for them: "tmdb:525", an IMDb "nm…", or "name:<their
+// name>" with ?of=<the title's IMDb id> (&type=movie|series) to tell two
+// people of one name apart. ?profile= says whose My List and history the
+// titles are marked against.
+//
+// Kids profiles: the same gate as everywhere (lib/kids.js) decides who is
+// asking; a title is shown only when its age rating is KNOWN and within the
+// limit — judged by the strictest reading on hand (this title's own lookup,
+// and the household's certificate cache). No biography either: it is prose
+// nobody rated.
+const personHits = new Map(); // ip -> number[] timestamps
+const PERSON_WINDOW_MS = 60 * 1000;
+const PERSON_MAX = 40;
+const personOverBudget = (ip, now = Date.now()) => {
+  const list = (personHits.get(ip) || []).filter((t) => now - t < PERSON_WINDOW_MS);
+  list.push(now);
+  personHits.set(ip, list);
+  if (personHits.size > 300) {
+    for (const [k, v] of personHits) if (!v.some((t) => now - t < PERSON_WINDOW_MS)) personHits.delete(k);
+  }
+  return list.length > PERSON_MAX;
+};
+// Pure: one credit from media/person.js → what the client gets, or null when
+// this asker may not see it. Everything it needs is handed in.
+//   maps: identity library maps; list: the profile's raw watchlist entries;
+//   row(imdbId): the profile's history row for a film; kid: { maxAge } | null;
+//   certOf(item): the kids gate's own reading.
+const personCredit = (c, { findLibrary, list = [], row = () => null, kid = null, certOf = () => null }) => {
+  const lib = findLibrary({ imdbId: c.imdbId, type: c.type, title: c.title, year: c.year });
+  if (kid) {
+    const ages = [c.kidsAge, kids.ageOf(c.certificate), kids.ageOf(certOf({ imdbId: c.imdbId, type: c.type })), lib ? kids.ageOf(certOf(lib)) : null]
+      .filter((a) => typeof a === "number" && Number.isFinite(a));
+    if (!ages.length || Math.max(...ages) > kid.maxAge) return null;
+  }
+  const inList = list.some((e) => (typeof e === "string" ? !!lib && e === lib.id : e && e.imdbId === c.imdbId));
+  const r = c.type === "movie" ? row(c.imdbId) : null;
+  const { kidsAge, ownedHint, ...pub } = c;
+  return {
+    ...pub,
+    inLibrary: lib ? lib.id : null,
+    inList,
+    watched: !!(r && r.finished),
+    ...(r && !r.finished && r.duration > 0 && r.position > 30 ? { progress: Math.min(0.99, Math.round((r.position / r.duration) * 100) / 100) } : {}),
+  };
+};
+router.get("/api/person/:id", async (req, res) => {
+  const ip = (req.ip || "").replace("::ffff:", "");
+  if (personOverBudget(ip)) return res.status(429).json({ error: "Easy — give it a minute before looking up more people." });
+  try {
+    const maps = identity._internals.libraryMaps();
+    const findLibrary = (ref) => identity.findLibraryFor(ref, maps);
+    const out = await require("../media/person").get(req.params.id, {
+      of: typeof req.query.of === "string" ? req.query.of : null,
+      type: typeof req.query.type === "string" ? req.query.type : null,
+      owned: (ref) => findLibrary(ref),
+    });
+    if (out.error) return res.status(out.status || 502).json({ error: out.error, ...(out.noKey ? { noKey: true } : {}) });
+    // whose list and history: the same test /api/home applies to ?profile=
+    const authz = require("../lib/authz");
+    const reqProfile = typeof req.query.profile === "string" ? req.query.profile : null;
+    const sess = authz.sessionFor(req);
+    const profileId =
+      reqProfile && profiles.list().some((p) => p.id === reqProfile) &&
+      authz.profileAllowed(req, reqProfile) && !profiles.isLocked(reqProfile) &&
+      ((sess && sess.profile.id === reqProfile) || !profiles.isProtected(reqProfile) || profiles.tokenValid(reqProfile, req.get("X-Profile-Token")))
+        ? reqProfile
+        : null;
+    const kid = req.kids || null;
+    const ctx = {
+      findLibrary,
+      list: profileId ? profiles.getWatchlist(profileId) : [],
+      row: profileId ? (imdbId) => profiles.getTitleRow(profileId, imdbId) : () => null,
+      kid,
+      certOf: kidsCertOf,
+    };
+    const credits = out.credits.map((c) => personCredit(c, ctx)).filter(Boolean);
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ ...out, credits, ...(kid ? { bio: null, kids: true } : {}) });
+  } catch (e) {
+    console.warn("[person] failed:", e && e.message ? e.message : e);
+    res.status(502).json({ error: "Couldn't reach the people catalogue right now." });
+  }
+});
+
 router.get("/sw-manifest.json", (req, res) => {
   const fs = require("fs");
   const pub = path.join(__dirname, "..", "..", "public");
@@ -1015,6 +1101,6 @@ const cardStrip = (i, { synopsis = false } = {}) => {
 
 // Test-only: the home-row composer's merge rules are contracts (never drop
 // unknown rows, never hero "upcoming") — pinned in test/roworder.test.js.
-router._internals = { orderRows, kidsFor, kidsCertOf, kidsSession: kidsDeps.session };
+router._internals = { orderRows, kidsFor, kidsCertOf, kidsSession: kidsDeps.session, personCredit, personOverBudget };
 
 module.exports = router;
