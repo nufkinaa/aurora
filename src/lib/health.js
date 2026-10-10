@@ -5,7 +5,7 @@
 // sentence a non-engineer can act on, and again as "recovered" when it clears.
 //
 // How this sits beside what already watches the server:
-//   watchdog.js  owns memory and event-loop lag (and restarts under pm2).
+//   watchdog.js  owns memory and event-loop lag (and restarts when supervised).
 //                This READS its numbers and its event list; it measures
 //                nothing itself.
 //   healer.js    runs every minute, FIXES what it safely can (respawns the
@@ -263,7 +263,7 @@ const decideProcess = (w, now) => {
     return { ...base, level: "critical", message: "Aurora is overloaded (out of memory or stuck), and restarting itself did not help. It needs someone to look at it." };
   }
   if (recentEv("hard heal skipped")) {
-    return { ...base, level: "critical", message: "Aurora is overloaded (out of memory or stuck) and cannot restart itself because it is not running under pm2. Restart it by hand." };
+    return { ...base, level: "critical", message: "Aurora is overloaded (out of memory or stuck) and cannot restart itself because nothing supervises it. Restart it by hand, then start it through the keeper (docs/operations.md)." };
   }
   const mb = Math.round(w.now.rss / 1048576);
   const t = w.thresholds || {};
@@ -608,21 +608,31 @@ const status = () => {
     healthz: "/healthz",
     thresholds: t,
     boots: (d.boots || []).slice(-BOOTS_KEPT),
+    // who restarts the server, how often it has, and why last (lib/supervisor.js)
+    supervisor: (() => { try { return require("./supervisor").info({ boots: d.boots || [] }); } catch { return null; } })(),
     notChecked: ["TMDB key validity and HTTPS certificate expiry (no cheap signal inside the server; an outside monitor on /healthz over https covers the certificate)"],
     backupDir: config.BACKUP_DIR,
   };
 };
 
-// GET /healthz — for an uptime monitor outside the house. No sign-in, no
-// secrets, no work: if this answers, the process is up and its event loop
-// is turning.
+// GET /healthz — for an uptime monitor outside the house, and for the keeper
+// (lib/keeper.js), which restarts a server that stops answering this. No
+// sign-in, no secrets, no work: if this answers, the process is up and its
+// event loop is turning — and `loop` says how badly it has been kept waiting
+// lately (lib/looplag.js: the worst and the 99th-percentile delay of the last
+// ten seconds). While the server is stopping it answers 503 { stopping }.
 let version = null;
 const healthz = (req, res) => {
   if (version === null) {
     try { version = require("../../package.json").version; } catch { version = "unknown"; }
   }
   res.setHeader("Cache-Control", "no-store");
-  res.json({ ok: true, uptime: Math.floor(process.uptime()), version });
+  let stopping = false;
+  try { stopping = require("./shutdown").stopping(); } catch {}
+  if (stopping) return res.status(503).json({ ok: false, stopping: true, version });
+  let loop = null;
+  try { loop = require("./looplag").read(); } catch {}
+  res.json({ ok: true, uptime: Math.floor(process.uptime()), version, loop });
 };
 
 module.exports = {

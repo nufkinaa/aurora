@@ -460,6 +460,7 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
     { stdio: ["ignore", "ignore", "pipe"], windowsHide: true }
   );
   // Keep node responsive: ffmpeg yields CPU to the server under contention.
+  require("../lib/children").track(proc, "remux");
   try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
 
   let stderr = "";

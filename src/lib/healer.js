@@ -537,6 +537,7 @@ const CHECKS = [
   ["process", "Process", "Process & memory", checkProcess],
   ["memtrend", "Memory and load trend", "Process & memory", statChecks.checkMemTrend],
   ["helpers", "Helper processes", "Process & memory", statChecks.checkHelpers],
+  ["supervisor", "Supervisor", "Process & memory", sysChecks.checkSupervisor],
 
   ["errors", "Errors in the log", "Logs", logChecks.checkErrors],
   ["newerrors", "New kinds of error", "Logs", logChecks.checkNewErrors],

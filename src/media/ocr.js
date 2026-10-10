@@ -47,6 +47,7 @@ const processQueue = () => {
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
+  require("../lib/children").track(proc, "ocr");
 
   let output = "";
   proc.stdout.on("data", (d) => (output += d.toString()));

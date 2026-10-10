@@ -302,6 +302,9 @@ const hookExit = () => {
 //   config          extra keys merged into config.json
 //   waitForLibrary  (default true) resolve only once every file has been probed
 //   verbose         echo the server's output
+//   keeper          run the instance under its keeper (scripts/keeper.js), as
+//                   an installed server runs: true, or { set: { probeEveryMs: 500, … } }
+//                   for the keeper's timings. `pid` is then the keeper's.
 const start = async (opts = {}) => {
   hookExit();
   sweepStale();
@@ -385,7 +388,12 @@ const start = async (opts = {}) => {
       TEMP: path.join(root, "tmp"), TMP: path.join(root, "tmp"), TMPDIR: path.join(root, "tmp"),
     });
 
-    const child = spawn(process.execPath, ["-r", "./ui-preload.js", ENTRY], {
+    const keeperArgs = opts.keeper
+      ? [path.join(REPO, "scripts", "keeper.js"), "--script", path.join(root, ENTRY), "--data", dataDir, "--no-alert",
+          "--node-arg", "-r", "--node-arg", "./ui-preload.js",
+          ...Object.entries((opts.keeper && opts.keeper.set) || {}).flatMap(([k, v]) => ["--set", `${k}=${v}`])]
+      : null;
+    const child = spawn(process.execPath, keeperArgs || ["-r", "./ui-preload.js", ENTRY], {
       cwd: root, env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
       detached: process.platform !== "win32", // its own group, so the tree can be signalled
     });

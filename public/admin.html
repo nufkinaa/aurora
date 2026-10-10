@@ -2571,9 +2571,17 @@
     };
 
     $("#update-restart-btn").onclick = async () => {
-      if (!await ask("Restart Aurora now? Anyone watching will be interrupted for a few seconds. (The server must run under pm2 — outside pm2 this only stops it.)")) return;
+      if (!await ask("Restart Aurora now? Anyone watching will be interrupted for a few seconds.")) return;
       const host = $("#sv-update");
-      try { await post("/api/admin/update/restart"); } catch {}
+      // Not supervised: the server refuses (409) and stays up — say why.
+      try {
+        const r = await adminFetch("/api/admin/update/restart", { method: "POST" });
+        if (r.status === 409) {
+          const d = await r.json().catch(() => ({}));
+          host.innerHTML = `<span class="pill warn">not restarted</span> <span class="muted">${esc(d.error || "Nothing supervises the server, so it was not stopped.")}</span>`;
+          return;
+        }
+      } catch {}
       host.innerHTML = `<span class="pill warn">restarting…</span> <span class="muted">waiting for the server to come back</span>`;
       // Poll until the new process answers, then reload the whole page so
       // the admin UI itself is the freshly pulled version too.
@@ -2584,7 +2592,7 @@
           if (r.ok) { location.reload(); return; }
         } catch {}
         if (Date.now() - t0 < 60000) setTimeout(poll, 1000);
-        else host.innerHTML = `<span class="pill warn">still down</span> <span class="muted">the server didn't come back within a minute — check pm2 on the box</span>`;
+        else host.innerHTML = `<span class="pill warn">still down</span> <span class="muted">the server didn't come back within a minute — look at its supervisor on the box (docs/operations.md)</span>`;
       };
       setTimeout(poll, 1500);
     };
@@ -3056,7 +3064,17 @@
         [fmtBytes(n.heapUsed), "heap used", `of ${fmtBytes(n.heapTotal)}`],
         [`${n.lagMs} ms`, "event-loop lag", n.lagMs > h.thresholds.softLagMs ? "sluggish" : "responsive"],
         [String(n.ffmpeg), "ffmpeg children", n.ffmpeg > 0 ? "transcoding / probing now" : "idle"],
-        [h.pm2 ? "pm2" : "bare node", "self-restart", h.pm2 ? "a hard heal restarts the server" : "hard heals are logged only"],
+        (() => {
+          // who restarts the server, how often it has, and why last (lib/supervisor.js)
+          const sv = h.supervisor || { supervised: !!h.pm2, by: h.pm2 ? "pm2" : null };
+          if (!sv.supervised) return ["not supervised", "supervisor", "a crash or a hang lasts until somebody starts it again — see docs/operations.md"];
+          const bits = [`by ${sv.byWords || sv.by}`];
+          if (sv.restartsLastDay != null) bits.push(`${sv.restartsLastDay} restart${sv.restartsLastDay === 1 ? "" : "s"} in the last day`);
+          if (sv.lastExit && sv.lastExitWords) bits.push(`last: ${sv.lastExitWords}, ${ago(new Date(sv.lastExit.at).toISOString())}`);
+          if (sv.state === "parked") bits.push("the keeper gave up on quick restarts");
+          if (sv.survivesReboot === false) bits.push("started by hand: will not come back after a reboot");
+          return [`up ${fmtUptime(sv.uptimeSec)}`, "supervised", bits.join(" · ")];
+        })(),
       ].map(([v, k, note]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div>${note ? `<div class="note">${esc(note)}</div>` : ""}</div>`).join("");
       const ev = h.events || [];
       $("#sv-health-events").innerHTML = ev.length

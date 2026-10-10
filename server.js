@@ -119,6 +119,10 @@ server.on("error", (err) => {
   process.exit(1);
 });
 
+// While the server is stopping (lib/shutdown.js) every answer closes its
+// connection, so a keep-alive client's next request reaches the new process.
+app.use(require("./src/lib/shutdown").middleware);
+
 app.use(express.json());
 
 // Gzip/deflate for text payloads. Measured on this library (35 titles):
@@ -365,6 +369,18 @@ app.get("*", (req, res) => {
 
 realtime.attach(server);
 
+// Stopping well (lib/shutdown.js): on a signal, or when the keeper asks,
+// stores are flushed, live connections told to come back, answers in flight
+// allowed to finish, helper processes ended — then exit. The download engine
+// gets its tidy stop here too.
+{
+  const shutdown = require("./src/lib/shutdown");
+  shutdown.install({ server });
+  shutdown.register("download engine", () => { try { require("./src/media/aria2").shutdown(); } catch {} });
+  shutdown.register("usage statistics", () => { try { require("./src/lib/tel").flush(); } catch {} });
+  require("./src/lib/looplag").start();
+}
+
 // Library events -> clients
 scanner.events.on("updated", () => realtime.broadcastAll({ type: "library_updated" }));
 scanner.events.on("enriched", () => {
@@ -507,6 +523,9 @@ server.listen(config.PORT, () => {
   // Remember which commit this process actually runs — the admin's update
   // card compares it against HEAD on disk to say "restart to apply".
   try { require("./src/lib/updatecheck").captureBoot(); } catch {}
+  // Tell the keeper (when there is one) that the port is ours: from here on
+  // it probes /healthz, and a server that stops answering is restarted.
+  require("./src/lib/supervisor").tell({ type: "listening", port: config.PORT, pid: process.pid });
 
   const { movies, shows } = scanner.index;
   const network = lanAddress();

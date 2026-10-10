@@ -111,11 +111,15 @@ const emptyDir = (dir) => {
 };
 const mb = (b) => `${(b / 1048576).toFixed(1)} MB`;
 
-const restartSoon = () => {
-  setTimeout(() => {
-    try { require("./jsonstore").flushAll(); } catch {}
-    process.exit(0);
-  }, 600);
+// Restart through whatever supervises the server (lib/supervisor.js): a clean
+// shutdown, then the exit code that means "start me again now". When nothing
+// supervises it, nothing is stopped — the answer says so in a sentence.
+// Returns { ok, error? }.
+const restartSoon = (reason = "restart from the admin page") => {
+  const supervisor = require("./supervisor");
+  if (!supervisor.detect()) return { ok: false, error: supervisor.NOT_SUPERVISED };
+  setTimeout(() => { supervisor.requestRestart(reason); }, 600);
+  return { ok: true };
 };
 
 // ---------------------------------------------------------------- the list
@@ -143,7 +147,8 @@ const ACTIONS = [
         log("\nDependencies changed:\n");
         if (!(await exec(run, npm("install", "--omit=dev", "--no-audit", "--no-fund"), { timeoutMs: 15 * 60000 }))) throw new Error("npm install failed — not restarted; the old code is still running");
       } else log("\nDependencies unchanged — npm install skipped.\n");
-      restartSoon();
+      const r = restartSoon("update and restart");
+      if (!r.ok) return `Updated on disk, NOT restarted: ${r.error}`;
       return "Updated. Restarting now…";
     },
   },
@@ -164,11 +169,12 @@ const ACTIONS = [
   },
   {
     id: "restart", group: "Update", title: "Restart Aurora",
-    about: "Save everything and exit; pm2 starts it again on the current code. Outside pm2 this only stops the server.",
+    about: "Save everything, tell viewers, and exit; the supervisor (the keeper, pm2 or systemd) starts it again on the current code within seconds. Refused when nothing supervises the server.",
     confirm: "Restart Aurora now? Anyone watching is interrupted for a few seconds.",
     danger: true, kind: "task",
     run: async () => {
-      restartSoon();
+      const r = restartSoon();
+      if (!r.ok) throw new Error(r.error);
       return "Restarting…";
     },
   },

@@ -313,7 +313,7 @@ const pump = () => {
   job.startedAt = Date.now();
   running = jobKey(id, q);
   console.log(`[offline] preparing ${id} at ${q} (${path.basename(e.path)})`);
-  const child = spawn(config.FFMPEG, argsFor(e.path, tmp, q, job.caps || {}), { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+  const child = require("../lib/children").track(spawn(config.FFMPEG, argsFor(e.path, tmp, q, job.caps || {}), { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }), "offline");
   let buf = "";
   child.stdout.on("data", (d) => {
     buf += d.toString();

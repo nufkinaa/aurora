@@ -375,8 +375,30 @@ const attach = (server) => {
 
 const clientCount = () => clients.size;
 
+// The server is going away (lib/shutdown.js): say so to every socket, then
+// close it with a code that means "come back" (1012, service restart). The
+// clients reconnect after a random delay. Returns how many were told.
+const closeAll = (data, code = 1012) => {
+  if (!wss) return 0;
+  const msg = data ? JSON.stringify(data) : null;
+  let n = 0;
+  wss.clients.forEach((ws) => {
+    try {
+      if (ws.readyState === WebSocket.OPEN) {
+        if (msg) ws.send(msg);
+        ws.close(code, "restarting");
+        n++;
+      }
+    } catch {}
+  });
+  // a peer that never answers the close must not hold the exit
+  setTimeout(() => { try { wss.clients.forEach((ws) => { try { ws.terminate(); } catch {} }); } catch {} }, 1500).unref?.();
+  return n;
+};
+
 module.exports = {
   clientCount,
+  closeAll,
   attach,
   broadcastAll,
   broadcastEach,

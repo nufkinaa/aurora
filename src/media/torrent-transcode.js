@@ -31,6 +31,7 @@ const activeCount = () => {
 };
 // Keep node responsive even while ffmpeg runs flat-out.
 const deprioritize = (proc) => {
+  require("../lib/children").track(proc, "torrent-transcode");
   try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
 };
 

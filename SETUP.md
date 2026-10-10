@@ -50,9 +50,11 @@ Run:
 node server.js
 ```
 
-(or `pm2 start ecosystem.config.js`, or on Windows drop a shortcut to
-`start-aurora.cmd` into `shell:startup`). Open `http://localhost:4000` — admin
-panel at `/admin`.
+That runs it unsupervised: fine for a first look. To keep it running — back
+after a crash, a hang or a reboot — start it through its keeper instead
+(`start-aurora.cmd`, or `node scripts/keeper.js`) and install the Scheduled
+Task (Windows) or the systemd unit (Linux): [`docs/operations.md`](docs/operations.md).
+Open `http://localhost:4000` — admin panel at `/admin`.
 
 ## ⚠️ Network safety
 

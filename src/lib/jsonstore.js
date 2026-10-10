@@ -74,8 +74,13 @@ const onExit = () => {
   flushed = true;
   flushAll();
 };
-process.on("SIGINT", () => { onExit(); process.exit(0); });
-process.on("SIGTERM", () => { onExit(); process.exit(0); });
+// A process that only requires a store (a tool, a test) still flushes on a
+// signal. The server replaces this with its own, fuller shutdown
+// (lib/shutdown.js), which calls ownSignals(false) and flushes itself.
+let own = true;
+const ownSignals = (on) => { own = !!on; };
+process.on("SIGINT", () => { if (!own) return; onExit(); process.exit(0); });
+process.on("SIGTERM", () => { if (!own) return; onExit(); process.exit(0); });
 process.on("beforeExit", onExit);
 
-module.exports = { JsonStore, flushAll };
+module.exports = { JsonStore, flushAll, ownSignals };

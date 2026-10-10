@@ -517,7 +517,55 @@ const checkGrowth = async (ctx = {}) => {
   };
 };
 
+// ------------------------------------------------------------ the supervisor
+
+// Who restarts the server (lib/supervisor.js info()), judged:
+//   nothing supervises it        a crash or a hang lasts until somebody
+//                                notices — the finding names the fix
+//   the keeper has given up      the server keeps crashing (it is up now only
+//                                because a slow retry worked): fail
+//   3+ crashes or hangs in a day worth a look: warn, with the last reason
+//   started by hand              supervised, but gone after a reboot: info
+const RESTARTS_WARN = 3;
+const judgeSupervisor = (x) => {
+  const findings = [];
+  if (!x || !x.supervised) {
+    findings.push({
+      level: "warn", title: "Nothing restarts Aurora if it stops",
+      text: "The server is running as a bare process. If it crashes or hangs, it stays down until somebody starts it again; the watchdog can only write that down, and the Restart button is refused.",
+      evidence: "no keeper, pm2 or systemd in this process's environment",
+      setting: "Start Aurora through its keeper: start-aurora.cmd (Windows) or the systemd unit in deploy/linux — the steps are in docs/operations.md.",
+    });
+    return { status: "warn", summary: "not supervised — a crash or a hang lasts until somebody notices", findings };
+  }
+  const bits = [`supervised by ${x.byWords || x.by}`];
+  let status = "ok";
+  if (x.restartsLastDay != null) bits.push(`${plural(x.restartsLastDay, "restart")} in the last day`);
+  if (x.lastExitWords) bits.push(`last: ${x.lastExitWords}`);
+  if (x.state === "parked") {
+    status = "fail";
+    findings.push({ level: "fail", title: "Aurora keeps crashing", text: `The keeper gave up on quick restarts because the server kept dying${x.lastExitWords ? ` (it last ${x.lastExitWords})` : ""}. It is up now from a slow retry and may go down again.`, evidence: `${x.crashesLastDay == null ? "several" : x.crashesLastDay} crashes or hangs in the last day`, setting: "Read the end of data/server-stderr.log (or the Logs tab) for the error that repeats." });
+  } else if ((x.crashesLastDay || 0) >= RESTARTS_WARN) {
+    status = "warn";
+    findings.push({ level: "warn", title: "Aurora has been restarted after crashes", text: `The server crashed or stopped answering ${x.crashesLastDay} times in the last day and was started again each time${x.lastExitWords ? ` (it last ${x.lastExitWords})` : ""}. Viewers were interrupted for a few seconds each time.`, evidence: `${x.crashesLastDay} crashes or hangs in 24 h`, setting: "The Logs tab, filtered to errors, shows what happens just before each restart." });
+  }
+  if (x.by === "keeper" && x.survivesReboot === false) {
+    findings.push({ level: "info", title: "The keeper was started by hand", text: "Aurora restarts after a crash or a hang, but nothing starts it after the machine reboots.", setting: "Install the Scheduled Task (Windows) or the systemd unit (Linux): docs/operations.md." });
+  }
+  return { status, summary: bits.join(" · "), findings };
+};
+
+const checkSupervisor = async (ctx = {}) => {
+  let x = ctx.supervisor;
+  if (x === undefined) {
+    let boots = [];
+    try { boots = require("../health").status().boots || []; } catch {}
+    x = require("../supervisor").info({ boots });
+  }
+  return judgeSupervisor(x);
+};
+
 module.exports = {
-  checkLibrary, checkBackups, checkUpdates, checkDelivery, checkClock, checkGrowth,
-  _internals: { judgeRoots, judgeFiles, judgeBackups, lockDrift, judgeUpdates, judgeDelivery, judgeClock, growthOf, judgeGrowth, patchApplied, gatherDrift, SANE },
+  checkLibrary, checkBackups, checkUpdates, checkDelivery, checkClock, checkGrowth, checkSupervisor,
+  _internals: { judgeSupervisor, judgeRoots, judgeFiles, judgeBackups, lockDrift, judgeUpdates, judgeDelivery, judgeClock, growthOf, judgeGrowth, patchApplied, gatherDrift, SANE },
 };

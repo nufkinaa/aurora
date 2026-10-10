@@ -899,18 +899,16 @@ router.post("/api/admin/update/pull", async (req, res) => {
   res.json({ ok: true, output: r.output, state: await require("../lib/updatecheck").check(true) });
 });
 
-// The Restart button. The reply goes out first, then the process exits and
-// pm2's autorestart brings it back up on the NEW code — this server has no
-// in-place reload, a clean death is the honest restart. (Run outside pm2,
-// this just stops the server; the button's confirm says as much.)
+// The Restart button. The reply goes out first, then the server shuts down
+// cleanly (lib/shutdown.js) and exits with the code its supervisor reads as
+// "start me again now" (lib/supervisor.js) — this server has no in-place
+// reload, a clean death is the honest restart. When nothing supervises the
+// server it is NOT stopped: the answer is 409 with the sentence to show.
 router.post("/api/admin/update/restart", (req, res) => {
-  res.json({ ok: true });
-  setTimeout(() => {
-    // process.exit does not fire "beforeExit", so the stores' debounced
-    // writes (up to 1.5 s of watch progress) were lost on every Restart press
-    try { require("../lib/jsonstore").flushAll(); } catch {}
-    process.exit(0);
-  }, 400);
+  const supervisor = require("../lib/supervisor");
+  if (!supervisor.detect()) return res.status(409).json({ ok: false, supervised: false, error: supervisor.NOT_SUPERVISED });
+  res.json({ ok: true, by: supervisor.detect() });
+  setTimeout(() => { supervisor.requestRestart("restart from the admin page"); }, 400);
 });
 
 // aria2 global speed caps. GET reports the EFFECTIVE daemon values when it

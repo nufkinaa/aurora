@@ -789,7 +789,7 @@ const startProducer = (dir, job, input, fromSeg) => {
   fs.mkdirSync(run.pdir, { recursive: true });
   const start = job.table[fromSeg].start;
   const args = producerArgs(run, input, fromSeg > 0 ? start : null);
-  const proc = spawn(config.FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+  const proc = require("../lib/children").track(spawn(config.FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true }), "jit");
   // An encoder yields the CPU to the server itself (as remux.js does).
   if (input.enc) { try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {} }
   let errTail = "";
