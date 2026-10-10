@@ -358,7 +358,6 @@ const seen = () =>
   seenStore ||
   (seenStore = new JsonStore(path.join(config.CACHE_DIR, "search-seen.json"), { v: 1, titles: {}, people: {} }));
 const SEEN_MAX = 3000;
-let seenVersion = 0;
 
 let src = {
   stamp: () => scanner.index.scannedAt,
@@ -436,7 +435,6 @@ const rememberSeen = (items) => {
   if (keys.length > SEEN_MAX) {
     keys.sort((a, b) => (titles[a].at || 0) - (titles[b].at || 0)).slice(0, keys.length - SEEN_MAX + 200).forEach((k) => delete titles[k]);
   }
-  seenVersion++;
   store.save();
 };
 
@@ -561,14 +559,17 @@ const build = () => {
 
   index = {
     docs, byLib, byImdb, byTitle, people, genres,
-    stamp: src.stamp(), seenVersion, at: Date.now(),
+    stamp: src.stamp(), at: Date.now(),
     buildMs: Number(process.hrtime.bigint() - started) / 1e6,
   };
   return index;
 };
 
 const ensureIndex = () => {
-  if (!index || index.stamp !== src.stamp() || index.seenVersion !== seenVersion || Date.now() - index.at > REBUILD_MS) build();
+  // Rebuilt on a scan and once a minute (a trending refresh, titles and people
+  // learnt from searches since). NOT on every title the live catalogue names:
+  // that would be a rebuild per keystroke, and this search already has them.
+  if (!index || index.stamp !== src.stamp() || Date.now() - index.at > REBUILD_MS) build();
   return index;
 };
 
@@ -813,7 +814,6 @@ const tmdbPerson = async (name) => {
     if (keys.length > 300) keys.sort((a, b) => people[a].at - people[b].at).slice(0, 60).forEach((k) => delete people[k]);
     store.save();
     rememberSeen(items.map((m, i) => ({ ...m, _rank: 6 + Math.min(7, i) })));
-    seenVersion++;
     return entry;
   })().finally(() => personInFlight.delete(key));
   personInFlight.set(key, p);
