@@ -1,5 +1,6 @@
 // App-wide state: active profile, cached library, playback progress.
 import { api, setAuthToken, forgetWarm } from "./api.js";
+import { personPrefsFor, boxFrom } from "./personprefs.js";
 
 export const state = {
   profile: null,        // active profile object
@@ -116,6 +117,66 @@ export const applyAppearance = (profile) => {
   } catch {}
 };
 
+// ---- settings that follow the person (personprefs.js has the rule) ----
+// Lays the profile's choices over this browser's player settings; the first
+// time a person is seen in this browser, what the browser itself had chosen
+// (when it was a real choice) is offered to their profile.
+const MOVED_KEY = "aurora-prefs-moved"; // profile ids the one-time move is done for
+const BOX_KEY = "aurora-player-box"; // this browser's own old choices, kept once
+const readJson = (key, fallback) => {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) || "null");
+    return v == null ? fallback : v;
+  } catch {
+    return fallback;
+  }
+};
+export const applyPersonPrefs = (profile) => {
+  if (!profile || !profile.id) return;
+  try {
+    const local = readJson("aurora-player", {});
+    let box = readJson(BOX_KEY, null);
+    if (!box || typeof box !== "object") {
+      box = boxFrom(local);
+      localStorage.setItem(BOX_KEY, JSON.stringify(box));
+    }
+    const movedList = readJson(MOVED_KEY, []);
+    const moved = Array.isArray(movedList) && movedList.includes(profile.id);
+    const r = personPrefsFor({ prefs: profile.prefs, local, box, moved });
+    if (r.changed) localStorage.setItem("aurora-player", JSON.stringify(r.local));
+    const done = () => {
+      try {
+        const list = readJson(MOVED_KEY, []);
+        if (Array.isArray(list) && !list.includes(profile.id)) {
+          localStorage.setItem(MOVED_KEY, JSON.stringify([...list, profile.id].slice(-60)));
+        }
+      } catch {}
+    };
+    if (moved) return;
+    if (!Object.keys(r.owed).length) return done();
+    profile.prefs = { ...(profile.prefs || {}), ...r.owed };
+    api.updateProfile(profile.id, { prefs: r.owed }).then(done).catch(() => {});
+  } catch {}
+};
+// A switch changed here: the active profile carries it to every device.
+export const setPersonPref = (key, value) => {
+  if (!state.profile) return;
+  state.profile.prefs = { ...(state.profile.prefs || {}), [key]: value };
+  api.updateProfile(state.profile.id, { prefs: { [key]: value } }).catch(() => {});
+};
+// Another device changed this profile's settings (the server says so with
+// `profile_updated`): read the profile again and lay its choices down here.
+export const refreshPersonPrefs = async () => {
+  if (!state.profile) return;
+  const id = state.profile.id;
+  try {
+    const me = (await api.profiles()).find((p) => p.id === id);
+    if (!me || !state.profile || state.profile.id !== id) return;
+    state.profile.prefs = me.prefs || {};
+    applyPersonPrefs(state.profile);
+  } catch {}
+};
+
 // Is the active profile a kids one ({ maxAge } on its public view)?
 export const isKids = () => !!(state.profile && state.profile.kids);
 
@@ -153,17 +214,10 @@ export const setProfile = async (profile, token = null) => {
     try { state.library = await api.library(profile.id); }
     catch { if (profile.kids) state.library = { movies: [], shows: [] }; }
   }
-  // The profile's subtitle language lands in this device's player settings
-  // (the player and Preferences read those), so every device agrees.
-  if (profile && profile.prefs && ["any", "he", "en", "ru"].includes(profile.prefs.subLang)) {
-    try {
-      const all = JSON.parse(localStorage.getItem("aurora-player") || "{}");
-      if (all.subLang !== profile.prefs.subLang) {
-        all.subLang = profile.prefs.subLang;
-        localStorage.setItem("aurora-player", JSON.stringify(all));
-      }
-    } catch {}
-  }
+  // The profile's own settings (subtitle language, play the next episode,
+  // subtitles on by themselves) land in this device's player settings — the
+  // player and Preferences read those — so every device agrees.
+  applyPersonPrefs(profile);
   // storage can be unavailable (private mode, restrictive embeds) — losing
   // the remember-me must never abort profile entry itself
   try { localStorage.setItem("aurora-profile", profile.id); localStorage.setItem("aurora-profile-name", JSON.stringify(profile.name || null)); } catch {}

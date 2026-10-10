@@ -10,7 +10,7 @@ try {
 } catch {}
 import { $, el, toast, icons } from "./ui.js";
 import { route, startRouter, navigate } from "./router.js";
-import { state, loadProfiles, setProfile, savedToken, downloads, readyDownloads } from "./state.js";
+import { state, loadProfiles, setProfile, savedToken, downloads, readyDownloads, refreshPersonPrefs } from "./state.js";
 import { api, setAuthToken, forgetWarm } from "./api.js";
 import { connect, reconnect, onMessage, emit } from "./ws.js";
 import { appRunning, onSigninRequired } from "./session.js";
@@ -351,6 +351,11 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
   };
   document.addEventListener("visibilitychange", clearBadge);
   clearBadge();
+  // This profile's settings changed on another device (a TV, a phone): the
+  // ones that follow the person are read again and applied here.
+  onMessage("profile_updated", ({ profileId }) => {
+    if (state.profile && state.profile.id === profileId) refreshPersonPrefs();
+  });
   onMessage("server_notice", ({ message }) => { if (message) toast(message, "🛠️"); });
   // The admin removed a request (or its file left the library): the row goes
   // everywhere it was drawn.

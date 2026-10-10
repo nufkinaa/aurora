@@ -2,7 +2,7 @@
 // ±10s, subtitle + speed menus, Up Next auto-advance, server-side resume.
 import { el, icons, fmtClock, toast, formatRow } from "../ui.js";
 import { api } from "../api.js";
-import { state, progressFor, titleProgressFor, refreshProgress, readyDownloads } from "../state.js";
+import { state, progressFor, titleProgressFor, refreshProgress, readyDownloads, setPersonPref } from "../state.js";
 import { navigate, cameFrom } from "../router.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
@@ -3183,7 +3183,9 @@ export const renderPlayer = async (root, { id }) => {
             "Autoplay next episode",
             prefs.get("autoplayNext", true) ? "On" : "Off",
             () => {
-              prefs.set("autoplayNext", !prefs.get("autoplayNext", true));
+              const on = !prefs.get("autoplayNext", true);
+              prefs.set("autoplayNext", on);
+              setPersonPref("autoplayNext", on); // the profile carries it to every device
               rebuild();
             },
           ),

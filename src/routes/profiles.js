@@ -202,7 +202,7 @@ router.put("/api/profiles/:id", gate, (req, res) => {
   const p = profiles.update(req.params.id, req.body || {});
   if (!p) return res.status(404).json({ error: "Not found" });
   // A setting changed: this person's other devices read the profile again
-  // (the choices in `prefs` follow the person ג€” profiles.js update). Only the
+  // (the choices in `prefs` follow the person — profiles.js update). Only the
   // id goes out; each device asks for the record itself.
   if (req.body && req.body.prefs && typeof req.body.prefs === "object") {
     try {
