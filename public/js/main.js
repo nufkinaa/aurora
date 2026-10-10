@@ -13,7 +13,7 @@ import { route, startRouter, navigate } from "./router.js";
 import { state, loadProfiles, setProfile, savedToken, downloads, readyDownloads } from "./state.js";
 import { api, setAuthToken, forgetWarm } from "./api.js";
 import { connect, reconnect, onMessage } from "./ws.js";
-import { appRunning } from "./session.js";
+import { appRunning, onSigninRequired } from "./session.js";
 import { renderHome } from "./screens/home.js";
 import { showProfileGate } from "./screens/profiles.js";
 import { showLoginScreen } from "./screens/login.js";
@@ -603,6 +603,10 @@ $("#nav-profile").addEventListener("click", () => {
   if (!state.profile) return openGate();
   showProfileMenu();
 });
+
+// The sign-in wall went up under a running app (api.js saw a 401
+// { signinRequired }): to the sign-in screen, not a page of failed requests.
+window.addEventListener("aurora-signin-required", () => onSigninRequired());
 
 const boot = async () => {
   connect();

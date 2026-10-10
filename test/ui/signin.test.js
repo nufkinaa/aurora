@@ -183,4 +183,21 @@ ui.test("the tab that presses \"Sign out everywhere else\" stays signed in; the 
   }
 });
 
+ui.test("the server starts to require sign-in under an open tab: the tab goes to the sign-in screen", {
+  allow: [WALL_401],
+}, async ({ page, goto, api, signIn, freshProfile }) => {
+  await signIn(await freshProfile());
+  await goto("#/");
+  try {
+    await setMode(api, "closed");
+    // the next thing the viewer does is refused by the wall
+    await goto("#/list", { wait: false });
+    await toastSays(page, "sign in again");
+    await page.waitForSelector(loginCard, { timeout: 10000 });
+    assert.equal(await page.locator("#app .screen").count(), 0);
+  } finally {
+    await setMode(api, "open");
+  }
+});
+
 ui.run({ concurrency: 1 });
