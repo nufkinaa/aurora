@@ -78,9 +78,11 @@ const EASE = Easing.bezier(0.2, 0.7, 0.2, 1);
 // blur. `brightness()` is transcribed as the black scrim the value implies —
 // 0.55 → α 0.45 at rest, 0.58 → α 0.42 once scrolled — rather than as the --bg
 // wash this screen used to paint, which is the darkening the CSS rejects.
-const FIRST_PREP_DELAY_MS = 2000;
 const REST = {blur: 1, dim: 0.45};
 const SCROLLED = {blur: 2, dim: 0.42};
+// How long after the billboard first appears the first trailer lookup waits
+// (see the prepare in Home): the launch's first pictures go first.
+const FIRST_PREP_DELAY_MS = 2000;
 
 // THE BLUR IS DONE BY THE SERVER. `blurRadius` made Android run Fresco's
 // iterative box blur on the decoded 1920×1080 backdrop — a copy of the whole
