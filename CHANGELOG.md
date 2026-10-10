@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.89 — 2026-10-10
+
+- **Search finds what you typed, first.** Type a title's exact name and it is the first card — it used to sit in the second or third row, because the page showed every library hit, then cached catalogue hits, then all films before all series, whatever matched best ("The Office" was the 14th card, behind thirteen films with "office" in the name). Now one list is ranked by how well each title matches: the exact name (ignoring capitals, accents, punctuation, a leading "the", and with or without the year), then names that start with what you typed, then whole-word matches, then near-misses and typos, then episode titles, then cast and directors, then the synopsis. A library copy and its catalogue twin are one card.
+- **More to browse after the matches.** Under the accurate results there is a "More like …" row: the same franchise, the same makers and cast, and close neighbours of the top match — or, when you searched a person or a genre, their titles.
+- **Suggestions rebuilt.** They start from the first letter, show titles you can actually open (the library first), and include people and genres with their own icons — "tom h" offers Tom Hardy, Tom Hanks, Tom Holland instead of unrelated films. No more padding with loosely related titles, and the top suggestion does not jump around as you keep typing.
+- Search can now find an episode by its title ("pine barrens" → The Sopranos, S3 E11) and titles by a cast member's name.
+- Recent searches are kept with your profile, so they follow you between devices, each with its own ✕ and a Clear. An empty search shows "Popular in this house".
+- The TV app uses the same search from its next update (it used to match plain text in the library only).
+
 ## 1.6.88 — 2026-10-10
 
 - **Recommendations that know more about titles and about you.** Aurora now keeps a record of each title beyond its genres — its themes and moods (108 of them: heists, slow-burn mysteries, courtroom dramas, found families, dystopias…), who made it and who is in it, its franchise, and which other titles people who liked it also liked — and it reads more from what you do: finishing a film, binging a series, coming back to rewatch, following a show, adding to My List, dropping something after the pilot, or removing it from Continue Watching all count, with recent weeks weighing more than last year. It also looks further afield for candidates: the neighbours of your favourite titles, other work by the makers you return to, and more of the themes you like, not only this week's trending list.
