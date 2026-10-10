@@ -522,7 +522,15 @@ function Face({p, index}: {p: XrayPerson; index: number}) {
       <View style={styles.xrFace}>
         <Text style={styles.xrInitials}>{initials(p.name)}</Text>
         {p.photo && !broken ? (
-          <Image source={imgSrc(p.photo) as {uri: string}} style={styles.xrPhoto} resizeMode="cover" onError={() => setBroken(true)} />
+          <Image
+            source={imgSrc(p.photo) as {uri: string}}
+            style={styles.xrPhoto}
+            resizeMode="cover"
+            // up to twenty faces arrive together over a paused film: no
+            // cross-fade each (Android's default is 300 ms)
+            fadeDuration={0}
+            onError={() => setBroken(true)}
+          />
         ) : null}
       </View>
       <Text style={styles.xrName} numberOfLines={1}>
