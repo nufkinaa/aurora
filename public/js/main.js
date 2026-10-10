@@ -434,7 +434,7 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       el("div", { class: "look-notice-glyph" }),
       el("div", { class: "look-notice-title" }, "Aurora has a new look"),
       el("p", { class: "look-notice-text" },
-        "Glass over a living sky, a Tonight row with what's ready for you, and a cleaner player. ",
+        "Glass over a living sky and a cleaner player. ",
         "The Legacy look is still here — switch between the two any time under Settings → Appearance → Look."),
       el("div", { class: "look-notice-actions" },
         el("button", { class: "btn focusable", onclick: () => { close(); navigate("#/preferences"); } }, "Open Preferences"),

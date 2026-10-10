@@ -76,6 +76,8 @@ ui.test("the one-time notices appear once, do not block, and stay dismissed", as
   const notice = page.locator(".look-notice");
   await notice.waitFor({ timeout: 5000 });
   assert.match(await notice.textContent(), /new look/);
+  // it describes what is there: Home has no "Tonight row"
+  assert.doesNotMatch(await notice.textContent(), /Tonight row/);
   await page.click('.look-notice button:has-text("Got it")');
   await page.waitForSelector(".look-notice-wrap", { state: "detached" });
   await page.waitForFunction(async () => (await (await fetch("/api/profiles")).json()).find((p) => p.id === "default").lookNoticeSeen === true);
