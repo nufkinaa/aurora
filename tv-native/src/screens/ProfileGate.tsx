@@ -218,6 +218,13 @@ export default function ProfileGate({
       setBusy(true);
       try {
         const who = await api.me();
+        // This TV's session is that profile's and a new password is owed
+        // (server: /api/me says so instead of naming the user): straight to
+        // the new-password screen, which saves with the session it holds.
+        if (who.passwordResetRequired && who.resetProfile?.id === p.id) {
+          onChosen(p.id, null, null, {mustReset: true, typed: null});
+          return;
+        }
         if (who.user && who.user.profileId === p.id) {
           const t = await api.profileTokenFromSession();
           if (t.token && t.profileId === p.id) {

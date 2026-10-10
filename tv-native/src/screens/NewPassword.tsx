@@ -1,41 +1,40 @@
 // "Pick a new password" — the forced reset, on the TV.
 //
-// The admin's People → Reset password marks a profile `mustReset`; the server
-// then says so in the answer of every sign-in (/api/auth/login, device/poll,
-// google/poll) and of /api/profiles/:id/unlock. The flag is a note to the
-// client — the session and the unlock token work in full — and the website
-// answers it with a sheet (public/js/screens/profiles.js newPasswordPrompt).
-// The TV never asked: a person whose password the admin had reset went on
-// with the old one for ever (audit A16). Same rule here as on the site:
+// THE CONTRACT (server 1.6.91, src/lib/resetgate.js — enforced there):
+// the admin's People → Reset password ends every session and unlock token of
+// the profile. The current password still signs in, and every sign-in answer
+// (/api/auth/login, device/poll, google/poll, /api/profiles/:id/unlock) says
+// `mustReset` — but what it hands out is a RESTRICTED credential: everything
+// made with it is refused with
+//     401 {signinRequired, passwordResetRequired, profileId}
+// except GET /api/ping, /api/me, /api/server-info and POST /api/auth/logout,
+// /api/auth/password, /api/profiles/<that id>/password. /api/me answers
+// `user: null, passwordResetRequired, resetProfile {id, name, …}`; the socket
+// says {type: "password_reset_required", profileId}.
 //   - the new password, twice, at least four characters;
 //   - the current one is needed to save. After a typed sign-in or an unlock
-//     the TV already holds it (`current`); after QR pairing or Google it does
-//     not, and asks;
-//   - saving ends EVERY unlock token of the profile, this TV's too, so it
-//     unlocks again with the new password (or, signed in, asks the session for
-//     a token) and hands the fresh one up.
+//     the TV already holds it (`current`); after QR pairing or Google, or
+//     when the screen came up on a relaunch or a refusal, it asks;
+//   - the save's own answer carries this TV's fresh credentials (`token`,
+//     and `session` when the profile signs in): they are stored and the app
+//     goes on — its socket opens again with them (SessionWiring).
+//   - refused: 401 wrong current password, 400 `code: "same" | "needed"`, 429.
 //
 // IT BLOCKS (owner, 2026-10-10: "it should really force a new password"):
 // the only ways off this screen are a saved new password or signing out of
 // this TV. Back does nothing; closing the app does not help either — App.tsx
-// brings the screen back at the next launch, and whenever the server refuses
-// a request with {passwordResetRequired:true}.
+// brings the screen back at the next launch (the server says so), and
+// whenever a request is refused with {passwordResetRequired:true}.
 //
-// WRITTEN AGAINST TWO SERVERS. Today's (1.6.86) only notes `mustReset` and
-// keeps the session fully working. The coming one holds a must-reset
-// credential back (403 {passwordResetRequired:true} on everything but the
-// password route, /api/me and sign-out) and may return the fresh credentials
-// in the password route's own answer. So: nothing this screen needs besides
-// the save itself is allowed to fail it (the names it shows are a courtesy),
-// the answer's `token` / `profileToken` / `session` are used when present,
-// and otherwise the TV unlocks again with the new password, or asks its
-// session for a token.
+// ONLY THE ALLOWED ROUTES ARE CALLED FROM HERE: anything else would be
+// refused. The name shown comes from /api/me (`resetProfile`), never from
+// the profile list.
 import React, {useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, BackHandler, StyleSheet, Text, TextInput, View} from 'react-native';
 import Focusable from '../components/Focusable';
 import {api, ApiError} from '../api';
 import {useFocusFallback} from '../focus';
-import {MIN_PASSWORD, newPasswordProblem} from '../newPassword';
+import {MIN_PASSWORD, newPasswordProblem, saveRefusal} from '../newPassword';
 import theme from '../theme';
 
 const {colors, radius, fontSize, spacing} = theme;
@@ -79,10 +78,10 @@ export default function NewPassword({
       .then(i => live && i.adminName && setWho(w => ({...w, admin: i.adminName as string})))
       .catch(() => {});
     api
-      .profiles()
-      .then(list => {
-        const me = list.find(p => p.id === profileId);
-        if (live && me) setWho(w => ({...w, name: me.name}));
+      .me()
+      .then(me => {
+        const rp = me.resetProfile;
+        if (live && rp && rp.id === profileId && rp.name) setWho(w => ({...w, name: rp.name}));
       })
       .catch(() => {});
     return () => {
@@ -100,16 +99,17 @@ export default function NewPassword({
     let session: string | null = null;
     try {
       const saved = await api.setPassword(profileId, fresh, askCurrent ? cur : (current as string));
-      token = saved?.token || saved?.profileToken || null;
+      token = saved?.token || null;
       session = saved?.session || null;
     } catch (e) {
       setBusy(false);
-      const msg = e instanceof ApiError ? e.message : '';
-      setError(msg === 'wrong password' ? 'That is not the current password.' : msg || "Couldn't save it. Try again.");
+      setError(e instanceof ApiError ? saveRefusal(e.status, e.code, e.message) : "Couldn't save it. Try again.");
       return;
     }
-    // Saved — and every unlock of this profile just ended, this TV's with it
-    // (unless the answer itself carried the fresh ones).
+    // Saved. A forced reset's answer carried this TV's fresh credentials;
+    // what follows is only for a save that was not forced (the server no
+    // longer owed one): every unlock of the profile just ended, this TV's
+    // with it.
     if (!token) {
       try {
         const r = await api.unlock(profileId, fresh);

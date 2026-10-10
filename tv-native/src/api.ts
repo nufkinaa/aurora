@@ -69,17 +69,22 @@ let authMode = 'open';
 export const getAuthMode = () => authMode;
 // The app-level reaction to a 401 {signinRequired:true} — App.tsx registers
 // "clear credentials, show the login screen". One hook, so no screen has to
-// remember; fired at most once per burst.
-let signinRequiredCb: (() => void) | null = null;
+// remember; fired at most once per burst. `signedOut`: the server said the
+// credential this TV presented was ENDED by the admin (a kick, a forced
+// reset) — it says so in every sign-in mode, so where the TV goes next is
+// the profile wall (open / transition) or the sign-in screen (closed).
+let signinRequiredCb: ((o: {signedOut: boolean}) => void) | null = null;
 let signinFiredAt = 0;
-export const onSigninRequired = (cb: (() => void) | null) => {
+export const onSigninRequired = (cb: ((o: {signedOut: boolean}) => void) | null) => {
   signinRequiredCb = cb;
 };
-// The same, for a request refused with {passwordResetRequired:true}: App.tsx
-// puts the "pick a new password" screen up. Once per burst.
-let resetRequiredCb: (() => void) | null = null;
+// The same, for a request refused with {passwordResetRequired:true} (the
+// server's lib/resetgate.js: this credential is a must-reset profile's, and
+// everything but the way to a new password is refused): App.tsx puts the
+// "pick a new password" screen up. Once per burst. `profileId`: whose.
+let resetRequiredCb: ((profileId: string | null) => void) | null = null;
 let resetFiredAt = 0;
-export const onPasswordResetRequired = (cb: (() => void) | null) => {
+export const onPasswordResetRequired = (cb: ((profileId: string | null) => void) | null) => {
   resetRequiredCb = cb;
 };
 
@@ -622,8 +627,15 @@ class ApiError extends Error {
   // or opening a profile that has no password) — or the one sent was wrong.
   pinRequired?: boolean;
   // {passwordResetRequired:true}: the admin forced a new password and this
-  // credential is held back until one is set (screens/NewPassword.tsx).
+  // credential is held back until one is set (screens/NewPassword.tsx). It
+  // arrives as a 401 that ALSO says signinRequired (for clients that do not
+  // know it): this flag is read first, and `signinRequired` is then not set.
   passwordResetRequired?: boolean;
+  // {signedOut:true} beside signinRequired: the credential was ended by the admin.
+  signedOut?: boolean;
+  // The server's machine word for a refusal, when it has one (the password
+  // route: "same" = that is the old password, "needed" = one is required).
+  code?: string;
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
@@ -729,27 +741,33 @@ async function send(path: string, options: RequestInit = {}, allow304 = false): 
     httpFailed(options.method, path, res.status); // [analytics] "GET /api/item/:id → 404", counted
     // The server writes its error bodies for viewers ("too many attempts —
     // try again in a few minutes") — surface them instead of a status line.
-    let body: {error?: string; signinRequired?: boolean; pinRequired?: boolean; passwordResetRequired?: boolean} = {};
+    let body: {error?: string; signinRequired?: boolean; pinRequired?: boolean; passwordResetRequired?: boolean; signedOut?: boolean; profileId?: string; code?: string} = {};
     try {
       body = await res.json();
     } catch {}
     const err = new ApiError(res.status, body.error || `${res.status} ${path}`);
     if (body.pinRequired) err.pinRequired = true;
+    if (typeof body.code === 'string') err.code = body.code;
+    // FIRST, and instead of signinRequired: the refusal of a must-reset
+    // credential carries both (401 {signinRequired, passwordResetRequired,
+    // profileId}). Read as a plain "sign in again" it would clear the very
+    // credentials the new-password screen saves with, and the TV would go
+    // round: sign in, refused, sign in.
     if (body.passwordResetRequired) {
       err.passwordResetRequired = true;
       if (resetRequiredCb && Date.now() - resetFiredAt > 3000) {
         resetFiredAt = Date.now();
-        resetRequiredCb();
+        resetRequiredCb(typeof body.profileId === 'string' ? body.profileId : null);
       }
-    }
-    if (body.signinRequired) {
+    } else if (body.signinRequired) {
       err.signinRequired = true;
+      if (body.signedOut) err.signedOut = true;
       // The wall went up (mode flipped, session revoked/expired): route the
       // app to the login screen — once per burst, because every in-flight
       // request on the screen fails together.
       if (signinRequiredCb && Date.now() - signinFiredAt > 3000) {
         signinFiredAt = Date.now();
-        signinRequiredCb();
+        signinRequiredCb({signedOut: !!body.signedOut});
       }
     }
     throw err;
@@ -1110,13 +1128,15 @@ export const api = {
       `/api/profiles/${id}/unlock`,
       pin ? { password, pin } : { password },
     ),
-  // A new password for a profile (the forced reset): needs the current one,
-  // and ends every unlock token of the profile — unlock again afterwards.
-  // (A server that forces the reset may hand the fresh credentials back in
-  // this very answer — `token` / `profileToken`, `session` — so the TV stays
-  // signed in; one that does not is asked for a token afterwards.)
+  // A new password for a profile: needs the current one, and ends every
+  // unlock token and session of the profile. When the reset was FORCED (the
+  // credential sent — X-Session / X-Profile-Token — is a restricted one) the
+  // answer hands this device its fresh credentials: `token` always, `session`
+  // (+ `user`) when the profile signs in, `passwordReset: "done"`. Refusals:
+  // 401 the current password is wrong, 400 with `code` "same" (that is the
+  // old password) or "needed", 429 too many attempts.
   setPassword: (id: string, newPassword: string, currentPassword: string) =>
-    post<{ok?: boolean; error?: string; token?: string; profileToken?: string; session?: string}>(
+    post<{ok?: boolean; error?: string; token?: string; session?: string; user?: SigninUser; passwordReset?: string}>(
       `/api/profiles/${id}/password`,
       {newPassword, currentPassword},
     ),
@@ -1385,7 +1405,16 @@ export const api = {
       request<{torrents?: boolean}>('/api/server-info').then(i => i.torrents === false),
     ).catch(() => false),
   // Is the stored session alive? user === null means no/dead session.
-  me: () => request<{ authMode: string; user: (SigninUser & {mustReset?: boolean}) | null; mustReset?: boolean }>('/api/me'),
+  // With a must-reset credential: `user: null, passwordResetRequired: true`
+  // and `resetProfile` — who has to pick the new password.
+  me: () =>
+    request<{
+      authMode: string;
+      user: (SigninUser & {mustReset?: boolean}) | null;
+      mustReset?: boolean;
+      passwordResetRequired?: boolean;
+      resetProfile?: {id: string; name: string; avatar?: string | null; color?: string | null} | null;
+    }>('/api/me'),
   // Username OR email + the profile's password.
   login: (username: string, password: string) =>
     post<SigninResult>('/api/auth/login', { username, password }),

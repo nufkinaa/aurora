@@ -76,3 +76,28 @@ test('banned: the same - the app is told once and the door is not knocked on aga
   expect(FakeSocket.all).toHaveLength(1);
   off();
 });
+
+// ---- the forced reset on the socket (server 1.6.91)
+test('password_reset_required: the app is told whose, and the socket is left as it is (the screen that goes up disconnects it)', () => {
+  const heard: string[] = [];
+  const off = onMessage('password_reset_required', d => heard.push(String(d.profileId)));
+  connect();
+  FakeSocket.all[0].say({type: 'welcome', clientId: 'c1'});
+  FakeSocket.all[0].say({type: 'password_reset_required', profileId: 'p1'});
+  expect(heard).toEqual(['p1']);
+  expect(isHalted()).toBe(false);
+  off();
+});
+
+test('the admin’s force-reset is a kick with reset: true - told once, with its words, and no reconnect', () => {
+  const heard: unknown[] = [];
+  const off = onMessage('kicked', d => heard.push([d.reason, d.reset]));
+  connect();
+  FakeSocket.all[0].say({type: 'kicked', reason: 'Please sign in again and pick a new password', reset: true});
+  FakeSocket.all[0].close();
+  jest.advanceTimersByTime(120000);
+  expect(heard).toEqual([['Please sign in again and pick a new password', true]]);
+  expect(isHalted()).toBe(true);
+  expect(FakeSocket.all).toHaveLength(1);
+  off();
+});

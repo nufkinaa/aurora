@@ -8,6 +8,13 @@ import {APP_VERSION} from './update';
 import {registerProfileCache} from './profileScope';
 import {wsDown, wsUp} from './telemetry'; // [analytics]
 
+// A MUST-RESET PROFILE'S SOCKET (server 1.6.91): the server greets it with
+// {type: "password_reset_required", profileId} and ignores whatever it sends.
+// App.tsx listens and raises the new-password screen; that unmounts the
+// session (SessionWiring disconnects), and the socket is opened again with
+// the fresh credentials once the password is saved. The admin's force-reset
+// itself arrives as `kicked` with `reset: true` — handled as any kick: this
+// socket stops, and the boot that follows lands on the wall / sign-in.
 type Handler = (data: Record<string, unknown> & {type: string}) => void;
 const listeners = new Map<string, Set<Handler>>();
 let ws: WebSocket | null = null;

@@ -126,17 +126,23 @@ export default function App() {
       setToken(s.token);
       setSession(s.session);
       const mode = getAuthMode(); // captured by the ping that found the server
-      // THE FORCED RESET SURVIVES A RELAUNCH. `owed` is the profile a sign-in
-      // said must pick a new password (remembered on the box); a server that
-      // enforces it also refuses requests with {passwordResetRequired:true}.
-      // Either way the TV lands on the new-password screen, not in the app.
+      // THE FORCED RESET SURVIVES A RELAUNCH — because the SERVER says so
+      // (lib/resetgate.js): the credentials this TV holds are restricted until
+      // a new password is saved, /api/me answers {passwordResetRequired,
+      // resetProfile} and everything else is refused with
+      // {passwordResetRequired:true}. That answer is what lands the TV on the
+      // new-password screen. The note this box kept (`owed`, from before the
+      // server enforced it) decides nothing any more — a password changed on
+      // the phone must not be asked for again here — and is dropped once the
+      // server lets the profile in.
       const owed = await loadMustReset();
       if (!alive) return;
       const land = (profileId: string, forced = false) => {
-        if (forced || owed === profileId) {
+        if (forced) {
           setReset({profileId, typed: null});
           setStage('reset');
         } else {
+          if (owed) saveMustReset(null);
           setStage('home');
         }
       };
@@ -151,6 +157,16 @@ export default function App() {
           try {
             const who = await api.me();
             if (!alive) return;
+            // A must-reset session: alive, restricted, and all the
+            // new-password screen needs (it saves with it and is handed the
+            // fresh session and token back). `user` is null in this answer.
+            if (who.passwordResetRequired && who.resetProfile?.id) {
+              const pid = who.resetProfile.id;
+              setActiveProfile(pid);
+              setLocal({...s, serverUrl: live, profileId: pid});
+              land(pid, true);
+              return;
+            }
             if (who.user) {
               let t: {profileId: string; token: string | null};
               try {
@@ -372,15 +388,25 @@ export default function App() {
   // The server refused a request until a new password is set (a forced reset
   // made while this TV was in the app): the screen goes up over whatever was
   // on. The TV holds no typed password here, so the screen asks for it.
+  // Said two ways: a refused request (401 {passwordResetRequired, profileId})
+  // and the socket's own {type: "password_reset_required", profileId}.
   useEffect(() => {
-    onPasswordResetRequired(() => {
+    const raise = (whose: string | null) => {
       const pid = profileRef.current;
       if (!pid || stageRef.current !== 'home') return;
+      // (somebody else's reset is not this TV's business: a stale cookie of
+      // another profile is taken off the request by the server itself)
+      if (whose && whose !== pid) return;
       saveMustReset(pid);
       setReset({profileId: pid, typed: null});
       setStage('reset');
-    });
-    return () => onPasswordResetRequired(null);
+    };
+    onPasswordResetRequired(raise);
+    const off = onMessage('password_reset_required', d => raise(typeof d.profileId === 'string' ? d.profileId : null));
+    return () => {
+      onPasswordResetRequired(null);
+      off();
+    };
   }, []);
 
   // THE SIGN-IN WAS TAKEN AWAY (or may have been): say why and start over
@@ -435,15 +461,28 @@ export default function App() {
   // The wall answered 401 {signinRequired:true} mid-session — the mode was
   // flipped to closed, or this session was revoked. Credentials are dead:
   // clear them and show the login screen. Registered once; api.ts debounces.
+  //
+  // `signedOut` (server 1.6.91): the credential this TV presented was ended
+  // by the admin (a kick, a forced reset) — said in EVERY sign-in mode. The
+  // TV goes where a signed-out TV belongs: the profile wall while the house
+  // is open / in transition, the sign-in screen when it is closed.
+  //
+  // (A must-reset refusal never arrives here: api.ts reads
+  // passwordResetRequired first. And on the new-password screen a plain
+  // "sign in first" is not a reason to throw away the credentials that
+  // screen saves with — only a real sign-out is.)
   useEffect(() => {
-    onSigninRequired(() => {
+    onSigninRequired(({signedOut}) => {
+      if (stageRef.current === 'reset' && !signedOut) return;
       clearProfileCaches();
       setToken(null);
       setSession(null);
       saveAuthSession(null).catch(() => {});
       clearProfile().catch(() => {});
+      setReset(null);
       setLocal(s => ({...s, profileId: null, token: null, session: null}));
-      setStage('login');
+      if (signedOut) setNotice(n => n || 'You were signed out — sign in again.');
+      setStage(signedOut && getAuthMode() !== 'closed' ? 'gate' : 'login');
     });
     return () => onSigninRequired(null);
   }, []);
