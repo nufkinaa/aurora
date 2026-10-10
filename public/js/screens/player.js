@@ -1385,6 +1385,32 @@ export const renderPlayer = async (root, { id }) => {
           if (lad) ladderWire(hls, gen, lad);
           hls.loadSource(url);
           hls.attachMedia(video);
+          // A RESUME, with segments played as they arrive: hls.js moves the
+          // playhead to the start position only when the first segment is
+          // buffered WHOLE (its onFragBuffered) — so a resume waited for all
+          // of a segment where a start from the top needs its first chunk
+          // (measured 2026-10-10: the first frame at the very moment the
+          // segment's last byte arrived, whatever the resume point's place
+          // in it). The playhead is put there here, as soon as the film is
+          // buffered at that point; hls.js finds it already done.
+          if (startAt > 0 && hls.config && hls.config.progressive) {
+            const h = hls;
+            const t0s = Date.now();
+            const iv = setInterval(() => {
+              if (exited || gen !== hlsGen || h !== hls || Date.now() - t0s > 90000) return void clearInterval(iv);
+              if (video.currentTime >= startAt - 0.25) return void clearInterval(iv); // hls.js (or a seek) got there
+              if (video.seeking) return;
+              const b = video.buffered;
+              for (let i = 0; i < b.length; i++) {
+                if (b.start(i) <= startAt + 0.05 && b.end(i) >= startAt + 0.4) {
+                  clearInterval(iv);
+                  try { video.currentTime = startAt; } catch {}
+                  tryPlay();
+                  return;
+                }
+              }
+            }, 100);
+          }
           // Rare attach race (observed on copy-seek restarts, 2026-08-26):
           // the loader sits idle with an EMPTY buffer for ~20s, then appends
           // everything at once and plays fine — it always self-heals, so
