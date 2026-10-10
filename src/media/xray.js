@@ -53,9 +53,12 @@ const mergePeople = (people, max = 40) => {
     if (!p || !p.name || /^Q\d+$/.test(p.name)) continue; // a Wikidata id with no English label
     const k = norm(p.name);
     const hit = byName.get(k);
-    if (!hit) byName.set(k, { name: p.name, role: p.role || null, photo: p.photo || null });
+    // `id` ("tmdb:525"): who this is to /api/person (media/person.js) — only
+    // TMDB hands one out; everyone else is found by name there.
+    if (!hit) byName.set(k, { name: p.name, role: p.role || null, photo: p.photo || null, ...(p.id ? { id: p.id } : {}) });
     else {
       if (!hit.photo && p.photo) hit.photo = p.photo;
+      if (!hit.id && p.id) hit.id = p.id;
       if (p.role && hit.role && !norm(hit.role).includes(norm(p.role))) hit.role = `${hit.role} / ${p.role}`;
       else if (p.role && !hit.role) hit.role = p.role;
     }
@@ -156,10 +159,11 @@ const tmdbMovie = async (tmdbId, imdbId) => {
     revenue: m.revenue || null,
     cast: (credits.cast || []).slice(0, 40).map((c) => ({
       name: c.name, role: c.character || null, photo: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : null,
+      ...(c.id ? { id: `tmdb:${c.id}` } : {}),
     })),
     crew: (credits.crew || [])
       .filter((c) => ["Director", "Screenplay", "Writer", "Story", "Original Music Composer", "Director of Photography", "Editor"].includes(c.job))
-      .map((c) => ({ name: c.name, job: c.job, photo: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : null })),
+      .map((c) => ({ name: c.name, job: c.job, photo: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : null, ...(c.id ? { id: `tmdb:${c.id}` } : {}) })),
   };
 };
 
@@ -223,10 +227,12 @@ const buildTitle = async (type, imdbId) => {
   // some episode's actors, and belong to that episode's list, not the show's.
   const cast = anthology ? [] : mergePeople(billedFirst([...sourced, ...cm.billed.map((name) => ({ name }))], cm.billed));
   const crew = [];
-  const add = (job, names, photo = null) => { for (const name of names) if (!crew.some((c) => c.name === name && c.job === job)) crew.push({ name, job, ...(photo ? { photo } : {}) }); };
+  const add = (job, names, photo = null, id = null) => { for (const name of names) if (!crew.some((c) => c.name === name && c.job === job)) crew.push({ name, job, ...(photo ? { photo } : {}), ...(id ? { id } : {}) }); };
   add(isShow ? "Created / directed by" : "Director", cm.directors);
   add("Writer", cm.writers);
-  if (tm) for (const c of tm.crew) if (!["Director", "Writer", "Screenplay", "Story"].includes(c.job) || !crew.some((x) => x.name === c.name)) add(c.job, [c.name], c.photo);
+  if (tm) for (const c of tm.crew) if (!["Director", "Writer", "Screenplay", "Story"].includes(c.job) || !crew.some((x) => x.name === c.name)) add(c.job, [c.name], c.photo, c.id);
+  // (Cinemeta's director and writer are names only: lend them TMDB's id and face)
+  if (tm) for (const c of crew) { const hit = !c.id && tm.crew.find((x) => x.name === c.name); if (hit) { c.id = hit.id; if (!c.photo && hit.photo) c.photo = hit.photo; } }
 
   const ratings = [];
   if (cm.imdbRating) ratings.push({ source: "IMDb", value: cm.imdbRating, scale: 10 });

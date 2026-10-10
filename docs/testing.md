@@ -128,6 +128,8 @@ Rules that keep the suite reliable:
 | `signin.test.js` | the sign-in modes, one test at a time (the mode is one switch for the whole instance; each test sets it and puts "open" back): a forced password reset asked for after signing in to a server that requires sign-in, and at the wall; "Sign out everywhere else" from another device and from this tab; the server starting to require sign-in under an open tab |
 | `push.test.js` | Web Push follows the profile: entering a profile files the browser's subscription under it, a switch moves it, signing out withdraws it (the browser's push objects are stand-ins; nothing is sent) |
 | `ai.test.js` | the AI page keeps its last answer for the profile that asked and for nobody else (stubbed answer) |
+| `person.test.js` | the person sheet: X-Ray → a person → their titles by department → a press puts one on My List, a second takes it off (toast, Undo, the "downloading" wording with a stubbed answer); Details (button, the I key, right-click) and Back from it; photos enlarge; the title page's cast line; someone the server cannot look up; a phone (sheet over X-Ray's sheet, Back closes the top layer only); over a film and over a fullscreen film; a kids profile. The people are seeded into the server's own cache (`test/ui/support/person-seed.js`), so `/api/person` is the real route — only pictures are answered by the browser |
+| `downloads.test.js` | My downloads: a job trying a second source keeps its one card and gains one note (stubbed queue) |
 
 ### How stall recovery is tested
 

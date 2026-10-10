@@ -344,7 +344,9 @@ export type TorrentPlayItem = {
 // A download-to-server job, as /api/downloads reports it (src/media/downloads.js
 // publicJob). Only the fields the TV actually renders are typed here.
 // X-Ray (media/xray.js): who is in this, who made it, what people thought.
-export type XrayPerson = {name: string; role?: string | null; job?: string | null; photo?: string | null};
+// `id`: who this is to /api/person ("tmdb:525") — only some sources give one;
+// everyone else is asked for by name (components/PersonSheet.tsx).
+export type XrayPerson = {name: string; role?: string | null; job?: string | null; photo?: string | null; id?: string | null};
 export type XrayRating = {source: string; value: number | string; scale?: number; votes?: number};
 export type XrayEpisode = {
   season: number;
@@ -367,6 +369,47 @@ export type XrayData = {
   facts?: {label: string; value: string}[];
   anthology?: boolean;
   episode?: XrayEpisode | null;
+  error?: string;
+  // the title this answer is about, as the server resolved it
+  imdbId?: string | null;
+  type?: 'movie' | 'series';
+};
+
+// A person (the server's media/person.js): portraits of them and what they
+// made, each title marked for the asking profile. `photos[].url` is an
+// address the image proxy sizes (artSrc); `credits` arrive grouped by `dept`,
+// the person's own department first.
+export type PersonCredit = {
+  key: string;
+  imdbId: string;
+  type: 'movie' | 'show';
+  title: string;
+  year?: number | null;
+  role?: string;
+  dept: string;
+  deptLabel?: string;
+  poster?: string | null;
+  rating?: number | null;
+  genres?: string[];
+  certificate?: string | null;
+  inLibrary?: string | null;
+  inList?: boolean;
+  watched?: boolean;
+  progress?: number;
+};
+export type PersonData = {
+  id: string;
+  imdbId?: string | null;
+  name: string;
+  knownFor?: string | null;
+  born?: string | null;
+  died?: string | null;
+  place?: string | null;
+  bio?: string | null;
+  photos: {url: string; thumb?: string; full?: string}[];
+  credits: PersonCredit[];
+  partial?: boolean;
+  kids?: boolean;
   error?: string;
 };
 export type XrayQuery = {itemId?: string; type?: 'movie' | 'series'; imdbId?: string | null; season?: number | null; episode?: number | null};
@@ -1039,6 +1082,15 @@ export const api = {
     if (q.season) p.set('season', String(q.season));
     if (q.episode) p.set('episode', String(q.episode));
     return request<XrayData>(`/api/xray?${p.toString()}`);
+  },
+  // A person, by what X-Ray handed out for them ("tmdb:525") or by name
+  // ("name:Bryan Cranston") with the title they were pressed on.
+  person: (id: string, o: {of?: string | null; type?: 'movie' | 'series' | null; profile?: string | null} = {}) => {
+    const p = new URLSearchParams();
+    if (o.of) p.set('of', o.of);
+    if (o.type) p.set('type', o.type);
+    if (o.profile) p.set('profile', o.profile);
+    return request<PersonData>(`/api/person/${encodeURIComponent(id)}?${p.toString()}`);
   },
   // Request a download-to-server. It starts immediately unless the server is
   // low on disk space, in which case `needsApproval` comes back true and an

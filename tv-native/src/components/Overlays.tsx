@@ -4,6 +4,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Animated, AppState, BackHandler, Easing, FlatList, Image, Linking, Platform, ScrollView, StyleSheet, TVFocusGuideView, Text, TextInput, View} from 'react-native';
 import Focusable from './Focusable';
+import PersonSheet from './PersonSheet';
 import Sheet, {glass} from './Sheet';
 import TrailerFrame, {TrailerState} from './Trailer';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
@@ -517,10 +518,14 @@ const initials = (name: string) =>
     .slice(0, 2)
     .join('')
     .toUpperCase();
-function Face({p, index}: {p: XrayPerson; index: number}) {
+function Face({p, index, onPress}: {p: XrayPerson; index: number; onPress?: (p: XrayPerson) => void}) {
   const [broken, setBroken] = useState(false);
   return (
-    <Focusable hasTVPreferredFocus={index === 0} style={styles.xrPerson} accessibilityLabel={`${p.name}${p.role ? `, ${p.role}` : ''}`}>
+    <Focusable
+      hasTVPreferredFocus={index === 0}
+      onPress={onPress ? () => onPress(p) : undefined}
+      style={styles.xrPerson}
+      accessibilityLabel={`${p.name}${p.role ? `, ${p.role}` : ''}`}>
       <View style={styles.xrFace}>
         <Text style={styles.xrInitials}>{initials(p.name)}</Text>
         {p.photo && !broken ? (
@@ -547,6 +552,12 @@ const fmtAired = (iso?: string | null) => {
 function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; onClose?: () => void}) {
   const [data, setData] = useState<XrayData | null>(null);
   const [failed, setFailed] = useState(false);
+  // OK on a person: their own sheet, on top of this one (PersonSheet.tsx).
+  // X-Ray stays mounted under it; its BACK listener is older than the person
+  // sheet's, so BACK closes that one first.
+  const [person, setPerson] = useState<XrayPerson | null>(null);
+  const openPerson = useCallback((p: XrayPerson) => setPerson(p), []);
+  const closePerson = useCallback(() => setPerson(null), []);
   // Rises from the foot of the screen the way the phone's sheet does, with a
   // little overshoot: a spring on translateY and scale, a short fade under it.
   const rise = useRef(new Animated.Value(0)).current;
@@ -603,7 +614,25 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
         .map(c => (c.job || c.role ? `${c.job || c.role}: ${c.name}` : c.name))
         .join('   ·   ');
   const showRegulars = cast.length > 0 && !(data?.anthology && guests.length);
-  const nobody = !!data && !guests.length && !showRegulars;
+  // The people who made it, as faces that can be pressed like the cast (the
+  // site's "Filmmakers"): one per person, their jobs joined; an episode's own
+  // director and writers lead. The line in the header stays as it was.
+  const makers: XrayPerson[] = [];
+  const maker = (name?: string | null, job?: string | null, photo?: string | null, id?: string | null) => {
+    if (!name) return;
+    let m = makers.find(x => x.name === name);
+    if (!m) makers.push((m = {name, role: null, photo: null, id: null}));
+    if (job && !(m.role || '').split(' · ').includes(job)) m.role = m.role ? `${m.role} · ${job}` : job;
+    if (photo && !m.photo) m.photo = photo;
+    if (id && !m.id) m.id = id;
+  };
+  const listOf = (v?: string | string[] | null) => (Array.isArray(v) ? v : v ? String(v).split(/,\s*/) : []);
+  if (ep) {
+    for (const n of listOf(ep.directors)) maker(n, 'Director');
+    for (const n of listOf(ep.writers)) maker(n, 'Writer');
+  }
+  for (const c of crew) maker(c.name, c.job || c.role, c.photo, c.id);
+  const nobody = !!data && !guests.length && !showRegulars && !makers.length;
   const row = (people: XrayPerson[], first: boolean) => (
     <FlatList
       data={people}
@@ -611,7 +640,7 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
       keyExtractor={(p, i) => `${p.name}-${i}`}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.xrRow}
-      renderItem={({item: p, index}) => <Face p={p} index={first ? index : -1} />}
+      renderItem={({item: p, index}) => <Face p={p} index={first ? index : -1} onPress={openPerson} />}
     />
   );
   const panelStyle = {
@@ -674,11 +703,25 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
                   {row(cast.slice(0, 18), !guests.length)}
                 </>
               ) : null}
+              {makers.length ? (
+                <>
+                  <Text style={styles.xrSection}>FILMMAKERS</Text>
+                  {row(makers.slice(0, 12), !guests.length && !showRegulars)}
+                </>
+              ) : null}
               {nobody ? <Text style={styles.faint}>Nothing known about this one yet.</Text> : null}
             </ScrollView>
           ) : null}
         </TVFocusGuideView>
       </Animated.View>
+      {person ? (
+        <PersonSheet
+          who={person}
+          of={data?.imdbId || query.imdbId || null}
+          type={data?.type || query.type || null}
+          onClose={closePerson}
+        />
+      ) : null}
     </View>
   );
 }

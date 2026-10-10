@@ -73,6 +73,12 @@ const streamWatchlistButton = (meta) => {
       .catch(() => {});
   }
   paint();
+  // the same title put on (or taken off) the list from a person's sheet
+  const onElsewhere = (e) => {
+    if (!btn.isConnected) return window.removeEventListener("aurora-watchlist", onElsewhere);
+    if (e.detail && e.detail.imdbId === meta.imdbId) { inList = !!e.detail.inList; paint(); }
+  };
+  window.addEventListener("aurora-watchlist", onElsewhere);
   btn.addEventListener("click", async () => {
     if (!state.profile) return;
     inList = !inList;
@@ -1439,6 +1445,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     });
     const onXrBack = (e) => {
       if (!screen.isConnected || !screen.classList.contains("xray-on")) return document.removeEventListener("ui-back", onXrBack);
+      if (document.querySelector(".person-wrap")) return; // a person's sheet is on top: Back is its own
       e.preventDefault();
       toggleXray();
     };
@@ -1451,6 +1458,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     let xrSheet = null;
     let xrSheetLeave = null; // slides the open sheet off the foot of the screen
     const onSheetBack = (e) => {
+      if (document.querySelector(".person-wrap")) return; // a person's sheet is on top: Back is its own
       e.preventDefault();
       closeXraySheet();
     };
@@ -1482,7 +1490,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       sheet.classList.add("in");
       document.documentElement.style.overflow = "hidden"; // the page behind holds still
       document.addEventListener("ui-back", onSheetBack);
-      // a tap on a cast member goes to Search: the sheet does not follow
+      // leaving the page (a title opened from a person's sheet): the sheet does not follow
       window.addEventListener("hashchange", closeXraySheet);
       xrBtn.classList.add("on");
       xrBtn.setAttribute("aria-pressed", "true");
@@ -1734,7 +1742,6 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       !isShow && lib && lib.duration && fmtDuration(lib.duration),
       !isShow && !lib && meta && meta.runtime,
       !isShow && lib && lib.sizeBytes && fmtBytes(lib.sizeBytes),
-      meta && meta.director && `Dir. ${meta.director}`,
       upcoming && `Next episode ${fmtAirDate(upcoming)}`,
     ];
   };
@@ -1747,13 +1754,28 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   );
   if (keepY) restoreScrollY(keepY);
 
-  const castLine = (m) =>
-    el(
+  // Who is in it and who made it, each name a press away from that person's
+  // sheet (personSheet.js): photos, what else they made, straight onto My
+  // List. The director used to be "Dir. …" in the line under the title —
+  // plain text; here the name can be pressed.
+  const namesOf = (v) => (Array.isArray(v) ? v : v ? String(v).split(/,\s*/) : []).map((s) => String(s).trim()).filter(Boolean);
+  const personLink = (name, role) =>
+    el("button", {
+      class: "cast-name focusable", type: "button", "aria-haspopup": "dialog", title: `${name}: photos and titles`,
+      onclick: () => import("../personSheet.js").then((p) => p.openPerson({ name, role, of: imdbId || (meta && meta.imdbId) || null, type: isShow ? "series" : "movie" })),
+    }, name);
+  const dotted = (nodes) => nodes.flatMap((n, i) => (i ? [" · ", n] : [n]));
+  const hasPeople = (m) => !!m && (namesOf(m.cast).length > 0 || namesOf(m.director).length > 0);
+  const castLine = (m) => {
+    const cast = namesOf(m.cast);
+    const directors = namesOf(m.director).slice(0, 3);
+    return el(
       "div",
       { class: "detail-cast page-pad" },
-      el("span", { class: "cast-label" }, "Cast "),
-      m.cast.join(" · "),
+      cast.length > 0 && el("span", { class: "cast-group" }, el("span", { class: "cast-label" }, "Cast "), dotted(cast.map((n) => personLink(n, null)))),
+      directors.length > 0 && el("span", { class: "cast-group" }, el("span", { class: "cast-label" }, isShow ? "Created by " : "Director "), dotted(directors.map((n) => personLink(n, isShow ? "Creator" : "Director")))),
     );
+  };
   // On a phone the cast sits straight under the synopsis (inside the title
   // block, before the genres and the rating); on wider screens it stays the
   // line under the hero.
@@ -1762,7 +1784,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     if (syn) syn.after(node);
     else (screen.querySelector(".detail-hero") || screen.lastElementChild).after(node);
   };
-  if (meta && meta.cast && meta.cast.length) placeCast(castLine(meta));
+  if (hasPeople(meta)) placeCast(castLine(meta));
 
   // Late metadata: fill in what the library side doesn't know (backdrop,
   // synopsis, rating, cast, director), rebuild the hero with it, and let the
@@ -1785,7 +1807,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       oldHero.replaceWith(
         heroBlock(view, actions, metaPartsFor(null), { rateKey: imdbId || (lib && lib.id), serverInfo: serverInfoFor() }),
       );
-      if (m.cast && m.cast.length && !screen.querySelector(".detail-cast")) placeCast(castLine(m));
+      if (hasPeople(m) && !screen.querySelector(".detail-cast")) placeCast(castLine(m));
     }
     for (const hook of lateMetaHooks) {
       try { hook(m); } catch {}

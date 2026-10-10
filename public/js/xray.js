@@ -12,7 +12,16 @@ import { el, artUrl, smooth } from "./ui.js";
 import { api } from "./api.js";
 import { lite } from "./net.js";
 
-const person = (p, link = true) => {
+// A press on a person opens their sheet (personSheet.js) on top of whatever
+// X-Ray is in — the title page, the phone's sheet, a paused film. `ctx` is
+// the title this X-Ray is about (it tells two people of one name apart) and
+// whether a film is under it.
+const openSheet = (p, ctx) =>
+  import("./personSheet.js").then((m) => m.openPerson(
+    { id: p.id || null, name: p.name, role: p.role || null, photo: p.photo || null, of: ctx.imdbId, type: ctx.type },
+    { inPlayer: !ctx.link }));
+
+const person = (p, ctx) => {
   const initials = p.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const face = el("div", { class: "xr-face" }, initials);
   if (p.photo) {
@@ -20,12 +29,11 @@ const person = (p, link = true) => {
     img.onerror = () => img.remove(); // the initials underneath stay
     face.append(img);
   }
-  // over a paused film a tap must not leave the player: plain cards there
+  // (it was a link to Search on the title page and a plain card over a film,
+  // where a tap must not leave the player; the sheet leaves neither)
   return el(
-    link ? "a" : "div",
-    link
-      ? { class: "xr-person focusable", href: `#/search/${encodeURIComponent(p.name)}`, title: `Search for ${p.name}` }
-      : { class: "xr-person" },
+    "button",
+    { class: "xr-person focusable", type: "button", "aria-haspopup": "dialog", title: `${p.name}: photos and titles`, onclick: () => openSheet(p, ctx) },
     face,
     el("div", { class: "xr-person-text" },
       el("div", { class: "xr-name" }, p.name),
@@ -35,9 +43,9 @@ const person = (p, link = true) => {
 
 // On a slow line (net.js) fewer faces are fetched up front — the rest wait
 // behind "Show all" — and each portrait is asked for at the size it is drawn.
-const people = (title, list, { max = lite() ? 6 : 12, link = true } = {}) => {
+const people = (title, list, { max = lite() ? 6 : 12, ctx } = {}) => {
   if (!list || !list.length) return null;
-  const person1 = (p) => person(p, link);
+  const person1 = (p) => person(p, ctx);
   const grid = el("div", { class: "xr-people" }, list.slice(0, max).map(person1));
   const wrap = el("section", { class: "xr-section" }, el("h3", {}, title, el("span", { class: "xr-count" }, String(list.length))), grid);
   if (list.length > max) {
@@ -83,6 +91,7 @@ export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = 
   let cur = isShow && season && episode ? { season: +season, episode: +episode } : null;
   let episodes = [];
   let token = 0;
+  const ctx = { imdbId, type: isShow ? "series" : "movie", link };
   const body = el("div", { class: "xr-body" }, skeleton());
   // A series opened with no episode in mind is about THE SERIES — its cast,
   // its ratings, who made it. An episode is one step away in the picker (it
@@ -146,7 +155,7 @@ export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = 
           (ep.directors.length || ep.writers.length) && el("div", { class: "xr-credits" },
             ep.directors.length ? el("span", {}, el("b", {}, "Directed by "), ep.directors.join(", ")) : null,
             ep.writers.length ? el("span", {}, el("b", {}, "Written by "), ep.writers.join(", ")) : null))));
-      out.push(people(x.anthology ? "In this episode" : "Guest stars in this episode", ep.guests, { link }));
+      out.push(people(x.anthology ? "In this episode" : "Guest stars in this episode", ep.guests, { ctx }));
     }
     // FILMMAKERS, above the cast (elia, 2026-10-06): who directed it, wrote
     // it, shot it, scored it — as people, like the cast, not as lines in a
@@ -154,22 +163,23 @@ export const xrayPanel = ({ type, imdbId, season = null, episode = null, keys = 
     // Writer"); for an episode its own director and writers lead.
     {
       const by = new Map();
-      const note = (name, job, photo) => {
+      const note = (name, job, photo, id) => {
         if (!name) return;
-        const p = by.get(name) || { name, jobs: [], photo: null };
+        const p = by.get(name) || { name, jobs: [], photo: null, id: null };
         if (job && !p.jobs.includes(job)) p.jobs.push(job);
         if (photo && !p.photo) p.photo = photo;
+        if (id && !p.id) p.id = id;
         by.set(name, p);
       };
       if (ep) {
         for (const n of ep.directors || []) note(n, "Directed this episode");
         for (const n of ep.writers || []) note(n, "Wrote this episode");
       }
-      for (const c of x.crew || []) note(c.name, c.job, c.photo);
-      const makers = [...by.values()].map((p) => ({ name: p.name, role: p.jobs.join(" · "), photo: p.photo }));
-      out.push(people("Filmmakers", makers, { link }));
+      for (const c of x.crew || []) note(c.name, c.job, c.photo, c.id);
+      const makers = [...by.values()].map((p) => ({ name: p.name, role: p.jobs.join(" · "), photo: p.photo, id: p.id }));
+      out.push(people("Filmmakers", makers, { ctx }));
     }
-    out.push(people(isShow ? "Series cast" : "Cast", x.cast, { link }));
+    out.push(people(isShow ? "Series cast" : "Cast", x.cast, { ctx }));
 
     const tiles = (x.ratings || []).map((r) => ratingTile(r.source, `${r.value}`, r.votes ? `${r.votes.toLocaleString()} votes` : `out of ${r.scale}`));
     if (x.household) tiles.push(ratingTile("This household", `★ ${x.household.stars}`, `${x.household.count} rating${x.household.count === 1 ? "" : "s"} · out of 5`));
