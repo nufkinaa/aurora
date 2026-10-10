@@ -412,6 +412,7 @@ const setFollow = (id, imdbId, on, title) => {
     list.push({ imdbId, title: String(title || "").slice(0, 120), at: Date.now() });
   }
   p.follows = list;
+  bumpSignals(id); // a follow is a taste signal (recs/person.js)
   store.save();
   return { ok: true, follows: list.map((f) => f.imdbId) };
 };
@@ -777,6 +778,12 @@ const setProgress = (profileId, itemId, position, duration, meta) => {
     finished,
     updatedAt: Date.now(),
   };
+  // A rewatch: this title was FINISHED by watching it (not by a mark), at
+  // least six hours ago, and is now being played from the first half again.
+  // Counted once per return and carried on the row from then on — the
+  // recommender reads it as "liked enough to come back to" (recs/person.js).
+  const plays = rewatchCount(state.progress[itemId], row);
+  if (plays > 0) row.plays = plays;
   state.progress[itemId] = row;
   // `torrent|…` is something that was actually played; `stream|…` is a title
   // marked watched by hand without ever playing it here (you saw it elsewhere).
@@ -789,6 +796,19 @@ const setProgress = (profileId, itemId, position, duration, meta) => {
   const key = titleKeyOf(itemId, state.streamItems[itemId]);
   if (key) writeTitle(state, key, row, itemId);
   store.save();
+};
+
+// Pure: how many times the title under `prev` has been come back to, once
+// `next` replaces it.
+const REWATCH_GAP_MS = 6 * 3600 * 1000;
+const rewatchCount = (prev, next) => {
+  if (!prev) return 0;
+  const had = prev.plays || 0;
+  const restarted =
+    !!prev.finished && !prev.marked && !next.finished &&
+    next.duration > 0 && next.position / next.duration < 0.5 &&
+    (next.updatedAt || 0) - (prev.updatedAt || 0) >= REWATCH_GAP_MS;
+  return restarted ? had + 1 : had;
 };
 
 // ---------- one history per title ----------
@@ -813,6 +833,7 @@ const writeTitle = (state, key, row, itemId) => {
     updatedAt: row.updatedAt ?? Date.now(),
     itemId,
   };
+  if (row.plays > 0) state.titles[key].plays = row.plays;
   return true;
 };
 
@@ -890,6 +911,11 @@ scanner.events.on("scanned", () => {
 // Raw alias rows — what was played, as played. Aggregators (Wrapped, taste)
 // read this so a title is never counted twice.
 const getProgress = (profileId) => stateFor(profileId).progress;
+
+// The whole stored state of one profile, for the recommender (recs/person.js
+// reads titles, ratings, My List, picks and dismissals in one pass). Read-only
+// by contract: callers never write to it.
+const stateOf = (profileId) => stateFor(profileId);
 
 // The client-facing view: raw rows plus library ids filled from their title.
 const getProgressView = (profileId) => materializeProgress(stateFor(profileId), ensureTitles());
@@ -1198,8 +1224,30 @@ const clearProgress = (profileId, itemId) => {
   bumpSignals(profileId);
   const state = stateFor(profileId);
   ensureTitles();
+  noteDismissed(state, itemId, titleKeyOf);
   clearTitle(state, itemId, titleKeyOf);
   store.save();
+};
+
+// Removing a title from Continue Watching deletes its history — and with it
+// the only trace that the person did NOT want to go on with it. That trace is
+// kept here: title id (the show's, for an episode) -> when. Only for something
+// left unfinished (taking a finished film off the row says nothing), bounded,
+// and read by the recommender alone (recs/person.js), which ignores it once
+// the title has been watched again.
+const DISMISSED_MAX = 200;
+const noteDismissed = (state, itemId, keyFor, now = Date.now()) => {
+  const key = keyFor(itemId, state.streamItems && state.streamItems[itemId]);
+  if (!key) return;
+  const row = (state.titles && state.titles[key]) || (state.progress && state.progress[itemId]);
+  if (!row || row.finished) return;
+  if (!state.dismissed) state.dismissed = {};
+  state.dismissed[String(key).split(":")[0]] = now;
+  const keys = Object.keys(state.dismissed);
+  if (keys.length > DISMISSED_MAX) {
+    keys.sort((a, b) => state.dismissed[a] - state.dismissed[b]);
+    for (const k of keys.slice(0, keys.length - DISMISSED_MAX)) delete state.dismissed[k];
+  }
 };
 
 // ---------- marked watched, not watched ----------
@@ -1384,6 +1432,7 @@ module.exports = {
   remove,
   setProgress,
   getProgress,
+  stateOf,
   getProgressView,
   getStreamItem,
   getTitleRow,
@@ -1422,5 +1471,5 @@ module.exports = {
   issueToken,
   // Test-only: the pure halves of the watchlist identity work, plus the
   // store handle + norms so auth tests can run on a stubbed store.
-  _internals: { entryKey, sameIdentity, materializeWatchlist, foldTitles, materializeProgress, clearTitle, markTitle, restoreTitle, store, normUsername, normEmail, validEmail, hashPassword, verifyHash },
+  _internals: { entryKey, sameIdentity, materializeWatchlist, foldTitles, materializeProgress, clearTitle, markTitle, restoreTitle, rewatchCount, noteDismissed, store, normUsername, normEmail, validEmail, hashPassword, verifyHash },
 };
