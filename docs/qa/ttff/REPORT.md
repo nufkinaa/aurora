@@ -1,24 +1,25 @@
 # Time to first frame
 
-*2026-10-10 — branch `perf-ttff` (from master `d4d26cf`, server 1.6.85 / TV 5.1.31). Not pushed, no version bump.*
+*2026-10-10/11 — branch `perf-ttff` (from master `d4d26cf`, server 1.6.85 / TV 5.1.31). Not pushed, no version bump.*
 
 The question: how long from the press on Play to the first picture — on the
 website, in the TV app, on a home network and on a thin far line — and how
 much of it can go.
 
-The short answer, for the website (median time to first frame, cold start;
-"before" is master, "after" is this branch):
+The short answer, for the website (median time from the press to the first
+frame; "before" is master, "after" is this branch, a device that has played
+here before, the title page open for a moment before the press):
 
 | | LL-HB | HL-HB | HL-LB | LL-LB |
 |---|--:|--:|--:|--:|
-| an MP4, played as the file (`mp4-tail`) | — | 1.84 s → **1.51 s** | 7.81 s → **7.61 s** | — |
-| an MKV, played as the file (`mkv-aac`) | — | 0.99 s → **0.77 s** | 2.06 s → **1.81 s** | — |
-| a repackaged film (`mkv-ac3`) | — | 3.75 s → **1.02 s** | 14.6 s → **5.14 s** | — |
-| a repackaged 8 Mbit/s film (`mkv-ac3-8m-g5`) | — | 4.30 s → **1.23 s** | > 120 s → **5.09 s** | — |
-| a repackaged HEVC film (`mkv-hevc10`) | — | 3.03 s → **0.92 s** | 76.0 s → **2.43 s** | — |
-| an episode (`ep1`) | — | 3.95 s → **1.31 s** | 54.1 s → **1.84 s** | — |
-| the next episode (`ep1`, Next) | — | 3.85 s → **1.23 s** | 75.3 s → **1.75 s** | — |
-| a resume, repackaged (`mkv-ac3`) | — | 3.41 s → **2.27 s** | 79.4 s → **10.1 s** | — |
+| an MP4, played as the file (`mp4-tail`) | 0.46 s → **0.24 s** | 1.84 s → **1.17 s** | 7.81 s → **7.54 s** | 7.09 s → **7.08 s** |
+| an MKV, played as the file (`mkv-aac`) | 0.15 s → **0.11 s** | 0.99 s → **0.77 s** | 2.06 s → **1.81 s** | 1.68 s → **1.65 s** |
+| a repackaged film (`mkv-ac3`) | 2.10 s → **0.30 s** | 3.75 s → **0.80 s** | 14.6 s → **1.52 s** | 13.4 s → **1.46 s** |
+| a repackaged 8 Mbit/s film (`mkv-ac3-8m-g5`) | 2.33 s → **0.27 s** | 4.30 s → **0.90 s** | > 120 s → **0.71 s** | > 120 s → **1.49 s** |
+| a repackaged HEVC film (`mkv-hevc10`) | 1.31 s → **0.27 s** | 3.03 s → **0.64 s** | 76.0 s → **0.74 s** | 74.0 s → **1.32 s** |
+| an episode (`ep1`) | 1.75 s → **0.26 s** | 3.95 s → **0.98 s** | 54.1 s → **0.99 s** | 78.0 s → **0.50 s** |
+| the next episode (`ep1`, Next) | 2.33 s → **0.74 s** | 3.85 s → **1.14 s** | 75.3 s → **1.51 s** | 68.6 s → **1.19 s** |
+| a resume, repackaged (`mkv-ac3`) | 1.83 s → **0.79 s** | 3.41 s → **1.68 s** | 79.4 s → **4.22 s** | 52.8 s → **4.00 s** |
 
 (LL-HB = home LAN · HL-HB = far server, fast line · HL-LB = far and 3 Mbit/s · LL-LB = near and 3 Mbit/s. §1 says what each is; §3 and §5 have every mode.)
 
@@ -334,51 +335,58 @@ marks: mount@0  decision:hevc-in-mkv → copy first@1  path:ladder@205  path:lad
 
 ## 5. What was changed, and what it bought
 
-"after" = the branch, a device that has played here before (it remembers
-what its line carried — §5.6); cold start; medians of 3 runs.
+The branch was measured in two stages. **"after"** in the tables of this
+section is the build at commit `37b12c1` — everything in §5.1–§5.7 — on a
+device that has played here before (it remembers what its line carried,
+§5.6), Play pressed the moment the title page is idle; medians of 3 runs.
+Three later changes have their own tables: the MP4 index served in front
+(§5.8), the title page's warm-up (§5.9) and the resume playhead (§5.10). The
+table at the top of this report is the branch as it ends.
+
+Cold starts:
 
 | title | mode | LL-HB before | LL-HB after | HL-HB before | HL-HB after | HL-LB before | HL-LB after | LL-LB before | LL-LB after |
 |---|---|--:|--:|--:|--:|--:|--:|--:|--:|
-| mp4-fast | cold | 0.51 s | 0.34 s | 1.32 s | 1.19 s | 7.48 s | 7.31 s | 7.08 s |  |
-| mp4-tail | cold | 0.46 s |  | 1.84 s | 1.51 s | 7.81 s | 7.61 s | 7.09 s |  |
-| mkv-aac | cold | 0.15 s |  | 0.99 s | 0.77 s | 2.06 s | 1.81 s | 1.68 s |  |
-| mkv-ac3 | cold | 2.10 s |  | 3.75 s | 1.02 s | 14.6 s | 5.14 s | 13.4 s |  |
-| mkv-ac3-8m-g5 | cold | 2.33 s |  | 4.30 s | 1.23 s | > 120 s (0/3) | 5.09 s | > 120 s (1/3) |  |
-| mkv-hevc10 | cold | 1.31 s |  | 3.03 s | 0.92 s | 76.0 s | 2.43 s | 74.0 s |  |
-| ep1 | cold | 1.75 s |  | 3.95 s | 1.31 s | 54.1 s | 1.84 s | 78.0 s |  |
+| mp4-fast | cold | 0.51 s | 0.34 s | 1.32 s | 1.19 s | 7.48 s | 7.31 s | 7.08 s | 7.04 s |
+| mp4-tail | cold | 0.46 s | 0.33 s | 1.84 s | 1.51 s | 7.81 s | 7.54 s | 7.09 s | 7.08 s |
+| mkv-aac | cold | 0.15 s | 0.11 s | 0.99 s | 0.77 s | 2.06 s | 1.81 s | 1.68 s | 1.65 s |
+| mkv-ac3 | cold | 2.10 s | 0.84 s | 3.75 s | 1.02 s | 14.6 s | 5.10 s | 13.4 s | 5.08 s |
+| mkv-ac3-8m-g5 | cold | 2.33 s | 1.68 s | 4.30 s | 1.23 s | > 120 s (0/3) | 3.58 s | > 120 s (1/3) | 5.81 s |
+| mkv-hevc10 | cold | 1.31 s | 0.94 s | 3.03 s | 0.92 s | 76.0 s | 2.65 s | 74.0 s | 4.70 s |
+| ep1 | cold | 1.75 s | 0.81 s | 3.95 s | 1.31 s | 54.1 s | 1.86 s | 78.0 s | 3.36 s |
 
 All modes:
 
 | title | mode | LL-HB before | LL-HB after | HL-HB before | HL-HB after | HL-LB before | HL-LB after | LL-LB before | LL-LB after |
 |---|---|--:|--:|--:|--:|--:|--:|--:|--:|
-| mp4-fast | warm | 0.29 s | 1.46 s | 1.26 s | 1.04 s | 7.43 s | 6.74 s | 7.08 s |  |
-| mp4-fast | resume | 0.84 s |  | 2.37 s | 2.04 s | 7.49 s | 7.22 s | 7.08 s |  |
-| mp4-tail | warm | 0.24 s |  | 1.31 s | 1.06 s | 7.83 s | 6.87 s | 7.07 s |  |
-| mp4-tail | resume | 0.73 s |  | 2.72 s | 2.53 s | 7.84 s | 7.52 s | 7.08 s |  |
-| mkv-aac | warm | 0.21 s |  | 0.98 s | 0.78 s | 2.09 s | 1.82 s | 1.67 s |  |
-| mkv-aac | resume | 0.87 s |  | 2.21 s | 1.87 s | 7.83 s (2/3) | 6.69 s | 7.17 s (2/3) |  |
-| mkv-ac3 | warm | 0.29 s |  | 1.15 s | 0.71 s | 1.25 s | 1.01 s | 0.31 s |  |
-| mkv-ac3 | resume | 1.83 s |  | 3.41 s | 2.27 s | 79.4 s | 10.1 s | 52.8 s |  |
-| mkv-ac3-8m-g5 | warm | 1.16 s |  | 3.17 s | 1.15 s | 54.8 s (2/3) | 0.73 s | 110.0 s (2/3) |  |
-| mkv-ac3-8m-g5 | resume | 2.51 s |  | 4.61 s | 3.08 s | 90.1 s (2/3) | 9.04 s | > 120 s (1/3) |  |
-| mkv-hevc10 | warm | 0.31 s |  | 1.16 s | 0.72 s | 1.27 s | 0.74 s | 0.27 s |  |
-| mkv-hevc10 | resume | 1.49 s |  | 2.90 s | 2.09 s | 81.6 s | 10.0 s | 83.8 s (2/3) |  |
-| ep1 | warm | 0.43 s |  | 2.01 s | 1.05 s | 1.42 s | 0.76 s | 0.31 s |  |
-| ep1 | resume | 2.62 s |  | 3.26 s | 1.79 s | 55.3 s | 14.1 s | 83.2 s |  |
-| ep1 | next | 2.33 s |  | 3.85 s | 1.23 s | 75.3 s | 1.75 s | 68.6 s |  |
+| mp4-fast | warm | 0.29 s | 0.20 s | 1.26 s | 1.04 s | 7.43 s | 6.74 s | 7.08 s | 6.55 s |
+| mp4-fast | resume | 0.84 s | 0.68 s | 2.37 s | 2.04 s | 7.49 s | 7.24 s | 7.08 s | 7.05 s |
+| mp4-tail | warm | 0.24 s | 0.21 s | 1.31 s | 1.06 s | 7.83 s | 6.89 s | 7.07 s | 6.58 s |
+| mp4-tail | resume | 0.73 s | 0.70 s | 2.72 s | 2.53 s | 7.84 s | 7.52 s | 7.08 s | 7.06 s |
+| mkv-aac | warm | 0.21 s | 0.11 s | 0.98 s | 0.78 s | 2.09 s | 1.80 s | 1.67 s | 1.63 s |
+| mkv-aac | resume | 0.87 s | 0.56 s | 2.21 s | 1.87 s | 7.83 s (2/3) | 8.43 s | 7.17 s (2/3) | 4.07 s |
+| mkv-ac3 | warm | 0.29 s | 0.21 s | 1.15 s | 0.71 s | 1.25 s | 0.98 s | 0.31 s | 0.44 s |
+| mkv-ac3 | resume | 1.83 s | 1.55 s | 3.41 s | 2.27 s | 79.4 s | 13.9 s | 52.8 s | 5.54 s |
+| mkv-ac3-8m-g5 | warm | 1.16 s | 0.29 s | 3.17 s | 1.15 s | 54.8 s (2/3) | 0.74 s | 110.0 s (2/3) | 0.28 s |
+| mkv-ac3-8m-g5 | resume | 2.51 s | 1.62 s | 4.61 s | 3.08 s | 90.1 s (2/3) | 10.1 s | > 120 s (1/3) | 5.20 s |
+| mkv-hevc10 | warm | 0.31 s | 0.20 s | 1.16 s | 0.72 s | 1.27 s | 0.78 s | 0.27 s | 0.44 s |
+| mkv-hevc10 | resume | 1.49 s | 0.91 s | 2.90 s | 2.09 s | 81.6 s | 6.73 s | 83.8 s (2/3) | 5.97 s |
+| ep1 | warm | 0.43 s | 0.17 s | 2.01 s | 1.05 s | 1.42 s | 0.73 s | 0.31 s | 0.16 s |
+| ep1 | resume | 2.62 s | 1.72 s | 3.26 s | 1.79 s | 55.3 s | 14.1 s | 83.2 s | 5.88 s |
+| ep1 | next | 2.33 s | 0.58 s | 3.85 s | 1.23 s | 75.3 s | 1.75 s | 68.6 s | 3.76 s |
 
 The picture after the start (the same runs): seconds the clock stood still
 in the 15–20 s watched after the first frame.
 
 | title | mode | HL-LB before | HL-LB after | LL-LB before | LL-LB after |
 |---|---|--:|--:|--:|--:|
-| mp4-fast | cold | 0 | 0 | 0 |  |
-| mp4-tail | cold | 0 | 0 | 0 |  |
-| mkv-aac | cold | 0 | 0 | 0 |  |
-| mkv-ac3 | cold | 10.4 s | 1.74 s | 10.4 s |  |
-| mkv-ac3-8m-g5 | cold | — | 8.30 s | 0 (1/3) |  |
-| mkv-hevc10 | cold | 0.80 s | 0 | 0 |  |
-| ep1 | cold | 0 | 0 | 0 |  |
+| mp4-fast | cold | 0 | 0 | 0 | 0 |
+| mp4-tail | cold | 0 | 0 | 0 | 0 |
+| mkv-aac | cold | 0 | 0 | 0 | 0 |
+| mkv-ac3 | cold | 10.4 s | 0 | 10.4 s | 0.30 s |
+| mkv-ac3-8m-g5 | cold | — | 0 | 0 (1/3) | 15.9 s |
+| mkv-hevc10 | cold | 0.80 s | 0 | 0 | 5.20 s |
+| ep1 | cold | 0 | 0 | 0 | 0 |
 
 ### 5.1 The five-second "kick" no longer throws the first download away
 
@@ -416,7 +424,7 @@ for as "no"; the segment route stops waiting when the client hangs up
 wanted; the player says goodbye when it closes (`POST …/jit/bye`, a beacon —
 on page hide too) and the title's producers stop at once.
 
-**Next episode on a thin line: HL-LB 75.3 s → 1.75 s, LL-LB 68.6 s → —.**
+**Next episode on a thin line: HL-LB 75.3 s → 1.75 s, LL-LB 68.6 s → 3.76 s.**
 
 ### 5.3 The start's requests go out together
 
@@ -448,7 +456,7 @@ keyframe table and the one ffprobe the master playlist needs (60–190 ms of a
 cold start's first request).
 
 **Server's own time on the chain of requests before the first media byte,
-cold: HL-HB `mkv-ac3` 1367 ms → 10 ms; LL-HB `mkv-ac3` 1304 ms → —.**
+cold: HL-HB `mkv-ac3` 1367 ms → 10 ms; LL-HB `mkv-ac3` 1304 ms → 8 ms.**
 
 ### 5.5 Segments are played as they arrive
 
@@ -457,9 +465,12 @@ hls.js "progressive" (its fetch loader + streaming demux), on by default;
 needs the first ~170 kB of a segment, not all 3–10 MB of it. The same build
 with it switched off and on (cold):
 
-
-*(progressive off: not measured)*
-
+| title | mode | LL-HB off | LL-HB on | HL-HB off | HL-HB on | HL-LB off | HL-LB on | LL-LB off | LL-LB on |
+|---|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| mkv-ac3 | cold | 0.91 s | 0.84 s | 1.83 s | 1.02 s | 9.35 s | 5.10 s | 5.88 s | 5.08 s |
+| mkv-ac3-8m-g5 | cold | 1.61 s | 1.68 s | 3.00 s | 1.23 s | 5.89 s | 3.58 s | 5.44 s | 5.81 s |
+| mkv-hevc10 | cold | 0.77 s | 0.94 s | 1.78 s | 0.92 s | 5.80 s | 2.65 s | 9.49 s | 4.70 s |
+| ep1 | cold | 0.78 s | 0.81 s | 2.22 s | 1.31 s | 5.69 s | 1.86 s | 5.47 s | 3.36 s |
 
 hls.js still labels the mode experimental. What was done about that: the
 repackaged-stream and episode browser suites (seeking, embedded subtitles,
@@ -486,12 +497,35 @@ Two mechanisms, because the page's own line estimate cannot be used (§2):
 
 A first-ever play on a device (nothing remembered), cold:
 
+| title | mode | HL-LB before | HL-LB first play | HL-LB known line | LL-LB before | LL-LB first play | LL-LB known line |
+|---|---|--:|--:|--:|--:|--:|--:|
+| mp4-fast | cold | 7.48 s | 7.26 s | 7.31 s | 7.08 s | 7.02 s | 7.04 s |
+| mp4-tail | cold | 7.81 s | 7.55 s | 7.54 s | 7.09 s | 7.06 s | 7.08 s |
+| mkv-aac | cold | 2.06 s | 1.82 s | 1.81 s | 1.68 s | 1.62 s | 1.65 s |
+| mkv-ac3 | cold | 14.6 s | 1.51 s | 5.10 s | 13.4 s | 0.99 s | 5.08 s |
+| mkv-ac3-8m-g5 | cold | > 120 s (0/3) | 3.18 s | 3.58 s | > 120 s (1/3) | 3.20 s | 5.81 s |
+| mkv-hevc10 | cold | 76.0 s | 1.16 s | 2.65 s | 74.0 s | 0.99 s | 4.70 s |
+| ep1 | cold | 54.1 s | 1.35 s | 1.86 s | 78.0 s | 1.04 s | 3.36 s |
 
-*(first play: not measured)*
+A first play is on the film's own video (nothing says not to), and with
+segments played as they arrive its first frame is early on any line. What a
+thin line then pays is a stall while the rest of that segment arrives and the
+player comes down a rung — time stalled in the seconds watched after the
+first frame:
 
+| title | mode | HL-LB before | HL-LB first play | LL-LB before | LL-LB first play |
+|---|---|--:|--:|--:|--:|
+| mkv-ac3 | cold | 10.4 s | 4.36 s | 10.4 s | 2.50 s |
+| mkv-ac3-8m-g5 | cold | — | 0 | 0 (1/3) | 0.30 s |
+| mkv-hevc10 | cold | 0.80 s | 5.60 s | 0 | 4.75 s |
+| ep1 | cold | 0 | 3.74 s | 0 | 3.20 s |
+
+That happens once per device: the play itself teaches it the line.
+`mkv-ac3-8m-g5` shows the start watch at work (it is the only one heavy enough
+to trip it): given up for 480p at ~2.4 s, no stall.
 
 And the other way — a device that remembers a thin line and is now on a fast
-one (HL-HB, told "3000 kbit/s"): *(not measured)*
+one (HL-HB, told "3000 kbit/s"): `mkv-ac3`: first frame 1.91 s, on 480p; the file's own video asked for 2.20 s after the click, ends on 1080p; `mkv-ac3-8m-g5`: first frame 1.85 s, on 480p; the file's own video asked for 4.95 s after the click, ends on 1080p; `ep1`: first frame 1.99 s, on 480p; the file's own video asked for 2.36 s after the click, ends on 1080p.
 
 ### 5.7 An encoder a viewer is waiting on is not starved
 
@@ -505,6 +539,41 @@ yields from the start. And the player does not wait on one for ever: an
 encoded rung whose first segment the server has not begun to send after 3 s
 is given up for the file's own video — a copy, made at the speed of the disk.
 
+Not on a line **known** to be too thin for that video, though. The slow-line
+"after" rows of this section were measured with every core of the machine
+taken by other work (97–100% busy), the 480p encoder often past its three
+seconds, and the player then went up to video the line cannot carry: a frame
+at 6.6 s and then 16 s of nothing, in the worst run (an 8 Mbit/s film on
+3 Mbit/s). On such a line the encoder is now waited for twelve seconds
+(commit `ecebcf1`); the copy stays the way out of an encode that never
+comes. Slow lines with that rule, the title page open for a moment before
+the press:
+
+| title | mode | HL-LB before | HL-LB 3 s rule (37b12c1…d0b74e7) | HL-LB 12 s rule | LL-LB before | LL-LB 3 s rule (37b12c1…d0b74e7) | LL-LB 12 s rule |
+|---|---|--:|--:|--:|--:|--:|--:|
+| mkv-ac3 | cold | 14.6 s | 1.69 s | 1.52 s | 13.4 s | 2.49 s | 1.46 s |
+| mkv-ac3 | warm | 1.25 s |  |  | 0.31 s |  |  |
+| mkv-ac3 | resume | 79.4 s | 5.28 s | 4.22 s | 52.8 s | 6.97 s | 4.00 s |
+| mkv-ac3-8m-g5 | cold | > 120 s (0/3) | 0.73 s | 0.71 s | > 120 s (1/3) | 1.38 s | 1.49 s |
+| mkv-ac3-8m-g5 | warm | 54.8 s (2/3) |  |  | 110.0 s (2/3) |  |  |
+| mkv-ac3-8m-g5 | resume | 90.1 s (2/3) | 5.00 s | 3.91 s | > 120 s (1/3) | 4.34 s | 4.22 s |
+| mkv-hevc10 | cold | 76.0 s | 0.73 s | 0.74 s | 74.0 s | 2.62 s | 1.32 s |
+| mkv-hevc10 | warm | 1.27 s |  |  | 0.27 s |  |  |
+| mkv-hevc10 | resume | 81.6 s | 3.42 s | 3.17 s | 83.8 s (2/3) | 3.36 s | 3.26 s |
+| ep1 | cold | 54.1 s | 0.94 s | 0.99 s | 78.0 s | 0.64 s | 0.50 s |
+| ep1 | warm | 1.42 s |  |  | 0.31 s |  |  |
+| ep1 | resume | 55.3 s | 3.41 s | 3.35 s | 83.2 s | 2.97 s | 2.99 s |
+| ep1 | next | 75.3 s | 3.73 s | 1.51 s | 68.6 s | 2.02 s | 1.19 s |
+
+Time stalled after the first frame, same runs:
+
+| title | mode | HL-LB before | HL-LB 3 s rule | HL-LB 12 s rule | LL-LB before | LL-LB 3 s rule | LL-LB 12 s rule |
+|---|---|--:|--:|--:|--:|--:|--:|
+| mkv-ac3 | cold | 10.4 s | 0 | 0 | 10.4 s | 4.39 s | 0 |
+| mkv-ac3-8m-g5 | cold | — | 0 | 0 | 0 (1/3) | 3.35 s | 0 |
+| mkv-hevc10 | cold | 0.80 s | 0 | 0 | 0 | 3.05 s | 0 |
+| ep1 | cold | 0 | 0 | 0 | 0 | 0.15 s | 0 |
+
 ### 5.8 MP4s
 
 **The index at the end → served in front** (`media/faststart.js`). What
@@ -516,9 +585,14 @@ film, packet for packet; all 16 tail-index MP4s of the owner's library get a
 plan (checked read-only). The TV benefits too — ExoPlayer does the same
 end-of-file dance.
 
-
-*(index in front: not measured)*
-
+| title | mode | HL-HB before | HL-HB after, as on disk | HL-HB after, index served in front | LL-HB before | LL-HB after, as on disk | LL-HB after, index served in front |
+|---|---|--:|--:|--:|--:|--:|--:|
+| mp4-tail | cold | 1.84 s | 1.51 s | 1.17 s | 0.46 s | 0.33 s | 0.24 s |
+| mp4-tail | warm | 1.31 s | 1.06 s | 1.06 s | 0.24 s | 0.21 s | 0.21 s |
+| mp4-tail | resume | 2.72 s | 2.53 s | 2.13 s | 0.73 s | 0.70 s | 0.67 s |
+| mp4-fast | cold | 1.32 s | 1.19 s | 1.04 s | 0.51 s | 0.34 s | 0.18 s |
+| mp4-fast | warm | 1.26 s | 1.04 s | 1.06 s | 0.29 s | 0.20 s | 0.17 s |
+| mp4-fast | resume | 2.37 s | 2.04 s | 2.07 s | 0.84 s | 0.68 s | 0.59 s |
 
 **A long index on a known line → the stream instead of the file**
 (`media/mp4index.js`, `playstart.js` `streamSaves`). jit can now serve an
@@ -530,9 +604,16 @@ start, **and the line carries the film with room to spare (1.3× its
 bitrate)**, the player opens the single-rendition jit stream — the file's own
 video, its index never downloaded.
 
-
-*(the 8 Mbit/s line: not measured)*
-
+| title | mode | ML-MB before | ML-MB after |
+|---|---|--:|--:|
+| mp4-fast | cold | 2.79 s | 0.67 s |
+| mp4-fast | resume | 4.75 s | 3.47 s |
+| mp4-tail | cold | 2.87 s | 0.42 s |
+| mp4-tail | resume | 4.91 s | 2.97 s |
+| mkv-ac3 | cold | 4.17 s | 0.41 s |
+| mkv-ac3 | resume | 5.01 s | 2.98 s |
+| mkv-ac3-8m-g5 | cold | 16.0 s | 3.69 s |
+| mkv-ac3-8m-g5 | resume | 16.3 s | 3.00 s |
 
 The room-to-spare rule is why the 3 Mbit/s rows for `mp4-*` did not move: a
 2.5 Mbit/s film on a 3 Mbit/s line plays as a file and starves as a stream
@@ -550,17 +631,62 @@ the server makes the first seconds (bounded as in §5.4). Up next and the Next
 episode button do the same for the next episode while the card counts down.
 Not on a slow line or under Data saver.
 
+| title | mode | LL-HB before | LL-HB after, pressed at once | LL-HB after, page had a moment | HL-HB before | HL-HB after, pressed at once | HL-HB after, page had a moment | HL-LB before | HL-LB after, pressed at once | HL-LB after, page had a moment | LL-LB before | LL-LB after, pressed at once | LL-LB after, page had a moment |
+|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| mkv-ac3 | cold | 2.10 s | 0.84 s | 0.30 s | 3.75 s | 1.02 s | 0.80 s | 14.6 s | 5.10 s | 1.69 s | 13.4 s | 5.08 s | 2.49 s |
+| mkv-ac3 | resume | 1.83 s | 1.55 s | 0.79 s | 3.41 s | 2.27 s | 1.68 s | 79.4 s | 13.9 s | 5.28 s | 52.8 s | 5.54 s | 6.97 s |
+| mkv-ac3-8m-g5 | cold | 2.33 s | 1.68 s | 0.27 s | 4.30 s | 1.23 s | 0.90 s | > 120 s (0/3) | 3.58 s | 0.73 s | > 120 s (1/3) | 5.81 s | 1.38 s |
+| mkv-ac3-8m-g5 | resume | 2.51 s | 1.62 s | 0.92 s | 4.61 s | 3.08 s | 2.35 s | 90.1 s (2/3) | 10.1 s | 5.00 s | > 120 s (1/3) | 5.20 s | 4.34 s |
+| mkv-hevc10 | cold | 1.31 s | 0.94 s | 0.27 s | 3.03 s | 0.92 s | 0.64 s | 76.0 s | 2.65 s | 0.73 s | 74.0 s | 4.70 s | 2.62 s |
+| mkv-hevc10 | resume | 1.49 s | 0.91 s | 0.36 s | 2.90 s | 2.09 s | 1.15 s | 81.6 s | 6.73 s | 3.42 s | 83.8 s (2/3) | 5.97 s | 3.36 s |
+| ep1 | cold | 1.75 s | 0.81 s | 0.26 s | 3.95 s | 1.31 s | 0.98 s | 54.1 s | 1.86 s | 0.94 s | 78.0 s | 3.36 s | 0.64 s |
+| ep1 | next | 2.33 s | 0.58 s | 0.74 s | 3.85 s | 1.23 s | 1.14 s | 75.3 s | 1.75 s | 3.73 s | 68.6 s | 3.76 s | 2.02 s |
+| ep1 | resume | 2.62 s | 1.72 s | 0.38 s | 3.26 s | 1.79 s | 1.47 s | 55.3 s | 14.1 s | 3.41 s | 83.2 s | 5.88 s | 2.97 s |
 
-*(the page-open warm-up: not measured)*
+### 5.10 A resume
 
+With segments played as they arrive, hls.js still moves the playhead to a
+start position only when the first segment is buffered **whole** — so a
+resume waited for all of a segment where a start from the top needs its
+first chunk (seen in the "after" rows: the first frame at the very moment the
+segment's last byte arrived). The player now puts the playhead there as soon
+as the buffer covers the point. The resume rows of the table in §5.9 are with
+this; what remains is the distance from the keyframe to the resume point
+(§6).
 
-### 5.10 Other lines
+### 5.11 Other lines
 
+| title | mode | HL-1.5 before | HL-1.5 after | LOSS-2 before | LOSS-2 after |
+|---|---|--:|--:|--:|--:|
+| mp4-fast | cold | 15.1 s | 13.0 s | 12.3 s | 11.3 s |
+| mkv-ac3 | cold | 83.8 s | 1.75 s | 80.2 s | 3.88 s |
+| mkv-ac3-8m-g5 | cold | 49.8 s | 1.69 s | 54.6 s | 4.68 s |
+| ep1 | cold | 23.1 s | 2.44 s | 20.4 s | 3.97 s |
 
-*(1.5 Mbit/s and 2% loss: not measured)*
+### 5.12 Keyframes 2, 5 and 10 s apart
 
+An 8 Mbit/s film cut three ways, far fast line (HL-HB, cold). A segment is
+at least six seconds and ends on a keyframe, so the first one weighs 6–10 MB
+whatever the spacing; before, all of it stood between the press and the
+picture.
 
-### 5.11 Smaller things
+| title | mode | HL-HB before | HL-HB after |
+|---|---|--:|--:|
+| mkv-ac3-8m-g2 | cold | 3.66 s | 1.08 s |
+| mkv-ac3-8m-g5 | cold | 3.70 s | 0.91 s |
+| mkv-ac3-8m-g10 | cold | 3.61 s | 0.94 s |
+
+### 5.13 An episode that starts by itself
+
+Up next counts down and the next episode begins (HL-HB; time from the
+address change to the first frame). While the card is up the next episode's
+record, playlists and first segment are now made ready.
+
+| title | mode | HL-HB before | HL-HB after |
+|---|---|--:|--:|
+| ep1 | autonext | 2.62 s | 0.81 s |
+
+### 5.14 Smaller things
 
 - hls.js is loaded once however many callers ask (two `<script>`s could be
   added); the ladder's own Auto for a two-codec ladder waits for a segment
@@ -863,9 +989,10 @@ swarm.**
 | the start hint and `&warm=1`; table + probe warmed with the item | `stream.js`, `jit.js`, `ladder.js`, `src/lib/playprep.js` |
 | progressive loading (`aurora-hls-progressive=0` to turn off) | player |
 | line memory, start rung, start watch | player, `public/js/playstart.js` |
-| encoders at normal priority until their first segment; 3 s patience for an encoded start | `jit.js`, player |
+| encoders at normal priority until their first segment; 3 s patience for an encoded start (12 s on a line known to be thin) | `jit.js`, player |
 | tail-index MP4s served index-first (`"serveFaststart": false` to turn off) | `src/media/faststart.js` |
 | MP4 → stream on a known line with room to spare; jit reads MP4 indexes | `src/media/mp4index.js`, player |
+| a resume's playhead set when the buffer covers the point | player |
 | title page / Up next / Next button make the start ready | `discover-detail.js`, `prefetch.js`, player |
 | `Server-Timing` | `src/lib/servertiming.js` |
 | TV: item beside state, fresh state reused, exact `first-frame` with `meta` / `armed` / `buf` | `tv-native/src/playback/Player.tsx`, `api.ts` |
@@ -900,6 +1027,9 @@ swarm.**
   stall` marks within the first seconds of repackaged films, `hls` errors in
   a client's console. One key turns it off per device; `PROGRESSIVE_DEFAULT`
   turns it off for everyone.
+- **A first play on a thin line** shows its frame early and then stalls for
+  a few seconds (§5.6) — less in total than before, but a frame-then-freeze
+  where there used to be a spinner. Once per device.
 - **Line memory can be wrong** for the line a device is on today. Too high:
   the start watch catches it within ~2 s. Too low: one segment (6–10 s) of a
   lighter rung, then hls.js climbs.
@@ -934,8 +1064,8 @@ swarm.**
   `playprep`, `faststart`, `tvtuning`). The CI way too — a clean clone under
   WSL (Linux, Node 22, no ffmpeg): 922 run, 896 pass, 26 skip for want of
   ffmpeg, 0 fail.
-- Browser suites run against this branch: `title`, `player`, `player-hls`,
-  `player-episodes` — all pass, with progressive loading on (one earlier run
-  lost six `player-hls` tests to `page.goto` timeouts while the machine was
-  saturated; the same file passed three times afterwards).
+- The browser suites (`npm run test:ui`, all sixteen files, on the last
+  commit, progressive loading on): **130 tests, 129 pass, 1 skipped, 0 fail**
+  (an earlier run lost six `player-hls` tests to `page.goto` timeouts while
+  the machine was saturated; the same file passed three times afterwards).
 - `tv-native`: `tsc --noEmit` clean. No APK was built.

@@ -110,6 +110,7 @@ library.
 --conditions a,b     lines (default: the four corners)
 --titles a,b         media keys
 --modes a,b          cold,warm,resume,next,autonext
+--watch-all          watch the full --watch on a fast line too
 --runs N             default 5
 --watch S            seconds watched after the first frame on a thin line (default 30; 8 at most on a fast one)
 --hover MS           the pointer rests on Play this long before the click (0: none)

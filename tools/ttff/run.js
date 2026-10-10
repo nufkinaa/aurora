@@ -11,6 +11,7 @@
 //   --modes        cold,warm,resume,next,autonext (default cold,warm,resume)
 //   --runs         how many times each (default 5)
 //   --watch        seconds watched after the first frame on a thin line (default 30; 8 on a fast one)
+//   --watch-all    watch that long on a fast line too (to see a climb from a lighter start)
 //   --hover        ms the pointer rests on Play before the click (default 0)
 //   --tree <name>  the app from a snapshot (node tools/ttff/snapshot.js <name> [<rev>]) —
 //                  for a "before" that later edits cannot disturb
@@ -136,7 +137,7 @@ const main = async () => {
     const cond = CONDITIONS[condName];
     if (!cond) throw new Error(`unknown line "${condName}" — one of ${Object.keys(CONDITIONS).join(", ")}`);
     const thin = cond.down <= 5000 || cond.pktloss;
-    const watchMs = (thin ? WATCH : Math.min(WATCH, 8)) * 1000;
+    const watchMs = (thin || flag("watch-all") ? WATCH : Math.min(WATCH, 8)) * 1000;
     for (let run = 1; run <= RUNS; run++) for (const PASS of PASSES) {
       const inst = await startInstance({ verbose: flag("verbose"), tree: TREE || null });
       let front = null;
