@@ -96,6 +96,7 @@ class AuroraRowView(context: Context) : ReactViewGroup(context) {
     placed = true
     slideTo(RowMath.slideTarget(index, step, lead))
     dispatchItemFocus(index)
+    slots.pressed(index)
   }
 
   /**
@@ -117,6 +118,7 @@ class AuroraRowView(context: Context) : ReactViewGroup(context) {
   private val cull: Cull? = if (AuroraExp.on("cull")) Cull(this, vertical = false) else null
 
   override fun dispatchDraw(canvas: Canvas) {
+    if (pooled) slots.beginDraw()
     cull?.beginDraw()
     super.dispatchDraw(canvas)
   }
@@ -124,6 +126,30 @@ class AuroraRowView(context: Context) : ReactViewGroup(context) {
   override fun drawChild(canvas: Canvas, child: View, drawingTime: Long): Boolean {
     if (cull?.hidden(child) == true) return false
     return super.drawChild(canvas, child, drawingTime)
+  }
+
+  // ---- LAB experiment `pool` (PoolHost.kt; docs/qa/native-bench/POOL-PLAN.md): Row.tsx keeps its card
+  // slots mounted in SLOT order and rebinds them, so the track paints them in shelf order itself.
+  // The mount count (`[pool]` lines while the QA focus log is on) is written with the switch off too:
+  // it is how the two are compared.
+  private val pooled = AuroraExp.on("pool")
+  private val slots = PoolHost(this, "row")
+
+  init {
+    if (pooled) isChildrenDrawingOrderEnabled = true
+  }
+
+  override fun getChildDrawingOrder(childCount: Int, drawingPosition: Int): Int =
+    if (pooled) slots.order(childCount, drawingPosition) else super.getChildDrawingOrder(childCount, drawingPosition)
+
+  override fun onViewAdded(child: View) {
+    super.onViewAdded(child)
+    slots.childAdded()
+  }
+
+  override fun onViewRemoved(child: View) {
+    super.onViewRemoved(child)
+    slots.childRemoved()
   }
 
   private fun dispatchItemFocus(index: Int) {

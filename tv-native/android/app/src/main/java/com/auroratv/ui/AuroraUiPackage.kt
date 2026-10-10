@@ -3,6 +3,7 @@ package com.auroratv.ui
 import com.auroratv.ui.qa.AuroraQaModule
 import com.auroratv.ui.view.AuroraCardManager
 import com.auroratv.ui.view.AuroraFocusableManager
+import com.auroratv.ui.view.AuroraGridManager
 import com.auroratv.ui.view.AuroraHeroArtManager
 import com.auroratv.ui.view.AuroraRailPanelManager
 import com.auroratv.ui.view.AuroraRowManager
@@ -22,5 +23,5 @@ class AuroraUiPackage : ReactPackage {
     listOf(AuroraImplModule(ctx), AuroraQaModule(ctx))
 
   override fun createViewManagers(ctx: ReactApplicationContext): List<ViewManager<*, *>> =
-    listOf(AuroraFocusableManager(), AuroraCardManager(), AuroraRowManager(), AuroraSlideColumnManager(), AuroraHeroArtManager(), AuroraRailPanelManager())
+    listOf(AuroraFocusableManager(), AuroraCardManager(), AuroraRowManager(), AuroraSlideColumnManager(), AuroraHeroArtManager(), AuroraRailPanelManager(), AuroraGridManager())
 }

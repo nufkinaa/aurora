@@ -29,6 +29,7 @@ object AuroraExp {
     "shadowcache", // a box-shadow is blurred once into a layered host, then composited (ShadowLayer.kt)
     "unstuff",     // one vsync without a frame when the UI thread runs a frame behind (AuroraClock.stuffed)
     "unstuffq",    // the same, also when only a finished buffer is queued (FOLLOWUP.md, problem 3)
+    "pool",        // a shelf keeps its card slots mounted and rebinds them: no Fabric mounts on a window move (PoolHost.kt, POOL-PLAN.md)
   )
 
   /** Removals, for attribution only — every one of these changes the picture. */
