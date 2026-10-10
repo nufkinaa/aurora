@@ -5,6 +5,11 @@
 // recommendation carries a `why` so a bad one is debuggable instead of
 // mysterious.
 //
+// 2026-10-10: SUPERSEDED on the home screen by media/recs (richer title
+// knowledge, more signals, calibrated rows). This model is what /api/home
+// falls back to while the recommender's index is not in memory yet, and it
+// is the OLD side of tools/recs-eval/eval.js — keep it working, do not tune it.
+//
 // Named decision (prompt 9 spec): ships WITHOUT kids/certificate filtering —
 // kids profiles were deferred to post-sign-in (prompt 8), so there is no
 // profile the filter could apply to. Revisit alongside sign-in.

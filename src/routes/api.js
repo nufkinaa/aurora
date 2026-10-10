@@ -611,9 +611,16 @@ const orderRows = (rows, prefs = null) => {
   const rankOf = (id) => {
     const r = ROW_ORDER.indexOf(id);
     if (r !== -1) return r;
-    if (id.startsWith("because-")) {
-      const rec = ROW_ORDER.indexOf("recommended");
-      return rec === -1 ? ROW_ORDER.length : rec + 0.5;
+    // …and so do the recommender's other generated rows (media/recs/rank.js),
+    // in the order a person reads them: why-rows first, the stretch row last.
+    const GENERATED = [["because-", 0.5], ["theme-", 0.6], ["person-", 0.7]];
+    const rec = ROW_ORDER.indexOf("recommended");
+    for (const [prefix, offset] of GENERATED) {
+      if (id.startsWith(prefix)) return rec === -1 ? ROW_ORDER.length : rec + offset;
+    }
+    if (id === "stretch") {
+      const at = ROW_ORDER.indexOf("next-watch");
+      return at === -1 ? ROW_ORDER.length : at + 0.5;
     }
     return ROW_ORDER.length;
   };
@@ -776,6 +783,7 @@ router.get("/api/home", (req, res) => {
   });
 
   const rows = [];
+  let recsEngine = null; // the recommender's answer for this profile, if any
 
   if (profileId) {
     const cw = profiles.continueWatching(profileId);
@@ -796,11 +804,14 @@ router.get("/api/home", (req, res) => {
     });
     if (fresh.length > 0) rows.push({ id: "new-episodes", title: "New Episodes", items: fresh });
 
-    // Recommended for You — the taste model (prompt 9): explainable, per
-    // person, built from what they DID. Cold start (a profile with few
-    // signals) falls back to the old genre-tally recommender — never worse
-    // than today.
+    // Recommended for You, Because you finished X, More <theme>, From the
+    // director of X, Something Different — the recommender (media/recs):
+    // one set of personalised rows that the website and the TV both read.
+    // It answers null until its index is in memory (a moment after boot) and
+    // for a profile it knows nothing about; then the older taste model below
+    // runs, and after that the oldest genre tally — never worse than before.
     let tasteRows = null;
+    let engine = null;
     try {
       const streamItems = profiles.getStreamItems(profileId);
       const seen = new Set();
@@ -823,7 +834,22 @@ router.get("/api/home", (req, res) => {
         const f = scanner.findById(id);
         if (f && f.showId) seen.add(f.showId);
       }
-      tasteRows = require("../media/taste").homeRecommendations({
+      const kid = kidsFor(req);
+      engine = require("../media/recs").homeRows({
+        profileId,
+        // already on the page (the billboard, Continue Watching, My List) or
+        // already watched / rated / listed: never repeated in a row below
+        used: [
+          ...heroItems.flatMap((i) => [i.id, i.imdbId]),
+          ...cw.flatMap((i) => [i.id, i.imdbId, i.showId]),
+          ...seen,
+        ].filter((k) => typeof k === "string" && k),
+        // a kids profile is ranked from what it may see, so its rows are full
+        // rows — the gate in front of this router still has the last word
+        allow: kid ? (item) => kids.allowed(item, kid.maxAge, kidsCertOf) : null,
+        allowKey: kid ? String(kid.maxAge) : "",
+      });
+      if (!engine) tasteRows = require("../media/taste").homeRecommendations({
         profileId,
         // hero.recommend's old playable contract, kept: an unreleased film
         // must never be recommended — its detail page has nothing to play
@@ -835,7 +861,10 @@ router.get("/api/home", (req, res) => {
         exclude: heroItems,
       });
     } catch {}
-    if (tasteRows && tasteRows.forYou.length >= 4) {
+    if (engine) {
+      recsEngine = engine;
+      for (const r of engine.rows) rows.push(r);
+    } else if (tasteRows && tasteRows.forYou.length >= 4) {
       rows.push({ id: "recommended", title: "Recommended for You", items: tasteRows.forYou });
       for (const b of tasteRows.because) {
         rows.push({ id: `because-${b.anchor.imdbId}`, title: `Because you loved ${b.anchor.title}`, items: b.items });
@@ -872,8 +901,14 @@ router.get("/api/home", (req, res) => {
       const nxStreams = wanted.size
         ? byRating(unseen(streamAll.filter((i) => (i.genres || []).some((g) => wanted.has(g)))))
         : [];
-      const items = blendStreamFirst(nxStreams, unseen(nx.items));
-      if (items.length >= 3) rows.push({ id: "next-watch", title: "Your Next Watch", items });
+      // nothing the recommender's rows above already show
+      const placed = engine ? engine.usedKeys : null;
+      const fresh = (arr) => (placed ? arr.filter((i) => !placed.has(i.id) && !placed.has(i.imdbId)) : arr);
+      const items = blendStreamFirst(fresh(nxStreams), fresh(unseen(nx.items)));
+      if (items.length >= 3) {
+        rows.push({ id: "next-watch", title: "Your Next Watch", items });
+        if (placed) for (const i of items) { if (i.id) placed.add(i.id); if (i.imdbId) placed.add(i.imdbId); }
+      }
     }
   }
 
@@ -886,10 +921,18 @@ router.get("/api/home", (req, res) => {
     const topRated = local.filter((i) => userRating(i) >= 4).sort((a, b) => userRating(b) - userRating(a));
     if (topRated.length >= 2) rows.push({ id: "top-rated", title: "Top Rated by You", items: topRated });
 
+    // "More <genre>" for the genres picked in Settings. With the recommender
+    // up, each shelf is in the person's own order (their fit first, then the
+    // public rating) and skips what the rows above already show.
+    const placed = recsEngine ? recsEngine.usedKeys : null;
     for (const genre of likedGenres.slice(0, 4)) {
       const items = [...local, ...streamAll]
         .filter((i) => (i.genres || []).includes(genre))
-        .sort((a, b) => (userRating(b) - userRating(a)) || ((b.rating || 0) - (a.rating || 0)));
+        .filter((i) => !placed || (!placed.has(i.id) && !placed.has(i.imdbId)))
+        .sort((a, b) =>
+          (userRating(b) - userRating(a)) ||
+          (recsEngine ? recsEngine.scoreOf(b) - recsEngine.scoreOf(a) : 0) ||
+          ((b.rating || 0) - (a.rating || 0)));
       if (items.length >= 3) rows.push({ id: `liked-${genre}`, title: `More ${genre}`, items: dedupeByTitle(items, 24) });
     }
   }
