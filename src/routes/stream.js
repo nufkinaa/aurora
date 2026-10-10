@@ -152,17 +152,8 @@ router.get("/img/frame/:id", async (req, res) => {
 // grey tile. Fetch once, keep on disk, serve at LAN speed forever after.
 // STRICT allow-list — this must never become another open proxy (the /proxy
 // SSRF lesson): exact host match, https only, bytes sniffed before caching.
-const EXT_IMG_HOSTS = new Set([
-  "image.tmdb.org",
-  "images.metahub.space",
-  "live.metahub.space",
-  "static.tvmaze.com",
-  // X-Ray portraits for films (media/xray.js): Commons' FilePath redirect
-  // and the upload host it lands on
-  "commons.wikimedia.org",
-  "upload.wikimedia.org",
-  "thumb.wikimedia.org",
-]);
+// (the list itself: lib/imghosts.js)
+const { extAllowed } = require("../lib/imghosts");
 const EXT_IMG_DIR = path.join(require("../config").CACHE_DIR, "posters-web");
 const MAX_EXT_IMAGES = 4000; // count cap; the byte cap below bounds each file
 const MAX_EXT_IMAGE_BYTES = 6 * 1024 * 1024; // backdrops can be big; originals aren't welcome
@@ -190,13 +181,6 @@ const extImgInflight = new Map(); // url -> promise (a row of 20 cards must fetc
 // posters, each with a client-side retry) into waves of 15s upstream fetches.
 const extImgFails = new Map(); // url -> failedAt
 const EXT_FAIL_TTL = 5 * 60 * 1000;
-const extAllowed = (u) => {
-  try {
-    return u.startsWith("https://") && EXT_IMG_HOSTS.has(new URL(u).host);
-  } catch {
-    return false;
-  }
-};
 const fetchExtImage = (url, file) => {
   let p = extImgInflight.get(url);
   if (p) return p;

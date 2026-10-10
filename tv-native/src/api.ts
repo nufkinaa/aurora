@@ -757,6 +757,11 @@ const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
         const j = await res.json();
         if (j && typeof j.authMode === 'string') authMode = j.authMode;
         serverBlurs = !!(j && j.imgBlur);
+        const hosts: unknown = j && j.imgHosts;
+        pingedArtHosts.set(
+          url,
+          Array.isArray(hosts) ? hosts.filter((h): h is string => typeof h === 'string' && LATER_ART_HOSTS.includes(h)) : [],
+        );
       } catch {}
       return true;
     })
@@ -803,8 +808,11 @@ const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
 export const resolveServer = async (_savedUrl?: string | null): Promise<string | null> => {
   for (const [i, candidate] of SERVER_CANDIDATES.entries()) {
     const url = candidate.replace(/\/+$/, '');
-    if (await pingUrl(url)) return url;
-    if (i === 0 && (await pingUrl(url))) return url;
+    if ((await pingUrl(url)) || (i === 0 && (await pingUrl(url)))) {
+      // what THIS server said it proxies — not whichever answered last
+      serverArtHosts = new Set(pingedArtHosts.get(url) || []);
+      return url;
+    }
   }
   return null;
 };
@@ -855,6 +863,17 @@ const PROXY_ART_HOSTS = new Set([
   'commons.wikimedia.org',
   'upload.wikimedia.org',
 ]);
+// Hosts a NEWER server also proxies. A picture from one of these goes through
+// /img/ext only when the server this run is talking to says so (/api/ping
+// `imgHosts`): an older server answers 403 for a host it does not know, and
+// the picture would be missing instead of merely unsized.
+//  - episodes.metahub.space: the episode stills on a show's title page. They
+//    were fetched from the internet at 780 px and re-encoded on the box, per
+//    episode card; proxied, they arrive from the server at the drawn width.
+const LATER_ART_HOSTS = ['episodes.metahub.space'];
+let serverArtHosts = new Set<string>();
+const pingedArtHosts = new Map<string, string[]>();
+
 // Whether the server can pre-blur art (?blur=, reported by /api/ping). An
 // older server ignores the parameter and would hand back a SHARP picture,
 // so the billboard keeps blurring on the box until the server says it can.
@@ -885,7 +904,7 @@ export function artPath(pathOrUrl: string | null | undefined, px: number | null,
   }
   if (!pathOrUrl.startsWith('https://')) return null;
   const host = (/^https:\/\/([^/?#]+)/.exec(pathOrUrl) || [])[1];
-  if (!host || !PROXY_ART_HOSTS.has(host)) return null;
+  if (!host || !(PROXY_ART_HOSTS.has(host) || serverArtHosts.has(host))) return null;
   return `/img/ext?u=${encodeURIComponent(pathOrUrl)}&${q}`;
 }
 

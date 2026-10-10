@@ -25,8 +25,18 @@ const deviceOf = (req) => realtime.parseDevice(req.headers["user-agent"] || "");
 // `imgFmt`: the formats ?fmt= understands on those blurred variants, and the
 // promise that the width ladder reaches 1920 (the TV's title-page backdrop
 // through /img/ext?w=) — docs/qa/native-bench/ART-FORMAT-PLAN.md.
+// `imgHosts`: hosts /img/ext proxies that older servers did not
+// (lib/imghosts.js ADDED_HOSTS) — the TV sends a picture from one of them
+// through the proxy only when the server lists it here.
 router.get("/api/ping", (req, res) => {
-  res.json({ ok: true, name: "aurora", authMode: require("../lib/authmode").get(), imgBlur: true, imgFmt: ["webp"] });
+  res.json({
+    ok: true,
+    name: "aurora",
+    authMode: require("../lib/authmode").get(),
+    imgBlur: true,
+    imgFmt: ["webp"],
+    imgHosts: require("../lib/imghosts").ADDED_HOSTS,
+  });
 });
 
 // ---------- login rate limiting (per-IP and per-identifier) ----------
