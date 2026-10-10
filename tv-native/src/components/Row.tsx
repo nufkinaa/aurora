@@ -75,6 +75,7 @@ function Row({
   items,
   onSelect,
   onItemFocus,
+  rowIndex,
   showKind,
   wide,
   onRemove,
@@ -82,8 +83,13 @@ function Row({
   title: string;
   items: HeroItem[];
   onSelect: (item: HeroItem) => void;
-  // Bubbled up from the cards so Home can spotlight whatever has focus.
-  onItemFocus?: (item: HeroItem) => void;
+  // Bubbled up from the cards so Home can spotlight whatever has focus. It is
+  // handed `rowIndex` back, so the caller can pass ONE function to every row:
+  // a function made per row per render (an inline arrow) is a new prop each
+  // time, and this memoised Row — and through `focusCard` every memoised Card
+  // in it — then re-renders whenever the caller does.
+  onItemFocus?: (item: HeroItem, rowIndex: number) => void;
+  rowIndex?: number;
   // Passed straight to Card — the FILM / SERIES corner tag, for rows that mix
   // the two.
   showKind?: boolean;
@@ -106,7 +112,7 @@ function Row({
   const [anchor, setAnchor] = useState(0);
   const focusCard = useCallback(
     (item: HeroItem, index: number) => {
-      onItemFocus?.(item);
+      onItemFocus?.(item, rowIndex ?? 0);
 
       // Moves the TARGET of the spring that is already running (motion.ts).
       tx.to(-Math.max(0, (index - LEAD) * step));
@@ -117,7 +123,7 @@ function Row({
         setAnchor(prev => (Math.abs(index - prev) >= WINDOW_SLACK ? index : prev)),
       );
     },
-    [onItemFocus, step, tx],
+    [onItemFocus, rowIndex, step, tx],
   );
 
   const from = Math.max(0, anchor - VISIBLE_BEHIND);

@@ -743,6 +743,20 @@ export default function Home({
     [profileId],
   );
 
+  // ONE function for every shelf (Row hands its index back). This used to be
+  // an arrow written inside renderRow — a new function per row on every Home
+  // render, so React.memo(Row) and, through Row's focusCard, React.memo(Card)
+  // never held: the hero rotating, a new shelf being reached, a party list
+  // arriving each re-rendered every mounted card (the storm motion.ts's
+  // useSlide note describes, re-opened).
+  const onRowItemFocus = useCallback(
+    (it: HeroItem, rowIndex: number) => {
+      toRow(rowIndex);
+      warmItem(it);
+    },
+    [toRow],
+  );
+
   const renderRow = useCallback(
     (r: HomeRow, i: number) => (
       <View
@@ -754,17 +768,15 @@ export default function Home({
           title={r.title}
           items={r.items}
           onSelect={openDetail}
-          onItemFocus={it => {
-            toRow(i);
-            warmItem(it);
-          }}
+          onItemFocus={onRowItemFocus}
+          rowIndex={i}
           showKind
           wide={r.id === 'continue'}
           onRemove={r.id === 'continue' ? removeFromContinue : undefined}
         />
       </View>
     ),
-    [openDetail, toRow, removeFromContinue],
+    [openDetail, onRowItemFocus, removeFromContinue],
   );
 
   if (!data && !error) {

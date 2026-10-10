@@ -12,7 +12,7 @@
 // elements at once. Every Focusable registers a clear() in a global registry and
 // whoever GAINS focus clears the one that was lit, so at most one ring can exist
 // no matter which blur events got lost (works across screens too).
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Animated,
   Easing,
@@ -283,16 +283,24 @@ export default function Focusable({
   ]) as ViewStyle;
   const ringRadius = (flat.borderRadius as number) ?? radius.m;
 
-  const scale = springAnim.interpolate({
-    // Past 1 so the spring's overshoot has somewhere to go instead of clipping.
-    inputRange: [0, 1, 2],
-    outputRange: [1, scaleTo ?? focus.scale, (scaleTo ?? focus.scale) * 2 - 1],
-  });
+  // Memoised: an interpolation made during render is a new animated node each
+  // time, so every re-render of the element had Animated attach a new node to
+  // the native view and detach the old one — for the same curve.
+  const scale = useMemo(
+    () =>
+      springAnim.interpolate({
+        // Past 1 so the spring's overshoot has somewhere to go instead of clipping.
+        inputRange: [0, 1, 2],
+        outputRange: [1, scaleTo ?? focus.scale, (scaleTo ?? focus.scale) * 2 - 1],
+      }),
+    [springAnim, scaleTo],
+  );
   // Same spring, same overshoot allowance, so the rise and the growth are one
   // movement rather than two.
-  const translateY = lift
-    ? springAnim.interpolate({inputRange: [0, 1, 2], outputRange: [0, -lift, -lift * 2]})
-    : null;
+  const translateY = useMemo(
+    () => (lift ? springAnim.interpolate({inputRange: [0, 1, 2], outputRange: [0, -lift, -lift * 2]}) : null),
+    [springAnim, lift],
+  );
 
   return (
     <AnimatedPressable
