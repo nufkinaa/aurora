@@ -176,12 +176,14 @@ app.use((req, res, next) => {
   // route keeps only its error reports then, routes/usage.js)
   const OPEN_PATHS = /^\/api\/(ping|me|server-info|usage)$|^\/api\/auth\//;
   // Everything that serves DATA: the API, video streams, avatars, the artwork
-  // proxy-cache (/img/*) and the generic URL proxy (/proxy). Deliberately NOT
+  // proxy-cache (/img/*), prepared offline copies (/offline/* — a whole film;
+  // it was missing here until 1.6.91, so one could be fetched with no session)
+  // and the generic URL proxy (/proxy). Deliberately NOT
   // gated: the app shell + login screen assets, /admin + /web shells (their
   // APIs gate themselves), and /download (the TV installer — a TV needs it
   // before it can ever sign in; it carries no personal data).
   const GATED = (p) =>
-    /^\/(api|stream|avatars|img)\//.test(p) || p === "/proxy";
+    /^\/(api|stream|avatars|img|offline)\//.test(p) || p === "/proxy";
   const wallSaid = new Map();
   app.use((req, res, next) => {
     if (authmode.get() !== "closed") return next();
@@ -211,6 +213,13 @@ app.use((req, res, next) => {
     res.status(401).json({ error: "sign in first", signinRequired: true });
   });
 }
+
+// A forced password reset, and "signed out by the admin", in EVERY sign-in
+// mode: a credential of a profile that owes a new password opens nothing but
+// the routes that save one; a credential the admin ended sends its device
+// back to the sign-in screen. The rule, the routes and the two refusals are
+// in src/lib/resetgate.js. After the wall above, ahead of every router.
+app.use(require("./src/lib/resetgate").middleware);
 
 // [analytics] how long the heavy endpoints take to answer (lib/tel/timings.js)
 app.use(require("./src/lib/tel/timings").middleware);

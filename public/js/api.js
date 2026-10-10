@@ -42,6 +42,24 @@ const json = async (url, options = {}, attempt = 0) => {
     // the status, and the one flag a caller acts on: "ask for the household PIN"
     err.status = res.status;
     if (body && body.pinRequired) err.pinRequired = true;
+    if (body && body.code) err.code = body.code;
+    // A new password is due on the profile this tab is using (the admin's
+    // "Reset password"): the server refuses everything until one is saved.
+    // Read BEFORE `signinRequired` — the refusal carries both, the second for
+    // clients that do not know the first. The app raises the screen that asks
+    // for the new password (resetwall.js, through main.js).
+    if (res.status === 401 && body && body.passwordResetRequired) {
+      err.passwordResetRequired = true;
+      try { window.dispatchEvent(new CustomEvent("aurora-password-reset", { detail: { url, profileId: body.profileId || null } })); } catch {}
+      throw err;
+    }
+    // The admin signed this profile out (Kick, Reset password) and this tab
+    // is still showing the unlock it had: back to the sign-in / profile wall.
+    if (res.status === 401 && body && body.signedOut) {
+      err.signedOut = true;
+      try { window.dispatchEvent(new CustomEvent("aurora-signed-out", { detail: { url } })); } catch {}
+      throw err;
+    }
     // The sign-in wall refused this (the server began to require sign-in, or
     // this session was revoked or ran out). The caller still gets its error;
     // the app is told too, so it can go to the sign-in screen (session.js)
@@ -224,7 +242,9 @@ export const api = {
 
   // ---- sign-in (prompt 10). The session rides an HttpOnly cookie the browser
   // sends by itself — nothing to attach client-side.
-  me: () => json("/api/me"),
+  // `token`: an unlock token to ask with, before any profile is active (boot
+  // asks whether the profile this tab remembers owes a new password)
+  me: (token) => json("/api/me", token ? { headers: { "X-Profile-Token": token } } : {}),
   login: (username, password) => post("/api/auth/login", { username, password }),
   logout: () => post("/api/auth/logout", {}),
   signupRequest: (fields) => post("/api/auth/signup", fields),
@@ -265,8 +285,10 @@ export const api = {
   // password once the house has a kids profile (the server answers
   // `pinRequired` when it wants one)
   unlockProfile: (id, password, pin) => post(`/api/profiles/${id}/unlock`, pin ? { password, pin } : { password }),
-  setPassword: (id, newPassword, currentPassword) =>
-    post(`/api/profiles/${id}/password`, { newPassword, currentPassword }),
+  // `clientId` (optional): this tab's socket, so a forced reset saved here
+  // does not tell this very tab that the profile was signed out
+  setPassword: (id, newPassword, currentPassword, clientId) =>
+    post(`/api/profiles/${id}/password`, { newPassword, currentPassword, ...(clientId ? { clientId } : {}) }),
   createProfile: (fields) => post("/api/profiles", fields),
   // Seconds watched today — only the narrator's "you've been at this a while" uses it.
   todayWatchTime: (id) => json(`/api/profiles/${encodeURIComponent(id)}/today`),

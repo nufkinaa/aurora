@@ -19,7 +19,9 @@ import {
   fmtAirDate,
   resolveAirStates,
   toast,
-  savedLine,
+  listAddedLine,
+  LIST_REMOVED,
+  listFailedLine,
   confirmSheet,
   artUrl,
   formatBadges,
@@ -101,10 +103,16 @@ const streamWatchlistButton = (meta) => {
         inList,
       );
       toast(
-        inList ? savedLine(meta.title, res) : "Off the list. Bold.",
+        inList ? listAddedLine(res) : LIST_REMOVED,
         inList ? "➕" : "➖",
       );
-    } catch {}
+    } catch {
+      // it did not happen: the button goes back, and says so
+      const adding = inList;
+      inList = !inList;
+      paint();
+      toast(listFailedLine(adding), "⚠️");
+    }
   });
   return btn;
 };

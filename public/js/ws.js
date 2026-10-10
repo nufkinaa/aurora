@@ -43,7 +43,11 @@ const handle = (data) => {
       toast(data.message, "📢");
       break;
     case "kicked":
-      backToSignIn(`${state.adminName} pulled the plug on this session`, "🚫");
+      // `reset`: the admin asked this profile for a new password — it is
+      // signed out everywhere, and the next sign-in is met by resetwall.js
+      backToSignIn(data.reset
+        ? `${state.adminName} asked for a new password — sign in again to choose one`
+        : `${state.adminName} pulled the plug on this session`, data.reset ? "🔑" : "🚫");
       break;
     // "Sign out everywhere else", pressed on another device of this profile
     case "profile_signed_out":

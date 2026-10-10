@@ -270,6 +270,7 @@ const resolveKids = (req, deps) => {
 //   itemsByArt(path)             -> optional; the library titles a picture path
 //                                   ("/img/<id>", "/img/meta/<name>") is the cover of
 //   nameOf(profileId)            -> optional; the profile's display name
+//   kidsOf(profileId)            -> optional; { maxAge } for a kids profile, else null
 const HASH_TTL = 24 * 3600 * 1000;
 const HASH_MAX = 4000;
 
@@ -359,7 +360,19 @@ const createGate = (deps) => {
       const rest = prof[2] || "";
       // This device is locked to a kids profile: every other profile's data
       // (and its unlock) is out of reach until the PIN lifts the lock.
+      //
+      // One thing passes: the UNLOCK of another kids profile that is at least
+      // as strict. Moving there takes no PIN (POST /api/kids/enter moves the
+      // lock — it can only restrict), and that profile's own password has to
+      // be checkable BEFORE the lock moves: otherwise a child who gives up at
+      // the password would be left locked to a profile they are not in. The
+      // unlock still checks the password, and that profile's data stays out
+      // of reach until the lock has moved to it.
       if (kid.source === "lock" && id !== kid.profile) {
+        const other = deps.kidsOf ? deps.kidsOf(id) : null;
+        const hop = method === "POST" && rest === "/unlock" &&
+          !!other && typeof other.maxAge === "number" && other.maxAge <= max;
+        if (hop) return next();
         return deny("This device is in a kids profile — a grown-up's PIN switches it.", { kidsLocked: true });
       }
       if (id === kid.profile) {

@@ -6,6 +6,13 @@ const { suite, waitForScreen } = require("./helpers");
 const ui = suite();
 
 const card = (title) => `.grid .card[aria-label^="${title}"]`;
+// The newest toast says exactly this (its words, without the icon); null: no toast is up.
+const lastToastIs = (page, text) => page.waitForFunction((t) => {
+  const all = [...document.querySelectorAll("#toasts .toast")];
+  if (t === null) return all.length === 0;
+  const last = all[all.length - 1];
+  return !!last && last.children[1].textContent === t;
+}, text, { timeout: 15000 });
 const titles = (page, scope = "#app .screen > .grid") =>
   page.evaluate((sel) => [...document.querySelectorAll(`${sel} .card`)].map((c) => (c.getAttribute("aria-label") || "").split(",")[0]), scope);
 const gridIs = (page, want) =>
@@ -111,7 +118,8 @@ ui.test("My List: add from a title page, see it in the list, survive a reload, r
   const added = page.locator('.detail-actions button:has(span:text-is("In My List"))');
   await add.click();
   await added.waitFor();
-  await page.waitForFunction(() => /saved for later/.test(document.getElementById("toasts").innerText));
+  // the TV app's words, on both clients
+  await lastToastIs(page, "Added to My List");
 
   await goto("#/list");
   await gridIs(page, ["Test Film Two"]);
@@ -128,6 +136,7 @@ ui.test("My List: add from a title page, see it in the list, survive a reload, r
   await page.click(`#app .screen > ${card("Test Film Two")}`);
   await added.click();
   await add.waitFor();
+  await lastToastIs(page, "Removed from My List");
   await goto("#/list");
   await page.waitForSelector(".screen .empty");
   assert.match(await page.textContent(".screen .empty"), /My List is empty/);
@@ -150,36 +159,83 @@ ui.test("My List: the toast says what the add started downloading — and nothin
   });
   const add = page.locator('.detail-actions button:has(span:text-is("My List"))');
   const added = page.locator('.detail-actions button:has(span:text-is("In My List"))');
-  const toasts = () => page.evaluate(() => document.getElementById("toasts").innerText);
+  // each line word for word: the newest toast is exactly it
   const cycle = async (id, expected) => {
     await goto(id);
     await add.click();
     await added.waitFor();
-    await page.waitForFunction((src) => new RegExp(src).test(document.getElementById("toasts").innerText), expected.source);
+    await lastToastIs(page, expected);
     await added.click();
     await add.waitFor();
+    await lastToastIs(page, "Removed from My List");
   };
 
   // the real answer here: the film is in the library, nothing is fetched (an older server: no field at all)
-  await goto(`#/movie/${lib.film1.id}`);
-  await add.click();
-  await added.waitFor();
-  await page.waitForFunction(() => /saved for later/.test(document.getElementById("toasts").innerText));
-  assert.doesNotMatch(await toasts(), /downloading/);
-  await added.click();
-  await add.waitFor();
+  await cycle(`#/movie/${lib.film1.id}`, "Added to My List");
 
+  // the same three lines the TV app prints
   download = { queued: true, what: "film" };
-  await cycle(`#/movie/${lib.film1.id}`, /“Test Film One” saved for later — downloading the film/);
+  await cycle(`#/movie/${lib.film1.id}`, "Added to My List — downloading the film");
   download = { queued: true, what: "episode", season: 1, episode: 1 };
-  await cycle(`#/show/${lib.show.id}`, /“Test Show” saved for later — downloading the first episode/);
+  await cycle(`#/show/${lib.show.id}`, "Added to My List — downloading the first episode");
   // asked for nothing (already started, already queued, switched off…): the plain line
   download = { queued: false, reason: "started" };
+  await cycle(`#/movie/${lib.film2.id}`, "Added to My List");
+});
+
+ui.test("My List: an add or a removal that fails puts the button back and says so", {
+  allow: [/Failed to load resource.*\/watchlist/],
+}, async ({ page, goto, signIn, freshProfile, api, lib }) => {
+  const me = await freshProfile();
+  await signIn(me);
+  let fail = true;
+  await page.route("**/api/profiles/*/watchlist", (route) => {
+    if (route.request().method() !== "POST" || !fail) return route.continue();
+    return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "" }) });
+  });
+  const add = page.locator('.detail-actions button:has(span:text-is("My List"))');
+  const added = page.locator('.detail-actions button:has(span:text-is("In My List"))');
+  const headers = await api.as(me);
+  const listed = async () => (await api.get(`/api/profiles/${me.id}/watchlist`, headers)).items.map((i) => i.id);
+
+  // the add fails: the button is "My List" again, and nothing claims it was added
   await goto(`#/movie/${lib.film2.id}`);
   await add.click();
+  await lastToastIs(page, "Couldn't add to My List — try again");
+  await add.waitFor();
+  assert.equal(await added.count(), 0, "the button still says it is in the list");
+  assert.doesNotMatch(await page.evaluate(() => document.getElementById("toasts").innerText), /Added to My List/);
+  assert.deepEqual(await listed(), []);
+
+  // it works: added for real
+  fail = false;
+  await add.click();
   await added.waitFor();
-  await page.waitForFunction(() => /“Test Film Two” saved for later/.test(document.getElementById("toasts").innerText));
-  assert.doesNotMatch((await toasts()).split("\n").filter((l) => /Test Film Two/.test(l)).join(" "), /downloading/);
+  await lastToastIs(page, "Added to My List");
+  assert.deepEqual(await listed(), [lib.film2.id]);
+
+  // the removal fails: the button is "In My List" again, and the title is still listed
+  fail = true;
+  await added.click();
+  await lastToastIs(page, "Couldn't remove from My List — try again");
+  await added.waitFor();
+  assert.equal(await add.count(), 0);
+  assert.deepEqual(await listed(), [lib.film2.id]);
+
+  // the peek sheet (hold a card, or right-click it) has the same button with the same manners
+  await goto("#/movies");
+  await page.click(`#app .screen > ${card("Test Film Two")}`, { button: "right" });
+  const peekSays = (label) => page.waitForFunction((l) => [...document.querySelectorAll(".peek button")].some((b) => b.textContent.trim() === l), label);
+  await peekSays("In My List");
+  await lastToastIs(page, null); // the earlier lines have gone
+  await page.locator(".peek button", { hasText: "In My List" }).click();
+  await lastToastIs(page, "Couldn't remove from My List — try again");
+  await peekSays("In My List");
+  fail = false;
+  await page.locator(".peek button", { hasText: "In My List" }).click();
+  await lastToastIs(page, "Removed from My List");
+  await peekSays("My List");
+  assert.deepEqual(await listed(), []);
 });
 
 ui.test("My List sorts and filters what is in it", async ({ page, goto, signIn, freshProfile, api, lib }) => {

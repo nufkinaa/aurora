@@ -39,6 +39,16 @@ export const onProfileSignedOut = async (profileId) => {
   }
 };
 
+// A request was refused with 401 { signedOut } (api.js raises
+// "aurora-signed-out"): the admin signed this profile out everywhere — Kick,
+// or "Reset password" — and this tab was still using the unlock it had. The
+// socket's "kicked" usually gets here first (ws.js); this is the tab that had
+// no socket at that moment.
+export const onSignedOut = () => {
+  if (!running || leaving) return;
+  backToSignIn(`${state.adminName} signed this profile out — sign in again`);
+};
+
 // A request was refused with 401 { signinRequired } (api.js raises
 // "aurora-signin-required"). Routes say that for more than one reason, and a
 // burst of requests fails together, so /api/me decides, once: the server

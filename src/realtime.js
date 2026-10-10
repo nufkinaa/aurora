@@ -150,7 +150,56 @@ const isAdmin = (req) => {
   return validAdminPassword(pw);
 };
 
+// Who is this socket? Read once, when it connects, from the session the
+// upgrade request carries (browsers send their cookie on a same-origin
+// upgrade; the TV sets X-Session). Lazy require: authz pulls profiles, and
+// realtime loads very early at boot.
+// A session of a profile that owes a new password (lib/resetgate.js) is a
+// RESTRICTED credential here as everywhere: the socket is a stranger's — not
+// signed in, in no profile — and what it says is dropped, until the password
+// is saved and the device connects again. `ws.restricted` keeps the profile's
+// id so the socket can still be found when that profile is signed out.
+const stampSocket = (ws, req) => {
+  ws.authed = false;
+  ws.profileId = null;
+  ws.restricted = null;
+  try {
+    const rid = require("./lib/resetgate").restrictedProfile(req);
+    if (rid) {
+      ws.restricted = rid;
+      return;
+    }
+    const sess = require("./lib/authz").sessionFor(req);
+    ws.authed = !!sess;
+    ws.profileId = sess ? sess.profile.id : null;
+  } catch {}
+};
+
+// Every open socket that is this profile's: by what it said hello as (name or
+// id), by the session it connected with, or by the must-reset session it
+// connected with.
+const clientsOfProfile = (p) => {
+  const out = [];
+  if (!p) return out;
+  for (const c of clients.values()) {
+    const ws = c.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) continue;
+    const mine =
+      (c.profile && (c.profile === p.name || c.profile === p.id)) ||
+      c.profileId === p.id || ws.profileId === p.id || ws.restricted === p.id;
+    if (mine) out.push(c);
+  }
+  return out;
+};
+
 const handleMessage = (client, data, ws) => {
+  // A socket of a profile that owes a new password says nothing that counts
+  // (presence, activity, watch parties) — in every sign-in mode.
+  if (data.type !== "admin_subscribe" && ws.restricted) {
+    let due = false;
+    try { due = require("./profiles").resetDue(ws.restricted); } catch {}
+    if (due) return;
+  }
   // authMode "closed": an unauthenticated socket may still ASK to become
   // admin, but its hello/activity writes (presence, telemetry, watch history)
   // are dropped — signed-in devices only.
@@ -274,18 +323,9 @@ const attach = (server) => {
     const ip = clientIp(req);
     try { require("./lib/signals").hit("ws", ip); } catch {}
 
-    // Session check at upgrade time (browsers send cookies on same-origin WS
-    // upgrades; the TV can set X-Session). Only broadcastAll consults it, and
-    // only in authMode "required" — see the note there. Lazy require: authz
-    // pulls users→profiles, and realtime loads very early at boot.
-    try {
-      const sess = require("./lib/authz").sessionFor(req);
-      ws.authed = !!sess;
-      ws.profileId = sess ? sess.profile.id : null;
-    } catch {
-      ws.authed = false;
-      ws.profileId = null;
-    }
+    // Session check at upgrade time (stampSocket). broadcastAll consults it
+    // in authMode "closed" — see the note there.
+    stampSocket(ws, req);
 
     if (bans.data[ip]) {
       ws.send(JSON.stringify({ type: "banned", reason: bans.data[ip].reason || "" }));
@@ -310,6 +350,8 @@ const attach = (server) => {
     logEvent({ event: "connected", ...publicClient(client) });
 
     ws.send(JSON.stringify({ type: "welcome", clientId: client.id }));
+    // (a client that knows the message raises its "pick a new password" screen)
+    if (ws.restricted) ws.send(JSON.stringify({ type: "password_reset_required", profileId: ws.restricted }));
     broadcastAdmins({ type: "client_connected", client: publicClient(client) });
 
     ws.on("message", (raw) => {
@@ -341,6 +383,8 @@ module.exports = {
   sendTo,
   broadcastAdmins,
   clients,
+  clientsOfProfile,
+  _internals: { stampSocket, handleMessage },
   connectionLog,
   stats,
   bans,

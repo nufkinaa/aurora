@@ -1794,7 +1794,7 @@
     const gBadge = '<span class="gbadge" title="Google sign-in">G</span>';
     const pills = (p) => [
       p.locked ? '<span class="pill" style="color:#ff7a7a">suspended</span>' : "",
-      p.mustReset ? '<span class="pill warn">new password due</span>' : "",
+      p.mustReset ? '<span class="pill warn" title="Signed out everywhere. Until they set a new password, nothing else works for them.">password reset pending</span>' : "",
       p.kids ? `<span class="pill kids">kids · ${p.kids.maxAge === 0 ? "all ages" : "up to " + p.kids.maxAge + "+"}</span>` : "",
       p.live && p.live.length ? '<span class="pill live">online</span>' : "",
       p.fails >= 5 ? `<span class="pill warn">${p.fails} failed unlocks</span>` : "",
@@ -2111,7 +2111,13 @@
           <div><h4>${ICO.bolt} Actions</h4><div class="actions-grid">
             <button data-act="lock">${p.locked ? ICO.unlock + "Unsuspend" : ICO.shield + "Suspend"}<small>${p.locked ? "let them back in" : "locks the profile — nobody can enter it, every device is signed out"}</small></button>
             <button data-act="kick">${ICO.out}Kick<small>sign them out of every device now; their password lets them straight back in</small></button>
-            <button data-act="reset">${ICO.key}${p.mustReset ? "Withdraw password reset" : "Reset password"}<small>${p.mustReset ? "they still have to pick a new one — press to let it go" : "they pick a new password at their next sign-in"}</small></button>
+            <button data-act="reset">${ICO.key}${p.mustReset ? "Withdraw password reset" : "Reset password"}<small>${p.mustReset
+              ? "a reset is pending: they can do nothing until they set a new password — press to let it go"
+              : !p.hasPassword
+                ? `no password to reset (${p.hasGoogle ? "signs in with Google" : "opens without one"}) — this only signs them out everywhere`
+                : p.kids
+                  ? "a kids profile can't change its own password — this only signs it out everywhere; Set password gives it a new one"
+                  : "signs them out everywhere and requires a new password before they can use Aurora again"}</small></button>
             <button data-act="setpw">${ICO.lock}Set password<small>you choose it — tell them in person, don't text it</small></button>
           </div>
           <div class="danger-zone"><button data-act="delete" class="danger">${ICO.trash}Delete profile<small>removes the profile with its progress, list and ratings</small></button></div></div>
@@ -2187,9 +2193,16 @@
           const r = await post(`/api/admin/profiles/${p.id}/kick`);
           toast(`Signed out everywhere${r.kicked ? ` — ${r.kicked} live ${r.kicked === 1 ? "device" : "devices"} dropped` : ""}`);
         } else if (a === "reset") {
-          if (!p.mustReset && !await ask(`Reset "${p.name}"'s password?\n\nThey are signed out everywhere now. Their current password still opens the profile once — then they must pick a new one before going on.`)) return;
-          await post(`/api/admin/profiles/${p.id}/force-reset`, { on: !p.mustReset });
-          toast(p.mustReset ? "Reset withdrawn" : `${p.name} picks a new password at the next sign-in`);
+          if (!p.mustReset && !await ask(!p.hasPassword
+            ? `"${p.name}" has no password to reset — ${p.hasGoogle ? "they sign in with Google" : "the profile opens without one"}.\n\nSign them out everywhere instead?`
+            : p.kids
+              ? `"${p.name}" is a kids profile: a child can't change its password, so there is nothing to ask them for.\n\nSign it out everywhere instead? To give it a new password, use "Set password".`
+              : `Reset "${p.name}"'s password?\n\nThis signs them out everywhere now and requires a new password before they can use Aurora again. Their current password still signs them in, but the only thing it lets them do is choose a new one.\n\nIf they have forgotten the current password, use "Set password" instead.`)) return;
+          const r = await post(`/api/admin/profiles/${p.id}/force-reset`, { on: !p.mustReset });
+          toast(p.mustReset ? "Reset withdrawn — they can carry on with the password they have"
+            : r.noPassword ? `No password to reset — "${p.name}" was signed out everywhere`
+            : r.kidsProfile ? `"${p.name}" was signed out everywhere — a kids profile gets its new password from "Set password"`
+            : `"${p.name}" is signed out everywhere and must set a new password`);
         } else if (a === "setpw") {
           const val = await askText(`New password for "${p.name}" (4+ characters).\n\nThis is the profile's one password — wall AND sign-in — and every signed-in device gets signed out.`);
           if (!val) return;
