@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.92 — 2026-10-10
+
+- **Search while you are still typing.** A half-typed word that happens to be the full name of some obscure film no longer pushes aside what you are obviously typing: "reach" now leads with Reacher from your library, then the films called "Reach". The rule: while typing, your library, trending and well-known titles that start with the letters lead (a well-known title one slip away too — "tory" finds Troy); once you press Enter, the exact name is strictly first as before. Well-known exact names ("Up", "Her", "Dune") lead either way.
+- Suggestions know many more titles from the first letters: Aurora keeps a list of about 5,000 well-known films and series, so "du" offers Dune (2021) before the catalogue has answered. "se7" finds Seven.
+- Fixed in the same day's release before it reached anyone: the actor and director sheet (1.6.87) stopped opening after 1.6.91's My List wording change. Its messages now read like the TV's ("Stars Between: Added to My List").
+
 ## 1.6.91 — 2026-10-10
 
 - **A forced password reset really forces it.** Admin → People → Reset password now signs that person out on every device at once, and until they have chosen a new password nothing else works for them — not on a reload, not through an old tab, not through a saved link. The screen that asks cannot be dismissed; it offers "Set new password" and "Sign out". After saving, the device they used carries on signed in and every other device stays signed out. The new password must differ from the old one, and changing it still needs the current one (someone who has forgotten theirs needs the admin's "Set password"). People shows "password reset pending" until it is done. A profile with no password, and a kids profile, are signed out everywhere instead — there is nothing for them to reset.

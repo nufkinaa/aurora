@@ -103,6 +103,9 @@ const fixture = (over = {}) => {
     trending: () => TRENDING,
     seenTitles: () => [],
     seenPeople: () => [],
+    knownTitles: () => [],
+    knownStamp: () => "",
+    recTitles: () => [],
     facts: () => FACTS,
     liveCached: () => null,
     live: async (q) => {
@@ -620,4 +623,110 @@ test("a catalogue that fails or hangs never loses the local answer", async () =>
   const r = await full("dune");
   assert.equal(top(r), "Dune 1984");
   assert.equal(r.catalogFailed, true);
+});
+
+// ---------- while typing vs committed; what is "notable" ----------
+const REACH = {
+  movies: [cat("movie", "Reach", 2018, "tt9900040"), cat("movie", "Reach for the Sky", 1956, "tt9900041"), cat("movie", "Reach Me", 2014, "tt9900042")],
+  shows: [cat("show", "Reacher", 2022, "tt9288030", ["Action"])],
+};
+const withReacher = (over = {}) =>
+  fixture({
+    libraryItems: () => [...LIBRARY, lib("L8", "show", "Reacher", 2022, "tt9288030", ["Action"])],
+    live: async (q) => (/^reach/i.test(q) ? REACH : /^tory/i.test(q) ? { movies: [cat("movie", "Tory", 2019, "tt9900050"), cat("movie", "Tory Ward", 2026, "tt9900051")], shows: [] } : { movies: [], shows: [] }),
+    ...over,
+  });
+const typing = (q, opts = {}) => engine.search(q, { wait: true, ...opts });
+
+test("while typing, an obscure exact name does not outrank the library title being typed; committed, exact is strictly first", async () => {
+  withReacher();
+  const t = await typing("reach");
+  assert.deepEqual(names(t), ["Reacher 2022", "Reach 2018", "Reach for the Sky 1956", "Reach Me 2014"], "the library's first, the exact name right after it");
+  assert.deepEqual(t.results.map((x) => x.match.tier), [900, 900, 900, 900]);
+  assert.equal(t.results[1].match.exact, true, "…and it still says it is the exact name");
+  const c = await typing("reach", { commit: true });
+  assert.deepEqual(names(c), ["Reach 2018", "Reacher 2022", "Reach for the Sky 1956", "Reach Me 2014"]);
+  assert.equal(c.results[0].match.tier, 1000);
+  // nothing notable starts with it: the exact name is first while typing too
+  fixture({ live: async () => REACH, libraryItems: () => [] });
+  assert.equal(top(await typing("reach")), "Reach 2018");
+});
+
+test("while typing, a notable exact name still leads (library, trending, well-known, 1,000+ votes) — and so does any exact name with its year", async () => {
+  fixture(); // It, Up, Her are trending in the corpus
+  for (const [q, want] of [["it", "It 2017"], ["up", "Up 2009"], ["her", "Her 2013"], ["troy", "Troy 2004"]]) {
+    const r = await typing(q);
+    assert.equal(top(r), want);
+    assert.equal(r.results[0].match.tier, 1000, q);
+  }
+  // only the well-known set / the recommender's index knows these
+  fixture({
+    trending: () => ({ movies: [cat("movie", "Parasite Dolls", 2003, "tt9900060")], shows: [] }),
+    knownTitles: () => [{ ...cat("movie", "Parasite", 2019, "tt6751668", ["Thriller"]), k: 97, cast: ["Song Kang-ho"], director: ["Bong Joon Ho"] }],
+    recTitles: () => [{ ...cat("movie", "Paras", 1971, "tt9900061"), votes: 12 }, { ...cat("movie", "Parasyte", 2014, "tt9900062"), votes: 4200 }],
+  });
+  assert.deepEqual(names(await typing("parasite")), ["Parasite 2019", "Parasite Dolls 2003"]);
+  // "paras": three notable titles start with it; the 12-vote film called exactly that follows them
+  const p = names(await typing("paras"));
+  assert.deepEqual([...p.slice(0, 3)].sort(), ["Parasite 2019", "Parasite Dolls 2003", "Parasyte 2014"]);
+  assert.equal(p[3], "Paras 1971");
+  assert.equal(top(await typing("paras", { commit: true })), "Paras 1971");
+  assert.equal(top(await typing("bong joon ho")), "Parasite 2019", "the well-known set brings its cast and director");
+  // the year was typed: that is not a half-typed word
+  withReacher();
+  const y = await typing("reach 2018");
+  assert.deepEqual([top(y), y.results[0].match.tier], ["Reach 2018", 1000]);
+});
+
+test("while typing, a library title one slip away beats obscure titles that start with the typo ('tory' → Troy)", async () => {
+  withReacher();
+  const t = await typing("tory");
+  assert.deepEqual(names(t).slice(0, 3), ["Troy 2004", "Tory 2019", "Tory Ward 2026"]);
+  const c = await typing("tory", { commit: true });
+  assert.deepEqual(names(c).slice(0, 3), ["Tory 2019", "Tory Ward 2026", "Troy 2004"], "committed: what was typed, to the letter");
+  // a well-known title (not in the library, not trending): swapped neighbours only
+  fixture({
+    knownTitles: () => [{ ...cat("movie", "Parasite", 2019, "tt6751668"), k: 97 }, { ...cat("movie", "Heart", 1987, "tt9900070"), k: 2000 }],
+    live: async () => ({ movies: [cat("movie", "Parasiet Films", 2020, "tt9900071"), cat("movie", "Heat Wave", 2022, "tt9900072")], shows: [] }),
+  });
+  assert.equal(top(await typing("parasiet")), "Parasite 2019");
+  // "heat" is Heat (trending, exact): "Heart", one letter more, is not offered as a slip
+  assert.deepEqual(names(await typing("heat")).slice(0, 2), ["Heat 1995", "Heat Wave 2022"]);
+});
+
+test("the well-known set widens what two letters can suggest, ranked by its place in the catalogue's list", () => {
+  fixture({
+    trending: () => ({ movies: [cat("movie", "Dune: Part Two", 2024, "tt15239678")], shows: [] }),
+    libraryItems: () => [],
+    knownTitles: () => [
+      { ...cat("movie", "Dunkirk", 2017, "tt5013056"), k: 900 },
+      { ...cat("movie", "Dune", 2021, "tt1160419"), k: 92 },
+      { ...cat("movie", "Dune", 1984, "tt0087182"), k: 1135 },
+      { ...cat("movie", "Dune: Part Two", 2024, "tt15239678"), k: 30 }, // already trending: one row
+    ],
+  });
+  assert.deepEqual(engine.suggest("du").map((x) => `${x.title} ${x.year}`), ["Dune: Part Two 2024", "Dune 2021", "Dunkirk 2017", "Dune 1984"]);
+  assert.deepEqual(engine.suggest("dune").map((x) => `${x.title} ${x.year}`), ["Dune 2021", "Dune 1984", "Dune: Part Two 2024"]);
+  assert.equal(engine.stats().docs, 4);
+});
+
+test("suggestions follow the while-typing rule too", async () => {
+  withReacher({ liveCached: (q) => (/^reach$/i.test(q) ? REACH : null) });
+  assert.deepEqual(engine.suggest("reach").map((x) => `${x.title} ${x.year}`), ["Reacher 2022", "Reach 2018", "Reach for the Sky 1956", "Reach Me 2014"]);
+  assert.equal(engine.suggest("tory")[0].title, "Troy");
+});
+
+test("a digit standing in for a letter matches as the START of the word too: se7 → Se7en, sev → Se7en", async () => {
+  fixture({ trending: () => ({ movies: [...TRENDING.movies, cat("movie", "Seven", 1995, "tt9900080"), cat("movie", "Severance", 2022, "tt9900081")], shows: [] }) });
+  const t = (q, title) => tierForms(forms(q), forms(title));
+  assert.equal(t("se7", "Se7en"), 900);
+  assert.equal(t("se7", "Seven"), 900);
+  assert.equal(t("sev", "Se7en"), 900);
+  assert.equal(t("se7e", "Seven Samurai"), 900);
+  assert.equal(t("se7en", "Seven"), 1000);
+  assert.equal(t("r2", "Rz"), 0, "one letter before the digit is a name (R2-D2), not a spelling");
+  assert.equal(t("s1", "Silo"), 0);
+  const got = names(await typing("se7"));
+  assert.ok(got.includes("Se7en 1995") && got.includes("Seven 1995"), JSON.stringify(got));
+  assert.ok(engine.suggest("se7").some((x) => x.title === "Se7en"));
 });
