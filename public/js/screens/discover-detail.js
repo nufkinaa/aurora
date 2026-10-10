@@ -1856,6 +1856,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         view.type === "show" ? "series" : "movie",
         imdbId,
         meta && meta.tmdbId,
+        state.profile ? state.profile.id : null,
       )
       .then(({ items, source }) => {
         const cards = (items || [])

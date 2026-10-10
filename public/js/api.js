@@ -144,10 +144,12 @@ export const api = {
   offlinePrepare: (id, q, hevc) => post(`/api/offline/prepare/${encodeURIComponent(id)}?q=${encodeURIComponent(q || "720")}${hevc ? "&hevc=1" : ""}`, {}),
   offlineStatus: (id, q, hevc) => json(`/api/offline/status/${encodeURIComponent(id)}?q=${encodeURIComponent(q || "720")}${hevc ? "&hevc=1" : ""}`),
   parties: () => json("/api/party"),
-  discoverSimilar: (type, id, tmdbId) =>
-    json(
-      `/api/discover/similar/${type}/${encodeURIComponent(id)}${tmdbId ? `?tmdbId=${tmdbId}` : ""}`,
-    ),
+  // `profileId` (optional): the row comes back in that person's order, with
+  // what they have already watched left out.
+  discoverSimilar: (type, id, tmdbId, profileId) => {
+    const q = [tmdbId ? `tmdbId=${tmdbId}` : "", profileId ? `profile=${encodeURIComponent(profileId)}` : ""].filter(Boolean).join("&");
+    return json(`/api/discover/similar/${type}/${encodeURIComponent(id)}${q ? `?${q}` : ""}`);
+  },
   // One page of a Browse category (see /api/catalog). Paged per genre, so a
   // niche genre has a deep list of its own rather than a slice of trending.
   catalog: ({ type, category, genre, page = 0, low = false }) =>

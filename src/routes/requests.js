@@ -91,8 +91,15 @@ router.get("/api/discover/meta/:type/:id", async (req, res) => {
   }
 });
 
-// "More like this" for the detail page. Decoration on a page that must
-// render regardless — failures answer an empty row, never a 5xx.
+// "More like this" for the detail page — the one row both the website and
+// the TV app show. Decoration on a page that must render regardless —
+// failures answer an empty row, never a 5xx.
+//
+// `?profile=<id>` (optional, additive): the row is re-ordered for that
+// person — what they have already watched is left out, the rest lean towards
+// their taste (media/recs personaliseSimilar). The profile is honoured under
+// the same rules as /api/home; anything else gets the plain row, which is
+// also what every older client gets. Shape unchanged: { items, source }.
 router.get("/api/discover/similar/:type/:id", async (req, res) => {
   try {
     const type =
@@ -102,11 +109,37 @@ router.get("/api/discover/similar/:type/:id", async (req, res) => {
     const id = String(req.params.id || "");
     if (!/^tt\d{4,12}$/.test(id)) return res.json({ items: [] });
     const similar = require("../media/similar");
-    res.json(await similar.similar(type, id, parseInt(req.query.tmdbId, 10) || null));
+    const row = await similar.similar(type, id, parseInt(req.query.tmdbId, 10) || null);
+    const profileId = personalFor(req);
+    let out = { items: (row.items || []).slice(0, similar.SHOW_MAX), personalised: false };
+    if (profileId) {
+      try { out = require("../media/recs").personaliseSimilar(row.items || [], profileId, { limit: similar.SHOW_MAX }); } catch {}
+    }
+    res.json({ items: out.items, source: row.source, ...(out.personalised ? { personalised: true } : {}) });
   } catch {
     res.json({ items: [] });
   }
 });
+
+// Whose taste may shape this answer? The profile the request names, when it
+// would also be allowed that profile's home screen: the session owns it (or
+// sign-in is not enforced), it is not locked, and a password-protected one
+// has its unlock token. Otherwise nobody's — the generic answer.
+const personalFor = (req) => {
+  const id = typeof req.query.profile === "string" ? req.query.profile : "";
+  if (!id || !/^[\w-]{1,40}$/.test(id)) return null;
+  try {
+    const profiles = require("../profiles");
+    const authz = require("../lib/authz");
+    if (!profiles.exists(id) || profiles.isLocked(id) || !authz.profileAllowed(req, id)) return null;
+    const s = authz.sessionFor(req);
+    const owns = !!s && s.profile.id === id;
+    if (!owns && profiles.isProtected(id) && !profiles.tokenValid(id, req.get("X-Profile-Token"))) return null;
+    return id;
+  } catch {
+    return null;
+  }
+};
 
 // The franchise a film belongs to, and its director's other films — two
 // more shelves on the detail page. Decoration: failures answer empty.

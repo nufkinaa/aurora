@@ -505,7 +505,7 @@ export const renderHome = async (root) => {
     const node =
       r.id === "continue" && state.profile
         ? continueRow(r.title, r.items, state.profile.id, api, { eagerCards })
-        : shelfRow(r.title, r.items, { showKind: true, eagerCards });
+        : shelfRow(r.title, r.items, { showKind: true, eagerCards, sub: r.sub || "" });
     if (node) {
       node.dataset.rowId = r.id;
       node.dataset.sig = rowSig(r);
