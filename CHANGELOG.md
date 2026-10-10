@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.87 — 2026-10-10
+
+- **Press a person, see their work.** On the website (phone and desktop), pressing an actor or the director — in X-Ray or in the cast line of a title page — opens a sheet on top of what you were doing instead of jumping to search: a few portraits of them, a short biography, and their films and shows, the ones already in the library first. Pressing a title adds it to My List (the card shows a tick; press again or use Undo to take it off); "Details", a long press, a right-click or the I key opens the title's page instead. It works over a film, in fullscreen too, and the film stays as you left it. A kids profile only sees titles it is allowed. Photos and filmographies come from TMDB (IMDb offers no way to fetch them); the sheet links to the person's IMDb page. The TV app gets the same sheet with its next update.
+- **My List downloads wait their turn.** A download that started because someone added a title to their list is now the lowest priority: it starts after every other download, and while anything else is waiting or downloading it goes on hold, keeping what it already has, and carries on by itself about a minute after the queue is quiet. Downloads people ask for come first, then next-episode and followed-show downloads, then My List. Held downloads show as "On hold" with their progress; Admin → Downloads has "Start now" for them, and a setting to let them run alongside other downloads whenever a slot is free instead.
+
 ## 1.6.86 — 2026-10-10
 
 Fixes on the website and the server, from a side-by-side check of the website and the TV app.
