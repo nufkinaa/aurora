@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.88 — 2026-10-10
+
+- **Recommendations that know more about titles and about you.** Aurora now keeps a record of each title beyond its genres — its themes and moods (108 of them: heists, slow-burn mysteries, courtroom dramas, found families, dystopias…), who made it and who is in it, its franchise, and which other titles people who liked it also liked — and it reads more from what you do: finishing a film, binging a series, coming back to rewatch, following a show, adding to My List, dropping something after the pilot, or removing it from Continue Watching all count, with recent weeks weighing more than last year. It also looks further afield for candidates: the neighbours of your favourite titles, other work by the makers you return to, and more of the themes you like, not only this week's trending list.
+- Home gets rows that say why: "Because you finished …", "More heists & capers", "From the director of …", and "Something Different" for a deliberate step outside your usual. Nothing you have watched appears in them, nothing repeats between them, and the mix follows your own proportions instead of piling up one genre. A new profile starts from its Settings picks and from what the rest of the house has liked.
+- "More like this" is now the same on the website and the TV app (the TV used a plain genre list), ordered for the person asking.
+- The title records are collected a few hundred a day from TMDB, so the new rows get fuller over the first few days after this update.
+
 ## 1.6.87 — 2026-10-10
 
 - **Press a person, see their work.** On the website (phone and desktop), pressing an actor or the director — in X-Ray or in the cast line of a title page — opens a sheet on top of what you were doing instead of jumping to search: a few portraits of them, a short biography, and their films and shows, the ones already in the library first. Pressing a title adds it to My List (the card shows a tick; press again or use Undo to take it off); "Details", a long press, a right-click or the I key opens the title's page instead. It works over a film, in fullscreen too, and the film stays as you left it. A kids profile only sees titles it is allowed. Photos and filmographies come from TMDB (IMDb offers no way to fetch them); the sheet links to the person's IMDb page. The TV app gets the same sheet with its next update.
