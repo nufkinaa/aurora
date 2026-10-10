@@ -482,7 +482,7 @@
         <button class="tab" data-tab="moderation" data-panes="moderation"><svg viewBox="0 0 24 24"><path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/></svg><span>Inbox</span><span class="tbadge" id="badge-moderation"></span></button>
         <button class="tab" data-tab="downloads" data-panes="downloads"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></svg><span>Downloads</span><span class="tbadge" id="badge-downloads"></span></button>
         <button class="tab" data-tab="profiles" data-panes="profiles"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.900 1.900 6.500 5.500"/><path d="M16 4.800a3.500 3.500 0 010 6.400"/><path d="M18 14.800c2 .700 3.200 2.400 3.600 5.200"/></svg><span>People</span><span class="tbadge" id="badge-profiles"></span></button>
-        <button class="tab" data-tab="analytics" data-panes="analytics history"><svg viewBox="0 0 24 24"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M21 20H3"/></svg><span>Insights</span></button>
+        <button class="tab" data-tab="analytics" data-panes="analytics telemetry history"><svg viewBox="0 0 24 24"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M21 20H3"/></svg><span>Insights</span></button>
         <button class="tab" data-tab="server" data-panes="server actions logs"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.500h.01M7 16.500h.01"/></svg><span>Server</span><span class="tbadge" id="badge-server"></span></button>
       </nav>
       <div class="side-foot" id="conn" title="Whether this page is receiving live updates from the server"><i class="conn-dot"></i><span id="conn-text">Connecting…</span></div>
@@ -692,6 +692,75 @@
           <thead><tr><th>IP</th><th>Profiles</th><th>Devices</th><th>Watch time</th><th>Plays</th><th>Last seen</th></tr></thead>
           <tbody id="an-viewers"></tbody>
         </table></div>
+      </div>
+    </div>
+
+    <!-- ================= APP HEALTH (lib/tel: error reports, timings, control counts) ================= -->
+    <div class="pane" id="pane-telemetry">
+      <div class="card">
+        <h2>Errors on people's devices <span class="note">what the site and the TV app reported going wrong — by kind, never by title or person. Only from profiles with usage stats on.</span>
+          <button class="mini" id="tel-copy" style="margin-left:auto" title="Copies errors, timings and most-used as text to paste elsewhere">Copy report</button></h2>
+        <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px">
+          <div class="range-chips" id="tel-views">
+            <button data-view="fresh" class="active">New <span class="tbadge" id="tel-n-fresh"></span></button>
+            <button data-view="spiking">Spiking <span class="tbadge" id="tel-n-spiking"></span></button>
+            <button data-view="top">Top by devices</button>
+            <button data-view="ignored">Ignored</button>
+          </div>
+          <select id="tel-f-app" aria-label="App"><option value="">Every app</option><option value="web">Website</option><option value="tv">TV app</option></select>
+          <select id="tel-f-version" aria-label="Version"><option value="">Every version</option></select>
+          <select id="tel-f-model" aria-label="Device"><option value="">Every device</option></select>
+          <select id="tel-f-level" aria-label="Level"><option value="">Errors and warnings</option><option value="error">Errors</option><option value="warn">Warnings</option></select>
+        </div>
+        <div class="empty-note hidden" id="tel-errors-empty">Nothing here.</div>
+        <div class="table-scroll dense"><table>
+          <thead><tr><th>Level</th><th>App</th><th>What</th><th>Count</th><th>Devices</th><th>First seen</th><th>Last</th><th>14 days</th><th></th></tr></thead>
+          <tbody id="tel-errors"></tbody>
+        </table></div>
+        <details class="tel-rules" style="margin-top:12px">
+          <summary class="muted" style="cursor:pointer;font-weight:800">Alert rules <span class="note" id="tel-rules-line"></span></summary>
+          <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:10px;margin-top:10px" id="tel-rules">
+            <label class="muted"><input type="checkbox" data-rule="alert"> Send an alert</label>
+            <label class="muted">new on <input type="number" min="1" data-rule="newDevices" style="width:70px"> devices</label>
+            <label class="muted">or <input type="number" min="1" data-rule="newCount" style="width:80px"> times</label>
+            <label class="muted">within <input type="number" min="1" max="120" data-rule="windowMin" style="width:70px"> min</label>
+            <label class="muted">spiking at <input type="number" min="2" data-rule="spikeFactor" style="width:70px">× usual</label>
+            <label class="muted">and ≥ <input type="number" min="1" data-rule="spikeMin" style="width:80px"> an hour</label>
+            <label class="muted">at most every <input type="number" min="1" data-rule="cooldownMin" style="width:70px"> min</label>
+            <label class="muted">and <input type="number" min="1" data-rule="maxPerDay" style="width:70px"> a day</label>
+            <button class="mini" id="tel-rules-save">Save</button>
+          </div>
+        </details>
+      </div>
+      <div class="card">
+        <h2>Timings <span class="note">the moments people feel, with the same definitions on the site and the TV · p50 / p90 / p99 for the newest version, and the change against the one before</span></h2>
+        <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px">
+          <select id="tel-t-device" aria-label="Device class"><option value="">Every device class</option><option value="phone">Phones</option><option value="tablet">Tablets</option><option value="desktop">Computers</option><option value="tv">TVs</option></select>
+          <select id="tel-t-net" aria-label="Connection"><option value="">Every connection</option><option value="slow">Slow</option><option value="ok">OK</option><option value="fast">Fast</option></select>
+        </div>
+        <div class="empty-note hidden" id="tel-timings-empty">Nothing measured yet.</div>
+        <div class="table-scroll dense"><table>
+          <thead><tr><th>What</th><th>App</th><th>Split</th><th>Version</th><th>Count</th><th>p50</th><th>p90</th><th>p99</th><th>vs previous</th></tr></thead>
+          <tbody id="tel-timings"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h2>Most used <span class="note">presses per control over the last 30 days, and the share of sessions that used each — counted on the device, sent as totals</span></h2>
+        <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px">
+          <div class="range-chips" id="tel-apps">
+            <button data-app="web" class="active">Website</button>
+            <button data-app="tv">TV app</button>
+            <button data-app="compare">Side by side</button>
+          </div>
+          <select id="tel-u-screen" aria-label="Screen"><option value="">Every screen</option></select>
+          <span class="muted" id="tel-u-totals"></span>
+        </div>
+        <div class="empty-note hidden" id="tel-used-empty">Nothing counted yet.</div>
+        <div class="hbars" id="tel-used"></div>
+        <div style="margin-top:14px">
+          <div class="muted" style="font-weight:800;margin:6px 0">Never used in 30 days <span class="note">controls on the list that nobody pressed — to remove, or to make easier to find</span></div>
+          <div id="tel-never" class="muted" style="line-height:1.9"></div>
+        </div>
       </div>
     </div>
 
@@ -2788,6 +2857,181 @@
       toast("Usage stats copied — paste them anywhere");
     };
 
+    // ---------- app health: error reports, timings, most used (lib/tel) ----------
+    const tel = { data: null, text: "", view: "fresh", app: "web" };
+    const telAgo = (t) => {
+      const m = Math.round((Date.now() - t) / 60000);
+      return m < 1 ? "now" : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
+    };
+    const telMs = (v) => (v == null ? "–" : v >= 3600000 ? `${(v / 3600000).toFixed(1)} h` : v >= 60000 ? `${(v / 60000).toFixed(1)} min` : v >= 1000 ? `${(v / 1000).toFixed(1)} s` : `${Math.round(v)} ms`);
+    const telFacet = (o, n = 4) => Object.entries(o || {}).filter(([k]) => k !== "?").sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${k} ${v}`).join(", ");
+    // fourteen days as fourteen small bars (the count is in each bar's title)
+    const telSpark = (days) => {
+      const max = Math.max(1, ...days.map((d) => d.n));
+      return `<span class="tel-spark" style="display:inline-flex;align-items:flex-end;gap:1px;height:20px">${days.map((d) =>
+        `<i title="${esc(d.day)}: ${d.n} on ${d.devices} device${d.devices === 1 ? "" : "s"}" style="display:block;width:4px;border-radius:1px;background:${d.n ? "var(--accent)" : "rgba(255,255,255,0.08)"};height:${d.n ? Math.max(2, Math.round((18 * d.n) / max)) : 2}px"></i>`).join("")}</span>`;
+    };
+    const telQuery = () => {
+      const q = new URLSearchParams();
+      for (const [id, key] of [["tel-f-app", "app"], ["tel-f-version", "version"], ["tel-f-model", "model"], ["tel-f-level", "level"], ["tel-t-device", "device"], ["tel-t-net", "net"]]) {
+        const v = $("#" + id).value;
+        if (v) q.set(key, v);
+      }
+      const s = q.toString();
+      return s ? "?" + s : "";
+    };
+    async function loadTelemetry() {
+      let d;
+      try { d = await json("/api/admin/telemetry" + telQuery()); } catch { return; }
+      tel.data = d;
+      tel.text = d.text || "";
+      // the filter lists follow what has actually been seen
+      const fill = (id, list, all) => {
+        const sel = $("#" + id);
+        const cur = sel.value;
+        sel.innerHTML = `<option value="">${esc(all)}</option>` + (list || []).filter((v) => v && v !== "?").map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+        sel.value = [...sel.options].some((o) => o.value === cur) ? cur : "";
+      };
+      fill("tel-f-version", d.errors.filters.versions, "Every version");
+      fill("tel-f-model", d.errors.filters.models, "Every device");
+      paintTelErrors();
+      paintTelTimings();
+      paintTelUsed();
+      paintTelRules();
+    }
+    function paintTelErrors() {
+      const e = tel.data.errors;
+      $("#tel-n-fresh").textContent = e.fresh.length || "";
+      $("#tel-n-spiking").textContent = e.spiking.length || "";
+      const rows = e[tel.view] || [];
+      for (const b of $("#tel-views").children) b.classList.toggle("active", b.dataset.view === tel.view);
+      $("#tel-errors-empty").classList.toggle("hidden", rows.length > 0);
+      $("#tel-errors-empty").textContent = !e.total ? "No device has reported an error. (Reports come only from profiles with usage stats on.)"
+        : tel.view === "fresh" ? "Nothing new in the last day, and nothing that only the newest version has."
+        : tel.view === "spiking" ? "Nothing is running above its own usual rate."
+        : tel.view === "ignored" ? "Nothing is ignored." : "Nothing matches.";
+      $("#tel-errors").innerHTML = rows.map((r) => {
+        const sp = r.spike && r.spike.base != null && r.spike.cur ? ` · this hour ${r.spike.cur}, usually ${r.spike.base}` : "";
+        const facts = [
+          telFacet(r.versions) && `versions: ${telFacet(r.versions)}`,
+          telFacet(r.models) && `on: ${telFacet(r.models)}`,
+          telFacet(r.screens) && `screens: ${telFacet(r.screens)}`,
+          telFacet(r.auth) && `sign-in: ${telFacet(r.auth)}`,
+          telFacet(r.net) && `connection: ${telFacet(r.net)}`,
+          r.ctx && r.ctx.status && `status: ${telFacet(r.ctx.status)}`,
+          r.ctx && r.ctx.code && `code: ${telFacet(r.ctx.code)}`,
+          telFacet(r.flags) && `flags: ${telFacet(r.flags)}`,
+        ].filter(Boolean).join(" · ");
+        const acts = r.state === "ignored"
+          ? `<button class="mini" data-tel-state="open" data-fp="${esc(r.fp)}" title="Show it in the lists again">Stop ignoring</button>`
+          : `${r.state === "known" ? `<button class="mini" data-tel-state="open" data-fp="${esc(r.fp)}" title="Treat it as unexplained again">Not known</button>` : `<button class="mini" data-tel-state="known" data-fp="${esc(r.fp)}" title="Seen and understood: stays in the lists, is not announced as new">Known</button>`}
+             <button class="mini" data-tel-state="ignored" data-fp="${esc(r.fp)}" title="Noise: still counted, out of the lists, never alerted">Ignore</button>`;
+        return `<tr data-fp="${esc(r.fp)}">
+          <td><span class="pill ${r.level === "error" ? "bad" : "warn"}">${r.level === "error" ? "error" : "warning"}</span></td>
+          <td>${r.app === "tv" ? "TV" : "Website"}</td>
+          <td class="wide"><div><b>${esc(r.message)}</b>${r.state === "known" ? ` <span class="pill">known</span>` : ""}${r.newInLatest ? ` <span class="pill live">new in ${esc(r.firstVersion)}</span>` : ""}</div>
+            <div class="muted" style="font-size:0.78rem">${esc(r.kind)}${r.where ? ` · ${esc(r.where)}` : ""}${r.note ? ` · ${esc(r.note)}` : ""}${sp}</div>
+            <div class="muted" style="font-size:0.78rem">${esc(facts)}</div></td>
+          <td>${r.n}<div class="muted" style="font-size:0.78rem">${r.n24} today</div></td>
+          <td>${r.devices}</td>
+          <td>${esc(telAgo(r.first))}<div class="muted" style="font-size:0.78rem">in ${esc(r.firstVersion)}</div></td>
+          <td>${esc(telAgo(r.last))}</td>
+          <td>${telSpark(r.days)}</td>
+          <td class="acts">${acts}</td></tr>`;
+      }).join("");
+    }
+    function paintTelTimings() {
+      const rows = tel.data.timings.rows || [];
+      $("#tel-timings-empty").classList.toggle("hidden", rows.length > 0);
+      $("#tel-timings").innerHTML = rows.map((r) => {
+        // slower is worse: red from +10 %, green from −10 %
+        const ch = r.changeP50;
+        const change = ch == null ? `<span class="muted">${r.prevVersion ? "too few to compare" : "–"}</span>`
+          : `<span class="pill ${ch >= 10 ? "bad" : ch <= -10 ? "live" : ""}" title="p50 ${esc(telMs(r.prev.p50))} in ${esc(r.prevVersion)} (${r.prev.n} measured) · p90 ${r.changeP90 > 0 ? "+" : ""}${r.changeP90}%">${ch > 0 ? "+" : ""}${ch}% vs ${esc(r.prevVersion)}</span>`;
+        const split = [telFacetStats(r.byDevice), telFacetStats(r.byNet)].filter(Boolean).join(" · ");
+        return `<tr><td>${esc(r.label)}<div class="muted" style="font-size:0.74rem">${esc(r.metric)}</div></td><td>${r.app === "tv" ? "TV" : r.app === "server" ? "Server" : "Website"}</td><td>${esc(r.dim === "-" ? "" : r.dim)}</td>
+          <td>${esc(r.version)}</td><td>${r.n}</td><td title="${esc(split)}">${telMs(r.p50)}</td><td>${telMs(r.p90)}</td><td>${telMs(r.p99)}</td><td>${change}</td></tr>`;
+      }).join("");
+    }
+    const telFacetStats = (o) => Object.entries(o || {}).filter(([, s]) => s).map(([k, s]) => `${k}: ${telMs(s.p50)} (${s.n})`).join(", ");
+    function paintTelUsed() {
+      const c = tel.data.controls;
+      for (const b of $("#tel-apps").children) b.classList.toggle("active", b.dataset.app === tel.app);
+      const host = $("#tel-used");
+      const sel = $("#tel-u-screen");
+      if (tel.app === "compare") {
+        sel.classList.add("hidden");
+        $("#tel-u-totals").textContent = `website ${c.web.sessions} sessions · TV ${c.tv.sessions} sessions`;
+        $("#tel-used-empty").classList.toggle("hidden", c.compare.length > 0);
+        hbars(host, c.compare.slice(0, 60).map((r) => ({ label: r.id, v: r.web + r.tv, right: `${r.web} / ${r.tv}`, tipHtml: `<b>${esc(r.id)}</b><br>website ${r.web} (${r.webShare || 0}% of sessions)<br>TV ${r.tv} (${r.tvShare || 0}% of sessions)` })), { empty: "" });
+        $("#tel-never").textContent = "";
+        return;
+      }
+      sel.classList.remove("hidden");
+      const a = c[tel.app];
+      const screens = Object.keys(a.screens || {}).sort();
+      const cur = sel.value;
+      sel.innerHTML = `<option value="">Every screen</option>` + screens.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
+      sel.value = screens.includes(cur) ? cur : "";
+      $("#tel-u-totals").textContent = `${a.sessions} sessions · ${a.presses} presses · ${a.used.length} of ${a.used.length + a.never.length} controls used`;
+      const rows = sel.value
+        ? (a.screens[sel.value] || []).map((r) => ({ label: r.id, v: r.n, right: String(r.n) }))
+        : a.used.slice(0, 80).map((r) => ({
+            label: r.id, v: r.n, right: `${r.n} · ${r.share == null ? "–" : r.share + "%"}`,
+            tipHtml: `<b>${esc(r.id)}</b><br>${r.n} presses · ${r.share == null ? "–" : r.share + "% of sessions"}<br>on: ${esc(telFacet(r.by, 5))}<br>with: ${esc(telFacet(r.in, 5))}`,
+          }));
+      $("#tel-used-empty").classList.toggle("hidden", rows.length > 0);
+      hbars(host, rows, { empty: "" });
+      $("#tel-never").innerHTML = a.never.length ? a.never.map((id) => `<span class="pill" style="margin:0 6px 6px 0">${esc(id)}</span>`).join("") : "Every control on the list was used.";
+    }
+    function paintTelRules() {
+      const r = tel.data.alertRules || {};
+      for (const inp of $("#tel-rules").querySelectorAll("[data-rule]")) {
+        if (inp.type === "checkbox") inp.checked = !!r[inp.dataset.rule];
+        else if (document.activeElement !== inp) inp.value = r[inp.dataset.rule];
+      }
+      $("#tel-rules-line").textContent = r.alert
+        ? `new on ${r.newDevices} devices or ${r.newCount}× within ${r.windowMin} min · spiking at ${r.spikeFactor}× usual (≥ ${r.spikeMin} an hour) · at most one alert per ${r.cooldownMin} min, ${r.maxPerDay} a day`
+        : "alerts for device errors are off";
+    }
+    $("#tel-views").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-view]");
+      if (b) { tel.view = b.dataset.view; if (tel.data) paintTelErrors(); }
+    });
+    $("#tel-apps").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-app]");
+      if (b) { tel.app = b.dataset.app; if (tel.data) paintTelUsed(); }
+    });
+    $("#tel-u-screen").addEventListener("change", () => { if (tel.data) paintTelUsed(); });
+    for (const id of ["tel-f-app", "tel-f-version", "tel-f-model", "tel-f-level", "tel-t-device", "tel-t-net"]) $("#" + id).addEventListener("change", loadTelemetry);
+    $("#tel-errors").addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-tel-state]");
+      if (!b) return;
+      try {
+        await post(`/api/admin/telemetry/errors/${encodeURIComponent(b.dataset.fp)}/state`, { state: b.dataset.telState });
+        toast(b.dataset.telState === "ignored" ? "Ignored — still counted, never alerted" : b.dataset.telState === "known" ? "Marked as known" : "Back in the lists");
+      } catch { toast("Couldn't save that"); }
+      loadTelemetry();
+    });
+    $("#tel-rules-save").onclick = async () => {
+      const body = {};
+      for (const inp of $("#tel-rules").querySelectorAll("[data-rule]")) body[inp.dataset.rule] = inp.type === "checkbox" ? inp.checked : Number(inp.value);
+      try { await post("/api/admin/telemetry/alert-rules", body); toast("Alert rules saved"); } catch { toast("Couldn't save the rules"); }
+      loadTelemetry();
+    };
+    $("#tel-copy").onclick = async () => {
+      if (!tel.text) await loadTelemetry();
+      try {
+        await navigator.clipboard.writeText(tel.text);
+      } catch {
+        const ta = document.createElement("textarea");
+        ta.value = tel.text; document.body.append(ta); ta.select();
+        try { document.execCommand("copy"); } catch {}
+        ta.remove();
+      }
+      toast("Report copied — paste it anywhere");
+    };
+
     // ---------- health (watchdog) ----------
     async function loadHealth() {
       let h;
@@ -3436,6 +3680,7 @@
     const tabLoaders = {
       overview: () => { loadOverview(); loadClients(); loadTimeseries(); loadOverviewTop(); },
       analytics: () => { loadAnalytics(); loadUsage(); },
+      telemetry: () => loadTelemetry(),
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
       profiles: () => loadPeople(),
       server: () => { loadServer(); loadHealth(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
@@ -3451,6 +3696,7 @@
       downloads: ["Downloads", "Approve what's waiting, watch what's running, clean up the disk."],
       profiles: ["People", "Sign-in on top, everyone in one table, who is connected now. Press a person for the rest."],
       analytics: ["Insights", "What gets watched, when, and how fast the app feels.", "Analytics"],
+      telemetry: ["Insights", "What goes wrong on people's devices, how long things take, and which controls get used.", "App health"],
       history: ["Insights", "Every play and every connection, newest first.", "History"],
       server: ["Server", "Health, self-repair, updates and the machine itself.", "Status"],
       actions: ["Server", "Everything you would otherwise open a terminal for. Each button runs one fixed, named job.", "Actions"],

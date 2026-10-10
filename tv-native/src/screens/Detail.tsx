@@ -49,6 +49,7 @@ import {loadMe, patchMe, peekMe} from '../navSection';
 import type {NavSection} from '../navSection';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
+import {backdropShown, titleShown} from '../telemetry'; // [analytics] title page → content shown
 
 // tools/gen_side_scrim.py — the left-to-right and bottom-up ramps that let the
 // artwork stay ARTWORK while the title lockup sits on it (see DetailHero).
@@ -342,6 +343,7 @@ function HeroArt({art, sharp}: {art?: ImgSource | null; sharp: boolean}) {
         // shelf of posters must not feel late — but this is one full-screen
         // element whose arrival is the most visible event on the page.
         fadeDuration={260}
+        onLoad={backdropShown} // [analytics] title page → backdrop shown
         // A real backdrop stays SHARP — it is the composition. Only a poster
         // pressed into service as one gets blurred, because a 2:3 image stretched
         // across a 16:9 frame is not artwork, it is an artefact.
@@ -369,6 +371,7 @@ function HeroArt({art, sharp}: {art?: ImgSource | null; sharp: boolean}) {
 // That was "on a show's page I cannot press LEFT to the menu" (Mi Box,
 // 2026-10-09). The same holds for every left-column element on this page.
 const PrimaryBtn = ({
+  uiId,
   label,
   hasTVPreferredFocus,
   edgeLeft,
@@ -376,6 +379,7 @@ const PrimaryBtn = ({
   onPress,
   onLongPress,
 }: {
+  uiId?: string; // [analytics] which control this is (Focusable.uiId)
   label: string;
   hasTVPreferredFocus?: boolean;
   edgeLeft?: boolean;
@@ -391,6 +395,7 @@ const PrimaryBtn = ({
     hasTVPreferredFocus={hasTVPreferredFocus}
     edgeLeft={edgeLeft}
     holdLeft={edgeLeft}
+    uiId={uiId}
     onPress={onPress}
     onLongPress={onLongPress}
     style={styles.playBtn}>
@@ -406,6 +411,7 @@ const PrimaryBtn = ({
 );
 // A round 40dp icon with a tiny label under it — Max's My List / Trailer row.
 const IconBtn = ({
+  uiId,
   icon,
   glyph,
   label,
@@ -414,6 +420,7 @@ const IconBtn = ({
   onPress,
   ref,
 }: {
+  uiId?: string; // [analytics] which control this is (Focusable.uiId)
   icon?: IconName;
   glyph?: string;
   label: string;
@@ -441,6 +448,7 @@ const IconBtn = ({
         onPress={onPress}
         onFocusChange={setFocused}
         style={[styles.iconBtnDisc, on && styles.iconBtnDiscOn]}
+        uiId={uiId}
         accessibilityLabel={label}>
         {icon ? (
           <Icon name={icon} size={18} color={lit ? colors.bg : colors.text} />
@@ -686,7 +694,7 @@ const EpisodeCard = React.memo(function EpisodeCardItem({
   // element containing its own caption. The title and badges now light up with
   // the still instead of sitting outside it.
   return (
-    <Focusable
+    <Focusable uiId="detail.episode.play"
       scaleTo={1.045}
       lift={theme.cardAura.lift}
       shadow={theme.cardAura.shadow}
@@ -2398,7 +2406,7 @@ export default function Detail({
 
   if (item.type === 'show') {
     return (
-      <View style={styles.root}>
+      <View style={styles.root} onLayout={() => titleShown(isStream(item))}>
         <HeroArt art={backdrop} sharp={backdropSharp} />
         {/* The panels trap focus, so the rail is unreachable while one is up —
             §5.8(a). */}
@@ -2425,16 +2433,16 @@ export default function Detail({
           bottomInset={0}
           secondary={
             <>
-              <IconBtn ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
+              <IconBtn uiId="detail.mylist" ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
               {/* Follow: only once the show's IMDb id is known — that is what the server follows by */}
               {followImdb ? (
-                <IconBtn icon={following ? 'check' : 'plus'} on={following} label={following ? 'Following' : 'Follow'} onPress={toggleFollow} />
+                <IconBtn uiId="detail.follow" icon={following ? 'check' : 'plus'} on={following} label={following ? 'Following' : 'Follow'} onPress={toggleFollow} />
               ) : null}
               {streamMeta?.trailers?.length ? (
-                <IconBtn icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title, {imdbId: streamMeta.imdbId, type: streamMeta.type || item.type, year: streamMeta.year})} />
+                <IconBtn uiId="detail.trailer" icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title, {imdbId: streamMeta.imdbId, type: streamMeta.type || item.type, year: streamMeta.year})} />
               ) : null}
-              <IconBtn glyph="⋯" label="Similar" onPress={() => setLikePanel(true)} />
-              <IconBtn
+              <IconBtn uiId="detail.similar" glyph="⋯" label="Similar" onPress={() => setLikePanel(true)} />
+              <IconBtn uiId="detail.xray"
                 icon="xray"
                 label="X-Ray"
                 onPress={() => openXray({query: full?.id ? {itemId: full.id} : {type: 'series', imdbId: item.imdbId || libImdb}, title: item.title})}
@@ -2447,7 +2455,7 @@ export default function Detail({
               focus onto My List. Not on disk: a press saves the best source
               and the button + the line under it carry it; hold for the
               episode's sources. */}
-          <PrimaryBtn
+          <PrimaryBtn uiId="detail.play"
             hasTVPreferredFocus
             edgeLeft
             busy={heroDl.busy}
@@ -2476,7 +2484,7 @@ export default function Detail({
               style={styles.seasonRow}
               contentContainerStyle={styles.seasonRowContent}
               renderItem={({item: se, index}) => (
-                <Focusable
+                <Focusable uiId="detail.season.pick"
                   round
                   light={se.number === season}
                   edgeLeft={index === 0}
@@ -2494,7 +2502,7 @@ export default function Detail({
           {seasonAired.length > 0 ? (
             <View style={styles.seasonTools}>
               {/* leftmost on its line: LEFT opens the rail, held so it cannot drop onto My List */}
-              <Focusable round edgeLeft holdLeft onPress={() => markSeason(!seasonAllWatched)} style={styles.pill}>
+              <Focusable uiId="detail.season.watched" round edgeLeft holdLeft onPress={() => markSeason(!seasonAllWatched)} style={styles.pill}>
                 <Text style={styles.pillText}>
                   {seasonBusy ? 'Saving…' : seasonAllWatched ? 'Mark season unwatched' : `Mark season watched${seasonAired.filter(e => !e.watched).length < seasonAired.length ? ` (${seasonAired.filter(e => !e.watched).length} left)` : ''}`}
                 </Text>
@@ -2531,7 +2539,7 @@ export default function Detail({
   // fold worth a second screenful, and the empty half the scroll page left under
   // the buttons was the emptiest thing in the app.
   return (
-    <View style={styles.root}>
+    <View style={styles.root} onLayout={() => titleShown(isStream(item))}>
       <HeroArt art={backdrop} sharp={backdropSharp} />
       {/* Both returns need this. A change made to one is invisible on the
           other — that has cost a full debugging cycle before. */}
@@ -2566,18 +2574,18 @@ export default function Detail({
         bottomInset={0}
         secondary={
           <>
-            <IconBtn ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
+            <IconBtn uiId="detail.mylist" ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
             {streamMeta?.trailers?.length ? (
-              <IconBtn icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title, {imdbId: streamMeta.imdbId, type: streamMeta.type || item.type, year: streamMeta.year})} />
+              <IconBtn uiId="detail.trailer" icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title, {imdbId: streamMeta.imdbId, type: streamMeta.type || item.type, year: streamMeta.year})} />
             ) : null}
-            {ownedMovieId ? <IconBtn glyph="≡" label="Versions" onPress={openSources} /> : null}
-            <IconBtn
+            {ownedMovieId ? <IconBtn uiId="detail.sources" glyph="≡" label="Versions" onPress={openSources} /> : null}
+            <IconBtn uiId="detail.xray"
               icon="xray"
               label="X-Ray"
               onPress={() => openXray({query: ownedMovieId ? {itemId: ownedMovieId} : {type: 'movie', imdbId: item.imdbId || libImdb}, title: item.title})}
             />
             {ownedMovieId ? (
-              <IconBtn icon="check" on={movieWatched} label="Watched" onPress={toggleWatched} />
+              <IconBtn uiId="detail.watched" icon="check" on={movieWatched} label="Watched" onPress={toggleWatched} />
             ) : null}
           </>
         }>
@@ -2591,7 +2599,7 @@ export default function Detail({
             of sources. The line under it says what is happening, from the
             press on. ONE button for both states, so the download finishing
             relabels the focused button rather than remounting it. */}
-        <PrimaryBtn
+        <PrimaryBtn uiId="detail.play"
           hasTVPreferredFocus
           edgeLeft
           busy={!ownedMovieId && !movieJob && heroDl.busy}

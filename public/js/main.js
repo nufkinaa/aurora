@@ -25,6 +25,7 @@ import { initAurora } from "./aurora.js";
 import { initScreensaver } from "./screensaver.js";
 import { initPrefetch } from "./prefetch.js";
 import { track } from "./usage.js";
+import "./telemetry.js"; // [analytics] error reports, timings, control counts — behind the same switch
 import { onNet, netInfo, dataMode } from "./net.js";
 
 // Only what boot needs is imported statically: home, the profile door, the

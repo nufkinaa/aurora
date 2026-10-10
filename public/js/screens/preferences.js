@@ -67,7 +67,7 @@ const iconFor = (name) => (ICONS[name] ? el("span", { class: "pref-icon", html: 
 const prefRow = (label, note, valueText, onCycle) => {
   const isSwitch = () => valueText() === "On" || valueText() === "Off";
   const value = el("span", {}, valueText());
-  const control = el("button", {
+  const control = el("button", { "data-ui": "settings.toggle",
     class: "btn small focusable pref-item-value",
     onclick: async () => { if (isSwitch()) haptic(8); await onCycle(); paint(); },
   }, value);
@@ -136,7 +136,7 @@ const appearanceSection = () => {
     const curLook = state.profile.look === "glass" ? "glass" : "legacy";
     lookRow.innerHTML = "";
     for (const l of LOOK_DEFS) {
-      lookRow.append(el("button", {
+      lookRow.append(el("button", { "data-ui": "settings.look",
         class: "focusable look-pick" + (l.id === curLook ? " on" : "") + (l.id === "glass" ? " glass-preview" : ""),
         onclick: () => saveAppearance({ look: l.id }),
       },
@@ -151,7 +151,7 @@ const appearanceSection = () => {
     }
     themeRow.innerHTML = "";
     for (const t of THEME_DEFS) {
-      themeRow.append(el("button", {
+      themeRow.append(el("button", { "data-ui": "settings.theme",
         class: "focusable",
         style: {
           display: "flex", flexDirection: "column", gap: "6px", padding: "12px 14px", minWidth: "150px",
@@ -171,7 +171,7 @@ const appearanceSection = () => {
     accentRow.innerHTML = "";
     for (const a of ACCENTS) {
       const active = (curAccent || "#8b7bff") === a;
-      accentRow.append(el("button", {
+      accentRow.append(el("button", { "data-ui": "settings.accent",
         class: "focusable",
         title: a,
         "aria-label": "Accent " + a,
@@ -268,7 +268,7 @@ const homeRowsSection = async () => {
             disabled: i === entries.length - 1 ? "disabled" : undefined,
             onclick: () => move(i, 1),
           }),
-          el("button", {
+          el("button", { "data-ui": "settings.rows.hide",
             class: "mini focusable",
             title: e.hidden ? "Show this row on Home" : "Hide this row from Home",
             onclick: () => { e.hidden = !e.hidden; flashId = e.id; paint(); save(); },
@@ -356,7 +356,7 @@ export const renderPreferences = async (root) => {
   // A row that goes somewhere (or does one thing) — the same shape as a
   // setting's row, with a chevron where a setting has its control.
   const linkRow = (label, note, onClick) =>
-    el("button", { class: "pref-item pref-link focusable", onclick: onClick },
+    el("button", { "data-ui": "settings.link", class: "pref-item pref-link focusable", onclick: onClick },
       iconFor(label),
       el("div", { class: "pref-item-text" },
         el("div", { class: "pref-item-label" }, label),
@@ -891,7 +891,7 @@ export const renderPreferences = async (root) => {
       await whatsNew(),
     ),
     el("div", { class: "detail-actions", style: { padding: "8px var(--page-x) 26px" } },
-      el("button", { class: "btn btn-primary focusable", html: "<span>Done</span>", onclick: () => navigate("#/") })
+      el("button", { "data-ui": "settings.done", class: "btn btn-primary focusable", html: "<span>Done</span>", onclick: () => navigate("#/") })
     ),
   );
   if (keepY) restoreScrollY(keepY);

@@ -36,13 +36,14 @@ import theme from '../theme';
 const {colors, fontSize, radius, spacing} = theme;
 
 // ---------------------------------------------------------------- buttons
-const Primary = ({label, onPress, focus, busy}: {label: string; onPress: () => void; focus?: boolean; busy?: boolean}) => (
-  <Focusable round light ring="violet" hasTVPreferredFocus={focus} onPress={onPress} style={styles.primary}>
+// (uiId: [analytics] which control this is — Focusable.uiId)
+const Primary = ({label, onPress, focus, busy, uiId}: {label: string; onPress: () => void; focus?: boolean; busy?: boolean; uiId?: string}) => (
+  <Focusable round light ring="violet" hasTVPreferredFocus={focus} uiId={uiId} onPress={onPress} style={styles.primary}>
     {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.primaryText}>{label}</Text>}
   </Focusable>
 );
-const Ghost = ({label, onPress, focus}: {label: string; onPress: () => void; focus?: boolean}) => (
-  <Focusable round hasTVPreferredFocus={focus} onPress={onPress} style={styles.ghost}>
+const Ghost = ({label, onPress, focus, uiId}: {label: string; onPress: () => void; focus?: boolean; uiId?: string}) => (
+  <Focusable round hasTVPreferredFocus={focus} uiId={uiId} onPress={onPress} style={styles.ghost}>
     <Text style={styles.ghostText}>{label}</Text>
   </Focusable>
 );
@@ -186,9 +187,9 @@ function PeekSheet({item, onRemove}: {item: HeroItem; onRemove?: (item: HeroItem
         </View>
       </View>
       <View style={styles.actions}>
-        <Primary focus label={isEpisode || (item.type === 'movie' && item.source !== 'stream') ? '▶  Play' : '▶  Open'} onPress={play} />
-        <Ghost label="Details" onPress={details} />
-        {inList !== null ? <Ghost label={inList ? '✓  In My List' : '+  My List'} onPress={toggleList} /> : null}
+        <Primary uiId="peek.play" focus label={isEpisode || (item.type === 'movie' && item.source !== 'stream') ? '▶  Play' : '▶  Open'} onPress={play} />
+        <Ghost uiId="peek.details" label="Details" onPress={details} />
+        {inList !== null ? <Ghost uiId="peek.mylist" label={inList ? '✓  In My List' : '+  My List'} onPress={toggleList} /> : null}
         {onRemove ? (
           <Ghost
             label="Remove from Continue Watching"
@@ -257,7 +258,7 @@ function ReportSheet({hint}: {hint?: string}) {
       />
       {err ? <Text style={styles.error}>{err}</Text> : null}
       <View style={[styles.actions, styles.actionsSpread]}>
-        <Primary label="Send report" onPress={send} busy={busy} />
+        <Primary uiId="report.send" label="Send report" onPress={send} busy={busy} />
         <Ghost label="Cancel" onPress={closeOverlay} />
       </View>
     </Sheet>
@@ -303,7 +304,7 @@ function JoinSheet() {
       />
       {err ? <Text style={styles.error}>{err}</Text> : null}
       <View style={[styles.actions, styles.actionsSpread]}>
-        <Primary label="Join" onPress={join} busy={busy} />
+        <Primary uiId="party.join" label="Join" onPress={join} busy={busy} />
         <Ghost label="Cancel" onPress={closeOverlay} />
       </View>
     </Sheet>
@@ -351,7 +352,7 @@ function UpdateReadySheet({info}: {info: UpdateInfo}) {
       </Text>
       {err ? <Text style={styles.faint}>{err}</Text> : null}
       <View style={styles.actions}>
-        <Primary label="Restart now" onPress={now} focus busy={busy} />
+        <Primary uiId="update.restart" label="Restart now" onPress={now} focus busy={busy} />
         {busy ? null : <Ghost label="Later" onPress={closeOverlay} />}
         {busy || reopens !== false ? null : (
           <Ghost
@@ -445,8 +446,8 @@ function UpdateSheet({info}: {info: UpdateInfo}) {
           <Text style={styles.body}>{info.notes || 'A new version of the TV app is available.'}</Text>
           <Text style={styles.faint}>{`This TV runs ${APP_VERSION}. Press Update now — it downloads from your Aurora server and installs right here, about a minute. Later asks again in ten minutes.`}</Text>
           <View style={styles.actions}>
-            <Primary focus label="Update now" onPress={start} />
-            <Ghost label="Later" onPress={later} />
+            <Primary uiId="update.install" focus label="Update now" onPress={start} />
+            <Ghost uiId="update.later" label="Later" onPress={later} />
           </View>
         </>
       ) : null}
@@ -495,7 +496,7 @@ function UpdateSheet({info}: {info: UpdateInfo}) {
         <>
           <Text style={styles.error}>{err}</Text>
           <View style={styles.actions}>
-            <Primary focus label="Try again" onPress={start} />
+            <Primary uiId="update.retry" focus label="Try again" onPress={start} />
             <Ghost label="Later" onPress={later} />
           </View>
         </>
@@ -742,7 +743,7 @@ function ActionsSheet({title, sub, items}: {title: string; sub?: string; items: 
     <Sheet kicker={sub} title={title} width={520} onClose={closeOverlay}>
       <View style={styles.actionList}>
         {items.map((it, i) => (
-          <Focusable
+          <Focusable uiId="actions.pick"
             key={it.label}
             hasTVPreferredFocus={i === 0}
             onPress={() => {

@@ -5,6 +5,7 @@
 import {Platform} from 'react-native';
 import {getBaseUrl, getSession, forgetMemo} from './api';
 import {APP_VERSION} from './update';
+import {wsDown, wsUp} from './telemetry'; // [analytics]
 
 type Handler = (data: Record<string, unknown> & {type: string}) => void;
 const listeners = new Map<string, Set<Handler>>();
@@ -82,6 +83,7 @@ const open = () => {
     ws = sock;
     sock.onopen = () => {
       if (ws !== sock) return;
+      wsUp(); // [analytics] lost → back, as a timing
       // Only a socket that STAYS open earns a backoff reset (bans close at once).
       setTimeout(() => {
         if (ws === sock && sock.readyState === WebSocket.OPEN) delay = 1000;
@@ -103,6 +105,7 @@ const open = () => {
     sock.onclose = () => {
       if (ws === sock) ws = null;
       if (!wanted) return;
+      wsDown(); // [analytics]
       timer = setTimeout(open, delay);
       delay = Math.min(delay * 2, 30000);
     };

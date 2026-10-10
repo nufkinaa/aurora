@@ -9,6 +9,7 @@ import { pushScope, popScope } from "../focus.js";
 import * as narrator from "../narrator.js";
 import { showClaimModal } from "../claim.js";
 import { showLoginScreen } from "./login.js";
+import { profilePicked } from "../telemetry.js"; // [analytics]
 
 const AVATARS = [
   "🍿", "🎬", "🦊", "🐼", "🚀", "🌵", "🦖", "👾", "🐳", "🌙", "⚡", "🔥",
@@ -90,7 +91,7 @@ export const passwordPrompt = (profile, onSuccess) => {
       el("h2", {}, `${profile.avatar} ${profile.name}`),
       el("div", { class: "field" }, el("label", {}, "Enter password"), input, err),
       el("div", { style: { display: "flex", gap: "10px", marginTop: "22px" } },
-        el("button", { class: "btn btn-primary focusable", onclick: submit }, "Unlock"),
+        el("button", { "data-ui": "profile.unlock", class: "btn btn-primary focusable", onclick: submit }, "Unlock"),
         el("button", { class: "btn focusable", onclick: close }, "Cancel")
       ),
     ];
@@ -549,7 +550,7 @@ export const profileModal = (existing, onDone) => {
       kidsSection,
       el("div", { class: "field" }, pwSection, pwErr),
       el("div", { style: { display: "flex", gap: "10px", marginTop: "22px", flexWrap: "wrap" } },
-        el("button", { class: "btn btn-primary focusable", onclick: save }, existing ? "Save" : "Create"),
+        el("button", { "data-ui": "profile.save", class: "btn btn-primary focusable", onclick: save }, existing ? "Save" : "Create"),
         el("button", { class: "btn focusable", onclick: close }, "Cancel"),
         existing && !wasKids && state.profiles.length > 1 &&
           el("button", {
@@ -601,7 +602,7 @@ export const showProfileGate = (onChosen, opts = {}) => {
   if (opts.dismissable) {
     const onBack = (e) => { e.preventDefault(); cleanup(); };
     document.addEventListener("ui-back", onBack);
-    wrap.append(el("button", {
+    wrap.append(el("button", { "data-ui": "profile.gate.close",
       class: "gate-close focusable", "aria-label": "Close",
       onclick: () => cleanup(),
     }, "✕"));
@@ -612,6 +613,7 @@ export const showProfileGate = (onChosen, opts = {}) => {
     // Unlocking a claimed profile signs the device in as a side effect (the
     // server just verified the same password) — keep the client in step.
     if (meta && meta.user) state.user = meta.user;
+    profilePicked(); // [analytics] profile accepted → Home usable, as a timing
     await setProfile(p, token);
     cleanup();
     onChosen(p);
@@ -685,7 +687,7 @@ export const showProfileGate = (onChosen, opts = {}) => {
   };
 
   const tile = (p) =>
-    el("button", {
+    el("button", { "data-ui": "profile.pick",
       class: "profile-tile focusable",
       style: p.locked ? { opacity: "0.45" } : {},
       title: p.name,
@@ -706,7 +708,7 @@ export const showProfileGate = (onChosen, opts = {}) => {
   // identity, password — avatar and colors come later, in Preferences).
   // The old create-modal survives only as the EDIT modal.
   const addTile = () =>
-    el("button", {
+    el("button", { "data-ui": "profile.add",
       class: "profile-tile add focusable",
       onclick: async () => {
         const r = await showLoginScreen({ view: "signup" });

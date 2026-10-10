@@ -41,7 +41,7 @@ export function Empty({
     <View style={styles.wrap}>
       <Text style={styles.glyph}>{glyph}</Text>
       <Text style={styles.message}>{message}</Text>
-      <Btn ref={action} label={actionLabel} hasTVPreferredFocus edgeLeft={edgeLeft} onPress={onAction} />
+      <Btn uiId="state.action" ref={action} label={actionLabel} hasTVPreferredFocus edgeLeft={edgeLeft} onPress={onAction} />
     </View>
   );
 }
@@ -68,7 +68,7 @@ export function ErrorState({
       <Text style={styles.glyph}>⚠️</Text>
       <Text style={styles.error}>{message}</Text>
       {detail ? <Text style={styles.message}>{detail}</Text> : null}
-      <Btn ref={action} label={actionLabel} hasTVPreferredFocus edgeLeft={edgeLeft} onPress={onAction} />
+      <Btn uiId="state.action" ref={action} label={actionLabel} hasTVPreferredFocus edgeLeft={edgeLeft} onPress={onAction} />
     </View>
   );
 }
