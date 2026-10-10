@@ -970,21 +970,15 @@ router.get("/api/home", (req, res) => {
 
   if (movies.length) rows.push({ id: "movies", title: "All Movies", items: movies });
 
-  // `?slim=1` is the TV app's stronger diet: it also drops the per-file subtitle,
-  // audio and video detail, because it fetches /api/item wherever it needs any
-  // of that.
+  // `?slim=1` is the TV app's shape (tvStrip, below): no per-file subtitle,
+  // audio and video detail and no play addresses, because it fetches /api/item
+  // wherever it needs any of that.
   //
   // The browser gets the episode trees dropped too (see listEntry) — that alone
   // took this response from 1,060,613 B to ~270 KB. It was only ever left in out
   // of caution about changing the live app underneath the household; the
   // consumers turned out to all read seasons from /api/item/:id.
-  const strip =
-    req.query.slim === "1"
-      ? (i) => {
-          const { seasons, subtitles, audio, video, extras, audioTracks, ...rest } = i;
-          return rest;
-        }
-      : cardStrip;
+  const strip = req.query.slim === "1" ? tvStrip : cardStrip;
   res.json({
     hero: heroItems.map((i) => strip(i, { synopsis: true })),
     rows: orderRows(rows, profileId ? profiles.rowPrefs(profileId) : null)
@@ -999,7 +993,7 @@ router.get("/api/home", (req, res) => {
 // Torrent resume entries are the exception and pass through WHOLE: their
 // stored play-meta is the only copy the player can resume a stream from.
 // The hero keeps its synopsis — it's the one place home prints one.
-// (tv-native's ?slim=1 shape above is untouched.)
+// (tv-native's ?slim=1 shape is tvStrip, below: it keeps the synopsis.)
 const cardStrip = (i, { synopsis = false } = {}) => {
   if (!i) return i;
   if (typeof i.id === "string" && i.id.startsWith("torrent|")) return i;
@@ -1013,8 +1007,29 @@ const cardStrip = (i, { synopsis = false } = {}) => {
   return rest;
 };
 
+// The TV app's shape (`?slim=1`). What it always dropped — the episode trees
+// and the per-file subtitle / audio / video detail — plus the
+// player-only fields the website's cardStrip drops: a library title's play
+// URLs and file list. Nothing on the TV reads them from a home card (the
+// player and the title page both fetch /api/item); they were ~15 KB of every
+// Home answer, downloaded and parsed on each launch and each return to Home.
+//
+// Two things it deliberately does NOT do that cardStrip does:
+//  - `synopsis` STAYS on every card. The TV reads it from the card itself:
+//    the title page's first paint (before /api/item answers), the hold-OK
+//    peek sheet, and the description of the launcher's "Aurora" row.
+//  - a `torrent|…` resume entry is still slimmed the way it always was (its
+//    play URLs are kept: they are the only copy the player can resume from).
+const tvStrip = (i) => {
+  if (!i) return i;
+  const { seasons, subtitles, audio, video, extras, audioTracks, ...rest } = i;
+  if (typeof i.id === "string" && i.id.startsWith("torrent|")) return rest;
+  const { files, url, videoUrl, downloadUrl, hlsUrl, transcodeBase, transcodeV, ...card } = rest;
+  return card;
+};
+
 // Test-only: the home-row composer's merge rules are contracts (never drop
 // unknown rows, never hero "upcoming") — pinned in test/roworder.test.js.
-router._internals = { orderRows, kidsFor, kidsCertOf, kidsSession: kidsDeps.session };
+router._internals = { orderRows, kidsFor, kidsCertOf, kidsSession: kidsDeps.session, tvStrip, cardStrip };
 
 module.exports = router;
