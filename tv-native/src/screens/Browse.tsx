@@ -56,6 +56,7 @@ import {
 } from '../focus';
 import {defer, useScreenIn} from '../motion';
 import {useApp} from '../AppContext';
+import {useRouteShown} from '../useRouteShown';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 
@@ -170,6 +171,8 @@ export default function Browse({
   const [loading, setLoading] = useState(false);
   const [profState, setProfState] = useState<ProfileState | null>(null);
   const [likedGenres, setLikedGenres] = useState<string[]>([]);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(lib !== null || fetched.length > 0);
   // Started/finished across ALL THREE progress maps. A bare progress[id] lookup
   // only ever answers for downloaded FILMS — catalog items have no library id
   // at all and streamed history lives in streamProgress/episodeProgress — so

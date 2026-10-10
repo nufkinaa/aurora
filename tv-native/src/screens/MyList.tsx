@@ -27,6 +27,7 @@ import {railOpen, useFocusFallback, useListClaim, useTVKeys} from '../focus';
 import {useScreenIn} from '../motion';
 import {watchStateFor, Marks} from '../watchState';
 import {useApp} from '../AppContext';
+import {useRouteShown} from '../useRouteShown';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 
@@ -77,6 +78,8 @@ export default function MyList({
   );
 
   const [items, setItems] = useState<HeroItem[] | null>(null);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(items !== null);
   const [state, setState] = useState<ProfileState | null>(null);
   const [error, setError] = useState('');
   const [genre, setGenre] = useState('');

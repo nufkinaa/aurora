@@ -1,7 +1,7 @@
 // The authenticated app's screen stack. Mounted only once a profile is chosen
 // (App.tsx owns the setup/gate flow outside the navigator). Android TV's
 // hardware Back pops this stack automatically via react-navigation.
-import React, {useEffect, useRef} from 'react';
+import React, {useEffect} from 'react';
 import {View, StyleSheet} from 'react-native';
 import {DefaultTheme, NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
@@ -11,6 +11,7 @@ import Overlays from './components/Overlays';
 import {HeroItem, TorrentPlayItem} from './api';
 import {navRef} from './rootNav';
 import {track} from './usage';
+import {routeStarted} from './routeTiming';
 import {frameScreen} from './perfTier';
 import {focusJustMoved} from './focus';
 
@@ -114,7 +115,6 @@ const navTheme = {
 };
 
 export default function AppNavigator() {
-  const routeAt = useRef(Date.now());
   useEffect(() => warmScreens(), []);
   return (
     <View style={styles.root}>
@@ -124,15 +124,22 @@ export default function AppNavigator() {
         theme={navTheme}
         // The frame monitor (perfTier.ts) tags what it counts with the screen
         // on show.
-        onReady={() => frameScreen((navRef.getCurrentRoute()?.name || 'home').toLowerCase())}
-        // Usage stats: which screens are opened, and how long the last one held.
+        onReady={() => {
+          const r = navRef.getCurrentRoute();
+          if (r) routeStarted(`tv:${r.name.toLowerCase()}`, r.key);
+          frameScreen((r?.name || 'home').toLowerCase());
+        }}
+        // Usage stats: which screen was opened, and HOW LONG IT TOOK TO SHOW
+        // ITS CONTENT — routeTiming.ts starts the clock here and the screen
+        // stops it when its content is on (the website's `route` event). This
+        // used to send the time spent on the PREVIOUS screen under the new
+        // screen's name, which the admin page read as a load time (audit X5).
         onStateChange={() => {
           const r = navRef.getCurrentRoute();
           if (!r) return;
           const p = r.params as {kind?: string} | undefined;
           const name = r.name === 'Browse' && p?.kind ? `${r.name}/${p.kind}` : r.name;
-          track('route', {r: `tv:${name.toLowerCase()}`, ms: Math.min(120000, Date.now() - routeAt.current)});
-          routeAt.current = Date.now();
+          routeStarted(`tv:${name.toLowerCase()}`, r.key);
           frameScreen(r.name.toLowerCase());
         }}>
         <Stack.Navigator

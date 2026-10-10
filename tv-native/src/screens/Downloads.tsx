@@ -22,6 +22,7 @@ import {api, ApiError, artSrc, HeroItem, ImgSource, MyDownload} from '../api';
 import {downloadActions, DownloadAction, isReady} from '../downloadsLogic';
 import {openActions} from '../overlay';
 import {useApp} from '../AppContext';
+import {useRouteShown} from '../useRouteShown';
 import {canNavigate} from '../navLock';
 import {isOpen, onMessage} from '../realtime';
 import {showToast} from '../toast';
@@ -84,6 +85,8 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
   const {safeBottom} = useTvMetrics();
   const live = useIsFocused();
   const [jobs, setJobs] = useState<Map<string, MyDownload> | null>(null);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(jobs !== null);
   const [error, setError] = useState('');
 
   const load = useCallback(() => {

@@ -35,6 +35,7 @@ import Skeleton from '../components/Skeleton';
 import NavRail from '../components/NavRail';
 import {api, HeroItem} from '../api';
 import {canNavigate} from '../navLock';
+import {useRouteShown} from '../useRouteShown';
 import {warmItem} from '../prefetch';
 import {noteFocus, railOpen, requestRailOpen, useFocusFallback, useTVKeys} from '../focus';
 import {showToast} from '../toast';
@@ -125,6 +126,8 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
     Math.floor((width - spacing.contentLeft - spacing.pageX + GAP) / (COMPACT_W + GAP)),
   );
   const [enabled, setEnabled] = useState<boolean | null>(null);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(enabled !== null);
   const [vibe, setVibe] = useState(last?.vibe || '');
   const [kind, setKind] = useState<'movie' | 'show'>(last?.kind || 'movie');
   const [era, setEra] = useState(last?.era || 'any');

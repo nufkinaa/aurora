@@ -9,6 +9,7 @@ import NavRail from '../components/NavRail';
 import {openJoinParty, openReport} from '../overlay';
 import {api} from '../api';
 import {useApp} from '../AppContext';
+import {useRouteShown} from '../useRouteShown';
 import {useMe, goSection, markNewSeen} from '../navSection';
 import {RootStackParamList} from '../navigation';
 import {APP_VERSION} from '../update';
@@ -87,6 +88,8 @@ export default function WhatsNew({navigation}: NativeStackScreenProps<RootStackP
   const me = useMe(profileId);
   const {safeBottom} = useTvMetrics();
   const [log, setLog] = useState<{version: string; date: string | null; items: string[]}[] | null>(null);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(true);
   const [showLog, setShowLog] = useState(false);
   useEffect(() => {
     let live = true;

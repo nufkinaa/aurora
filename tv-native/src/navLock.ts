@@ -8,6 +8,8 @@
 //    focused screen within one JS flush (where isFocused() is still true).
 //    Kept short: a long window eats fast *intentional* presses and reads as lag.
 let lastNav = 0;
+/** When the last navigation was let through (routeTiming.ts times screens from it). */
+export const lastNavAt = () => lastNav;
 
 export const navReady = (): boolean => {
   const now = Date.now();

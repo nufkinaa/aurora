@@ -87,6 +87,7 @@ import Focusable from '../components/Focusable';
 import Icon, {IconName} from '../components/Icon';
 import {api, ApiError, assetUrl, imgSrc, mediaHeaders, Item, Party, PartyItem, ProfileState, SubtitleTrack} from '../api';
 import {useApp} from '../AppContext';
+import {useRouteShown} from '../useRouteShown';
 import {setPlayingContext} from '../errors';
 import {acceptTvEvent, useFocusFallback} from '../focus';
 import {canNavigate} from '../navLock';
@@ -649,6 +650,8 @@ export default function Player({
   const [current, setCurrent] = useState(0);
   const [buffered, setBuffered] = useState(0);
   const [buffering, setBuffering] = useState(true);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(!!uri && !buffering);
   const [controls, setControls] = useState(true);
   const [subKey, setSubKey] = useState<string | null>(null); // null = off
   const [cues, setCues] = useState<Cue[] | null>(null);

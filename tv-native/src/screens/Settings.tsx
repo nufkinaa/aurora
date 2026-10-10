@@ -19,6 +19,7 @@ import Focusable from '../components/Focusable';
 import NavRail from '../components/NavRail';
 import {api, getSession, setSession} from '../api';
 import {useApp} from '../AppContext';
+import {useRouteShown} from '../useRouteShown';
 import {useMe, useNewUnseen} from '../navSection';
 import {openJoinParty, openReport, openUpdate} from '../overlay';
 import {loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS, saveAuthSession} from '../storage';
@@ -87,6 +88,8 @@ export default function Settings({
   const me = useMe(profileId);
 
   const [genres, setGenres] = useState<string[] | null>(null);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(genres !== null);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [prefs, setPrefs] = useState<Prefs>(PREFS_DEFAULTS);
   // Which genre chips actually sit at the START of a wrapped row — measured,

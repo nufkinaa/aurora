@@ -108,6 +108,7 @@ const DEVICE: Record<string, Record<string, string>> = {
     onProfileRead: 'a callback set once by SessionWiring',
   },
   'profileScope.ts': {clearers: 'the registry itself'},
+  'routeTiming.ts': {cur: 'the visit being timed (a usage event; the queue it goes to is the profile’s)', early: 'the same'},
   'realtime.ts': {
     listeners: 'listeners',
     ws: 'the socket: SessionWiring disconnects it when the profile is left',

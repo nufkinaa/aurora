@@ -45,6 +45,7 @@ import {showToast} from '../toast';
 import {focusJustMoved, useFocusFallback, useKeyTrap} from '../focus';
 import {SourcesPanel} from './Sources';
 import {useApp} from '../AppContext';
+import {useRouteShown} from '../useRouteShown';
 import {loadMe, patchMe, peekMe} from '../navSection';
 import type {NavSection} from '../navSection';
 import {RootStackParamList} from '../navigation';
@@ -820,6 +821,8 @@ export default function Detail({
     }).catch(() => {});
   }, [streamMeta?.imdbId, streamMeta?.trailers, streamMeta?.type, streamMeta?.year, item.title, item.year]);
   const [loading, setLoading] = useState(true);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(!loading);
   const [season, setSeason] = useState<number | null>(null);
   const [inList, setInList] = useState(false);
   // The inline sources panel. `null` = closed. A whole screen for one list threw
@@ -2567,6 +2570,10 @@ export default function Detail({
         secondary={
           <>
             <IconBtn ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
+            {/* Start over — the site's button, under the site's condition: only
+                beside a Resume (a film you hold and are part-way through). The
+                function had been here since 5.1.4 with no button calling it. */}
+            {ownedMovieId && movieResume ? <IconBtn glyph="↺" label="Start over" onPress={playFromStart} /> : null}
             {streamMeta?.trailers?.length ? (
               <IconBtn icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title, {imdbId: streamMeta.imdbId, type: streamMeta.type || item.type, year: streamMeta.year})} />
             ) : null}

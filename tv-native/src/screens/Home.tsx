@@ -68,6 +68,7 @@ import {
 import {defer, useSlide} from '../motion';
 import {isSettled, whenSettled} from '../settle';
 import {useApp} from '../AppContext';
+import {useRouteShown} from '../useRouteShown';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 
@@ -210,6 +211,8 @@ export default function Home({
   const {profileId, switchProfile} = useApp();
   const {width, height, heroH, heroPadBottom, heroTitle, safeBottom} = useTvMetrics();
   const [data, setData] = useState<HomeData | null>(null);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(data !== null);
   const [error, setError] = useState('');
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   // Watch parties running on the server right now — a Join pill per party in
