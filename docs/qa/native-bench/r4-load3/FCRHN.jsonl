@@ -1,0 +1,12 @@
+{"label":"FCRHN","scenario":"S1","run":1,"frames":489,"janky_pct":4.50,"p50":23,"p90":36,"p95":44,"p99":61,"input_p50":0.288926,"input_p90":1.28099,"pss_mb":285,"views":365}
+{"label":"FCRHN","scenario":"S2","run":1,"frames":531,"janky_pct":8.85,"p50":22,"p90":46,"p95":61,"p99":129,"input_p50":8.07395,"input_p90":20.5159,"pss_mb":334,"views":815}
+{"label":"FCRHN","scenario":"S3","run":1,"frames":488,"janky_pct":4.10,"p50":16,"p90":36,"p95":40,"p99":129,"input_p50":0.297698,"input_p90":0.958434,"pss_mb":306,"views":315}
+{"label":"FCRHN","scenario":"S4","run":1,"frames":392,"janky_pct":3.06,"p50":24,"p90":38,"p95":46,"p99":97,"input_p50":0.321971,"input_p90":12.2857,"pss_mb":286,"views":315}
+{"label":"FCRHN","scenario":"S1","run":2,"frames":473,"janky_pct":5.71,"p50":23,"p90":36,"p95":46,"p99":69,"input_p50":0.287007,"input_p90":3.21155,"pss_mb":276,"views":365}
+{"label":"FCRHN","scenario":"S2","run":2,"frames":550,"janky_pct":7.27,"p50":22,"p90":42,"p95":53,"p99":129,"input_p50":7.12708,"input_p90":17.3024,"pss_mb":335,"views":815}
+{"label":"FCRHN","scenario":"S3","run":2,"frames":495,"janky_pct":3.84,"p50":16,"p90":34,"p95":40,"p99":121,"input_p50":0.301579,"input_p90":0.367793,"pss_mb":367,"views":315}
+{"label":"FCRHN","scenario":"S4","run":2,"frames":394,"janky_pct":3.30,"p50":24,"p90":38,"p95":48,"p99":93,"input_p50":0.267782,"input_p90":0.367298,"pss_mb":286,"views":315}
+{"label":"FCRHN","scenario":"S1","run":3,"frames":484,"janky_pct":5.37,"p50":23,"p90":38,"p95":46,"p99":61,"input_p50":0.298324,"input_p90":4.22013,"pss_mb":278,"views":365}
+{"label":"FCRHN","scenario":"S2","run":3,"frames":544,"janky_pct":8.09,"p50":21,"p90":46,"p95":57,"p99":117,"input_p50":5.14847,"input_p90":19.4712,"pss_mb":329,"views":815}
+{"label":"FCRHN","scenario":"S3","run":3,"frames":482,"janky_pct":4.56,"p50":16,"p90":32,"p95":44,"p99":129,"input_p50":0.308116,"input_p90":0.485059,"pss_mb":326,"views":315}
+{"label":"FCRHN","scenario":"S4","run":3,"frames":391,"janky_pct":4.35,"p50":24,"p90":40,"p95":57,"p99":101,"input_p50":0.315307,"input_p90":11.4973,"pss_mb":281,"views":315}

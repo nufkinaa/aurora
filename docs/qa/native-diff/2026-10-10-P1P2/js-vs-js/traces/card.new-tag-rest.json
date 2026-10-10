@@ -1,0 +1,116 @@
+{
+ "state": "new-tag-rest",
+ "component": "card",
+ "impl": "-",
+ "run": 1,
+ "ids": [],
+ "anim": null,
+ "focus": {
+  "pass": true,
+  "rows_a": [
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "1174",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "1194",
+    "impl": "js",
+    "edgeL": "0",
+    "edgeR": "0"
+   }
+  ],
+  "rows_b": [
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "1174",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "1194",
+    "impl": "js",
+    "edgeL": "0",
+    "edgeR": "0"
+   }
+  ],
+  "reasons": []
+ },
+ "A": {
+  "anim": {},
+  "keys": [],
+  "focus": [
+   [
+    279540058,
+    "loss",
+    {
+     "tag": "1174",
+     "impl": "js"
+    }
+   ],
+   [
+    279540059,
+    "gain",
+    {
+     "tag": "1194",
+     "impl": "js",
+     "edgeL": "0",
+     "edgeR": "0"
+    }
+   ]
+  ],
+  "ring": [
+   [
+    279540058,
+    "release",
+    "1174"
+   ],
+   [
+    279540059,
+    "claim",
+    "1194"
+   ]
+  ]
+ },
+ "B": {
+  "anim": {},
+  "keys": [],
+  "focus": [
+   [
+    279557734,
+    "loss",
+    {
+     "tag": "1174",
+     "impl": "js"
+    }
+   ],
+   [
+    279557736,
+    "gain",
+    {
+     "tag": "1194",
+     "impl": "js",
+     "edgeL": "0",
+     "edgeR": "0"
+    }
+   ]
+  ],
+  "ring": [
+   [
+    279557734,
+    "release",
+    "1174"
+   ],
+   [
+    279557734,
+    "claim",
+    "1194"
+   ]
+  ]
+ }
+}

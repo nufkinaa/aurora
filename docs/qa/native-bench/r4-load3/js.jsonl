@@ -1,0 +1,12 @@
+{"label":"js","scenario":"S1","run":1,"frames":483,"janky_pct":7.66,"p50":21,"p90":40,"p95":48,"p99":69,"input_p50":0.290198,"input_p90":0.332324,"pss_mb":300,"views":404}
+{"label":"js","scenario":"S2","run":1,"frames":535,"janky_pct":14.95,"p50":29,"p90":53,"p95":61,"p99":129,"input_p50":5.95844,"input_p90":20.5213,"pss_mb":350,"views":889}
+{"label":"js","scenario":"S3","run":1,"frames":527,"janky_pct":5.12,"p50":18,"p90":34,"p95":46,"p99":125,"input_p50":0.299963,"input_p90":0.588318,"pss_mb":382,"views":342}
+{"label":"js","scenario":"S4","run":1,"frames":386,"janky_pct":4.66,"p50":26,"p90":46,"p95":57,"p99":113,"input_p50":0.306846,"input_p90":13.7164,"pss_mb":313,"views":342}
+{"label":"js","scenario":"S1","run":2,"frames":493,"janky_pct":4.87,"p50":23,"p90":36,"p95":44,"p99":65,"input_p50":0.290789,"input_p90":0.346116,"pss_mb":310,"views":404}
+{"label":"js","scenario":"S2","run":2,"frames":572,"janky_pct":12.24,"p50":27,"p90":48,"p95":61,"p99":133,"input_p50":9.64999,"input_p90":19.2726,"pss_mb":351,"views":889}
+{"label":"js","scenario":"S3","run":2,"frames":529,"janky_pct":4.54,"p50":20,"p90":36,"p95":44,"p99":150,"input_p50":0.310799,"input_p90":3.4273,"pss_mb":378,"views":342}
+{"label":"js","scenario":"S4","run":2,"frames":412,"janky_pct":3.88,"p50":28,"p90":40,"p95":48,"p99":105,"input_p50":0.353655,"input_p90":12.0248,"pss_mb":300,"views":342}
+{"label":"js","scenario":"S1","run":3,"frames":486,"janky_pct":7.00,"p50":23,"p90":40,"p95":46,"p99":61,"input_p50":0.287472,"input_p90":0.346226,"pss_mb":302,"views":404}
+{"label":"js","scenario":"S2","run":3,"frames":511,"janky_pct":14.68,"p50":29,"p90":53,"p95":69,"p99":150,"input_p50":10.3656,"input_p90":21.5304,"pss_mb":362,"views":888}
+{"label":"js","scenario":"S3","run":3,"frames":526,"janky_pct":6.08,"p50":21,"p90":36,"p95":44,"p99":150,"input_p50":0.301668,"input_p90":3.15236,"pss_mb":382,"views":342}
+{"label":"js","scenario":"S4","run":3,"frames":403,"janky_pct":2.48,"p50":25,"p90":34,"p95":44,"p99":101,"input_p50":0.284501,"input_p90":0.395566,"pss_mb":306,"views":342}

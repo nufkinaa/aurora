@@ -1,0 +1,33 @@
+--------- beginning of main
+10-10 02:05:54.983 D/AuroraAnim(23280): [ring] 279848757 release 1168
+10-10 02:05:54.983 D/AuroraAnim(23280): [focus] 279848757 loss tag=1168 impl=js
+10-10 02:05:54.983 D/AuroraAnim(23280): [ring] 279848758 claim 1182
+10-10 02:05:54.983 D/AuroraAnim(23280): [focus] 279848758 gain tag=1182 impl=js edgeL=0 edgeR=0
+10-10 02:05:55.299 D/AuroraAnim(23280): [ring] 279849074 release 1182
+10-10 02:05:55.300 D/AuroraAnim(23280): [focus] 279849074 loss tag=1182 impl=js
+10-10 02:05:55.300 D/AuroraAnim(23280): [ring] 279849074 claim 1196
+10-10 02:05:55.300 D/AuroraAnim(23280): [focus] 279849074 gain tag=1196 impl=js edgeL=0 edgeR=0
+10-10 02:05:55.598 D/AuroraAnim(23280): [ring] 279849373 release 1196
+10-10 02:05:55.599 D/AuroraAnim(23280): [focus] 279849373 loss tag=1196 impl=js
+10-10 02:05:55.599 D/AuroraAnim(23280): [ring] 279849373 claim 1210
+10-10 02:05:55.599 D/AuroraAnim(23280): [focus] 279849373 gain tag=1210 impl=js edgeL=0 edgeR=0
+10-10 02:05:55.899 D/AuroraAnim(23280): [ring] 279849674 release 1210
+10-10 02:05:55.900 D/AuroraAnim(23280): [focus] 279849675 loss tag=1210 impl=js
+10-10 02:05:55.900 D/AuroraAnim(23280): [ring] 279849675 claim 1224
+10-10 02:05:55.900 D/AuroraAnim(23280): [focus] 279849675 gain tag=1224 impl=js edgeL=0 edgeR=0
+10-10 02:05:56.182 D/AuroraAnim(23280): [ring] 279849957 release 1224
+10-10 02:05:56.183 D/AuroraAnim(23280): [focus] 279849957 loss tag=1224 impl=js
+10-10 02:05:56.183 D/AuroraAnim(23280): [ring] 279849957 claim 1238
+10-10 02:05:56.183 D/AuroraAnim(23280): [focus] 279849957 gain tag=1238 impl=js edgeL=0 edgeR=1
+10-10 02:05:56.892 D/AuroraAnim(23280): [ring] 279850667 release 1238
+10-10 02:05:56.892 D/AuroraAnim(23280): [focus] 279850667 loss tag=1238 impl=js
+10-10 02:05:56.892 D/AuroraAnim(23280): [ring] 279850667 claim 2342
+10-10 02:05:56.892 D/AuroraAnim(23280): [focus] 279850667 gain tag=2342 impl=js edgeL=0 edgeR=0
+10-10 02:05:57.856 D/AuroraAnim(23280): [ring] 279851631 release 2342
+10-10 02:05:57.856 D/AuroraAnim(23280): [focus] 279851631 loss tag=2342 impl=js
+10-10 02:05:57.856 D/AuroraAnim(23280): [ring] 279851631 claim 2350
+10-10 02:05:57.856 D/AuroraAnim(23280): [focus] 279851631 gain tag=2350 impl=js edgeL=0 edgeR=0
+10-10 02:05:58.260 D/AuroraAnim(23280): [ring] 279852035 release 2350
+10-10 02:05:58.260 D/AuroraAnim(23280): [focus] 279852035 loss tag=2350 impl=js
+10-10 02:05:58.261 D/AuroraAnim(23280): [ring] 279852036 claim 2358
+10-10 02:05:58.262 D/AuroraAnim(23280): [focus] 279852036 gain tag=2358 impl=js edgeL=0 edgeR=0

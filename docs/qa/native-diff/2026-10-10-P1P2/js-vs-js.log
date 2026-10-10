@@ -1,0 +1,58 @@
+device MiTV-AFMU0 v9000 mActiveModeId=20 · receiver v=9000 impl=FC
+warning: animator_duration_scale is null (02 §1 wants 1.0)
+----  focusable/card-rest (impl -, run 1)
+PASS  focusable/card-rest  diff=0 off=0
+----  focusable/card-lit (impl -, run 1)
+PASS  focusable/card-lit  diff=0 off=0  trace=ok
+----  focusable/btn-primary-lit (impl -, run 1)
+PASS  focusable/btn-primary-lit  diff=0 off=0
+----  focusable/btn-primary-rest (impl -, run 1)
+PASS  focusable/btn-primary-rest  diff=0 off=0
+----  focusable/btn-secondary-lit (impl -, run 1)
+PASS  focusable/btn-secondary-lit  diff=0 off=0  trace=ok
+----  focusable/btn-secondary-rest (impl -, run 1)
+PASS  focusable/btn-secondary-rest  diff=0 off=0
+----  focusable/chip-on-lit (impl -, run 1)
+PASS  focusable/chip-on-lit  diff=0 off=0
+----  focusable/chip-lit (impl -, run 1)
+PASS  focusable/chip-lit  diff=0 off=0  trace=ok
+----  focusable/chip-rest (impl -, run 1)
+PASS  focusable/chip-rest  diff=0 off=0
+----  focusable/chip-surface-lit (impl -, run 1)
+PASS  focusable/chip-surface-lit  diff=0 off=0
+----  focusable/navitem-lit (impl -, run 1)
+PASS  focusable/navitem-lit  diff=0 off=0  trace=ok
+----  focusable/navitem-lit-2 (impl -, run 1)
+PASS  focusable/navitem-lit-2  diff=0 off=0
+----  focusable/sources-row-lit (impl -, run 1)
+PASS  focusable/sources-row-lit  diff=0 off=0
+----  focusable/sources-row-lit-2 (impl -, run 1)
+PASS  focusable/sources-row-lit-2  diff=0 off=0  trace=ok
+----  card/rest-home (impl -, run 1)
+PASS  card/rest-home  diff=0 off=0
+----  card/size-frame (impl -, run 1)
+PASS  card/size-frame  diff=0 off=0  trace=ok
+----  card/progress-bar (impl -, run 1)
+PASS  card/progress-bar  diff=0 off=0
+----  card/size-frame-episode (impl -, run 1)
+PASS  card/size-frame-episode  diff=0 off=0
+----  card/size-poster (impl -, run 1)
+PASS  card/size-poster  diff=0 off=0  trace=ok
+----  card/kind-tag (impl -, run 1)
+PASS  card/kind-tag  diff=0 off=0
+----  card/size-poster-row2 (impl -, run 1)
+PASS  card/size-poster-row2  diff=0 off=0
+----  card/grid-rest (impl -, run 1)
+PASS  card/grid-rest  diff=0 off=0
+----  card/grid-lit (impl -, run 1)
+PASS  card/grid-lit  diff=0 off=0  trace=ok
+----  card/new-tag (impl -, run 1)
+PASS  card/new-tag  diff=0 off=0
+----  card/new-tag-rest (impl -, run 1)
+PASS  card/new-tag-rest  diff=0 off=0
+SKIP  card/size-wide: needs the instance started with fixture (declare --server <flag>)
+SKIP  card/size-compact: needs the instance started with aiMock (declare --server <flag>)
+SKIP  card/blur-up: needs the instance started with artDelay (declare --server <flag>)
+SKIP  card/broken-tile: needs the instance started with artFail (declare --server <flag>)
+
+29 ok, 0 failed -> docs\qa\native-diff\2026-10-10-P1P2\js-vs-js\summary.md

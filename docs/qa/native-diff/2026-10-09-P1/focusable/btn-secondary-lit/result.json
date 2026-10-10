@@ -1,0 +1,73 @@
+{
+  "state": "btn-secondary-lit",
+  "component": "focusable",
+  "impl": "F",
+  "run": 1,
+  "differing_px": 942843,
+  "off_edge_px": 883524,
+  "on_edge_px": 59319,
+  "diff_fraction": 0.028606770833333333,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 245,
+  "max_yiq": 0.9167236685752869,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": false,
+      "waited_ms": 10047,
+      "polls": 23,
+      "anim_lines": 1988,
+      "frames": 1435,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+      "idle": false,
+      "waited_ms": 10093,
+      "polls": 26,
+      "anim_lines": 1558,
+      "frames": 1312,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+  },
+  "reasons": [
+    "883524 differing px off the edge mask (bbox [0, 0, 1920, 1080])",
+    "on-edge diff fraction 0.028607 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture",
+    "trace focus.ring: step 0 A=1 B=0.001713 (|err| 0.998 > 0.001)",
+    "trace focus.ring: step count A=1025 B=569 (slack 1)",
+    "trace focus.spring: step 0 A=0.999754 B=-0.001153 (|err| 1 > 0.00103)",
+    "trace focus.spring: step count A=1566 B=1258 (slack 1)"
+  ],
+  "trace": {
+    "pass": false,
+    "ids": {
+      "focus.ring": {
+        "steps_a": 1025,
+        "steps_b": 569,
+        "max_abs_err": 1.0,
+        "pass": false
+      },
+      "focus.spring": {
+        "steps_a": 1566,
+        "steps_b": 1258,
+        "max_abs_err": 1.0326840000000002,
+        "pass": false
+      }
+    }
+  },
+  "focus": {
+    "pass": false,
+    "rows": 102
+  },
+  "pass": false
+}

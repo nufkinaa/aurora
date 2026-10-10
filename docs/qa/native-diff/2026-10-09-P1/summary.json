@@ -1,0 +1,826 @@
+{
+ "env": {
+  "commit": "06f12cd2e5bc",
+  "pkg": "com.auroratv.lab",
+  "serial": "192.168.50.31:5555",
+  "fingerprint": "Xiaomi/twilight/twilight:14/UKG3.250826.001/V816.0.7.0.UZFAABX:user/release-keys",
+  "model": "MiTV-AFMU0",
+  "sdk": "34",
+  "locale": "en-US",
+  "timezone": "Asia/Jerusalem",
+  "animator_duration_scale": "null",
+  "transition_animation_scale": "1.0",
+  "window_animation_scale": "1.0",
+  "font_scale": "1.0",
+  "screensaver_enabled": "1",
+  "wm_size": "Physical size: 1920x1080",
+  "wm_density": "Physical density: 320",
+  "display_mode": "mActiveModeId=20",
+  "versionCode": 9000,
+  "versionName": "9.9.9-lab",
+  "ping": "v=9000 impl=-",
+  "token_source": "--token/env"
+ },
+ "args": {
+  "serial": "192.168.50.31:5555",
+  "pkg": "com.auroratv.lab",
+  "impl": "F",
+  "states": [
+   "focusable"
+  ],
+  "only": "",
+  "runs": 1,
+  "out": "docs/qa/native-diff/2026-10-09-P1",
+  "adb": "C:/elia/android-tools/sdk/platform-tools/adb.exe",
+  "token": "aurora-lab-qa",
+  "keystore": null,
+  "var": [],
+  "server": [],
+  "launch_wait_ms": 4000,
+  "screenrecord": false,
+  "force_lock": false,
+  "dry_run": false,
+  "diff_only": false,
+  "verbose": false
+ },
+ "results": [
+  {
+   "state": "card-rest",
+   "component": "focusable",
+   "impl": "F",
+   "run": 1,
+   "differing_px": 496275,
+   "off_edge_px": 462348,
+   "on_edge_px": 33927,
+   "diff_fraction": 0.01636140046296296,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 244,
+   "max_yiq": 0.9182108640670776,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": false,
+     "waited_ms": 10234,
+     "polls": 26,
+     "anim_lines": 0,
+     "frames": 1357,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+     "idle": false,
+     "waited_ms": 10547,
+     "polls": 24,
+     "anim_lines": 0,
+     "frames": 1256,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+   },
+   "reasons": [
+    "462348 differing px off the edge mask (bbox [91, 0, 1920, 760])",
+    "on-edge diff fraction 0.016361 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture"
+   ],
+   "focus": {
+    "pass": false,
+    "rows": 61
+   },
+   "pass": false
+  },
+  {
+   "state": "card-lit",
+   "component": "focusable",
+   "impl": "F",
+   "run": 1,
+   "differing_px": 1095911,
+   "off_edge_px": 976941,
+   "on_edge_px": 118970,
+   "diff_fraction": 0.057373649691358025,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 255,
+   "max_yiq": 0.9307223558425903,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": false,
+     "waited_ms": 10250,
+     "polls": 24,
+     "anim_lines": 1817,
+     "frames": 1440,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+     "idle": false,
+     "waited_ms": 10140,
+     "polls": 18,
+     "anim_lines": 1763,
+     "frames": 1308,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+   },
+   "reasons": [
+    "976941 differing px off the edge mask (bbox [158, 0, 1920, 1080])",
+    "on-edge diff fraction 0.057374 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture",
+    "trace focus.ring: step 0 A=0 B=1 (|err| 1 > 0.001)",
+    "trace focus.ring: step count A=738 B=816 (slack 1)",
+    "trace focus.spring: step 0 A=0 B=0.999714 (|err| 1 > 0.00103)",
+    "trace focus.spring: step count A=1537 B=1496 (slack 1)",
+    "trace no [anim] steps for hero.ty in A",
+    "trace no [anim] steps for hero.atTop in A"
+   ],
+   "trace": {
+    "pass": false,
+    "ids": {
+     "focus.ring": {
+      "steps_a": 738,
+      "steps_b": 816,
+      "max_abs_err": 1.0,
+      "pass": false
+     },
+     "focus.spring": {
+      "steps_a": 1537,
+      "steps_b": 1496,
+      "max_abs_err": 1.03329,
+      "pass": false
+     },
+     "hero.ty": {
+      "steps_a": 0,
+      "steps_b": 0,
+      "max_abs_err": 0.0,
+      "pass": false
+     },
+     "hero.atTop": {
+      "steps_a": 0,
+      "steps_b": 0,
+      "max_abs_err": 0.0,
+      "pass": false
+     }
+    }
+   },
+   "focus": {
+    "pass": false,
+    "rows": 66
+   },
+   "pass": false
+  },
+  {
+   "state": "btn-primary-lit",
+   "component": "focusable",
+   "impl": "F",
+   "run": 1,
+   "differing_px": 673663,
+   "off_edge_px": 630912,
+   "on_edge_px": 42751,
+   "diff_fraction": 0.020616801697530864,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 245,
+   "max_yiq": 0.9189415574073792,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": false,
+     "waited_ms": 10421,
+     "polls": 23,
+     "anim_lines": 1781,
+     "frames": 1398,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+     "idle": false,
+     "waited_ms": 10327,
+     "polls": 22,
+     "anim_lines": 1808,
+     "frames": 1380,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+   },
+   "reasons": [
+    "630912 differing px off the edge mask (bbox [0, 0, 1920, 1080])",
+    "on-edge diff fraction 0.020617 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture",
+    "trace focus.ring: step 24 A=1 B=0.640877 (|err| 0.359 > 0.001)",
+    "trace focus.ring: step count A=805 B=820 (slack 1)",
+    "trace focus.spring: step 0 A=-0.010343 B=1.01382 (|err| 1.02 > 0.00103)",
+    "trace focus.spring: step count A=1465 B=1488 (slack 1)"
+   ],
+   "trace": {
+    "pass": false,
+    "ids": {
+     "focus.ring": {
+      "steps_a": 805,
+      "steps_b": 820,
+      "max_abs_err": 1.0,
+      "pass": false
+     },
+     "focus.spring": {
+      "steps_a": 1465,
+      "steps_b": 1488,
+      "max_abs_err": 1.033707,
+      "pass": false
+     }
+    }
+   },
+   "focus": {
+    "pass": false,
+    "rows": 86
+   },
+   "pass": false
+  },
+  {
+   "state": "btn-primary-rest",
+   "component": "focusable",
+   "impl": "F",
+   "run": 1,
+   "differing_px": 739060,
+   "off_edge_px": 709026,
+   "on_edge_px": 30034,
+   "diff_fraction": 0.014483989197530864,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 244,
+   "max_yiq": 0.9205608367919922,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": false,
+     "waited_ms": 10187,
+     "polls": 27,
+     "anim_lines": 0,
+     "frames": 1379,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+     "idle": false,
+     "waited_ms": 10219,
+     "polls": 28,
+     "anim_lines": 0,
+     "frames": 1267,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+   },
+   "reasons": [
+    "709026 differing px off the edge mask (bbox [102, 0, 1920, 753])",
+    "on-edge diff fraction 0.014484 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture"
+   ],
+   "focus": {
+    "pass": false,
+    "rows": 82
+   },
+   "pass": false
+  },
+  {
+   "state": "btn-secondary-lit",
+   "component": "focusable",
+   "impl": "F",
+   "run": 1,
+   "differing_px": 942843,
+   "off_edge_px": 883524,
+   "on_edge_px": 59319,
+   "diff_fraction": 0.028606770833333333,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 245,
+   "max_yiq": 0.9167236685752869,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": false,
+     "waited_ms": 10047,
+     "polls": 23,
+     "anim_lines": 1988,
+     "frames": 1435,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+     "idle": false,
+     "waited_ms": 10093,
+     "polls": 26,
+     "anim_lines": 1558,
+     "frames": 1312,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+   },
+   "reasons": [
+    "883524 differing px off the edge mask (bbox [0, 0, 1920, 1080])",
+    "on-edge diff fraction 0.028607 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture",
+    "trace focus.ring: step 0 A=1 B=0.001713 (|err| 0.998 > 0.001)",
+    "trace focus.ring: step count A=1025 B=569 (slack 1)",
+    "trace focus.spring: step 0 A=0.999754 B=-0.001153 (|err| 1 > 0.00103)",
+    "trace focus.spring: step count A=1566 B=1258 (slack 1)"
+   ],
+   "trace": {
+    "pass": false,
+    "ids": {
+     "focus.ring": {
+      "steps_a": 1025,
+      "steps_b": 569,
+      "max_abs_err": 1.0,
+      "pass": false
+     },
+     "focus.spring": {
+      "steps_a": 1566,
+      "steps_b": 1258,
+      "max_abs_err": 1.0326840000000002,
+      "pass": false
+     }
+    }
+   },
+   "focus": {
+    "pass": false,
+    "rows": 102
+   },
+   "pass": false
+  },
+  {
+   "state": "btn-secondary-rest",
+   "component": "focusable",
+   "impl": "F",
+   "run": 1,
+   "differing_px": 659109,
+   "off_edge_px": 612238,
+   "on_edge_px": 46871,
+   "diff_fraction": 0.022603684413580245,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 245,
+   "max_yiq": 0.9177917242050171,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": false,
+     "waited_ms": 10188,
+     "polls": 30,
+     "anim_lines": 0,
+     "frames": 1368,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+     "idle": false,
+     "waited_ms": 10266,
+     "polls": 29,
+     "anim_lines": 0,
+     "frames": 1293,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+   },
+   "reasons": [
+    "612238 differing px off the edge mask (bbox [0, 0, 1920, 1080])",
+    "on-edge diff fraction 0.022604 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture"
+   ],
+   "focus": {
+    "pass": false,
+    "rows": 60
+   },
+   "pass": false
+  },
+  {
+   "state": "chip-on-lit",
+   "component": "focusable",
+   "impl": "F",
+   "run": 1,
+   "differing_px": 7945,
+   "off_edge_px": 22,
+   "on_edge_px": 7923,
+   "diff_fraction": 0.0038208912037037035,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 223,
+   "max_yiq": 0.8405905365943909,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": false,
+     "waited_ms": 10202,
+     "polls": 31,
+     "anim_lines": 0,
+     "frames": 1391,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+     "idle": false,
+     "waited_ms": 10108,
+     "polls": 31,
+     "anim_lines": 0,
+     "frames": 1448,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+   },
+   "reasons": [
+    "22 differing px off the edge mask (bbox [714, 188, 966, 568])",
+    "on-edge diff fraction 0.003821 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture"
+   ],
+   "focus": {
+    "pass": false,
+    "rows": 108
+   },
+   "pass": false
+  },
+  {
+   "state": "chip-lit",
+   "component": "focusable",
+   "impl": "F",
+   "run": 1,
+   "differing_px": 122410,
+   "off_edge_px": 53254,
+   "on_edge_px": 69156,
+   "diff_fraction": 0.03335069444444445,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 252,
+   "max_yiq": 0.9512909650802612,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": false,
+     "waited_ms": 10437,
+     "polls": 26,
+     "anim_lines": 2466,
+     "frames": 1417,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+     "idle": false,
+     "waited_ms": 10155,
+     "polls": 26,
+     "anim_lines": 1955,
+     "frames": 1335,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+   },
+   "reasons": [
+    "53254 differing px off the edge mask (bbox [163, 579, 1511, 965])",
+    "on-edge diff fraction 0.033351 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture",
+    "trace focus.ring: step 0 A=0 B=1 (|err| 1 > 0.001)",
+    "trace focus.ring: step count A=1169 B=811 (slack 1)",
+    "trace focus.spring: step 0 A=0.976061 B=0.000279 (|err| 0.976 > 0.00103)",
+    "trace focus.spring: step count A=2227 B=1627 (slack 1)"
+   ],
+   "trace": {
+    "pass": false,
+    "ids": {
+     "focus.ring": {
+      "steps_a": 1169,
+      "steps_b": 811,
+      "max_abs_err": 1.0,
+      "pass": false
+     },
+     "focus.spring": {
+      "steps_a": 2227,
+      "steps_b": 1627,
+      "max_abs_err": 1.033174,
+      "pass": false
+     }
+    }
+   },
+   "focus": {
+    "pass": false,
+    "rows": 106
+   },
+   "pass": false
+  },
+  {
+   "state": "chip-rest",
+   "component": "focusable",
+   "impl": "F",
+   "run": 1,
+   "differing_px": 103420,
+   "off_edge_px": 58212,
+   "on_edge_px": 45208,
+   "diff_fraction": 0.021801697530864198,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 254,
+   "max_yiq": 0.8986572623252869,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": false,
+     "waited_ms": 10202,
+     "polls": 28,
+     "anim_lines": 0,
+     "frames": 1063,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+     "idle": false,
+     "waited_ms": 10250,
+     "polls": 30,
+     "anim_lines": 0,
+     "frames": 991,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+   },
+   "reasons": [
+    "58212 differing px off the edge mask (bbox [709, 691, 1237, 1080])",
+    "on-edge diff fraction 0.021802 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture"
+   ],
+   "focus": {
+    "pass": false,
+    "rows": 88
+   },
+   "pass": false
+  },
+  {
+   "state": "navitem-lit",
+   "component": "focusable",
+   "impl": "F",
+   "run": 1,
+   "differing_px": 605676,
+   "off_edge_px": 567525,
+   "on_edge_px": 38151,
+   "diff_fraction": 0.0183984375,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 239,
+   "max_yiq": 0.9004860520362854,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": false,
+     "waited_ms": 10109,
+     "polls": 25,
+     "anim_lines": 1837,
+     "frames": 1442,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+     "idle": false,
+     "waited_ms": 10062,
+     "polls": 26,
+     "anim_lines": 1499,
+     "frames": 1195,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+   },
+   "reasons": [
+    "567525 differing px off the edge mask (bbox [100, 0, 1920, 715])",
+    "on-edge diff fraction 0.018398 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture",
+    "trace no [anim] steps for rail.slide in A",
+    "trace no [anim] steps for rail.strip in A",
+    "trace focus.ring: step 2 A=0.640877 B=0.070421 (|err| 0.57 > 0.001)",
+    "trace focus.ring: step count A=716 B=573 (slack 1)",
+    "trace focus.spring: step 0 A=0.000283 B=-0.013453 (|err| 0.0137 > 0.00103)",
+    "trace focus.spring: step count A=1530 B=1293 (slack 1)"
+   ],
+   "trace": {
+    "pass": false,
+    "ids": {
+     "rail.slide": {
+      "steps_a": 0,
+      "steps_b": 0,
+      "max_abs_err": 0.0,
+      "pass": false
+     },
+     "rail.strip": {
+      "steps_a": 0,
+      "steps_b": 0,
+      "max_abs_err": 0.0,
+      "pass": false
+     },
+     "focus.ring": {
+      "steps_a": 716,
+      "steps_b": 573,
+      "max_abs_err": 1.0,
+      "pass": false
+     },
+     "focus.spring": {
+      "steps_a": 1530,
+      "steps_b": 1293,
+      "max_abs_err": 1.0337319999999999,
+      "pass": false
+     }
+    }
+   },
+   "focus": {
+    "pass": false,
+    "rows": 64
+   },
+   "pass": false
+  },
+  {
+   "state": "navitem-lit-2",
+   "component": "focusable",
+   "impl": "F",
+   "run": 1,
+   "differing_px": 182805,
+   "off_edge_px": 130108,
+   "on_edge_px": 52697,
+   "diff_fraction": 0.025413290895061728,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 246,
+   "max_yiq": 0.9232654571533203,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": false,
+     "waited_ms": 10030,
+     "polls": 29,
+     "anim_lines": 0,
+     "frames": 1466,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+     "idle": false,
+     "waited_ms": 10187,
+     "polls": 29,
+     "anim_lines": 0,
+     "frames": 1398,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+   },
+   "reasons": [
+    "130108 differing px off the edge mask (bbox [99, 132, 1920, 424])",
+    "on-edge diff fraction 0.025413 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture"
+   ],
+   "focus": {
+    "pass": false,
+    "rows": 106
+   },
+   "pass": false
+  },
+  {
+   "state": "sources-row-lit",
+   "component": "focusable",
+   "impl": "F",
+   "run": 1,
+   "differing_px": 1000903,
+   "off_edge_px": 921882,
+   "on_edge_px": 79021,
+   "diff_fraction": 0.03810812114197531,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 253,
+   "max_yiq": 0.9182108640670776,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": false,
+     "waited_ms": 10217,
+     "polls": 24,
+     "anim_lines": 2211,
+     "frames": 1364,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+     "idle": false,
+     "waited_ms": 10140,
+     "polls": 17,
+     "anim_lines": 2513,
+     "frames": 1458,
+     "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+   },
+   "reasons": [
+    "921882 differing px off the edge mask (bbox [162, 0, 1920, 1080])",
+    "on-edge diff fraction 0.038108 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture",
+    "trace focus.ring: step 0 A=0 B=1 (|err| 1 > 0.001)",
+    "trace focus.ring: step count A=1151 B=974 (slack 1)",
+    "trace focus.spring: step 8 A=0.380383 B=0.371271 (|err| 0.00911 > 0.00103)",
+    "trace focus.spring: step count A=1693 B=2037 (slack 1)"
+   ],
+   "trace": {
+    "pass": false,
+    "ids": {
+     "focus.ring": {
+      "steps_a": 1151,
+      "steps_b": 974,
+      "max_abs_err": 1.0,
+      "pass": false
+     },
+     "focus.spring": {
+      "steps_a": 1693,
+      "steps_b": 2037,
+      "max_abs_err": 1.033152,
+      "pass": false
+     }
+    }
+   },
+   "focus": {
+    "pass": false,
+    "rows": 136
+   },
+   "pass": false
+  }
+ ]
+}

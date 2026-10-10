@@ -1,0 +1,200 @@
+{
+ "state": "navitem-lit-2",
+ "component": "focusable",
+ "impl": "-",
+ "run": 1,
+ "ids": [],
+ "anim": null,
+ "focus": {
+  "pass": true,
+  "rows_a": [
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "128",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "888",
+    "impl": "js",
+    "edgeL": "1",
+    "edgeR": "0"
+   },
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "888",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "902",
+    "impl": "js",
+    "edgeL": "1",
+    "edgeR": "0"
+   }
+  ],
+  "rows_b": [
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "128",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "888",
+    "impl": "js",
+    "edgeL": "1",
+    "edgeR": "0"
+   },
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "888",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "902",
+    "impl": "js",
+    "edgeL": "1",
+    "edgeR": "0"
+   }
+  ],
+  "reasons": []
+ },
+ "A": {
+  "anim": {},
+  "keys": [],
+  "focus": [
+   [
+    279085256,
+    "loss",
+    {
+     "tag": "128",
+     "impl": "js"
+    }
+   ],
+   [
+    279085256,
+    "gain",
+    {
+     "tag": "888",
+     "impl": "js",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ],
+   [
+    279085888,
+    "loss",
+    {
+     "tag": "888",
+     "impl": "js"
+    }
+   ],
+   [
+    279085888,
+    "gain",
+    {
+     "tag": "902",
+     "impl": "js",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ]
+  ],
+  "ring": [
+   [
+    279085256,
+    "release",
+    "128"
+   ],
+   [
+    279085256,
+    "claim",
+    "888"
+   ],
+   [
+    279085888,
+    "release",
+    "888"
+   ],
+   [
+    279085888,
+    "claim",
+    "902"
+   ]
+  ]
+ },
+ "B": {
+  "anim": {},
+  "keys": [],
+  "focus": [
+   [
+    279101008,
+    "loss",
+    {
+     "tag": "128",
+     "impl": "js"
+    }
+   ],
+   [
+    279101008,
+    "gain",
+    {
+     "tag": "888",
+     "impl": "js",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ],
+   [
+    279102032,
+    "loss",
+    {
+     "tag": "888",
+     "impl": "js"
+    }
+   ],
+   [
+    279102033,
+    "gain",
+    {
+     "tag": "902",
+     "impl": "js",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ]
+  ],
+  "ring": [
+   [
+    279101007,
+    "release",
+    "128"
+   ],
+   [
+    279101008,
+    "claim",
+    "888"
+   ],
+   [
+    279102032,
+    "release",
+    "888"
+   ],
+   [
+    279102033,
+    "claim",
+    "902"
+   ]
+  ]
+ }
+}

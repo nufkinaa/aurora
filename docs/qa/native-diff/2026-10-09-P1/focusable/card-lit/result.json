@@ -1,0 +1,87 @@
+{
+  "state": "card-lit",
+  "component": "focusable",
+  "impl": "F",
+  "run": 1,
+  "differing_px": 1095911,
+  "off_edge_px": 976941,
+  "on_edge_px": 118970,
+  "diff_fraction": 0.057373649691358025,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 255,
+  "max_yiq": 0.9307223558425903,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": false,
+      "waited_ms": 10250,
+      "polls": 24,
+      "anim_lines": 1817,
+      "frames": 1440,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+      "idle": false,
+      "waited_ms": 10140,
+      "polls": 18,
+      "anim_lines": 1763,
+      "frames": 1308,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+  },
+  "reasons": [
+    "976941 differing px off the edge mask (bbox [158, 0, 1920, 1080])",
+    "on-edge diff fraction 0.057374 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture",
+    "trace focus.ring: step 0 A=0 B=1 (|err| 1 > 0.001)",
+    "trace focus.ring: step count A=738 B=816 (slack 1)",
+    "trace focus.spring: step 0 A=0 B=0.999714 (|err| 1 > 0.00103)",
+    "trace focus.spring: step count A=1537 B=1496 (slack 1)",
+    "trace no [anim] steps for hero.ty in A",
+    "trace no [anim] steps for hero.atTop in A"
+  ],
+  "trace": {
+    "pass": false,
+    "ids": {
+      "focus.ring": {
+        "steps_a": 738,
+        "steps_b": 816,
+        "max_abs_err": 1.0,
+        "pass": false
+      },
+      "focus.spring": {
+        "steps_a": 1537,
+        "steps_b": 1496,
+        "max_abs_err": 1.03329,
+        "pass": false
+      },
+      "hero.ty": {
+        "steps_a": 0,
+        "steps_b": 0,
+        "max_abs_err": 0.0,
+        "pass": false
+      },
+      "hero.atTop": {
+        "steps_a": 0,
+        "steps_b": 0,
+        "max_abs_err": 0.0,
+        "pass": false
+      }
+    }
+  },
+  "focus": {
+    "pass": false,
+    "rows": 66
+  },
+  "pass": false
+}

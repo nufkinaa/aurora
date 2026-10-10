@@ -1,0 +1,87 @@
+{
+  "state": "navitem-lit",
+  "component": "focusable",
+  "impl": "F",
+  "run": 1,
+  "differing_px": 605676,
+  "off_edge_px": 567525,
+  "on_edge_px": 38151,
+  "diff_fraction": 0.0183984375,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 239,
+  "max_yiq": 0.9004860520362854,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": false,
+      "waited_ms": 10109,
+      "polls": 25,
+      "anim_lines": 1837,
+      "frames": 1442,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+      "idle": false,
+      "waited_ms": 10062,
+      "polls": 26,
+      "anim_lines": 1499,
+      "frames": 1195,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+  },
+  "reasons": [
+    "567525 differing px off the edge mask (bbox [100, 0, 1920, 715])",
+    "on-edge diff fraction 0.018398 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture",
+    "trace no [anim] steps for rail.slide in A",
+    "trace no [anim] steps for rail.strip in A",
+    "trace focus.ring: step 2 A=0.640877 B=0.070421 (|err| 0.57 > 0.001)",
+    "trace focus.ring: step count A=716 B=573 (slack 1)",
+    "trace focus.spring: step 0 A=0.000283 B=-0.013453 (|err| 0.0137 > 0.00103)",
+    "trace focus.spring: step count A=1530 B=1293 (slack 1)"
+  ],
+  "trace": {
+    "pass": false,
+    "ids": {
+      "rail.slide": {
+        "steps_a": 0,
+        "steps_b": 0,
+        "max_abs_err": 0.0,
+        "pass": false
+      },
+      "rail.strip": {
+        "steps_a": 0,
+        "steps_b": 0,
+        "max_abs_err": 0.0,
+        "pass": false
+      },
+      "focus.ring": {
+        "steps_a": 716,
+        "steps_b": 573,
+        "max_abs_err": 1.0,
+        "pass": false
+      },
+      "focus.spring": {
+        "steps_a": 1530,
+        "steps_b": 1293,
+        "max_abs_err": 1.0337319999999999,
+        "pass": false
+      }
+    }
+  },
+  "focus": {
+    "pass": false,
+    "rows": 64
+  },
+  "pass": false
+}

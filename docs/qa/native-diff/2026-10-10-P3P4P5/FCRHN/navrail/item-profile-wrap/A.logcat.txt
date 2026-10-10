@@ -1,0 +1,13 @@
+--------- beginning of main
+10-10 04:40:21.069 D/AuroraAnim(13669): [ring] 289114843 release 128
+10-10 04:40:21.069 D/AuroraAnim(13669): [focus] 289114844 loss tag=128 impl=js
+10-10 04:40:21.069 D/AuroraAnim(13669): [ring] 289114844 claim 920
+10-10 04:40:21.069 D/AuroraAnim(13669): [focus] 289114844 gain tag=920 impl=js edgeL=1 edgeR=0
+10-10 04:40:21.715 D/AuroraAnim(13669): [ring] 289115489 release 920
+10-10 04:40:21.715 D/AuroraAnim(13669): [focus] 289115490 loss tag=920 impl=js
+10-10 04:40:21.715 D/AuroraAnim(13669): [ring] 289115490 claim 906
+10-10 04:40:21.715 D/AuroraAnim(13669): [focus] 289115490 gain tag=906 impl=js edgeL=1 edgeR=0
+10-10 04:40:22.538 D/AuroraAnim(13669): [ring] 289116312 release 906
+10-10 04:40:22.538 D/AuroraAnim(13669): [focus] 289116313 loss tag=906 impl=js
+10-10 04:40:22.538 D/AuroraAnim(13669): [ring] 289116313 claim 1014
+10-10 04:40:22.538 D/AuroraAnim(13669): [focus] 289116313 gain tag=1014 impl=js edgeL=1 edgeR=0

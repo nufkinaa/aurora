@@ -1,0 +1,142 @@
+device MiTV-AFMU0 v9000 mActiveModeId=20 · receiver v=9000 impl=FCRHN
+warning: animator_duration_scale is null (02 §1 wants 1.0)
+----  row/offset-0 (impl FCRHN, run 1)
+PASS  row/offset-0  diff=0 off=0  trace=ok
+----  row/offset-1 (impl FCRHN, run 1)
+PASS  row/offset-1  diff=0 off=0  trace=ok
+----  row/lead (impl FCRHN, run 1)
+PASS  row/lead  diff=0 off=0  trace=ok
+----  row/offset-5 (impl FCRHN, run 1)
+PASS  row/offset-5  diff=0 off=0  trace=ok
+----  row/offset-9 (impl FCRHN, run 1)
+FAIL  row/offset-9  diff=-1 off=-1  harness error: adb shell input keyevent KEYCODE_DPAD_RIGHT… failed (1): error: closed
+----  row/offset-10 (impl FCRHN, run 1)
+PASS  row/offset-10  diff=0 off=0  trace=ok
+----  row/back-left (impl FCRHN, run 1)
+PASS  row/back-left  diff=0 off=0  trace=ok
+----  row/hold-right-12 (impl FCRHN, run 1)
+PASS  row/hold-right-12  diff=0 off=0  trace=ok
+----  row/hold-right-end (impl FCRHN, run 1)
+PASS  row/hold-right-end  diff=0 off=0  trace=ok
+----  row/hold-right-left (impl FCRHN, run 1)
+PASS  row/hold-right-left  diff=0 off=0  trace=ok
+----  row/reentry-down (impl FCRHN, run 1)
+PASS  row/reentry-down  diff=0 off=0  trace=ok
+----  row/reentry-up (impl FCRHN, run 1)
+PASS  row/reentry-up  diff=0 off=0  trace=ok
+----  row/left-at-0 (impl FCRHN, run 1)
+PASS  row/left-at-0  diff=0 off=0
+----  row/left-at-0-return (impl FCRHN, run 1)
+PASS  row/left-at-0-return  diff=0 off=0
+----  row/poster-row1-step (impl FCRHN, run 1)
+PASS  row/poster-row1-step  diff=0 off=0  trace=ok
+----  row/continue-rest (impl FCRHN, run 1)
+PASS  row/continue-rest  diff=0 off=0  trace=ok
+----  row/continue-step (impl FCRHN, run 1)
+PASS  row/continue-step  diff=0 off=0  trace=ok
+----  row/continue-step-2 (impl FCRHN, run 1)
+PASS  row/continue-step-2  diff=0 off=0  trace=ok
+----  hero/rest (impl FCRHN, run 1)
+PASS  hero/rest  diff=0 off=0
+----  hero/scrolled (impl FCRHN, run 1)
+PASS  hero/scrolled  diff=0 off=0  trace=ok
+----  hero/scrolled-back (impl FCRHN, run 1)
+PASS  hero/scrolled-back  diff=0 off=0  trace=ok
+----  hero/first-slide (impl FCRHN, run 1)
+PASS  hero/first-slide  diff=0 off=0  trace=ok
+----  hero/details-lit (impl FCRHN, run 1)
+PASS  hero/details-lit  diff=0 off=0
+----  hero/scrolled-row1 (impl FCRHN, run 1)
+PASS  hero/scrolled-row1  diff=0 off=0  trace=ok
+----  hero/scrolled-row3 (impl FCRHN, run 1)
+PASS  hero/scrolled-row3  diff=0 off=0  trace=ok
+----  hero/down-burst-4 (impl FCRHN, run 1)
+FAIL  hero/down-burst-4  diff=434553 off=258503  trace=FAIL  258503 differing px off the edge mask (bbox [161, 0, 1796, 1080]); on-edge diff fraction 0.084901 > 0.0005; trace hero.ty: rest value A=-989.5 B=-998.5
+----  hero/back-from-row1 (impl FCRHN, run 1)
+PASS  hero/back-from-row1  diff=0 off=0  trace=ok
+----  hero/slide-then-scrolled (impl FCRHN, run 1)
+PASS  hero/slide-then-scrolled  diff=0 off=0  trace=ok
+----  hero/slide-scrolled-back (impl FCRHN, run 1)
+PASS  hero/slide-scrolled-back  diff=0 off=0  trace=ok
+----  hero/mid-fade-row0 (impl FCRHN, run 1)
+PASS  hero/mid-fade-row0  diff=0 off=0  trace=ok
+----  hero/mid-fade-row1 (impl FCRHN, run 1)
+PASS  hero/mid-fade-row1  diff=0 off=0  trace=ok
+SKIP  hero/mute-pill: needs the instance started with fixtureTrailer (declare --server <flag>)
+----  navrail/closed (impl FCRHN, run 1)
+PASS  navrail/closed  diff=0 off=0
+----  navrail/open (impl FCRHN, run 1)
+FAIL  navrail/open  diff=0 off=0  trace=FAIL  trace rail.slide: B step 1 at 67.2 ms = 0.704003, off A's curve [0.785976, 0.933472] within +-28.2014 ms (|err| 0.082 > 0.001); trace rail.slide: A step 1 at 39.0 ms = 0.785976, off B's curve [0.113127, 0.704003] within +-28.2014 ms (|err| 0.082 > 0.001); trace rail.strip: B step 1 at 67.2 ms = 0.295997, off A's curve [0.0681704, 0.233673] within +-28.2014 ms (|err| 0.0623 > 0.001); trace rail.strip: A step 1 at 40.0 ms = 0.214024, off B's curve [0.291118, 0.876397] within +-28.2014 ms (|err| 0.0771 > 0.001)
+----  navrail/item-search (impl FCRHN, run 1)
+PASS  navrail/item-search  diff=0 off=0
+----  navrail/item-home (impl FCRHN, run 1)
+PASS  navrail/item-home  diff=0 off=0
+----  navrail/item-movies (impl FCRHN, run 1)
+PASS  navrail/item-movies  diff=0 off=0
+----  navrail/item-shows (impl FCRHN, run 1)
+PASS  navrail/item-shows  diff=0 off=0
+----  navrail/item-list (impl FCRHN, run 1)
+PASS  navrail/item-list  diff=0 off=0
+----  navrail/item-ai (impl FCRHN, run 1)
+PASS  navrail/item-ai  diff=0 off=0
+----  navrail/item-settings (impl FCRHN, run 1)
+PASS  navrail/item-settings  diff=0 off=0
+----  navrail/item-profile (impl FCRHN, run 1)
+PASS  navrail/item-profile  diff=0 off=0
+----  navrail/item-profile-wrap (impl FCRHN, run 1)
+PASS  navrail/item-profile-wrap  diff=0 off=0
+----  navrail/closed-again (impl FCRHN, run 1)
+FAIL  navrail/closed-again  diff=0 off=0  trace=FAIL  trace rail.slide: B step 1 at 16.8 ms = 0.787939, off A's curve [0.817924, 1] within +-118 ms (|err| 0.03 > 0.001); trace rail.slide: A step 1 at 157.0 ms = 0.787939, off B's curve [0.000359833, 0.528078] within +-118 ms (|err| 0.26 > 0.001); trace rail.strip: B step 1 at 16.8 ms = 0.212061, off A's curve [0, 0.182076] within +-118 ms (|err| 0.03 > 0.001); trace rail.strip: A step 1 at 157.0 ms = 0.212061, off B's curve [0.471922, 0.99964] within +-118 ms (|err| 0.26 > 0.001)
+----  navrail/mid-open (impl FCRHN, run 1)
+FAIL  navrail/mid-open  diff=0 off=0  trace=FAIL  trace rail.slide: B step 1 at 67.2 ms = 0.352002, off A's curve [0.399079, 0.471875] within +-28.2011 ms (|err| 0.0471 > 0.0005); trace rail.slide: A step 1 at 35.0 ms = 0.392988, off B's curve [0.0356127, 0.33105] within +-28.2011 ms (|err| 0.0619 > 0.0005); trace rail.slide: settle time A=210.0 ms B=268.8 ms (> 53.2011 ms apart); trace rail.strip: B step 1 at 67.2 ms = 0.647998, off A's curve [0.528191, 0.600921] within +-28.2011 ms (|err| 0.0471 > 0.0005); trace rail.strip: A step 1 at 35.0 ms = 0.607012, off B's curve [0.66895, 0.964387] within +-28.2011 ms (|err| 0.0619 > 0.0005); trace rail.strip: settle time A=210.0 ms B=268.8 ms (> 53.2011 ms apart)
+----  navrail/closed-back (impl FCRHN, run 1)
+FAIL  navrail/closed-back  diff=0 off=0  trace=FAIL  trace rail.slide: B step 1 at 16.8 ms = 0.787939, off A's curve [0.818911, 1] within +-113 ms (|err| 0.031 > 0.001); trace rail.slide: A step 1 at 152.0 ms = 0.787939, off B's curve [0.000987016, 0.528072] within +-113 ms (|err| 0.26 > 0.001); trace rail.strip: B step 1 at 16.8 ms = 0.212061, off A's curve [0, 0.181089] within +-113 ms (|err| 0.031 > 0.001); trace rail.strip: A step 1 at 152.0 ms = 0.212061, off B's curve [0.471928, 0.999013] within +-113 ms (|err| 0.26 > 0.001)
+----  navrail/open-from-row (impl FCRHN, run 1)
+FAIL  navrail/open-from-row  diff=0 off=0  trace=FAIL  trace rail.slide: B step 1 at 67.2 ms = 0.704003, off A's curve [0.785976, 0.935029] within +-28.2005 ms (|err| 0.082 > 0.001); trace rail.slide: A step 1 at 39.0 ms = 0.785976, off B's curve [0.113138, 0.704003] within +-28.2005 ms (|err| 0.082 > 0.001); trace rail.strip: B step 1 at 67.2 ms = 0.295997, off A's curve [0.0651893, 0.214024] within +-28.2005 ms (|err| 0.082 > 0.001); trace rail.strip: A step 1 at 39.0 ms = 0.214024, off B's curve [0.295997, 0.886862] within +-28.2005 ms (|err| 0.082 > 0.001)
+----  navrail/row-closed-again (impl FCRHN, run 1)
+FAIL  navrail/row-closed-again  diff=0 off=0  trace=FAIL  trace rail.slide: B step 3 at 50.4 ms = 0.414653, off A's curve [0.134098, 0.35235] within +-25 ms (|err| 0.0623 > 0.001); trace rail.slide: A step 3 at 17.0 ms = 0.414653, off B's curve [0.498233, 1] within +-25 ms (|err| 0.0836 > 0.001); trace rail.strip: B step 3 at 50.4 ms = 0.585347, off A's curve [0.655066, 0.867076] within +-25 ms (|err| 0.0697 > 0.001); trace rail.strip: A step 3 at 16.0 ms = 0.585347, off B's curve [0, 0.491819] within +-25 ms (|err| 0.0935 > 0.001)
+----  navrail/row-closed-back (impl FCRHN, run 1)
+FAIL  navrail/row-closed-back  diff=0 off=0  trace=FAIL  trace rail.slide: B step 3 at 50.4 ms = 0.414653, off A's curve [0.161298, 0.411485] within +-25 ms (|err| 0.00317 > 0.001); trace rail.slide: A step 3 at 25.0 ms = 0.414653, off B's curve [0.418638, 1] within +-25 ms (|err| 0.00398 > 0.001); trace rail.strip: B step 3 at 50.4 ms = 0.585347, off A's curve [0.588742, 0.841917] within +-25 ms (|err| 0.00339 > 0.001); trace rail.strip: A step 3 at 25.0 ms = 0.585347, off B's curve [0, 0.581362] within +-25 ms (|err| 0.00398 > 0.001)
+----  navrail/ok-movies (impl FCRHN, run 1)
+PASS  navrail/ok-movies  diff=0 off=0
+----  navrail/ok-home (impl FCRHN, run 1)
+PASS  navrail/ok-home  diff=0 off=0
+----  navrail/reopen (impl FCRHN, run 1)
+FAIL  navrail/reopen  diff=0 off=0  trace=FAIL  trace rail.slide: B step 1 at 67.2 ms = 0.704003, off A's curve [0.76009, 0.925443] within +-28.2 ms (|err| 0.0561 > 0.001); trace rail.slide: A step 1 at 26.0 ms = 0.704003, off B's curve [0, 0.567812] within +-28.2 ms (|err| 0.136 > 0.001); trace rail.strip: B step 1 at 67.2 ms = 0.295997, off A's curve [0.074557, 0.241348] within +-28.2 ms (|err| 0.0546 > 0.001); trace rail.strip: A step 1 at 27.0 ms = 0.295997, off B's curve [0.421712, 1] within +-28.2 ms (|err| 0.126 > 0.001)
+----  app/home-down-6 (impl FCRHN, run 1)
+PASS  app/home-down-6  diff=0 off=0
+----  app/home-down-4-up-2 (impl FCRHN, run 1)
+PASS  app/home-down-4-up-2  diff=0 off=0
+----  app/home-down-hold-8 (impl FCRHN, run 1)
+FAIL  app/home-down-hold-8  diff=809748 off=593162  593162 differing px off the edge mask (bbox [167, 0, 1794, 1080]); on-edge diff fraction 0.104449 > 0.0005; focus table differs (14 vs 16 rows)
+----  app/home-row-hold (impl FCRHN, run 1)
+PASS  app/home-row-hold  diff=0 off=0
+----  app/home-row-then-down (impl FCRHN, run 1)
+PASS  app/home-row-then-down  diff=0 off=0
+----  app/home-open-title (impl FCRHN, run 1)
+PASS  app/home-open-title  diff=0 off=0
+----  app/home-title-back (impl FCRHN, run 1)
+PASS  app/home-title-back  diff=0 off=0
+----  app/rail-to-shows (impl FCRHN, run 1)
+Traceback (most recent call last):
+  File "C:\elia\aurora-lab\tools\tv-pixel-diff\run.py", line 585, in <module>
+    sys.exit(main())
+  File "C:\elia\aurora-lab\tools\tv-pixel-diff\run.py", line 553, in main
+    a = capture_guarded(dev, s, "A", d, args)
+  File "C:\elia\aurora-lab\tools\tv-pixel-diff\run.py", line 263, in capture_guarded
+    info = capture_side(dev, state, side, out_dir, args)
+  File "C:\elia\aurora-lab\tools\tv-pixel-diff\run.py", line 194, in capture_side
+    ok, detail = dev.qa("freeze", freeze_arg)
+  File "C:\elia\aurora-lab\tools\tv-pixel-diff\adb.py", line 280, in qa
+    self.logcat_clear()
+  File "C:\elia\aurora-lab\tools\tv-pixel-diff\adb.py", line 191, in logcat_clear
+    self.run("logcat", "-c", check=False)
+  File "C:\elia\aurora-lab\tools\tv-pixel-diff\adb.py", line 149, in run
+    p = subprocess.run(cmd, capture_output=True, timeout=timeout)
+  File "C:\Users\netan\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 505, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+  File "C:\Users\netan\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1154, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+  File "C:\Users\netan\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1546, in _communicate
+    raise TimeoutExpired(self.args, orig_timeout)
+subprocess.TimeoutExpired: Command '['C:/elia/android-tools/sdk/platform-tools/adb.exe', '-s', '192.168.50.31:5555', 'logcat', '-c']' timed out after 30 seconds

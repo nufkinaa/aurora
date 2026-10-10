@@ -1,0 +1,52 @@
+{
+  "state": "chip-rest",
+  "component": "focusable",
+  "impl": "F",
+  "run": 1,
+  "differing_px": 103420,
+  "off_edge_px": 58212,
+  "on_edge_px": 45208,
+  "diff_fraction": 0.021801697530864198,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 254,
+  "max_yiq": 0.8986572623252869,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": false,
+      "waited_ms": 10202,
+      "polls": 28,
+      "anim_lines": 0,
+      "frames": 1063,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+      "idle": false,
+      "waited_ms": 10250,
+      "polls": 30,
+      "anim_lines": 0,
+      "frames": 991,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+  },
+  "reasons": [
+    "58212 differing px off the edge mask (bbox [709, 691, 1237, 1080])",
+    "on-edge diff fraction 0.021802 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture"
+  ],
+  "focus": {
+    "pass": false,
+    "rows": 88
+  },
+  "pass": false
+}

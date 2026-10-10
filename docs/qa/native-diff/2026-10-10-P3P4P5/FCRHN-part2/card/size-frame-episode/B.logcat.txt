@@ -1,0 +1,13 @@
+--------- beginning of main
+10-10 05:08:11.712 D/AuroraAnim( 8661): [ring] 290785487 release 102
+10-10 05:08:11.712 D/AuroraAnim( 8661): [focus] 290785487 loss tag=102 impl=native
+10-10 05:08:11.713 D/AuroraAnim( 8661): [ring] 290785488 claim 176
+10-10 05:08:11.713 D/AuroraAnim( 8661): [focus] 290785488 gain tag=176 impl=native edgeL=1 edgeR=0
+10-10 05:08:12.099 D/AuroraAnim( 8661): [ring] 290785874 release 176
+10-10 05:08:12.099 D/AuroraAnim( 8661): [focus] 290785874 loss tag=176 impl=native
+10-10 05:08:12.100 D/AuroraAnim( 8661): [ring] 290785875 claim 208
+10-10 05:08:12.101 D/AuroraAnim( 8661): [focus] 290785875 gain tag=208 impl=native edgeL=0 edgeR=0
+10-10 05:08:12.433 D/AuroraAnim( 8661): [ring] 290786208 release 208
+10-10 05:08:12.433 D/AuroraAnim( 8661): [focus] 290786208 loss tag=208 impl=native
+10-10 05:08:12.435 D/AuroraAnim( 8661): [ring] 290786209 claim 244
+10-10 05:08:12.435 D/AuroraAnim( 8661): [focus] 290786209 gain tag=244 impl=native edgeL=0 edgeR=0

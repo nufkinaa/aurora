@@ -1,0 +1,74 @@
+device MiTV-AFMU0 v9000 mActiveModeId=20 · receiver v=9000 impl=-
+warning: animator_duration_scale is null (02 §1 wants 1.0)
+----  app/rail-to-shows (impl FCRHN, run 1)
+PASS  app/rail-to-shows  diff=0 off=0
+----  app/rail-to-settings (impl FCRHN, run 1)
+FAIL  app/rail-to-settings  diff=33027 off=7380  7380 differing px off the edge mask (bbox [165, 376, 1824, 799]); on-edge diff fraction 0.012368 > 0.0005; focus table differs (17 vs 18 rows)
+----  app/movies-grid-walk (impl FCRHN, run 1)
+PASS  app/movies-grid-walk  diff=0 off=0
+----  app/movies-grid-hold (impl FCRHN, run 1)
+FAIL  app/movies-grid-hold  diff=71179 off=2824  2824 differing px off the edge mask (bbox [170, 136, 1780, 1073]); on-edge diff fraction 0.032964 > 0.0005
+----  app/movies-open-title (impl FCRHN, run 1)
+FAIL  app/movies-open-title  diff=-1 off=-1  harness error: [qa] nav 'browse:movie' -> err timeout
+----  app/movies-title-back (impl FCRHN, run 1)
+PASS  app/movies-title-back  diff=0 off=0
+----  app/movies-rail-open (impl FCRHN, run 1)
+PASS  app/movies-rail-open  diff=0 off=0
+----  app/movies-rail-home (impl FCRHN, run 1)
+PASS  app/movies-rail-home  diff=0 off=0
+----  focusable/card-rest (impl FCRHN, run 1)
+PASS  focusable/card-rest  diff=0 off=0
+----  focusable/card-lit (impl FCRHN, run 1)
+PASS  focusable/card-lit  diff=0 off=0  trace=ok
+----  focusable/btn-primary-lit (impl FCRHN, run 1)
+PASS  focusable/btn-primary-lit  diff=0 off=0
+----  focusable/btn-primary-rest (impl FCRHN, run 1)
+PASS  focusable/btn-primary-rest  diff=0 off=0
+----  focusable/btn-secondary-lit (impl FCRHN, run 1)
+PASS  focusable/btn-secondary-lit  diff=0 off=0  trace=ok
+----  focusable/btn-secondary-rest (impl FCRHN, run 1)
+PASS  focusable/btn-secondary-rest  diff=0 off=0
+----  focusable/chip-on-lit (impl FCRHN, run 1)
+PASS  focusable/chip-on-lit  diff=0 off=0
+----  focusable/chip-lit (impl FCRHN, run 1)
+PASS  focusable/chip-lit  diff=0 off=0  trace=ok
+----  focusable/chip-rest (impl FCRHN, run 1)
+PASS  focusable/chip-rest  diff=0 off=0
+----  focusable/chip-surface-lit (impl FCRHN, run 1)
+PASS  focusable/chip-surface-lit  diff=0 off=0
+----  focusable/navitem-lit (impl FCRHN, run 1)
+PASS  focusable/navitem-lit  diff=0 off=0  trace=ok
+----  focusable/navitem-lit-2 (impl FCRHN, run 1)
+PASS  focusable/navitem-lit-2  diff=0 off=0
+----  focusable/sources-row-lit (impl FCRHN, run 1)
+PASS  focusable/sources-row-lit  diff=0 off=0
+----  focusable/sources-row-lit-2 (impl FCRHN, run 1)
+PASS  focusable/sources-row-lit-2  diff=0 off=0  trace=ok
+----  card/rest-home (impl FCRHN, run 1)
+PASS  card/rest-home  diff=0 off=0
+----  card/size-frame (impl FCRHN, run 1)
+FAIL  card/size-frame  diff=0 off=0  trace=FAIL  trace focus.ring: B step 5 at 100.8 ms = 0.961255, off A's curve [0.886156, 0.957675] within +-25 ms (|err| 0.00358 > 0.001); trace focus.ring: A step 5 at 131.0 ms = 0.961255, off B's curve [0.967322, 0.998776] within +-25 ms (|err| 0.00607 > 0.001); trace focus.spring: B step 5 at 100.8 ms = 0.864673, off A's curve [0.66375, 0.852968] within +-25 ms (|err| 0.0117 > 0.00102); trace focus.spring: A step 5 at 131.0 ms = 0.864673, off B's curve [0.886319, 1.00455] within +-25 ms (|err| 0.0216 > 0.00102); trace focus.ring.out: B step 5 at 100.8 ms = 0.038745, off A's curve [0.0409475, 0.105616] within +-25 ms (|err| 0.0022 > 0.001); trace focus.ring.out: A step 5 at 129.0 ms = 0.038745, off B's curve [0.00142774, 0.0350122] within +-25 ms (|err| 0.00373 > 0.001); trace focus.spring.out: B step 5 at 100.8 ms = 0.135327, off A's curve [0.142529, 0.317806] within +-25 ms (|err| 0.0072 > 0.00102); trace focus.spring.out: A step 5 at 129.0 ms = 0.135327, off B's curve [-0.00313616, 0.122009] within +-25 ms (|err| 0.0133 > 0.00102)
+----  card/progress-bar (impl FCRHN, run 1)
+PASS  card/progress-bar  diff=0 off=0
+----  card/size-frame-episode (impl FCRHN, run 1)
+PASS  card/size-frame-episode  diff=0 off=0
+----  card/size-poster (impl FCRHN, run 1)
+PASS  card/size-poster  diff=0 off=0  trace=ok
+----  card/kind-tag (impl FCRHN, run 1)
+PASS  card/kind-tag  diff=0 off=0
+----  card/size-poster-row2 (impl FCRHN, run 1)
+PASS  card/size-poster-row2  diff=0 off=0
+----  card/grid-rest (impl FCRHN, run 1)
+PASS  card/grid-rest  diff=0 off=0
+----  card/grid-lit (impl FCRHN, run 1)
+PASS  card/grid-lit  diff=0 off=0  trace=ok
+----  card/new-tag (impl FCRHN, run 1)
+PASS  card/new-tag  diff=0 off=0
+----  card/new-tag-rest (impl FCRHN, run 1)
+PASS  card/new-tag-rest  diff=0 off=0
+SKIP  card/size-wide: needs the instance started with fixture (declare --server <flag>)
+SKIP  card/size-compact: needs the instance started with aiMock (declare --server <flag>)
+SKIP  card/blur-up: needs the instance started with artDelay (declare --server <flag>)
+SKIP  card/broken-tile: needs the instance started with artFail (declare --server <flag>)
+
+33 ok, 4 failed -> C:\elia\aurora-lab\docs\qa\native-diff\2026-10-10-P3P4P5\FCRHN-part2\summary.md

@@ -1,0 +1,52 @@
+{
+  "state": "card-rest",
+  "component": "focusable",
+  "impl": "F",
+  "run": 1,
+  "differing_px": 496275,
+  "off_edge_px": 462348,
+  "on_edge_px": 33927,
+  "diff_fraction": 0.01636140046296296,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 244,
+  "max_yiq": 0.9182108640670776,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": false,
+      "waited_ms": 10234,
+      "polls": 26,
+      "anim_lines": 0,
+      "frames": 1357,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+      "idle": false,
+      "waited_ms": 10547,
+      "polls": 24,
+      "anim_lines": 0,
+      "frames": 1256,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+  },
+  "reasons": [
+    "462348 differing px off the edge mask (bbox [91, 0, 1920, 760])",
+    "on-edge diff fraction 0.016361 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture"
+  ],
+  "focus": {
+    "pass": false,
+    "rows": 61
+  },
+  "pass": false
+}

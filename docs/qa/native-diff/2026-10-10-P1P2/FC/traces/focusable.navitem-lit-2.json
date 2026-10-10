@@ -1,0 +1,197 @@
+{
+ "state": "navitem-lit-2",
+ "component": "focusable",
+ "impl": "FC",
+ "run": 1,
+ "ids": [],
+ "anim": null,
+ "focus": {
+  "pass": false,
+  "rows_a": [
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "128",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "888",
+    "impl": "js",
+    "edgeL": "1",
+    "edgeR": "0"
+   },
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "888",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "902",
+    "impl": "js",
+    "edgeL": "1",
+    "edgeR": "0"
+   }
+  ],
+  "rows_b": [
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "742",
+    "impl": "native",
+    "edgeL": "1",
+    "edgeR": "0"
+   },
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "122",
+    "impl": "native"
+   },
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "742",
+    "impl": "native"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "750",
+    "impl": "native",
+    "edgeL": "1",
+    "edgeR": "0"
+   }
+  ],
+  "reasons": [
+   "focus table differs (4 vs 4 rows)"
+  ]
+ },
+ "A": {
+  "anim": {},
+  "keys": [],
+  "focus": [
+   [
+    279960817,
+    "loss",
+    {
+     "tag": "128",
+     "impl": "js"
+    }
+   ],
+   [
+    279960817,
+    "gain",
+    {
+     "tag": "888",
+     "impl": "js",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ],
+   [
+    279961424,
+    "loss",
+    {
+     "tag": "888",
+     "impl": "js"
+    }
+   ],
+   [
+    279961425,
+    "gain",
+    {
+     "tag": "902",
+     "impl": "js",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ]
+  ],
+  "ring": [
+   [
+    279960816,
+    "release",
+    "128"
+   ],
+   [
+    279960817,
+    "claim",
+    "888"
+   ],
+   [
+    279961424,
+    "release",
+    "888"
+   ],
+   [
+    279961424,
+    "claim",
+    "902"
+   ]
+  ]
+ },
+ "B": {
+  "anim": {},
+  "keys": [],
+  "focus": [
+   [
+    279976094,
+    "gain",
+    {
+     "tag": "742",
+     "impl": "native",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ],
+   [
+    279976123,
+    "loss",
+    {
+     "tag": "122",
+     "impl": "native"
+    }
+   ],
+   [
+    279976848,
+    "loss",
+    {
+     "tag": "742",
+     "impl": "native"
+    }
+   ],
+   [
+    279976849,
+    "gain",
+    {
+     "tag": "750",
+     "impl": "native",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ]
+  ],
+  "ring": [
+   [
+    279976093,
+    "claim",
+    "742"
+   ],
+   [
+    279976848,
+    "release",
+    "742"
+   ],
+   [
+    279976849,
+    "claim",
+    "750"
+   ]
+  ]
+ }
+}

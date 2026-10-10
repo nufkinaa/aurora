@@ -1,0 +1,6 @@
+device MiTV-AFMU0 v9000 mActiveModeId=20 · receiver v=9000 impl=-
+warning: animator_duration_scale is null (02 §1 wants 1.0)
+----  row/offset-9 (impl FCRHN, run 1)
+PASS  row/offset-9  diff=0 off=0
+
+1 ok, 0 failed -> C:\elia\aurora-lab\docs\qa\native-diff\2026-10-10-P3P4P5\FCRHN-part3\summary.md

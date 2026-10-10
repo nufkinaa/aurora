@@ -1,0 +1,53 @@
+--------- beginning of main
+10-10 02:16:27.967 D/AuroraAnim( 2807): [key] 280481738 KEYCODE_DPAD_LEFT
+10-10 02:16:28.029 D/AuroraAnim( 2807): [ring] 280481804 claim 742
+10-10 02:16:28.030 D/AuroraAnim( 2807): [focus] 280481804 gain tag=742 impl=native edgeL=1 edgeR=0
+10-10 02:16:28.057 D/AuroraAnim( 2807): [focus] 280481832 loss tag=122 impl=native
+10-10 02:16:28.079 D/AuroraAnim( 2807): [anim] 280481796374802 focus.ring.out 1.000000
+10-10 02:16:28.079 D/AuroraAnim( 2807): [anim] 280481796374802 focus.spring.out 1.000000
+10-10 02:16:28.080 D/AuroraAnim( 2807): [anim] 280481796374802 focus.ring 0.000000
+10-10 02:16:28.080 D/AuroraAnim( 2807): [anim] 280481796374802 focus.spring 0.000000
+10-10 02:16:28.108 D/AuroraAnim( 2807): [anim] 280481880373942 focus.ring.out 0.070421
+10-10 02:16:28.108 D/AuroraAnim( 2807): [anim] 280481880373942 focus.spring.out 0.409240
+10-10 02:16:28.108 D/AuroraAnim( 2807): [anim] 280481880373942 focus.ring 0.929579
+10-10 02:16:28.108 D/AuroraAnim( 2807): [anim] 280481880373942 focus.spring 0.590760
+10-10 02:16:28.129 D/AuroraAnim( 2807): [anim] 280481897173770 focus.ring.out 0.038745
+10-10 02:16:28.129 D/AuroraAnim( 2807): [anim] 280481897173770 focus.spring.out 0.261075
+10-10 02:16:28.129 D/AuroraAnim( 2807): [anim] 280481897173770 focus.ring 0.961255
+10-10 02:16:28.129 D/AuroraAnim( 2807): [anim] 280481897173770 focus.spring 0.738925
+10-10 02:16:28.148 D/AuroraAnim( 2807): [anim] 280481913973598 focus.ring.out 0.019138
+10-10 02:16:28.148 D/AuroraAnim( 2807): [anim] 280481913973598 focus.spring.out 0.156446
+10-10 02:16:28.148 D/AuroraAnim( 2807): [anim] 280481913973598 focus.ring 0.980862
+10-10 02:16:28.148 D/AuroraAnim( 2807): [anim] 280481913973598 focus.spring 0.843554
+10-10 02:16:28.175 D/AuroraAnim( 2807): [anim] 280481947573254 focus.ring.out 0.001713
+10-10 02:16:28.175 D/AuroraAnim( 2807): [anim] 280481947573254 focus.spring.out 0.030203
+10-10 02:16:28.175 D/AuroraAnim( 2807): [anim] 280481947573254 focus.ring 0.998287
+10-10 02:16:28.176 D/AuroraAnim( 2807): [anim] 280481947573254 focus.spring 0.969797
+10-10 02:16:28.208 D/AuroraAnim( 2807): [anim] 280481964373082 focus.ring.out 0.000000
+10-10 02:16:28.208 D/AuroraAnim( 2807): [anim] 280481964373082 focus.spring.out 0.002149
+10-10 02:16:28.208 D/AuroraAnim( 2807): [anim] 280481964373082 focus.ring 1.000000
+10-10 02:16:28.208 D/AuroraAnim( 2807): [anim] 280481964373082 focus.spring 0.997851
+10-10 02:16:28.235 D/AuroraAnim( 2807): [anim] 280481997972738 focus.spring.out -0.016479
+10-10 02:16:28.235 D/AuroraAnim( 2807): [anim] 280481997972738 focus.spring 1.016479
+10-10 02:16:28.259 D/AuroraAnim( 2807): [anim] 280482031572394 focus.spring.out -0.014189
+10-10 02:16:28.259 D/AuroraAnim( 2807): [anim] 280482031572394 focus.spring 1.014189
+10-10 02:16:28.277 D/AuroraAnim( 2807): [anim] 280482048372222 focus.spring.out -0.010923
+10-10 02:16:28.277 D/AuroraAnim( 2807): [anim] 280482048372222 focus.spring 1.010923
+10-10 02:16:28.292 D/AuroraAnim( 2807): [anim] 280482065172050 focus.spring.out -0.007730
+10-10 02:16:28.292 D/AuroraAnim( 2807): [anim] 280482065172050 focus.spring 1.007730
+10-10 02:16:28.309 D/AuroraAnim( 2807): [anim] 280482081971878 focus.spring.out -0.005185
+10-10 02:16:28.309 D/AuroraAnim( 2807): [anim] 280482081971878 focus.spring 1.005185
+10-10 02:16:28.327 D/AuroraAnim( 2807): [anim] 280482098771706 focus.spring.out -0.003105
+10-10 02:16:28.327 D/AuroraAnim( 2807): [anim] 280482098771706 focus.spring 1.003105
+10-10 02:16:28.348 D/AuroraAnim( 2807): [anim] 280482115571534 focus.spring.out -0.001643
+10-10 02:16:28.348 D/AuroraAnim( 2807): [anim] 280482115571534 focus.spring 1.001643
+10-10 02:16:28.361 D/AuroraAnim( 2807): [anim] 280482132371362 focus.spring.out -0.000695
+10-10 02:16:28.361 D/AuroraAnim( 2807): [anim] 280482132371362 focus.spring 1.000695
+10-10 02:16:28.375 D/AuroraAnim( 2807): [anim] 280482149171190 focus.spring.out -0.000136
+10-10 02:16:28.375 D/AuroraAnim( 2807): [anim] 280482149171190 focus.spring 1.000136
+10-10 02:16:28.391 D/AuroraAnim( 2807): [anim] 280482165971018 focus.spring.out 0.000142
+10-10 02:16:28.392 D/AuroraAnim( 2807): [anim] 280482165971018 focus.spring 0.999858
+10-10 02:16:28.408 D/AuroraAnim( 2807): [anim] 280482182770846 focus.spring.out 0.000267
+10-10 02:16:28.408 D/AuroraAnim( 2807): [anim] 280482182770846 focus.spring 0.999733
+10-10 02:16:28.425 D/AuroraAnim( 2807): [anim] 280482199570674 focus.spring.out 0.000000
+10-10 02:16:28.425 D/AuroraAnim( 2807): [anim] 280482199570674 focus.spring 1.000000

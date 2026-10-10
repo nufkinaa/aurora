@@ -1,0 +1,16 @@
+--------- beginning of main
+10-10 02:08:38.223 D/AuroraAnim(26308): [ring] 280011998 release 744
+10-10 02:08:38.223 D/AuroraAnim(26308): [focus] 280011998 loss tag=744 impl=native
+10-10 02:08:38.224 D/AuroraAnim(26308): [ring] 280011999 claim 754
+10-10 02:08:38.224 D/AuroraAnim(26308): [focus] 280011999 gain tag=754 impl=native edgeL=1 edgeR=0
+10-10 02:08:38.488 D/AuroraAnim(26308): [ring] 280012263 release 754
+10-10 02:08:38.488 D/AuroraAnim(26308): [focus] 280012263 loss tag=754 impl=native
+10-10 02:08:38.489 D/AuroraAnim(26308): [ring] 280012264 claim 880
+10-10 02:08:38.489 D/AuroraAnim(26308): [focus] 280012264 gain tag=880 impl=native edgeL=0 edgeR=0
+10-10 02:08:38.790 D/AuroraAnim(26308): [ring] 280012565 release 880
+10-10 02:08:38.791 D/AuroraAnim(26308): [focus] 280012565 loss tag=880 impl=native
+10-10 02:08:38.791 D/AuroraAnim(26308): [ring] 280012566 claim 766
+10-10 02:08:38.791 D/AuroraAnim(26308): [focus] 280012566 gain tag=766 impl=native edgeL=0 edgeR=0
+10-10 02:08:39.498 D/AuroraAnim(26308): [ring] 280013273 claim 1142
+10-10 02:08:39.498 D/AuroraAnim(26308): [focus] 280013273 gain tag=1142 impl=native edgeL=0 edgeR=0
+10-10 02:08:39.506 D/AuroraAnim(26308): [focus] 280013281 loss tag=766 impl=native

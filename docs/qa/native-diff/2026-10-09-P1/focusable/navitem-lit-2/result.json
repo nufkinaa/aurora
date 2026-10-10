@@ -1,0 +1,52 @@
+{
+  "state": "navitem-lit-2",
+  "component": "focusable",
+  "impl": "F",
+  "run": 1,
+  "differing_px": 182805,
+  "off_edge_px": 130108,
+  "on_edge_px": 52697,
+  "diff_fraction": 0.025413290895061728,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 246,
+  "max_yiq": 0.9232654571533203,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": false,
+      "waited_ms": 10030,
+      "polls": 29,
+      "anim_lines": 0,
+      "frames": 1466,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+      "idle": false,
+      "waited_ms": 10187,
+      "polls": 29,
+      "anim_lines": 0,
+      "frames": 1398,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+  },
+  "reasons": [
+    "130108 differing px off the edge mask (bbox [99, 132, 1920, 424])",
+    "on-edge diff fraction 0.025413 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture"
+  ],
+  "focus": {
+    "pass": false,
+    "rows": 106
+  },
+  "pass": false
+}

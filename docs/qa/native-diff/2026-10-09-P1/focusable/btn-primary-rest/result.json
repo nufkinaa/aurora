@@ -1,0 +1,52 @@
+{
+  "state": "btn-primary-rest",
+  "component": "focusable",
+  "impl": "F",
+  "run": 1,
+  "differing_px": 739060,
+  "off_edge_px": 709026,
+  "on_edge_px": 30034,
+  "diff_fraction": 0.014483989197530864,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 244,
+  "max_yiq": 0.9205608367919922,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": false,
+      "waited_ms": 10187,
+      "polls": 27,
+      "anim_lines": 0,
+      "frames": 1379,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    },
+    "B": {
+      "idle": false,
+      "waited_ms": 10219,
+      "polls": 28,
+      "anim_lines": 0,
+      "frames": 1267,
+      "note": "idle timeout \u2014 the app kept drawing or animating; the capture is suspect"
+    }
+  },
+  "reasons": [
+    "709026 differing px off the edge mask (bbox [102, 0, 1920, 753])",
+    "on-edge diff fraction 0.014484 > 0.0005",
+    "A: idle timeout before capture",
+    "B: idle timeout before capture"
+  ],
+  "focus": {
+    "pass": false,
+    "rows": 82
+  },
+  "pass": false
+}
