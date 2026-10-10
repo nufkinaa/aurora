@@ -1,0 +1,149 @@
+diff --git a/tv-native/src/components/NavRail.tsx b/tv-native/src/components/NavRail.tsx
+index 64fa534..d76cd50 100644
+--- a/tv-native/src/components/NavRail.tsx
++++ b/tv-native/src/components/NavRail.tsx
+@@ -48,3 +48,3 @@ import {useApp} from '../AppContext';
+ import {imgSrc} from '../api';
+-import {atLeftEdge, captureFocus, clearRailOpener, focusJustMoved, noteRail, setRailOpener, useTVKeys} from '../focus';
++import {atLeftEdge, captureFocus, clearRailOpener, focusJustMoved, noteOwnFocusMove, noteRail, pressMovedFocus, setRailOpener, useTVKeys} from '../focus';
+ import {goSection, useMe, useNewUnseen, NAV_SECTIONS, NavSection} from '../navSection';
+@@ -307,4 +307,7 @@ export default function NavRail({
+         // every dismissal.
+-        if (t === 'left' && atLeftEdge() && !focusJustMoved(120)) {
++        // pressMovedFocus: the same, for a key held longer than 120ms — JS
++        // only hears the key come UP, the focus engine moved on its way down.
++        if (t === 'left' && atLeftEdge() && !focusJustMoved(120) && !pressMovedFocus()) {
+           restore.current = captureFocus();
++          noteOwnFocusMove();
+           setOpen(true);
+@@ -328,5 +331,7 @@ export default function NavRail({
+       // A press made AT the end moves no focus and wraps as before.
+-      if (focusJustMoved(120)) return;
+-      if (t === 'up' && at.current === 0) items.current[ITEMS.length - 1]?.requestTVFocus?.();
+-      else if (t === 'down' && at.current === ITEMS.length - 1) items.current[0]?.requestTVFocus?.();
++      if (focusJustMoved(120) || pressMovedFocus()) return;
++      const to = t === 'up' && at.current === 0 ? ITEMS.length - 1 : t === 'down' && at.current === ITEMS.length - 1 ? 0 : -1;
++      if (to < 0 || !items.current[to]?.requestTVFocus) return;
++      noteOwnFocusMove();
++      items.current[to]?.requestTVFocus?.();
+     },
+@@ -344,2 +349,3 @@ export default function NavRail({
+       restore.current = captureFocus();
++      noteOwnFocusMove();
+       setOpen(true);
+diff --git a/tv-native/src/focus.ts b/tv-native/src/focus.ts
+index 475b33c..b4b537f 100644
+--- a/tv-native/src/focus.ts
++++ b/tv-native/src/focus.ts
+@@ -46,4 +46,26 @@ let lastFocusMoveAt = 0;
+ 
++// ONE COUNTER FOR KEYS AND FOCUS MOVES, so their ORDER can be read back — see
++// pressMovedFocus. `pressMoveSeq` is the ticket of the last focus move that
++// the app did not ask for itself (so: one the focus engine made for a press);
++// `prevKeySeq` the ticket of the key event before the one being handled now.
++let seq = 0;
++let pressMoveSeq = 0;
++let keySeq = 0;
++let prevKeySeq = 0;
++let lastKeyEvt: unknown = null;
++// The app is about to move focus itself (the rail opening, a trap or the rail
++// handing focus back): the next move, if it comes at once, is not a press's.
++let ownMoveUntil = 0;
++const OWN_MOVE_MS = 500;
++export const noteOwnFocusMove = () => {
++  ownMoveUntil = Date.now() + OWN_MOVE_MS;
++};
++
+ export const noteFocus = (node: FocusNode, edgeLeft: boolean, edgeRight = false) => {
+-  if (node !== held) lastFocusMoveAt = Date.now();
++  if (node !== held) {
++    const now = Date.now();
++    lastFocusMoveAt = now;
++    if (now < ownMoveUntil) ownMoveUntil = 0;
++    else pressMoveSeq = ++seq;
++  }
+   held = node;
+@@ -78,2 +100,39 @@ export const focusJustMoved = (withinMs: number) =>
+ 
++/** True when the key event being handled is the RELEASE of the press that
++ *  moved focus to where it is now.
++ *
++ *  WHY focusJustMoved IS NOT ENOUGH (Mi TV, 2026-10-10): on Android this
++ *  react-native-tvos tells JS about a D-pad key only when it comes UP
++ *  (ReactAndroidHWInputDeviceHelper.shouldDispatchEvent: key-downs are sent
++ *  only with `enableKeyDownEvents`, which is off). The focus engine moves on
++ *  the key-DOWN. So a handler always runs after the move its own press made —
++ *  later by however long the key was held: 60-250 ms from a hand, 0-5 ms from
++ *  `adb shell input keyevent`. A 120 ms window therefore only catches short
++ *  presses: UP from the first shelf landed on the hero's Play button, the
++ *  release arrived 150 ms later, the hero's handler saw "UP on a hero button"
++ *  and opened the rail — by itself, as far as the viewer could tell.
++ *
++ *  What does not depend on the length of the press is the ORDER: a press that
++ *  STARTS on an element moved no focus since the key event before it; a press
++ *  that ARRIVED there did. A plain key-up cannot come later than the system's
++ *  key-repeat delay after its key-down (400 ms here — a longer hold is
++ *  reported as `longUp` etc.), so a move older than PRESS_MS is never this
++ *  press's: that bounds what a focus move the app did not announce (a screen's
++ *  first focus, Android's own restore after BACK) can cost — one press, made
++ *  within PRESS_MS of it. The moves the app makes itself and announces
++ *  (noteOwnFocusMove) cost nothing. */
++export const pressMovedFocus = () =>
++  pressMoveSeq > prevKeySeq && Date.now() - lastFocusMoveAt < PRESS_MS;
++const PRESS_MS = 600;
++
++/** Every key event JS hears takes a ticket, once (the same event object goes
++ *  to every mounted handler). Called by useTVKeys before its gates, so a key
++ *  that a trap swallows still counts as "a key came after that focus move". */
++const noteKey = (evt: unknown) => {
++  if (evt === lastKeyEvt) return;
++  lastKeyEvt = evt;
++  prevKeySeq = keySeq;
++  keySeq = ++seq;
++};
++
+ /** Snapshot who holds focus now and get back a function that returns it. The
+@@ -83,3 +142,8 @@ export const captureFocus = () => {
+   const node = held;
+-  return () => node?.requestTVFocus?.();
++  return () => {
++    if (node?.requestTVFocus) {
++      if (node !== held) noteOwnFocusMove();
++      node.requestTVFocus();
++    }
++  };
+ };
+@@ -264,2 +328,3 @@ export function useTVKeys(
+     (evt: {eventType: string; eventKeyAction?: number | string}) => {
++      noteKey(evt);
+       if (!live || deaf || traps > 0) return;
+diff --git a/tv-native/src/screens/Browse.tsx b/tv-native/src/screens/Browse.tsx
+index a62c8d9..95794ca 100644
+--- a/tv-native/src/screens/Browse.tsx
++++ b/tv-native/src/screens/Browse.tsx
+@@ -47,2 +47,3 @@ import {
+   focusJustMoved,
++  pressMovedFocus,
+   railOpen,
+@@ -557,3 +558,3 @@ export default function Browse({
+       if (!panel) {
+-        if (t === 'right' && atRightEdge() && !railOpen() && !focusJustMoved(120)) openPanel();
++        if (t === 'right' && atRightEdge() && !railOpen() && !focusJustMoved(120) && !pressMovedFocus()) openPanel();
+         return;
+diff --git a/tv-native/src/screens/Home.tsx b/tv-native/src/screens/Home.tsx
+index 2055f6c..9d09a16 100644
+--- a/tv-native/src/screens/Home.tsx
++++ b/tv-native/src/screens/Home.tsx
+@@ -47,2 +47,3 @@ import {
+   focusJustMoved,
++  pressMovedFocus,
+   onRailClose,
+@@ -773,2 +774,8 @@ export default function Home({
+         if (heroBtn.current < 0 || !isTop.current) return;
++        // Not the press that only just ARRIVED on this button (UP from the
++        // first shelf, LEFT / RIGHT between the buttons): JS hears a key when
++        // it comes up, after the focus engine has already moved on its
++        // key-down, so without this the press that landed on Play also opened
++        // the rail — "the menu opens by itself" (focus.ts pressMovedFocus).
++        if (pressMovedFocus()) return;
+         if (t === 'up' || (t === 'left' && heroBtn.current === 0)) {

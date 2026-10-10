@@ -1,0 +1,14 @@
+native input: rail opened on 8 of 20 UP presses
+native longpress: rail opened on 0 of 40 UP presses
+native 30: rail opened on 20 of 20 UP presses
+native 80: rail opened on 20 of 20 UP presses
+native 120: rail opened on 20 of 20 UP presses
+native 200: rail opened on 20 of 20 UP presses
+native 350: rail opened on 20 of 20 UP presses
+js input: rail opened on 6 of 20 UP presses
+js longpress: rail opened on 0 of 40 UP presses
+js 30: rail opened on 20 of 20 UP presses
+js 80: rail opened on 20 of 20 UP presses
+js 120: rail opened on 20 of 20 UP presses
+js 200: rail opened on 20 of 20 UP presses
+js 350: rail opened on 20 of 20 UP presses

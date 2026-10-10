@@ -45,6 +45,7 @@ import {
   atRightEdge,
   captureFocus,
   focusJustMoved,
+  pressMovedFocus,
   railOpen,
   useFocusFallback,
   useIsLive,
@@ -555,7 +556,7 @@ export default function Browse({
     (evt: {eventType: string}) => {
       const t = evt.eventType;
       if (!panel) {
-        if (t === 'right' && atRightEdge() && !railOpen() && !focusJustMoved(120)) openPanel();
+        if (t === 'right' && atRightEdge() && !railOpen() && !focusJustMoved(120) && !pressMovedFocus()) openPanel();
         return;
       }
       if (t === 'left') closePanel();

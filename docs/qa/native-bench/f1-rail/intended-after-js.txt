@@ -1,0 +1,53 @@
+== P1 UP on the hero opens the rail; RIGHT shuts it; UP 300 ms later opens it again :: UP:120 w1500 RIGHT:80 w300 UP:80 w1500
+   334135632 KEYCODE_DPAD_UP
+      ANIM rail.slide
+      gain tag=920 edgeL=1
+   334137252 KEYCODE_DPAD_RIGHT
+      ANIM rail.slide
+      gain tag=128 edgeL=0
+   334137631 KEYCODE_DPAD_UP
+      ANIM rail.slide
+      gain tag=1076 edgeL=1
+== P2 LEFT on Play opens the rail :: LEFT:120 w1500
+   334158140 KEYCODE_DPAD_LEFT
+      ANIM rail.slide
+      gain tag=920 edgeL=1
+== P3 RIGHT to Details, then RIGHT on the last button turns the slide :: RIGHT:120 w1200 RIGHT:120 w1500
+   334178231 KEYCODE_DPAD_RIGHT
+      gain tag=144 edgeL=0
+   334179549 KEYCODE_DPAD_RIGHT
+      ANIM hero.swap
+== P4 DOWN, LEFT at card 0 opens the rail :: DOWN:80 w1200 LEFT:120 w1500
+   334199313 KEYCODE_DPAD_DOWN
+      gain tag=208 edgeL=1
+   334200594 KEYCODE_DPAD_LEFT
+      ANIM rail.slide
+      gain tag=922 edgeL=1
+== P5 DOWN, UP (arrives: no rail), UP again 700 ms later (opens) :: DOWN:80 w1200 UP:120 w700 UP:120 w1500
+   334220532 KEYCODE_DPAD_DOWN
+      gain tag=208 edgeL=1
+   334221810 KEYCODE_DPAD_UP
+      gain tag=128 edgeL=0
+   334222629 KEYCODE_DPAD_UP
+      ANIM rail.slide
+      gain tag=922 edgeL=1
+== P7 DOWN, UP, UP 150 ms apart (second opens) :: DOWN:80 w1200 UP:60 w150 UP:60 w1500
+   334242740 KEYCODE_DPAD_DOWN
+      gain tag=208 edgeL=1
+   334244019 KEYCODE_DPAD_UP
+      gain tag=128 edgeL=0
+   334244229 KEYCODE_DPAD_UP
+      ANIM rail.slide
+      gain tag=922 edgeL=1
+== P6 LEFT opens, UP x2 reaches Search, UP wraps to the profile pill, DOWN wraps back :: LEFT:80 w1200 UP:80 w500 UP:80 w500 UP:120 w800 DOWN:120 w800
+   334264158 KEYCODE_DPAD_LEFT
+      ANIM rail.slide
+      gain tag=920 edgeL=1
+   334265437 KEYCODE_DPAD_UP
+      gain tag=906 edgeL=1
+   334266018 KEYCODE_DPAD_UP
+      gain tag=1014 edgeL=1
+   334266597 KEYCODE_DPAD_UP
+      gain tag=1000 edgeL=1
+   334267518 KEYCODE_DPAD_DOWN
+      gain tag=1014 edgeL=1

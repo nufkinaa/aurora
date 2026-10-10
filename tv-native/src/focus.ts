@@ -44,8 +44,30 @@ let heldEdgeRight = false;
 // edge" — see focusJustMoved.
 let lastFocusMoveAt = 0;
 
+// ONE COUNTER FOR KEYS AND FOCUS MOVES, so their ORDER can be read back — see
+// pressMovedFocus. `pressMoveSeq` is the ticket of the last focus move that
+// the app did not ask for itself (so: one the focus engine made for a press);
+// `prevKeySeq` the ticket of the key event before the one being handled now.
+let seq = 0;
+let pressMoveSeq = 0;
+let keySeq = 0;
+let prevKeySeq = 0;
+let lastKeyEvt: unknown = null;
+// The app is about to move focus itself (the rail opening, a trap or the rail
+// handing focus back): the next move, if it comes at once, is not a press's.
+let ownMoveUntil = 0;
+const OWN_MOVE_MS = 500;
+export const noteOwnFocusMove = () => {
+  ownMoveUntil = Date.now() + OWN_MOVE_MS;
+};
+
 export const noteFocus = (node: FocusNode, edgeLeft: boolean, edgeRight = false) => {
-  if (node !== held) lastFocusMoveAt = Date.now();
+  if (node !== held) {
+    const now = Date.now();
+    lastFocusMoveAt = now;
+    if (now < ownMoveUntil) ownMoveUntil = 0;
+    else pressMoveSeq = ++seq;
+  }
   held = node;
   heldEdgeLeft = edgeLeft;
   heldEdgeRight = edgeRight;
@@ -76,12 +98,54 @@ export const atRightEdge = () => heldEdgeRight;
 export const focusJustMoved = (withinMs: number) =>
   Date.now() - lastFocusMoveAt < withinMs;
 
+/** True when the key event being handled is the RELEASE of the press that
+ *  moved focus to where it is now.
+ *
+ *  WHY focusJustMoved IS NOT ENOUGH (Mi TV, 2026-10-10): on Android this
+ *  react-native-tvos tells JS about a D-pad key only when it comes UP
+ *  (ReactAndroidHWInputDeviceHelper.shouldDispatchEvent: key-downs are sent
+ *  only with `enableKeyDownEvents`, which is off). The focus engine moves on
+ *  the key-DOWN. So a handler always runs after the move its own press made —
+ *  later by however long the key was held: 60-250 ms from a hand, 0-5 ms from
+ *  `adb shell input keyevent`. A 120 ms window therefore only catches short
+ *  presses: UP from the first shelf landed on the hero's Play button, the
+ *  release arrived 150 ms later, the hero's handler saw "UP on a hero button"
+ *  and opened the rail — by itself, as far as the viewer could tell.
+ *
+ *  What does not depend on the length of the press is the ORDER: a press that
+ *  STARTS on an element moved no focus since the key event before it; a press
+ *  that ARRIVED there did. A plain key-up cannot come later than the system's
+ *  key-repeat delay after its key-down (400 ms here — a longer hold is
+ *  reported as `longUp` etc.), so a move older than PRESS_MS is never this
+ *  press's: that bounds what a focus move the app did not announce (a screen's
+ *  first focus, Android's own restore after BACK) can cost — one press, made
+ *  within PRESS_MS of it. The moves the app makes itself and announces
+ *  (noteOwnFocusMove) cost nothing. */
+export const pressMovedFocus = () =>
+  pressMoveSeq > prevKeySeq && Date.now() - lastFocusMoveAt < PRESS_MS;
+const PRESS_MS = 600;
+
+/** Every key event JS hears takes a ticket, once (the same event object goes
+ *  to every mounted handler). Called by useTVKeys before its gates, so a key
+ *  that a trap swallows still counts as "a key came after that focus move". */
+const noteKey = (evt: unknown) => {
+  if (evt === lastKeyEvt) return;
+  lastKeyEvt = evt;
+  prevKeySeq = keySeq;
+  keySeq = ++seq;
+};
+
 /** Snapshot who holds focus now and get back a function that returns it. The
  *  rail takes focus when it opens and has to hand it back on close; letting the
  *  platform decide instead sent focus to the topmost focusable on the page. */
 export const captureFocus = () => {
   const node = held;
-  return () => node?.requestTVFocus?.();
+  return () => {
+    if (node?.requestTVFocus) {
+      if (node !== held) noteOwnFocusMove();
+      node.requestTVFocus();
+    }
+  };
 };
 
 // ------------------------------------------------------- focus is never lost
@@ -262,6 +326,7 @@ export function useTVKeys(
   const deaf = !!opts?.deaf;
   const onTV = useCallback(
     (evt: {eventType: string; eventKeyAction?: number | string}) => {
+      noteKey(evt);
       if (!live || deaf || traps > 0) return;
       if (!acceptTvEvent(evt)) return;
       handler(evt);

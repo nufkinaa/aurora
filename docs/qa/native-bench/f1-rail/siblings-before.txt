@@ -1,0 +1,31 @@
+== hero: RIGHT Play->Details 200ms (must not turn the slide), then LEFT back 200ms (must not open rail) :: RIGHT:200 w1500 LEFT:200 w1500
+   [key] 332014375 KEYCODE_DPAD_RIGHT  
+   [focus] 332014385 gain tag=116 edgeL=0
+   ANIM hero.swap
+   [key] 332016074 KEYCODE_DPAD_LEFT  
+   [focus] 332016080 gain tag=102 edgeL=0
+   [focus] 332016336 gain tag=736 edgeL=1
+   ANIM rail.slide
+== shelf: DOWN, RIGHT, then LEFT card1->card0 200ms (must not open rail) :: DOWN:80 w1200 RIGHT:80 w1200 LEFT:200 w1500
+   [key] 332036025 KEYCODE_DPAD_DOWN  
+   [focus] 332036035 gain tag=176 edgeL=1
+   [key] 332037305 KEYCODE_DPAD_RIGHT  
+   [focus] 332037312 gain tag=208 edgeL=0
+   [key] 332038585 KEYCODE_DPAD_LEFT  
+   [focus] 332038590 gain tag=176 edgeL=1
+   [focus] 332038821 gain tag=728 edgeL=1
+   ANIM rail.slide
+== rail: LEFT (open), DOWN, UP 200ms (Home), UP 200ms (Search; must not wrap) :: LEFT:80 w1500 DOWN:80 w1000 UP:200 w1200 UP:200 w1500 RIGHT:80 w1000
+   [key] 332058366 KEYCODE_DPAD_LEFT  
+   [focus] 332058486 gain tag=728 edgeL=1
+   ANIM rail.slide
+   [key] 332059944 KEYCODE_DPAD_DOWN  
+   [focus] 332059963 gain tag=736 edgeL=1
+   [key] 332061024 KEYCODE_DPAD_UP  
+   [focus] 332061035 gain tag=728 edgeL=1
+   [key] 332062424 KEYCODE_DPAD_UP  
+   [focus] 332062447 gain tag=720 edgeL=1
+   [focus] 332062634 gain tag=790 edgeL=1
+   ANIM hero.swap
+   [key] 332064124 KEYCODE_DPAD_RIGHT  
+   [focus] 332064214 gain tag=102 edgeL=0

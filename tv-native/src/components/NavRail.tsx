@@ -46,7 +46,7 @@ import Focusable from './Focusable';
 import Icon, {IconName} from './Icon';
 import {useApp} from '../AppContext';
 import {imgSrc} from '../api';
-import {atLeftEdge, captureFocus, clearRailOpener, focusJustMoved, noteRail, setRailOpener, useTVKeys} from '../focus';
+import {atLeftEdge, captureFocus, clearRailOpener, focusJustMoved, noteOwnFocusMove, noteRail, pressMovedFocus, setRailOpener, useTVKeys} from '../focus';
 import {goSection, useMe, useNewUnseen, NAV_SECTIONS, NavSection} from '../navSection';
 import {isLite} from '../perfTier';
 import {isMid, runLoop, traceValue} from '../qa';
@@ -305,8 +305,11 @@ export default function NavRail({
         // trap (picker, panel, the rail itself) restores focus, which also
         // stamps the clock, so a long window made LEFT briefly deaf after
         // every dismissal.
-        if (t === 'left' && atLeftEdge() && !focusJustMoved(120)) {
+        // pressMovedFocus: the same, for a key held longer than 120ms — JS
+        // only hears the key come UP, the focus engine moved on its way down.
+        if (t === 'left' && atLeftEdge() && !focusJustMoved(120) && !pressMovedFocus()) {
           restore.current = captureFocus();
+          noteOwnFocusMove();
           setOpen(true);
         }
         return;
@@ -326,9 +329,11 @@ export default function NavRail({
       // wrap fired on top of it and the press landed on the profile pill, with
       // Search reachable only by wrapping the other way (Mi TV, 2026-10-06).
       // A press made AT the end moves no focus and wraps as before.
-      if (focusJustMoved(120)) return;
-      if (t === 'up' && at.current === 0) items.current[ITEMS.length - 1]?.requestTVFocus?.();
-      else if (t === 'down' && at.current === ITEMS.length - 1) items.current[0]?.requestTVFocus?.();
+      if (focusJustMoved(120) || pressMovedFocus()) return;
+      const to = t === 'up' && at.current === 0 ? ITEMS.length - 1 : t === 'down' && at.current === ITEMS.length - 1 ? 0 : -1;
+      if (to < 0 || !items.current[to]?.requestTVFocus) return;
+      noteOwnFocusMove();
+      items.current[to]?.requestTVFocus?.();
     },
     [open, close],
   );
@@ -342,6 +347,7 @@ export default function NavRail({
     if (!live || open || disabled) return;
     const fn = () => {
       restore.current = captureFocus();
+      noteOwnFocusMove();
       setOpen(true);
     };
     setRailOpener(fn);
