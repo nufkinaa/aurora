@@ -138,14 +138,39 @@ const MIN_PASSWORD = 4;
 // without the gate, anyone could SET a password on a password-less profile
 // (setPassword accepts any currentPassword when none exists) and lock its
 // owner out; in closed mode another signed-in member could do the same.
+//
+// THE FORCED RESET ends here (lib/resetgate.js): this is the route a profile
+// that owes a new password may still call, with the restricted session or
+// unlock token its sign-in yielded. Identity is proven by the CURRENT
+// password, as for any change — a forced reset changes who may go on using
+// the old password, not who the person is; someone who no longer knows it
+// needs the admin's "Set password". Then the new password must be a password
+// (not empty) and not the old one again (profiles.setPassword: 400 with
+// `code` "needed" / "same"), and the answer carries fresh credentials for
+// this device — { token, session?, user? } — while every other session and
+// token of the profile is gone (resetgate.finish).
+// A wrong current password counts against the unlock limiter, here as there.
 router.post("/api/profiles/:id/password", gate, async (req, res) => {
+  const id = req.params.id;
   const { newPassword, currentPassword } = req.body || {};
   if (newPassword && String(newPassword).length < MIN_PASSWORD) {
     return res.status(400).json({ error: `Passwords need at least ${MIN_PASSWORD} characters.` });
   }
-  const result = await profiles.setPassword(req.params.id, newPassword || "", currentPassword || "");
-  if (result.error) return res.status(result.error === "not found" ? 404 : 401).json(result);
-  res.json(result);
+  const { tooMany, recordFail } = require("./auth")._internals;
+  const ip = realtime.clientIp(req);
+  if (tooMany("unlock:" + ip) || tooMany("unlock:p:" + id)) {
+    return res.status(429).json({ error: "too many attempts — try again in a few minutes" });
+  }
+  const due = profiles.resetDue(id);
+  const result = await profiles.setPassword(id, newPassword || "", currentPassword || "");
+  if (result.error === "wrong password") {
+    recordFail("unlock:" + ip);
+    recordFail("unlock:p:" + id);
+  }
+  if (result.error) {
+    return res.status(result.error === "not found" ? 404 : result.code ? 400 : 401).json(result);
+  }
+  res.json(due ? { ...result, ...require("../lib/resetgate").finish(req, res, id) } : result);
 });
 
 // Asking for a profile does NOT create one — anyone who can reach the gate can
@@ -744,7 +769,7 @@ const tellSignedOut = (profileId, exceptClientId = "") => {
     const ws = c.ws;
     if (!ws || ws.readyState !== 1 /* OPEN */) continue;
     if (exceptClientId && c.id === exceptClientId) continue;
-    if (c.profileId !== profileId && ws.profileId !== profileId) continue;
+    if (c.profileId !== profileId && ws.profileId !== profileId && ws.restricted !== profileId) continue;
     try { ws.send(msg); told++; } catch {}
   }
   return told;

@@ -76,6 +76,7 @@ router.use(kids.createGate({
   certOf: kidsCertOf,
   itemsByArt,
   nameOf: (id) => { const pr = profiles.list().find((x) => x.id === id); return pr ? pr.name : ""; },
+  kidsOf: profiles.kidsOf, // which other profiles are kids ones, and how strict (the hop the lock allows)
   findById: (id) => scanner.findById(id),
   streamItem: (profileId, id) => profiles.getStreamItem(profileId, id),
   certByTitle: (type, title, year) => discover.certificateByTitle(type, title, year),

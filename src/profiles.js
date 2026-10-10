@@ -131,7 +131,7 @@ const login = async (identifier, password) => {
       : (await hashPassword(String(password || "x")), false);
   if (!ok) return { error: "wrong username or password" };
   if (p.locked) return { error: `that profile is locked — talk to ${config.ADMIN_NAME}` };
-  return { ok: true, profileId: p.id, user: signinPub(p), profile: pub(p), mustReset: !!p.mustReset };
+  return { ok: true, profileId: p.id, user: signinPub(p), profile: pub(p), mustReset: resetDue(p.id) };
 };
 
 // Can this profile still be claimed? Seeds the claim UI: a free suggested
@@ -174,7 +174,7 @@ const claimSignin = async ({ profileId, username, email, password }) => {
   if (e) p.email = e;
   p.claimedAt = Date.now();
   store.save();
-  return { ok: true, profileId: p.id, user: signinPub(p), profile: pub(p), mustReset: !!p.mustReset };
+  return { ok: true, profileId: p.id, user: signinPub(p), profile: pub(p), mustReset: resetDue(p.id) };
 };
 
 const linkGoogle = (profileId, sub) => {
@@ -221,7 +221,7 @@ const signinList = () =>
     color: p.color,
     hasPassword: !!p.passwordHash,
     locked: !!p.locked,
-    mustReset: !!p.mustReset,
+    mustReset: resetDue(p.id),
     claimedAt: p.claimedAt || null,
   }));
 
@@ -273,6 +273,31 @@ const issueToken = (id) => {
   return t;
 };
 const tokenValid = (id, token) => !!token && tokens.get(token) === id;
+// Tokens the ADMIN ended (People → Kick, Reset password), remembered for a
+// while after they died. A dead token is otherwise just "no token", and in
+// sign-in modes "open" and "transition" a request with no token is a
+// visitor's: a TV whose profile had been signed out went on showing Home,
+// minus the personal rows. A request that still presents one of these is
+// told to sign in again (lib/resetgate.js). RAM only, like the tokens.
+const endedTokens = new Map(); // token -> when it was ended
+const ENDED_TTL = 30 * 24 * 3600 * 1000;
+const ENDED_MAX = 2000;
+const rememberEnded = (token) => {
+  endedTokens.set(token, Date.now());
+  if (endedTokens.size > ENDED_MAX) {
+    const cutoff = Date.now() - ENDED_TTL;
+    for (const [t, at] of endedTokens) {
+      if (at < cutoff || endedTokens.size > ENDED_MAX) endedTokens.delete(t);
+      else break; // a Map keeps insertion order: the rest are newer
+    }
+  }
+};
+const tokenEnded = (token) => {
+  const at = token ? endedTokens.get(String(token)) : null;
+  return !!at && Date.now() - at < ENDED_TTL;
+};
+// One token, ended by the device that holds it (its own sign-out).
+const revokeToken = (token) => (token ? tokens.delete(String(token)) : false);
 // Which profile an unlock token belongs to (null for an unknown one) — the
 // kids gate reads it to know who is asking on routes that name no profile.
 const tokenProfile = (token) => (token && tokens.get(String(token))) || null;
@@ -357,11 +382,11 @@ const unlock = async (id, password) => {
   const p = getRaw(id);
   if (!p) return { error: "not found" };
   if (p.locked) return { error: "locked by admin" };
-  if (!p.passwordHash) return { ok: true, token: issueToken(id), mustReset: !!p.mustReset };
+  if (!p.passwordHash) return { ok: true, token: issueToken(id), mustReset: false };
   if (!(await verifyHash(password, p.passwordSalt, p.passwordHash))) {
     return { error: "wrong password" };
   }
-  return { ok: true, token: issueToken(id), mustReset: !!p.mustReset };
+  return { ok: true, token: issueToken(id), mustReset: resetDue(id) };
 };
 
 // Admin lockdown: a locked profile can't be entered, unlocked, edited, or used
@@ -380,23 +405,61 @@ const setLocked = (id, locked) => {
   return pub(p);
 };
 
-// Admin: a new password is required at the next sign-in (People → "Reset
-// password"). The current password still opens the profile — that is how the
-// person proves who they are — and the gate then insists on a new one before
-// anything else. Live sessions and unlock tokens die at once.
+// Admin: a new password is REQUIRED (People → "Reset password"). From the
+// moment the flag is set the profile's sessions and unlock tokens are
+// RESTRICTED credentials: the current password still signs in — that is how
+// the person proves who they are — but what it yields opens nothing except
+// the route that saves a new password (lib/resetgate.js has the rule and the
+// list). Saving one clears the flag (setPassword), as does the admin choosing
+// a password for them (adminSetPassword).
+//
+// "Reset" means THE PROFILE'S PASSWORD and nothing else. A profile with no
+// password — one that signs in with Google only, or one that opens freely or
+// with the household PIN — has nothing to reset: the flag is not set and the
+// answer says so (`noPassword`); routes/admin.js still signs it out
+// everywhere. The household PIN is a different secret (setKidsPin) and is
+// never touched from here.
+//
+// A KIDS profile is not asked either (`kidsProfile`), password or not: a
+// child may not change the profile's password — that is the kids rule
+// (lib/kids.js refuses it from inside a kids profile, so a child cannot lock
+// the family out) — and a requirement nobody is allowed to meet would shut
+// the profile for good. A grown-up gives a kids profile its new password:
+// the admin's "Set password". It is signed out everywhere all the same.
 const setMustReset = (id, on) => {
   const p = getRaw(id);
   if (!p) return null;
-  if (on) p.mustReset = true;
-  else delete p.mustReset;
-  for (const [t, pid] of tokens) if (pid === id) tokens.delete(t);
+  if (on && !p.passwordHash) return { ...pub(p), noPassword: true };
+  if (on && kidsOf(id)) return { ...pub(p), kidsProfile: true };
+  if (on) {
+    p.mustReset = true;
+    // every unlock of the profile ends with the request (and is remembered as
+    // ended by the admin — see tokenEnded). Withdrawing ends nothing: what
+    // was opened meanwhile was opened with the right password.
+    revokeTokensFor(id, { remember: true });
+  } else {
+    delete p.mustReset;
+  }
   store.save();
   return pub(p);
 };
+// Is a new password due on this profile? Only a profile that HAS a password
+// can owe one (a flag left on a password-less profile by an older build means
+// nothing) — and never a kids profile, which could not meet it (above): one
+// that is made a kids profile while a reset is pending stops owing it.
+const resetDue = (id) => {
+  const p = getRaw(id);
+  return !!(p && p.mustReset && p.passwordHash && !(p.kids && typeof p.kids.maxAge === "number"));
+};
 // Admin "kick": every unlock token of this profile, gone. (Sign-in sessions
-// are lib/sessions' business; routes/admin.js revokes both.)
-const revokeTokensFor = (id) => {
-  for (const [t, pid] of tokens) if (pid === id) tokens.delete(t);
+// are lib/sessions' business; routes/admin.js revokes both.) `remember`:
+// a request that still shows one of them is told to sign in again.
+const revokeTokensFor = (id, { remember = false } = {}) => {
+  for (const [t, pid] of tokens) {
+    if (pid !== id) continue;
+    tokens.delete(t);
+    if (remember) rememberEnded(t);
+  }
 };
 
 // Followed shows: [{imdbId, title, at}] on the profile. `at` is when the
@@ -463,6 +526,14 @@ const setPassword = async (id, newPassword, currentPassword) => {
   if (!p) return { error: "not found" };
   if (p.passwordHash && !(await verifyHash(currentPassword, p.passwordSalt, p.passwordHash))) {
     return { error: "wrong password" };
+  }
+  // A forced reset asks for a NEW password: not none, and not the old one
+  // typed again (the old one may be the very thing that leaked).
+  if (resetDue(id)) {
+    if (!newPassword) return { error: "pick a new password — this profile cannot go without one right now", code: "needed" };
+    if (await verifyHash(String(newPassword), p.passwordSalt, p.passwordHash)) {
+      return { error: "that is the old password — pick a different one", code: "same" };
+    }
   }
   if (!newPassword) {
     // A claimed profile's password IS its sign-in credential — removing it
@@ -1443,7 +1514,10 @@ module.exports = {
   isLocked,
   setLocked,
   setMustReset,
+  resetDue,
   revokeTokensFor,
+  revokeToken,
+  tokenEnded,
   tokenValid,
   tokenProfile,
   kidsTokenProfile,
