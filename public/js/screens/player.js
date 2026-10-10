@@ -451,13 +451,16 @@ const startVariant = (variants, capH = 0) => {
 // (that would join a swarm). Returns the URL asked, or null.
 const warmed = new Map(); // segment warm-ups asked: url -> when
 // `restart`: the viewer asked to begin from the top (no resume point).
-export const prestart = (item, { low = false, restart = false } = {}) => {
+// `soft`: the title's page was opened, no more — nothing that takes one of
+// the server's two encoders for certain is started on that alone.
+export const prestart = (item, { low = false, restart = false, soft = false } = {}) => {
   try {
     const plan = startPlan(item);
     if (!plan || plan.kind === "direct") return null;
     if (plan.kind === "offset") {
       // the offset job itself is the wait: starting it is the whole warm-up
-      if (low) fetch(plan.url, { cache: "no-store", priority: "low" }).catch(() => {});
+      // (a full encode, held for minutes: only when Play is being reached for)
+      if (low && !soft) fetch(plan.url, { cache: "no-store", priority: "low" }).catch(() => {});
       return plan.url;
     }
     if (!plan.nativeHls) loadHlsScript().catch(() => {});
@@ -502,7 +505,7 @@ export const prestart = (item, { low = false, restart = false } = {}) => {
   }
 };
 // The Play button's warm-up (prefetch.js): the same asks, quietly.
-export const warmPlayback = (item) => prestart(item, { low: true });
+export const warmPlayback = (item, { soft = false } = {}) => prestart(item, { low: true, soft });
 
 // Subtitle appearance is styled globally via ::cue
 export const applyCueStyle = () => {

@@ -1325,7 +1325,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       // most) — and a title that is not played costs nothing more. Not on a
       // slow line or under Data saver (prefetch.js decides).
       (window.requestIdleCallback || ((fn) => setTimeout(fn, 900)))(() => {
-        if (screen.isConnected) warmPlay(target);
+        if (screen.isConnected) warmPlay(target, { soft: true });
       }, { timeout: 3000 });
     }
   }
