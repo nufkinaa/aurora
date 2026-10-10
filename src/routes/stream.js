@@ -4,6 +4,7 @@ const path = require("path");
 const express = require("express");
 const scanner = require("../media/scanner");
 const subtitles = require("../media/subtitles");
+const faststart = require("../media/faststart");
 
 const router = express.Router();
 
@@ -39,6 +40,10 @@ router.get("/stream/video/:id", (req, res) => {
   // leak file descriptors on the hottest route, and handle read errors instead
   // of letting them throw up to the global uncaughtException net.
   const onErr = () => { if (!res.headersSent) res.status(500).end(); else res.end(); };
+  // An MP4 with its index at the end goes out with the index in front
+  // (media/faststart.js): the same length, the same film, two round trips
+  // fewer before a player can show a frame. null = as it is on disk.
+  const plan = require("../config").SERVE_FASTSTART ? faststart.planFor(entry.path, stat) : null;
 
   if (range) {
     const m = range.match(/bytes=(\d*)-(\d*)/);
@@ -64,6 +69,7 @@ router.get("/stream/video/:id", (req, res) => {
       "Content-Length": end - start + 1,
       "Content-Type": mime,
     });
+    if (plan) return faststart.pipe(entry.path, plan, start, end, res, onErr);
     const s = fs.createReadStream(entry.path, { start, end });
     s.on("error", onErr);
     s.pipe(res);
@@ -74,6 +80,7 @@ router.get("/stream/video/:id", (req, res) => {
       "Content-Type": mime,
       "Accept-Ranges": "bytes",
     });
+    if (plan) return faststart.pipe(entry.path, plan, 0, total - 1, res, onErr);
     const s = fs.createReadStream(entry.path);
     s.on("error", onErr);
     s.pipe(res);

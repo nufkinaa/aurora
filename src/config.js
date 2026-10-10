@@ -212,6 +212,10 @@ module.exports = {
   AUTH_MODE: ["open", "transition", "closed", "hybrid", "required"].includes(userConfig.authMode)
     ? userConfig.authMode
     : "open",
+  // An MP4 whose index is at the end of the file is served with it in front
+  // (media/faststart.js — nothing on disk changes). "serveFaststart": false
+  // serves every file byte for byte as it is.
+  SERVE_FASTSTART: userConfig.serveFaststart !== false,
   // The TV player's start-up tuning, handed to the app as it is asked for
   // (lib/tvtuning.js — checked there). Nothing set: the app's own values.
   TV_PLAYER: userConfig.tvPlayer || null,
