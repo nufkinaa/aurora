@@ -1,44 +1,277 @@
 {
-  "component": "hero",
-  "impl": "H",
-  "notes": [
-    "P4: Home's billboard art + the sliding column (10d-spec §2-5). Rotation (9 s) is frozen; the hero shows pick 0 at launch.",
-    "scrolled: DOWN from Play -> atTop 1->0 over 280 ms, ty -> -(rowY[0] - 27), the art fades with the column (artFade = f(ty)).",
-    "first-slide: RIGHT on the last hero button (Details, index 1) turns the slide (swap 280 ms); a 15 s hold follows — irrelevant while frozen.",
-    "mute-pill: the Unmute/Mute small Btn exists only while a trailer plays; needs freeze on,trailer and the instance's fixture HLS (/fixture/trailer.m3u8) with TrailerFrame paused at t=0. The trailer surface is a TextureView whose decoded frame may differ by a level between runs: declared as a dither region (reported), not masked.",
-    "Window px = dp x 2 (1920x1080 over a 960x540 canvas)."
-  ],
-  "defaults": {
-    "launch": {"data": null, "extras": {}},
-    "nav": "home",
-    "freeze": {"freeze": "on", "trace": false, "focuslog": true},
-    "idle": {"quietMs": 600, "gfxStableMs": 500, "pollMs": 100, "timeoutMs": 10000},
-    "settleMs": 700,
-    "keyGapMs": 150,
-    "tolerance": {"threshold": 0.1, "maxDiffFraction": 0.0005, "edgeDilate": 1},
-    "masks": [],
-    "dither": [],
-    "crop": null,
-    "trace": [],
-    "server": {}
+ "component": "hero",
+ "impl": "H",
+ "notes": [
+  "P4: Home's billboard art + the sliding column (10d-spec §2-5). Rotation (9 s) is frozen; the hero shows pick 0 at launch.",
+  "scrolled: DOWN from Play -> atTop 1->0 over 280 ms, ty -> -(rowY[0] - 27), the art fades with the column (artFade = f(ty)).",
+  "first-slide: RIGHT on the last hero button (Details, index 1) turns the slide (swap 280 ms); a 15 s hold follows — irrelevant while frozen.",
+  "mute-pill: the Unmute/Mute small Btn exists only while a trailer plays; needs freeze on,trailer and the instance's fixture HLS (/fixture/trailer.m3u8) with TrailerFrame paused at t=0. The trailer surface is a TextureView whose decoded frame may differ by a level between runs: declared as a dither region (reported), not masked.",
+  "Window px = dp x 2 (1920x1080 over a 960x540 canvas).",
+  "2026-10-10: the local library, profile Claude QA. heroH = 356 dp, so the art fade runs between ty -107 (whole) and -320 (gone); row 0 rests at ty -329 (art gone), which is why the fade's MIDDLE is captured with `freeze on,mid` (PROTOCOL.md §3): atTop rests at 0.5 (dim 0.435, scrolled layer at alpha 0.5) and the column half way to the row (row 0: ty -164.5, art alpha 0.73; row 1: ty -260.75, art alpha 0.28).",
+  "expectGains: going UP onto the hero races in the JS reference under adb (run.py capture_guarded); the guard names the outcome compared - the rail did not open.",
+  "The trailer layer (mute-pill) is not reachable without the fixture HLS: home trailers are off in this profile's Settings."
+ ],
+ "defaults": {
+  "launch": {
+   "data": null,
+   "extras": {}
   },
-  "states": [
-    {"name": "rest", "keys": [],
-     "dither": [{"rect": [0, 0, 1920, 1080], "why": "hero scrim gradient (hero-scrim.png stretched) — Android may dither the stretched 480x270 RGBA; only matters at threshold 0"}],
-     "note": "hero pick 0 at rest: art, scrim, lockup, Play lit, Details, dots (active dot 22 px wide)"},
-    {"name": "scrolled", "keys": ["DPAD_DOWN"], "settleMs": 900,
-     "trace": ["hero.atTop", "hero.ty"],
-     "note": "column slid up by rowY[0] - 27, art faded by f(ty); the scrolled layer is mounted only now"},
-    {"name": "scrolled-back", "keys": ["DPAD_DOWN", "wait:900", "DPAD_UP"], "settleMs": 900,
-     "trace": ["hero.atTop", "hero.ty"],
-     "note": "back to the top: atTop -> 1, ty -> 0; must equal 'rest' pixel-for-pixel too"},
-    {"name": "first-slide", "keys": ["DPAD_RIGHT", "wait:400", "DPAD_RIGHT"], "settleMs": 1000,
-     "trace": ["hero.swap"],
-     "note": "RIGHT to Details, RIGHT on the last button turns to pick 1 (swap 280 ms); dots show the second dot active; Details still lit"},
-    {"name": "mute-pill", "keys": ["wait:5500"], "settleMs": 1200,
-     "freeze": {"freeze": "on,trailer", "trace": false, "focuslog": true},
-     "server": {"fixtureTrailer": true},
-     "dither": [{"rect": [0, 0, 1920, 1080], "why": "trailer TextureView: a decoded static HLS frame may differ by a level between runs"}],
-     "note": "a trailer holds after 4.5 s -> trailerFade 0->1 over 800 ms, the Unmute pill (small Btn, 🔇) appears as hero button 2; the fixture HLS is a static colour frame paused at t=0"}
-  ]
+  "nav": "home",
+  "freeze": {
+   "freeze": "on",
+   "trace": false,
+   "focuslog": true
+  },
+  "idle": {
+   "quietMs": 600,
+   "gfxStableMs": 500,
+   "pollMs": 100,
+   "timeoutMs": 10000
+  },
+  "settleMs": 700,
+  "keyGapMs": 150,
+  "tolerance": {
+   "threshold": 0.1,
+   "maxDiffFraction": 0.0005,
+   "edgeDilate": 1
+  },
+  "masks": [],
+  "dither": [],
+  "crop": null,
+  "trace": [],
+  "server": {}
+ },
+ "states": [
+  {
+   "name": "rest",
+   "keys": [],
+   "dither": [
+    {
+     "rect": [
+      0,
+      0,
+      1920,
+      1080
+     ],
+     "why": "hero scrim gradient (hero-scrim.png stretched) — Android may dither the stretched 480x270 RGBA; only matters at threshold 0"
+    }
+   ],
+   "note": "hero pick 0 at rest: art, scrim, lockup, Play lit, Details, dots (active dot 22 px wide)"
+  },
+  {
+   "name": "scrolled",
+   "keys": [
+    "DPAD_DOWN"
+   ],
+   "settleMs": 900,
+   "trace": [
+    "hero.atTop",
+    "hero.ty"
+   ],
+   "note": "column slid up by rowY[0] - 27, art faded by f(ty); the scrolled layer is mounted only now",
+   "focusCheck": true
+  },
+  {
+   "name": "scrolled-back",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:900",
+    "DPAD_UP"
+   ],
+   "settleMs": 900,
+   "trace": [
+    "hero.atTop",
+    "hero.ty"
+   ],
+   "expectGains": 2,
+   "note": "back to the top: atTop -> 1, ty -> 0; must equal 'rest' pixel-for-pixel too"
+  },
+  {
+   "name": "first-slide",
+   "keys": [
+    "DPAD_RIGHT",
+    "wait:400",
+    "DPAD_RIGHT"
+   ],
+   "settleMs": 1000,
+   "trace": [
+    "hero.swap"
+   ],
+   "note": "RIGHT to Details, RIGHT on the last button turns to pick 1 (swap 280 ms); dots show the second dot active; Details still lit",
+   "focusCheck": true
+  },
+  {
+   "name": "details-lit",
+   "keys": [
+    "DPAD_RIGHT"
+   ],
+   "focusCheck": true,
+   "note": "focus on Details (hero button 1); the art is untouched"
+  },
+  {
+   "name": "scrolled-row1",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:900",
+    "DPAD_DOWN"
+   ],
+   "settleMs": 900,
+   "trace": [
+    "hero.ty",
+    "hero.art"
+   ],
+   "focusCheck": true,
+   "note": "second shelf: the column slides -329 -> -521.5 from rest, the art stays gone"
+  },
+  {
+   "name": "scrolled-row3",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:900",
+    "DPAD_DOWN",
+    "wait:900",
+    "DPAD_DOWN",
+    "wait:900",
+    "DPAD_DOWN"
+   ],
+   "settleMs": 900,
+   "trace": [
+    "hero.ty"
+   ],
+   "focusCheck": true,
+   "note": "four shelves down, one press at a time (each lands after the column and the newly mounted shelves have settled, so the JS clamp quirk of a fast burst is not in play)"
+  },
+  {
+   "name": "down-burst-4",
+   "keys": [
+    "DPAD_DOWN*4@50"
+   ],
+   "settleMs": 1500,
+   "trace": [
+    "hero.ty"
+   ],
+   "traceRule": "rest",
+   "focusCheck": true,
+   "note": "four DOWNs in one burst: the rest offset of the column. JS clamps to the column height AT the press (Home.tsx toRow), native to the targets committed at the press - a known quirk; any difference here is that quirk and is reported, not hidden"
+  },
+  {
+   "name": "back-from-row1",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:900",
+    "DPAD_DOWN",
+    "wait:900",
+    "DPAD_UP",
+    "wait:900",
+    "DPAD_UP"
+   ],
+   "settleMs": 900,
+   "trace": [
+    "hero.atTop",
+    "hero.ty"
+   ],
+   "expectGains": 4,
+   "focusCheck": true,
+   "note": "down two shelves and back up to the hero: must equal 'rest'"
+  },
+  {
+   "name": "slide-then-scrolled",
+   "keys": [
+    "DPAD_RIGHT",
+    "wait:400",
+    "DPAD_RIGHT",
+    "wait:1200",
+    "DPAD_DOWN"
+   ],
+   "settleMs": 900,
+   "trace": [
+    "hero.atTop",
+    "hero.ty"
+   ],
+   "note": "turn to pick 1, then down: the scrolled layer is mounted for pick 1"
+  },
+  {
+   "name": "slide-scrolled-back",
+   "keys": [
+    "DPAD_RIGHT",
+    "wait:400",
+    "DPAD_RIGHT",
+    "wait:1200",
+    "DPAD_DOWN",
+    "wait:900",
+    "DPAD_UP"
+   ],
+   "settleMs": 900,
+   "trace": [
+    "hero.atTop",
+    "hero.ty"
+   ],
+   "expectGains": 3,
+   "note": "pick 1, down, up again: pick 1 at rest with its scrolled layer mounted underneath (invisible)"
+  },
+  {
+   "name": "mid-fade-row0",
+   "keys": [
+    "DPAD_DOWN"
+   ],
+   "settleMs": 900,
+   "freeze": {
+    "freeze": "on,mid",
+    "trace": false,
+    "focuslog": true
+   },
+   "trace": [
+    "hero.atTop",
+    "hero.ty",
+    "hero.art"
+   ],
+   "note": "freeze on,mid: the cross-fade held at atTop 0.5 (dim 0.435, the scrolled picture at alpha 0.5 over the rest picture) and the column half way to row 0 (ty -164.5, art alpha 0.73) - the blended frame, still"
+  },
+  {
+   "name": "mid-fade-row1",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:900",
+    "DPAD_DOWN"
+   ],
+   "settleMs": 900,
+   "freeze": {
+    "freeze": "on,mid",
+    "trace": false,
+    "focuslog": true
+   },
+   "trace": [
+    "hero.ty",
+    "hero.art"
+   ],
+   "note": "freeze on,mid: column half way to row 1 (ty -260.75), art alpha 0.28 at atTop 0.5"
+  },
+  {
+   "name": "mute-pill",
+   "keys": [
+    "wait:5500"
+   ],
+   "settleMs": 1200,
+   "freeze": {
+    "freeze": "on,trailer",
+    "trace": false,
+    "focuslog": true
+   },
+   "server": {
+    "fixtureTrailer": true
+   },
+   "dither": [
+    {
+     "rect": [
+      0,
+      0,
+      1920,
+      1080
+     ],
+     "why": "trailer TextureView: a decoded static HLS frame may differ by a level between runs"
+    }
+   ],
+   "note": "a trailer holds after 4.5 s -> trailerFade 0->1 over 800 ms, the Unmute pill (small Btn, 🔇) appears as hero button 2; the fixture HLS is a static colour frame paused at t=0"
+  }
+ ]
 }

@@ -163,6 +163,38 @@ def _off_curve(ref, other, tol, slack=None):
     return first, worst
 
 
+def compare_rest(a: Trace, b: Trace, ids: list[str]) -> dict:
+    """`"traceRule": "rest"` — for a key BURST only. The gaps between the presses of an adb
+    burst are not reproducible (measured 2026-10-10: 114..357 ms between the presses of one
+    `KEY*12@50` loop, different in every run), so the bent journey of a retargeted spring is
+    a different curve every time, js against js included, and neither the curve rule nor the
+    16.7 ms rest-time rule can be asked of it. What a burst must still agree on: the value
+    each id comes to REST at (within 1e-3 x range, the same tolerance as the curve rule)
+    and that both sides did animate. Everything else is reported, not judged."""
+    out = {"pass": True, "ids": {}, "reasons": [], "rule": "rest", "tolerance": TOL_FRACTION}
+    for anim_id in ids:
+        sa, sb = a.anim.get(anim_id, []), b.anim.get(anim_id, [])
+        rec = {"steps_a": len(sa), "steps_b": len(sb), "pass": True, "max_abs_err": 0.0, "first_bad_step": None}
+        if not sa or not sb:
+            rec["pass"] = False
+            rec["reason"] = f"no [anim] steps for {anim_id} in " + ("A and B" if not sa and not sb else "A" if not sa else "B")
+            out["reasons"].append(rec["reason"])
+        else:
+            va = [v for _, v in sa]
+            rng = (max(va) - min(va)) or 1.0
+            rec["range"], rec["rest_a"], rec["rest_b"] = rng, sa[-1][1], sb[-1][1]
+            rec["max_abs_err"] = abs(sa[-1][1] - sb[-1][1])
+            if a.keys and b.keys:
+                rec["rest_ms_a"] = sa[-1][0] / 1e6 - a.keys[-1][0]
+                rec["rest_ms_b"] = sb[-1][0] / 1e6 - b.keys[-1][0]
+            if rec["max_abs_err"] > TOL_FRACTION * rng:
+                rec["pass"] = False
+                out["reasons"].append(f"{anim_id}: rest value A={sa[-1][1]:.6g} B={sb[-1][1]:.6g}")
+        out["ids"][anim_id] = rec
+        out["pass"] &= rec["pass"]
+    return out
+
+
 def compare(a: Trace, b: Trace, ids: list[str], retarget: bool = False, align: str = "last") -> dict:
     """-> {"pass": bool, "ids": {id: {...}}, "reasons": [...]}"""
     out = {"pass": True, "ids": {}, "reasons": [], "tolerance": TOL_FRACTION, "time_slack_ms": TIME_SLACK_MS,
@@ -232,14 +264,51 @@ def focus_table(tr: Trace) -> list[dict]:
     keys = list(tr.keys)
     for t, ev, kv in tr.focus:
         last_key = next((k for k in reversed(keys) if k[0] <= t), None)
-        rows.append({"after_key": last_key[1] if last_key else None, "event": ev, **kv})
+        rows.append({"after_key": last_key[1] if last_key else None, "event": ev, **kv, "_t": t})
+    # ONE focus move is a loss and a gain. The JS Focusable logs them from its onBlur/onFocus
+    # handlers, always loss first. The native one logs from View.onFocusChanged, and when the
+    # element gaining focus is being MOUNTED (the rail's item as the panel opens) it takes focus
+    # inside its still-detached subtree first and the old element is un-focused when that
+    # subtree is attached, 1-2 frames later: "gain, loss" (seen 2026-10-10 with the JS rail and
+    # the native rail alike — a property of the verified native Focusable, not of the rail).
+    # The table is about WHERE focus goes, so a gain directly followed within 100 ms by the
+    # loss of another element is written in the canonical order, loss first.
+    i = 0
+    while i + 1 < len(rows):
+        g, l = rows[i], rows[i + 1]
+        if g["event"] == "gain" and l["event"] == "loss" and g.get("tag") != l.get("tag") and 0 <= l["_t"] - g["_t"] <= 100:
+            rows[i], rows[i + 1] = l, g
+            i += 2
+        else:
+            i += 1
+    for r in rows:
+        del r["_t"]
     return rows
 
 
+def _canon(rows):
+    """The table with `impl` dropped and every purely numeric tag (a react tag: it names a
+    view of ONE run, and the two implementations mount different numbers of views) replaced
+    by the order in which the run first focused it — `#0`, `#1`, … — so "the same element
+    again" still reads as the same name. nativeIDs / testIDs are kept as they are."""
+    names, out = {}, []
+    for r in rows:
+        r = {k: v for k, v in r.items() if k != "impl"}
+        tag = r.get("tag")
+        if isinstance(tag, str) and tag.isdigit():
+            r["tag"] = names.setdefault(tag, f"#{len(names)}")
+        out.append(r)
+    return out
+
+
 def compare_focus(a: Trace, b: Trace) -> dict:
+    """The tables agree when focus GOES to the same elements in the same order: the gain rows.
+    Loss rows are written to the file but not compared - whether one is logged depends on the
+    logger, not on the app: the JS Focusable cannot log the blur of an element that is being
+    unmounted (the rail's item when OK closes the panel), the native one does."""
     ta, tb = focus_table(a), focus_table(b)
-    strip = lambda rows: [{k: v for k, v in r.items() if k != "impl"} for r in rows]
-    same = strip(ta) == strip(tb)
+    gains = lambda rows: [r for r in _canon(rows) if r.get("event") == "gain"]
+    same = gains(ta) == gains(tb)
     return {"pass": same, "rows_a": ta, "rows_b": tb,
             "reasons": [] if same else [f"focus table differs ({len(ta)} vs {len(tb)} rows)"]}
 

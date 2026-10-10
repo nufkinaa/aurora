@@ -1,53 +1,298 @@
 {
-  "component": "navrail",
-  "impl": "N",
-  "notes": [
-    "P5: NavRail (10b-spec). Closed = the passive 44 dp strip; open = the 288 dp panel (strip alpha 1->0, panel -288->0 over 280 ms).",
-    "Opened by LEFT on the hero's Play (10d §4: left on button 0 -> requestRailOpen). Focus lands on the active section's item (Home, index 1).",
-    "Items in order: 0 search (icon only), 1 home, 2 movies, 3 shows, 4 list, 5 ai, [spacer], 6 settings, 7 profile pill.",
-    "UP at item 0 wraps to the profile pill unless focusJustMoved(120): the states reach each item with DOWN steps 150 ms apart (keyGapMs) so no wrap is triggered, except 'item-profile-wrap' which tests the wrap after a pause.",
-    "RailHues loops hold phase 0.37 under freeze."
-  ],
-  "defaults": {
-    "launch": {"data": null, "extras": {}},
-    "nav": "home",
-    "freeze": {"freeze": "on", "trace": false, "focuslog": true},
-    "idle": {"quietMs": 600, "gfxStableMs": 500, "pollMs": 100, "timeoutMs": 10000},
-    "settleMs": 900,
-    "keyGapMs": 150,
-    "tolerance": {"threshold": 0.1, "maxDiffFraction": 0.0005, "edgeDilate": 1},
-    "masks": [],
-    "dither": [],
-    "crop": null,
-    "trace": [],
-    "server": {}
+ "component": "navrail",
+ "impl": "N",
+ "notes": [
+  "P5: NavRail (10b-spec). Closed = the passive 44 dp strip; open = the 288 dp panel (strip alpha 1->0, panel -288->0 over 280 ms).",
+  "Opened by LEFT on the hero's Play (10d §4: left on button 0 -> requestRailOpen). Focus lands on the active section's item (Home, index 1).",
+  "Items in order: 0 search (icon only), 1 home, 2 movies, 3 shows, 4 list, 5 ai, [spacer], 6 settings, 7 profile pill.",
+  "UP at item 0 wraps to the profile pill unless focusJustMoved(120): the states reach each item with DOWN steps 150 ms apart (keyGapMs) so no wrap is triggered, except 'item-profile-wrap' which tests the wrap after a pause.",
+  "RailHues loops hold phase 0.37 under freeze.",
+  "2026-10-10: `freeze on,mid` holds the slide at 0.5 (panel half out at -144 dp, strip alpha 0.5, second body and hues at alpha 0.5) for a still capture of the slide's middle.",
+  "Close paths: RIGHT and BACK slide out (280 ms) and hand focus back; OK on an item closes at once (instantClose) and navigates."
+ ],
+ "defaults": {
+  "launch": {
+   "data": null,
+   "extras": {}
   },
-  "states": [
-    {"name": "closed", "keys": [],
-     "note": "collapsed strip only (passive): the rail mark over the dots, hues frozen"},
-    {"name": "open", "keys": ["DPAD_LEFT"],
-     "trace": ["rail.slide", "rail.strip"],
-     "note": "panel open, strip faded, focus on 'Home' (lit); the slide and the strip alpha traced"},
-    {"name": "item-search", "keys": ["DPAD_LEFT", "wait:500", "DPAD_UP"],
-     "note": "'Search' (lone 18 dp magnifier) lit"},
-    {"name": "item-home", "keys": ["DPAD_LEFT"],
-     "note": "same as 'open' — kept as its own row so the per-item table is complete"},
-    {"name": "item-movies", "keys": ["DPAD_LEFT", "wait:500", "DPAD_DOWN"],
-     "note": "'Movies' lit"},
-    {"name": "item-shows", "keys": ["DPAD_LEFT", "wait:500", "DPAD_DOWN", "DPAD_DOWN"],
-     "note": "'Shows' lit"},
-    {"name": "item-list", "keys": ["DPAD_LEFT", "wait:500", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN"],
-     "note": "'My List' lit"},
-    {"name": "item-ai", "keys": ["DPAD_LEFT", "wait:500", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN"],
-     "note": "'AI' lit"},
-    {"name": "item-settings", "keys": ["DPAD_LEFT", "wait:500", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN"],
-     "note": "'Settings' (icon gear 19 + label) lit, across the flex spacer"},
-    {"name": "item-profile", "keys": ["DPAD_LEFT", "wait:500", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN", "DPAD_DOWN"],
-     "note": "the profile pill lit (avatar + name of the 'Claude QA' profile)"},
-    {"name": "item-profile-wrap", "keys": ["DPAD_LEFT", "wait:500", "DPAD_UP", "wait:500", "DPAD_UP"],
-     "note": "UP at Search after a pause wraps to the profile pill; must equal 'item-profile'"},
-    {"name": "closed-again", "keys": ["DPAD_LEFT", "wait:800", "DPAD_RIGHT"],
-     "trace": ["rail.slide", "rail.strip"],
-     "note": "RIGHT closes; focus returns to the captured element (Play); must equal 'closed'"}
-  ]
+  "nav": "home",
+  "freeze": {
+   "freeze": "on",
+   "trace": false,
+   "focuslog": true
+  },
+  "idle": {
+   "quietMs": 600,
+   "gfxStableMs": 500,
+   "pollMs": 100,
+   "timeoutMs": 10000
+  },
+  "settleMs": 900,
+  "keyGapMs": 150,
+  "tolerance": {
+   "threshold": 0.1,
+   "maxDiffFraction": 0.0005,
+   "edgeDilate": 1
+  },
+  "masks": [],
+  "dither": [],
+  "crop": null,
+  "trace": [],
+  "server": {}
+ },
+ "states": [
+  {
+   "name": "closed",
+   "keys": [],
+   "note": "collapsed strip only (passive): the rail mark over the dots, hues frozen",
+   "focusCheck": true
+  },
+  {
+   "name": "open",
+   "keys": [
+    "DPAD_LEFT"
+   ],
+   "trace": [
+    "rail.slide",
+    "rail.strip"
+   ],
+   "note": "panel open, strip faded, focus on 'Home' (lit); the slide and the strip alpha traced",
+   "focusCheck": true
+  },
+  {
+   "name": "item-search",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:500",
+    "DPAD_UP"
+   ],
+   "note": "'Search' (lone 18 dp magnifier) lit",
+   "focusCheck": true
+  },
+  {
+   "name": "item-home",
+   "keys": [
+    "DPAD_LEFT"
+   ],
+   "note": "same as 'open' — kept as its own row so the per-item table is complete",
+   "focusCheck": true
+  },
+  {
+   "name": "item-movies",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:500",
+    "DPAD_DOWN"
+   ],
+   "note": "'Movies' lit",
+   "focusCheck": true
+  },
+  {
+   "name": "item-shows",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:500",
+    "DPAD_DOWN",
+    "DPAD_DOWN"
+   ],
+   "note": "'Shows' lit",
+   "focusCheck": true
+  },
+  {
+   "name": "item-list",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:500",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "DPAD_DOWN"
+   ],
+   "note": "'My List' lit",
+   "focusCheck": true
+  },
+  {
+   "name": "item-ai",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:500",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "DPAD_DOWN"
+   ],
+   "note": "'AI' lit",
+   "focusCheck": true
+  },
+  {
+   "name": "item-settings",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:500",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "DPAD_DOWN"
+   ],
+   "note": "'Settings' (icon gear 19 + label) lit, across the flex spacer",
+   "focusCheck": true
+  },
+  {
+   "name": "item-profile",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:500",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "DPAD_DOWN"
+   ],
+   "note": "the profile pill lit (avatar + name of the 'Claude QA' profile)",
+   "focusCheck": true
+  },
+  {
+   "name": "item-profile-wrap",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:500",
+    "DPAD_UP",
+    "wait:500",
+    "DPAD_UP"
+   ],
+   "note": "UP at Search after a pause wraps to the profile pill; must equal 'item-profile'",
+   "focusCheck": true
+  },
+  {
+   "name": "closed-again",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:800",
+    "DPAD_RIGHT"
+   ],
+   "trace": [
+    "rail.slide",
+    "rail.strip"
+   ],
+   "note": "RIGHT closes; focus returns to the captured element (Play); must equal 'closed'",
+   "focusCheck": true
+  },
+  {
+   "name": "mid-open",
+   "keys": [
+    "DPAD_LEFT"
+   ],
+   "freeze": {
+    "freeze": "on,mid",
+    "trace": false,
+    "focuslog": true
+   },
+   "trace": [
+    "rail.slide",
+    "rail.strip"
+   ],
+   "note": "freeze on,mid: the slide held at 0.5 - panel at -144 dp, strip at alpha 0.5, hues at half alpha"
+  },
+  {
+   "name": "closed-back",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:800",
+    "BACK"
+   ],
+   "trace": [
+    "rail.slide",
+    "rail.strip"
+   ],
+   "focusCheck": true,
+   "note": "BACK closes with the slide; focus returns to Stream; must equal 'closed'"
+  },
+  {
+   "name": "open-from-row",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:800",
+    "DPAD_LEFT"
+   ],
+   "trace": [
+    "rail.slide",
+    "rail.strip"
+   ],
+   "focusCheck": true,
+   "note": "opened from card 0 of Continue Watching: the panel over the scrolled page"
+  },
+  {
+   "name": "row-closed-again",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:800",
+    "DPAD_LEFT",
+    "wait:800",
+    "DPAD_RIGHT"
+   ],
+   "trace": [
+    "rail.slide",
+    "rail.strip"
+   ],
+   "focusCheck": true,
+   "note": "... and RIGHT closes: focus back on the card it was opened from, the page as it was"
+  },
+  {
+   "name": "row-closed-back",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:800",
+    "DPAD_LEFT",
+    "wait:800",
+    "BACK"
+   ],
+   "trace": [
+    "rail.slide",
+    "rail.strip"
+   ],
+   "focusCheck": true,
+   "note": "... and BACK closes the same way"
+  },
+  {
+   "name": "ok-movies",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:800",
+    "DPAD_DOWN",
+    "wait:400",
+    "DPAD_CENTER"
+   ],
+   "settleMs": 2500,
+   "focusCheck": false,
+   "note": "OK on Movies: the rail shuts at once (no slide out) and the app is on the Movies grid, its own rail closed"
+  },
+  {
+   "name": "ok-home",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:800",
+    "DPAD_CENTER"
+   ],
+   "settleMs": 1500,
+   "focusCheck": true,
+   "note": "OK on the section already showing (Home): the rail closes and focus returns to Stream; must equal 'closed'"
+  },
+  {
+   "name": "reopen",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:800",
+    "DPAD_RIGHT",
+    "wait:800",
+    "DPAD_LEFT"
+   ],
+   "trace": [
+    "rail.slide",
+    "rail.strip"
+   ],
+   "focusCheck": true,
+   "note": "open, close, open again: the second opening is the first one"
+  }
+ ]
 }

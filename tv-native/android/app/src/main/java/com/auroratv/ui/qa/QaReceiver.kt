@@ -77,23 +77,25 @@ class QaReceiver : BroadcastReceiver() {
       "on" -> true
       "off" -> false
       else -> {
-        err("freeze", rid, "arg must be on|off|on,trailer")
+        err("freeze", rid, "arg must be on|off|on,trailer|on,mid")
         return
       }
     }
     val extras = parts.drop(1)
-    if (extras.any { it != "trailer" }) {
+    if (extras.any { it != "trailer" && it != "mid" }) {
       err("freeze", rid, "unsupported")
       return
     }
     AuroraQa.frozen = on
     AuroraQa.trailer = on && extras.contains("trailer")
+    AuroraQa.mid = on && extras.contains("mid")
     AuroraQa.save(app)
     emit(app, "AuroraQa", Arguments.createMap().apply {
       putBoolean("frozen", AuroraQa.frozen)
       putBoolean("trailer", AuroraQa.trailer)
+      putBoolean("mid", AuroraQa.mid)
     })
-    ok("freeze", rid, "frozen=${b(AuroraQa.frozen)} trailer=${b(AuroraQa.trailer)}")
+    ok("freeze", rid, "frozen=${b(AuroraQa.frozen)} trailer=${b(AuroraQa.trailer)} mid=${b(AuroraQa.mid)}")
   }
 
   private fun cmdFlag(app: Context, which: String, arg: String, rid: String?) {

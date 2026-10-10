@@ -10,7 +10,7 @@
 //   nav      the harness steers the app to a known route (navigation.tsx)
 import {Animated, DeviceEventEmitter, NativeModules} from 'react-native';
 
-type QaConstants = {frozen?: boolean; trailer?: boolean; trace?: boolean; focuslog?: boolean};
+type QaConstants = {frozen?: boolean; trailer?: boolean; mid?: boolean; trace?: boolean; focuslog?: boolean};
 type QaNative = {
   getConstants?: () => QaConstants;
   trace: (id: string, value: number) => void;
@@ -21,12 +21,13 @@ type QaNative = {
 
 const native = NativeModules.AuroraQA as QaNative | undefined;
 
-const state = {frozen: false, trailer: false, trace: false, focuslog: false};
+const state = {frozen: false, trailer: false, mid: false, trace: false, focuslog: false};
 try {
   const c = native ? (native.getConstants ? native.getConstants() : (native as QaConstants)) : null;
   if (c) {
     state.frozen = c.frozen === true;
     state.trailer = c.trailer === true;
+    state.mid = c.mid === true;
     state.trace = c.trace === true;
     state.focuslog = c.focuslog === true;
   }
@@ -35,9 +36,10 @@ try {
 const listeners = new Set<() => void>();
 const changed = () => listeners.forEach(fn => fn());
 try {
-  DeviceEventEmitter.addListener('AuroraQa', (e: {frozen?: boolean; trailer?: boolean}) => {
+  DeviceEventEmitter.addListener('AuroraQa', (e: {frozen?: boolean; trailer?: boolean; mid?: boolean}) => {
     state.frozen = !!e?.frozen;
     state.trailer = !!e?.trailer;
+    state.mid = !!e?.mid;
     changed();
   });
   DeviceEventEmitter.addListener('AuroraQaTrace', (e: {trace?: boolean; focuslog?: boolean}) => {
@@ -51,6 +53,9 @@ try {
 export const isFrozen = () => state.frozen;
 /** `freeze on,trailer`: frozen, but a trailer may still start. */
 export const trailerAllowed = () => !state.frozen || state.trailer;
+/** `freeze on,mid`: Home's atTop fade, its column slide and the rail's slide rest HALF WAY,
+ *  so a blended frame can be captured still (tools/tv-pixel-diff, the `mid-*` states). */
+export const isMid = () => state.mid;
 export const isTracing = () => state.trace;
 export const isFocusLogging = () => state.focuslog;
 /** Subscribe to any QA flag change; returns the unsubscribe. */

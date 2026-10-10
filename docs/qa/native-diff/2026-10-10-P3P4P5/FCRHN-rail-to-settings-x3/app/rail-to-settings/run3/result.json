@@ -1,0 +1,50 @@
+{
+  "state": "rail-to-settings",
+  "component": "app",
+  "impl": "FCRHN",
+  "run": 3,
+  "differing_px": 33027,
+  "off_edge_px": 7380,
+  "on_edge_px": 25647,
+  "diff_fraction": 0.012368344907407408,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 230,
+  "max_yiq": 0.8641803860664368,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 859,
+      "polls": 3,
+      "anim_lines": 0,
+      "frames": 309
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 625,
+      "polls": 2,
+      "anim_lines": 0,
+      "frames": 249
+    }
+  },
+  "reasons": [
+    "7380 differing px off the edge mask (bbox [165, 376, 1824, 799])",
+    "on-edge diff fraction 0.012368 > 0.0005",
+    "focus table differs (17 vs 18 rows)"
+  ],
+  "focus": {
+    "pass": false,
+    "rows": 17
+  },
+  "focus_checked": true,
+  "pass": false
+}

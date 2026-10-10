@@ -1,0 +1,101 @@
+{
+  "state": "size-frame",
+  "component": "card",
+  "impl": "FCRHN",
+  "run": 1,
+  "differing_px": 0,
+  "off_edge_px": 0,
+  "on_edge_px": 0,
+  "diff_fraction": 0.0,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 1,
+  "max_yiq": 0.0037880651652812958,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 657,
+      "polls": 2,
+      "anim_lines": 201,
+      "frames": 183
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 657,
+      "polls": 2,
+      "anim_lines": 202,
+      "frames": 163
+    }
+  },
+  "reasons": [
+    "trace focus.ring: B step 5 at 100.8 ms = 0.961255, off A's curve [0.886156, 0.957675] within +-25 ms (|err| 0.00358 > 0.001)",
+    "trace focus.ring: A step 5 at 131.0 ms = 0.961255, off B's curve [0.967322, 0.998776] within +-25 ms (|err| 0.00607 > 0.001)",
+    "trace focus.spring: B step 5 at 100.8 ms = 0.864673, off A's curve [0.66375, 0.852968] within +-25 ms (|err| 0.0117 > 0.00102)",
+    "trace focus.spring: A step 5 at 131.0 ms = 0.864673, off B's curve [0.886319, 1.00455] within +-25 ms (|err| 0.0216 > 0.00102)",
+    "trace focus.ring.out: B step 5 at 100.8 ms = 0.038745, off A's curve [0.0409475, 0.105616] within +-25 ms (|err| 0.0022 > 0.001)",
+    "trace focus.ring.out: A step 5 at 129.0 ms = 0.038745, off B's curve [0.00142774, 0.0350122] within +-25 ms (|err| 0.00373 > 0.001)",
+    "trace focus.spring.out: B step 5 at 100.8 ms = 0.135327, off A's curve [0.142529, 0.317806] within +-25 ms (|err| 0.0072 > 0.00102)",
+    "trace focus.spring.out: A step 5 at 129.0 ms = 0.135327, off B's curve [-0.00313616, 0.122009] within +-25 ms (|err| 0.0133 > 0.00102)"
+  ],
+  "trace": {
+    "pass": false,
+    "rule": "curve",
+    "ids": {
+      "focus.ring": {
+        "steps_a": 10,
+        "steps_b": 9,
+        "max_abs_err": 0.0060669408810829495,
+        "pass": false,
+        "key_to_first_ms": [
+          36.0,
+          4.765063
+        ]
+      },
+      "focus.spring": {
+        "steps_a": 26,
+        "steps_b": 27,
+        "max_abs_err": 0.021645986093546066,
+        "pass": false,
+        "key_to_first_ms": [
+          36.0,
+          4.765063
+        ]
+      },
+      "focus.ring.out": {
+        "steps_a": 10,
+        "steps_b": 9,
+        "max_abs_err": 0.0037328099210625215,
+        "pass": false,
+        "key_to_first_ms": [
+          37.0,
+          4.765063
+        ]
+      },
+      "focus.spring.out": {
+        "steps_a": 26,
+        "steps_b": 27,
+        "max_abs_err": 0.013318137299328223,
+        "pass": false,
+        "key_to_first_ms": [
+          37.0,
+          4.765063
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": true,
+    "rows": 2
+  },
+  "focus_checked": false,
+  "pass": false
+}

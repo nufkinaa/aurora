@@ -48,7 +48,7 @@ import {imgSrc} from '../api';
 import {atLeftEdge, captureFocus, clearRailOpener, focusJustMoved, noteRail, setRailOpener, useTVKeys} from '../focus';
 import {goSection, useMe, useNewUnseen, NAV_SECTIONS, NavSection} from '../navSection';
 import {isLite} from '../perfTier';
-import {runLoop, traceValue} from '../qa';
+import {isMid, runLoop, traceValue} from '../qa';
 import {traceDerived, useTraces} from '../qaExtra';
 import {impl} from '../impl';
 import AuroraRailPanel, {SlideEndEvent} from '../specs/AuroraRailPanelNativeComponent';
@@ -270,6 +270,11 @@ export default function NavRail({
     // (impl.rail: the native strip runs the slide in from `open`)
     if (impl.rail) return;
     // Slides in over --t-med; close() runs the mirror image out.
+    // (QA `freeze on,mid`: the slide in stops half way, to be captured still)
+    if (isMid()) {
+      Animated.timing(slide, {toValue: 0.5, duration: motion.med, easing: EASE, useNativeDriver: true, isInteraction: false}).start();
+      return;
+    }
     Animated.timing(slide, {
       toValue: 1,
       duration: motion.med,

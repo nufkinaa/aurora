@@ -1,0 +1,92 @@
+{
+  "state": "grid-lit",
+  "component": "card",
+  "impl": "FCRHN",
+  "run": 1,
+  "differing_px": 0,
+  "off_edge_px": 0,
+  "on_edge_px": 0,
+  "diff_fraction": 0.0,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 0,
+  "max_yiq": 0.0,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 641,
+      "polls": 2,
+      "anim_lines": 176,
+      "frames": 217
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 782,
+      "polls": 2,
+      "anim_lines": 168,
+      "frames": 239
+    }
+  },
+  "reasons": [],
+  "trace": {
+    "pass": true,
+    "rule": "curve",
+    "ids": {
+      "focus.ring": {
+        "steps_a": 12,
+        "steps_b": 11,
+        "max_abs_err": 0.0,
+        "pass": true,
+        "key_to_first_ms": [
+          30.0,
+          6.807334
+        ]
+      },
+      "focus.spring": {
+        "steps_a": 32,
+        "steps_b": 31,
+        "max_abs_err": 0.0,
+        "pass": true,
+        "key_to_first_ms": [
+          30.0,
+          6.807334
+        ]
+      },
+      "focus.ring.out": {
+        "steps_a": 12,
+        "steps_b": 11,
+        "max_abs_err": 0.0,
+        "pass": true,
+        "key_to_first_ms": [
+          31.0,
+          6.807334
+        ]
+      },
+      "focus.spring.out": {
+        "steps_a": 32,
+        "steps_b": 31,
+        "max_abs_err": 0.0,
+        "pass": true,
+        "key_to_first_ms": [
+          31.0,
+          6.807334
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": true,
+    "rows": 4
+  },
+  "focus_checked": false,
+  "pass": true
+}

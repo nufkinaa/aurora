@@ -1,0 +1,79 @@
+{
+  "state": "mid-open",
+  "component": "navrail",
+  "impl": "FCRHN",
+  "run": 1,
+  "differing_px": 0,
+  "off_edge_px": 0,
+  "on_edge_px": 0,
+  "diff_fraction": 0.0,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 0,
+  "max_yiq": 0.0,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 609,
+      "polls": 2,
+      "anim_lines": 106,
+      "frames": 152
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 670,
+      "polls": 2,
+      "anim_lines": 74,
+      "frames": 132
+    }
+  },
+  "reasons": [
+    "trace rail.slide: B step 1 at 67.2 ms = 0.352002, off A's curve [0.399079, 0.471875] within +-28.2011 ms (|err| 0.0471 > 0.0005)",
+    "trace rail.slide: A step 1 at 35.0 ms = 0.392988, off B's curve [0.0356127, 0.33105] within +-28.2011 ms (|err| 0.0619 > 0.0005)",
+    "trace rail.slide: settle time A=210.0 ms B=268.8 ms (> 53.2011 ms apart)",
+    "trace rail.strip: B step 1 at 67.2 ms = 0.647998, off A's curve [0.528191, 0.600921] within +-28.2011 ms (|err| 0.0471 > 0.0005)",
+    "trace rail.strip: A step 1 at 35.0 ms = 0.607012, off B's curve [0.66895, 0.964387] within +-28.2011 ms (|err| 0.0619 > 0.0005)",
+    "trace rail.strip: settle time A=210.0 ms B=268.8 ms (> 53.2011 ms apart)"
+  ],
+  "trace": {
+    "pass": false,
+    "rule": "curve",
+    "ids": {
+      "rail.slide": {
+        "steps_a": 13,
+        "steps_b": 12,
+        "max_abs_err": 0.061938144561833386,
+        "pass": false,
+        "key_to_first_ms": [
+          137.0,
+          42.688158
+        ]
+      },
+      "rail.strip": {
+        "steps_a": 13,
+        "steps_b": 12,
+        "max_abs_err": 0.06193814456183333,
+        "pass": false,
+        "key_to_first_ms": [
+          137.0,
+          42.688158
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": true,
+    "rows": 2
+  },
+  "focus_checked": false,
+  "pass": false
+}

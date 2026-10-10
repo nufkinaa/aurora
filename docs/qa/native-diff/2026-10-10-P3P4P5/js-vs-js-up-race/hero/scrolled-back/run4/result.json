@@ -1,0 +1,77 @@
+{
+  "state": "scrolled-back",
+  "component": "hero",
+  "impl": "-",
+  "run": 4,
+  "differing_px": 287029,
+  "off_edge_px": 262046,
+  "on_edge_px": 24983,
+  "diff_fraction": 0.012048128858024691,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 249,
+  "max_yiq": 0.9388425946235657,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 702,
+      "polls": 2,
+      "anim_lines": 419,
+      "frames": 219
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 687,
+      "polls": 2,
+      "anim_lines": 402,
+      "frames": 234
+    }
+  },
+  "reasons": [
+    "262046 differing px off the edge mask (bbox [0, 0, 550, 1080])",
+    "on-edge diff fraction 0.012048 > 0.0005",
+    "trace hero.atTop: B step 9 at 210.0 ms = 0.981735, off A's curve [0.990682, 1] within +-57 ms (|err| 0.00895 > 0.001)",
+    "trace hero.atTop: A step 5 at 144.0 ms = 0.989082, off B's curve [0.737758, 0.977804] within +-57 ms (|err| 0.0113 > 0.001)"
+  ],
+  "trace": {
+    "pass": false,
+    "rule": "curve",
+    "ids": {
+      "hero.atTop": {
+        "steps_a": 9,
+        "steps_b": 15,
+        "max_abs_err": 0.01127804347826089,
+        "pass": false,
+        "key_to_first_ms": [
+          108.0,
+          32.0
+        ]
+      },
+      "hero.ty": {
+        "steps_a": 47,
+        "steps_b": 55,
+        "max_abs_err": 0.0,
+        "pass": true,
+        "key_to_first_ms": [
+          108.0,
+          32.0
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": false,
+    "rows": 6
+  },
+  "focus_checked": false,
+  "pass": false
+}

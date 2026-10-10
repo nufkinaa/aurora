@@ -1,0 +1,66 @@
+{
+  "state": "down-burst-4",
+  "component": "hero",
+  "impl": "FCRHN",
+  "run": 1,
+  "differing_px": 434553,
+  "off_edge_px": 258503,
+  "on_edge_px": 176050,
+  "diff_fraction": 0.08490065586419752,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 255,
+  "max_yiq": 0.965941846370697,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 1125,
+      "polls": 2,
+      "anim_lines": 406,
+      "frames": 193
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 827,
+      "polls": 2,
+      "anim_lines": 343,
+      "frames": 173
+    }
+  },
+  "reasons": [
+    "258503 differing px off the edge mask (bbox [161, 0, 1796, 1080])",
+    "on-edge diff fraction 0.084901 > 0.0005",
+    "trace hero.ty: rest value A=-989.5 B=-998.5"
+  ],
+  "trace": {
+    "pass": false,
+    "rule": "rest",
+    "ids": {
+      "hero.ty": {
+        "steps_a": 84,
+        "steps_b": 75,
+        "max_abs_err": 9.0,
+        "pass": false,
+        "key_to_first_ms": [
+          null,
+          null
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": true,
+    "rows": 8
+  },
+  "focus_checked": true,
+  "pass": false
+}

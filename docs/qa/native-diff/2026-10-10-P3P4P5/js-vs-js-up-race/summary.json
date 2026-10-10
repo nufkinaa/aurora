@@ -1,0 +1,348 @@
+{
+ "env": {
+  "commit": "a143637e9198",
+  "pkg": "com.auroratv.lab",
+  "serial": "192.168.50.31:5555",
+  "fingerprint": "Xiaomi/twilight/twilight:14/UKG3.250826.001/V816.0.7.0.UZFAABX:user/release-keys",
+  "model": "MiTV-AFMU0",
+  "sdk": "34",
+  "locale": "en-US",
+  "timezone": "Asia/Jerusalem",
+  "animator_duration_scale": "null",
+  "transition_animation_scale": "1.0",
+  "window_animation_scale": "1.0",
+  "font_scale": "1.0",
+  "screensaver_enabled": "1",
+  "wm_size": "Physical size: 1920x1080",
+  "wm_density": "Physical density: 320",
+  "display_mode": "mActiveModeId=20",
+  "versionCode": 9000,
+  "versionName": "9.9.9-lab",
+  "ping": "v=9000 impl=FC",
+  "token_source": "--token/env"
+ },
+ "args": {
+  "serial": "192.168.50.31:5555",
+  "pkg": "com.auroratv.lab",
+  "impl": "-",
+  "states": [
+   "hero"
+  ],
+  "only": "scrolled-back",
+  "runs": 4,
+  "out": "C:/elia/aurora-lab/docs/qa/native-diff/2026-10-10-P3P4P5/try4-jsjs",
+  "adb": null,
+  "token": "aurora-lab-qa",
+  "keystore": null,
+  "var": [],
+  "server": [],
+  "launch_wait_ms": 4000,
+  "screenrecord": false,
+  "force_lock": false,
+  "dry_run": false,
+  "diff_only": false,
+  "verbose": false
+ },
+ "results": [
+  {
+   "state": "scrolled-back",
+   "component": "hero",
+   "impl": "-",
+   "run": 1,
+   "differing_px": 287029,
+   "off_edge_px": 242633,
+   "on_edge_px": 44396,
+   "diff_fraction": 0.021410108024691357,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 249,
+   "max_yiq": 0.9388425946235657,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 656,
+     "polls": 2,
+     "anim_lines": 394,
+     "frames": 227
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 655,
+     "polls": 2,
+     "anim_lines": 432,
+     "frames": 227
+    }
+   },
+   "reasons": [
+    "242633 differing px off the edge mask (bbox [0, 0, 550, 1080])",
+    "on-edge diff fraction 0.021410 > 0.0005",
+    "trace hero.atTop: B step 4 at 4.0 ms = 0.785976, off A's curve [0, 0.640967] within +-61 ms (|err| 0.145 > 0.001)",
+    "trace hero.atTop: A step 4 at 82.0 ms = 0.704003, off B's curve [0.802955, 0.994584] within +-61 ms (|err| 0.099 > 0.001)",
+    "trace hero.ty: B step 4 at 5.0 ms = -177.514, off A's curve [-329, -233.355] within +-60 ms (|err| 55.8 > 0.329)",
+    "trace hero.ty: A step 4 at 82.0 ms = -213.248, off B's curve [-167.524, -49.3119] within +-60 ms (|err| 45.7 > 0.329)"
+   ],
+   "trace": {
+    "pass": false,
+    "rule": "curve",
+    "ids": {
+     "hero.atTop": {
+      "steps_a": 15,
+      "steps_b": 10,
+      "max_abs_err": 0.14500900000000005,
+      "pass": false,
+      "key_to_first_ms": [
+       37.0,
+       123.0
+      ]
+     },
+     "hero.ty": {
+      "steps_a": 55,
+      "steps_b": 48,
+      "max_abs_err": 55.840597562499994,
+      "pass": false,
+      "key_to_first_ms": [
+       37.0,
+       123.0
+      ]
+     }
+    }
+   },
+   "focus": {
+    "pass": false,
+    "rows": 4
+   },
+   "focus_checked": false,
+   "pass": false
+  },
+  {
+   "state": "scrolled-back",
+   "component": "hero",
+   "impl": "-",
+   "run": 2,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 640,
+     "polls": 2,
+     "anim_lines": 406,
+     "frames": 237
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 984,
+     "polls": 3,
+     "anim_lines": 390,
+     "frames": 227
+    }
+   },
+   "reasons": [],
+   "trace": {
+    "pass": true,
+    "rule": "curve",
+    "ids": {
+     "hero.atTop": {
+      "steps_a": 15,
+      "steps_b": 15,
+      "max_abs_err": 0.0,
+      "pass": true,
+      "key_to_first_ms": [
+       31.0,
+       36.0
+      ]
+     },
+     "hero.ty": {
+      "steps_a": 56,
+      "steps_b": 54,
+      "max_abs_err": 0.0,
+      "pass": true,
+      "key_to_first_ms": [
+       31.0,
+       36.0
+      ]
+     }
+    }
+   },
+   "focus": {
+    "pass": true,
+    "rows": 4
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "scrolled-back",
+   "component": "hero",
+   "impl": "-",
+   "run": 3,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 719,
+     "polls": 2,
+     "anim_lines": 424,
+     "frames": 215
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 640,
+     "polls": 2,
+     "anim_lines": 418,
+     "frames": 222
+    }
+   },
+   "reasons": [],
+   "trace": {
+    "pass": true,
+    "rule": "curve",
+    "ids": {
+     "hero.atTop": {
+      "steps_a": 10,
+      "steps_b": 10,
+      "max_abs_err": 0.0,
+      "pass": true,
+      "key_to_first_ms": [
+       113.0,
+       116.0
+      ]
+     },
+     "hero.ty": {
+      "steps_a": 48,
+      "steps_b": 50,
+      "max_abs_err": 0.0,
+      "pass": true,
+      "key_to_first_ms": [
+       114.0,
+       116.0
+      ]
+     }
+    }
+   },
+   "focus": {
+    "pass": true,
+    "rows": 6
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "scrolled-back",
+   "component": "hero",
+   "impl": "-",
+   "run": 4,
+   "differing_px": 287029,
+   "off_edge_px": 262046,
+   "on_edge_px": 24983,
+   "diff_fraction": 0.012048128858024691,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 249,
+   "max_yiq": 0.9388425946235657,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 702,
+     "polls": 2,
+     "anim_lines": 419,
+     "frames": 219
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 687,
+     "polls": 2,
+     "anim_lines": 402,
+     "frames": 234
+    }
+   },
+   "reasons": [
+    "262046 differing px off the edge mask (bbox [0, 0, 550, 1080])",
+    "on-edge diff fraction 0.012048 > 0.0005",
+    "trace hero.atTop: B step 9 at 210.0 ms = 0.981735, off A's curve [0.990682, 1] within +-57 ms (|err| 0.00895 > 0.001)",
+    "trace hero.atTop: A step 5 at 144.0 ms = 0.989082, off B's curve [0.737758, 0.977804] within +-57 ms (|err| 0.0113 > 0.001)"
+   ],
+   "trace": {
+    "pass": false,
+    "rule": "curve",
+    "ids": {
+     "hero.atTop": {
+      "steps_a": 9,
+      "steps_b": 15,
+      "max_abs_err": 0.01127804347826089,
+      "pass": false,
+      "key_to_first_ms": [
+       108.0,
+       32.0
+      ]
+     },
+     "hero.ty": {
+      "steps_a": 47,
+      "steps_b": 55,
+      "max_abs_err": 0.0,
+      "pass": true,
+      "key_to_first_ms": [
+       108.0,
+       32.0
+      ]
+     }
+    }
+   },
+   "focus": {
+    "pass": false,
+    "rows": 6
+   },
+   "focus_checked": false,
+   "pass": false
+  }
+ ]
+}

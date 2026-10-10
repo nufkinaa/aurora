@@ -1,0 +1,72 @@
+{
+  "state": "scrolled-back",
+  "component": "hero",
+  "impl": "-",
+  "run": 3,
+  "differing_px": 0,
+  "off_edge_px": 0,
+  "on_edge_px": 0,
+  "diff_fraction": 0.0,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 0,
+  "max_yiq": 0.0,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 719,
+      "polls": 2,
+      "anim_lines": 424,
+      "frames": 215
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 640,
+      "polls": 2,
+      "anim_lines": 418,
+      "frames": 222
+    }
+  },
+  "reasons": [],
+  "trace": {
+    "pass": true,
+    "rule": "curve",
+    "ids": {
+      "hero.atTop": {
+        "steps_a": 10,
+        "steps_b": 10,
+        "max_abs_err": 0.0,
+        "pass": true,
+        "key_to_first_ms": [
+          113.0,
+          116.0
+        ]
+      },
+      "hero.ty": {
+        "steps_a": 48,
+        "steps_b": 50,
+        "max_abs_err": 0.0,
+        "pass": true,
+        "key_to_first_ms": [
+          114.0,
+          116.0
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": true,
+    "rows": 6
+  },
+  "focus_checked": false,
+  "pass": true
+}

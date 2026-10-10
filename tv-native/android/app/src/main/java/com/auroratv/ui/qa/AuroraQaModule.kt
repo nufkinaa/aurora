@@ -23,6 +23,7 @@ class AuroraQaModule(private val ctx: ReactApplicationContext) : ReactContextBas
     return mapOf(
       "frozen" to AuroraQa.frozen,
       "trailer" to AuroraQa.trailer,
+      "mid" to AuroraQa.mid,
       "trace" to AuroraQa.trace,
       "focuslog" to AuroraQa.focuslog,
     )

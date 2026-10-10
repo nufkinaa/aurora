@@ -146,7 +146,21 @@ class Adb:
         cmd = [self.adb, "-s", self.serial, *args]
         if self.verbose:
             print("  $", " ".join(cmd), file=sys.stderr)
-        p = subprocess.run(cmd, capture_output=True, timeout=timeout)
+        # adb over the network drops now and then ("error: closed", or a call that never
+        # returns — both seen 2026-10-10, each killed or failed a state): reconnect and try
+        # the call once more; a second failure is an AdbError (the state fails, the run goes on)
+        for attempt in (1, 2):
+            try:
+                p = subprocess.run(cmd, capture_output=True, timeout=timeout)
+            except subprocess.TimeoutExpired:
+                p = None
+            if p is not None and not (p.returncode != 0 and b"error: closed" in p.stderr):
+                break
+            if attempt == 1:
+                subprocess.run([self.adb, "connect", self.serial], capture_output=True, timeout=20)
+                time.sleep(1)
+        if p is None:
+            raise AdbError(f"adb {' '.join(args[:3])}… timed out after {timeout:g} s (twice)")
         if check and p.returncode != 0:
             raise AdbError(f"adb {' '.join(args[:3])}… failed ({p.returncode}): {p.stderr.decode('utf-8', 'replace').strip()}")
         return p.stdout if binary else p.stdout.decode("utf-8", "replace")

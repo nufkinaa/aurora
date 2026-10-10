@@ -33,7 +33,7 @@ from adb import Adb, AdbError, DeviceLock, impl_spec  # noqa: E402
 
 STATES_DIR = HERE / "states"
 KEY_RE = re.compile(r"^([A-Z0-9_]+?)(?:\*(\d+)@(\d+))?(!long)?$")
-PHASE_ORDER = ["focusable", "card", "row", "hero", "navrail", "browse"]
+PHASE_ORDER = ["focusable", "card", "row", "hero", "navrail", "browse", "app"]
 
 
 # ---------------------------------------------------------------- states
@@ -247,6 +247,30 @@ def capture_side(dev: Adb, state: dict, side: str, out_dir: Path, args) -> dict:
     return info
 
 
+def capture_guarded(dev: Adb, state: dict, side: str, out_dir: Path, args) -> dict:
+    """capture_side, retaken while the state's `expectGains` guard is not met (at most 5 takes).
+
+    Why it exists (2026-10-10): the JS REFERENCE is not deterministic for a key path that goes
+    UP from the first shelf onto the hero. Under `adb shell input keyevent` only the key-UP
+    reaches Home's key handler, a few ms after the press, and it races the hero button's focus
+    event: when the focus event wins, the handler sees "UP on a hero button" and opens the nav
+    rail. js against js failed 2 of 4 (docs/qa/native-diff/2026-10-10-P3P4P5/js-vs-js-up-race).
+    `expectGains: N` names the outcome the state is ABOUT - exactly N [focus] gain lines, i.e.
+    no extra focus move into the rail - and a take with another count is thrown away and
+    taken again, on either side. The number of retakes is reported in the summary; if no take
+    meets the guard the last one is compared as it is (and will fail on its pixels)."""
+    want = state.get("expectGains")
+    info = capture_side(dev, state, side, out_dir, args)
+    if want is None:
+        return info
+    takes = 1
+    while len([1 for _, ev, _ in tracemod.parse(info.get("log", "")).focus if ev == "gain"]) != want and takes < 5:
+        takes += 1
+        info = capture_side(dev, state, side, out_dir, args)
+    info["retakes"] = takes - 1
+    return info
+
+
 # ---------------------------------------------------------------- compare
 
 def _crop_img(path: Path, rect):
@@ -307,8 +331,11 @@ def compare_state(state: dict, a: dict, b: dict, out_dir: Path, run_idx: int) ->
     ids = state.get("trace") or []
     ta, tb = tracemod.parse(a.get("log", "")), tracemod.parse(b.get("log", ""))
     focus = tracemod.compare_focus(ta, tb)
-    tr = tracemod.compare(ta, tb, ids, retarget=bool(state.get("retarget")),
-                          align=state.get("traceFrom", "first" if state.get("retarget") else "last")) if ids else None
+    if ids and state.get("traceRule") == "rest":  # a key burst: trace.py compare_rest says why
+        tr = tracemod.compare_rest(ta, tb, ids)
+    else:
+        tr = tracemod.compare(ta, tb, ids, retarget=bool(state.get("retarget")),
+                              align=state.get("traceFrom", "first" if state.get("retarget") else "last")) if ids else None
     trace_doc = {"state": state["name"], "component": state["component"], "impl": state["impl"], "run": run_idx,
                  "ids": ids, "anim": tr, "focus": focus, "A": ta.to_dict(), "B": tb.to_dict()}
     traces_dir = out_dir.parent.parent / "traces"
@@ -316,12 +343,13 @@ def compare_state(state: dict, a: dict, b: dict, out_dir: Path, run_idx: int) ->
     (traces_dir / f"{state['component']}.{state['name']}{'' if run_idx == 1 else f'.run{run_idx}'}.json").write_text(
         json.dumps(trace_doc, indent=1), encoding="utf-8")
     if tr is not None:
-        result["trace"] = {"pass": tr["pass"], "ids": {k: {"steps_a": v["steps_a"], "steps_b": v["steps_b"],
+        result["trace"] = {"pass": tr["pass"], "rule": tr.get("rule", "curve"), "ids": {k: {"steps_a": v["steps_a"], "steps_b": v["steps_b"],
                                                            "max_abs_err": v["max_abs_err"], "pass": v["pass"],
                                                            "key_to_first_ms": [v.get("key_to_first_ms_a"), v.get("key_to_first_ms_b")]}
                                                        for k, v in tr["ids"].items()}}
         result["reasons"] += [f"trace {r}" for r in tr["reasons"]]
     result["focus"] = {"pass": focus["pass"], "rows": len(focus["rows_a"])}
+    result["focus_checked"] = bool(state.get("focusCheck"))
     if state.get("focusCheck") and not focus["pass"]:
         result["reasons"] += focus["reasons"]
     result["pass"] = not result["reasons"]
@@ -345,9 +373,13 @@ def write_summary(out: Path, env: dict, results: list[dict], args, started: str)
             rows.append(f"| {r['component']} | {r['state']} | {r.get('run', '-')} | {r['impl']} | - | - | - | - | - | SKIP: {r['skipped']} |")
             continue
         tr = r.get("trace")
-        tr_s = "-" if tr is None else ("ok" if tr["pass"] else "FAIL")
+        tr_s = "-" if tr is None else (("ok" if tr["pass"] else "FAIL") + (" (rest only)" if tr.get("rule") == "rest" else ""))
+        if r.get("focus_checked"):
+            tr_s += " · focus " + ("ok" if r["focus"]["pass"] else "FAIL")
         masks = len(r.get("masks_applied", [])) + len(r.get("dither_regions", []))
         verdict = "PASS" if r["pass"] else "**FAIL**"
+        if r.get("retakes"):
+            verdict += " (retaken: " + ", ".join(f"{k}x{v}" for k, v in r["retakes"].items()) + ")"
         rows.append(f"| {r['component']} | {r['state']} | {r['run']} | {r['impl']} | {r['differing_px']} | {r['off_edge_px']} | "
                     f"{r['diff_fraction']:.5f} | {r['max_delta']} | {tr_s} | {masks} | {verdict} |")
     n_pass = sum(1 for r in results if r.get("pass"))
@@ -518,9 +550,13 @@ def main(argv=None) -> int:
                         continue
                     print(f"----  {s['component']}/{s['name']} (impl {s['impl']}, run {run_idx})")
                     try:
-                        a = capture_side(dev, s, "A", d, args)
-                        b = capture_side(dev, s, "B", d, args)
+                        a = capture_guarded(dev, s, "A", d, args)
+                        b = capture_guarded(dev, s, "B", d, args)
                         r = compare_state(s, a, b, d, run_idx)
+                        retakes = {x["side"]: x["retakes"] for x in (a, b) if x.get("retakes")}
+                        if retakes:
+                            r["retakes"] = retakes
+                            (d / "result.json").write_text(json.dumps(r, indent=2), encoding="utf-8")
                     except AdbError as e:
                         r = {"component": s["component"], "state": s["name"], "impl": s["impl"], "run": run_idx, "pass": False,
                              "differing_px": -1, "off_edge_px": -1, "diff_fraction": 0.0, "max_delta": -1, "reasons": [f"harness error: {e}"]}

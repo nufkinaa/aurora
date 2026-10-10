@@ -1,0 +1,14 @@
+{
+  "component": "row",
+  "state": "offset-9",
+  "impl": "FCRHN",
+  "run": 1,
+  "pass": false,
+  "differing_px": -1,
+  "off_edge_px": -1,
+  "diff_fraction": 0.0,
+  "max_delta": -1,
+  "reasons": [
+    "harness error: adb shell input keyevent KEYCODE_DPAD_RIGHT\u2026 failed (1): error: closed"
+  ]
+}

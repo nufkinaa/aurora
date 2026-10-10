@@ -15,7 +15,7 @@
 // 13 · SPEC/99-open.md §I.3). So is the compact caption that named the focused
 // card: the site puts labels on the cards that have them (wide, episode, up-next)
 // and nothing at all on a poster, and Card now does the same.
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {View, Text, Image, StyleSheet, ActivityIndicator, Animated, Easing, PixelRatio} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Btn from '../components/Btn';
@@ -31,7 +31,7 @@ import {canNavigate} from '../navLock';
 import {openItem} from '../openItem';
 import {openUpdate, openUpdateReady, overlayOpen} from '../overlay';
 import {isLite, measureOnce} from '../perfTier';
-import {isFrozen, trailerAllowed, traceValue} from '../qa';
+import {isFrozen, isMid, trailerAllowed, traceValue} from '../qa';
 import {traceDerived, useTraces} from '../qaExtra';
 import {impl} from '../impl';
 import {artFadeAt, artFadeStops, COL_TOP_ID, colRowId, columnTargets} from '../homeMath';
@@ -240,26 +240,34 @@ type ColumnApi = {setTargets: (next: number[]) => void};
 function NativeColumn({
   link,
   api,
+  onReady,
   onRowFocus,
   onLayout,
   children,
 }: {
   link: string;
   api: React.MutableRefObject<ColumnApi | null>;
+  onReady: () => void;
   onRowFocus: (e: {nativeEvent: RowFocusEvent}) => void;
   onLayout: (e: {nativeEvent: {layout: {height: number}}}) => void;
   children?: React.ReactNode;
 }) {
   const [targets, setTargets] = useState<number[]>([]);
-  useEffect(() => {
+  // Registered in the LAYOUT phase and followed by one `onReady` (Home's syncTargets).
+  // As a passive effect it lost a race on the Mi TV (2026-10-10): the first onLayout
+  // events of the column and its rows reached JS before the effect had run, found no
+  // api, and nothing asked again — the column held no targets and never slid until a
+  // later layout (a shelf mounting) happened to commit them.
+  useLayoutEffect(() => {
     api.current = {
       setTargets: next =>
         setTargets(prev => (prev.length === next.length && prev.every((v, i) => v === next[i]) ? prev : next)),
     };
+    onReady();
     return () => {
       api.current = null;
     };
-  }, [api]);
+  }, [api, onReady]);
   return (
     <AuroraSlideColumn
       style={styles.column}
@@ -511,6 +519,11 @@ export default function Home({
       }
       // (impl.hero: the native art runs this fade itself, from the column's focus change)
       if (impl.hero) return;
+      // (QA `freeze on,mid`: the fade down stops half way, to be captured still)
+      if (isMid() && !next) {
+        Animated.timing(atTop, {toValue: 0.5, duration: motion.med, easing: EASE, useNativeDriver: true, isInteraction: false}).start();
+        return;
+      }
       Animated.timing(atTop, {
         toValue: next ? 1 : 0,
         duration: motion.med,
@@ -820,6 +833,9 @@ export default function Home({
       // and left a screenful of dead space under them — measured on the Streamer,
       // and it reads as a broken page rather than as the end of one.
       const max = Math.max(0, colH.current - height);
+      // (QA `freeze on,mid`: the column stops half way to the row, to be captured still)
+      if (isMid()) ty.to(-Math.min(Math.max(0, y - spacing.pageY), max) / 2);
+      else
       ty.to(-Math.min(Math.max(0, y - spacing.pageY), max));
       // Mounting another shelf changes what is mounted, so it goes off the input
       // path — a held DOWN must never wait for a row to render.
@@ -1173,6 +1189,7 @@ export default function Home({
           <NativeColumn
             link={link}
             api={columnApi}
+            onReady={syncTargets}
             onRowFocus={onColumnFocus}
             onLayout={e => {
               colH.current = e.nativeEvent.layout.height;

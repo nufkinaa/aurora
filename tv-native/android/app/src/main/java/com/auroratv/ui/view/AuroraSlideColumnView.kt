@@ -7,6 +7,7 @@ import com.auroratv.ui.anim.AuroraDriver
 import com.auroratv.ui.anim.AuroraSpring
 import com.auroratv.ui.home.ColumnLink
 import com.auroratv.ui.home.HomeMath
+import com.auroratv.ui.qa.AuroraQa
 import com.auroratv.ui.row.RowMath
 import com.facebook.react.R
 import com.facebook.react.bridge.ReactContext
@@ -111,7 +112,8 @@ class AuroraSlideColumnView(context: Context) : ReactViewGroup(context) {
     if (marker == HomeMath.NONE) return
     setTop(marker == HomeMath.TOP)
     val to = HomeMath.targetFor(targets, marker)
-    if (!to.isNaN()) slideTo(to)
+    // (QA `freeze on,mid`: the column stops half way to the row — Home.tsx toRow does the same)
+    if (!to.isNaN()) slideTo(if (AuroraQa.mid) to / 2 else to)
     dispatchRowFocus(marker)
   }
 

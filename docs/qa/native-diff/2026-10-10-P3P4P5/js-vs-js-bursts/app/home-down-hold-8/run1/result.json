@@ -1,0 +1,49 @@
+{
+  "state": "home-down-hold-8",
+  "component": "app",
+  "impl": "-",
+  "run": 1,
+  "differing_px": 931924,
+  "off_edge_px": 661656,
+  "on_edge_px": 270268,
+  "diff_fraction": 0.13033757716049382,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 255,
+  "max_yiq": 0.965941846370697,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 905,
+      "polls": 3,
+      "anim_lines": 0,
+      "frames": 204
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 625,
+      "polls": 2,
+      "anim_lines": 0,
+      "frames": 213
+    }
+  },
+  "reasons": [
+    "661656 differing px off the edge mask (bbox [161, 0, 1794, 1080])",
+    "on-edge diff fraction 0.130338 > 0.0005"
+  ],
+  "focus": {
+    "pass": true,
+    "rows": 14
+  },
+  "focus_checked": true,
+  "pass": false
+}

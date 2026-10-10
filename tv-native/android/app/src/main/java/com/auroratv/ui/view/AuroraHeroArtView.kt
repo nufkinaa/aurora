@@ -15,6 +15,7 @@ import com.auroratv.ui.home.ColumnLink
 import com.auroratv.ui.home.HomeMath
 import com.auroratv.ui.image.AuroraBitmaps
 import com.auroratv.ui.image.AuroraImages
+import com.auroratv.ui.qa.AuroraQa
 import com.facebook.drawee.backends.pipeline.Fresco
 import com.facebook.drawee.drawable.ScalingUtils
 import com.facebook.drawee.generic.GenericDraweeHierarchy
@@ -179,7 +180,8 @@ class AuroraHeroArtView(context: Context) : ReactViewGroup(context), ColumnLink.
   override fun onColumnTop(atTop: Boolean) {
     if (atTop == atTopTarget) return
     atTopTarget = atTop
-    timing = AuroraTiming(HomeMath.AT_TOP_FRAMES, if (atTop) 1.0 else 0.0)
+    // (QA `freeze on,mid`: the fade down stops half way — Home.tsx setTop does the same)
+    timing = AuroraTiming(HomeMath.AT_TOP_FRAMES, if (atTop) 1.0 else if (AuroraQa.mid) 0.5 else 0.0)
     AuroraClock.add(driver)
   }
 

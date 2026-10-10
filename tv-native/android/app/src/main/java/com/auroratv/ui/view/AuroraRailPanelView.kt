@@ -200,7 +200,8 @@ class AuroraRailPanelView(context: Context) : ReactViewGroup(context), RailLink.
       }
       else -> if (phase != OPEN) {
         phase = OPEN
-        animateTo(1.0)
+        // (QA `freeze on,mid`: the slide in stops half way — NavRail.tsx's [open] effect does the same)
+        animateTo(if (AuroraQa.mid) 0.5 else 1.0)
       }
     }
   }

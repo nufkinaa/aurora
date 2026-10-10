@@ -33,7 +33,7 @@ python run.py --serial 192.168.50.31:5555 --pkg com.auroratv.lab --impl F \
 |---|---|
 | `--serial`, `--pkg` | the TV and the applicationId (`com.auroratv.lab` = the lab build, `com.auroratv` = the real app) |
 | `--impl F` | which components are `=native` on the B side (letters `F C R H N G` = focusable card row hero rail grid, PROTOCOL §5). Omit to use each state file's own letter |
-| `--states` | comma list of `focusable,card,row,hero,navrail,browse`, `all`, or paths to `.json` files; `--only name,…` narrows to named states |
+| `--states` | comma list of `focusable,card,row,hero,navrail,browse,app`, `all`, or paths to `.json` files; `--only name,…` narrows to named states |
 | `--runs N` | repeat each state N times (`<state>/runN/`); a state passes only if every run passes |
 | `--out` | default `docs/qa/native-diff/<today>/` under the repo root |
 | `--var k=v` | substitutes `${k}` in state files (`id1` = a fixture item id for `detail:` states; default `tt9000001`) |
@@ -138,6 +138,29 @@ the fixture's row order differs.
    `focus.ring.out` / `focus.spring.out`. key→first-step latency is reported, not judged.
    A missing trace on either side fails. The `[focus]` table (02 §5) is written
    to `traces/` and compared; it gates the state only with `"focusCheck": true`.
+
+8. **Added 2026-10-10 (P3-P5 device pass)** — none of it changes rules 1-7:
+   * `"traceRule": "rest"` (a key BURST only): the gaps between the presses of an adb burst
+     are not reproducible (114..357 ms inside one `KEY*12@50` loop), so the bent journey of a
+     retargeted spring is a different curve every run, js against js included. Such a state
+     is judged by its pixels, by the value each traced id comes to rest at (1e-3 x range) and
+     by its focus table; the table says `ok (rest only)`.
+   * `"focusCheck": true` now compares the GAIN rows only, with react tags renamed in the
+     order they were first focused (`#0`, `#1`, …) — the two implementations mount different
+     numbers of views, the JS Focusable cannot log the blur of an element being unmounted,
+     and the native one logs "gain, loss" when the gaining element is still being mounted.
+   * `"expectGains": N`: a take whose `[focus]` log does not hold exactly N gains is thrown
+     away and taken again (≤ 5 takes, reported as `retaken`). For key paths that go UP from
+     the first shelf onto the hero: under `adb input keyevent` only the key-UP reaches Home's
+     handler and it races the hero button's focus event — when focus wins, the rail opens.
+     The JS reference does this to itself (2 of 4, `js-vs-js-up-race/`).
+   * `"freeze": "on,mid"` (PROTOCOL.md §3): Home's atTop fade, its column and the rail's
+     slide rest half way, so a BLENDED frame is captured still and compared by rules 1-6.
+   * `states/app.json` (`--states app`): whole-app key paths, everything native against all js.
+   * A traced move should start FROM REST (`wait:800` before the last key) and should not be a
+     press on which React re-renders (a shelf's window moving, the rail mounting): the JS
+     side's `[anim]` lines are stamped when they ARRIVE at the native module, and arrive in
+     a clump after the render — the curve rule then fails on time stamps, not on motion.
 
 Standalone: `python diff.py A.png B.png [--out D.png --triptych T.png --json R.json
 --mask x,y,w,h --dither x,y,w,h --threshold 0.1 --max-diff-fraction 0.0005 --edge-dilate 1]`

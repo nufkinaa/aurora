@@ -13,6 +13,9 @@ import com.facebook.react.R
  * volatile booleans so the hot paths pay one field read.
  *
  *   frozen / trailer   `freeze on|off|on,trailer`
+ *   mid                `freeze on,mid`: Home's atTop cross-fade, its column slide and the rail's
+ *                      slide come to rest HALF WAY (0.5, half the row's target, 0.5), so the
+ *                      blended frames can be captured still and compared pixel for pixel
  *   trace              `[anim]` + `[key]` lines (tag AuroraAnim)
  *   focuslog           `[focus]` + `[ring]` lines (tag AuroraAnim)
  */
@@ -22,6 +25,7 @@ object AuroraQa {
 
   @Volatile var frozen = false
   @Volatile var trailer = false
+  @Volatile var mid = false
   @Volatile var trace = false
   @Volatile var focuslog = false
   @Volatile private var loaded = false
@@ -30,6 +34,7 @@ object AuroraQa {
     val p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     frozen = p.getBoolean("frozen", false)
     trailer = p.getBoolean("trailer", false)
+    mid = p.getBoolean("mid", false)
     trace = p.getBoolean("trace", false)
     focuslog = p.getBoolean("focuslog", false)
     loaded = true
@@ -43,6 +48,7 @@ object AuroraQa {
     ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
       .putBoolean("frozen", frozen)
       .putBoolean("trailer", trailer)
+      .putBoolean("mid", mid)
       .putBoolean("trace", trace)
       .putBoolean("focuslog", focuslog)
       .commit()

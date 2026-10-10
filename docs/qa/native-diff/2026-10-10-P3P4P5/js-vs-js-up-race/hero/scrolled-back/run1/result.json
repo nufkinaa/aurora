@@ -1,0 +1,79 @@
+{
+  "state": "scrolled-back",
+  "component": "hero",
+  "impl": "-",
+  "run": 1,
+  "differing_px": 287029,
+  "off_edge_px": 242633,
+  "on_edge_px": 44396,
+  "diff_fraction": 0.021410108024691357,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 249,
+  "max_yiq": 0.9388425946235657,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 656,
+      "polls": 2,
+      "anim_lines": 394,
+      "frames": 227
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 655,
+      "polls": 2,
+      "anim_lines": 432,
+      "frames": 227
+    }
+  },
+  "reasons": [
+    "242633 differing px off the edge mask (bbox [0, 0, 550, 1080])",
+    "on-edge diff fraction 0.021410 > 0.0005",
+    "trace hero.atTop: B step 4 at 4.0 ms = 0.785976, off A's curve [0, 0.640967] within +-61 ms (|err| 0.145 > 0.001)",
+    "trace hero.atTop: A step 4 at 82.0 ms = 0.704003, off B's curve [0.802955, 0.994584] within +-61 ms (|err| 0.099 > 0.001)",
+    "trace hero.ty: B step 4 at 5.0 ms = -177.514, off A's curve [-329, -233.355] within +-60 ms (|err| 55.8 > 0.329)",
+    "trace hero.ty: A step 4 at 82.0 ms = -213.248, off B's curve [-167.524, -49.3119] within +-60 ms (|err| 45.7 > 0.329)"
+  ],
+  "trace": {
+    "pass": false,
+    "rule": "curve",
+    "ids": {
+      "hero.atTop": {
+        "steps_a": 15,
+        "steps_b": 10,
+        "max_abs_err": 0.14500900000000005,
+        "pass": false,
+        "key_to_first_ms": [
+          37.0,
+          123.0
+        ]
+      },
+      "hero.ty": {
+        "steps_a": 55,
+        "steps_b": 48,
+        "max_abs_err": 55.840597562499994,
+        "pass": false,
+        "key_to_first_ms": [
+          37.0,
+          123.0
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": false,
+    "rows": 4
+  },
+  "focus_checked": false,
+  "pass": false
+}

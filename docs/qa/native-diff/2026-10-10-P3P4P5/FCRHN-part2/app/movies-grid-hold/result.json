@@ -1,0 +1,49 @@
+{
+  "state": "movies-grid-hold",
+  "component": "app",
+  "impl": "FCRHN",
+  "run": 1,
+  "differing_px": 71179,
+  "off_edge_px": 2824,
+  "on_edge_px": 68355,
+  "diff_fraction": 0.03296440972222222,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 215,
+  "max_yiq": 0.8095494508743286,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 952,
+      "polls": 3,
+      "anim_lines": 0,
+      "frames": 309
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 734,
+      "polls": 2,
+      "anim_lines": 0,
+      "frames": 302
+    }
+  },
+  "reasons": [
+    "2824 differing px off the edge mask (bbox [170, 136, 1780, 1073])",
+    "on-edge diff fraction 0.032964 > 0.0005"
+  ],
+  "focus": {
+    "pass": true,
+    "rows": 20
+  },
+  "focus_checked": true,
+  "pass": false
+}
