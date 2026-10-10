@@ -113,7 +113,7 @@ Rules that keep the suite reliable:
 |---|---|
 | `wall.test.js` | profile wall, wrong / right password, reload keeps the unlock, the one-time "new look" note, Switch profile |
 | `navigation.test.js` | every `route()` in `main.js` at 1280×720 and 390×844: renders, no console errors, no sideways scroll, no skeleton left; deep links; Back / Forward / Escape; unknown routes. Fails when `main.js` gains a route the table does not have |
-| `library.test.js` | Movies / Shows grids, Unwatched, category pills, the in-page search box, Search, My List add / remove / reload / sort / filter |
+| `library.test.js` | Movies / Shows grids, Unwatched, category pills, the in-page search box, Search, My List add / remove / reload / sort / filter; the add's toast for each answer of My List downloads (stubbed answer) |
 | `title.test.js` | film Play / Resume / Start over / watched; show episode list and card states; X-Ray with no network; Follow; rating |
 | `player.test.js` | direct play: transport, ±10 s, keys, timeline, speed, subtitles (+ saved to the profile, carried to the next title), settings menu, resume, leaving, Media Session, PiP / AirPlay, mute, playing to the end, 10 quiet seconds after leaving |
 | `player-episodes.test.js` | Next episode, Up next + countdown + auto-advance, Play now / Dismiss, autoplay off, Still watching?, subtitle carried to the next episode, resume, leaving |
@@ -122,7 +122,7 @@ Rules that keep the suite reliable:
 | `live.test.js` | a film added to / removed from the library reaches open grids and Home without a reload, filter kept |
 | `images.test.js` | blur-up placeholders give way to sharp posters (desktop + phone); a broken poster falls back to the titled tile |
 | `kids.test.js` | a kids profile's grids / Home / Search, blocked title and its streams (403), leaving needs the PIN, a normal profile is unaffected (skips if the server has no kids routes) |
-| `admin.test.js` | admin gate, People tab, approve / reject a request (arrives live), kids controls, every tab opens; Downloads → "Downloads at once" (set, reload, out-of-range refused) and the second-source line under a job (stubbed queue) |
+| `admin.test.js` | admin gate, People tab, approve / reject a request (arrives live), kids controls, every tab opens; Downloads → "Downloads at once" (set, reload, out-of-range refused) and the second-source line under a job (stubbed queue); My List downloads → the settings (set, reload, refused values), the tag on a job, the stale mark on disk and the stale copy leading "Suggest what to delete" (stubbed answers) |
 | `downloads.test.js` | My downloads: a job trying a second source keeps its one card and gains one note (stubbed queue) |
 
 ### How stall recovery is tested
@@ -132,6 +132,10 @@ The ladder watches the media clock. A buffered stream cannot be frozen from outs
 ### The download queue without a torrent
 
 `test/dlrace-queue.test.js` (part of `npm test`) plays the queue out against a fake engine: "Downloads at once", the hold while people watch, and the second-source race end to end (slow original → challenger → one file in the library, the loser cancelled and purged; both finishing in one tick; a cancel and a restart mid-race). It uses the same trick as the private instance, in-process: `src/` is copied to a temp root with its own `config.json`, `data/` and library and required from there, the engine is swapped through `downloads._internals.setEngine`, and the clock, timers, "who is watching" and the source lookup are `downloads._internals.seams`. No aria2 process, no network. The rules themselves are pure and pinned in `test/dlrace.test.js`.
+
+### My List downloads without a download
+
+`test/mylistdl.test.js` runs the feature (`src/media/mylistdl.js`) over fakes it is handed — a queue, a library, a clock — so the trigger, the 14 / 21-day clock and every refusal are pinned without anything real. `test/mylistdl-queue.test.js` is the wiring, in the same private root as the queue test above: the watchlist route's answer, the job's tag, "by hand" taking a job over, the admin routes, and a real file leaving a temp library at 21 days. Its engine accepts a job and never moves it; the source lookup is the feature's own seam (`_internals.use`).
 
 ## Known gaps
 
