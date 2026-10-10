@@ -10,6 +10,7 @@ import { onMessage } from "../ws.js";
 import { createHeroTrailer } from "../heroTrailer.js";
 import { fromHome as prefetchFromHome, warmHero } from "../prefetch.js";
 import { lite } from "../net.js";
+import { homeUsable } from "../telemetry.js"; // [analytics]
 import { toneNavFromImage } from "../glassTone.js";
 
 // Home's last answer, per profile. Coming back to Home paints from it at
@@ -112,7 +113,7 @@ export const renderHome = async (root) => {
         el("div", { class: "glyph" }, "📡"),
         "Couldn't load the library — is the server awake?",
         el("div", { style: { marginTop: "14px" } },
-          el("button", { class: "btn small focusable", onclick: () => navigate("#/") }, "Try again"))));
+          el("button", { "data-ui": "home.retry", class: "btn small focusable", onclick: () => navigate("#/") }, "Try again"))));
     return;
   }
 
@@ -167,7 +168,7 @@ export const renderHome = async (root) => {
     const picks = el("div", { class: "hero-picks" },
       el("div", { class: "hero-picks-k" }, "Tonight's picks"),
       data.hero.map((h, j) =>
-        el("button", {
+        el("button", { "data-ui": "home.hero.pick",
           class: "hero-pick focusable",
           "aria-label": h.title,
           onclick: () => go(j),
@@ -181,7 +182,7 @@ export const renderHome = async (root) => {
     );
     const dots = el("div", { class: "hero-dots" },
       data.hero.map((_, i) =>
-        el("button", {
+        el("button", { "data-ui": "home.hero.pick",
           class: "hero-dot", "aria-label": `Show title ${i + 1}`,
           onclick: () => go(i),
         }, el("span", { class: i === 0 ? "on" : "" }))
@@ -276,7 +277,7 @@ export const renderHome = async (root) => {
           el("span", { class: "progress" }, el("i", { style: { width: `${Math.round((mid.position / mid.duration) * 100)}%` } })),
           el("span", {}, `${fmtClock(mid.position)} in · ${fmtDuration(mid.duration - mid.position)} left`)),
         el("div", { class: "hero-actions" },
-          el("button", {
+          el("button", { "data-ui": "home.hero.play",
             class: "btn btn-primary focusable",
             html: icons.play + `<span>${item.source === "stream" ? "Stream" : "Play"}</span>`,
             onclick: () => {
@@ -285,7 +286,7 @@ export const renderHome = async (root) => {
               else navigate(`#/play/${item.id}`);
             },
           }),
-          el("button", {
+          el("button", { "data-ui": "home.hero.details",
             class: "btn focusable",
             html: icons.info + "<span>Details</span>",
             onclick: () => openItem(item),
@@ -575,6 +576,7 @@ export const renderHome = async (root) => {
     }
   };
   renderRows(data.rows);
+  requestAnimationFrame(homeUsable); // [analytics] "Home is usable": the first row's cards are on the screen
   prefetchFromHome(data); // Continue Watching's next titles, quietly, at idle
   if (painted) {
     api.home(pid).then((fresh) => {

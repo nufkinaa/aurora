@@ -13,6 +13,7 @@ import {warmItem} from '../prefetch';
 import {noteFocus, railOpen, useFocusFallback, useTVKeys} from '../focus';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
+import {tmLap, tmStart} from '../telemetry'; // [analytics]
 
 const {colors, radius, fontSize, spacing, CLEARANCE} = theme;
 const norm = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -82,6 +83,7 @@ export default function Search({
     (text: string, lib: Item[]) => {
       setQ(text);
       if (debounce.current) clearTimeout(debounce.current);
+      tmStart('search'); // [analytics] keystroke → results shown (the time only; never the text)
       const query = text.trim();
       if (!query) {
         // Invalidate the in-flight request too — without this, clearing the box
@@ -96,6 +98,7 @@ export default function Search({
         .filter(i => norm(i.title).includes(ql))
         .map(i => ({...i, source: 'downloaded' as const}));
       setResults(local);
+      tmLap('search_results', 'search', 'library'); // [analytics]
       track('feat', {f: 'search', hits: local.length}); // how often, never what (as the site)
       // server (stream) results, debounced + race-guarded
       debounce.current = setTimeout(async () => {
@@ -108,6 +111,7 @@ export default function Search({
             .filter(m => m.imdbId && !libTitles.has(norm(m.title)))
             .map(i => ({...i, source: 'stream' as const}));
           setResults([...local, ...stream]);
+          tmLap('search_results', 'search', 'catalogue'); // [analytics]
         } catch {}
       }, 350);
     },

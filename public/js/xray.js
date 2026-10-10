@@ -41,7 +41,7 @@ const people = (title, list, { max = lite() ? 6 : 12, link = true } = {}) => {
   const grid = el("div", { class: "xr-people" }, list.slice(0, max).map(person1));
   const wrap = el("section", { class: "xr-section" }, el("h3", {}, title, el("span", { class: "xr-count" }, String(list.length))), grid);
   if (list.length > max) {
-    const more = el("button", {
+    const more = el("button", { "data-ui": "xray.more",
       class: "xr-more focusable",
       onclick: () => {
         grid.append(...list.slice(max).map(person1));

@@ -185,7 +185,7 @@ export const showDownloadPicker = ({ title, files, keys }) => {
       0,
     );
 
-  const confirm = el("button", { class: "btn btn-primary focusable" });
+  const confirm = el("button", { "data-ui": "downloadpicker.confirm", class: "btn btn-primary focusable" });
   // A title can carry a dozen tracks (every alternative the source offered), so
   // the header doubles as an all-or-nothing switch.
   const toggleAll = el("button", { class: "dl-picker-all focusable" });

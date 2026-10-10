@@ -9,6 +9,7 @@
 import { el, icons, debounce, restoreScrollY } from "../ui.js";
 import { api } from "../api.js";
 import { track } from "../usage.js";
+import { tmStart, tmLap } from "../telemetry.js"; // [analytics]
 import { state, loadLibrary } from "../state.js";
 import { navigate } from "../router.js";
 import { onMessage } from "../ws.js";
@@ -89,7 +90,7 @@ export const renderSearch = async (root) => {
     class: "focusable",
     "aria-label": "Search",
   });
-  const clearBtn = el("button", {
+  const clearBtn = el("button", { "data-ui": "search.clear",
     class: "search-clear focusable hidden",
     type: "button",
     "aria-label": "Clear search",
@@ -142,7 +143,7 @@ export const renderSearch = async (root) => {
     recentHost.append(
       el("span", { style: { color: "var(--text-faint)", fontSize: "0.85rem", fontWeight: "700" } }, "Recent:"),
       ...list.map((q) =>
-        el("button", { class: "chip focusable", onclick: () => { input.value = q; paintClear(); run.cancel(); search(q, { committed: true }); } }, q)
+        el("button", { "data-ui": "search.recent.pick", class: "chip focusable", onclick: () => { input.value = q; paintClear(); run.cancel(); search(q, { committed: true }); } }, q)
       )
     );
   };
@@ -168,7 +169,7 @@ export const renderSearch = async (root) => {
         el("div", { class: "glyph" }, "📡"),
         `Couldn't reach the catalogue for “${q}”.`,
         el("div", { style: { marginTop: "14px" } },
-          el("button", { class: "btn small focusable", onclick: retry }, "Try again")));
+          el("button", { "data-ui": "search.retry", class: "btn small focusable", onclick: retry }, "Try again")));
     } else if (!committed && q.length < CATALOG_MIN) {
       status.append(
         el("div", { class: "glyph" }, "🔍"),
@@ -264,6 +265,7 @@ export const renderSearch = async (root) => {
     local.forEach(addLocal);
     cached.forEach(addStream); // typo-tolerant, from memory — no wait
     track("feat", { f: "search", hits: local.length }); // how often, never what
+    tmLap("search_results", "search", "library"); // [analytics]
 
     const any = () => results.childElementCount > 0;
     if (wantCatalog) setBusy(any() ? "Searching the catalogue…" : "Searching…");
@@ -275,6 +277,7 @@ export const renderSearch = async (root) => {
     const failed = !!(data && data.failed);
     if (data && !failed) {
       for (const m of [...(data.movies || []), ...(data.shows || [])]) addStream(m);
+      tmLap("search_results", "search", "catalogue"); // [analytics]
     }
 
     if (!any()) {
@@ -289,7 +292,7 @@ export const renderSearch = async (root) => {
       if (failed) {
         status.innerHTML = "";
         status.append(el("div", { class: "search-hint" }, "The catalogue didn't answer — these are from the library. ",
-          el("button", { class: "btn small focusable", onclick: () => search(q, { committed: true }) }, "Try again")));
+          el("button", { "data-ui": "search.retry", class: "btn small focusable", onclick: () => search(q, { committed: true }) }, "Try again")));
         status.classList.remove("hidden");
       }
       // remember searches that found something — at once when you pressed
@@ -304,6 +307,7 @@ export const renderSearch = async (root) => {
   const run = debounce(() => search(input.value.trim()), 180);
 
   input.addEventListener("input", () => {
+    tmStart("search"); // [analytics] keystroke → results shown (the time only; never the text)
     paintClear();
     run();
   });

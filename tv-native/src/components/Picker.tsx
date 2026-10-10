@@ -84,7 +84,7 @@ export default function Picker({
 
   return (
     <View ref={wrap} collapsable={false}>
-      <Focusable
+      <Focusable uiId="picker.open"
         round
         ref={ref as never}
         edgeLeft={edgeLeft}
@@ -115,7 +115,7 @@ export default function Picker({
           ]}>
           <ScrollView>
             {options.map((o, i) => (
-              <Focusable
+              <Focusable uiId="picker.pick"
                 key={o.value || ' '}
                 noScale
                 ringWidth={2}

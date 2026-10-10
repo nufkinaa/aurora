@@ -3,6 +3,7 @@
 // protected profile is unlocked) rides on every request as X-Profile-Token,
 // mirroring the web client.
 import {PixelRatio} from 'react-native';
+import {httpFailed} from './telemetry'; // [analytics] (telemetry.ts imports nothing of the app's)
 import {takeBlur} from './blur';
 
 let baseUrl = '';
@@ -594,11 +595,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     res = await fetchBounded(baseUrl + path, {...options, headers}, requestLimitMs(path, options));
   } catch (e) {
     if (e instanceof ApiError) throw e;
+    httpFailed(options.method, path, 0); // [analytics] by its shape, never the address
     // Network-level failure (server down, wrong IP, wifi) — normalize to a
     // friendly, catchable shape instead of a raw TypeError.
     throw new ApiError(0, 'Cannot reach server');
   }
   if (!res.ok) {
+    httpFailed(options.method, path, res.status); // [analytics] "GET /api/item/:id → 404", counted
     // The server writes its error bodies for viewers ("too many attempts —
     // try again in a few minutes") — surface them instead of a status line.
     let body: {error?: string; signinRequired?: boolean; pinRequired?: boolean} = {};

@@ -29,14 +29,14 @@ const reducedMotion = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export const attachRowArrows = (section, scroller) => {
-  const prev = el("button", {
+  const prev = el("button", { "data-ui": "row.arrow",
     class: "row-nav prev",
     type: "button",
     "aria-label": "Scroll left",
     tabindex: "-1",
     html: icons.chevronLeft,
   });
-  const next = el("button", {
+  const next = el("button", { "data-ui": "row.arrow",
     class: "row-nav next",
     type: "button",
     "aria-label": "Scroll right",

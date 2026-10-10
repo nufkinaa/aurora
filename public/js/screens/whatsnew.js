@@ -149,7 +149,7 @@ export const renderWhatsNew = async (root) => {
       if (f.go.to === "report") return showReportSheet();
       navigate(f.go.to);
     };
-    return el("button", { class: "btn small focusable wn-go", onclick }, f.go.label);
+    return el("button", { "data-ui": "whatsnew.go", class: "btn small focusable wn-go", onclick }, f.go.label);
   };
 
   const card = (f, i) =>

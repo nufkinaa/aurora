@@ -7,12 +7,13 @@ import { blurOf } from "../blur.js";
 import { api } from "../api.js";
 import { state } from "../state.js";
 import { starRating } from "../components.js";
+import { titleShown } from "../telemetry.js"; // [analytics]
 // Exported for the unified detail page (discover-detail.js), which uses this
 // variant whenever the title has a library copy — the stream variant keys the
 // watchlist by IMDb id, this one by library id.
 export const watchlistButton = (item) => {
   let inList = false;
-  const btn = el("button", { class: "btn focusable" });
+  const btn = el("button", { "data-ui": "detail.mylist", class: "btn focusable" });
 
   const paint = () => {
     btn.innerHTML = (inList ? icons.check : icons.plus) + `<span>${inList ? "In My List" : "My List"}</span>`;
@@ -60,6 +61,7 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null, serverInfo
   if (item.backdrop) upgradeArt(hero, "--hero-art", item.backdrop, () => heroArtWidth({ full: true }));
   if (item.cover) upgradeArt(hero, "--hero-poster", item.cover, () => Math.min(600, heroArtWidth({ full: true })));
   coverDrift(hero);
+  titleShown(item.backdrop ? artUrl(item.backdrop, heroArtWidth()) : null); // [analytics] title page → content shown, → backdrop shown
   return hero;
 };
 
@@ -186,7 +188,7 @@ const labelled = (actions) => {
 // something was actually cut, and toggles the clamp.
 const synopsisBlock = (text) => {
   const p = el("p", { class: "detail-synopsis" }, text);
-  const more = el("button", { class: "syn-more focusable hidden", type: "button" }, "More");
+  const more = el("button", { "data-ui": "detail.synopsis.more", class: "syn-more focusable hidden", type: "button" }, "More");
   more.addEventListener("click", () => smooth(() => {
     const open = p.classList.toggle("open");
     more.textContent = open ? "Less" : "More";

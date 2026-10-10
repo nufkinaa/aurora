@@ -31,6 +31,7 @@ import {
   saveKidsLock,
 } from '../storage';
 import theme, {useTvMetrics} from '../theme';
+import {profilePicked} from '../telemetry'; // [analytics]
 
 const {colors, radius, fontSize, spacing} = theme;
 
@@ -133,6 +134,7 @@ export default function ProfileGate({
     try {
       const res = await api.unlock(p.id, pw, withPin || undefined);
       if (res.token) {
+        profilePicked(); // [analytics] profile accepted → Home usable, as a timing
         // Remember it for this TV before handing control up, so the next visit
         // to the gate lands straight on the profile actually used here.
         await pushRecentProfile(p.id);
@@ -292,7 +294,7 @@ export default function ProfileGate({
   // a stale onChosen means picking a profile silently does nothing. This list is
   // a handful of static tiles, so there is nothing to gain by caching it.
   const renderTile = ({item: p, index}: {item: Profile; index: number}) => (
-    <Focusable
+    <Focusable uiId="profile.pick"
       // .profile-tile:hover, :focus -> transform: scale(1.07)
       scaleTo={1.07}
       // index 0 is the profile this TV used last, so the remote starts there.
@@ -351,7 +353,7 @@ export default function ProfileGate({
           onSubmitEditing={submitPin}
         />
         <View style={styles.row}>
-          <Focusable round onPress={submitPin} style={styles.btnPrimary}>
+          <Focusable uiId="profile.pin.submit" round onPress={submitPin} style={styles.btnPrimary}>
             {busy ? (
               <ActivityIndicator color={colors.bg} />
             ) : (
@@ -396,7 +398,7 @@ export default function ProfileGate({
               password — press OK and you get "Wrong password" without ever
               having typed. The field is first in the tree, so it takes focus and
               the on-screen keyboard comes up straight away. */}
-          <Focusable
+          <Focusable uiId="profile.unlock"
             round
             onPress={() => choose(pwFor, password)}
             style={styles.btnPrimary}>

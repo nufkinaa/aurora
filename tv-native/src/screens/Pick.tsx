@@ -344,7 +344,7 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
         /* The dials, folded to one line while the picks have the screen.
            Focusing it (UP from the picks' header) unfolds the panel and
            hands focus to the search bar. */
-        <Focusable
+        <Focusable uiId="pick.unfold"
           round
           style={[styles.summary, handoff && styles.summaryGhost]}
           onFocusChange={f => f && !handoff && unfold()}
@@ -397,7 +397,7 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
             />
           </View>
           <TVFocusGuideView trapFocusLeft={off}>
-            <Btn
+            <Btn uiId="pick.go"
               ref={goBtn as never}
               primary
               icon="sparkle"
@@ -417,7 +417,7 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
         <View style={styles.dialRow}>
           <Group icon={kind === 'show' ? 'series' : 'film'} label="WHAT">
             {KINDS.map((k, i) => (
-              <Chip
+              <Chip uiId="pick.option"
                 key={k.id}
                 ref={i === 0 ? (firstKind as never) : undefined}
                 small
@@ -434,14 +434,14 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
           <View style={styles.vr} />
           <Group icon="calendar" label="ERA">
             {ERAS.map(e => (
-              <Chip key={e.id} small label={e.label} on={era === e.id} onPress={() => setEra(e.id)} />
+              <Chip uiId="pick.option" key={e.id} small label={e.label} on={era === e.id} onPress={() => setEra(e.id)} />
             ))}
           </Group>
         </View>
         <View style={[styles.dialRow, styles.dialRowNext]}>
           <Group icon="clock" label="LENGTH">
             {lengths.map((l, i) => (
-              <Chip key={l.id} small label={l.label} on={length === l.id} edgeLeft={i === 0} onPress={() => setLength(l.id)} />
+              <Chip uiId="pick.option" key={l.id} small label={l.label} on={length === l.id} edgeLeft={i === 0} onPress={() => setLength(l.id)} />
             ))}
           </Group>
         </View>
@@ -466,7 +466,7 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
               <Text style={styles.legendText}>streams</Text>
             </View>
           ) : null}
-          <Btn
+          <Btn uiId="pick.retry"
             ref={againBtn as never}
             small
             icon="refresh"
@@ -525,7 +525,7 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
       <View style={styles.tryRow}>
         <Text style={styles.tryLabel}>Try</Text>
         {EXAMPLES.slice(0, 3).map((ex, i) => (
-          <Chip key={ex} small bare label={ex} edgeLeft={i === 0} onPress={() => ask(ex)} />
+          <Chip uiId="pick.example" key={ex} small bare label={ex} edgeLeft={i === 0} onPress={() => ask(ex)} />
         ))}
       </View>
     );

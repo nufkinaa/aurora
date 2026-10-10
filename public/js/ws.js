@@ -2,6 +2,7 @@
 import { state, loadLibrary, refreshProgress } from "./state.js";
 import { toast } from "./ui.js";
 import { backToSignIn, onProfileSignedOut } from "./session.js";
+import { wsDown, wsUp } from "./telemetry.js"; // [analytics]
 
 const listeners = new Map(); // type -> Set<fn>
 
@@ -113,6 +114,7 @@ export const connect = () => {
     const ws = new WebSocket(`${proto}//${location.host}`);
     state.ws = ws;
     ws.onopen = () => {
+      wsUp(); // [analytics] lost → back, as a timing
       const wasDown = failedAttempts >= 2;
       hideOfflineBanner();
       // Only a socket that STAYS open earns a backoff reset — the server has
@@ -147,6 +149,7 @@ export const connect = () => {
         return connect();
       }
       failedAttempts++;
+      wsDown(); // [analytics]
       if (failedAttempts >= 2) showOfflineBanner();
       setTimeout(connect, reconnectDelay);
       reconnectDelay = Math.min(reconnectDelay * 2, 30000);

@@ -57,7 +57,7 @@ export const attachSuggest = (input, host, opts = {}) => {
       host.append(
         el(
           "button",
-          { class: "suggest-item focusable", onclick: () => pick(s) },
+          { "data-ui": "search.suggestion.pick", class: "suggest-item focusable", onclick: () => pick(s) },
           s.cover
             ? posterImg(s.cover, s.title, "suggest-thumb", "suggest-thumb")
             : el("span", { class: "suggest-thumb" }),
