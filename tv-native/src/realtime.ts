@@ -5,11 +5,20 @@
 import {Platform} from 'react-native';
 import {getBaseUrl, getSession, forgetLibraryReads} from './api';
 import {APP_VERSION} from './update';
+import {registerProfileCache} from './profileScope';
 
 type Handler = (data: Record<string, unknown> & {type: string}) => void;
 const listeners = new Map<string, Set<Handler>>();
 let ws: WebSocket | null = null;
 let wanted = false; // connect() was called and disconnect() has not
+// THE SERVER ENDED THIS SOCKET ON PURPOSE — an admin's kick, a ban. It says so
+// (`kicked` / `banned`) and then closes. The close used to be read as an
+// outage: the app connected again a second later and carried on, so a kicked
+// TV was back before the admin had let go of the button, and a banned one
+// knocked on the door every 30 s for ever (audit A17, A18). After either
+// message nothing reconnects until connect() is called again — which only a
+// fresh sign-in / profile entry does (App.tsx decides what follows).
+let halted = false;
 let delay = 1000;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let identity: {id: string; name: string; avatar?: string | null; avatarImage?: string | null} | null = null;
@@ -97,12 +106,13 @@ const open = () => {
       }
       if (!data || typeof data.type !== 'string') return;
       if (data.type === 'library_updated') forgetLibraryReads();
+      if (data.type === 'kicked' || data.type === 'banned') halted = true;
       const subs = listeners.get(data.type);
       if (subs) for (const fn of subs) fn(data);
     };
     sock.onclose = () => {
       if (ws === sock) ws = null;
-      if (!wanted) return;
+      if (!wanted || halted) return;
       timer = setTimeout(open, delay);
       delay = Math.min(delay * 2, 30000);
     };
@@ -118,8 +128,19 @@ const open = () => {
 
 export const connect = () => {
   wanted = true;
+  halted = false;
+  delay = 1000;
   open();
 };
+/** Did the server end the socket on purpose (and nothing reconnects)? */
+export const isHalted = () => halted;
+
+// A profile is left: the next one does not say hello as it, nor repeat what
+// it was watching.
+registerProfileCache('realtime', () => {
+  identity = null;
+  lastActivity = null;
+});
 
 export const disconnect = () => {
   wanted = false;

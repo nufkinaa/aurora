@@ -18,6 +18,7 @@
 // show something different from what it would have fetched itself, and a
 // warm that is never used costs one small request on an idle connection.
 import {api, HeroItem} from './api';
+import {registerProfileCache} from './profileScope';
 import {onMove, whenSettled} from './settle';
 
 let profileId: string | null = null;
@@ -92,3 +93,12 @@ export const stopPrefetch = () => {
   dwell?.();
   idleTimer = idleRest = dwell = null;
 };
+
+// A profile is left: nothing is warmed for it any more — and the next one
+// gets its own warm-up (`warmedSections` used to stay true for the whole run,
+// so only the first profile of a run ever had its sections warmed).
+registerProfileCache('prefetch', () => {
+  stopPrefetch();
+  warmedSections = false;
+  profileId = null;
+});

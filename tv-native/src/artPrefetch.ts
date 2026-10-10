@@ -24,6 +24,7 @@ import {NativeModules} from 'react-native';
 import type {ImgSource} from './api';
 import {markDrawn, wasDrawn} from './blur';
 import {isLite, isLowRam} from './perfTier';
+import {registerProfileCache} from './profileScope';
 import {onMove, whenSettled} from './settle';
 
 type Native = {prefetch: (uri: string, headers: Record<string, string> | null) => Promise<'hit' | 'ok' | 'fail'>};
@@ -179,6 +180,16 @@ export function artIdle(slot: string, sources: () => (ImgSource | null | undefin
   timer = whenSettled(fire, IDLE_MS);
 }
 let askedAt = 0;
+
+// A profile is left: the pictures its screens were still wishing for are not
+// fetched for the next one (profileScope.ts). What is already decoded stays —
+// a picture in memory is the box's.
+registerProfileCache('artPrefetch', () => {
+  timer?.();
+  timer = null;
+  wants.clear();
+  queue = [];
+});
 
 /** A place stops wishing (its screen went away). */
 export function artForget(slot: string) {

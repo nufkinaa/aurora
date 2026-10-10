@@ -5,6 +5,7 @@
 // device under Settings → Privacy (prefs.usageStats === false).
 import {AppState} from 'react-native';
 import {api} from './api';
+import {registerProfileCache} from './profileScope';
 
 type Ev = {n: string; t: number; p: Record<string, string | number | boolean>};
 const queue: Ev[] = [];
@@ -49,4 +50,12 @@ export const trackError = (message: string) => {
 
 AppState.addEventListener('change', s => {
   if (s !== 'active') flush();
+});
+
+// A profile is left: what it did is sent as it, and nothing more is counted
+// under its name (profileScope.ts).
+registerProfileCache('usage', () => {
+  setUsageProfile(null);
+  queue.length = 0;
+  errors = 0;
 });

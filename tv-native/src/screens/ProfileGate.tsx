@@ -47,10 +47,14 @@ const AVATAR = 104;
 // dead end that only ever got in the way.
 export default function ProfileGate({
   onChosen,
+  notice,
 }: {
   // `sid` is the sign-in session the unlock of a CLAIMED profile mints
   // (prompt 10's silent migration) — null for open/unclaimed profiles.
-  onChosen: (profileId: string, token: string | null, sid?: string | null) => void;
+  // `extra.mustReset`: the admin asked for a new password (App.tsx).
+  onChosen: (profileId: string, token: string | null, sid?: string | null, extra?: {mustReset?: boolean; typed?: string | null}) => void;
+  // why the wall is up again (a kick, a sign-out from another device)
+  notice?: string;
 }) {
   const {width, safeBottom} = useTvMetrics();
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
@@ -147,7 +151,7 @@ export default function ProfileGate({
         }
         // A claimed profile's unlock signs the device in on the spot — carry
         // the session up so the eventual flip to closed mode costs nothing.
-        onChosen(p.id, res.token, res.session || null);
+        onChosen(p.id, res.token, res.session || null, res.mustReset ? {mustReset: true, typed: pw} : undefined);
       } else {
         setPwError(res.error === 'wrong password' ? 'Wrong password' : 'Could not unlock');
       }
@@ -434,6 +438,8 @@ export default function ProfileGate({
         ListHeaderComponent={
           <View>
             <Text style={styles.heading}>Who's watching?</Text>
+            {/* why the wall is up again: an admin's sign-out, a sign-out from another device */}
+            {notice ? <Text style={styles.notice}>{notice}</Text> : null}
             {profiles === null && !loadError ? (
               <ActivityIndicator color={colors.text} style={{marginTop: spacing.lg}} />
             ) : null}
@@ -536,4 +542,5 @@ const styles = StyleSheet.create({
   },
   btnGhostText: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
   error: {color: '#ff8080', fontSize: fontSize.small, marginTop: spacing.md},
+  notice: {color: '#fbbf24', fontSize: fontSize.body, fontWeight: '700', marginTop: spacing.sm},
 });

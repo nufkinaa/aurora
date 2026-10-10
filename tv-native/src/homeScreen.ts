@@ -10,6 +10,7 @@
 import {useEffect} from 'react';
 import {Linking, NativeModules} from 'react-native';
 import {api, assetUrl, getBaseUrl, getSession, getToken, HeroItem, HomeRow, MyDownload} from './api';
+import {registerProfileCache} from './profileScope';
 
 type Native = {
   setWatchNext: (items: object[]) => Promise<number>;
@@ -304,6 +305,8 @@ export function clearHomeScreen() {
   // native clear() also forgets what configure() stored and cancels the job
   native?.clear().catch(() => {});
 }
+// (also part of what every profile change runs — profileScope.ts)
+registerProfileCache('homeScreen', clearHomeScreen);
 
 const parse = (url: string | null): {action: 'play' | 'detail'; item: HeroItem} | null => {
   if (!url || !url.startsWith('aurora://open')) return null;

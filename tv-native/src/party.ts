@@ -4,6 +4,7 @@
 import {api, Party, PartyItem, TorrentPlayItem} from './api';
 import {isOpen, onMessage, send} from './realtime';
 import {showToast} from './toast';
+import {registerProfileCache} from './profileScope';
 
 export const party: {current: Party | null; role: 'host' | 'guest' | null} = {
   current: null,
@@ -65,6 +66,12 @@ export const leaveParty = () => {
   party.current = null;
   party.role = null;
 };
+// A profile is left: so is its party, and a question still waiting for the
+// server's answer is dropped (profileScope.ts).
+registerProfileCache('party', () => {
+  settle(false, 'left the profile');
+  leaveParty();
+});
 // Host only: the party moves to another title (Up next); guests follow.
 export const setPartyItem = (item: PartyItem) => {
   if (!party.current || party.role !== 'host') return;

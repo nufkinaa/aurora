@@ -3,6 +3,7 @@
 import {useEffect, useState} from 'react';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {api, Profile} from './api';
+import {registerProfileCache} from './profileScope';
 import {loadNewSeen, saveNewSeen} from './storage';
 import {APP_VERSION} from './update';
 import type {IconName} from './components/Icon';
@@ -155,6 +156,13 @@ export const goSection = <R extends keyof RootStackParamList>(
 const cache = new Map<string, Profile | null>();
 const cacheAt = new Map<string, number>();
 const loading = new Map<string, Promise<Profile | null>>();
+// A profile is left: its record (and the remembered picks in it) is read
+// again by whoever comes next (profileScope.ts).
+registerProfileCache('navSection', () => {
+  cache.clear();
+  cacheAt.clear();
+  loading.clear();
+});
 
 // The same record for code that is not a component — the player's remembered
 // languages, the Follow button. Answers from the cache while it is younger

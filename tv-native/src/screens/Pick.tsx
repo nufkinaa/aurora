@@ -38,6 +38,7 @@ import {canNavigate} from '../navLock';
 import {warmItem} from '../prefetch';
 import {noteFocus, railOpen, requestRailOpen, useFocusFallback, useTVKeys} from '../focus';
 import {showToast} from '../toast';
+import {registerProfileCache} from '../profileScope';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 
@@ -94,7 +95,14 @@ const MINT = '#8cffbe';
 
 type PickItem = HeroItem & {why?: string};
 type Answer = {vibe: string; kind: 'movie' | 'show'; era: string; length: string; items: PickItem[]; status: string};
+// The last answer, so coming back to the tab shows it again — THIS PROFILE'S
+// last answer: it is dropped when the profile is left (profileScope.ts). It
+// used to live for the whole run with no owner, so the next person — a kids
+// profile included — opened the tab on the previous person's picks (audit X8).
 let last: Answer | null = null;
+registerProfileCache('Pick', () => {
+  last = null;
+});
 
 // One labelled dial group: a small icon and a caps label, then its pills.
 function Group({icon, label, children}: {icon: IconName; label: string; children: React.ReactNode}) {

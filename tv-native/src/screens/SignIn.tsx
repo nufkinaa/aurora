@@ -35,8 +35,14 @@ type Mode = 'qr' | 'typed' | 'google';
 
 export default function SignIn({
   onSignedIn,
+  notice,
 }: {
-  onSignedIn: (profileId: string, token: string, session: string) => void;
+  // `extra.mustReset`: the admin asked for a new password — `typed` is the
+  // one just entered, when this screen saw one (App.tsx → NewPassword).
+  onSignedIn: (profileId: string, token: string, session: string, extra?: {mustReset?: boolean; typed?: string | null}) => void;
+  // why the viewer is being asked to sign in again (a kick, a sign-out
+  // from another device)
+  notice?: string;
 }) {
   const [mode, setMode] = useState<Mode>('qr');
   const [error, setError] = useState('');
@@ -46,11 +52,11 @@ export default function SignIn({
   const done = useRef(false); // success is single-shot across every poller
 
   const finish = useCallback(
-    (r: Partial<SigninResult>) => {
+    (r: Partial<SigninResult>, typed: string | null = null) => {
       if (done.current) return;
       if (!r.profile?.id || !r.profileToken || !r.session) return;
       done.current = true;
-      onSignedIn(r.profile.id, r.profileToken, r.session);
+      onSignedIn(r.profile.id, r.profileToken, r.session, r.mustReset ? {mustReset: true, typed} : undefined);
     },
     [onSignedIn],
   );
@@ -133,7 +139,7 @@ export default function SignIn({
     setError('');
     try {
       const r = await api.login(username.trim(), password);
-      finish(r);
+      finish(r, password);
     } catch (e) {
       // 401/429 bodies are written for viewers ("too many attempts — …").
       setError(e instanceof ApiError && e.message ? e.message : 'Could not sign in');
@@ -339,6 +345,7 @@ export default function SignIn({
     <View style={styles.root}>
       <Text style={styles.kicker}>SIGN IN</Text>
       <Text style={styles.heading}>Scan with your phone</Text>
+      {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       <Text style={styles.sub}>
         Open your camera, scan the code, and approve this TV — you'll be watching in seconds.
       </Text>
@@ -450,4 +457,5 @@ const styles = StyleSheet.create({
   },
   btnGhostText: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
   error: {color: '#ff8080', fontSize: fontSize.body, marginTop: spacing.md, maxWidth: 560},
+  notice: {color: '#fbbf24', fontSize: fontSize.body, fontWeight: '700', marginTop: spacing.sm, maxWidth: 560},
 });

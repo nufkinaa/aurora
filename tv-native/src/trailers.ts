@@ -12,6 +12,7 @@
 // line and the healer's "TV trailers" check) and to the usage stats.
 import {NativeModules} from 'react-native';
 import {api} from './api';
+import {registerProfileCache} from './profileScope';
 import {track} from './usage';
 
 export type TrailerSource = 'apple' | 'youtube';
@@ -124,6 +125,13 @@ export async function resolveTrailer(o: {
 // so the next ask tries again.
 const prepared = new Map<string, {at: number; p: Promise<ResolvedTrailer | null>}>();
 const PREP_MS = 45 * 60 * 1000;
+// A profile is left: the trailers got ready for the titles IT was looking at
+// go with it (profileScope.ts). What was learnt about the network — which
+// sources failed — stays; that is the box's, not a person's.
+registerProfileCache('trailers', () => {
+  prepared.clear();
+  resolved.clear();
+});
 export function prepareTrailer(o: Parameters<typeof resolveTrailer>[0]): Promise<ResolvedTrailer | null> {
   const key = (o.imdbId && /^tt\d+$/.test(o.imdbId) ? o.imdbId : null) || (o.youtubeIds || [])[0] || '';
   if (!key) return resolveTrailer(o);

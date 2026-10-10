@@ -4,6 +4,7 @@
 import {createNavigationContainerRef, StackActions} from '@react-navigation/native';
 import type {RootStackParamList} from './navigation';
 import {navReady} from './navLock';
+import {registerProfileCache} from './profileScope';
 
 export const navRef = createNavigationContainerRef<RootStackParamList>();
 
@@ -13,6 +14,7 @@ export const setRootIdentity = (profileId: string | null, profileName: string | 
   who.profileId = profileId;
   who.profileName = profileName;
 };
+registerProfileCache('rootNav', () => setRootIdentity(null, null));
 
 export const pushScreen = <R extends keyof RootStackParamList>(name: R, params: RootStackParamList[R]) => {
   if (!navRef.isReady() || !navReady()) return;

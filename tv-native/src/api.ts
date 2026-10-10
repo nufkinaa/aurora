@@ -4,6 +4,7 @@
 // mirroring the web client.
 import {PixelRatio} from 'react-native';
 import {takeBlur} from './blur';
+import {registerProfileCache} from './profileScope';
 import {pickServer} from './serverPick';
 
 let baseUrl = '';
@@ -90,6 +91,10 @@ export type SigninResult = {
   profile: Profile;
   profileToken: string;
   session: string;
+  // The admin asked for a new password at the next sign-in (People → Reset
+  // password). A note to the client: the session works in full; the app asks
+  // for a new password before going on (screens/NewPassword.tsx).
+  mustReset?: boolean;
 };
 
 export type Profile = {
@@ -734,17 +739,25 @@ function post<T>(path: string, body: unknown): Promise<T> {
 // Each new entry now takes the expired ones out with it, and past MEMO_MAX
 // the oldest go (a Map keeps insertion order). An entry that is dropped is
 // only ever fetched again — never answered differently.
+//
+// EVERY ENTRY BELONGS TO THE PROFILE IT WAS ASKED AS (`who`). The server
+// filters what it lists by profile — a kids profile's library is a different
+// list — and the key is only the path, so an entry is never answered to
+// anyone else: a kids profile entered within a minute of a grown-up was shown
+// the grown-up's library list and first catalogue page (audit X7). The store
+// is also emptied on every profile change (registerProfileCache, below); this
+// check is what holds if a request slips in between.
 const MEMO_MAX = 80;
-const memoStore = new Map<string, {at: number; ttl: number; p: Promise<unknown>}>();
+const memoStore = new Map<string, {at: number; ttl: number; who: string | null; p: Promise<unknown>}>();
 const memo = <T>(key: string, ttl: number, fn: () => Promise<T>, fresh = false): Promise<T> => {
   const hit = memoStore.get(key);
   const now = Date.now();
-  if (hit && !fresh && now - hit.at < hit.ttl) return hit.p as Promise<T>;
+  if (hit && !fresh && hit.who === activeProfile && now - hit.at < hit.ttl) return hit.p as Promise<T>;
   const p = fn();
   memoStore.delete(key); // asked again: it goes back in at the young end
   for (const [k, v] of memoStore) if (now - v.at >= v.ttl) memoStore.delete(k);
   while (memoStore.size >= MEMO_MAX) memoStore.delete(memoStore.keys().next().value as string);
-  memoStore.set(key, {at: now, ttl, p});
+  memoStore.set(key, {at: now, ttl, who: activeProfile, p});
   p.catch(() => memoStore.delete(key)); // a failure is never cached
   return p;
 };
@@ -764,6 +777,11 @@ export const forgetLibraryReads = () => {
 };
 /** Test-only. */
 export const _memoInternals = {keys: () => [...memoStore.keys()], max: MEMO_MAX, clear: () => memoStore.clear()};
+// A profile is left: nothing that was read as it stays (profileScope.ts).
+registerProfileCache('api', () => {
+  memoStore.clear();
+  homeKept = null;
+});
 
 // Health-check one candidate URL without touching the global baseUrl. Short
 // timeout: a dead LAN IP can otherwise hang for many seconds of SYN retries.
@@ -986,10 +1004,16 @@ export const api = {
       // makes the later flip to closed free). Store these when present.
       session?: string;
       user?: SigninUser;
+      // see SigninResult.mustReset
+      mustReset?: boolean;
     }>(
       `/api/profiles/${id}/unlock`,
       pin ? { password, pin } : { password },
     ),
+  // A new password for a profile (the forced reset): needs the current one,
+  // and ends every unlock token of the profile — unlock again afterwards.
+  setPassword: (id: string, newPassword: string, currentPassword: string) =>
+    post<{ok?: boolean; error?: string}>(`/api/profiles/${id}/password`, {newPassword, currentPassword}),
   // ---- kids profiles ----
   // Is a household PIN set at all? (No PIN: leaving a kids profile asks nothing.)
   kidsStatus: () => request<{pinSet: boolean; guard?: boolean}>('/api/kids/status'),
