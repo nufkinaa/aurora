@@ -2,8 +2,9 @@
 // The base URL is set once from storage/setup; the profile token (when a
 // protected profile is unlocked) rides on every request as X-Profile-Token,
 // mirroring the web client.
-import {PixelRatio} from 'react-native';
+import {Dimensions, PixelRatio} from 'react-native'; // LAB art-format: + Dimensions (backdropSrc)
 import {takeBlur} from './blur';
+import {artServer, artWebp} from './artFormat'; // LAB art-format
 
 let baseUrl = '';
 let token: string | null = null;
@@ -16,6 +17,9 @@ export const SERVER_CANDIDATES = [
   "http://10.0.0.1:4000",
   'https://nufurora.com',
 ];
+// LAB art-format: a lab server named by the art-server marker file goes first
+// (artFormat.ts); without the marker the list is exactly the one above.
+if (artServer()) SERVER_CANDIDATES.unshift(artServer());
 
 export const setBaseUrl = (url: string) => {
   // normalize: no trailing slash
@@ -653,6 +657,7 @@ const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
         const j = await res.json();
         if (j && typeof j.authMode === 'string') authMode = j.authMode;
         serverBlurs = !!(j && j.imgBlur);
+        serverFmtWebp = !!(j && Array.isArray(j.imgFmt) && j.imgFmt.includes('webp')); // LAB art-format
       } catch {}
       return true;
     })
@@ -756,6 +761,17 @@ const PROXY_ART_HOSTS = new Set([
 // so the billboard keeps blurring on the box until the server says it can.
 let serverBlurs = false;
 export const serverCanBlur = () => serverBlurs;
+// LAB art-format (docs/qa/native-bench/ART-FORMAT-PLAN.md): the server says in
+// /api/ping (`imgFmt: ["webp"]`) that ?blur= variants can be had as WebP
+// (&fmt=webp) and that its width ladder reaches 1920. An older server would
+// ignore both, so nothing is asked of it. `artWebpOn` is the experiment's
+// switch (artFormat.ts, OFF by default) AND that capability.
+let serverFmtWebp = false;
+export const artWebpOn = () => artWebp() && serverFmtWebp;
+// The server's ladder above the TV's own top step — only the title page's
+// backdrop (backdropSrc) asks this high; the home hero stays at 1280 (its
+// blur hides what a 1920 would add — measured).
+const BACKDROP_LADDER = [...ART_LADDER, 1600, 1920];
 
 // Device pixels for a box `dp` wide, snapped up onto the ladder; null when it
 // is wider than the ladder goes (the original is the right picture then).
@@ -771,7 +787,8 @@ export const artPx = (dp: number): number | null => {
 // or a width off the ladder — the caller then uses the plain address.
 export function artPath(pathOrUrl: string | null | undefined, px: number | null, blur = 0): string | null {
   if (!pathOrUrl || typeof pathOrUrl !== 'string' || !px) return null;
-  const q = `w=${px}${blur > 0 ? `&blur=${blur}` : ''}`;
+  // LAB art-format: a blurred variant as WebP when the switch is on (`&fmt=webp`)
+  const q = `w=${px}${blur > 0 ? `&blur=${blur}${artWebpOn() ? '&fmt=webp' : ''}` : ''}`;
   if (pathOrUrl.startsWith('/img/')) {
     // library covers, cached metadata posters and the backup poster chain;
     // stills/frames are cut on demand and stay as they are
@@ -791,6 +808,26 @@ export function artPath(pathOrUrl: string | null | undefined, px: number | null,
 export function artSrc(pathOrUrl: string | null | undefined, dp: number): {src: ImgSource | null; sized: boolean} {
   const sized = artPath(pathOrUrl, artPx(dp));
   return sized ? {src: imgSrc(sized), sized: true} : {src: imgSrc(pathOrUrl), sized: false};
+}
+
+// LAB art-format: an <Image> source for the title page's BACKDROP, drawn in a
+// box `boxW` × `boxH` of the window (fractions; Detail's art box is 0.70 ×
+// 0.76). Switch off, or a server that cannot: exactly imgSrc(pathOrUrl) — the
+// catalogue's original, as always. Switch on: the server's sized WebP
+// (/img/ext?u=…&w=…, session headers included by imgSrc), at the ladder step
+// that covers the box with a 16:9 picture — 1600 on a 1080p set — never wider
+// than the source (the server does not upscale). A picture artPath cannot
+// size (a still, an unproxied host) falls back to the plain address.
+export function backdropSrc(pathOrUrl: string | null | undefined, boxW = 1, boxH = 1): ImgSource | null {
+  if (pathOrUrl && artWebpOn()) {
+    const win = Dimensions.get('window');
+    const needDp = Math.max(win.width * boxW, (win.height * boxH * 16) / 9); // resizeMode="cover"
+    const needPx = Math.ceil(needDp * PixelRatio.get());
+    const px = BACKDROP_LADDER.find(s => needPx <= s) || 1920;
+    const sized = artPath(pathOrUrl, px);
+    if (sized) return imgSrc(sized);
+  }
+  return imgSrc(pathOrUrl);
 }
 
 // What a request the JS `fetch` wrapper does NOT make must carry to be

@@ -36,7 +36,7 @@ const UPNEXT_GLOW = require('../assets/upnext-glow.png');
 const OWNED_UPNEXT_GLOW = require('../assets/owned-upnext-glow.png');
 import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
-import {api, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry} from '../api';
+import {api, artSrc, backdropSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry} from '../api';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
 import {openTrailer, openActions, openXray} from '../overlay';
@@ -1479,7 +1479,8 @@ export default function Detail({
   // a frame still — a library show's still is a random scene, often letterboxed.
   const keyImdb = item.imdbId || libImdb;
   const keyArt = keyImdb ? `https://images.metahub.space/background/medium/${keyImdb}/img` : null;
-  const backdrop = imgSrc(keyArt || item.backdrop || item.cover || item.poster);
+  // LAB art-format: backdropSrc IS imgSrc unless the artWebp switch is on (api.ts); 0.70 × 0.76 = styles.artBox
+  const backdrop = backdropSrc(keyArt || item.backdrop || item.cover || item.poster, 0.7, 0.76);
   const backdropSharp = !!(keyArt || item.backdrop);
   // The lockup begins at 42% of the screen — low, on the part of the picture
   // the ramps have already taken down (Max puts its title there too); the

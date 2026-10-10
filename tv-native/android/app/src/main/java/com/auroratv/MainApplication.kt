@@ -67,6 +67,7 @@ class MainApplication : Application(), ReactApplication {
       listeners.add(RequestLoggingListener())
       builder.setRequestListeners(listeners)
     }
+    com.auroratv.ui.art.ArtProbe.attach(this, builder) // LAB art-format: decode probe, inert unless its flag is on (ui/art/ArtProbe.kt)
     return MainPackageConfig(builder.build())
   }
 
@@ -84,6 +85,7 @@ class MainApplication : Application(), ReactApplication {
           // The native rendering layer (docs/native-rewrite): Fabric components behind
           // the AuroraImpl switch, plus the QA module (tools/tv-pixel-diff/PROTOCOL.md).
           add(AuroraUiPackage())
+          add(com.auroratv.ui.art.ArtPackage()) // LAB art-format: the artWebp switch for JS (ui/art/ArtFormat.kt)
         },
     )
   }

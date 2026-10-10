@@ -22,8 +22,11 @@ const deviceOf = (req) => realtime.parseDevice(req.headers["user-agent"] || "");
 // `imgBlur`: this server renders ?blur= art variants (lib/imgvariant.js) — the
 // TV asks for its billboard pre-blurred only when the server says so, and
 // keeps blurring on the box against an older one.
+// `imgFmt`: the formats ?fmt= understands on those blurred variants, and the
+// promise that the width ladder reaches 1920 (the TV's title-page backdrop
+// through /img/ext?w=) — docs/qa/native-bench/ART-FORMAT-PLAN.md.
 router.get("/api/ping", (req, res) => {
-  res.json({ ok: true, name: "aurora", authMode: require("../lib/authmode").get(), imgBlur: true });
+  res.json({ ok: true, name: "aurora", authMode: require("../lib/authmode").get(), imgBlur: true, imgFmt: ["webp"] });
 });
 
 // ---------- login rate limiting (per-IP and per-identifier) ----------

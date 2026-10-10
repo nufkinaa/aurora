@@ -243,8 +243,9 @@ const fetchExtImage = (url, file) => {
 // backdrops are 1920px, 0.8–1.3 MB JPEGs; a phone drew them 360px wide.
 const { variant: imgVariant } = require("../lib/imgvariant");
 // ?blur=<px>: pre-blurred (the TV's billboard layers — see imgvariant.js).
-const sendArt = async (res, file, width, blur) => {
-  const v = width || blur ? await imgVariant(file, width, { blur }) : null;
+// ?fmt=webp: that blurred variant as WebP (opt-in; ignored otherwise).
+const sendArt = async (res, file, width, blur, fmt) => {
+  const v = width || blur ? await imgVariant(file, width, { blur, fmt }) : null;
   const out = v || file;
   const head = readHead(out);
   res.setHeader("Content-Type", head ? sniffMime(head) : "image/jpeg");
@@ -261,7 +262,7 @@ router.get("/img/ext", async (req, res) => {
       if (Date.now() - failedAt < EXT_FAIL_TTL) throw new Error("recently failed");
       await fetchExtImage(url, file);
     }
-    await sendArt(res, file, req.query.w, req.query.blur);
+    await sendArt(res, file, req.query.w, req.query.blur, req.query.fmt);
   } catch (e) {
     // said out loud: a TV with no pictures is otherwise a silent 502 (2026-10-09)
     console.warn(`[img] ext ${url.slice(0, 80)} w=${req.query.w || "-"} failed: ${(e && e.message) || e}`);
@@ -283,7 +284,7 @@ router.get("/img/poster/:imdbId", async (req, res) => {
     });
     const file = name && require("../media/online").posterFile(name);
     if (!file) return res.status(404).send("No poster");
-    await sendArt(res, file, req.query.w, req.query.blur);
+    await sendArt(res, file, req.query.w, req.query.blur, req.query.fmt);
   } catch {
     if (!res.headersSent) res.status(404).send("No poster");
   }
@@ -295,7 +296,7 @@ router.get("/img/meta/:name", async (req, res) => {
   const file = online.posterFile(req.params.name);
   if (!file) return res.status(404).send("Not found");
   try {
-    await sendArt(res, file, req.query.w, req.query.blur); // ?w= as on /img/:id
+    await sendArt(res, file, req.query.w, req.query.blur, req.query.fmt); // ?w= as on /img/:id
   } catch {
     if (!res.headersSent) res.status(404).send("Not found");
   }
@@ -307,7 +308,7 @@ router.get("/img/:id", async (req, res) => {
   const entry = resolveKind(req.params.id, "image");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
   try {
-    const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, { blur: req.query.blur }) : null;
+    const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, { blur: req.query.blur, fmt: req.query.fmt }) : null;
     res.setHeader("Cache-Control", "public, max-age=86400");
     res.sendFile(v || entry.path);
   } catch (e) {
