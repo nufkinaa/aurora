@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.30",
-  "notes": "The open menu's logo lines up with its rows, and the menu no longer opens by itself at a cold start."
+  "versionName": "5.1.31",
+  "notes": "Fixes missing pictures on Home, Movies and Shows for TVs signed in to a server that requires sign-in. Please update."
 }

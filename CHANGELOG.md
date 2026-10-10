@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.84 — 2026-10-10
+
+- **Aurora TV 5.1.31 — pictures are back on TVs signed in to a server that requires sign-in** (Zev's report from a Chromecast: "Photos on home, movies and shows tabs are not working at all"; the server log showed every picture request arriving with no session at all). The cause was in React Native itself: on Android this version only passes a picture's request headers along when the source is written as a list, and every picture in the app passes a single source — so the TV's sign-in never travelled with its picture requests, and a server in sign-in-required mode refused each one. The app now carries a one-line patch to React Native that forwards them. Checked on the Mi TV against a server in sign-in-required mode: Home, Movies and a title page load their pictures, with no refused request in the log. **Every TV needs this update.**
+- With sign-in required, the server was also refusing its own requests for the soft placeholder pictures (the "blur-up" shown while a cover loads), so nobody got placeholders and the log filled with refusals. It now recognises its own requests.
+
 ## 1.6.83 — 2026-10-10
 
 - The healer names a failing file correctly whichever system wrote its path: a Windows path in the log was shown whole on a Linux server instead of just the file's name. (This was also why the automatic checks on GitHub had failed on every push since 1.6.73.)
