@@ -76,7 +76,7 @@ ui.test("X-Ray → press a person → their sheet, titles by department; press a
   await card.click();
   await page.waitForFunction(() => document.querySelector('.person-wrap .pt.listed .pt-title')?.textContent === "Stars Between");
   assert.equal(await card.getAttribute("aria-pressed"), "true");
-  await toastSays(page, /“Stars Between” saved for later/);
+  await toastSays(page, /Stars Between: Added to My List/);
   assert.equal(await page.locator('#toasts .toast-act:text-is("Undo")').count(), 1, "the toast carries Undo");
   await page.waitForFunction(() => !document.querySelector(".person-wrap .pt.busy"));
   assert.deepEqual(await listed(api, me), [STARS]);
@@ -87,7 +87,7 @@ ui.test("X-Ray → press a person → their sheet, titles by department; press a
   // …a second press takes it off again
   await card.click();
   await page.waitForFunction(() => !document.querySelector(".person-wrap .pt.listed"));
-  await toastSays(page, /“Stars Between” is off your list/);
+  await toastSays(page, /Stars Between: removed from My List/);
   await page.waitForFunction(() => !document.querySelector(".person-wrap .pt.busy"));
   assert.deepEqual(await listed(api, me), []);
 
@@ -135,7 +135,7 @@ ui.test("the toast says when the add started a download, the card says Downloadi
   await pressPerson(page, "Nora Chris", "Director");
   const stars = titleCard(page, "Stars Between");
   await stars.locator(".pt-card").click();
-  await toastSays(page, /“Stars Between” saved for later — downloading the film/);
+  await toastSays(page, /Stars Between: Added to My List — downloading the film/);
   await page.waitForFunction(() => document.querySelector(".person-wrap .pt.listed .pt-flag")?.textContent === "Downloading");
   assert.match(await stars.locator(".pt-card").getAttribute("aria-label"), /downloading\. On My List: press to take it off/);
   assert.deepEqual(await listed(api, me), [STARS]);
@@ -372,7 +372,7 @@ ui.test("over a FULLSCREEN film the sheet is inside the fullscreen element (visi
   assert.equal(await page.locator(sheet).isVisible(), true);
   // toasts live outside the fullscreen element: the sheet says it itself
   await titleCard(page, "Stars Between").locator(".pt-card").click();
-  await page.waitForFunction(() => /“Stars Between” saved for later/.test(document.querySelector(".person-wrap .person-status.on")?.textContent || ""));
+  await page.waitForFunction(() => /Stars Between: Added to My List/.test(document.querySelector(".person-wrap .person-status.on")?.textContent || ""));
   await page.locator('.person-status .toast-act:text-is("Undo")').click();
   await page.waitForFunction(() => !document.querySelector(".person-wrap .pt.listed") && !document.querySelector(".person-wrap .pt.busy"));
   await page.keyboard.press("Escape");

@@ -19,7 +19,7 @@
 // X-Ray left it, and closing the sheet returns focus to the person pressed.
 // Back / Escape / the phone's back gesture close the top layer only — the
 // enlarged photo, then this sheet, then X-Ray.
-import { el, artUrl, icons, toast, savedLine, posterImg, backupPosterUrl, haptic } from "./ui.js";
+import { el, artUrl, icons, toast, listAddedLine, posterImg, backupPosterUrl, haptic } from "./ui.js";
 import { api } from "./api.js";
 import { state } from "./state.js";
 import { navigate } from "./router.js";
@@ -132,7 +132,8 @@ export const openPerson = (who, { inPlayer = false } = {}) => {
       track("feat", { f: next ? "person_add" : "person_remove" });
       // the page under the sheet may be this very title: its own button follows
       window.dispatchEvent(new CustomEvent("aurora-watchlist", { detail: { imdbId: c.imdbId, libraryId: c.inLibrary || null, inList: next } }));
-      say(next ? savedLine(c.title, res) : `“${c.title}” is off your list`, next ? "➕" : "➖",
+      // the TV sheet's words (PersonSheet.tsx): the title, then the My List line every screen uses
+      say(next ? `${c.title}: ${listAddedLine(res)}` : `${c.title}: removed from My List`, next ? "➕" : "➖",
         next ? { label: "Undo", onClick: () => { if (c.inList) toggle(c); } } : null);
     } catch {
       c.inList = !next;
