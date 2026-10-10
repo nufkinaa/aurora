@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.83 — 2026-10-10
+
+- The healer names a failing file correctly whichever system wrote its path: a Windows path in the log was shown whole on a Linux server instead of just the file's name. (This was also why the automatic checks on GitHub had failed on every push since 1.6.73.)
+
 ## 1.6.82 — 2026-10-10
 
 - For the TV lab's artwork test: the server can hand a pre-blurred picture out as WebP when a client asks for it (`?blur=…&fmt=webp`, about a third of the JPEG's size). Nothing asks for it yet — every app gets exactly what it got before.
