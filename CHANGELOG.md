@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.82 — 2026-10-10
+
+- For the TV lab's artwork test: the server can hand a pre-blurred picture out as WebP when a client asks for it (`?blur=…&fmt=webp`, about a third of the JPEG's size). Nothing asks for it yet — every app gets exactly what it got before.
+
 ## 1.6.81 — 2026-10-10
 
 - **The hero is sharp on a desktop screen** (elia: "on web the hero always has low res photos"). The website never asked for a backdrop wider than 1280 pixels, whatever the screen — and the billboard draws it about 2100 wide on a 1080p monitor, more on a scaled laptop or a retina display, so every hero was a 1280 picture stretched by half again. The "sharper picture when idle" upgrade had the same ceiling, so it never helped. The site now asks for the width the hero is drawn at, up to the 1920 the artwork comes in; the server gained 1600 and 1920 steps so that arrives as a WebP rather than the 0.5–1.3 MB original. Title pages and the screensaver get the same. A slow line or Data saver still gets the small picture first, and phones ask for what they always did. Website only — the TV app is untouched and receives exactly what it did.
