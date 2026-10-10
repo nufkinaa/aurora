@@ -123,7 +123,7 @@ import {
   stallStep,
   upNextState,
 } from '../playerRules';
-import {openReport} from '../overlay';
+import {openReport, overlayOpen} from '../overlay';
 import {onPersonPrefs, setPersonPref} from '../personSync';
 import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
@@ -1999,6 +1999,10 @@ export default function Player({
       // Someone is there: the run of episodes that started by themselves is
       // over (the site's noteInput — "Still watching?" counts hands-off ones).
       autoRun.current = 0;
+      // A sheet is up over the player (X-Ray, Report a problem): the remote is
+      // the sheet's. Without this an OK pressed in the sheet also reached this
+      // handler and, once the chrome had hidden, paused the film under it.
+      if (overlayOpen()) return;
       const t = evt.eventType;
       // The web's media-key handler. A remote (or an HDMI-CEC transport control)
       // sends the discrete play/pause keys, not just the toggle — treating only

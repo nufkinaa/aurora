@@ -1200,9 +1200,12 @@ export const api = {
     if (params.year) q.set('year', String(params.year));
     if (params.season) q.set('season', String(params.season));
     if (params.episode) q.set('episode', String(params.episode));
-    return request<{ imdbId: string; streams: Stream[] }>(
-      `/api/torrents/sources?${q.toString()}`,
-    );
+    // Kept a minute and a half: a press on an episode asks for its sources to
+    // pick the best one, and the sources list opened a moment later (a hold,
+    // the Sources pill) is the same question — it opens filled instead of
+    // searching again. Seeder counts do not move in that time.
+    const path = `/api/torrents/sources?${q.toString()}`;
+    return memo(path, 90000, () => request<{ imdbId: string; streams: Stream[] }>(path));
   },
   torrentStatus: (infoHash: string) =>
     request<TorrentStatus>(`/api/torrents/status/${infoHash}`),
@@ -1254,7 +1257,16 @@ export const api = {
       google?: boolean;
       googleWeb?: boolean;
       googleDevice?: boolean;
+      // `false` when the admin has switched torrents off: nothing can be
+      // streamed, saved or followed (absent otherwise)
+      torrents?: boolean;
     }>('/api/server-info'),
+  // Has the admin switched torrents off? Asked once in a while; a server that
+  // cannot be asked is taken to have them on (the request itself then says).
+  torrentsOff: () =>
+    memo('server-info:torrents', 5 * 60000, () =>
+      request<{torrents?: boolean}>('/api/server-info').then(i => i.torrents === false),
+    ).catch(() => false),
   // Is the stored session alive? user === null means no/dead session.
   me: () => request<{ authMode: string; user: (SigninUser & {mustReset?: boolean}) | null; mustReset?: boolean }>('/api/me'),
   // Username OR email + the profile's password.

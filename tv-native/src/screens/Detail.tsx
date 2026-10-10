@@ -36,7 +36,7 @@ const UPNEXT_GLOW = require('../assets/upnext-glow.png');
 const OWNED_UPNEXT_GLOW = require('../assets/owned-upnext-glow.png');
 import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
-import {api, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, listAddedLine, ListDownload, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry} from '../api';
+import {api, ApiError, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, listAddedLine, ListDownload, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry} from '../api';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
 import {openTrailer, openActions, openXray} from '../overlay';
@@ -865,6 +865,40 @@ export default function Detail({
 
   // Library items get their full record (movies: videoUrl; shows: seasons).
   //
+  // THE SERVER REFUSED THIS TITLE (403): it is over this kids profile's limit.
+  // The site says so in the server's words and goes back; this page used to
+  // swallow the refusal and stay up from the card's data, with a Play that
+  // could only fail (audit B21 / C-14). Once per page.
+  const leftRefused = useRef(false);
+  const refused = useCallback(
+    (e: unknown) => {
+      if (!(e instanceof ApiError) || e.status !== 403 || e.passwordResetRequired || leftRefused.current) return false;
+      leftRefused.current = true;
+      showToast(e.message || "This title isn't available on this profile", '🚫');
+      if (navigation.isFocused()) navigation.goBack();
+      return true;
+    },
+    [navigation],
+  );
+  // Torrents switched off by the admin: nothing can be saved, streamed or
+  // followed. The site hides those buttons; here they say so instead of
+  // sending a request that can only be refused (audit E43).
+  const [torrentsOff, setTorrentsOff] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api.torrentsOff().then(off => live && setTorrentsOff(off));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const torrentsOffRef = useRef(false);
+  torrentsOffRef.current = torrentsOff;
+  const sayTorrentsOff = useCallback(() => {
+    if (!torrentsOffRef.current) return false;
+    showToast("That isn't on this server yet — downloads are switched off here", '📭');
+    return true;
+  }, []);
+
   // THE GUARD IS `!item.id` ALONE. It used to be `stream || !item.id`, and that
   // `stream` term is why a DOWNLOADED EPISODE OPENED AS A STREAM: `source` says
   // which shelf the card came from, not whether the title is on disk. Open a show
@@ -890,8 +924,11 @@ export default function Detail({
           setSeason(prev => (prev == null ? f.seasons![0].number : prev));
         }
       })
-      // A stub or a miss just leaves `full` null, which is what it was before.
-      .catch(() => {})
+      // A stub or a miss just leaves `full` null, which is what it was before
+      // — but a REFUSAL is an answer (see `refused`).
+      .catch(e => {
+        if (live) refused(e);
+      })
       .finally(() => live && setLoading(false));
     return () => {
       live = false;
@@ -1204,6 +1241,13 @@ export default function Detail({
           setSeason(prev => (prev == null ? m.seasons![0].number : prev));
         }
       })
+      // A refusal sends the viewer back (see `refused`); anything else — the
+      // catalogue did not answer — leaves the page on what the card and the
+      // library gave it. (There was no handler here at all: a refusal or a
+      // 502 was an unhandled rejection.)
+      .catch(e => {
+        if (live) refused(e);
+      })
       .finally(() => live && setLoading(false));
     return () => {
       live = false;
@@ -1468,6 +1512,7 @@ export default function Detail({
     // one-shot gate, so spending it here meant the real check after the await
     // always failed and the button did nothing at all.
     if (!navigation.isFocused()) return;
+    if (sayTorrentsOff()) return;
     // Torrent search is keyed by IMDb id; a library item's `id` is a local key
     // and the provider returns nothing for it. Never fall back to it.
     const id = await ensureImdb();
@@ -1490,6 +1535,7 @@ export default function Detail({
       // The RESOLVED IMDb id, never the library key, and resolved on press if
       // the lookup hasn't landed yet. No navigation guard: this opens a panel on
       // the page it is already on, so there is no push to race.
+      if (sayTorrentsOff()) return;
       const id = await ensureImdb();
       if (!id) return;
       setSrcPanel({
@@ -1501,7 +1547,7 @@ export default function Detail({
         sub: item.title,
       });
     },
-    [ensureImdb, item.title],
+    [ensureImdb, item.title, sayTorrentsOff],
   );
 
   // THE PICTURE: the title's key art (metahub's background, by IMDb id) before
@@ -1889,6 +1935,28 @@ export default function Detail({
   // so does the Play button when the episode is its own (dlNote / dlStatus):
   // the press is answered AT the button the moment it lands, not only on a
   // card further down the page.
+  // The episode whose sources were last made available by a press (see
+  // downloadBest): what the pill above the episodes opens. `known` null = the
+  // list is not in hand yet (an episode that was already on its way): it is
+  // read quietly, so the pill can say how many there are.
+  const [epSrc, setEpSrc] = useState<{season: number; episode: number; count: number | null; best: string} | null>(null);
+  const offerSources = useCallback(
+    (s: number, e: number, known: {count: number; best: string} | null) => {
+      setEpSrc({season: s, episode: e, count: known ? known.count : null, best: known ? known.best : ''});
+      if (known) return;
+      ensureImdb()
+        .then(imdb => (imdb ? api.torrentSources({type: 'series', title: imdb, year: item.year ?? undefined, season: s, episode: e}) : null))
+        .then(r => {
+          if (!r) return;
+          const all = r.streams || [];
+          const alive = all.filter(x => x.seeders > 0);
+          const n = (alive.length ? alive : all).length;
+          setEpSrc(cur => (cur && cur.season === s && cur.episode === e ? {...cur, count: n} : cur));
+        })
+        .catch(() => {});
+    },
+    [ensureImdb, item.year],
+  );
   const downloadBest = useCallback(
     async (s: number, e: number, air: UiEp['air']) => {
       const key = `${s}x${e}`;
@@ -1898,8 +1966,10 @@ export default function Detail({
         setDlNote({key, kind: 'failed', text: air === 'tba' ? `${name} isn't scheduled yet` : `${name} hasn't aired yet`});
         return;
       }
+      if (sayTorrentsOff()) return;
       // Pressed again while it is on its way — running, or the first press's
-      // request still in flight: say so, never ask twice.
+      // request still in flight: say so, never ask twice. Its sources are made
+      // available all the same (the pill above the episodes — see epSrc).
       const running = epJobsRef.current[key];
       if (running || inflight.current.has(key)) {
         setDlNote({key, kind: 'already'});
@@ -1909,6 +1979,7 @@ export default function Detail({
             : `${name} is already on its way`,
           '⏳',
         );
+        offerSources(s, e, null);
         return;
       }
       inflight.current.add(key);
@@ -1933,6 +2004,14 @@ export default function Detail({
           setDlNote({key, kind: 'failed', text: `No sources for ${name} yet  ·  try again later`});
           return;
         }
+        // …AND ITS SOURCES ARE OPENED, IN PLACE (owner, 2026-10-10: "like the
+        // TV today. But also open sources for that episode, just not scroll
+        // the user to there"): the list that was just read is kept, a
+        // "Sources · S1 E5" pill appears on the line above the episodes —
+        // where there was a hint, so nothing on the page moves — and pressing
+        // it (or holding the card, as before) opens the list at once. Focus
+        // stays on the card that was pressed.
+        offerSources(s, e, {count: (alive.length ? alive : streams || []).length, best: [pick.quality, pick.sizeString].filter(Boolean).join(' · ')});
         const res = await api.requestDownload({
           infoHash: pick.infoHash,
           fileIdx: pick.fileIdx,
@@ -1979,7 +2058,7 @@ export default function Detail({
         if (keepFocus.current?.key === key) keepFocus.current = {key, until: Date.now() + 3000};
       }
     },
-    [ensureImdb, openEpisodeSources, item.title, item.year, profileId, bumpLibrarySoon],
+    [ensureImdb, openEpisodeSources, item.title, item.year, profileId, bumpLibrarySoon, sayTorrentsOff, offerSources],
   );
   const downloadBestRef = useRef<(s: number, e: number, air: UiEp['air']) => void>(() => {});
   downloadBestRef.current = downloadBest;
@@ -1989,6 +2068,7 @@ export default function Detail({
   // episode's does (dlStatus, key "film").
   const downloadBestMovie = useCallback(async () => {
     const key = 'film';
+    if (sayTorrentsOff()) return;
     if (movieJobRef.current || inflight.current.has(key)) {
       setDlNote({key, kind: 'already'});
       showToast(
@@ -2454,7 +2534,7 @@ export default function Detail({
             <>
               <IconBtn ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
               {/* Follow: only once the show's IMDb id is known — that is what the server follows by */}
-              {followImdb ? (
+              {followImdb && !torrentsOff ? (
                 <IconBtn icon={following ? 'check' : 'plus'} on={following} label={following ? 'Following' : 'Follow'} onPress={toggleFollow} />
               ) : null}
               {streamMeta?.trailers?.length ? (
@@ -2527,7 +2607,19 @@ export default function Detail({
                   {seasonBusy ? 'Saving…' : seasonAllWatched ? 'Mark season unwatched' : `Mark season watched${seasonAired.filter(e => !e.watched).length < seasonAired.length ? ` (${seasonAired.filter(e => !e.watched).length} left)` : ''}`}
                 </Text>
               </Focusable>
-              <Text style={styles.seasonHint}>Hold OK on an episode for more</Text>
+              {/* The sources a press just made available (downloadBest): one
+                  press opens the list, already read. It stands where the hint
+                  was, on a line that is already there — nothing moves, and it
+                  never asks for focus. */}
+              {epSrc ? (
+                <Focusable round onPress={() => openEpisodeSources(epSrc.season, epSrc.episode)} style={styles.pill}>
+                  <Text style={styles.pillText}>
+                    {`Sources · S${epSrc.season} E${epSrc.episode}${epSrc.count != null ? ` · ${epSrc.count}` : ''}${epSrc.best ? ` · saving ${epSrc.best}` : ''}  ›`}
+                  </Text>
+                </Focusable>
+              ) : (
+                <Text style={styles.seasonHint}>Hold OK on an episode for more</Text>
+              )}
             </View>
           ) : null}
           {loading && !curSeason ? (
