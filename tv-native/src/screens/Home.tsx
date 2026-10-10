@@ -401,7 +401,29 @@ export default function Home({
   // Everything above the focused row stays mounted (you can always come back up)
   // and Row does its own card windowing, so this only stops the whole catalogue
   // mounting at once on first paint.
-  const [reach, setReach] = useState(3);
+  //
+  // THE FIRST COMMIT MOUNTS TWO SHELVES, NOT FOUR. At rest the hero takes 66%
+  // of the screen and only the first shelf shows; shelves 3 and 4 were 12
+  // more cards (and 12 more poster requests) in the commit that has to put the
+  // first picture on screen. `reach` starts at 1 and goes to 3 — where it
+  // always started — one frame after the rows first draw, as a transition.
+  //
+  // What that must not break, and why it does not:
+  //  - DOWN finds a shelf. The first DOWN lands on shelf 0 and the second on
+  //    shelf 1; both are in the first commit. Shelf 2 is wanted by the third
+  //    press at the earliest, a held key's second repeat (≥ 0.5 s later); the
+  //    growth is asked for one frame after the first draw, and toRow asks for
+  //    it too (index + 3, as before).
+  //  - Where a shelf comes to rest. toRow clamps the slide to the column's
+  //    height, and for a frame or two the column is two shelves short: a DOWN
+  //    in that window would rest shelf 0 a little low. So the one layout in
+  //    which the column grows to its usual height re-runs the slide for the
+  //    shelf that holds focus (`settling`, below) — the same target the old
+  //    first commit gave.
+  const [reach, setReach] = useState(1);
+  const settling = useRef(false);
+  // The shelf that holds focus (-1: the hero band).
+  const curRow = useRef(-1);
   // ---- hero rotation -------------------------------------------------------
   // home.js:168-173 — one title every 9s, and `holdUntil` freezes it for 15s
   // after the viewer moves it themselves.
@@ -641,6 +663,7 @@ export default function Home({
   }, [heroIdx, swap]);
 
   const toHero = useCallback(() => {
+    curRow.current = -1;
     setTop(true);
     slideTo(0);
   }, [setTop, slideTo]);
@@ -724,6 +747,7 @@ export default function Home({
 
   const toRow = useCallback(
     (index: number) => {
+      curRow.current = index;
       setTop(false);
       if (trailerBusy.current || trailerOnRef.current) stopTrailer(false);
       const y = rowY.current[index];
@@ -773,6 +797,21 @@ export default function Home({
     },
     [profileId],
   );
+
+  // The rows have drawn once: now the shelves the first commit left out (see
+  // `reach`). A frame later, and as a transition, so it never sits in front of
+  // the first picture or a keypress.
+  const hasRows = (data?.rows?.length || 0) > 0;
+  const rowCount = data?.rows?.length || 0;
+  useEffect(() => {
+    if (!hasRows) return;
+    // only when there ARE more shelves to mount — otherwise the column never
+    // grows and there is nothing to settle
+    settling.current = rowCount > 2 && reach < 3;
+    const raf = requestAnimationFrame(() => defer(() => setReach(r => (r < 3 ? 3 : r))));
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRows]);
 
   // ONE function for every shelf (Row hands its index back). This used to be
   // an arrow written inside renderRow — a new function per row on every Home
@@ -926,7 +965,15 @@ export default function Home({
       <Animated.View
         style={[styles.column, {transform: [{translateY: ty.value}]}]}
         onLayout={e => {
-          colH.current = e.nativeEvent.layout.height;
+          const h = e.nativeEvent.layout.height;
+          const grew = h > colH.current;
+          colH.current = h;
+          // The column has just reached its usual first height (see `reach`):
+          // a shelf focused while it was short is sent to where it belongs.
+          if (settling.current && grew && reach >= 3) {
+            settling.current = false;
+            if (curRow.current >= 0) toRow(curRow.current);
+          }
         }}
         pointerEvents="box-none">
         {/* No hero but real rows (a server mid-warmup can emit that): the Play
