@@ -18,6 +18,12 @@
 //   --no-hevc      the browser cannot decode HEVC (the server then encodes H.264 for it)
 //   --first-visit  the browser has never seen the site (nothing in its HTTP cache)
 //   --set k=v      localStorage keys set before the app starts (e.g. aurora-data-mode=saver)
+//   --line <x>     what the device remembers of its line before each play (the
+//                  player keeps what its line carried last time and starts by it):
+//                    forget   nothing — every play is this device's first
+//                    known    the line's real rate (a device that has played here before)
+//                    <kbps>   that figure
+//                  (default: whatever the plays before it left — as a real session goes)
 //   --headed       watch it
 //   --verbose      the instance's log
 //
@@ -52,6 +58,7 @@ const HOVER = Number(arg("hover", 0));
 const FRONT = arg("front", "");
 const TREE = arg("tree", ""); // the app from a snapshot (snapshot.js) instead of the working tree
 const FIRST_VISIT = flag("first-visit");
+const LINE = arg("line", "");
 const NO_HEVC = flag("no-hevc"); // a browser that cannot decode HEVC (as Firefox, or Chrome without the hardware)
 const SETS = process.argv.map((a, i) => (a === "--set" ? process.argv[i + 1] : null)).filter(Boolean).map((kv) => kv.split("="));
 const OUT_DIR = path.join(__dirname, ".runs");
@@ -83,6 +90,13 @@ const idle = async (net, quiet = 700, max = 25000) => {
 
 const pageNow = (page) => page.evaluate(() => performance.timeOrigin + performance.now());
 
+// How busy this machine was while a play was measured (all cores, 0–100):
+// other work on the box makes the server's part of a start look slower than
+// it is, and a row measured on a saturated machine says so.
+const os = require("os");
+const cpuTimes = () => os.cpus().reduce((a, c) => { const t = c.times; a.idle += t.idle; a.all += t.user + t.nice + t.sys + t.irq + t.idle; return a; }, { idle: 0, all: 0 });
+const cpuBusy = (a, b) => (b.all > a.all ? Math.round(100 * (1 - (b.idle - a.idle) / (b.all - a.all))) : null);
+
 // Wait until a video created after `since` is really playing (or give up).
 const waitPlaying = (page, since, timeout) =>
   page.waitForFunction((since) => {
@@ -96,18 +110,25 @@ const waitPlaying = (page, since, timeout) =>
   }, since, { timeout, polling: 100 }).then(() => true, () => false);
 
 const collect = async (page, net, since, { t0Kind = "click", watchMs, expectFrom = 0 }) => {
-  const dump = await page.evaluate((since) => ({ clicks: window.__ttff.clicks.filter((c) => c.t >= since - 5), nav: window.__ttff.nav.filter((n) => n.t >= since - 5), videos: window.__ttff.dump(since) }), since);
+  const dump = await page.evaluate((since) => ({ clicks: window.__ttff.clicks.filter((c) => c.t >= since - 5), nav: window.__ttff.nav.filter((n) => n.t >= since - 5), videos: window.__ttff.dump(since), hls: window.__ttff.hlsSince(since) }), since);
   let t0 = null;
   if (t0Kind === "nav") t0 = (dump.nav.find((n) => /#\/play\//.test(n.hash)) || {}).t;
   else t0 = (dump.clicks.filter((c) => c.type === "click").pop() || {}).t;
   if (t0 == null) return { ok: false, why: `no ${t0Kind} was seen` };
-  return digest({ t0, videos: dump.videos.filter((v) => v.created >= t0 - 5), requests: net.all(), watchMs, expectFrom });
+  const row = digest({ t0, videos: dump.videos.filter((v) => v.created >= t0 - 5), requests: net.all(), watchMs, expectFrom });
+  // what hls.js said while it played: errors, level moves, loads given up
+  const h = dump.hls.filter((x) => x.t >= t0 - 5);
+  row.hls = h.map((x) => `${x.what}${x.details ? `:${x.details}` : ""}${x.fatal ? "!" : ""}${x.code ? `(${x.code})` : ""}${x.uri ? `:${x.uri}` : ""}${x.what === "gave-up" ? `:sn${x.sn}` : ""}@${Math.round(x.t - t0)}`);
+  row.hlsErrors = h.filter((x) => x.what === "error").length;
+  row.hlsFatal = h.filter((x) => x.what === "error" && x.fatal).length;
+  row.rebuilds = Math.max(0, h.filter((x) => x.what === "new").length - 1);
+  return row;
 };
 
 const main = async () => {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const browser = await launch({ headed: flag("headed"), noHevc: NO_HEVC });
-  const meta = { label: LABEL, at: new Date().toISOString(), tree: TREE || "working tree", front: FRONT || "http/1.1", firstVisit: FIRST_VISIT, noHevc: NO_HEVC, hover: HOVER, sets: SETS, chrome: browser.version() };
+  const meta = { label: LABEL, at: new Date().toISOString(), tree: TREE || "working tree", front: FRONT || "http/1.1", firstVisit: FIRST_VISIT, line: LINE || "as left", noHevc: NO_HEVC, hover: HOVER, sets: SETS, chrome: browser.version() };
   console.log(`ttff ${LABEL}: ${CONDS.join(", ")} × ${TITLES.join(", ")} × ${MODES.join(", ")} × ${RUNS} runs  (${meta.front}, Chrome ${meta.chrome})`);
   const write = (row) => fs.appendFileSync(OUT, JSON.stringify({ ...meta, ...row }) + "\n");
 
@@ -151,15 +172,17 @@ const main = async () => {
 
         const play = async (title, mode, opts) => {
           const row = { cond: condName, rtt: rttOf(cond), down: cond.down, run, title: title.key, mode };
+          const cpu0 = cpuTimes();
           try {
             const r = await opts();
             Object.assign(row, r);
+            row.cpuBusy = cpuBusy(cpu0, cpuTimes());
           } catch (e) {
             Object.assign(row, { ok: false, why: String(e.message).split("\n")[0] });
           }
           write(row);
           const kb = (n) => (n == null ? "-" : `${Math.round(n / 1024)}K`);
-          console.log(`  ${condName.padEnd(6)} #${run} ${title.key.padEnd(15)} ${mode.padEnd(8)} ${row.ok ? `ttff ${String(row.ttff).padStart(6)} ms  play ${String(row.ttplay).padStart(6)}  path ${String(row.path).padEnd(7)} lvl ${String(row.firstLevel || "-").padEnd(8)} rt ${row.roundTrips} srv ${row.serverMs}ms  bytes ${kb(row.mediaBytesBeforeFF)}  rebuf ${row.rebufferMs}ms/${row.rebuffers}` : `FAILED: ${row.why}`}`);
+          console.log(`  ${condName.padEnd(6)} #${run} ${title.key.padEnd(15)} ${mode.padEnd(8)} ${row.ok ? `ttff ${String(row.ttff).padStart(6)} ms  play ${String(row.ttplay).padStart(6)}  path ${String(row.path).padEnd(7)} lvl ${String(row.firstLevel || "-").padEnd(8)} rt ${row.roundTrips} srv ${row.serverMs}ms  bytes ${kb(row.mediaBytesBeforeFF)}  rebuf ${row.rebufferMs}ms/${row.rebuffers}${row.hlsErrors ? `  hls errors ${row.hlsErrors}${row.hlsFatal ? ` (${row.hlsFatal} fatal)` : ""}` : ""}${row.rebuilds ? `  rebuilt x${row.rebuilds}` : ""}${row.cpuBusy >= 85 ? `  (machine ${row.cpuBusy}% busy)` : ""}` : `FAILED: ${row.why}`}`);
           return row;
         };
 
@@ -169,6 +192,13 @@ const main = async () => {
           await gotoHash(page, origin, "#/");
           await gotoHash(page, origin, hash, PRIMARY);
           await idle(net);
+          if (LINE) {
+            const kbps = LINE === "forget" ? 0 : LINE === "known" ? Math.round(cond.down * 0.95) : Number(LINE) || 0;
+            await page.evaluate((k) => {
+              if (k > 0) localStorage.setItem("aurora-line-kbps", JSON.stringify({ kbps: k, at: Date.now() }));
+              else localStorage.removeItem("aurora-line-kbps");
+            }, kbps);
+          }
           net.reset();
           const since = await pageNow(page);
           if (HOVER > 0) { await page.hover(PRIMARY); await sleep(HOVER); }
@@ -194,7 +224,8 @@ const main = async () => {
               await idle(net);
               await sleep(thin ? 6500 : 2500); // the line is measured by the page itself (net.js) in its first seconds
               await play(title, mode, () => fromPage(title));
-              if (!MODES.includes("next") && !MODES.includes("autonext")) await leave();
+              // (an episode stays in its player when the next mode presses Next episode from it)
+              if (!(title.showId && PASS.includes("next"))) await leave();
             } else if (mode === "warm") {
               await leave();
               await inst.api.clearProgress(profile, title.id).catch(() => {});

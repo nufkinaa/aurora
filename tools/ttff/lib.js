@@ -157,6 +157,36 @@ const PAGE_PROBE = () => {
     try { if (String(name).toLowerCase() === "video") watch(el); } catch {}
     return el;
   };
+  // hls.js, listened to: every error it reports (fatal or not), every level
+  // it moves to, every load it gives up. And an experiment's knob:
+  // localStorage["ttff-hls"] = JSON merged over the configuration the player
+  // gives hls.js (run.js --set ttff-hls={...}), so a setting can be tried
+  // before any code is written for it.
+  T.hls = [];
+  try {
+    let over = null;
+    try { over = JSON.parse(localStorage.getItem("ttff-hls") || "null"); } catch {}
+    let wrapped;
+    Object.defineProperty(window, "Hls", {
+      configurable: true,
+      get: () => wrapped,
+      set: (v) => {
+        wrapped = v && class extends v {
+          constructor(cfg) {
+            super(over ? { ...cfg, ...over } : cfg);
+            const E = v.Events;
+            const note = (what, extra) => { if (T.hls.length < 400) T.hls.push({ t: now(), what, ...extra }); };
+            note("new", { progressive: !!this.config.progressive, est: this.config.abrEwmaDefaultEstimate });
+            this.on(E.ERROR, (_e, d) => note("error", { details: d && d.details, fatal: !!(d && d.fatal), code: d && d.response && d.response.code, level: d && d.frag ? d.frag.level : undefined }));
+            this.on(E.LEVEL_SWITCHING, (_e, d) => note("switching", { level: d.level, uri: String(d.uri || (d.url && d.url[0]) || "").split("?")[1] || "" }));
+            if (E.FRAG_LOAD_EMERGENCY_ABORTED) this.on(E.FRAG_LOAD_EMERGENCY_ABORTED, (_e, d) => note("gave-up", { sn: d && d.frag && d.frag.sn, level: d && d.frag && d.frag.level }));
+            if (E.BUFFER_FLUSHING) this.on(E.BUFFER_FLUSHING, (_e, d) => note("flush", { from: d && d.startOffset, to: d && d.endOffset }));
+          }
+        };
+      },
+    });
+  } catch {}
+  T.hlsSince = (since) => T.hls.filter((x) => x.t >= since - 5);
   T.dump = (since) =>
     T.videos
       .filter((r) => r.created >= since - 5 && r.events.length)
@@ -188,6 +218,13 @@ const parseServerTiming = (h) => {
   }
   return out;
 };
+const initiatorOf = (init) => {
+  const frames = [];
+  for (let s = init && init.stack; s && frames.length < 4; s = s.parent) {
+    for (const f of s.callFrames) if (frames.length < 4) frames.push(`${f.functionName || "?"}@${f.url.split("/").pop().split("?")[0]}:${f.lineNumber + 1}`);
+  }
+  return frames.length ? frames.join(" < ") : (init && init.type) || undefined;
+};
 const netlog = async (context, page) => {
   const cdp = await context.newCDPSession(page);
   await cdp.send("Network.enable");
@@ -203,6 +240,8 @@ const netlog = async (context, page) => {
       kind: kindOf(e.request.url, e.request.method), range: h.Range || h.range || null,
       start: at(e.timestamp), ttfb: null, end: null, bytes: 0, chunks: [], status: null,
       body: e.request.method === "POST" && /play-mark/.test(e.request.url) ? e.request.postData || null : null,
+      // who asked (for playlists: the player itself, or hls.js)
+      by: /.m3u8/.test(e.request.url) ? initiatorOf(e.initiator) : undefined,
     });
   });
   cdp.on("Network.responseReceived", (e) => {
@@ -315,6 +354,7 @@ const digest = ({ t0, videos, requests, watchMs, expectFrom = 0 }) => {
   out.frameSize = wanted ? `${wanted.w}x${wanted.h}` : null;
   out.ttff = out.firstFrame != null ? out.firstFrame : out.playing;
   out.ok = out.ttff != null;
+  if (!out.ok) out.why = "no first frame in the time allowed";
   // Rebuffering after playback began, for as long as it was watched.
   if (playAt != null) {
     // (from the moment the element's own clock is running — see above)
@@ -394,7 +434,7 @@ const digest = ({ t0, videos, requests, watchMs, expectFrom = 0 }) => {
       start: rel(r.start), ttfb: rel(r.ttfb), end: rel(r.end), bytes: r.bytes,
       bytesByFF: r.chunks.reduce((n, [t, b]) => (t <= tFF ? n + b : n), 0),
       server: r.server && Object.keys(r.server).length ? r.server : undefined,
-      conn: r.conn, newConn: r.reused === false, protocol: r.protocol, cache: r.fromCache || undefined,
+      by: r.by, conn: r.conn, newConn: r.reused === false, protocol: r.protocol, cache: r.fromCache || undefined,
       connectMs: r.timing && r.timing.connect > 0 ? Math.round(r.timing.connect) : undefined,
       sslMs: r.timing && r.timing.ssl > 0 ? Math.round(r.timing.ssl) : undefined,
     }));

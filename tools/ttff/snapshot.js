@@ -29,7 +29,8 @@ const make = (name, rev = "HEAD") => {
   const tar = path.join(TREES, `${name}.tar`);
   const a = spawnSync("git", ["-C", REPO, "archive", "--format=tar", "-o", tar, rev, ...PARTS], { encoding: "utf-8", windowsHide: true });
   if (a.status !== 0) throw new Error(`git archive ${rev} failed: ${a.stderr}`);
-  const x = spawnSync("tar", ["-xf", tar, "-C", dir], { encoding: "utf-8", windowsHide: true });
+  // (a relative name, from inside the folder: GNU tar reads "C:" as a host)
+  const x = spawnSync("tar", ["-xf", path.join("..", `${name}.tar`)], { cwd: dir, encoding: "utf-8", windowsHide: true });
   if (x.status !== 0) throw new Error(`tar failed: ${x.stderr}`);
   fs.rmSync(tar, { force: true });
   // the TV build is 45 MB the instance never serves in a test
