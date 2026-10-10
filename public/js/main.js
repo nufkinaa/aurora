@@ -12,7 +12,7 @@ import { $, el, toast, icons } from "./ui.js";
 import { route, startRouter, navigate } from "./router.js";
 import { state, loadProfiles, setProfile, savedToken, downloads, readyDownloads } from "./state.js";
 import { api, setAuthToken, forgetWarm } from "./api.js";
-import { connect, reconnect, onMessage } from "./ws.js";
+import { connect, reconnect, onMessage, emit } from "./ws.js";
 import { appRunning, onSigninRequired } from "./session.js";
 import { renderHome } from "./screens/home.js";
 import { showProfileGate } from "./screens/profiles.js";
@@ -304,6 +304,28 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       .catch(() => { fetchedFor = null; });
   };
   load();
+  // The socket came back (every welcome after the first). Whatever happened
+  // to a download in between never reached this tab: a download that finished
+  // during the outage stayed "downloading" on the pill, My downloads and the
+  // title's page until a reload, and its "ready to watch" was never said.
+  // Ask for the list again and hand each job to the same listeners the live
+  // messages reach, so every open screen catches up — a job seen moving to
+  // "done" is announced exactly as if its message had arrived.
+  let welcomes = 0;
+  onMessage("welcome", () => {
+    if (++welcomes === 1) return; // boot's own list is `load()` above
+    const pid = state.profile ? state.profile.id : null;
+    api.downloads(pid)
+      .then((res) => {
+        if ((state.profile ? state.profile.id : null) !== pid) return;
+        const list = Array.isArray(res) ? res : res.downloads || [];
+        fetchedFor = pid;
+        const ids = new Set(list.map((j) => j.id));
+        for (const id of [...downloads.keys()]) if (!ids.has(id)) emit({ type: "download_removed", id });
+        for (const job of list) emit({ type: "download_update", job, caughtUp: true });
+      })
+      .catch(() => {});
+  });
   // The app icon's badge (an installed Aurora, where the platform has one):
   // a download you asked for that lands while the app is in the background
   // puts a number on the icon; coming back to the app takes it off. The
@@ -335,7 +357,8 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
   onMessage("download_removed", ({ id }) => {
     if (id && downloads.delete(id)) paint();
   });
-  onMessage("download_update", ({ job }) => {
+  // `caughtUp`: from the list asked for after a reconnect (above), not live
+  onMessage("download_update", ({ job, caughtUp }) => {
     if (!job) return;
     // A smart download is the one download the viewer never asked for, and
     // it starts two-thirds through an episode — the worst moment for a
@@ -345,7 +368,7 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     // turned off, from the Downloads page and Settings → More settings → Downloads.
     // (A My List download is announced by the add itself — "saved for later —
     // downloading the film" — so it gets no second line here.)
-    if (!downloads.has(job.id) && job.mine && job.smart && job.auto !== "mylist" && !document.querySelector(".player")) {
+    if (!caughtUp && !downloads.has(job.id) && job.mine && job.smart && job.auto !== "mylist" && !document.querySelector(".player")) {
       const ep = job.season && job.episode ? ` S${job.season}E${job.episode}` : "";
       toast(`Next episode downloading${ep ? " ·" + ep : ""}`, "⬇", null, { quiet: true });
     }

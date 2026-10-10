@@ -61,6 +61,11 @@ const handle = (data) => {
   }
 };
 
+// Hand a message to this tab's own listeners, as if the server had sent it.
+// For state caught up on by asking (the download list after an outage): the
+// screens that listen to the live messages hear about it the same way.
+export const emit = (data) => { try { handle(data); } catch {} };
+
 // Reconnect with exponential backoff (1s → 30s cap, reset on success), and
 // tell the viewer when the server has been unreachable for a while instead
 // of leaving screens silently stale. NOTE the kicked-handler's reload above:
