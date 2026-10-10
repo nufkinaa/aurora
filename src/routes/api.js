@@ -513,11 +513,38 @@ router.get("/api/item/:id", (req, res) => {
   res.json(withOriginalAudio(item));
 });
 
-// Instant autocomplete over library + cached catalog titles: in-memory
-// index, typo-tolerant, tiny payload. See src/media/searchindex.js.
+// ---------- search (src/media/search.js) ----------
+// One ranked answer for the website and the TV app: library, cached catalogue
+// and live catalogue scored together by how well they match, then a related
+// tail. `v=2` asks for that; without it the answer keeps its old two fields
+// (`results` = library items, `catalog` = cached catalogue hits) for clients
+// from before — in the new order.
+//
+//   GET /api/search?v=2&q=…            what is in memory, at once; `pending`
+//                                      says the catalogue has more to add
+//   GET /api/search?v=2&q=…&wait=1     the same, after waiting (on a budget)
+//       &pin=<key of the first card>   for the live catalogue and the related
+//                                      row; the pinned card stays first unless
+//                                      something matches better
+//       &commit=1                      the person pressed Search: ask the
+//                                      catalogue whatever the length
+//   → { q, results, related, relatedLabel, relatedKind, anchor, pending,
+//       catalogFailed, tookMs }
+//
+// A kids profile: req.kidsAllows (set by the gate at the top of this file)
+// filters candidates BEFORE the related tail is built, so a tail is never
+// "more like" a title the profile cannot see; the gate filters the lists
+// once more on the way out.
+const searchEngine = require("../media/search");
 router.get("/api/search/suggest", (req, res) => {
   const q = String(req.query.q || "").slice(0, 80);
   if (!q.trim()) return res.json({ suggestions: [] });
+  if (String(req.query.v || "") === "2") {
+    return res.json({
+      suggestions: searchEngine.suggest(q, { limit: req.query.limit, type: req.query.type, allow: req.kidsAllows || null }),
+    });
+  }
+  // before v2: titles only, padded with genre neighbours
   res.json({
     suggestions: require("../media/searchindex").suggest(q, {
       limit: req.query.limit,
@@ -526,61 +553,23 @@ router.get("/api/search/suggest", (req, res) => {
   });
 });
 
-router.get("/api/search", (req, res) => {
-  const q = (req.query.q || "").trim().toLowerCase();
-  if (!q) return res.json({ results: [] });
-
-  // Normalized + fuzzy tiers under the exact ones: before these, ANY
-  // one-character typo returned zero library results and punctuation was
-  // load-bearing ("honey dont" found nothing) — measured in the search audit.
-  const { norm, fuzzyWordMatch } = require("../media/searchindex")._internals;
-  const nq = norm(q);
-  const nqWords = nq.split(" ").filter(Boolean);
-  const score = (title) => {
-    const t = title.toLowerCase();
-    if (t === q) return 3;
-    if (t.startsWith(q)) return 2;
-    if (t.includes(q)) return 1;
-    // every word of the query appears somewhere
-    const words = q.split(/\s+/);
-    if (words.length > 1 && words.every((w) => t.includes(w))) return 0.5;
-    const nt = norm(title);
-    if (nq && (nt === nq || nt.startsWith(nq) || nt.includes(nq))) return 0.45;
-    if (nqWords.length && fuzzyWordMatch(nqWords, nt.split(" ").filter(Boolean)))
-      return 0.42;
-    return 0;
-  };
-
-  const results = [];
-  for (const m of scanner.index.movies) {
-    const s = score(m.title);
-    if (s > 0) results.push({ score: s, item: m });
-  }
-  for (const show of scanner.index.shows) {
-    const s = score(show.title);
-    if (s > 0) results.push({ score: s, item: show });
-    else {
-      // Surface episode-title matches under their show
-      for (const season of show.seasons) {
-        for (const ep of season.episodes) {
-          if (ep.title && score(ep.title) > 0) {
-            results.push({ score: 0.4, item: show });
-            break;
-          }
-        }
-        if (results.length && results[results.length - 1].item === show) break;
-      }
-    }
-  }
-
-  results.sort((a, b) => b.score - a.score || a.item.title.localeCompare(b.item.title));
-  // `catalog`: typo-tolerant hits from the cached streamable catalogue, so the
-  // Search screen has stream cards to show while the live lookup is out.
-  let catalog = [];
+router.get("/api/search", async (req, res) => {
+  const q = String(req.query.q || "").trim().slice(0, 80);
+  const v2 = String(req.query.v || "") === "2";
+  if (!q) return res.json(v2 ? { q: "", results: [], related: [], relatedLabel: null, relatedKind: null, anchor: null, pending: false, catalogFailed: false } : { results: [] });
   try {
-    catalog = require("../media/searchindex").searchCatalog(q, 24);
-  } catch {}
-  res.json({ results: results.slice(0, 40).map((r) => r.item), catalog });
+    if (!v2) return res.json(searchEngine.legacy(q, { allow: req.kidsAllows || null }));
+    res.json(await searchEngine.search(q, {
+      wait: req.query.wait === "1",
+      commit: req.query.commit === "1",
+      pin: req.query.pin ? String(req.query.pin).slice(0, 60) : null,
+      type: req.query.type === "movie" || req.query.type === "show" ? req.query.type : null,
+      limit: req.query.limit,
+      allow: req.kidsAllows || null,
+    }));
+  } catch (err) {
+    res.status(500).json({ error: "search failed" });
+  }
 });
 
 // The order home reads in, top to bottom.

@@ -17,6 +17,7 @@ const cache = new JsonStore(path.join(config.CACHE_DIR, "discover.json"), {
 const searchCache = new Map(); // q -> {at, result}
 const TRENDING_TTL = 24 * 3600 * 1000;
 const SEARCH_TTL = 3600 * 1000;
+const SEARCH_CACHE_MAX = 300; // ~2 KB a query; typing one title is 5-10 of them
 
 const UA = { "User-Agent": "Aurora/1.0 (personal media server)" };
 
@@ -489,15 +490,29 @@ const searchMoviesTmdb = async (q) => {
   }));
 };
 
-const search = async (q) => {
+// What the live lookup already answered for this query, or null — sync, no
+// network. /api/search merges it into its first answer when it is there.
+const searchCached = (q) => {
+  const hit = searchCache.get(normalize(String(q || "")));
+  if (!hit || Date.now() - hit.at >= SEARCH_TTL) return null;
+  return { movies: markLibrary(hit.result.movies), shows: markLibrary(hit.result.shows) };
+};
+
+// One lookup per query at a time: the search screen's two phases, two
+// devices typing the same thing and a retry all share the one request.
+const searchInFlight = new Map();
+const search = (q) => {
   const key = normalize(q);
-  const hit = searchCache.get(key);
-  if (hit && Date.now() - hit.at < SEARCH_TTL) {
-    return {
-      movies: markLibrary(hit.result.movies),
-      shows: markLibrary(hit.result.shows),
-    };
-  }
+  const cached = searchCached(q);
+  if (cached) return Promise.resolve(cached);
+  if (searchInFlight.has(key)) return searchInFlight.get(key);
+  const p = searchLive(q).finally(() => searchInFlight.delete(key));
+  searchInFlight.set(key, p);
+  return p;
+};
+
+const searchLive = async (q) => {
+  const key = normalize(q);
 
   // Cinemeta is the primary source for both (accurate + posters + IMDb ids);
   // fall back to TVMaze / TMDB / Wikipedia only if it returns nothing.
@@ -522,7 +537,7 @@ const search = async (q) => {
 
   const result = { movies, shows };
   searchCache.set(key, { at: Date.now(), result });
-  if (searchCache.size > 60) {
+  if (searchCache.size > SEARCH_CACHE_MAX) {
     searchCache.delete(searchCache.keys().next().value);
   }
   return { movies: markLibrary(movies), shows: markLibrary(shows) };
@@ -777,6 +792,11 @@ const metaCached = (type, id) => {
   return hit && Date.now() - hit.at < META_TTL ? hit.data : null;
 };
 
+// Every title page's metadata still on disk (cast, director, the catalogue's
+// own spelling of the title), whatever its age — the search index reads
+// people and alternate titles from it. Sync, no network.
+const metaAll = () => Object.values(metaStore.data).map((e) => e && e.data).filter(Boolean);
+
 // Synchronous access to whatever trending data is already cached (in memory or
 // on disk from a previous fetch), so Home can blend in streamable titles with
 // zero network wait. Returns null if nothing is cached yet.
@@ -788,7 +808,7 @@ const trendingCached = () => {
 };
 
 module.exports = {
-  trending, trendingCached, search, meta, metaCached, catalog, genres, CATALOGS, normalize,
+  trending, trendingCached, search, searchCached, meta, metaCached, metaAll, catalog, genres, CATALOGS, normalize,
   certificateCached, certificateAge, certificateByTitle, warmCertificate, refreshCertificates,
   _internals: { cacheKey, isNewRelease, isFullPage, PAGE_SIZE, NEW_SPAN, certStore, noteCertificate, certFresh, CERT_V },
 };
