@@ -108,6 +108,8 @@ import {
 } from '../party';
 import {isOpen as socketOpen, reportActivity} from '../realtime';
 import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
+import {PERSON_KEYS, PersonKey, SUB_LANG_LABEL} from '../personPrefs';
+import {onPersonPrefs, setPersonPref} from '../personSync';
 import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
@@ -471,6 +473,7 @@ const buildTracks = (subs: SubtitleTrack[]): Track[] => {
 const SUB_LANG_TEST: Record<string, {code: RegExp; label: RegExp}> = {
   he: {code: /^(he|heb|iw)/i, label: /hebrew|עבר/i},
   en: {code: /^(en|eng)/i, label: /english/i},
+  ru: {code: /^(ru|rus)/i, label: /russian|русск/i},
 };
 const autoTrack = (tracks: Track[], prefs: Prefs, profileSub?: string | null): Track | null => {
   if (!tracks.length) return null;
@@ -534,11 +537,15 @@ const autoTrack = (tracks: Track[], prefs: Prefs, profileSub?: string | null): T
       tracks.find(t => test.code.test(t.lang || '') || test.label.test(t.label || '')) || null
     );
   };
-  // The viewer's chosen language wins. With 'any' the web falls back to the
-  // first track; here Hebrew is tried first, because that is what this household
-  // watches with and what the previous build hard-coded — a strict port would
-  // have silently changed the default to whatever track happens to be first.
-  return match(prefs.subLang) || match('he') || tracks[0];
+  // The viewer's chosen language wins; with "First available" — or a title
+  // that has nothing in that language — the first track, as on the site.
+  // (This TV used to try Hebrew before the first track under "First
+  // available", a rule of its own from when the setting lived on the box. The
+  // setting is the person's now and means the same on every device: someone
+  // who wants Hebrew says Hebrew, once, and the player also goes and fetches
+  // it when a title lacks it. What was picked by hand still wins over all of
+  // this — see the top of this function.)
+  return match(prefs.subLang) || tracks[0];
 };
 
 // .pbtn — the site's circular transport button.
@@ -807,7 +814,7 @@ export default function Player({
   const keepParty = useRef(false);
   const pendingLand = useRef<PartyStateMsg | null>(null);
   // Auto-subtitles: the language a fetch was asked for, to switch on when it lands.
-  const autoLangWanted = useRef<'he' | 'en' | null>(null);
+  const autoLangWanted = useRef<'he' | 'en' | 'ru' | null>(null);
   const subsFetched = useRef(false);
   const playTracked = useRef(false);
   // uri, mirrored for callbacks that fire before ANY source is armed: a skip
@@ -885,11 +892,19 @@ export default function Player({
       setPrefs(p);
       setPrefsLoaded(true);
     });
+    // A setting that follows the person, changed on another device while this
+    // plays (personSync.ts): it applies from here on.
+    const off = onPersonPrefs(person => {
+      const next = {...prefsRef.current, ...person};
+      prefsRef.current = next;
+      setPrefs(next);
+    });
     // The profile's remembered dub and subtitle pick (navSection's record):
     // asked for again when the copy is over five minutes old, so a choice made
     // on the site is known here. Not waited for — the copy already held is
     // what arming and the subtitle auto-pick read if this is still in flight.
     loadMe(profileId, 5 * 60000);
+    return off;
   }, [profileId]);
 
   // ---------------------------------------------------------------- chrome
@@ -1471,11 +1486,11 @@ export default function Player({
     subsFetched.current = true;
     console.log(`[player] no ${want} subtitles on disk — asking the server`);
     api
-      .subtitlesFetch(id, want as 'he' | 'en')
+      .subtitlesFetch(id, want as 'he' | 'en' | 'ru')
       .then(r => {
         console.log(`[player] subtitle fetch: ${r?.tracks?.length || 0} track(s)`);
         if (exited.current || !r?.tracks?.length) return;
-        autoLangWanted.current = want as 'he' | 'en';
+        autoLangWanted.current = want as 'he' | 'en' | 'ru';
         addSubs(r.tracks.map(t => ({...t, lang: t.lang || want})));
       })
       .catch(e => console.log('[player] subtitle fetch failed:', (e as Error).message));
@@ -1636,7 +1651,7 @@ export default function Player({
         autoLangWanted.current = null;
         autoSubsApplied.current = true;
         setSubKey(hit.key);
-        toast(`${want === 'he' ? 'Hebrew' : 'English'} subtitles found — switched on`);
+        toast(`${SUB_LANG_LABEL[want]} subtitles found — switched on`);
         return;
       }
     }
@@ -2676,7 +2691,10 @@ export default function Player({
       const next = {...prefsRef.current, [key]: value};
       prefsRef.current = next;
       setPrefs(next);
-      savePrefs(next);
+      // a choice that follows the person goes to their profile; one that is
+      // this screen's stays on the box (personPrefs.ts)
+      if ((PERSON_KEYS as string[]).includes(key)) setPersonPref(key as PersonKey, value as never);
+      else savePrefs(next);
       showControls();
     },
     [showControls],

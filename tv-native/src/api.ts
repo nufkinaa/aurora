@@ -1254,7 +1254,7 @@ export const api = {
     }>(`/api/intro/auto/${encodeURIComponent(id)}`),
   // A subtitle in the preferred language for a library file the server holds
   // no track for; it is written next to the file, for everyone.
-  subtitlesFetch: (id: string, lang: 'he' | 'en') =>
+  subtitlesFetch: (id: string, lang: 'he' | 'en' | 'ru') =>
     post<{tracks: SubtitleTrack[]}>('/api/subtitles/fetch', {id, lang}),
   report: (text: string, context: Record<string, unknown>, profile: string | null) =>
     post<{ok: boolean; id: string}>('/api/reports', {text, context, profile}),

@@ -1,7 +1,12 @@
 // Settings — a port of the site's #/preferences.
 //
-// Same three groups the site has: the liked genres that feed Home's
-// recommendations, then Playback, then Subtitles. Profile editing is left off
+// The site's groups: the liked genres that feed Home's recommendations,
+// Playback, Subtitles, Downloads, Privacy. WHAT FOLLOWS THE PERSON (autoplay,
+// subtitles on / language, the two download switches, usage stats — and the
+// genres) is read from and written to their PROFILE, so it is the same on the
+// website and on every TV; subtitle size and background, the billboard's
+// trailers and this TV's notifications stay on the box (personPrefs.ts has
+// the table, personSync.ts keeps it in step). Profile editing is left off
 // deliberately: on the site it opens a modal with a password field, and typing a
 // password on a remote is worse than doing it on the phone or laptop.
 //
@@ -17,6 +22,8 @@ import {useApp} from '../AppContext';
 import {useMe, useNewUnseen} from '../navSection';
 import {openJoinParty, openReport, openUpdate} from '../overlay';
 import {loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS, saveAuthSession} from '../storage';
+import {PERSON_KEYS, PersonKey, SUB_LANGS, SUB_LANG_LABEL} from '../personPrefs';
+import {onPersonPrefs, refreshPerson, setPersonPref} from '../personSync';
 import {showToast} from '../toast';
 import {APP_VERSION, checkForUpdate, UpdateInfo} from '../update';
 import {setUsageEnabled} from '../usage';
@@ -101,6 +108,11 @@ export default function Settings({
 
   useEffect(() => {
     loadPrefs().then(setPrefs);
+    // Opening Settings asks the profile again, so a choice made on the phone
+    // a moment ago is what this screen shows; and one that changes while the
+    // screen is up (the server says so) repaints it.
+    refreshPerson();
+    return onPersonPrefs(person => setPrefs(cur => ({...cur, ...person})));
   }, []);
 
   // Genre list comes from the library, exactly as the site builds it, and the
@@ -159,7 +171,9 @@ export default function Settings({
     <K extends keyof Prefs>(key: K, value: Prefs[K]) => {
       const next = {...prefs, [key]: value};
       setPrefs(next);
-      savePrefs(next);
+      // the person's choices go to their profile, the screen's stay here
+      if ((PERSON_KEYS as string[]).includes(key)) setPersonPref(key as PersonKey, value as never);
+      else savePrefs(next);
       if (key === 'usageStats') setUsageEnabled(!!value);
     },
     [prefs],
@@ -170,12 +184,7 @@ export default function Settings({
     set(key, values[(i + 1) % values.length]);
   };
 
-  const subLangLabel = useMemo(
-    () =>
-      ({any: 'First available', he: 'Hebrew', en: 'English'}[prefs.subLang] ||
-      'First available'),
-    [prefs.subLang],
-  );
+  const subLangLabel = SUB_LANG_LABEL[prefs.subLang] || SUB_LANG_LABEL.any;
   const cueLabel = useMemo(
     () => ({S: 'Small', M: 'Medium', L: 'Large'}[prefs.cueSize] || 'Medium'),
     [prefs.cueSize],
@@ -277,9 +286,9 @@ export default function Settings({
           />
           <Row
             label="Preferred subtitle language"
-            note="Which one to pick when a title offers several."
+            note="The language to pick. If a title doesn't have it, Aurora goes and gets it."
             value={subLangLabel}
-            onPress={() => cycle('subLang', ['any', 'he', 'en'])}
+            onPress={() => cycle('subLang', SUB_LANGS)}
           />
           <Row
             label="Subtitle size"
@@ -291,6 +300,21 @@ export default function Settings({
             note="A dark plate behind the text. Off is cleaner; on is readable over anything."
             value={prefs.cueBackground ? 'On' : 'Off'}
             onPress={() => set('cueBackground', !prefs.cueBackground)}
+          />
+        </View>
+        <Text style={styles.h2}>Downloads</Text>
+        <View style={styles.list}>
+          <Row
+            label="Get the next episode ready"
+            note="While you watch, Aurora fetches the next episode so it starts at once."
+            value={prefs.smartDownloads ? 'On' : 'Off'}
+            onPress={() => set('smartDownloads', !prefs.smartDownloads)}
+          />
+          <Row
+            label="Tidy up after watching"
+            note="Episodes Aurora fetched for you are removed once you've watched them. Nothing you saved yourself is touched."
+            value={prefs.smartCleanup ? 'On' : 'Off'}
+            onPress={() => set('smartCleanup', !prefs.smartCleanup)}
           />
         </View>
         <Text style={styles.h2}>Notifications</Text>
@@ -320,7 +344,7 @@ export default function Settings({
         <View style={styles.list}>
           <Row
             label="Usage stats"
-            note="Which screens and features get used, and how long they took — to your own server only, never anything typed."
+            note="Which screens and features get used, and how long they took — to your own server only, never anything typed. Off here is off for you on every device."
             value={prefs.usageStats ? 'On' : 'Off'}
             onPress={() => set('usageStats', !prefs.usageStats)}
           />

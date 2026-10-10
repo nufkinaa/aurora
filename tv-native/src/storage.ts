@@ -3,6 +3,7 @@
 // was last used. Tokens live in server RAM only, so a stale one just means the
 // profile gate re-appears — never a hard error.
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {PERSON_KEYS, PersonPrefs, PersonRecord, readRecord, SubLang} from './personPrefs';
 
 const KEYS = {
   serverUrl: 'aurora.serverUrl',
@@ -103,10 +104,22 @@ export async function clearProfile() {
 // The site keeps these in localStorage via `playerPrefs`; here they go through
 // AsyncStorage. Same keys and same defaults so the two clients agree on what
 // "on" means, and so the Settings screen can be a straight port.
+//
+// TWO HOMES (personPrefs.ts has the table): the choices that follow the
+// PERSON — autoplayNext, subsDefault, subLang, usageStats, smartDownloads,
+// smartCleanup — live on their profile and are laid over this object while
+// that profile is active (setPersonOverlay); everything else here belongs to
+// this box. `loadPrefs()` answers the two together, so a reader does not care
+// which is which; a WRITER of a person-level key goes through personSync.ts
+// (setPersonPref), never through savePrefs.
 export type Prefs = {
   autoplayNext: boolean;
   subsDefault: boolean;
-  subLang: 'any' | 'he' | 'en';
+  subLang: SubLang;
+  // Smart downloads and their tidy-up (server: media/smartdl.js, smartclean.js)
+  // — profile switches the TV could not reach before.
+  smartDownloads: boolean;
+  smartCleanup: boolean;
   cueSize: 'S' | 'M' | 'L';
   // The site's `cueBackground` — the dark plate behind a cue. It only became
   // meaningful here once the player started drawing its own cues (Player.tsx
@@ -151,6 +164,8 @@ export const PREFS_DEFAULTS: Prefs = {
   autoplayNext: true,
   subsDefault: true,
   subLang: 'any',
+  smartDownloads: true,
+  smartCleanup: true,
   cueSize: 'M',
   cueBackground: true,
   lastSubLang: null,
@@ -164,7 +179,11 @@ export const PREFS_DEFAULTS: Prefs = {
 
 const PREFS_KEY = 'aurora.prefs';
 
-export async function loadPrefs(): Promise<Prefs> {
+/** What is stored on THIS BOX, as it is: the device-level settings, and — in
+ *  the person-level fields — whatever the box held before settings followed
+ *  the person (what the one-time move reads; never written again while a
+ *  profile is active). */
+export async function loadBoxPrefs(): Promise<Prefs> {
   try {
     const raw = await AsyncStorage.getItem(PREFS_KEY);
     // Spread over the defaults so a stored blob written by an older build (or a
@@ -175,11 +194,55 @@ export async function loadPrefs(): Promise<Prefs> {
   }
 }
 
+// The active person's own choices, laid over the box's (personSync.ts sets
+// and clears this). `ready` is the read of what the box remembers of them —
+// storage only, never the network — so a screen that asks in the same instant
+// a profile is entered waits those few milliseconds instead of reading the
+// last person's values.
+let person: PersonPrefs | null = null;
+let personReady: Promise<unknown> = Promise.resolve();
+export const setPersonOverlay = (values: PersonPrefs | null, ready?: Promise<unknown>) => {
+  person = values;
+  if (ready) personReady = ready.catch(() => {});
+  else if (!values) personReady = Promise.resolve();
+};
+export const personOverlay = () => person;
+
+export async function loadPrefs(): Promise<Prefs> {
+  await personReady;
+  const box = await loadBoxPrefs();
+  return person ? {...box, ...person} : box;
+}
+
 export async function savePrefs(p: Prefs) {
   try {
-    await AsyncStorage.setItem(PREFS_KEY, JSON.stringify(p));
+    let next = p;
+    if (person) {
+      // person-level fields are not this function's to write: the box keeps
+      // what it held (see loadBoxPrefs)
+      const box = await loadBoxPrefs();
+      next = {...p};
+      for (const k of PERSON_KEYS) (next as Record<string, unknown>)[k] = box[k];
+    }
+    await AsyncStorage.setItem(PREFS_KEY, JSON.stringify(next));
   } catch {}
 }
+
+// What this box remembers of ONE person's settings (personPrefs.ts
+// PersonRecord): there so the TV comes up right with no server, and so a
+// change made while it was unreachable is delivered later. null = this person
+// has never been seen on this box (the one-time move has not happened).
+const personKey = (profileId: string) => `aurora.person.${profileId}`;
+export async function loadPersonRecord(profileId: string): Promise<PersonRecord | null> {
+  try {
+    const raw = await AsyncStorage.getItem(personKey(profileId));
+    return raw ? readRecord(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+export const savePersonRecord = (profileId: string, rec: PersonRecord) =>
+  AsyncStorage.setItem(personKey(profileId), JSON.stringify(rec)).catch(() => {});
 
 // ---- small remembered facts ----
 // The release whose "New" page this TV has opened (the nav dot goes out).
