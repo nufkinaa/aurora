@@ -1316,6 +1316,17 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       for (const b of actions) {
         for (const ev of ["pointerenter", "focus", "touchstart"]) b.addEventListener(ev, () => warmPlay(target), { passive: true });
       }
+      // …and so does the page itself, once it has painted and the browser has
+      // nothing to do: a title page is where Play is pressed, and a finger on
+      // a phone gives no warning at all (touchstart is a tenth of a second
+      // before the tap). What goes out is two small playlists; the server
+      // makes the first seconds of the film ready — bounded there (a few
+      // starts a minute, an encode only on an idle server, three segments at
+      // most) — and a title that is not played costs nothing more. Not on a
+      // slow line or under Data saver (prefetch.js decides).
+      (window.requestIdleCallback || ((fn) => setTimeout(fn, 900)))(() => {
+        if (screen.isConnected) warmPlay(target);
+      }, { timeout: 3000 });
     }
   }
   // A film we don't own: "Save & watch" is THE button — one press saves the

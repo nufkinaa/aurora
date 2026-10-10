@@ -128,11 +128,16 @@ export const fromHome = (data) => {
 // The server side of pressing Play on a title you own: for a file this
 // device can't play as-is, the jit index or copy job starts now instead of
 // on the tap (player.js decides which, exactly as it will when it opens).
-// Direct-play files have nothing to warm. Once per title per page.
-const warmedPlay = new Set();
+// Direct-play files have nothing to warm. Once per title in a while: what is
+// asked for here is kept half a minute by the page and a couple of minutes
+// by the server, so a second hint inside that would only repeat the first.
+const WARM_PLAY_AGAIN_MS = 45000;
+const warmedPlay = new Map(); // item id -> when
 export const warmPlay = (item) => {
-  if (!item || !allowed() || busy() || warmedPlay.has(item.id)) return;
-  warmedPlay.add(item.id);
+  if (!item || !allowed() || busy()) return;
+  if (Date.now() - (warmedPlay.get(item.id) || 0) < WARM_PLAY_AGAIN_MS) return;
+  if (warmedPlay.size > 200) warmedPlay.clear();
+  warmedPlay.set(item.id, Date.now());
   import("./screens/player.js").then((m) => m.warmPlayback(item)).catch(() => {});
 };
 
