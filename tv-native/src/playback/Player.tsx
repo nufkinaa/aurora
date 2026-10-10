@@ -2890,7 +2890,14 @@ export default function Player({
         // never draw a second, mistimed copy (rule 2).
         selectedTextTrack={NO_NATIVE_TEXT}
         onLoad={onLoad}
-        onReadyForDisplay={noteFirstFrame}
+        onReadyForDisplay={() => {
+          // A resume that is still to be sought to (onLoad does it, right
+          // after this first READY): the frame on screen is the film's first,
+          // not the one the viewer is waiting for. The READY after the seek
+          // is the start.
+          if (resumeAt.current > 0) return;
+          noteFirstFrame();
+        }}
         onProgress={onProgress}
         onEnd={onEnd}
         onError={onError}
