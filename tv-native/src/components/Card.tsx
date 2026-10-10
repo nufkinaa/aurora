@@ -354,7 +354,12 @@ function Card({
           source={shown}
           style={styles.poster}
           resizeMode="cover"
-          resizeMethod={sizedPath || (tries === 2 && backup) ? 'auto' : 'resize'}
+          // "resize" is a re-encode on the box (Fresco's JPEG transcoder), for
+          // a picture the server could not size. Not for a resume frame: the
+          // server cuts those 640 px wide for a 448-px box, and transcoding a
+          // picture 1.4x the box to save a third of its pixels cost more than
+          // decoding it as it is.
+          resizeMethod={canFrame || sizedPath || (tries === 2 && backup) ? 'auto' : 'resize'}
           fadeDuration={0}
           onError={onImgError}
           onLoad={onImgLoad}
