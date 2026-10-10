@@ -113,7 +113,7 @@ Rules that keep the suite reliable:
 |---|---|
 | `wall.test.js` | profile wall, wrong / right password, what the password sheet says for a rate limit / a locked profile / no server, reload keeps the unlock, the one-time "new look" note, Switch profile |
 | `navigation.test.js` | every `route()` in `main.js` at 1280×720 and 390×844: renders, no console errors, no sideways scroll, no skeleton left; deep links; Back / Forward / Escape; unknown routes. Fails when `main.js` gains a route the table does not have |
-| `library.test.js` | Movies / Shows grids, Unwatched, category pills, the in-page search box, Search, My List add / remove / reload / sort / filter; the add's toast for each answer of My List downloads (stubbed answer) |
+| `library.test.js` | Movies / Shows grids, Unwatched, category pills, the in-page search box, Search, My List add / remove / reload / sort / filter; the add's toast for each answer of My List downloads (stubbed answer) — the TV app's wording, word for word; a failed add or removal puts the button back and says so (title page and peek sheet) |
 | `title.test.js` | film Play / Resume / Start over / watched; show episode list and card states; X-Ray with no network; Follow; rating |
 | `player.test.js` | direct play: transport, ±10 s, keys, timeline, speed, subtitles (+ saved to the profile, carried to the next title), settings menu, resume, leaving, Media Session, PiP / AirPlay, mute, playing to the end, 10 quiet seconds after leaving; watch history that cannot be read (plays, saves nothing, the resume point on the server survives) |
 | `player-episodes.test.js` | Next episode, Up next + countdown + auto-advance, Play now / Dismiss, autoplay off, Still watching?, subtitle carried to the next episode, resume, leaving |

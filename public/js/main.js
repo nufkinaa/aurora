@@ -367,8 +367,8 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     // So: nothing at all over a playing film, and otherwise one small dim
     // line that is gone in two seconds. It can be cancelled, and the feature
     // turned off, from the Downloads page and Settings → More settings → Downloads.
-    // (A My List download is announced by the add itself — "saved for later —
-    // downloading the film" — so it gets no second line here.)
+    // (A My List download is announced by the add itself — "Added to My List
+    // — downloading the film" — so it gets no second line here.)
     if (!caughtUp && !downloads.has(job.id) && job.mine && job.smart && job.auto !== "mylist" && !document.querySelector(".player")) {
       const ep = job.season && job.episode ? ` S${job.season}E${job.episode}` : "";
       toast(`Next episode downloading${ep ? " ·" + ep : ""}`, "⬇", null, { quiet: true });

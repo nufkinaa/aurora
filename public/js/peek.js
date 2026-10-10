@@ -5,7 +5,7 @@
 //
 // Cards wire it with `attachPeek(node, item, opts)`; the sheet itself is
 // `openPeek(item, opts)` so a keyboard/remote path can open it too.
-import { el, icons, toast, savedLine, formatRow, posterImg, fmtDuration, hapticOnRelease } from "./ui.js";
+import { el, icons, toast, listAddedLine, LIST_REMOVED, listFailedLine, formatRow, posterImg, fmtDuration, hapticOnRelease } from "./ui.js";
 import { state, progressFor } from "./state.js";
 import { api } from "./api.js";
 import { navigate } from "./router.js";
@@ -98,8 +98,14 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
         ? { imdbId: item.imdbId, type: item.type === "show" ? "show" : "movie", title: item.title, poster: item.cover || null, year: item.year || null, genres: item.genres || [], rating: item.rating || null }
         : item.id;
       const res = await api.toggleWatchlist(state.profile.id, ref, inList);
-      toast(inList ? savedLine(item.title, res) : "Off the list. Bold.", inList ? "➕" : "➖");
-    } catch {}
+      toast(inList ? listAddedLine(res) : LIST_REMOVED, inList ? "➕" : "➖");
+    } catch {
+      // it did not happen: the button goes back, and says so
+      const adding = inList;
+      inList = !inList;
+      paintList();
+      toast(listFailedLine(adding), "⚠️");
+    }
   };
 
   const synopsis = el("p", { class: "peek-synopsis skeleton-text" }, " ");
