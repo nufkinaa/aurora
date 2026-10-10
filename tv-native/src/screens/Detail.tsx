@@ -1029,8 +1029,15 @@ export default function Detail({
   const mountCheck = useRef(false);
   // true = something here is still on its way; false = nothing is; null = the
   // read failed (the poll keeps going on what the page already shows)
+  // The id the jobs are matched on. ONE value, and the only thing about the
+  // ids loadEpJobs depends on: it used to list `item.imdbId` and `libImdb`
+  // separately, so for a library title that already carries its IMDb id (most
+  // do) the mount effect's `setLibImdb(known)` gave loadEpJobs a new identity
+  // with the SAME id — the jobs effect below was torn down and run again, and
+  // /api/downloads was read twice on every open of the page.
+  const jobImdb = item.imdbId || libImdb || null;
   const loadEpJobs = useCallback(async (): Promise<boolean | null> => {
-    const imdb = item.imdbId || libImdb;
+    const imdb = jobImdb;
     if (!imdb) return false;
     try {
       const jobs = await api.downloads();
@@ -1093,11 +1100,11 @@ export default function Detail({
     } catch {
       return null;
     }
-  }, [item.imdbId, libImdb, bumpLibrarySoon, noteLive]);
+  }, [jobImdb, bumpLibrarySoon, noteLive]);
   const loadEpJobsRef = useRef(loadEpJobs);
   loadEpJobsRef.current = loadEpJobs;
   const jobImdbRef = useRef<string | null>(null);
-  jobImdbRef.current = item.imdbId || libImdb || null;
+  jobImdbRef.current = jobImdb;
   const imdbKind: 'movie' | 'show' = item.type === 'show' ? 'show' : 'movie';
   // Resolve the library title to its IMDb id. This used to be gated to
   // `item.type === 'show'`, which is why SOURCES WERE BROKEN FOR EVERY LIBRARY
