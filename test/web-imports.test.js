@@ -35,7 +35,7 @@ test("the website's modules only import names their sources export", () => {
     for (const m of s.matchAll(/import\s*\{([^}]*)\}\s*from\s*["']([^"']+)["']/g)) {
       if (!m[2].startsWith(".")) continue;
       const target = path.join(path.dirname(file), m[2].split("?")[0]);
-      const rel = path.relative(ROOT, file).replace(/\/g, "/");
+      const rel = path.relative(ROOT, file).split(path.sep).join("/");
       if (!fs.existsSync(target)) {
         problems.push(`${rel}: ${m[2]} does not exist`);
         continue;
