@@ -462,6 +462,15 @@ export default function Browse({
   const colsRef = useRef(cols);
   colsRef.current = cols;
 
+  // A catalogue title as the grid shows it: tagged `source: 'stream'`. ONE
+  // tagged object per fetched title, made once and kept. The tagging used to
+  // be a `.map(i => ({...i, source}))` inside the list memo below, which runs
+  // again whenever a page is appended (or the library / profile state lands):
+  // every title got a new object each time, so every memoised card in the
+  // mounted window re-rendered on each page — while a key was held down the
+  // grid. (`fetched` itself stays untagged: "Surprise me" reads it.)
+  const streamTagged = useRef(new WeakMap<HeroItem, HeroItem>()).current;
+
   // ---- what to show ------------------------------------------------------
   // `visible()` transcribed (browse.js:310-327): the WHOLE downloaded library,
   // alphabetical, ahead of the catalog whenever the category asks for it.
@@ -481,7 +490,14 @@ export default function Browse({
     const libTitles = new Set(downloaded.map(i => norm(i.title)));
     let stream = fetched.filter(m => m.imdbId && !libTitles.has(norm(m.title)));
     if (unwatched) stream = stream.filter(m => !marks(m).finished);
-    let tagged = stream.map(i => ({...i, source: 'stream' as const}));
+    let tagged = stream.map(i => {
+      let t = streamTagged.get(i);
+      if (!t) {
+        t = {...i, source: 'stream' as const};
+        streamTagged.set(i, t);
+      }
+      return t;
+    });
     // "For you": float the genres this profile actually watches to the front,
     // keeping catalog order within each group.
     if (cat.taste && tasteGenres.length && !genre) {
@@ -491,7 +507,7 @@ export default function Browse({
       tagged = [...hit, ...rest];
     }
     return {list: [...local, ...tagged], owned: local.length};
-  }, [cat, fetched, genre, lib, localOnly, marks, tasteGenres, unwatched]);
+  }, [cat, fetched, genre, lib, localOnly, marks, streamTagged, tasteGenres, unwatched]);
   const itemCount = items.length;
   const itemCountRef = useRef(itemCount);
   itemCountRef.current = itemCount;

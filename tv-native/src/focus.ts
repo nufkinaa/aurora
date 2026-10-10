@@ -143,7 +143,11 @@ export function useListClaim(key: string, ready: boolean) {
   useEffect(() => {
     if (ready) spent.current = key;
   }, [key, ready]);
-  return (index: number) => claim && index === 0;
+  // Stable while the answer is: this is called from a list's renderItem, and
+  // a new function per render made renderItem new per render — so every
+  // state change on the screen (a page starting to load) re-rendered every
+  // mounted cell of the list.
+  return useCallback((index: number) => claim && index === 0, [claim]);
 }
 
 // --------------------------------------------------------- who hears the remote
