@@ -141,7 +141,7 @@ test("a title the server has never heard of is the one thing a scrubber cannot k
   const bad = [];
   for (const f of files) {
     if (/telemetry(-core|Core)?\.(js|ts)$/.test(f)) continue;
-    for (const [i, line] of fs.readFileSync(f, "utf8").split("\n").entries()) {
+    for (const [i, line] of fs.readFileSync(f, "utf8").split(/\r?\n/).entries()) { // (\r?: a Windows checkout ends its lines in CRLF, and the "\r" kept the comment from being cut off below)
       if (!/\b(reportError|playerError|imageFailed|jsError|httpFailed|uiHit|tmValue|tmStart|tmEnd|tmLap|sinceNav|titleShown|playFirstFrame)\(/.test(line)) continue;
       const call = line.slice(line.search(/\b(reportError|playerError|imageFailed|jsError|httpFailed|uiHit|tmValue|tmStart|tmEnd|tmLap|sinceNav|titleShown|playFirstFrame)\(/)).replace(/\/\/.*$/, "")
         .replace(/\b(e|err|error)\.name\b/g, ""); // an Error's own name ("SecurityError") is code, not content
