@@ -54,7 +54,7 @@ build using `AuroraQa` still works, but new code must use `AuroraQA`.
 | `cmd` | `arg` | effect | `ok` detail |
 |---|---|---|---|
 | `impl` | `focusable=js\|native,card=…,row=…,hero=…,rail=…,grid=…` — any subset; unknown keys → `err` | writes `SharedPreferences("aurora_impl")` (01 §4); takes effect on the **next launch**. Must work with the app process not running (the broadcast starts it just for `onReceive`). | the full resulting map, same syntax |
-| `exp` | `none` \| `key=0\|1,…` — any subset of `AuroraExp.KEYS` (`cull`, `cardlayer`, `taglayer`, `shadowcache`, `unstuff`, `unstuffq` — the last two hold one vsync back when the frame pipeline is stuffed, `docs/qa/native-bench/FOLLOWUP.md` — and the `x_…` attribution removals); `none` first clears everything; an unknown key or value → `err` | **LAB ONLY** (2026-10-10, `docs/qa/native-bench/RENDER.md`): writes `SharedPreferences("aurora_exp")`; like `impl`, read once per process, so it takes effect on the **next launch**. All off by default — the lab app is then the reference picture. `run.py --exp <arg>` runs BOTH sides with the native letters, A with `exp none`, B with `<arg>`; `strict.py <out>` counts every pixel that differs at all. | the resulting set as `a+b` (`-` when empty) |
+| `exp` | `none` \| `key=0\|1,…` — any subset of `AuroraExp.KEYS` (`cull`, `cardlayer`, `taglayer`, `shadowcache`, `unstuff`, `unstuffq` — the last two hold one vsync back when the frame pipeline is stuffed, `docs/qa/native-bench/FOLLOWUP.md` —, `pool` (the recycling shelf), `gridfree`, `recycle`, `prepdraw` — `docs/qa/native-bench/POOL.md` — and the `x_…` attribution removals); `none` first clears everything; an unknown key or value → `err` | **LAB ONLY** (2026-10-10, `docs/qa/native-bench/RENDER.md`): writes `SharedPreferences("aurora_exp")`; like `impl`, read once per process, so it takes effect on the **next launch**. All off by default — the lab app is then the reference picture. `run.py --exp <arg>` runs BOTH sides with the native letters, A with `exp none`, B with `<arg>`; `strict.py <out>` counts every pixel that differs at all. | the resulting set as `a+b` (`-` when empty) |
 | `freeze` | `on` \| `off` \| `on,trailer` \| `on,mid` | `on`: hero rotation timer skipped, no trailer starts, Skeleton/MiniSpinner/RailHues loops hold phase 0.37; `atTop`/`swap`/focus timings run normally. `on,trailer`: as `on` but a trailer **may** start (used with the fixture HLS of 02 §3.3 and `TrailerFrame` paused at t=0); a receiver that cannot do it answers `err unsupported`. `on,mid` (2026-10-10): as `on`, and three animations come to rest HALF WAY so their blended frames can be captured still — Home's `atTop` fade down stops at 0.5, Home's column stops at half the focused row's target, the rail's slide in stops at 0.5 (both implementations: Home.tsx / NavRail.tsx `isMid()`, AuroraHeroArtView / AuroraSlideColumnView / AuroraRailPanelView `AuroraQa.mid`). Emitted to JS as device event `AuroraQa {frozen, trailer, mid}`. | `frozen=1\|0 trailer=1\|0 mid=1\|0` |
 | `trace` | `on` \| `off` | `[anim]` lines from RN's native drivers (JS wrapper attaches `Animated.Value.addListener` only while tracing) and from `AuroraClock`; also turns `[key]` lines on. **Never on during perf runs.** | `trace=1\|0` |
 | `focuslog` | `on` \| `off` | `[focus]` lines on every focus change (both implementations) and `[ring]` lines on ring claim/release | `focuslog=1\|0` |
@@ -79,7 +79,16 @@ sees nothing else. Formats (01 §6, 02 §4.3, §5):
 [focus] <uptimeMs> gain tag=<nativeId|reactTag> impl=js|native edgeL=0|1 edgeR=0|1
 [focus] <uptimeMs> loss tag=<…> impl=…
 [ring]  <uptimeMs> claim|release <tag>
+[pool]  <uptimeMs> row|grid tag=<container> focus=<item index> direct=+a/-r desc=+c/-d views=<n> [first]
+[mounts] <uptimeMs> focusable=+c/-d card=+c/-d
 ```
+
+`[pool]` (focuslog on; native shelf / grid, PoolHost.kt): written by the container inside the focus change, just
+before the card's `[focus] … gain`. `focus=` is the ITEM that took focus; `direct` / `desc` count the views
+Fabric added to / removed from the container (direct children / anywhere under it) since its previous line.
+trace.py names a gain by that item (`row0[9]`) when both sides have such lines — a recycled slot is one view
+showing many items, so a react tag no longer names a card. `[mounts]` (focuslog on): AuroraFocusable / AuroraCard
+views created / dropped anywhere in the app since the previous focus gain.
 
 `frameTimeNanos` is the Choreographer's (CLOCK_MONOTONIC); `uptimeMs` is `SystemClock.uptimeMillis()`
 — the same clock, so the harness aligns `[anim]` steps on the first step after the first `[key]`.

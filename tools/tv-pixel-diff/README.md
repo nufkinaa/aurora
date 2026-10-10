@@ -39,6 +39,8 @@ python run.py --serial 192.168.50.31:5555 --pkg com.auroratv.lab --impl F \
 | `--var k=v` | substitutes `${k}` in state files (`id1` = a fixture item id for `detail:` states; default `tt9000001`) |
 | `--server flag` | declares which instance options are in effect (`artDelay`, `artFail`, `aiMock`, `fixtureTrailer`). States that need one you did not declare are **skipped** with the reason in the summary; the harness does not start the instance itself (02 §1 — `scripts/ui-test-server.js --port 4100` with the fixture, by the operator) |
 | `--token` / `--keystore` | the QA token (PROTOCOL §1); by default derived from `tv-native/android/app/debug.keystore` via `keytool`. A release-signed build needs `--keystore tv-native/android/app/aurora.keystore` (and its password in the JDK keytool prompt is not supported — pass `--token` instead) |
+| `--exp k=1,…` | lab: rendering experiments on the B side; both sides then run the `--impl` letters native (A with `exp none`) |
+| `--exp-a k=1,…` / `--impl-a LETTERS` | lab (2026-10-10, POOL.md): what the A side runs when the reference is not "all js, no experiment" — e.g. `--impl FCRHNG --impl-a FCRHN --exp-a cull=1 --exp cull=1,pool=1` compares the keyed shelf + FlatList with the recycling shelf + grid, everything else equal. `--impl-a -` = all js |
 | `--screenrecord` | also saves a 4 s `A.mp4`/`B.mp4` per state for the human pass |
 | `--diff-only` | re-diffs the `A.png`/`B.png` already in `--out` (tune masks/tolerances without the TV) |
 | `--force-lock` | ignore a stale `.device.lock` (only when its PID is dead) |
@@ -161,6 +163,9 @@ the fixture's row order differs.
      press on which React re-renders (a shelf's window moving, the rail mounting): the JS
      side's `[anim]` lines are stamped when they ARRIVE at the native module, and arrive in
      a clump after the render — the curve rule then fails on time stamps, not on motion.
+
+`python refocus.py <out>` re-judges the `[focus]` tables of a finished run from its saved logcats with trace.py
+as it is now (no device).
 
 Standalone: `python diff.py A.png B.png [--out D.png --triptych T.png --json R.json
 --mask x,y,w,h --dither x,y,w,h --threshold 0.1 --max-diff-fraction 0.0005 --edge-dilate 1]`

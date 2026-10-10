@@ -240,6 +240,7 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     layoutDecorations()
     applyRing()
     applySpring()
+    syncLayer() // React Native has just reset the layer type (see syncLayer)
   }
 
   /** `shadowcache`: the ring's shadow lives in its own layered host, just under the ring view. */
@@ -441,9 +442,17 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     if (TAG_LAYER) syncChildLayers(resting)
     if (!CARD_LAYER) return
     val want = isCard && resting
-    if (want == layered) return
+    // Compared with the view's REAL layer type, not with what this class last asked for: React
+    // Native resets it behind our back. BaseViewManager.onAfterUpdateTransaction ends every props
+    // transaction with `setLayerType(NONE)` unless `renderToHardwareTextureAndroid` is set, so a
+    // card whose props were updated (a recycled slot handed another item: `edgeLeft` flips) lost
+    // its layer for good while `layered` still said true. Found on the device with the recycling
+    // shelf (docs/qa/native-bench/POOL.md); applyProps() runs after that reset and calls this.
+    if (!isCard) return // not ours to touch: another Focusable may carry React Native's own layer prop
     layered = want
-    setLayerType(if (want) LAYER_TYPE_HARDWARE else LAYER_TYPE_NONE, null)
+    if (want != (layerType == LAYER_TYPE_HARDWARE)) {
+      setLayerType(if (want) LAYER_TYPE_HARDWARE else LAYER_TYPE_NONE, null)
+    }
   }
 
   /**
