@@ -3719,6 +3719,9 @@
 .dl-row.tone-ok { --dl-tone: #4ade80; }
 .dl-row.tone-busy { --dl-tone: var(--accent, #7c64ff); }
 .dl-row.tone-wait { --dl-tone: #f5c542; }
+/* On hold (a My List download that gave way to the others): the bar stays —
+   that much is on disk — but it is plainly not moving. */
+.dl-row.held .dl-bar-fill { background: var(--dl-tone); opacity: 0.55; }
 .dl-row.tone-bad { --dl-tone: #ff7a7a; }
 .dl-row.fresh {
   border-color: rgba(74, 222, 128, 0.45);
