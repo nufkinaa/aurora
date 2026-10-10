@@ -382,9 +382,9 @@ realtime.attach(server);
 }
 
 // Library events -> clients
-scanner.events.on("updated", () => realtime.broadcastAll({ type: "library_updated" }));
+scanner.events.on("updated", () => realtime.libraryUpdated());
 scanner.events.on("enriched", () => {
-  realtime.broadcastAll({ type: "library_updated" });
+  realtime.libraryUpdated();
   // Now that embedded-subtitle info is known, queue OCR for bitmap-only videos
   for (const v of scanner.bitmapOnlyVideos()) ocr.enqueue(v.path, v.name);
 });
@@ -459,13 +459,13 @@ require("./src/lib/health").start();
 }
 online.events.on("updated", () => {
   scanner.scan();
-  realtime.broadcastAll({ type: "library_updated" });
+  realtime.libraryUpdated();
 });
 
 ocr.events.on("job", (job) => {
   if (job.status === "done") {
     scanner.scan(); // pick up the new .srt
-    realtime.broadcastAll({ type: "library_updated" });
+    realtime.libraryUpdated();
   }
   realtime.broadcastAll({ type: "subtitle_ocr", ...job });
 });
@@ -525,7 +525,13 @@ const lanAddress = () => {
   );
 };
 
-server.listen(config.PORT, () => {
+// The queue of connections waiting to be accepted. Node's default (511)
+// overflowed when 500 devices each opened three connections in the same
+// instant after a library change: 2,168 of them were refused at the socket
+// (measured). 4096 is taken as far as the OS allows: on Linux up to
+// net.core.somaxconn; a desktop Windows caps it at about 200 whatever is
+// asked for (measured — there the cure is the clients not arriving together).
+server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // Now that we OWN the port, clear last-run's transcode stumps. Deferred to
   // here (not module load) so a stale/second instance that loses the bind race
   // can't delete this live instance's in-progress transcodes. Synchronous, so

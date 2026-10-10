@@ -244,12 +244,17 @@ const fetchExtImage = (url, file) => {
 const { variant: imgVariant } = require("../lib/imgvariant");
 // ?blur=<px>: pre-blurred (the TV's billboard layers — see imgvariant.js).
 // ?fmt=webp: that blurred variant as WebP (opt-in; ignored otherwise).
+// Who is asking, for the variant queue's per-client limit (lib/admission.js).
+const artClient = (res) => { try { return require("../lib/admission").heavy.clientKey(res.req); } catch { return null; } };
 const sendArt = async (res, file, width, blur, fmt) => {
-  const v = width || blur ? await imgVariant(file, width, { blur, fmt }) : null;
+  const opts = { blur, fmt, client: artClient(res) };
+  const v = width || blur ? await imgVariant(file, width, opts) : null;
   const out = v || file;
   const head = readHead(out);
   res.setHeader("Content-Type", head ? sniffMime(head) : "image/jpeg");
-  res.setHeader("Cache-Control", "public, max-age=604800");
+  // (the original sent because the variant queue was full is kept for a
+  // minute only: the variant is asked for again once the rush is over)
+  res.setHeader("Cache-Control", opts.shed ? "public, max-age=60" : "public, max-age=604800");
   res.sendFile(out);
 };
 router.get("/img/ext", async (req, res) => {
@@ -308,8 +313,9 @@ router.get("/img/:id", async (req, res) => {
   const entry = resolveKind(req.params.id, "image");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
   try {
-    const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, { blur: req.query.blur, fmt: req.query.fmt }) : null;
-    res.setHeader("Cache-Control", "public, max-age=86400");
+    const opts = { blur: req.query.blur, fmt: req.query.fmt, client: artClient(res) };
+    const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, opts) : null;
+    res.setHeader("Cache-Control", opts.shed ? "public, max-age=60" : "public, max-age=86400");
     res.sendFile(v || entry.path);
   } catch (e) {
     console.warn(`[img] ${req.params.id} w=${req.query.w || "-"} blur=${req.query.blur || "-"} failed: ${(e && e.message) || e}`);

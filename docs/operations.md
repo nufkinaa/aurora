@@ -285,3 +285,47 @@ it (for example `data/downloads.json.start-empty`) or delete
 `<name>.good1` and `<name>.good2` together with the file. For
 `profiles.json`, `sessions.json` and `settings.json` use the marker file:
 those are also restored from backups.
+
+# When many devices ask at once
+
+A library change tells every connected device to ask again. Three things
+keep that from freezing the server (measured before and after in
+`docs/qa/capacity/REPORT.md` §3a and the change's own notes):
+
+- **One message per burst of changes.** A scan, the probes finishing, a
+  download landing and the admin's rescan each used to send `library_updated`;
+  they are collected and one goes out after 1.5 s of quiet, 5 s at the latest.
+- **Kept answers.** The finished bytes of `/api/home` (per profile, per kids
+  limit, web or TV shape) and `/api/library` are kept for up to 30 seconds and
+  thrown away the moment anything they were built from changes — the library,
+  that profile's own progress / list / ratings, the recommender's index, the
+  catalogue caches, the settings, who the profiles are. An unchanged answer is
+  `304 Not Modified` with no body for a client that sends `If-None-Match`
+  (the validator is strong: a hash of the bytes).
+- **Turns.** The heavy requests (`/api/home`, `/api/library`, `/api/search`)
+  take turns with everything else on the event loop, and each client gets a
+  fair share: 4 in hand, 24 waiting; past that — or after 8 seconds in the
+  queue — the answer is `429` with `Retry-After`. Picture variants have a
+  bounded queue too (200 in all, 48 per client); past it the original picture
+  is sent.
+
+The counters are in `GET /api/admin/health` under `load`.
+
+## What a client should do (the website does; for the TV app and others)
+
+- On `library_updated`: refresh after a **random 0.5–5 s**, not at once —
+  except when Home is on the screen or the change is the device's own (its
+  download just landed): then within a random 0–0.3 s, so that a hundred
+  devices do not open their connections in the same millisecond. A device that is asleep or in
+  the background waits until it is looked at. However many messages arrive
+  while a refresh is pending, do one refresh.
+- Never have more than one `/api/home` request in flight.
+- Send `If-None-Match` with the last `ETag` of `/api/home` and `/api/library`
+  and keep the previous answer on `304`.
+- On `429`: wait `Retry-After` seconds plus a random 0–1.5 s, then ask again
+  (twice at most).
+- Reconnect the WebSocket with a doubling wait (1 s → 30 s) **and jitter**:
+  wait a random part of it, between half and all. On `server_restarting`
+  (sent just before a planned restart, then the socket closes with code 1012)
+  wait `retryInMs` plus a random 0–3 s before the first try, and do not show
+  "can't reach the server" for the first few tries.

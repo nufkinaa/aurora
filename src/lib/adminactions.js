@@ -291,7 +291,7 @@ const ACTIONS = [
       const scanner = require("../media/scanner");
       scanner.scan();
       scanner.enrich();
-      require("../realtime").broadcastAll({ type: "library_updated" });
+      require("../realtime").libraryUpdated();
       const n = scanner.allItems().length;
       return `Scanned. ${n} title${n === 1 ? "" : "s"} in the library.`;
     },

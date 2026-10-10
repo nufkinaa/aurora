@@ -226,6 +226,7 @@ class JsonStore {
     this.kind = opts.kind || kindFor(filePath);
     this.saveTimer = null;
     this.retryTimer = null;
+    this.rev = 0; // how many times save() was asked for: a cheap "has this changed" for caches built from it
     this.dirty = false; // changed in memory since the last successful write
     this.unsavedSince = 0; // a write is failing since then (0 = fine)
     this.failures = 0;
@@ -445,6 +446,7 @@ class JsonStore {
   }
 
   save() {
+    this.rev++;
     this.dirty = true;
     if (this.saveTimer) return;
     this.saveTimer = setTimeout(() => {

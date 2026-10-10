@@ -816,7 +816,12 @@ const trendingCached = () => {
   return { movies: markLibrary([...movies]), shows: markLibrary([...shows]) };
 };
 
+// Moves whenever the catalogue cache, the title details or the age ratings
+// are written — for whoever keeps something built from them (lib/answermemo.js).
+const stamp = () => `${cache.rev}.${metaStore.rev}.${certStore.rev}`;
+
 module.exports = {
+  stamp,
   trending, trendingCached, search, meta, metaCached, catalog, catalogCachedItems, genres, CATALOGS, normalize,
   certificateCached, certificateAge, certificateByTitle, warmCertificate, refreshCertificates, noteCertificate,
   searchCached, metaAll,

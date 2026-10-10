@@ -164,7 +164,7 @@ router.delete("/api/admin/library/file/:id", (req, res) => {
     return res.status(refusal ? 400 : 500).json({ error: refusal ? err.message : `Delete failed: ${err.message}` });
   }
   scanner.scan();
-  realtime.broadcastAll({ type: "library_updated" });
+  realtime.libraryUpdated();
   console.log(`[admin] deleted file ${req.params.id} → ${result.deleted.join(", ")} (${result.freedBytes} bytes)`);
   res.json({ ok: true, ...result });
 });
@@ -209,7 +209,7 @@ router.delete("/api/admin/library/:type/:id", (req, res) => {
     return res.status(500).json({ error: `Delete failed: ${err.message}` });
   }
   scanner.scan();
-  realtime.broadcastAll({ type: "library_updated" });
+  realtime.libraryUpdated();
   console.log(`[admin] deleted ${type} "${req.params.id}" → ${folder}`);
   res.json({ ok: true });
 });
@@ -316,7 +316,15 @@ router.post("/api/admin/mylist/keep", (req, res) => {
 
 // ---------- health (watchdog) ----------
 router.get("/api/admin/health", (req, res) => {
-  res.json(require("../lib/watchdog").status());
+  // …plus the counters of the three things that keep a rush from becoming a
+  // freeze: answers kept and served from memory (lib/answermemo.js), heavy
+  // requests taking turns (lib/admission.js), "library changed" messages
+  // collected into one (realtime.js).
+  const load = {};
+  try { load.kept = { ...require("../lib/answermemo").stats }; } catch {}
+  try { load.heavy = require("../lib/admission").heavy.status(); } catch {}
+  try { load.broadcasts = { ...realtime._internals.coalesced }; } catch {}
+  res.json({ ...require("../lib/watchdog").status(), load });
 });
 router.post("/api/admin/heal", (req, res) => {
   require("../lib/watchdog").softHeal("asked from the admin page");
@@ -823,7 +831,7 @@ router.post("/api/admin/broadcast", (req, res) => {
 router.post("/api/admin/rescan", (req, res) => {
   scanner.scan();
   scanner.enrich();
-  realtime.broadcastAll({ type: "library_updated" });
+  realtime.libraryUpdated();
   res.json({ ok: true, scannedAt: scanner.index.scannedAt });
 });
 

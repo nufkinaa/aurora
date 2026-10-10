@@ -128,7 +128,7 @@ const onProgress = async (profileId, itemId, position, duration, meta) => {
   if (cleaned.length) {
     scanner.scan();
     downloads.pruneGone(); // the finished jobs whose files just left drop off every downloads page
-    realtime.broadcastAll({ type: "library_updated" });
+    realtime.libraryUpdated();
   }
   return { cleaned };
 };

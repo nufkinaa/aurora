@@ -267,9 +267,18 @@ export const ratingFor = (key) => (key && state.ratings[key]) || 0;
 export const episodeProgressFor = (imdbId, season, episode) =>
   (imdbId && state.episodeProgress && state.episodeProgress[`${imdbId}:${season}:${episode}`]) || null;
 
+// One library request in flight at a time: after a library change the socket
+// handler and the screen on show (a grid, search) both ask for a fresh copy in
+// the same moment — they share one answer instead of fetching it twice.
+let libraryLoading = null;
 export const loadLibrary = async (force = false) => {
   if (!state.library || force) {
-    state.library = await api.library(state.profile && state.profile.id);
+    if (!libraryLoading) {
+      libraryLoading = api.library(state.profile && state.profile.id)
+        .then((lib) => { state.library = lib; return lib; })
+        .finally(() => { libraryLoading = null; });
+    }
+    await libraryLoading;
   }
   return state.library;
 };
