@@ -917,6 +917,17 @@ export const api = {
     const run = () => request<{ items: HeroItem[]; page: number; hasMore: boolean }>(path);
     return (params.page ?? 0) === 0 ? memo(path, 60000, run) : run();
   },
+  // "More like this" for one title — the server's row, the same one the website
+  // shows (src/media/similar.js). With a profile it comes back in that
+  // person's order, without what they have already watched.
+  similar: (type: 'movie' | 'series', imdbId: string, profileId?: string | null) => {
+    const path =
+      `/api/discover/similar/${type}/${encodeURIComponent(imdbId)}` +
+      (profileId ? `?profile=${encodeURIComponent(profileId)}` : '');
+    return memo(path, 10 * 60000, () =>
+      request<{ items: HeroItem[]; source?: string; personalised?: boolean }>(path),
+    );
+  },
   // The genres the catalog can actually serve, so the picker never offers one
   // that comes back empty.
   catalogGenres: (type: 'movie' | 'show') =>
