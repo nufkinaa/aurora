@@ -15,7 +15,7 @@
 // 13 · SPEC/99-open.md §I.3). So is the compact caption that named the focused
 // card: the site puts labels on the cards that have them (wide, episode, up-next)
 // and nothing at all on a poster, and Card now does the same.
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {View, Text, Image, StyleSheet, ActivityIndicator, Animated, Easing, PixelRatio} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Btn from '../components/Btn';
@@ -366,6 +366,32 @@ export default function Home({
 
   // ---- the sliding column --------------------------------------------------
   const ty = useSlide();
+  // Where the column was last sent. Every card focus calls toRow, so a step
+  // ALONG a shelf used to start the page spring again with the target it
+  // already had — one native animation start per keypress for no movement
+  // (and, mid-slide, a restart of the slide from zero velocity). The spring is
+  // started only when the target is a different one; nothing but `slideTo`
+  // moves this value, so it is always at, or on its way to, `tyTarget`.
+  const tyTarget = useRef(0);
+  const slideTo = useCallback(
+    (y: number) => {
+      if (y === tyTarget.current) return;
+      tyTarget.current = y;
+      ty.to(y);
+    },
+    [ty],
+  );
+  // Made once, not per render (a new interpolation is a new animated node
+  // attached to the view each time Home renders).
+  const artFadeOpacity = useMemo(
+    () =>
+      ty.value.interpolate({
+        inputRange: [-Math.round(heroH * 0.9), -Math.round(heroH * 0.3), 0],
+        outputRange: [0, 1, 1],
+        extrapolate: 'clamp',
+      }),
+    [ty, heroH],
+  );
   // Each shelf's y inside the column, measured rather than computed: a Continue
   // Watching row is shorter than a poster row, so there is no single row height.
   const rowY = useRef<number[]>([]);
@@ -392,6 +418,7 @@ export default function Home({
   heroIdxRef.current = heroIdx;
   const holdUntil = useRef(0);
   const swap = useRef(new Animated.Value(1)).current;
+  const swapX = useMemo(() => swap.interpolate({inputRange: [0, 1], outputRange: [52, 0]}), [swap]);
 
   // The site's `.scrolled` boolean, which is the ONLY thing scroll changes there.
   const atTop = useRef(new Animated.Value(1)).current;
@@ -615,8 +642,8 @@ export default function Home({
 
   const toHero = useCallback(() => {
     setTop(true);
-    ty.to(0);
-  }, [setTop, ty]);
+    slideTo(0);
+  }, [setTop, slideTo]);
 
   // THE HERO'S OWN KEYS (elia, 2026-10-06): RIGHT on the last button and LEFT
   // on the first move the billboard a slide, the way the site's dots do with a
@@ -710,12 +737,12 @@ export default function Home({
       // and left a screenful of dead space under them — measured on the Streamer,
       // and it reads as a broken page rather than as the end of one.
       const max = Math.max(0, colH.current - height);
-      ty.to(-Math.min(Math.max(0, y - spacing.pageY), max));
+      slideTo(-Math.min(Math.max(0, y - spacing.pageY), max));
       // Mounting another shelf changes what is mounted, so it goes off the input
       // path — a held DOWN must never wait for a row to render.
       defer(() => setReach(r => (index + 3 > r ? index + 3 : r)));
     },
-    [setTop, ty, height, stopTrailer],
+    [setTop, slideTo, height, stopTrailer],
   );
 
   // Continue Watching's ✕ — drawn on the focused card, removed by LONG-PRESS OK
@@ -866,13 +893,7 @@ export default function Home({
       <Animated.View
         style={[
           styles.artFade,
-          {
-            opacity: ty.value.interpolate({
-              inputRange: [-Math.round(heroH * 0.9), -Math.round(heroH * 0.3), 0],
-              outputRange: [0, 1, 1],
-              extrapolate: 'clamp',
-            }),
-          },
+          {opacity: artFadeOpacity},
         ]}
         pointerEvents="none">
       {art ? (
@@ -939,7 +960,7 @@ export default function Home({
                 {
                   opacity: swap,
                   transform: [
-                    {translateX: swap.interpolate({inputRange: [0, 1], outputRange: [52, 0]})},
+                    {translateX: swapX},
                   ],
                 },
               ]}>

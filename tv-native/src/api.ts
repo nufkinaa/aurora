@@ -529,6 +529,7 @@ const fetchBounded = (url: string, init: RequestInit, firstByteMs: number): Prom
     const fail = (why: string) => {
       if (done) return;
       done = true;
+      if (timer) clearTimeout(timer);
       try {
         xhr.abort();
       } catch {}
