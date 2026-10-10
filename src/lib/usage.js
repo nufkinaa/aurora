@@ -186,7 +186,7 @@ const validate = (body, now = Date.now()) => {
     const p = cleanProps(ev.p);
     // an error's message is scrubbed like every other client string before it
     // is counted or written (lib/tel/scrub.js): no address, path, id or quoted name
-    if (ev.n === "error" && typeof p.m === "string") p.m = require("./tel/scrub").normMessage(p.m);
+    if (ev.n === "error" && typeof p.m === "string") p.m = require("./tel/scrub").safe(require("./tel/scrub").normMessage(p.m));
     events.push({ n: ev.n, t, p });
   }
   if (!events.length) return null;

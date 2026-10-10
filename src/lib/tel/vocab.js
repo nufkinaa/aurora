@@ -9,8 +9,9 @@ const DEVICES = new Set(["phone", "tablet", "desktop", "tv"]);
 const NET_TIERS = new Set(["slow", "ok", "fast"]);
 const AUTH_MODES = new Set(["open", "transition", "closed"]);
 const INPUTS = new Set(["remote", "touch", "mouse", "keyboard", "pen"]);
-// "look:glass", "lite", "lowram", "impl:n", "exp:rail2" …
-const FLAG_RE = /^[a-z][a-z0-9_:.-]{0,19}$/;
+// "look:glass", "lite", "lowram", "impl:n", "exp:rail2" … — letters, and at
+// most two digits at the very end (an id has more, and has them anywhere)
+const FLAG_RE = /^[a-z][a-z_:.-]{0,18}\d{0,2}$/;
 // A screen: the site's route PATTERN ("/movie/:id") or the TV's screen name
 // ("tv:browse/movie"). No digits and no capitals, so an id cannot pass.
 const SCREEN_RE = /^(?:tv:)?[a-z/:_-]{1,40}$/;
@@ -36,6 +37,8 @@ const BENIGN = [
   [/Transition was (?:aborted|skipped)|Skipped ViewTransition/i, "a page cross-fade that was cut short"],
   [/Non-Error promise rejection captured/i, "a rejection with nothing in it"],
   [/Require cycle:|VirtualizedList: You have a large list|new NativeEventEmitter/i, "a React Native development notice"],
+  // an answer that is a person's own slip, not a fault: a wrong password, PIN or code
+  [/^POST \/api\/(?:profiles\/:id\/unlock|auth\/(?:login|password|claim|device\/approve)|kids\/(?:enter|exit))(?:\?\S*)? → (?:401|403|429)$/, "a wrong password, PIN or code — somebody's answer, not a fault"],
 ];
 
 // ---- timings: name -> { label, max ms, dims, from }
@@ -92,7 +95,7 @@ const SEGMENTS = new Set((
   "rating recommend reject remove report reports requests rescan restart run runs search seen segments server server-info sessions settings signin " +
   "signout-everywhere signup similar sources start state stats status still stream sub subtitle subtitles suggest taste telemetry timeseries today torrent " +
   "torrents trailer transcode tree tv-app unban unlock update update-check upnext-dismiss usage video watch-history watchlist web web-callback web-finish " +
-  "web-start websub wrapped xray errors " +
+  "web-start websub wrapped xray errors alert-rules " +
   "js screens vendor ws " +
   ".m3u8 .ts .m4s .mp4 .mkv .webm .vtt .srt .jpg .jpeg .png .webp .avif .svg .gif .ico .js .css .json .html .txt .apk .woff2 .webmanifest " +
   "?a ?blur ?category ?code ?days ?duration ?episode ?error ?fmt ?force ?genre ?head ?hevc ?imdbid ?intent ?itemid ?k ?kb ?keys ?limit ?page ?profile ?pw " +

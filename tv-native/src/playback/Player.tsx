@@ -2555,7 +2555,7 @@ export default function Player({
   const onError = (e?: {error?: {errorString?: string; errorException?: string}}) => {
     const detail = `${e?.error?.errorString || ''} ${e?.error?.errorException || ''}`;
     console.log('[player] error:', detail);
-    playerError(detail); // [analytics] ExoPlayer's error name and code, never the address
+    playerError(detail, (e?.error as {errorCode?: string} | undefined)?.errorCode); // [analytics] ExoPlayer's error name and code, never the address
     mark('error', {m: detail.trim().slice(0, 40), at: Math.round(curRef.current || 0), app: 'tv'});
     const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
 

@@ -51,7 +51,10 @@ const QUIET_RETRY_MS = 1500;
 const flush = (force = false) => {
   clearTimeout(timer);
   timer = null;
-  if (!state.profile) { arm(); return; } // nobody to ask yet: what is held waits (bounded)
+  if (!state.profile) { // nobody to ask yet: what is held waits (bounded)
+    if (queue.length || (tel && tel.pending())) arm();
+    return;
+  }
   if (!enabled() || refusedFor === state.profile.id) {
     queue.length = 0;
     if (tel) tel.take(); // (it forgets what it held when the switch is off)

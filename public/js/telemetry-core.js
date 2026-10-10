@@ -39,6 +39,7 @@ export const normMessage = (msg) =>
     .replace(/\b[0-9a-f]{8,}\b/gi, "<hex>")
     .replace(/\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{16,}\b/g, "<id>")
     .replace(/[^\x20-\x7e]+/g, "…")
+    .replace(/(?:…\s*){2,}/g, "… ")
     .replace(/\d+(?:[.,]\d+)*/g, "N")
     .replace(/\s+/g, " ")
     .trim()

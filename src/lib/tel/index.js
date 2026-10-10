@@ -37,6 +37,18 @@ const allowance = (iid, now) => {
   return s;
 };
 
+// ---------- the household's own words (scrub.setDictionary) ----------
+// The route says where they come from (the library's titles, the profiles'
+// names); they are read again every ten minutes, at a batch.
+let dictSource = null;
+let dictAt = 0;
+const setDictionarySource = (fn) => { dictSource = fn; dictAt = 0; };
+const refreshDictionary = (now) => {
+  if (!dictSource || now - dictAt < 10 * 60 * 1000) return;
+  dictAt = now;
+  try { scrub.setDictionary(dictSource()); } catch {}
+};
+
 // ---------- consent ----------
 // May this profile's batches be counted? Only a profile that exists and has
 // not switched usage stats off. An id the server does not know is refused:
@@ -103,6 +115,7 @@ const record = (body, opts = {}, now = Date.now()) => {
   const a = allowance(iid, now);
   if (!a || a.batches >= PER_DEVICE_DAY.batches) return out;
   a.batches++;
+  refreshDictionary(now);
   errors.noteVersion(env.app, env.v);
   const tel = body.tel;
   const only = opts.only || null;
@@ -188,9 +201,9 @@ const boot = (dir) => {
   controls.boot(dir ? path.join(dir, "tel-controls.json") : null);
 };
 const flush = () => { errors.saveNow(); timings.saveNow(); controls.saveNow(); };
-const _reset = () => { errors._reset(); timings._reset(); controls._reset(); spent = new Map(); dayKey = ""; };
+const _reset = () => { errors._reset(); timings._reset(); controls._reset(); spent = new Map(); dayKey = ""; dictSource = null; scrub.setDictionary({}); };
 
 module.exports = {
-  record, allowed, verdict, envelope, installId, summary, text, boot, flush, alertSettings, saveAlertSettings,
+  record, allowed, verdict, envelope, setDictionarySource, installId, summary, text, boot, flush, alertSettings, saveAlertSettings,
   errors, timings, controls, scrub, ALERT_DEFAULTS, PER_DEVICE_DAY, _reset,
 };

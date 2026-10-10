@@ -5,7 +5,7 @@
 import {AppState, NativeEventEmitter, NativeModules} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {getBaseUrl, getSession} from './api';
-import {cleanExit, tmValue, updateOffered} from './telemetry'; // [analytics]
+import {cleanExit, reportError, tmValue, updateOffered} from './telemetry'; // [analytics]
 
 // Keep in lockstep with android/app/build.gradle versionName on each release.
 export const APP_VERSION = '5.1.31';
@@ -70,6 +70,9 @@ export const downloadUpdate = async (url: string, onProgress: (p: Progress) => v
     const path = await native.download(url, getSession());
     tmValue('update_download', Date.now() - startedAt); // [analytics]
     return path;
+  } catch (e) {
+    reportError('update', 'the update did not download'); // [analytics]
+    throw e;
   } finally {
     sub.remove();
   }

@@ -43,6 +43,42 @@ const IDENT = /^[a-z_$][A-Za-z0-9_$.]{0,31}$/;
 const QUOTED = /(["'`‘’“”])([^"'`‘’“”]{0,200})(["'`‘’“”])/g;
 const quoted = (s) => s.replace(QUOTED, (m, a, inner) => (IDENT.test(inner) ? `'${inner}'` : "'…'"));
 
+// ---- the household's own words. The server knows what is in its library
+// and what its profiles are called; a client message that carries one of
+// those (a title logged by mistake, a name in an error text) has it replaced
+// here. Defence in depth, not the defence: the clients never hand telemetry a
+// title in the first place (test/tel-contract.test.js checks every call).
+// Short single words are left alone — a film called "Lost" or "Up" must not
+// eat every "lost connection" — as are words that are an app's own vocabulary.
+const GENERIC = new Set(("undefined function property document playback transcode download downloads subtitle subtitles settings response timeout manifest fragment internal " +
+  "connection exception rejection promise network request failed loading buffering resolution fullscreen background foreground navigation component " +
+  "guest kids home admin user test player movies shows search profile family everyone living bedroom kitchen").split(/\s+/));
+let phrases = [];
+let names = [];
+const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const setDictionary = ({ titles = [], people = [] } = {}) => {
+  const seen = new Set();
+  phrases = [];
+  for (const t of titles) {
+    const p = String(t || "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (!p || seen.has(p) || p.length > 80) continue;
+    const words = p.split(" ").length;
+    if (!((words >= 2 && p.length >= 6) || (words === 1 && p.length >= 8 && !GENERIC.has(p)))) continue;
+    seen.add(p);
+    phrases.push(p);
+    if (phrases.length >= 5000) break;
+  }
+  phrases.sort((a, b) => b.length - a.length); // the longest first: "Some Show Returns" before "Some Show"
+  names = [...new Set(people.map((n) => String(n || "").trim()).filter((n) => n.length >= 3 && n.length <= 40 && !GENERIC.has(n.toLowerCase())))].slice(0, 500);
+};
+const withoutHouseholdWords = (s) => {
+  if (!phrases.length && !names.length) return s;
+  const low = s.toLowerCase();
+  for (const p of phrases) if (low.includes(p)) s = s.replace(new RegExp(`(^|[^A-Za-z0-9])${reEsc(p)}(?![A-Za-z0-9])`, "gi"), "$1<title>");
+  for (const n of names) if (s.includes(n)) s = s.replace(new RegExp(`(^|[^A-Za-z0-9])${reEsc(n)}(?![A-Za-z0-9])`, "g"), "$1<name>");
+  return s;
+};
+
 // A message → what is stored and grouped by. First line only; everything
 // variable or personal is replaced by a placeholder, so two reports of one
 // fault from two homes are the same string.
@@ -63,6 +99,7 @@ const normMessage = (msg) => {
     .replace(RE.episode, "<ep>")
     .replace(RE.ipv6, "<ip>");
   s = quoted(s);
+  s = withoutHouseholdWords(s);
   s = s
     .replace(RE.hex, "<hex>")
     .replace(RE.blob, "<id>")
@@ -116,7 +153,7 @@ const normLocation = (loc) => {
     const m = /^([A-Za-z0-9_./-]{0,60}?)(?::([A-Za-z_$][\w$.]{0,40}))?$/.exec(part);
     if (!m) continue;
     // the file: its last two path parts — never a hash, never a bare number
-    const file = m[1].split("/").filter(Boolean).slice(-2).filter((p) => /^[A-Za-z][A-Za-z0-9_.-]{0,30}$/.test(p) && !/[0-9a-f]{8,}/i.test(p) && !/\d{4,}/.test(p)).join("/");
+    const file = m[1].split("/").filter(Boolean).slice(-2).filter((p) => /^[A-Za-z][A-Za-z0-9_.-]{0,30}$/.test(p) && !/[0-9a-f]{8,}/i.test(p) && !/\d{4,}/.test(p)).join("/").replace(/^js\//, "");
     const fn = m[2] && !/^(anonymous|Object\.anonymous)$/.test(m[2]) ? m[2] : "";
     if (!file && !fn) continue;
     out.push(file + (fn ? `:${fn}` : ""));
@@ -154,8 +191,11 @@ const safe = (s) => (sensitive(s) ? "<scrubbed>" : s);
 // A short, harmless label (a model name, a version, a flag): plain
 // characters only, capped, and never anything the detectors object to.
 const label = (v, max = 24, strip = /[^A-Za-z0-9 ._+/()-]/g) => {
-  const s = String(v == null ? "" : v).replace(strip, "").replace(/\s+/g, " ").trim().slice(0, max);
+  const raw = String(v == null ? "" : v).slice(0, 200);
+  if (sensitive(raw.replace(/[^ -~]/g, ""))) return ""; // judged BEFORE the stripping could disguise it
+  if (withoutHouseholdWords(raw) !== raw) return ""; // a "model" that is a title or somebody's name
+  const s = raw.replace(strip, "").replace(/\s+/g, " ").trim().slice(0, max);
   return s && !sensitive(s) ? s : "";
 };
 
-module.exports = { normMessage, urlPattern, normLocation, fingerprint, sensitive, safe, label, MSG_MAX, LOC_MAX };
+module.exports = { normMessage, urlPattern, normLocation, fingerprint, sensitive, safe, label, setDictionary, MSG_MAX, LOC_MAX };

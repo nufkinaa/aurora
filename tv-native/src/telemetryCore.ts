@@ -12,19 +12,7 @@
 // TV sends no stack location: a report is its message and a coarse source.
 
 export type Level = 'error' | 'warn';
-export type Kind =
-  | 'js'
-  | 'promise'
-  | 'console'
-  | 'http'
-  | 'img'
-  | 'media'
-  | 'sw'
-  | 'stall'
-  | 'crash'
-  | 'mem'
-  | 'ws'
-  | 'update';
+export type Kind = 'js' | 'promise' | 'console' | 'http' | 'img' | 'media' | 'sw' | 'stall' | 'crash' | 'mem' | 'ws' | 'update';
 export type Input = 'remote' | 'touch' | 'mouse' | 'keyboard' | 'pen';
 export type Ctx = Record<string, number>;
 export type Report = {
@@ -38,9 +26,7 @@ export type Report = {
   r?: string;
   c?: Ctx;
 };
-export type ControlRow =
-  | [string, string, string, number]
-  | [string, string, string, number, 1];
+export type ControlRow = [string, string, string, number] | [string, string, string, number, 1];
 export type TimingRow = [string, number] | [string, number, string];
 
 export const LIMITS = {
@@ -73,24 +59,17 @@ export const normMessage = (msg: unknown): string =>
       /(?:[A-Za-z]:|\\\\[\w.$-]+)\\(?:[^\\/:"'*?<>|\r\n]+\\)*(?:[^\\/:"'*?<>|\r\n]*?\.[A-Za-z0-9]{2,5}(?![\w.])|[^\\/\s:"'*?<>|]*)/g,
       '<path>',
     )
-    .replace(
-      /(^|[\s("'=:,])~?\/(?:[^/:"'<>|\r\n]+\/)+(?:[^\\/:"'*?<>|\r\n]*?\.[A-Za-z0-9]{2,5}(?![\w.])|[^\\/\s:"'*?<>|]*)/g,
-      '$1<path>',
-    )
+    .replace(/(^|[\s("'=:,])~?\/(?:[^/:"'<>|\r\n]+\/)+(?:[^\\/:"'*?<>|\r\n]*?\.[A-Za-z0-9]{2,5}(?![\w.])|[^\\/\s:"'*?<>|]*)/g, '$1<path>')
     .replace(/\b\d{1,3}(?:\.\d{1,3}){3}(?::\d{2,5})?\b/g, '<ip>')
     .replace(/\btt\d{5,}\b/gi, '<id>')
     .replace(/\bS\d{1,2}\s?E\d{1,3}\b/gi, '<ep>')
-    .replace(
-      /(["'`‘’“”])([^"'`‘’“”]{0,200})(["'`‘’“”])/g,
-      (_m: string, _a: string, inner: string) =>
-        IDENT.test(inner) ? `'${inner}'` : "'…'",
+    .replace(/(["'`‘’“”])([^"'`‘’“”]{0,200})(["'`‘’“”])/g, (_m: string, _a: string, inner: string) =>
+      IDENT.test(inner) ? `'${inner}'` : "'…'",
     )
     .replace(/\b[0-9a-f]{8,}\b/gi, '<hex>')
-    .replace(
-      /\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{16,}\b/g,
-      '<id>',
-    )
+    .replace(/\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{16,}\b/g, '<id>')
     .replace(/[^\x20-\x7e]+/g, '…')
+    .replace(/(?:…\s*){2,}/g, '… ')
     .replace(/\d+(?:[.,]\d+)*/g, 'N')
     .replace(/\s+/g, ' ')
     .trim()
@@ -109,8 +88,7 @@ export const urlPattern = (u: unknown): string => {
     .slice(0, 8)
     .map((seg, i, all) => {
       if (/^[a-z][a-z-]{0,23}$/.test(seg)) return seg;
-      const ext =
-        i === all.length - 1 ? /\.([A-Za-z0-9]{2,5})$/.exec(seg) : null;
+      const ext = i === all.length - 1 ? /\.([A-Za-z0-9]{2,5})$/.exec(seg) : null;
       return ext ? `:file.${ext[1].toLowerCase()}` : ':id';
     });
   const keys: string[] = [];
@@ -119,11 +97,7 @@ export const urlPattern = (u: unknown): string => {
       if (!part || keys.length >= 5) continue;
       const [k, v = ''] = part.split('=');
       if (!/^[a-z][a-z0-9_]{0,15}$/i.test(k)) continue;
-      keys.push(
-        (k === 'w' || k === 'h') && /^\d{1,5}$/.test(v)
-          ? `${k}=${v}`
-          : k.toLowerCase(),
-      );
+      keys.push((k === 'w' || k === 'h') && /^\d{1,5}$/.test(v) ? `${k}=${v}` : k.toLowerCase());
     }
   }
   return '/' + segs.join('/') + (keys.length ? '?' + keys.join('&') : '');
@@ -138,11 +112,7 @@ export class ErrorBook {
   perDay: number;
   sentToday: number;
   dropped: number;
-  constructor({
-    perSession = LIMITS.KINDS_PER_SESSION,
-    perDay = LIMITS.KINDS_PER_DAY,
-    sentToday = 0,
-  } = {}) {
+  constructor({perSession = LIMITS.KINDS_PER_SESSION, perDay = LIMITS.KINDS_PER_DAY, sentToday = 0} = {}) {
     this.items = new Map();
     this.seen = new Set();
     this.perSession = perSession;
@@ -169,13 +139,9 @@ export class ErrorBook {
       now?: number;
     } = {},
   ): boolean {
-    const msg = raw
-      ? String(message).slice(0, LIMITS.MSG)
-      : normMessage(message);
+    const msg = raw ? String(message).slice(0, LIMITS.MSG) : normMessage(message);
     if (!msg) return false;
-    const key = `${kind}|${msg}|${loc}|${
-      ctx && ctx.status != null ? ctx.status : ''
-    }`;
+    const key = `${kind}|${msg}|${loc}|${ctx && ctx.status != null ? ctx.status : ''}`;
     let it = this.items.get(key);
     if (it) {
       it.n++;
@@ -183,10 +149,7 @@ export class ErrorBook {
       return true;
     }
     if (!this.seen.has(key)) {
-      if (
-        this.seen.size >= this.perSession ||
-        this.sentToday + this.seen.size >= this.perDay
-      ) {
+      if (this.seen.size >= this.perSession || this.sentToday + this.seen.size >= this.perDay) {
         this.dropped++;
         return false;
       }
@@ -222,9 +185,7 @@ export class ErrorBook {
   // a batch that could not be sent goes back (counts merge)
   restore(list: Report[]) {
     for (const it of list) {
-      const key = `${it.k}|${it.m}|${it.s || ''}|${
-        it.c && it.c.status != null ? it.c.status : ''
-      }`;
+      const key = `${it.k}|${it.m}|${it.s || ''}|${it.c && it.c.status != null ? it.c.status : ''}`;
       const cur = this.items.get(key);
       if (cur) {
         cur.n += it.n;
@@ -250,8 +211,7 @@ export class ControlCounter {
     let s = this.screens[screen];
     if (s === undefined) s = this.screens[screen] = Object.create(null);
     let c = s[id];
-    if (c === undefined)
-      c = s[id] = { remote: 0, touch: 0, mouse: 0, keyboard: 0, pen: 0 };
+    if (c === undefined) c = s[id] = {remote: 0, touch: 0, mouse: 0, keyboard: 0, pen: 0};
     c[input]++;
     this.any = true;
   }
@@ -314,9 +274,7 @@ export class Timers {
   value(name: string, ms: number, dim?: string): TimingRow | null {
     if (!(ms >= 0) || !Number.isFinite(ms)) return null;
     if (this.done.length >= LIMITS.TIMINGS_HELD) this.done.shift();
-    const row: TimingRow = dim
-      ? [name, Math.round(ms), dim]
-      : [name, Math.round(ms)];
+    const row: TimingRow = dim ? [name, Math.round(ms), dim] : [name, Math.round(ms)];
     this.done.push(row);
     return row;
   }
@@ -336,24 +294,10 @@ export const playPath = ({
   offline?: boolean;
   remux?: boolean;
   transcode?: boolean;
-}): string =>
-  torrent
-    ? 'torrent'
-    : offline
-    ? 'offline'
-    : remux
-    ? 'remux'
-    : transcode
-    ? 'transcode'
-    : 'direct';
+}): string => (torrent ? 'torrent' : offline ? 'offline' : remux ? 'remux' : transcode ? 'transcode' : 'direct');
 
 // May a batch go out now? Not while someone is moving about, and not while a
 // play is starting. `sinceInputMs`: how long since the last key, tap or wheel.
 export const IDLE_MS = 3000; // a little longer than the site: a held remote key repeats, pauses, repeats
-export const idleNow = ({
-  sinceInputMs,
-  playStarting,
-}: {
-  sinceInputMs: number;
-  playStarting: boolean;
-}): boolean => sinceInputMs >= IDLE_MS && !playStarting;
+export const idleNow = ({sinceInputMs, playStarting}: {sinceInputMs: number; playStarting: boolean}): boolean =>
+  sinceInputMs >= IDLE_MS && !playStarting;

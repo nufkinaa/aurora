@@ -19,17 +19,13 @@
 // WHEN. Never while the remote is in use or a play is starting: a batch waits
 // for three seconds without a key (telemetry.quiet()). Nothing here writes to
 // storage.
-import { AppState } from 'react-native';
-import { api, getAuthMode, getBaseUrl, getSession } from './api';
+import {AppState} from 'react-native';
+import {api, getAuthMode, getBaseUrl, getSession} from './api';
 import * as tel from './telemetry';
-import { normMessage } from './telemetryCore';
-import { APP_VERSION } from './update';
+import {normMessage} from './telemetryCore';
+import {APP_VERSION} from './update';
 
-type Ev = {
-  n: string;
-  t: number;
-  p: Record<string, string | number | boolean>;
-};
+type Ev = {n: string; t: number; p: Record<string, string | number | boolean>};
 const queue: Ev[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 let profile: string | null = null;
@@ -38,6 +34,10 @@ let enabledFlag = true;
 // false once known. Read again for every profile entered.
 let profileAllows: boolean | null = null;
 let errors = 0;
+// What a build says about itself in its frame reports — which components are
+// native (`impl`), which experiment is on (`exp`) — rides with its error
+// reports too, so a fault can be told apart by them.
+let buildFlags: string[] = [];
 const sid = Math.random().toString(16).slice(2, 10);
 const FLUSH_MS = 20000;
 const MAX_BATCH = 25;
@@ -49,10 +49,19 @@ const forget = () => {
   tel.clear();
 };
 
+// telemetry.ts counts nothing while the answer is a known "no"
+const sayOff = () => tel.setOff(!enabledFlag || profileAllows === false);
+
 export const setUsageProfile = (id: string | null) => {
-  if (profile && profile !== id) flush(true);
+  if (profile && profile !== id) {
+    flush(true);
+    // what could not be sent under the profile it happened under is not
+    // carried over to the next person
+    forget();
+  }
   profile = id;
   profileAllows = null;
+  sayOff();
   if (!id) return;
   // the person's own switch (the site writes it; this TV only reads it)
   api
@@ -61,6 +70,7 @@ export const setUsageProfile = (id: string | null) => {
       if (profile !== id) return;
       const p = list.find(x => x.id === id);
       profileAllows = !(p && p.prefs && p.prefs.usageStats === false);
+      sayOff();
       if (!profileAllows) forget();
     })
     .catch(() => {
@@ -69,19 +79,19 @@ export const setUsageProfile = (id: string | null) => {
 };
 export const setUsageEnabled = (on: boolean) => {
   enabledFlag = on;
+  sayOff();
   if (!on) forget();
 };
 /** Is this profile, on this box, sending usage stats? (null: not known yet) */
-export const usageAllowed = (): boolean | null =>
-  !enabledFlag ? false : profileAllows;
+export const usageAllowed = (): boolean | null => (!enabledFlag ? false : profileAllows);
 
 // What this box is, for the error reports: the model and Android level it
 // already knows (perfTier.ts — required lazily, it imports this file).
-type Facts = { model: string; os: string; flags: string[] };
+type Facts = {model: string; os: string; flags: string[]};
 let facts: Facts | null = null;
 const deviceFacts = (): Facts => {
   if (facts) return facts;
-  const f: Facts = { model: '', os: 'android', flags: [] };
+  const f: Facts = {model: '', os: 'android', flags: []};
   try {
     const perf = require('./perfTier') as typeof import('./perfTier');
     const d = perf.deviceInfo();
@@ -123,7 +133,7 @@ const flush = (force = false) => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(session ? { 'X-Session': session } : {}),
+      ...(session ? {'X-Session': session} : {}),
     },
     body: JSON.stringify({
       profile,
@@ -136,15 +146,16 @@ const flush = (force = false) => {
       model: who.model,
       os: who.os,
       auth: getAuthMode(),
-      flags: who.flags,
+      flags: [...who.flags, ...buildFlags].slice(0, 6),
       events,
-      ...(extra ? { tel: extra } : {}),
+      ...(extra ? {tel: extra} : {}),
     }),
   })
     .then(res => {
       // the server read the profile's switch and it says no
       if (res.headers.get('X-Usage') === 'off' && profile === forProfile) {
         profileAllows = false;
+        sayOff();
         forget();
       }
     })
@@ -153,26 +164,28 @@ const flush = (force = false) => {
 const arm = () => {
   if (!timer) timer = setTimeout(flush, FLUSH_MS);
 };
-tel.wire({ poke: arm, version: APP_VERSION });
+tel.wire({poke: arm, version: APP_VERSION});
 
 // track('feat', {f: 'party_start'}) — props are short strings, numbers, booleans.
-export const track = (
-  name: string,
-  props: Record<string, string | number | boolean> = {},
-) => {
+export const track = (name: string, props: Record<string, string | number | boolean> = {}) => {
   // What the richer half learns from events the app already sends — so these
   // need no call site of their own: which screen is on show, a play's first
-  // frame, a memory warning.
+  // frame, a memory warning, a stall mid-play.
   if (name === 'route' && typeof props.r === 'string') tel.setScreen(props.r);
   else if (name === 'play' && typeof props.ms === 'number') {
     tel.playFirstFrame(props.ms, {
       torrent: props.kind === 'stream',
       transcode: props.path !== 'direct',
     });
-  } else if (name === 'perf' && props.screen === 'trim')
-    tel.memoryTrim(Number(props.level) || 0);
+  } else if (name === 'perf' && props.screen === 'trim') tel.memoryTrim(Number(props.level) || 0);
+  else if (name === 'perf' && (typeof props.impl === 'string' || typeof props.exp === 'string')) {
+    buildFlags = [];
+    if (typeof props.impl === 'string' && props.impl !== '-') buildFlags.push(`impl:${props.impl.toLowerCase()}`);
+    if (typeof props.exp === 'string' && props.exp) buildFlags.push(`exp:${props.exp.toLowerCase()}`);
+  }
+  else if (name === 'feat' && props.f === 'stall_tv') tel.playbackStalled();
   if (!enabledFlag || !profile || profileAllows === false) return;
-  queue.push({ n: name, t: Date.now(), p: props });
+  queue.push({n: name, t: Date.now(), p: props});
   if (queue.length > MAX_QUEUE) queue.shift();
   if (queue.length >= MAX_BATCH) {
     if (timer) clearTimeout(timer);
@@ -190,7 +203,7 @@ export const trackError = (message: string, fatal?: boolean) => {
   if (img) tel.imageFailed(img[1], img[2]);
   else tel.jsError(msg, fatal);
   if (errors++ >= 5) return;
-  track('error', { m: normMessage(msg).slice(0, 120) }); // reduced before it leaves: no address, id or quoted phrase
+  track('error', {m: normMessage(msg).slice(0, 120)}); // reduced before it leaves: no address, id or quoted phrase
 };
 
 AppState.addEventListener('change', s => {

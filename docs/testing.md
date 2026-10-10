@@ -128,6 +128,7 @@ Rules that keep the suite reliable:
 | `signin.test.js` | the sign-in modes, one test at a time (the mode is one switch for the whole instance; each test sets it and puts "open" back): a forced password reset asked for after signing in to a server that requires sign-in, and at the wall; "Sign out everywhere else" from another device and from this tab; the server starting to require sign-in under an open tab |
 | `push.test.js` | Web Push follows the profile: entering a profile files the browser's subscription under it, a switch moves it, signing out withdraws it (the browser's push objects are stand-ins; nothing is sent) |
 | `ai.test.js` | the AI page keeps its last answer for the profile that asked and for nobody else (stubbed answer) |
+| `telemetry.test.js` | usage stats beyond events (`docs/analytics.md`): a thrown error and seven failed pictures arrive as one counted report each, reduced (no title, id, address or token); `console.warn` and a refused request are reported by their shape; a tagged control is counted and screens are timed; a profile with usage stats off sends nothing and the server refuses a batch for it anyway (`X-Usage: off`); the admin's App health page — errors (new / spiking / ignored, mark known, ignore), timings against the previous version, most used, the alert rules, Copy — from stubbed data; the admin endpoints themselves |
 
 ### How stall recovery is tested
 

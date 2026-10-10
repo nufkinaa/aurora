@@ -26,7 +26,7 @@
 //
 // This file imports nothing of the app's own (usage.ts hands it what it
 // needs), so anything may import it without a cycle.
-import { AppState, TVEventHandler } from 'react-native';
+import {AppState, TVEventHandler} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ControlCounter,
@@ -57,9 +57,21 @@ let lastInput = 0;
 let firstBatch = true;
 let poke: () => void = () => {};
 let version = '';
+// Usage stats are KNOWN to be off (this box's switch, or the profile's own
+// choice): nothing is even counted. usage.ts says so; while a profile's
+// choice is still being read, what happens is held (bounded), not sent.
+let off = false;
+export const setOff = (v: boolean) => {
+  off = v;
+  if (v) clear();
+};
+{
+  const value = timers.value.bind(timers);
+  timers.value = (name: string, ms: number, dim?: string) => (off ? null : value(name, ms, dim));
+}
 
 /** usage.ts: "call me when there is something to carry", and this build's version. */
-export const wire = (o: { poke: () => void; version: string }) => {
+export const wire = (o: {poke: () => void; version: string}) => {
   poke = o.poke;
   version = o.version;
   boot();
@@ -86,96 +98,67 @@ export const quiet = () =>
 
 // ---------- controls ----------
 /** A tagged control was pressed (Focusable's onPress). Counter increment only. */
-export const uiHit = (id: string) => controls.hit(screen || '?', id, 'remote');
+export const uiHit = (id: string) => {
+  if (!off) controls.hit(screen || '?', id, 'remote');
+};
 
 // ---------- errors ----------
-const note = (
-  kind: Kind,
-  level: Level,
-  message: unknown,
-  o: { ctx?: Record<string, number> | null; raw?: boolean } = {},
-) => {
+const note = (kind: Kind, level: Level, message: unknown, o: {ctx?: Record<string, number> | null; raw?: boolean} = {}) => {
+  if (off) return;
   try {
-    if (
-      book.add(kind, level, message, {
-        screen,
-        ctx: o.ctx || null,
-        raw: !!o.raw,
-      })
-    )
-      poke();
+    if (book.add(kind, level, message, {screen, ctx: o.ctx || null, raw: !!o.raw})) poke();
   } catch {}
 };
 /** reportError('media', 'player error', {ctx: {code: 4003}}) */
-export const reportError = (
-  kind: Kind,
-  message: unknown,
-  o: { level?: Level; ctx?: Record<string, number> | null } = {},
-) => note(kind, o.level || 'error', message, { ctx: o.ctx });
+export const reportError = (kind: Kind, message: unknown, o: {level?: Level; ctx?: Record<string, number> | null} = {}) =>
+  note(kind, o.level || 'error', message, {ctx: o.ctx});
 
 /** An uncaught JS error (errors.ts' global handler, through usage.trackError). */
-export const jsError = (message: unknown, fatal?: boolean) =>
-  note('js', 'error', message, { ctx: fatal ? { fatal: 1 } : null });
+export const jsError = (message: unknown, fatal?: boolean) => note('js', 'error', message, {ctx: fatal ? {fatal: 1} : null});
 
 /** A request the server refused, or that never arrived (api.ts): by its shape. */
-export const httpFailed = (
-  method: string | undefined,
-  path: string,
-  status: number,
-) => {
+export const httpFailed = (method: string | undefined, path: string, status: number) => {
   const shape = urlPattern(path);
   if (shape === '/api/usage') return;
-  note(
-    'http',
-    status >= 500 || status === 0 ? 'error' : 'warn',
-    `${String(method || 'GET').toUpperCase()} ${shape}`,
-    {
-      ctx: { status },
-      raw: true,
-    },
-  );
+  note('http', status >= 500 || status === 0 ? 'error' : 'warn', `${String(method || 'GET').toUpperCase()} ${shape}`, {
+    ctx: {status},
+    raw: true,
+  });
 };
 
 /** A picture that would not load (Card.tsx says "image <shape>: <why>"): one
  *  line per shape and status, however many posters it was. */
 export const imageFailed = (shape: string, why: string) => {
   const m = /code=(\d{3})/.exec(why) || /\b([45]\d\d)\b/.exec(why);
-  note(
-    'img',
-    'error',
-    urlPattern(shape.replace(/<id>/g, ':id').replace(/…/g, '')),
-    {
-      ctx: m ? { status: Number(m[1]) } : null,
-      raw: true,
-    },
-  );
+  note('img', 'error', urlPattern(shape.replace(/<id>/g, ':id').replace(/…/g, '')), {
+    ctx: m ? {status: Number(m[1])} : null,
+    raw: true,
+  });
 };
 
 /** The player gave up on something. ExoPlayer names its errors
  *  ("ERROR_CODE_IO_BAD_HTTP_STATUS") and numbers them; both are kept, the
  *  rest of the text (it can carry an address) is not. */
-export const playerError = (detail: string) => {
+export const playerError = (detail: string, errorCode?: string | number) => {
   const name = /ERROR_CODE_[A-Z0-9_]+/.exec(detail);
-  const code = /\b([1-7]\d{3})\b/.exec(detail);
+  const code = /^\d{4,5}$/.test(String(errorCode ?? '')) ? [0, String(errorCode)] : /\b([1-7]\d{3})\b/.exec(detail);
   const http = /Response code: (\d{3})/.exec(detail);
-  note(
-    'media',
-    'error',
-    `player error ${name ? name[0].toLowerCase() : 'unknown'}`,
-    {
-      ctx: {
-        ...(code ? { code: Number(code[1]) } : {}),
-        ...(http ? { status: Number(http[1]) } : {}),
-      },
-      raw: true,
+  note('media', 'error', `player error ${name ? name[0].toLowerCase() : 'unknown'}`, {
+    ctx: {
+      ...(code ? {code: Number(code[1])} : {}),
+      ...(http ? {status: Number(http[1])} : {}),
     },
-  );
+    raw: true,
+  });
 };
+
+/** The picture stood still mid-play (Player.tsx's own stall mark, through usage.track). */
+export const playbackStalled = () => note('stall', 'warn', 'playback stalled', {raw: true});
 
 /** The system asked for memory back while the app was on screen (perfTier.ts). */
 export const memoryTrim = (level: number) =>
   note('mem', 'warn', 'memory warning while on screen', {
-    ctx: { level },
+    ctx: {level},
     raw: true,
   });
 
@@ -185,14 +168,10 @@ declare const __DEV__: boolean;
 try {
   const hermes = (
     globalThis as unknown as {
-      HermesInternal?: { enablePromiseRejectionTracker?: (o: unknown) => void };
+      HermesInternal?: {enablePromiseRejectionTracker?: (o: unknown) => void};
     }
   ).HermesInternal;
-  if (
-    !__DEV__ &&
-    hermes &&
-    typeof hermes.enablePromiseRejectionTracker === 'function'
-  ) {
+  if (!__DEV__ && hermes && typeof hermes.enablePromiseRejectionTracker === 'function') {
     hermes.enablePromiseRejectionTracker({
       allRejections: true,
       onUnhandled: (_id: number, r: unknown) => {
@@ -202,14 +181,11 @@ try {
           status?: number;
         } | null;
         // a refused request is already counted, by its shape (httpFailed)
-        if (e && (typeof e.status === 'number' || e.name === 'AbortError'))
-          return;
+        if (e && (typeof e.status === 'number' || e.name === 'AbortError')) return;
         note(
           'promise',
           'error',
-          e && e.message
-            ? `${e.name && e.name !== 'Error' ? `${e.name}: ` : ''}${e.message}`
-            : 'rejection (no message)',
+          e && e.message ? `${e.name && e.name !== 'Error' ? `${e.name}: ` : ''}${e.message}` : 'rejection (no message)',
         );
       },
       onHandled: () => {},
@@ -260,10 +236,9 @@ setInterval(() => {
   const gap = now - beatAt - 1000;
   beatAt = now;
   if (!active || now - activeSince < 5000 || gap < 3000) return;
-  const band =
-    gap >= 10000 ? 'over 10 s' : gap >= 5000 ? '5 to 10 s' : '3 to 5 s';
+  const band = gap >= 10000 ? 'over 10 s' : gap >= 5000 ? '5 to 10 s' : '3 to 5 s';
   note('stall', 'warn', `the app stood still ${band}`, {
-    ctx: { ms: gap },
+    ctx: {ms: gap},
     raw: true,
   });
 }, 1000);
@@ -278,9 +253,7 @@ let runState = '';
 const markRun = (state: string) => {
   if (state === runState) return;
   runState = state;
-  AsyncStorage.setItem(K_RUN, JSON.stringify({ s: state, v: version })).catch(
-    () => {},
-  );
+  AsyncStorage.setItem(K_RUN, JSON.stringify({s: state, v: version})).catch(() => {});
 };
 /** The app is about to be replaced or closed on purpose (update.ts): not a crash. */
 export const cleanExit = () => markRun('bg');
@@ -296,17 +269,12 @@ AppState.addEventListener('change', s => {
 
 const boot = async () => {
   try {
-    const [a, d, r] = await Promise.all([
-      AsyncStorage.getItem(K_IID),
-      AsyncStorage.getItem(K_DAY),
-      AsyncStorage.getItem(K_RUN),
-    ]);
+    const [a, d, r] = await Promise.all([AsyncStorage.getItem(K_IID), AsyncStorage.getItem(K_DAY), AsyncStorage.getItem(K_RUN)]);
     iid = a && /^[a-z0-9]{16}$/.test(a) ? a : '';
     if (!iid) {
       // random, made here, tied to nothing: it only lets the server count
       // "three different boxes", and is hashed again before it is stored there
-      for (let i = 0; i < 16; i++)
-        iid += Math.floor(Math.random() * 16).toString(16);
+      for (let i = 0; i < 16; i++) iid += Math.floor(Math.random() * 16).toString(16);
       AsyncStorage.setItem(K_IID, iid).catch(() => {});
     }
     try {
@@ -316,20 +284,11 @@ const boot = async () => {
     try {
       const run = r ? JSON.parse(r) : null;
       if (run && (run.s === 'fg' || run.s === 'play') && run.v === version) {
-        note(
-          'crash',
-          'warn',
-          run.s === 'play'
-            ? 'the last run ended while playing'
-            : 'the last run ended while on screen',
-          { raw: true },
-        );
+        note('crash', 'warn', run.s === 'play' ? 'the last run ended while playing' : 'the last run ended while on screen', {raw: true});
       }
     } catch {}
   } catch {
-    if (!iid)
-      for (let i = 0; i < 16; i++)
-        iid += Math.floor(Math.random() * 16).toString(16);
+    if (!iid) for (let i = 0; i < 16; i++) iid += Math.floor(Math.random() * 16).toString(16);
   }
   ready = true;
   if (AppState.currentState === 'active') markRun('fg');
@@ -363,8 +322,7 @@ const sinceNav = (name: string, dim?: string) => {
 };
 /** A screen's first real content is on the glass (call it from the layout of
  *  that content): navigation start → first content painted. */
-export const contentPainted = () =>
-  requestAnimationFrame(() => sinceNav('nav_paint', screen || '?'));
+export const contentPainted = () => requestAnimationFrame(() => sinceNav('nav_paint', screen || '?'));
 
 // App start → Home usable, and profile picked → Home usable. "Usable" is the
 // same moment as on the site: the first row's cards are laid out and a frame
@@ -407,14 +365,10 @@ export const tmLap = (name: string, from: string, dim?: string) => {
   const t0 = timers.open.get(from);
   if (t0 != null) timers.value(name, Date.now() - t0, dim);
 };
-export const tmValue = (name: string, ms: number, dim?: string) =>
-  timers.value(name, ms, dim);
+export const tmValue = (name: string, ms: number, dim?: string) => timers.value(name, ms, dim);
 
 /** The player's first frame (usage.track('play') hands it on). */
-export const playFirstFrame = (
-  ms: number,
-  what: { torrent?: boolean; transcode?: boolean },
-) => {
+export const playFirstFrame = (ms: number, what: {torrent?: boolean; transcode?: boolean}) => {
   playAt = 0;
   lastPath = playPath(what);
   timers.value('play_first_frame', ms, lastPath);
@@ -453,11 +407,7 @@ export const updateOffered = (to: string) => {
   AsyncStorage.getItem(K_UPD)
     .then(v => {
       const cur = v ? JSON.parse(v) : null;
-      if (!cur || cur.to !== to)
-        return AsyncStorage.setItem(
-          K_UPD,
-          JSON.stringify({ to, at: Date.now() }),
-        );
+      if (!cur || cur.to !== to) return AsyncStorage.setItem(K_UPD, JSON.stringify({to, at: Date.now()}));
     })
     .catch(() => {});
 };
@@ -473,11 +423,10 @@ const checkUpdateLanded = () => {
 };
 
 // ---------- what goes into a batch (usage.ts calls these when it sends) ----------
-export type Tel = { s?: 1; e?: Report[]; t?: TimingRow[]; u?: ControlRow[] };
+export type Tel = {s?: 1; e?: Report[]; t?: TimingRow[]; u?: ControlRow[]};
 export const telReady = () => ready;
 export const installId = () => iid;
-export const pending = () =>
-  book.size > 0 || timers.done.length > 0 || controls.any;
+export const pending = () => book.size > 0 || timers.done.length > 0 || controls.any;
 export const take = (): Tel | null => {
   const e = book.drain();
   const t = timers.drain();
@@ -491,11 +440,7 @@ export const take = (): Tel | null => {
     out.s = 1;
     firstBatch = false;
   }
-  if (e.length)
-    AsyncStorage.setItem(
-      K_DAY,
-      JSON.stringify({ day: today(), n: book.sentToday + book.seen.size }),
-    ).catch(() => {});
+  if (e.length) AsyncStorage.setItem(K_DAY, JSON.stringify({day: today(), n: book.sentToday + book.seen.size})).catch(() => {});
   return out;
 };
 /** A batch that did not get through: its error reports wait for the next one. */

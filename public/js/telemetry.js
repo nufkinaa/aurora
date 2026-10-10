@@ -51,6 +51,14 @@ try {
 const book = new ErrorBook({ sentToday });
 const controls = new ControlCounter();
 const timers = new Timers(t);
+// A profile that is KNOWN to have usage stats off: nothing is even counted
+// (three property reads). Before a profile is chosen nobody has said no yet:
+// what happens then is held, and sent or forgotten once somebody is in.
+const off = () => !!state.profile && !enabled();
+{
+  const value = timers.value.bind(timers);
+  timers.value = (name, ms, dim) => (off() ? null : value(name, ms, dim));
+}
 
 let screen = ""; // the route PATTERN on show ("/movie/:id"), from the router
 let lastInput = -1e9;
@@ -81,10 +89,10 @@ export const quiet = () => idleNow({ sinceInputMs: t() - lastInput, playStarting
 // ever guessed from its text.
 document.addEventListener("click", (e) => {
   const el = e.target && e.target.closest ? e.target.closest("[data-ui]") : null;
-  if (el) controls.hit(screen || "?", el.dataset.ui, e.detail === 0 && input !== "remote" ? "keyboard" : input);
+  if (el && !off()) controls.hit(screen || "?", el.dataset.ui, e.detail === 0 && input !== "remote" ? "keyboard" : input);
 }, { capture: true, passive: true });
 // for a control that is not a click on an element (a keyboard shortcut)
-export const uiHit = (id) => controls.hit(screen || "?", id, input);
+export const uiHit = (id) => { if (!off()) controls.hit(screen || "?", id, input); };
 
 // ---------- timings ----------
 let navAt = 0; // when this screen was asked for (0: the page load itself)
@@ -93,18 +101,20 @@ let navOnce = new Set();
 // poster that loads after it (one boolean test per image load, no call site).
 const GRIDS = new Set(["/", "/movies", "/shows", "/list", "/new", "/search", "/search/:q"]);
 let posterWait = true;
-let posterMs = -1; // loaded before the router said which screen this is
-let routed = false;
-window.addEventListener("hashchange", () => { navAt = t(); navOnce = new Set(); posterWait = true; posterMs = -1; routed = false; }, true);
+window.addEventListener("hashchange", () => { navAt = t(); navOnce = new Set(); posterWait = true; }, true);
+// the router says which screen it is about to draw (so an error while a
+// screen is still loading is counted on that screen) …
+window.addEventListener("aurora-route-start", (e) => {
+  const d = e.detail || {};
+  if (d.pattern) screen = d.pattern;
+});
+// … and when it has drawn it
 window.addEventListener("aurora-route", (e) => {
   const d = e.detail || {};
   if (!d.pattern) return;
   screen = d.pattern;
-  routed = true;
   // navigation start → the first frame after the screen rendered
   timers.value("nav_paint", d.ms || 0, d.pattern);
-  if (posterMs >= 0 && GRIDS.has(screen)) timers.value("grid_first_poster", posterMs, screen);
-  posterMs = -1;
   poke();
 });
 document.addEventListener("load", (e) => {
@@ -112,8 +122,7 @@ document.addEventListener("load", (e) => {
   const el = e.target;
   if (!el || el.tagName !== "IMG" || !el.classList.contains("card-poster")) return;
   posterWait = false;
-  if (!routed) posterMs = t() - navAt;
-  else if (GRIDS.has(screen)) timers.value("grid_first_poster", t() - navAt, screen);
+  if (GRIDS.has(screen)) timers.value("grid_first_poster", t() - navAt, screen);
 }, true);
 export const tmStart = (name) => timers.start(name);
 export const tmEnd = (name, dim) => timers.end(name, dim);
@@ -190,6 +199,7 @@ export const reportError = (kind, message, { level = "error", loc = "", ctx = nu
 // every report goes through here: counted in the book, and the sender is
 // reminded that there is something to carry (it waits for a quiet moment)
 const note = (kind, level, message, o = {}) => {
+  if (off()) return;
   if (book.add(kind, level, message, { ...o, screen })) poke();
 };
 
@@ -252,7 +262,10 @@ window.addEventListener("error", (e) => {
     }
     const err = e.error;
     const file = String(e.filename || "").replace(/^[a-z]+:\/\/[^/]*/i, "").replace(/[?#].*$/, "").split("/").slice(-2).join("/");
-    note("js", "error", e.message || (err && err.message) || "error", { loc: (err && locOf(err.stack)) || file });
+    // the error's own words where there is one (a browser's "Uncaught Error: "
+    // in front of the event's message would split one fault by browser)
+    const msg = err && err.message ? `${err.name && err.name !== "Error" ? `${err.name}: ` : ""}${err.message}` : e.message || "error";
+    note("js", "error", msg, { loc: (err && locOf(err.stack)) || file });
   } catch {}
 }, true);
 

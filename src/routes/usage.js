@@ -17,6 +17,11 @@ const realtime = require("../realtime");
 const router = express.Router();
 usage.boot();
 tel.boot(usage.DIR);
+// the household's own words, which a client message must never be stored with
+tel.setDictionarySource(() => ({
+  titles: require("../media/scanner").allItems().map((i) => i.title),
+  people: require("../profiles").list().map((p) => p.name),
+}));
 process.once("exit", () => { try { tel.flush(); } catch {} }); // synchronous writes: safe in an exit handler
 
 // One address may post this many batches a minute (a client sends three).
@@ -56,7 +61,10 @@ const adminOnly = (req, res, next) => {
 };
 
 router.get("/api/admin/usage", adminOnly, (req, res) => {
-  res.json({ summary: usage.summary(), text: usage.text() });
+  // the Copy button gets everything: usage, then errors, timings and most-used
+  res.json({ summary: usage.summary(), text: `${usage.text()}
+
+${tel.text()}` });
 });
 
 // Error reports, timings and control counts — the admin's "App health" page.
