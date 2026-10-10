@@ -195,7 +195,7 @@ export const renderSearch = async (root) => {
       el("span", { style: { color: "var(--text-faint)", fontSize: "0.85rem", fontWeight: "700" } }, "Recent:"),
       ...list.map((q) =>
         el("span", { class: "recent-chip" },
-          el("button", { class: "chip focusable", onclick: () => { input.value = q; paintClear(); run.cancel(); search(q, { committed: true }); } }, q),
+          el("button", { "data-ui": "search.recent.pick", class: "chip focusable", onclick: () => { input.value = q; paintClear(); run.cancel(); search(q, { committed: true }); } }, q),
           el("button", {
             class: "recent-x focusable",
             type: "button",

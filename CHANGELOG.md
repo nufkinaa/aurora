@@ -3,6 +3,14 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.90 — 2026-10-10
+
+- **Aurora now hears about problems by itself.** With usage stats on, the website and the TV app report their own errors and warnings — a page that crashed, a request the server refused, pictures that failed to load (as one line: "37 pictures refused"), a player error, a TV app that ended without closing properly — grouped by what went wrong, with the app version, device model and screen they happened on. Admin → Insights → **App health** shows what is new since the last release, what is suddenly happening much more than usual, and what affects the most devices; anything can be marked known or ignored. A new problem on two devices (or twenty times in half an hour), or an old one at five times its usual rate, raises one alert.
+- **Timings for the moments you feel**, measured the same way on the website and the TV: opening the app to a usable Home, pressing Play to the first picture, a search to its results, a title page to its content, a download from request to ready, and how long the server takes for its heavy answers — each with the change against the previous version, so a release that made something slower shows at a glance.
+- **Most used**: which buttons and features are actually pressed on each app and each screen, and which have not been touched in 30 days.
+- **What is never collected**: titles, search text or anything typed, names, addresses, and anything identifying a person — the reports carry no profile at all, and messages are stripped of such details on the device and again on the server. All of it stays behind the usage-stats switch, which the server itself now enforces: a batch from a profile that switched it off is dropped. Reports are sent only while the device is idle — never while you are moving about or starting playback. docs/analytics.md lists every item.
+- The TV app sends the new reports from its next update.
+
 ## 1.6.89 — 2026-10-10
 
 - **Search finds what you typed, first.** Type a title's exact name and it is the first card — it used to sit in the second or third row, because the page showed every library hit, then cached catalogue hits, then all films before all series, whatever matched best ("The Office" was the 14th card, behind thirteen films with "office" in the name). Now one list is ranked by how well each title matches: the exact name (ignoring capitals, accents, punctuation, a leading "the", and with or without the year), then names that start with what you typed, then whole-word matches, then near-misses and typos, then episode titles, then cast and directors, then the synopsis. A library copy and its catalogue twin are one card.
