@@ -138,6 +138,21 @@ export const api = {
   introAuto: (id) => json(`/api/intro/auto/${encodeURIComponent(id)}`),
   // intro / recap / credits for a STREAMED episode, by identity (the public
   // databases — a stream has no file to analyse)
+  // Which episode comes after this one — the server's one rule for the
+  // website and the TV (src/media/nextep.js). By library episode id, or by a
+  // streamed episode's identity. → { next: null | {kind:"library"|"stream",…} }
+  nextEpisode: ({ id, imdbId, season, episode, title, year }) => {
+    const p = new URLSearchParams();
+    if (id) p.set("id", id);
+    else {
+      p.set("imdbId", imdbId);
+      p.set("season", season);
+      p.set("episode", episode);
+      if (title) p.set("title", title);
+      if (year) p.set("year", year);
+    }
+    return json(`/api/next-episode?${p.toString()}`);
+  },
   segments: ({ imdbId, season, episode, duration }) =>
     json(`/api/segments?imdbId=${encodeURIComponent(imdbId)}${season ? `&season=${season}` : ""}${episode ? `&episode=${episode}` : ""}${duration ? `&duration=${Math.round(duration)}` : ""}`),
   // cast, crew, ratings, facts — and one episode's own, for a series

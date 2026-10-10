@@ -3938,6 +3938,26 @@ export const renderPlayer = async (root, { id }) => {
       const n = await offline.nextSaved(item).catch(() => null);
       if (n) return { ...n, _savedCopy: true };
     }
+    // THE SERVER'S ANSWER FIRST. The rule below is now the server's
+    // (src/media/nextep.js, GET /api/next-episode) so that this player and
+    // the TV app can never again disagree about what "next" is — the TV used
+    // to take the next file on disk and jump E4 → E8. What follows stays as
+    // the fallback for a server that does not have the route yet, or cannot
+    // be reached (a saved copy playing with no connection).
+    if (isEpisode || isStreamEpisode) {
+      try {
+        const r = await api.nextEpisode(
+          isEpisode ? { id: item.id } : { imdbId: item.imdbId, season: item.season, episode: item.episode, title: item.title, year: item.year },
+        );
+        if (r && typeof r === "object" && "next" in r) {
+          const n = r.next;
+          if (!n) return null;
+          // on disk: plays at once and may start by itself; not on disk:
+          // offered ("Choose episode"), never started by itself
+          return n.kind === "library" ? n : { ...n, _stream: true };
+        }
+      } catch {}
+    }
     if (isEpisode) {
       const show = await api.item(item.showId);
       const flat = show.seasons.flatMap((s) => s.episodes || []);
