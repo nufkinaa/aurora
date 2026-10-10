@@ -21,19 +21,10 @@ import {ActivityIndicator, StyleSheet, Text, TextInput, View} from 'react-native
 import Focusable from '../components/Focusable';
 import {api, ApiError} from '../api';
 import {useFocusFallback} from '../focus';
+import {MIN_PASSWORD, newPasswordProblem} from '../newPassword';
 import theme from '../theme';
 
 const {colors, radius, fontSize, spacing} = theme;
-
-export const MIN_PASSWORD = 4; // the server's (src/routes/profiles.js)
-
-/** What stops a save, in the site's words; null = good to go. Pure. */
-export const newPasswordProblem = (o: {askCurrent: boolean; current: string; fresh: string; again: string}): string | null => {
-  if (o.askCurrent && !o.current) return 'Your current password first.';
-  if (o.fresh.length < MIN_PASSWORD) return `At least ${MIN_PASSWORD} characters.`;
-  if (o.fresh !== o.again) return "They don't match.";
-  return null;
-};
 
 export default function NewPassword({
   profileId,

@@ -1,5 +1,5 @@
 // The forced reset's own checks (screens/NewPassword.tsx), in the site's words.
-import {newPasswordProblem} from '../../src/screens/NewPassword';
+import {newPasswordProblem} from '../../src/newPassword';
 
 test('what stops a save, in order', () => {
   expect(newPasswordProblem({askCurrent: true, current: '', fresh: 'abcd', again: 'abcd'})).toBe('Your current password first.');
