@@ -356,7 +356,8 @@ const start = async (opts = {}) => {
       if (value == null) continue; // (a test can drop a default seed with null)
       const file = path.join(dataDir, rel);
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, typeof value === "string" ? value : JSON.stringify(value), "utf-8");
+      // (a Buffer is written as it is: a backup archive, say)
+      fs.writeFileSync(file, Buffer.isBuffer(value) || typeof value === "string" ? value : JSON.stringify(value), "utf-8");
     }
 
     const port = await freePort();

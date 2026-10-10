@@ -184,3 +184,104 @@ Scheduled Task, to the action's arguments.
 `{ ok, uptime, version, loop: { maxMs, p99Ms, meanMs, windowMs } }`: `loop` is
 how long the event loop kept requests waiting over the last ten seconds.
 While the server is stopping it answers `503 { stopping: true }`.
+
+# Keeping the household's data
+
+Profiles, watch progress, lists, sign-ins and settings live in JSON files
+under `data/`. This is what protects them, and what to do when something
+goes wrong.
+
+## What happens by itself
+
+- **Every save is whole.** A store is written to a temporary file, flushed to
+  the disk (fsync), and renamed over the old one. A crash or a power cut
+  leaves either the old version or the new one, never half a file. On Windows
+  a rename refused because a scanner holds the file is tried again at once,
+  and then every two seconds until it goes through; nothing is forgotten in
+  between (the admin page shows *not saved* while it lasts).
+- **Two last-good copies** sit beside every store that is not a cache:
+  `profiles.json.good1` (newer) and `.good2`, taken at most every ten
+  minutes, read back and checked before they count.
+- **A daily backup**, verified, kept 7 daily / 4 weekly / 3 monthly. Each
+  snapshot's manifest counts the household (profiles, history rows); a
+  snapshot whose counts are half the previous one's is flagged and never
+  rotates the older ones away.
+- **A weekly restore test.** The newest snapshot is restored into a temporary
+  folder, read the way the server reads its files at start, counted, and the
+  folder removed. The admin page shows the result (Actions → Backups).
+- **A damaged store is repaired at start.** If a file is missing, empty, not
+  JSON, or JSON of the wrong shape, the server puts back, in this order: its
+  newest good last-good copy; the same file out of the newest verified backup
+  (either location). The damaged file is kept as `<name>.corrupt-<time>`.
+  One alert goes out (the log, ntfy / Telegram) saying which file, what it was
+  restored from, and how much time was lost; the admin page lists it under
+  Actions → Data safety until you press *Acknowledge*.
+
+## Put the backups on a second disk
+
+By default the snapshots are in `data/backups`, on the same disk as the data.
+Add a second location in `config.json`:
+
+```json
+{ "backupMirrorDir": "D:\\aurora-backups" }
+```
+
+(or `"/mnt/nas/aurora-backups"`; the environment variable
+`AURORA_BACKUP_MIRROR_DIR` works too). Restart. Every snapshot is then also
+copied there, checked there, and kept there by the same rule; a copy that
+fails raises an alert. While every copy is on the data's disk the admin page
+says so (Actions → Backups, *one disk*), and the healer says it once.
+
+## Safe mode
+
+If `profiles.json`, `sessions.json` or `settings.json` cannot be read and
+there is **no** last-good copy and **no** backup, the server does not start an
+empty house over it. It starts in safe mode for that file:
+
+- the file is not written at all (the damaged one stays where it is, and a
+  copy is kept as `.corrupt-<time>`);
+- the server runs on that store's defaults in memory: with `profiles.json`
+  that is the single default profile and no history; with `sessions.json`
+  everyone is signed out; with `settings.json` the sign-in wall is **closed**
+  (a damaged file must not open a walled server);
+- the website shows a red bar on every screen: "Aurora is in safe mode …
+  Nothing you do now is kept";
+- the admin gets one critical alert, the healer fails its *Data safety*
+  check, and the admin page (Actions → Data safety) shows the file with what
+  was wrong and where the damaged copy is.
+
+What to do, one of:
+
+1. **You have a good copy somewhere** (an old backup you downloaded, a copy
+   on another machine): stop Aurora, put the file into `data/`, start Aurora.
+2. **You do not:** press *Start <file> fresh* on that card. Aurora carries on
+   from the empty store and saves to it again. The damaged file is kept.
+
+## Restoring a backup
+
+```bash
+node src/lib/backup.js list                    # what there is
+node src/lib/backup.js drill                   # test a restore; touches nothing
+node scripts/keeper.js --stop                  # the server must be stopped
+node src/lib/backup.js restore-live newest     # or a snapshot's name
+```
+
+`restore-live` shows what the snapshot holds (profiles, history rows, newest
+change), asks you to type `restore`, then first makes a snapshot of the data
+as it is now — restore that one to undo — and puts the snapshot's data files
+back. `config.json` and `.env` are left alone unless `--with-config` is
+given. It refuses while Aurora is running. Start Aurora afterwards.
+
+To bring back one file by hand: `node src/lib/backup.js restore <snapshot>
+<new folder>`, stop Aurora, copy the file from `<new folder>/data` over the
+one in `data/`, delete that file's `.good1` / `.good2`, start Aurora.
+
+## Emptying a store on purpose
+
+Deleting a store's file no longer empties it: the last-good copy comes back
+at the next start (and says so in the log). To start one empty deliberately,
+stop Aurora and either create an empty file named `<name>.start-empty` beside
+it (for example `data/downloads.json.start-empty`) or delete
+`<name>.good1` and `<name>.good2` together with the file. For
+`profiles.json`, `sessions.json` and `settings.json` use the marker file:
+those are also restored from backups.

@@ -31,10 +31,29 @@ let serverInfoP = null;
 export const serverFacts = () =>
   Promise.race([serverInfoP || Promise.resolve(), new Promise((r) => setTimeout(r, 2000))]);
 
+// The server could not read its saved profiles (or sign-ins, or settings)
+// and had nothing good to restore them from: it is running on defaults and
+// keeps nothing until its admin decides (server: lib/jsonstore.js, "safe
+// mode"). Said in words, at the top of every screen, for as long as it lasts
+// — an empty house with no explanation is the thing this exists to prevent.
+const safeModeBanner = (on) => {
+  const ID = "safe-mode-banner";
+  const had = document.getElementById(ID);
+  if (!on) { if (had) had.remove(); return; }
+  if (had) return;
+  const bar = document.createElement("div");
+  bar.id = ID;
+  bar.setAttribute("role", "alert");
+  bar.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999;padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top, 0px));background:#8a2a12;color:#fff;font:600 14px/1.4 system-ui,sans-serif;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.4)";
+  bar.textContent = `Aurora is in safe mode: it could not load its saved profiles and settings. Nothing you do now is kept. Tell ${state.adminName}.`;
+  document.body.appendChild(bar);
+};
+
 export const loadProfiles = async () => {
   // Best-effort: copy that mentions the admin reads fine with the fallback.
   serverInfoP = api.serverInfo().then((info) => {
     if (info && info.adminName) state.adminName = info.adminName;
+    try { safeModeBanner(!!(info && info.safeMode)); } catch {}
     if (info) {
       state.torrents = info.torrents !== false;
       try {

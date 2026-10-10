@@ -506,8 +506,22 @@
       </div>
       <div id="ac-groups"><div class="empty-note">Loading…</div></div>
       <div class="card">
+        <h2>Data safety <span class="note">the files that hold the household — profiles, progress, sign-ins, settings: are they saved, and what happened if one was ever damaged</span></h2>
+        <div id="ds-state" class="empty-note">Checking…</div>
+        <div id="ds-safe" style="margin-top:10px;display:grid;gap:8px"></div>
+        <div id="ds-recoveries" style="margin-top:10px;display:grid;gap:6px"></div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini hidden" id="ds-ack-btn">Acknowledge — I have read these</button>
+        </div>
+      </div>
+      <div class="card">
         <h2>Backups <span class="note" id="ac-bk-note"></span></h2>
         <div id="ac-bk-advice" class="empty-note hidden" style="margin-bottom:10px"></div>
+        <div id="ac-bk-where" class="empty-note" style="margin-bottom:10px"></div>
+        <div id="ac-bk-drill" class="empty-note" style="margin-bottom:10px"></div>
+        <div style="margin:0 0 10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini" id="ac-bk-drill-btn">Test a restore now</button>
+        </div>
         <div class="table-scroll"><table>
           <thead><tr><th>Snapshot</th><th>Made</th><th>Size</th><th>Check</th><th></th></tr></thead>
           <tbody id="ac-bk-rows"></tbody>
@@ -2505,8 +2519,20 @@
       if (!d || d.error) return;
       $("#ac-bk-note").textContent = d.enabled === false ? "the daily backup is switched off in config.json" : `daily, into ${d.dir}`;
       const adv = $("#ac-bk-advice");
-      adv.classList.toggle("hidden", !(d.sameDiskAsData && d.advice));
-      adv.textContent = d.advice || "";
+      adv.classList.toggle("hidden", !d.advice);
+      adv.innerHTML = d.advice ? `<span class="pill warn">one disk</span> ${esc(d.advice)}` : "";
+      // where the snapshots go: the folder, and the second location when one is set
+      const m = d.mirror;
+      $("#ac-bk-where").innerHTML = m
+        ? `Second location: <b>${esc(m.dir)}</b> — ${m.last && m.last.ok === false ? `<span class="pill bad">last copy failed</span> ${esc(m.last.error || "")}` : `${m.snapshots == null ? "not reachable right now" : `${m.snapshots} snapshot${m.snapshots === 1 ? "" : "s"} there`}${m.sameDiskAsData ? ' · <span class="pill warn">also on the data\'s disk</span>' : m.sameDiskAsData === false ? ' · <span class="pill live">another disk</span>' : ""}`}`
+        : 'Second location: not set <span class="muted">("backupMirrorDir" in config.json — every snapshot is then copied to that folder as well)</span>';
+      // the restore drill: when a restore was last proved to work
+      const dr = d.drill;
+      $("#ac-bk-drill").innerHTML = !dr
+        ? "Restore test: not run yet — it runs once a week by itself, or press the button."
+        : dr.ok
+          ? `Restore test: <span class="pill live">works</span> ${ago(new Date(dr.at).toISOString())} — ${esc(dr.snapshot)} restores ${dr.profiles == null ? "no" : dr.profiles} profile${dr.profiles === 1 ? "" : "s"}, ${dr.historyRows == null ? "no" : dr.historyRows.toLocaleString()} history rows; newest change ${dr.newestChangeAt ? ago(new Date(dr.newestChangeAt).toISOString()) : "unknown"}`
+          : `Restore test: <span class="pill bad">failed</span> ${ago(new Date(dr.at).toISOString())} — ${esc(dr.error || "")}`;
       const list = d.snapshots || [];
       $("#ac-bk-empty").classList.toggle("hidden", list.length > 0);
       $("#ac-bk-rows").innerHTML = list.map((b) => `<tr>
@@ -2517,6 +2543,58 @@
         <td><button class="mini" data-backup="${esc(b.name)}">Download</button></td>
       </tr>`).join("");
     }
+    $("#ac-bk-drill-btn").onclick = async () => {
+      const b = $("#ac-bk-drill-btn"); b.disabled = true; b.textContent = "Restoring into a temporary folder…";
+      try {
+        const r = await post("/api/admin/backups/drill");
+        toast(r.ok ? "The restore test passed — live data was not touched" : `The restore test failed: ${r.error || ""}`);
+      } catch { toast("The restore test could not run"); }
+      b.disabled = false; b.textContent = "Test a restore now";
+      loadBackups();
+    };
+
+    // ---------- data safety (lib/jsonstore.js) ----------
+    // Stores that could not be read at boot: what they were restored from and
+    // what was lost; and a store in SAFE MODE, which waits for a decision here.
+    async function loadDataSafety() {
+      let d;
+      try { d = await json("/api/admin/stores"); } catch { return; }
+      if (!d || d.error) return;
+      const kept = (d.stores || []).filter((x) => x.kind !== "cache");
+      const unsaved = (d.stores || []).filter((x) => x.unsavedSince);
+      const safe = (d.stores || []).filter((x) => x.safeMode);
+      $("#ds-state").innerHTML = safe.length
+        ? `<span class="pill bad">safe mode</span> ${safe.length} file${safe.length === 1 ? "" : "s"} could not be read and had no good copy — nothing is written to ${safe.length === 1 ? "it" : "them"} until you decide below.`
+        : unsaved.length
+          ? `<span class="pill bad">not saved</span> ${esc(unsaved.map((x) => x.name).join(", "))} cannot be written right now — Aurora keeps trying; do not restart until this clears.`
+          : `<span class="pill live">all saved</span> ${kept.length} files, each written atomically with a last-good copy beside it.`;
+      $("#ds-safe").innerHTML = safe.map((x) => `<div class="hl-find fail" style="margin-top:0">
+        <div class="hl-f-title">${esc(x.name)} — safe mode</div>
+        <div class="hl-f-line">It was ${esc(x.safeMode.problem || "damaged")} when Aurora started, and there was no last-good copy and no backup to restore it from. Aurora is showing its defaults and saves nothing to this file${x.name === "profiles.json" ? ": people see an empty house, and what they watch now is not kept" : x.name === "settings.json" ? "; the sign-in wall is closed meanwhile" : "; everyone has to sign in again"}.</div>
+        <div class="hl-f-line"><span>The damaged file</span>${x.safeMode.keptAs ? `is kept as data/${esc(x.safeMode.keptAs)} (and is still in place)` : "was empty"}</div>
+        <div class="hl-f-line"><span>You can</span>stop Aurora, put a good copy of data/${esc(x.name)} back (an old backup, a copy of your own) and start it — or start this file fresh:</div>
+        <div style="margin-top:6px"><button class="mini danger" data-store-accept="${esc(x.name)}">Start ${esc(x.name)} fresh</button></div>
+      </div>`).join("");
+      const recs = (d.recoveries || []).filter((r) => !r.safeMode);
+      const fresh = recs.filter((r) => !r.acknowledged);
+      $("#ds-recoveries").innerHTML = recs.length
+        ? recs.slice(0, 8).map((r) => `<div class="${r.acknowledged ? "muted" : ""}"><span class="muted">${ago(new Date(r.at).toISOString())}</span> · ${r.acknowledged ? "" : '<span class="pill warn">new</span> '}${esc(r.sentence || r.store)}</div>`).join("")
+        : '<div class="muted">No file has ever needed recovering.</div>';
+      $("#ds-ack-btn").classList.toggle("hidden", fresh.length === 0);
+    }
+    $("#ds-ack-btn").onclick = async () => {
+      try { await post("/api/admin/stores/ack"); toast("Acknowledged"); } catch { toast("Could not save that"); }
+      loadDataSafety();
+    };
+    $("#ds-safe").addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-store-accept]");
+      if (!b) return;
+      const name = b.dataset.storeAccept;
+      if (!await ask(`Start ${name} fresh? Aurora carries on from an empty ${name} and saves to it again. The damaged file stays where it was kept, but nothing will restore it by itself after this.`)) return;
+      try { await post(`/api/admin/stores/${encodeURIComponent(name)}/accept`); toast(`${name} started fresh`); } catch { toast("That did not work"); }
+      loadDataSafety();
+    });
+
     // A backup holds config.json and .env, so it is fetched with the admin
     // header (a plain link could not carry it) and handed over as a file.
     $("#ac-bk-rows").addEventListener("click", async (e) => {
@@ -3718,7 +3796,7 @@
       downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadLimits(); loadMyList(); },
       moderation: () => { loadReports(); loadRequests(); loadIntros(); },
       logs: () => loadLogs(),
-      actions: () => { loadActions(); loadBackups(); loadAlerts(); },
+      actions: () => { loadActions(); loadDataSafety(); loadBackups(); loadAlerts(); },
     };
     // What each page is for, said once at the top of it.
     const PAGES = {

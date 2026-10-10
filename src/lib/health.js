@@ -236,7 +236,7 @@ const decideBackup = (x, now, t) => {
   const ago = hours < 72 ? `${hours} hours` : `${Math.round(hours / 24)} days`;
   if (age > maxAge * 3) return { ...base, level: "critical", message: `The newest working backup is ${ago} old. Backups have stopped — check that the backup folder is reachable and has room.${why}` };
   if (age > maxAge) return { ...base, level: "warn", message: `There has been no working backup for ${ago} (one is made every day).${why}` };
-  return { ...base, level: "ok", message: `newest verified backup is ${ago} old` };
+  return { ...base, level: "ok", message: `newest verified backup is ${ago} old${x.offDisk === false ? " — every copy is on the same disk as the data (set backupMirrorDir for a second location)" : ""}` };
 };
 
 // { boots: [ms…], crashes } — crashes is the number of uncaught errors in the
@@ -406,7 +406,9 @@ const gatherBackup = async (config, now) => {
     live.backup = { at: now, newestAt: config.BACKUPS ? await backup.newestVerifiedAt() : null };
   }
   const last = backup._internals.live.last;
-  return { enabled: config.BACKUPS, newestAt: live.backup.newestAt, firstSeenAt: data().firstSeenAt, lastError: last && !last.ok ? last.error : null };
+  let offDisk = null;
+  try { offDisk = backup.locations(config).offDisk; } catch {}
+  return { enabled: config.BACKUPS, newestAt: live.backup.newestAt, firstSeenAt: data().firstSeenAt, lastError: last && !last.ok ? last.error : null, offDisk };
 };
 
 const gatherCrashes = (now) => {

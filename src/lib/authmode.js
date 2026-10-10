@@ -21,7 +21,13 @@ const MODES = ["open", "transition", "closed"];
 const norm = (m) =>
   m === "hybrid" ? "transition" : m === "required" ? "closed" : m;
 
+// When settings.json could not be read and nothing good existed to restore
+// it from (safe mode, lib/jsonstore.js), the mode the admin had chosen is
+// unknown. The doors are then CLOSED, not opened: a damaged file must never
+// turn a walled server into an open one. The admin page says so, and the
+// decision there ("start fresh", or putting a good file back) ends it.
 const get = () => {
+  if (settings.safeMode) return "closed";
   const m = norm(settings.data.authMode || config.AUTH_MODE);
   return MODES.includes(m) ? m : "open";
 };

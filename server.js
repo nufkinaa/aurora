@@ -408,6 +408,9 @@ require("./src/media/introdetect");
   // One verified snapshot a day of what cannot be rebuilt — profiles, watch
   // state, sign-ins, settings, config (lib/backup.js; restore steps there).
   daily.register("backup", () => require("./src/lib/backup").runDaily());
+  // …and once a week the newest snapshot is proved restorable: unpacked into
+  // a temporary folder, read as the server would read it, counted, removed.
+  daily.register("backup-drill", () => require("./src/lib/backup").drillIfDue());
   // My List downloads: copies fetched because a title was added to a list go
   // stale, then leave, when nobody watches them; failed ones get their one
   // more try (media/mylistdl.js has the rules).
@@ -445,6 +448,15 @@ require("./src/lib/healer").start();
 // loops — told to the admin (ntfy / Telegram) once, and again when they
 // clear; plus the dead-man's-switch ping when "healthPingUrl" is set.
 require("./src/lib/health").start();
+// A store that could not be read at boot was restored from a good copy, or
+// put in safe mode (lib/jsonstore.js): say each such event ONCE, through the
+// health alerts (the log, ntfy / Telegram, the admin page).
+{
+  const health = require("./src/lib/health");
+  require("./src/lib/jsonstore").announceRecoveries((r, sentence) => {
+    health.raise(`store:${r.store}`, r.safeMode ? "critical" : "warn", sentence, "Data safety");
+  });
+}
 online.events.on("updated", () => {
   scanner.scan();
   realtime.broadcastAll({ type: "library_updated" });

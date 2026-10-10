@@ -272,6 +272,18 @@ const ACTIONS = [
     },
   },
   {
+    id: "backup-drill", group: "Library and data", title: "Test a restore",
+    about: "Prove the newest backup can be restored: it is unpacked into a temporary folder, read the way Aurora reads its files at start, counted (profiles, history rows), and removed. Nothing live is touched.",
+    kind: "task", // (the daily round runs it once a week by itself)
+    run: async (log) => {
+      const backup = require("./backup");
+      const r = await backup.drillNow();
+      for (const p of r.problems || []) log(`problem: ${p}\n`);
+      if (!r.ok) throw new Error(`The restore test failed: ${r.error}`);
+      return `OK — ${backup.drillSentence(r)}. Live data was not touched.`;
+    },
+  },
+  {
     id: "rescan", group: "Library and data", title: "Rescan the library",
     about: "Look at the library folders again — for files added, moved or removed by hand.",
     kind: "task", healer: true, // only when a library folder has just come back

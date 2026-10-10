@@ -242,6 +242,10 @@ router.get("/api/server-info", (req, res) => {
     // Present only on a server with "torrents": false in config.json — the
     // web app then offers nothing that streams or downloads from sources.
     ...(require("../lib/torrentgate").enabled() ? {} : { torrents: false }),
+    // Present only while a critical store could not be read and nothing good
+    // existed to restore it from (lib/jsonstore.js): the clients then say, in
+    // words, that nothing done now is kept. No names, no details.
+    ...(require("../lib/jsonstore").inSafeMode() ? { safeMode: true } : {}),
   });
 });
 

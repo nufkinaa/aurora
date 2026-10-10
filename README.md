@@ -184,6 +184,10 @@ All of it is read once at startup by [`src/config.js`](src/config.js). Machine s
 | `healer.autoRepair` | `true` | The healer (about thirty checks every minute: the log, playback / download / transcoding statistics, library folders, backups, updates, alert delivery) may press a few safe actions by itself — tidy stream leftovers, re-apply the torrent-library patch, rescan when a library folder comes back, back up when the newest backup is older than `health.backupMaxAgeHours`, retry a file that was replaced. Each at most a few times a day per problem; after that the finding says "tried N times, needs you" and names the button. `false` switches every automatic repair off — the checks still run and each finding names what to press. It never updates, pulls, installs, restarts, runs the tests or sends a test alert. |
 | `healer.off` | `[]` | Single automatic repairs to switch off, by name: `"sweep-streams"`, `"patch-webtorrent"`, `"rescan"`, `"backup-now"`, `"jit-forget-changed"`. |
 | `healer.ai` | `false` | With an OpenRouter key set, a kind of error the server has never seen before may be explained by the model: once per error, five requests a day at most, two sentences shown beside the error on the admin page. Only the error's normalized message is sent, with paths, addresses, hostnames, e-mails and anything key-like removed. The answer is displayed, never acted on. |
+| `backups` | `true` | One verified snapshot a day of everything that cannot be rebuilt (profiles, progress, sign-ins, settings, `config.json`, `.env`). `false` switches it off. |
+| `backupDir` | `data/backups` | Where the snapshots are written. The default is beside the data: good against a damaged file or a mistake, not against losing the disk. |
+| `backupMirrorDir` | — | A **second** folder every snapshot is copied to and checked in — put it on another drive, a NAS or a synced folder. The admin page says so while every copy sits on the data's disk. |
+| `backupKeep` | `{ "daily": 7, "weekly": 4, "monthly": 3 }` | How many snapshots are kept (in both folders). |
 | `aria2Path` | auto-detected | Full path to `aria2c` if it is not on `PATH`. |
 | `aria2Port` | `6801` | RPC port for Aurora's own aria2 process (bound to localhost). |
 | `aiModel` | `google/gemini-2.5-flash` | OpenRouter model for the AI picker. |
@@ -263,7 +267,7 @@ The server reads the version out of the published APK itself and announces that 
 
 **Updating.** `git pull`, `npm install`, restart — or use `/admin → Server`, which checks GitHub, pulls and restarts on a button press. Front-end changes need no restart; pages revalidate on every load.
 
-**Data and backups.**
+**Data and backups.** Every store is written atomically and flushed to the disk, keeps two last-good copies beside it (`<name>.good1`, `.good2`), and — if its file is ever missing, empty or damaged at start — is restored from the newest good copy or the newest verified backup by itself, with one alert saying what was lost. A critical store with nothing good anywhere puts the server in *safe mode* (nothing is written to it until the admin decides) instead of starting an empty house. A restore is tested once a week in a temporary folder. [`docs/operations.md`](docs/operations.md) has the details, the restore command and what safe mode looks like.
 
 | Path | What is in it | Back it up? |
 | --- | --- | --- |

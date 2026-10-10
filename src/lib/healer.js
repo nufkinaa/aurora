@@ -565,6 +565,7 @@ const CHECKS = [
   ["scanner", "Library scan", "Library & data", checkScanner],
   ["temp", "Temporary files", "Library & data", checkTemp],
   ["data", "Data files", "Library & data", checkData],
+  ["stores", "Data safety", "Library & data", sysChecks.checkStores],
   ["growth", "Data growth", "Library & data", sysChecks.checkGrowth],
   ["backups", "Backups", "Library & data", sysChecks.checkBackups],
 

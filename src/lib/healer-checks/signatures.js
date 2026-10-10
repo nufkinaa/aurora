@@ -67,8 +67,8 @@ const SIGNATURES = [
   {
     id: "store-corrupt", title: "A data file was unreadable", level: "fail",
     re: /^Corrupt store .+ backed up to /, // lib/jsonstore.js
-    means: "A data file was unreadable when Aurora started, so it began again from an empty one. The damaged file was kept beside it (its name ends .corrupt-…).",
-    setting: "Restore the newest good snapshot from the Backups table.", press: "backup-verify",
+    means: "A data file was unreadable when Aurora started. The line says what was done about it: restored from its last good copy or from a backup (with how much time was lost), started empty (a file with no copy anywhere), or SAFE MODE (a critical file with no copy anywhere: nothing is written to it until you decide). The damaged file was kept beside it (its name ends .corrupt-…).",
+    setting: "Server → Data safety shows each recovery and what was lost; a store in safe mode waits for your decision there.", press: "backup-verify",
   },
   {
     id: "config", title: "config.json was not read", level: "fail",

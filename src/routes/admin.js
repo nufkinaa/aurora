@@ -1014,6 +1014,49 @@ router.get("/api/admin/backups/:name/download", async (req, res) => {
     if (err && !res.headersSent) res.status(500).json({ error: "could not read the backup" });
   });
 });
+// Test a restore now (lib/backup.js drill): the newest snapshot is unpacked
+// into a temporary folder, read the way the server reads its stores, counted,
+// and removed. Live data is never touched.
+router.post("/api/admin/backups/drill", async (req, res) => {
+  try {
+    const backup = require("../lib/backup");
+    const r = await backup.drillNow();
+    res.json({ ...r, sentence: backup.drillSentence(r) });
+  } catch (e) {
+    res.status(500).json({ error: String((e && e.message) || e) });
+  }
+});
+
+// ---------- data safety (lib/jsonstore.js) ----------
+// Every store: saved or not, in safe mode or not; and what was recovered at
+// boot, from what, and what was lost.
+router.get("/api/admin/stores", (req, res) => {
+  const js = require("../lib/jsonstore");
+  const st = js.status();
+  res.json({ ...st, recoveries: st.recoveries.slice(0, 20).map((r) => ({ ...r, sentence: js.recoverySentence(r) })) });
+});
+// "I have read these": the recoveries stop being findings. Nothing is deleted.
+router.post("/api/admin/stores/ack", (req, res) => {
+  const js = require("../lib/jsonstore");
+  const n = js.acknowledgeRecoveries();
+  try {
+    const health = require("../lib/health");
+    for (const c of health.status().checks) if (c.id.startsWith("store:") && !js.inSafeMode(c.id.slice(6))) health.clear(c.id, "Acknowledged on the admin page.");
+  } catch {}
+  res.json({ ok: true, acknowledged: n });
+});
+// The decision for a store in SAFE MODE: start it fresh. The name must be one
+// of the stores that ARE in safe mode — nothing else is accepted. The damaged
+// file stays where it was set aside; writing resumes from what is in memory.
+router.post("/api/admin/stores/:name/accept", (req, res) => {
+  const js = require("../lib/jsonstore");
+  const name = String(req.params.name || "");
+  if (!js.status().safeMode.includes(name)) return res.status(404).json({ error: "That store is not in safe mode." });
+  js.leaveSafeMode(name);
+  try { require("../lib/health").clear(`store:${name}`, `${name} was started fresh on the admin's decision.`); } catch {}
+  res.json({ ok: true, name });
+});
+
 // Health alerts: every check's settled level and sentence, when each last
 // alerted and recovered, where alerts are delivered (and a warning when they
 // go nowhere), and the dead-man's-switch ping. (/api/admin/health above is
