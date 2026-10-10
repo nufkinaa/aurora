@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.85 — 2026-10-10
+
+- **My List downloads.** Adding a film to your list downloads it; adding a show you have not started downloads its first episode (a show you are already watching is left to the next-episode downloads). The website says so when you add it ("saved for later — downloading the film"). A copy nobody has watched after 14 days is marked stale and offered first under Admin → Free up space → Suggest what to delete; after 21 days it is deleted by itself, and the title stays on your list to stream. Watching it at any point keeps it. Only copies fetched this way are ever removed — never something downloaded by hand. Two people adding the same title is one download; a kids profile never fetches something over its limit; each person starts at most 5 a day. Admin → Downloads → "My List downloads" has the switch, the day counts and a Keep button per copy. The TV app shows the same from its next update.
+
 ## 1.6.84 — 2026-10-10
 
 - **Aurora TV 5.1.31 — pictures are back on TVs signed in to a server that requires sign-in** (Zev's report from a Chromecast: "Photos on home, movies and shows tabs are not working at all"; the server log showed every picture request arriving with no session at all). The cause was in React Native itself: on Android this version only passes a picture's request headers along when the source is written as a list, and every picture in the app passes a single source — so the TV's sign-in never travelled with its picture requests, and a server in sign-in-required mode refused each one. The app now carries a one-line patch to React Native that forwards them. Checked on the Mi TV against a server in sign-in-required mode: Home, Movies and a title page load their pictures, with no refused request in the log. **Every TV needs this update.**
