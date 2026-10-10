@@ -372,6 +372,21 @@ const jit = require("../media/jit");
 const ladder = require("../media/ladder");
 const { timed } = require("../lib/servertiming");
 
+// Who is reading a stream, for jit's "whose goodbye is it" (jit.release): the
+// sign-in session when the request has one (in sign-in mode "closed" every
+// request that reaches a route does), else the device as far as it can be
+// told — its address and browser. Never logged, never sent anywhere; a
+// player's segment requests and its goodbye beacon carry the same cookie
+// from the same browser, which is all this has to hold.
+const viewerOf = (req) => {
+  try {
+    const s = require("../lib/authz").sessionFor(req);
+    if (s && s.sessionKey) return `s:${s.sessionKey}`;
+  } catch {}
+  return "d:" + crypto.createHash("sha1")
+    .update(`${req.ip || ""}|${req.headers["user-agent"] || ""}`).digest("hex").slice(0, 20);
+};
+
 // The file's segment table (cached by jit; read from the file when it is not).
 const libraryTable = async (entry, key, size) => {
   const cached = await jit.tableFor(key, null, 0).catch(() => null);
@@ -510,12 +525,16 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
 // The player closed (or went on to the next episode): this title's producers
 // that nobody is waiting on stop now, so the encoder is free for whatever is
 // played next (jit.release). A beacon — nothing is answered.
+// Behind the same walls as the stream itself (sign-in, a forced password
+// reset, the kids gate: all run before any /stream route), and it only ever
+// stops what the one who says it was reading (viewerOf): a goodbye from
+// anybody else — or for a film they are not in — stops nothing.
 router.post("/stream/transcode/:id/jit/bye", (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry) return res.status(204).end();
   try {
     const st = fs.statSync(entry.path);
-    jit.release(`${req.params.id}-${Math.floor(st.mtimeMs)}`);
+    jit.release(`${req.params.id}-${Math.floor(st.mtimeMs)}`, viewerOf(req));
   } catch {}
   res.status(204).end();
 });
@@ -569,6 +588,7 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
       return res.status(204).end();
     }
     const askedAt = Date.now();
+    jit.noteViewer(job, viewerOf(req)); // (whose goodbye may stop this job's producers: jit.release)
     const onDisk = !isInit && fs.existsSync(jit.segPath(dir, parseInt(m[1], 10), fmt));
     // The client hanging up (a seek, a level change, the player closing)
     // ends the wait for a segment still being made — see jit.ensureSegment.

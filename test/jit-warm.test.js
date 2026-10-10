@@ -128,6 +128,49 @@ test("release: every producer of that title nobody is waiting on stops; other ti
   forget();
 });
 
+// Whose goodbye it is (the route says who asked for each segment and who is
+// leaving): only somebody who was reading the title can stop anything, and
+// never what another viewer is still reading.
+test("release by a viewer: a stranger's goodbye stops nothing; a viewer's own does; a film someone else is in is left alone", () => {
+  forget();
+  const now = Date.now();
+  // one film, one viewer
+  const solo = mkJob({ enc: true, title: "film S" });
+  const s = producer(solo, 0, 4);
+  jit.noteViewer(solo, "s:alice", now);
+  assert.equal(jit.release("film S", "s:mallory", now), 0, "somebody who never read it");
+  assert.equal(jit.release("film S", null, now), 0, "nobody at all (no session, no device)");
+  assert.equal(jit.release("film S", "", now), 0);
+  assert.equal(s.killed, undefined);
+  assert.equal(jit.release("another film", "s:alice", now), 0, "her goodbye for a film she is not in");
+  assert.equal(s.killed, undefined);
+  assert.equal(jit.release("film S", "s:alice", now), 1, "her own");
+  assert.equal(s.killed, true);
+  // one film, two viewers on the same rendition, and a second rendition only one of them used
+  const shared = mkJob({ title: "film T" });
+  const mine = mkJob({ enc: true, title: "film T" });
+  const a = producer(shared, 0, 30);
+  const b = producer(mine, 0, 3);
+  jit.noteViewer(shared, "s:alice", now);
+  jit.noteViewer(shared, "s:bob", now);
+  jit.noteViewer(mine, "s:alice", now);
+  assert.equal(jit.release("film T", "s:alice", now + 1000), 1, "only the rendition nobody else is reading");
+  assert.equal(a.killed, undefined, "bob is still in the film");
+  assert.equal(b.killed, true);
+  assert.equal(jit.release("film T", "s:alice", now + 2000), 0, "she has left: a second goodbye is nobody's");
+  // bob went quiet long ago (paused, or gone without a word) — his goodbye still counts as his
+  assert.equal(jit.release("film T", "s:bob", now + 60000), 1);
+  assert.equal(a.killed, true);
+  // a viewer who read it and another who stopped asking 20 s ago: the first one's goodbye frees it
+  const old = mkJob({ enc: true, title: "film U" });
+  const u = producer(old, 0, 2);
+  jit.noteViewer(old, "s:bob", now - J.ABANDONED_MS - 1000);
+  jit.noteViewer(old, "s:alice", now);
+  assert.equal(jit.release("film U", "s:alice", now), 1);
+  assert.equal(u.killed, true);
+  forget();
+});
+
 // ---------- a client that hung up ----------
 test("a request whose client hung up stops waiting — and stops holding its producer", async () => {
   forget();

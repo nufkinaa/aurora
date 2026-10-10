@@ -1051,10 +1051,42 @@ const warmSegment = (dir, job, input, k, now = Date.now()) => {
 // stays. If someone else is in the same film, their next request finds the
 // segments already made and restarts a producer where they run out, as
 // after any park. Returns how many producers were stopped.
-const release = (title) => {
+//
+// WHOSE goodbye it is. The routes say who asked for each segment
+// (noteViewer) and who is leaving (`viewer`). A goodbye then stops only what
+// was that viewer's to stop: it does nothing at all unless that viewer read
+// this title, and it leaves alone every job another viewer asked something
+// of within ABANDONED_MS — the same "is anybody there?" the encoder census
+// uses. So somebody who is not watching a film (another profile, a request
+// with no sign-in on an open server, a page that guesses ids) cannot stop
+// the encoder of somebody who is. Called with no `viewer` at all (the
+// server's own callers, the tests) it is the plain rule above.
+const VIEWER_TTL_MS = 10 * 60 * 1000;
+const noteViewer = (job, viewer, now = Date.now()) => {
+  if (!job || !viewer) return;
+  const seen = job.viewers || (job.viewers = new Map());
+  seen.set(viewer, now);
+  if (seen.size > 32) for (const [v, at] of seen) if (now - at > VIEWER_TTL_MS) seen.delete(v);
+};
+const release = (title, viewer, now = Date.now()) => {
+  const owned = viewer !== undefined;
+  if (owned) {
+    let mine = false;
+    for (const j of jobs.values()) {
+      if (j.title === title && viewer && j.viewers && j.viewers.has(viewer) && now - j.viewers.get(viewer) <= VIEWER_TTL_MS) mine = true;
+    }
+    if (!mine) return 0;
+  }
   let n = 0;
   for (const [d, j] of jobs) {
-    if (j.title !== title || !j.producers.length || j.waiting > 0) continue;
+    if (j.title !== title) continue;
+    if (owned && j.viewers) {
+      j.viewers.delete(viewer);
+      let others = false;
+      for (const at of j.viewers.values()) if (now - at <= ABANDONED_MS) others = true;
+      if (others) continue; // somebody else is in this film
+    }
+    if (!j.producers.length || j.waiting > 0) continue;
     n += j.producers.length;
     park(d, j, "its viewer left");
   }
@@ -1196,6 +1228,7 @@ module.exports = {
   warmSegment,
   segmentAt,
   release,
+  noteViewer,
   segPath,
   declinedReason,
   // the quality ladder (ladder.js, the routes)
