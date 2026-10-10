@@ -411,6 +411,9 @@ const checkDownloads = async () => {
   const summary =
     `${q.activeCount} downloading · ${q.approvedWaiting} queued · ${q.pending} waiting for approval · ${q.doneLastDay} finished in 24 h` +
     (racing.length ? ` · ${racing.length} trying a second source` : "") +
+    // On hold or waiting its turn on purpose (My List downloads give way to
+    // every other kind — media/dlslots.js): said, never a finding.
+    (q.yielding > 0 ? ` · ${q.yielding} from My List waiting for the others${q.held > 0 ? ` (${q.held} on hold)` : ""}` : "") +
     (q.holding && q.approvedWaiting > 0 ? ` · holding at ${q.maxActive} while someone is watching` : "");
   return { status, summary, detail: notes.join("; ") || null, healed: healed.join("; ") || null };
 };

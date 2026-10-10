@@ -15,6 +15,8 @@ const store = new JsonStore(path.join(config.DATA_DIR, "settings.json"), {
   // dlslots.effectiveMaxActive(), which also covers a settings file written
   // before this key existed.
   maxActiveDownloads: 4,
+  // (The My List downloads settings — myListDownloads, myListYield, … — have
+  // their defaults in media/mylistdl.js; a file without them reads as those.)
 });
 
 module.exports = store;

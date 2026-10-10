@@ -4,11 +4,14 @@
 // a poster), and the scanner indexes it as a normal downloaded title — which
 // then seeks and resumes natively like any other local file.
 //
-// Two policies live here, and only here:
+// Three policies live here, and only here:
 //
 //   * APPROVAL IS DISK-GATED, not manual. A request starts on its own as long as
 //     the library volume would still be DOWNLOAD_MIN_FREE_PERCENT free once it
 //     lands; an admin is only asked when that check fails — see diskGate().
+//   * WHO GOES FIRST. A person's request, then the other automatic kinds,
+//     then My List downloads — which also give way while they are running:
+//     see "the order, and My List on hold" above pump().
 //   * WHAT THE STAGING BYTES ARE FOR. Several episodes of one pack share a
 //     single torrent, so deciding when a pack's staging directory can be deleted
 //     needs the whole queue in view — see purgeIfUnused().
@@ -127,6 +130,8 @@ const episodeLookup = () => {
   };
 };
 
+const isHeld = (j) => !!(j && j.held && j.status === "approved");
+
 // Strip fields nobody outside needs; keep it small for WS.
 const publicJob = (j) => ({
   id: j.id, infoHash: j.infoHash, fileIdx: j.fileIdx, imdbId: j.imdbId || null,
@@ -147,6 +152,15 @@ const publicJob = (j) => ({
   // "mylist" when My List downloads queued it (always `smart` too, so every
   // client that knows nothing of this field treats it as the quiet kind).
   auto: j.auto || null,
+  // ON HOLD: a My List download that was running and gave way to another
+  // download (or to people watching). `status` stays "approved" — every
+  // client, the released TV app included, already knows that word as
+  // "queued" and keeps the row, its progress bar and its Cancel — and these
+  // say the rest: `progress` is what it has on disk, and it carries on from
+  // there. (Not `holdReason`: that one means "an admin has to approve it".)
+  held: isHeld(j),
+  heldReason: isHeld(j) ? j.held.why || "downloads" : null,
+  heldAt: isHeld(j) ? j.held.at || null : null,
   libraryId: j.status === "done" && j.destPath ? scanner.idForPath(j.destPath) : null,
   // A second source is being tried beside the first (media/dlrace.js). The
   // card stays ONE card: `progress` above is the leading attempt's. `race` is
@@ -317,6 +331,9 @@ const saveCover = async (posterUrl, destDir) => {
 
 // ---------- job lifecycle ----------
 const findJob = (id) => store.data.find((j) => j.id === id);
+// "The healer restarted it and it has not moved since" (restartJob) — over
+// once it moves, takes another source, fails, or an admin starts it again.
+const clearStalled = (job) => { if (job) { delete job.stalledRestarts; delete job.stalledBytes; } };
 
 // My List downloads keeps its own record of the copies it asked for
 // (media/mylistdl.js): it hears at once when one of them lands, fails or is
@@ -402,6 +419,7 @@ const create = (fields) => {
     if (dupe.auto === "mylist" && !smart && !auto) {
       dupe.auto = null;
       dupe.smart = false;
+      delete dupe.held; // a person's download now: it waits for nobody
       if (profile) {
         dupe.profile = String(profile).slice(0, 24);
         dupe.profileName = fields.profileName ? String(fields.profileName).slice(0, 40) : null;
@@ -409,6 +427,7 @@ const create = (fields) => {
       store.save();
       broadcast(dupe);
       console.log(`[download] ${dupe.id.slice(0, 6)} "${dupe.label || dupe.title}" was a My List download — asked for by hand now, so it is kept like any other`);
+      pump(); // …and it goes to the front of the queue it was at the back of
     }
     return { job: publicJob(dupe), duplicate: true };
   }
@@ -501,6 +520,7 @@ const approve = (id) => {
   job.error = null;
   job.approvedAt = now();
   job.holdReason = null;
+  clearStalled(job);
   // An explicit admin approval overrides the disk gate: pump() must never send
   // this back to "pending", however full the drive is. Deleting titles is the
   // admin's business, and they just said yes with the numbers in front of them.
@@ -515,6 +535,7 @@ const decline = (id) => {
   const job = findJob(id);
   if (!job) return { error: "not found" };
   stopActive(id, "declined");
+  delete job.held;
   job.status = "declined";
   job.resolvedAt = now();
   store.save();
@@ -528,6 +549,7 @@ const cancel = (id) => {
   const job = findJob(id);
   if (!job) return { error: "not found" };
   stopActive(id, "canceled");
+  delete job.held; // (a job on hold cancels like any queued one; its staging bytes are purged below)
   job.status = "canceled";
   job.resolvedAt = now();
   store.save();
@@ -580,25 +602,103 @@ const slotState = () => {
   return { ...dlslots.startCap({ maxActive: maxActive(), watching: load.watching }), watching: load.watching, maxActive: maxActive() };
 };
 
-// Start any approved jobs up to the concurrency cap. Only ever STARTS: a job
-// already running is never stopped because the cap came down (the admin
-// lowered the setting, or someone pressed Play) — it finishes, new ones wait.
+// ---------- the order, and My List on hold ----------
+// The rule is media/dlslots.js plan(); this is the queue as plan() takes it,
+// and the two things only this module can do: put a running job on hold and
+// keep the quiet clock.
+//
+// WHAT "ON HOLD" IS IN THE ENGINE. The job's aria2 download is released —
+// exactly what a server restart and the healer's restart do (stopActive):
+// the staging bytes and aria2's own record of which pieces it has stay on
+// disk, and when the job starts again aria2 is handed the same torrent and
+// continues from them ("--continue=true", the saved .torrent). Measured
+// 2026-10-10 with aria2 1.37.0 on a closed, localhost-only torrent: after
+// forceRemove + removeDownloadResult the file and its ".aria2" control file
+// were still in the staging folder, a fresh add reported 36% in its first
+// answer (no re-check of the file) and finished byte-identical. aria2's own
+// pause (aria2.pause / unpause) is deliberately NOT used:
+//   * a paused download lives only in the daemon's memory, and the daemon is
+//     ours to kill — it dies with the server ("--stop-with-process") and
+//     keeps no session file, so a hold has to survive without it anyway;
+//   * one aria2 download is one TORRENT, which a sibling episode's job may
+//     share — pausing it would stop that job too, and a paused torrent still
+//     answers "already downloading" to the next job that asks for it;
+//   * a held job with no download in the engine cannot be seen by the
+//     poller, the second-source race, the stall clock or the healer — there
+//     is nothing to exclude it from.
+// A held job is a queued job ("approved") that carries `held` and the
+// progress it stopped at; it is in nobody's way and loses nothing.
+const yieldCfg = () => dlslots.yieldMode(settings.data.myListYield);
+const waitingJobs = () => store.data.filter((j) => j.status === "approved" && !active.has(j.id));
+const queueView = () => {
+  const { cap, holding } = slotState();
+  const running = [];
+  for (const [id, rec] of active) {
+    const j = findJob(id);
+    running.push({
+      id, yields: dlslots.yields(j), locked: !!rec.copying, stalled: !!(j && j.stalledRestarts),
+      progress: (j && j.progress) || 0, startedAt: rec.main.startedAt,
+    });
+  }
+  const waiting = waitingJobs().map((j) => ({
+    id: j.id, tier: j.startNow ? -1 : dlslots.tierOf(j), yields: dlslots.yields(j), held: !!j.held, progress: j.progress || 0,
+  }));
+  return { cap, holding, mode: yieldCfg(), running, waiting };
+};
+// The quiet clock: when the others last needed the queue. A My List job
+// starts (or carries on) only once that is RESUME_QUIET_MS in the past.
+const quietState = { blocked: false, clearedAt: 0 };
+const isQuiet = (t) => !quietState.blocked && t - quietState.clearedAt >= dlslots.RESUME_QUIET_MS;
+
+const HELD_WHY = { downloads: "another download needs the queue", watching: "someone is watching" };
+// Put a running My List job on hold. No notification, no outcome remembered
+// against its source, no counter touched: nothing went wrong.
+const holdJob = (job, why) => {
+  const rec = job && active.get(job.id);
+  if (!rec || rec.copying || job.status !== "downloading") return false;
+  // In the middle of a second-source race: the attempt with more of the file
+  // carries the job (the same rule as a restart), the other is dropped.
+  if (rec.ch && dlrace.settleOnRestart([{ bytes: rec.main.completed }, { bytes: rec.ch.completed }]) === 1) promote(job, rec, null, null);
+  stopActive(job.id);
+  job.status = "approved";
+  job.phase = null;
+  job.downloadSpeed = 0;
+  job.peers = 0;
+  job.held = { at: now(), why: why === "watching" ? "watching" : "downloads" };
+  store.save();
+  broadcast(job);
+  console.log(`[mylist] held "${job.label || job.title}" at ${Math.round((job.progress || 0) * 100)}% — ${HELD_WHY[job.held.why]}; what it has is kept`);
+  return true;
+};
+
+// Start the jobs whose turn it is, up to the concurrency cap — a person's
+// request first, My List downloads last (dlslots.plan). A running job is never
+// stopped because the cap came down (the admin lowered the setting, or someone
+// pressed Play) — it finishes, new ones wait. The one exception is a My List
+// download, which is put on hold when anything else needs the queue.
 let holdTimer = null;
+let yieldTimer = null;
 const pump = () => {
   // "torrents": false — queued jobs stay queued (and untouched: no disk-gate
   // demotion, no admin notification) until the owner switches torrents back on.
   if (!torrentGate.enabled()) return;
-  const { cap, holding } = slotState();
+  const view = queueView();
   // Held back for viewers with jobs still queued: nothing else will pump when
   // the film ends, so look again shortly.
-  if (holding && seams.auto && !holdTimer && store.data.some((j) => j.status === "approved" && !active.has(j.id))) {
+  if (view.holding && seams.auto && !holdTimer && view.waiting.length) {
     holdTimer = setTimeout(() => { holdTimer = null; pump(); }, HOLD_RECHECK_MS);
     holdTimer.unref?.();
   }
-  if (activeCount() >= cap) return;
-  const queued = store.data.filter((j) => j.status === "approved" && !active.has(j.id));
-  for (const job of queued) {
-    if (activeCount() >= cap) break;
+  const t = seams.clock();
+  const p = dlslots.plan({ ...view, quiet: isQuiet(t) });
+  if (p.blocked || p.hold.length) quietState.blocked = true;
+  else if (quietState.blocked) { quietState.blocked = false; quietState.clearedAt = t; }
+
+  for (const h of p.hold) holdJob(findJob(h.id), h.why);
+  let demoted = false;
+  for (const id of p.start) {
+    const job = findJob(id);
+    if (!job || job.status !== "approved" || active.has(id)) continue;
     // Re-run the gate at start time for self-started jobs: one may have waited
     // behind MAX_ACTIVE others for hours, and the drive it was measured against
     // can be full by now. An admin-approved job is exempt (see approve()).
@@ -615,15 +715,43 @@ const pump = () => {
           "Aurora: download needs approval",
           `"${job.label || job.title}" — ${gate.reason} Approve it in /admin → Downloads.`
         );
+        demoted = true;
         continue; // now pending; it won't be picked up again until an admin acts
       }
     }
     startJob(job).catch((e) => fail(job, e && e.message ? e.message : String(e)));
   }
+  // The slot a refused job did not take belongs to the next in line.
+  if (demoted) return pump();
+  // My List jobs still waiting — for the others to finish, or for the quiet
+  // minute after them: nothing else is certain to pump then, so look again.
+  if (seams.auto && !yieldTimer && waitingJobs().some((j) => dlslots.yields(j))) {
+    const left = quietState.blocked ? HOLD_RECHECK_MS : quietState.clearedAt + dlslots.RESUME_QUIET_MS - t;
+    yieldTimer = setTimeout(() => { yieldTimer = null; pump(); }, Math.max(1000, Math.min(HOLD_RECHECK_MS, left + 50)));
+    yieldTimer.unref?.();
+  }
+};
+
+// The admin's "Start now" on a waiting job (a My List download above all):
+// it goes to the front of the queue and never gives way again. It still takes
+// a slot like any other — if every slot is busy it is simply next.
+const startNow = (id) => {
+  const job = findJob(id);
+  if (!job) return { error: "not found" };
+  if (!torrentGate.enabled()) return { error: torrentGate.MESSAGE };
+  if (job.status !== "approved" || active.has(id)) return { job: publicJob(job) }; // running, done, or waiting for approval
+  job.startNow = true;
+  store.save();
+  console.log(`[download] ${job.id.slice(0, 6)} "${job.label || job.title}" moved to the front of the queue by the admin`);
+  pump();
+  broadcast(job);
+  return { job: publicJob(job) };
 };
 
 const fail = (job, message) => {
   stopActive(job.id, "failed");
+  delete job.held;
+  clearStalled(job);
   job.status = "error";
   job.error = String(message || "download failed").slice(0, 300);
   job.phase = null;
@@ -818,6 +946,7 @@ const adopt = (job, src) => {
   job.sizeBytes = src.sizeBytes || job.sizeBytes;
   job.provider = src.provider || null;
   job.seeders = src.seeders || 0;
+  clearStalled(job); // another source: it is a download that needs the queue again
 };
 
 const clearRace = (job) => { if (job) { job.race = null; delete job.attempts; } };
@@ -881,6 +1010,10 @@ const startJob = async (job) => {
   }
   const dest = destinationFor(job);
 
+  if (job.held) {
+    console.log(`[mylist] resumed "${job.label || job.title}" from ${Math.round((job.progress || 0) * 100)}% (on hold since ${job.held.at})`);
+    delete job.held;
+  }
   job.status = "downloading";
   job.error = null;
   job.phase = "finding";      // looking for the torrent's details, before any bytes
@@ -1022,6 +1155,12 @@ const publish = (job, rec) => {
     job.attempts = [persisted(job, main), persisted(job, ch)];
   }
   if (!lead.lastSampleAt) return;        // torrent details not in yet
+  // Moving again after the healer restarted it: it counts as a download that
+  // needs the queue once more (see restartJob), so My List gives way again.
+  if (job.stalledRestarts && lead.completed > (job.stalledBytes || 0)) {
+    clearStalled(job);
+    Promise.resolve().then(pump);
+  }
   job.progress = lead.fraction;
   job.downloadSpeed = lead.rawSpeed;
   job.peers = lead.peers;
@@ -1580,7 +1719,14 @@ const queueHealth = () => {
     const job = findJob(id);
     if (job) activeJobs.push({ job, rec, racing: !!rec.ch, raceState: rec.ch ? rec.ch.state : null, whyNot: rec.whyNot });
   }
-  const approved = store.data.filter((j) => j.status === "approved" && !active.has(j.id));
+  // A My List job that is waiting ON PURPOSE — on hold, or behind the others,
+  // or inside the quiet minute — is not "approved, a slot free, still
+  // waiting": it is counted apart (yielding / held), so the healer neither
+  // pumps the queue for it nor calls the queue stuck.
+  const due = new Set(dlslots.plan({ ...queueView(), quiet: isQuiet(seams.clock()) }).start);
+  const allWaiting = waitingJobs();
+  const yielding = allWaiting.filter((j) => dlslots.yields(j) && !due.has(j.id));
+  const approved = allWaiting.filter((j) => !yielding.includes(j));
   const oldestApproved = approved.reduce((m, j) => Math.max(m, nowMs - (Date.parse(j.approvedAt || j.at) || nowMs)), 0);
   const slots = slotState();
   return {
@@ -1595,6 +1741,9 @@ const queueHealth = () => {
     races: activeJobs.filter((a) => a.racing).length,
     approvedWaiting: approved.length,
     oldestApprovedAgeMs: oldestApproved,
+    yielding: yielding.length,
+    held: allWaiting.filter(isHeld).length,
+    myListYield: yieldCfg(),
     pending: store.data.filter((j) => j.status === "pending").length,
     errorsLastHour: store.data.filter((j) => j.status === "error" && nowMs - (Date.parse(j.resolvedAt || j.at) || 0) < 3600e3).length,
     lastError: (store.data.find((j) => j.status === "error") || {}).error || null,
@@ -1624,6 +1773,12 @@ const restartJob = (id, why) => {
   const rec = active.get(id);
   if (rec && (rec.ch || rec.raceBusy || rec.copying)) return false;
   remember(job, job.infoHash, "stalled");
+  // Until it moves a byte again it is not "something that needs to be
+  // downloaded" as far as My List is concerned (dlslots.plan: stalled) — a
+  // dead source the healer restarts every quarter of an hour would otherwise
+  // keep every My List download on hold for good.
+  job.stalledRestarts = (job.stalledRestarts || 0) + 1;
+  job.stalledBytes = rec ? rec.main.completed || 0 : 0;
   stopActive(id, `restarted by the healer: ${why}`);
   job.status = "approved";
   job.phase = null;
@@ -1645,6 +1800,9 @@ const slots = () => {
     cap: s.cap, holding: s.holding, watching: s.watching, holdAt: dlslots.WATCH_HOLD,
     active: active.size,
     queued: store.data.filter((j) => j.status === "approved" && !active.has(j.id)).length,
+    // My List downloads on hold right now, and the rule they give way by.
+    held: store.data.filter(isHeld).length,
+    myListYield: yieldCfg(),
   };
 };
 // Change it. Takes effect at once: a raise pumps the queue; a lower number
@@ -1682,7 +1840,9 @@ const resume = () => {
       }
       clearRace(job);
       job.status = "approved";
-      job.progress = 0;
+      // (a job on hold keeps the progress it stopped at — it is what its card
+      // shows until it carries on; the hold itself is in `job.held`)
+      if (!job.held) job.progress = 0;
       job.downloadSpeed = 0;
       job.peers = 0;
       job.phase = null;
@@ -1703,14 +1863,14 @@ const resume = () => {
 
 module.exports = {
   list, listFor, create, approve, decline, cancel, cancelOwn, removeOwn, remove, resume, publicJob, publicJobFor, stats, markSeen, pruneGone, diskGate,
-  queueHealth, liveInfoHashes, restartJob, pumpNow, smartOnDisk, rawJobs, slots, setMaxActive,
+  queueHealth, liveInfoHashes, restartJob, pumpNow, smartOnDisk, rawJobs, slots, setMaxActive, startNow,
   // Pure helpers, exported so test/downloads.test.js can pin the rules that
   // decide where a file lands and whether a request needs approval — and the
   // seams test/dlrace-queue.test.js uses to play the queue out against a fake
   // engine (never in a running server).
   _internals: {
     safeName, folderKey, chooseFolder, diskGate, destinationFor, store,
-    active, seams, line, poll: () => poll(), raceTick: () => raceTick(seams.clock(), raceCfg()),
+    active, seams, line, quietState, resume: () => resume(), poll: () => poll(), raceTick: () => raceTick(seams.clock(), raceCfg()),
     setEngine: (engine) => { aria2 = engine; },
   },
 };
