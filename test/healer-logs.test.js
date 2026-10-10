@@ -110,6 +110,11 @@ test("repeat offenders: the FILE is named, not the error repeated", () => {
   // a path's own file name is the fallback
   const two = L.offenders(ev.concat(L.digest({ t: NOW, level: "error", msg: "Remux failed for D:\\Movies\\Other (2019)\\Other.mkv: again" })), {}, () => null, NOW);
   assert.ok(two.some((o) => o.name === "Other.mkv" && o.n === 3));
+  // ...whichever system wrote the path and whichever system reads the log
+  // (this assertion failed on Linux CI from 1.6.73 until 1.6.83: path.basename
+  // does not split a Windows path there)
+  const posix = [1, 2, 3].map((i) => L.digest({ t: NOW - i * MIN, level: "error", msg: "Remux failed for /srv/media/Films/Third (2020)/Third.mkv: Conversion failed!" }));
+  assert.ok(L.offenders(posix, {}, () => null, NOW).some((o) => o.name === "Third.mkv" && o.n === 3));
 });
 
 test("trend: a spike is this hour against the SAME hour on earlier days; a steady background rate is not a finding", () => {

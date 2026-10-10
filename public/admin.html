@@ -903,6 +903,33 @@
           <div class="empty-note hidden" id="dl-done-empty">Nothing finished yet.</div>
         </div>
       </details>
+      <details class="acard hidden" data-key="d-mylist" id="ml-card">
+        <summary><span class="chev">▶</span><h2>My List downloads <span class="note">adding a title to My List fetches the film, or the first episode of a show that person has not started — and removes it again if nobody watches it</span></h2></summary>
+        <div class="acard-body">
+          <div class="bar-row" style="align-items:center;margin-top:10px;flex-wrap:wrap;gap:10px 16px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)"><input type="checkbox" id="ml-on" /> Download when a title is added to My List</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)"><input type="checkbox" id="ml-shows" /> Shows too (the first episode)</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)"><input type="checkbox" id="ml-autodelete" /> Delete unwatched copies automatically</label>
+          </div>
+          <div class="bar-row" style="align-items:center;margin-top:8px;flex-wrap:wrap;gap:10px 16px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">Stale after
+              <input type="number" id="ml-stale" min="1" max="365" step="1" inputmode="numeric" aria-label="Stale after, days" style="max-width:70px;flex:none" /> days</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">Delete after
+              <input type="number" id="ml-delete" min="1" max="730" step="1" inputmode="numeric" aria-label="Delete after, days" style="max-width:70px;flex:none" /> days</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">Per person per day
+              <input type="number" id="ml-cap" min="1" max="50" step="1" inputmode="numeric" aria-label="Downloads per person per day" style="max-width:70px;flex:none" /></label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">Retries
+              <input type="number" id="ml-retries" min="0" max="5" step="1" inputmode="numeric" aria-label="Retries of a failed download" style="max-width:70px;flex:none" /></label>
+            <button class="btn small btn-primary" id="ml-apply">Apply</button>
+          </div>
+          <div class="muted" style="font-size:0.8rem;padding:4px">The days count from when the download finished (or from when the title was added to a list again). Watching it — even partly — stops both clocks for good. A stale copy is offered first by “Suggest what to delete” below. Only copies this feature fetched are ever touched.</div>
+          <div class="table-scroll"><table>
+            <thead><tr><th>Title</th><th>For</th><th>Added</th><th>Status</th><th></th></tr></thead>
+            <tbody id="ml-rows"></tbody>
+          </table></div>
+          <div class="empty-note hidden" id="ml-empty">Nothing has been fetched from a list yet.</div>
+        </div>
+      </details>
       <style>
         #lib-chips .chip-active { background: #7c5cff; border-color: #7c5cff; color: #fff; }
         #lib-tree summary::-webkit-details-marker { display: none; }
@@ -2529,6 +2556,82 @@
       }
     };
 
+    // ---------- My List downloads (Downloads tab) ----------
+    // The card stays hidden on a server that has not been restarted since the
+    // feature was added (it has no such route).
+    const ML_STATE = {
+      wanted: ["looking for a source", "warn"], waiting: ["waiting", "warn"], queued: ["downloading", "live"],
+      fresh: ["on disk", "live"], stale: ["stale", "warn"], hold: ["stale", "warn"], failed: ["failed", ""],
+      watched: ["watched — kept", "live"], claimed: ["kept", "live"], deleted: ["deleted", ""], gone: ["file removed", ""],
+      canceled: ["dropped", ""], "gave-up": ["gave up", ""], have: ["not needed", ""],
+    };
+    const mlDay = (t) => (t ? new Date(t).toISOString().slice(0, 10) : "—");
+    async function loadMyList() {
+      let m;
+      try {
+        const r = await adminFetch("/api/admin/mylist");
+        if (!r.ok) return;
+        m = await r.json();
+      } catch { return; }
+      if (!m || !m.settings) return;
+      $("#ml-card").classList.remove("hidden");
+      const s = m.settings;
+      const setBox = (id, v) => { $(id).checked = !!v; };
+      const setNum = (id, v) => { if (!$(id).matches(":focus")) $(id).value = v; };
+      setBox("#ml-on", s.myListDownloads); setBox("#ml-shows", s.myListShows); setBox("#ml-autodelete", s.myListAutoDelete);
+      setNum("#ml-stale", s.myListStaleDays); setNum("#ml-delete", s.myListDeleteDays);
+      setNum("#ml-cap", s.myListDailyCap); setNum("#ml-retries", s.myListRetries);
+      const rows = m.records || [];
+      $("#ml-empty").classList.toggle("hidden", rows.length > 0);
+      $("#ml-rows").innerHTML = rows.map((r) => {
+        const [word, pill] = ML_STATE[r.state] || [r.state, ""];
+        const live = ["fresh", "stale", "hold"].includes(r.state);
+        const clock = !live ? "" : r.state === "fresh"
+          ? `stale in ${daysUntil(r.staleAt)} d${s.myListAutoDelete ? `, deleted in ${daysUntil(r.deleteAt)} d` : ""}`
+          : !s.myListAutoDelete ? "not deleted automatically"
+            : r.due ? "deleted at the next daily pass" : `deleted in ${daysUntil(r.deleteAt)} d`;
+        return `
+        <tr data-ml-key="${esc(r.key)}" data-ml-state="${esc(r.state)}">
+          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.label)}">${esc(r.label)}</td>
+          <td>${esc(r.by || "—")}</td>
+          <td class="num">${mlDay(r.addedAt)}</td>
+          <td style="white-space:normal"><span class="pill ${pill}">${esc(word)}</span> <span class="muted" style="font-size:0.8rem">${esc([clock, r.why].filter(Boolean).join(" — "))}</span></td>
+          <td style="text-align:right;white-space:nowrap">${live ? `<button class="mini" data-ml-keep="${esc(r.key)}" data-ml-label="${esc(r.label)}">Keep</button>` : ""}</td>
+        </tr>`;
+      }).join("");
+    }
+    $("#ml-rows").addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-ml-keep]");
+      if (!b) return;
+      if (!await ask(`Keep "${b.dataset.mlLabel}"?\n\nIt will not be deleted automatically any more — it becomes an ordinary library title.`)) return;
+      const r = await post("/api/admin/mylist/keep", { key: b.dataset.mlKeep });
+      toast(r && r.ok ? "Kept" : (r && r.error) || "Couldn't keep it");
+      loadMyList(); loadLibraryTree();
+    });
+    $("#ml-apply").onclick = async () => {
+      const btn = $("#ml-apply");
+      btn.disabled = true;
+      try {
+        const r = await adminFetch("/api/admin/mylist/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          // (numbers go as typed: the server is what says what is allowed, in one place)
+          body: JSON.stringify({
+            myListDownloads: $("#ml-on").checked, myListShows: $("#ml-shows").checked, myListAutoDelete: $("#ml-autodelete").checked,
+            myListStaleDays: $("#ml-stale").value.trim(), myListDeleteDays: $("#ml-delete").value.trim(),
+            myListDailyCap: $("#ml-cap").value.trim(), myListRetries: $("#ml-retries").value.trim(),
+          }),
+        });
+        const data = await r.json().catch(() => ({}));
+        toast(r.ok ? "My List downloads: saved" : data.error || "Couldn't save that");
+        loadMyList(); loadLibraryTree();
+      } catch {
+        toast("Couldn't reach the server");
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
     // ---------- skip-intro marks (Moderation tab) ----------
     async function loadIntros() {
       let data;
@@ -2823,6 +2926,8 @@
 
     // ---------- downloads ----------
     const DL_STATUS_PILL = { pending: "warn", approved: "warn", downloading: "live", done: "live" };
+    // Queued because the title was added to My List (media/mylistdl.js).
+    const myListTag = (j) => j.auto === "mylist" ? ` <span class="pill" title="Fetched because it was added to My List — removed again if nobody watches it">My List</span>` : "";
     // The tail of a download is hash-verifying the store and then copying a few
     // GB into the library. Both used to show as "downloading" at ~100% with no
     // speed, which reads as hung — say which one it is instead.
@@ -2843,7 +2948,7 @@
           <div class="who">
             <div class="avatar">${j.type === "show" ? "📺" : "🎬"}</div>
             <div>
-              <div class="name">${esc(j.label || j.title)}</div>
+              <div class="name">${esc(j.label || j.title)}${myListTag(j)}</div>
               <div class="meta">${esc(j.quality || "?")} · ${fmtBytes(j.sizeBytes)}${j.provider ? " · " + esc(j.provider) : ""} · ${ago(j.at)}</div>
               ${j.holdReason ? `<div class="meta" style="color:#f87171">${esc(j.holdReason)}</div>` : ""}
             </div>
@@ -2883,7 +2988,7 @@
         const pct = Math.round((j.progress || 0) * 100);
         return `
         <tr>
-          <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}</td>
+          <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}${myListTag(j)}</td>
           <td class="num">${fmtBytes(j.sizeBytes)}</td>
           <td style="white-space:nowrap"><span class="mini-prog"><i style="width:${pct}%"></i></span><span class="muted num">${pct}%</span></td>
           <td class="num">${j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "—"}</td>
@@ -2898,7 +3003,7 @@
       $("#dl-done-empty").classList.toggle("hidden", finished.length > 0);
       $("#dl-done").innerHTML = finished.map((j) => `
         <tr>
-          <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}</td>
+          <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}${myListTag(j)}</td>
           <td>${esc(j.quality || "—")}</td>
           <td class="num">${fmtBytes(j.sizeBytes)}</td>
           <td><span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(j.status)}</span>${j.error ? " <span class='muted' title='" + esc(j.error) + "'>" + esc(j.error.slice(0, 40)) + "</span>" : ""}</td>
@@ -2967,6 +3072,16 @@
     const watchedBadge = (n) => n
       ? `<span class="pill live" title="finished by ${n} profile${n > 1 ? "s" : ""}" style="flex:none">✓ watched</span>`
       : "";
+    // A copy My List downloads fetched that nobody has watched: how long it
+    // has left ("stale" = offered first by "Suggest what to delete").
+    const daysUntil = (t) => Math.max(0, Math.ceil((t - Date.now()) / 86400e3));
+    const myListBadge = (m) => {
+      if (!m) return "";
+      const goes = m.deleteAt ? (m.deleteAt <= Date.now() ? "deleted at the next daily pass" : `deleted in ${daysUntil(m.deleteAt)} d`) : "not deleted automatically";
+      return m.state === "stale"
+        ? `<span class="pill warn" title="${esc(m.why)} — ${esc(goes)}" style="flex:none">My List · stale</span>`
+        : `<span class="pill" title="${esc(m.why)} — stale in ${daysUntil(m.staleAt)} d, ${esc(goes)}" style="flex:none">My List · ${daysUntil(m.staleAt)} d</span>`;
+    };
     let libTreeData = null;
     let libFilter = "all";
     async function loadLibraryTree() {
@@ -3011,7 +3126,7 @@
         `<input type="checkbox" class="lib-ep-check" data-id="${esc(e.id)}" data-size="${e.sizeBytes}" data-name="${esc(e.fileName)}" data-watched="${e.watched ? 1 : 0}" style="margin:0" />` +
         `<span class="muted num" style="min-width:52px">S${String(e.season).padStart(2, "0")}E${String(e.episode || 0).padStart(2, "0")}</span>` +
         `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.fileName)}">${esc(e.title)}</span>` +
-        watchedBadge(e.watched) +
+        watchedBadge(e.watched) + myListBadge(e.mylist) +
         `<span class="num muted">${fmtBytes(e.sizeBytes)}</span>` +
         `<button class="mini danger" data-file-id="${esc(e.id)}" data-file-name="${esc(e.fileName)}" data-file-size="${e.sizeBytes}">Delete</button>`, 26);
       $("#lib-tree").innerHTML = items.length ? items.map((it) => {
@@ -3019,7 +3134,7 @@
           return libRow(
             libThumb(it.cover, "🎬") +
             `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)}${it.year ? ` <span class="muted">(${it.year})</span>` : ""}</span>` +
-            watchedBadge(it.watched) +
+            watchedBadge(it.watched) + myListBadge(it.mylist) +
             `<span class="num muted">${fmtBytes(it.sizeBytes)}</span>` +
             `<button class="mini danger" data-del-type="movie" data-del-id="${esc(it.id)}" data-del-title="${esc(it.title)}">Delete</button>`);
         }
@@ -3141,15 +3256,28 @@
     // part-way through it. Longest-ago watched first (bigger first on a tie),
     // just enough of them to reach the target. Nothing is touched until the
     // list has been shown and confirmed.
+    // Ahead of those: STALE My List downloads — fetched because a title was
+    // added to a list, and not watched by anyone in the weeks since. Nobody
+    // asked for the file itself, so they go first (oldest add first).
     const freeCandidates = (tree) => {
       const out = [];
+      const stale = (x) => x.mylist && x.mylist.state === "stale" && !x.midway && !x.watched && x.sizeBytes > 0;
+      for (const m of tree.movies || []) {
+        if (stale(m)) out.push({ kind: "movie", id: m.id, name: m.title + (m.year ? ` (${m.year})` : ""), sizeBytes: m.sizeBytes, lastWatched: 0, mylist: m.mylist });
+      }
+      for (const s of tree.shows || []) for (const se of s.seasons || []) for (const e of se.episodes || []) {
+        if (stale(e)) out.push({ kind: "file", id: e.id, name: `${s.title} S${e.season}E${e.episode}`, sizeBytes: e.sizeBytes, lastWatched: 0, mylist: e.mylist });
+      }
+      out.sort((a, b) => (a.mylist.addedAt || 0) - (b.mylist.addedAt || 0));
+      const first = out.length;
       for (const m of tree.movies || []) {
         if (m.watched > 0 && !m.midway && m.sizeBytes > 0) out.push({ kind: "movie", id: m.id, name: m.title + (m.year ? ` (${m.year})` : ""), sizeBytes: m.sizeBytes, lastWatched: m.lastWatched || 0 });
       }
       for (const s of tree.shows || []) for (const se of s.seasons || []) for (const e of se.episodes || []) {
         if (e.watched > 0 && !e.midway && e.sizeBytes > 0) out.push({ kind: "file", id: e.id, name: `${s.title} S${e.season}E${e.episode}`, sizeBytes: e.sizeBytes, lastWatched: e.lastWatched || 0 });
       }
-      return out.sort((a, b) => a.lastWatched - b.lastWatched || b.sizeBytes - a.sizeBytes);
+      const watched = out.splice(first).sort((a, b) => a.lastWatched - b.lastWatched || b.sizeBytes - a.sizeBytes);
+      return [...out, ...watched];
     };
     const pickToFree = (tree, targetBytes) => {
       const picked = [];
@@ -3166,13 +3294,16 @@
       const gb = parseFloat($("#free-gb").value);
       if (!(gb > 0)) return toast("How many GB should be freed?");
       const { picked, total } = pickToFree(libTreeData, gb * 1024 ** 3);
-      if (!picked.length) return toast("Nothing is safe to delete yet — nothing has been watched to the end");
+      if (!picked.length) return toast("Nothing is safe to delete yet — nothing has been watched to the end, and no My List download has gone stale");
       const short = total < gb * 1024 ** 3;
-      const names = picked.slice(0, 12).map((c) => `${c.name} — ${fmtBytes(c.sizeBytes)}`).join("\n");
-      if (!await ask(`Delete ${picked.length} watched item${picked.length > 1 ? "s" : ""} to free ${fmtBytes(total)}?\n\n` +
+      const nStale = picked.filter((c) => c.mylist).length;
+      const names = picked.slice(0, 12).map((c) => `${c.name} — ${fmtBytes(c.sizeBytes)}${c.mylist ? ` (${c.mylist.why})` : ""}`).join("\n");
+      if (!await ask(`Delete ${picked.length} item${picked.length > 1 ? "s" : ""} to free ${fmtBytes(total)}?\n\n` +
         (short ? `That is everything that is safe to delete — less than the ${gb} GB asked for.\n\n` : "") +
         `${names}${picked.length > 12 ? `\n…and ${picked.length - 12} more` : ""}\n\n` +
-        "Each was finished by someone and nobody is part-way through it. Files are removed for good; watch progress is kept.")) return;
+        (nStale ? `${nStale === picked.length ? "Each" : `${nStale} of them`} was fetched because it was added to My List and has not been watched since (it stays on the list, to stream). ` : "") +
+        (nStale < picked.length ? `${nStale ? "The rest were" : "Each was"} finished by someone and nobody is part-way through ${nStale ? "them" : "it"}. ` : "") +
+        "Files are removed for good; watch progress is kept.")) return;
       const btn = $("#free-suggest");
       btn.disabled = true;
       let done = 0, freed = 0;
@@ -3286,7 +3417,7 @@
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
       profiles: () => loadPeople(),
       server: () => { loadServer(); loadHealth(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
-      downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadLimits(); },
+      downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadLimits(); loadMyList(); },
       moderation: () => { loadReports(); loadRequests(); loadIntros(); },
       logs: () => loadLogs(),
       actions: () => { loadActions(); loadBackups(); loadAlerts(); },

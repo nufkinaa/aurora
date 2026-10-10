@@ -175,7 +175,7 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
             {j.quality ? <Text style={styles.quality}>{j.quality}</Text> : null}
           </View>
           <Text style={styles.status} numberOfLines={1}>
-            {`${j.smart ? 'Next episode, queued for you · ' : ''}${statusLine(j)}${j.sizeBytes ? ` · ${fmtBytes(j.sizeBytes)}` : ''}`}
+            {`${j.auto === 'mylist' ? 'From My List · ' : j.smart ? 'Next episode, queued for you · ' : ''}${statusLine(j)}${j.sizeBytes ? ` · ${fmtBytes(j.sizeBytes)}` : ''}`}
           </Text>
           {pct != null ? (
             <View style={styles.bar}>

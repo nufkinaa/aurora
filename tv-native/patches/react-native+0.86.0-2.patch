@@ -1,3 +1,28 @@
+diff --git a/node_modules/react-native/Libraries/Image/Image.android.js b/node_modules/react-native/Libraries/Image/Image.android.js
+index f5e3f8a..9c17989 100644
+--- a/node_modules/react-native/Libraries/Image/Image.android.js
++++ b/node_modules/react-native/Libraries/Image/Image.android.js
+@@ -215,7 +215,19 @@ let BaseImage: AbstractImageAndroid = ({
+     ];
+     nativeProps.source = source_;
+   } else {
+-    const {uri, width: sourceWidth, height: sourceHeight} = source_;
++    const {
++      uri,
++      width: sourceWidth,
++      height: sourceHeight,
++      headers: sourceHeaders,
++    } = source_;
++    // AURORA PATCH: a single-object source lost its `headers` here (only the
++    // array branch above forwarded them), so every <Image source={{uri,
++    // headers}}> went out with no X-Session and a sign-in-required server
++    // answered 401 for every picture (nufurora.com, 2026-10-10).
++    if (sourceHeaders != null) {
++      nativeProps.headers = sourceHeaders;
++    }
+     if (uri === '') {
+       console.warn('source.uri should not be an empty string');
+     }
 diff --git a/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/views/view/ReactViewManager.kt b/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/views/view/ReactViewManager.kt
 index cf03a08..bd9af88 100644
 --- a/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/views/view/ReactViewManager.kt

@@ -187,6 +187,7 @@ app.use((req, res, next) => {
     if (OPEN_PATHS.test(req.path)) return next();
     if (authz.sessionFor(req)) return next();
     if (realtime.isAdmin(req)) return next();
+    if (require("./src/lib/internalpass").ok(req)) return next(); // the server reading its own /img (blur-up)
     // Say what a refused request carried — a TV with no pictures (every
     // /img/* answered 401, 2026-10-09) is otherwise a silent wall. One line
     // per path prefix per minute, no secrets: only which credential was
@@ -374,6 +375,10 @@ require("./src/media/introdetect");
   // One verified snapshot a day of what cannot be rebuilt — profiles, watch
   // state, sign-ins, settings, config (lib/backup.js; restore steps there).
   daily.register("backup", () => require("./src/lib/backup").runDaily());
+  // My List downloads: copies fetched because a title was added to a list go
+  // stale, then leave, when nobody watches them; failed ones get their one
+  // more try (media/mylistdl.js has the rules).
+  daily.register("my-list-downloads", () => require("./src/media/mylistdl").daily());
   daily.start();
 }
 // Followed shows: new episodes download by themselves when they air.

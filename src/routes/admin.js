@@ -238,12 +238,20 @@ router.get("/api/admin/library/tree", (req, res) => {
       } else if ((pr.position || 0) > 60) midway.set(itemId, (midway.get(itemId) || 0) + 1);
     }
   }
+  // mylist: a copy My List downloads fetched that nobody has watched yet —
+  // { state: "fresh" | "stale", why, by, addedAt, staleAt, deleteAt }. A stale
+  // one is a free pick for "free up space" (media/mylistdl.js).
+  let marks = new Map();
+  try { marks = require("../media/mylistdl").libraryMarks(); } catch (e) {
+    console.warn("[mylist] pass failed:", e && e.message ? e.message : e);
+  }
   const movies = scanner.index.movies.map((m) => ({
     id: m.id,
     title: m.title,
     year: m.year,
     cover: m.cover || null,
     addedAt: m.addedAt || 0,
+    mylist: marks.get(m.id) || null,
     watched: watchedBy.get(m.id) || 0,
     midway: midway.get(m.id) || 0,
     lastWatched: lastWatched.get(m.id) || 0,
@@ -260,6 +268,7 @@ router.get("/api/admin/library/tree", (req, res) => {
         title: e.title,
         fileName: e.fileName,
         addedAt: e.addedAt || 0,
+        mylist: marks.get(e.id) || null,
         watched: watchedBy.get(e.id) || 0,
         midway: midway.get(e.id) || 0,
         lastWatched: lastWatched.get(e.id) || 0,
@@ -284,6 +293,25 @@ router.get("/api/admin/library/tree", (req, res) => {
     if (roots[0]) free = disk.spaceSync(roots[0]);
   } catch {}
   res.json({ movies, shows, totalBytes, disk: free });
+});
+
+// ---------- My List downloads (media/mylistdl.js) ----------
+// The settings, and every copy the feature asked for with where it stands
+// (waiting, downloading, fresh, stale, deleted, watched…).
+router.get("/api/admin/mylist", (req, res) => {
+  res.json(require("../media/mylistdl").status());
+});
+// Only the keys sent are changed; a refused value changes nothing.
+router.post("/api/admin/mylist/settings", (req, res) => {
+  const r = require("../media/mylistdl").setSettings(req.body || {});
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json(r);
+});
+// "Keep": this copy is never deleted by itself — as if it had been watched.
+router.post("/api/admin/mylist/keep", (req, res) => {
+  const r = require("../media/mylistdl").keep(String((req.body || {}).key || ""));
+  if (r.error) return res.status(404).json({ error: r.error });
+  res.json(r);
 });
 
 // ---------- health (watchdog) ----------

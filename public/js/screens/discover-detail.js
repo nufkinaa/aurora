@@ -19,6 +19,7 @@ import {
   fmtAirDate,
   resolveAirStates,
   toast,
+  savedLine,
   confirmSheet,
   artUrl,
   formatBadges,
@@ -78,7 +79,7 @@ const streamWatchlistButton = (meta) => {
     haptic(8);
     paint();
     try {
-      await api.toggleWatchlist(
+      const res = await api.toggleWatchlist(
         state.profile.id,
         {
           imdbId: meta.imdbId,
@@ -94,7 +95,7 @@ const streamWatchlistButton = (meta) => {
         inList,
       );
       toast(
-        inList ? `“${meta.title}” saved for later` : "Off the list. Bold.",
+        inList ? savedLine(meta.title, res) : "Off the list. Bold.",
         inList ? "➕" : "➖",
       );
     } catch {}

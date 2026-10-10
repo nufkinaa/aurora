@@ -459,6 +459,19 @@ export const formatRow = (item, opts) => {
   return el("span", { class: "fmt", "aria-label": "Formats: " + list.join(", ") }, list.map((t) => el("span", {}, t)));
 };
 
+// What the My List button says after an add. The server answers with what it
+// started fetching because of it (`download`, My List downloads —
+// src/media/mylistdl.js): the film, or the first episode of a show this
+// profile has not started. An
+// older server sends no such field, and then this is the line it always was.
+export const savedLine = (title, res) => {
+  const d = res && res.download;
+  const base = `“${title}” saved for later`;
+  if (!d || !d.queued) return base;
+  if (d.what === "film") return `${base} — downloading the film`;
+  return `${base} — downloading the first episode`;
+};
+
 let toastRoot;
 // `action` ({label, onClick}) renders a tappable button on the toast — the
 // undo pattern. Action toasts accept pointer events; plain ones stay inert.

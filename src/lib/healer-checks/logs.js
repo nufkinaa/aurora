@@ -31,6 +31,13 @@ const NEW_WARN_MS = HOUR; // …and colours the check for its first hour
 
 // ------------------------------------------------------------ pure parts
 
+// The file name at the end of a path as it was LOGGED — which may have come
+// from a Windows box ("D:\\Movies\\X.mkv" in the log) while this server runs on Linux, or
+// the other way round. path.basename only knows the running system's own
+// separator: on Linux it handed a whole Windows path back as the "name" (and
+// failed CI on every push since 1.6.73).
+const fileNameOf = (p) => String(p).split(/[\\/]/).filter(Boolean).pop() || String(p);
+
 // Which file or title a failing line is about: [pattern, kind of subject, what was being done].
 const SUBJECTS = [
   [/^\[jit\] producer exited \d+ \(([0-9a-f]{12})-/, "id", "converting"], // media/jit.js
@@ -127,7 +134,7 @@ const offenders = (events, playFailures, nameOf, now, { windowMs = KEEP_MS, min 
   };
   for (const e of events) {
     if (!e.subj || now - e.t > windowMs) continue;
-    const name = nameOf(e.subj.kind, e.subj.value) || (e.subj.kind === "path" ? path.basename(e.subj.value) : e.subj.value);
+    const name = nameOf(e.subj.kind, e.subj.value) || (e.subj.kind === "path" ? fileNameOf(e.subj.value) : e.subj.value);
     add(name, name, e.subj.doing, 1);
   }
   for (const [id, n] of Object.entries(playFailures || {})) {
@@ -300,7 +307,7 @@ const checkOffenders = async (ctx = {}) => {
   } catch {}
   const nameOf = ctx.nameOf || ((kind, value) => {
     try {
-      if (kind === "path") return path.basename(value);
+      if (kind === "path") return fileNameOf(value);
       if (kind !== "id") return value;
       const scanner = require("../../media/scanner");
       const e = scanner.resolve(value);

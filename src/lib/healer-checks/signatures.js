@@ -159,15 +159,17 @@ const SIGNATURES = [
   {
     id: "routine", title: "Routine", level: "quiet",
     // server.js (webrtc, boot banner), lib/health.js (its own alerts), media/torrent.js (self-recovering reads),
-    // media/downloads.js (re-queues the healer itself causes), lib/push.js (boot prune), media/ai.js (salvaged reply)
-    re: /^\[webrtc\] .*\(benign\)|^\[health\] (?:ALERT|the health ping|health alerts have nowhere|healthPingUrl)|^\[torrent\] (?:bitfield distrusted|read stalled|.+ — resuming)|^\[download\] \w+ (?:re-queued|no second source)|^\[download\] could not remember a source outcome|^\[push\] dropped \d+ subscription|^\[ai\] reply was truncated|^\s*⚠ /,
+    // media/downloads.js (re-queues the healer itself causes), lib/push.js (boot prune), media/ai.js (salvaged reply),
+    // media/mylistdl.js (a My List download that found no source / failed / could not be removed yet: written
+    // down and tried once more by a later daily pass — its decisions, not faults)
+    re: /^\[mylist\] (?:could not queue|download failed|could not delete) |^\[webrtc\] .*\(benign\)|^\[health\] (?:ALERT|the health ping|health alerts have nowhere|healthPingUrl)|^\[torrent\] (?:bitfield distrusted|read stalled|.+ — resuming)|^\[download\] \w+ (?:re-queued|no second source)|^\[download\] could not remember a source outcome|^\[push\] dropped \d+ subscription|^\[ai\] reply was truncated|^\s*⚠ /,
   },
   {
     id: "background", title: "A background job keeps failing", level: "warn", min: 10,
     // lib/daily.js, media/follows.js, media/smartdl.js, media/smartclean.js, routes/profiles.js, media/introdetect.js,
-    // media/similar.js, media/librarywarm.js, profiles.js, media/preconvert.js
-    re: /^\[(?:daily|follow|smart|intro|similar|warm|profiles|preconvert)\] /,
-    means: "A background job keeps failing (the tag in brackets says which: the daily refresh, follows, smart downloads, intro detection…). Nothing is lost, but its results go stale.",
+    // media/similar.js, media/librarywarm.js, profiles.js, media/preconvert.js, media/mylistdl.js (+ its callers)
+    re: /^\[(?:daily|follow|smart|intro|similar|warm|profiles|preconvert|mylist)\] /,
+    means: "A background job keeps failing (the tag in brackets says which: the daily refresh, follows, smart downloads, My List downloads, intro detection…). Nothing is lost, but its results go stale.",
     press: "daily-now",
   },
 

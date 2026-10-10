@@ -74,7 +74,13 @@ const shrink = (buf) =>
 const make = async (u) => {
   const local = localUrl(u);
   if (!local) throw new Error("not a picture this server serves");
-  const r = await fetch(`http://127.0.0.1:${config.PORT}${local}`, { signal: AbortSignal.timeout(20000) });
+  // The server asking itself: in closed mode the sign-in wall answered this
+  // 401 like any stranger (no placeholder for anyone, and a log full of
+  // "[auth] 401 /img ua=node"). It carries this process's own pass instead.
+  const r = await fetch(`http://127.0.0.1:${config.PORT}${local}`, {
+    signal: AbortSignal.timeout(20000),
+    headers: { [require("./internalpass").HEADER]: require("./internalpass").value },
+  });
   if (!r.ok) throw new Error(`picture answered ${r.status}`);
   const webp = await shrink(Buffer.from(await r.arrayBuffer()));
   const uri = `data:image/webp;base64,${webp.toString("base64")}`;
