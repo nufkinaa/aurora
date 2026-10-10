@@ -5,9 +5,10 @@
 //   home    → have both
 //
 // THE VIEWER IS NEVER ASKED WHERE THE SERVER IS. Two addresses live in
-// api.ts's SERVER_CANDIDATES: the LAN one is tried first, and if it does not
-// answer on the first try the remote one becomes the server for this run. The
-// setup screen that used to ask is deleted.
+// api.ts's SERVER_CANDIDATES and are tried in that order (src/serverPick.ts):
+// nufurora.com first, and the house server only when nufurora.com does not
+// answer — for this run; the next launch, and every Retry, starts at the first
+// address again. The setup screen that used to ask is deleted.
 import {clearHomeScreen} from './src/homeScreen';
 import React, {useEffect, useState} from 'react';
 import {View, StatusBar, ActivityIndicator, StyleSheet} from 'react-native';
@@ -55,9 +56,9 @@ export default function App() {
   });
 
   // Boot: restore whatever we remembered and jump to the furthest valid stage.
-  // The saved server URL is health-checked first; if it stopped answering
-  // (the PC's IP changed), the known fallback addresses are tried and the one
-  // that answers replaces it. Only when nothing answers does setup reappear.
+  // The saved server URL decides nothing: the known addresses are tried in
+  // their own order and the one that answers is saved (resolveServer). Only
+  // when none answers does the offline state appear.
   useEffect(() => {
     // Cancellation guard: two Retry presses used to run two boots in parallel,
     // and the slower one's `offline` verdict could land AFTER the faster one
@@ -270,7 +271,7 @@ export default function App() {
         {stage === 'offline' ? (
           <ErrorState
             message="Can't reach Aurora."
-            detail="Tried the house server and the remote one. Check the server is running, then try again."
+            detail="Tried nufurora.com and the house server. Check the server is running, then try again."
             edgeLeft={false}
             onAction={() => setBoot(n => n + 1)}
           />

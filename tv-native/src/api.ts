@@ -4,16 +4,27 @@
 // mirroring the web client.
 import {PixelRatio} from 'react-native';
 import {takeBlur} from './blur';
+import {pickServer} from './serverPick';
 
 let baseUrl = '';
 let token: string | null = null;
 
 // WHERE THE SERVER IS. In code, deliberately — there is no setup screen and the
-// viewer is never asked. The LAN address is tried first; if it does not answer on
-// the first try the remote one BECOMES the server for this run.
+// viewer is never asked. Tried IN THIS ORDER (serverPick.ts): nufurora.com
+// first, and the house server only when nufurora.com does not answer (elia,
+// 2026-10-10: "we should have nufurora.com right away and home server only
+// after if we don't find nufurora"). With the house address first, a TV away
+// from home sat on a black screen for 4 s on every launch waiting for an
+// address it could never reach.
+//
+// A QA build puts its own address FIRST — one line inserted right under the
+// `[`, tagged with the QA-variant marker and removed again by deleting the
+// lines that carry the marker (which is why the marker is not spelled out in
+// this comment). The first entry is always the one tried first, so that line
+// still decides where a QA build goes.
 export const SERVER_CANDIDATES = [
-  "http://10.0.0.1:4000",
   'https://nufurora.com',
+  "http://10.0.0.1:4000",
 ];
 
 export const setBaseUrl = (url: string) => {
@@ -766,6 +777,14 @@ export const _memoInternals = {keys: () => [...memoStore.keys()], max: MEMO_MAX,
 // and the app hangs on a black loading screen with no way forward. Racing the
 // fetch against a timer that RESOLVES false removes that failure mode: the ping
 // always answers in time whether or not the underlying socket ever does.
+//
+// WHAT A SERVER SAID ABOUT ITSELF IS KEPT PER ADDRESS (pinged) and only the
+// CHOSEN server's answer is applied (resolveServer). A ping used to write the
+// sign-in mode and the blur flag straight into the globals, so an answer that
+// arrived after its timeout — from an address that had been given up on —
+// overwrote what the chosen server had said.
+type Pinged = {authMode: string | null; imgBlur: boolean; hosts: string[]};
+const pinged = new Map<string, Pinged>();
 const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
   const ctrl = new AbortController();
   // /api/ping, NOT /api/home: ping is tiny, stays open in EVERY auth mode
@@ -776,14 +795,15 @@ const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
       if (!res.ok) return false;
       try {
         const j = await res.json();
-        if (j && typeof j.authMode === 'string') authMode = j.authMode;
-        serverBlurs = !!(j && j.imgBlur);
         const hosts: unknown = j && j.imgHosts;
-        pingedArtHosts.set(
-          url,
-          Array.isArray(hosts) ? hosts.filter((h): h is string => typeof h === 'string' && LATER_ART_HOSTS.includes(h)) : [],
-        );
-      } catch {}
+        pinged.set(url, {
+          authMode: j && typeof j.authMode === 'string' ? j.authMode : null,
+          imgBlur: !!(j && j.imgBlur),
+          hosts: Array.isArray(hosts) ? hosts.filter((h): h is string => typeof h === 'string' && LATER_ART_HOSTS.includes(h)) : [],
+        });
+      } catch {
+        pinged.delete(url);
+      }
       return true;
     })
     .catch(() => false);
@@ -811,31 +831,25 @@ const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
 // there healthy. The remembered URL is kept only so the first request has a base
 // before this resolves; it is never a preference.
 //
-// IN ORDER, one try each: "if the first does not answer on the first try, the
-// fallback becomes the main URL" — for that run, and only that run. Not parallel
-// — parallel would let the remote win a race the LAN should always win.
-//
-// The cost of a spurious failover (the TV's Wi-Fi still waking from power-save
-// can fail a first ping) is that a session runs over the internet instead of the
-// LAN. That is slower, not broken — and the next launch tries the LAN first again.
-//
-// ONE RETRY FOR THE FIRST CANDIDATE. Measured on the Mi TV (Android 14,
-// 2026-10-06): the very first launch after the box woke from its screensaver
-// failed the LAN ping inside the 2 s and the whole session ran on the remote —
-// in closed mode that is the QR sign-in screen instead of the profile gate,
-// for a server that was healthy a second later. Wi-Fi coming out of power-save
-// is the one failure worth a second look; the remote still wins if the LAN is
-// really gone (worst case two seconds slower to boot).
+// IN ORDER, and never in parallel — the order, the waits and the first
+// address's one second look are serverPick.ts (which says what each costs).
+// Every call walks the list from the top: a Retry on the offline screen, and
+// the next launch, start at the first address again, so a run that fell back
+// to the second address is that run only.
 export const resolveServer = async (_savedUrl?: string | null): Promise<string | null> => {
-  for (const [i, candidate] of SERVER_CANDIDATES.entries()) {
-    const url = candidate.replace(/\/+$/, '');
-    if ((await pingUrl(url)) || (i === 0 && (await pingUrl(url)))) {
-      // what THIS server said it proxies — not whichever answered last
-      serverArtHosts = new Set(pingedArtHosts.get(url) || []);
-      return url;
-    }
+  const url = await pickServer(SERVER_CANDIDATES, {
+    ping: pingUrl,
+    now: Date.now,
+    sleep: ms => new Promise<void>(r => setTimeout(r, ms)),
+  });
+  if (url) {
+    // what THIS server said — not whichever answered last
+    const said = pinged.get(url);
+    if (said?.authMode) authMode = said.authMode;
+    serverBlurs = !!said?.imgBlur;
+    serverArtHosts = new Set(said?.hosts || []);
   }
-  return null;
+  return url;
 };
 
 // Absolute URL for an image/stream path the server returns as root-relative
@@ -893,7 +907,6 @@ const PROXY_ART_HOSTS = new Set([
 //    episode card; proxied, they arrive from the server at the drawn width.
 const LATER_ART_HOSTS = ['episodes.metahub.space'];
 let serverArtHosts = new Set<string>();
-const pingedArtHosts = new Map<string, string[]>();
 
 // Whether the server can pre-blur art (?blur=, reported by /api/ping). An
 // older server ignores the parameter and would hand back a SHARP picture,
