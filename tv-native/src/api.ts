@@ -469,6 +469,16 @@ export type PartySummary = {
   members: number;
 };
 
+/** The same parties, as the hero band draws them (so a list that arrives
+ *  unchanged — every return to Home asks — is not a new state). */
+export const sameParties = (a: PartySummary[], b: PartySummary[]) =>
+  a === b ||
+  (a.length === b.length &&
+    a.every((p, i) => {
+      const q = b[i];
+      return p.code === q.code && p.host === q.host && p.title === q.title && p.members === q.members && (p.cover || null) === (q.cover || null);
+    }));
+
 export type TrailerAnswer =
   | {source: 'apple'; hls: string; id: string; quality?: number}
   | {source: 'youtube'; ids: string[]}
@@ -546,13 +556,17 @@ const fetchBounded = (url: string, init: RequestInit, firstByteMs: number): Prom
         const i = line.indexOf(':');
         if (i > 0) h.append(line.slice(0, i).trim(), line.slice(i + 1).trim());
       }
-      resolve(new Response(xhr.response, {status: xhr.status, statusText: xhr.statusText, headers: h}));
+      // (a 304 has no body by definition — and a Response that follows the
+      // standard refuses to be built with one, even an empty string)
+      resolve(new Response(xhr.status === 304 ? null : xhr.response, {status: xhr.status, statusText: xhr.statusText, headers: h}));
     };
     arm(firstByteMs, 'The server took too long to answer');
     xhr.send(init.body == null ? null : (init.body as string));
   });
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// The request itself, up to an answer that is not an error. `allow304` lets a
+// conditional read (If-None-Match) have its "nothing changed" answer back.
+async function send(path: string, options: RequestInit = {}, allow304 = false): Promise<Response> {
   if (!baseUrl) throw new ApiError(0, 'No server configured');
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -577,7 +591,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     // friendly, catchable shape instead of a raw TypeError.
     throw new ApiError(0, 'Cannot reach server');
   }
-  if (!res.ok) {
+  if (!res.ok && !(allow304 && res.status === 304)) {
     // The server writes its error bodies for viewers ("too many attempts —
     // try again in a few minutes") — surface them instead of a status line.
     let body: {error?: string; signinRequired?: boolean; pinRequired?: boolean} = {};
@@ -598,9 +612,63 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     }
     throw err;
   }
+  return res;
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await send(path, options);
   // the tiny pictures that ride beside an answer go to blur.ts; the screen
   // gets the answer it always got
   return takeBlur((await res.json()) as T);
+}
+
+// ---- Home's rows, kept between visits -----------------------------------
+// Home asks for its rows again on every return to it (Continue Watching is
+// what changes while the viewer is away). Most of the time nothing changed:
+// two answers in a row are the same bytes. Parsing them again gave every
+// item a NEW object, so every memoised row and card re-rendered during the
+// fade back to Home, for the same picture. The last answer is kept, and
+//   - the server is asked conditionally (If-None-Match with the ETag Express
+//     sent): "304, nothing changed" costs no download and no parse;
+//   - a 200 whose text equals the kept text (a server or proxy that does not
+//     answer conditionally) is not parsed again either.
+// Both hand back THE SAME OBJECT as last time, so React sees nothing new. A
+// body that really changed is parsed and replaces what is kept. One entry:
+// the profile is in the path, so another profile simply starts over.
+const UNREADABLE = 'The server sent an answer the app could not read';
+let homeKept: {path: string; etag: string | null; text: string; value: Home} | null = null;
+async function readHome(path: string): Promise<Home> {
+  const kept = homeKept && homeKept.path === path ? homeKept : null;
+  let res: Response;
+  if (kept?.etag) {
+    try {
+      res = await send(path, {headers: {'If-None-Match': kept.etag}}, true);
+    } catch (e) {
+      // An answer from the server (401, 500…) is the answer. Anything else —
+      // the line, or a network stack that will not carry a conditional read —
+      // is asked once more the plain way, so this can never be the reason
+      // Home's rows stop refreshing.
+      if (e instanceof ApiError && e.status !== 0) throw e;
+      res = await send(path);
+    }
+  } else {
+    res = await send(path);
+  }
+  if (kept && res.status === 304) return kept.value;
+  const text = await res.text();
+  if (kept && text === kept.text) {
+    kept.etag = res.headers.get('etag') || kept.etag;
+    return kept.value;
+  }
+  let body: Home;
+  try {
+    body = JSON.parse(text) as Home;
+  } catch {
+    throw new ApiError(0, UNREADABLE);
+  }
+  const value = takeBlur(body);
+  homeKept = {path, etag: res.headers.get('etag'), text, value};
+  return value;
 }
 
 function post<T>(path: string, body: unknown): Promise<T> {
@@ -844,7 +912,7 @@ export const api = {
   // and Detail/Player fetch /api/item for the rest — so those fields were 60% of
   // a 450 KB payload that this device had to pull over wifi and parse on launch.
   home: (profileId: string) =>
-    request<Home>(`/api/home?slim=1&profile=${encodeURIComponent(profileId)}`),
+    readHome(`/api/home?slim=1&profile=${encodeURIComponent(profileId)}`),
   library: (fresh = false) => memo('library', 60000, () => request<Library>('/api/library'), fresh),
   setPreferences: (profileId: string, likedGenres: string[]) =>
     post<{ ok: boolean }>(`/api/profiles/${profileId}/preferences`, { likedGenres }),

@@ -23,7 +23,7 @@ import Row from '../components/Row';
 import NavRail from '../components/NavRail';
 import {ErrorState} from '../components/States';
 import TrailerFrame, {TrailerHandle, TrailerState} from '../components/Trailer';
-import {api, artPath, ART_LADDER, imgSrc, ImgSource, serverCanBlur, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
+import {api, artPath, ART_LADDER, imgSrc, ImgSource, sameParties, serverCanBlur, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
 import {checkForUpdate, holdPromptFor, onUpdateReady, updateReady, UpdateInfo} from '../update';
 import {currentRouteName} from '../rootNav';
 import {syncHomeScreen, useHomeScreenLinks} from '../homeScreen';
@@ -292,9 +292,13 @@ export default function Home({
   useEffect(() => {
     if (!live) return;
     let on = true;
-    const load = () => api.parties().then(d => on && setParties(d.parties || [])).catch(() => {});
+    // The same list is the same state: every return to Home asks, and the
+    // usual answer (no parties) was a new empty array — one more render of
+    // the whole screen during the fade back.
+    const put = (next: PartySummary[]) => setParties(prev => (sameParties(prev, next) ? prev : next));
+    const load = () => api.parties().then(d => on && put(d.parties || [])).catch(() => {});
     load();
-    const off = onMessage('party_list', d => on && setParties((d.parties as PartySummary[]) || []));
+    const off = onMessage('party_list', d => on && put((d.parties as PartySummary[]) || []));
     const off2 = onMessage('welcome', load);
     return () => {
       on = false;
