@@ -2004,13 +2004,15 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   // "plays your copy" row in front of you without you doing anything.
   let openRow = null;
 
+  // → the list's own promise ({ streams, best, jobs }), so a caller can act
+  // on what was found (saveBestEpisode below); null when there is no list.
   const openSources = (row, { scroll = true } = {}) => {
-    if (!imdbId || !canSource) return;
+    if (!imdbId || !canSource) return null;
     openRow = row;
     epSourcesLabel.textContent = `Sources · S${row.season} E${row.episode}`;
     epSourcesLabel.hidden = false;
     sourcesSection.hidden = false;
-    loadSources(
+    const listed = loadSources(
       sourcesSection,
       {
         type: "series",
@@ -2075,6 +2077,55 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       // room for the floating nav: the heading used to end up under it
       sourcesSection.style.scrollMarginTop = "96px";
       sourcesSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    return listed;
+  };
+
+  // PRESSING AN EPISODE YOU DO NOT HOLD (owner, 2026-10-10: "like the TV
+  // today. But also open sources for that episode, just not scroll the user
+  // to there"). One press does both, as on the TV:
+  //   (a) the best source starts downloading at once — the source the list
+  //       marks ★ BEST, else its first (the rule "Save & watch" uses for a
+  //       film; the TV's rule) — and the card carries the job from there;
+  //   (b) that episode's sources open below, in place: the page does not
+  //       scroll and nothing takes focus from the card that was pressed.
+  // An episode already on its way gets no second job — just its state said
+  // again and its sources opened. Nothing found, the provider down, a title
+  // a kids profile may not have: the sources section says so, as before.
+  const savingEps = new Set();
+  const saveBestEpisode = async (row) => {
+    const key = epJobKey(row.season, row.episode);
+    const running = epJobs.get(key);
+    const listed = openSources(row, { scroll: false });
+    if (running) return toast(`${epJobText(running)} — its sources are below`, "⏳");
+    if (savingEps.has(key) || !listed) return;
+    savingEps.add(key);
+    try {
+      const r = await listed.catch(() => null);
+      const best = r && (r.best || (r.streams || [])[0]);
+      if (!best) return;
+      const res = await requestDownload(best, base(), `${view.title} · S${row.season} E${row.episode}`, row.season, row.episode, { quiet: true });
+      if (!res || res.error || res.alreadyAvailable) return;
+      if (!epJobs.has(key)) {
+        epJobs.set(key, res.job && DL_ACTIVE.includes(res.job.status)
+          ? res.job
+          : { status: res.needsApproval ? "pending" : "approved", progress: 0, season: row.season, episode: row.episode });
+      }
+      // The card is redrawn to carry the job. Where the viewer is stays where
+      // it was: the same scroll position, and the focus back on the same card
+      // if that is where it was (a redraw replaces the node that held it).
+      const x = window.scrollX;
+      const y = window.scrollY;
+      const active = document.activeElement;
+      const held = !!(active && active.dataset && active.dataset.ep === key);
+      renderEpisodes();
+      if (held) {
+        const card = episodeList.querySelector(`[data-ep="${key}"]`);
+        if (card) card.focus({ preventScroll: true });
+      }
+      window.scrollTo(x, y);
+    } finally {
+      savingEps.delete(key);
     }
   };
 
@@ -2234,20 +2285,20 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
             (local ? " owned" : "") +
             (job ? " dl" : "") +
             (i === upNextAt && anyWatched ? " up-next" : ""),
-          // A downloaded episode in 1080p or better simply plays — there is
-          // nothing to choose. One being saved says how far it is. Anything
-          // else (not on disk, or a smaller copy) opens its sources, where your
-          // copy sits first if you have one. A HOLD (or right-click) on any
-          // episode opens its sources — the way back to the list once a source
-          // was chosen and the list went away (elia, 2026-10-07).
+          // A downloaded episode simply PLAYS, whatever its size (owner,
+          // 2026-10-10 — a copy below 1080p used to open its sources instead;
+          // the TV always played it). One you do not hold: the best source
+          // starts downloading and its sources open below, in place
+          // (saveBestEpisode). A HOLD (or right-click) on any episode opens
+          // its sources — other versions of one you hold, and the way back to
+          // the list once a source was chosen (elia, 2026-10-07).
           ...(unaired
             ? { disabled: true, "aria-disabled": "true" }
             : {
                 onclick: () =>
-                  hd || (local && !canSource) ? navigate(`#/play/${local.id}`)
-                  : job ? toast(`${epJobText(job)} — hold the episode for its sources`, "⏳")
+                  local ? navigate(`#/play/${local.id}`)
                   : !canSource ? toast("That episode isn't on this server", "📭")
-                  : openSources(row),
+                  : saveBestEpisode(row),
               }),
         },
         el("div", { class: "episode-num" }, row.episode),
