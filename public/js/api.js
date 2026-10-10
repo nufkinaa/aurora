@@ -136,6 +136,13 @@ export const api = {
   xray: ({ type, imdbId, season, episode, keys }) =>
     warmed(`/api/xray?type=${type}&imdbId=${encodeURIComponent(imdbId)}` +
       (season ? `&season=${season}&episode=${episode}` : "") + (keys && keys.length ? `&keys=${encodeURIComponent(keys.join(","))}` : ""), 10 * 60 * 1000),
+  // A person (the sheet behind a press on an actor or director): `id` is what
+  // X-Ray handed out ("tmdb:525") or "name:<their name>" with the title it was
+  // pressed on. Not warmed: its titles carry this profile's My List marks.
+  person: (id, { of = null, type = null, profile = null } = {}) =>
+    json(`/api/person/${encodeURIComponent(id)}?` + [
+      of && `of=${encodeURIComponent(of)}`, type && `type=${encodeURIComponent(type)}`, profile && `profile=${encodeURIComponent(profile)}`,
+    ].filter(Boolean).join("&")),
   // what the household has been watching lately (the empty Search screen)
   popular: (profileId) => warmed(`/api/popular?profile=${encodeURIComponent(profileId || "")}`, 5 * 60 * 1000),
   party: (code) => json(`/api/party/${encodeURIComponent(code)}`),

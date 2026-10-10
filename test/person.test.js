@@ -209,6 +209,7 @@ test("a TMDB id answers with the person, sized photo addresses through the image
     { title: "Dream Heist", year: 2010, type: "movie", role: "Director", dept: "directing", imdbId: "tt0000002", poster: "https://image.tmdb.org/t/p/w342/p2.jpg", certificate: "13+", kidsAge: 13 },
   );
   assert.deepEqual(r.credits.map((c) => c.title), ["Dream Heist", "Stars Between", "Cameo Film", "Steel Man", "Big League"]);
+  assert.deepEqual(first.genres, ["Drama"], "genres in the catalogue's own words, for My List's filter");
   // one request for the person, one per title shown
   assert.equal(t.calls.filter((c) => c.startsWith("/person/")).length, 1);
   assert.equal(t.calls.filter((c) => /^\/(movie|tv)\/\d+\?/.test(c)).length, 5);

@@ -123,6 +123,7 @@ Rules that keep the suite reliable:
 | `images.test.js` | blur-up placeholders give way to sharp posters (desktop + phone); a broken poster falls back to the titled tile |
 | `kids.test.js` | a kids profile's grids / Home / Search, blocked title and its streams (403), leaving needs the PIN, a normal profile is unaffected (skips if the server has no kids routes) |
 | `admin.test.js` | admin gate, People tab, approve / reject a request (arrives live), kids controls, every tab opens; Downloads → "Downloads at once" (set, reload, out-of-range refused) and the second-source line under a job (stubbed queue); My List downloads → the settings (set, reload, refused values), the tag on a job, the stale mark on disk and the stale copy leading "Suggest what to delete" (stubbed answers) |
+| `person.test.js` | the person sheet: X-Ray → a person → their titles by department → a press puts one on My List, a second takes it off (toast, Undo, the "downloading" wording with a stubbed answer); Details (button, the I key, right-click) and Back from it; photos enlarge; the title page's cast line; someone the server cannot look up; a phone (sheet over X-Ray's sheet, Back closes the top layer only); over a film and over a fullscreen film; a kids profile. The people are seeded into the server's own cache (`test/ui/support/person-seed.js`), so `/api/person` is the real route — only pictures are answered by the browser |
 | `downloads.test.js` | My downloads: a job trying a second source keeps its one card and gains one note (stubbed queue) |
 
 ### How stall recovery is tested

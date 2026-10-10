@@ -94,6 +94,16 @@ const ORDER = {
 };
 const orderFor = (knownFor) => ORDER[knownFor] || ORDER.Acting;
 
+// TMDB's genre ids, in the words the rest of the catalogue uses (Cinemeta's),
+// so a title added from a person's sheet lands in My List's genre filter.
+const GENRES = {
+  28: ["Action"], 12: ["Adventure"], 16: ["Animation"], 35: ["Comedy"], 80: ["Crime"], 99: ["Documentary"], 18: ["Drama"],
+  10751: ["Family"], 14: ["Fantasy"], 36: ["History"], 27: ["Horror"], 10402: ["Music"], 9648: ["Mystery"], 10749: ["Romance"],
+  878: ["Sci-Fi"], 53: ["Thriller"], 10752: ["War"], 37: ["Western"], 10759: ["Action", "Adventure"], 10762: ["Family"],
+  10764: ["Reality-TV"], 10765: ["Sci-Fi", "Fantasy"], 10766: ["Drama"], 10768: ["War"],
+};
+const genreNames = (ids) => [...new Set((ids || []).flatMap((g) => GENRES[g] || []))].slice(0, 4);
+
 // Appearing as oneself is not a role: chat shows, award nights, making-ofs.
 const SELF = /\b(self|himself|herself|themselves|themself)\b|\b(archive footage|archival footage)\b/i;
 const TALK = new Set([10767, 10763]); // TV genres: Talk, News
@@ -115,7 +125,7 @@ const slim = (p) => {
     const key = `${k}:${c.id}`;
     let e = by.get(key);
     if (!e) {
-      e = { k, id: c.id, t: String(title).slice(0, 140), y: yearOf(c.release_date || c.first_air_date), p: c.poster_path || null, v: c.vote_count || 0, r: c.vote_average ? Math.round(c.vote_average * 10) / 10 : null, roles: {} };
+      e = { k, id: c.id, t: String(title).slice(0, 140), y: yearOf(c.release_date || c.first_air_date), p: c.poster_path || null, v: c.vote_count || 0, r: c.vote_average ? Math.round(c.vote_average * 10) / 10 : null, g: c.genre_ids || [], roles: {} };
       by.set(key, e);
     }
     return e;
@@ -473,6 +483,7 @@ const create = (deps = {}) => {
         poster: c.p ? `${IMG}/w342${c.p}` : null,
         rating: c.r,
         votes: c.v,
+        genres: genreNames(c.g),
         certificate: t.c || null,
         kidsAge: typeof t.a === "number" ? t.a : null,
         ownedHint: own,
