@@ -11,6 +11,7 @@ import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import Focusable from './Focusable';
 import Icon from './Icon';
 import {artPath, artPx, imgSrc, HeroItem} from '../api';
+import {cardArt, CARD_W, CARD_H, WIDE_W, WIDE_H, COMPACT_W, COMPACT_H, FRAME_W, FRAME_H} from '../cardArt';
 import {onMessage} from '../realtime';
 import {trackError} from '../usage';
 import {blurOf, markDrawn, wasDrawn} from '../blur';
@@ -30,23 +31,9 @@ const BLUR_RADIUS = 1;
 // haven't started it (components.js:77).
 const NEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-export const CARD_W = 124;
-export const CARD_H = 186; // 176 × 0.70, 2:3 (components.css:321-324)
-// `.card.wide` is 300px at 16/9 (components.css:325-328). ×0.59, which is the one
-// place the card set is not ×0.70 — D3 pinned both shapes directly.
-export const WIDE_W = 176;
-export const WIDE_H = 99;
-// Continue Watching (glass.css, 2026-10-06): 320px at 16:10 on the site, with
-// the picture you stopped on, the title set large on a deep fade and what is
-// left under it. ×0.70 here.
-// The compact poster (the AI page's results grid, 2026-10-08): 70% of the
-// standard poster so eight columns fit a 960dp canvas. Same 2:3, same look.
-// Wider than the first cut (88dp): the title and the reason under it were
-// not readable from the sofa (elia, 2026-10-09). Six per row at 1080p.
-export const COMPACT_W = 116;
-export const COMPACT_H = 174;
-export const FRAME_W = 224;
-export const FRAME_H = 140;
+// The card's sizes, and which picture it draws at which address, live in
+// cardArt.ts — shared with the prefetcher, which must ask for the same address.
+export {CARD_W, CARD_H, WIDE_W, WIDE_H, COMPACT_W, COMPACT_H, FRAME_W, FRAME_H};
 
 // `.card-shade` (components.css:348) — #05060c from 0.92 at the foot to clear
 // 45% up. Baked by tools/gen_ambient.py as an 8×256 strip that varies only
@@ -70,13 +57,6 @@ const Shade = React.memo(function CardShade() {
 const FrameShade = React.memo(function CardFrameShade() {
   return <Image source={FRAME_SHADE} style={styles.shade} resizeMode="stretch" fadeDuration={0} />;
 });
-
-// How wide the card's picture is drawn, in dp, for the server's width
-// variants. A cover-fitted picture fills the box's HEIGHT when it is wider
-// than the box: a 16:9 backdrop or still on the 16:10 frame card is drawn
-// FRAME_H × 16/9 wide, not FRAME_W. Posters (2:3) and anything narrower than
-// the box are width-bound.
-const FRAME_ART_W = Math.ceil((FRAME_H * 16) / 9);
 
 // A picture that will not load is asked for again, but not forever: three
 // slow rounds (30 s, 2 min, 8 min — the server remembers a failed upstream
@@ -140,36 +120,16 @@ function Card({
   // target (requestTVFocus lives on the host instance).
   ref?: React.Ref<View>;
 }) {
-  const isEpisode = !!item.showId && item.type !== 'show';
-  const landscape = wide || isEpisode;
+  // Which picture, at which address (cardArt.ts — the prefetcher asks for the
+  // same one): a frame card shows the moment you stopped on when the server
+  // can cut it, else the title's landscape art, else the poster; sized by the
+  // server (`?w=`) whenever it can be.
+  const {isEpisode, landscape, canFrame, artDp, sizedPath, src, blurKey} = cardArt(item, {wide, frame, compact});
   const prog = item.progress;
   const pct =
     prog && prog.duration > 0 && !prog.finished
       ? Math.min(100, Math.round((prog.position / prog.duration) * 100))
       : null;
-  // The picture. A frame card (Continue Watching) shows the moment you stopped
-  // on when the server can cut it — a library title with a position — else the
-  // title's landscape art, else the poster (components.js:164-170). Posters
-  // keep the cover.
-  const canFrame = frame && prog && prog.position > 20 && item.id && !String(item.id).startsWith('torrent|');
-  const picture = canFrame
-    ? `/img/frame/${encodeURIComponent(item.id)}?t=${Math.floor(prog!.position)}`
-    : (frame && !isEpisode && item.backdrop) || item.cover || item.poster;
-  // At the size it is drawn (api.ts artPath — the site's artUrl): the server
-  // sends a variant that wide, so the box decodes the picture once, at size,
-  // with no `resizeMethod="resize"` re-encode. Frames and hosts the server
-  // does not proxy keep their address (and the on-device resize).
-  const artDp = frame
-    ? (!isEpisode && item.backdrop) || isEpisode
-      ? FRAME_ART_W
-      : FRAME_W
-    : landscape
-    ? WIDE_W
-    : compact
-    ? COMPACT_W
-    : CARD_W;
-  const sizedPath = canFrame ? null : artPath(picture, artPx(artDp));
-  const src = imgSrc(sizedPath || picture);
   // A picture that fails is asked for again (elia, 2026-10-07: "if the app
   // did not load a cover photo it will just not try again"). Android's image
   // pipeline never retries by itself, so one hiccup on the line used to
@@ -252,9 +212,7 @@ function Card({
   // Cheap by construction: one extra Image, only while the picture is on its
   // way, never for a picture this run has drawn before, and gone (one state
   // change, this card only) the moment the real one has loaded.
-  const blur = blurOf(
-    canFrame ? item.backdrop || item.cover || item.poster : (frame && !isEpisode && item.backdrop) || item.cover || item.poster,
-  );
+  const blur = blurOf(blurKey);
   const [loadedUri, setLoadedUri] = React.useState<string | null>(null);
   const showBlur = !!blur && !!src && !broken && loadedUri !== src.uri && !wasDrawn(src.uri);
   const onImgLoad = () => {
