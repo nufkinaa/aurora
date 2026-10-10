@@ -34,8 +34,8 @@
 // An alternate title (the catalogue's name for a library folder called
 // "Avatar Movie") scores like the title when it is exact, 20 lower otherwise.
 // Inside a tier, in order: the year you typed, the library before the
-// catalogue, popularity (the catalogue's own order for this query, then its
-// trending position), the literal spelling, the shorter title, the newer
+// catalogue, popularity (the trending position plus half the catalogue's own
+// place for this query), the literal spelling, the shorter title, the newer
 // one. Nothing from a lower tier can pass a higher one, whatever its
 // popularity.
 //

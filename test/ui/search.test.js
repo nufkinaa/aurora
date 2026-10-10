@@ -275,6 +275,31 @@ ui.test("a kids profile: results, the related row and suggestions hold only what
   assert.deepEqual(await results(page), []);
 });
 
+ui.test("the API: v2 is one ranked list with a related tail; a client from before still gets `results` + `catalog`; recents need the profile", async ({ api, lib }) => {
+  const v2 = await api.get("/api/search?v=2&q=test%20film%20one");
+  assert.deepEqual(Object.keys(v2), ["q", "results", "related", "relatedLabel", "relatedKind", "anchor", "pending", "catalogFailed", "tookMs"]);
+  assert.deepEqual(v2.results.map((x) => [x.id, x.title, x.source, x.inLibrary, x.match.tier, x.match.kind]), [[lib.film1.id, "Test Film One", "downloaded", lib.film1.id, 1000, "title"]]);
+  assert.equal("seasons" in v2.results[0], false);
+  assert.deepEqual(v2.related.map((x) => [x.title, x.why.kind, x.why.label]), [["Test Film Two", "cast", "With Tessa Example"]]);
+  assert.equal(v2.relatedLabel, "More like Test Film One");
+  assert.ok(v2.tookMs < 50, `the search took ${v2.tookMs} ms of server time`);
+  assert.deepEqual((await api.get("/api/search?v=2&q=")).results, []);
+
+  const old = await api.get("/api/search?q=test%20film%20one");
+  assert.deepEqual(Object.keys(old), ["results", "catalog"]);
+  assert.deepEqual(old.results.map((x) => x.id), [lib.film1.id]);
+  assert.deepEqual(old.catalog, []);
+  assert.deepEqual(await api.get("/api/search?q="), { results: [] });
+
+  const sug = await api.get("/api/search/suggest?v=2&q=tes");
+  assert.deepEqual(sug.suggestions.map((x) => x.kind), ["title", "title", "title", "person"]);
+  const before = await api.get("/api/search/suggest?q=test%20fi"); // the old shape: titles only
+  assert.ok(before.suggestions.length && before.suggestions.every((x) => x.title && !("kind" in x)));
+
+  assert.equal((await api.call("GET", "/api/profiles/nobody/searches")).status, 404);
+  assert.equal((await api.call("POST", "/api/profiles/nobody/searches", { q: "dune" })).status, 404);
+});
+
 ui.test("phone: the same search in one column of suggestions, nothing wider than the screen", { viewport: { width: 390, height: 844 } }, async ({ page, goto, signIn, freshProfile }) => {
   await signIn(await freshProfile());
   await goto("#/search");
