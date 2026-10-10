@@ -150,7 +150,7 @@ export const renderPickForMe = async (root) => {
       for (const o of getOptions()) {
         const on = o.id === getValue();
         row.append(
-          el("button", {
+          el("button", { "data-ui": "pick.option",
             type: "button",
             class: `pfm-pill focusable ${on ? "on" : ""}`,
             "aria-pressed": on ? "true" : "false",
@@ -171,7 +171,7 @@ export const renderPickForMe = async (root) => {
     (v) => { length = v; }
   );
 
-  const goBtn = el("button", { type: "button", class: "pfm-go focusable" }, "Find me something");
+  const goBtn = el("button", { "data-ui": "pick.go", type: "button", class: "pfm-go focusable" }, "Find me something");
   const waiting = el("div");                                 // holds the wait state while busy
   const status = el("div", { class: "pfm-status" });
   const results = el("div", { class: "pfm-results grid" });
@@ -299,7 +299,7 @@ export const renderPickForMe = async (root) => {
     el("div", { class: "pfm-examples" },
       el("span", { class: "pfm-examples-label" }, "Try:"),
       ...EXAMPLES.map((ex) =>
-        el("button", {
+        el("button", { "data-ui": "pick.example",
           type: "button",
           class: "pfm-example focusable",
           onclick: () => { input.value = ex; ask(); },

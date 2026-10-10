@@ -122,7 +122,7 @@ export default function WhatsNew({navigation}: NativeStackScreenProps<RootStackP
         <Text style={styles.sub}>{`Hi ${me?.name || 'there'} — here's what this TV can do now, and how.`}</Text>
         <View style={styles.grid}>
           {FEATURES.map((f, i) => (
-            <Focusable
+            <Focusable uiId="whatsnew.go"
               key={f.title}
               scaleTo={1.02}
               lift={2}
@@ -147,7 +147,7 @@ export default function WhatsNew({navigation}: NativeStackScreenProps<RootStackP
           ))}
         </View>
 
-        <Focusable
+        <Focusable uiId="whatsnew.log"
           round
           edgeLeft
           onPress={() => setShowLog(s => !s)}

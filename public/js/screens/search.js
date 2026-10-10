@@ -11,6 +11,7 @@
 import { el, icons, debounce, restoreScrollY } from "../ui.js";
 import { api } from "../api.js";
 import { track } from "../usage.js";
+import { tmStart, tmLap } from "../telemetry.js"; // [analytics]
 import { state, loadLibrary } from "../state.js";
 import { navigate } from "../router.js";
 import { onMessage } from "../ws.js";
@@ -129,7 +130,7 @@ export const renderSearch = async (root) => {
     class: "focusable",
     "aria-label": "Search",
   });
-  const clearBtn = el("button", {
+  const clearBtn = el("button", { "data-ui": "search.clear",
     class: "search-clear focusable hidden",
     type: "button",
     "aria-label": "Clear search",
@@ -194,7 +195,7 @@ export const renderSearch = async (root) => {
       el("span", { style: { color: "var(--text-faint)", fontSize: "0.85rem", fontWeight: "700" } }, "Recent:"),
       ...list.map((q) =>
         el("span", { class: "recent-chip" },
-          el("button", { class: "chip focusable", onclick: () => { input.value = q; paintClear(); run.cancel(); search(q, { committed: true }); } }, q),
+          el("button", { "data-ui": "search.recent.pick", class: "chip focusable", onclick: () => { input.value = q; paintClear(); run.cancel(); search(q, { committed: true }); } }, q),
           el("button", {
             class: "recent-x focusable",
             type: "button",
@@ -228,7 +229,7 @@ export const renderSearch = async (root) => {
         el("div", { class: "glyph" }, "📡"),
         `Couldn't reach the catalogue for “${q}”.`,
         el("div", { style: { marginTop: "14px" } },
-          el("button", { class: "btn small focusable", onclick: retry }, "Try again")));
+          el("button", { "data-ui": "search.retry", class: "btn small focusable", onclick: retry }, "Try again")));
     } else if (!committed && q.length < CATALOG_MIN) {
       status.append(
         el("div", { class: "glyph" }, "🔍"),
@@ -294,6 +295,7 @@ export const renderSearch = async (root) => {
     }
     status.classList.add("hidden");
     setBusy("Searching…");
+    tmStart("search"); // [analytics] query sent → results shown (the time only; never the text)
     const profileId = pid();
     let r = null;
     let failed = false;
@@ -306,6 +308,7 @@ export const renderSearch = async (root) => {
     if (r) {
       popularHost.classList.add("hidden");
       paint(r);
+      tmLap("search_results", "search", "library"); // [analytics]
       track("feat", { f: "search", hits: (r.results || []).filter((x) => x.source !== "stream").length }); // how often, never what
     }
     const any = () => results.childElementCount > 0 || relatedGrid.childElementCount > 0;
@@ -316,6 +319,7 @@ export const renderSearch = async (root) => {
         r = await api.searchAll(q, { wait: true, commit: committed, pin, profileId, signal });
         if (!live()) return;
         paint(r);
+        tmLap("search_results", "search", "catalogue"); // [analytics]
       } catch {
         if (!live()) return;
         failed = true;
@@ -341,7 +345,7 @@ export const renderSearch = async (root) => {
       if (failed) {
         status.innerHTML = "";
         status.append(el("div", { class: "search-hint" }, "The catalogue didn't answer — these are from the library. ",
-          el("button", { class: "btn small focusable", onclick: () => search(q, { committed: true }) }, "Try again")));
+          el("button", { "data-ui": "search.retry", class: "btn small focusable", onclick: () => search(q, { committed: true }) }, "Try again")));
         status.classList.remove("hidden");
       }
       // remember searches that found something — at once when you pressed

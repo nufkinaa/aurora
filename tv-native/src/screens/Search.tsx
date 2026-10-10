@@ -18,6 +18,7 @@ import Chip from '../components/Chip';
 import NavRail from '../components/NavRail';
 import {api, HeroItem, SearchAnswer, SearchSuggestion} from '../api';
 import {track} from '../usage';
+import {tmLap, tmStart} from '../telemetry'; // [analytics]
 import {canNavigate} from '../navLock';
 import {warmItem} from '../prefetch';
 import {noteFocus, noteOwnFocusMove, pressMovedFocus, railOpen, useFocusFallback, useTVKeys} from '../focus';
@@ -184,9 +185,11 @@ export default function Search({
             .catch(() => {});
           try {
             // what the server has in memory, at once…
+            tmStart('search'); // [analytics] query sent → results shown (the time only; never the text)
             let r = await api.searchAll(query, {commit: now, profileId});
             if (!current()) return;
             setAnswer(r);
+            tmLap('search_results', 'search', 'library'); // [analytics]
             track('feat', {f: 'search', hits: r.results.filter(i => i.source !== 'stream').length}); // how often, never what (as the site)
             // …then the live catalogue and the related row; the first card
             // stays where it is unless something matches better
@@ -194,6 +197,7 @@ export default function Search({
               r = await api.searchAll(query, {wait: true, commit: now, pin: r.results[0]?.key, profileId});
               if (!current()) return;
               setAnswer(r);
+              tmLap('search_results', 'search', 'catalogue'); // [analytics]
             }
             setPhase('done');
             if (now && r.results.length) remember(query);
@@ -320,6 +324,7 @@ export default function Search({
         <View style={styles.chips}>
           {chips.map((s, at) => (
             <Chip
+              uiId="search.suggestion.pick"
               key={`${s.kind}-${s.id || s.imdbId || s.name}`}
               ref={at === 0 ? firstChipRef : undefined}
               small
@@ -336,6 +341,7 @@ export default function Search({
           <Text style={styles.bandLabel}>Recent</Text>
           {recents.map((r, at) => (
             <Chip
+              uiId="search.recent.pick"
               key={r}
               ref={at === 0 ? firstChipRef : undefined}
               small

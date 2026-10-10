@@ -26,10 +26,11 @@ export default function SessionWiring() {
     // SETTINGS THAT FOLLOW THE PERSON (personSync.ts): what the box remembers
     // of this profile applies at once, then the profile itself is asked. Usage
     // stats follow whatever it says, now and when it changes on another
-    // device — nothing is counted until the box's own copy has been read
-    // (loadPrefs waits for it), so a person who said no is never reported
-    // for the first seconds of a session.
-    setUsageEnabled(false);
+    // device. This is the ONE place the switch comes from (usage.ts THE
+    // SWITCH): setUsageProfile above left it "not known yet", so what happens
+    // before the box's own copy has been read (loadPrefs waits for it) is
+    // held, not sent — a person who said no is never reported for the first
+    // seconds of a session, and one who said yes loses nothing of them.
     setProfileReadSink((id, prefs) => patchMe(id, {prefs: prefs as never}));
     enterPerson(profileId);
     const offPerson = onPersonPrefs(p => setUsageEnabled(p.usageStats !== false));

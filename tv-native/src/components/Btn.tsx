@@ -28,8 +28,10 @@ export default function Btn({
   edgeLeft,
   onPress,
   onFocusChange,
+  uiId,
   ref,
 }: {
+  uiId?: string; // [analytics] which control this is (Focusable.uiId)
   label: string;
   icon?: IconName;
   // An emoji drawn as its own flex child, which is how the site writes the two
@@ -67,6 +69,7 @@ export default function Btn({
       ring={primary ? 'violet' : 'white'}
       hasTVPreferredFocus={hasTVPreferredFocus}
       edgeLeft={edgeLeft}
+      uiId={uiId}
       onFocusChange={f => {
         setFocused(f);
         onFocusChange?.(f);

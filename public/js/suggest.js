@@ -73,6 +73,7 @@ export const attachSuggest = (input, host, opts = {}) => {
       return el(
         "button",
         {
+          "data-ui": "search.suggestion.pick",
           class: `suggest-item suggest-${s.kind} focusable`,
           "aria-label": s.kind === "person" ? `${s.name}, person` : `${s.name}, genre`,
           onclick: () => pick(s),
@@ -85,7 +86,7 @@ export const attachSuggest = (input, host, opts = {}) => {
     }
     return el(
       "button",
-      { class: "suggest-item focusable", onclick: () => pick(s) },
+      { "data-ui": "search.suggestion.pick", class: "suggest-item focusable", onclick: () => pick(s) },
       s.cover
         ? posterImg(s.cover, s.title, "suggest-thumb", "suggest-thumb")
         : el("span", { class: "suggest-thumb" }),

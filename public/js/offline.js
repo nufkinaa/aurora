@@ -335,5 +335,5 @@ export const registerWorker = () => {
       if (reg.active) ping();
       else navigator.serviceWorker.addEventListener("controllerchange", ping, { once: true });
     })
-    .catch(() => {});
+    .catch((e) => { import("./telemetry.js").then((t) => t.reportError("sw", `service worker did not register: ${(e && e.name) || "error"}`)).catch(() => {}); }); // [analytics]
 };

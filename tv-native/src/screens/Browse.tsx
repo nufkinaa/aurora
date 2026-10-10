@@ -785,7 +785,7 @@ export default function Browse({
       </View>
     ) : catPending && catErr ? (
       <View style={styles.footer}>
-        <Btn small label="Retry" onPress={retryAll} />
+        <Btn uiId="browse.retry" small label="Retry" onPress={retryAll} />
       </View>
     ) : nextErr && hasMore ? (
       <View style={styles.footer}>
@@ -890,7 +890,7 @@ export default function Browse({
             <Text style={styles.kicker}>{title.toUpperCase()}</Text>
             <View style={styles.cats}>
               {CATEGORIES.map(c => (
-                <Chip
+                <Chip uiId="browse.category.pick"
                   key={c.id}
                   bare
                   label={c.label}
@@ -909,11 +909,11 @@ export default function Browse({
               onOpenChange={setPickerOpen}
             />
             <View style={styles.toolRow}>
-              <Chip label="Unwatched" on={unwatched} onPress={() => pick(() => setUnwatched(u => !u))} />
+              <Chip uiId="browse.unwatched" label="Unwatched" on={unwatched} onPress={() => pick(() => setUnwatched(u => !u))} />
             </View>
             {note ? <Text style={styles.note}>{note}</Text> : null}
             <View style={styles.spacer} />
-            <Btn small glyph="🎲" label="Surprise me" onPress={surprise} />
+            <Btn uiId="browse.surprise" small glyph="🎲" label="Surprise me" onPress={surprise} />
           </TVFocusGuideView>
         </Animated.View>
       ) : null}

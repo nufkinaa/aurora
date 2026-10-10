@@ -130,6 +130,7 @@ Rules that keep the suite reliable:
 | `ai.test.js` | the AI page keeps its last answer for the profile that asked and for nobody else (stubbed answer) |
 | `person.test.js` | the person sheet: X-Ray → a person → their titles by department → a press puts one on My List, a second takes it off (toast, Undo, the "downloading" wording with a stubbed answer); Details (button, the I key, right-click) and Back from it; photos enlarge; the title page's cast line; someone the server cannot look up; a phone (sheet over X-Ray's sheet, Back closes the top layer only); over a film and over a fullscreen film; a kids profile. The people are seeded into the server's own cache (`test/ui/support/person-seed.js`), so `/api/person` is the real route — only pictures are answered by the browser |
 | `downloads.test.js` | My downloads: a job trying a second source keeps its one card and gains one note (stubbed queue) |
+| `telemetry.test.js` | usage stats beyond events (`docs/analytics.md`): a thrown error and seven failed pictures arrive as one counted report each, reduced (no title, id, address or token); `console.warn` and a refused request are reported by their shape; a tagged control is counted and screens are timed; a profile with usage stats off sends nothing and the server refuses a batch for it anyway (`X-Usage: off`); the admin's App health page — errors (new / spiking / ignored, mark known, ignore), timings against the previous version, most used, the alert rules, Copy — from stubbed data; the admin endpoints themselves |
 
 ### How stall recovery is tested
 

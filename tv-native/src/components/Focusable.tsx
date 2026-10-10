@@ -24,6 +24,7 @@ import {
   findNodeHandle,
 } from 'react-native';
 import {noteFocus, noteFocusLost} from '../focus';
+import {uiHit} from '../telemetry'; // [analytics]
 import theme from '../theme';
 
 const {colors, radius, focus} = theme;
@@ -162,6 +163,10 @@ type Props = {
   // right-hand panel (Browse's filters). Same write-on-focus contract.
   edgeRight?: boolean;
   onFocusChange?: (focused: boolean) => void;
+  // [analytics] Which control this is, from the fixed list in docs/analytics.md
+  // ("detail.play"). A press is then COUNTED (a counter increment — nothing is
+  // stored or sent at press time); without it nothing happens at all.
+  uiId?: string;
   // Exposed so callers can imperatively move focus here
   // (instance.requestTVFocus() — react-native-tvos attaches it to View refs).
   ref?: React.Ref<View>;
@@ -190,6 +195,7 @@ export default function Focusable({
   holdLeft,
   edgeRight,
   onFocusChange,
+  uiId,
   ref,
 }: Props) {
   const anim = useRef(new Animated.Value(0)).current;
@@ -321,7 +327,14 @@ export default function Focusable({
       {...(holdLeft && selfTag != null ? ({nextFocusLeft: selfTag} as object) : null)}
       hasTVPreferredFocus={wantsFocus}
       accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
+      onPress={
+        uiId && onPress
+          ? () => {
+              uiHit(uiId);
+              onPress();
+            }
+          : onPress
+      }
       onLongPress={onLongPress}
       onFocus={() => {
         claimRing(idRef.current);

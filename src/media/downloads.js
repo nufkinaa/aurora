@@ -1015,6 +1015,7 @@ const startJob = async (job) => {
     delete job.held;
   }
   job.status = "downloading";
+  require("../lib/tel/timings").downloadStarted(job); // [analytics] asked → approved → started
   job.error = null;
   job.phase = "finding";      // looking for the torrent's details, before any bytes
   job.copyProgress = null;
@@ -1652,6 +1653,7 @@ const finish = async (job, destPath) => {
   job.copyProgress = null;
   job.destPath = destPath;
   job.doneAt = now();
+  require("../lib/tel/timings").downloadDone(job); // [analytics] started → in the library
   job.raceNote = null;
   store.save();
 

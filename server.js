@@ -172,7 +172,9 @@ app.use((req, res, next) => {
   const authmode = require("./src/lib/authmode");
   // exact paths (or the /api/auth/ subtree) — prefix matching would let a
   // future route named e.g. /api/me-something slip through the wall unnoticed
-  const OPEN_PATHS = /^\/api\/(ping|me|server-info)$|^\/api\/auth\//;
+  // (usage: [analytics] a device the wall refuses may still say so — the
+  // route keeps only its error reports then, routes/usage.js)
+  const OPEN_PATHS = /^\/api\/(ping|me|server-info|usage)$|^\/api\/auth\//;
   // Everything that serves DATA: the API, video streams, avatars, the artwork
   // proxy-cache (/img/*) and the generic URL proxy (/proxy). Deliberately NOT
   // gated: the app shell + login screen assets, /admin + /web shells (their
@@ -210,6 +212,8 @@ app.use((req, res, next) => {
   });
 }
 
+// [analytics] how long the heavy endpoints take to answer (lib/tel/timings.js)
+app.use(require("./src/lib/tel/timings").middleware);
 // Blur-up placeholders ride along on JSON answers for clients that ask (lib/blurup.js).
 app.use(require("./src/lib/blurup").middleware);
 app.use(require("./src/routes/auth"));

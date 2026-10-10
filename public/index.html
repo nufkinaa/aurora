@@ -116,16 +116,16 @@
     <!-- .nav-items is display:contents in the classic look (no layout change) and
          the floating glass island in the glass one -->
     <div class="nav-items">
-    <a class="nav-item focusable" href="#/search" data-route="#/search" data-nav aria-label="Search">
+    <a class="nav-item focusable" href="#/search" data-route="#/search" data-ui="nav.search" data-nav aria-label="Search">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="vertical-align:-3px"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
     </a>
-    <a class="nav-item focusable" href="#/" data-route="#/" data-nav>Home</a>
-    <a class="nav-item focusable" href="#/movies" data-route="#/movies" data-nav>Movies</a>
-    <a class="nav-item focusable" href="#/shows" data-route="#/shows" data-nav>Shows</a>
-    <a class="nav-item focusable" href="#/list" data-route="#/list" data-nav>My List</a>
-    <a class="nav-item focusable hidden" id="nav-pick" href="#/pick" data-route="#/pick" data-nav>AI</a>
-    <a class="nav-item focusable" id="nav-new" href="#/new" data-route="#/new" data-nav>New<i class="nav-new-dot" aria-hidden="true"></i></a>
-    <a class="nav-item focusable hidden" id="nav-saved" href="#/saved" data-route="#/saved" data-nav title="Saved on this device">Saved</a>
+    <a class="nav-item focusable" href="#/" data-route="#/" data-ui="nav.home" data-nav>Home</a>
+    <a class="nav-item focusable" href="#/movies" data-route="#/movies" data-ui="nav.movies" data-nav>Movies</a>
+    <a class="nav-item focusable" href="#/shows" data-route="#/shows" data-ui="nav.shows" data-nav>Shows</a>
+    <a class="nav-item focusable" href="#/list" data-route="#/list" data-ui="nav.mylist" data-nav>My List</a>
+    <a class="nav-item focusable hidden" id="nav-pick" href="#/pick" data-route="#/pick" data-ui="nav.ai" data-nav>AI</a>
+    <a class="nav-item focusable" id="nav-new" href="#/new" data-route="#/new" data-ui="nav.new" data-nav>New<i class="nav-new-dot" aria-hidden="true"></i></a>
+    <a class="nav-item focusable hidden" id="nav-saved" href="#/saved" data-route="#/saved" data-ui="nav.saved" data-nav title="Saved on this device">Saved</a>
     </div>
     <!-- the empty nav stretch hosts a slow aurora borealis (decoration only;
          painted by js/aurora.js while the nav is solid) -->
@@ -134,11 +134,11 @@
     </span>
     <!-- live download pill: hidden when idle, "⬇ 2 · 47%" while the server
          pulls something down; tapping it opens the requests/downloads page -->
-    <a class="nav-dl focusable hidden" id="nav-dl" href="#/downloads" data-nav title="Downloads in progress"></a>
-    <a class="nav-item nav-gear focusable" href="#/preferences" data-route="#/preferences" data-nav title="Settings" aria-label="Settings">
+    <a class="nav-dl focusable hidden" id="nav-dl" href="#/downloads" data-ui="nav.downloads" data-nav title="Downloads in progress"></a>
+    <a class="nav-item nav-gear focusable" href="#/preferences" data-route="#/preferences" data-ui="nav.settings" data-nav title="Settings" aria-label="Settings">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-4px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </a>
-    <button class="nav-profile focusable" id="nav-profile" title="Switch profile">
+    <button class="nav-profile focusable" id="nav-profile" data-ui="nav.profile" title="Switch profile">
       <span class="avatar" id="nav-avatar">🍿</span>
       <span id="nav-profile-name">Profile</span>
     </button>

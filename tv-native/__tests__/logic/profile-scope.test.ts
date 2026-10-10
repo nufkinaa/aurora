@@ -32,8 +32,11 @@ const PROFILE: Record<string, string[]> = {
   'realtime.ts': ['identity', 'lastActivity'],
   'screens/Detail.tsx': ['seasonPicks'],
   'screens/Pick.tsx': ['last'],
+  // (telemetry's unsent books — errors, timings, control counts — are objects
+  // this table's pattern does not see; its registration empties them: clear())
+  'telemetry.ts': ['off'],
   'trailers.ts': ['resolved', 'prepared'],
-  'usage.ts': ['queue', 'profile', 'errors'],
+  'usage.ts': ['queue', 'profile', 'errors', 'profileAllows'],
 };
 
 // file → variable → why it is NOT a profile's
@@ -134,7 +137,29 @@ const DEVICE: Record<string, Record<string, string>> = {
     readyInfo: 'the app update',
     readyHandler: 'the app update',
   },
-  'usage.ts': {timer: 'the flush timer', enabledFlag: 'follows the active person’s setting (SessionWiring sets it on every entry)'},
+  'telemetry.ts': {
+    iid: 'this install’s id (one per box, never per person)',
+    ready: 'the install id has been read',
+    screen: 'which screen is on show',
+    lastInput: 'the idle gate: when the remote was last used',
+    firstBatch: 'this run’s first batch',
+    poke: 'usage.ts’ callback, set once',
+    version: 'this build',
+    playAt: 'a play is starting (the idle gate)',
+    beatAt: 'the freeze heartbeat',
+    active: 'the app is in front',
+    activeSince: 'the app is in front',
+    runState: 'how the last run ended',
+    navAt: 'when the screen on show was asked for',
+    navOnce: 'which timings this screen has given',
+    lastPath: 'how the current play is delivered',
+    gateAt: 'a profile was just picked (one timing)',
+    homeSeen: 'Home was usable once this run',
+    titleDim: 'library or catalogue, for the title page on show',
+    seekAt: 'a seek in flight',
+    seekTo: 'a seek in flight',
+  },
+  'usage.ts': {timer: 'the flush timer', buildFlags: 'what this build said about itself', facts: 'what this box is'},
 };
 
 // A module-scope declaration that can hold state: `let x`, or a const that is
@@ -280,7 +305,7 @@ describe('the request cache', () => {
 });
 
 test('the modules that hold a profile’s state are all in the registry once loaded', () => {
-  for (const name of ['api', 'prefetch', 'trailers', 'usage', 'party', 'personSync', 'realtime']) {
+  for (const name of ['api', 'prefetch', 'trailers', 'usage', 'telemetry', 'party', 'personSync', 'realtime']) {
     expect(registeredProfileCaches()).toContain(name);
   }
 });

@@ -53,15 +53,6 @@ test("prefs: a write of one key leaves the others as they were", () => {
   });
 });
 
-test("usage opt-out: asked per profile; an unknown profile has not opted out", () => {
-  withProfiles([{ id: "in", name: "A" }, { id: "out", name: "B", prefs: { usageStats: false } }, { id: "on", name: "C", prefs: { usageStats: true } }], () => {
-    assert.strictEqual(profiles.usageOptedOut("out"), true);
-    assert.strictEqual(profiles.usageOptedOut("in"), false);
-    assert.strictEqual(profiles.usageOptedOut("on"), false);
-    assert.strictEqual(profiles.usageOptedOut("nobody"), false);
-  });
-});
-
 const usageRouter = require("../src/routes/usage");
 const handlerOf = (router, path, method) => {
   const layer = router.stack.find((l) => l.route && l.route.path === path && l.route.methods[method]);
@@ -69,12 +60,15 @@ const handlerOf = (router, path, method) => {
   return st[st.length - 1].handle; // past any gate
 };
 const fakeRes = () => {
-  const r = { code: 200, body: undefined };
+  const r = { code: 200, body: undefined, headers: {} };
+  r.setHeader = (k, v) => ((r.headers[k] = v), r);
   r.status = (c) => ((r.code = c), r);
   r.json = (b) => ((r.body = b), r);
   r.end = () => r;
   return r;
 };
+
+const req = (body) => ({ body, headers: {}, ip: "127.0.0.1", socket: { remoteAddress: "127.0.0.1" }, connection: { remoteAddress: "127.0.0.1" } });
 
 test("usage opt-out is ENFORCED: a batch from an opted-out profile is dropped, whatever sent it", () => {
   const recorded = [];
@@ -85,16 +79,18 @@ test("usage opt-out is ENFORCED: a batch from an opted-out profile is dropped, w
       const post = handlerOf(usageRouter, "/api/usage", "post");
       const batch = (profile) => ({ profile, sid: "abcd1234", device: "tv", look: "tv", events: [{ n: "route", t: Date.now(), p: { r: "tv:home", ms: 400 } }] });
       const a = fakeRes();
-      post({ body: batch("out") }, a);
+      post(req(batch("out")), a);
       const b = fakeRes();
-      post({ body: batch("in") }, b);
+      post(req(batch("in")), b);
       const c = fakeRes();
-      post({ body: null }, c); // malformed: still the forgiving 204, and the aggregator decides
-      assert.deepStrictEqual([a.code, b.code, c.code], [204, 204, 204], "the client cannot tell a dropped batch from a kept one");
+      post(req(null), c); // malformed: still the forgiving 204
+      assert.deepStrictEqual([a.code, b.code, c.code], [204, 204, 204]);
+      // the one enforcement (routes/usage.js, lib/tel verdict): a dropped batch is answered `X-Usage: off`, on which the clients stop sending
+      assert.deepStrictEqual([a.headers["X-Usage"], b.headers["X-Usage"]], ["off", undefined]);
       assert.deepStrictEqual(recorded, ["in"]);
       // switched back on: counted again
       profiles.update("out", { prefs: { usageStats: true } });
-      post({ body: batch("out") }, fakeRes());
+      post(req(batch("out")), fakeRes());
       assert.deepStrictEqual(recorded, ["in", "out"]);
     });
   } finally {

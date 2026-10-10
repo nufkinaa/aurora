@@ -669,14 +669,6 @@ const THEMES = ["aurora", "oled", "warm"];
 // The on/off choices a profile carries (see `update` for what each one is).
 const PREF_SWITCHES = ["smartDownloads", "smartCleanup", "usageStats", "autoplayNext", "subsDefault"];
 
-// Has this profile said no to usage stats? Asked by routes/usage.js for every
-// batch, so the opt-out holds whatever a client does (a TV kept its own
-// per-box switch for a long time and went on reporting). Unknown profile: no.
-const usageOptedOut = (id) => {
-  const p = store.data.profiles.find((x) => x.id === id);
-  return !!(p && p.prefs && p.prefs.usageStats === false);
-};
-
 const update = (id, fields) => {
   const p = store.data.profiles.find((x) => x.id === id);
   if (!p) return null;
@@ -1454,7 +1446,6 @@ const dismissUpNext = (profileId, showId, episodeId) => {
 };
 
 module.exports = {
-  usageOptedOut,
   PREF_SWITCHES,
   followsOf,
   setFollow,

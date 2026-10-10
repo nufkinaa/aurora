@@ -413,6 +413,7 @@ export default function NavRail({
               const row = (
                 <NavItem
                   key={it.key}
+                  uiId={NAV_UI[it.key]}
                   label={it.label}
                   icon={it.icon}
                   iconSize={it.iconSize}
@@ -490,7 +491,11 @@ function Scrim({width}: {width: number}) {
 // the site's nav, and it needs the label colour to flip, so this holds focus
 // state. Eight items that live as long as the panel; the no-re-render rule is
 // about the ninety cards in a shelf.
+// [analytics] which control each rail item is — uiId (docs/analytics.md)
+const NAV_UI: Record<string, string> = {search: 'nav.search', home: 'nav.home', movies: 'nav.movies', shows: 'nav.shows', list: 'nav.mylist'}; // uiId
+Object.assign(NAV_UI, {ai: 'nav.ai', settings: 'nav.settings', profile: 'nav.profile'}); // uiId
 function NavItem({
+  uiId,
   label,
   icon,
   iconSize,
@@ -523,6 +528,7 @@ function NavItem({
   focusDisabled?: boolean;
   onFocused: (focused: boolean) => void;
   onPress: () => void;
+  uiId?: string;
   ref?: (node: NodeRef) => void;
 }) {
   const [focused, setFocused] = useState(false);
@@ -538,7 +544,8 @@ function NavItem({
         accessibilityLabel={name}
         hasTVPreferredFocus={claimFocus}
         onFocusChange={onFocused}
-        onPress={onPress}
+        uiId={uiId}
+      onPress={onPress}
         style={styles.profile}>
         <View style={[styles.avatar, {backgroundColor: profileColor || colors.surfaceHover}]}>
           {profileImage ? (
@@ -584,6 +591,7 @@ function NavItem({
         setFocused(f);
         onFocused(f);
       }}
+      uiId={uiId}
       onPress={onPress}
       style={[styles.item, on && !focused && styles.itemOn]}>
       {icon && !withLabel ? <Icon name={icon} size={iconSize || 18} color={fg} /> : null}

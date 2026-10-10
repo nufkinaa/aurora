@@ -20,6 +20,7 @@
 // were meaningless.
 import {lastNavAt} from './navLock';
 import {track} from './usage';
+import {navPaint, setScreen} from './telemetry';
 
 type Visit = {r: string; key: string; at: number; sent: boolean};
 let cur: Visit | null = null;
@@ -33,8 +34,13 @@ const RECENT_MS = 2500;
 
 const send = (v: Visit, timed: boolean, now: number) => {
   v.sent = true;
-  if (timed) track('route', {r: v.r, ms: Math.max(0, Math.min(CAP_MS, now - v.at))});
-  else track('route', {r: v.r});
+  if (timed) {
+    const ms = Math.max(0, Math.min(CAP_MS, now - v.at));
+    track('route', {r: v.r, ms});
+    // the same measurement, to the timings store (docs/analytics.md `nav_paint`:
+    // navigation start → first content painted — this file's definition)
+    navPaint(ms, v.r);
+  } else track('route', {r: v.r});
 };
 
 /** The navigator says `key` is now the current route (`r`: its usage name). */
@@ -46,6 +52,9 @@ export const routeStarted = (r: string, key: string, now = Date.now()) => {
   // the press that led here, when it was recent enough to be this navigation
   const pressed = lastNavAt();
   cur = {r, key, at: pressed && now - pressed < RECENT_MS ? pressed : now, sent: false};
+  // the reports' idea of "which screen" changes NOW — not when the `route`
+  // event is sent, which is when the content is on (or the screen is left)
+  setScreen(r);
   if (early && early.key === key) {
     const e = early;
     early = null;

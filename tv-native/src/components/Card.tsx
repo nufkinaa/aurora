@@ -17,6 +17,7 @@ import {trackError} from '../usage';
 import {blurOf, markDrawn, wasDrawn} from '../blur';
 import {openPeek} from '../overlay';
 import theme from '../theme';
+import {firstPoster} from '../telemetry'; // [analytics]
 
 const {colors, radius, cardAura} = theme;
 
@@ -222,6 +223,7 @@ function Card({
   const showBlur = !!blur && !!src && !broken && loadedUri !== src.uri && !wasDrawn(src.uri);
   const onImgLoad = () => {
     if (!src) return;
+    firstPoster(); // [analytics] grid → first poster (one check; only the first after a screen change counts)
     markDrawn(src.uri);
     if (showBlur) setLoadedUri(src.uri);
   };
@@ -261,7 +263,7 @@ function Card({
   const kind = showKind && !landscape && !onRemove;
 
   return (
-    <Focusable
+    <Focusable uiId="card.open"
       // components.css:255 — scale(1.055) translateY(-3px).
       scaleTo={1.055}
       lift={cardAura.lift}

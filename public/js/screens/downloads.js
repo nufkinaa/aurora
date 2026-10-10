@@ -158,7 +158,7 @@ const row = (job, { others = false } = {}) => {
   if (!others) {
     if (ready) {
       actions.push(
-        el("button", {
+        el("button", { "data-ui": "downloads.play",
           class: "btn btn-primary focusable",
           html: icons.play + "<span>Play</span>",
           onclick: () => {
@@ -170,7 +170,7 @@ const row = (job, { others = false } = {}) => {
     }
     if (job.imdbId) {
       actions.push(
-        el("button", {
+        el("button", { "data-ui": "downloads.open",
           class: "btn focusable",
           html: `<span>${ready ? "Title page" : "Open"}</span>`,
           onclick: () => {
@@ -185,7 +185,7 @@ const row = (job, { others = false } = {}) => {
     // asks first — cancelling throws the bytes away.
     if (job.mine && ["pending", "approved", "downloading"].includes(job.status)) {
       actions.push(
-        el("button", {
+        el("button", { "data-ui": "downloads.cancel",
           class: "btn focusable",
           html: "<span>Cancel</span>",
           disabled: busy.has(job.id) || undefined,
@@ -219,7 +219,7 @@ const row = (job, { others = false } = {}) => {
     if (job.mine && DEAD.includes(job.status)) {
       if (job.infoHash && job.status !== "declined") {
         actions.push(
-          el("button", {
+          el("button", { "data-ui": "downloads.retry",
             class: "btn focusable",
             html: "<span>Try again</span>",
             onclick: (e) => retry(job, e.currentTarget),
@@ -227,7 +227,7 @@ const row = (job, { others = false } = {}) => {
         );
       }
       actions.push(
-        el("button", {
+        el("button", { "data-ui": "downloads.remove",
           class: "btn focusable quiet",
           html: "<span>Remove</span>",
           "aria-label": `Remove “${job.label || job.title}” from this list`,

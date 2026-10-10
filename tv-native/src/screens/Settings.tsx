@@ -38,11 +38,13 @@ const {colors, fontSize, spacing, radius} = theme;
 // One tappable row: label, explanation, and the current value on the right. The
 // site's `prefRow` in the same shape — pressing it cycles the value.
 const Row = React.memo(function PrefRow({
+  uiId,
   label,
   note,
   value,
   onPress,
 }: {
+  uiId?: string; // [analytics] which control this is (Focusable.uiId)
   label: string;
   note?: string;
   value: string;
@@ -55,6 +57,7 @@ const Row = React.memo(function PrefRow({
       scaleTo={1.01}
       // A full-width row has nothing to its left, so LEFT belongs to the rail.
       edgeLeft
+      uiId={uiId}
       onPress={onPress}
       style={styles.row}
       highlightColor={colors.surfaceHover}>
@@ -217,7 +220,7 @@ export default function Settings({
                 // start a row depends on text widths, so edgeLeft is read off
                 // the real layout x rather than guessed from the index.
                 <View key={g} onLayout={e => noteChipLayout(g, e.nativeEvent.layout.x)}>
-                  <Focusable
+                  <Focusable uiId="settings.genre"
                     round
                     light={on}
                     edgeLeft={edgeGenres.has(g)}
@@ -233,25 +236,25 @@ export default function Settings({
 
         <Text style={styles.h2}>Aurora</Text>
         <View style={styles.list}>
-          <Row
+          <Row uiId="settings.whatsnew"
             label={newUnseen ? "What's new  •" : "What's new"}
             note="What this TV can do now, and how."
             value="›"
             onPress={() => navigation.push('WhatsNew')}
           />
-          <Row
+          <Row uiId="settings.downloads"
             label="My downloads"
             note="What you asked the server to fetch — ready, on its way, waiting."
             value="›"
             onPress={() => navigation.push('Downloads')}
           />
-          <Row
+          <Row uiId="settings.party"
             label="Join a watch party"
             note="Type the four-letter code from another screen and watch in step."
             value="›"
             onPress={openJoinParty}
           />
-          <Row
+          <Row uiId="settings.report"
             label="Report a problem"
             note="A few words; where you were and the last errors come along by themselves."
             value="›"
@@ -261,13 +264,13 @@ export default function Settings({
 
         <Text style={styles.h2}>Playback</Text>
         <View style={styles.list}>
-          <Row
+          <Row uiId="settings.autoplay"
             label="Autoplay next episode"
             note="Start the next episode automatically when one finishes."
             value={prefs.autoplayNext ? 'On' : 'Off'}
             onPress={() => set('autoplayNext', !prefs.autoplayNext)}
           />
-          <Row
+          <Row uiId="settings.trailers"
             label="Trailers on the home billboard"
             note={
               isLite()
@@ -281,24 +284,24 @@ export default function Settings({
 
         <Text style={styles.h2}>Subtitles</Text>
         <View style={styles.list}>
-          <Row
+          <Row uiId="settings.subs.auto"
             label="Turn subtitles on automatically"
             note="When a title offers subtitles, switch one on without asking."
             value={prefs.subsDefault ? 'On' : 'Off'}
             onPress={() => set('subsDefault', !prefs.subsDefault)}
           />
-          <Row
+          <Row uiId="settings.subs.lang"
             label="Preferred subtitle language"
             note="The language to pick. If a title doesn't have it, Aurora goes and gets it."
             value={subLangLabel}
             onPress={() => cycle('subLang', SUB_LANGS)}
           />
-          <Row
+          <Row uiId="settings.subs.size"
             label="Subtitle size"
             value={cueLabel}
             onPress={() => cycle('cueSize', ['S', 'M', 'L'])}
           />
-          <Row
+          <Row uiId="settings.subs.bg"
             label="Subtitle background"
             note="A dark plate behind the text. Off is cleaner; on is readable over anything."
             value={prefs.cueBackground ? 'On' : 'Off'}
@@ -329,7 +332,7 @@ export default function Settings({
         )}
         <Text style={styles.h2}>Notifications</Text>
         <View style={styles.list}>
-          <Row
+          <Row uiId="settings.notices"
             label="Tell me when a download lands (TV notification)"
             note={
               notifyNote ||
@@ -352,7 +355,7 @@ export default function Settings({
         </View>
         <Text style={styles.h2}>Privacy</Text>
         <View style={styles.list}>
-          <Row
+          <Row uiId="settings.usagestats"
             label="Usage stats"
             note="Which screens and features get used, and how long they took — to your own server only, never anything typed. Off here is off for you on every device."
             value={prefs.usageStats ? 'On' : 'Off'}
@@ -362,7 +365,7 @@ export default function Settings({
 
         <Text style={styles.h2}>This TV</Text>
         <View style={styles.list}>
-          <Row
+          <Row uiId="settings.update"
             label={`Aurora TV ${APP_VERSION}`}
             note={
               update && typeof update === 'object'
@@ -379,7 +382,7 @@ export default function Settings({
         {getSession() && !me?.kids ? (
           <>
             <Text style={styles.h2}>Account</Text>
-            <Focusable
+            <Focusable uiId="settings.signout"
               scaleTo={1.01}
               highlightColor={colors.surfaceHover}
               onPress={async () => {

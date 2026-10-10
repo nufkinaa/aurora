@@ -164,10 +164,10 @@ export default function NewPassword({
         onSubmitEditing={save}
       />
       <View style={styles.row}>
-        <Focusable round ref={anchor} onPress={save} style={styles.btnPrimary}>
+        <Focusable uiId="newpassword.submit" round ref={anchor} onPress={save} style={styles.btnPrimary}>
           {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.btnPrimaryText}>Set new password</Text>}
         </Focusable>
-        <Focusable round onPress={() => !busy && onSignOut()} style={styles.btnGhost}>
+        <Focusable uiId="newpassword.signout" round onPress={() => !busy && onSignOut()} style={styles.btnGhost}>
           <Text style={styles.btnGhostText}>Sign out</Text>
         </Focusable>
       </View>
