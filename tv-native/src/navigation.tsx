@@ -102,7 +102,10 @@ export type RootStackParamList = {
   // `party` is a watch-party code to join once the player is up.
   // `epTitle` is the episode's real name from the page that launched it (the
   // library record may only know "Episode 1").
-  Player: {id: string; title: string; epTitle?: string; stream?: TorrentPlayItem; restart?: boolean; party?: string};
+  // `autoRun`: how many episodes in a row have started BY THEMSELVES (Up
+  // next's countdown ran out) up to and including this one — what "Still
+  // watching?" counts (playerRules.ts). Absent = a person opened it.
+  Player: {id: string; title: string; epTitle?: string; stream?: TorrentPlayItem; restart?: boolean; party?: string; autoRun?: number};
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();

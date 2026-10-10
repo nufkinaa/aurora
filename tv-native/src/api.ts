@@ -524,6 +524,14 @@ export const sameParties = (a: PartySummary[], b: PartySummary[]) =>
       return p.code === q.code && p.host === q.host && p.title === q.title && p.members === q.members && (p.cover || null) === (q.cover || null);
     }));
 
+// What the server knows about an episode's skippable parts (both
+// /api/intro/auto/:id and /api/segments answer this shape).
+export type Segments = {
+  intro: {start: number; end: number} | null;
+  recap?: {start: number; end: number} | null;
+  credits: {start: number} | null;
+  source?: string | null;
+};
 export type TrailerAnswer =
   | {source: 'apple'; hls: string; id: string; quality?: number}
   | {source: 'youtube'; ids: string[]}
@@ -1295,11 +1303,30 @@ export const api = {
   setIntro: (key: string, start: number, end: number, by?: string | null) =>
     post<{ok: boolean}>(`/api/intro/${encodeURIComponent(key)}`, {start, end, by}),
   introAuto: (id: string) =>
-    request<{
-      intro: {start: number; end: number} | null;
-      credits: {start: number} | null;
-      source?: string | null;
-    }>(`/api/intro/auto/${encodeURIComponent(id)}`),
+    request<Segments>(`/api/intro/auto/${encodeURIComponent(id)}`),
+  // The same answer for something that is NOT a library file — a streamed
+  // episode has nothing to fingerprint, so its Skip intro / Skip recap and its
+  // credits-timed Up next come from the public databases, asked by identity
+  // (server: media/skipsegments.js). A cold answer takes a second or two.
+  segments: (q: {imdbId: string; season?: number | null; episode?: number | null; duration?: number}) =>
+    request<Segments>(
+      `/api/segments?imdbId=${encodeURIComponent(q.imdbId)}${q.season ? `&season=${q.season}` : ''}${q.episode ? `&episode=${q.episode}` : ''}${q.duration ? `&duration=${Math.round(q.duration)}` : ''}`,
+    ),
+  // Which episode comes after this one — the server's one rule for the
+  // website and the TV (src/media/nextep.js). By library episode id, or by a
+  // streamed episode's identity. playerRules.ts readNext reads the answer.
+  nextEpisode: (q: {id: string} | {imdbId: string; season: number; episode: number; title?: string; year?: number | null}) => {
+    const p = new URLSearchParams();
+    if ('id' in q) p.set('id', q.id);
+    else {
+      p.set('imdbId', q.imdbId);
+      p.set('season', String(q.season));
+      p.set('episode', String(q.episode));
+      if (q.title) p.set('title', q.title);
+      if (q.year) p.set('year', String(q.year));
+    }
+    return request<unknown>(`/api/next-episode?${p.toString()}`);
+  },
   // A subtitle in the preferred language for a library file the server holds
   // no track for; it is written next to the file, for everyone.
   subtitlesFetch: (id: string, lang: 'he' | 'en' | 'ru') =>
