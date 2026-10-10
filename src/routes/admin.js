@@ -585,19 +585,29 @@ router.post("/api/admin/profiles/:id/lock", (req, res) => {
 // with their sign-in, their last 8 addresses and last 5 downloads, who is
 // connected right now (with the names that have used that address), and
 // the banned addresses. One request, so the page paints at once.
-const kickProfile = (p, reason) => {
+// Sign a profile out EVERYWHERE, now: every sign-in session and every unlock
+// token of it is ended (in every sign-in mode — the two stores do not depend
+// on it), and each of its open sockets is told "kicked" and closed, so a tab
+// goes to the sign-in screen / profile wall at once. A socket is the
+// profile's by what it said hello as, or by the session it connected with
+// (realtime.clientsOfProfile) — a TV that had not said hello yet used to be
+// missed. The ended credentials are remembered (`remember`): a device with
+// no socket, or one that does not know "kicked" (the released TV app), is
+// told to sign in again on its next request instead of carrying on as a
+// visitor (lib/resetgate.js). `extra` rides the message (`reset: true` tells
+// a tab why). -> { kicked: sockets told, sessions: sign-ins ended }
+const kickProfile = (p, reason, extra = {}) => {
   let kicked = 0;
-  for (const c of realtime.clients.values()) {
-    if (!c.profile || (c.profile !== p.name && c.profile !== p.id)) continue;
+  for (const c of realtime.clientsOfProfile(p)) {
     try {
-      c.ws.send(JSON.stringify({ type: "kicked", reason: reason || "" }));
+      c.ws.send(JSON.stringify({ type: "kicked", reason: reason || "", ...extra }));
       c.ws.close(1000, "Kicked");
       kicked++;
     } catch {}
   }
-  require("../lib/sessions").revokeAllFor(p.id);
-  profiles.revokeTokensFor(p.id);
-  return kicked;
+  const sessions = require("../lib/sessions").revokeAllFor(p.id, { remember: true });
+  profiles.revokeTokensFor(p.id, { remember: true });
+  return { kicked, sessions };
 };
 
 router.get("/api/admin/people", (req, res) => {
@@ -632,7 +642,7 @@ router.get("/api/admin/people", (req, res) => {
       claimedAt: p.claimedAt || null,
       hasPassword: !!p.passwordHash,
       locked: !!p.locked,
-      mustReset: !!p.mustReset,
+      mustReset: profiles.resetDue(p.id), // a new password is due: nothing else works for them until it is saved
       kids: profiles.kidsOf(p.id), // { maxAge } for a kids profile, else null
       lastSeen: rows.reduce((m, r) => Math.max(m, r.last || 0), 0) || null,
       ipCount: new Set(rows.map((r) => r.ip)).size,
@@ -698,18 +708,44 @@ router.post("/api/admin/kids-pin", async (req, res) => {
 router.post("/api/admin/profiles/:id/kick", (req, res) => {
   const p = profiles.list().find((x) => x.id === req.params.id);
   if (!p) return res.status(404).json({ error: "Not found" });
-  const kicked = kickProfile(p, "Signed out by the admin");
-  res.json({ ok: true, kicked });
+  const r = kickProfile(p, "Signed out by the admin");
+  res.json({ ok: true, kicked: r.kicked, sessions: r.sessions });
 });
 
-// Require a new password at the next sign-in (and sign them out now).
-// `on: false` withdraws the requirement.
+// Force a new password. The profile is signed out everywhere at once
+// (kickProfile: sessions, unlock tokens, open sockets) and from here on its
+// credentials open nothing but the route that saves a new password
+// (lib/resetgate.js has the rule). The person signs in with the CURRENT
+// password, is met by a screen that only offers "set new password" and "sign
+// out", and is back in the app the moment a new one is saved. Someone who has
+// forgotten the current one cannot finish that — "Set password" (the People
+// tab; POST /api/admin/signin/:id/password) is the way: it ends this
+// requirement, and pressing "Reset password" after it makes what the admin
+// chose a temporary password.
+//
+// A profile with NO password (Google-only sign-in, an open profile, one that
+// opens with the household PIN) has nothing to reset: it is signed out
+// everywhere and the answer says `noPassword` — no flag is set. Nor is a
+// KIDS profile asked (`kidsProfile`): a child may not change its password
+// (profiles.setMustReset has the why) — "Set password" gives it a new one.
+// `on: false` withdraws the requirement (credentials minted meanwhile become
+// ordinary ones: they were opened with the right password).
 router.post("/api/admin/profiles/:id/force-reset", (req, res) => {
   const on = (req.body || {}).on !== false;
   const p = profiles.setMustReset(req.params.id, on);
   if (!p) return res.status(404).json({ error: "Not found" });
-  if (on) kickProfile(profiles.list().find((x) => x.id === req.params.id), "Please sign in again and pick a new password");
-  res.json({ ok: true, mustReset: on });
+  if (!on) return res.json({ ok: true, mustReset: false });
+  const raw = profiles.list().find((x) => x.id === req.params.id);
+  const asked = !p.noPassword && !p.kidsProfile;
+  const r = kickProfile(raw, asked ? "Please sign in again and pick a new password" : "Signed out by the admin", asked ? { reset: true } : {});
+  res.json({
+    ok: true,
+    mustReset: asked,
+    ...(p.noPassword ? { noPassword: true, hasGoogle: !!raw.googleSub } : {}),
+    ...(p.kidsProfile ? { kidsProfile: true } : {}),
+    kicked: r.kicked,
+    sessions: r.sessions,
+  });
 });
 
 // Delete a profile and all its state (progress, watchlist, ratings). Admin

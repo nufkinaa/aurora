@@ -140,6 +140,55 @@ ui.test("a person's sheet has the kids controls: set the household PIN, make the
   assert.equal((await api.profile(profiles.ben.id)).kids, null);
 });
 
+ui.test("Reset password says what it does, shows that a reset is pending, and says so when there is no password to reset", async ({ page, srv, api }) => {
+  const withPw = await api.createProfile("Resetta");
+  const noPw = await api.createProfile("Nopass", { open: true });
+  const person = (id) => api.adminGet("/api/admin/people").then((d) => d.people.find((p) => p.id === id));
+  const open = async (id) => {
+    await page.click(`#people-table tr.person-row[data-person="${id}"]`);
+    await page.locator("#person-sheet[open]").waitFor();
+  };
+  const reset = page.locator('#person-sheet [data-act="reset"]');
+  const ask = page.locator("dialog.ask");
+
+  await enter(page, srv);
+  await people(page);
+  await open(withPw.id);
+  assert.match(await reset.textContent(), /Reset password\s*signs them out everywhere and requires a new password before they can use Aurora again/);
+  await reset.click();
+  await ask.waitFor();
+  const question = await ask.textContent();
+  assert.match(question, /signs them out everywhere now and requires a new password before they can use Aurora again/);
+  assert.match(question, /forgotten the current password, use "Set password"/);
+  await ask.locator(".ask-yes").click();
+  await toastSays(page, /"Resetta" is signed out everywhere and must set a new password/);
+  assert.equal((await person(withPw.id)).mustReset, true);
+  // pending, where the admin looks: on the sheet, in the table, and on the button
+  await page.waitForFunction(() => /password reset pending/.test(document.querySelector("#person-sheet h3").textContent));
+  await page.waitForFunction((id) => /password reset pending/.test(document.querySelector(`#people-table tr[data-person="${id}"]`).textContent), withPw.id);
+  assert.match(await reset.textContent(), /Withdraw password reset\s*a reset is pending: they can do nothing until they set a new password/);
+  // the profile's own password opens nothing now
+  const token = await api.token(withPw);
+  assert.equal((await api.call("GET", "/api/library", undefined, { "X-Profile-Token": token })).status, 401);
+  // withdrawn with one press (no question asked for letting go)
+  await reset.click();
+  await toastSays(page, /Reset withdrawn/);
+  assert.equal((await person(withPw.id)).mustReset, false);
+  await page.waitForFunction((id) => !/password reset pending/.test(document.querySelector(`#people-table tr[data-person="${id}"]`).textContent), withPw.id);
+  await page.click("#person-sheet [data-close]");
+
+  // no password: nothing to reset — said before, and after
+  await open(noPw.id);
+  assert.match(await reset.textContent(), /no password to reset \(opens without one\) — this only signs them out everywhere/);
+  await reset.click();
+  await ask.waitFor();
+  assert.match(await ask.textContent(), /"Nopass" has no password to reset/);
+  await ask.locator(".ask-yes").click();
+  await toastSays(page, /No password to reset — "Nopass" was signed out everywhere/);
+  assert.equal((await person(noPw.id)).mustReset, false);
+  assert.match(await reset.textContent(), /^\s*Reset password/, "nothing is pending");
+});
+
 ui.test("every tab of the panel opens without an error", async ({ page, srv }) => {
   await enter(page, srv);
   const tabs = await page.evaluate(() => [...document.querySelectorAll(".tab[data-tab]")].map((t) => t.dataset.tab));

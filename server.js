@@ -210,6 +210,13 @@ app.use((req, res, next) => {
   });
 }
 
+// A forced password reset, and "signed out by the admin", in EVERY sign-in
+// mode: a credential of a profile that owes a new password opens nothing but
+// the routes that save one; a credential the admin ended sends its device
+// back to the sign-in screen. The rule, the routes and the two refusals are
+// in src/lib/resetgate.js. After the wall above, ahead of every router.
+app.use(require("./src/lib/resetgate").middleware);
+
 // Blur-up placeholders ride along on JSON answers for clients that ask (lib/blurup.js).
 app.use(require("./src/lib/blurup").middleware);
 app.use(require("./src/routes/auth"));

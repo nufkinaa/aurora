@@ -13,7 +13,8 @@ import { route, startRouter, navigate } from "./router.js";
 import { state, loadProfiles, setProfile, savedToken, downloads, readyDownloads } from "./state.js";
 import { api, setAuthToken, forgetWarm } from "./api.js";
 import { connect, reconnect, onMessage, emit } from "./ws.js";
-import { appRunning, onSigninRequired } from "./session.js";
+import { appRunning, onSigninRequired, onSignedOut } from "./session.js";
+import { showResetWall, resetWallUp } from "./resetwall.js";
 import { renderHome } from "./screens/home.js";
 import { showProfileGate } from "./screens/profiles.js";
 import { showLoginScreen } from "./screens/login.js";
@@ -652,6 +653,35 @@ $("#nav-profile").addEventListener("click", () => {
 // The sign-in wall went up under a running app (api.js saw a 401
 // { signinRequired }): to the sign-in screen, not a page of failed requests.
 window.addEventListener("aurora-signin-required", () => onSigninRequired());
+// The admin signed this profile out and the tab was still showing it.
+window.addEventListener("aurora-signed-out", () => onSignedOut());
+
+// A new password is due on the profile this tab is using: the server refused
+// a request for that reason (api.js), or said so to the socket. Whatever the
+// screen, the blocking "pick a new password" screen goes up — once; /api/me
+// says whose it is (and that it is still due: a burst of refusals can outlive
+// the save). The app behind it is full of failed requests by now, so a saved
+// password ends in a reload: boot walks straight back in on the fresh
+// credentials.
+let askingReset = false;
+const raiseResetWall = async () => {
+  if (askingReset || resetWallUp()) return;
+  askingReset = true;
+  try {
+    const me = await api.me(state.token || undefined);
+    if (!me.passwordResetRequired || !me.resetProfile) return;
+    await showResetWall({ profile: me.resetProfile, token: state.token });
+    location.reload();
+  } catch {
+    // no answer: nothing is known — the next refusal asks again
+  } finally {
+    askingReset = false;
+  }
+};
+window.addEventListener("aurora-password-reset", () => { if (booted) raiseResetWall(); });
+onMessage("password_reset_required", () => { if (booted) raiseResetWall(); });
+// (until boot has asked /api/me itself, it is boot that decides)
+let booted = false;
 
 const boot = async () => {
   connect();
@@ -666,15 +696,31 @@ const boot = async () => {
   // straight in — no wall, no second password prompt.
   let loginEntry = null;
   try {
-    const me = await api.me();
+    // Asked with what this tab remembers — the sign-in cookie rides by
+    // itself, the unlock token of the remembered profile is sent along — so
+    // a reload (or a deep link) of a profile that owes a new password lands
+    // on the "pick a new password" screen again, and nowhere else.
+    let remembered = null;
+    try { const id = localStorage.getItem("aurora-profile"); remembered = id ? savedToken(id) : null; } catch {}
+    const me = await api.me(remembered || undefined);
     state.authMode = me.authMode || "open";
     state.user = me.user || null;
+    if (me.passwordResetRequired && me.resetProfile) {
+      // Saved: this tab holds fresh credentials (the token is kept where an
+      // unlock keeps it, the profile is the remembered one) and boot goes on
+      // as for any returning tab. "Sign out" reloads instead.
+      const fresh = await showResetWall({ profile: me.resetProfile, token: remembered });
+      state.user = fresh.user || null;
+      setAuthToken(null); // boot attaches it again when it enters the profile
+    }
+    booted = true;
     if (state.authMode === "closed" && !state.user) {
       const res = await showLoginScreen();
       state.user = (res && res.user) || null;
       if (res && res.profile) loginEntry = res;
     }
   } catch {}
+  booted = true;
 
   try {
     await loadProfiles();

@@ -9,6 +9,7 @@ import { pushScope, popScope } from "../focus.js";
 import * as narrator from "../narrator.js";
 import { showClaimModal } from "../claim.js";
 import { showLoginScreen } from "./login.js";
+import { showResetWall } from "../resetwall.js";
 
 const AVATARS = [
   "🍿", "🎬", "🦊", "🐼", "🚀", "🌵", "🦖", "👾", "🐳", "🌙", "⚡", "🔥",
@@ -56,14 +57,24 @@ export const passwordPrompt = (profile, onSuccess) => {
       err.classList.add("hidden");
       try {
         const typed = input.value;
-        const res = await api.unlockProfile(profile.id, typed);
+        let res = await api.unlockProfile(profile.id, typed);
         close();
         narrator.call("onGoodPassword");
+        // The admin asked this profile for a new password (People → Reset
+        // password): the old one just proved who this is, and what it yielded
+        // opens nothing else on the server. The blocking screen first
+        // (resetwall.js); the profile is entered with the fresh unlock that
+        // saving returns. Remembered meanwhile, so a reload lands on the same
+        // screen (boot asks /api/me with it) rather than back at the wall.
+        if (res.mustReset) {
+          try {
+            localStorage.setItem("aurora-profile", profile.id);
+            if (res.token) sessionStorage.setItem(`aurora-token-${profile.id}`, res.token);
+          } catch {}
+          const fresh = await showResetWall({ profile, currentPassword: typed, token: res.token || null });
+          res = { ...res, mustReset: false, token: fresh.token, ...(fresh.user ? { user: fresh.user } : {}) };
+        }
         onSuccess(res.token, res);
-        // The admin asked for a new password at the next sign-in (People →
-        // Reset password): the old one just proved who this is; a new one is
-        // required before going on. After onSuccess, so the token is set.
-        if (res.mustReset) newPasswordPrompt(profile, typed);
       } catch (e) {
         // Say what happened. Every failure used to read "Not quite. Try
         // again." — also when the server had stopped taking guesses for a few
@@ -209,63 +220,6 @@ const unlockOpenProfile = async (p, pin = "") => {
     action: async (typed) => { meta = await api.unlockProfile(p.id, "", typed); },
   });
   return ok ? meta || {} : null;
-};
-
-// "Pick a new password" — the forced reset. Not dismissable by a button: the
-// person either saves a new password or leaves the profile.
-// `currentPassword` is the one they have just typed (the wall's unlock, the
-// sign-in screen). A sign-in that typed none — Google — passes null, and the
-// sheet asks for it: the server changes a password only for someone who
-// knows the current one.
-export const newPasswordPrompt = (profile, currentPassword = null) => {
-  const askCurrent = typeof currentPassword !== "string";
-  const current = askCurrent
-    ? el("input", { type: "password", class: "focusable", placeholder: "Current password", autocomplete: "current-password" })
-    : null;
-  const input = el("input", { type: "password", class: "focusable", placeholder: "New password (4+ characters)", autocomplete: "new-password" });
-  const again = el("input", { type: "password", class: "focusable", placeholder: "Once more", autocomplete: "new-password" });
-  const err = el("div", { class: "pw-error hidden" }, "");
-  const fail = (msg) => { err.textContent = msg; err.classList.remove("hidden"); };
-  modal((close) => {
-    const submit = async () => {
-      err.classList.add("hidden");
-      if (askCurrent && !current.value) return fail("Your current password first.");
-      if (input.value.length < 4) return fail("At least 4 characters.");
-      if (input.value !== again.value) return fail("They don't match.");
-      try {
-        const fresh = input.value;
-        await api.setPassword(profile.id, fresh, askCurrent ? current.value : currentPassword);
-        // Saving a password ends every unlock of the profile — this tab's too
-        // (the edit sheet below renews its own the same way). Without a new
-        // one a profile opened at the wall was refused everything from here
-        // on, and met the wall again on the next reload.
-        try {
-          const { token } = await api.unlockProfile(profile.id, fresh);
-          if (state.profile && state.profile.id === profile.id) await setProfile(state.profile, token);
-          else if (token) sessionStorage.setItem(`aurora-token-${profile.id}`, token);
-        } catch {}
-        close();
-        toast("New password saved — it's your sign-in password too", "✅");
-      } catch (e) {
-        fail(e && e.message === "wrong password" ? "That is not the current password."
-          : (e && e.message) || "Couldn't save it. Try again.");
-      }
-    };
-    again.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") again.focus(); });
-    if (current) current.addEventListener("keydown", (e) => { if (e.key === "Enter") input.focus(); });
-    return [
-      el("h2", {}, `${profile.avatar || ""} Pick a new password`),
-      el("p", { class: "field-hint" }, `${state.adminName} asked you to choose a new password for “${profile.name}” before going on.`),
-      current && el("div", { class: "field" }, el("label", {}, "Current password"), current),
-      el("div", { class: "field" }, el("label", {}, "New password"), input),
-      el("div", { class: "field" }, el("label", {}, "Once more"), again, err),
-      el("div", { style: { display: "flex", gap: "10px", marginTop: "22px" } },
-        el("button", { class: "btn btn-primary focusable", onclick: submit }, "Save"),
-      ),
-    ];
-  });
-  setTimeout(() => (current || input).focus(), 50);
 };
 
 // Shown once a new-profile request is filed. Creating a profile isn't instant
