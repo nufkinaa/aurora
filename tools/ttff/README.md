@@ -15,6 +15,7 @@ node tools/ttff/run.js --label mine           # the four corners × 7 titles × 
 node tools/ttff/report.js mine                # the table
 node tools/ttff/report.js baseline mine       # before → after
 node tools/ttff/report.js mine --waterfall HL-LB:mkv-ac3:cold
+node tools/ttff/report.js --matrix baseline mine --lines HL-LB,LL-LB   # a line per title x mode, a column per line
 ```
 
 Needs: Node 20+, `npm install`, Chrome or Edge, `ffmpeg` + `ffprobe` on `PATH`

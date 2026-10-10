@@ -201,3 +201,13 @@ test("startStepUp: an encoded rung the server has not begun to send is waited fo
   // nothing to go up to (the top is itself an encode, or this IS the top): wait on
   assert.equal(startStepUp({ waited: 60000, encoded: true, copyTop: false }), false);
 });
+
+test("startStepUp: a line known to be too thin for the film's own video waits four times as long for the encoder", async () => {
+  const { startStepUp, START_ENCODE_PATIENCE_THIN_MS } = await load();
+  assert.equal(START_ENCODE_PATIENCE_THIN_MS, 12000);
+  assert.equal(startStepUp({ waited: 3000, encoded: true, copyTop: true, thin: true }), false);
+  assert.equal(startStepUp({ waited: 11999, encoded: true, copyTop: true, thin: true }), false);
+  // an encode that never comes still has a way out
+  assert.equal(startStepUp({ waited: 12000, encoded: true, copyTop: true, thin: true }), true);
+  assert.equal(startStepUp({ waited: 3000, encoded: true, copyTop: true, thin: false }), true);
+});

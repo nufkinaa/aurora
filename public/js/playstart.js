@@ -35,9 +35,16 @@ export const startRung = (rungs, kbps) => {
 // PURE. A first segment of an ENCODED rung that the server has not begun to
 // send: has it been waited for long enough to take the file's own video
 // instead (a copy: made at the speed of the disk)? `waited`: ms since it was
-// asked for. Only when there is a copied top rung to go to.
+// asked for. Only when there is a copied top rung to go to. `thin`: the line
+// is KNOWN not to carry that copy (it is why the start is on a lighter rung):
+// going up to it buys a first frame and then a long stall (measured
+// 2026-10-11, an 8 Mbit/s film on 3 Mbit/s with a starved encoder: frame at
+// 6.6 s, then 16 s of nothing) — so the encoder is waited for four times as
+// long, and the copy is only the way out of an encode that never comes.
 export const START_ENCODE_PATIENCE_MS = 3000;
-export const startStepUp = ({ waited, encoded, copyTop }) => !!encoded && !!copyTop && waited >= START_ENCODE_PATIENCE_MS;
+export const START_ENCODE_PATIENCE_THIN_MS = 12000;
+export const startStepUp = ({ waited, encoded, copyTop, thin = false }) =>
+  !!encoded && !!copyTop && waited >= (thin ? START_ENCODE_PATIENCE_THIN_MS : START_ENCODE_PATIENCE_MS);
 
 // PURE. Should a first segment that is arriving slowly be given up for a
 // lighter rung? `eta`: seconds until it is all here at the rate it is

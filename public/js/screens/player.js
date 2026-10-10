@@ -13,7 +13,7 @@ import { track } from "../usage.js";
 import { playCap, capFor, netTier, measured, probe, dataMode } from "../net.js";
 import { followVideo } from "../glassTone.js";
 import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio } from "../lang.js";
-import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC } from "../playstart.js";
+import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM } from "../playstart.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -1014,7 +1014,10 @@ export const renderPlayer = async (root, { id }) => {
           const cur = ladderLevels().find((l) => l.i === frag.level);
           const top = ladderLevels().find((l) => l.h === 0);
           const waited = st.loading && st.loading.start ? now - st.loading.start : 0;
-          if (!startStepUp({ waited, encoded: !!(cur && cur.h), copyTop: !!(top && top.v === "copy" && cur && top.i !== cur.i) })) return;
+          // (a line known to be too thin for that copy waits far longer: see startStepUp)
+          const known = lineKbps();
+          const thin = !!(top && known > 0 && ((h.levels[top.i] || {}).bitrate || 0) > known * 1000 * START_HEADROOM);
+          if (!startStepUp({ waited, encoded: !!(cur && cur.h), copyTop: !!(top && top.v === "copy" && cur && top.i !== cur.i), thin })) return;
           stop();
           mark("start-up", { from: cur.v, waited: Math.round(waited) });
           try {
