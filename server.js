@@ -404,6 +404,14 @@ require("./src/media/introdetect");
   daily.register("recommendations", () => require("./src/media/recs").sync());
   daily.start();
 }
+// Search: the well-known titles (the catalogue's popularity list, kept on
+// disk and refreshed weekly, off the request path — media/wellknown.js), and
+// the search index built once before anyone types.
+require("./src/media/wellknown").start();
+{
+  const t = setTimeout(() => require("./src/media/search").warm(), 20 * 1000);
+  t.unref?.();
+}
 // The recommender reads its index into memory a little after boot and again
 // after each scan (a no-op when nothing changed). No network; until the first
 // build finishes Home falls back to the older taste model.

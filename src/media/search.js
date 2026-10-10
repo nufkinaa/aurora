@@ -39,6 +39,22 @@
 // one. Nothing from a lower tier can pass a higher one, whatever its
 // popularity.
 //
+// WHILE TYPING (the search was not committed with Enter / a pick) a half-typed
+// word is often a real title nobody means: "reach" is two obscure films
+// called Reach, and the household owns Reacher. So inside "starts with", in
+// this order:
+//   1. NOTABLE titles that start with the letters (the library's first)
+//   2. a notable title one slip away ("tory" → Troy): any whole-title typo
+//      of a library or trending title, swapped neighbours for the rest
+//   3. an exact name that is NOT notable (it is moved down from 1000 to here)
+//   4. everything else that starts with the letters
+// A notable exact name ("It", "Up", "Dune") still leads at 1000, and so does
+// any exact name with its year typed. Committed, exact is strictly first.
+// NOTABLE = in the library, or in the trending cache, or in the well-known
+// set (media/wellknown.js: the catalogue's 3,000 most popular films and
+// 2,000 most popular series), or 1,000+ TMDB votes in the recommender's
+// title index. Suggestions are always "while typing".
+//
 // When the title was named exactly, typo and synopsis matches are dropped: a
 // page of near-misses under the title you named is noise. What follows the
 // matches instead is a RELATED tail, kept apart in the answer so a client
@@ -70,7 +86,8 @@ const canonWord = (w) => {
 // One spelling of a title or a query, ready to compare:
 //   s the words, w the word list, a without a leading article,
 //   q squashed (no spaces), aq squashed without the article
-//   m which letters it has (a bit each), wm the same per word, d its digits
+//   m which letters it has (a bit each), am the same without the article,
+//   wm the same per word, d its digits
 // The masks answer "can this even be a typo of that?" without the edit
 // distance: an edit adds at most one letter the other side does not have.
 const maskOf = (str) => {
@@ -89,13 +106,31 @@ const bits = (x) => {
 const mkView = (words) => {
   const aw = words.length > 1 && ARTICLES.has(words[0]) ? words.slice(1) : words;
   const q = words.join("");
-  return { s: words.join(" "), w: words, a: aw.join(" "), q, aq: aw.join(""), m: maskOf(q), wm: words.map(maskOf), d: q.replace(/\D+/g, "") };
+  const aq = aw.join("");
+  return { s: words.join(" "), w: words, a: aw.join(" "), q, aq, m: maskOf(q), am: maskOf(aq), wm: words.map(maskOf), d: q.replace(/\D+/g, "") };
 };
+// "se7" is the start of Se7en / Seven: the digit read as its letter, with the
+// word left a word (canonWord goes on to "7", which only a finished word can
+// match). Compared without typo tolerance, like the numeral spellings.
+const leetWord = (w) => (/^[a-z]{2,}\d[a-z]*$/.test(w) ? w.replace(/\d/, (d) => LEET[d] || d) : w);
+const FORMS_MAX = 30000;
+const formsCache = new Map(); // a title's spellings never change; the index is rebuilt every minute
 const forms = (text) => {
-  const n = norm(text);
+  const key = String(text == null ? "" : text);
+  const hit = formsCache.get(key);
+  if (hit) return hit;
+  const n = norm(key);
   const words = n ? n.split(" ") : [];
   const cw = words.map(canonWord);
-  return { raw: mkView(words), canon: cw.some((w, i) => w !== words[i]) ? mkView(cw) : null };
+  const lw = words.map(leetWord);
+  const out = {
+    raw: mkView(words),
+    canon: cw.some((w, i) => w !== words[i]) ? mkView(cw) : null,
+    leet: lw.some((w, i) => w !== words[i]) ? mkView(lw) : null,
+  };
+  if (formsCache.size >= FORMS_MAX) formsCache.clear();
+  formsCache.set(key, out);
+  return out;
 };
 
 const budget = (len) => (len >= 8 ? 2 : len >= 4 ? 1 : 0);
@@ -158,6 +193,11 @@ const wordHits = (qw, qm, t) => {
 // `fuzzy: false` stops at the exact tiers (episode and character names).
 const tierView = (q, t, fuzzy = true) => {
   if (!q.s || !t.s) return 0;
+  // Most titles are told apart here, before any string is compared: letters
+  // the query has (its article aside) that the title does not — any at all
+  // rules out every tier but a typo, and a typo allows two a word at most.
+  const lacks = q.am & ~t.m;
+  if (lacks && (!fuzzy || bits(lacks) > 2 * q.w.length)) return 0;
   if (q.s === t.s || q.a === t.a || (q.q.length >= 3 && q.q === t.q)) return 1000;
   // (the TITLE's article never counts: "sopr" → The Sopranos. The QUERY's is
   // only set aside once three letters follow it — "the o" is the start of
@@ -194,6 +234,7 @@ const tierForms = (qf, tf) => {
   // the numeral spellings ("ii", "two", "se7en" → digits) are compared exactly:
   // as digits "one" and "two" are a single edit apart, and they are not a typo
   if (t < 1000 && (qf.canon || tf.canon)) t = Math.max(t, tierView(qf.canon || qf.raw, tf.canon || tf.raw, false));
+  if (t < 900 && (qf.leet || tf.leet)) t = Math.max(t, tierView(qf.leet || qf.raw, tf.leet || tf.raw, false));
   return t;
 };
 const FUZZY_WHOLE = 650; // one slip from the whole title
@@ -247,9 +288,34 @@ const titleScore = (Q, tf, year) => {
 const STOP = new Set("the a an of and in on at to for with from by is it as or be this that his her their about into".split(" "));
 const GENERIC_EPISODE = /^(episode|chapter|part|ep|pilot)?\s*\d*$/;
 
+// Which of the index's people the query names, and how well: worked out once
+// per query over the distinct names (thousands), not once per title per name.
+const personTiers = (Q) => {
+  if (Q.pt && Q.ptOf === index) return Q.pt;
+  const out = new Map();
+  const L = Q.len;
+  if (index && L >= 3) {
+    const q = Q.f.raw;
+    const fuzzy = L >= 6;
+    for (const p of index.people.values()) {
+      // (a name missing letters the query has cannot match; two may be typos)
+      const missing = q.m & ~p.v.m;
+      if (missing && (!fuzzy || bits(missing) > 2)) continue;
+      const e = tierView(q, p.v, fuzzy);
+      const t = e >= 1000 ? 420 : L >= 4 && e >= 760 ? 400 : L >= 6 && e >= 600 && e < 700 ? 380 : 0;
+      if (t) out.set(p.v.s, t);
+    }
+  }
+  Q.pt = out;
+  Q.ptOf = index;
+  return out;
+};
+
 // Everything that can match in one document. Returns null for no match.
 const scoreDoc = (Q, d, { titlesOnly = false } = {}) => {
   const s = titleScore(Q, d.tf, d.year);
+  // (nine titles in ten end here: no title match and nothing else to look at)
+  if (!s.tier && !d.akas.length && (titlesOnly || (!d.eps && !d.people.length && !d.roles.length && !d.synopsis))) return null;
   let best = { tier: s.tier, ym: s.ym, lit: s.lit, kind: "title", label: null };
   for (const aka of d.akas) {
     const a = titleScore(Q, aka.tf, d.year);
@@ -268,11 +334,13 @@ const scoreDoc = (Q, d, { titlesOnly = false } = {}) => {
       }
     }
   }
-  if (L >= 3 && best.tier < 420) {
-    for (const p of d.people) {
-      const e = tierView(Q.f.raw, p.v, L >= 6);
-      const t = e >= 1000 ? 420 : L >= 4 && e >= 760 ? 400 : L >= 6 && e >= 600 && e < 700 ? 380 : 0;
-      if (t > best.tier) best = { tier: t, ym: 0, lit: 0, kind: "person", label: p.name };
+  if (L >= 3 && best.tier < 420 && d.people.length) {
+    const hits = personTiers(Q);
+    if (hits.size) {
+      for (const p of d.people) {
+        const t = hits.get(p.v.s);
+        if (t > best.tier) best = { tier: t, ym: 0, lit: 0, kind: "person", label: p.name };
+      }
     }
     if (L >= 4 && best.tier < 360) {
       for (const r of d.roles) {
@@ -283,7 +351,7 @@ const scoreDoc = (Q, d, { titlesOnly = false } = {}) => {
       }
     }
   }
-  if (L >= 4 && best.tier < 200) {
+  if (L >= 4 && best.tier < 200 && d.synopsis) {
     const words = Q.f.raw.w.filter((w) => !STOP.has(w));
     if (words.length) {
       if (!d.syn) d.syn = new Set(norm(`${d.synopsis || ""} ${(d.genres || []).join(" ")}`).split(" "));
@@ -295,6 +363,7 @@ const scoreDoc = (Q, d, { titlesOnly = false } = {}) => {
 
 const cmp = (a, b) =>
   b.tier - a.tier ||
+  (b.grp || 0) - (a.grp || 0) ||
   b.ym - a.ym ||
   (b.doc.inLibrary ? 1 : 0) - (a.doc.inLibrary ? 1 : 0) ||
   b.pop - a.pop ||
@@ -304,9 +373,54 @@ const cmp = (a, b) =>
   (a.doc.title < b.doc.title ? -1 : a.doc.title > b.doc.title ? 1 : 0) ||
   (a.doc.key < b.doc.key ? -1 : 1);
 
+// two neighbouring letters swapped, nothing else ("tory" / "troy")
+const swapped = (a, b) => {
+  if (a.length !== b.length || a === b) return false;
+  let i = 0;
+  while (i < a.length && a[i] === b[i]) i++;
+  return i + 1 < a.length && a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2);
+};
+const NOTABLE_VOTES = 1000; // TMDB votes, for a title only the recommender's index knows
+// Where a scored candidate goes: the typo lift, then (while typing) the
+// groups inside "starts with". Mutates the match; returns its group.
+const G_NOTABLE = 3, G_SLIP = 2, G_EXACT = 1;
+const place = (Q, d, m, livePop, typing) => {
+  if (m.kind !== "title" && m.kind !== "aka") return 0;
+  const slip = m.tier === FUZZY_WHOLE;
+  // one slip from a title the household owns, or from the catalogue's own
+  // first answer for these letters: it goes right under "starts with"
+  if (slip && (d.inLibrary || livePop >= 0.9)) m.tier = LIFTED;
+  if (!typing) return 0;
+  if (m.tier === 900) return d.notable ? G_NOTABLE : 0;
+  if (m.tier === 1000) {
+    if (d.notable || m.ym) return 0;
+    m.tier = 900;
+    m.exact = true;
+    return G_EXACT;
+  }
+  if (slip && d.notable) {
+    const q = Q.f.raw;
+    if (d.inLibrary || d.trending ||
+      [d.tf, ...d.akas.map((a) => a.tf)].some((tf) => swapped(q.q, tf.raw.q) || swapped(q.aq, tf.raw.aq))) {
+      m.tier = 900;
+      return G_SLIP;
+    }
+  }
+  return 0;
+};
+
 // ---------- documents ----------
 const typeOf = (t) => (t === "show" || t === "series" ? "show" : "movie");
-const personOf = (name) => ({ name, v: mkView(norm(name).split(" ").filter(Boolean)) });
+const personCache = new Map();
+const personOf = (name) => {
+  let p = personCache.get(name);
+  if (!p) {
+    p = { name, v: mkView(norm(name).split(" ").filter(Boolean)) };
+    if (personCache.size >= FORMS_MAX) personCache.clear();
+    personCache.set(name, p);
+  }
+  return p;
+};
 
 const libraryDoc = (item, imdbId) => ({
   key: `lib:${item.id}`,
@@ -320,6 +434,8 @@ const libraryDoc = (item, imdbId) => ({
   genres: item.genres || [],
   synopsis: item.synopsis || "",
   inLibrary: true,
+  notable: true,
+  trending: false,
   pop: 0.6 + Math.min(10, item.rating || 0) / 25,
   item,
   tf: forms(item.title),
@@ -341,6 +457,8 @@ const catalogDoc = (m, pop) => ({
   genres: m.genres || [],
   synopsis: m.synopsis || "",
   inLibrary: false,
+  notable: false,
+  trending: false,
   pop,
   item: m,
   tf: forms(m.title),
@@ -400,6 +518,23 @@ let src = {
         });
       }
     } catch {}
+    return out;
+  },
+  // the catalogue's most popular titles, kept on disk (media/wellknown.js)
+  knownTitles: () => require("./wellknown").all(),
+  knownStamp: () => require("./wellknown").stamp(),
+  // the recommender's title index (media/recs/titleindex.js): full records only
+  recTitles: () => {
+    const out = [];
+    for (const r of require("./recs/titleindex").all()) {
+      if (!r || r.lite || !r.id || !r.title || !r.poster || r.adult) continue;
+      out.push({
+        imdbId: r.id, type: r.k === "tv" ? "show" : "movie", title: r.title, year: r.year || null, poster: r.poster,
+        rating: r.va ? Math.round(r.va * 10) / 10 : null, genres: [], synopsis: r.ov || "", votes: r.vc || 0,
+        cast: (r.cast || []).slice(0, 4).map((p) => p && p[1]).filter(Boolean),
+        director: (r.dir || []).map((p) => p && p[1]).filter(Boolean),
+      });
+    }
     return out;
   },
   liveCached: (q) => discover.searchCached(q),
@@ -473,7 +608,7 @@ const build = () => {
   }
   // a catalogue twin of a library title folds INTO it: one card, the library's
   const absorb = (lib, m, pop) => {
-    if (m.title && norm(m.title) !== lib.tf.raw.s && !lib.akas.some((a) => a.tf.raw.s === norm(m.title)))
+    if (m.title && forms(m.title).raw.s !== lib.tf.raw.s && !lib.akas.some((a) => a.tf.raw.s === forms(m.title).raw.s))
       lib.akas.push({ title: m.title, tf: forms(m.title) });
     if (!lib.imdbId && m.imdbId) {
       lib.imdbId = m.imdbId;
@@ -487,21 +622,50 @@ const build = () => {
     if (!m || !m.imdbId || !m.title) return;
     const lib = (m.inLibrary && byLib.get(m.inLibrary)) ||
       (byImdb.get(m.imdbId) && byImdb.get(m.imdbId).inLibrary ? byImdb.get(m.imdbId) : null) ||
-      byTitle.get(`${typeOf(m.type)}|${norm(m.title)}|${m.year || ""}`);
-    if (lib) return absorb(lib, m, pop);
+      byTitle.get(`${typeOf(m.type)}|${forms(m.title).raw.s}|${m.year || ""}`);
+    if (lib) {
+      absorb(lib, m, pop);
+      return lib;
+    }
     const had = byImdb.get(m.imdbId);
     if (had) {
       had.pop = Math.max(had.pop, pop);
-      return;
+      if (!had.genres.length && m.genres && m.genres.length) had.genres = m.genres;
+      return had;
     }
-    if (!(m.poster || m.cover)) return;
+    if (!(m.poster || m.cover)) return null;
     const d = catalogDoc(m, pop);
     docs.push(d);
     byImdb.set(d.imdbId, d);
+    return d;
   };
   const trending = src.trending();
   for (const list of trending ? [trending.movies || [], trending.shows || []] : []) {
-    list.forEach((m, i) => addCatalog(m, 0.3 + 0.3 * (1 - i / Math.max(1, list.length))));
+    list.forEach((m, i) => {
+      const d = addCatalog(m, 0.3 + 0.3 * (1 - i / Math.max(1, list.length)));
+      if (d) d.notable = d.trending = true;
+    });
+  }
+  // the well-known set: the catalogue's most popular titles, in its order
+  const knownCast = [];
+  let known = [];
+  try { known = src.knownTitles() || []; } catch {}
+  const depth = { movie: 1, show: 1 };
+  for (const m of known) if (m.k >= depth[typeOf(m.type)]) depth[typeOf(m.type)] = m.k + 1;
+  for (const m of known) {
+    const d = addCatalog(m, 0.05 + 0.2 * (1 - (m.k || 0) / depth[typeOf(m.type)]));
+    if (!d) continue;
+    d.notable = true;
+    if ((m.cast && m.cast.length) || (m.director && m.director.length)) knownCast.push([d, m]);
+  }
+  // …and what the recommender's title index knows, with its vote counts
+  let recs = [];
+  try { recs = src.recTitles() || []; } catch {}
+  for (const m of recs) {
+    const d = addCatalog(m, Math.min(0.25, Math.log10((m.votes || 0) + 1) / 20));
+    if (!d) continue;
+    if ((m.votes || 0) >= NOTABLE_VOTES) d.notable = true;
+    if (m.cast && m.cast.length) knownCast.push([d, m]);
   }
   let seenList = [];
   try { seenList = src.markLibrary(src.seenTitles().map((m) => ({ ...m }))); } catch {}
@@ -522,7 +686,7 @@ const build = () => {
   for (const f of facts) {
     const d = byImdb.get(f.imdbId);
     if (!d) continue;
-    if (f.title && d.inLibrary && norm(f.title) !== d.tf.raw.s && !d.akas.some((a) => a.tf.raw.s === norm(f.title)))
+    if (f.title && d.inLibrary && forms(f.title).raw.s !== d.tf.raw.s && !d.akas.some((a) => a.tf.raw.s === forms(f.title).raw.s))
       d.akas.push({ title: f.title, tf: forms(f.title) });
     if (!d.genres.length && f.genres && f.genres.length) d.genres = f.genres;
     if (!d.synopsis && f.synopsis) d.synopsis = f.synopsis;
@@ -543,6 +707,10 @@ const build = () => {
       if (eps.length) d.eps = eps;
     }
   }
+  for (const [d, m] of knownCast) {
+    if (d.people.length) continue; // a title page's own cast list is the better one
+    for (const name of [...(m.cast || []), ...(m.director || [])]) if (name) notePerson(String(name), d);
+  }
   // people TMDB named in earlier searches: their titles are in the seen pool
   try {
     for (const p of src.seenPeople()) {
@@ -559,18 +727,37 @@ const build = () => {
 
   index = {
     docs, byLib, byImdb, byTitle, people, genres,
-    stamp: src.stamp(), at: Date.now(),
+    stamp: src.stamp(), knownStamp: knownStamp(), at: Date.now(),
     buildMs: Number(process.hrtime.bigint() - started) / 1e6,
   };
   return index;
 };
 
+const knownStamp = () => {
+  try { return src.knownStamp(); } catch { return ""; }
+};
+// Rebuilt at once on a scan (a title that just landed must be found). The
+// once-a-minute refresh (a trending refresh, titles and people learnt from
+// searches since) and a new well-known set are built AFTER the request that
+// noticed, never in it: with ~5,000 titles a build is tens of milliseconds.
+// NOT rebuilt for every title the live catalogue names: that would be a
+// rebuild per keystroke, and the search that brought them already has them.
+let rebuilding = false;
 const ensureIndex = () => {
-  // Rebuilt on a scan and once a minute (a trending refresh, titles and people
-  // learnt from searches since). NOT on every title the live catalogue names:
-  // that would be a rebuild per keystroke, and this search already has them.
-  if (!index || index.stamp !== src.stamp() || Date.now() - index.at > REBUILD_MS) build();
+  if (!index || index.stamp !== src.stamp()) return build();
+  if (!rebuilding && (index.knownStamp !== knownStamp() || Date.now() - index.at > REBUILD_MS)) {
+    rebuilding = true;
+    const t = setTimeout(() => {
+      rebuilding = false;
+      try { build(); } catch {}
+    }, 0);
+    if (t.unref) t.unref();
+  }
   return index;
+};
+// At boot (server.js): the first build, so the first search does not pay for it.
+const warm = () => {
+  try { ensureIndex(); } catch {}
 };
 
 // ---------- ranking ----------
@@ -614,7 +801,7 @@ const withLive = (idx, live) => {
   return { extra, pops, akas };
 };
 
-const rank = (Q, idx, { live = null, allow = null, pin = null, limit = 60, type = null, noSynopsis = false } = {}) => {
+const rank = (Q, idx, { live = null, allow = null, pin = null, limit = 60, type = null, noSynopsis = false, typing = false } = {}) => {
   const { extra, pops, akas } = withLive(idx, live);
   const cands = [];
   const consider = (d) => {
@@ -630,10 +817,8 @@ const rank = (Q, idx, { live = null, allow = null, pin = null, limit = 60, type 
     }
     if (!m) return;
     const livePop = pops.get(d.key) || 0;
-    // one slip from a title the household owns, or from the catalogue's own
-    // first answer for these letters: it goes right under "starts with"
-    if (m.tier === FUZZY_WHOLE && (m.kind === "title" || m.kind === "aka") && (d.inLibrary || livePop >= 0.9)) m.tier = LIFTED;
-    cands.push({ doc: d, ...m, pop: d.pop + 0.5 * livePop });
+    const grp = place(Q, d, m, livePop, typing);
+    cands.push({ doc: d, ...m, grp, pop: d.pop + 0.5 * livePop });
   };
   for (const d of idx.docs) consider(d);
   for (const d of extra) consider(d);
@@ -644,7 +829,7 @@ const rank = (Q, idx, { live = null, allow = null, pin = null, limit = 60, type 
   let solid = 0;
   for (const c of cands) {
     const fuzzy = (c.kind === "title" || c.kind === "aka") && c.tier >= 560 && c.tier <= FUZZY_WHOLE;
-    if ((named && fuzzy) || (c.kind === "synopsis" && (named || noSynopsis))) continue;
+    if ((named && (fuzzy || c.grp === G_SLIP)) || (c.kind === "synopsis" && (named || noSynopsis))) continue;
     if (c.kind === "synopsis" && solid >= 12) continue;
     if (allow && !allow(cardItem(c.doc))) continue;
     if (c.kind !== "synopsis") solid++;
@@ -655,7 +840,7 @@ const rank = (Q, idx, { live = null, allow = null, pin = null, limit = 60, type 
   // when the catalogue's answer arrives — unless something matches BETTER.
   if (pin && out.length > 1 && out[0].doc.key !== pin) {
     const i = out.findIndex((c) => c.doc.key === pin);
-    if (i > 0 && out[i].tier === out[0].tier && out[i].ym === out[0].ym) out.unshift(...out.splice(i, 1));
+    if (i > 0 && out[i].tier === out[0].tier && out[i].grp === out[0].grp && out[i].ym === out[0].ym) out.unshift(...out.splice(i, 1));
   }
   return out;
 };
@@ -683,7 +868,7 @@ const card = (d, extra = {}) =>
       };
 const resultCard = (c) => {
   const meta = WHY[c.kind] ? WHY[c.kind](c) : null;
-  return card(c.doc, { match: { tier: c.tier, kind: c.kind, ...(c.label ? { label: c.label } : {}) }, ...(meta ? { meta } : {}) });
+  return card(c.doc, { match: { tier: c.tier, kind: c.kind, ...(c.label ? { label: c.label } : {}), ...(c.exact ? { exact: true } : {}) }, ...(meta ? { meta } : {}) });
 };
 
 // ---------- the related tail ----------
@@ -701,23 +886,34 @@ const anchorOf = (ranked) => {
 
 const neighbours = (anchor, idx) => {
   const ag = new Set(anchor.genres || []);
-  const ap = new Set(anchor.people.map((p) => p.v.s));
+  // who shares its cast: straight from the people index, not a scan
+  const shared = new Map(); // doc key → { n, name }
+  for (const p of anchor.people) {
+    const hit = idx.people.get(p.v.s);
+    if (!hit) continue;
+    for (const key of hit.keys) {
+      const cur = shared.get(key);
+      if (cur) cur.n++;
+      else shared.set(key, { n: 1, name: p.name });
+    }
+  }
   const out = [];
   for (const d of idx.docs) {
     if (d === anchor || !d.cover) continue;
-    let shared = null;
-    for (const p of d.people) if (ap.has(p.v.s)) { shared = shared || p.name; }
-    const sharedCount = shared ? d.people.filter((p) => ap.has(p.v.s)).length : 0;
+    const sh = shared.get(d.key);
     let g = 0;
     for (const x of d.genres) if (ag.has(x)) g++;
-    if (!sharedCount && (g < 2 && !(ag.size === 1 && g === 1))) continue;
-    if (!sharedCount && d.type !== anchor.type) continue;
+    if (!sh && (g < 2 && !(ag.size === 1 && g === 1))) continue;
+    if (!sh && d.type !== anchor.type) continue;
     const union = ag.size + d.genres.length - g;
-    const score = 3 * sharedCount + 2 * (union ? g / union : 0) + (d.type === anchor.type ? 0.5 : 0) + (d.rating || 0) / 20 + (d.inLibrary ? 0.3 : 0);
-    out.push({ d, score, why: sharedCount ? { kind: "cast", label: `With ${shared}` } : { kind: "genre", label: anchor.genres.filter((x) => d.genres.includes(x)).slice(0, 2).join(" · ") } });
+    const score = 3 * (sh ? sh.n : 0) + 2 * (union ? g / union : 0) + (d.type === anchor.type ? 0.5 : 0) + (d.rating || 0) / 20 + (d.inLibrary ? 0.3 : 0);
+    out.push({ d, score, sh });
   }
   out.sort((a, b) => b.score - a.score || (a.d.title < b.d.title ? -1 : 1));
-  return out;
+  return out.slice(0, 60).map(({ d, score, sh }) => ({
+    d, score,
+    why: sh ? { kind: "cast", label: `With ${sh.name}` } : { kind: "genre", label: anchor.genres.filter((x) => d.genres.includes(x)).slice(0, 2).join(" · ") },
+  }));
 };
 
 // catalogue-shaped rows (a franchise, a "more like this" row, a person's
@@ -901,7 +1097,7 @@ const search = async (q, opts = {}) => {
   // the query IS a genre ("comedy"): its titles are the related tail's job,
   // not forty synopsis matches
   const genreName = idx.genres.get(Q.f.raw.s) || null;
-  const ranked = rank(Q, idx, { live, allow, pin: opts.pin || null, limit, type: opts.type || null, noSynopsis: !!genreName });
+  const ranked = rank(Q, idx, { live, allow, pin: opts.pin || null, limit, type: opts.type || null, noSynopsis: !!genreName, typing: !opts.commit });
   const exclude = ranked.map((c) => c.doc.key);
   const bestTitle = ranked.find((c) => c.kind === "title" || c.kind === "aka");
   const anchor = anchorOf(ranked);
@@ -1021,8 +1217,10 @@ const suggest = (q, opts = {}) => {
     if (!d.cover && !d.inLibrary) continue;
     const m = scoreDoc(Q, d, { titlesOnly: true });
     if (!m || m.tier < floor) continue;
-    if (m.tier === FUZZY_WHOLE && d.inLibrary) m.tier = LIFTED;
-    cands.push({ doc: d, ...m, pop: d.pop + 0.5 * (pops.get(d.key) || 0) });
+    const livePop = pops.get(d.key) || 0;
+    const grp = place(Q, d, m, livePop, true);
+    if (m.tier < floor) continue;
+    cands.push({ doc: d, ...m, grp, pop: d.pop + 0.5 * livePop });
   }
   cands.sort(cmp);
   const all = [];
@@ -1039,6 +1237,7 @@ const suggest = (q, opts = {}) => {
   // people from three letters; a surname (any word but the first) from four
   if (Q.len >= 3 && !type) {
     for (const p of idx.people.values()) {
+      if (Q.f.raw.m & ~p.v.m) continue; // letters the name does not have
       const t = tierView(Q.f.raw, p.v, false);
       if (t < (Q.len >= 4 ? 760 : 900)) continue;
       let count = 0;
@@ -1114,10 +1313,12 @@ const stats = () => {
 const _setSources = (next) => {
   src = { ...src, ...next };
   index = null;
+  formsCache.clear();
+  personCache.clear();
 };
 const _reset = () => { index = null; };
 
 module.exports = {
-  search, suggest, legacy, stats,
+  search, suggest, legacy, stats, warm,
   _internals: { norm, forms, tierView, tierForms, parseQuery, titleScore, scoreDoc, rank, highlight, build, ensureIndex, anchorOf, _setSources, _reset, canonWord },
 };
