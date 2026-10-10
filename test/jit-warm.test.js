@@ -340,3 +340,57 @@ test("real ffmpeg: a viewer who arrives while the warm-up is running keeps its p
     forget();
   }
 });
+
+// ---------- an encoder a viewer is waiting on is not starved ----------
+test("real ffmpeg: an encoder runs at normal priority until the segment it was started for is out, then yields; a warm-up yields from the start", async (t) => {
+  if (!haveX264()) return t.skip("no ffmpeg with libx264 on this machine");
+  forget();
+  J.setOutsideEncodes(() => 0);
+  const ladder = require("../src/media/ladder");
+  const BELOW = os.constants.priority.PRIORITY_BELOW_NORMAL;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-jitprio-"));
+  J.setDeclinedFile(path.join(dir, "declined.json"));
+  const dirs = [];
+  try {
+    const file = makeFilm(dir);
+    const buf = fs.readFileSync(file);
+    const key = `prio-${Date.now()}`;
+    const entry = await jit.tableFor(key, async (s, l) => buf.subarray(s, s + l), buf.length);
+    const base = { url: file, extra: [], fmt: null, vtagHvc1: false, audio: 0 };
+    // (the full encode: the test film is too small to have a 480p rung under it)
+    const input = await ladder.encInput(base, { key, name: "h264", fmt: null, audio: 0, jit });
+    assert.ok(input && input.enc, "the encoded rendition can be described");
+
+    // a viewer's request: the encoder starts un-yielded…
+    const d = path.join(dir, "viewer");
+    dirs.push(d);
+    const job = jit.jobFor(d, entry, { enc: true });
+    const waiting = jit.ensureSegment(d, job, input, 0);
+    const run = job.producers[0];
+    assert.ok(run && run.proc, "an encoder was started for it");
+    assert.equal(run.yielding, false);
+    assert.notEqual(os.getPriority(run.proc.pid), BELOW, "normal priority while the viewer waits");
+    const pid = run.proc.pid;
+    assert.ok(await waiting, `the segment is made (${job.broken || "ok"})`);
+    // …and has stepped down by the time that segment is served
+    assert.equal(run.yielding, true);
+    if (run.proc) assert.equal(os.getPriority(pid), BELOW, "below normal from then on");
+
+    // a warm-up: nobody is waiting, it yields at once
+    J.dropJob(d);
+    await new Promise((r) => setTimeout(r, 200));
+    const dw = path.join(dir, "warm");
+    dirs.push(dw);
+    const wjob = jit.jobFor(dw, entry, { enc: true });
+    assert.equal(jit.warmSegment(dw, wjob, input, 3), "started");
+    const wrun = wjob.producers[0];
+    assert.equal(wrun.yielding, true);
+    assert.equal(os.getPriority(wrun.proc.pid), BELOW);
+  } finally {
+    for (const d of dirs) J.dropJob(d);
+    await new Promise((r) => setTimeout(r, 300));
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    J.setDeclinedFile(path.join(os.tmpdir(), "aurora-jit-declined-test.json"));
+    forget();
+  }
+});

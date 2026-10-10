@@ -13,7 +13,7 @@ import { track } from "../usage.js";
 import { playCap, capFor, netTier, measured, probe, dataMode } from "../net.js";
 import { followVideo } from "../glassTone.js";
 import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio } from "../lang.js";
-import { masterVariants as variantsOf, startRung, startStepDown, segmentAt, streamSaves, STREAM_WORTH_SEC } from "../playstart.js";
+import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC } from "../playstart.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -255,10 +255,14 @@ const masterVariants = (text, masterUrl) => variantsOf(text, absUrl(masterUrl));
 // seconds, ten where the film's keyframes are ten apart — so without it the
 // first frame waits for megabytes it does not need: 3 MB at 3 Mbit/s is
 // eight seconds, where the first picture is in the first few hundred kB.
+// Measured 2026-10-10 (tools/ttff, docs/qa/ttff/REPORT.md): on a 3 Mbit/s
+// line the first frame of a repackaged film at 1.5 s instead of 8; on a far
+// fast line a second sooner; the repackaged-stream browser tests (seeking,
+// subtitles, audio switch, resume, stall recovery) pass with it.
 // hls.js still calls the mode experimental, so it has a switch:
 //   localStorage["aurora-hls-progressive"] = "0"  off      "1"  on
 // and is off by itself where the browser has no streaming fetch.
-const PROGRESSIVE_DEFAULT = false;
+const PROGRESSIVE_DEFAULT = true;
 const progressiveOn = () => {
   let v = null;
   try { v = localStorage.getItem("aurora-hls-progressive"); } catch {}
@@ -996,8 +1000,27 @@ export const renderPlayer = async (root, { id }) => {
         const st = frag.stats;
         if (!st || st.aborted || (st.total && st.loaded >= st.total) || (st.loading && st.loading.end)) return stop();
         const first = st.loading && st.loading.first;
-        if (!first) return; // the server is still making it: that is not the line
         const now = performance.now();
+        if (!first) {
+          // The server is still making it: that is not the line. But a
+          // lighter rung is an ENCODE, and an encoder on a busy server may be
+          // a long time coming (measured: 9–52 s on a saturated machine).
+          // Three seconds of nothing, and the film's own video is taken
+          // instead — a copy, made at the speed of the disk; the lighter rung
+          // is there for hls.js to come down to when the server has made it.
+          const cur = ladderLevels().find((l) => l.i === frag.level);
+          const top = ladderLevels().find((l) => l.h === 0);
+          const waited = st.loading && st.loading.start ? now - st.loading.start : 0;
+          if (!startStepUp({ waited, encoded: !!(cur && cur.h), copyTop: !!(top && top.v === "copy" && cur && top.i !== cur.i) })) return;
+          stop();
+          mark("start-up", { from: cur.v, waited: Math.round(waited) });
+          try {
+            h.nextLoadLevel = top.i;
+            frag.abortRequests();
+            h.trigger(E.FRAG_LOAD_EMERGENCY_ABORTED, { frag, part: null, stats: st });
+          } catch {}
+          return;
+        }
         samples.push({ t: now, n: st.loaded || 0 });
         while (samples.length > 2 && now - samples[0].t > 900) samples.shift();
         if (now - first < 1500 || now - samples[0].t < 500) return;
@@ -4918,7 +4941,11 @@ export const renderPlayer = async (root, { id }) => {
     const watcher = setInterval(() => {
       if (exited) return clearInterval(watcher);
       const now = Date.now();
-      if (ladderAsked || !autoQuality || video.paused || video.seeking || probing || steppingDown || holdEl || now < watchFrom) {
+      // (an hls.js stream that has not shown its first frame is STARTING, not
+      // starving: with segments played as they arrive its buffer is short by
+      // design in those seconds, and a step down here rebuilt the stream it
+      // was about to show — the start has its own watch, see ladderWire)
+      if (ladderAsked || !autoQuality || video.paused || video.seeking || probing || steppingDown || holdEl || now < watchFrom || (hls && !firstFrameMarked)) {
         win.length = 0;
         thinSince = richSince = 0;
         return;

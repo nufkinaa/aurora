@@ -86,19 +86,24 @@ test("startStepDown: a first segment that will be here soon is left alone", asyn
   assert.equal(startStepDown({ eta: NaN, rate: 3e6, dur: 10, lower }), -1);
 });
 
-test("startStepDown: an 8 Mbit/s film on a 3 Mbit/s line goes to the best rung that is clearly quicker", async () => {
+test("startStepDown: an 8 Mbit/s film on a thin line goes to the best rung the line can also carry", async () => {
   const { startStepDown, START_MAKE_SEC } = await load();
   assert.equal(START_MAKE_SEC, 1.5);
   const lower = [{ bandwidth: 3551147 }, { bandwidth: 1658027 }];
-  // 10.7 MB of which 0.5 MB has arrived at 3 Mbit/s: 27 s to go.
-  // 720p: 3.55 Mbit × 10 s / 3 Mbit/s = 11.8 s + 1.5 to make = 13.3 < 27 × 0.6 = 16.3 → 720p
-  assert.equal(startStepDown({ eta: 27.2, rate: 3e6, dur: 10, lower }), 0);
-  // at 1.5 Mbit/s (54 s to go): 720p would take 25 s — under 32, still the pick
-  assert.equal(startStepDown({ eta: 54, rate: 1.5e6, dur: 10, lower }), 0);
-  // the rest of the segment is 12 s away: 720p (13.3 s) does not win, 480p (5.5 + 1.5 = 7.0 < 7.2) just does
+  // 10.7 MB of which 0.5 MB has arrived at 3 Mbit/s: 27 s to go. 720p would be
+  // quicker (13.3 s) — but it declares 3.55 Mbit/s, and 3 Mbit/s does not carry
+  // it: it would be given up a segment later. 480p (1.66 ≤ 2.4): that one.
+  assert.equal(startStepDown({ eta: 27.2, rate: 3e6, dur: 10, lower }), 1);
+  // on a 5 Mbit/s line 720p is carried (3.55 ≤ 4.0) and quicker (7.1 + 1.5 < 16 × 0.6): 720p
+  assert.equal(startStepDown({ eta: 16, rate: 5e6, dur: 10, lower }), 0);
+  // at 1.5 Mbit/s nothing is carried (480p wants 2.07): the lightest, since it is quicker (11 + 1.5 < 54 × 0.6)
+  assert.equal(startStepDown({ eta: 54, rate: 1.5e6, dur: 10, lower }), 1);
+  // the rest of the segment is 12 s away at 3 Mbit/s: 480p (5.5 + 1.5 = 7.0 < 7.2) just wins
   assert.equal(startStepDown({ eta: 12, rate: 3e6, dur: 10, lower }), 1);
   // …and with 10 s to go nothing wins clearly: stay
   assert.equal(startStepDown({ eta: 10, rate: 3e6, dur: 10, lower }), -1);
+  // one rung below, not carried and not quicker: stay
+  assert.equal(startStepDown({ eta: 8, rate: 1e6, dur: 10, lower: [{ bandwidth: 1658027 }] }), -1);
 });
 
 test("startStepDown: a far server's line that has opened up is not mistaken for a thin one", async () => {
@@ -133,26 +138,35 @@ test("segmentAt: the segment that holds a second of the film", async () => {
   assert.equal(segmentAt(null, 5), null);
 });
 
-test("streamSaves: nothing is claimed when the line or the index is unknown", async () => {
+test("streamSaves: nothing is claimed when the line, the index or the film's bitrate is unknown", async () => {
   const { streamSaves } = await load();
   assert.equal(streamSaves({ indexBytes: 5e6, kbps: 0, fileKbps: 2500, progressive: true }), 0);
-  assert.equal(streamSaves({ indexBytes: 0, kbps: 3000, fileKbps: 2500, progressive: true }), 0);
+  assert.equal(streamSaves({ indexBytes: 0, kbps: 8000, fileKbps: 2500, progressive: true }), 0);
+  assert.equal(streamSaves({ indexBytes: 5e6, kbps: 8000, fileKbps: 0, progressive: true }), 0);
   assert.equal(streamSaves({}), 0);
   assert.equal(streamSaves(), 0);
-  // a whole first segment has to be sized by the file's bitrate: unknown, no claim
-  assert.equal(streamSaves({ indexBytes: 5e6, kbps: 3000, fileKbps: 0, progressive: false }), 0);
 });
 
-test("streamSaves: a film's index on a 3 Mbit/s line is seconds a stream does not spend", async () => {
+test("streamSaves: a film's index on a 5 Mbit/s line is seconds a stream does not spend", async () => {
   const { streamSaves, STREAM_WORTH_SEC } = await load();
   assert.equal(STREAM_WORTH_SEC, 1.5);
-  // an hour of film: a 2.5 MB index — 6.7 s of the line; the stream's own overhead is 0.6 s
-  const hour = streamSaves({ indexBytes: 2.5e6, kbps: 3000, fileKbps: 2500, progressive: true });
-  assert.ok(hour > 5.9 && hour < 6.3, `an hour: ${hour.toFixed(2)} s saved`);
-  // a long film: 9.3 MB — twenty-five seconds
-  const long = streamSaves({ indexBytes: 9.3e6, kbps: 3000, fileKbps: 2500, progressive: true });
-  assert.ok(long > 23 && long < 25, `a long film: ${long.toFixed(1)} s saved`);
+  // an hour of film: a 2.5 MB index — 4 s of the line; the stream's own overhead is 0.6 s
+  const hour = streamSaves({ indexBytes: 2.5e6, kbps: 5000, fileKbps: 2500, progressive: true });
+  assert.ok(hour > 3.2 && hour < 3.6, `an hour: ${hour.toFixed(2)} s saved`);
+  // a long film: 9.3 MB — fifteen seconds
+  const long = streamSaves({ indexBytes: 9.3e6, kbps: 5000, fileKbps: 2500, progressive: true });
+  assert.ok(long > 13.5 && long < 15, `a long film: ${long.toFixed(1)} s saved`);
   assert.ok(hour > STREAM_WORTH_SEC && long > STREAM_WORTH_SEC);
+});
+
+test("streamSaves: a line the film only just fits keeps the file — its stream weighs a little more and would starve", async () => {
+  const { streamSaves, STREAM_HEADROOM } = await load();
+  assert.equal(STREAM_HEADROOM, 1.3);
+  // 2.5 Mbit/s film on a 3 Mbit/s line: however long the index takes
+  assert.equal(streamSaves({ indexBytes: 9.3e6, kbps: 3000, fileKbps: 2500, progressive: true }), 0);
+  assert.equal(streamSaves({ indexBytes: 9.3e6, kbps: 3249, fileKbps: 2500, progressive: true }), 0);
+  // …and with the room the player asks for, the stream
+  assert.ok(streamSaves({ indexBytes: 9.3e6, kbps: 3250, fileKbps: 2500, progressive: true }) > 20);
 });
 
 test("streamSaves: on a line that carries the index in a moment the file stays the file", async () => {
@@ -163,15 +177,27 @@ test("streamSaves: on a line that carries the index in a moment the file stays t
   // 20 Mbit/s and an ordinary film: one second — not worth a server process
   assert.ok(streamSaves({ indexBytes: 4.5e6, kbps: 20000, fileKbps: 2500, progressive: true }) < STREAM_WORTH_SEC);
   // an episode's index is small on any line
-  assert.ok(streamSaves({ indexBytes: 105000, kbps: 3000, fileKbps: 2500, progressive: true }) < STREAM_WORTH_SEC);
+  assert.ok(streamSaves({ indexBytes: 105000, kbps: 5000, fileKbps: 2500, progressive: true }) < STREAM_WORTH_SEC);
 });
 
 test("streamSaves: a player that needs a whole first segment gains only where the index is bigger than that segment", async () => {
   const { streamSaves, STREAM_WORTH_SEC } = await load();
   // 2.5 Mbit/s film: 8 s of it is 2.5 MB — the same as an hour's index: nothing gained
-  assert.ok(streamSaves({ indexBytes: 2.5e6, kbps: 3000, fileKbps: 2500, progressive: false }) < STREAM_WORTH_SEC);
+  assert.ok(streamSaves({ indexBytes: 2.5e6, kbps: 5000, fileKbps: 2500, progressive: false }) < STREAM_WORTH_SEC);
   // …but a long film's 9.3 MB index is still most of the wait
-  assert.ok(streamSaves({ indexBytes: 9.3e6, kbps: 3000, fileKbps: 2500, progressive: false }) > 15);
+  assert.ok(streamSaves({ indexBytes: 9.3e6, kbps: 5000, fileKbps: 2500, progressive: false }) > 8);
   // an 8 Mbit/s film: its first segment (8 MB) outweighs a 4.5 MB index — the file is quicker
-  assert.equal(streamSaves({ indexBytes: 4.5e6, kbps: 3000, fileKbps: 8000, progressive: false }), 0);
+  assert.equal(streamSaves({ indexBytes: 4.5e6, kbps: 12000, fileKbps: 8000, progressive: false }), 0);
+});
+
+test("startStepUp: an encoded rung the server has not begun to send is waited for three seconds, then the film's own video is taken", async () => {
+  const { startStepUp, START_ENCODE_PATIENCE_MS } = await load();
+  assert.equal(START_ENCODE_PATIENCE_MS, 3000);
+  assert.equal(startStepUp({ waited: 500, encoded: true, copyTop: true }), false);
+  assert.equal(startStepUp({ waited: 2999, encoded: true, copyTop: true }), false);
+  assert.equal(startStepUp({ waited: 3000, encoded: true, copyTop: true }), true);
+  // the file's own video is a copy: it is never "slow to encode"
+  assert.equal(startStepUp({ waited: 60000, encoded: false, copyTop: true }), false);
+  // nothing to go up to (the top is itself an encode, or this IS the top): wait on
+  assert.equal(startStepUp({ waited: 60000, encoded: true, copyTop: false }), false);
 });

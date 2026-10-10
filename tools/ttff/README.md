@@ -74,6 +74,7 @@ trip) and TCP slow start, restarted after a second of silence.
 | `HL-HB` | 50 / 20 Mbit/s | 180 ms | a far server on fibre |
 | `HL-LB` | 3 / 1 Mbit/s | 200 ms | far and thin |
 | `LL-LB` | 3 / 1 Mbit/s | 10 ms | throttled Wi-Fi |
+| `ML-MB` | 8 / 3 Mbit/s | 80 ms | an ordinary line to a server elsewhere |
 | `HL-1.5` | 1.5 / 0.75 Mbit/s | 200 ms | |
 | `LOSS-2` | 20 / 5 Mbit/s, 2% packets lost | 60 ms | ≈ 1.7 Mbit/s per connection |
 

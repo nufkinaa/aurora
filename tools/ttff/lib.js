@@ -21,6 +21,7 @@ const CONDITIONS = {
   "HL-HB": { down: 50000, up: 20000, latency: 90, what: "far server on fibre: 50 Mbit/s, 180 ms" },
   "HL-LB": { down: 3000, up: 1000, latency: 100, what: "far and thin: 3 Mbit/s, 200 ms" },
   "LL-LB": { down: 3000, up: 1000, latency: 5, what: "throttled Wi-Fi: 3 Mbit/s, 10 ms" },
+  "ML-MB": { down: 8000, up: 3000, latency: 40, what: "an ordinary line to a server elsewhere: 8 Mbit/s, 80 ms" },
   "HL-1.5": { down: 1500, up: 750, latency: 100, what: "1.5 Mbit/s, 200 ms" },
   "LOSS-2": { down: 20000, up: 5000, latency: 30, pktloss: 2, what: "20 Mbit/s, 60 ms, 2% packet loss (≈1.7 Mbit/s per connection)" },
 };

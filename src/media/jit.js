@@ -699,6 +699,8 @@ const advance = (dir, job, run) => {
     const { seg, members, drop } = step;
     run.cursor = members[members.length - 1] + 1;
     run.nextSeg = seg + 1;
+    // the segment an encoder was started for is decided: from here it yields
+    if (job.enc) yieldCpu(run);
     run.queue = run.queue
       .then(async () => {
         await Promise.all(drop.map((i) => unlinkQuiet(gopPath(run, i))));
@@ -773,6 +775,14 @@ const onClosed = (dir, job, run, i, start) => {
   advance(dir, job, run);
 };
 
+// An encoder steps down to below-normal priority (the server itself, and
+// whoever else it is serving, come first from here on).
+const yieldCpu = (run, proc = run.proc) => {
+  if (run.yielding || !proc) return;
+  run.yielding = true;
+  try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
+};
+
 // Split a child's output stream into lines.
 const eachLine = (stream, onLine) => {
   let buf = "";
@@ -802,7 +812,8 @@ const settle = (job, run) => {
 // Spawn a rolling producer emitting GOP files from just before
 // table[fromSeg] to EOF — beside whatever producers the job already has
 // (who is stopped for it, if anyone, is acquire's decision).
-const startProducer = (dir, job, input, fromSeg) => {
+// `quiet`: nobody is waiting on it (a warm-up): an encoder yields from the start.
+const startProducer = (dir, job, input, fromSeg, { quiet = false } = {}) => {
   const gen = ++job.gen;
   const run = {
     gen, fromSeg, fmt: input.fmt,
@@ -815,13 +826,20 @@ const startProducer = (dir, job, input, fromSeg) => {
     startedAt: Date.now(),
     proc: null,
     queue: Promise.resolve(), // file work, strictly in order
+    yielding: false, // an encoder: running below normal priority (see below)
   };
   fs.mkdirSync(run.pdir, { recursive: true });
   const start = job.table[fromSeg].start;
   const args = producerArgs(run, input, fromSeg > 0 ? start : null);
   const proc = spawn(config.FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
-  // An encoder yields the CPU to the server itself (as remux.js does).
-  if (input.enc) { try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {} }
+  // An encoder yields the CPU to the server itself (as remux.js does) — but
+  // not before it has made the segment it was started for. That one is what a
+  // viewer is looking at a black screen for, and on a machine with anything
+  // else to do a below-normal process may not run for a long time: measured
+  // 2026-10-10 on a box with every core busy, 9–52 s for ten seconds of 480p
+  // that take one second when the encoder gets its turn. So it starts at
+  // normal priority and steps down once its first segment is out (advance).
+  if (input.enc && quiet) yieldCpu(run, proc);
   let errTail = "";
   eachLine(proc.stderr, (line) => {
     const open = parseOpenLine(line);
@@ -911,7 +929,8 @@ const ensureSegment = async (dir, job, input, k, { gone = null } = {}) => {
   // busy the machine was) holds for every later producer of this job.
   if (job.enc) input = { ...input, enc: job.encArgs || (job.encArgs = input.enc) };
   noteReader(job, k, now);
-  for (const run of job.producers) run.warm = null; // a viewer is here: no warm-up bound applies
+  // a viewer is here: no warm-up bound applies
+  for (const run of job.producers) run.warm = null;
   job.waiting = (job.waiting || 0) + 1;
   job.wanted.push(k);
   try {
@@ -1020,7 +1039,7 @@ const warmSegment = (dir, job, input, k, now = Date.now()) => {
   while (warmStarts.length && now - warmStarts[0] > 60000) warmStarts.shift();
   if (warmStarts.length >= WARM_MAX_PER_MIN) return "throttled";
   warmStarts.push(now);
-  const run = startProducer(dir, job, input, k);
+  const run = startProducer(dir, job, input, k, { quiet: true });
   run.warm = k + WARM_AHEAD;
   return "started";
 };
@@ -1195,6 +1214,6 @@ module.exports = {
     plan, noteReader, usage, reapable, contended, coversRun, extraCount, stopRun,
     MAX_PRODUCERS_PER_JOB, MAX_EXTRA_PRODUCERS, CLAIM_MS, READER_TTL_MS, STEAL_LEAD, BUSY_WAIT_MS, COVER_AHEAD,
     setOutsideEncodes: (fn) => { outsideEncodes = fn; },
-    jobs, encodeCensus, abandoned, ABANDONED_MS, WARM_AHEAD, WARM_MAX_PER_MIN, warmStarts, advance,
+    jobs, encodeCensus, abandoned, ABANDONED_MS, WARM_AHEAD, WARM_MAX_PER_MIN, warmStarts, advance, yieldCpu,
   },
 };

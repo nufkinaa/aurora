@@ -5,6 +5,8 @@
 //   node tools/ttff/report.js baseline after           before → after, side by side
 //   node tools/ttff/report.js baseline --waterfall HL-LB:mkv-ac3:cold
 //                                                      the request waterfall of the median run
+//   node tools/ttff/report.js --matrix baseline after  one line per title × mode, a column per line × label
+//        [--modes cold,warm] [--lines HL-LB,LL-LB] [--titles a,b] [--field rebufferMs]
 //   node tools/ttff/report.js baseline --md            Markdown (for docs/qa/ttff/REPORT.md)
 //
 // Every figure is the MEDIAN over the runs, with min–max beside it. Times are
@@ -124,6 +126,39 @@ const compare = (a, b, { md = false } = {}) => {
   return out.join("\n");
 };
 
+// One line per title × mode, one column per line (× label): the median time
+// to first frame. A play that never showed a frame in the time allowed
+// counts as that time (120 s), so a median is never flattered by failures;
+// "3/5" beside a figure says how many of the runs got a picture at all.
+const LIMIT_MS = 120000;
+const matrix = (sets, { md = false, modes: only = null, conds: onlyConds = null, titles: onlyTitles = null, field = "ttff" } = {}) => {
+  const labels = Object.keys(sets);
+  const all = Object.values(sets).flat();
+  const titles = onlyTitles || [...new Set(all.map((r) => r.title))];
+  const conds = onlyConds || order(new Set(all.map((r) => r.cond)), COND_ORDER);
+  const modes = only || order(new Set(all.map((r) => r.mode)), MODE_ORDER);
+  const groups = Object.fromEntries(labels.map((l) => [l, group(sets[l])]));
+  const cell = (rs) => {
+    if (!rs || !rs.length) return "";
+    const vals = rs.map((r) => (r.ok && r[field] != null ? r[field] : field === "ttff" ? LIMIT_MS : null)).filter((v) => v != null);
+    const ok = rs.filter((r) => r.ok).length;
+    const m = med(vals);
+    if (m == null) return "—";
+    const txt = field === "rebufferMs" ? (m ? secs(m) : "0") : m >= LIMIT_MS ? "> 120 s" : secs(m);
+    return ok < rs.length ? `${txt} (${ok}/${rs.length})` : txt;
+  };
+  const head = ["title", "mode", ...conds.flatMap((c) => labels.map((l) => (labels.length > 1 ? `${c} ${l}` : c)))];
+  const out = [];
+  if (md) { out.push(`| ${head.join(" | ")} |`); out.push(`|${head.map((_, i) => (i < 2 ? "---" : "--:")).join("|")}|`); }
+  else out.push(head.join("\t"));
+  for (const t of titles) for (const m of modes) {
+    const cells = conds.flatMap((c) => labels.map((l) => cell(groups[l].get(`${c}|${t}|${m}`))));
+    if (cells.every((x) => !x)) continue;
+    out.push(md ? `| ${[t, m, ...cells].join(" | ")} |` : [t, m, ...cells].join("\t"));
+  }
+  return out.join("\n");
+};
+
 // The request waterfall of the run whose TTFF is the median of its group.
 const waterfall = (rows, spec) => {
   const [c, t, m] = spec.split(":");
@@ -160,16 +195,21 @@ const waterfall = (rows, spec) => {
   return lines.join("\n");
 };
 
-module.exports = { load, summarize, group, table, compare, waterfall, med };
+module.exports = { load, summarize, group, table, compare, matrix, waterfall, med };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
   const md = args.includes("--md");
   const wi = args.indexOf("--waterfall");
-  const labels = args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--waterfall");
+  const labels = args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--waterfall" && !["--modes", "--lines", "--titles", "--field"].includes(args[i - 1]));
   if (!labels.length) { console.log("usage: node tools/ttff/report.js <label> [<label after>] [--md] [--waterfall LINE:title:mode]"); process.exit(1); }
+  const opt = (name) => { const i = args.indexOf(name); return i >= 0 && args[i + 1] ? args[i + 1].split(",") : null; };
   const a = load(labels[0]);
-  if (wi >= 0) console.log(waterfall(a, args[wi + 1]));
+  if (args.includes("--matrix")) {
+    const skip = new Set(["--modes", "--lines", "--titles", "--field"].flatMap((n) => { const i = args.indexOf(n); return i >= 0 ? [args[i + 1]] : []; }));
+    const ls = labels.filter((l) => !skip.has(l));
+    console.log(matrix(Object.fromEntries(ls.map((l) => [l, load(l)])), { md, modes: opt("--modes"), conds: opt("--lines"), titles: opt("--titles"), field: (opt("--field") || ["ttff"])[0] }));
+  } else if (wi >= 0) console.log(waterfall(a, args[wi + 1]));
   else if (labels[1]) console.log(compare(a, load(labels[1]), { md }));
   else console.log(table(a, { md }));
 }
