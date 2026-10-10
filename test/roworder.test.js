@@ -47,3 +47,13 @@ test("hiding everything except 'upcoming' fails closed — empty beats an unrele
   });
   assert.deepEqual(ids(out), []);
 });
+
+test("the recommender's generated rows sit with Recommended, in reading order; the stretch row comes later", () => {
+  const rows = [R("trending-stream"), R("stretch"), R("person-525"), R("theme-heist"), R("because-tt1"), R("next-watch"), R("recommended"), R("continue")];
+  const out = ids(orderRows(rows));
+  assert.deepEqual(out, ["continue", "recommended", "because-tt1", "theme-heist", "person-525", "trending-stream", "next-watch", "stretch"]);
+  // a stored order that predates these rows never drops them
+  const stored = ids(orderRows(rows, { order: ["continue", "trending-stream"], hidden: ["stretch"] }));
+  assert.ok(stored.includes("theme-heist") && stored.includes("person-525") && stored.includes("because-tt1"));
+  assert.ok(!stored.includes("stretch"), "and a hidden one stays hidden");
+});

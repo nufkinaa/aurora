@@ -32,9 +32,24 @@
 // from the source's own — the franchise shelf shows those), and a penalty
 // for the blockbuster that is 10x more popular than the film you're on.
 //
+// v3 (2026-10-10, with the recommender in media/recs): two things keywords
+// alone could not see.
+//   themes   TMDB's keywords are a folksonomy — "heist", "bank robbery" and
+//            "caper" are three spellings of one idea, and two films tagged
+//            with different ones shared nothing. The taxonomy
+//            (recs/taxonomy.json) maps the spellings onto themes; shared
+//            themes now vote next to shared keywords, and name the "why"
+//            when no keyword is shared word for word.
+//   makers   the same director or creator is a vote of its own (style is the
+//            thing keywords never carry).
+// And nothing fetched is thrown away any more: every title this ranker
+// enriches is handed to the recommender's title index, so a row viewed today
+// widens what Home can recommend tomorrow at no extra request.
+//
 // rankCandidates() is pure — every weight and rule is pinned in
 // test/vibe.test.js without a network.
 const config = require("../config");
+const taxonomy = require("./recs/taxonomy");
 
 const TMDB = "https://api.themoviedb.org/3";
 // One retry on a timeout, a dropped connection, a 429 or a 5xx: a row is
@@ -115,6 +130,17 @@ const profileOf = (raw, kind, pools = []) => {
     voteCount: raw.vote_count || 0,
     popularity: raw.popularity || 0,
     collectionId: (raw.belongs_to_collection && raw.belongs_to_collection.id) || null,
+    // who made it: directors (film) / creators (series). null = not enriched.
+    makers: raw.credits || raw.created_by
+      ? new Set([
+          ...((raw.credits && raw.credits.crew) || []).filter((c) => c.job === "Director").map((c) => c.id),
+          ...(raw.created_by || []).map((c) => c.id),
+        ])
+      : null,
+    // what it is about, in the taxonomy's terms ({ slug: weight })
+    themes: kwList
+      ? taxonomy.themesOf({ keywords: kwList.map((k) => lc(k.name)), overview: raw.overview || "" })
+      : null,
     imdbId: (raw.external_ids && raw.external_ids.imdb_id) || raw.imdb_id || null,
     poster: raw.poster_path || null,
     backdrop: raw.backdrop_path || null,
@@ -212,10 +238,39 @@ const keywordSim = (src, c, w) => {
   return { sim: num / Math.sqrt(sw * cw), shared };
 };
 
+// Shared themes, as a cosine over the two titles' theme weights. Themes that
+// rest on one keyword weigh 0.7, on two or more 1.2+ (taxonomy.themesOf), so
+// a passing mention counts for less than what the title is built on.
+// `credited`: themes a literally-shared keyword already stands for. Those
+// were paid for by the keyword match (and weighed by its rarity there);
+// counting the theme again would let "space travel" — which the whole
+// neighbourhood shares — outvote a rare shared keyword. Themes only add what
+// keywords missed: the same idea under a different spelling.
+const themeSim = (src, c, credited = null) => {
+  if (!src.themes || !c.themes) return { sim: 0, shared: [] };
+  let num = 0;
+  let a = 0;
+  let b = 0;
+  const shared = [];
+  for (const [slug, w] of Object.entries(src.themes)) {
+    a += w * w;
+    if (c.themes[slug] && !(credited && credited.has(slug))) {
+      num += w * c.themes[slug];
+      shared.push([slug, w * c.themes[slug]]);
+    }
+  }
+  for (const w of Object.values(c.themes)) b += w * w;
+  if (!a || !b) return { sim: 0, shared: [] };
+  shared.sort((x, y) => y[1] - x[1]);
+  return { sim: num / Math.sqrt(a * b), shared: shared.map((s) => s[0]) };
+};
+
 // Every weight in one place, so tuning is a data change (and the evaluation
 // harness can compare variants side by side without editing code).
 const WEIGHTS = {
   kw: 0.45, // shared vibe keywords, normalised within the neighbourhood
+  theme: 0.12, // shared taxonomy themes, normalised the same way
+  maker: 0.05, // same director / creator
   genre: 0.15,
   quality: 0.12,
   era: 0.07,
@@ -253,11 +308,19 @@ const rankCandidates = (src, cands, { limit = 14, explain = false, weights = {} 
   // the best vibe match in THIS neighbourhood, the closest in feel scores 1.
   const sims = new Map(pool.map((c) => [c, keywordSim(src, c, w)]));
   const maxKw = Math.max(0, ...[...sims.values()].map((x) => x.sim));
+  const themeSims = new Map(pool.map((c) => {
+    const credited = new Set(sims.get(c).shared.flatMap((k) => taxonomy._internals.slugsForKeyword(k)));
+    return [c, themeSim(src, c, credited)];
+  }));
+  const maxTheme = Math.max(0, ...[...themeSims.values()].map((x) => x.sim));
   const hasVibe = (p) => (p.keywords || []).some((k) => !STOP.has(k));
   const vibeCount = (p) => (p.keywords || []).filter((k) => !STOP.has(k)).length;
   const scored = pool.map((c) => {
     const { sim: raw, shared } = sims.get(c);
     const kw = maxKw > 0 ? raw / maxKw : 0;
+    const th = themeSims.get(c);
+    const theme = maxTheme > 0 ? th.sim / maxTheme : 0;
+    const maker = src.makers && c.makers && [...src.makers].some((id) => c.makers.has(id)) ? 1 : 0;
     const genre = jaccard(src.genreIds, c.genreIds);
     const era = src.year && c.year ? 1 - Math.min(1, Math.abs(src.year - c.year) / 35) : 0.5;
     const runtime =
@@ -281,12 +344,16 @@ const rankCandidates = (src, cands, { limit = 14, explain = false, weights = {} 
     // none with the source is out of vibe; one with barely any keywords
     // (NOS4A2 has one) is UNVERIFIED — and on TV, genre can't vouch for it,
     // because "Sci-Fi & Fantasy" lumps horror, fantasy and sci-fi together.
-    const noVibe = !vouched && hasVibe(src) && vibeCount(c) >= 3 && shared.length === 0 ? W.noVibe : 0;
+    // (a shared THEME is vibe evidence too: "bank robbery" under "heist")
+    const noVibe = !vouched && hasVibe(src) && vibeCount(c) >= 3 && shared.length === 0 && th.shared.length === 0 ? W.noVibe : 0;
     const sparse = !vouched && hasVibe(src) && vibeCount(c) < 3 ? W.sparse : 0;
     const score =
-      W.kw * kw + W.genre * genre + W.quality * qualityOf(c) + W.era * era + W.lang * lang +
-      W.runtime * runtime + votes - magnet - tone - noVibe - sparse;
-    return { c, score, shared, parts: { kw, genre, tone: -tone, noVibe: -noVibe, sparse: -sparse, magnet: -magnet, votes } };
+      W.kw * kw + W.theme * theme + W.maker * maker + W.genre * genre + W.quality * qualityOf(c) + W.era * era +
+      W.lang * lang + W.runtime * runtime + votes - magnet - tone - noVibe - sparse;
+    return {
+      c, score, shared, themes: th.shared,
+      parts: { kw, theme, maker, genre, tone: -tone, noVibe: -noVibe, sparse: -sparse, magnet: -magnet, votes },
+    };
   });
   scored.sort((a, b) => b.score - a.score);
 
@@ -304,12 +371,14 @@ const rankCandidates = (src, cands, { limit = 14, explain = false, weights = {} 
   return out.map((s) => ({
     ...s.c,
     score: Math.round(s.score * 1000) / 1000,
-    ...(explain ? { parts: s.parts, shared: s.shared } : {}),
+    ...(explain ? { parts: s.parts, shared: s.shared, sharedThemes: s.themes } : {}),
     why: s.shared.length
       ? `Same vibe: ${s.shared.slice(0, 3).join(" · ")}`
-      : s.c.pools.has("rec")
-        ? "People who loved this loved this too"
-        : null,
+      : s.themes.length
+        ? `Same vibe: ${s.themes.slice(0, 3).map((t) => taxonomy.themeLabel(t)).join(" · ")}`
+        : s.c.pools.has("rec")
+          ? "People who loved this loved this too"
+          : null,
   }));
 };
 
@@ -353,7 +422,18 @@ const seedKeywords = (srcRaw, mode) => {
 // many ways.
 const gather = async (type, tmdbId, sourceImdbId, { seed = "both", shortlist = 36 } = {}) => {
   const kind = type === "series" ? "tv" : "movie";
-  const srcRaw = await tmdb(`${kind}/${tmdbId}`, "&append_to_response=keywords");
+  // The full append (credits, ratings, TMDB's own neighbour lists) costs no
+  // extra request and is what the recommender's title index keeps.
+  const titleindex = require("./recs/titleindex");
+  const APPEND = titleindex._internals.APPEND[kind];
+  const learn = (raw, imdbId) => {
+    try {
+      const rec = titleindex._internals.fromTmdb(raw, kind, imdbId ? { imdbId } : {});
+      if (rec) titleindex.put(rec);
+    } catch {}
+  };
+  const srcRaw = await tmdb(`${kind}/${tmdbId}`, APPEND);
+  learn(srcRaw, sourceImdbId);
   const src = profileOf(srcRaw, kind);
 
   const byId = new Map();
@@ -418,7 +498,8 @@ const gather = async (type, tmdbId, sourceImdbId, { seed = "both", shortlist = 3
       while (queue.length) {
         const c = queue.shift();
         try {
-          const raw = await tmdb(`${kind}/${c.tmdbId}`, "&append_to_response=keywords,external_ids");
+          const raw = await tmdb(`${kind}/${c.tmdbId}`, APPEND);
+          learn(raw);
           const e = profileOf(raw, kind, [...c.pools]);
           if (c.recRank != null) e.recRank = c.recRank;
           enriched.push(e);
@@ -439,7 +520,7 @@ const vibeRow = async (type, tmdbId, sourceImdbId, opts = {}) => {
 module.exports = {
   vibeRow,
   _internals: {
-    rankCandidates, gather, profileOf, hardMismatch, keywordSim, keywordWeights, qualityOf,
+    rankCandidates, gather, profileOf, hardMismatch, keywordSim, keywordWeights, themeSim, qualityOf,
     preScore, toneFlips, seedKeywords, WEIGHTS, STOP, toItem,
   },
 };

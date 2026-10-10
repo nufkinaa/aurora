@@ -1336,12 +1336,12 @@ export default function Detail({
     } catch {}
   };
   // ---- More like this -------------------------------------------------------
-  // Neither the server nor the site has a per-title "similar" feature; the
-  // closest designed-for-this surface is the genre catalog (/api/catalog) the
-  // Browse tabs already page through — cached server-side, carries `inLibrary`,
-  // and its cards open Detail exactly like a Browse card does. So "more like
-  // this" is: the title's own genres, top-rated first, with the title itself
-  // filtered out.
+  // The server's row (/api/discover/similar — the same one the website shows:
+  // ranked on what the title is about and who made it, re-ordered for this
+  // profile, without what it has already watched). Asked first whenever the
+  // title's IMDb id is known. The genre catalogue below (/api/catalog: the
+  // title's own genres, top-rated first) is what this screen used before and
+  // stays as the fallback — no IMDb id, an older server, or an empty answer.
   const [likePanel, setLikePanel] = useState(false);
   const [similar, setSimilar] = useState<HeroItem[] | null>(null);
   const [similarErr, setSimilarErr] = useState(false);
@@ -1380,11 +1380,19 @@ export default function Detail({
         }
       };
       try {
+        if (selfImdb) {
+          const r = await api
+            .similar(kind === 'show' ? 'series' : 'movie', selfImdb, profileId)
+            .catch(() => ({items: [] as HeroItem[]}));
+          take((r.items || []).filter(s => !!s.imdbId && !!s.poster));
+        }
         // Top-rated within the first genre is the strongest "like this" signal;
         // trending within the second widens it. No genres at all (rare) falls
         // back to plain trending, which is at least the same kind of thing.
-        const wanted = genreSource.slice(0, 2);
-        if (wanted.length === 0) {
+        const wanted = pool.length >= 4 ? [] : genreSource.slice(0, 2);
+        if (pool.length >= 4) {
+          // the server's row stands on its own
+        } else if (wanted.length === 0) {
           const r = await api.catalog({type: kind, category: 'trending', page: 0});
           take(r.items || []);
         } else {

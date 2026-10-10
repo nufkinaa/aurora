@@ -313,6 +313,15 @@ const sourcePage = async (ct, catalogId, extra, skip) => {
   return entry;
 };
 
+// Every catalogue card currently held in memory (the pages people browsed in
+// the last six hours). The recommender's title index notes them (media/recs):
+// a title somebody scrolled past is a title worth knowing about.
+const catalogCachedItems = () => {
+  const out = [];
+  for (const entry of catalogCache.values()) for (const item of entry.items || []) out.push(item);
+  return out;
+};
+
 // Cinemeta signals the end of a catalog with a short page.
 const isFullPage = (rawCount) => rawCount >= PAGE_SIZE * 0.6;
 
@@ -788,7 +797,7 @@ const trendingCached = () => {
 };
 
 module.exports = {
-  trending, trendingCached, search, meta, metaCached, catalog, genres, CATALOGS, normalize,
-  certificateCached, certificateAge, certificateByTitle, warmCertificate, refreshCertificates,
+  trending, trendingCached, search, meta, metaCached, catalog, catalogCachedItems, genres, CATALOGS, normalize,
+  certificateCached, certificateAge, certificateByTitle, warmCertificate, refreshCertificates, noteCertificate,
   _internals: { cacheKey, isNewRelease, isFullPage, PAGE_SIZE, NEW_SPAN, certStore, noteCertificate, certFresh, CERT_V },
 };
