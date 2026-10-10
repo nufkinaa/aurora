@@ -504,8 +504,22 @@ router.post("/api/profiles/:id/watchlist", gate, (req, res) => {
     item = itemId;
   }
   if (!item) return res.status(400).json({ error: "valid itemId or stream ref required" });
-  const watchlist = profiles.toggleWatchlist(req.params.id, item, add !== false);
-  res.json({ watchlist });
+  const adding = add !== false;
+  const watchlist = profiles.toggleWatchlist(req.params.id, item, adding);
+  // My List downloads (media/mylistdl.js): an add asks for the film / the
+  // first episode of a show this profile has not started; a remove lets go of it. THE one hook —
+  // the website and the TV app both come through here. `download` says what
+  // was asked for, so the client can word its toast without a second
+  // request; a client that does not know the field ignores it.
+  let download = null;
+  try {
+    const mylist = require("../media/mylistdl");
+    if (adding) download = mylist.onAdd(req.params.id, item);
+    else mylist.onRemove(req.params.id, item);
+  } catch (e) {
+    console.warn("[mylist] pass failed:", e && e.message ? e.message : e);
+  }
+  res.json(download ? { watchlist, download } : { watchlist });
 });
 
 // Hide one show's synthesized "up next" card. Deleting the card's id from

@@ -144,6 +144,9 @@ const publicJob = (j) => ({
   // under — the thing "Play" on the downloads page needs. WHO requested it
   // stays server-side (publicJobFor answers "mine" per viewer instead).
   seenAt: j.seenAt || null, smart: !!j.smart, resolvedAt: j.resolvedAt || null,
+  // "mylist" when My List downloads queued it (always `smart` too, so every
+  // client that knows nothing of this field treats it as the quiet kind).
+  auto: j.auto || null,
   libraryId: j.status === "done" && j.destPath ? scanner.idForPath(j.destPath) : null,
   // A second source is being tried beside the first (media/dlrace.js). The
   // card stays ONE card: `progress` above is the leading attempt's. `race` is
@@ -315,6 +318,17 @@ const saveCover = async (posterUrl, destDir) => {
 // ---------- job lifecycle ----------
 const findJob = (id) => store.data.find((j) => j.id === id);
 
+// My List downloads keeps its own record of the copies it asked for
+// (media/mylistdl.js): it hears at once when one of them lands, fails or is
+// cancelled. (It also re-reads the queue on its daily pass, so a missed call
+// loses nothing.) Required here, not at the top: it requires this module.
+const tellMyList = (job) => {
+  if (!job || job.auto !== "mylist") return;
+  try { require("./mylistdl").onJob(job); } catch (e) {
+    console.warn("[mylist] pass failed:", e && e.message ? e.message : e);
+  }
+};
+
 const activeCount = () => active.size;
 
 const list = () => store.data.map(publicJob);
@@ -351,6 +365,9 @@ const create = (fields) => {
     infoHash, fileIdx, type, imdbId, title, label, year, poster,
     quality, sizeBytes, season, episode, provider, seeders, profile, smart,
   } = fields || {};
+  // Which automatic feature queued it, when it was not "the next episode":
+  // "mylist" = My List downloads (media/mylistdl.js). Null for a person's own.
+  const auto = fields && fields.auto === "mylist" ? "mylist" : null;
 
   // "torrents": false — nothing new is accepted (the route answers 403 before
   // this; smart downloads and follows come straight here).
@@ -378,7 +395,23 @@ const create = (fields) => {
     (j) => j.infoHash === infoHash && j.fileIdx === (fileIdx || 0) &&
       !["error", "declined", "canceled"].includes(j.status)
   );
-  if (dupe) return { job: publicJob(dupe), duplicate: true };
+  if (dupe) {
+    // A person pressing Download on the very source My List downloads is
+    // already fetching (or fetched): the job is THEIRS from now on — a hand
+    // request, which no automatic cleanup may touch (mylistdl.js, smartclean.js).
+    if (dupe.auto === "mylist" && !smart && !auto) {
+      dupe.auto = null;
+      dupe.smart = false;
+      if (profile) {
+        dupe.profile = String(profile).slice(0, 24);
+        dupe.profileName = fields.profileName ? String(fields.profileName).slice(0, 40) : null;
+      }
+      store.save();
+      broadcast(dupe);
+      console.log(`[download] ${dupe.id.slice(0, 6)} "${dupe.label || dupe.title}" was a My List download — asked for by hand now, so it is kept like any other`);
+    }
+    return { job: publicJob(dupe), duplicate: true };
+  }
   // …or the exact file some job is already fetching as its SECOND source.
   const racing = store.data.find(
     (j) => j.status === "downloading" && j.attempts && j.attempts[1] &&
@@ -412,6 +445,7 @@ const create = (fields) => {
     // The person, for the admin's notification (profile is an id).
     profileName: fields.profileName ? String(fields.profileName).slice(0, 40) : null,
     smart: !!smart, // queued by smart downloads (the next episode), not by hand
+    auto, // "mylist": queued because the title was added to My List
     status: gate.ok ? "approved" : "pending",
     // Set when the queue started this itself, so pump() knows it may still send
     // the job back to "pending" if the disk fills before its turn comes up.
@@ -485,6 +519,7 @@ const decline = (id) => {
   job.resolvedAt = now();
   store.save();
   broadcast(job);
+  tellMyList(job);
   purgeIfUnused(job.infoHash, job.id);
   return { job: publicJob(job) };
 };
@@ -497,6 +532,7 @@ const cancel = (id) => {
   job.resolvedAt = now();
   store.save();
   broadcast(job);
+  tellMyList(job);
   // Order matters: pump() may start a queued sibling on this same pack, so decide
   // about the staging bytes FIRST (purgeIfUnused sees that sibling and keeps them).
   purgeIfUnused(job.infoHash, job.id);
@@ -596,6 +632,7 @@ const fail = (job, message) => {
   store.save();
   broadcast(job);
   notify.send("Aurora: download failed", `"${job.label || job.title}" — ${job.error}`);
+  tellMyList(job);
   purgeIfUnused(job.infoHash, job.id); // before pump(), same reason as cancel()
   pump();
 };
@@ -1508,6 +1545,7 @@ const finish = async (job, destPath) => {
     if (libId) require("./preconvert").consider(libId);
   }
   console.log(`[download] ${job.id.slice(0, 6)} done "${job.title}"`);
+  tellMyList(job);
   notify.send("Aurora: download ready", `"${job.label || job.title}" is downloaded and in the library.`);
   // …and the person who asked for it (or whose follow / smart download
   // fetched it) hears on the devices where they switched notifications on.
@@ -1664,7 +1702,7 @@ const resume = () => {
 };
 
 module.exports = {
-  list, listFor, create, approve, decline, cancel, cancelOwn, removeOwn, remove, resume, publicJob, publicJobFor, stats, markSeen, pruneGone,
+  list, listFor, create, approve, decline, cancel, cancelOwn, removeOwn, remove, resume, publicJob, publicJobFor, stats, markSeen, pruneGone, diskGate,
   queueHealth, liveInfoHashes, restartJob, pumpNow, smartOnDisk, rawJobs, slots, setMaxActive,
   // Pure helpers, exported so test/downloads.test.js can pin the rules that
   // decide where a file lands and whether a request needs approval — and the
