@@ -613,7 +613,10 @@ router.get("/api/item/:id", (req, res) => {
 //                                      row; the pinned card stays first unless
 //                                      something matches better
 //       &commit=1                      the person pressed Search: ask the
-//                                      catalogue whatever the length
+//                                      catalogue whatever the length, and the
+//                                      exact name is strictly first (while
+//                                      typing, an obscure exact name follows
+//                                      the notable titles being typed)
 //   → { q, results, related, relatedLabel, relatedKind, anchor, pending,
 //       catalogFailed, tookMs }
 //
