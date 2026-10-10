@@ -304,6 +304,7 @@ test("the admin routes: behind the admin password, settings validated, defaults 
   assert.deepEqual(st.settings, {
     myListDownloads: true, myListShows: true, myListAutoDelete: true,
     myListStaleDays: 14, myListDeleteDays: 21, myListDailyCap: 5, myListRetries: 1,
+    myListYield: "always",
   });
   assert.deepEqual(st.records, []);
   const bad = await post("/api/admin/mylist/settings", { myListStaleDays: "30" }, admin);
@@ -315,6 +316,14 @@ test("the admin routes: behind the admin password, settings validated, defaults 
   assert.equal(good.body.settings.myListDeleteDays, 12);
   assert.equal((await get("/api/admin/mylist", admin)).body.settings.myListDailyCap, 3);
   assert.equal((await post("/api/admin/mylist/keep", { key: "tt0" }, admin)).status, 404);
+  // how a My List download gives way (media/dlslots.js): one of two words
+  const yieldBad = await post("/api/admin/mylist/settings", { myListYield: "sometimes" }, admin);
+  assert.equal(yieldBad.status, 400);
+  assert.match(yieldBad.body.error, /Gives way must be one of: always, slots/);
+  assert.equal((await post("/api/admin/mylist/settings", { myListYield: "slots" }, admin)).body.settings.myListYield, "slots");
+  // "Start now" on a waiting download: the admin's, and only for a job that exists
+  assert.equal((await post("/api/admin/downloads/000000000000/start", {})).status, 403);
+  assert.equal((await post("/api/admin/downloads/000000000000/start", {}, admin)).status, 404);
 });
 
 test("a landed copy, for real: marked stale in the library tree at 14 days, the file gone at 21, the title still on the list", async () => {

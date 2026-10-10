@@ -10,6 +10,7 @@ import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem
 import { showReportSheet, setPlayingContext } from "../report.js";
 import * as offline from "../offline.js";
 import { track } from "../usage.js";
+import { uiHit, reportError, playMounted, playFirstFrame, playGone } from "../telemetry.js"; // [analytics]
 import { playCap, capFor, netTier, measured, probe, dataMode } from "../net.js";
 import { followVideo } from "../glassTone.js";
 import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio } from "../lang.js";
@@ -620,8 +621,35 @@ export const renderPlayer = async (root, { id }) => {
   // moments ago, to draw its Play / Resume button: that answer is the one the
   // viewer just acted on, and asking again only put a round trip between the
   // press and the picture. Anything older is read again, as always.
-  const [owned] = await Promise.all([ownedP, progressAge() < PROGRESS_FRESH_MS ? null : refreshProgress()]);
+  // "Read moments ago" means a read that SUCCEEDED, for this profile, and
+  // that this tab still holds (state.js progressAge): it counts as this
+  // start's read. A read that failed never looks fresh, so the rule below —
+  // no saving over a history that could not be read — is not got round.
+  const historyFresh = progressAge() < PROGRESS_FRESH_MS;
+  const [owned, historyRead0] = await Promise.all([ownedP, historyFresh ? true : refreshProgress()]);
   if (location.hash !== entryHash) return;
+  // The saved position is read here, and the save loop below WRITES over it.
+  // A read that fails leaves "no progress": the film would start at 0:00 and
+  // a few seconds later the real resume point (an hour in) would be replaced
+  // by those few seconds. So, the TV app's rule (tv-native Player.tsx): try
+  // once more after a second, and if the history still cannot be read,
+  // refuse to save for this playback — and say so.
+  // A copy saved on this device is the exception: it plays with no server by
+  // design, its progress is kept on the device and delivered later
+  // (offline.js), and state.js folds that queue into the resume point.
+  // (A read that fails while this tab already holds the profile's history
+  // from earlier is not that case: the resume point is the real one, as of
+  // that read, and state.js keeps it.)
+  const historyKnown = () => !!state.profile && state.historyOf === state.profile.id;
+  let progressReadFailed = false;
+  if (state.profile && !item._offline && !historyRead0 && !historyKnown()) {
+    await new Promise((r) => setTimeout(r, 1000));
+    if (location.hash !== entryHash) return;
+    await refreshProgress();
+    if (location.hash !== entryHash) return;
+    progressReadFailed = !historyKnown();
+    if (progressReadFailed) toast("Couldn't read your watch history — resume and progress saving are off", "⚠️");
+  }
   if (owned && owned.id) {
     location.replace(`#/play/${owned.id}${restart ? "?restart=1" : ""}`);
     return;
@@ -700,8 +728,9 @@ export const renderPlayer = async (root, { id }) => {
   // under [play] — so "it takes too long" comes with the step that took it.
   const t0 = performance.now();
   const playMarks = [];
-  const mark = (name, extra = {}) => {
-    const ms = Math.round(performance.now() - t0);
+  // (`at`: the moment it happened, when that is not now — a frame's own stamp)
+  const mark = (name, extra = {}, at = null) => {
+    const ms = Math.round((at == null ? performance.now() : at) - t0);
     playMarks.push({ name, ms, ...extra });
     if (isTorrent || item._offline) return;
     try {
@@ -714,6 +743,7 @@ export const renderPlayer = async (root, { id }) => {
     } catch {}
   };
   mark("mount", { container: item.container || null, video: item.video && item.video.codec, audio: item.audio && item.audio.codec });
+  playMounted(); // [analytics] a play is starting: nothing is sent until its first frame
   setPlayingContext({ id: item.id, title: isEpisode ? `${item.showTitle} S${item.season}E${item.episode}` : item.title, marks: () => playMarks.slice() });
 
   // ---------- element tree ----------
@@ -1277,6 +1307,7 @@ export const renderPlayer = async (root, { id }) => {
             // Recover from transient network/media errors instead of dying
             if (!data.fatal) return;
             if (exited || gen !== hlsGen) return; // we already moved on (see hlsGen)
+            reportError("media", `hls ${data.type} ${data.details}`, { ctx: { code: (data.response && data.response.code) || 0, fatal: 1 } }); // [analytics]
             // A seek is in flight, so THIS is the stream being left behind. Its
             // buffer just ran dry, which on a cold source is expected: the swarm
             // is now feeding the seek's region, not this one. Rebuilding it here
@@ -2385,7 +2416,7 @@ export const renderPlayer = async (root, { id }) => {
   const scrubMarks = el("div", { class: "scrubber-marks", "aria-hidden": "true" });
   const scrubber = el(
     "div",
-    { class: "scrubber focusable", tabindex: "0", "aria-label": "Seek" },
+    { "data-ui": "player.scrub", class: "scrubber focusable", tabindex: "0", "aria-label": "Seek" },
     el("div", { class: "scrubber-track" }, scrubBuffer, scrubFill, scrubMarks),
     scrubTip,
   );
@@ -2395,8 +2426,12 @@ export const renderPlayer = async (root, { id }) => {
   // fills in. Hidden once fully buffered.
   const bufferPct = el("span", { class: "buffer-pct" }, "");
 
+  // [analytics] which control each bar button is (docs/analytics.md); play/pause and the ±10 s buttons are counted where they act
+  const PLAYER_UI = { Subtitles: "player.subtitles.open", Speed: "player.speed.open", Settings: "player.settings.open", "Watch together": "player.party", "X-Ray": "player.xray" }; // data-ui
+  Object.assign(PLAYER_UI, { "Next episode": "player.next", Fullscreen: "player.fullscreen", "Picture in picture": "player.pip", AirPlay: "player.airplay", Mute: "player.mute" }); // data-ui
   const btn = (name, html, onclick, cls = "") =>
     el("button", {
+      "data-ui": PLAYER_UI[name] || null,
       class: `pbtn focusable ${cls}`,
       html,
       "aria-label": name,
@@ -2552,7 +2587,7 @@ export const renderPlayer = async (root, { id }) => {
   // The pill (top-right) says you're in a party and how many are in; the
   // panel is the code to share, the people in it, and Leave. Both are built
   // here and driven by the party section further down.
-  const partyPill = el("button", { class: "party-pill focusable hidden", onclick: () => togglePartyPanel() });
+  const partyPill = el("button", { "data-ui": "player.party", class: "party-pill focusable hidden", onclick: () => togglePartyPanel() });
   const partyPanel = el("div", { class: "party-panel hidden" });
   let togglePartyPanel = () => {}; // bound below, once the video exists
 
@@ -2969,6 +3004,7 @@ export const renderPlayer = async (root, { id }) => {
 
   const togglePlay = () => {
     if (seekLocked()) return;
+    uiHit("player.playpause"); // [analytics]
     if (video.paused) {
       video.play().catch(() => {});
       showFlash(icons.play);
@@ -2993,6 +3029,7 @@ export const renderPlayer = async (root, { id }) => {
 
   const skip = (dir) => {
     if (seekLocked()) return;
+    uiHit(dir < 0 ? "player.seek.back" : "player.seek.fwd"); // [analytics] a counter increment
     const now = Date.now();
     if (now - lastSkipAt > SKIP_CHAIN_MS || dir !== skipDir) {
       skipStreak = 0;
@@ -3420,7 +3457,7 @@ export const renderPlayer = async (root, { id }) => {
       const entry = (label, idx, tag) =>
         el(
           "button",
-          {
+          { "data-ui": "player.subtitles.pick",
             class: `menu-item focusable ${activeTrack === idx ? "active" : ""}`,
             // An explicit pick (including "Off") is final — never overridden by
             // the auto-pick on a later reload.
@@ -3518,7 +3555,7 @@ export const renderPlayer = async (root, { id }) => {
         menu.append(
           el(
             "button",
-            {
+            { "data-ui": "player.speed.pick",
               class: `menu-item focusable ${video.playbackRate === s ? "active" : ""}`,
               onclick: () => {
                 video.playbackRate = s;
@@ -3552,7 +3589,7 @@ export const renderPlayer = async (root, { id }) => {
             menu.append(
               el(
                 "button",
-                {
+                { "data-ui": "player.audio.pick",
                   class: `menu-item focusable ${audioIdx === idx ? "active" : ""}`,
                   onclick: () => switchAudio(idx),
                 },
@@ -3589,7 +3626,7 @@ export const renderPlayer = async (root, { id }) => {
             menu.append(
               el(
                 "button",
-                { class: `menu-item focusable ${active === h ? "active" : ""}`, onclick: () => switchQuality(h) },
+                { "data-ui": "player.quality.pick", class: `menu-item focusable ${active === h ? "active" : ""}`, onclick: () => switchQuality(h) },
                 el("span", {}, label),
                 el("span", { class: "tag" }, tag),
               ),
@@ -4187,7 +4224,7 @@ export const renderPlayer = async (root, { id }) => {
         "Start a party and Aurora hands you a four-letter code. Anyone on another device joins with it (profile menu → Join a watch party) and play, pause and jumps stay in step. Everyone on Aurora sees the party on their Home and can join.",
       ),
       el("div", { class: "party-actions" },
-        el("button", { class: "btn btn-primary focusable", html: "<span>Start a party</span>", onclick: startParty }),
+        el("button", { "data-ui": "player.party.start", class: "btn btn-primary focusable", html: "<span>Start a party</span>", onclick: startParty }),
       ),
     );
   };
@@ -4262,7 +4299,7 @@ export const renderPlayer = async (root, { id }) => {
     // Start over" — for four seconds, instead of a card with the frame and a
     // big button over the picture. No frame also means no ffmpeg call on the
     // server every time someone resumes.
-    const startOver = el("button", {
+    const startOver = el("button", { "data-ui": "player.startover",
       class: "focusable",
       onclick: () => {
         seekTo(0); // understands the transcode clock; currentTime = 0 would land on the resume point
@@ -4313,6 +4350,8 @@ export const renderPlayer = async (root, { id }) => {
   };
 
   const saveProgress = () => {
+    // Never write over a history we could not read (see where it is read).
+    if (progressReadFailed) return;
     const d = totalDuration();
     if (!state.profile || !d) return;
     // (stall recovery) While a rebuilt stream is still coming back, the media
@@ -4467,7 +4506,7 @@ export const renderPlayer = async (root, { id }) => {
         el(
           "div",
           { class: "upnext-actions" },
-          el("button", {
+          el("button", { "data-ui": "player.stillwatching.keep",
             class: "btn btn-primary focusable",
             html: icons.play + `<span>Keep watching</span>`,
             onclick: () => {
@@ -4476,7 +4515,7 @@ export const renderPlayer = async (root, { id }) => {
               goNext(next);
             },
           }),
-          el("button", {
+          el("button", { "data-ui": "player.stillwatching.done",
             class: "btn focusable",
             onclick: () => {
               noteInput();
@@ -4509,7 +4548,7 @@ export const renderPlayer = async (root, { id }) => {
       el(
         "div",
         { class: "upnext-actions" },
-        el("button", {
+        el("button", { "data-ui": "player.upnext.play",
           class: "btn btn-primary focusable",
           html: next._stream
             ? icons.play + `<span>Choose episode</span>`
@@ -4518,7 +4557,7 @@ export const renderPlayer = async (root, { id }) => {
         }),
         el(
           "button",
-          { class: "btn focusable", onclick: dismissUpNext },
+          { "data-ui": "player.upnext.dismiss", class: "btn focusable", onclick: dismissUpNext },
           autoplay ? counter : null,
           autoplay ? " Dismiss" : "Dismiss",
         ),
@@ -4619,7 +4658,7 @@ export const renderPlayer = async (root, { id }) => {
   // in no other episode, so the audio comparison can never find one). The
   // same button offers it, under its own name.
   let autoRecap = null;
-  const skipIntroBtn = el("button", {
+  const skipIntroBtn = el("button", { "data-ui": "player.skipintro",
     class: "btn skip-intro focusable hidden",
     html: `<span>Skip intro</span> ⏭`,
     onclick: () => {
@@ -5097,9 +5136,10 @@ export const renderPlayer = async (root, { id }) => {
   const hideErrorCard = () => { if (errorCard) errorCard.remove(); errorCard = null; };
   const showErrorCard = (message, retry) => {
     if (exited) return;
+    reportError("media", "the player showed its error card"); // [analytics] that it happened, never the words on it
     hideErrorCard();
     spinner.classList.add("hidden");
-    const again = el("button", {
+    const again = el("button", { "data-ui": "player.retry",
       class: "btn btn-primary focusable",
       onclick: () => {
         hideErrorCard();
@@ -5217,6 +5257,7 @@ export const renderPlayer = async (root, { id }) => {
     reportMark("client_stall", info); // torrents: the per-stream perf record
     mark("stall", info); // library files: the [play] log
     track("feat", { f: `stall_${stage}` });
+    if (stage !== "nudge") reportError("stall", `playback stalled (${stage})`, { level: stage === "card" ? "error" : "warn" }); // [analytics]
   };
   const stallWatch = setInterval(() => {
     if (exited) return;
@@ -5618,7 +5659,7 @@ export const renderPlayer = async (root, { id }) => {
   document.addEventListener("media-key", onMediaKey);
 
   const onBack = (e) => {
-    if (document.querySelector(".look-notice-wrap")) return; // a sheet owns Back
+    if (document.querySelector(".look-notice-wrap, .person-wrap")) return; // a sheet owns Back
     e.preventDefault();
     if (xraySheet) return closeXray(); // Back / Escape closes the X-Ray sheet, not the film
     if (upNextEl) return dismissUpNext();
@@ -5781,17 +5822,48 @@ export const renderPlayer = async (root, { id }) => {
   };
   window.addEventListener("pagehide", sayBye);
 
-  // first picture, once
+  // First picture, once — ONE definition, for the play mark, the usage
+  // statistic and the analytics timing alike, and the one the ttff harness
+  // measures by (tools/ttff/lib.js): the first frame of the film AS ASKED
+  // FOR that reaches the screen (requestVideoFrameCallback), stamped with
+  // that frame's own time. At a resume that is the first frame at the resume
+  // point — not one from the top of the file shown for an instant before the
+  // seek lands, and not a frame of a seek still on its way. (The harness
+  // counts from the press, this from the player's mount: the same end, a
+  // start a few tens of milliseconds later.)
+  // Where frames cannot be watched — no requestVideoFrameCallback, a tab in
+  // the background (nothing is presented there), a resume that ended up
+  // somewhere else — it is the element's `playing` event, as it always was,
+  // at the moment that event fired.
   let firstFrameMarked = false;
-  video.addEventListener("playing", () => {
-    if (firstFrameMarked) return;
+  const firstFrame = (at) => {
+    if (firstFrameMarked || exited) return;
     firstFrameMarked = true;
-    mark("first-frame", { transcode: usingTranscode, jit: jitMode, v: currentV || null });
+    const ms = Math.round(at - t0);
+    mark("first-frame", { transcode: usingTranscode, jit: jitMode, v: currentV || null }, at);
     track("play", {
-      ms: Math.round(performance.now() - t0),
+      ms,
       path: jitMode ? "jit" : usingTranscode ? currentV : "direct",
       kind: isTorrent ? "torrent" : item._offline ? "offline" : "library",
     });
+    playFirstFrame(ms, { torrent: isTorrent, offline: !!item._offline, remux: jitMode, transcode: usingTranscode }); // [analytics]
+  };
+  const FRAME_NEAR_S = 30; // (the harness's own allowance around a resume point)
+  const frameAsked = (mediaTime) => resumeAt <= FRAME_NEAR_S || (usingTranscode ? clockBase : 0) + mediaTime >= resumeAt - FRAME_NEAR_S;
+  if (video.requestVideoFrameCallback) {
+    const onFrame = (now, meta) => {
+      if (firstFrameMarked || exited) return;
+      if (!video.seeking && frameAsked(meta.mediaTime)) return firstFrame(now);
+      video.requestVideoFrameCallback(onFrame);
+    };
+    video.requestVideoFrameCallback(onFrame);
+  }
+  video.addEventListener("playing", () => {
+    if (firstFrameMarked) return;
+    const at = performance.now();
+    if (!video.requestVideoFrameCallback) return firstFrame(at);
+    // frames are being watched: give the one asked for a moment to arrive
+    setTimeout(() => firstFrame(at), 2000);
   });
 
   applyCueStyle();
@@ -5801,6 +5873,7 @@ export const renderPlayer = async (root, { id }) => {
   // cleanup when the route changes away
   return () => {
     exited = true;
+    playGone(); // [analytics]
     clearInterval(saveTimer);
     clearInterval(partySync);
     for (const un of unsubParty) un();

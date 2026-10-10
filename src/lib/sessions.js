@@ -62,12 +62,33 @@ const revoke = (sidOrKey) => {
   return existed;
 };
 
-const revokeAllFor = (profileId) => {
+// Sessions the ADMIN ended (People → Kick, Reset password), remembered for a
+// while by their stored key (the sha256 — never a usable id). See
+// profiles.tokenEnded for why: outside sign-in mode "closed" a dead session
+// is otherwise indistinguishable from no session at all. RAM only.
+const ended = new Map(); // key -> when
+const ENDED_TTL = 30 * 24 * 3600 * 1000;
+const ENDED_MAX = 2000;
+const wasEnded = (sid) => {
+  if (!sid || typeof sid !== "string" || sid.length !== 64) return false;
+  const at = ended.get(hash(sid));
+  return !!at && Date.now() - at < ENDED_TTL;
+};
+
+const revokeAllFor = (profileId, { remember = false } = {}) => {
   let n = 0;
   for (const [key, row] of Object.entries(store.data)) {
     if (row.profileId === profileId) {
       delete store.data[key];
+      if (remember) ended.set(key, Date.now());
       n++;
+    }
+  }
+  if (ended.size > ENDED_MAX) {
+    const cutoff = Date.now() - ENDED_TTL;
+    for (const [k, at] of ended) {
+      if (at < cutoff || ended.size > ENDED_MAX) ended.delete(k);
+      else break; // insertion order: the rest are newer
     }
   }
   if (n) store.save();
@@ -95,4 +116,4 @@ const prune = () => {
   }
 };
 
-module.exports = { create, get, revoke, revokeAllFor, listFor, _internals: { hash, store, TTL_MS, prune } };
+module.exports = { create, get, revoke, revokeAllFor, wasEnded, listFor, _internals: { hash, store, TTL_MS, prune, ended } };

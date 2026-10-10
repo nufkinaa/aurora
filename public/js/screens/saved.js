@@ -75,12 +75,12 @@ export const renderSaved = async (root) => {
             el(
               "div",
               { class: "dl-actions" },
-              el("button", {
+              el("button", { "data-ui": "saved.play",
                 class: "btn btn-primary focusable",
                 html: icons.play + "<span>Play</span>",
                 onclick: () => navigate(`#/play/${it.id}?offline=1`),
               }),
-              el("button", {
+              el("button", { "data-ui": "saved.remove",
                 class: "btn focusable",
                 html: "<span>Remove</span>",
                 onclick: async () => {

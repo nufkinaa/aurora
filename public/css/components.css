@@ -1468,3 +1468,29 @@
 /* the "New" tab lives in the glass look only; the classic nav is unchanged */
 #nav-new { display: none; position: relative; }
 .nav-new-dot { display: none; }
+
+/* ---------- "Pick a new password": the forced reset (resetwall.js) ----------
+   Over everything but the toasts — sheets, the profile wall, the sign-in
+   screen — and opaque: nothing of the app shows, or can be reached, behind it. */
+.reset-wall {
+  position: fixed;
+  inset: 0;
+  z-index: 390;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  background: var(--bg);
+}
+.reset-wall-why {
+  margin: -8px 0 16px;
+}
+.reset-wall-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+.reset-wall-forgot {
+  margin-top: 16px;
+}

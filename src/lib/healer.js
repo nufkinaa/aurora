@@ -47,6 +47,7 @@ const repairs = require("./healer-checks/repairs");
 const logChecks = require("./healer-checks/logs");
 const statChecks = require("./healer-checks/stats");
 const sysChecks = require("./healer-checks/system");
+const clientChecks = require("./healer-checks/clients"); // [analytics] errors reported by people's devices
 
 const CHECK_MS = 60 * 1000;
 const UPSTREAM_MS = 5 * 60 * 1000; // outside reachability, less often
@@ -411,6 +412,9 @@ const checkDownloads = async () => {
   const summary =
     `${q.activeCount} downloading · ${q.approvedWaiting} queued · ${q.pending} waiting for approval · ${q.doneLastDay} finished in 24 h` +
     (racing.length ? ` · ${racing.length} trying a second source` : "") +
+    // On hold or waiting its turn on purpose (My List downloads give way to
+    // every other kind — media/dlslots.js): said, never a finding.
+    (q.yielding > 0 ? ` · ${q.yielding} from My List waiting for the others${q.held > 0 ? ` (${q.held} on hold)` : ""}` : "") +
     (q.holding && q.approvedWaiting > 0 ? ` · holding at ${q.maxActive} while someone is watching` : "");
   return { status, summary, detail: notes.join("; ") || null, healed: healed.join("; ") || null };
 };
@@ -538,6 +542,7 @@ const CHECKS = [
   ["newerrors", "New kinds of error", "Logs", logChecks.checkNewErrors],
   ["offenders", "Repeat offenders", "Logs", logChecks.checkOffenders],
   ["errtrend", "Error rate", "Logs", logChecks.checkErrorTrend],
+  ["clienterrors", "Errors on people's devices", "Logs", clientChecks.checkClientErrors], // [analytics] lib/tel + its own alert
 
   ["playback", "Playback health", "Playback", statChecks.checkPlayback],
   ["sessions", "Viewers and sessions", "Playback", statChecks.checkSessions],
@@ -617,8 +622,10 @@ const run = async (o = {}) => {
     } catch (e) {
       r = { status: "warn", summary: `the check threw: ${(e && e.message) || e}` };
     }
-    checks.push({ id, name, group, ms: Date.now() - c0, ...r });
+    checks.push({ id, name, group, ms: Date.now() - c0, ...r, alert: undefined });
     maybeNotify(id, name, r, o.send);
+    // [analytics] a check may hand over ONE finished alert of its own (errors on people's devices: already deduplicated and rate-limited there) — still sent from here, the one alert path
+    if (r && r.alert && r.alert.title) (o.send || sendAlert)(String(r.alert.title).slice(0, 120), String(r.alert.body || "").slice(0, 1200));
   }
   const overall = worst(checks.map((c) => c.status));
   const report = { at: Date.now(), tookMs: Date.now() - t0, overall, checks };

@@ -1,6 +1,8 @@
 // WebSocket client: presence, activity reporting, live notifications.
 import { state, loadLibrary, refreshProgress } from "./state.js";
 import { toast } from "./ui.js";
+import { backToSignIn, onProfileSignedOut } from "./session.js";
+import { wsDown, wsUp } from "./telemetry.js"; // [analytics]
 
 const listeners = new Map(); // type -> Set<fn>
 
@@ -25,6 +27,7 @@ const handle = (data) => {
 
   switch (data.type) {
     case "welcome":
+      state.clientId = data.clientId || null; // this socket's name on the server
       if (state.profile) send({ type: "hello", profile: state.profile.name, profileId: state.profile.id });
       break;
     case "subtitle_ocr":
@@ -40,8 +43,15 @@ const handle = (data) => {
       toast(data.message, "📢");
       break;
     case "kicked":
-      toast(`${state.adminName} pulled the plug on this session`, "🚫");
-      setTimeout(() => location.reload(), 1500);
+      // `reset`: the admin asked this profile for a new password — it is
+      // signed out everywhere, and the next sign-in is met by resetwall.js
+      backToSignIn(data.reset
+        ? `${state.adminName} asked for a new password — sign in again to choose one`
+        : `${state.adminName} pulled the plug on this session`, data.reset ? "🔑" : "🚫");
+      break;
+    // "Sign out everywhere else", pressed on another device of this profile
+    case "profile_signed_out":
+      onProfileSignedOut(data.profileId);
       break;
     case "banned": {
       document.body.innerHTML =
@@ -55,6 +65,11 @@ const handle = (data) => {
     }
   }
 };
+
+// Hand a message to this tab's own listeners, as if the server had sent it.
+// For state caught up on by asking (the download list after an outage): the
+// screens that listen to the live messages hear about it the same way.
+export const emit = (data) => { try { handle(data); } catch {} };
 
 // Reconnect with exponential backoff (1s → 30s cap, reset on success), and
 // tell the viewer when the server has been unreachable for a while instead
@@ -84,12 +99,26 @@ const showOfflineBanner = () => {
 };
 const hideOfflineBanner = () => document.getElementById(BANNER_ID)?.remove();
 
+// Drop the socket and let the reconnect below open a new one. The server
+// reads who a socket belongs to once, when it connects — so a tab that signs
+// in AFTER connecting (the sign-in screen of a server that requires sign-in
+// comes up after the socket) has to connect again to be known: until it did,
+// such a tab got no live updates at all and was missing from the admin's
+// list of who is connected.
+let planned = false; // a close we asked for: connect again at once, it is not an outage
+export const reconnect = () => {
+  if (!state.ws) return; // already between sockets — the next one connects signed in
+  planned = true;
+  try { state.ws.close(); } catch { planned = false; }
+};
+
 export const connect = () => {
   try {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(`${proto}//${location.host}`);
     state.ws = ws;
     ws.onopen = () => {
+      wsUp(); // [analytics] lost → back, as a timing
       const wasDown = failedAttempts >= 2;
       hideOfflineBanner();
       // Only a socket that STAYS open earns a backoff reset — the server has
@@ -119,7 +148,12 @@ export const connect = () => {
     };
     ws.onclose = () => {
       state.ws = null;
+      if (planned) {
+        planned = false;
+        return connect();
+      }
       failedAttempts++;
+      wsDown(); // [analytics]
       if (failedAttempts >= 2) showOfflineBanner();
       setTimeout(connect, reconnectDelay);
       reconnectDelay = Math.min(reconnectDelay * 2, 30000);

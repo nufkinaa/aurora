@@ -27,7 +27,7 @@ if (eu && typeof eu.setGlobalHandler === 'function') {
   const prev = eu.getGlobalHandler();
   eu.setGlobalHandler((e, fatal) => {
     remember(`${fatal ? 'fatal: ' : ''}${(e && e.message) || String(e)}`);
-    trackError((e && e.message) || String(e));
+    trackError((e && e.message) || String(e), fatal); // [analytics] fatal or not goes with the report
     prev(e, fatal);
   });
 }

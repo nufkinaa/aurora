@@ -68,11 +68,30 @@ export const disable = async () => {
 };
 
 // A profile switch on this device: the subscription follows whoever is here.
+// Called whenever a profile is entered (main.js, on "aurora-profile"). The
+// server files this browser's one endpoint under the profile that sends it
+// and forgets the previous owner, so "ready" notifications stop going to
+// whoever switched them on once somebody else is using the browser.
 export const rebind = async () => {
+  if (!flagOn() || !state.profile || !(await isOn())) return;
+  const pid = state.profile.id;
+  try {
+    const reg = await registration();
+    const sub = await reg.pushManager.getSubscription();
+    if (sub && state.profile && state.profile.id === pid) await api.pushSet(pid, { endpoint: sub.endpoint });
+  } catch {}
+};
+
+// Signing out on this device: the server forgets this browser for the
+// profile — nobody signed in, nobody to notify. The browser's own
+// subscription and the switch are left alone, so whoever enters next (or the
+// same person, signing back in) is bound again by rebind(). Must run BEFORE
+// the sign-out itself: afterwards the server would refuse it.
+export const release = async () => {
   if (!flagOn() || !state.profile || !(await isOn())) return;
   try {
     const reg = await registration();
     const sub = await reg.pushManager.getSubscription();
-    if (sub) await api.pushSet(state.profile.id, { endpoint: sub.endpoint });
+    if (sub) await api.pushSet(state.profile.id, { endpoint: sub.endpoint, on: false });
   } catch {}
 };

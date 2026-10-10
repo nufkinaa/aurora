@@ -459,18 +459,24 @@ export const formatRow = (item, opts) => {
   return el("span", { class: "fmt", "aria-label": "Formats: " + list.join(", ") }, list.map((t) => el("span", {}, t)));
 };
 
-// What the My List button says after an add. The server answers with what it
-// started fetching because of it (`download`, My List downloads —
-// src/media/mylistdl.js): the film, or the first episode of a show this
-// profile has not started. An
-// older server sends no such field, and then this is the line it always was.
-export const savedLine = (title, res) => {
+// What the My List button says — the TV app's words, to the letter
+// (tv-native/src/api.ts listAddedLine, Overlays.tsx): one wording on every
+// screen of both clients.
+// After an add the server answers with what it started fetching because of it
+// (`download`, My List downloads — src/media/mylistdl.js): the film, or the
+// first episode of a show this profile has not started. An older server sends
+// no such field, and then the add is the plain line.
+export const listAddedLine = (res) => {
   const d = res && res.download;
-  const base = `“${title}” saved for later`;
-  if (!d || !d.queued) return base;
-  if (d.what === "film") return `${base} — downloading the film`;
-  return `${base} — downloading the first episode`;
+  if (!d || !d.queued) return "Added to My List";
+  if (d.what === "film") return "Added to My List — downloading the film";
+  return "Added to My List — downloading the first episode";
 };
+export const LIST_REMOVED = "Removed from My List";
+// The add or the removal did not reach the server: the button has gone back
+// to what is true, and this says so.
+export const listFailedLine = (adding) =>
+  adding ? "Couldn't add to My List — try again" : "Couldn't remove from My List — try again";
 
 let toastRoot;
 // `action` ({label, onClick}) renders a tappable button on the toast — the

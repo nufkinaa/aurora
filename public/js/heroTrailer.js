@@ -89,7 +89,7 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
   const layer = el("div", { class: "hero-video", "aria-hidden": "true" });
   const mount = el("div"); // the API replaces this with the iframe
   layer.append(mount);
-  const unmute = el("button", {
+  const unmute = el("button", { "data-ui": "home.hero.mute",
     class: "hero-unmute focusable hidden",
     "aria-label": "Unmute trailer",
     html: `<span class="hero-unmute-ic">🔇</span><span>Unmute</span>`,

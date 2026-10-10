@@ -46,6 +46,8 @@ const ROUTES = (lib) => ({
   "/new": { hash: "#/new", text: "New in Aurora" },
   // a pairing code nobody issued
   "/pair/:code": { hash: "#/pair/ABCD12", text: "That code expired" },
+  // {host}/link with no code: the field to type the TV's code into
+  "/pair": { hash: "#/pair", selector: ".screen .pair-code-input", text: "Sign in a TV" },
 });
 // The browser's own "Failed to load resource" line for the answers above
 // that are SUPPOSED to be a 404.

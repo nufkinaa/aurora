@@ -5,7 +5,7 @@
 //
 // Cards wire it with `attachPeek(node, item, opts)`; the sheet itself is
 // `openPeek(item, opts)` so a keyboard/remote path can open it too.
-import { el, icons, toast, savedLine, formatRow, posterImg, fmtDuration, hapticOnRelease } from "./ui.js";
+import { el, icons, toast, listAddedLine, LIST_REMOVED, listFailedLine, formatRow, posterImg, fmtDuration, hapticOnRelease } from "./ui.js";
 import { state, progressFor } from "./state.js";
 import { api } from "./api.js";
 import { navigate } from "./router.js";
@@ -77,7 +77,7 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
 
   // My List: library items go by id, streamable ones by a stored ref (the
   // same shapes the detail pages send).
-  const listBtn = el("button", { class: "btn focusable" });
+  const listBtn = el("button", { "data-ui": "peek.mylist", class: "btn focusable" });
   let inList = false;
   const paintList = () => {
     listBtn.innerHTML = (inList ? icons.check : icons.plus) + `<span>${inList ? "In My List" : "My List"}</span>`;
@@ -98,8 +98,14 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
         ? { imdbId: item.imdbId, type: item.type === "show" ? "show" : "movie", title: item.title, poster: item.cover || null, year: item.year || null, genres: item.genres || [], rating: item.rating || null }
         : item.id;
       const res = await api.toggleWatchlist(state.profile.id, ref, inList);
-      toast(inList ? savedLine(item.title, res) : "Off the list. Bold.", inList ? "➕" : "➖");
-    } catch {}
+      toast(inList ? listAddedLine(res) : LIST_REMOVED, inList ? "➕" : "➖");
+    } catch {
+      // it did not happen: the button goes back, and says so
+      const adding = inList;
+      inList = !inList;
+      paintList();
+      toast(listFailedLine(adding), "⚠️");
+    }
   };
 
   const synopsis = el("p", { class: "peek-synopsis skeleton-text" }, " ");
@@ -116,7 +122,7 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
     el("div", { class: "peek-art" + (item.backdrop ? "" : " poster") },
       art ? posterImg(art, item.title, "peek-img", "card-fallback", { w: 520 }) : el("div", { class: "card-fallback" }, item.title),
       el("div", { class: "peek-art-fade" }),
-      el("button", { class: "btn btn-icon focusable peek-close", "aria-label": "Close", html: "✕", onclick: closePeek }),
+      el("button", { "data-ui": "peek.close", class: "btn btn-icon focusable peek-close", "aria-label": "Close", html: "✕", onclick: closePeek }),
     ),
     el("div", { class: "peek-body" },
       el("div", { class: "peek-title" }, item.title),
@@ -124,10 +130,10 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
       pct !== null && el("div", { class: "peek-progress" }, el("div", { class: "peek-bar" }, el("i", { style: { width: pct + "%" } })), el("span", {}, left)),
       synopsis,
       el("div", { class: "peek-actions" },
-        playable && el("button", { class: "btn btn-primary focusable", html: icons.play + `<span>${pct !== null ? "Resume" : "Play"}</span>`, onclick: play }),
-        open && el("button", { class: "btn focusable", html: `<span>${playable ? "Details" : "Open"}</span>`, onclick: details }),
+        playable && el("button", { "data-ui": "peek.play", class: "btn btn-primary focusable", html: icons.play + `<span>${pct !== null ? "Resume" : "Play"}</span>`, onclick: play }),
+        open && el("button", { "data-ui": "peek.details", class: "btn focusable", html: `<span>${playable ? "Details" : "Open"}</span>`, onclick: details }),
         listable && listBtn,
-        onRemove && el("button", { class: "btn focusable peek-remove", html: "<span>Remove from Continue Watching</span>", onclick: go(() => onRemove(item)) }),
+        onRemove && el("button", { "data-ui": "peek.remove", class: "btn focusable peek-remove", html: "<span>Remove from Continue Watching</span>", onclick: go(() => onRemove(item)) }),
       ),
     ),
   );

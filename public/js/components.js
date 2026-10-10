@@ -27,7 +27,7 @@ export const starRating = (key) => {
     [...wrap.children].forEach((s, i) => s.classList.toggle("on", i < val));
   };
   for (let i = 1; i <= 5; i++) {
-    const star = el("button", {
+    const star = el("button", { "data-ui": "rating.star",
       class: "star focusable",
       "aria-label": `${i} star${i > 1 ? "s" : ""}`,
       html: "★",
@@ -125,7 +125,7 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
 
   const node = el(
     "button",
-    {
+    { "data-ui": "card.open",
       class: [
         "card focusable",
         wide || isEpisode ? "wide" : "poster",
@@ -194,7 +194,7 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
     pct !== null && el("div", { class: "card-progress" }, el("div", { style: { width: pct + "%" } })),
     showLabel && label,
     onRemove && !item._noRemove &&
-      el("span", {
+      el("span", { "data-ui": "card.remove",
         class: "card-remove",
         role: "button",
         title: "Remove from Continue Watching",

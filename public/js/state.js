@@ -7,11 +7,13 @@ export const state = {
   profiles: [],
   library: null,        // {movies, shows}
   progress: {},         // itemId -> {position, duration, finished}
+  historyOf: null,      // the profile id whose watch history the maps below were last READ for (null: never read)
   ratings: {},          // itemKey (id or imdbId) -> 1..5
   likedGenres: [],      // preferred genres for recommendations
   episodeProgress: {},  // "imdbId:season:episode" -> progress (streamed episodes)
   streamProgress: {},   // imdbId -> progress (streamed films)
   ws: null,
+  clientId: null,       // this tab's socket, as the server names it (the welcome message)
   pendingItems: {},     // id -> item handed to the player without a server round-trip
   adminName: "the admin", // what UI copy calls whoever runs the server (configurable)
   // false on a server with "torrents": false in config.json — nothing that
@@ -186,30 +188,53 @@ export const savedToken = (profileId) => {
   try { return sessionStorage.getItem(`aurora-token-${profileId}`); } catch { return null; }
 };
 
-// When the profile's progress was last read from the server (and whose it
+// When the profile's history was last READ from the server (and whose it
 // was): a screen that has just read it need not make the next one wait for
 // the same answer again (the player, opened from a title page — see
-// progressAge).
+// progressAge). Only a read that SUCCEEDED counts, and only while the
+// history this tab holds is still that profile's: a read that failed leaves
+// the age at "never", so the player asks again and its "could not read the
+// history → do not save over it" rule decides as it always has.
 let progressRead = { at: 0, profile: null };
 export const progressAge = () =>
-  state.profile && progressRead.profile === state.profile.id ? Date.now() - progressRead.at : Infinity;
+  state.profile && progressRead.profile === state.profile.id && state.historyOf === state.profile.id
+    ? Date.now() - progressRead.at
+    : Infinity;
 
+// Resolves true when the history was read from the server just now, false
+// when it could not be (the player refuses to save over a history it could
+// not read — see player.js).
 export const refreshProgress = async () => {
-  if (!state.profile) return;
+  if (!state.profile) return false;
+  const pid = state.profile.id;
+  let read = false;
   try {
-    const asked = state.profile.id;
     const { progress, ratings, likedGenres, episodeProgress, streamProgress } =
-      await api.profileState(state.profile.id);
-    progressRead = { at: Date.now(), profile: asked };
+      await api.profileState(pid);
+    if (!state.profile || state.profile.id !== pid) return false; // the profile changed while this was on its way
+    progressRead = { at: Date.now(), profile: pid };
     state.progress = progress || {};
     state.ratings = ratings || {};
     state.likedGenres = likedGenres || [];
     state.episodeProgress = episodeProgress || {};
     state.streamProgress = streamProgress || {};
+    state.historyOf = pid;
+    read = true;
   } catch {
+    if (!state.profile || state.profile.id !== pid) return false;
     // Offline (or a blip): keep what we have — wiping it would drop every
     // resume point the moment the server is out of reach.
     if (!state.progress) state.progress = {};
+    // ...unless what we have is the LAST profile's (a switch whose first read
+    // failed): somebody else's history must not stand in for this one's.
+    if (state.historyOf !== pid) {
+      state.progress = {};
+      state.ratings = {};
+      state.likedGenres = [];
+      state.episodeProgress = {};
+      state.streamProgress = {};
+      state.historyOf = null;
+    }
   }
   // Progress made with no server in reach is still waiting on this device
   // (offline.js queues it). Until it is delivered it is the truth: without
@@ -227,6 +252,7 @@ export const refreshProgress = async () => {
       };
     }
   } catch {}
+  return read;
 };
 
 // The star rating for an item, by library id or IMDb id (0 = unrated).

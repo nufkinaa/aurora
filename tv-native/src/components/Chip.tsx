@@ -25,8 +25,10 @@ export default function Chip({
   edgeLeft,
   onPress,
   onFocusChange,
+  uiId,
   ref,
 }: {
+  uiId?: string; // [analytics] which control this is (Focusable.uiId)
   label: string;
   // `.chip.on` / `.cat-pill.on` — a white fill with dark text, which is the one
   // selected language the whole site uses.
@@ -61,6 +63,7 @@ export default function Chip({
       ring={on && small ? 'violet' : 'white'}
       hasTVPreferredFocus={hasTVPreferredFocus}
       edgeLeft={edgeLeft}
+      uiId={uiId}
       onFocusChange={onFocusChange}
       onPress={onPress}
       style={[bare ? styles.bare : styles.surface, small && styles.small, on && styles.on, bare && on && styles.barOnLift]}>

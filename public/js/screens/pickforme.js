@@ -16,6 +16,7 @@
 import { el, toast } from "../ui.js";
 import { card } from "../components.js";
 import { api } from "../api.js";
+import { state } from "../state.js";
 
 const EXAMPLES = [
   "something dumb and loud, I've had a long day",
@@ -72,10 +73,22 @@ const STAGE_MS = 2600;
 const SKELETONS = 16;
 
 // The last answer, kept for the life of the page:
-// { vibe, kindId, era, length, items, status, scrollY }
+// { vibe, kindId, era, length, items, status, scrollY, owner }
 let last = null;
+// ...for the profile it was given to, and nobody else. It used to have no
+// owner: the next profile on the same tab — a kids one included — opened the
+// AI page onto the previous person's question and picks. Stamped the way
+// search.js stamps its memory (a kids limit changing on the same profile is a
+// different audience too), dropped on a switch, and checked again on the way
+// in, because an answer can land after the switch.
+const whose = () =>
+  state.profile ? `${state.profile.id}${state.profile.kids ? `~k${state.profile.kids.maxAge}` : ""}` : "";
+window.addEventListener("aurora-profile", (e) => {
+  if (e.detail && e.detail.relist) last = null;
+});
 
 export const renderPickForMe = async (root) => {
+  if (last && last.owner !== whose()) last = null;
   const screen = el("div", { class: "screen pfm" });
 
   // ---- state. These four are the whole request. Seeded from the last answer so
@@ -137,7 +150,7 @@ export const renderPickForMe = async (root) => {
       for (const o of getOptions()) {
         const on = o.id === getValue();
         row.append(
-          el("button", {
+          el("button", { "data-ui": "pick.option",
             type: "button",
             class: `pfm-pill focusable ${on ? "on" : ""}`,
             "aria-pressed": on ? "true" : "false",
@@ -158,7 +171,7 @@ export const renderPickForMe = async (root) => {
     (v) => { length = v; }
   );
 
-  const goBtn = el("button", { type: "button", class: "pfm-go focusable" }, "Find me something");
+  const goBtn = el("button", { "data-ui": "pick.go", type: "button", class: "pfm-go focusable" }, "Find me something");
   const waiting = el("div");                                 // holds the wait state while busy
   const status = el("div", { class: "pfm-status" });
   const results = el("div", { class: "pfm-results grid" });
@@ -221,9 +234,11 @@ export const renderPickForMe = async (root) => {
     results.innerHTML = "";
     waiting.innerHTML = "";
     ticker = startWaiting();
+    const asker = whose(); // an answer belongs to whoever asked
 
     try {
       const res = await api.aiRecommend(vibe, kind.mix, era, length);
+      if (asker !== whose()) return; // the profile changed while it was thinking: not theirs to see
       const items = res.items || [];
       if (!items.length) {
         if (!gone) {
@@ -247,7 +262,7 @@ export const renderPickForMe = async (root) => {
           : "");
       // Remember it before painting, so an answer that arrives while the viewer
       // is elsewhere is waiting for them when they come back.
-      last = { vibe, kindId: kind.id, era, length, items, status: statusText, scrollY: 0 };
+      last = { vibe, kindId: kind.id, era, length, items, status: statusText, scrollY: 0, owner: asker };
       if (!gone) paint(items, statusText);
     } catch (err) {
       if (gone) return;
@@ -284,7 +299,7 @@ export const renderPickForMe = async (root) => {
     el("div", { class: "pfm-examples" },
       el("span", { class: "pfm-examples-label" }, "Try:"),
       ...EXAMPLES.map((ex) =>
-        el("button", {
+        el("button", { "data-ui": "pick.example",
           type: "button",
           class: "pfm-example focusable",
           onclick: () => { input.value = ex; ask(); },

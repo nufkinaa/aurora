@@ -933,6 +933,7 @@ test("settings: the owner's defaults, and a file from before the feature reads a
   assert.deepEqual(I.readSettings({}), {
     myListDownloads: true, myListShows: true, myListAutoDelete: true,
     myListStaleDays: 14, myListDeleteDays: 21, myListDailyCap: 5, myListRetries: 1,
+    myListYield: "always",
   });
   assert.deepEqual(I.readSettings(undefined), I.readSettings({}));
   assert.deepEqual(I.readSettings({ maxActiveDownloads: 4, aria2MaxDownload: "0" }), I.readSettings({}));

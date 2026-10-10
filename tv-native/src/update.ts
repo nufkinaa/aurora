@@ -5,6 +5,7 @@
 import {AppState, NativeEventEmitter, NativeModules} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {getBaseUrl, getSession} from './api';
+import {cleanExit, reportError, tmValue, updateOffered} from './telemetry'; // [analytics]
 
 // Keep in lockstep with android/app/build.gradle versionName on each release.
 export const APP_VERSION = '5.1.31';
@@ -26,6 +27,7 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
   if (!base) return null;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 4000);
+  const askedAt = Date.now(); // [analytics]
   try {
     // Cache-busted: the device's HTTP cache served a stale copy under a long
     // max-age (measured on the Streamer).
@@ -33,7 +35,9 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
     clearTimeout(t);
     if (!res.ok) return null;
     const j = (await res.json()) as {versionName?: string; notes?: string};
+    tmValue('update_check', Date.now() - askedAt); // [analytics]
     if (j.versionName && cmp(APP_VERSION, j.versionName) < 0) {
+      updateOffered(j.versionName); // [analytics] offered → running it, across the restart
       return {version: j.versionName, url: `${base}/download`, notes: j.notes};
     }
   } catch {
@@ -61,8 +65,14 @@ export const downloadUpdate = async (url: string, onProgress: (p: Progress) => v
   if (!native) throw new Error('This build cannot update itself');
   const emitter = new NativeEventEmitter(NativeModules.AuroraUpdater);
   const sub = emitter.addListener('AuroraUpdaterProgress', (p: Progress) => onProgress(p));
+  const startedAt = Date.now(); // [analytics]
   try {
-    return await native.download(url, getSession());
+    const path = await native.download(url, getSession());
+    tmValue('update_download', Date.now() - startedAt); // [analytics]
+    return path;
+  } catch (e) {
+    reportError('update', 'the update did not download'); // [analytics]
+    throw e;
   } finally {
     sub.remove();
   }
@@ -72,6 +82,7 @@ export const canInstall = () => (native ? native.canInstall() : Promise.resolve(
 export const openInstallSettings = () => (native ? native.openInstallSettings() : Promise.resolve(false));
 export const installUpdate = (path: string) => {
   if (!native) throw new Error('This build cannot update itself');
+  cleanExit(); // [analytics] being replaced on purpose is not a run that ended badly
   return native.install(path);
 };
 

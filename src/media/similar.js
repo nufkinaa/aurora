@@ -1,9 +1,16 @@
-// "More like this": per-title similar/recommended rows for the detail page.
+// "More like this": per-title similar/recommended rows for the detail page —
+// ONE row for the website and the TV app (both call
+// /api/discover/similar/:type/:id; the TV used to build its own from the
+// genre catalogue).
 // Primary source: the VIBE ranker (media/vibe.js) — TMDB recommendations,
-// /similar and a keyword-discover pool, re-ranked on shared keywords, genre,
-// era and quality. Needs a TMDB key; without one — or when TMDB has nothing —
-// falls back to genre overlap over the cached Discover trending pool, which
-// is keyless and costs no network. Rows cache for a week (a row costs ~30
+// /similar and a keyword-discover pool, re-ranked on shared keywords, themes,
+// makers, genre, era and quality. Needs a TMDB key; without one — or when
+// TMDB cannot be reached — the row comes from the recommender's own title
+// index (media/recs: item-to-item similarity over everything the server has
+// learned), and only if that knows nothing either from genre overlap over the
+// cached Discover trending pool. Both fallbacks cost no network.
+// The cached row is the same for everyone; the route re-orders it per profile
+// (recs.personaliseSimilar), which is why a row keeps more items than it shows. Rows cache for a week (a row costs ~30
 // TMDB calls to build), keyed by algorithm version so a better ranker
 // replaces old rows as they're next viewed.
 const path = require("path");
@@ -144,7 +151,11 @@ const similarCached = (type, imdbId) => {
 // stale regardless of age — it gets rebuilt the next time anyone asks.
 // v2 = the vibe ranker (media/vibe.js); every row carries the version,
 // genre fallbacks included (an old fallback used to outlive the upgrade).
-const ALGO = 4;
+// v5 (2026-10-10): themes + makers in the vibe ranker, 24 items kept for the
+// per-profile re-order, the title-index fallback.
+const ALGO = 5;
+const ROW_KEEP = 24; // stored per row; a response shows the best SHOW_MAX
+const SHOW_MAX = 14;
 const fresh = (hit) =>
   !!hit &&
   hit.algo === ALGO &&
@@ -172,12 +183,21 @@ const similar = async (type, imdbId, tmdbHint) => {
     try {
       const tmdbId = tmdbHint || (await tmdbIdFor(imdbId, type));
       if (tmdbId) {
-        result.items = (await require("./vibe").vibeRow(type, tmdbId, imdbId)).slice(0, 14);
+        result.items = (await require("./vibe").vibeRow(type, tmdbId, imdbId, { limit: ROW_KEEP })).slice(0, ROW_KEEP);
       }
     } catch (err) {
       console.warn(`[similar] vibe row failed for ${key}: ${err.message}`);
       failed = true;
     }
+  }
+  // No vibe row (no key, TMDB down, or it knows nothing): what the server's
+  // own title index says is alike — keywords, themes, makers, genre — which
+  // beats a genre match over this week's trending by a distance.
+  if (!result.items.length) {
+    try {
+      const items = require("./recs").localSimilar(imdbId, { limit: ROW_KEEP });
+      if (items.length >= 4) result = { items, source: "index" };
+    } catch {}
   }
   // Belt: a fallback failure must degrade to an empty row, never 500 the
   // detail page it decorates.
@@ -286,4 +306,11 @@ const seriesShelves = async (imdbId, tmdbHint) => {
   return out;
 };
 
-module.exports = { similar, similarCached, warmSimilar, collection, _internals: { mapItems, genreFallback, tmdbIdFor, fresh, ALGO, FAIL_TTL, ROW_TTL } };
+// The franchise / director shelves already built for a film, or null — sync,
+// cache only (search's related tail must not wait on TMDB for these).
+const collectionCached = (imdbId) => {
+  const hit = store.data.rows[`coll|movie|${imdbId}`];
+  return hit ? { collection: hit.collection || null, director: hit.director || null } : null;
+};
+
+module.exports = { similar, similarCached, warmSimilar, collection, SHOW_MAX, collectionCached, tmdb, addImdbIds, mapItems, _internals: { mapItems, genreFallback, tmdbIdFor, fresh, ALGO, FAIL_TTL, ROW_TTL, ROW_KEEP, SHOW_MAX } };

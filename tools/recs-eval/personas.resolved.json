@@ -1,0 +1,647 @@
+{
+ "movie|Arrival|2016": {
+  "tmdbId": 329865,
+  "name": "Arrival",
+  "imdbId": "tt2543164"
+ },
+ "movie|Blade Runner 2049|2017": {
+  "tmdbId": 335984,
+  "name": "Blade Runner 2049",
+  "imdbId": "tt1856101"
+ },
+ "movie|Ex Machina|2015": {
+  "tmdbId": 264660,
+  "name": "Ex Machina",
+  "imdbId": "tt0470752"
+ },
+ "movie|Interstellar|2014": {
+  "tmdbId": 157336,
+  "name": "Interstellar",
+  "imdbId": "tt0816692"
+ },
+ "movie|Annihilation|2018": {
+  "tmdbId": 300668,
+  "name": "Annihilation",
+  "imdbId": "tt2798920"
+ },
+ "movie|Her|2013": {
+  "tmdbId": 152601,
+  "name": "Her",
+  "imdbId": "tt1798709"
+ },
+ "movie|Moon|2009": {
+  "tmdbId": 18239,
+  "name": "The Twilight Saga: New Moon",
+  "imdbId": "tt1259571"
+ },
+ "movie|Contact|1997": {
+  "tmdbId": 686,
+  "name": "Contact",
+  "imdbId": "tt0118884"
+ },
+ "movie|Gattaca|1997": {
+  "tmdbId": 782,
+  "name": "Gattaca",
+  "imdbId": "tt0119177"
+ },
+ "tv|Severance|2022": {
+  "tmdbId": 95396,
+  "name": "Severance",
+  "imdbId": "tt11280740"
+ },
+ "tv|Devs|2020": {
+  "tmdbId": 81349,
+  "name": "Devs",
+  "imdbId": "tt8134186"
+ },
+ "tv|Station Eleven|2021": {
+  "tmdbId": 90972,
+  "name": "Station Eleven",
+  "imdbId": "tt10574236"
+ },
+ "tv|Dark|2017": {
+  "tmdbId": 70523,
+  "name": "Dark",
+  "imdbId": "tt5753856"
+ },
+ "tv|The Leftovers|2014": {
+  "tmdbId": 54344,
+  "name": "The Leftovers",
+  "imdbId": "tt2699128"
+ },
+ "movie|Solaris|1972": {
+  "tmdbId": 593,
+  "name": "Solaris",
+  "imdbId": "tt0069293"
+ },
+ "movie|Toy Story|1995": {
+  "tmdbId": 862,
+  "name": "Toy Story",
+  "imdbId": "tt0114709"
+ },
+ "movie|Finding Nemo|2003": {
+  "tmdbId": 12,
+  "name": "Finding Nemo",
+  "imdbId": "tt0266543"
+ },
+ "movie|Coco|2017": {
+  "tmdbId": 354912,
+  "name": "Coco",
+  "imdbId": "tt2380307"
+ },
+ "movie|Moana|2016": {
+  "tmdbId": 277834,
+  "name": "Moana",
+  "imdbId": "tt3521164"
+ },
+ "movie|Zootopia|2016": {
+  "tmdbId": 269149,
+  "name": "Zootopia",
+  "imdbId": "tt2948356"
+ },
+ "movie|How to Train Your Dragon|2010": {
+  "tmdbId": 10191,
+  "name": "How to Train Your Dragon",
+  "imdbId": "tt0892769"
+ },
+ "movie|Inside Out|2015": {
+  "tmdbId": 150540,
+  "name": "Inside Out",
+  "imdbId": "tt2096673"
+ },
+ "movie|Ratatouille|2007": {
+  "tmdbId": 2062,
+  "name": "Ratatouille",
+  "imdbId": "tt0382932"
+ },
+ "movie|Up|2009": {
+  "tmdbId": 14160,
+  "name": "Up",
+  "imdbId": "tt1049413"
+ },
+ "movie|The Incredibles|2004": {
+  "tmdbId": 9806,
+  "name": "The Incredibles",
+  "imdbId": "tt0317705"
+ },
+ "movie|Kung Fu Panda|2008": {
+  "tmdbId": 9502,
+  "name": "Kung Fu Panda",
+  "imdbId": "tt0441773"
+ },
+ "movie|Encanto|2021": {
+  "tmdbId": 568124,
+  "name": "Encanto",
+  "imdbId": "tt2953050"
+ },
+ "tv|Bluey|2018": {
+  "tmdbId": 82728,
+  "name": "Bluey",
+  "imdbId": "tt7678620"
+ },
+ "movie|Frozen|2013": {
+  "tmdbId": 109445,
+  "name": "Frozen",
+  "imdbId": "tt2294629"
+ },
+ "movie|Paddington 2|2017": {
+  "tmdbId": 346648,
+  "name": "Paddington 2",
+  "imdbId": "tt4468740"
+ },
+ "tv|Making a Murderer|2015": {
+  "tmdbId": 64439,
+  "name": "Making a Murderer",
+  "imdbId": "tt5189670"
+ },
+ "tv|The Jinx: The Life and Deaths of Robert Durst|2015": {
+  "tmdbId": 61929,
+  "name": "The Jinx",
+  "imdbId": "tt4299972"
+ },
+ "tv|Tiger King|2020": {
+  "tmdbId": 100698,
+  "name": "Tiger King",
+  "imdbId": "tt11823076"
+ },
+ "tv|Don't F**k with Cats: Hunting an Internet Killer|2019": {
+  "tmdbId": 96129,
+  "name": "Don't F**k with Cats: Hunting an Internet Killer",
+  "imdbId": "tt11318602"
+ },
+ "tv|Wild Wild Country|2018": {
+  "tmdbId": 77601,
+  "name": "Wild Wild Country",
+  "imdbId": "tt7768848"
+ },
+ "tv|The Staircase|2004": {
+  "tmdbId": 21421,
+  "name": "The Staircase",
+  "imdbId": "tt0388644"
+ },
+ "movie|Icarus|2017": {
+  "tmdbId": 432976,
+  "name": "Icarus",
+  "imdbId": "tt6333060"
+ },
+ "movie|Free Solo|2018": {
+  "tmdbId": 515042,
+  "name": "Free Solo",
+  "imdbId": "tt7775622"
+ },
+ "movie|The Tinder Swindler|2022": {
+  "tmdbId": 923632,
+  "name": "The Tinder Swindler",
+  "imdbId": "tt14992922"
+ },
+ "movie|American Murder: The Family Next Door|2020": {
+  "tmdbId": 743601,
+  "name": "American Murder: The Family Next Door",
+  "imdbId": "tt12987894"
+ },
+ "tv|Mindhunter|2017": {
+  "tmdbId": 67744,
+  "name": "MINDHUNTER",
+  "imdbId": "tt5290382"
+ },
+ "movie|Zodiac|2007": {
+  "tmdbId": 1949,
+  "name": "Zodiac",
+  "imdbId": "tt0443706"
+ },
+ "movie|13th|2016": {
+  "tmdbId": 4488,
+  "name": "Friday the 13th",
+  "imdbId": "tt0080761"
+ },
+ "movie|The Imposter|2012": {
+  "tmdbId": 84287,
+  "name": "The Imposter",
+  "imdbId": "tt1966604"
+ },
+ "movie|Abducted in Plain Sight|2017": {
+  "tmdbId": 470401,
+  "name": "Abducted in Plain Sight",
+  "imdbId": "tt3444312"
+ },
+ "movie|Die Hard 2|1990": {
+  "tmdbId": 1573,
+  "name": "Die Hard 2",
+  "imdbId": "tt0099423"
+ },
+ "movie|Terminator 2: Judgment Day|1991": {
+  "tmdbId": 280,
+  "name": "Terminator 2: Judgment Day",
+  "imdbId": "tt0103064"
+ },
+ "movie|Speed|1994": {
+  "tmdbId": 1637,
+  "name": "Speed",
+  "imdbId": "tt0111257"
+ },
+ "movie|The Rock|1996": {
+  "tmdbId": 9802,
+  "name": "The Rock",
+  "imdbId": "tt0117500"
+ },
+ "movie|Face/Off|1997": {
+  "tmdbId": 754,
+  "name": "Face/Off",
+  "imdbId": "tt0119094"
+ },
+ "movie|Con Air|1997": {
+  "tmdbId": 1701,
+  "name": "Con Air",
+  "imdbId": "tt0118880"
+ },
+ "movie|True Lies|1994": {
+  "tmdbId": 36955,
+  "name": "True Lies",
+  "imdbId": "tt0111503"
+ },
+ "movie|Point Break|1991": {
+  "tmdbId": 1089,
+  "name": "Point Break",
+  "imdbId": "tt0102685"
+ },
+ "movie|Heat|1995": {
+  "tmdbId": 949,
+  "name": "Heat",
+  "imdbId": "tt0113277"
+ },
+ "movie|The Matrix|1999": {
+  "tmdbId": 603,
+  "name": "The Matrix",
+  "imdbId": "tt0133093"
+ },
+ "movie|Bad Boys|1995": {
+  "tmdbId": 9737,
+  "name": "Bad Boys",
+  "imdbId": "tt0112442"
+ },
+ "movie|Hard Boiled|1992": {
+  "tmdbId": 11782,
+  "name": "Hard Boiled",
+  "imdbId": "tt0104684"
+ },
+ "movie|Under Siege|1992": {
+  "tmdbId": 8845,
+  "name": "Under Siege",
+  "imdbId": "tt0105690"
+ },
+ "movie|GoldenEye|1995": {
+  "tmdbId": 710,
+  "name": "GoldenEye",
+  "imdbId": "tt0113189"
+ },
+ "movie|Mission: Impossible|1996": {
+  "tmdbId": 954,
+  "name": "Mission: Impossible",
+  "imdbId": "tt0117060"
+ },
+ "movie|Ocean's Eleven|2001": {
+  "tmdbId": 161,
+  "name": "Ocean's Eleven",
+  "imdbId": "tt0240772"
+ },
+ "movie|The Italian Job|2003": {
+  "tmdbId": 9654,
+  "name": "The Italian Job",
+  "imdbId": "tt0317740"
+ },
+ "movie|Inside Man|2006": {
+  "tmdbId": 388,
+  "name": "Inside Man",
+  "imdbId": "tt0454848"
+ },
+ "movie|The Town|2010": {
+  "tmdbId": 23168,
+  "name": "The Town",
+  "imdbId": "tt0840361"
+ },
+ "tv|Money Heist|2017": {
+  "tmdbId": 71446,
+  "name": "Money Heist",
+  "imdbId": "tt6468322"
+ },
+ "movie|Logan Lucky|2017": {
+  "tmdbId": 399170,
+  "name": "Logan Lucky",
+  "imdbId": "tt5439796"
+ },
+ "movie|Baby Driver|2017": {
+  "tmdbId": 339403,
+  "name": "Baby Driver",
+  "imdbId": "tt3890160"
+ },
+ "movie|Now You See Me|2013": {
+  "tmdbId": 75656,
+  "name": "Now You See Me",
+  "imdbId": "tt1670345"
+ },
+ "movie|Catch Me If You Can|2002": {
+  "tmdbId": 640,
+  "name": "Catch Me If You Can",
+  "imdbId": "tt0264464"
+ },
+ "movie|The Sting|1973": {
+  "tmdbId": 9277,
+  "name": "The Sting",
+  "imdbId": "tt0070735"
+ },
+ "movie|Snatch|2000": {
+  "tmdbId": 107,
+  "name": "Snatch",
+  "imdbId": "tt0208092"
+ },
+ "tv|Lupin|2021": {
+  "tmdbId": 96677,
+  "name": "Lupin",
+  "imdbId": "tt2531336"
+ },
+ "movie|Widows|2018": {
+  "tmdbId": 401469,
+  "name": "Widows",
+  "imdbId": "tt4218572"
+ },
+ "movie|Hell or High Water|2016": {
+  "tmdbId": 338766,
+  "name": "Hell or High Water",
+  "imdbId": "tt2582782"
+ },
+ "movie|When Harry Met Sally...|1989": {
+  "tmdbId": 639,
+  "name": "When Harry Met Sally...",
+  "imdbId": "tt0098635"
+ },
+ "movie|Notting Hill|1999": {
+  "tmdbId": 509,
+  "name": "Notting Hill",
+  "imdbId": "tt0125439"
+ },
+ "movie|About Time|2013": {
+  "tmdbId": 122906,
+  "name": "About Time",
+  "imdbId": "tt2194499"
+ },
+ "movie|Crazy Rich Asians|2018": {
+  "tmdbId": 455207,
+  "name": "Crazy Rich Asians",
+  "imdbId": "tt3104988"
+ },
+ "movie|The Proposal|2009": {
+  "tmdbId": 18240,
+  "name": "The Proposal",
+  "imdbId": "tt1041829"
+ },
+ "movie|10 Things I Hate About You|1999": {
+  "tmdbId": 4951,
+  "name": "10 Things I Hate About You",
+  "imdbId": "tt0147800"
+ },
+ "movie|Bridget Jones's Diary|2001": {
+  "tmdbId": 634,
+  "name": "Bridget Jones's Diary",
+  "imdbId": "tt0243155"
+ },
+ "movie|Love Actually|2003": {
+  "tmdbId": 508,
+  "name": "Love Actually",
+  "imdbId": "tt0314331"
+ },
+ "tv|Ted Lasso|2020": {
+  "tmdbId": 97546,
+  "name": "Ted Lasso",
+  "imdbId": "tt10986410"
+ },
+ "tv|Schitt's Creek|2015": {
+  "tmdbId": 61662,
+  "name": "Schitt's Creek",
+  "imdbId": "tt3526078"
+ },
+ "tv|Parks and Recreation|2009": {
+  "tmdbId": 8592,
+  "name": "Parks and Recreation",
+  "imdbId": "tt1266020"
+ },
+ "movie|Palm Springs|2020": {
+  "tmdbId": 587792,
+  "name": "Palm Springs",
+  "imdbId": "tt9484998"
+ },
+ "movie|The Big Sick|2017": {
+  "tmdbId": 416477,
+  "name": "The Big Sick",
+  "imdbId": "tt5462602"
+ },
+ "tv|Brooklyn Nine-Nine|2013": {
+  "tmdbId": 48891,
+  "name": "Brooklyn Nine-Nine",
+  "imdbId": "tt2467372"
+ },
+ "movie|Hereditary|2018": {
+  "tmdbId": 493922,
+  "name": "Hereditary",
+  "imdbId": "tt7784604"
+ },
+ "movie|The Witch|2016": {
+  "tmdbId": 310131,
+  "name": "The Witch",
+  "imdbId": "tt4263482"
+ },
+ "movie|Midsommar|2019": {
+  "tmdbId": 530385,
+  "name": "Midsommar",
+  "imdbId": "tt8772262"
+ },
+ "movie|It Follows|2015": {
+  "tmdbId": 270303,
+  "name": "It Follows",
+  "imdbId": "tt3235888"
+ },
+ "movie|The Babadook|2014": {
+  "tmdbId": 242224,
+  "name": "The Babadook",
+  "imdbId": "tt2321549"
+ },
+ "movie|Get Out|2017": {
+  "tmdbId": 419430,
+  "name": "Get Out",
+  "imdbId": "tt5052448"
+ },
+ "movie|The Conjuring|2013": {
+  "tmdbId": 138843,
+  "name": "The Conjuring",
+  "imdbId": "tt1457767"
+ },
+ "movie|A Quiet Place|2018": {
+  "tmdbId": 447332,
+  "name": "A Quiet Place",
+  "imdbId": "tt6644200"
+ },
+ "movie|Talk to Me|2023": {
+  "tmdbId": 1008042,
+  "name": "Talk to Me",
+  "imdbId": "tt10638522"
+ },
+ "tv|The Haunting of Hill House|2018": {
+  "tmdbId": 72844,
+  "name": "The Haunting of Hill House",
+  "imdbId": "tt6763664"
+ },
+ "tv|Midnight Mass|2021": {
+  "tmdbId": 97400,
+  "name": "Midnight Mass",
+  "imdbId": "tt10574558"
+ },
+ "movie|Sinister|2012": {
+  "tmdbId": 82507,
+  "name": "Sinister",
+  "imdbId": "tt1922777"
+ },
+ "movie|Barbarian|2022": {
+  "tmdbId": 913290,
+  "name": "Barbarian",
+  "imdbId": "tt15791034"
+ },
+ "movie|The Others|2001": {
+  "tmdbId": 1933,
+  "name": "The Others",
+  "imdbId": "tt0230600"
+ },
+ "tv|Breaking Bad|2008": {
+  "tmdbId": 1396,
+  "name": "Breaking Bad",
+  "imdbId": "tt0903747"
+ },
+ "tv|The Sopranos|1999": {
+  "tmdbId": 1398,
+  "name": "The Sopranos",
+  "imdbId": "tt0141842"
+ },
+ "tv|The Wire|2002": {
+  "tmdbId": 1438,
+  "name": "The Wire",
+  "imdbId": "tt0306414"
+ },
+ "tv|Better Call Saul|2015": {
+  "tmdbId": 60059,
+  "name": "Better Call Saul",
+  "imdbId": "tt3032476"
+ },
+ "tv|Ozark|2017": {
+  "tmdbId": 69740,
+  "name": "Ozark",
+  "imdbId": "tt5071412"
+ },
+ "tv|Fargo|2014": {
+  "tmdbId": 60622,
+  "name": "Fargo",
+  "imdbId": "tt2802850"
+ },
+ "tv|Narcos|2015": {
+  "tmdbId": 63351,
+  "name": "Narcos",
+  "imdbId": "tt2707408"
+ },
+ "tv|True Detective|2014": {
+  "tmdbId": 46648,
+  "name": "True Detective",
+  "imdbId": "tt2356777"
+ },
+ "tv|Peaky Blinders|2013": {
+  "tmdbId": 60574,
+  "name": "Peaky Blinders",
+  "imdbId": "tt2442560"
+ },
+ "tv|Boardwalk Empire|2010": {
+  "tmdbId": 1621,
+  "name": "Boardwalk Empire",
+  "imdbId": "tt0979432"
+ },
+ "movie|GoodFellas|1990": {
+  "tmdbId": 769,
+  "name": "GoodFellas",
+  "imdbId": "tt0099685"
+ },
+ "movie|The Departed|2006": {
+  "tmdbId": 1422,
+  "name": "The Departed",
+  "imdbId": "tt0407887"
+ },
+ "movie|Casino|1995": {
+  "tmdbId": 524,
+  "name": "Casino",
+  "imdbId": "tt0112641"
+ },
+ "movie|No Country for Old Men|2007": {
+  "tmdbId": 6977,
+  "name": "No Country for Old Men",
+  "imdbId": "tt0477348"
+ },
+ "movie|The Lord of the Rings: The Fellowship of the Ring|2001": {
+  "tmdbId": 120,
+  "name": "The Lord of the Rings: The Fellowship of the Ring",
+  "imdbId": "tt0120737"
+ },
+ "tv|Game of Thrones|2011": {
+  "tmdbId": 1399,
+  "name": "Game of Thrones",
+  "imdbId": "tt0944947"
+ },
+ "tv|The Witcher|2019": {
+  "tmdbId": 71912,
+  "name": "The Witcher",
+  "imdbId": "tt5180504"
+ },
+ "movie|Harry Potter and the Prisoner of Azkaban|2004": {
+  "tmdbId": 673,
+  "name": "Harry Potter and the Prisoner of Azkaban",
+  "imdbId": "tt0304141"
+ },
+ "movie|Pan's Labyrinth|2006": {
+  "tmdbId": 1417,
+  "name": "Pan's Labyrinth",
+  "imdbId": "tt0457430"
+ },
+ "movie|Stardust|2007": {
+  "tmdbId": 2270,
+  "name": "Stardust",
+  "imdbId": "tt0486655"
+ },
+ "movie|The Princess Bride|1987": {
+  "tmdbId": 2493,
+  "name": "The Princess Bride",
+  "imdbId": "tt0093779"
+ },
+ "tv|House of the Dragon|2022": {
+  "tmdbId": 94997,
+  "name": "House of the Dragon",
+  "imdbId": "tt11198330"
+ },
+ "movie|The Hobbit: An Unexpected Journey|2012": {
+  "tmdbId": 49051,
+  "name": "The Hobbit: An Unexpected Journey",
+  "imdbId": "tt0903624"
+ },
+ "tv|Shadow and Bone|2021": {
+  "tmdbId": 85720,
+  "name": "Shadow and Bone",
+  "imdbId": "tt2403776"
+ },
+ "movie|Spirited Away|2001": {
+  "tmdbId": 129,
+  "name": "Spirited Away",
+  "imdbId": "tt0245429"
+ },
+ "movie|Willow|1988": {
+  "tmdbId": 847,
+  "name": "Willow",
+  "imdbId": "tt0096446"
+ },
+ "movie|The Chronicles of Narnia: The Lion, the Witch and the Wardrobe|2005": {
+  "tmdbId": 411,
+  "name": "The Chronicles of Narnia: The Lion, the Witch and the Wardrobe",
+  "imdbId": "tt0363771"
+ }
+}

@@ -89,6 +89,14 @@ router.post("/api/admin/downloads/:id/approve", adminOnly, gate.requireOn, (req,
   res.json(r);
 });
 
+// "Start now": a waiting job (a My List download on hold, above all) goes to
+// the front of the queue and no longer gives way to the others.
+router.post("/api/admin/downloads/:id/start", adminOnly, gate.requireOn, (req, res) => {
+  const r = downloads.startNow(req.params.id);
+  if (r.error) return res.status(404).json(r);
+  res.json(r);
+});
+
 router.post("/api/admin/downloads/:id/decline", adminOnly, (req, res) => {
   const r = downloads.decline(req.params.id);
   if (r.error) return res.status(404).json(r);

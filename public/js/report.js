@@ -79,7 +79,7 @@ export const showReportSheet = ({ hint = "" } = {}) => {
       sendBtn.disabled = false;
     }
   };
-  const sendBtn = el("button", { class: "btn btn-primary focusable", onclick: send }, "Send report");
+  const sendBtn = el("button", { "data-ui": "report.send", class: "btn btn-primary focusable", onclick: send }, "Send report");
   const card = el("div", { class: "look-notice sheet report", role: "dialog", "aria-modal": "true", "aria-label": "Report a problem", tabindex: "-1" },
     el("div", { class: "sheet-icon" }, "🛠️"),
     el("div", { class: "look-notice-title" }, "Report a problem"),
