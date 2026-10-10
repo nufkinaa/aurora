@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.91 — 2026-10-10
+
+- **A forced password reset really forces it.** Admin → People → Reset password now signs that person out on every device at once, and until they have chosen a new password nothing else works for them — not on a reload, not through an old tab, not through a saved link. The screen that asks cannot be dismissed; it offers "Set new password" and "Sign out". After saving, the device they used carries on signed in and every other device stays signed out. The new password must differ from the old one, and changing it still needs the current one (someone who has forgotten theirs needs the admin's "Set password"). People shows "password reset pending" until it is done. A profile with no password, and a kids profile, are signed out everywhere instead — there is nothing for them to reset.
+- A device the admin signed out goes back to the sign-in screen on its next request, in every sign-in mode, instead of carrying on as a visitor.
+- **Prepared offline copies are behind the sign-in wall.** With sign-in required, a copy prepared for saving to a phone could be fetched without signing in; it cannot any more.
+- Kids profiles: a child can switch to another kids profile that is equally or more restricted without the household PIN, as on the TV. Anything less restricted, and every other profile, still asks.
+- My List says the same on the website as on the TV: "Added to My List" / "Removed from My List" (with "— downloading the film" or "— downloading the first episode" when a download starts). If adding or removing fails, the button goes back and says so.
+- The profile screen no longer lets you into a password-less profile when it could not reach the server to check — it says "Can't reach the server — try again."
+
 ## 1.6.90 — 2026-10-10
 
 - **Aurora now hears about problems by itself.** With usage stats on, the website and the TV app report their own errors and warnings — a page that crashed, a request the server refused, pictures that failed to load (as one line: "37 pictures refused"), a player error, a TV app that ended without closing properly — grouped by what went wrong, with the app version, device model and screen they happened on. Admin → Insights → **App health** shows what is new since the last release, what is suddenly happening much more than usual, and what affects the most devices; anything can be marked known or ignored. A new problem on two devices (or twenty times in half an hour), or an old one at five times its usual rate, raises one alert.
