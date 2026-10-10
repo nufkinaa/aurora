@@ -302,21 +302,28 @@ export default function Settings({
             onPress={() => set('cueBackground', !prefs.cueBackground)}
           />
         </View>
-        <Text style={styles.h2}>Downloads</Text>
-        <View style={styles.list}>
-          <Row
-            label="Get the next episode ready"
-            note="While you watch, Aurora fetches the next episode so it starts at once."
-            value={prefs.smartDownloads ? 'On' : 'Off'}
-            onPress={() => set('smartDownloads', !prefs.smartDownloads)}
-          />
-          <Row
-            label="Tidy up after watching"
-            note="Episodes Aurora fetched for you are removed once you've watched them. Nothing you saved yourself is touched."
-            value={prefs.smartCleanup ? 'On' : 'Off'}
-            onPress={() => set('smartCleanup', !prefs.smartCleanup)}
-          />
-        </View>
+        {/* A kids profile's settings leave out what a child shouldn't change —
+            what Aurora downloads by itself, and the sign-in (below) — as on
+            the site (preferences.js `kid`). */}
+        {me?.kids ? null : (
+          <>
+            <Text style={styles.h2}>Downloads</Text>
+            <View style={styles.list}>
+              <Row
+                label="Get the next episode ready"
+                note="While you watch, Aurora fetches the next episode so it starts at once."
+                value={prefs.smartDownloads ? 'On' : 'Off'}
+                onPress={() => set('smartDownloads', !prefs.smartDownloads)}
+              />
+              <Row
+                label="Tidy up after watching"
+                note="Episodes Aurora fetched for you are removed once you've watched them. Nothing you saved yourself is touched."
+                value={prefs.smartCleanup ? 'On' : 'Off'}
+                onPress={() => set('smartCleanup', !prefs.smartCleanup)}
+              />
+            </View>
+          </>
+        )}
         <Text style={styles.h2}>Notifications</Text>
         <View style={styles.list}>
           <Row
@@ -366,7 +373,7 @@ export default function Settings({
           />
         </View>
 
-        {getSession() ? (
+        {getSession() && !me?.kids ? (
           <>
             <Text style={styles.h2}>Account</Text>
             <Focusable

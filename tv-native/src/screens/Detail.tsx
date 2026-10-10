@@ -1216,9 +1216,10 @@ export default function Detail({
       } else {
         res = await api.toggleWatchlist(profileId, item.id, next);
       }
-      // The button itself shows the add; a line is only said when the add
-      // also started a download (My List downloads), so that is not a surprise.
-      if (next && res?.download?.queued) showToast(listAddedLine(res), '⬇');
+      // Said every time, in the peek sheet's words (owner, 2026-10-10: one
+      // wording on both products) — and an add says what it started
+      // downloading, when it started anything.
+      showToast(next ? listAddedLine(res) : 'Removed from My List', next && res?.download?.queued ? '⬇' : '✓');
     } catch {
       setInList(!next); // revert on failure
     }

@@ -74,6 +74,13 @@ let signinFiredAt = 0;
 export const onSigninRequired = (cb: (() => void) | null) => {
   signinRequiredCb = cb;
 };
+// The same, for a request refused with {passwordResetRequired:true}: App.tsx
+// puts the "pick a new password" screen up. Once per burst.
+let resetRequiredCb: (() => void) | null = null;
+let resetFiredAt = 0;
+export const onPasswordResetRequired = (cb: (() => void) | null) => {
+  resetRequiredCb = cb;
+};
 
 // The signed-in account card (prompt 10; profiles.signinPub). ACCOUNT =
 // PROFILE: `profileId` is the profile this account IS.
@@ -531,6 +538,9 @@ class ApiError extends Error {
   // {pinRequired:true}: the household PIN is wanted (leaving a kids profile,
   // or opening a profile that has no password) — or the one sent was wrong.
   pinRequired?: boolean;
+  // {passwordResetRequired:true}: the admin forced a new password and this
+  // credential is held back until one is set (screens/NewPassword.tsx).
+  passwordResetRequired?: boolean;
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
@@ -634,12 +644,19 @@ async function send(path: string, options: RequestInit = {}, allow304 = false): 
   if (!res.ok && !(allow304 && res.status === 304)) {
     // The server writes its error bodies for viewers ("too many attempts —
     // try again in a few minutes") — surface them instead of a status line.
-    let body: {error?: string; signinRequired?: boolean; pinRequired?: boolean} = {};
+    let body: {error?: string; signinRequired?: boolean; pinRequired?: boolean; passwordResetRequired?: boolean} = {};
     try {
       body = await res.json();
     } catch {}
     const err = new ApiError(res.status, body.error || `${res.status} ${path}`);
     if (body.pinRequired) err.pinRequired = true;
+    if (body.passwordResetRequired) {
+      err.passwordResetRequired = true;
+      if (resetRequiredCb && Date.now() - resetFiredAt > 3000) {
+        resetFiredAt = Date.now();
+        resetRequiredCb();
+      }
+    }
     if (body.signinRequired) {
       err.signinRequired = true;
       // The wall went up (mode flipped, session revoked/expired): route the
@@ -1012,8 +1029,14 @@ export const api = {
     ),
   // A new password for a profile (the forced reset): needs the current one,
   // and ends every unlock token of the profile — unlock again afterwards.
+  // (A server that forces the reset may hand the fresh credentials back in
+  // this very answer — `token` / `profileToken`, `session` — so the TV stays
+  // signed in; one that does not is asked for a token afterwards.)
   setPassword: (id: string, newPassword: string, currentPassword: string) =>
-    post<{ok?: boolean; error?: string}>(`/api/profiles/${id}/password`, {newPassword, currentPassword}),
+    post<{ok?: boolean; error?: string; token?: string; profileToken?: string; session?: string}>(
+      `/api/profiles/${id}/password`,
+      {newPassword, currentPassword},
+    ),
   // ---- kids profiles ----
   // Is a household PIN set at all? (No PIN: leaving a kids profile asks nothing.)
   kidsStatus: () => request<{pinSet: boolean; guard?: boolean}>('/api/kids/status'),
@@ -1224,7 +1247,7 @@ export const api = {
       googleDevice?: boolean;
     }>('/api/server-info'),
   // Is the stored session alive? user === null means no/dead session.
-  me: () => request<{ authMode: string; user: SigninUser | null }>('/api/me'),
+  me: () => request<{ authMode: string; user: (SigninUser & {mustReset?: boolean}) | null; mustReset?: boolean }>('/api/me'),
   // Username OR email + the profile's password.
   login: (username: string, password: string) =>
     post<SigninResult>('/api/auth/login', { username, password }),

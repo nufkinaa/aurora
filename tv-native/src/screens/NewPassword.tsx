@@ -14,10 +14,24 @@
 //   - saving ends EVERY unlock token of the profile, this TV's too, so it
 //     unlocks again with the new password (or, signed in, asks the session for
 //     a token) and hands the fresh one up.
-// "Later" goes on without changing anything — the server does not insist
-// either, and the next sign-in asks again.
+//
+// IT BLOCKS (owner, 2026-10-10: "it should really force a new password"):
+// the only ways off this screen are a saved new password or signing out of
+// this TV. Back does nothing; closing the app does not help either — App.tsx
+// brings the screen back at the next launch, and whenever the server refuses
+// a request with {passwordResetRequired:true}.
+//
+// WRITTEN AGAINST TWO SERVERS. Today's (1.6.86) only notes `mustReset` and
+// keeps the session fully working. The coming one holds a must-reset
+// credential back (403 {passwordResetRequired:true} on everything but the
+// password route, /api/me and sign-out) and may return the fresh credentials
+// in the password route's own answer. So: nothing this screen needs besides
+// the save itself is allowed to fail it (the names it shows are a courtesy),
+// the answer's `token` / `profileToken` / `session` are used when present,
+// and otherwise the TV unlocks again with the new password, or asks its
+// session for a token.
 import React, {useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, StyleSheet, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, BackHandler, StyleSheet, Text, TextInput, View} from 'react-native';
 import Focusable from '../components/Focusable';
 import {api, ApiError} from '../api';
 import {useFocusFallback} from '../focus';
@@ -30,7 +44,7 @@ export default function NewPassword({
   profileId,
   current,
   onDone,
-  onLater,
+  onSignOut,
 }: {
   profileId: string;
   // The password that was just typed to get in; null when the TV never saw
@@ -39,7 +53,7 @@ export default function NewPassword({
   // The profile's fresh unlock token (null when none could be had — the app
   // carries on with the session), and a new session if the unlock minted one.
   onDone: (token: string | null, session: string | null) => void;
-  onLater: () => void;
+  onSignOut: () => void;
 }) {
   const askCurrent = typeof current !== 'string';
   const [cur, setCur] = useState('');
@@ -52,6 +66,11 @@ export default function NewPassword({
   const againRef = useRef<TextInput>(null);
   const anchor = useRef(null);
   useFocusFallback(anchor);
+  // Back is not a way out of this screen.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -77,22 +96,27 @@ export default function NewPassword({
     if (problem) return setError(problem);
     setBusy(true);
     setError('');
+    let token: string | null = null;
+    let session: string | null = null;
     try {
-      await api.setPassword(profileId, fresh, askCurrent ? cur : (current as string));
+      const saved = await api.setPassword(profileId, fresh, askCurrent ? cur : (current as string));
+      token = saved?.token || saved?.profileToken || null;
+      session = saved?.session || null;
     } catch (e) {
       setBusy(false);
       const msg = e instanceof ApiError ? e.message : '';
       setError(msg === 'wrong password' ? 'That is not the current password.' : msg || "Couldn't save it. Try again.");
       return;
     }
-    // Saved — and every unlock of this profile just ended, this TV's with it.
-    let token: string | null = null;
-    let session: string | null = null;
-    try {
-      const r = await api.unlock(profileId, fresh);
-      token = r.token || null;
-      session = r.session || null;
-    } catch {}
+    // Saved — and every unlock of this profile just ended, this TV's with it
+    // (unless the answer itself carried the fresh ones).
+    if (!token) {
+      try {
+        const r = await api.unlock(profileId, fresh);
+        token = r.token || null;
+        session = session || r.session || null;
+      } catch {}
+    }
     if (!token) {
       try {
         token = (await api.profileTokenFromSession()).token || null;
@@ -141,10 +165,10 @@ export default function NewPassword({
       />
       <View style={styles.row}>
         <Focusable round ref={anchor} onPress={save} style={styles.btnPrimary}>
-          {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.btnPrimaryText}>Save</Text>}
+          {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.btnPrimaryText}>Set new password</Text>}
         </Focusable>
-        <Focusable round onPress={() => !busy && onLater()} style={styles.btnGhost}>
-          <Text style={styles.btnGhostText}>Later</Text>
+        <Focusable round onPress={() => !busy && onSignOut()} style={styles.btnGhost}>
+          <Text style={styles.btnGhostText}>Sign out</Text>
         </Focusable>
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}

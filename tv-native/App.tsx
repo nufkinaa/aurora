@@ -3,7 +3,11 @@
 //   offline → neither address answered; retry, and nothing else to do
 //   gate    → have a server, need a profile
 //   home    → have both
-//   reset   → signed in, and the admin asked for a new password first
+//   reset   → signed in, and the admin asked for a new password first. THIS
+//             ONE BLOCKS: the only ways off it are a new password or signing
+//             out; Back does nothing, and it comes up again at the next
+//             launch (storage.ts `aurora.mustReset`) and whenever the server
+//             refuses a request with {passwordResetRequired:true}.
 //   banned  → the admin banned this address; nothing reconnects by itself
 //
 // LOSING THE SIGN-IN WHILE THE APP IS OPEN — an admin's kick, "Sign out
@@ -43,6 +47,7 @@ import {
   ApiError,
   getAuthMode,
   onSigninRequired,
+  onPasswordResetRequired,
   resolveServer,
   setActiveProfile,
   setBaseUrl,
@@ -56,6 +61,8 @@ import {
   saveProfile,
   saveKidsLock,
   clearProfile,
+  loadMustReset,
+  saveMustReset,
   Session,
 } from './src/storage';
 import theme from './src/theme';
@@ -84,6 +91,8 @@ export default function App() {
   // the TV never saw one — QR pairing, Google).
   const [reset, setReset] = useState<{profileId: string; typed: string | null} | null>(null);
   const wasBanned = useRef(false);
+  const stageRef = useRef<Stage>('loading');
+  stageRef.current = stage;
   const profileRef = useRef<string | null>(null);
   profileRef.current = stage === 'home' ? session.profileId : null;
 
@@ -117,6 +126,21 @@ export default function App() {
       setToken(s.token);
       setSession(s.session);
       const mode = getAuthMode(); // captured by the ping that found the server
+      // THE FORCED RESET SURVIVES A RELAUNCH. `owed` is the profile a sign-in
+      // said must pick a new password (remembered on the box); a server that
+      // enforces it also refuses requests with {passwordResetRequired:true}.
+      // Either way the TV lands on the new-password screen, not in the app.
+      const owed = await loadMustReset();
+      if (!alive) return;
+      const land = (profileId: string, forced = false) => {
+        if (forced || owed === profileId) {
+          setReset({profileId, typed: null});
+          setStage('reset');
+        } else {
+          setStage('home');
+        }
+      };
+      const resetRefused = (e: unknown) => e instanceof ApiError && !!e.passwordResetRequired;
 
       // CLOSED mode (prompt 10): the picker is gone — a session is the only
       // way in. Validate the stored one, then mint a fresh unlock token from
@@ -128,14 +152,22 @@ export default function App() {
             const who = await api.me();
             if (!alive) return;
             if (who.user) {
-              const t = await api.profileTokenFromSession();
+              let t: {profileId: string; token: string | null};
+              try {
+                t = await api.profileTokenFromSession();
+              } catch (e) {
+                // held back until a new password is set: the session is
+                // alive, and it is all the new-password screen needs
+                if (!resetRefused(e) || !who.user.profileId) throw e;
+                t = {profileId: who.user.profileId, token: null};
+              }
               if (!alive) return;
               setToken(t.token);
               setActiveProfile(t.profileId);
               await saveProfile(t.profileId, t.token);
               if (!alive) return;
               setLocal({...s, serverUrl: live, profileId: t.profileId, token: t.token});
-              setStage('home');
+              land(t.profileId, !t.token || !!who.user.mustReset || !!who.mustReset);
               return;
             }
           } catch {
@@ -160,8 +192,16 @@ export default function App() {
         try {
           await api.state(s.profileId); // 200 = profile accessible with this token
           if (!alive) return;
-        } catch {
+        } catch (err) {
           if (!alive) return;
+          // Refused because a new password is owed — not because the token is
+          // dead: straight to that screen, still as this profile.
+          if (resetRefused(err)) {
+            setActiveProfile(s.profileId);
+            setLocal({...s, serverUrl: live});
+            land(s.profileId, true);
+            return;
+          }
           // A live session can revive the profile with no password typing: it
           // was minted by the very password the gate would ask for.
           if (s.session) {
@@ -173,7 +213,7 @@ export default function App() {
               await saveProfile(t.profileId, t.token);
               if (!alive) return;
               setLocal({...s, serverUrl: live, profileId: t.profileId, token: t.token});
-              setStage('home');
+              land(t.profileId);
               return;
             } catch (e) {
               if (!alive) return;
@@ -220,8 +260,39 @@ export default function App() {
           })
           .catch(() => {});
       }
+      // A HOUSE WITH ONE PROFILE AND NO PASSWORD ON IT has nothing to choose:
+      // straight in, as the website does at start (public/js/main.js — a lone
+      // profile, not admin-locked, no password). Only here, at start: after
+      // "Switch profile" the wall is what was asked for. Anything short of a
+      // clean unlock (the household PIN is wanted, the server refuses, no
+      // answer) leaves it to the wall, which fails closed as before.
+      if (!s.profileId) {
+        try {
+          const list = await api.profiles();
+          if (!alive) return;
+          const only = list.length === 1 ? list[0] : null;
+          if (only && !only.locked && !only.hasPassword) {
+            const res = await api.unlock(only.id, '');
+            if (!alive) return;
+            if (res.token) {
+              if (only.kids) await saveKidsLock({id: only.id, maxAge: only.kids.maxAge});
+              setToken(res.token);
+              setActiveProfile(only.id);
+              await saveProfile(only.id, res.token);
+              if (!alive) return;
+              setLocal({...s, serverUrl: live, profileId: only.id, token: res.token});
+              if (res.mustReset) saveMustReset(only.id);
+              land(only.id, !!res.mustReset);
+              return;
+            }
+          }
+        } catch {
+          if (!alive) return;
+        }
+      }
       setLocal({...s, serverUrl: live});
-      setStage(s.profileId ? 'home' : 'gate');
+      if (s.profileId) land(s.profileId);
+      else setStage('gate');
     })();
     return () => {
       alive = false;
@@ -235,6 +306,7 @@ export default function App() {
     // The admin asked for a new password at the next sign-in: that screen
     // first (screens/NewPassword.tsx). The sign-in itself is complete.
     if (extra?.mustReset) {
+      saveMustReset(profileId); // so a relaunch comes back to it
       setReset({profileId, typed: typeof extra.typed === 'string' ? extra.typed : null});
       setStage('reset');
     } else {
@@ -266,11 +338,12 @@ export default function App() {
     enter(extra, profileId);
   };
 
-  // The new password is saved (or put off): on to the app. Saving it ended
-  // every unlock token of the profile, so the screen hands up a fresh one.
+  // The new password is saved: on to the app. Saving it ended every unlock
+  // token of the profile, so the screen hands up a fresh one.
   const onResetDone = async (token: string | null, sid: string | null) => {
     const profileId = reset?.profileId;
     setReset(null);
+    await saveMustReset(null);
     if (profileId && token) {
       setToken(token);
       await saveProfile(profileId, token);
@@ -282,6 +355,33 @@ export default function App() {
     setLocal(s => ({...s, token: token || s.token, session: sid || s.session}));
     setStage('home');
   };
+
+  // The other way off the new-password screen: sign out of this TV. The
+  // reset stays owed on the server — the next sign-in asks again.
+  const onResetSignOut = async () => {
+    setReset(null);
+    await saveMustReset(null);
+    clearProfileCaches();
+    api.logout().catch(() => {});
+    setSession(null);
+    await saveAuthSession(null);
+    await clearProfile();
+    setLocal(s => ({...s, profileId: null, token: null, session: null}));
+    setStage(getAuthMode() === 'closed' ? 'login' : 'gate');
+  };
+  // The server refused a request until a new password is set (a forced reset
+  // made while this TV was in the app): the screen goes up over whatever was
+  // on. The TV holds no typed password here, so the screen asks for it.
+  useEffect(() => {
+    onPasswordResetRequired(() => {
+      const pid = profileRef.current;
+      if (!pid || stageRef.current !== 'home') return;
+      saveMustReset(pid);
+      setReset({profileId: pid, typed: null});
+      setStage('reset');
+    });
+    return () => onPasswordResetRequired(null);
+  }, []);
 
   // THE SIGN-IN WAS TAKEN AWAY (or may have been): say why and start over
   // from boot. Boot validates what this TV still holds — a dead session is
@@ -419,7 +519,7 @@ export default function App() {
             profileId={reset.profileId}
             current={reset.typed}
             onDone={onResetDone}
-            onLater={() => onResetDone(null, null)}
+            onSignOut={onResetSignOut}
           />
         ) : null}
 

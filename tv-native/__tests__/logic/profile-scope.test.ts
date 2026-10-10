@@ -45,6 +45,8 @@ const DEVICE: Record<string, Record<string, string>> = {
     authMode: 'what the server said about itself',
     signinRequiredCb: "the app's one handler",
     signinFiredAt: 'a debounce stamp',
+    resetRequiredCb: "the app's one handler",
+    resetFiredAt: 'a debounce stamp',
     pinged: 'what each server address said about itself',
     serverArtHosts: 'what the server said about itself',
     serverBlurs: 'what the server said about itself',

@@ -14,6 +14,15 @@ const KEYS = {
   kidsLock: 'aurora.kidsLock', // the kids profile this TV is in / was last left in
 } as const;
 
+// THE FORCED RESET, remembered: the profile a sign-in said must pick a new
+// password. Written when the server says so, removed when the new password
+// is saved or the TV signs out — so closing the app is not a way round the
+// "pick a new password" screen (App.tsx shows it again at the next launch).
+const MUST_RESET_KEY = 'aurora.mustReset';
+export const loadMustReset = () => AsyncStorage.getItem(MUST_RESET_KEY).catch(() => null);
+export const saveMustReset = (profileId: string | null) =>
+  (profileId ? AsyncStorage.setItem(MUST_RESET_KEY, profileId) : AsyncStorage.removeItem(MUST_RESET_KEY)).catch(() => {});
+
 // THE KIDS LOCK. Entering a kids profile writes it; it is what makes the
 // profile wall ask for the household PIN before any OTHER profile opens — and
 // it outlives "Switch profile", an app restart and a server restart (which
