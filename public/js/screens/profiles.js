@@ -64,11 +64,25 @@ export const passwordPrompt = (profile, onSuccess) => {
         // Reset password): the old one just proved who this is; a new one is
         // required before going on. After onSuccess, so the token is set.
         if (res.mustReset) newPasswordPrompt(profile, typed);
-      } catch {
+      } catch (e) {
+        // Say what happened. Every failure used to read "Not quite. Try
+        // again." — also when the server had stopped taking guesses for a few
+        // minutes, when the admin had locked the profile, and when there was
+        // no server to ask: all three sent people back to retype a password
+        // that was never the problem.
+        const status = e && e.status;
+        const wrong = status === 401;
+        err.textContent =
+          wrong ? "Not quite. Try again."
+          : status === 429 ? `${String(e.message || "Too many attempts").replace(/^./, (c) => c.toUpperCase())}.`
+          : status === 403 ? `This profile has been locked. Take it up with ${state.adminName}.`
+          : "Couldn't reach Aurora. Try again in a moment.";
         err.classList.remove("hidden");
-        input.value = "";
+        if (wrong) {
+          input.value = "";
+          narrator.call("onWrongPassword");
+        }
         input.focus();
-        narrator.call("onWrongPassword");
       }
     };
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
