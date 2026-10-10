@@ -119,6 +119,11 @@ server.on("error", (err) => {
   process.exit(1);
 });
 
+// How long the server itself took over each data and stream answer, as the
+// standard Server-Timing header (lib/servertiming.js) — so a slow start can
+// be put down to the server, the line or the player.
+app.use(["/api", "/stream"], require("./src/lib/servertiming").middleware);
+
 app.use(express.json());
 
 // Gzip/deflate for text payloads. Measured on this library (35 titles):

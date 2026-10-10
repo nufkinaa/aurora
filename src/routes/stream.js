@@ -363,6 +363,7 @@ router.get("/stream/hls/:id/:file", (req, res) => {
 // BEFORE the /:ss routes so the literal "jit" path can't parse as an offset.
 const jit = require("../media/jit");
 const ladder = require("../media/ladder");
+const { timed } = require("../lib/servertiming");
 
 // The file's segment table (cached by jit; read from the file when it is not).
 const libraryTable = async (entry, key, size) => {
@@ -398,9 +399,9 @@ router.get("/stream/transcode/:id/jit/master.m3u8", async (req, res) => {
   try {
     const st = fs.statSync(entry.path);
     const key = `${req.params.id}-${Math.floor(st.mtimeMs)}`;
-    const table = await libraryTable(entry, key, st.size);
+    const table = await timed(res, "table", () => libraryTable(entry, key, st.size));
     if (!table) return res.status(404).send("No usable index in this file");
-    const m = await ladder.master(table, { key, input: entry.path, query: req.query, jit });
+    const m = await timed(res, "ladder", () => ladder.master(table, { key, input: entry.path, query: req.query, jit }));
     if (!m.text) return res.status(m.status).send(m.message);
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
@@ -432,7 +433,7 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
       fs.readSync(fd, b, 0, len, start);
       return b;
     };
-    const table = await jit.tableFor(key, readRange, st.size).finally(() => {
+    const table = await timed(res, "table", () => jit.tableFor(key, readRange, st.size)).finally(() => {
       try { fs.closeSync(fd); } catch {}
     });
     // Permanent property of the file (not MKV / no usable Cues) — 404, so
@@ -502,9 +503,10 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
     }
     const job = jit.jobFor(dir, table, { enc: v !== "copy" });
     const askedAt = Date.now();
-    const file = isInit
-      ? await jit.ensureInit(dir, job, input)
-      : await jit.ensureSegment(dir, job, input, parseInt(m[1], 10));
+    const onDisk = !isInit && fs.existsSync(jit.segPath(dir, parseInt(m[1], 10), fmt));
+    const file = await timed(res, "seg", () => (isInit
+      ? jit.ensureInit(dir, job, input)
+      : jit.ensureSegment(dir, job, input, parseInt(m[1], 10))), onDisk ? "ready" : "made");
     // how long a player waited for this segment — a tally, for the healer
     if (!isInit) { try { require("../lib/signals").hit("seg-wait", !file ? "none" : Date.now() - askedAt >= 4000 ? "slow" : "ok"); } catch {} }
     // an encoded rendition with no encoder free: 503, so the player moves to
@@ -537,7 +539,7 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
     const fmt = req.query.seg === "fmp4" ? "fmp4" : null; // Apple's HEVC-in-HLS format (S4)
     const vtag = req.query.vtag === "hvc1";
     const audio = Math.max(0, Math.min(31, parseInt(req.query.a, 10) || 0)); // which audio stream (multi-dub)
-    const dir = await remux.ensure(entry.path, req.params.id, { vcodec: v, ss, seek: req.query.seek === "1", fmt, vtag, audio });
+    const dir = await timed(res, "job", () => remux.ensure(entry.path, req.params.id, { vcodec: v, ss, seek: req.query.seek === "1", fmt, vtag, audio }));
     // Segment URIs carry ?v= (and &seg= for fMP4 jobs, &a= for a chosen audio
     // stream, EXT-X-MAP included) so the segment route can resolve this
     // exact job dir.
