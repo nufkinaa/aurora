@@ -626,6 +626,16 @@ const lastSeenBefore = (profileId) => {
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const THEMES = ["aurora", "oled", "warm"];
+// The on/off choices a profile carries (see `update` for what each one is).
+const PREF_SWITCHES = ["smartDownloads", "smartCleanup", "usageStats", "autoplayNext", "subsDefault"];
+
+// Has this profile said no to usage stats? Asked by routes/usage.js for every
+// batch, so the opt-out holds whatever a client does (a TV kept its own
+// per-box switch for a long time and went on reporting). Unknown profile: no.
+const usageOptedOut = (id) => {
+  const p = store.data.profiles.find((x) => x.id === id);
+  return !!(p && p.prefs && p.prefs.usageStats === false);
+};
 
 const update = (id, fields) => {
   const p = store.data.profiles.find((x) => x.id === id);
@@ -647,9 +657,22 @@ const update = (id, fields) => {
   if (fields.look === "glass" || fields.look === "legacy") p.look = fields.look;
   if (fields.lookNoticeSeen === true) p.lookNoticeSeen = true;
   // Boolean switches only, by name — nothing arbitrary lands in the store.
+  //
+  // WHAT LIVES HERE FOLLOWS THE PERSON to every device (website, every TV):
+  //   smartDownloads  get the next episode ready            default on
+  //   smartCleanup    tidy up after watching                default on
+  //   usageStats      usage stats (ENFORCED in routes/usage.js: a batch
+  //                   from a profile that opted out is dropped)  default on
+  //   autoplayNext    play the next episode by itself       default on
+  //   subsDefault     subtitles on by themselves            default on
+  //   subLang         subtitle language (any|he|en|ru)      default any
+  //   audioLang, subPick   what was last picked in the player
+  // A key that is absent means "the default". What belongs to the SCREEN
+  // stays on the device and is never stored here: subtitle size and
+  // background, trailers on the home billboard, a TV's download notices.
   if (fields.prefs && typeof fields.prefs === "object") {
     p.prefs = p.prefs || {};
-    for (const k of ["smartDownloads", "smartCleanup", "usageStats"]) {
+    for (const k of PREF_SWITCHES) {
       if (typeof fields.prefs[k] === "boolean") p.prefs[k] = fields.prefs[k];
     }
     // The subtitle language is a closed set, so it can ride along too.
@@ -1344,6 +1367,8 @@ const dismissUpNext = (profileId, showId, episodeId) => {
 };
 
 module.exports = {
+  usageOptedOut,
+  PREF_SWITCHES,
   followsOf,
   setFollow,
   list,

@@ -5,13 +5,22 @@
 const express = require("express");
 const usage = require("../lib/usage");
 const realtime = require("../realtime");
+const profiles = require("../profiles");
 
 const router = express.Router();
 usage.boot();
 
+// THE OPT-OUT IS ENFORCED HERE, not left to each client: a batch that names a
+// profile whose "usage stats" switch is off is dropped whole, whatever sent it
+// (the TV app kept a per-box switch of its own for a long time, so a person
+// who had opted out on the website was still reported from the TV). The
+// answer is the same 204 either way.
+const accepts = (body) =>
+  !(body && typeof body === "object" && profiles.usageOptedOut(String(body.profile || "")));
+
 router.post("/api/usage", (req, res) => {
   try {
-    usage.record(req.body);
+    if (accepts(req.body)) usage.record(req.body);
   } catch {}
   res.status(204).end();
 });
@@ -21,5 +30,7 @@ router.get("/api/admin/usage", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json({ summary: usage.summary(), text: usage.text() });
 });
+
+router._internals = { accepts };
 
 module.exports = router;
