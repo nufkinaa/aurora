@@ -1,6 +1,6 @@
 // ONE search for the website and the TV app.
 //
-// What was wrong before (measured on the real library, docs/qa/search.md):
+// What was wrong before (measured on the real library, 2026-10-10):
 // the website glued three lists end to end — every library hit, then the
 // cached catalogue, then the live catalogue with ALL films ahead of ALL
 // series — so the title you typed exactly sat wherever its SOURCE put it: a
@@ -70,7 +70,7 @@ const canonWord = (w) => {
 // One spelling of a title or a query, ready to compare:
 //   s the words, w the word list, a without a leading article,
 //   q squashed (no spaces), aq squashed without the article
-//   m which letters it has (a bit each), wm the same per word
+//   m which letters it has (a bit each), wm the same per word, d its digits
 // The masks answer "can this even be a typo of that?" without the edit
 // distance: an edit adds at most one letter the other side does not have.
 const maskOf = (str) => {
@@ -89,7 +89,7 @@ const bits = (x) => {
 const mkView = (words) => {
   const aw = words.length > 1 && ARTICLES.has(words[0]) ? words.slice(1) : words;
   const q = words.join("");
-  return { s: words.join(" "), w: words, a: aw.join(" "), q, aq: aw.join(""), m: maskOf(q), wm: words.map(maskOf) };
+  return { s: words.join(" "), w: words, a: aw.join(" "), q, aq: aw.join(""), m: maskOf(q), wm: words.map(maskOf), d: q.replace(/\D+/g, "") };
 };
 const forms = (text) => {
   const n = norm(text);
@@ -172,10 +172,12 @@ const tierView = (q, t, fuzzy = true) => {
   if (L < 3 || !fuzzy) return 0;
   const b = budget(L);
   const missing = bits(q.m & ~t.m);
-  if (b && missing <= b && bits(t.m & ~q.m) <= b && (editWithin(q.q, t.q, b) || editWithin(q.aq, t.aq, b))) return 650;
+  // (a slip is in the letters: "toy story 2" is not a typo of "Toy Story 3")
+  const sameDigits = q.d === t.d;
+  if (b && sameDigits && missing <= b && bits(t.m & ~q.m) <= b && (editWithin(q.q, t.q, b) || editWithin(q.aq, t.aq, b))) return 650;
   // every word a typo of (or inside) a title word
   if (q.w.every((w, i) => bits(q.wm[i] & ~t.m) <= budget(w.length) && wordHits(w, q.wm[i], t))) return 600;
-  if (L >= 5 && missing <= 1) {
+  if (L >= 5 && missing <= 1 && t.d.startsWith(q.d)) {
     for (const full of [t.q, t.aq])
       for (const n of [L, L - 1, L + 1])
         if (full.length > n && editWithin(q.q, full.slice(0, n), 1)) return 580;
@@ -185,7 +187,9 @@ const tierView = (q, t, fuzzy = true) => {
 
 const tierForms = (qf, tf) => {
   let t = tierView(qf.raw, tf.raw);
-  if (t < 1000 && (qf.canon || tf.canon)) t = Math.max(t, tierView(qf.canon || qf.raw, tf.canon || tf.raw));
+  // the numeral spellings ("ii", "two", "se7en" → digits) are compared exactly:
+  // as digits "one" and "two" are a single edit apart, and they are not a typo
+  if (t < 1000 && (qf.canon || tf.canon)) t = Math.max(t, tierView(qf.canon || qf.raw, tf.canon || tf.raw, false));
   return t;
 };
 const FUZZY_WHOLE = 650; // one slip from the whole title
@@ -365,7 +369,8 @@ let src = {
   // titles the live catalogue named in earlier searches (kept on disk)
   seenTitles: () => Object.values(seen().data.titles || {}),
   seenPeople: () => Object.values(seen().data.people || {}),
-  // [{ imdbId, title, cast: [name], director, roles: [{name, role}], episodes: [{s, e, title}] }]
+  // what the title pages already fetched, by id:
+  // [{ imdbId, title, cast: [name], director: [name], genres, synopsis, roles: [{name, role}], episodes: [{s, e, title}] }]
   facts: () => {
     const out = [];
     for (const m of discover.metaAll()) {
@@ -377,6 +382,8 @@ let src = {
         title: m.title,
         cast: m.cast || [],
         director: m.director ? String(m.director).split(/,\s*/) : [],
+        genres: m.genres || [],
+        synopsis: m.synopsis || "",
         episodes,
       });
     }
@@ -514,6 +521,8 @@ const build = () => {
     if (!d) continue;
     if (f.title && d.inLibrary && norm(f.title) !== d.tf.raw.s && !d.akas.some((a) => a.tf.raw.s === norm(f.title)))
       d.akas.push({ title: f.title, tf: forms(f.title) });
+    if (!d.genres.length && f.genres && f.genres.length) d.genres = f.genres;
+    if (!d.synopsis && f.synopsis) d.synopsis = f.synopsis;
     for (const name of [...(f.cast || []), ...(f.director || [])]) if (name) notePerson(String(name), d);
     for (const r of f.roles || []) {
       const n = norm(r.role);

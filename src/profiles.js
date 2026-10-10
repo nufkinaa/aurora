@@ -421,30 +421,35 @@ const setFollow = (id, imdbId, on, title) => {
 // entry per query whatever its capitals, 12 at most.
 const MAX_SEARCHES = 12;
 const cleanSearch = (q) => String(q == null ? "" : q).replace(/\s+/g, " ").trim().slice(0, 80);
+// The pure halves, over one profile's state (pinned in test/search-recents.test.js).
+const noteSearch = (s, q, now = Date.now()) => {
+  const clean = cleanSearch(q);
+  if (clean.length < 2) return false;
+  const list = (Array.isArray(s.searches) ? s.searches : []).filter((x) => x.q.toLowerCase() !== clean.toLowerCase());
+  // "dun" then "dune": the longer one replaces what was typed on the way to it
+  const top = list[0];
+  if (top && clean.toLowerCase().startsWith(top.q.toLowerCase()) && now - (top.at || 0) < 60000) list.shift();
+  list.unshift({ q: clean, at: now });
+  s.searches = list.slice(0, MAX_SEARCHES);
+  return true;
+};
+// One query, or (q null) the whole list.
+const dropSearch = (s, q) => {
+  const clean = q == null ? null : cleanSearch(q).toLowerCase();
+  s.searches = clean == null ? [] : (Array.isArray(s.searches) ? s.searches : []).filter((x) => x.q.toLowerCase() !== clean);
+};
 const searchesOf = (id) => {
   if (!getRaw(id)) return [];
   const s = stateFor(id);
   return (Array.isArray(s.searches) ? s.searches : []).map((x) => x.q);
 };
 const addSearch = (id, q) => {
-  const clean = cleanSearch(q);
-  if (!getRaw(id) || clean.length < 2) return searchesOf(id);
-  const s = stateFor(id);
-  const list = (Array.isArray(s.searches) ? s.searches : []).filter((x) => x.q.toLowerCase() !== clean.toLowerCase());
-  // "dun" then "dune": the longer one replaces what was typed on the way to it
-  const top = list[0];
-  if (top && clean.toLowerCase().startsWith(top.q.toLowerCase()) && Date.now() - (top.at || 0) < 60000) list.shift();
-  list.unshift({ q: clean, at: Date.now() });
-  s.searches = list.slice(0, MAX_SEARCHES);
-  store.save();
+  if (getRaw(id) && noteSearch(stateFor(id), q)) store.save();
   return searchesOf(id);
 };
-// One query, or (q omitted) the whole list.
 const removeSearch = (id, q) => {
   if (!getRaw(id)) return [];
-  const s = stateFor(id);
-  const clean = q == null ? null : cleanSearch(q).toLowerCase();
-  s.searches = clean == null ? [] : (Array.isArray(s.searches) ? s.searches : []).filter((x) => x.q.toLowerCase() !== clean);
+  dropSearch(stateFor(id), q);
   store.save();
   return searchesOf(id);
 };
@@ -1458,5 +1463,5 @@ module.exports = {
   issueToken,
   // Test-only: the pure halves of the watchlist identity work, plus the
   // store handle + norms so auth tests can run on a stubbed store.
-  _internals: { entryKey, sameIdentity, materializeWatchlist, foldTitles, materializeProgress, clearTitle, markTitle, restoreTitle, store, normUsername, normEmail, validEmail, hashPassword, verifyHash },
+  _internals: { noteSearch, dropSearch, entryKey, sameIdentity, materializeWatchlist, foldTitles, materializeProgress, clearTitle, markTitle, restoreTitle, store, normUsername, normEmail, validEmail, hashPassword, verifyHash },
 };
