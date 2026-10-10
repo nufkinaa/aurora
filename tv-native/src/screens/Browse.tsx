@@ -39,6 +39,8 @@ import Card, {CARD_W} from '../components/Card';
 import {api, HeroItem, ProfileState} from '../api';
 import {onMessage} from '../realtime';
 import {warmItem} from '../prefetch';
+import {artIdle, artForget, limits as artLimits} from '../artPrefetch';
+import {prefetchable} from '../cardArt';
 import {watchStateFor} from '../watchState';
 import {canNavigate} from '../navLock';
 import {
@@ -512,6 +514,9 @@ export default function Browse({
   const itemCount = items.length;
   const itemCountRef = useRef(itemCount);
   itemCountRef.current = itemCount;
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  useEffect(() => () => artForget('grid'), []);
 
   const openDetail = useCallback(
     (item: HeroItem) => {
@@ -635,6 +640,19 @@ export default function Browse({
   const onCardFocus = useCallback((item: HeroItem, index: number) => {
     warmItem(item); // the Detail page's data, if focus holds a moment
     lastFocusIdx.current = index;
+    // The rows BELOW. Every row is a real cell from the start, so there is no
+    // mount to see here; what can show is a picture arriving. The list keeps
+    // about a screen of rows rendered under the viewport (windowSize 3) and
+    // their cards ask for their own pictures; while the remote rests, the
+    // rows after those are fetched ahead (artPrefetch.ts), so holding DOWN
+    // runs onto pictures that are already decoded. Anything already drawn or
+    // asked for is skipped there, so the overlap with rendered rows is free.
+    artIdle('grid', () => {
+      const rows = artLimits().gridRows;
+      if (!rows) return [];
+      const row = Math.floor(index / cols);
+      return itemsRef.current.slice((row + 2) * cols, (row + 4 + rows) * cols).map(i => prefetchable(i));
+    });
     // Automatic paging, two rows ahead of the focus. The page APPENDS, so no
     // card already on screen moves; the only visible change is more rows
     // below, which is what "scrolling" is.

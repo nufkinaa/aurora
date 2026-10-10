@@ -19,7 +19,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {View, Text, Image, StyleSheet, ActivityIndicator, Animated, Easing, PixelRatio} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Btn from '../components/Btn';
-import Row from '../components/Row';
+import Row, {shelfGeom} from '../components/Row';
 import NavRail from '../components/NavRail';
 import {ErrorState} from '../components/States';
 import TrailerFrame, {TrailerHandle, TrailerState} from '../components/Trailer';
@@ -34,6 +34,9 @@ import {isLite, measureOnce} from '../perfTier';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import {resolvePartyRoute} from '../party';
 import {warmItem, warmSections} from '../prefetch';
+import {artIdle, artForget, limits as artLimits} from '../artPrefetch';
+import {prefetchable} from '../cardArt';
+import {restWindow} from '../rowWindow';
 import {onMessage} from '../realtime';
 import {loadPrefs} from '../storage';
 import {track} from '../usage';
@@ -846,12 +849,32 @@ export default function Home({
   // never held: the hero rotating, a new shelf being reached, a party list
   // arriving each re-rendered every mounted card (the storm motion.ts's
   // useSlide note describes, re-opened).
+  //
+  // The shelves BELOW: `reach` keeps three of them mounted under the focused
+  // one, with their first cards and those cards' pictures already asked for —
+  // a step down lands on a shelf that is there. What is not there yet is the
+  // shelf after those; while the remote rests its first cards' pictures (the
+  // ones that will show when it mounts) are fetched ahead (artPrefetch.ts).
+  // Shelves above stay mounted, so going up needs nothing.
+  const rowsRef = useRef<HomeRow[]>([]);
+  rowsRef.current = data?.rows || [];
+  useEffect(() => () => artForget('shelves'), []);
   const onRowItemFocus = useCallback(
     (it: HeroItem, rowIndex: number) => {
       toRow(rowIndex);
       warmItem(it);
+      artIdle('shelves', () => {
+        const out = [];
+        // (rows up to rowIndex + 3 are mounted — toRow's reach)
+        for (const r of rowsRef.current.slice(rowIndex + 4, rowIndex + 4 + artLimits().shelves)) {
+          const wide = r.id === 'continue';
+          const w = restWindow(r.items.length, shelfGeom(wide, width));
+          for (const item of r.items.slice(w.from, w.to)) out.push(prefetchable(item, {wide, frame: wide}));
+        }
+        return out;
+      });
     },
-    [toRow],
+    [toRow, width],
   );
 
   const renderRow = useCallback(
