@@ -3,6 +3,18 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.86 — 2026-10-10
+
+Fixes on the website and the server, from a side-by-side check of the website and the TV app.
+
+- **Pairing a TV by typing its code works.** The TV says "open nufurora.com/link and type this code", but that page had no place to type it. It has one now. Ten wrong codes from one address in fifteen minutes pause lookups from that address for a while.
+- **A forced password reset is asked for** after every kind of sign-in when sign-in is required (it was only asked at the profile wall).
+- **"Sign out everywhere else" reaches the other devices at once** — it was announced to every device of every profile and acted on by none; now only that person's other tabs are told, and they return to the sign-in screen. A tab that signs in also joins the live connection straight away (it used to miss live updates until a reload).
+- **Notifications follow the person using the browser** — on a shared browser they stayed with whoever switched them on first. Signing out withdraws them.
+- **The website goes to the sign-in screen when sign-in is switched on mid-session**, instead of failing request by request.
+- **The player never saves progress over a watch history it could not read**, so a failed read cannot reset a title to the beginning.
+- The AI page forgets its last answer when the profile changes; downloads catch up when the connection returns; the password sheet says why an unlock failed (too many tries, locked by the admin, no connection) instead of "Not quite"; two pieces of wording corrected.
+
 ## 1.6.85 — 2026-10-10
 
 - **My List downloads.** Adding a film to your list downloads it; adding a show you have not started downloads its first episode (a show you are already watching is left to the next-episode downloads). The website says so when you add it ("saved for later — downloading the film"). A copy nobody has watched after 14 days is marked stale and offered first under Admin → Free up space → Suggest what to delete; after 21 days it is deleted by itself, and the title stays on your list to stream. Watching it at any point keeps it. Only copies fetched this way are ever removed — never something downloaded by hand. Two people adding the same title is one download; a kids profile never fetches something over its limit; each person starts at most 5 a day. Admin → Downloads → "My List downloads" has the switch, the day counts and a Keep button per copy. The TV app shows the same from its next update.
