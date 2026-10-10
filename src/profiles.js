@@ -416,6 +416,39 @@ const setFollow = (id, imdbId, on, title) => {
   return { ok: true, follows: list.map((f) => f.imdbId) };
 };
 
+// Recent searches: the profile's own, kept here (not in a browser's storage)
+// so the phone, the laptop and the TV show the same list. Newest first, one
+// entry per query whatever its capitals, 12 at most.
+const MAX_SEARCHES = 12;
+const cleanSearch = (q) => String(q == null ? "" : q).replace(/\s+/g, " ").trim().slice(0, 80);
+const searchesOf = (id) => {
+  if (!getRaw(id)) return [];
+  const s = stateFor(id);
+  return (Array.isArray(s.searches) ? s.searches : []).map((x) => x.q);
+};
+const addSearch = (id, q) => {
+  const clean = cleanSearch(q);
+  if (!getRaw(id) || clean.length < 2) return searchesOf(id);
+  const s = stateFor(id);
+  const list = (Array.isArray(s.searches) ? s.searches : []).filter((x) => x.q.toLowerCase() !== clean.toLowerCase());
+  // "dun" then "dune": the longer one replaces what was typed on the way to it
+  const top = list[0];
+  if (top && clean.toLowerCase().startsWith(top.q.toLowerCase()) && Date.now() - (top.at || 0) < 60000) list.shift();
+  list.unshift({ q: clean, at: Date.now() });
+  s.searches = list.slice(0, MAX_SEARCHES);
+  store.save();
+  return searchesOf(id);
+};
+// One query, or (q omitted) the whole list.
+const removeSearch = (id, q) => {
+  if (!getRaw(id)) return [];
+  const s = stateFor(id);
+  const clean = q == null ? null : cleanSearch(q).toLowerCase();
+  s.searches = clean == null ? [] : (Array.isArray(s.searches) ? s.searches : []).filter((x) => x.q.toLowerCase() !== clean);
+  store.save();
+  return searchesOf(id);
+};
+
 // Set, change, or remove (empty newPassword) a profile's password. Changing or
 // removing an existing password requires the current one.
 const setPassword = async (id, newPassword, currentPassword) => {
@@ -1346,6 +1379,9 @@ const dismissUpNext = (profileId, showId, episodeId) => {
 module.exports = {
   followsOf,
   setFollow,
+  searchesOf,
+  addSearch,
+  removeSearch,
   list,
   publicList,
   exists,
