@@ -217,13 +217,28 @@ export default function Browse({
   // Downloaded shelf of this grid is read again. Only that — the catalogue
   // pages already on screen stay as they are, so the grid under the viewer's
   // focus does not reshuffle. Held a moment: a season landing says so per file.
+  //
+  // Only while this grid is the screen on top. Under a title page or the
+  // player it used to read the whole library (and re-render, frozen) once per
+  // burst of messages — a season landing during a film meant a 90 KB parse
+  // behind the player every few seconds. Now the change is noted, and read
+  // once when the grid is back on top (Home does the same with its rows).
+  const libStale = useRef(false);
   useEffect(() => {
     let on = true;
     let t: ReturnType<typeof setTimeout> | null = null;
     const off = onMessage('library_updated', () => {
+      if (!screenLiveRef.current) {
+        libStale.current = true;
+        return;
+      }
       if (t) return;
       t = setTimeout(() => {
         t = null;
+        if (!screenLiveRef.current) {
+          libStale.current = true;
+          return;
+        }
         console.log('[live] browse: library changed, shelf re-read');
         api
           .library(true)
@@ -241,6 +256,25 @@ export default function Browse({
       if (t) clearTimeout(t);
     };
   }, [kind]);
+  useEffect(() => {
+    if (!screenLive || !libStale.current) return;
+    libStale.current = false;
+    let on = true;
+    console.log('[live] browse: library changed while away, shelf re-read');
+    // Not `fresh`: the message already dropped the kept list (realtime.ts), so
+    // this is either a new read or the one another screen made since.
+    api
+      .library()
+      .then(l => {
+        if (!on) return;
+        setLibErr(false);
+        setLib((kind === 'show' ? l.shows : l.movies).map(i => ({...i, source: 'downloaded' as const})));
+      })
+      .catch(() => {});
+    return () => {
+      on = false;
+    };
+  }, [screenLive, kind]);
 
   // What "For you" is built from: the genres you picked in Preferences if you
   // picked any, otherwise the ones your own library leans on.

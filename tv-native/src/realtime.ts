@@ -3,7 +3,7 @@
 // opened once a profile is active and closed when it is left; reconnects with
 // backoff. Messages are dispatched by `type` to whoever subscribed.
 import {Platform} from 'react-native';
-import {getBaseUrl, getSession, forgetMemo} from './api';
+import {getBaseUrl, getSession, forgetLibraryReads} from './api';
 import {APP_VERSION} from './update';
 
 type Handler = (data: Record<string, unknown> & {type: string}) => void;
@@ -96,7 +96,7 @@ const open = () => {
         return;
       }
       if (!data || typeof data.type !== 'string') return;
-      if (data.type === 'library_updated') forgetMemo();
+      if (data.type === 'library_updated') forgetLibraryReads();
       const subs = listeners.get(data.type);
       if (subs) for (const fn of subs) fn(data);
     };

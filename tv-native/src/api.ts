@@ -693,19 +693,44 @@ function post<T>(path: string, body: unknown): Promise<T> {
 // A small read cache: a screen the viewer is about to open is warmed while
 // they still look at the last one (prefetch.ts), and a second visit costs
 // nothing. Only reads whose answer barely changes are memoised; TTLs are
-// short and library_updated (realtime.ts) empties it.
+// short and library_updated (realtime.ts) drops what the library decides.
+//
+// BOUNDED. An expired entry used to leave only when the same key was asked
+// again, so an evening of browsing kept every title a card had dwelt on (its
+// metadata and its item), every catalogue page opened, every trailer answer.
+// Each new entry now takes the expired ones out with it, and past MEMO_MAX
+// the oldest go (a Map keeps insertion order). An entry that is dropped is
+// only ever fetched again — never answered differently.
+const MEMO_MAX = 80;
 const memoStore = new Map<string, {at: number; ttl: number; p: Promise<unknown>}>();
 const memo = <T>(key: string, ttl: number, fn: () => Promise<T>, fresh = false): Promise<T> => {
   const hit = memoStore.get(key);
-  if (hit && !fresh && Date.now() - hit.at < hit.ttl) return hit.p as Promise<T>;
+  const now = Date.now();
+  if (hit && !fresh && now - hit.at < hit.ttl) return hit.p as Promise<T>;
   const p = fn();
-  memoStore.set(key, {at: Date.now(), ttl, p});
+  memoStore.delete(key); // asked again: it goes back in at the young end
+  for (const [k, v] of memoStore) if (now - v.at >= v.ttl) memoStore.delete(k);
+  while (memoStore.size >= MEMO_MAX) memoStore.delete(memoStore.keys().next().value as string);
+  memoStore.set(key, {at: now, ttl, p});
   p.catch(() => memoStore.delete(key)); // a failure is never cached
   return p;
 };
 export const forgetMemo = (prefix = '') => {
   for (const k of [...memoStore.keys()]) if (k.startsWith(prefix)) memoStore.delete(k);
 };
+// The library changed on the server: the reads it decides are forgotten — the
+// library list, every library item, and the catalogue pages (their cards
+// carry `inLibrary`). What it does not touch stays: a title's Cinemeta
+// metadata, the genre lists, trailer answers, IMDb lookups, the changelog.
+// (This used to empty the whole store, so every screen then read everything
+// again from cold.)
+export const forgetLibraryReads = () => {
+  forgetMemo('library');
+  forgetMemo('/api/item/');
+  forgetMemo('/api/catalog');
+};
+/** Test-only. */
+export const _memoInternals = {keys: () => [...memoStore.keys()], max: MEMO_MAX, clear: () => memoStore.clear()};
 
 // Health-check one candidate URL without touching the global baseUrl. Short
 // timeout: a dead LAN IP can otherwise hang for many seconds of SYN retries.
