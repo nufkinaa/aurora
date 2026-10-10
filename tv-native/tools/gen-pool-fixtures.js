@@ -58,6 +58,14 @@ must(rowSrc, 'const POOL_SLOTS = poolSize(BEHIND, AHEAD);', 'Row.tsx (the pool s
 must(rowSrc, 'slotItems(from, to, POOL_SLOTS)', 'Row.tsx (the slot assignment)');
 must(rowSrc, 'poolAnchor(prev, index, latest.current, countRef.current, SLACK, BEHIND, AHEAD)', 'Row.tsx (the anchor)');
 must(rowSrc, '<View key={slot} style={[styles.slot, {left: spacing.contentLeft + index * step}]}>', 'Row.tsx (the slot)');
+const gridSrc = read('components/NativeGrid.tsx');
+must(gridSrc, 'const POOL_ROWS = poolSize(GRID_BEHIND, GRID_AHEAD);', 'NativeGrid.tsx (the pool size)');
+must(gridSrc, 'gridSlotItems(from, to, cols, count, POOL_ROWS)', 'NativeGrid.tsx (the slot assignment)');
+must(gridSrc, 'gridAnchor(clampRow(prev, rowsRef.current), row, latestRow.current, rowsRef.current)', 'NativeGrid.tsx (the anchor)');
+must(gridSrc, 'const clampRow = (anchor: number, rows: number) => Math.max(0, Math.min(anchor, rows - 1));', 'NativeGrid.tsx (the anchor clamp)');
+must(gridSrc, 'gridWindow(clampRow(anchor, rows), rows)', 'NativeGrid.tsx (the window)');
+must(gridSrc, '{left: (index % cols) * colPitch, top: Math.floor(index / cols) * rowPitch}', 'NativeGrid.tsx (the cell)');
+
 const K = {
   behind: rowMath.VISIBLE_BEHIND,
   ahead: rowMath.VISIBLE_AHEAD,

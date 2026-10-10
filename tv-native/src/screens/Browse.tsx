@@ -36,6 +36,8 @@ import Picker from '../components/Picker';
 import Skeleton from '../components/Skeleton';
 import {Empty, ErrorState} from '../components/States';
 import Card, {CARD_W} from '../components/Card';
+import NativeGrid from '../components/NativeGrid';
+import {impl} from '../impl';
 import {api, HeroItem, ProfileState} from '../api';
 import {onMessage} from '../realtime';
 import {warmItem} from '../prefetch';
@@ -693,6 +695,27 @@ export default function Browse({
             }
             actionLabel="Change filters"
             onAction={openPanel}
+          />
+        ) : impl.grid ? (
+          // The recycling grid (docs/native-rewrite P6, components/NativeGrid.tsx): the
+          // same cards at the same places inside the same ScrollView, in a pool of rows
+          // that is rebound instead of mounted and unmounted. Keyed by what the list IS:
+          // a different category / genre / Unwatched is a different grid, back at the top
+          // with row 0 mounted — where closePanel sends focus after a filter change (the
+          // FlatList is scrolled to 0 there; `listRef` is unset here, so that is a no-op).
+          <NativeGrid
+            key={`${kind}-${cols}-${category}-${genre}-${unwatched ? 'u' : 'a'}`}
+            items={items}
+            cols={cols}
+            gap={GRID_GAP}
+            style={styles.listFill}
+            contentContainerStyle={[styles.grid, {paddingBottom: CLEARANCE.below + safeBottom}]}
+            onSelect={openDetail}
+            onItemFocus={onCardFocus}
+            claims={claims}
+            firstRef={firstCard}
+            edgeRight
+            footer={footer}
           />
         ) : (
           <FlatList
