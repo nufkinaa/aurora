@@ -53,6 +53,9 @@ let pressMoveSeq = 0;
 let keySeq = 0;
 let prevKeySeq = 0;
 let lastKeyEvt: unknown = null;
+let lastKeyAt = 0;
+// Shorter than any gap a hand leaves between releasing a key and pressing the next.
+const SAME_PRESS_MS = 40;
 // The app is about to move focus itself (the rail opening, a trap or the rail
 // handing focus back): the next move, if it comes at once, is not a press's.
 let ownMoveUntil = 0;
@@ -66,6 +69,11 @@ export const noteFocus = (node: FocusNode, edgeLeft: boolean, edgeRight = false)
     const now = Date.now();
     lastFocusMoveAt = now;
     if (now < ownMoveUntil) ownMoveUntil = 0;
+    // A move that lands right behind a key event is that key's own: an injected
+    // key (adb, a phone remote) goes down and up in the same millisecond, and
+    // its key-up can reach JS before the focus event does. Booked under that
+    // key, it does not make the NEXT press look like the one that arrived.
+    else if (now - lastKeyAt < SAME_PRESS_MS) pressMoveSeq = keySeq;
     else pressMoveSeq = ++seq;
   }
   held = node;
@@ -133,6 +141,7 @@ const noteKey = (evt: unknown) => {
   lastKeyEvt = evt;
   prevKeySeq = keySeq;
   keySeq = ++seq;
+  lastKeyAt = Date.now();
 };
 
 /** Snapshot who holds focus now and get back a function that returns it. The

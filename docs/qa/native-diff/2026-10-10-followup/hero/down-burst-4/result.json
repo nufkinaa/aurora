@@ -1,0 +1,62 @@
+{
+  "state": "down-burst-4",
+  "component": "hero",
+  "impl": "FCRHN",
+  "run": 1,
+  "differing_px": 0,
+  "off_edge_px": 0,
+  "on_edge_px": 0,
+  "diff_fraction": 0.0,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 0,
+  "max_yiq": 0.0,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 750,
+      "polls": 2,
+      "anim_lines": 391,
+      "frames": 192
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 750,
+      "polls": 2,
+      "anim_lines": 316,
+      "frames": 167
+    }
+  },
+  "reasons": [],
+  "trace": {
+    "pass": true,
+    "rule": "rest",
+    "ids": {
+      "hero.ty": {
+        "steps_a": 78,
+        "steps_b": 71,
+        "max_abs_err": 0.0,
+        "pass": true,
+        "key_to_first_ms": [
+          null,
+          null
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": true,
+    "rows": 8
+  },
+  "focus_checked": true,
+  "pass": true
+}

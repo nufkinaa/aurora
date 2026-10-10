@@ -1,0 +1,116 @@
+{
+ "state": "btn-primary-rest",
+ "component": "focusable",
+ "impl": "FCRHN",
+ "run": 1,
+ "ids": [],
+ "anim": null,
+ "focus": {
+  "pass": true,
+  "rows_a": [
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "128",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "144",
+    "impl": "js",
+    "edgeL": "0",
+    "edgeR": "0"
+   }
+  ],
+  "rows_b": [
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "102",
+    "impl": "native"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "116",
+    "impl": "native",
+    "edgeL": "0",
+    "edgeR": "0"
+   }
+  ],
+  "reasons": []
+ },
+ "A": {
+  "anim": {},
+  "keys": [],
+  "focus": [
+   [
+    340600853,
+    "loss",
+    {
+     "tag": "128",
+     "impl": "js"
+    }
+   ],
+   [
+    340600856,
+    "gain",
+    {
+     "tag": "144",
+     "impl": "js",
+     "edgeL": "0",
+     "edgeR": "0"
+    }
+   ]
+  ],
+  "ring": [
+   [
+    340600853,
+    "release",
+    "128"
+   ],
+   [
+    340600856,
+    "claim",
+    "144"
+   ]
+  ]
+ },
+ "B": {
+  "anim": {},
+  "keys": [],
+  "focus": [
+   [
+    340615187,
+    "loss",
+    {
+     "tag": "102",
+     "impl": "native"
+    }
+   ],
+   [
+    340615188,
+    "gain",
+    {
+     "tag": "116",
+     "impl": "native",
+     "edgeL": "0",
+     "edgeR": "0"
+    }
+   ]
+  ],
+  "ring": [
+   [
+    340615187,
+    "release",
+    "102"
+   ],
+   [
+    340615188,
+    "claim",
+    "116"
+   ]
+  ]
+ }
+}

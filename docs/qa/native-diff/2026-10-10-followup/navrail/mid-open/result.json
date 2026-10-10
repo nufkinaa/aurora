@@ -1,0 +1,77 @@
+{
+  "state": "mid-open",
+  "component": "navrail",
+  "impl": "FCRHN",
+  "run": 1,
+  "differing_px": 0,
+  "off_edge_px": 0,
+  "on_edge_px": 0,
+  "diff_fraction": 0.0,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 0,
+  "max_yiq": 0.0,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 655,
+      "polls": 2,
+      "anim_lines": 100,
+      "frames": 154
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 656,
+      "polls": 2,
+      "anim_lines": 76,
+      "frames": 126
+    }
+  },
+  "reasons": [
+    "trace rail.slide: B step 1 at 67.2 ms = 0.352002, off A's curve [0.392988, 0.461017] within +-28.199 ms (|err| 0.041 > 0.0005)",
+    "trace rail.slide: A step 1 at 39.0 ms = 0.392988, off B's curve [0.056578, 0.352002] within +-28.199 ms (|err| 0.041 > 0.0005)",
+    "trace rail.strip: B step 1 at 67.2 ms = 0.647998, off A's curve [0.538247, 0.607012] within +-28.199 ms (|err| 0.041 > 0.0005)",
+    "trace rail.strip: A step 1 at 39.0 ms = 0.607012, off B's curve [0.647998, 0.943422] within +-28.199 ms (|err| 0.041 > 0.0005)"
+  ],
+  "trace": {
+    "pass": false,
+    "rule": "curve",
+    "ids": {
+      "rail.slide": {
+        "steps_a": 12,
+        "steps_b": 13,
+        "max_abs_err": 0.04308351643971681,
+        "pass": false,
+        "key_to_first_ms": [
+          150.0,
+          33.125633
+        ]
+      },
+      "rail.strip": {
+        "steps_a": 12,
+        "steps_b": 13,
+        "max_abs_err": 0.045523196763378904,
+        "pass": false,
+        "key_to_first_ms": [
+          151.0,
+          33.125633
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": true,
+    "rows": 2
+  },
+  "focus_checked": false,
+  "pass": false
+}

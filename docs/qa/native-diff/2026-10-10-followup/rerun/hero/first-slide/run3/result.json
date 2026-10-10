@@ -1,0 +1,62 @@
+{
+  "state": "first-slide",
+  "component": "hero",
+  "impl": "FCRHN",
+  "run": 3,
+  "differing_px": 0,
+  "off_edge_px": 0,
+  "on_edge_px": 0,
+  "diff_fraction": 0.0,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 0,
+  "max_yiq": 0.0,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 625,
+      "polls": 2,
+      "anim_lines": 107,
+      "frames": 162
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 687,
+      "polls": 2,
+      "anim_lines": 99,
+      "frames": 153
+    }
+  },
+  "reasons": [],
+  "trace": {
+    "pass": true,
+    "rule": "curve",
+    "ids": {
+      "hero.swap": {
+        "steps_a": 19,
+        "steps_b": 19,
+        "max_abs_err": 0.0,
+        "pass": true,
+        "key_to_first_ms": [
+          111.0,
+          28.0
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": true,
+    "rows": 2
+  },
+  "focus_checked": true,
+  "pass": true
+}

@@ -1,0 +1,176 @@
+{
+ "state": "ok-home",
+ "component": "navrail",
+ "impl": "FCRHN",
+ "run": 1,
+ "ids": [],
+ "anim": null,
+ "focus": {
+  "pass": true,
+  "rows_a": [
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "128",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "920",
+    "impl": "js",
+    "edgeL": "1",
+    "edgeR": "0"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "128",
+    "impl": "js",
+    "edgeL": "0",
+    "edgeR": "0"
+   }
+  ],
+  "rows_b": [
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "102",
+    "impl": "native"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "720",
+    "impl": "native",
+    "edgeL": "1",
+    "edgeR": "0"
+   },
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "720",
+    "impl": "native"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "102",
+    "impl": "native",
+    "edgeL": "0",
+    "edgeR": "0"
+   }
+  ],
+  "reasons": []
+ },
+ "A": {
+  "anim": {},
+  "keys": [],
+  "focus": [
+   [
+    343129271,
+    "loss",
+    {
+     "tag": "128",
+     "impl": "js"
+    }
+   ],
+   [
+    343129294,
+    "gain",
+    {
+     "tag": "920",
+     "impl": "js",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ],
+   [
+    343130343,
+    "gain",
+    {
+     "tag": "128",
+     "impl": "js",
+     "edgeL": "0",
+     "edgeR": "0"
+    }
+   ]
+  ],
+  "ring": [
+   [
+    343129270,
+    "release",
+    "128"
+   ],
+   [
+    343129294,
+    "claim",
+    "920"
+   ],
+   [
+    343130343,
+    "claim",
+    "128"
+   ]
+  ]
+ },
+ "B": {
+  "anim": {},
+  "keys": [],
+  "focus": [
+   [
+    343145515,
+    "gain",
+    {
+     "tag": "720",
+     "impl": "native",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ],
+   [
+    343145543,
+    "loss",
+    {
+     "tag": "102",
+     "impl": "native"
+    }
+   ],
+   [
+    343146625,
+    "loss",
+    {
+     "tag": "720",
+     "impl": "native"
+    }
+   ],
+   [
+    343146629,
+    "gain",
+    {
+     "tag": "102",
+     "impl": "native",
+     "edgeL": "0",
+     "edgeR": "0"
+    }
+   ]
+  ],
+  "ring": [
+   [
+    343145515,
+    "claim",
+    "720"
+   ],
+   [
+    343146625,
+    "release",
+    "720"
+   ],
+   [
+    343146629,
+    "claim",
+    "102"
+   ]
+  ]
+ }
+}

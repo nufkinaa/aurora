@@ -1,0 +1,62 @@
+{
+  "state": "reentry-down",
+  "component": "row",
+  "impl": "FCRHN",
+  "run": 1,
+  "differing_px": 0,
+  "off_edge_px": 0,
+  "on_edge_px": 0,
+  "diff_fraction": 0.0,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 0,
+  "max_yiq": 0.0,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 858,
+      "polls": 2,
+      "anim_lines": 1218,
+      "frames": 395
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 842,
+      "polls": 2,
+      "anim_lines": 1156,
+      "frames": 373
+    }
+  },
+  "reasons": [],
+  "trace": {
+    "pass": true,
+    "rule": "curve",
+    "ids": {
+      "row.tx": {
+        "steps_a": 2,
+        "steps_b": 1,
+        "max_abs_err": 0.0,
+        "pass": true,
+        "key_to_first_ms": [
+          38.0,
+          17.316005
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": true,
+    "rows": 18
+  },
+  "focus_checked": true,
+  "pass": true
+}

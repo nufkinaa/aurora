@@ -1,0 +1,374 @@
+{
+ "env": {
+  "commit": "616f35f9f487",
+  "pkg": "com.auroratv.lab",
+  "serial": "192.168.50.31:5555",
+  "fingerprint": "Xiaomi/twilight/twilight:14/UKG3.250826.001/V816.0.7.0.UZFAABX:user/release-keys",
+  "model": "MiTV-AFMU0",
+  "sdk": "34",
+  "locale": "en-US",
+  "timezone": "Asia/Jerusalem",
+  "animator_duration_scale": "null",
+  "transition_animation_scale": "1.0",
+  "window_animation_scale": "1.0",
+  "font_scale": "1.0",
+  "screensaver_enabled": "1",
+  "wm_size": "Physical size: 1920x1080",
+  "wm_density": "Physical density: 320",
+  "display_mode": "mActiveModeId=20",
+  "versionCode": 9000,
+  "versionName": "9.9.9-lab",
+  "ping": "v=9000 impl=- exp=-",
+  "token_source": "--token/env"
+ },
+ "args": {
+  "serial": "192.168.50.31:5555",
+  "pkg": "com.auroratv.lab",
+  "impl": "FCRHN",
+  "states": [
+   "card",
+   "hero"
+  ],
+  "exp": null,
+  "only": "card/grid-rest,hero/first-slide",
+  "runs": 3,
+  "out": "../../docs/qa/native-diff/2026-10-10-followup/rerun",
+  "adb": "C:/elia/android-tools/sdk/platform-tools/adb.exe",
+  "token": "aurora-lab-qa",
+  "keystore": null,
+  "var": [],
+  "server": [],
+  "launch_wait_ms": 4000,
+  "screenrecord": false,
+  "force_lock": false,
+  "dry_run": false,
+  "diff_only": false,
+  "verbose": false
+ },
+ "results": [
+  {
+   "state": "grid-rest",
+   "component": "card",
+   "impl": "FCRHN",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 672,
+     "polls": 1,
+     "anim_lines": 0,
+     "frames": 300
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 625,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 278
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 12
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "grid-rest",
+   "component": "card",
+   "impl": "FCRHN",
+   "run": 2,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 797,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 283
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 625,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 269
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 12
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "grid-rest",
+   "component": "card",
+   "impl": "FCRHN",
+   "run": 3,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 875,
+     "polls": 3,
+     "anim_lines": 0,
+     "frames": 287
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 625,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 254
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 12
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "first-slide",
+   "component": "hero",
+   "impl": "FCRHN",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 797,
+     "polls": 2,
+     "anim_lines": 110,
+     "frames": 167
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 750,
+     "polls": 2,
+     "anim_lines": 105,
+     "frames": 152
+    }
+   },
+   "reasons": [],
+   "trace": {
+    "pass": true,
+    "rule": "curve",
+    "ids": {
+     "hero.swap": {
+      "steps_a": 18,
+      "steps_b": 19,
+      "max_abs_err": 0.0,
+      "pass": true,
+      "key_to_first_ms": [
+       119.0,
+       30.0
+      ]
+     }
+    }
+   },
+   "focus": {
+    "pass": true,
+    "rows": 2
+   },
+   "focus_checked": true,
+   "pass": true
+  },
+  {
+   "state": "first-slide",
+   "component": "hero",
+   "impl": "FCRHN",
+   "run": 2,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 609,
+     "polls": 2,
+     "anim_lines": 107,
+     "frames": 174
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 609,
+     "polls": 2,
+     "anim_lines": 105,
+     "frames": 154
+    }
+   },
+   "reasons": [],
+   "trace": {
+    "pass": true,
+    "rule": "curve",
+    "ids": {
+     "hero.swap": {
+      "steps_a": 19,
+      "steps_b": 19,
+      "max_abs_err": 0.0,
+      "pass": true,
+      "key_to_first_ms": [
+       111.0,
+       29.0
+      ]
+     }
+    }
+   },
+   "focus": {
+    "pass": true,
+    "rows": 2
+   },
+   "focus_checked": true,
+   "pass": true
+  },
+  {
+   "state": "first-slide",
+   "component": "hero",
+   "impl": "FCRHN",
+   "run": 3,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 625,
+     "polls": 2,
+     "anim_lines": 107,
+     "frames": 162
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 687,
+     "polls": 2,
+     "anim_lines": 99,
+     "frames": 153
+    }
+   },
+   "reasons": [],
+   "trace": {
+    "pass": true,
+    "rule": "curve",
+    "ids": {
+     "hero.swap": {
+      "steps_a": 19,
+      "steps_b": 19,
+      "max_abs_err": 0.0,
+      "pass": true,
+      "key_to_first_ms": [
+       111.0,
+       28.0
+      ]
+     }
+    }
+   },
+   "focus": {
+    "pass": true,
+    "rows": 2
+   },
+   "focus_checked": true,
+   "pass": true
+  }
+ ]
+}

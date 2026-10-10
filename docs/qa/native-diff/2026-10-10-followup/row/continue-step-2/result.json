@@ -1,0 +1,62 @@
+{
+  "state": "continue-step-2",
+  "component": "row",
+  "impl": "FCRHN",
+  "run": 1,
+  "differing_px": 0,
+  "off_edge_px": 0,
+  "on_edge_px": 0,
+  "diff_fraction": 0.0,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 1,
+  "max_yiq": 0.003559345379471779,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 672,
+      "polls": 2,
+      "anim_lines": 565,
+      "frames": 270
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 750,
+      "polls": 2,
+      "anim_lines": 534,
+      "frames": 246
+    }
+  },
+  "reasons": [],
+  "trace": {
+    "pass": true,
+    "rule": "curve",
+    "ids": {
+      "row.tx": {
+        "steps_a": 61,
+        "steps_b": 59,
+        "max_abs_err": 0.0,
+        "pass": true,
+        "key_to_first_ms": [
+          29.0,
+          18.9092
+        ]
+      }
+    }
+  },
+  "focus": {
+    "pass": true,
+    "rows": 8
+  },
+  "focus_checked": true,
+  "pass": true
+}

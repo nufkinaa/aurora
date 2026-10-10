@@ -1,0 +1,363 @@
+{
+ "state": "item-list",
+ "component": "navrail",
+ "impl": "FCRHN",
+ "run": 1,
+ "ids": [],
+ "anim": null,
+ "focus": {
+  "pass": true,
+  "rows_a": [
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "128",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "920",
+    "impl": "js",
+    "edgeL": "1",
+    "edgeR": "0"
+   },
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "920",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "934",
+    "impl": "js",
+    "edgeL": "1",
+    "edgeR": "0"
+   },
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "934",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "948",
+    "impl": "js",
+    "edgeL": "1",
+    "edgeR": "0"
+   },
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "948",
+    "impl": "js"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "962",
+    "impl": "js",
+    "edgeL": "1",
+    "edgeR": "0"
+   }
+  ],
+  "rows_b": [
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "102",
+    "impl": "native"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "720",
+    "impl": "native",
+    "edgeL": "1",
+    "edgeR": "0"
+   },
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "720",
+    "impl": "native"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "728",
+    "impl": "native",
+    "edgeL": "1",
+    "edgeR": "0"
+   },
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "728",
+    "impl": "native"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "736",
+    "impl": "native",
+    "edgeL": "1",
+    "edgeR": "0"
+   },
+   {
+    "after_key": null,
+    "event": "loss",
+    "tag": "736",
+    "impl": "native"
+   },
+   {
+    "after_key": null,
+    "event": "gain",
+    "tag": "744",
+    "impl": "native",
+    "edgeL": "1",
+    "edgeR": "0"
+   }
+  ],
+  "reasons": []
+ },
+ "A": {
+  "anim": {},
+  "keys": [],
+  "focus": [
+   [
+    342727043,
+    "loss",
+    {
+     "tag": "128",
+     "impl": "js"
+    }
+   ],
+   [
+    342727043,
+    "gain",
+    {
+     "tag": "920",
+     "impl": "js",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ],
+   [
+    342727685,
+    "loss",
+    {
+     "tag": "920",
+     "impl": "js"
+    }
+   ],
+   [
+    342727686,
+    "gain",
+    {
+     "tag": "934",
+     "impl": "js",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ],
+   [
+    342727963,
+    "loss",
+    {
+     "tag": "934",
+     "impl": "js"
+    }
+   ],
+   [
+    342727963,
+    "gain",
+    {
+     "tag": "948",
+     "impl": "js",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ],
+   [
+    342728282,
+    "loss",
+    {
+     "tag": "948",
+     "impl": "js"
+    }
+   ],
+   [
+    342728282,
+    "gain",
+    {
+     "tag": "962",
+     "impl": "js",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ]
+  ],
+  "ring": [
+   [
+    342727043,
+    "release",
+    "128"
+   ],
+   [
+    342727043,
+    "claim",
+    "920"
+   ],
+   [
+    342727685,
+    "release",
+    "920"
+   ],
+   [
+    342727686,
+    "claim",
+    "934"
+   ],
+   [
+    342727963,
+    "release",
+    "934"
+   ],
+   [
+    342727963,
+    "claim",
+    "948"
+   ],
+   [
+    342728281,
+    "release",
+    "948"
+   ],
+   [
+    342728282,
+    "claim",
+    "962"
+   ]
+  ]
+ },
+ "B": {
+  "anim": {},
+  "keys": [],
+  "focus": [
+   [
+    342742668,
+    "gain",
+    {
+     "tag": "720",
+     "impl": "native",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ],
+   [
+    342742703,
+    "loss",
+    {
+     "tag": "102",
+     "impl": "native"
+    }
+   ],
+   [
+    342743425,
+    "loss",
+    {
+     "tag": "720",
+     "impl": "native"
+    }
+   ],
+   [
+    342743426,
+    "gain",
+    {
+     "tag": "728",
+     "impl": "native",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ],
+   [
+    342743757,
+    "loss",
+    {
+     "tag": "728",
+     "impl": "native"
+    }
+   ],
+   [
+    342743758,
+    "gain",
+    {
+     "tag": "736",
+     "impl": "native",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ],
+   [
+    342744073,
+    "loss",
+    {
+     "tag": "736",
+     "impl": "native"
+    }
+   ],
+   [
+    342744073,
+    "gain",
+    {
+     "tag": "744",
+     "impl": "native",
+     "edgeL": "1",
+     "edgeR": "0"
+    }
+   ]
+  ],
+  "ring": [
+   [
+    342742668,
+    "claim",
+    "720"
+   ],
+   [
+    342743425,
+    "release",
+    "720"
+   ],
+   [
+    342743426,
+    "claim",
+    "728"
+   ],
+   [
+    342743757,
+    "release",
+    "728"
+   ],
+   [
+    342743758,
+    "claim",
+    "736"
+   ],
+   [
+    342744073,
+    "release",
+    "736"
+   ],
+   [
+    342744073,
+    "claim",
+    "744"
+   ]
+  ]
+ }
+}

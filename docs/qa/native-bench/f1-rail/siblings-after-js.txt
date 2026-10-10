@@ -1,26 +1,26 @@
 == hero: RIGHT Play->Details 200ms (must not turn the slide), then LEFT back 200ms (must not open rail) :: RIGHT:200 w1500 LEFT:200 w1500
-   [key] 334287765 KEYCODE_DPAD_RIGHT  
-   [focus] 334287786 gain tag=144 edgeL=0
-   [key] 334289464 KEYCODE_DPAD_LEFT  
-   [focus] 334289476 gain tag=128 edgeL=0
+   [key] 345491187 KEYCODE_DPAD_RIGHT  
+   [focus] 345491206 gain tag=144 edgeL=0
+   [key] 345492888 KEYCODE_DPAD_LEFT  
+   [focus] 345492901 gain tag=128 edgeL=0
    ANIM hero.swap
 == shelf: DOWN, RIGHT, then LEFT card1->card0 200ms (must not open rail) :: DOWN:80 w1200 RIGHT:80 w1200 LEFT:200 w1500
-   [key] 334309401 KEYCODE_DPAD_DOWN  
-   [focus] 334309422 gain tag=208 edgeL=1
-   [key] 334310680 KEYCODE_DPAD_RIGHT  
-   [focus] 334310698 gain tag=244 edgeL=0
-   [key] 334311960 KEYCODE_DPAD_LEFT  
-   [focus] 334311972 gain tag=208 edgeL=1
+   [key] 345513040 KEYCODE_DPAD_DOWN  
+   [focus] 345513061 gain tag=208 edgeL=1
+   [key] 345514318 KEYCODE_DPAD_RIGHT  
+   [focus] 345514339 gain tag=244 edgeL=0
+   [key] 345515599 KEYCODE_DPAD_LEFT  
+   [focus] 345515615 gain tag=208 edgeL=1
 == rail: LEFT (open), DOWN, UP 200ms (Home), UP 200ms (Search; must not wrap) :: LEFT:80 w1500 DOWN:80 w1000 UP:200 w1200 UP:200 w1500 RIGHT:80 w1000
-   [key] 334332531 KEYCODE_DPAD_LEFT  
+   [key] 345535532 KEYCODE_DPAD_LEFT  
    ANIM rail.slide
-   [focus] 334332806 gain tag=928 edgeL=1
-   [key] 334334111 KEYCODE_DPAD_DOWN  
-   [focus] 334334133 gain tag=942 edgeL=1
-   [key] 334335192 KEYCODE_DPAD_UP  
-   [focus] 334335208 gain tag=928 edgeL=1
-   [key] 334336590 KEYCODE_DPAD_UP  
-   [focus] 334336601 gain tag=914 edgeL=1
+   [focus] 345535812 gain tag=928 edgeL=1
+   [key] 345537110 KEYCODE_DPAD_DOWN  
+   [focus] 345537125 gain tag=942 edgeL=1
+   [key] 345538190 KEYCODE_DPAD_UP  
+   [focus] 345538212 gain tag=928 edgeL=1
+   [key] 345539590 KEYCODE_DPAD_UP  
+   [focus] 345539608 gain tag=914 edgeL=1
    ANIM hero.swap
-   [key] 334338291 KEYCODE_DPAD_RIGHT  
-   [focus] 334338425 gain tag=128 edgeL=0
+   [key] 345541290 KEYCODE_DPAD_RIGHT  
+   [focus] 345541443 gain tag=128 edgeL=0

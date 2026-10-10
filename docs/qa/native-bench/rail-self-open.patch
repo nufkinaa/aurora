@@ -32,10 +32,10 @@ index 64fa534..d76cd50 100644
 +      noteOwnFocusMove();
        setOpen(true);
 diff --git a/tv-native/src/focus.ts b/tv-native/src/focus.ts
-index 475b33c..b4b537f 100644
+index 475b33c..0dad974 100644
 --- a/tv-native/src/focus.ts
 +++ b/tv-native/src/focus.ts
-@@ -46,4 +46,26 @@ let lastFocusMoveAt = 0;
+@@ -46,4 +46,34 @@ let lastFocusMoveAt = 0;
  
 +// ONE COUNTER FOR KEYS AND FOCUS MOVES, so their ORDER can be read back — see
 +// pressMovedFocus. `pressMoveSeq` is the ticket of the last focus move that
@@ -46,6 +46,9 @@ index 475b33c..b4b537f 100644
 +let keySeq = 0;
 +let prevKeySeq = 0;
 +let lastKeyEvt: unknown = null;
++let lastKeyAt = 0;
++// Shorter than any gap a hand leaves between releasing a key and pressing the next.
++const SAME_PRESS_MS = 40;
 +// The app is about to move focus itself (the rail opening, a trap or the rail
 +// handing focus back): the next move, if it comes at once, is not a press's.
 +let ownMoveUntil = 0;
@@ -60,10 +63,15 @@ index 475b33c..b4b537f 100644
 +    const now = Date.now();
 +    lastFocusMoveAt = now;
 +    if (now < ownMoveUntil) ownMoveUntil = 0;
++    // A move that lands right behind a key event is that key's own: an injected
++    // key (adb, a phone remote) goes down and up in the same millisecond, and
++    // its key-up can reach JS before the focus event does. Booked under that
++    // key, it does not make the NEXT press look like the one that arrived.
++    else if (now - lastKeyAt < SAME_PRESS_MS) pressMoveSeq = keySeq;
 +    else pressMoveSeq = ++seq;
 +  }
    held = node;
-@@ -78,2 +100,39 @@ export const focusJustMoved = (withinMs: number) =>
+@@ -78,2 +108,40 @@ export const focusJustMoved = (withinMs: number) =>
  
 +/** True when the key event being handled is the RELEASE of the press that
 + *  moved focus to where it is now.
@@ -100,10 +108,11 @@ index 475b33c..b4b537f 100644
 +  lastKeyEvt = evt;
 +  prevKeySeq = keySeq;
 +  keySeq = ++seq;
++  lastKeyAt = Date.now();
 +};
 +
  /** Snapshot who holds focus now and get back a function that returns it. The
-@@ -83,3 +142,8 @@ export const captureFocus = () => {
+@@ -83,3 +151,8 @@ export const captureFocus = () => {
    const node = held;
 -  return () => node?.requestTVFocus?.();
 +  return () => {
@@ -113,7 +122,7 @@ index 475b33c..b4b537f 100644
 +    }
 +  };
  };
-@@ -264,2 +328,3 @@ export function useTVKeys(
+@@ -264,2 +337,3 @@ export function useTVKeys(
      (evt: {eventType: string; eventKeyAction?: number | string}) => {
 +      noteKey(evt);
        if (!live || deaf || traps > 0) return;

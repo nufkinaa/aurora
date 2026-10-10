@@ -1,0 +1,46 @@
+{
+  "state": "item-search",
+  "component": "navrail",
+  "impl": "FCRHN",
+  "run": 1,
+  "differing_px": 0,
+  "off_edge_px": 0,
+  "on_edge_px": 0,
+  "diff_fraction": 0.0,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 0,
+  "max_yiq": 0.0,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 890,
+      "polls": 3,
+      "anim_lines": 0,
+      "frames": 178
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 609,
+      "polls": 2,
+      "anim_lines": 0,
+      "frames": 146
+    }
+  },
+  "reasons": [],
+  "focus": {
+    "pass": true,
+    "rows": 4
+  },
+  "focus_checked": true,
+  "pass": true
+}

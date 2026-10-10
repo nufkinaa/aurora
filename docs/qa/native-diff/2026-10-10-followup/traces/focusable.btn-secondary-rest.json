@@ -1,0 +1,26 @@
+{
+ "state": "btn-secondary-rest",
+ "component": "focusable",
+ "impl": "FCRHN",
+ "run": 1,
+ "ids": [],
+ "anim": null,
+ "focus": {
+  "pass": true,
+  "rows_a": [],
+  "rows_b": [],
+  "reasons": []
+ },
+ "A": {
+  "anim": {},
+  "keys": [],
+  "focus": [],
+  "ring": []
+ },
+ "B": {
+  "anim": {},
+  "keys": [],
+  "focus": [],
+  "ring": []
+ }
+}

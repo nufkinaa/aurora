@@ -27,6 +27,8 @@ object AuroraExp {
     "cardlayer",   // a card that rests dark is ONE hardware layer (AuroraFocusableView.syncLayer)
     "taglayer",    // the progress bar and the NEW / kind pills are each one hardware layer (Card.tsx)
     "shadowcache", // a box-shadow is blurred once into a layered host, then composited (ShadowLayer.kt)
+    "unstuff",     // one vsync without a frame when the UI thread runs a frame behind (AuroraClock.stuffed)
+    "unstuffq",    // the same, also when only a finished buffer is queued (FOLLOWUP.md, problem 3)
   )
 
   /** Removals, for attribution only — every one of these changes the picture. */

@@ -1,0 +1,3 @@
+# the captures (A.png / B.png / D.png / triptych.png, ~315 MB) and logcats stay in the worktree, not in git
+*.png
+*.logcat.txt

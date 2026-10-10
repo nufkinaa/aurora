@@ -1,53 +1,53 @@
 == P1 UP on the hero opens the rail; RIGHT shuts it; UP 300 ms later opens it again :: UP:120 w1500 RIGHT:80 w300 UP:80 w1500
-   332207380 KEYCODE_DPAD_UP
+   345113425 KEYCODE_DPAD_UP
       gain tag=720 edgeL=1
       ANIM rail.slide
-   332208999 KEYCODE_DPAD_RIGHT
+   345115045 KEYCODE_DPAD_RIGHT
       gain tag=102 edgeL=0
       ANIM rail.slide
-   332209378 KEYCODE_DPAD_UP
+   345115424 KEYCODE_DPAD_UP
       ANIM rail.slide
       gain tag=810 edgeL=1
 == P2 LEFT on Play opens the rail :: LEFT:120 w1500
-   332229623 KEYCODE_DPAD_LEFT
+   345135483 KEYCODE_DPAD_LEFT
       gain tag=720 edgeL=1
       ANIM rail.slide
 == P3 RIGHT to Details, then RIGHT on the last button turns the slide :: RIGHT:120 w1200 RIGHT:120 w1500
-   332249602 KEYCODE_DPAD_RIGHT
+   345155288 KEYCODE_DPAD_RIGHT
       gain tag=116 edgeL=0
-   332250921 KEYCODE_DPAD_RIGHT
+   345156606 KEYCODE_DPAD_RIGHT
       ANIM hero.swap
 == P4 DOWN, LEFT at card 0 opens the rail :: DOWN:80 w1200 LEFT:120 w1500
-   332271755 KEYCODE_DPAD_DOWN
+   345176332 KEYCODE_DPAD_DOWN
       gain tag=176 edgeL=1
-   332273034 KEYCODE_DPAD_LEFT
+   345177612 KEYCODE_DPAD_LEFT
       gain tag=720 edgeL=1
       ANIM rail.slide
 == P5 DOWN, UP (arrives: no rail), UP again 700 ms later (opens) :: DOWN:80 w1200 UP:120 w700 UP:120 w1500
-   332293276 KEYCODE_DPAD_DOWN
+   345197606 KEYCODE_DPAD_DOWN
       gain tag=176 edgeL=1
-   332294556 KEYCODE_DPAD_UP
+   345198885 KEYCODE_DPAD_UP
       gain tag=102 edgeL=0
-   332295376 KEYCODE_DPAD_UP
+   345199705 KEYCODE_DPAD_UP
       gain tag=720 edgeL=1
       ANIM rail.slide
 == P7 DOWN, UP, UP 150 ms apart (second opens) :: DOWN:80 w1200 UP:60 w150 UP:60 w1500
-   332315785 KEYCODE_DPAD_DOWN
+   345220363 KEYCODE_DPAD_DOWN
       gain tag=176 edgeL=1
-   332317066 KEYCODE_DPAD_UP
+   345221645 KEYCODE_DPAD_UP
       gain tag=102 edgeL=0
-   332317275 KEYCODE_DPAD_UP
+   345221853 KEYCODE_DPAD_UP
       gain tag=720 edgeL=1
       ANIM rail.slide
 == P6 LEFT opens, UP x2 reaches Search, UP wraps to the profile pill, DOWN wraps back :: LEFT:80 w1200 UP:80 w500 UP:80 w500 UP:120 w800 DOWN:120 w800
-   332337155 KEYCODE_DPAD_LEFT
+   345242173 KEYCODE_DPAD_LEFT
       gain tag=720 edgeL=1
       ANIM rail.slide
-   332338436 KEYCODE_DPAD_UP
+   345243451 KEYCODE_DPAD_UP
       gain tag=712 edgeL=1
-   332339014 KEYCODE_DPAD_UP
+   345244032 KEYCODE_DPAD_UP
       gain tag=782 edgeL=1
-   332339594 KEYCODE_DPAD_UP
+   345244612 KEYCODE_DPAD_UP
       gain tag=770 edgeL=1
-   332340515 KEYCODE_DPAD_DOWN
+   345245532 KEYCODE_DPAD_DOWN
       gain tag=782 edgeL=1
