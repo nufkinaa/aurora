@@ -126,6 +126,12 @@ const pruneBadSubs = (data = store.data, extraHosts = config.PUSH_HOSTS) => {
 const subscribe = (profileId, endpoint, ua, origin) => {
   if (!profileId || !okEndpoint(endpoint)) return { error: "bad subscription" };
   const key = keyOf(endpoint);
+  // One browser, one profile: the same endpoint filed again moves to whoever
+  // files it now (a profile switch on a shared browser — the website's
+  // push.rebind). What was still waiting for the previous owner goes with
+  // the old association: it must not be read out to the next person.
+  const was = (store.data.subs || []).find((s) => s.key === key);
+  if (was && was.profileId !== profileId && store.data.pending) delete store.data.pending[key];
   store.data.subs = (store.data.subs || []).filter((s) => s.key !== key);
   store.data.subs.push({ key, endpoint, profileId, ua: String(ua || "").slice(0, 160), origin: /^https:\/\//.test(String(origin || "")) ? String(origin).slice(0, 200) : null, at: Date.now() });
   store.save();

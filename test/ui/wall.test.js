@@ -54,6 +54,47 @@ ui.test("a wrong password shows the error and does not enter; the right one does
   assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), profiles.locked.id);
 });
 
+ui.test("the password sheet says why it failed: too many attempts, a locked profile, no server — not \"Not quite\"", {
+  allow: [/Failed to load resource.*(429|403|503).*\/unlock/, /Failed to load resource.*\/unlock/],
+}, async ({ page, goto, profiles }) => {
+  await goto("#/", { wait: false });
+  await page.click(tile("Locked"));
+  const input = page.locator('.modal input[type="password"]');
+  await input.waitFor();
+  const err = page.locator(".modal .pw-error");
+  const answer = async (status, body) => {
+    await page.unroute("**/api/profiles/*/unlock").catch(() => {});
+    await page.route("**/api/profiles/*/unlock", (route) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) }));
+  };
+  const attempt = async () => {
+    await input.fill(profiles.locked.password);
+    await page.click('.modal button:has-text("Unlock")');
+    await err.waitFor({ state: "visible" });
+    return (await err.textContent()).trim();
+  };
+
+  // the server has stopped taking guesses for a while (its own words)
+  await answer(429, { error: "too many attempts — try again in a few minutes" });
+  assert.equal(await attempt(), "Too many attempts — try again in a few minutes.");
+  assert.equal(await input.inputValue(), profiles.locked.password, "the password was not the problem: it is left in the field");
+
+  // the admin locked the profile after the wall was drawn
+  await answer(403, { error: "locked by admin" });
+  assert.match(await attempt(), /^This profile has been locked\./);
+
+  // the server fell over
+  await answer(503, { error: "" });
+  assert.match(await attempt(), /^Couldn't reach Aurora/);
+
+  // and a wrong password is still a wrong password
+  await page.unroute("**/api/profiles/*/unlock");
+  await input.fill("definitely-wrong");
+  await page.click('.modal button:has-text("Unlock")');
+  await page.waitForFunction(() => /Not quite/.test(document.querySelector(".modal .pw-error").textContent));
+  assert.equal(await input.inputValue(), "");
+  assert.equal(await page.locator(gate).count(), 1, "still at the wall");
+});
+
 ui.test("a reload of a protected profile stays in (this tab still holds its unlock)", async ({ page, goto, profiles }) => {
   await goto("#/", { wait: false });
   await page.click(tile("Locked"));
@@ -76,6 +117,8 @@ ui.test("the one-time notices appear once, do not block, and stay dismissed", as
   const notice = page.locator(".look-notice");
   await notice.waitFor({ timeout: 5000 });
   assert.match(await notice.textContent(), /new look/);
+  // it describes what is there: Home has no "Tonight row"
+  assert.doesNotMatch(await notice.textContent(), /Tonight row/);
   await page.click('.look-notice button:has-text("Got it")');
   await page.waitForSelector(".look-notice-wrap", { state: "detached" });
   await page.waitForFunction(async () => (await (await fetch("/api/profiles")).json()).find((p) => p.id === "default").lookNoticeSeen === true);

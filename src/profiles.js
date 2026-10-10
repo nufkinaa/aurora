@@ -168,6 +168,7 @@ const claimSignin = async ({ profileId, username, email, password }) => {
     const { salt, hash } = await hashPassword(String(password));
     p.passwordHash = hash;
     p.passwordSalt = salt;
+    delete p.mustReset; // a password picked just now is what a reset asks for (as in setPassword)
   }
   p.username = uname;
   if (e) p.email = e;

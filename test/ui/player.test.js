@@ -327,4 +327,66 @@ ui.test("nothing is reported for ten seconds after leaving the player", async ({
   assert.deepEqual(requests, [], "the player kept asking for media after it was closed");
 });
 
+// The watch history is read when the player opens, and the save loop writes
+// over it. If it could not be read at all, saving would replace a real resume
+// point with the few seconds just watched from 0:00.
+ui.test("watch history that cannot be read: the film plays, nothing is saved, the real resume point survives", {
+  allow: [/Failed to load resource.*503/],
+}, async ({ page, srv, goto, signIn, freshProfile, api, lib }) => {
+  const me = await freshProfile();
+  await api.setProgress(me, lib.film1.id, 40, FILM_SECONDS);
+  await signIn(me);
+  // this tab never gets the history: every read of it fails
+  let reads = 0;
+  await page.route(`**/api/profiles/${me.id}/state`, (route) => { reads++; route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"down"}' }); });
+  const saves = [];
+  page.on("request", (req) => { if (req.method() === "POST" && /\/api\/profiles\/[^/]+\/progress$/.test(new URL(req.url()).pathname)) saves.push(req.postData()); });
+
+  await goto("#/movies");
+  const before = reads;
+  await player.open(page, srv, lib.film1.id);
+  assert.ok(reads - before >= 2, `the read is tried again before giving up (${reads - before} read(s) on opening)`);
+  await page.waitForFunction(() => document.getElementById("toasts").innerText.includes("Couldn't read your watch history"));
+  // nothing to resume from: it starts at the top
+  assert.equal(await page.locator(".player .resume-pill").count(), 0);
+  assert.ok((await player.state(page)).t < 15, "started near the beginning");
+
+  // watch past a save tick, pause (which saves), and leave (which saves)
+  await player.advancing(page, { by: 6 });
+  await page.keyboard.press("Space");
+  await page.waitForFunction(() => document.querySelector(".player video").paused);
+  await player.press(page, "Back");
+  await page.waitForSelector(".player", { state: "detached" });
+  await page.waitForTimeout(800);
+
+  assert.deepEqual(saves, [], "progress was sent to the server");
+  const kept = (await api.state(me)).progress[lib.film1.id];
+  assert.equal(kept.position, 40, "the resume point on the server was overwritten");
+});
+
+ui.test("a failed read with the history already in hand still resumes and still saves", {
+  allow: [/Failed to load resource.*503/],
+}, async ({ page, srv, goto, signIn, freshProfile, api, lib }) => {
+  const me = await freshProfile();
+  await api.setProgress(me, lib.film1.id, 30, FILM_SECONDS);
+  await signIn(me);
+  await goto("#/movies"); // boot read the history
+  await page.route(`**/api/profiles/${me.id}/state`, (route) => route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"down"}' }));
+  await player.open(page, srv, lib.film1.id, { min: 5 });
+  assert.ok((await player.state(page)).t > 20, "resumed from the history the tab already had");
+  assert.equal(await page.locator("#toasts", { hasText: "Couldn't read your watch history" }).count(), 0);
+  // (it resumed four seconds before 30: watch until well past it)
+  await page.waitForFunction(() => document.querySelector(".player video").currentTime > 33, null, { timeout: 30000 });
+  await player.press(page, "Back");
+  await page.waitForSelector(".player", { state: "detached" });
+  await page.unroute(`**/api/profiles/${me.id}/state`);
+  await assert.doesNotReject(async () => {
+    for (let i = 0; i < 40; i++) {
+      if ((await api.state(me)).progress[lib.film1.id].position > 32) return;
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    throw new Error("leaving the player did not save the new position");
+  });
+});
+
 ui.run({ concurrency: 6 });

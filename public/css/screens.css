@@ -4224,6 +4224,21 @@ html:not([data-fx="lite"]) .trailer-frame iframe {
 .pair-sub strong { color: var(--text, #fff); }
 .pair-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.2em; font-size: 1.1em; }
 .pair-card > .btn, .pair-card > div { justify-content: center; }
+/* the typed code ({host}/link): six big characters, the TV's own alphabet */
+.pair-code-input {
+  width: 100%;
+  max-width: 300px;
+  padding: 12px;
+  font: 900 1.6rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.3em;
+  text-align: center;
+  text-transform: uppercase;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+}
+.pair-card .pw-error { margin-top: 10px; }
 
 /* ---- intro marking chip: the second press lives on the video, not in a menu ---- */
 .player .mark-chip {

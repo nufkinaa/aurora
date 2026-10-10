@@ -713,14 +713,34 @@ router.post("/api/profiles/:id/signout-everywhere", gate, async (req, res) => {
     ended++;
   }
   profiles.revokeTokensFor(id);
-  // sockets of this profile on other devices drop to the profile wall
-  try {
-    realtime.broadcastAll({ type: "profile_signed_out", profileId: id, except: String((req.body || {}).deviceId || "") });
-  } catch {}
-  res.json({ ok: true, ended, token: profiles.issueToken(id) });
+  // Tell this profile's OTHER open sockets, so a tab or a TV that just lost
+  // its sign-in goes to the sign-in screen now instead of failing on its next
+  // request. Only sockets that are on this profile hear it (by the session
+  // they connected with, or the profile they said hello as) — it used to go
+  // to every socket of every profile. The socket of the device that asked is
+  // left out: it names itself with the `clientId` its welcome message gave it.
+  // A client that hears it checks with the server before acting, so a tab
+  // that still holds a live session (another tab of the asking browser) stays.
+  const except = String((req.body || {}).clientId || "");
+  let told = 0;
+  try { told = tellSignedOut(id, except); } catch {}
+  res.json({ ok: true, ended, told, token: profiles.issueToken(id) });
 });
 
+const tellSignedOut = (profileId, exceptClientId = "") => {
+  let told = 0;
+  const msg = JSON.stringify({ type: "profile_signed_out", profileId });
+  for (const c of realtime.clients.values()) {
+    const ws = c.ws;
+    if (!ws || ws.readyState !== 1 /* OPEN */) continue;
+    if (exceptClientId && c.id === exceptClientId) continue;
+    if (c.profileId !== profileId && ws.profileId !== profileId) continue;
+    try { ws.send(msg); told++; } catch {}
+  }
+  return told;
+};
+
 // Test-only: the PIN attempt limiter (test/kids.test.js).
-router._internals = { pinAttempt, kidsPinGuard, markEntry };
+router._internals = { pinAttempt, kidsPinGuard, markEntry, tellSignedOut };
 
 module.exports = router;

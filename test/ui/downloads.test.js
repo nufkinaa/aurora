@@ -48,4 +48,42 @@ ui.test("a download trying a second source says so on its one card, and nothing 
   assert.deepEqual(await shape("aaaaaaaaaaaa"), await shape("bbbbbbbbbbbb"));
 });
 
+// The live messages are the only way a tab hears about a download. While the
+// socket is down they are lost, so when it comes back the list is asked for
+// again and every open screen catches up.
+ui.test("a download that finished while the connection was down is caught up on reconnect: the card, the pill and \"ready to watch\"", async ({ page, goto, signIn, freshProfile, lib }) => {
+  // every socket the page opens, so the test can drop the live one
+  await page.addInitScript(() => {
+    const Real = window.WebSocket;
+    window.__sockets = [];
+    window.WebSocket = class extends Real {
+      constructor(...a) { super(...a); window.__sockets.push(this); }
+    };
+  });
+  let jobs = [
+    job({ id: "eeeeeeeeeeee", title: "Outage Film", label: "Outage Film", progress: 0.4 }),
+    job({ id: "ffffffffffff", title: "Removed Film", label: "Removed Film", status: "pending", phase: null, progress: 0 }),
+  ];
+  let asks = 0;
+  await page.route((url) => url.pathname === "/api/downloads", (route) => { asks++; route.fulfill({ json: jobs }); });
+  await signIn(await freshProfile());
+  await goto("#/downloads");
+  await page.waitForSelector('.dl-row[data-id="eeeeeeeeeeee"]');
+  assert.match(await page.locator('.dl-row[data-id="eeeeeeeeeeee"] .dl-status').innerText(), /Downloading · 40%/);
+  assert.equal(await page.locator('.dl-row[data-id="ffffffffffff"]').count(), 1);
+  await page.waitForFunction(() => window.__sockets.some((s) => s.readyState === 1));
+
+  // while the tab is blind: one download lands in the library, the admin removes the other
+  jobs = [job({ id: "eeeeeeeeeeee", title: "Outage Film", label: "Outage Film", status: "done", phase: null, progress: 1, downloadSpeed: 0, doneAt: new Date().toISOString(), libraryId: lib.film1.id })];
+  const before = asks;
+  await page.evaluate(() => window.__sockets.filter((s) => s.readyState === 1).forEach((s) => s.close()));
+
+  // the socket comes back by itself; nothing is reloaded
+  await page.waitForFunction(() => document.getElementById("toasts").innerText.includes("“Outage Film” is ready to watch"), null, { timeout: 15000 });
+  assert.ok(asks > before, "the list was asked for again");
+  await page.waitForFunction(() => /Ready/i.test((document.querySelector('.dl-row[data-id="eeeeeeeeeeee"]') || {}).innerText || ""));
+  assert.equal(await page.locator('.dl-row[data-id="ffffffffffff"]').count(), 0, "the removed request is still on the page");
+  await page.waitForFunction(() => document.getElementById("nav-dl").classList.contains("ready"));
+});
+
 ui.run({ concurrency: 1 });
