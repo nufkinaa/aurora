@@ -1,0 +1,23 @@
+home-rest      noise jpeg shotA1 vs shotB1: differ=0 max=0
+home-rest      noise jpeg shotA1 vs shotC1: differ=0 max=0
+home-rest      noise webp shotA1 vs shotB1: differ=0 max=0
+home-rest      noise webp shotA1 vs shotC1: differ=0 max=0
+home-rest      jpeg vs webp: differ=1094159 (52.8%) gt1=293864 gt8=20 gt16=0 max=10 mean=0.379 psnr=50.6 bbox=[0, 0, 1920, 804]
+               worst 240x135 window at x=840 y=360: mean 1.93 max 9
+home-scrolled  noise jpeg shotA1 vs shotB1: differ=0 max=0
+home-scrolled  noise jpeg shotA1 vs shotC1: differ=15531 max=1
+home-scrolled  noise webp shotA1 vs shotB1: differ=0 max=0
+home-scrolled  noise webp shotA1 vs shotC1: differ=0 max=0
+home-scrolled  jpeg vs webp: differ=0 (0.0%) gt1=0 gt8=0 gt16=0 max=0 mean=0.000 psnr=99.0 bbox=None
+detail1        noise jpeg shotA1 vs shotB1: differ=0 max=0
+detail1        noise jpeg shotA1 vs shotC1: differ=0 max=0
+detail1        noise webp shotA1 vs shotB1: differ=0 max=0
+detail1        noise webp shotA1 vs shotC1: differ=0 max=0
+detail1        jpeg vs webp: differ=787114 (38.0%) gt1=421906 gt8=21627 gt16=1380 max=41 mean=0.531 psnr=45.1 bbox=[599, 0, 1920, 813]
+               worst 240x135 window at x=1305 y=285: mean 5.51 max 41
+detail2        noise jpeg shotA1 vs shotB1: differ=0 max=0
+detail2        noise jpeg shotA1 vs shotC1: differ=0 max=0
+detail2        noise webp shotA1 vs shotB1: differ=0 max=0
+detail2        noise webp shotA1 vs shotC1: differ=0 max=0
+detail2        jpeg vs webp: differ=757502 (36.5%) gt1=435038 gt8=32215 gt16=2920 max=44 mean=0.759 psnr=42.8 bbox=[599, 0, 1920, 813]
+               worst 240x135 window at x=1350 y=210: mean 6.48 max 44

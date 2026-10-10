@@ -1,0 +1,175 @@
+baseline   (3 logs): webp=0 probe=1
+experiment (3 logs): webp=1 probe=1
+
+| kind     | title      | run         | format      | bitmap   | KB    | fetch ms | re-encode ms | decode ms | decode cpu ms | work ms | total ms |         |
+| -------- | ---------- | ----------- | ----------- | -------- | ----- | -------- | ------------ | --------- | ------------- | ------- | -------- | ------- |
+| backdrop | tt0903747  | jpeg-coldA1 | JPEG        | 1440x810 | 546.7 | 182      | 145          | 42        | 30.4          | 187     | 380      |         |
+| backdrop | tt0903747  | jpeg-coldB1 | JPEG        | 1440x810 | 546.7 | 184      | 127          | 54        | 30.9          | 181     | 381      |         |
+| backdrop | tt0903747  | jpeg-warm1  | JPEG        | 1440x810 | 546.7 | -        | 126          | 42        | 33.4          | 168     | 183      |         |
+| backdrop | tt0903747  | webp-coldA1 | WEBP_SIMPLE | 1600x900 | 327.4 | 182      | 0            | 74        | 68.2          | 74      | 271      |         |
+| backdrop | tt0903747  | webp-coldB1 | WEBP_SIMPLE | 1600x900 | 327.4 | 179      | 0            | 101       | 69.7          | 101     | 292      |         |
+| backdrop | tt0903747  | webp-warm1  | WEBP_SIMPLE | 1600x900 | 327.4 | -        | 0            | 86        | 70.6          | 86      | 98       |         |
+| backdrop | tt1375666  | jpeg-coldA1 | JPEG        | 1440x810 | 679.4 | 173      | 116          | 29        | 27.6          | 145     | 330      |         |
+| backdrop | tt1375666  | jpeg-coldB1 | JPEG        | 1440x810 | 679.4 | 196      | 105          | 26        | 24.0          | 131     | 338      |         |
+| backdrop | tt1375666  | jpeg-warm1  | JPEG        | 1440x810 | 679.4 | -        | 128          | 29        | 25.5          | 157     | 169      |         |
+| backdrop | tt1375666  | webp-coldA1 | WEBP_SIMPLE | 1600x900 | 209.4 | 129      | 0            | 88        | 57.2          | 88      | 229      |         |
+| backdrop | tt1375666  | webp-coldB1 | WEBP_SIMPLE | 1600x900 | 209.4 | 151      | 0            | 66        | 56.1          | 66      | 236      |         |
+| backdrop | tt1375666  | webp-warm1  | WEBP_SIMPLE | 1600x900 | 209.4 | -        | 0            | 77        | 55.2          | 77      | 92       |         |
+| backdrop | tt15239678 | jpeg-coldA1 | JPEG        | 1440x810 | 971.3 | 742      | 107          | 23        | 21.3          | 130     | 896      |         |
+| backdrop | tt15239678 | jpeg-coldB1 | JPEG        | 1440x810 | 971.3 | 795      | 113          | 29        | 26.5          | 142     | 948      |         |
+| backdrop | tt15239678 | jpeg-warm1  | JPEG        | 1440x810 | 971.3 | -        | 122          | 51        | 24.6          | 173     | 200      |         |
+| backdrop | tt15239678 | webp-coldA1 | WEBP_SIMPLE | 1600x900 | 133.0 | 206      | 0            | 71        | 47.1          | 71      | 319      |         |
+| backdrop | tt15239678 | webp-coldB1 | WEBP_SIMPLE | 1600x900 | 133.0 | 103      | 0            | 63        | 49.5          | 63      | 184      |         |
+| backdrop | tt15239678 | webp-warm1  | WEBP_SIMPLE | 1600x900 | 133.0 | -        | 0            | 105       | 48.2          | 105     | 122      |         |
+| backdrop | tt22526100 | jpeg-coldA1 | JPEG        | 1280x720 | 178.9 | 186      | 0            | 27        | 21.0          | 27      | 251      |         |
+| backdrop | tt22526100 | jpeg-coldB1 | JPEG        | 1280x720 | 178.9 | 191      | 0            | 38        | 20.8          | 38      | 242      |         |
+| backdrop | tt22526100 | jpeg-warm1  | JPEG        | 1280x720 | 178.9 | -        | 0            | 29        | 22.6          | 29      | 56       |         |
+| backdrop | tt22526100 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 105.3 | 54       | 0            | 42        | 34.0          | 42      | 118      |         |
+| backdrop | tt22526100 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 105.3 | 77       | 0            | 50        | 33.1          | 50      | 142      |         |
+| backdrop | tt22526100 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 105.3 | -        | 0            | 54        | 33.9          | 54      | 76       |         |
+| backdrop | tt26657236 | jpeg-coldA1 | JPEG        | 1440x810 | 311.3 | 126      | 134          | 19        | 17.7          | 153     | 291      |         |
+| backdrop | tt26657236 | jpeg-coldB1 | JPEG        | 1440x810 | 311.3 | 125      | 125          | 19        | 17.2          | 144     | 285      |         |
+| backdrop | tt26657236 | jpeg-warm1  | JPEG        | 1440x810 | 311.3 | -        | 120          | 44        | 18.4          | 164     | 178      |         |
+| backdrop | tt26657236 | webp-coldA1 | WEBP_SIMPLE | 1600x900 | 46.1  | 31       | 0            | 41        | 34.2          | 41      | 89       |         |
+| backdrop | tt26657236 | webp-coldB1 | WEBP_SIMPLE | 1600x900 | 46.1  | 32       | 0            | 61        | 35.4          | 61      | 106      |         |
+| backdrop | tt26657236 | webp-warm1  | WEBP_SIMPLE | 1600x900 | 46.1  | -        | 0            | 39        | 34.4          | 39      | 51       |         |
+| backdrop | tt2788316  | jpeg-coldA1 | JPEG        | 1440x810 | 646.7 | 170      | 303          | 53        | 26.1          | 356     | 535      |         |
+| backdrop | tt2788316  | jpeg-coldB1 | JPEG        | 1440x810 | 646.7 | 187      | 157          | 37        | 25.8          | 194     | 393      |         |
+| backdrop | tt2788316  | jpeg-warm1  | JPEG        | 1440x810 | 646.7 | -        | 142          | 32        | 26.8          | 174     | 324      |         |
+| backdrop | tt2788316  | webp-coldA1 | WEBP_SIMPLE | 1600x900 | 198.3 | 114      | 0            | 77        | 56.7          | 77      | 203      |         |
+| backdrop | tt2788316  | webp-coldB1 | WEBP_SIMPLE | 1600x900 | 198.3 | 113      | 0            | 78        | 54.5          | 78      | 202      |         |
+| backdrop | tt2788316  | webp-warm1  | WEBP_SIMPLE | 1600x900 | 198.3 | -        | 0            | 65        | 57.4          | 65      | 93       |         |
+| backdrop | tt31938062 | jpeg-coldA1 | JPEG        | 1440x810 | 228.1 | 140      | 79           | 19        | 17.6          | 98      | 255      |         |
+| backdrop | tt31938062 | jpeg-coldB1 | JPEG        | 1440x810 | 228.1 | 120      | 84           | 19        | 18.0          | 103     | 242      |         |
+| backdrop | tt31938062 | jpeg-warm1  | JPEG        | 1440x810 | 228.1 | -        | 82           | 22        | 19.3          | 104     | 117      |         |
+| backdrop | tt31938062 | webp-coldA1 | WEBP_SIMPLE | 1600x900 | 52.1  | 34       | 0            | 48        | 36.4          | 48      | 97       |         |
+| backdrop | tt31938062 | webp-coldB1 | WEBP_SIMPLE | 1600x900 | 52.1  | 50       | 0            | 60        | 35.7          | 60      | 126      |         |
+| backdrop | tt31938062 | webp-warm1  | WEBP_SIMPLE | 1600x900 | 52.1  | -        | 0            | 48        | 35.6          | 48      | 59       |         |
+| backdrop | tt36583977 | jpeg-coldA1 | JPEG        | 1280x720 | 221.7 | 635      | 0            | 47        | 44.5          | 47      | 697      |         |
+| backdrop | tt36583977 | jpeg-coldB1 | JPEG        | 1280x720 | 221.7 | 622      | 0            | 47        | 46.0          | 47      | 680      |         |
+| backdrop | tt36583977 | jpeg-warm1  | JPEG        | 1280x720 | 221.7 | -        | 0            | 29        | 25.1          | 29      | 44       |         |
+| backdrop | tt36583977 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 162.9 | 90       | 0            | 59        | 39.8          | 59      | 167      |         |
+| backdrop | tt36583977 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 162.9 | 112      | 0            | 47        | 42.6          | 47      | 174      |         |
+| backdrop | tt36583977 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 162.9 | -        | 0            | 62        | 39.8          | 62      | 101      |         |
+| hero-b1  | tt15677150 | jpeg-coldA1 | JPEG        | 1280x720 | 72.0  | 59       | 0            | 26        | 21.0          | 26      | 101      |         |
+| hero-b1  | tt15677150 | jpeg-coldB1 | JPEG        | 1280x720 | 72.0  | 61       | 0            | 38        | 31.3          | 38      | 109      |         |
+| hero-b1  | tt15677150 | jpeg-warm1  | JPEG        | 1280x720 | 72.0  | -        | 0            | 43        | 34.9          | 43      | 54       |         |
+| hero-b1  | tt15677150 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 18.7  | 32       | 0            | 25        | 22.6          | 25      | 63       |         |
+| hero-b1  | tt15677150 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 18.7  | 109      | 0            | 31        | 25.8          | 31      | 148      |         |
+| hero-b1  | tt15677150 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 18.7  | -        | 0            | 43        | 34.7          | 43      | 53       |         |
+| hero-b1  | tt27714581 | jpeg-coldA1 | JPEG        | 1280x720 | 190.9 | 105      | 0            | 38        | 34.7          | 38      | 153      |         |
+| hero-b1  | tt27714581 | jpeg-coldB1 | JPEG        | 1280x720 | 190.9 | 125      | 0            | 33        | 27.6          | 33      | 169      |         |
+| hero-b1  | tt27714581 | jpeg-warm1  | JPEG        | 1280x720 | 190.9 | -        | 0            | 54        | 47.7          | 54      | 65       |         |
+| hero-b1  | tt27714581 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 68.3  | 55       | 0            | 47        | 39.0          | 47      | 110      |         |
+| hero-b1  | tt27714581 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 68.3  | 68       | 0            | 47        | 43.4          | 47      | 125      |         |
+| hero-b1  | tt27714581 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 68.3  | -        | 0            | 54        | 49.8          | 54      | 62       |         |
+| hero-b1  | tt31510819 | jpeg-coldA1 | JPEG        | 1280x720 | 74.0  | 114      | 0            | 29        | 26.8          | 29      | 153      |         |
+| hero-b1  | tt31510819 | jpeg-coldB1 | JPEG        | 1280x720 | 74.0  | 65       | 0            | 32        | 30.3          | 32      | 106      |         |
+| hero-b1  | tt31510819 | jpeg-warm1  | JPEG        | 1280x720 | 74.0  | -        | 0            | 40        | 33.5          | 40      | 49       |         |
+| hero-b1  | tt31510819 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 22.9  | 27       | 0            | 40        | 36.3          | 40      | 76       |         |
+| hero-b1  | tt31510819 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 22.9  | 32       | 0            | 41        | 35.7          | 41      | 83       |         |
+| hero-b1  | tt31510819 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 22.9  | -        | 0            | 31        | 28.0          | 31      | 40       |         |
+| hero-b1  | tt33100314 | jpeg-coldA1 | JPEG        | 1280x720 | 148.0 | 106      | 0            | 28        | 22.8          | 28      | 144      |         |
+| hero-b1  | tt33100314 | jpeg-coldB1 | JPEG        | 1280x720 | 148.0 | 82       | 0            | 29        | 25.8          | 29      | 120      |         |
+| hero-b1  | tt33100314 | jpeg-warm1  | JPEG        | 1280x720 | 148.0 | -        | 0            | 43        | 41.4          | 43      | 54       |         |
+| hero-b1  | tt33100314 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 51.1  | 44       | 0            | 54        | 44.7          | 54      | 106      |         |
+| hero-b1  | tt33100314 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 51.1  | 114      | 0            | 37        | 32.6          | 37      | 158      |         |
+| hero-b1  | tt33100314 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 51.1  | -        | 0            | 48        | 45.6          | 48      | 56       |         |
+| hero-b1  | tt33204276 | jpeg-coldA1 | JPEG        | 1280x720 | 120.4 | 86       | 0            | 41        | 36.8          | 41      | 137      |         |
+| hero-b1  | tt33204276 | jpeg-coldB1 | JPEG        | 1280x720 | 120.4 | 115      | 0            | 32        | 26.0          | 32      | 157      |         |
+| hero-b1  | tt33204276 | jpeg-warm1  | JPEG        | 1280x720 | 120.4 | -        | 0            | 42        | 34.9          | 42      | 53       |         |
+| hero-b1  | tt33204276 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 44.0  | 37       | 0            | 53        | 40.8          | 53      | 98       |         |
+| hero-b1  | tt33204276 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 44.0  | 67       | 0            | 45        | 40.0          | 45      | 119      |         |
+| hero-b1  | tt33204276 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 44.0  | -        | 0            | 48        | 36.6          | 48      | 56       |         |
+| hero-b1  | tt34809853 | jpeg-coldA1 | JPEG        | 1280x720 | 135.5 | 233      | 0            | 25        | 22.1          | 25      | 267      |         |
+| hero-b1  | tt34809853 | jpeg-coldB1 | JPEG        | 1280x720 | 135.5 | 96       | 0            | 25        | 23.5          | 25      | 129      |         |
+| hero-b1  | tt34809853 | jpeg-warm1  | JPEG        | 1280x720 | 135.5 | -        | 0            | 40        | 34.7          | 40      | 61       |         |
+| hero-b1  | tt34809853 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 52.1  | 44       | 0            | 40        | 32.5          | 40      | 94       |         |
+| hero-b1  | tt34809853 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 52.1  | 46       | 0            | 42        | 31.0          | 42      | 113      |         |
+| hero-b1  | tt34809853 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 52.1  | -        | 0            | 37        | 35.0          | 37      | 46       |         |
+| hero-b1  | tt36981462 | jpeg-coldA1 | JPEG        | 1280x720 | 74.5  | 150      | 0            | 175       | 22.2          | 175     | 414      | startup |
+| hero-b1  | tt36981462 | jpeg-coldB1 | JPEG        | 1280x720 | 74.5  | 68       | 0            | 113       | 21.8          | 113     | 223      | startup |
+| hero-b1  | tt36981462 | jpeg-warm1  | JPEG        | 1280x720 | 74.5  | -        | 0            | 146       | 21.7          | 146     | 292      | startup |
+| hero-b1  | tt36981462 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 18.4  | 67       | 0            | 28        | 20.3          | 28      | 121      | startup |
+| hero-b1  | tt36981462 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 18.4  | 129      | 0            | 145       | 24.1          | 145     | 355      | startup |
+| hero-b1  | tt36981462 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 18.4  | -        | 0            | 114       | 22.4          | 114     | 298      | startup |
+| hero-b1  | tt9362722  | jpeg-coldA1 | JPEG        | 1280x720 | 169.7 | 108      | 0            | 27        | 24.3          | 27      | 142      |         |
+| hero-b1  | tt9362722  | jpeg-coldB1 | JPEG        | 1280x720 | 169.7 | 119      | 0            | 35        | 33.2          | 35      | 164      |         |
+| hero-b1  | tt9362722  | jpeg-warm1  | JPEG        | 1280x720 | 169.7 | -        | 0            | 33        | 29.7          | 33      | 43       |         |
+| hero-b1  | tt9362722  | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 53.8  | 47       | 0            | 42        | 35.5          | 42      | 97       |         |
+| hero-b1  | tt9362722  | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 53.8  | 46       | 0            | 46        | 39.6          | 46      | 101      |         |
+| hero-b1  | tt9362722  | webp-warm1  | WEBP_SIMPLE | 1280x720 | 53.8  | -        | 0            | 39        | 35.8          | 39      | 48       |         |
+| hero-b2  | tt15677150 | jpeg-coldA1 | JPEG        | 1280x720 | 53.9  | 44       | 0            | 18        | 16.3          | 18      | 67       |         |
+| hero-b2  | tt15677150 | jpeg-coldB1 | JPEG        | 1280x720 | 53.9  | 41       | 0            | 17        | 15.9          | 17      | 63       |         |
+| hero-b2  | tt15677150 | jpeg-warm1  | JPEG        | 1280x720 | 53.9  | -        | 0            | 17        | 15.7          | 17      | 23       |         |
+| hero-b2  | tt15677150 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 15.2  | 254      | 0            | 20        | 19.3          | 20      | 283      |         |
+| hero-b2  | tt15677150 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 15.2  | 119      | 0            | 25        | 20.4          | 25      | 152      |         |
+| hero-b2  | tt15677150 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 15.2  | -        | 0            | 23        | 19.5          | 23      | 28       |         |
+| hero-b2  | tt27714581 | jpeg-coldA1 | JPEG        | 1280x720 | 145.7 | 141      | 0            | 23        | 21.2          | 23      | 171      |         |
+| hero-b2  | tt27714581 | jpeg-coldB1 | JPEG        | 1280x720 | 145.7 | 85       | 0            | 27        | 22.4          | 27      | 119      |         |
+| hero-b2  | tt27714581 | jpeg-warm1  | JPEG        | 1280x720 | 145.7 | -        | 0            | 23        | 21.5          | 23      | 30       |         |
+| hero-b2  | tt27714581 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 52.8  | 310      | 0            | 31        | 27.9          | 31      | 346      |         |
+| hero-b2  | tt27714581 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 52.8  | 45       | 0            | 31        | 26.3          | 31      | 86       |         |
+| hero-b2  | tt27714581 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 52.8  | -        | 0            | 29        | 26.5          | 29      | 35       |         |
+| hero-b2  | tt31510819 | jpeg-coldA1 | JPEG        | 1280x720 | 61.3  | 53       | 0            | 24        | 19.2          | 24      | 84       |         |
+| hero-b2  | tt31510819 | jpeg-coldB1 | JPEG        | 1280x720 | 61.3  | 43       | 0            | 22        | 17.6          | 22      | 72       |         |
+| hero-b2  | tt31510819 | jpeg-warm1  | JPEG        | 1280x720 | 61.3  | -        | 0            | 17        | 16.0          | 17      | 24       |         |
+| hero-b2  | tt31510819 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 19.6  | 29       | 0            | 22        | 19.9          | 22      | 58       |         |
+| hero-b2  | tt31510819 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 19.6  | 22       | 0            | 23        | 20.3          | 23      | 52       |         |
+| hero-b2  | tt31510819 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 19.6  | -        | 0            | 25        | 21.2          | 25      | 31       |         |
+| hero-b2  | tt33100314 | jpeg-coldA1 | JPEG        | 1280x720 | 121.8 | 231      | 0            | 22        | 19.7          | 22      | 261      |         |
+| hero-b2  | tt33100314 | jpeg-coldB1 | JPEG        | 1280x720 | 121.8 | 82       | 0            | 23        | 20.4          | 23      | 112      |         |
+| hero-b2  | tt33100314 | jpeg-warm1  | JPEG        | 1280x720 | 121.8 | -        | 0            | 23        | 19.6          | 23      | 29       |         |
+| hero-b2  | tt33100314 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 41.2  | 192      | 0            | 28        | 24.4          | 28      | 226      |         |
+| hero-b2  | tt33100314 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 41.2  | 33       | 0            | 29        | 24.9          | 29      | 68       |         |
+| hero-b2  | tt33100314 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 41.2  | -        | 0            | 26        | 23.3          | 26      | 33       |         |
+| hero-b2  | tt33204276 | jpeg-coldA1 | JPEG        | 1280x720 | 91.6  | 58       | 0            | 19        | 17.9          | 19      | 82       |         |
+| hero-b2  | tt33204276 | jpeg-coldB1 | JPEG        | 1280x720 | 91.6  | 66       | 0            | 19        | 18.3          | 19      | 91       |         |
+| hero-b2  | tt33204276 | jpeg-warm1  | JPEG        | 1280x720 | 91.6  | -        | 0            | 17        | 17.3          | 17      | 25       |         |
+| hero-b2  | tt33204276 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 31.8  | 188      | 0            | 31        | 23.5          | 31      | 227      |         |
+| hero-b2  | tt33204276 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 31.8  | 62       | 0            | 28        | 23.7          | 28      | 96       |         |
+| hero-b2  | tt33204276 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 31.8  | -        | 0            | 24        | 21.9          | 24      | 31       |         |
+| hero-b2  | tt34809853 | jpeg-coldA1 | JPEG        | 1280x720 | 111.1 | 138      | 0            | 29        | 22.2          | 29      | 175      |         |
+| hero-b2  | tt34809853 | jpeg-coldB1 | JPEG        | 1280x720 | 111.1 | 145      | 0            | 26        | 21.2          | 26      | 185      |         |
+| hero-b2  | tt34809853 | jpeg-warm1  | JPEG        | 1280x720 | 111.1 | -        | 0            | 23        | 20.3          | 23      | 30       |         |
+| hero-b2  | tt34809853 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 39.5  | 27       | 0            | 27        | 23.5          | 27      | 60       |         |
+| hero-b2  | tt34809853 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 39.5  | 109      | 0            | 43        | 26.9          | 43      | 160      |         |
+| hero-b2  | tt34809853 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 39.5  | -        | 0            | 25        | 23.6          | 25      | 32       |         |
+| hero-b2  | tt36981462 | jpeg-coldA1 | JPEG        | 1280x720 | 61.8  | 34       | 0            | 21        | 17.1          | 21      | 68       |         |
+| hero-b2  | tt36981462 | jpeg-coldB1 | JPEG        | 1280x720 | 61.8  | 53       | 0            | 20        | 18.0          | 20      | 81       |         |
+| hero-b2  | tt36981462 | jpeg-warm1  | JPEG        | 1280x720 | 61.8  | -        | 0            | 20        | 17.7          | 20      | 27       |         |
+| hero-b2  | tt36981462 | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 15.8  | 21       | 0            | 24        | 21.0          | 24      | 53       |         |
+| hero-b2  | tt36981462 | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 15.8  | 32       | 0            | 24        | 19.8          | 24      | 62       |         |
+| hero-b2  | tt36981462 | webp-warm1  | WEBP_SIMPLE | 1280x720 | 15.8  | -        | 0            | 24        | 21.2          | 24      | 31       |         |
+| hero-b2  | tt9362722  | jpeg-coldA1 | JPEG        | 1280x720 | 133.5 | 392      | 0            | 30        | 26.7          | 30      | 437      |         |
+| hero-b2  | tt9362722  | jpeg-coldB1 | JPEG        | 1280x720 | 133.5 | 69       | 0            | 20        | 19.7          | 20      | 101      |         |
+| hero-b2  | tt9362722  | jpeg-warm1  | JPEG        | 1280x720 | 133.5 | -        | 0            | 25        | 20.7          | 25      | 39       |         |
+| hero-b2  | tt9362722  | webp-coldA1 | WEBP_SIMPLE | 1280x720 | 41.6  | 320      | 0            | 27        | 23.0          | 27      | 358      |         |
+| hero-b2  | tt9362722  | webp-coldA1 | WEBP_SIMPLE | 1280x720 | -     | -        | 0            | 33        | 31.5          | 33      | 37       |         |
+| hero-b2  | tt9362722  | webp-coldB1 | WEBP_SIMPLE | 1280x720 | 41.6  | 130      | 0            | 31        | 24.0          | 31      | 171      |         |
+| hero-b2  | tt9362722  | webp-coldB1 | WEBP_SIMPLE | 1280x720 | -     | -        | 0            | 43        | 35.5          | 43      | 50       |         |
+| hero-b2  | tt9362722  | webp-warm1  | WEBP_SIMPLE | 1280x720 | 41.6  | -        | 0            | 27        | 23.6          | 27      | 38       |         |
+| hero-b2  | tt9362722  | webp-warm1  | WEBP_SIMPLE | 1280x720 | -     | -        | 0            | 37        | 25.2          | 37      | 45       |         |
+
+| kind     | arm  | cache     | n  | bitmap            | KB med | fetch ms | re-encode ms | decode ms | decode p90 | decode cpu ms | work ms | work p90 | total ms |
+| -------- | ---- | --------- | -- | ----------------- | ------ | -------- | ------------ | --------- | ---------- | ------------- | ------- | -------- | -------- |
+| hero-b1  | jpeg | cold      | 16 | 1280x720          | 128.0  | 106      | 0            | 31        | 38         | 26.4          | 31      | 38       | 143      |
+| hero-b1  | jpeg | warm disk | 8  | 1280x720          | 128.0  | -        | 0            | 42        | 54         | 34.9          | 42      | 54       | 54       |
+| hero-b1  | webp | cold      | 16 | 1280x720          | 47.5   | 46       | 0            | 42        | 53         | 36.0          | 42      | 53       | 104      |
+| hero-b1  | webp | warm disk | 8  | 1280x720          | 47.5   | -        | 0            | 43        | 54         | 35.8          | 43      | 54       | 53       |
+| hero-b2  | jpeg | cold      | 16 | 1280x720          | 101.3  | 68       | 0            | 22        | 29         | 19.4          | 22      | 29       | 96       |
+| hero-b2  | jpeg | warm disk | 8  | 1280x720          | 101.3  | -        | 0            | 22        | 25         | 18.6          | 22      | 25       | 28       |
+| hero-b2  | webp | cold      | 18 | 1280x720          | 35.6   | 86       | 0            | 28        | 43         | 23.6          | 28      | 43       | 91       |
+| hero-b2  | webp | warm disk | 9  | 1280x720          | 35.6   | -        | 0            | 25        | 37         | 23.3          | 25      | 37       | 32       |
+| backdrop | jpeg | cold      | 16 | 1440x810/1280x720 | 429.0  | 185      | 110          | 29        | 53         | 24.9          | 137     | 194      | 359      |
+| backdrop | jpeg | warm disk | 8  | 1440x810/1280x720 | 429.0  | -        | 121          | 31        | 51         | 24.9          | 161     | 174      | 174      |
+| backdrop | webp | cold      | 16 | 1600x900/1280x720 | 148.0  | 108      | 0            | 62        | 88         | 44.9          | 62      | 88       | 179      |
+| backdrop | webp | warm disk | 8  | 1600x900/1280x720 | 148.0  | -        | 0            | 64        | 105        | 44.0          | 64      | 105      | 93       |
+
+(medians; timings without each launch's first picture; work = re-encode + decode; total = request -> bitmap, network included)
+
+hero-b1: bytes 63% saved (>= 50%) pass; median decode +12 ms (<= +15) pass; p90 decode +15 ms (<= +30) pass
+hero-b2: bytes 65% saved (>= 50%) pass; median decode +6 ms (<= +15) pass; p90 decode +14 ms (<= +30) pass
+backdrop: bytes 66% saved (>= 40%) pass; median work -75 ms (<= +25) pass; median total 179 vs 359 ms (not higher) pass
+
+no kind fails the plan's numeric limits (the screenshots still decide "no visible difference")

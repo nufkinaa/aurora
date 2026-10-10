@@ -1,0 +1,40 @@
+--------- beginning of main
+10-10 12:42:48.066 I/AuroraArt( 9652): flags webp=0 probe=1 server=- dir=/storage/emulated/0/Android/data/com.auroratv.lab/files
+10-10 12:42:49.838 I/AuroraArt( 9652): stage kind=hero-b1 p=BitmapMemoryCacheGetProducer ms=1 cached_value_found=false id=2
+10-10 12:42:49.839 I/AuroraArt( 9652): stage kind=hero-b1 p=BackgroundThreadHandoffProducer ms=0  id=2
+10-10 12:42:49.839 I/AuroraArt( 9652): stage kind=hero-b1 p=BitmapMemoryCacheProducer ms=0 cached_value_found=false id=2
+10-10 12:42:49.841 I/AuroraArt( 9652): stage kind=hero-b1 p=EncodedMemoryCacheProducer ms=0 cached_value_found=false id=2
+10-10 12:42:49.862 I/AuroraArt( 9652): stage kind=hero-b1 p=DiskCacheProducer ms=21 encodedImageSize=76320 cached_value_found=true id=2
+10-10 12:42:49.864 I/AuroraArt( 9652): stage kind=hero-b1 p=EncodedCacheKeyMultiplexProducer ms=24  id=2
+10-10 12:42:50.008 I/AuroraArt( 9652): stage kind=hero-b1 p=DecodeProducer ms=131 cpuMs=20.8 imageFormat=JPEG hasGoodQuality=true bitmapSize=1280x720 byteCount=3686400 isFinal=true requestedImageSize=unknown encodedImageSize=1280x720 sampleSize=1 queueTime=0 id=2
+10-10 12:42:50.009 I/AuroraArt( 9652): stage kind=hero-b1 p=BitmapMemoryCacheKeyMultiplexProducer ms=170  id=2
+10-10 12:42:50.017 I/AuroraArt( 9652): done kind=hero-b1 fmt=JPEG bytes=-1 fetchMs=-1 decodeMs=131 decodeCpuMs=20.8 bitmap=1280x720 totalMs=171 prefetch=0 id=2 url=http://192.168.50.108:4000/img/ext?u=https%3A%2F%2Fimages.metahub.space%2Fbackground%2Fmedium%2Ftt36981462%2Fimg&w=1280&blur=1
+10-10 12:43:01.025 I/AuroraArt( 9652): stage kind=hero-b2 p=BitmapMemoryCacheGetProducer ms=0 cached_value_found=false id=48
+10-10 12:43:01.025 I/AuroraArt( 9652): stage kind=hero-b2 p=BackgroundThreadHandoffProducer ms=1  id=48
+10-10 12:43:01.026 I/AuroraArt( 9652): stage kind=hero-b2 p=BitmapMemoryCacheProducer ms=0 cached_value_found=false id=48
+10-10 12:43:01.026 I/AuroraArt( 9652): stage kind=hero-b2 p=EncodedMemoryCacheProducer ms=1 cached_value_found=false id=48
+10-10 12:43:01.028 I/AuroraArt( 9652): stage kind=hero-b2 p=DiskCacheProducer ms=1 encodedImageSize=63235 cached_value_found=true id=48
+10-10 12:43:01.029 I/AuroraArt( 9652): stage kind=hero-b2 p=EncodedCacheKeyMultiplexProducer ms=4  id=48
+10-10 12:43:01.050 I/AuroraArt( 9652): stage kind=hero-b2 p=DecodeProducer ms=21 cpuMs=18.7 imageFormat=JPEG hasGoodQuality=true bitmapSize=1280x720 byteCount=3686400 isFinal=true requestedImageSize=unknown encodedImageSize=1280x720 sampleSize=1 queueTime=0 id=48
+10-10 12:43:01.051 I/AuroraArt( 9652): stage kind=hero-b2 p=BitmapMemoryCacheKeyMultiplexProducer ms=26  id=48
+10-10 12:43:01.051 I/AuroraArt( 9652): done kind=hero-b2 fmt=JPEG bytes=-1 fetchMs=-1 decodeMs=21 decodeCpuMs=18.7 bitmap=1280x720 totalMs=27 prefetch=0 id=48 url=http://192.168.50.108:4000/img/ext?u=https%3A%2F%2Fimages.metahub.space%2Fbackground%2Fmedium%2Ftt36981462%2Fimg&w=1280&blur=2
+10-10 12:43:09.777 I/AuroraArt( 9652): stage kind=backdrop p=BitmapMemoryCacheGetProducer ms=0 cached_value_found=false id=49
+10-10 12:43:09.778 I/AuroraArt( 9652): stage kind=backdrop p=BackgroundThreadHandoffProducer ms=1  id=49
+10-10 12:43:09.779 I/AuroraArt( 9652): stage kind=backdrop p=BitmapMemoryCacheProducer ms=0 cached_value_found=false id=49
+10-10 12:43:09.780 I/AuroraArt( 9652): stage kind=backdrop p=EncodedMemoryCacheProducer ms=0 cached_value_found=false id=49
+10-10 12:43:09.785 I/AuroraArt( 9652): stage kind=backdrop p=DiskCacheProducer ms=6 encodedImageSize=994649 cached_value_found=true id=49
+10-10 12:43:09.787 I/AuroraArt( 9652): stage kind=backdrop p=EncodedCacheKeyMultiplexProducer ms=8  id=49
+10-10 12:43:09.909 I/AuroraArt( 9652): stage kind=backdrop p=ResizeAndRotateProducer ms=121 Transcoder id=NativeJpegTranscoder Transcoding result=Status: 1 Original size=1920x1080 Requested size=1344x821 Image format=JPEG queueTime=0 id=49
+10-10 12:43:09.932 I/AuroraArt( 9652): stage kind=backdrop p=DecodeProducer ms=23 cpuMs=21.3 imageFormat=JPEG hasGoodQuality=true bitmapSize=1440x810 byteCount=4665600 isFinal=true requestedImageSize=1344x821 encodedImageSize=1440x810 sampleSize=1 queueTime=0 id=49
+10-10 12:43:09.933 I/AuroraArt( 9652): stage kind=backdrop p=BitmapMemoryCacheKeyMultiplexProducer ms=154  id=49
+10-10 12:43:09.933 I/AuroraArt( 9652): done kind=backdrop fmt=JPEG bytes=-1 fetchMs=-1 decodeMs=23 decodeCpuMs=21.3 bitmap=1440x810 totalMs=157 prefetch=0 id=49 url=https://images.metahub.space/background/medium/tt15239678/img
+10-10 12:43:19.545 I/AuroraArt( 9652): stage kind=backdrop p=BitmapMemoryCacheGetProducer ms=1 cached_value_found=false id=61
+10-10 12:43:19.545 I/AuroraArt( 9652): stage kind=backdrop p=BackgroundThreadHandoffProducer ms=0  id=61
+10-10 12:43:19.546 I/AuroraArt( 9652): stage kind=backdrop p=BitmapMemoryCacheProducer ms=1 cached_value_found=false id=61
+10-10 12:43:19.547 I/AuroraArt( 9652): stage kind=backdrop p=EncodedMemoryCacheProducer ms=0 cached_value_found=false id=61
+10-10 12:43:19.550 I/AuroraArt( 9652): stage kind=backdrop p=DiskCacheProducer ms=2 encodedImageSize=559843 cached_value_found=true id=61
+10-10 12:43:19.551 I/AuroraArt( 9652): stage kind=backdrop p=EncodedCacheKeyMultiplexProducer ms=5  id=61
+10-10 12:43:19.696 I/AuroraArt( 9652): stage kind=backdrop p=ResizeAndRotateProducer ms=143 Transcoder id=NativeJpegTranscoder Transcoding result=Status: 1 Original size=1920x1080 Requested size=1344x821 Image format=JPEG queueTime=1 id=61
+10-10 12:43:19.741 I/AuroraArt( 9652): stage kind=backdrop p=DecodeProducer ms=44 cpuMs=32.5 imageFormat=JPEG hasGoodQuality=true bitmapSize=1440x810 byteCount=4665600 isFinal=true requestedImageSize=1344x821 encodedImageSize=1440x810 sampleSize=1 queueTime=0 id=61
+10-10 12:43:19.742 I/AuroraArt( 9652): stage kind=backdrop p=BitmapMemoryCacheKeyMultiplexProducer ms=196  id=61
+10-10 12:43:19.742 I/AuroraArt( 9652): done kind=backdrop fmt=JPEG bytes=-1 fetchMs=-1 decodeMs=44 decodeCpuMs=32.5 bitmap=1440x810 totalMs=198 prefetch=0 id=61 url=https://images.metahub.space/background/medium/tt0903747/img

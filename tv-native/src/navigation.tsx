@@ -73,7 +73,7 @@ const navTheme = {
 // (a fresh launch), up to 10 s. Inert unless the broadcast ever arrives.
 const QA_NAV_WAIT_MS = 10000;
 const qaNavigate = (target: string): string => {
-  const [kind, rest] = target.split(':');
+  const [kind, rest, extra] = target.split(':');
   const dispatch = (name: keyof RootStackParamList, params?: object) => {
     if (navRef.getState()?.routes.length > 1) navRef.dispatch(StackActions.popToTop());
     if (name === 'Home') return;
@@ -89,6 +89,12 @@ const qaNavigate = (target: string): string => {
       return `Browse/${rest}`;
     case 'detail':
       if (!rest) return 'err no id';
+      // LAB art-format: `detail:tt1234567[:show]` opens a CATALOGUE title (a stream card carries
+      // only its imdbId — Detail.tsx isStream), which is what the title-page backdrop test needs
+      if (/^tt\d+$/.test(rest)) {
+        dispatch('Detail', {item: {imdbId: rest, title: rest, type: extra === 'show' ? 'show' : 'movie', source: 'stream'} as unknown as HeroItem});
+        return 'Detail';
+      }
       // a stub item: Detail fetches /api/item for the rest (Overlays.tsx does the same)
       dispatch('Detail', {item: {id: rest, title: rest, type: 'movie'} as HeroItem});
       return 'Detail';

@@ -38,6 +38,7 @@ object ArtProbe {
   fun attach(ctx: Context, builder: ImagePipelineConfig.Builder) {
     try {
       ArtFormat.load(ctx)
+      clearIfAsked(ctx)
       if (!ArtFormat.probe) return
       // whatever is already there (React Native's own, the QA logging listener) stays
       val listeners = HashSet<RequestListener>(builder.requestListeners ?: emptySet())
@@ -46,6 +47,26 @@ object ArtProbe {
     } catch (t: Throwable) {
       Log.w(ArtFormat.TAG, "probe not attached: $t")
     }
+  }
+
+  /**
+   * A cold image cache for the next launch: `adb shell touch …/files/art-clear`. The shell
+   * cannot reach the app's cache dir on Android 14 (and `pm clear` would sign the app out),
+   * so the app empties it itself — Fresco's disk caches (`image_cache*`) and OkHttp's
+   * (`http-cache`), BEFORE Fresco is configured — and removes the marker: one launch only.
+   */
+  private fun clearIfAsked(ctx: Context) {
+    val marker = java.io.File(ctx.applicationContext.getExternalFilesDir(null) ?: return, "art-clear")
+    if (!marker.exists()) return
+    var n = 0
+    var bytes = 0L
+    ctx.applicationContext.cacheDir?.listFiles()?.forEach { d ->
+      if (d.name.startsWith("image_cache") || d.name == "http-cache") {
+        d.walkBottomUp().forEach { f -> if (f.isFile) { n++; bytes += f.length() }; f.delete() }
+      }
+    }
+    val gone = marker.delete()
+    Log.i(ArtFormat.TAG, "cleared files=$n bytes=$bytes marker=${if (gone) "removed" else "STILL THERE"}")
   }
 
   private val BLUR = Regex("[?&]blur=(\\d+)")
@@ -63,6 +84,8 @@ object ArtProbe {
   private class Req(val uri: String, val kind: String, val prefetch: Boolean) {
     val start = SystemClock.uptimeMillis()
     val stages = ConcurrentHashMap<String, Long>()
+    val cpu = ConcurrentHashMap<String, LongArray>() // producer -> [thread id, that thread's CPU ns] at its start
+    @Volatile var decodeCpuMs = -1.0
     @Volatile var bytes = -1L
     @Volatile var fetchMs = -1L
     @Volatile var decodeMs = -1L
@@ -84,15 +107,27 @@ object ArtProbe {
     override fun requiresExtraMap(requestId: String): Boolean = live.containsKey(requestId)
 
     override fun onProducerStart(requestId: String, producerName: String) {
-      live[requestId]?.stages?.put(producerName, SystemClock.uptimeMillis())
+      val r = live[requestId] ?: return
+      r.stages[producerName] = SystemClock.uptimeMillis()
+      if (producerName == "DecodeProducer") r.cpu[producerName] = longArrayOf(Thread.currentThread().id, android.os.Debug.threadCpuTimeNanos())
     }
 
     override fun onProducerFinishWithSuccess(requestId: String, producerName: String, extraMap: Map<String, String>?) {
       val r = live[requestId] ?: return
       val t0 = r.stages.remove(producerName) ?: return
       val ms = SystemClock.uptimeMillis() - t0
+      var cpuNote = ""
       when (producerName) {
         "DecodeProducer" -> {
+          // the decode starts and ends on one executor thread: its CPU time is the decode's own
+          // cost, without whatever else the box was doing (wall ms carries that)
+          r.cpu.remove(producerName)?.let { c ->
+            if (c[0] == Thread.currentThread().id) {
+              val d = (android.os.Debug.threadCpuTimeNanos() - c[1]) / 1e6
+              r.decodeCpuMs = (if (r.decodeCpuMs < 0) 0.0 else r.decodeCpuMs) + d
+              cpuNote = " cpuMs=${"%.1f".format(java.util.Locale.US, d)}"
+            }
+          }
           r.decodeMs = (if (r.decodeMs < 0) 0 else r.decodeMs) + ms
           extraMap?.get("imageFormat")?.let { r.fmt = it }
           extraMap?.get("bitmapSize")?.let { r.bitmap = it }
@@ -103,14 +138,14 @@ object ArtProbe {
         }
       }
       val extras = extraMap?.entries?.joinToString(" ") { "${it.key}=${it.value}" } ?: ""
-      Log.i(ArtFormat.TAG, "stage kind=${r.kind} p=$producerName ms=$ms $extras id=$requestId")
+      Log.i(ArtFormat.TAG, "stage kind=${r.kind} p=$producerName ms=$ms$cpuNote $extras id=$requestId")
     }
 
     override fun onRequestSuccess(request: ImageRequest, requestId: String, isPrefetch: Boolean) {
       val r = live.remove(requestId) ?: return
       Log.i(
         ArtFormat.TAG,
-        "done kind=${r.kind} fmt=${r.fmt} bytes=${r.bytes} fetchMs=${r.fetchMs} decodeMs=${r.decodeMs} " +
+        "done kind=${r.kind} fmt=${r.fmt} bytes=${r.bytes} fetchMs=${r.fetchMs} decodeMs=${r.decodeMs} decodeCpuMs=${if (r.decodeCpuMs < 0) "-1" else "%.1f".format(java.util.Locale.US, r.decodeCpuMs)} " +
           "bitmap=${r.bitmap} totalMs=${SystemClock.uptimeMillis() - r.start} prefetch=${if (r.prefetch) 1 else 0} id=$requestId url=${r.uri}",
       )
     }

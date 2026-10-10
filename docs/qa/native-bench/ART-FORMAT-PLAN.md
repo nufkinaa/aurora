@@ -1,7 +1,8 @@
 # Art format: the TV's remaining JPEGs as sized WebP — bench and device plan
 
 Lab: `C:\elia\aurora-lab`, branch `native-lab`, app `com.auroratv.lab`. Prepared 2026-10-10
-without the TV. **Nothing here has run on a device yet**; §4 is what to run when it is free.
+without the TV. **Run on the Mi TV the same day: the results are in `ART-FORMAT.md`** (the script and the
+key sequences of §4 changed there — its §6); the text below is the plan as it was written.
 
 ## 1. What is behind the switch
 
