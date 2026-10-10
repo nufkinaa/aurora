@@ -86,4 +86,44 @@ ui.test("a download that finished while the connection was down is caught up on 
   await page.waitForFunction(() => document.getElementById("nav-dl").classList.contains("ready"));
 });
 
+// A My List download gives way to every other download (src/media/dlslots.js):
+// one that was running is ON HOLD — the server keeps what it has — and says so
+// with its progress; one that has not started says what it is waiting for.
+// The server sends `status: "approved"` for both (the word every client
+// already files under "queued") plus `held` / `heldReason`.
+ui.test("a My List download on hold says so, keeps its progress bar, and sits under Waiting", async ({ page, goto, signIn, freshProfile }) => {
+  const waiting = { status: "approved", phase: null, downloadSpeed: 0, peers: 0, smart: true, auto: "mylist" };
+  const jobs = [
+    job({ id: "111111111111", title: "Held Film", label: "Held Film", ...waiting, progress: 0.42, held: true, heldReason: "downloads", heldAt: new Date().toISOString() }),
+    job({ id: "222222222222", title: "Paused For Viewers", label: "Paused For Viewers", ...waiting, progress: 0.07, held: true, heldReason: "watching", heldAt: new Date().toISOString() }),
+    job({ id: "333333333333", title: "Not Started Film", label: "Not Started Film", ...waiting, progress: 0, held: false, heldReason: null, heldAt: null }),
+    job({ id: "444444444444", title: "Plain Queued Film", label: "Plain Queued Film", status: "approved", phase: null, progress: 0, downloadSpeed: 0 }),
+    job({ id: "555555555555", title: "Moving Film", label: "Moving Film" }),
+  ];
+  await page.route((url) => url.pathname === "/api/downloads", (route) => route.fulfill({ json: jobs }));
+  await signIn(await freshProfile());
+  await goto("#/downloads");
+  await page.waitForSelector('.dl-row[data-id="111111111111"]');
+  // (one line, however the row wraps it)
+  const text = async (id) => (await page.locator(`.dl-row[data-id="${id}"] .dl-status`).innerText()).split(/\s+/).join(" ").trim();
+  const bar = (id) => page.locator(`.dl-row[data-id="${id}"] .dl-bar`);
+
+  assert.match(await text("111111111111"), /^On hold · waiting for other downloads · 42% so far$/);
+  assert.equal(await bar("111111111111").getAttribute("aria-valuenow"), "42", "what it has on disk is still shown");
+  assert.match(await text("222222222222"), /^On hold · waiting while someone is watching · 7% so far$/);
+  assert.match(await text("333333333333"), /^Queued · Starts after the other downloads$/);
+  assert.equal(await bar("333333333333").count(), 0);
+  assert.match(await text("444444444444"), /^Queued · Starts when a download slot frees up$/, "anyone else's queued download reads as it always did");
+  assert.equal(await bar("444444444444").count(), 0);
+
+  // all four wait under "Waiting"; the moving one is alone under "Downloading now"
+  assert.equal(await page.locator(".dl-queued .dl-row").count(), 4);
+  assert.equal(await page.locator(".dl-moving .dl-row").count(), 1);
+  assert.equal(await page.locator(".dl-row.held").count(), 2);
+  assert.match(await page.locator(".dl-summary").innerText(), /1 downloading · 4 queued/);
+  // it is still the person's to cancel
+  assert.equal(await page.locator('.dl-row[data-id="111111111111"] button', { hasText: "Cancel" }).count(), 1);
+  assert.match(await page.locator('.dl-row[data-id="111111111111"] .dl-auto').innerText(), /MY LIST/);
+});
+
 ui.run({ concurrency: 1 });

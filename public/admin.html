@@ -920,9 +920,14 @@
               <input type="number" id="ml-cap" min="1" max="50" step="1" inputmode="numeric" aria-label="Downloads per person per day" style="max-width:70px;flex:none" /></label>
             <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">Retries
               <input type="number" id="ml-retries" min="0" max="5" step="1" inputmode="numeric" aria-label="Retries of a failed download" style="max-width:70px;flex:none" /></label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">On hold
+              <select id="ml-yield" aria-label="When a My List download is put on hold" style="padding:7px 10px;background:var(--bg-input,#1c1c24);color:inherit;border:1px solid rgba(255,255,255,0.12);border-radius:8px">
+                <option value="always">while any other download is waiting or running</option>
+                <option value="slots">only while another download is waiting for a slot</option>
+              </select></label>
             <button class="btn small btn-primary" id="ml-apply">Apply</button>
           </div>
-          <div class="muted" style="font-size:0.8rem;padding:4px">The days count from when the download finished (or from when the title was added to a list again). Watching it — even partly — stops both clocks for good. A stale copy is offered first by “Suggest what to delete” below. Only copies this feature fetched are ever touched.</div>
+          <div class="muted" style="font-size:0.8rem;padding:4px">A My List download is the last in the queue: every other download goes first, and one that is already running is put on hold — what it has is kept — until the others are done. The days count from when the download finished (or from when the title was added to a list again). Watching it — even partly — stops both clocks for good. A stale copy is offered first by “Suggest what to delete” below. Only copies this feature fetched are ever touched.</div>
           <div class="table-scroll"><table>
             <thead><tr><th>Title</th><th>For</th><th>Added</th><th>Status</th><th></th></tr></thead>
             <tbody id="ml-rows"></tbody>
@@ -2581,6 +2586,9 @@
       setBox("#ml-on", s.myListDownloads); setBox("#ml-shows", s.myListShows); setBox("#ml-autodelete", s.myListAutoDelete);
       setNum("#ml-stale", s.myListStaleDays); setNum("#ml-delete", s.myListDeleteDays);
       setNum("#ml-cap", s.myListDailyCap); setNum("#ml-retries", s.myListRetries);
+      // (a server from before this setting does not report it: the choice waits, greyed out)
+      $("#ml-yield").disabled = !s.myListYield;
+      if (s.myListYield && !$("#ml-yield").matches(":focus")) $("#ml-yield").value = s.myListYield;
       const rows = m.records || [];
       $("#ml-empty").classList.toggle("hidden", rows.length > 0);
       $("#ml-rows").innerHTML = rows.map((r) => {
@@ -2620,6 +2628,7 @@
             myListDownloads: $("#ml-on").checked, myListShows: $("#ml-shows").checked, myListAutoDelete: $("#ml-autodelete").checked,
             myListStaleDays: $("#ml-stale").value.trim(), myListDeleteDays: $("#ml-delete").value.trim(),
             myListDailyCap: $("#ml-cap").value.trim(), myListRetries: $("#ml-retries").value.trim(),
+            ...($("#ml-yield").disabled ? {} : { myListYield: $("#ml-yield").value }),
           }),
         });
         const data = await r.json().catch(() => ({}));
@@ -2932,6 +2941,8 @@
     // GB into the library. Both used to show as "downloading" at ~100% with no
     // speed, which reads as hung — say which one it is instead.
     const phaseLabel = (j) => {
+      // A My List download that gave way to the others (media/dlslots.js).
+      if (j.held) return "on hold";
       if (j.status !== "downloading" || !j.phase || j.phase === "downloading") return j.status;
       if (j.phase === "copying" && j.copyProgress != null) {
         return `copying ${Math.round(j.copyProgress * 100)}%`;
@@ -2983,19 +2994,29 @@
           (j.race.why ? ` — the first was slow: ${esc(j.race.why)}` : "") +
           `<br>${(j.race.attempts || []).map(one).join(" &nbsp;‖&nbsp; ")}`);
       };
+      // On hold, or a My List download that has not started: why it waits,
+      // in one quiet line (it is on purpose — nothing is stuck).
+      const waitLine = (j) => {
+        const cell = (html) => `<tr class="hold-row"><td colspan="7" class="muted" style="font-size:0.8rem;padding-top:0;border-top:0;white-space:normal">↳ ${html}</td></tr>`;
+        if (j.held) return cell(`On hold — ${j.heldReason === "watching" ? "waiting while someone is watching" : "waiting for other downloads"}. It carries on from ${Math.round((j.progress || 0) * 100)}%.`);
+        if (j.status === "approved" && j.auto === "mylist") return cell("From My List — it starts after the other downloads.");
+        return "";
+      };
+      const startNowBtn = (j) => j.status === "approved" && j.auto === "mylist"
+        ? `<button class="mini" data-dl-start="${esc(j.id)}" onclick="startDownloadNow('${esc(j.id)}')" title="Move it to the front of the queue — it no longer waits for the other downloads">Start now</button> ` : "";
       $("#dl-jobs-empty").classList.toggle("hidden", active.length > 0);
       $("#dl-jobs").innerHTML = active.map((j) => {
         const pct = Math.round((j.progress || 0) * 100);
         return `
-        <tr>
+        <tr data-dl-id="${esc(j.id)}"${j.held ? ' data-dl-held="1"' : ""}>
           <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}${myListTag(j)}</td>
           <td class="num">${fmtBytes(j.sizeBytes)}</td>
           <td style="white-space:nowrap"><span class="mini-prog"><i style="width:${pct}%"></i></span><span class="muted num">${pct}%</span></td>
           <td class="num">${j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "—"}</td>
           <td class="num">${eta(j)}</td>
           <td><span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(phaseLabel(j))}</span></td>
-          <td style="text-align:right;white-space:nowrap"><button class="mini danger" onclick="cancelDownload('${esc(j.id)}')">Cancel</button></td>
-        </tr>${raceLine(j)}`;
+          <td style="text-align:right;white-space:nowrap">${startNowBtn(j)}<button class="mini danger" onclick="cancelDownload('${esc(j.id)}')">Cancel</button></td>
+        </tr>${raceLine(j)}${waitLine(j)}`;
       }).join("");
 
       // FINISHED: done / declined / failed — retry and row cleanup live here.
@@ -3342,6 +3363,7 @@
     window.approveDownload = async (id) => { await post(`/api/admin/downloads/${id}/approve`); toast("Download approved"); loadDownloads(); };
     // Anything that can't be undone from here asks once. Approve doesn't:
     // it's the thing the queue is waiting for, and a wrong approve is a cancel.
+    window.startDownloadNow = async (id) => { const r = await post(`/api/admin/downloads/${id}/start`); toast(r && r.error ? r.error : "Moved to the front of the queue"); loadDownloads(); };
     window.declineDownload = async (id) => { if (!await ask("Decline this download? The requester is told, and it leaves the queue.")) return; await post(`/api/admin/downloads/${id}/decline`); toast("Download declined"); loadDownloads(); };
     window.cancelDownload = async (id) => { if (!await ask("Cancel this download? Whatever landed so far is thrown away.")) return; await post(`/api/admin/downloads/${id}/cancel`); toast("Download canceled"); loadDownloads(); };
     window.removeDownload = async (id) => { if (!await ask("Remove this entry from the downloads list? (The file in the library stays.)")) return; await adminFetch(`/api/admin/downloads/${id}`, { method: "DELETE" }); loadDownloads(); };
