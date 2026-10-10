@@ -569,14 +569,9 @@ export const renderPreferences = async (root) => {
         }, "Sign out everywhere else"),
         el("button", {
           class: "btn danger focusable",
-          onclick: async () => {
-            try { await api.logout(); } catch {}
-            try {
-              localStorage.removeItem("aurora-profile");
-              sessionStorage.removeItem(`aurora-token-${state.profile.id}`);
-            } catch {}
-            location.reload();
-          },
+          // one sign-out for the whole app (main.js): it also takes this
+          // browser's notifications off the profile
+          onclick: () => document.dispatchEvent(new CustomEvent("aurora-sign-out")),
         }, "Sign out")),
     );
     return body;

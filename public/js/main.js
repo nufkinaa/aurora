@@ -448,6 +448,34 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
   window.addEventListener("aurora-profile", () => setTimeout(showLookNotice, 900));
 }
 
+// Web Push follows the profile: this browser has ONE subscription, and it was
+// filed under whoever switched notifications on. Every time a profile is
+// entered (boot, a switch at the wall, a sign-in) it is filed again under
+// that profile; signing out takes it off the server (signOutHere below).
+// push.js is only loaded where the switch is on.
+const pushOn = () => { try { return localStorage.getItem("aurora-push") === "1"; } catch { return false; } };
+window.addEventListener("aurora-profile", () => {
+  if (pushOn()) import("./push.js").then((m) => m.rebind()).catch(() => {});
+});
+// "Sign out", from the profile menu and from Settings: out means out.
+const signOutHere = async () => {
+  // while the server still knows who this is; never allowed to hold the sign-out up
+  if (pushOn()) {
+    await Promise.race([
+      import("./push.js").then((m) => m.release()).catch(() => {}),
+      new Promise((r) => setTimeout(r, 2000)),
+    ]);
+  }
+  try { await api.logout(); } catch {}
+  // forget the device's shortcuts back in
+  try {
+    localStorage.removeItem("aurora-profile");
+    if (state.profile) sessionStorage.removeItem(`aurora-token-${state.profile.id}`);
+  } catch {}
+  location.reload();
+};
+document.addEventListener("aurora-sign-out", () => signOutHere());
+
 // A dot on the gear while there's a release the person hasn't read about
 // (Preferences → What's new marks it seen). One fetch at boot; the server
 // answers from a parsed-once cache.
@@ -572,15 +600,9 @@ const showProfileMenu = () => {
     item("Report a problem", () => { close(); showReportSheet(); }),
     item("Join a watch party", () => { close(); showJoinParty(); }),
     state.user &&
-      item("Sign out", async () => {
+      item("Sign out", () => {
         close();
-        try { await api.logout(); } catch {}
-        // out means out: forget the device's shortcuts back in
-        try {
-          localStorage.removeItem("aurora-profile");
-          if (state.profile) sessionStorage.removeItem(`aurora-token-${state.profile.id}`);
-        } catch {}
-        location.reload();
+        signOutHere();
       }, "danger"),
   );
   const wrap = el("div", { class: "nav-menu-wrap ui-overlay", onclick: (e) => e.target === wrap && close() }, menu);
