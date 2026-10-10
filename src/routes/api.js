@@ -127,6 +127,13 @@ router.post("/api/play-mark/:id", (req, res) => {
   res.json({ ok: true });
 });
 
+// The TV player's start-up tuning (lib/tvtuning.js): config.json's
+// "tvPlayer", checked. {} unless the admin set something.
+router.get("/api/tv/tuning", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json(require("../lib/tvtuning").current());
+});
+
 // ---------- trailers for the TV (media/trailers.js) ----------
 // Which trailer a TV should play: Apple's HLS when the title has one, else the
 // YouTube keys for the TV to resolve itself, else none. The site keeps its
@@ -510,7 +517,22 @@ router.get("/api/item/:id", (req, res) => {
   identity.ensureStamped(); // so the item carries its imdbId
   const item = scanner.findById(id);
   if (!item) return res.status(404).json({ error: "Not found" });
-  res.json(withOriginalAudio(item));
+  let out = withOriginalAudio(item);
+  // A file that can be played (a film, an episode — not a show's page): what
+  // is known about how it will start, and its start made ready (lib/playprep.js).
+  if (out.videoUrl) {
+    try {
+      const playprep = require("../lib/playprep");
+      const entry = scanner.resolve(id);
+      if (entry && entry.kind === "video") {
+        // an MP4's index: how big, and whether it comes first (the player's "stream or file?")
+        const index = playprep.indexInfo(entry.path);
+        if (index) out = { ...out, index };
+        playprep.warm(id);
+      }
+    } catch {}
+  }
+  res.json(out);
 });
 
 // Instant autocomplete over library + cached catalog titles: in-memory

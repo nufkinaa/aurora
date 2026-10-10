@@ -44,6 +44,7 @@ const os = require("os");
 const { spawn } = require("child_process");
 const config = require("../config");
 const { parseMkvIndex } = require("./mkvindex");
+const { parseMp4Index } = require("./mp4index");
 
 const TARGET_SEG_SEC = 6;
 const IDLE_MS = 150000;
@@ -160,13 +161,17 @@ const sourceRate = (index, table) => {
 };
 
 // Build (or reuse) the segment table for a media source. null = this file
-// cannot be served by jit (not MKV, no video cues, or declined earlier).
-const tableFor = async (indexKey, readRange, fileSize) => {
+// cannot be served by jit (no keyframe index it can read, or declined earlier).
+// `mp4`: an MP4's index may be read too (mp4index.js) — asked for by the
+// library's routes; a torrent's are MKV-only as before (an MP4's index is
+// megabytes, often at the far end of a file that is still downloading).
+const tableFor = async (indexKey, readRange, fileSize, { mp4 = false } = {}) => {
   if (declinedReason(indexKey)) return null;
   const hit = tables.get(indexKey);
   if (hit) return hit;
   if (!readRange) return null;
-  const index = await parseMkvIndex(readRange, fileSize);
+  let index = await parseMkvIndex(readRange, fileSize);
+  if (!index && mp4) index = await parseMp4Index(readRange, fileSize);
   if (!index) return null;
   const table = buildTable(index);
   if (!table || table.length < 2) return null;
@@ -544,20 +549,37 @@ const park = (dir, job, why) => {
   stopProducers(job);
   wake(job);
 };
+// An encoder of ANOTHER title that nobody has asked anything of for
+// ABANDONED_MS, and nobody is waiting on: its viewer went away (closed the
+// tab, moved to the next episode, paused for a while). It used to hold its
+// slot all the same until it had run ENC_LEAD_MAX segments ahead or the idle
+// reaper found it (2.5 min) — and for that long the NEXT title was refused
+// its lighter renditions: on a thin line that title then had only its top
+// rung, which the line could not carry (measured 2026-10-10, tools/ttff: the
+// next episode on a 3 Mbit/s line, 73 s to its first frame). Such an encoder
+// no longer counts against anyone, and is parked when the slot is wanted
+// (what it made stays; a viewer who comes back to it restarts it — see
+// resumeAhead — exactly as after any park).
+const ABANDONED_MS = 20000; // a playing reader asks at least once per segment (CLAIM_MS)
+const abandoned = (j, now) => !(j.waiting > 0) && now - (j.lastAccess || 0) > ABANDONED_MS;
 // Encoders running for OTHER titles (and outside jit), and for this title's
 // other renditions: those someone is waiting on (`waited`, a count of
-// encoders), and those nobody is (`idle`, the jobs).
-const encodeCensus = (title, except) => {
+// encoders), and those nobody is (`idle`, the jobs). `left`: other titles'
+// encoders that were abandoned (above) — not counted, parked on admission.
+const encodeCensus = (title, except, now = Date.now()) => {
   let others = outsideEncodes();
   let waited = 0;
   const idle = [];
+  const left = [];
   for (const [d, j] of jobs) {
     if (!j.enc || !j.producers.length || j === except) continue;
-    if (j.title !== title) others += j.producers.length;
-    else if (j.waiting > 0) waited += j.producers.length;
+    if (j.title !== title) {
+      if (abandoned(j, now)) left.push([d, j]);
+      else others += j.producers.length;
+    } else if (j.waiting > 0) waited += j.producers.length;
     else idle.push([d, j]);
   }
-  return { others, waited, idle };
+  return { others, waited, idle, left };
 };
 // Could this job start an encoder now? `replacing`: one of its own that
 // would be stopped for it. Nothing is changed by asking.
@@ -568,7 +590,7 @@ const encodeAdmission = (job, essential, replacing = null) => {
   const ok = own > 0
     ? c.others + c.waited + own < limit
     : c.others < limit && c.others + c.waited < MAX_ENCODES;
-  return { ok, idle: c.idle };
+  return { ok, idle: c.idle, left: c.left };
 };
 // May this job start (or restart) an encoder now? Parks the renditions of
 // its own title that nobody is waiting on. Records a refusal so the route
@@ -581,6 +603,7 @@ const admitEncode = (job, essential, replacing = null) => {
     return false;
   }
   for (const [d, j] of a.idle) park(d, j, "its viewer moved to another rendition");
+  for (const [d, j] of a.left) park(d, j, "nobody has asked for it lately, and another title needs the encoder");
   return true;
 };
 // Would a new encoder be admitted right now? (the routes ask before they
@@ -691,6 +714,13 @@ const advance = (dir, job, run) => {
     // are the other one's now.
     if (run.nextSeg < job.table.length && job.producers.some((o) => o !== run && o.fromSeg <= run.nextSeg && run.nextSeg <= o.nextSeg)) {
       console.log(`[jit] producer ${path.basename(dir)} from seg${run.fromSeg} met another at seg${run.nextSeg}`);
+      stopRun(job, run);
+      return wake(job);
+    }
+    // A warm-up (warmSegment) has made what it was started for, and nobody
+    // came: it stops here. What it made stays for as long as the job does.
+    if (run.warm != null && run.nextSeg > run.warm && !waitedOn(job, run)) {
+      console.log(`[jit] warm-up ${path.basename(dir)} done at seg${run.nextSeg - 1}`);
       stopRun(job, run);
       return wake(job);
     }
@@ -865,7 +895,14 @@ const acquire = (dir, job, input, k, now, polite = false) => {
 
 // Serve segment k: instantly if published; else wait for the producer that
 // is about to make it, or get one aimed at it (acquire) and wait.
-const ensureSegment = async (dir, job, input, k) => {
+// `gone`: () => true once the client that asked is no longer there (it
+// closed the connection: a seek, a change of level, the player leaving). The
+// wait ends then. It used to go on for as long as the segment took — up to
+// SEGMENT_WAIT_MS — and for that long it held its producer as "somebody is
+// waiting on this": the producer could not be re-aimed or parked, its encoder
+// stayed counted, and the next title was refused its lighter renditions on
+// the strength of a viewer who had left (measured 2026-10-10).
+const ensureSegment = async (dir, job, input, k, { gone = null } = {}) => {
   const now = Date.now();
   job.lastAccess = now;
   if (!(k >= 0 && k < job.table.length)) return null;
@@ -874,11 +911,12 @@ const ensureSegment = async (dir, job, input, k) => {
   // busy the machine was) holds for every later producer of this job.
   if (job.enc) input = { ...input, enc: job.encArgs || (job.encArgs = input.enc) };
   noteReader(job, k, now);
+  for (const run of job.producers) run.warm = null; // a viewer is here: no warm-up bound applies
   job.waiting = (job.waiting || 0) + 1;
   job.wanted.push(k);
   try {
-    const file = await ensureSegmentInner(dir, job, input, k);
-    if (file && job.enc) resumeAhead(dir, job, input, k);
+    const file = await ensureSegmentInner(dir, job, input, k, gone);
+    if (file && job.enc && !(gone && gone())) resumeAhead(dir, job, input, k);
     return file;
   } finally {
     job.waiting--;
@@ -900,7 +938,7 @@ const resumeAhead = (dir, job, input, k) => {
     return;
   }
 };
-const ensureSegmentInner = async (dir, job, input, k) => {
+const ensureSegmentInner = async (dir, job, input, k, gone = null) => {
   const file = segPath(dir, k, input.fmt);
   if (fs.existsSync(file)) return file;
   let spawns = 0;
@@ -909,6 +947,7 @@ const ensureSegmentInner = async (dir, job, input, k) => {
   while (Date.now() < deadline) {
     if (fs.existsSync(file)) return file;
     if (job.broken) return null;
+    if (gone && gone()) return null; // nobody is waiting for this any more
     // not coming soon — or the producer died without delivering: aim here.
     if (!covering(job, k)) {
       // a publish already decided may still be on its way to disk
@@ -943,6 +982,78 @@ const ensureSegmentInner = async (dir, job, input, k) => {
     job.lastAccess = Date.now();
   }
   return null;
+};
+
+// ---------- before the viewer asks ----------
+// WARM-UP. The first segment of a start is the one a viewer waits for, and
+// making it is a process start, a seek and a whole GOP (plus an encode, for
+// an encoded rendition): a third of a second on a fast box with the file in
+// memory, seconds on a slow one. A client that knows a start is coming — the
+// pointer is on Play, or the player has just been opened and is still
+// loading its playlists — says so (the segment's own URL with &warm=1), and
+// the making begins then instead of when the segment is finally asked for.
+//
+// It is bounded so that a hint can never cost a viewer anything:
+//  • it never takes or adds to a job's producers — only a job with none gets
+//    one — and it is nobody's reader (the readers' bookkeeping is untouched);
+//  • the producer stops by itself WARM_AHEAD segments on (see advance) unless
+//    a real request arrives first, which makes it an ordinary producer;
+//  • an ENCODED rendition is warmed only while no encoder is running
+//    anywhere on the server: a hint never competes with a film being watched;
+//  • WARM_MAX_PER_MIN starts a minute across the server, whoever asks.
+// Returns what happened: "ready" (already on disk), "coming" (a producer is
+// about to make it), "started", or why not: "busy", "refused", "throttled", "no".
+const WARM_AHEAD = 2;
+const WARM_MAX_PER_MIN = 8;
+const warmStarts = [];
+const warmSegment = (dir, job, input, k, now = Date.now()) => {
+  if (job.broken || !(k >= 0 && k < job.table.length)) return "no";
+  job.lastAccess = now;
+  if (fs.existsSync(segPath(dir, k, input.fmt))) return "ready";
+  if (covering(job, k)) return "coming";
+  for (const run of job.runs) if (k >= run.fromSeg && k < run.nextSeg) return "coming"; // on its way to disk
+  if (job.producers.length) return "busy";
+  if (job.enc) {
+    if (encodeCount() + outsideEncodes() > 0) return "refused";
+    input = { ...input, enc: job.encArgs || (job.encArgs = input.enc) };
+  }
+  while (warmStarts.length && now - warmStarts[0] > 60000) warmStarts.shift();
+  if (warmStarts.length >= WARM_MAX_PER_MIN) return "throttled";
+  warmStarts.push(now);
+  const run = startProducer(dir, job, input, k);
+  run.warm = k + WARM_AHEAD;
+  return "started";
+};
+
+// A viewer LEFT a title (the player closed, or moved to the next episode):
+// every producer of that title that nobody is waiting on is parked now,
+// instead of running on — an encoder for up to ENC_LEAD_MAX segments, a copy
+// to the end of the film — until the idle reaper finds it. What they made
+// stays. If someone else is in the same film, their next request finds the
+// segments already made and restarts a producer where they run out, as
+// after any park. Returns how many producers were stopped.
+const release = (title) => {
+  let n = 0;
+  for (const [d, j] of jobs) {
+    if (j.title !== title || !j.producers.length || j.waiting > 0) continue;
+    n += j.producers.length;
+    park(d, j, "its viewer left");
+  }
+  return n;
+};
+
+// The segment of a table that holds second `sec` of the film (the one a
+// player starting there asks for first). PURE.
+const segmentAt = (table, sec) => {
+  if (!table || !table.length) return -1;
+  let lo = 0;
+  let hi = table.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (table[mid].start <= sec) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
 };
 
 // The fMP4 init segment (codec parameters, no media). Any producer writes
@@ -1063,6 +1174,9 @@ module.exports = {
   jobFor,
   ensureSegment,
   ensureInit,
+  warmSegment,
+  segmentAt,
+  release,
   segPath,
   declinedReason,
   // the quality ladder (ladder.js, the routes)
@@ -1081,6 +1195,6 @@ module.exports = {
     plan, noteReader, usage, reapable, contended, coversRun, extraCount, stopRun,
     MAX_PRODUCERS_PER_JOB, MAX_EXTRA_PRODUCERS, CLAIM_MS, READER_TTL_MS, STEAL_LEAD, BUSY_WAIT_MS, COVER_AHEAD,
     setOutsideEncodes: (fn) => { outsideEncodes = fn; },
-    jobs,
+    jobs, encodeCensus, abandoned, ABANDONED_MS, WARM_AHEAD, WARM_MAX_PER_MIN, warmStarts, advance,
   },
 };

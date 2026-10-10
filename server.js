@@ -132,12 +132,10 @@ app.use(express.json());
 // else on the box moves that much data for that little work.
 //
 // The filter is an allow-list, not `compression`'s default, on purpose: video,
-// HLS segments and the APK must stream untouched. Re-compressing an .mp4 wastes
-// CPU for nothing, and buffering a range response to deflate it is how you turn
-// instant seeking into a stall.
+// HLS segments and the APK must stream untouched (lib/compressible.js has the
+// list and the reasons — HLS playlists are on it, segments never).
 const compression = require("compression");
 const zlib = require("zlib");
-const COMPRESSIBLE = /^(?:application\/(?:json|javascript|xml|manifest)|text\/|image\/svg)/i;
 app.use(
   compression({
     threshold: 1024, // below ~1 KB the header overhead is most of the packet
@@ -147,12 +145,7 @@ app.use(
     // the real payloads: q6 beats gzip ~5% on code and ~21% on /api/home
     // JSON at ~1-3ms per response; q9 shaves only ~2% more for 4x the CPU.
     brotli: { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 6 } },
-    filter: (req, res) => {
-      if (req.headers["x-no-compression"]) return false;
-      // 206 Partial Content is the seek path. Leave it alone.
-      if (res.statusCode === 206) return false;
-      return COMPRESSIBLE.test(String(res.getHeader("Content-Type") || ""));
-    },
+    filter: require("./src/lib/compressible").filter,
   })
 );
 

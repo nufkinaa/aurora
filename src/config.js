@@ -212,6 +212,9 @@ module.exports = {
   AUTH_MODE: ["open", "transition", "closed", "hybrid", "required"].includes(userConfig.authMode)
     ? userConfig.authMode
     : "open",
+  // The TV player's start-up tuning, handed to the app as it is asked for
+  // (lib/tvtuning.js — checked there). Nothing set: the app's own values.
+  TV_PLAYER: userConfig.tvPlayer || null,
   FFMPEG,
   FFPROBE,
   TESSERACT,

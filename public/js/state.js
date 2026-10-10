@@ -186,11 +186,21 @@ export const savedToken = (profileId) => {
   try { return sessionStorage.getItem(`aurora-token-${profileId}`); } catch { return null; }
 };
 
+// When the profile's progress was last read from the server (and whose it
+// was): a screen that has just read it need not make the next one wait for
+// the same answer again (the player, opened from a title page — see
+// progressAge).
+let progressRead = { at: 0, profile: null };
+export const progressAge = () =>
+  state.profile && progressRead.profile === state.profile.id ? Date.now() - progressRead.at : Infinity;
+
 export const refreshProgress = async () => {
   if (!state.profile) return;
   try {
+    const asked = state.profile.id;
     const { progress, ratings, likedGenres, episodeProgress, streamProgress } =
       await api.profileState(state.profile.id);
+    progressRead = { at: Date.now(), profile: asked };
     state.progress = progress || {};
     state.ratings = ratings || {};
     state.likedGenres = likedGenres || [];

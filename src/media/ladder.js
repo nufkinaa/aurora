@@ -390,6 +390,36 @@ const encInput = async (base, { key, name, top, fmt, audio, http = false, jit, l
   return { ...base, fmt, audio, vtagHvc1: false, enc };
 };
 
+// ---------- where a player will start ----------
+// The rung a player begins on, given what its line carried the last time it
+// played a film: the highest that fits in 80% of it, the lowest when none
+// does, the top when nothing is known. THE SAME RULE the website applies
+// (public/js/playstart.js startRung — test/ladder.test.js holds the two to
+// each other): the server uses it only to start making the right first
+// segment before the player has asked (routes/stream.js, the start hint).
+// `rungs` top first, as describe() returns them. Returns an index, or -1.
+const START_HEADROOM = 0.8;
+const startRung = (rungs, kbps) => {
+  if (!rungs || !rungs.length) return -1;
+  if (!(kbps > 0)) return 0;
+  const fits = rungs.findIndex((r) => r.bandwidth > 0 && r.bandwidth <= kbps * 1000 * START_HEADROOM);
+  return fits >= 0 ? fits : rungs.length - 1;
+};
+// A client's start hint — the X-Aurora-Start header on a playlist request:
+// "at=<seconds>[; kbps=<what the line carried>][; v=<rendition it will begin on>]".
+// null when there is none or it makes no sense. PURE.
+const parseStartHint = (header) => {
+  if (header == null) return null;
+  const out = { at: null, kbps: 0, v: null };
+  for (const part of String(header).slice(0, 120).split(";")) {
+    const [k, v] = part.split("=").map((s) => (s || "").trim());
+    if (k === "at" && /^\d+(\.\d+)?$/.test(v)) out.at = parseFloat(v);
+    else if (k === "kbps" && /^\d+$/.test(v)) out.kbps = parseInt(v, 10);
+    else if (k === "v" && (v === "copy" || v === "h264" || CAPS[v])) out.v = v;
+  }
+  return out.at != null && out.at >= 0 && out.at < 1e6 ? out : null;
+};
+
 // The jit cache dir of one rendition of one source. The copy with the first
 // audio track keeps the names it always had (`key`, `key-f4`).
 const dirName = (key, name, fmt, audio) =>
@@ -409,7 +439,10 @@ module.exports = {
   dirName,
   renditionFromQuery,
   audioFromQuery,
+  startRung,
+  parseStartHint,
   _internals: {
+    START_HEADROOM,
     CAPS, dimsFor, scaleFor, rateFor, rungNames, h264Level, encCodecs, copyCodecs,
     encBandwidth, copyBandwidth, encVideoArgs, parseFacts, topCeiling,
     SEG_MIN_SEC, MUX_OVERHEAD, ENC_OVERHEAD, ENC_THREADS,
