@@ -52,6 +52,7 @@ import {
   useTVKeys,
 } from '../focus';
 import {defer, useSlide} from '../motion';
+import {isSettled, whenSettled} from '../settle';
 import {useApp} from '../AppContext';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
@@ -454,14 +455,35 @@ export default function Home({
   const isTop = useRef(true);
   // Which pick the SCROLLED art layer shows (HeroArt): -1 until focus first
   // leaves the hero, then the pick on show at the moment it left.
+  //
+  // WHEN it is mounted (settle, then enrich): mounting it is a 1280×720 decode,
+  // and it used to start in the very press that leaves the hero — the first
+  // DOWN, competing with the slide. But the art layer fades out with the
+  // scroll and is gone (opacity 0) by 0.9·heroH, which is less than the slide
+  // to the first shelf: on a page with two shelves or more the scrolled layer
+  // cannot be seen at rest from ANY shelf, only in transit, under a layer that
+  // is fading. So it waits until focus has rested (settle.ts) and is not
+  // mounted at all for a viewer who is back on the hero before that. Where
+  // the art DOES still show at the resting place (`artShows`: a page so short
+  // that the column cannot travel that far) it is mounted at once, as before.
   const [scrolledIdx, setScrolledIdx] = useState(-1);
+  const scrolledWait = useRef<(() => void) | null>(null);
+  useEffect(() => () => scrolledWait.current?.(), []);
   const setTop = useCallback(
-    (next: boolean) => {
+    (next: boolean, artShows = true) => {
       if (next === isTop.current) return;
       isTop.current = next;
+      scrolledWait.current?.();
+      scrolledWait.current = null;
       if (!next) {
         const at = heroIdxRef.current;
-        defer(() => setScrolledIdx(at));
+        if (artShows) defer(() => setScrolledIdx(at));
+        else {
+          scrolledWait.current = whenSettled(() => {
+            scrolledWait.current = null;
+            defer(() => setScrolledIdx(at));
+          });
+        }
       }
       Animated.timing(atTop, {
         toValue: next ? 1 : 0,
@@ -615,12 +637,29 @@ export default function Home({
     // The trailer still cannot start before 4.5 s, and 2 s + the 1-2 s of
     // lookups is inside that; only a lookup slower than 2.5 s now ends later
     // than it did (the 4.5 s timer waits for it, as it always has).
+    //
+    // AND ONLY AT REST (settle, then enrich). The lookups used to start the
+    // moment the pick changed — also when the viewer had turned the slide
+    // themselves and was still turning, or pressed DOWN a moment after a
+    // rotation: a metadata read, /api/trailer and the extractor then ran
+    // against the slide. They now start when focus has been still for
+    // SETTLE_MS on the hero; a pick the viewer passes in under that is never
+    // looked up. Left for the shelves before that and back in time: the
+    // 4.5 s timer starts them itself (the trailer is then later by the
+    // lookups, 1-2 s).
     const holdPrep = Math.max(0, heroSince.current + FIRST_PREP_DELAY_MS - Date.now());
-    const prep: Promise<ResolvedTrailer | null> = (async () => {
-      if (holdPrep) {
-        await new Promise<void>(r => setTimeout(r, holdPrep));
-        if (gen !== trailerGen.current) return null;
-      }
+    const onHeroAtRest = () => gen === trailerGen.current && isTop.current && !railOpen();
+    let prep: Promise<ResolvedTrailer | null> | null = null;
+    const startPrep = () => prep || (prep = lookUp());
+    const waits: (() => void)[] = [];
+    const prepTimer = setTimeout(() => {
+      waits.push(
+        whenSettled(() => {
+          if (onHeroAtRest()) startPrep();
+        }),
+      );
+    }, holdPrep);
+    const lookUp = async (): Promise<ResolvedTrailer | null> => {
       let keys: string[] = [];
       try {
         // the keys this TV already knows — what plays if the server is one
@@ -642,20 +681,26 @@ export default function Home({
       } catch {
         return null;
       }
-    })();
+    };
     const timer = setTimeout(async () => {
-      if (gen !== trailerGen.current || !isTop.current || railOpen()) return;
+      if (!onHeroAtRest()) return;
       trailerBusy.current = true; // holds the rotation while the trailer runs
-      const t = await prep;
+      const t = await startPrep();
       if (!t && gen === trailerGen.current) noTrailer.current.add(hero.imdbId!);
-      if (gen !== trailerGen.current || !isTop.current || railOpen() || !t) {
-        trailerBusy.current = false;
+      // The player is the heaviest thing this screen mounts: not while focus
+      // is moving between the hero's buttons — when it has stopped.
+      if (t && onHeroAtRest() && !isSettled()) await new Promise<void>(r => waits.push(whenSettled(r)));
+      if (!onHeroAtRest() || !t) {
+        // (a stop — moving down, the rail — has already let the rotation go)
+        if (gen === trailerGen.current) trailerBusy.current = false;
         return;
       }
       setTrailer({t, key: gen});
     }, 4500);
     return () => {
+      clearTimeout(prepTimer);
       clearTimeout(timer);
+      for (const off of waits) off();
       stopTrailer(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -778,9 +823,11 @@ export default function Home({
   const toRow = useCallback(
     (index: number) => {
       curRow.current = index;
-      setTop(false);
-      if (trailerBusy.current || trailerOnRef.current) stopTrailer(false);
       const y = rowY.current[index];
+      // Does the art still show where this shelf comes to rest? (see setTop)
+      const rest = y == null ? 0 : -Math.min(Math.max(0, y - spacing.pageY), Math.max(0, colH.current - height));
+      setTop(false, y == null || rest > -Math.round(heroH * 0.9));
+      if (trailerBusy.current || trailerOnRef.current) stopTrailer(false);
       if (y == null) return;
       // The focused row comes to rest at the page's top inset — "scroll until
       // this row is at the top", which is what a viewer does on the site. The
@@ -796,7 +843,7 @@ export default function Home({
       // path — a held DOWN must never wait for a row to render.
       defer(() => setReach(r => (index + 3 > r ? index + 3 : r)));
     },
-    [setTop, slideTo, height, stopTrailer],
+    [setTop, slideTo, height, heroH, stopTrailer],
   );
 
   // Continue Watching's ✕ — drawn on the focused card, removed by LONG-PRESS OK

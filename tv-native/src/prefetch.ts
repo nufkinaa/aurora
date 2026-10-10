@@ -6,10 +6,19 @@
 //  • A card that holds focus for a moment gets its Detail data fetched, so the
 //    page opens filled instead of assembling itself.
 //
+// Both wait for the remote to be at rest (settle.ts): a section's read starts
+// only when focus has stopped moving, and a card's only after focus has held
+// still on it — ANY focus move withdraws it, also one to something that is
+// not a card (a hero button, the rail), which used to leave the card just
+// left to be read anyway. (The answers are a few KB each; parsing one is far
+// under a millisecond, so an answer that lands after the viewer has moved on
+// costs nothing that shows.)
+//
 // Everything goes through api.ts's memo, so nothing here can make a screen
 // show something different from what it would have fetched itself, and a
 // warm that is never used costs one small request on an idle connection.
 import {api, HeroItem} from './api';
+import {onMove, whenSettled} from './settle';
 
 let profileId: string | null = null;
 export const setPrefetchProfile = (id: string | null) => {
@@ -17,6 +26,7 @@ export const setPrefetchProfile = (id: string | null) => {
 };
 
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
+let idleRest: (() => void) | null = null;
 let warmedSections = false;
 export const warmSections = () => {
   if (warmedSections || !profileId) return;
@@ -34,33 +44,51 @@ export const warmSections = () => {
   ];
   let i = 0;
   const next = () => {
+    idleRest = null;
     if (i >= steps.length) return;
     const step = steps[i++];
     step().catch(() => {}).finally(() => {
-      idleTimer = setTimeout(next, 700);
+      idleTimer = setTimeout(rested, 700);
     });
   };
-  idleTimer = setTimeout(next, 2500);
+  // each read STARTS at rest: the gap has passed AND focus is not moving
+  // (the library list is ~90 KB to parse — not something to begin mid-run)
+  const rested = () => {
+    idleTimer = null;
+    idleRest = whenSettled(next);
+  };
+  idleTimer = setTimeout(rested, 2500);
 };
 
 // A card held under focus for 450ms: fetch what its Detail page opens with.
-let dwell: ReturnType<typeof setTimeout> | null = null;
+export const DWELL_MS = 450;
+let dwell: (() => void) | null = null;
+// Focus moved: the card it left is not warmed. (A card's own handler runs
+// after this — Focusable notes the move, then reports the focus — and asks
+// again for the card it landed on.)
+onMove(() => {
+  if (dwell) {
+    dwell();
+    dwell = null;
+  }
+});
 export const warmItem = (item: HeroItem | null) => {
-  if (dwell) clearTimeout(dwell);
+  dwell?.();
   dwell = null;
   if (!item) return;
-  dwell = setTimeout(() => {
+  dwell = whenSettled(() => {
     dwell = null;
     const kind = item.type === 'show' ? 'series' : 'movie';
     if (item.imdbId) api.discoverMeta(kind, item.imdbId).catch(() => {});
     if (item.id && !String(item.id).startsWith('torrent|') && item.source !== 'stream') {
       api.item(item.showId && item.type !== 'show' ? item.showId : item.id, profileId || undefined).catch(() => {});
     }
-  }, 450);
+  }, DWELL_MS);
 };
 
 export const stopPrefetch = () => {
   if (idleTimer) clearTimeout(idleTimer);
-  if (dwell) clearTimeout(dwell);
-  idleTimer = dwell = null;
+  idleRest?.();
+  dwell?.();
+  idleTimer = idleRest = dwell = null;
 };

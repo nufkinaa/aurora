@@ -22,6 +22,7 @@
 import React, {useCallback, useContext, useEffect, useRef, useState} from 'react';
 import {useTVEventHandler} from 'react-native';
 import {NavigationContext} from '@react-navigation/native';
+import {noteMove} from './settle';
 
 // react-native-tvos attaches requestTVFocus to the host instance itself
 // (View.js:38-57), so this is the shape of a Focusable's native node.
@@ -68,6 +69,8 @@ export const noteFocus = (node: FocusNode, edgeLeft: boolean, edgeRight = false)
   if (node !== held) {
     const now = Date.now();
     lastFocusMoveAt = now;
+    // the one clock everything that waits for rest reads (settle.ts)
+    noteMove();
     if (now < ownMoveUntil) ownMoveUntil = 0;
     // A move that lands right behind a key event is that key's own: an injected
     // key (adb, a phone remote) goes down and up in the same millisecond, and

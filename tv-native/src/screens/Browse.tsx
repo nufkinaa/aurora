@@ -54,7 +54,7 @@ import {
   useListClaim,
   useTVKeys,
 } from '../focus';
-import {useScreenIn} from '../motion';
+import {defer, useScreenIn} from '../motion';
 import {useApp} from '../AppContext';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
@@ -403,6 +403,23 @@ export default function Browse({
   // The last card focus rested on, so the retry timer can tell whether the
   // viewer is still down at the end of the list.
   const lastFocusIdx = useRef(0);
+  // PAGING IS ASKED FOR FROM A CARD'S FOCUS HANDLER, so what it does there has
+  // to be next to nothing. It used to setLoading(true) on the spot — a render
+  // of this whole screen in front of the next press — and apply the answer
+  // (a page of new cells) the same way. The request still leaves at once (a
+  // held DOWN needs the page; waiting for rest would stop the list at its end
+  // for no reason), but every state change is a transition (motion.ts defer):
+  // React does it between presses and drops it for the next one.
+  //
+  // Because `loading` now lands a moment late, "a page is on its way" is a
+  // ref for the guard; it is let go only once the commit that carries the new
+  // page (or the failure) has happened — `loadSeq` — so a press in between
+  // cannot ask for the same page twice.
+  const nextBusy = useRef(false);
+  const [loadSeq, setLoadSeq] = useState(0);
+  useEffect(() => {
+    nextBusy.current = false;
+  }, [loadSeq, cacheKey]);
   useEffect(() => {
     nextFails.current = 0;
     nextNotBefore.current = 0;
@@ -417,10 +434,11 @@ export default function Browse({
     [],
   );
   const loadNext = useCallback(() => {
-    if (loading || !hasMore || localOnly || page < 0) return;
+    if (nextBusy.current || loading || !hasMore || localOnly || page < 0) return;
     if (Date.now() < nextNotBefore.current) return;
     const id = reqId.current;
-    setLoading(true);
+    nextBusy.current = true;
+    defer(() => setLoading(true));
     api
       .catalog({type: kind, category: cat.catalog || 'trending', genre: genre || null, page: page + 1})
       .then(r => {
@@ -428,17 +446,19 @@ export default function Browse({
         // De-dupe on append: the catalogs overlap between pages often enough that
         // letting them through gave the grid the same poster twice.
         const nextPage = r.page ?? page + 1;
-        setFetched(prev => {
-          const have = new Set(prev.map(keyOf));
-          const merged = [...prev, ...(r.items || []).filter(i => !have.has(keyOf(i)))];
-          cache.current.set(cacheKey, {items: merged, page: nextPage, hasMore: !!r.hasMore});
-          return merged;
-        });
-        setPage(nextPage);
-        setHasMore(!!r.hasMore);
         nextFails.current = 0;
         nextNotBefore.current = 0;
-        setNextErr(false);
+        defer(() => {
+          setFetched(prev => {
+            const have = new Set(prev.map(keyOf));
+            const merged = [...prev, ...(r.items || []).filter(i => !have.has(keyOf(i)))];
+            cache.current.set(cacheKey, {items: merged, page: nextPage, hasMore: !!r.hasMore});
+            return merged;
+          });
+          setPage(nextPage);
+          setHasMore(!!r.hasMore);
+          setNextErr(false);
+        });
       })
       .catch(() => {
         if (id !== reqId.current) return;
@@ -456,7 +476,17 @@ export default function Browse({
           if (lastFocusIdx.current >= itemCountRef.current - colsRef.current * PREFETCH_ROWS) loadNextRef.current();
         }, wait + 50);
       })
-      .finally(() => id === reqId.current && setLoading(false));
+      .finally(() => {
+        // superseded (another category was opened): that round owns `loading`
+        if (id !== reqId.current) {
+          nextBusy.current = false;
+          return;
+        }
+        defer(() => {
+          setLoading(false);
+          setLoadSeq(n => n + 1);
+        });
+      });
   }, [cacheKey, cat.catalog, genre, hasMore, kind, loading, localOnly, page]);
   // Read through a ref by the card focus handler, which must keep a stable
   // identity (it is a prop on every memoized card).

@@ -14,8 +14,9 @@
 //    sign-in-required server answers 401. React Native's Image.prefetch takes
 //    no headers and stops at the disk cache — hence the native module
 //    (android ArtPrefetchModule.kt, which also says why the keys match).
-//  • AT REST ONLY. Every focus move restarts one timer (IDLE_MS); a held key
-//    never starts a fetch, and a move drops whatever had not started yet.
+//  • AT REST ONLY. The wait is the app's one "at rest" clock (settle.ts):
+//    IDLE_MS with no focus move anywhere; a held key never starts a fetch,
+//    and ANY move drops whatever had not started yet.
 //  • BOUNDED. A few pictures per rest, a few requests at a time, fewer on a
 //    slow or low-memory box (limits()). These are ~15–25 KB each at card
 //    size, so even the full plan is well under a megabyte of line.
@@ -23,6 +24,7 @@ import {NativeModules} from 'react-native';
 import type {ImgSource} from './api';
 import {markDrawn, wasDrawn} from './blur';
 import {isLite, isLowRam} from './perfTier';
+import {onMove, whenSettled} from './settle';
 
 type Native = {prefetch: (uri: string, headers: Record<string, string> | null) => Promise<'hit' | 'ok' | 'fail'>};
 let native: Native | undefined = (NativeModules as {AuroraArt?: Native}).AuroraArt;
@@ -74,7 +76,8 @@ export function planPrefetch(
 // One wish per place that has one (the focused shelf, Home's shelves below,
 // a grid); each is a function, so nothing is computed until the rest comes.
 const wants = new Map<string, () => (ImgSource | null | undefined)[]>();
-let timer: ReturnType<typeof setTimeout> | null = null;
+// (the way to withdraw the pending rest, settle.ts)
+let timer: (() => void) | null = null;
 let queue: ImgSource[] = [];
 let flying = 0;
 // Asked for and not failed (so a rest does not ask twice while one is in flight).
@@ -129,19 +132,33 @@ const fire = () => {
   pump();
 };
 
+// What a rest had queued and not started is dropped by the next move.
+const dropQueued = () => {
+  if (!queue.length) return;
+  for (const s of queue) asked.delete(s.uri);
+  batch.n -= queue.length;
+  queue = [];
+};
+// Any focus move — also one that did not come through artIdle (a hero button,
+// the rail): a fetch that has not started does not start during a move. (The
+// few already in flight finish: at most `flying` small pictures.)
+onMove(dropQueued);
+
 /** Focus moved. `slot` now wants these pictures when the remote next rests;
  *  whatever an earlier rest had queued and not started is dropped. */
 export function artIdle(slot: string, sources: () => (ImgSource | null | undefined)[]) {
   if (!native) return;
   wants.set(slot, sources);
-  if (queue.length) {
-    for (const s of queue) asked.delete(s.uri);
-    batch.n -= queue.length;
-    queue = [];
-  }
-  if (timer) clearTimeout(timer);
-  timer = setTimeout(fire, IDLE_MS);
+  dropQueued();
+  // (two shelves' handlers call this for one press: the second finds the
+  // rest already asked for at this very moment and leaves it)
+  const now = Date.now();
+  if (timer && askedAt === now) return;
+  timer?.();
+  askedAt = now;
+  timer = whenSettled(fire, IDLE_MS);
 }
+let askedAt = 0;
 
 /** A place stops wishing (its screen went away). */
 export function artForget(slot: string) {
@@ -153,8 +170,9 @@ export const _artInternals = {
     native = n;
   },
   reset: () => {
-    if (timer) clearTimeout(timer);
+    timer?.();
     timer = null;
+    askedAt = 0;
     wants.clear();
     queue = [];
     flying = 0;
