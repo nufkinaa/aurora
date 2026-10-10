@@ -39,6 +39,7 @@ import {loadPrefs} from '../storage';
 import {track} from '../usage';
 import {
   focusJustMoved,
+  pressMovedFocus,
   onRailClose,
   onRailOpen,
   railOpen,
@@ -717,6 +718,12 @@ export default function Home({
       (evt: {eventType: string}) => {
         const t = evt.eventType;
         if (heroBtn.current < 0 || !isTop.current) return;
+        // Not the press that only just ARRIVED on this button (UP from the
+        // first shelf, LEFT / RIGHT between the buttons): JS hears a key when
+        // it comes up, after the focus engine has already moved on its
+        // key-down, so without this the press that landed on Play also opened
+        // the rail — "the menu opens by itself" (focus.ts pressMovedFocus).
+        if (pressMovedFocus()) return;
         if (t === 'up' || (t === 'left' && heroBtn.current === 0)) {
           railFromBtn.current = heroBtn.current;
           requestRailOpen();
