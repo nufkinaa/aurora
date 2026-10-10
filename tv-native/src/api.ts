@@ -250,6 +250,25 @@ export type Item = HeroItem & {
   episode?: number;
 };
 
+// What an add to My List started fetching, as the server reports it with the
+// answer (My List downloads — src/media/mylistdl.js): the film, or the first
+// episode of a show this profile has not started. A server from before the
+// feature sends nothing.
+export type ListDownload = {
+  queued: boolean;
+  what?: 'film' | 'episode';
+  season?: number;
+  episode?: number;
+  reason?: string;
+};
+// The toast for an add — the site's savedLine (public/js/ui.js).
+export const listAddedLine = (res?: {download?: ListDownload | null} | null): string => {
+  const d = res?.download;
+  if (!d || !d.queued) return 'Added to My List';
+  if (d.what === 'film') return 'Added to My List — downloading the film';
+  return 'Added to My List — downloading the first episode';
+};
+
 // Stream ref for watchlist toggles on non-library (Discover) titles. Genres
 // and rating ride along because this ref is all My List ever knows about the
 // title — without them its genre filter and rating sort skip stream entries.
@@ -420,6 +439,8 @@ export type MyDownload = DownloadJob & {
   episode?: number | null;
   mine?: boolean;
   smart?: boolean;
+  // "mylist": fetched because the title was added to My List (always `smart` too).
+  auto?: string | null;
   libraryId?: string | null;
   sizeBytes?: number;
   seenAt?: string | null;
@@ -1133,7 +1154,7 @@ export const api = {
     itemOrRef: string | StreamRef,
     add: boolean,
   ) =>
-    post<{ watchlist: unknown }>(
+    post<{ watchlist: unknown; download?: ListDownload | null }>(
       `/api/profiles/${profileId}/watchlist`,
       typeof itemOrRef === 'string'
         ? { itemId: itemOrRef, add }
