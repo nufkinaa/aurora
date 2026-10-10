@@ -172,21 +172,39 @@ const take = async (): Promise<Record<string, FrameStats>> => {
   return pending;
 };
 
+// The quota is spent and Home has been judged: nothing reads the counts any
+// more, so the two-minute timer stops and navigation stops tagging frames
+// (a native call per screen change). The native frame listener itself keeps
+// running — DeviceModule has no call to stop it; its histograms are bounded.
+const quotaSpent = () => perfSent >= PERF_EVENTS_MAX;
+const stopReporting = () => {
+  if (perfTimer) clearInterval(perfTimer);
+  perfTimer = null;
+};
+
 const report = async () => {
-  if (perfSent >= PERF_EVENTS_MAX) return;
+  if (quotaSpent()) return stopReporting();
   const all = await take();
   for (const [screen, s] of Object.entries(all)) {
+    // A screen that has drawn too little says nothing useful YET: its counts
+    // stay in `pending` and are merged with the next look (take → merge).
+    // They used to be deleted here, so a screen only ever visited briefly —
+    // Search, Settings — never reached the report however often it was opened.
+    if (s.frames < MIN_FRAMES) continue;
     delete all[screen];
-    if (s.frames < MIN_FRAMES || perfSent >= PERF_EVENTS_MAX) continue;
+    if (quotaSpent()) continue;
     perfSent++;
     track('perf', {screen, p50: s.p50, p90: s.p90, jank: s.jank, frames: s.frames, low: isLowRam(), lite});
   }
+  if (quotaSpent()) stopReporting();
 };
 
 let started = false;
 /** Tag the frames drawn from now on with the screen on show (navigation.tsx). */
 export function frameScreen(name: string) {
   if (!native) return;
+  // (after the quota, only until Home's judgement — the other reader — is in)
+  if (started && quotaSpent() && homeJudged) return;
   try {
     native.setFrameScreen(name);
   } catch {}
@@ -265,4 +283,7 @@ export const _perfInternals = {
     if (perfTimer) clearInterval(perfTimer);
     if (homeWatch) clearTimeout(homeWatch);
   },
+  report,
+  pending,
+  timerRunning: () => perfTimer !== null,
 };
