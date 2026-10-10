@@ -112,6 +112,7 @@ import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
 import theme from '../theme';
+import {refreshTuning, tuning, TUNING_DEFAULTS} from './tuning';
 
 const {colors, radius, fontSize, spacing} = theme;
 
@@ -179,6 +180,24 @@ const BUFFER_CONFIG_LOW_RAM = {
   // and stop filling while less than 10% of the Java heap is free (this check
   // never fired before the patch: a cast zeroed the reserve)
   minBufferMemoryReservePercent: 0.1,
+};
+// The buffer configuration for a new source: the constants above, with the
+// two start thresholds from the server's tuning when it set them
+// (playback/tuning.ts). ONE object per distinct setting, ever — the same
+// identity rule as the constants (a fresh object is a fresh source). With
+// nothing tuned these ARE the constants.
+const tunedBuffers = new Map<string, typeof BUFFER_CONFIG>();
+const bufferConfigFor = (lowRam: boolean) => {
+  const base = lowRam ? BUFFER_CONFIG_LOW_RAM : BUFFER_CONFIG;
+  const t = tuning();
+  if (t.startBufferMs === TUNING_DEFAULTS.startBufferMs && t.rebufferMs === TUNING_DEFAULTS.rebufferMs) return base;
+  const key = `${lowRam ? 1 : 0}|${t.startBufferMs}|${t.rebufferMs}`;
+  let c = tunedBuffers.get(key);
+  if (!c) {
+    c = {...base, bufferForPlaybackMs: t.startBufferMs, bufferForPlaybackAfterRebufferMs: t.rebufferMs};
+    tunedBuffers.set(key, c);
+  }
+  return c;
 };
 // A torrent stream trickles at first — retry reads generously rather than
 // erroring on the first slow chunk. This is the ExoPlayer equivalent of the
@@ -810,6 +829,15 @@ export default function Player({
   const autoLangWanted = useRef<'he' | 'en' | null>(null);
   const subsFetched = useRef(false);
   const playTracked = useRef(false);
+  // Where the start's time went, in ms since mount — sent with the
+  // first-frame mark so the server's log can split a slow start into "the
+  // app was still asking the server about the title" (meta) and "the source
+  // was handed to the player" (armed); what is left up to the first frame is
+  // ExoPlayer opening the source and filling its start buffer.
+  const startMs = useRef<{meta: number; armed: number}>({meta: 0, armed: 0});
+  // A direct-play source opened AT the resume point (tuning.resumeAtSource):
+  // the uri it applies to, and where. Any other uri starts where it always did.
+  const startAt = useRef<{uri: string; ms: number} | null>(null);
   // uri, mirrored for callbacks that fire before ANY source is armed: a skip
   // pressed on the loading screen must not cancel the arming probe (see skip).
   const uriRef = useRef<string | null>(null);
@@ -1145,10 +1173,23 @@ export default function Player({
         // so playback started at 0:00 and five seconds later the real resume
         // point (an hour into a film) was overwritten with ~5s. Retry once;
         // if the history genuinely can't be read, refuse to write over it.
-        let st: ProfileState | null = null;
-        try {
-          st = await api.state(profileId);
-        } catch {}
+        // The item is asked for NOW, beside the history: neither needs the
+        // other's answer, and one after the other was a round trip of black
+        // screen on every start (a fifth of a second and more on a far server).
+        const itemP = stream ? null : api.item(id, profileId);
+        itemP?.catch(() => {}); // (its failure is reported where it is awaited, below)
+        refreshTuning(); // for this start if it answers in time, else the next
+        // The title page read this profile's history a moment ago, to draw
+        // Play / Resume: that answer is the one the viewer just acted on.
+        // Asking again only made the start wait. Anything older than half a
+        // minute — or written to since (saveProgress forgets it) — is read
+        // again, as always.
+        let st: ProfileState | null = api.stateIfFresh(profileId, 30000);
+        if (!st) {
+          try {
+            st = await api.state(profileId);
+          } catch {}
+        }
         if (!st && live) {
           await sleep(1000);
           try {
@@ -1216,7 +1257,7 @@ export default function Player({
               .catch(() => {});
           }
         } else {
-          const it = await api.item(id, profileId);
+          const it = await (itemP as Promise<Item>);
           if (!live) return;
           if (!it.videoUrl && !it.transcodeBase) {
             setError('This title has no playable file.');
@@ -1234,6 +1275,7 @@ export default function Player({
           }
           durRef.current = it.duration || 0;
           setDuration(it.duration || 0);
+          startMs.current.meta = Date.now() - mountedAt.current;
           setMeta({item: it});
           addSubs(it.subtitles || []);
         }
@@ -1393,8 +1435,25 @@ export default function Player({
       // a copy can't be assumed to help.
       startTranscode(base, r, it.videoUrl ? 'copy' : 'h264');
     } else {
-      setUri(assetUrl(it.videoUrl) as string);
+      const direct = assetUrl(it.videoUrl) as string;
+      // The file itself, opened AT the resume point when the server's tuning
+      // asks for it (tuning.ts resumeAtSource): the source carries the
+      // position, so ExoPlayer's first read is where the film continues —
+      // not the top of the file, then a seek. onLoad finds nothing left to
+      // seek to. Off unless tuned on: it is the device that has to say this
+      // is better.
+      if (r > 0 && tuning().resumeAtSource) {
+        startAt.current = {uri: direct, ms: Math.round(r * 1000)};
+        resumeAt.current = 0;
+        curRef.current = r;
+        bufRef.current = r;
+        progTime.current = r;
+        progAt.current = Date.now();
+        setCurrent(r);
+      }
+      setUri(direct);
     }
+    startMs.current.armed = Date.now() - mountedAt.current;
     if (r > 0) {
       // A library file has a frame to show (/img/frame); a stream has no file
       // to pull one from, so it keeps the toast — the site's resume card.
@@ -1751,8 +1810,11 @@ export default function Player({
             // Closed mode gates /stream/* like everything else; ExoPlayer
             // forwards these on every segment/range request.
             headers: mediaHeaders(),
-            bufferConfig: lowRam ? BUFFER_CONFIG_LOW_RAM : BUFFER_CONFIG,
+            bufferConfig: bufferConfigFor(lowRam),
             minLoadRetryCount: MIN_LOAD_RETRY,
+            // (only the uri this was armed for — a reload of the source
+            // after an error carries its own position)
+            ...(startAt.current && startAt.current.uri === uri ? {startPosition: startAt.current.ms} : {}),
           }
         : undefined,
     [uri, lowRam],
@@ -2101,6 +2163,7 @@ export default function Player({
     const pos = curRef.current;
     const dur = durRef.current;
     if (!pos || !dur) return;
+    api.forgetState(); // what a screen read before this write is stale now
     api.saveProgress(profileId, id, pos, dur, streamMeta()).catch(() => {});
   }, [id, profileId, streamMeta]);
 
@@ -2393,6 +2456,30 @@ export default function Player({
   }, [upNext, playUpNext]);
 
   // ---------------------------------------------------------------- video events
+  // The first picture, once — from whichever of the two reports it first: the
+  // player saying it is ready to draw (onReadyForDisplay: ExoPlayer reaching
+  // READY, its start buffer full — the frame is on screen within a few
+  // milliseconds of it), or the clock having moved (onProgress — which ticks
+  // once a SECOND, and so used to stamp every start up to a second late).
+  const noteFirstFrame = () => {
+    if (playTracked.current) return;
+    playTracked.current = true;
+    const ms = Date.now() - mountedAt.current;
+    mark('first-frame', {
+      transcode: usingTranscodeRef.current,
+      v: usingTranscodeRef.current ? currentV.current : 'direct',
+      app: 'tv',
+      meta: startMs.current.meta,
+      armed: startMs.current.armed,
+      buf: tuning().startBufferMs, // the start buffer in force (tuning.ts)
+    });
+    track('play', {
+      kind: isTorrent ? 'stream' : 'library',
+      path: usingTranscodeRef.current ? `hls-${currentV.current}` : 'direct',
+      ms,
+    });
+  };
+
   const onLoad = (d: OnLoadData) => {
     // A still-transcoding HLS playlist reports only what has been written so far
     // and it keeps growing, so the metadata runtime is the honest total. This
@@ -2487,15 +2574,7 @@ export default function Player({
       const win = Math.max(30, Math.min(90, dur * 0.05));
       if (creditsStart.current != null ? content >= creditsStart.current : dur - content < win) showUpNext();
     }
-    if (!playTracked.current && d.currentTime > 0) {
-      playTracked.current = true;
-      mark('first-frame', {transcode: usingTranscodeRef.current, v: usingTranscodeRef.current ? currentV.current : 'direct', app: 'tv'});
-      track('play', {
-        kind: isTorrent ? 'stream' : 'library',
-        path: usingTranscodeRef.current ? `hls-${currentV.current}` : 'direct',
-        ms: Date.now() - mountedAt.current,
-      });
-    }
+    if (d.currentTime > 0) noteFirstFrame();
   };
 
   const onEnd = () => {
@@ -2811,6 +2890,7 @@ export default function Player({
         // never draw a second, mistimed copy (rule 2).
         selectedTextTrack={NO_NATIVE_TEXT}
         onLoad={onLoad}
+        onReadyForDisplay={noteFirstFrame}
         onProgress={onProgress}
         onEnd={onEnd}
         onError={onError}
