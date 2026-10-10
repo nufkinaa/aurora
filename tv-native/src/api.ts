@@ -497,6 +497,32 @@ export type TrailerAnswer =
 export type Library = { movies: Item[]; shows: Item[] };
 export type Discover = { movies: HeroItem[]; shows: HeroItem[] };
 
+// /api/search?v=2 (src/media/search.js): one ranked list — library and
+// catalogue together — then a related tail. `key` identifies a card across
+// the two answers of one search; `meta` says why a card is there when its
+// title is not what matched ("S2 E5 · Pine Barrens", "With Tom Hardy").
+export type SearchCard = HeroItem & {key?: string; meta?: string};
+export type SearchAnswer = {
+  results: SearchCard[];
+  related: SearchCard[];
+  relatedLabel: string | null;
+  pending: boolean;
+  catalogFailed?: boolean;
+};
+// /api/search/suggest?v=2: a title, a person or a genre.
+export type SearchSuggestion = {
+  kind: 'title' | 'person' | 'genre';
+  id?: string;
+  imdbId?: string;
+  type?: 'movie' | 'show';
+  title?: string;
+  year?: number | null;
+  cover?: string | null;
+  inLibrary?: boolean;
+  name?: string;
+  count?: number;
+};
+
 class ApiError extends Error {
   status: number;
   // Set when the server's error body carried {signinRequired:true} — the
@@ -934,6 +960,30 @@ export const api = {
     }),
   discoverSearch: (q: string) =>
     request<Discover>(`/api/discover/search?q=${encodeURIComponent(q)}`),
+  // The one ranked search, the same the website uses. Without `wait` the
+  // server answers from memory at once (`pending`: the catalogue has more);
+  // with it, after the live catalogue and the related row. `pin`: the card
+  // that is first on screen stays first unless something matches better.
+  searchAll: (q: string, o: {wait?: boolean; commit?: boolean; pin?: string | null; profileId?: string} = {}) =>
+    request<SearchAnswer>(
+      `/api/search?v=2&q=${encodeURIComponent(q)}${o.wait ? '&wait=1' : ''}${o.commit ? '&commit=1' : ''}` +
+        `${o.pin ? `&pin=${encodeURIComponent(o.pin)}` : ''}${o.profileId ? `&profile=${encodeURIComponent(o.profileId)}` : ''}`,
+    ),
+  searchSuggest: (q: string, profileId?: string) =>
+    request<{suggestions: SearchSuggestion[]}>(
+      `/api/search/suggest?v=2&limit=6&q=${encodeURIComponent(q)}${profileId ? `&profile=${encodeURIComponent(profileId)}` : ''}`,
+    ),
+  // Recent searches, kept per profile on the server (the website's list too).
+  recentSearches: (profileId: string) => request<{items: string[]}>(`/api/profiles/${profileId}/searches`),
+  addRecentSearch: (profileId: string, q: string) => post<{items: string[]}>(`/api/profiles/${profileId}/searches`, {q}),
+  removeRecentSearch: (profileId: string, q?: string) =>
+    request<{items: string[]}>(`/api/profiles/${profileId}/searches`, {
+      method: 'DELETE',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(q == null ? {} : {q}),
+    }),
+  // "Popular in this house": what the household has been watching lately.
+  popular: (profileId: string) => request<{items: HeroItem[]}>(`/api/popular?profile=${encodeURIComponent(profileId)}`),
   discoverMeta: (type: 'movie' | 'series', imdbId: string) =>
     memo(`meta:${type}:${imdbId}`, 10 * 60000, () =>
       request<DiscoverMeta>(`/api/discover/meta/${type}/${imdbId}`),
