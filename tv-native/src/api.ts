@@ -1013,8 +1013,6 @@ export function mediaHeaders(): Record<string, string> | undefined {
 }
 
 export const api = {
-  // Health check: /api/home with no profile is public and cheap.
-  ping: () => request<Home>('/api/home'),
   profiles: () => request<Profile[]>('/api/profiles'),
   // `pin`: the household PIN. It opens a profile that has no password once
   // the house has a kids profile — the server answers 401 {pinRequired:true}
@@ -1088,7 +1086,6 @@ export const api = {
       (year ? `&year=${encodeURIComponent(String(year))}` : '');
     return memo(path, 30 * 60000, () => request<{ imdbId: string | null }>(path));
   },
-  discover: () => request<Discover>('/api/discover'),
   // One page of a Browse category. Paged SERVER-side and per genre, which is the
   // whole point: the old client fetched a fixed slice of trending and filtered it
   // locally, so a niche genre came back with three titles and "load more" was a

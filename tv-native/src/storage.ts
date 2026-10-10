@@ -283,4 +283,3 @@ let updateDismissed: string | null = null;
 export const dismissUpdate = (v: string) => {
   updateDismissed = v;
 };
-export const updateWasDismissed = (v: string) => updateDismissed === v;
