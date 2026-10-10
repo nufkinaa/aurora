@@ -38,7 +38,7 @@ export const NAV_SECTIONS: {
   // AI sits where New was (elia, 2026-10-06); the New page is still under
   // Settings → What's new, and its unseen dot now lives on that row.
   {key: 'ai', label: 'AI'},
-  {key: 'settings', label: 'Preferences', icon: 'gear', iconSize: 19, foot: true},
+  {key: 'settings', label: 'Settings', icon: 'gear', iconSize: 19, foot: true},
 ];
 
 // The "New" dot: on until this release's page has been opened on this TV.
@@ -107,7 +107,7 @@ export const goSection = <R extends keyof RootStackParamList>(
   // Pressing the section you're already on should do nothing rather than stack a
   // second copy of the same screen behind you. "Already on" is decided by the
   // ROUTE, not by the rail's highlight: a film's Detail page lights Movies up
-  // as its section (and Downloads lights Preferences), and with `current`
+  // as its section (and Downloads lights Settings), and with `current`
   // alone a press on that lit item did nothing at all — the rail just closed
   // (Mi TV, 2026-10-06). From a title page, Movies must still take you there.
   if (onSectionScreen(nav, section)) return;
