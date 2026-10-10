@@ -118,7 +118,7 @@ router.get("/api/discover/collection/:type/:id", async (req, res) => {
     const similar = require("../media/similar");
     res.json(await similar.collection(type, id, parseInt(req.query.tmdbId, 10) || null));
   } catch {
-    res.json({ collection: null, director: null });
+    res.json({ collection: null, director: null, creator: null, network: null });
   }
 });
 
