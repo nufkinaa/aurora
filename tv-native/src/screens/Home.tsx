@@ -22,7 +22,7 @@ import Btn from '../components/Btn';
 import Row, {shelfGeom, ShelfMemory} from '../components/Row';
 import NavRail from '../components/NavRail';
 import {ErrorState} from '../components/States';
-import TrailerFrame, {TrailerHandle, TrailerState} from '../components/Trailer';
+import TrailerFrame, {HERO_TRAILER_COVER, TrailerHandle, TrailerState} from '../components/Trailer';
 import {api, artPath, ART_LADDER, imgSrc, ImgSource, sameParties, serverCanBlur, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
 import {checkForUpdate, holdPromptFor, onUpdateReady, updateReady, UpdateInfo} from '../update';
 import {currentRouteName} from '../rootNav';
@@ -144,6 +144,7 @@ const HeroArt = React.memo(function HeroArtLayer({
   scrolledArt,
   atTop,
   h,
+  cover,
   children,
 }: {
   art: HeroLayers;
@@ -160,6 +161,10 @@ const HeroArt = React.memo(function HeroArtLayer({
   // The trailer layer, drawn over the art and UNDER the scrims, so the lockup
   // stays readable while the picture moves.
   children?: React.ReactNode;
+  // HERO_TRAILER_COVER only, and only while a trailer is mounted: the opacity
+  // of a COPY of the art drawn over the trailer (Trailer.tsx says why). The
+  // same picture, the same box and the same blur as the art under the hole.
+  cover?: Animated.AnimatedInterpolation<number> | null;
 }) {
   // A still stays sharp in both states, so it needs one layer; blurred art needs
   // two, because the blur is baked into each picture and cannot be animated.
@@ -184,6 +189,15 @@ const HeroArt = React.memo(function HeroArtLayer({
         />
       ) : null}
       {children}
+      {cover ? (
+        <Animated.Image
+          source={art.rest.src}
+          style={[styles.art, {opacity: cover}]}
+          resizeMode="cover"
+          blurRadius={art.rest.deviceBlur}
+          fadeDuration={0}
+        />
+      ) : null}
       <Animated.View style={[styles.artDim, {opacity: dim}]} />
       <Image source={HERO_SCRIM} style={styles.artScrim} resizeMode="stretch" fadeDuration={0} />
     </View>
@@ -585,6 +599,17 @@ export default function Home({
   const [trailerOn, setTrailerOn] = useState(false);
   const [unmuted, setUnmuted] = useState(false);
   const trailerFade = useRef(new Animated.Value(0)).current;
+  // HERO_TRAILER_COVER (Trailer.tsx): the video's layer is absent at 0 and
+  // wholly there from the first step of the fade; the art's copy is absent at
+  // 0, at full strength at that same first step, and fades out to 1.
+  const holeOpacity = useMemo(
+    () => trailerFade.interpolate({inputRange: [0, 0.001, 1], outputRange: [0, 1, 1]}),
+    [trailerFade],
+  );
+  const coverOpacity = useMemo(
+    () => trailerFade.interpolate({inputRange: [0, 0.001, 1], outputRange: [0, 1, 0]}),
+    [trailerFade],
+  );
   const trailerBusy = useRef(false);
   const trailerGen = useRef(0);
   const trailerHandle = useRef<TrailerHandle | null>(null);
@@ -618,7 +643,12 @@ export default function Home({
   }, [live]);
 
   const stopTrailer = useCallback(
-    (advance = false) => {
+    // `leaving`: focus is going down to the shelves. Only HERO_TRAILER_COVER
+    // reads it: the whole art layer fades out with the scroll in ~0.3 s, and a
+    // hole still half open inside a layer that is itself fading is the one
+    // case the cover cannot make version-proof — so the art is back over the
+    // hole well before that, instead of in 700 ms.
+    (advance = false, leaving = false) => {
       trailerGen.current++;
       trailerBusy.current = false;
       if (capTimer.current) clearTimeout(capTimer.current);
@@ -635,7 +665,8 @@ export default function Home({
         // WebView used to sit under the player all film long still decoding
         // behind it. So the trailer is also told to stop for good the moment
         // the fade has finished, and the unmount follows on return.
-        Animated.timing(trailerFade, {toValue: 0, duration: 700, useNativeDriver: true, isInteraction: false}).start(() => {
+        const out = HERO_TRAILER_COVER && leaving ? 120 : 700;
+        Animated.timing(trailerFade, {toValue: 0, duration: out, useNativeDriver: true, isInteraction: false}).start(() => {
           trailerHandle.current?.cmd('stop');
           setTrailer(null);
         });
@@ -903,7 +934,7 @@ export default function Home({
       const rest = restOffset(y, colH.current, height, spacing.pageY);
       // Does the art still show where this shelf comes to rest? (see setTop)
       setTop(false, y == null || rest < Math.round(heroH * 0.9));
-      if (trailerBusy.current || trailerOnRef.current) stopTrailer(false);
+      if (trailerBusy.current || trailerOnRef.current) stopTrailer(false, true);
       if (y == null) {
         if (HOME_WINDOW) pump();
         return;
@@ -1173,9 +1204,11 @@ export default function Home({
         ]}
         pointerEvents="none">
       {art ? (
-        <HeroArt art={art} scrolledArt={scrolledArt} atTop={atTop} h={height}>
+        <HeroArt art={art} scrolledArt={scrolledArt} atTop={atTop} h={height} cover={HERO_TRAILER_COVER && trailer ? coverOpacity : null}>
           {trailer ? (
-            <Animated.View style={[styles.trailerLayer, {opacity: trailerFade}]} pointerEvents="none">
+            <Animated.View
+              style={[styles.trailerLayer, {opacity: HERO_TRAILER_COVER ? holeOpacity : trailerFade}]}
+              pointerEvents="none">
               <TrailerFrame
                 key={trailer.key}
                 trailer={trailer.t}
