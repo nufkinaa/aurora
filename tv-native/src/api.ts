@@ -564,6 +564,8 @@ const fetchBounded = (url: string, init: RequestInit, firstByteMs: number): Prom
     xhr.send(init.body == null ? null : (init.body as string));
   });
 
+const UNREADABLE = 'The server sent an answer the app could not read';
+
 // The request itself, up to an answer that is not an error. `allow304` lets a
 // conditional read (If-None-Match) have its "nothing changed" answer back.
 async function send(path: string, options: RequestInit = {}, allow304 = false): Promise<Response> {
@@ -617,9 +619,19 @@ async function send(path: string, options: RequestInit = {}, allow304 = false): 
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await send(path, options);
+  // A 200 that is not JSON — a captive portal's sign-in page, a proxy's error
+  // page — used to throw the parser's own SyntaxError, and a screen printed
+  // "JSON Parse error: Unexpected character: <" as its detail. It is the same
+  // kind of failure as not reaching the server, and is reported as one.
+  let body: T;
+  try {
+    body = JSON.parse(await res.text()) as T;
+  } catch {
+    throw new ApiError(0, UNREADABLE);
+  }
   // the tiny pictures that ride beside an answer go to blur.ts; the screen
   // gets the answer it always got
-  return takeBlur((await res.json()) as T);
+  return takeBlur(body);
 }
 
 // ---- Home's rows, kept between visits -----------------------------------
@@ -635,7 +647,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 // Both hand back THE SAME OBJECT as last time, so React sees nothing new. A
 // body that really changed is parsed and replaces what is kept. One entry:
 // the profile is in the path, so another profile simply starts over.
-const UNREADABLE = 'The server sent an answer the app could not read';
 let homeKept: {path: string; etag: string | null; text: string; value: Home} | null = null;
 async function readHome(path: string): Promise<Home> {
   const kept = homeKept && homeKept.path === path ? homeKept : null;
