@@ -3,6 +3,20 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.98 — 2026-10-11
+
+- **Aurora TV 5.2.0.** Checked on the Mi TV, including once against a server that requires sign-in.
+- **A brighter Home.** The big picture at the top is no longer dimmed all over: only the corner behind the words is darkened and the words carry a soft shadow, so the picture shows as it was shot and the text stays readable on bright scenes. The score's star is gold and its number silver.
+- **Smoother rows.** A row keeps only the cards near you alive and fetches the next pictures ahead of you; holding a direction along a row no longer shows a row of empty cards. Home opens its first rows sooner, and a long list of small slowdowns found by measuring on the TV is gone.
+- **The side menu no longer opens by itself** when you arrive at the left edge with one press.
+- **Actors and directors:** pressing a name in X-Ray opens that person's page over it — their photos and titles — and a press on a title adds it to your list.
+- **Search, More like this and Next episode match the website**, and your settings follow you from device to device.
+- Skip recap, "Still watching?", recovery from a stalled stream, and a "sources" choice on a title, as on the website.
+- When the server is busy starting a film the TV waits and tries again instead of showing an error; when the library changes it refreshes once, quietly, and never during a film; after a server restart it reconnects by itself.
+- The picture on Aurora's "Continue watching" card on the Android TV home screen now loads on servers that require sign-in.
+- Away from home the TV tries nufurora.com first, so it connects faster.
+- Being signed out or removed by the admin, and a forced password reset, are handled on the TV as on the website.
+
 ## 1.6.97 — 2026-10-11
 
 - Fixed from the server's own log: on a Linux server, a film that had to be repackaged for an iPhone or Safari (HEVC video, or a second audio track) failed to start ("Remux failed … Could not write header"). It starts now.

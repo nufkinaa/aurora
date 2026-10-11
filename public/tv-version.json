@@ -1,4 +1,4 @@
 {
-  "versionName": "5.1.31",
-  "notes": "Fixes missing pictures on Home, Movies and Shows for TVs signed in to a server that requires sign-in. Please update."
+  "versionName": "5.2.0",
+  "notes": "A brighter Home hero, smoother rows, the menu no longer opens by itself, actor and director pages, search and settings that match the website, and many fixes."
 }
