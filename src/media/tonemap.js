@@ -320,7 +320,12 @@ const supportNow = () => support;
 const recalibrate = async () => {
   const s = await probeSupport();
   if (!s.ok) return s;
+  // settled: what this host can do is known, nothing is run (see above)
   if (timings >= SETTLED_AFTER) return s;
+  // not while somebody's stream is being encoded: the timing would take
+  // their cores, and would read low anyway (cpuwork.js) — it is not counted
+  // as a timing either, so it is taken on a later, quieter start
+  try { if (require("./cpuwork").viewer.busy()) return s; } catch {}
   const short = await io.runChain("hlg", CAL_SHORT);
   const long = short === null ? null : await io.runChain("pq", CAL_LONG);
   if (short === null || long === null) return s;

@@ -1670,7 +1670,7 @@ const finish = async (job, destPath) => {
   scanner.scan();
   broadcast(job);
   scanner.enrich();
-  realtime.broadcastAll({ type: "library_updated" });
+  realtime.libraryUpdated();
   // An episode's intro / recap / credits go on file NOW, while nobody is
   // watching yet — not on its first play, and not whenever the background
   // fill reaches it. Fire-and-forget; the audio pass still runs after

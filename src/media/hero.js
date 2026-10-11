@@ -96,6 +96,8 @@ let warming = null;
 // what select() actually gets; an empty pool just means it falls back to the
 // trending cache for this one response.
 const poolCached = () => pool.items;
+// Moves when the pool is refilled (lib/answermemo.js keys on it).
+const poolStamp = () => `${pool.day || 0}.${pool.at || 0}.${pool.items.length}`;
 
 // Fill the pool for today. Fire-and-forget from the request path.
 const warm = async (now = Date.now()) => {
@@ -484,6 +486,7 @@ const recommend = ({
 };
 
 module.exports = {
+  poolStamp,
   select,
   recommend,
   warm,

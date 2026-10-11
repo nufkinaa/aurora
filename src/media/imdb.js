@@ -64,8 +64,12 @@ const resolve = async (title, type, year) => {
     return null;
   }
 
+  // (the version says "an id changed": asking again and getting the same
+  // answer — or the same "no match" — is not a change, and must not make
+  // everything built over this cache rebuild itself, once per library title)
+  const changed = !hit || (hit.imdbId || null) !== imdbId;
   store.data[key] = { imdbId, at: Date.now() };
-  version++;
+  if (changed && (imdbId || (hit && hit.imdbId))) version++;
   store.save();
   return imdbId;
 };

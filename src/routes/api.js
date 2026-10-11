@@ -17,6 +17,11 @@ const lazy = require("../lib/lazy");
 const authmodeLib = lazy(require, "../lib/authmode");
 const authzLib = lazy(require, "../lib/authz");
 const sessionsLib = lazy(require, "../lib/sessions");
+const blurupLib = lazy(require, "../lib/blurup");
+const imdbLib = lazy(require, "../media/imdb");
+const recsLib = lazy(require, "../media/recs");
+const settingsLib = lazy(require, "../lib/settings");
+const tasteLib = lazy(require, "../media/taste");
 
 const router = express.Router();
 
@@ -249,6 +254,10 @@ router.get("/api/server-info", (req, res) => {
     // Present only on a server with "torrents": false in config.json — the
     // web app then offers nothing that streams or downloads from sources.
     ...(require("../lib/torrentgate").enabled() ? {} : { torrents: false }),
+    // Present only while a critical store could not be read and nothing good
+    // existed to restore it from (lib/jsonstore.js): the clients then say, in
+    // words, that nothing done now is kept. No names, no details.
+    ...(require("../lib/jsonstore").inSafeMode() ? { safeMode: true } : {}),
   });
 });
 
@@ -509,55 +518,60 @@ router.get("/api/party/:code", (req, res) => {
   res.json(p);
 });
 
-// The answer is the same for everyone until the library is scanned again or
-// an IMDb id is learnt, so it is made once and kept (lib/keptjson.js): every
-// device asks for it at start-up and again on each "library_updated", and
-// building it per request cost 23 ms of CPU for 1,261 titles — 12 ms even to
-// answer "304, you have it". A kids profile's request is filtered on its way
-// out by the gate above, so it gets the object, as before.
-//
-// Both apps ask with X-Blur: 1 (lib/blurup.js adds the "_blur" placeholders
-// to the answer). The placeholders a body gets change only when a new one is
-// made (blurup.generation()), so the answer WITH them is kept too, made the
-// way the blur-up middleware makes it: { ...answer, _blur: map }.
-const keptjson = require("../lib/keptjson");
-const blurup = require("../lib/blurup");
-let libraryKept = null; // { movies, shows, nMovies, nShows, scannedAt, enriched, stamps, plain, blurred, blurGen }
-const libraryAnswer = () => ({
-  movies: scanner.index.movies,
-  shows: scanner.index.shows.map(listEntry),
-  scannedAt: scanner.index.scannedAt,
-  enriched: scanner.index.enriched,
-});
-router.get("/api/library", (req, res) => {
+// ---------- kept answers, and whose turn it is ----------
+// /api/home and /api/library are the two heavy answers every device asks for
+// at the same moments (a page load, a library change). lib/answermemo.js
+// keeps the finished bytes for as long as nothing they were built from has
+// changed (30 s at most); lib/admission.js lets one heavy request run per
+// turn of the event loop and gives each client a fair share of those turns.
+const answermemo = require("../lib/answermemo");
+const heavy = require("../lib/admission").heavy;
+
+// The library, as a number that moves whenever it changes: a scan, the
+// probes finishing, online metadata arriving (which ends in a scan).
+let libRev = 0;
+for (const ev of ["updated", "enriched", "scanned"]) scanner.events.on(ev, () => { libRev++; });
+const dayNumber = () => Math.floor(Date.now() / 86400000);
+// (the placeholders: a count of every one that has arrived — an answer's
+// "_blur" map changes only when it moves)
+const blurRev = () => { try { return blurupLib().generation(); } catch { return 0; } };
+// What an answer is the same for: the kids limit in force, and whether
+// placeholders ride along (lib/blurup.js adds them for clients that ask).
+const kidKey = (req) => (req.kids ? `${req.kids.profile}:${req.kids.maxAge}` : "");
+const blurKey = (req) => (req.get("X-Blur") === "1" ? "blur" : "");
+// Built from: the library, the IMDb ids stamped on it, the age ratings (the
+// kids filter reads them), the placeholders known so far.
+const libraryStamp = () => `${libRev}.${scanner.index.scannedAt}.${scanner.index.enriched ? 1 : 0}.${require("../media/imdb").version()}.${discover.stamp()}.${blurRev()}`;
+// Home is built from all of that plus: the billboard pool, release verdicts,
+// the recommender's index, the settings, who the profiles are and their
+// limits — and, for a profile, ITS OWN writes (progress, list, ratings,
+// follows). Somebody else watching moves none of it. The day: the billboard
+// and the sampled rows are seeded per day.
+const recsRev = () => { try { return require("../media/recs")._internals.state.gen; } catch { return 0; } };
+const homeStamp = (profileId) =>
+  `${libraryStamp()}.${hero.poolStamp()}.${availability.stamp()}.${recsRev()}.${require("../lib/settings").rev}.${profiles.shapeStamp()}.${profileId ? profiles.signalsStamp(profileId) : 0}.${dayNumber()}`;
+
+const libraryKept = (req, res, next) => {
+  if (answermemo.begin(req, res, { key: `library|${kidKey(req)}|${blurKey(req)}`, stamp: libraryStamp })) return;
+  next();
+};
+// After waiting its turn: the same answer may have been composed meanwhile
+// for somebody who asked a moment earlier.
+const keptMeanwhile = (req, res, next) => {
+  if (answermemo.recheck(req, res)) return;
+  next();
+};
+
+router.get("/api/library", libraryKept, heavy.middleware(), keptMeanwhile, (req, res) => {
   // Library items carry the IMDb id we already know for them (identity.js
   // stamps the index; a no-op unless the library or the id cache changed).
-  const stamps = identity.ensureStamped(); // (a new object whenever the items were stamped again)
-  // a kids profile: the gate filters the object on its way out — nothing kept
-  if (req.kids) return res.json(libraryAnswer());
-  const { movies, shows, scannedAt, enriched } = scanner.index;
-  let k = libraryKept;
-  if (!(k && k.movies === movies && k.shows === shows && k.nMovies === movies.length && k.nShows === shows.length &&
-        k.scannedAt === scannedAt && k.enriched === enriched && k.stamps === stamps)) {
-    k = libraryKept = { movies, shows, nMovies: movies.length, nShows: shows.length, scannedAt, enriched, stamps, plain: null, blurred: null, blurGen: -1 };
-  }
-  let kept;
-  if (req.blurAsked) {
-    if (!k.blurred || k.blurGen !== blurup.generation()) {
-      const answer = libraryAnswer();
-      const map = blurup.annotate(answer); // (also asks for the placeholders not made yet)
-      k.blurGen = blurup.generation();
-      k.blurred = keptjson.make(req.app, map ? { ...answer, _blur: map } : answer);
-    }
-    kept = k.blurred;
-  } else {
-    if (!k.plain) k.plain = keptjson.make(req.app, libraryAnswer());
-    kept = k.plain;
-  }
-  // (res.json is the fallback when this app's JSON settings are not the defaults;
-  // it goes through the blur-up middleware as it always did)
-  if (!kept) return res.json(libraryAnswer());
-  keptjson.send(req, res, kept);
+  identity.ensureStamped();
+  res.json({
+    movies: scanner.index.movies,
+    shows: scanner.index.shows.map(listEntry),
+    scannedAt: scanner.index.scannedAt,
+    enriched: scanner.index.enriched,
+  });
 });
 
 // The library copy of a stream identity, if we own it: the movie, or the one
@@ -689,7 +703,7 @@ router.get("/api/search/suggest", (req, res) => {
   });
 });
 
-router.get("/api/search", async (req, res) => {
+router.get("/api/search", heavy.middleware(), async (req, res) => {
   const q = String(req.query.q || "").trim().slice(0, 80);
   const v2 = String(req.query.v || "") === "2";
   if (!q) return res.json(v2 ? { q: "", results: [], related: [], relatedLabel: null, relatedKind: null, anchor: null, pending: false, catalogFailed: false } : { results: [] });
@@ -800,7 +814,12 @@ const dailyRandom = (profileId) => {
 // library with streamable (Discover) titles and personalises by star ratings,
 // liked genres, and watch history. Stays fast: streamable data comes from the
 // in-memory cache (a background refresh keeps it warm), never a blocking fetch.
-router.get("/api/home", (req, res) => {
+//
+// Three steps: who is asking (cheap, every time); a kept answer if nothing it
+// was built from has changed (lib/answermemo.js — also the 304 for a client
+// that already has it); otherwise the request takes its turn
+// (lib/admission.js) and the answer is composed and kept.
+const homeWho = (req, res, next) => {
   const reqProfile = req.query.profile || null;
   // Honour the profile lock: a password-protected profile's personalized rows
   // (Continue Watching, My List, ratings, liked genres) require a valid unlock
@@ -829,6 +848,14 @@ router.get("/api/home", (req, res) => {
       profiles.tokenValid(reqProfile, req.get("X-Profile-Token")))
       ? reqProfile
       : null;
+  req.homeProfileId = profileId;
+  const key = `home|${profileId || ""}|${req.query.slim === "1" ? "slim" : "web"}|${kidKey(req)}|${blurKey(req)}`;
+  if (answermemo.begin(req, res, { key, stamp: () => homeStamp(profileId) })) return;
+  next();
+};
+
+router.get("/api/home", homeWho, heavy.middleware(), keptMeanwhile, (req, res) => {
+  const profileId = req.homeProfileId;
   const { movies, shows } = scanner.index;
   const local = [...movies, ...shows];
 
@@ -1183,6 +1210,6 @@ const cardStrip = (i, { synopsis = false } = {}) => {
 
 // Test-only: the home-row composer's merge rules are contracts (never drop
 // unknown rows, never hero "upcoming") — pinned in test/roworder.test.js.
-router._internals = { orderRows, kidsFor, kidsCertOf, kidsSession: kidsDeps.session, personCredit, personOverBudget };
+router._internals = { homeStamp, libraryStamp, orderRows, kidsFor, kidsCertOf, kidsSession: kidsDeps.session, personCredit, personOverBudget };
 
 module.exports = router;

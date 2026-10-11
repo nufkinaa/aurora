@@ -34,8 +34,9 @@ const KEYS = ["cover", "poster", "backdrop"];
 
 const mem = new Map(); // picture address -> data URI
 // Counts every placeholder that arrives in `mem`. annotate() of one body
-// changes only when this does, so a caller that keeps a finished answer
-// (lib/keptjson.js) knows when to ask again.
+// changes only when this does, so what keeps a finished answer
+// (lib/answermemo.js, through the stamps in routes/api.js) knows when the
+// kept bytes are no longer what a fresh answer would be.
 let generation = 0;
 const learn = (u, uri) => { mem.set(u, uri); generation++; };
 const failed = new Map(); // picture address -> failedAt
@@ -175,9 +176,6 @@ const annotate = (body) => {
 // Express middleware: GET /api/* answers for a client that asked.
 const middleware = (req, res, next) => {
   if (req.method !== "GET" || req.get("X-Blur") !== "1" || !req.path.startsWith("/api/") || req.path.startsWith("/api/admin")) return next();
-  // (for a handler that sends a kept answer itself: this request wants the
-  // placeholders, and annotate() below is how it would have got them)
-  req.blurAsked = true;
   const json = res.json.bind(res);
   res.json = (body) => {
     try {

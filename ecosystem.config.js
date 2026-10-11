@@ -1,5 +1,11 @@
 // pm2 process definition: keeps Aurora alive across crashes and (via
 // pm2-windows-startup + pm2 save) brings it back automatically after login.
+//
+// The recommended supervisor is now Aurora's own keeper (scripts/keeper.js,
+// docs/operations.md): unlike pm2 it also restarts a server that HANGS, and it
+// needs nothing installed. This file is kept for hosts already on pm2 — the
+// server recognises pm2 as its supervisor and the Restart buttons work there.
+// Do not run both: two servers would fight over the port.
 module.exports = {
   apps: [
     {

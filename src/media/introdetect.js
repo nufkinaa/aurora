@@ -31,6 +31,7 @@ const scanner = require("./scanner");
 const metadata = require("./metadata");
 const { JsonStore } = require("../lib/jsonstore");
 
+const cpuwork = require("./cpuwork");
 const store = new JsonStore(path.join(config.DATA_DIR, "intro-auto.json"), {});
 
 const SR = 8000; // Hz — speech/music structure survives, decode is ~free
@@ -204,9 +205,10 @@ const blackSegments = (file, from, length) =>
       "-vf", "fps=5,scale=160:-2,blackdetect=d=0.3:pic_th=0.92:pix_th=0.12",
       "-f", "null", "-",
     ];
-    execFile(config.FFMPEG, args, { encoding: "utf-8", maxBuffer: 8 * 1024 * 1024, windowsHide: true, timeout: 90000 }, (err, stdout, stderr) => {
+    const child = execFile(config.FFMPEG, args, { encoding: "utf-8", maxBuffer: 8 * 1024 * 1024, windowsHide: true, timeout: 90000 }, (err, stdout, stderr) => {
       resolve(parseBlackdetect(stderr));
     });
+    cpuwork.background.lower(child);
   });
 const refineCreditsByPicture = async (file, start, duration) => {
   try {
@@ -236,6 +238,7 @@ const decode = (file, startSec, lengthSec) =>
       resolve(new Int16Array(buf.buffer, buf.byteOffset, Math.floor(buf.length / 2)));
     });
     child.stdout && child.stdout.on("data", (d) => chunks.push(d));
+    cpuwork.background.lower(child);
   });
 
 // Titled chapters, when the release carries them.
@@ -387,8 +390,11 @@ const analyze = async (ep, siblings) => {
 // downloading never got its own Skip intro measured).
 const ANALYSIS_V = 2;
 let running = false;
+let held = false; // waiting for a place behind a viewer encode (cpuwork.js)
 let again = false;
-const busy = () => running;
+// (waiting for its turn behind a viewer's encode is not being busy: the
+// watchdog must go on judging the event loop through an evening's viewing)
+const busy = () => running && !held;
 const pass = async () => {
   let done = 0;
   const seen = new Set();
@@ -418,6 +424,12 @@ const pass = async () => {
       if (have && have.mtime === mtime && have.v === ANALYSIS_V) continue;
       const meta = metadata.getCached(entry.path);
       if (!meta || !meta.duration) continue; // enrichment hasn't reached it yet
+      // Background work (cpuwork.js): each episode waits for its place — no
+      // viewer encode running, none for a while — and its ffmpeg runs at the
+      // lowest priority. An episode already being read is let finish.
+      held = true;
+      const place = await cpuwork.background.gate("intro", { label: `${show.title} S${season.number}E${ep.episode}` });
+      held = false;
       try {
         const res = await analyze(ep, eps.filter((e) => e.id !== ep.id));
         if (!res) continue;
@@ -430,6 +442,8 @@ const pass = async () => {
         done++;
       } catch (e) {
         console.warn(`[intro] ${show.title} S${season.number}E${ep.episode}: ${e && e.message ? e.message : e}`);
+      } finally {
+        place.release();
       }
       await new Promise((r) => setImmediate(r));
     }

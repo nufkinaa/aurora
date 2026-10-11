@@ -55,6 +55,19 @@ const LADDER = [240, 256, 352, 360, 448, 480, 640, 800, 960, 1280, 1600, 1920];
 const HERO_STEP = 1600;
 const MAX_BLUR = 8;
 const MAX_CONCURRENT = 2; // ffmpeg encodes behind the video pipeline's back
+// The wait behind those two is bounded. It used to have no limit: forty
+// blurred variants asked for at once took 22.6 s to drain, each request
+// holding its connection (measured), and nothing stopped four thousand. Past
+// these lines a variant is not queued at all — the caller sends the original
+// straight away (cached briefly, so the variant is asked for again later).
+//   MAX_QUEUE          waiting, everyone together
+//   MAX_QUEUE_CLIENT   waiting, for one client (routes pass `opts.client`) —
+//                      a page of forty posters is inside it; one device
+//                      cannot fill the queue for the rest
+const MAX_QUEUE = 200;
+const MAX_QUEUE_CLIENT = 48;
+const waitingOf = new Map(); // client -> jobs waiting
+const shedStats = { shed: 0 };
 let running = 0;
 const queue = [];
 const inflight = new Map(); // out path -> promise
@@ -100,13 +113,19 @@ const sweep = () => {
 const pump = () => {
   while (running < MAX_CONCURRENT && queue.length) {
     const job = queue.shift();
+    if (job.client != null) {
+      const n = (waitingOf.get(job.client) || 1) - 1;
+      if (n > 0) waitingOf.set(job.client, n); else waitingOf.delete(job.client);
+    }
     running++;
-    job().finally(() => {
+    job.run().finally(() => {
       running--;
       pump();
     });
   }
 };
+// Is there room to wait? (the two limits above)
+const roomFor = (client) => queue.length < MAX_QUEUE && (client == null || (waitingOf.get(client) || 0) < MAX_QUEUE_CLIENT);
 
 // WebP when this ffmpeg has libwebp (every build we've seen does; a JPEG at
 // q4 otherwise). Same picture, roughly a third fewer bytes than the JPEG.
@@ -183,7 +202,9 @@ const encode = (src, out, width, blur = 0) =>
 
 // The path of a variant of `src` at `width` (ladder-snapped), made if it
 // doesn't exist yet. Resolves null when no variant can be had — callers
-// then send the original. `opts.blur` (see the header): pre-blurred, at
+// then send the original. When the reason is "too many waiting" the opts
+// object is marked `shed: true`, so the caller can keep that answer out of
+// long-lived caches. `opts.client`: who is asking (for the per-client limit). `opts.blur` (see the header): pre-blurred, at
 // `width` or, with no usable width, at the original size. `opts.fmt`
 // "webp": that blurred variant as WebP (ignored without blur, and where this
 // ffmpeg has no libwebp — the JPEG is the answer then).
@@ -218,8 +239,15 @@ const variant = async (src, width, opts = {}) => {
   if (Date.now() - (failed.get(out) || 0) < FAIL_TTL) return null;
   let p = inflight.get(out);
   if (!p) {
+    const client = opts && opts.client != null ? String(opts.client) : null;
+    if (running >= MAX_CONCURRENT && !roomFor(client)) {
+      shedStats.shed++;
+      if (opts && typeof opts === "object") opts.shed = true;
+      return null; // the original, now — not a place in a queue that long
+    }
     p = new Promise((resolve, reject) => {
-      queue.push(() => encode(src, out, w, blur).then(resolve, reject));
+      queue.push({ client, run: () => encode(src, out, w, blur).then(resolve, reject) });
+      if (client != null) waitingOf.set(client, (waitingOf.get(client) || 0) + 1);
       pump();
     });
     inflight.set(out, p);
@@ -237,4 +265,4 @@ const variant = async (src, width, opts = {}) => {
   }
 };
 
-module.exports = { variant, snap, blurOf, fmtOf, filterFor, blurChain, codecFor, hasWebp, LADDER, MAX_BLUR, DIR };
+module.exports = { variant, snap, blurOf, fmtOf, filterFor, blurChain, codecFor, hasWebp, LADDER, MAX_BLUR, DIR, MAX_QUEUE, MAX_QUEUE_CLIENT, _internals: { queue, waitingOf, shedStats, roomFor, inflight } };

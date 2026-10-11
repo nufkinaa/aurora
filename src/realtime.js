@@ -67,6 +67,42 @@ const broadcastAll = (data) => {
   });
 };
 
+// "Something changed — ask again": a message that makes EVERY device refetch
+// (library_updated: the library list, its state, Home). A scan, the probes
+// finishing, a download landing and the admin's rescan can each say it within
+// the same second, and each one used to go out — a rescan alone sent two, so
+// 100 devices made 600 requests and the server stood still for 4–8 s
+// (measured). These are now collected: one message goes out once things have
+// been quiet for QUIET_MS, and at the latest MAX_MS after the first — never
+// one per cause. Nothing is lost by the wait: the message carries no data,
+// only "ask again", and the clients spread their asking out on top of this.
+const QUIET_MS = 1500;
+const MAX_MS = 5000;
+const soon = new Map(); // type -> { data, firstAt, timer, n }
+// (the timers and the way out are replaceable: the tests drive them by hand)
+const clock = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (t) => clearTimeout(t), now: () => Date.now(), send: null };
+const coalesced = { asked: 0, sent: 0 };
+const broadcastSoon = (data) => {
+  const type = data && data.type;
+  if (!type) return;
+  coalesced.asked++;
+  const now = clock.now();
+  let p = soon.get(type);
+  if (!p) { p = { data, firstAt: now, timer: null, n: 0 }; soon.set(type, p); }
+  p.data = data;
+  p.n++;
+  if (p.timer) clock.clearTimeout(p.timer);
+  const wait = Math.max(0, Math.min(QUIET_MS, p.firstAt + MAX_MS - now));
+  p.timer = clock.setTimeout(() => {
+    soon.delete(type);
+    coalesced.sent++;
+    (clock.send || broadcastAll)(p.data);
+  }, wait);
+  if (p.timer && p.timer.unref) p.timer.unref();
+};
+// The one every caller means.
+const libraryUpdated = () => broadcastSoon({ type: "library_updated" });
+
 // One payload PER CLIENT (fn(client) → data, or null to skip that socket):
 // for messages whose shape depends on who is listening — download updates
 // say "mine" to the requester and nothing about who asked to everyone else.
@@ -375,16 +411,40 @@ const attach = (server) => {
 
 const clientCount = () => clients.size;
 
+// The server is going away (lib/shutdown.js): say so to every socket, then
+// close it with a code that means "come back" (1012, service restart). The
+// clients reconnect after a random delay. Returns how many were told.
+const closeAll = (data, code = 1012) => {
+  if (!wss) return 0;
+  const msg = data ? JSON.stringify(data) : null;
+  let n = 0;
+  wss.clients.forEach((ws) => {
+    try {
+      if (ws.readyState === WebSocket.OPEN) {
+        if (msg) ws.send(msg);
+        ws.close(code, "restarting");
+        n++;
+      }
+    } catch {}
+  });
+  // a peer that never answers the close must not hold the exit
+  setTimeout(() => { try { wss.clients.forEach((ws) => { try { ws.terminate(); } catch {} }); } catch {} }, 1500).unref?.();
+  return n;
+};
+
 module.exports = {
   clientCount,
+  closeAll,
   attach,
   broadcastAll,
+  broadcastSoon,
+  libraryUpdated,
   broadcastEach,
   sendTo,
   broadcastAdmins,
   clients,
   clientsOfProfile,
-  _internals: { stampSocket, handleMessage },
+  _internals: { stampSocket, handleMessage, soon, clock, coalesced, QUIET_MS, MAX_MS },
   connectionLog,
   stats,
   bans,
