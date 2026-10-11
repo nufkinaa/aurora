@@ -421,6 +421,8 @@ test("real ffmpeg: an encoder runs at normal priority until the segment it was s
 
     // a warm-up: nobody is waiting, it yields at once
     J.dropJob(d);
+    // (a warm-up starts only once no viewer's encoder is running anywhere: the one above has to be gone)
+    await until(() => require("../src/media/cpuwork").viewer.count() === 0, 5000);
     await new Promise((r) => setTimeout(r, 200));
     const dw = path.join(dir, "warm");
     dirs.push(dw);
