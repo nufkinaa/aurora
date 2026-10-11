@@ -1,0 +1,657 @@
+{
+ "env": {
+  "commit": "3ad862322624",
+  "pkg": "com.auroratv.lab",
+  "serial": "192.168.50.31:5555",
+  "fingerprint": "Xiaomi/twilight/twilight:14/UKG3.250826.001/V816.0.7.0.UZFAABX:user/release-keys",
+  "model": "MiTV-AFMU0",
+  "sdk": "34",
+  "locale": "en-US",
+  "timezone": "Asia/Jerusalem",
+  "animator_duration_scale": "null",
+  "transition_animation_scale": "1.0",
+  "window_animation_scale": "1.0",
+  "font_scale": "1.0",
+  "screensaver_enabled": "1",
+  "wm_size": "Physical size: 1920x1080",
+  "wm_density": "Physical density: 320",
+  "display_mode": "mActiveModeId=20",
+  "versionCode": 9000,
+  "versionName": "9.9.9-lab",
+  "ping": "v=9000 impl=- exp=cull+cardlayer+shadowcache+unstuff",
+  "token_source": "--token/env"
+ },
+ "args": {
+  "serial": "192.168.50.31:5555",
+  "pkg": "com.auroratv.lab",
+  "impl": "FCRHNG",
+  "states": [
+   "card",
+   "hero",
+   "navrail"
+  ],
+  "exp": "cardlayer=1,cull=1,shadowcache=1,unstuff=1,pool=1",
+  "exp_a": "cardlayer=1,cull=1,shadowcache=1,unstuff=1",
+  "impl_a": "FCRHN",
+  "only": "progress-bar,size-frame-episode,down-burst-4,item-profile-wrap",
+  "runs": 3,
+  "out": "../../docs/qa/native-bench/pool/px-full-regress-rerun",
+  "adb": null,
+  "token": "aurora-lab-qa",
+  "keystore": null,
+  "var": [],
+  "server": [],
+  "launch_wait_ms": 4000,
+  "screenrecord": false,
+  "force_lock": false,
+  "dry_run": false,
+  "diff_only": false,
+  "verbose": false
+ },
+ "results": [
+  {
+   "state": "progress-bar",
+   "component": "card",
+   "impl": "FCRHNG",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 905,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 170
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 1047,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 176
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 4
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "progress-bar",
+   "component": "card",
+   "impl": "FCRHNG",
+   "run": 2,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 813,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 187
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 734,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 170
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 4
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "progress-bar",
+   "component": "card",
+   "impl": "FCRHNG",
+   "run": 3,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 640,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 168
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 1062,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 238
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 4
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "size-frame-episode",
+   "component": "card",
+   "impl": "FCRHNG",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 858,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 200
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 828,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 197
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 6
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "size-frame-episode",
+   "component": "card",
+   "impl": "FCRHNG",
+   "run": 2,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 672,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 195
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 875,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 211
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 6
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "size-frame-episode",
+   "component": "card",
+   "impl": "FCRHNG",
+   "run": 3,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 750,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 226
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 1000,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 220
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 6
+   },
+   "focus_checked": false,
+   "pass": true
+  },
+  {
+   "state": "down-burst-4",
+   "component": "hero",
+   "impl": "FCRHNG",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 1015,
+     "polls": 2,
+     "anim_lines": 310,
+     "frames": 169
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 827,
+     "polls": 2,
+     "anim_lines": 332,
+     "frames": 191
+    }
+   },
+   "reasons": [],
+   "trace": {
+    "pass": true,
+    "rule": "rest",
+    "ids": {
+     "hero.ty": {
+      "steps_a": 70,
+      "steps_b": 72,
+      "max_abs_err": 0.0,
+      "pass": true,
+      "key_to_first_ms": [
+       null,
+       null
+      ]
+     }
+    }
+   },
+   "focus": {
+    "pass": true,
+    "rows": 8
+   },
+   "focus_checked": true,
+   "pass": true
+  },
+  {
+   "state": "down-burst-4",
+   "component": "hero",
+   "impl": "FCRHNG",
+   "run": 2,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 719,
+     "polls": 2,
+     "anim_lines": 328,
+     "frames": 175
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 937,
+     "polls": 2,
+     "anim_lines": 316,
+     "frames": 188
+    }
+   },
+   "reasons": [],
+   "trace": {
+    "pass": true,
+    "rule": "rest",
+    "ids": {
+     "hero.ty": {
+      "steps_a": 72,
+      "steps_b": 71,
+      "max_abs_err": 0.0,
+      "pass": true,
+      "key_to_first_ms": [
+       null,
+       null
+      ]
+     }
+    }
+   },
+   "focus": {
+    "pass": true,
+    "rows": 8
+   },
+   "focus_checked": true,
+   "pass": true
+  },
+  {
+   "state": "down-burst-4",
+   "component": "hero",
+   "impl": "FCRHNG",
+   "run": 3,
+   "differing_px": 413274,
+   "off_edge_px": 248191,
+   "on_edge_px": 165083,
+   "diff_fraction": 0.0796117862654321,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 255,
+   "max_yiq": 0.965941846370697,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 1125,
+     "polls": 2,
+     "anim_lines": 325,
+     "frames": 177
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 687,
+     "polls": 2,
+     "anim_lines": 295,
+     "frames": 174
+    }
+   },
+   "reasons": [
+    "248191 differing px off the edge mask (bbox [161, 0, 1796, 1080])",
+    "on-edge diff fraction 0.079612 > 0.0005",
+    "trace hero.ty: rest value A=-989.5 B=-998.5"
+   ],
+   "trace": {
+    "pass": false,
+    "rule": "rest",
+    "ids": {
+     "hero.ty": {
+      "steps_a": 72,
+      "steps_b": 68,
+      "max_abs_err": 9.0,
+      "pass": false,
+      "key_to_first_ms": [
+       null,
+       null
+      ]
+     }
+    }
+   },
+   "focus": {
+    "pass": true,
+    "rows": 8
+   },
+   "focus_checked": true,
+   "pass": false
+  },
+  {
+   "state": "item-profile-wrap",
+   "component": "navrail",
+   "impl": "FCRHNG",
+   "run": 1,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 655,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 199
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 625,
+     "polls": 1,
+     "anim_lines": 0,
+     "frames": 188
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 6
+   },
+   "focus_checked": true,
+   "pass": true
+  },
+  {
+   "state": "item-profile-wrap",
+   "component": "navrail",
+   "impl": "FCRHNG",
+   "run": 2,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 859,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 184
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 672,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 191
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 6
+   },
+   "focus_checked": true,
+   "pass": true
+  },
+  {
+   "state": "item-profile-wrap",
+   "component": "navrail",
+   "impl": "FCRHNG",
+   "run": 3,
+   "differing_px": 0,
+   "off_edge_px": 0,
+   "on_edge_px": 0,
+   "diff_fraction": 0.0,
+   "compared_px": 2073600,
+   "masked_px": 0,
+   "max_delta": 0,
+   "max_yiq": 0.0,
+   "dither_forgiven_px": 0,
+   "masks_applied": [],
+   "dither_regions": [],
+   "crop": null,
+   "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+   },
+   "idle": {
+    "A": {
+     "idle": true,
+     "waited_ms": 859,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 183
+    },
+    "B": {
+     "idle": true,
+     "waited_ms": 967,
+     "polls": 2,
+     "anim_lines": 0,
+     "frames": 184
+    }
+   },
+   "reasons": [],
+   "focus": {
+    "pass": true,
+    "rows": 6
+   },
+   "focus_checked": true,
+   "pass": true
+  }
+ ]
+}

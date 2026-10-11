@@ -1,0 +1,49 @@
+{
+  "state": "progress-bar",
+  "component": "card",
+  "impl": "FCRHNG",
+  "run": 1,
+  "differing_px": 2801,
+  "off_edge_px": 111,
+  "on_edge_px": 2690,
+  "diff_fraction": 0.0012972608024691358,
+  "compared_px": 2073600,
+  "masked_px": 0,
+  "max_delta": 201,
+  "max_yiq": 0.7598249912261963,
+  "dither_forgiven_px": 0,
+  "masks_applied": [],
+  "dither_regions": [],
+  "crop": null,
+  "tolerance": {
+    "threshold": 0.1,
+    "max_diff_fraction": 0.0005,
+    "edge_dilate": 1
+  },
+  "idle": {
+    "A": {
+      "idle": true,
+      "waited_ms": 704,
+      "polls": 2,
+      "anim_lines": 0,
+      "frames": 163
+    },
+    "B": {
+      "idle": true,
+      "waited_ms": 813,
+      "polls": 2,
+      "anim_lines": 0,
+      "frames": 167
+    }
+  },
+  "reasons": [
+    "111 differing px off the edge mask (bbox [1237, 317, 1345, 343])",
+    "on-edge diff fraction 0.001297 > 0.0005"
+  ],
+  "focus": {
+    "pass": true,
+    "rows": 4
+  },
+  "focus_checked": false,
+  "pass": false
+}

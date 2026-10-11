@@ -1,0 +1,86 @@
+main-thread samples: 5075 (period ~0.50 ms); frames with a row: 480
+
+every frame's UI part, the whole recording: 2473 samples = 1235 ms of CPU
+   19.8 %  record display lists (draw traversal)
+   16.1 %  Choreographer / looper glue
+   13.5 %  image: Fresco request / attach / drawable
+   11.7 %  focus: search / change / ring
+    6.8 %  animation drivers (AuroraClock / RN animated)
+    6.4 %  Fabric mount: props
+    6.1 %  events to JS (dispatch / JNI)
+    5.5 %  Fabric mount: layout / state / event emitter / other
+    3.6 %  measure + layout traversal (Android)
+    2.7 %  other
+    2.5 %  binder / system calls
+    1.5 %  Fabric mount: create view
+    1.2 %  Fabric mount: insert / remove child
+    1.0 %  garbage collection / allocation
+    0.5 %  input pipeline
+    0.4 %  text: layout / measure of a <Text>
+    0.4 %  sync with the RenderThread (blocked or copying)
+    0.1 %  JIT / interpreter / class init
+    0.1 %  Fabric mount: delete view
+
+frames whose UI part took >= 24 ms: 5 of 480
+
+inside those 5 long UI parts: 330 samples = 165 ms of CPU
+   26.1 %  Fabric mount: props
+   19.4 %  image: Fresco request / attach / drawable
+   12.4 %  focus: search / change / ring
+    9.7 %  record display lists (draw traversal)
+    8.5 %  Fabric mount: create view
+    6.7 %  Fabric mount: layout / state / event emitter / other
+    3.6 %  Fabric mount: insert / remove child
+    3.0 %  other
+    2.7 %  measure + layout traversal (Android)
+    2.1 %  Choreographer / looper glue
+    1.8 %  events to JS (dispatch / JNI)
+    1.5 %  text: layout / measure of a <Text>
+    0.9 %  garbage collection / allocation
+    0.9 %  animation drivers (AuroraClock / RN animated)
+    0.6 %  JIT / interpreter / class init
+
+frame @369805751 ms: whole 72 ms; UI part 54 ms = started 0 late + callbacks 41 + layout 2 + record 11; 94 samples (47 ms on CPU)
+     21.3 %  Fabric mount: props
+     18.1 %  record display lists (draw traversal)
+     14.9 %  image: Fresco request / attach / drawable
+     10.6 %  focus: search / change / ring
+      8.5 %  Fabric mount: create view
+      7.4 %  Fabric mount: layout / state / event emitter / other
+    hottest leaves: android::Theme::GetAttribute x3; art_quick_alloc_object_initialized_region_tlab x2; *[kernel.kallsyms][+ffffffc008467648] x2; memcmp x2
+
+frame @369820837 ms: whole 57 ms; UI part 41 ms = started 0 late + callbacks 32 + layout 2 + record 6; 74 samples (37 ms on CPU)
+     29.7 %  Fabric mount: props
+     13.5 %  Fabric mount: create view
+     13.5 %  image: Fresco request / attach / drawable
+     13.5 %  record display lists (draw traversal)
+     12.2 %  focus: search / change / ring
+      4.1 %  other
+    hottest leaves: scudo::Allocator<scudo::AndroidConfig, & x2; com.auroratv.ui.view.ShadowLayer.<init> x2; android.view.View.<init> x2; @plt x2
+
+frame @369813512 ms: whole 49 ms; UI part 35 ms = started 0 late + callbacks 35 + layout 0 + record 0; 62 samples (31 ms on CPU)
+     32.3 %  Fabric mount: props
+     14.5 %  focus: search / change / ring
+     14.5 %  image: Fresco request / attach / drawable
+      9.7 %  Fabric mount: create view
+      8.1 %  Fabric mount: insert / remove child
+      6.5 %  Fabric mount: layout / state / event emitter / other
+    hottest leaves: com.facebook.react.uimanager.ViewManagerRegistry.get x2; com.facebook.react.uimanager.drawable.OutsetBoxShadowDrawable.<init> x2; artQuickGenericJniTrampoline x2; scudo::Allocator<scudo::AndroidConfig, & x2
+
+frame @369828582 ms: whole 47 ms; UI part 34 ms = started 0 late + callbacks 33 + layout 0 + record 0; 60 samples (30 ms on CPU)
+     36.7 %  Fabric mount: props
+     15.0 %  focus: search / change / ring
+     15.0 %  image: Fresco request / attach / drawable
+      6.7 %  Fabric mount: layout / state / event emitter / other
+      6.7 %  Fabric mount: create view
+      5.0 %  measure + layout traversal (Android)
+    hottest leaves: android.view.View.<init> x2; com.facebook.drawee.drawable.DrawableUtils.setCallbacks x2; art::JNI<false>::SetLongField x1; :AllocObjectWithAllocator<true, true, art::mirror::SetLengthToUsableSizeVisitor> x1
+
+frame @369805902 ms: whole 38 ms; UI part 24 ms = started 0 late + callbacks 21 + layout 2 + record 1; 40 samples (20 ms on CPU)
+     55.0 %  image: Fresco request / attach / drawable
+     12.5 %  Fabric mount: layout / state / event emitter / other
+     10.0 %  focus: search / change / ring
+      7.5 %  Choreographer / looper glue
+      5.0 %  Fabric mount: props
+      2.5 %  other
+    hottest leaves: com.facebook.imagepipeline.datasource.AbstractProducerToDataSourceAdapter.<init> x2; kotlin.collections.AbstractMutableList.<init> x1; android::nativeScheduleVsync x1; scudo::Allocator<scudo::AndroidConfig, & x1

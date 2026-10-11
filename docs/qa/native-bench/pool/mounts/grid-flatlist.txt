@@ -1,0 +1,106 @@
+[focus] 351087114 gain tag=1062 impl=native edgeL=1 edgeR=0
+[mounts] 351087114 focusable=+74/-0 card=+148/-0
+[focus] 351087515 gain tag=1114 impl=native edgeL=1 edgeR=0
+[mounts] 351087515 focusable=+0/-0 card=+0/-0
+[focus] 351087612 gain tag=1166 impl=native edgeL=1 edgeR=0
+[mounts] 351087612 focusable=+0/-0 card=+0/-0
+[focus] 351087711 gain tag=1218 impl=native edgeL=1 edgeR=0
+[mounts] 351087711 focusable=+0/-0 card=+0/-0
+[focus] 351087765 gain tag=1270 impl=native edgeL=1 edgeR=0
+[mounts] 351087765 focusable=+0/-0 card=+0/-0
+[focus] 351087872 gain tag=1322 impl=native edgeL=1 edgeR=0
+[mounts] 351087872 focusable=+0/-0 card=+0/-0
+[focus] 351087924 gain tag=1374 impl=native edgeL=1 edgeR=0
+[mounts] 351087924 focusable=+0/-0 card=+0/-0
+[focus] 351088021 gain tag=1426 impl=native edgeL=1 edgeR=0
+[mounts] 351088021 focusable=+0/-0 card=+0/-0
+[focus] 351088075 gain tag=1478 impl=native edgeL=1 edgeR=0
+[mounts] 351088075 focusable=+0/-0 card=+0/-0
+[focus] 351088167 gain tag=1530 impl=native edgeL=1 edgeR=0
+[mounts] 351088167 focusable=+0/-0 card=+0/-0
+[focus] 351088228 gain tag=1582 impl=native edgeL=1 edgeR=0
+[mounts] 351088228 focusable=+0/-0 card=+0/-0
+[focus] 351088328 gain tag=1634 impl=native edgeL=1 edgeR=0
+[mounts] 351088328 focusable=+0/-0 card=+0/-0
+[focus] 351095277 gain tag=1716 impl=native edgeL=0 edgeR=1
+[mounts] 351095277 focusable=+49/-3 card=+98/-6
+[focus] 351095676 gain tag=1622 impl=native edgeL=0 edgeR=1
+[mounts] 351095676 focusable=+0/-0 card=+0/-0
+[focus] 351095773 gain tag=1570 impl=native edgeL=0 edgeR=1
+[mounts] 351095773 focusable=+0/-0 card=+0/-0
+[focus] 351095874 gain tag=1518 impl=native edgeL=0 edgeR=1
+[mounts] 351095874 focusable=+0/-0 card=+0/-0
+[focus] 351095927 gain tag=1466 impl=native edgeL=0 edgeR=1
+[mounts] 351095927 focusable=+0/-0 card=+0/-0
+[focus] 351096025 gain tag=1414 impl=native edgeL=0 edgeR=1
+[mounts] 351096025 focusable=+0/-0 card=+0/-0
+[focus] 351096080 gain tag=1362 impl=native edgeL=0 edgeR=1
+[mounts] 351096080 focusable=+0/-0 card=+0/-0
+[focus] 351096178 gain tag=1310 impl=native edgeL=0 edgeR=1
+[mounts] 351096178 focusable=+0/-0 card=+0/-0
+[focus] 351096232 gain tag=1258 impl=native edgeL=0 edgeR=1
+[mounts] 351096232 focusable=+0/-0 card=+0/-0
+[focus] 351096329 gain tag=1206 impl=native edgeL=0 edgeR=1
+[mounts] 351096329 focusable=+0/-0 card=+0/-0
+[focus] 351096382 gain tag=1154 impl=native edgeL=0 edgeR=1
+[mounts] 351096382 focusable=+0/-0 card=+0/-0
+[focus] 351096480 gain tag=1102 impl=native edgeL=0 edgeR=1
+[mounts] 351096480 focusable=+0/-0 card=+0/-0
+[focus] 351096534 gain tag=1050 impl=native edgeL=0 edgeR=1
+[mounts] 351096535 focusable=+0/-0 card=+0/-0
+[focus] 351102995 gain tag=1102 impl=native edgeL=0 edgeR=1
+[mounts] 351102995 focusable=+0/-0 card=+0/-0
+[focus] 351103397 gain tag=1154 impl=native edgeL=0 edgeR=1
+[mounts] 351103397 focusable=+0/-0 card=+0/-0
+[focus] 351103494 gain tag=1206 impl=native edgeL=0 edgeR=1
+[mounts] 351103494 focusable=+0/-0 card=+0/-0
+[focus] 351103594 gain tag=1258 impl=native edgeL=0 edgeR=1
+[mounts] 351103594 focusable=+0/-0 card=+0/-0
+[focus] 351103647 gain tag=1310 impl=native edgeL=0 edgeR=1
+[mounts] 351103647 focusable=+0/-0 card=+0/-0
+[focus] 351103746 gain tag=1362 impl=native edgeL=0 edgeR=1
+[mounts] 351103746 focusable=+0/-0 card=+0/-0
+[focus] 351103799 gain tag=1414 impl=native edgeL=0 edgeR=1
+[mounts] 351103799 focusable=+0/-0 card=+0/-0
+[focus] 351103898 gain tag=1466 impl=native edgeL=0 edgeR=1
+[mounts] 351103898 focusable=+0/-0 card=+0/-0
+[focus] 351103950 gain tag=1518 impl=native edgeL=0 edgeR=1
+[mounts] 351103951 focusable=+0/-0 card=+0/-0
+[focus] 351104050 gain tag=1570 impl=native edgeL=0 edgeR=1
+[mounts] 351104050 focusable=+0/-0 card=+0/-0
+[focus] 351104104 gain tag=1622 impl=native edgeL=0 edgeR=1
+[mounts] 351104104 focusable=+0/-0 card=+0/-0
+[focus] 351104203 gain tag=1716 impl=native edgeL=0 edgeR=1
+[mounts] 351104203 focusable=+0/-0 card=+0/-0
+[focus] 351104255 gain tag=1768 impl=native edgeL=0 edgeR=1
+[mounts] 351104255 focusable=+0/-0 card=+0/-0
+[focus] 351104364 gain tag=1820 impl=native edgeL=0 edgeR=1
+[mounts] 351104364 focusable=+0/-0 card=+0/-0
+[focus] 351110885 gain tag=1768 impl=native edgeL=0 edgeR=1
+[mounts] 351110885 focusable=+0/-0 card=+0/-0
+[focus] 351111291 gain tag=1716 impl=native edgeL=0 edgeR=1
+[mounts] 351111291 focusable=+0/-0 card=+0/-0
+[focus] 351111386 gain tag=1622 impl=native edgeL=0 edgeR=1
+[mounts] 351111386 focusable=+0/-0 card=+0/-0
+[focus] 351111487 gain tag=1570 impl=native edgeL=0 edgeR=1
+[mounts] 351111487 focusable=+0/-0 card=+0/-0
+[focus] 351111540 gain tag=1518 impl=native edgeL=0 edgeR=1
+[mounts] 351111540 focusable=+0/-0 card=+0/-0
+[focus] 351111638 gain tag=1466 impl=native edgeL=0 edgeR=1
+[mounts] 351111638 focusable=+0/-0 card=+0/-0
+[focus] 351111692 gain tag=1414 impl=native edgeL=0 edgeR=1
+[mounts] 351111692 focusable=+0/-0 card=+0/-0
+[focus] 351111789 gain tag=1362 impl=native edgeL=0 edgeR=1
+[mounts] 351111789 focusable=+0/-0 card=+0/-0
+[focus] 351111842 gain tag=1310 impl=native edgeL=0 edgeR=1
+[mounts] 351111842 focusable=+0/-0 card=+0/-0
+[focus] 351111941 gain tag=1258 impl=native edgeL=0 edgeR=1
+[mounts] 351111941 focusable=+0/-0 card=+0/-0
+[focus] 351111995 gain tag=1206 impl=native edgeL=0 edgeR=1
+[mounts] 351111995 focusable=+0/-0 card=+0/-0
+[focus] 351112093 gain tag=1154 impl=native edgeL=0 edgeR=1
+[mounts] 351112093 focusable=+0/-0 card=+0/-0
+[focus] 351112146 gain tag=1102 impl=native edgeL=0 edgeR=1
+[mounts] 351112146 focusable=+0/-0 card=+0/-0
+[focus] 351112244 gain tag=1050 impl=native edgeL=0 edgeR=1
+[mounts] 351112244 focusable=+0/-0 card=+0/-0

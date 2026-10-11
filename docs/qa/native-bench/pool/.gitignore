@@ -1,0 +1,6 @@
+# captures, logcats, traces and raw dumps stay in the worktree, not in git
+*.png
+*.logcat.txt
+*.mp4
+traces/
+bench/raw/
