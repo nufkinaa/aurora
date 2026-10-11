@@ -78,6 +78,18 @@ const readShell = (abs) => {
 // refreshProgress) and aurora-sky.js (the glass look's sky; it was on the
 // hand-kept list too).
 const BOOT_ENTRIES = ["/js/main.js", "/js/offline.js", "/js/aurora-sky.js"];
+// Address (location.hash) -> the screen module main.js loads for it. A hint
+// only: an address missing here, or a module that moved, costs the round trip
+// it always cost and nothing else.
+const ROUTE_ENTRIES = [
+  ["^#/(movies|shows|list)$", "/js/screens/browse.js"],
+  ["^#/search", "/js/screens/search.js"],
+  ["^#/(movie|show|discover)/", "/js/screens/discover-detail.js"],
+  ["^#/play/", "/js/screens/player.js"],
+  ["^#/preferences", "/js/screens/preferences.js"],
+  ["^#/downloads", "/js/screens/downloads.js"],
+  ["^#/new$", "/js/screens/whatsnew.js"],
+];
 const PRELOAD_BLOCK = /(?:[ \t]*<link rel="modulepreload" href="[^"]+" \/>\r?\n)+/;
 const STYLESHEET = /([ \t]*)<link rel="stylesheet" href="\/css\/aurora\.css/;
 const ENTRY = '<script type="module" src="/js/main.js"></script>';
@@ -91,14 +103,24 @@ const withModules = (html, publicDir) => {
   }
   const map = jsassets.importMap(publicDir);
   if (!map["/js/main.js"]) return html;
-  const boot = jsassets.closure(publicDir, BOOT_ENTRIES).map((url) => [url, map[url].split("?v=")[1]]);
+  const pair = (url) => [url, map[url].split("?v=")[1]];
+  const bootUrls = jsassets.closure(publicDir, BOOT_ENTRIES);
+  const boot = bootUrls.map(pair);
+  // The screen the address names, when it is not Home: its module and what
+  // that imports join the list, so a page opened (or reloaded, or restored by
+  // the phone) on a title, a grid or Search does not find out only after boot
+  // that it needs another round trip or two of code.
+  const routes = ROUTE_ENTRIES
+    .map(([pattern, entry]) => [pattern, jsassets.closure(publicDir, [entry]).filter((url) => !bootUrls.includes(url)).map(pair)])
+    .filter(([, list]) => list.length);
   // (the entry is asked for by its versioned URL in every browser — see ENTRY below)
   const preloader =
     // (Chrome 89–95 read import maps but cannot be asked whether they do —
     // HTMLScriptElement.supports arrived in 96 — so there the version number answers)
     "(function(){var S=window.HTMLScriptElement&&HTMLScriptElement.supports," +
     "m=S?S.call(HTMLScriptElement,\"importmap\"):/Chrom(e|ium)\\/(89|9\\d|[1-9]\\d\\d)/.test(navigator.userAgent)," +
-    `L=${JSON.stringify(boot)},h=document.head,i,l;` +
+    `L=${JSON.stringify(boot)},R=${JSON.stringify(routes)},h=document.head,i,l;` +
+    "for(i=0;i<R.length;i++)if(new RegExp(R[i][0]).test(location.hash)){L=L.concat(R[i][1]);break}" +
     "for(i=0;i<L.length;i++){l=document.createElement(\"link\");l.rel=\"modulepreload\";" +
     "l.href=L[i][0]+(m||!i?\"?v=\"+L[i][1]:\"\");h.appendChild(l)}})();";
   return html
@@ -127,4 +149,4 @@ const sendShell = (publicDir) => (res, name) => {
   res.type("html").send(html);
 };
 
-module.exports = { sendShell, versionFor, withModules, BOOT_ENTRIES };
+module.exports = { sendShell, versionFor, withModules, BOOT_ENTRIES, ROUTE_ENTRIES };

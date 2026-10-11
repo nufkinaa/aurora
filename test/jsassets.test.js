@@ -134,7 +134,7 @@ test("the shell: an import map, the preload script ahead of the stylesheet, a ve
     const links = [];
     const window = { HTMLScriptElement: typeof supportsMaps === "string" ? {} : { supports: () => supportsMaps } };
     const document = { head: { appendChild: (l) => links.push(l) }, createElement: () => ({}) };
-    new Function("window", "document", "HTMLScriptElement", "navigator", code)(window, document, window.HTMLScriptElement, { userAgent: String(supportsMaps) });
+    new Function("window", "document", "HTMLScriptElement", "navigator", "location", code)(window, document, window.HTMLScriptElement, { userAgent: String(supportsMaps) }, { hash: "" });
     return links.map((l) => l.href);
   };
   // Chrome 89–95 read import maps but have no supports(): the version answers
@@ -199,4 +199,26 @@ test("what a client accepts", () => {
   assert.equal(acc("br;q=0, gzip"), "gzip");
   assert.equal(acc("identity"), "");
   assert.equal(acc(""), "");
+});
+
+test("an address that names another screen preloads that screen's code too", () => {
+  for (const [pattern, entry] of assetver.ROUTE_ENTRIES) {
+    assert.ok(jsassets.asset(PUBLIC, entry), `${entry} (for ${pattern}) is not there`);
+    assert.doesNotThrow(() => new RegExp(pattern));
+  }
+  const html = assetver.withModules(fs.readFileSync(path.join(PUBLIC, "index.html"), "utf-8"), PUBLIC);
+  const code = html.slice(html.indexOf("<script>(function(){var S=") + 8).split("</script>")[0];
+  const run = (hash) => {
+    const links = [];
+    const window = { HTMLScriptElement: { supports: () => true } };
+    const document = { head: { appendChild: (l) => links.push(l) }, createElement: () => ({}) };
+    new Function("window", "document", "HTMLScriptElement", "navigator", "location", code)(window, document, window.HTMLScriptElement, { userAgent: "" }, { hash });
+    return links.map((l) => l.href.split("?")[0]);
+  };
+  const boot = run("#/");
+  assert.deepEqual(run(""), boot);
+  assert.ok(run("#/movies").includes("/js/screens/browse.js") && !boot.includes("/js/screens/browse.js"));
+  assert.ok(run("#/discover/movie/tt123").includes("/js/screens/discover-detail.js"));
+  assert.ok(run("#/search").includes("/js/screens/search.js"));
+  assert.equal(new Set(run("#/show/abc")).size, run("#/show/abc").length, "nothing is listed twice");
 });
