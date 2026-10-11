@@ -104,6 +104,7 @@ const bump = (map, key, ms, extra) => {
   if (extra) for (const k in extra) r[k] = (r[k] || 0) + extra[k];
 };
 const writes = new Map(); // file -> { n, bytes }
+const fdPaths = new Map(); // fd opened for writing -> its path
 const fileKey = (p) => {
   let r = rel(typeof p === "number" ? `fd:${p}` : p).replace(/\.tmp$/, "");
   r = r.replace(/^(data\/cache\/(?:img-variants|posters-web|posters|blur|stills|vtt|jit|hls|torrent-hls|offline|torrents))\/.*/, "$1/*");
@@ -117,11 +118,15 @@ if (FULL) {
     const orig = fs[name];
     fs[name] = function (...a) {
       const t0 = now();
-      try { return orig.apply(this, a); } finally {
+      let ret;
+      try { ret = orig.apply(this, a); if (name === "openSync" && /[wa]/.test(String(a[1] || "r"))) fdPaths.set(ret, a[0]); return ret; } finally {
         const ms = now() - t0;
         bump(syncFs, name, ms);
         bump(syncFs, `${name} @ ${site()}`, ms);
         if (name === "writeFileSync" || name === "appendFileSync") noteWrite(a[0], a[1]);
+        // open(path, "w") + write(fd, text): how the stores are written since 1.6.93
+        else if (name === "writeSync" && fdPaths.has(a[0])) noteWrite(fdPaths.get(a[0]), a[1]);
+        else if (name === "closeSync") fdPaths.delete(a[0]);
       }
     };
   }

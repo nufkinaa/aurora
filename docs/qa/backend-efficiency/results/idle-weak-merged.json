@@ -1,0 +1,692 @@
+{
+  "at": "2026-10-11T02:35:54.153Z",
+  "ref": "working tree",
+  "weak": true,
+  "minutes": 20,
+  "startedAt": 1791684954019,
+  "cpuSecondsPerHour": 20.44,
+  "cpuPercentOfOneCore": 0.568,
+  "loopActivePercent": 1.017,
+  "wakeUpsPerMinute": 67,
+  "syncFsCallsPerHour": 26429.6,
+  "mbWrittenPerHour": 0,
+  "fileWritesPerHour": 0,
+  "spawnsPerHour": 6,
+  "outboundPerHour": 36,
+  "gc": {
+    "scavenge": {
+      "perHour": 681,
+      "msPerHour": 542,
+      "maxMs": 16.6
+    },
+    "incremental": {
+      "perHour": 42,
+      "msPerHour": 89.6,
+      "maxMs": 12.3
+    },
+    "mark-compact": {
+      "perHour": 42,
+      "msPerHour": 853.2,
+      "maxMs": 125.3
+    }
+  },
+  "memory": {
+    "rssStartMb": 130.4,
+    "rssEndMb": 131.8,
+    "heapStartMb": 68.4,
+    "heapEndMb": 70.4,
+    "externalMb": 4.4
+  },
+  "timers": [
+    {
+      "timer": "every 600 s",
+      "site": "ui-instance.js:509",
+      "firesPerHour": 6,
+      "msPerHour": 8610.6,
+      "maxMs": 2176.52
+    },
+    {
+      "timer": "after 1.5 s",
+      "site": "src/lib/jsonstore.js:452",
+      "firesPerHour": 147,
+      "msPerHour": 1784.4,
+      "maxMs": 117.29
+    },
+    {
+      "timer": "every 15 s",
+      "site": "src/media/encbudget.js:460",
+      "firesPerHour": 240,
+      "msPerHour": 1454.2,
+      "maxMs": 251.01
+    },
+    {
+      "timer": "every 20 s",
+      "site": "src/lib/watchdog.js:177",
+      "firesPerHour": 180,
+      "msPerHour": 1028.2,
+      "maxMs": 176.61
+    },
+    {
+      "timer": "after 3 s",
+      "site": "src/media/librarywarm.js:63",
+      "firesPerHour": 6,
+      "msPerHour": 556.8,
+      "maxMs": 182.99
+    },
+    {
+      "timer": "after 30 s",
+      "site": "src/media/introdetect.js:693",
+      "firesPerHour": 6,
+      "msPerHour": 460.9,
+      "maxMs": 78.92
+    },
+    {
+      "timer": "every 60 s",
+      "site": "src/lib/healer.js:670",
+      "firesPerHour": 60,
+      "msPerHour": 160.1,
+      "maxMs": 10.71
+    },
+    {
+      "timer": "every 30 s",
+      "site": "src/telemetry.js:163",
+      "firesPerHour": 120,
+      "msPerHour": 111.7,
+      "maxMs": 12.06
+    },
+    {
+      "timer": "every 10 s",
+      "site": "src/lib/looplag.js:40",
+      "firesPerHour": 357,
+      "msPerHour": 103,
+      "maxMs": 5.33
+    },
+    {
+      "timer": "every 60 s",
+      "site": "src/lib/health.js:556",
+      "firesPerHour": 60,
+      "msPerHour": 68.8,
+      "maxMs": 6.65
+    },
+    {
+      "timer": "after 20 s",
+      "site": "src/lib/healer.js:97",
+      "firesPerHour": 1980,
+      "msPerHour": 2.5,
+      "maxMs": 0.04
+    },
+    {
+      "timer": "after 500 ms",
+      "site": "src/lib/watchdog.js:149",
+      "firesPerHour": 180,
+      "msPerHour": 2,
+      "maxMs": 0.2
+    },
+    {
+      "timer": "every 30 s",
+      "site": "src/media/remux.js:219",
+      "firesPerHour": 120,
+      "msPerHour": 1.6,
+      "maxMs": 0.09
+    },
+    {
+      "timer": "every 30 s",
+      "site": "src/media/torrent-transcode.js:638",
+      "firesPerHour": 120,
+      "msPerHour": 1.5,
+      "maxMs": 0.15
+    },
+    {
+      "timer": "every 30 s",
+      "site": "src/media/jit.js:1057",
+      "firesPerHour": 120,
+      "msPerHour": 1.1,
+      "maxMs": 0.02
+    },
+    {
+      "timer": "every 60 s",
+      "site": "src/media/torrent.js:284",
+      "firesPerHour": 60,
+      "msPerHour": 0.6,
+      "maxMs": 0.06
+    },
+    {
+      "timer": "after 3 s",
+      "site": "src/lib/healer-checks/system.js:81",
+      "firesPerHour": 120,
+      "msPerHour": 0.4,
+      "maxMs": 0.01
+    },
+    {
+      "timer": "after 499 ms",
+      "site": "?",
+      "firesPerHour": 12,
+      "msPerHour": 0.2,
+      "maxMs": 0.02
+    },
+    {
+      "timer": "after 3 s",
+      "site": "src/lib/healer-checks/system.js:83",
+      "firesPerHour": 120,
+      "msPerHour": 0.1,
+      "maxMs": 0
+    },
+    {
+      "timer": "after 400 ms",
+      "site": "src/media/librarywarm.js:13",
+      "firesPerHour": 6,
+      "msPerHour": 0,
+      "maxMs": 0.01
+    },
+    {
+      "timer": "after 600 s",
+      "site": "src/media/encbudget.js:452",
+      "firesPerHour": 3,
+      "msPerHour": 0,
+      "maxMs": 0.01
+    }
+  ],
+  "fsSites": [
+    {
+      "site": "statSync @ src/media/scanner.js:188",
+      "callsPerHour": 10805.8,
+      "msPerHour": 2395.3
+    },
+    {
+      "site": "readdirSync @ src/media/scanner.js:171",
+      "callsPerHour": 8297.9,
+      "msPerHour": 1999
+    },
+    {
+      "site": "statSync @ src/media/introdetect.js:298",
+      "callsPerHour": 3599.9,
+      "msPerHour": 288.8
+    },
+    {
+      "site": "statSync @ src/lib/jsonstore.js:498",
+      "callsPerHour": 1860,
+      "msPerHour": 168.1
+    },
+    {
+      "site": "statSync @ src/lib/health.js:361",
+      "callsPerHour": 240,
+      "msPerHour": 18.9
+    },
+    {
+      "site": "existsSync @ src/lib/backup.js:737",
+      "callsPerHour": 198,
+      "msPerHour": 17.1
+    },
+    {
+      "site": "renameSync @ src/lib/jsonstore.js:105",
+      "callsPerHour": 162,
+      "msPerHour": 223.5
+    },
+    {
+      "site": "closeSync @ src/lib/jsonstore.js:104",
+      "callsPerHour": 150,
+      "msPerHour": 195
+    },
+    {
+      "site": "writeSync @ src/lib/jsonstore.js:102",
+      "callsPerHour": 150,
+      "msPerHour": 124.3
+    },
+    {
+      "site": "openSync @ src/lib/jsonstore.js:101",
+      "callsPerHour": 150,
+      "msPerHour": 117.2
+    },
+    {
+      "site": "mkdirSync @ src/lib/jsonstore.js:142",
+      "callsPerHour": 150,
+      "msPerHour": 69.2
+    },
+    {
+      "site": "statSync @ src/lib/backup.js:739",
+      "callsPerHour": 132,
+      "msPerHour": 6.8
+    },
+    {
+      "site": "fsyncSync @ src/lib/jsonstore.js:103",
+      "callsPerHour": 120,
+      "msPerHour": 201
+    },
+    {
+      "site": "existsSync @ src/lib/health.js:345",
+      "callsPerHour": 120,
+      "msPerHour": 20.3
+    },
+    {
+      "site": "readdirSync @ src/lib/healer.js:430",
+      "callsPerHour": 60,
+      "msPerHour": 6.1
+    },
+    {
+      "site": "readFileSync @ src/lib/jsonstore.js:198",
+      "callsPerHour": 60,
+      "msPerHour": 5.9
+    },
+    {
+      "site": "readFileSync @ src/lib/tvapp.js:33",
+      "callsPerHour": 12,
+      "msPerHour": 35.7
+    },
+    {
+      "site": "readdirSync @ src/lib/libroots.js:30",
+      "callsPerHour": 12,
+      "msPerHour": 10.3
+    },
+    {
+      "site": "readFileSync @ src/lib/healer-checks/system.js:341",
+      "callsPerHour": 12,
+      "msPerHour": 5.8
+    },
+    {
+      "site": "readFileSync @ src/lib/tvapp.js:38",
+      "callsPerHour": 12,
+      "msPerHour": 1.1
+    },
+    {
+      "site": "readdirSync @ src/media/offline.js:120",
+      "callsPerHour": 12,
+      "msPerHour": 1
+    },
+    {
+      "site": "statSync @ src/lib/libroots.js:30",
+      "callsPerHour": 12,
+      "msPerHour": 0.9
+    },
+    {
+      "site": "readdirSync @ src/media/torrent-transcode.js:666",
+      "callsPerHour": 12,
+      "msPerHour": 0.9
+    },
+    {
+      "site": "statSync @ src/lib/apkinfo.js:138",
+      "callsPerHour": 12,
+      "msPerHour": 0.8
+    },
+    {
+      "site": "readFileSync @ src/lib/tvapp.js:43",
+      "callsPerHour": 12,
+      "msPerHour": 0.8
+    },
+    {
+      "site": "statSync @ src/lib/healer-checks/system.js:331",
+      "callsPerHour": 12,
+      "msPerHour": 0.8
+    },
+    {
+      "site": "readdirSync @ src/media/remux.js:605",
+      "callsPerHour": 12,
+      "msPerHour": 0.7
+    },
+    {
+      "site": "readFileSync @ src/lib/backup.js:900",
+      "callsPerHour": 6,
+      "msPerHour": 12.3
+    },
+    {
+      "site": "readFileSync @ src/lib/jsonstore.js:383",
+      "callsPerHour": 6,
+      "msPerHour": 8.8
+    },
+    {
+      "site": "fsyncSync @ src/lib/jsonstore.js:382",
+      "callsPerHour": 6,
+      "msPerHour": 4.3
+    },
+    {
+      "site": "openSync @ src/lib/jsonstore.js:381",
+      "callsPerHour": 6,
+      "msPerHour": 2
+    },
+    {
+      "site": "writeSync @ src/lib/jsonstore.js:382",
+      "callsPerHour": 6,
+      "msPerHour": 1.6
+    },
+    {
+      "site": "existsSync @ src/lib/jsonstore.js:385",
+      "callsPerHour": 6,
+      "msPerHour": 1.4
+    },
+    {
+      "site": "closeSync @ src/lib/jsonstore.js:382",
+      "callsPerHour": 6,
+      "msPerHour": 0.5
+    }
+  ],
+  "writes": [],
+  "spawns": [
+    {
+      "what": "ffmpeg -hide_banner -benchmark -nostats @ src/media/encbudget.js:249",
+      "perHour": 6
+    }
+  ],
+  "outbound": [
+    {
+      "what": "v3-cinemeta.strem.io @ ?",
+      "perHour": 12
+    },
+    {
+      "what": "torrentio.strem.fun @ ?",
+      "perHour": 12
+    },
+    {
+      "what": "images.metahub.space @ ?",
+      "perHour": 12
+    }
+  ],
+  "allTimers": [
+    {
+      "kind": "setTimeout",
+      "delay": 20000,
+      "site": "src/lib/healer.js:97",
+      "created": 660,
+      "fires": 660
+    },
+    {
+      "kind": "setInterval",
+      "delay": 10000,
+      "site": "src/lib/looplag.js:40",
+      "created": 0,
+      "fires": 119
+    },
+    {
+      "kind": "setInterval",
+      "delay": 15000,
+      "site": "src/media/encbudget.js:460",
+      "created": 0,
+      "fires": 80
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 500,
+      "site": "src/lib/watchdog.js:149",
+      "created": 60,
+      "fires": 60
+    },
+    {
+      "kind": "setInterval",
+      "delay": 20000,
+      "site": "src/lib/watchdog.js:177",
+      "created": 0,
+      "fires": 60
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 1500,
+      "site": "src/lib/jsonstore.js:452",
+      "created": 49,
+      "fires": 49
+    },
+    {
+      "kind": "setInterval",
+      "delay": 30000,
+      "site": "src/media/remux.js:219",
+      "created": 0,
+      "fires": 40
+    },
+    {
+      "kind": "setInterval",
+      "delay": 30000,
+      "site": "src/media/jit.js:1057",
+      "created": 0,
+      "fires": 40
+    },
+    {
+      "kind": "setInterval",
+      "delay": 30000,
+      "site": "src/media/torrent-transcode.js:638",
+      "created": 0,
+      "fires": 40
+    },
+    {
+      "kind": "setInterval",
+      "delay": 30000,
+      "site": "src/telemetry.js:163",
+      "created": 0,
+      "fires": 40
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 3000,
+      "site": "src/lib/healer-checks/system.js:81",
+      "created": 40,
+      "fires": 40
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 3000,
+      "site": "src/lib/healer-checks/system.js:83",
+      "created": 40,
+      "fires": 40
+    },
+    {
+      "kind": "setInterval",
+      "delay": 60000,
+      "site": "src/media/torrent.js:284",
+      "created": 0,
+      "fires": 20
+    },
+    {
+      "kind": "setInterval",
+      "delay": 60000,
+      "site": "src/lib/healer.js:670",
+      "created": 0,
+      "fires": 20
+    },
+    {
+      "kind": "setInterval",
+      "delay": 60000,
+      "site": "src/lib/health.js:556",
+      "created": 0,
+      "fires": 20
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 499,
+      "site": "?",
+      "created": 0,
+      "fires": 4
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 3000,
+      "site": "src/media/librarywarm.js:63",
+      "created": 2,
+      "fires": 2
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 30000,
+      "site": "src/media/introdetect.js:693",
+      "created": 2,
+      "fires": 2
+    },
+    {
+      "kind": "setInterval",
+      "delay": 600000,
+      "site": "ui-instance.js:509",
+      "created": 0,
+      "fires": 2
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 400,
+      "site": "src/media/librarywarm.js:13",
+      "created": 2,
+      "fires": 2
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 600000,
+      "site": "src/media/encbudget.js:452",
+      "created": 0,
+      "fires": 1
+    },
+    {
+      "kind": "setInterval",
+      "delay": 3600000,
+      "site": "src/lib/perf.js:23",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 180000,
+      "site": "src/lib/daily.js:71",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setInterval",
+      "delay": 3600000,
+      "site": "src/lib/daily.js:73",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 180000,
+      "site": "src/media/wellknown.js:120",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setInterval",
+      "delay": 86400000,
+      "site": "src/media/wellknown.js:122",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 20000,
+      "site": "ui-instance.js:444",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 15000,
+      "site": "ui-instance.js:452",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 240000,
+      "site": "src/media/follows.js:113",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setInterval",
+      "delay": 10800000,
+      "site": "src/media/follows.js:114",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 15000,
+      "site": "src/lib/healer.js:673",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 30000,
+      "site": "src/lib/health.js:554",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 20000,
+      "site": "ui-instance.js:500",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 20000,
+      "site": "src/media/recs/titleindex.js:58",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 1500,
+      "site": "src/realtime.js:92",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 5000,
+      "site": "src/media/introdetect.js:686",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 15000,
+      "site": "src/media/tonemap.js:349",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 90000,
+      "site": "src/media/tonemap.js:350",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 300000,
+      "site": "src/media/tonemap.js:350",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 25000,
+      "site": "src/media/encbudget.js:452",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 900,
+      "site": "src/media/online.js:37",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 4000,
+      "site": "src/media/discover.js:544",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setTimeout",
+      "delay": 60000,
+      "site": "src/media/offline.js:426",
+      "created": 0,
+      "fires": 0
+    },
+    {
+      "kind": "setInterval",
+      "delay": 3600000,
+      "site": "src/media/offline.js:427",
+      "created": 0,
+      "fires": 0
+    }
+  ]
+}
