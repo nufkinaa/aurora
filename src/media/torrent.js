@@ -146,6 +146,28 @@ if (!STORE.data.ids) STORE.data.ids = {};
 const TORRENTIO_BASE = "https://torrentio.strem.fun";
 const CINEMETA_BASE = "https://v3-cinemeta.strem.io";
 const STREAMS_TTL = 6 * 3600 * 1000;
+const STREAMS_V = 4; // parser/ranking version — older cached lists must recompute
+// A cached source list is only ever answered from while it is under six hours
+// old and of today's shape (getSources below); after that it is dead weight —
+// and nothing removed it. Every title ever opened stayed in the file, the
+// file was read whole at boot and held in memory, and EVERY new lookup wrote
+// all of it back (3 MB on the live server after ten weeks, one write per
+// title page opened). The lists that can no longer be answered from are
+// dropped when the file is loaded and before each save. `ids` (title ->
+// IMDb id, permanent) is kept as it is.
+const liveStreams = (entry, now) =>
+  !!entry && entry.v === STREAMS_V && now - entry.at < STREAMS_TTL;
+const pruneStreams = (now = Date.now()) => {
+  let dropped = 0;
+  for (const key of Object.keys(STORE.data.streams)) {
+    if (!liveStreams(STORE.data.streams[key], now)) {
+      delete STORE.data.streams[key];
+      dropped++;
+    }
+  }
+  return dropped;
+};
+pruneStreams();
 // How long Torrentio gets to answer. This was 15s and that is below its floor:
 // measured 2026-07-31 over eleven requests across six titles, it never replied
 // faster than 19.4s, clustering on two plateaus at ~19.4s and ~38.9s (the same
@@ -734,12 +756,7 @@ const getSources = async (type, title, year, season, episode) => {
   const cacheKey = `${ttType}|${streamId}`;
   const cached = STORE.data.streams[cacheKey];
   // Fresh AND in the current shape (older cached entries lack `tags`)
-  if (
-    cached &&
-    Date.now() - cached.at < STREAMS_TTL &&
-    cached.streams.length &&
-    cached.v === 4 // parser/ranking version — older cached lists must recompute
-  ) {
+  if (liveStreams(cached, Date.now()) && cached.streams.length) {
     return { imdbId, streams: withHistory(streamId, cached.streams, ttType) };
   }
 
@@ -810,7 +827,8 @@ const getSources = async (type, title, year, season, episode) => {
     streams.find((s) => !s.cam && !s.dubbed);
   if (best) best.recommended = true;
 
-  STORE.data.streams[cacheKey] = { at: Date.now(), streams, v: 4 };
+  STORE.data.streams[cacheKey] = { at: Date.now(), streams, v: STREAMS_V };
+  pruneStreams();
   STORE.save();
   return { imdbId, streams: withHistory(streamId, streams, ttType) };
 };
@@ -1436,6 +1454,11 @@ module.exports = {
     sweepMetadataCache,
     MAX_CACHED_TORRENTS,
     withHistory,
+    liveStreams,
+    pruneStreams,
+    STORE,
+    STREAMS_TTL,
+    STREAMS_V,
     valueScore,
   },
 };

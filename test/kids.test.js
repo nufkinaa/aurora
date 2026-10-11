@@ -495,6 +495,11 @@ test("gate: direct access to a title over the limit is 403 with a clear error", 
   refused(run({ path: "/stream/video/m2" }), "play");
   refused(run({ path: "/stream/hls/e2/index.m3u8" }), "hls of an episode");
   refused(run({ path: "/stream/transcode/m2/jit/index.m3u8" }), "transcode");
+  // the start made ready ahead of the press, and the goodbye: neither may
+  // start or stop anything of a title this profile may not play
+  refused(run({ path: "/stream/transcode/m2/jit/master.m3u8", headers: { "x-aurora-start": "at=0; kbps=3000" } }), "the start hint on a playlist");
+  refused(run({ path: "/stream/transcode/m2/jit/seg00000.ts", query: { v: "h264-480", warm: "1" } }), "a warm-up of its first segment");
+  refused(run({ path: "/stream/transcode/m2/jit/bye", method: "POST" }), "a goodbye for it");
   refused(run({ path: "/stream/download/m2" }), "download the file");
   refused(run({ path: "/offline/file/m2" }), "offline copy");
   refused(run({ path: "/img/frame/m2" }), "a frame cut from the film");

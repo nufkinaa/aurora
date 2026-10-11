@@ -811,4 +811,73 @@ ui.test("Insights shows the TV frames and TV boxes tables from a stubbed usage s
   await page.waitForFunction(() => document.getElementById("usage-tv").classList.contains("hidden"));
 });
 
+// ---------- what the robustness work added to the page ----------
+
+ui.test("Server → Health says who restarts the server; an unsupervised one says so and the Restart button is refused in a sentence", { allow: [/Failed to load resource.*409/] }, async ({ page, srv }) => {
+  await enter(page, srv);
+  await page.click('.tab[data-tab="server"]');
+  await page.waitForFunction(() => /supervis/.test(document.getElementById("sv-health").textContent));
+  assert.match(await page.textContent("#sv-health"), /not supervised.*a crash or a hang lasts until somebody starts it again/s);
+  // the healer lists it as a finding (the private instance runs bare)
+  await page.click("#healer-run-btn");
+  await page.waitForFunction(() => /Nothing restarts Aurora if it stops/.test(document.getElementById("hl-checks").textContent));
+  // Restart: asked, refused, and the server is still there
+  await page.waitForSelector("#update-restart-btn");
+  await page.click("#update-restart-btn");
+  await page.click("dialog.ask .ask-yes");
+  await page.waitForFunction(() => /not restarted/.test(document.getElementById("sv-update").textContent), null, { timeout: 15000 });
+  assert.match(await page.textContent("#sv-update"), /not running under a supervisor/);
+  assert.equal((await fetch(`${srv.url}/healthz`)).status, 200);
+});
+
+ui.test("Server → Encoding: 'Automatic: N now, because …' with the numbers; a fixed number sticks; Automatic comes back", async ({ page, srv }) => {
+  await enter(page, srv);
+  await page.click('.tab[data-tab="server"]');
+  await page.waitForFunction(() => /Automatic: \d+ now, because \d+ CPU threads/.test(document.getElementById("en-sentence").textContent));
+  const stats = await page.textContent("#en-stats");
+  assert.match(stats, /at once/);
+  assert.match(stats, /CPU threads/);
+  assert.match(stats, /memory free/);
+  assert.match(await page.textContent("#en-running"), /What fits at once: 1080p → 1080p × \d+ · 1080p → 720p × \d+ · 4K → 1080p × \d+/);
+  assert.equal(await page.inputValue("#en-limit"), "auto");
+  // a fixed number
+  await page.selectOption("#en-limit", "3");
+  await page.click("#en-apply");
+  await page.waitForFunction(() => /Fixed at 3 at once/.test(document.getElementById("en-sentence").textContent));
+  await page.reload();
+  await page.fill('.gate input[aria-label="Admin password"]', srv.adminPassword);
+  await page.click(".gate button");
+  await page.waitForSelector(".gate", { state: "detached" });
+  await page.click('.tab[data-tab="server"]');
+  await page.waitForFunction(() => /Fixed at 3 at once/.test(document.getElementById("en-sentence").textContent));
+  assert.equal(await page.inputValue("#en-limit"), "3");
+  // and back
+  await page.selectOption("#en-limit", "auto");
+  await page.click("#en-apply");
+  await page.waitForFunction(() => /^Automatic: /.test(document.getElementById("en-sentence").textContent));
+});
+
+ui.test("Actions → Data safety and Backups: all saved; the second location and the restore test are shown; 'Test a restore now' passes", async ({ page, srv }) => {
+  await enter(page, srv);
+  await actionsTab(page);
+  await page.waitForFunction(() => /all saved/.test(document.getElementById("ds-state").textContent));
+  assert.match(await page.textContent("#ds-state"), /each written atomically with a last-good copy beside it/);
+  assert.match(await page.textContent("#ds-recoveries"), /No file has ever needed recovering/);
+  // one disk only: said, with the setting to change
+  await page.waitForFunction(() => /Second location/.test(document.getElementById("ac-bk-where").textContent));
+  assert.match(await page.textContent("#ac-bk-where"), /Second location: not set.*backupMirrorDir/s);
+  assert.match(await page.textContent("#ac-bk-advice"), /same disk as the data/);
+  assert.match(await page.textContent("#ac-bk-drill"), /Restore test: not run yet/);
+  // make a backup, then prove it restores
+  const made = await runAction(page, "backup-now");
+  assert.match(made.state, /done/, made.output);
+  await page.click("#ac-bk-drill-btn");
+  await page.waitForFunction(() => /Restore test:\s*works/.test(document.getElementById("ac-bk-drill").textContent), null, { timeout: 30000 });
+  assert.match(await page.textContent("#ac-bk-drill"), /aurora-backup-\d{8}-\d{6}\.tar\.gz restores \d+ profiles?, [\d,]+ history rows/);
+  // the same from the fixed list of actions
+  const drill = await runAction(page, "backup-drill");
+  assert.match(drill.state, /done/, drill.output);
+  assert.match(drill.output, /restores: \d+ profiles?.*Live data was not touched/s);
+});
+
 ui.run({ concurrency: 1 });

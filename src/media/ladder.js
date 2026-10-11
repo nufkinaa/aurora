@@ -326,7 +326,18 @@ const probe = (key, input, { http = false } = {}) => {
 // essential, videoArgs, audioRate, onExit }. Async only for an HDR source
 // (the tone-map support check runs once per process). `busy`: another encode
 // is already running — tone mapping then demands twice the headroom.
-const encFor = async (rung, f, { fmt = null, busy = false, label = "" } = {}) => {
+// What a rendition costs the machine (encbudget.js): the source's size,
+// codec and frame rate, the rung's height, tone mapping or not.
+const specFor = (name, f, tonemapped = false) => ({
+  srcW: f && f.width, srcH: f && f.height, codec: f && f.codec, fps: f && f.fps,
+  outH: CAPS[name] ? CAPS[name].h : 0, tonemap: !!tonemapped,
+});
+const costFor = (name, f, tonemapped = false) => require("./encbudget").costFor(specFor(name, f, tonemapped));
+
+// `need`: this rung is the only way its viewer can play the file even
+// though it is not the full one — the master playlist offered it BECAUSE the
+// full encode did not fit (see master). It is then admitted like the top rung.
+const encFor = async (rung, f, { fmt = null, busy = false, label = "", need = false } = {}) => {
   let vf = null;
   if (f && tonemap.enabled() && tonemap.isHdr(f)) {
     await tonemap.probeSupport();
@@ -334,10 +345,12 @@ const encFor = async (rung, f, { fmt = null, busy = false, label = "" } = {}) =>
   }
   return {
     name: rung.name,
+    cost: costFor(rung.name, f, !!vf),
+    memMb: require("./encbudget").memOf(specFor(rung.name, f, !!vf)),
     // the top rung of a device that cannot play the file any other way; the
     // rungs below a copy are a courtesy to a slow line (jit's cap treats
     // them differently)
-    essential: rung.name === "h264",
+    essential: rung.name === "h264" || !!need,
     videoArgs: encVideoArgs(rung, { vf, fmt }),
     audioRate: `${rateFor(rung.name, rung.h).audio}k`,
     // a tone-mapped producer that died in its filters: plain encode from now on
@@ -356,6 +369,14 @@ const encFor = async (rung, f, { fmt = null, busy = false, label = "" } = {}) =>
 // Resolves { text } or { status, message }: 503 = no encoder is free for a
 // ladder that needs one (try the single-rendition URL), 404 = no honest
 // ladder can be stated for this source.
+//
+// When the device needs the full encode (?top=h264) and it does not fit the
+// machine's budget right now, the answer degrades in this order:
+//   1. a LOWER rung that fits (720p, then 480p) is offered instead, marked
+//      &need=1 so it is admitted as the viewer's only way to play;
+//   2. failing that, a short wait (an encoder about to be parked frees its
+//      room within seconds);
+//   3. failing that, the quick 503.
 const master = async (entry, { key, input, http = false, query = {}, jit }) => {
   const fmt = query.seg === "fmp4" ? "fmp4" : null;
   const audio = audioFromQuery(query.a);
@@ -363,31 +384,74 @@ const master = async (entry, { key, input, http = false, query = {}, jit }) => {
   const maxHeight = Math.max(0, parseInt(query.max, 10) || 0);
   const f = await probe(key, input, { http });
   const encodable = !!config.FFMPEG && !jit.encodeDeclined(key);
-  if (top === "h264" && (!encodable || !jit.encodeRoom(key, true))) {
-    return { status: encodable ? 503 : 404, message: encodable ? "Server is busy transcoding other streams" : "This file cannot be re-encoded on the full timeline" };
+  const hdr = !!(f && tonemap.enabled() && tonemap.isHdr(f)); // (the dearer case, for the asking)
+  const fits = (name, essential) => jit.encodeRoom(key, essential, costFor(name, f, hdr));
+  let need = null; // a lower rung offered because the full encode does not fit
+  if (top === "h264") {
+    if (!encodable) return { status: 404, message: "This file cannot be re-encoded on the full timeline" };
+    if (!fits("h264", true)) {
+      const srcH = f && f.height > 0 ? f.height : 1080;
+      need = Object.keys(CAPS).find((n) => CAPS[n].h < srcH && fits(n, true)) || null;
+      if (!need) {
+        const soon = jit.encodeRoomSoon ? await jit.encodeRoomSoon(key, true, costFor("h264", f, hdr)) : false;
+        if (!soon) return { status: 503, message: "Server is busy transcoding other streams" };
+      }
+    }
   }
-  const lower = encodable && jit.encodeRoom(key, false);
-  const rungs = describe({ facts: f, rate: entry.rate, top, maxHeight, lower });
+  const lower = encodable && (need ? true : fits("h264-720", false));
+  let rungs = describe({ facts: f, rate: entry.rate, top, maxHeight: need ? Math.min(maxHeight || Infinity, CAPS[need].h) : maxHeight, lower });
+  // degraded: only what fits is offered, the first of it as the viewer's own
+  if (need) rungs = rungs.filter((r) => r.name !== "h264" && fits(r.name, true));
   if (!rungs.length) {
     return maxHeight > 0 && encodable && !lower
       ? { status: 503, message: "Server is busy — the lighter streams aren't available right now" }
       : { status: 404, message: "No quality ladder for this file" };
   }
   const q = (name) =>
-    `?v=${name}${fmt ? "&seg=fmp4" : ""}${name === "copy" && query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}`;
-  return { text: masterText(rungs, q, fmt), rungs };
+    `?v=${name}${fmt ? "&seg=fmp4" : ""}${name === "copy" && query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}${need && name !== "copy" ? "&need=1" : ""}`;
+  return { text: masterText(rungs, q, fmt), rungs, degraded: need || null };
 };
 
 // The producer input of one ENCODED rendition (for a segment or init
 // request): `base` is the copy's input ({ url, extra }), the rest is added.
 // Resolves null when the rendition cannot be described (the probe failed) —
 // the caller answers 404.
-const encInput = async (base, { key, name, top, fmt, audio, http = false, jit, label = "" }) => {
+const encInput = async (base, { key, name, top, fmt, audio, http = false, jit, label = "", need = false }) => {
   const f = await probe(key, base.url, { http });
   const rung = describe({ facts: f, top: name === "h264" ? "h264" : top || "copy", lower: true, anyRate: true }).find((r) => r.name === name);
   if (!rung) return null;
-  const enc = await encFor(rung, f, { fmt, busy: jit.encodeCount() > 0, label });
+  const enc = await encFor(rung, f, { fmt, busy: jit.encodeCount() > 0, label, need });
   return { ...base, fmt, audio, vtagHvc1: false, enc };
+};
+
+// ---------- where a player will start ----------
+// The rung a player begins on, given what its line carried the last time it
+// played a film: the highest that fits in 80% of it, the lowest when none
+// does, the top when nothing is known. THE SAME RULE the website applies
+// (public/js/playstart.js startRung — test/ladder.test.js holds the two to
+// each other): the server uses it only to start making the right first
+// segment before the player has asked (routes/stream.js, the start hint).
+// `rungs` top first, as describe() returns them. Returns an index, or -1.
+const START_HEADROOM = 0.8;
+const startRung = (rungs, kbps) => {
+  if (!rungs || !rungs.length) return -1;
+  if (!(kbps > 0)) return 0;
+  const fits = rungs.findIndex((r) => r.bandwidth > 0 && r.bandwidth <= kbps * 1000 * START_HEADROOM);
+  return fits >= 0 ? fits : rungs.length - 1;
+};
+// A client's start hint — the X-Aurora-Start header on a playlist request:
+// "at=<seconds>[; kbps=<what the line carried>][; v=<rendition it will begin on>]".
+// null when there is none or it makes no sense. PURE.
+const parseStartHint = (header) => {
+  if (header == null) return null;
+  const out = { at: null, kbps: 0, v: null };
+  for (const part of String(header).slice(0, 120).split(";")) {
+    const [k, v] = part.split("=").map((s) => (s || "").trim());
+    if (k === "at" && /^\d+(\.\d+)?$/.test(v)) out.at = parseFloat(v);
+    else if (k === "kbps" && /^\d+$/.test(v)) out.kbps = parseInt(v, 10);
+    else if (k === "v" && (v === "copy" || v === "h264" || CAPS[v])) out.v = v;
+  }
+  return out.at != null && out.at >= 0 && out.at < 1e6 ? out : null;
 };
 
 // The jit cache dir of one rendition of one source. The copy with the first
@@ -406,12 +470,17 @@ module.exports = {
   masterText,
   probe,
   encFor,
+  costFor,
   dirName,
   renditionFromQuery,
   audioFromQuery,
+  startRung,
+  parseStartHint,
   _internals: {
+    START_HEADROOM,
     CAPS, dimsFor, scaleFor, rateFor, rungNames, h264Level, encCodecs, copyCodecs,
-    encBandwidth, copyBandwidth, encVideoArgs, parseFacts, topCeiling,
+    encBandwidth, copyBandwidth, encVideoArgs, parseFacts, topCeiling, specFor,
+    seedFacts: (key, f) => facts.set(key, f), // (tests: a source whose probe is already known)
     SEG_MIN_SEC, MUX_OVERHEAD, ENC_OVERHEAD, ENC_THREADS,
   },
 };

@@ -1,0 +1,610 @@
+{
+  "at": "2026-10-11T00:56:24.757Z",
+  "ref": "working tree",
+  "weak": false,
+  "without": [],
+  "byOwner": {
+    "baseline": {
+      "heapMb": 3.87,
+      "rssMb": 52.63
+    },
+    "end": {
+      "heapMb": 64.12,
+      "rssMb": 173.68,
+      "externalMb": 3.16
+    },
+    "steps": [
+      {
+        "name": "node + express, compression, ws (code)",
+        "onDiskMb": 0,
+        "heapMb": 3.24,
+        "rssMb": 9.2,
+        "externalMb": 0.62,
+        "ms": 349,
+        "cpuMs": 265
+      },
+      {
+        "name": "config (finding ffmpeg & co.)",
+        "onDiskMb": 0,
+        "heapMb": 0.1,
+        "rssMb": 0.34,
+        "externalMb": 0,
+        "ms": 1096,
+        "cpuMs": 0
+      },
+      {
+        "name": "probe cache (metadata-cache.json)",
+        "onDiskMb": 0.89,
+        "heapMb": 1.16,
+        "rssMb": 0,
+        "externalMb": 0,
+        "ms": 17,
+        "cpuMs": 15
+      },
+      {
+        "name": "by-name metadata (online-metadata.json)",
+        "onDiskMb": 0.56,
+        "heapMb": 0.78,
+        "rssMb": 0.05,
+        "externalMb": 0,
+        "ms": 51,
+        "cpuMs": 15
+      },
+      {
+        "name": "catalogue: trending, title pages, ratings (discover, meta, certificates)",
+        "onDiskMb": 2.62,
+        "heapMb": 3.88,
+        "rssMb": 11.12,
+        "externalMb": 0,
+        "ms": 151,
+        "cpuMs": 31
+      },
+      {
+        "name": "IMDb ids (imdb-map.json)",
+        "onDiskMb": 0.09,
+        "heapMb": 0.19,
+        "rssMb": 0.4,
+        "externalMb": 0,
+        "ms": 8,
+        "cpuMs": 16
+      },
+      {
+        "name": "library index: scanner.scan()",
+        "onDiskMb": 0,
+        "heapMb": 4.67,
+        "rssMb": 20.45,
+        "externalMb": 0,
+        "ms": 586,
+        "cpuMs": 515
+      },
+      {
+        "name": "profiles + history (profiles.json)",
+        "onDiskMb": 3.64,
+        "heapMb": 5.27,
+        "rssMb": 0.16,
+        "externalMb": 0,
+        "ms": 115,
+        "cpuMs": 79
+      },
+      {
+        "name": "identity stamps + title history fold",
+        "onDiskMb": 0,
+        "heapMb": 0.1,
+        "rssMb": 0.39,
+        "externalMb": 0,
+        "ms": 45,
+        "cpuMs": 31
+      },
+      {
+        "name": "sign-ins (sessions.json)",
+        "onDiskMb": 0.02,
+        "heapMb": 0.06,
+        "rssMb": 0.14,
+        "externalMb": 0,
+        "ms": 12,
+        "cpuMs": 0
+      },
+      {
+        "name": "viewing sessions + hourly telemetry",
+        "onDiskMb": 0.97,
+        "heapMb": 1.43,
+        "rssMb": 0.25,
+        "externalMb": 0,
+        "ms": 63,
+        "cpuMs": 15
+      },
+      {
+        "name": "realtime (bans, watch-history.json)",
+        "onDiskMb": 0.07,
+        "heapMb": 0.18,
+        "rssMb": 0.04,
+        "externalMb": 0,
+        "ms": 34,
+        "cpuMs": 63
+      },
+      {
+        "name": "usage log replay (usage/events-*.jsonl)",
+        "onDiskMb": 0.5,
+        "heapMb": 0.05,
+        "rssMb": 0.09,
+        "externalMb": 0,
+        "ms": 30,
+        "cpuMs": 0
+      },
+      {
+        "name": "stream source lists (torrent-streams.json) + torrent module",
+        "onDiskMb": 4.41,
+        "heapMb": 0.49,
+        "rssMb": 0.05,
+        "externalMb": 0,
+        "ms": 113,
+        "cpuMs": 47
+      },
+      {
+        "name": "More like this (similar.json)",
+        "onDiskMb": 0.45,
+        "heapMb": 0.61,
+        "rssMb": 0.11,
+        "externalMb": 0,
+        "ms": 34,
+        "cpuMs": 16
+      },
+      {
+        "name": "X-Ray (xray.json)",
+        "onDiskMb": 0.11,
+        "heapMb": 0.21,
+        "rssMb": 0.35,
+        "externalMb": 0,
+        "ms": 39,
+        "cpuMs": 47
+      },
+      {
+        "name": "availability, skip segments, intro records",
+        "onDiskMb": 0.17,
+        "heapMb": 0.37,
+        "rssMb": -0.21,
+        "externalMb": 0.03,
+        "ms": 115,
+        "cpuMs": 94
+      },
+      {
+        "name": "well-known titles (search-known.json)",
+        "onDiskMb": 1.37,
+        "heapMb": 2.79,
+        "rssMb": 0.23,
+        "externalMb": 0,
+        "ms": 22,
+        "cpuMs": 15
+      },
+      {
+        "name": "search index: search.warm()",
+        "onDiskMb": 0,
+        "heapMb": 20.83,
+        "rssMb": 40.27,
+        "externalMb": 0,
+        "ms": 438,
+        "cpuMs": 468
+      },
+      {
+        "name": "recommender: title index file (recs-titles.json)",
+        "onDiskMb": 4.06,
+        "heapMb": 0,
+        "rssMb": -0.06,
+        "externalMb": 0,
+        "ms": 1,
+        "cpuMs": 0
+      },
+      {
+        "name": "recommender: vectors (recs.warm())",
+        "onDiskMb": 0,
+        "heapMb": 10.64,
+        "rssMb": 35.89,
+        "externalMb": 0.74,
+        "ms": 1181,
+        "cpuMs": 1234
+      },
+      {
+        "name": "every route module, healer, health, watchdog (code)",
+        "onDiskMb": 0,
+        "heapMb": 3.2,
+        "rssMb": 1.81,
+        "externalMb": 0.26,
+        "ms": 1482,
+        "cpuMs": 345
+      }
+    ],
+    "spaces": [
+      {
+        "space": "read_only_space",
+        "usedMb": 0,
+        "committedMb": 0
+      },
+      {
+        "space": "new_space",
+        "usedMb": 0.03,
+        "committedMb": 32
+      },
+      {
+        "space": "old_space",
+        "usedMb": 58.96,
+        "committedMb": 62
+      },
+      {
+        "space": "code_space",
+        "usedMb": 1.01,
+        "committedMb": 1.25
+      },
+      {
+        "space": "shared_space",
+        "usedMb": 0,
+        "committedMb": 0
+      },
+      {
+        "space": "trusted_space",
+        "usedMb": 1.41,
+        "committedMb": 1.51
+      },
+      {
+        "space": "new_large_object_space",
+        "usedMb": 0,
+        "committedMb": 0
+      },
+      {
+        "space": "large_object_space",
+        "usedMb": 2.77,
+        "committedMb": 2.85
+      },
+      {
+        "space": "code_large_object_space",
+        "usedMb": 0,
+        "committedMb": 0
+      },
+      {
+        "space": "shared_large_object_space",
+        "usedMb": 0,
+        "committedMb": 0
+      },
+      {
+        "space": "trusted_large_object_space",
+        "usedMb": 0,
+        "committedMb": 0
+      }
+    ]
+  },
+  "warm": {
+    "rssMb": 189.2,
+    "heapUsedMb": 84.5,
+    "externalMb": 6,
+    "arrayBuffersMb": 2.6
+  },
+  "snapshot": {
+    "totalMb": 88.1,
+    "byKind": [
+      {
+        "kind": "array",
+        "count": 176839,
+        "mb": 23.62,
+        "share": "26.8 %"
+      },
+      {
+        "kind": "object",
+        "count": 389069,
+        "mb": 22.28,
+        "share": "25.3 %"
+      },
+      {
+        "kind": "string",
+        "count": 432246,
+        "mb": 21.84,
+        "share": "24.8 %"
+      },
+      {
+        "kind": "code",
+        "count": 58706,
+        "mb": 8.62,
+        "share": "9.8 %"
+      },
+      {
+        "kind": "number",
+        "count": 263643,
+        "mb": 4.02,
+        "share": "4.6 %"
+      },
+      {
+        "kind": "native",
+        "count": 5029,
+        "mb": 2.84,
+        "share": "3.2 %"
+      },
+      {
+        "kind": "concatenated string",
+        "count": 59706,
+        "mb": 1.82,
+        "share": "2.1 %"
+      },
+      {
+        "kind": "object shape",
+        "count": 16072,
+        "mb": 1.41,
+        "share": "1.6 %"
+      },
+      {
+        "kind": "closure",
+        "count": 13737,
+        "mb": 0.77,
+        "share": "0.9 %"
+      },
+      {
+        "kind": "hidden",
+        "count": 15786,
+        "mb": 0.63,
+        "share": "0.7 %"
+      },
+      {
+        "kind": "sliced string",
+        "count": 6088,
+        "mb": 0.19,
+        "share": "0.2 %"
+      },
+      {
+        "kind": "regexp",
+        "count": 882,
+        "mb": 0.05,
+        "share": "0.1 %"
+      },
+      {
+        "kind": "synthetic",
+        "count": 43,
+        "mb": 0.01,
+        "share": "0 %"
+      },
+      {
+        "kind": "symbol",
+        "count": 565,
+        "mb": 0.01,
+        "share": "0 %"
+      },
+      {
+        "kind": "bigint",
+        "count": 2,
+        "mb": 0,
+        "share": "0 %"
+      }
+    ],
+    "strings": {
+      "mb": 23.85,
+      "distinct": 164926,
+      "heldMoreThanOnceMb": 10.52,
+      "extraCopies": 333114
+    },
+    "topDuplicates": [
+      {
+        "sample": "(concatenated string)",
+        "length": 21,
+        "copies": 59706,
+        "wastedKb": 1865.8
+      },
+      {
+        "sample": "(sliced string)",
+        "length": 15,
+        "copies": 6088,
+        "wastedKb": 190.2
+      },
+      {
+        "sample": "2021-03-04T00:00:00.000Z",
+        "length": 24,
+        "copies": 3054,
+        "wastedKb": 119.3
+      },
+      {
+        "sample": "Marco Ricci",
+        "length": 11,
+        "copies": 2977,
+        "wastedKb": 93
+      },
+      {
+        "sample": "Ethan Cole",
+        "length": 10,
+        "copies": 2977,
+        "wastedKb": 93
+      },
+      {
+        "sample": "Hugo Laurent",
+        "length": 12,
+        "copies": 2964,
+        "wastedKb": 92.6
+      },
+      {
+        "sample": "Nina Petrova",
+        "length": 12,
+        "copies": 2963,
+        "wastedKb": 92.6
+      },
+      {
+        "sample": "Kai Tanaka",
+        "length": 10,
+        "copies": 2952,
+        "wastedKb": 92.2
+      },
+      {
+        "sample": "Sara Klein",
+        "length": 10,
+        "copies": 2948,
+        "wastedKb": 92.1
+      },
+      {
+        "sample": "Jonas Berg",
+        "length": 10,
+        "copies": 2949,
+        "wastedKb": 92.1
+      },
+      {
+        "sample": "Ivy Moreno",
+        "length": 10,
+        "copies": 2936,
+        "wastedKb": 91.7
+      },
+      {
+        "sample": "Tariq Aziz",
+        "length": 10,
+        "copies": 2917,
+        "wastedKb": 91.1
+      },
+      {
+        "sample": "Omar Haddad",
+        "length": 11,
+        "copies": 2913,
+        "wastedKb": 91
+      },
+      {
+        "sample": "Dana Shapiro",
+        "length": 12,
+        "copies": 2904,
+        "wastedKb": 90.7
+      },
+      {
+        "sample": "Felix Braun",
+        "length": 11,
+        "copies": 2885,
+        "wastedKb": 90.1
+      },
+      {
+        "sample": "Zoe Abrams",
+        "length": 10,
+        "copies": 2861,
+        "wastedKb": 89.4
+      },
+      {
+        "sample": "1080p",
+        "length": 5,
+        "copies": 3719,
+        "wastedKb": 87.1
+      },
+      {
+        "sample": "Windows 10/11 x64",
+        "length": 17,
+        "copies": 2000,
+        "wastedKb": 78.1
+      },
+      {
+        "sample": "synthetic",
+        "length": 9,
+        "copies": 2287,
+        "wastedKb": 71.4
+      },
+      {
+        "sample": "efficiency",
+        "length": 10,
+        "copies": 2287,
+        "wastedKb": 71.4
+      },
+      {
+        "sample": "Chrome 141.0.0.0",
+        "length": 16,
+        "copies": 2000,
+        "wastedKb": 62.5
+      },
+      {
+        "sample": "",
+        "length": 1,
+        "copies": 2424,
+        "wastedKb": 56.8
+      },
+      {
+        "sample": "length",
+        "length": 6,
+        "copies": 2288,
+        "wastedKb": 53.6
+      },
+      {
+        "sample": "sentence",
+        "length": 8,
+        "copies": 2288,
+        "wastedKb": 53.6
+      },
+      {
+        "sample": "that",
+        "length": 4,
+        "copies": 2288,
+        "wastedKb": 53.6
+      }
+    ],
+    "topConstructors": [
+      {
+        "name": "Object",
+        "count": 145799,
+        "mb": 11.23
+      },
+      {
+        "name": "Array",
+        "count": 175302,
+        "mb": 5.35
+      },
+      {
+        "name": "ArrayBuffer",
+        "count": 29257,
+        "mb": 2.46
+      },
+      {
+        "name": "Int32Array",
+        "count": 14601,
+        "mb": 1.34
+      },
+      {
+        "name": "Float32Array",
+        "count": 14599,
+        "mb": 1.34
+      },
+      {
+        "name": "system / Context",
+        "count": 2270,
+        "mb": 0.18
+      },
+      {
+        "name": "Set",
+        "count": 2844,
+        "mb": 0.09
+      },
+      {
+        "name": "_TstNode",
+        "count": 939,
+        "mb": 0.06
+      },
+      {
+        "name": "Layer",
+        "count": 531,
+        "mb": 0.04
+      },
+      {
+        "name": "Module",
+        "count": 305,
+        "mb": 0.03
+      },
+      {
+        "name": "BuiltinModule",
+        "count": 347,
+        "mb": 0.03
+      },
+      {
+        "name": "Timeout",
+        "count": 204,
+        "mb": 0.02
+      },
+      {
+        "name": "PerformanceResourceTiming",
+        "count": 211,
+        "mb": 0.02
+      },
+      {
+        "name": "Map",
+        "count": 210,
+        "mb": 0.01
+      },
+      {
+        "name": "Error",
+        "count": 206,
+        "mb": 0.01
+      }
+    ]
+  }
+}

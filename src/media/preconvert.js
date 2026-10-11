@@ -19,8 +19,9 @@
 // The copy lives in the same temporary folder as the phone copies, kept for
 // six days (long enough to watch what was just downloaded) and then cleared
 // like everything else there. `"preconvert": false` in config.json turns it
-// off. One conversion at a time, at below-normal priority, in offline.js's
-// own queue.
+// off. One conversion at a time in offline.js's own queue, as BACKGROUND
+// work (cpuwork.js): the lowest priority, half the machine's threads, never
+// started — and paused — while somebody's stream is being encoded.
 const fs = require("fs");
 const config = require("../config");
 

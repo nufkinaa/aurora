@@ -301,7 +301,14 @@ const hookExit = () => {
 //                   on top of the default (the library's IMDb ids, see imdbMapSeed)
 //   config          extra keys merged into config.json
 //   waitForLibrary  (default true) resolve only once every file has been probed
+//   preload         extra files to `node -r` after the fence (absolute paths) — the
+//                   mobile-perf harness answers the catalogue's lookups with a
+//                   made-up one this way (tools/mobile-perf); the tests pass none
+//   env             extra environment for the instance (read by such a preload)
 //   verbose         echo the server's output
+//   keeper          run the instance under its keeper (scripts/keeper.js), as
+//                   an installed server runs: true, or { set: { probeEveryMs: 500, … } }
+//                   for the keeper's timings. `pid` is then the keeper's.
 const start = async (opts = {}) => {
   hookExit();
   sweepStale();
@@ -335,6 +342,11 @@ const start = async (opts = {}) => {
     // 0xFFFFFFFF, the mark of PowerShell's Stop-Process) before this.
     fs.copyFileSync(path.join(REPO, "server.js"), path.join(root, ENTRY));
     fs.copyFileSync(PRELOAD, path.join(root, "ui-preload.js"));
+    const extraPreloads = (opts.preload || []).map((file, i) => {
+      const name = `ui-preload-${i + 1}.js`;
+      fs.copyFileSync(file, path.join(root, name));
+      return name;
+    });
     fs.cpSync(path.join(REPO, "src"), path.join(root, "src"), { recursive: true });
     fs.cpSync(path.join(REPO, "public"), path.join(root, "public"), {
       recursive: true,
@@ -353,7 +365,8 @@ const start = async (opts = {}) => {
       if (value == null) continue; // (a test can drop a default seed with null)
       const file = path.join(dataDir, rel);
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, typeof value === "string" ? value : JSON.stringify(value), "utf-8");
+      // (a Buffer is written as it is: a backup archive, say)
+      fs.writeFileSync(file, Buffer.isBuffer(value) || typeof value === "string" ? value : JSON.stringify(value), "utf-8");
     }
 
     const port = await freePort();
@@ -383,9 +396,16 @@ const start = async (opts = {}) => {
     Object.assign(env, {
       AURORA_UI_PARENT_PID: String(process.pid),
       TEMP: path.join(root, "tmp"), TMP: path.join(root, "tmp"), TMPDIR: path.join(root, "tmp"),
+      ...(opts.env || {}),
     });
 
-    const child = spawn(process.execPath, ["-r", "./ui-preload.js", ENTRY], {
+    const preloads = ["./ui-preload.js", ...extraPreloads.map((n) => `./${n}`)];
+    const keeperArgs = opts.keeper
+      ? [path.join(REPO, "scripts", "keeper.js"), "--script", path.join(root, ENTRY), "--data", dataDir, "--no-alert",
+          ...preloads.flatMap((f) => ["--node-arg", "-r", "--node-arg", f]),
+          ...Object.entries((opts.keeper && opts.keeper.set) || {}).flatMap(([k, v]) => ["--set", `${k}=${v}`])]
+      : null;
+    const child = spawn(process.execPath, keeperArgs || [...preloads.flatMap((f) => ["-r", f]), ENTRY], {
       cwd: root, env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
       detached: process.platform !== "win32", // its own group, so the tree can be signalled
     });

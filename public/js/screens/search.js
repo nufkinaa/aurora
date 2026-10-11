@@ -13,7 +13,7 @@ import { api } from "../api.js";
 import { track } from "../usage.js";
 import { tmStart, tmLap } from "../telemetry.js"; // [analytics]
 import { state, loadLibrary } from "../state.js";
-import { navigate } from "../router.js";
+import { navigate, untilLeave } from "../router.js";
 import { onMessage } from "../ws.js";
 import { card } from "../components.js";
 import { attachSuggest, suggestHref } from "../suggest.js";
@@ -403,13 +403,13 @@ export const renderSearch = async (root) => {
   recents.load().then(() => { if (screen.isConnected) paintRecents(); }).catch(() => {});
   // A download that lands while results are up: the card turns into the
   // library's copy without searching again by hand (2026-10-07).
-  const unsubLib = onMessage("library_updated", async () => {
+  const unsubLib = untilLeave(onMessage("library_updated", async () => {
     if (!input.isConnected) return unsubLib();
     try { await loadLibrary(true); } catch { return; }
     nodes = new Map(); // a stream card may now be the library's copy: rebuild
     const q = input.value.trim();
     if (q && input.isConnected) search(q);
-  });
+  }));
 
   let stopRestore = () => {};
   if (searchMemory && searchMemory.owner !== whose()) searchMemory = null; // somebody else's

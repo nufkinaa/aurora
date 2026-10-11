@@ -10,6 +10,18 @@ const availability = require("../media/availability");
 const newEpisodes = require("../media/newEpisodes");
 const identity = require("../media/identity");
 const { JsonStore } = require("../lib/jsonstore");
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+// (Three of these ran on EVERY request once a kids profile exists.)
+const lazy = require("../lib/lazy");
+const authmodeLib = lazy(require, "../lib/authmode");
+const authzLib = lazy(require, "../lib/authz");
+const sessionsLib = lazy(require, "../lib/sessions");
+const blurupLib = lazy(require, "../lib/blurup");
+const imdbLib = lazy(require, "../media/imdb");
+const recsLib = lazy(require, "../media/recs");
+const settingsLib = lazy(require, "../lib/settings");
+const tasteLib = lazy(require, "../media/taste");
 
 const router = express.Router();
 
@@ -22,10 +34,10 @@ const router = express.Router();
 // the rules and says how a request is recognised as a kids one).
 const kids = require("../lib/kids");
 const kidsDeps = {
-  closed: () => require("../lib/authmode").get() === "closed",
+  closed: () => authmodeLib().get() === "closed",
   session: (req) => {
-    const sid = require("../lib/authz").readCookie(req) || req.headers["x-session"] || null;
-    const row = sid ? require("../lib/sessions").get(String(sid)) : null;
+    const sid = authzLib().readCookie(req) || req.headers["x-session"] || null;
+    const row = sid ? sessionsLib().get(String(sid)) : null;
     return row ? { profileId: row.profileId, createdAt: row.createdAt } : null;
   },
   // a live token's profile — or, for a token that died with a restart, the
@@ -128,6 +140,13 @@ router.post("/api/play-mark/:id", (req, res) => {
   res.json({ ok: true });
 });
 
+// The TV player's start-up tuning (lib/tvtuning.js): config.json's
+// "tvPlayer", checked. {} unless the admin set something.
+router.get("/api/tv/tuning", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json(require("../lib/tvtuning").current());
+});
+
 // ---------- trailers for the TV (media/trailers.js) ----------
 // Which trailer a TV should play: Apple's HLS when the title has one, else the
 // YouTube keys for the TV to resolve itself, else none. The site keeps its
@@ -227,8 +246,8 @@ const listEntry = (i) => {
 // leaks member data" — this route was called out by name).
 router.get("/api/server-info", (req, res) => {
   const config = require("../config");
-  const mode = require("../lib/authmode").get();
-  const authed = mode !== "closed" || !!require("../lib/authz").sessionFor(req);
+  const mode = authmodeLib().get();
+  const authed = mode !== "closed" || !!authzLib().sessionFor(req);
   res.json({
     adminName: authed ? config.ADMIN_NAME : "the admin",
     authMode: mode,
@@ -242,6 +261,10 @@ router.get("/api/server-info", (req, res) => {
     // Present only on a server with "torrents": false in config.json — the
     // web app then offers nothing that streams or downloads from sources.
     ...(require("../lib/torrentgate").enabled() ? {} : { torrents: false }),
+    // Present only while a critical store could not be read and nothing good
+    // existed to restore it from (lib/jsonstore.js): the clients then say, in
+    // words, that nothing done now is kept. No names, no details.
+    ...(require("../lib/jsonstore").inSafeMode() ? { safeMode: true } : {}),
   });
 });
 
@@ -426,7 +449,7 @@ router.get("/api/person/:id", async (req, res) => {
     });
     if (out.error) return res.status(out.status || 502).json({ error: out.error, ...(out.noKey ? { noKey: true } : {}) });
     // whose list and history: the same test /api/home applies to ?profile=
-    const authz = require("../lib/authz");
+    const authz = authzLib();
     const reqProfile = typeof req.query.profile === "string" ? req.query.profile : null;
     const sess = authz.sessionFor(req);
     const profileId =
@@ -456,22 +479,45 @@ router.get("/sw-manifest.json", (req, res) => {
   const fs = require("fs");
   const pub = path.join(__dirname, "..", "..", "public");
   if (Date.now() - shellManifest.at > 30000 || !shellManifest.data) {
-    // the bundled stylesheet the shell actually loads, plus the sources
-    const files = ["/", "/index.html", "/css/aurora.css"];
+    // What the app shell is made of: the page, the ONE stylesheet it loads
+    // (the bundle — the six source sheets used to be listed too, 76 KB a
+    // phone downloaded and nothing ever asked its cache for) and every
+    // module. A module is listed as { url, from }: kept by the worker under
+    // `url`, fetched from `from` — the content-addressed address the page
+    // itself loaded (lib/jsassets.js), so the browser's cache answers and the
+    // worker's copy costs no second download.
+    const files = ["/", "/index.html"];
     let stamp = 0;
-    const walk = (dir, prefix) => {
+    let made = "";
+    try {
+      const assetver = require("../lib/assetver");
+      const v = assetver.versionFor(path.join(pub, "css", "aurora.css"));
+      files.push(v ? { url: "/css/aurora.css", from: `/css/aurora.css?v=${v}` } : "/css/aurora.css");
+      made += v || "";
+    } catch { files.push("/css/aurora.css"); }
+    const jsassets = require("../lib/jsassets");
+    const walk = (dir, prefix, list) => {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (e.isDirectory()) walk(path.join(dir, e.name), `${prefix}/${e.name}`);
+        if (e.isDirectory()) walk(path.join(dir, e.name), `${prefix}/${e.name}`, list);
         else if (/\.(js|css)$/.test(e.name)) {
-          files.push(`${prefix}/${e.name}`);
+          if (list) {
+            const url = `${prefix}/${e.name}`;
+            const a = jsassets.asset(pub, url);
+            files.push(a ? { url, from: `${url}?v=${a.hash}` } : url);
+            made += a ? a.hash : "";
+          }
           try { stamp = Math.max(stamp, Math.floor(fs.statSync(path.join(dir, e.name)).mtimeMs)); } catch {}
         }
       }
     };
-    for (const sub of ["js", "css"]) {
-      try { walk(path.join(pub, sub), `/${sub}`); } catch {}
-    }
-    shellManifest = { at: Date.now(), data: { version: String(stamp), files } };
+    try { walk(path.join(pub, "js"), "/js", true); } catch {}
+    try { walk(path.join(pub, "css"), "/css", false); } catch {} // (the bundle's sources: they move the version)
+    try { stamp = Math.max(stamp, Math.floor(fs.statSync(path.join(pub, "index.html")).mtimeMs)); } catch {}
+    // The version: the newest file's time AND what is actually served — the
+    // same sources re-printed differently (esbuild added or removed) are a
+    // different shell.
+    const version = `${stamp}-${require("crypto").createHash("md5").update(made).digest("hex").slice(0, 8)}`;
+    shellManifest = { at: Date.now(), data: { version, files } };
   }
   res.setHeader("Cache-Control", "no-store");
   res.json(shellManifest.data);
@@ -502,7 +548,53 @@ router.get("/api/party/:code", (req, res) => {
   res.json(p);
 });
 
-router.get("/api/library", (req, res) => {
+// ---------- kept answers, and whose turn it is ----------
+// /api/home and /api/library are the two heavy answers every device asks for
+// at the same moments (a page load, a library change). lib/answermemo.js
+// keeps the finished bytes for as long as nothing they were built from has
+// changed (30 s at most); lib/admission.js lets one heavy request run per
+// turn of the event loop and gives each client a fair share of those turns.
+const answermemo = require("../lib/answermemo");
+const heavy = require("../lib/admission").heavy;
+
+// The library, as a number that moves whenever it changes: a scan, the
+// probes finishing, online metadata arriving (which ends in a scan).
+let libRev = 0;
+for (const ev of ["updated", "scanned"]) scanner.events.on(ev, () => { libRev++; });
+// (a probe pass that found nothing new is not a change)
+scanner.events.on("enriched", (info) => { if (scanner.enrichedChanged(info)) libRev++; });
+const dayNumber = () => Math.floor(Date.now() / 86400000);
+// (the placeholders: a count of every one that has arrived — an answer's
+// "_blur" map changes only when it moves)
+const blurRev = () => { try { return blurupLib().generation(); } catch { return 0; } };
+// What an answer is the same for: the kids limit in force, and whether
+// placeholders ride along (lib/blurup.js adds them for clients that ask).
+const kidKey = (req) => (req.kids ? `${req.kids.profile}:${req.kids.maxAge}` : "");
+const blurKey = (req) => (req.get("X-Blur") === "1" ? "blur" : "");
+// Built from: the library, the IMDb ids stamped on it, the age ratings (the
+// kids filter reads them), the placeholders known so far.
+const libraryStamp = () => `${libRev}.${scanner.index.scannedAt}.${scanner.index.enriched ? 1 : 0}.${imdbLib().version()}.${discover.stamp()}.${blurRev()}`;
+// Home is built from all of that plus: the billboard pool, release verdicts,
+// the recommender's index, the settings, who the profiles are and their
+// limits — and, for a profile, ITS OWN writes (progress, list, ratings,
+// follows). Somebody else watching moves none of it. The day: the billboard
+// and the sampled rows are seeded per day.
+const recsRev = () => { try { return recsLib()._internals.state.gen; } catch { return 0; } };
+const homeStamp = (profileId) =>
+  `${libraryStamp()}.${hero.poolStamp()}.${availability.stamp()}.${recsRev()}.${settingsLib().rev}.${profiles.shapeStamp()}.${profileId ? profiles.signalsStamp(profileId) : 0}.${dayNumber()}`;
+
+const libraryKept = (req, res, next) => {
+  if (answermemo.begin(req, res, { key: `library|${kidKey(req)}|${blurKey(req)}`, stamp: libraryStamp })) return;
+  next();
+};
+// After waiting its turn: the same answer may have been composed meanwhile
+// for somebody who asked a moment earlier.
+const keptMeanwhile = (req, res, next) => {
+  if (answermemo.recheck(req, res)) return;
+  next();
+};
+
+router.get("/api/library", libraryKept, heavy.middleware(), keptMeanwhile, (req, res) => {
   // Library items carry the IMDb id we already know for them (identity.js
   // stamps the index; a no-op unless the library or the id cache changed).
   identity.ensureStamped();
@@ -572,7 +664,7 @@ router.get("/api/item/:id", (req, res) => {
     // required mode: a profile's stored play-item (what they were watching)
     // is personal — only its owner's session may rebuild it
     const stored =
-      req.query.profile && require("../lib/authz").profileAllowed(req, req.query.profile)
+      req.query.profile && authzLib().profileAllowed(req, req.query.profile)
         ? profiles.getStreamItem(req.query.profile, id)
         : null;
     if (stored) return res.json({ ...stored, subtitles: stored.subtitles || [] });
@@ -597,7 +689,22 @@ router.get("/api/item/:id", (req, res) => {
   identity.ensureStamped(); // so the item carries its imdbId
   const item = scanner.findById(id);
   if (!item) return res.status(404).json({ error: "Not found" });
-  res.json(withOriginalAudio(item));
+  let out = withOriginalAudio(item);
+  // A file that can be played (a film, an episode — not a show's page): what
+  // is known about how it will start, and its start made ready (lib/playprep.js).
+  if (out.videoUrl) {
+    try {
+      const playprep = require("../lib/playprep");
+      const entry = scanner.resolve(id);
+      if (entry && entry.kind === "video") {
+        // an MP4's index: how big, and whether it comes first (the player's "stream or file?")
+        const index = playprep.indexInfo(entry.path);
+        if (index) out = { ...out, index };
+        playprep.warm(id);
+      }
+    } catch {}
+  }
+  res.json(out);
 });
 
 // ---------- search (src/media/search.js) ----------
@@ -643,7 +750,7 @@ router.get("/api/search/suggest", (req, res) => {
   });
 });
 
-router.get("/api/search", async (req, res) => {
+router.get("/api/search", heavy.middleware(), async (req, res) => {
   const q = String(req.query.q || "").trim().slice(0, 80);
   const v2 = String(req.query.v || "") === "2";
   if (!q) return res.json(v2 ? { q: "", results: [], related: [], relatedLabel: null, relatedKind: null, anchor: null, pending: false, catalogFailed: false } : { results: [] });
@@ -754,7 +861,12 @@ const dailyRandom = (profileId) => {
 // library with streamable (Discover) titles and personalises by star ratings,
 // liked genres, and watch history. Stays fast: streamable data comes from the
 // in-memory cache (a background refresh keeps it warm), never a blocking fetch.
-router.get("/api/home", (req, res) => {
+//
+// Three steps: who is asking (cheap, every time); a kept answer if nothing it
+// was built from has changed (lib/answermemo.js — also the 304 for a client
+// that already has it); otherwise the request takes its turn
+// (lib/admission.js) and the answer is composed and kept.
+const homeWho = (req, res, next) => {
   const reqProfile = req.query.profile || null;
   // Honour the profile lock: a password-protected profile's personalized rows
   // (Continue Watching, My List, ratings, liked genres) require a valid unlock
@@ -767,22 +879,30 @@ router.get("/api/home", (req, res) => {
   // demanded (updated clients resolve via /api/ping instead), and a profile
   // the session's account doesn't own degrades to the generic home, same as
   // a wrong profile-token does today.
-  if (require("../lib/authmode").get() === "closed" && !require("../lib/authz").sessionFor(req)) {
+  if (authmodeLib().get() === "closed" && !authzLib().sessionFor(req)) {
     return res.status(401).json({ error: "sign in first", signinRequired: true });
   }
   const sessionOwns = (() => {
-    const s = require("../lib/authz").sessionFor(req);
+    const s = authzLib().sessionFor(req);
     return !!s && s.profile.id === reqProfile;
   })();
   const profileId =
     reqProfile &&
-    require("../lib/authz").profileAllowed(req, reqProfile) &&
+    authzLib().profileAllowed(req, reqProfile) &&
     !profiles.isLocked(reqProfile) &&
     (sessionOwns ||
       !profiles.isProtected(reqProfile) ||
       profiles.tokenValid(reqProfile, req.get("X-Profile-Token")))
       ? reqProfile
       : null;
+  req.homeProfileId = profileId;
+  const key = `home|${profileId || ""}|${req.query.slim === "1" ? "slim" : "web"}|${kidKey(req)}|${blurKey(req)}`;
+  if (answermemo.begin(req, res, { key, stamp: () => homeStamp(profileId) })) return;
+  next();
+};
+
+router.get("/api/home", homeWho, heavy.middleware(), keptMeanwhile, (req, res) => {
+  const profileId = req.homeProfileId;
   const { movies, shows } = scanner.index;
   const local = [...movies, ...shows];
 
@@ -914,7 +1034,7 @@ router.get("/api/home", (req, res) => {
         if (f && f.showId) seen.add(f.showId);
       }
       const kid = kidsFor(req);
-      engine = require("../media/recs").homeRows({
+      engine = recsLib().homeRows({
         profileId,
         // already on the page (the billboard, Continue Watching, My List) or
         // already watched / rated / listed: never repeated in a row below
@@ -928,7 +1048,7 @@ router.get("/api/home", (req, res) => {
         allow: kid ? (item) => kids.allowed(item, kid.maxAge, kidsCertOf) : null,
         allowKey: kid ? String(kid.maxAge) : "",
       });
-      if (!engine) tasteRows = require("../media/taste").homeRecommendations({
+      if (!engine) tasteRows = tasteLib().homeRecommendations({
         profileId,
         // hero.recommend's old playable contract, kept: an unreleased film
         // must never be recommended — its detail page has nothing to play
@@ -1152,6 +1272,6 @@ const tvStrip = (i) => {
 
 // Test-only: the home-row composer's merge rules are contracts (never drop
 // unknown rows, never hero "upcoming") — pinned in test/roworder.test.js.
-router._internals = { orderRows, kidsFor, kidsCertOf, kidsSession: kidsDeps.session, tvStrip, cardStrip, personCredit, personOverBudget };
+router._internals = { homeStamp, libraryStamp, orderRows, kidsFor, kidsCertOf, kidsSession: kidsDeps.session, tvStrip, cardStrip, personCredit, personOverBudget };
 
 module.exports = router;

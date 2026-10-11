@@ -22,7 +22,10 @@ const IDLE_MS = 150000; // kill a transcode whose player stopped requesting (>2.
 // Server-survival guards: an uncapped pile of libx264 processes (e.g. a burst
 // of TV-remote seeks, each with a new offset) saturates every core and starves
 // the event loop — the whole server "freezes" even though nothing crashed.
-const MAX_ACTIVE = 2; // concurrent live ffmpeg transcodes
+const MAX_ACTIVE = 2; // live ffmpeg jobs of any kind here (copies too), at the least
+// Re-encodes share the machine's encode budget with the library's (encbudget.js).
+const budget = require("./encbudget");
+const busyError = (message) => Object.assign(new Error(message), { busy: true, retryAfter: 5 });
 const FFMPEG_THREADS = Math.max(1, os.cpus().length - 2); // leave cores for node
 const activeCount = () => {
   let n = 0;
@@ -31,6 +34,7 @@ const activeCount = () => {
 };
 // Keep node responsive even while ffmpeg runs flat-out.
 const deprioritize = (proc) => {
+  require("../lib/children").track(proc, "torrent-transcode");
   try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
 };
 
@@ -343,9 +347,23 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
   // old position, kept alive only until this one is ready (see above). Counting
   // it meant one viewer could never seek — their own stream held a slot and the
   // seek was refused with "busy transcoding" (measured live).
-  if (activeCount() - victims.length >= MAX_ACTIVE) {
+  // (the job count stays bounded as before — at the budget's number when
+  // that is higher than two; a re-encode must also fit the budget by cost)
+  const victimCost = victims.reduce((n, v) => { const j = Array.isArray(v) ? v[1] : v; return n + (j && j.proc && j.cost ? j.cost : 0); }, 0);
+  const spec = { srcW: hdrFacts && hdrFacts.width, srcH: hdrFacts && hdrFacts.height, codec: hdrFacts && hdrFacts.codec, fps: hdrFacts && hdrFacts.fps, tonemap: !!(hdrFacts && tonemap.enabled() && tonemap.isHdr(hdrFacts)), legacy: true };
+  const cost = vcodec !== "copy" ? budget.costFor(spec) : 0;
+  const memMb = vcodec !== "copy" ? budget.memOf(spec) : 0;
+  let room = activeCount() - victims.length < Math.max(MAX_ACTIVE, budget.slots());
+  if (room && vcodec !== "copy") {
+    let load = 0;
+    // (an encoder whose viewer has gone is not counted, and is stopped when this one is let in)
+    try { load = require("./cpuwork").viewer.load(); } catch {}
+    room = budget.admit({ cost, memMb, running: Math.max(0, load - victimCost), essential: true, replacing: victims.length > 0 }).ok;
+    if (room) { try { require("./cpuwork").viewer.reclaim(); } catch {} }
+  }
+  if (!room) {
     try { require("../lib/signals").hit("no-encoder", "torrent"); } catch {}
-    return Promise.reject(new Error("Server is busy transcoding other streams — try again in a moment"));
+    return Promise.reject(busyError("Server is busy transcoding other streams — try again in a moment"));
   }
 
   fs.mkdirSync(dir, { recursive: true });
@@ -474,6 +492,8 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
     { stdio: [seeking ? "ignore" : "pipe", "ignore", "pipe"], windowsHide: true }
   );
   deprioritize(proc);
+  // a re-encode is somebody watching: background work stands back (cpuwork.js)
+  if (vcodec !== "copy") { try { require("./cpuwork").viewer.track(proc, { kind: "torrent-transcode", label: file && file.name ? String(file.name).slice(0, 60) : infoHash, cost, memMb }); } catch {} }
 
   let rs = null;
   let inputBytes = 0; // how much of the file actually reached ffmpeg
@@ -496,7 +516,7 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
   let stderr = "";
   proc.stderr.on("data", (d) => (stderr += d.toString()));
 
-  const job = { proc, done: false, lastAccess: Date.now() };
+  const job = { proc, cost, done: false, lastAccess: Date.now() };
   job.ready = new Promise((resolve, reject) => {
     const started = Date.now();
     // Seeks into not-yet-downloaded territory legitimately wait on the swarm

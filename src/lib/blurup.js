@@ -33,6 +33,12 @@ const FAIL_TTL = 6 * 3600 * 1000;
 const KEYS = ["cover", "poster", "backdrop"];
 
 const mem = new Map(); // picture address -> data URI
+// Counts every placeholder that arrives in `mem`. annotate() of one body
+// changes only when this does, so what keeps a finished answer
+// (lib/answermemo.js, through the stamps in routes/api.js) knows when the
+// kept bytes are no longer what a fresh answer would be.
+let generation = 0;
+const learn = (u, uri) => { mem.set(u, uri); generation++; };
 const failed = new Map(); // picture address -> failedAt
 const queued = new Set();
 const queue = [];
@@ -84,7 +90,7 @@ const make = async (u) => {
   if (!r.ok) throw new Error(`picture answered ${r.status}`);
   const webp = await shrink(Buffer.from(await r.arrayBuffer()));
   const uri = `data:image/webp;base64,${webp.toString("base64")}`;
-  mem.set(u, uri);
+  learn(u, uri);
   fs.writeFile(fileFor(u), uri, () => {});
   return uri;
 };
@@ -115,7 +121,7 @@ const get = (u) => {
   // a restart finds yesterday's on disk — cheap, async, never blocks a request
   fs.readFile(fileFor(u), "utf8", (err, text) => {
     if (!err && text.startsWith("data:image/")) {
-      mem.set(u, text);
+      learn(u, text);
       queued.delete(u);
       return;
     }
@@ -183,4 +189,4 @@ const middleware = (req, res, next) => {
   next();
 };
 
-module.exports = { middleware, get, annotate, _internals: { collect, localUrl, mem, shrink, make } };
+module.exports = { middleware, get, annotate, generation: () => generation, _internals: { collect, localUrl, mem, shrink, make, learn } };

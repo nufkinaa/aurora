@@ -31,6 +31,7 @@ const scanner = require("./scanner");
 const metadata = require("./metadata");
 const { JsonStore } = require("../lib/jsonstore");
 
+const cpuwork = require("./cpuwork");
 const store = new JsonStore(path.join(config.DATA_DIR, "intro-auto.json"), {});
 
 const SR = 8000; // Hz — speech/music structure survives, decode is ~free
@@ -204,9 +205,10 @@ const blackSegments = (file, from, length) =>
       "-vf", "fps=5,scale=160:-2,blackdetect=d=0.3:pic_th=0.92:pix_th=0.12",
       "-f", "null", "-",
     ];
-    execFile(config.FFMPEG, args, { encoding: "utf-8", maxBuffer: 8 * 1024 * 1024, windowsHide: true, timeout: 90000 }, (err, stdout, stderr) => {
+    const child = execFile(config.FFMPEG, args, { encoding: "utf-8", maxBuffer: 8 * 1024 * 1024, windowsHide: true, timeout: 90000 }, (err, stdout, stderr) => {
       resolve(parseBlackdetect(stderr));
     });
+    cpuwork.background.lower(child);
   });
 const refineCreditsByPicture = async (file, start, duration) => {
   try {
@@ -236,6 +238,7 @@ const decode = (file, startSec, lengthSec) =>
       resolve(new Int16Array(buf.buffer, buf.byteOffset, Math.floor(buf.length / 2)));
     });
     child.stdout && child.stdout.on("data", (d) => chunks.push(d));
+    cpuwork.background.lower(child);
   });
 
 // Titled chapters, when the release carries them.
@@ -283,8 +286,39 @@ const fromChapters = (chapters, duration) => {
 };
 
 // ---------- the season pass ----------
+// One stat per file per run: the audio pass and the database fill that
+// follows it both ask for every episode's date (it was 14,400 blocking stats
+// an hour on an idle server with 600 episodes — two runs after each scan,
+// two stats each). run() opens the memo and drops it when it ends; outside a
+// run every call reads the disk, as before.
+let mtimeMemo = null;
 const mtimeOf = (p) => {
-  try { return Math.floor(fs.statSync(p).mtimeMs); } catch { return 0; }
+  if (mtimeMemo && mtimeMemo.has(p)) return mtimeMemo.get(p);
+  let m = 0;
+  try { m = Math.floor(fs.statSync(p).mtimeMs); } catch { m = 0; }
+  if (mtimeMemo) mtimeMemo.set(p, m);
+  return m;
+};
+
+// An episode the analysis could say NOTHING about (its sound could not be
+// decoded, or is too short to fingerprint) used to get no record at all — so
+// it was read again after every scan, for ever: a chapters probe and one or
+// two ffmpeg decodes every ten minutes per such episode. It now gets a
+// record that says so, and is tried again after NONE_RETRY_MS (a decode can
+// fail for a passing reason) or when the file changes.
+const NONE_RETRY_MS = 7 * 24 * 3600 * 1000;
+// Does this episode need the audio pass now?
+const analysisDue = (have, mtime, now = Date.now()) => {
+  if (!have || have.mtime !== mtime || have.v !== ANALYSIS_V) return true;
+  return !!have.none && now - (have.at || 0) > NONE_RETRY_MS;
+};
+// The record for "looked, nothing to say" — or null when what is on file for
+// this very file already holds an answer (from an older analysis version, or
+// one that worked before): that is never replaced by nothing.
+const noneRecord = (have, mtime, now = Date.now()) => {
+  const same = have && have.mtime === mtime ? have : null;
+  if (same && (same.intro || same.credits)) return null;
+  return { mtime, at: now, v: ANALYSIS_V, intro: null, credits: null, source: null, none: true, ...(same && same.db ? { db: same.db } : {}) };
 };
 
 // Median of agreeing detections: at least two comparisons must land within
@@ -387,8 +421,11 @@ const analyze = async (ep, siblings) => {
 // downloading never got its own Skip intro measured).
 const ANALYSIS_V = 2;
 let running = false;
+let held = false; // waiting for a place behind a viewer encode (cpuwork.js)
 let again = false;
-const busy = () => running;
+// (waiting for its turn behind a viewer's encode is not being busy: the
+// watchdog must go on judging the event loop through an evening's viewing)
+const busy = () => running && !held;
 const pass = async () => {
   let done = 0;
   const seen = new Set();
@@ -415,12 +452,22 @@ const pass = async () => {
       if (!entry) continue;
       const mtime = mtimeOf(entry.path);
       const have = store.data[ep.id];
-      if (have && have.mtime === mtime && have.v === ANALYSIS_V) continue;
+      if (!analysisDue(have, mtime)) continue;
       const meta = metadata.getCached(entry.path);
       if (!meta || !meta.duration) continue; // enrichment hasn't reached it yet
+      // Background work (cpuwork.js): each episode waits for its place — no
+      // viewer encode running, none for a while — and its ffmpeg runs at the
+      // lowest priority. An episode already being read is let finish.
+      held = true;
+      const place = await cpuwork.background.gate("intro", { label: `${show.title} S${season.number}E${ep.episode}` });
+      held = false;
       try {
         const res = await analyze(ep, eps.filter((e) => e.id !== ep.id));
-        if (!res) continue;
+        if (!res) {
+          const none = noneRecord(store.data[ep.id], mtime);
+          if (none) { store.data[ep.id] = none; store.save(); }
+          continue;
+        }
         // re-read: the database fill may have written this record while
         // the analysis ran — its answer rides along, never overwritten
         const now = store.data[ep.id];
@@ -430,6 +477,8 @@ const pass = async () => {
         done++;
       } catch (e) {
         console.warn(`[intro] ${show.title} S${season.number}E${ep.episode}: ${e && e.message ? e.message : e}`);
+      } finally {
+        place.release();
       }
       await new Promise((r) => setImmediate(r));
     }
@@ -592,9 +641,11 @@ const fillEpisode = async (episodeId) => {
 const run = async () => {
   if (running) { again = true; return; }
   running = true;
+  mtimeMemo = new Map();
   try {
     do {
       again = false;
+      mtimeMemo = new Map(); // (each time round reads the disk afresh)
       // the audio pass needs ffmpeg; the databases need only the internet
       if (config.ffmpegAvailable) await pass();
       await fillFromDatabases();
@@ -603,6 +654,7 @@ const run = async () => {
     console.warn("[intro] pass failed:", e && e.message ? e.message : e);
   } finally {
     running = false;
+    mtimeMemo = null;
   }
 };
 
@@ -629,7 +681,9 @@ const get = (episodeId) => {
   };
 };
 
-scanner.events.on("enriched", () => setTimeout(run, 5000));
+// (a probe pass that found nothing new has nothing for this pass either: the
+// scan that preceded it already asked for one, below)
+scanner.events.on("enriched", (info) => { if (scanner.enrichedChanged(info)) setTimeout(run, 5000); });
 // Without ffmpeg there is no enrichment (and so no "enriched") — the database
 // fill still has work to do, so a scan wakes it too. Debounced: scans come in
 // bursts, and a pass with nothing new to ask is a walk over cached records.
@@ -667,4 +721,4 @@ const coverage = () => {
   return { episodes, analyzed, intro, credits, chapters, fromDb, recaps };
 };
 
-module.exports = { run, get, coverage, busy, fillEpisode, refreshFromDatabases, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, tightenStart, parseBlackdetect, snapToBlack, INVALID, FRAME, HOP, SR, ANALYSIS_V } };
+module.exports = { run, get, coverage, busy, fillEpisode, refreshFromDatabases, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, tightenStart, parseBlackdetect, snapToBlack, INVALID, FRAME, HOP, SR, ANALYSIS_V, analysisDue, noneRecord, NONE_RETRY_MS, mtimeOf, mtimeMemoFor: (fn) => { mtimeMemo = new Map(); try { return fn(); } finally { mtimeMemo = null; } } } };

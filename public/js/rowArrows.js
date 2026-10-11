@@ -28,6 +28,28 @@ const EPSILON = 2;
 const reducedMotion = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// The arrows only exist for a mouse on a wide screen — components.css shows
+// .row-nav under exactly this query and `display: none` otherwise, and
+// nothing else reads can-prev / can-next or the --row-nav-* variables. So
+// where the query does not hold (every phone, every touch tablet) measuring a
+// row is work nobody can see: on a slow phone it was half a second of Home's
+// first seconds (a forced layout per shelf, then again on every frame of a
+// sideways swipe). The query is live: plug a mouse in, or widen the window,
+// and every row measures itself at once.
+const ARROWS_QUERY = "(hover: hover) and (pointer: fine) and (min-width: 861px)";
+const arrowsMedia = typeof window !== "undefined" && window.matchMedia ? window.matchMedia(ARROWS_QUERY) : null;
+const arrowsShown = () => !arrowsMedia || arrowsMedia.matches;
+if (arrowsMedia) {
+  // (each row keeps its own paint() on its element — nothing here holds on to
+  // rows of screens that have gone)
+  const onChange = () => {
+    if (!arrowsMedia.matches) return;
+    for (const section of document.querySelectorAll(".row")) if (section._paintArrows) section._paintArrows();
+  };
+  if (arrowsMedia.addEventListener) arrowsMedia.addEventListener("change", onChange);
+  else if (arrowsMedia.addListener) arrowsMedia.addListener(onChange);
+}
+
 export const attachRowArrows = (section, scroller) => {
   const prev = el("button", { "data-ui": "row.arrow",
     class: "row-nav prev",
@@ -86,6 +108,7 @@ export const attachRowArrows = (section, scroller) => {
   // Which arrows are worth showing. A row that fits entirely shows neither, so
   // the buttons only ever appear where there is genuinely something past the edge.
   const paint = () => {
+    if (!arrowsShown()) return; // hidden by CSS: see ARROWS_QUERY
     const overflows = scroller.scrollWidth - scroller.clientWidth > EPSILON;
     section.classList.toggle(
       "can-prev",
@@ -123,6 +146,7 @@ export const attachRowArrows = (section, scroller) => {
   }
 
   section.append(prev, next);
+  section._paintArrows = paint; // for the moment the query turns true (see ARROWS_QUERY)
   // First measurement has to wait for layout: nothing has a width yet at build
   // time, and ResizeObserver's initial callback only arrives once it does.
   requestAnimationFrame(paint);

@@ -36,3 +36,7 @@ tv-native/.shots/
 # Browser tests (npm run test:ui): failure screenshots/logs, and the generated test library
 test/ui/artifacts/
 test/ui/.cache/
+
+# Time-to-first-frame harness (tools/ttff): generated media and raw run results
+tools/ttff/.media/
+tools/ttff/.runs/

@@ -42,7 +42,7 @@ import {
   loadLibrary,
   serverFacts,
 } from "../state.js";
-import { navigate } from "../router.js";
+import { navigate, untilLeave } from "../router.js";
 import * as offline from "../offline.js";
 import { shelfRow } from "../components.js";
 import { heroBlock, watchlistButton } from "./details.js";
@@ -81,6 +81,7 @@ const streamWatchlistButton = (meta) => {
     if (e.detail && e.detail.imdbId === meta.imdbId) { inList = !!e.detail.inList; paint(); }
   };
   window.addEventListener("aurora-watchlist", onElsewhere);
+  untilLeave(() => window.removeEventListener("aurora-watchlist", onElsewhere)); // (the event may never come: router.js)
   btn.addEventListener("click", async () => {
     if (!state.profile) return;
     inList = !inList;
@@ -936,9 +937,10 @@ const loadSources = async (
 
     // Live download progress. One subscription per sources list; the previous
     // one is dropped first (picking another episode re-renders into the same
-    // host), and it lets go by itself once the page is gone.
+    // host), and it lets go by itself once the page is gone — or, with no
+    // download running to tell it so, when the page is left (router.js).
     if (host._dlUnsub) host._dlUnsub();
-    host._dlUnsub = onMessage("download_update", ({ job }) => {
+    host._dlUnsub = untilLeave(onMessage("download_update", ({ job }) => {
       if (!host.isConnected) {
         if (host._dlUnsub) host._dlUnsub();
         host._dlUnsub = null;
@@ -956,7 +958,7 @@ const loadSources = async (
         loadLibrary(true).catch(() => {});
         // (the "ready to watch" message is said once, app-wide, in main.js)
       }
-    });
+    }));
 
     // No paragraph of advice and no "save it, then watch it" panel any more:
     // the copy you own (when there is one), the quality filter, the list.
@@ -1330,6 +1332,17 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       for (const b of actions) {
         for (const ev of ["pointerenter", "focus", "touchstart"]) b.addEventListener(ev, () => warmPlay(target), { passive: true });
       }
+      // …and so does the page itself, once it has painted and the browser has
+      // nothing to do: a title page is where Play is pressed, and a finger on
+      // a phone gives no warning at all (touchstart is a tenth of a second
+      // before the tap). What goes out is two small playlists; the server
+      // makes the first seconds of the film ready — bounded there (a few
+      // starts a minute, an encode only on an idle server, three segments at
+      // most) — and a title that is not played costs nothing more. Not on a
+      // slow line or under Data saver (prefetch.js decides).
+      (window.requestIdleCallback || ((fn) => setTimeout(fn, 900)))(() => {
+        if (screen.isConnected) warmPlay(target, { soft: true });
+      }, { timeout: 3000 });
     }
   }
   // A film we don't own: "Save & watch" is THE button — one press saves the
@@ -1979,7 +1992,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     }).catch(() => {});
 
     // Finished while you were watching the page? Show it, don't make them reload.
-    const unsubMovie = onMessage("download_update", async ({ job }) => {
+    const unsubMovie = untilLeave(onMessage("download_update", async ({ job }) => {
       if (!screen.isConnected) return unsubMovie();
       if (!job) return;
       const mine =
@@ -2007,7 +2020,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       if (!fresh) return;
       lib = fresh;
       showMovieSources();
-    });
+    }));
     return;
   }
 
@@ -2341,6 +2354,13 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
             alt: "",
             loading: "lazy",
             decoding: "async",
+            // The catalogue's still used to come straight from its host — a
+            // picture the page may not read, so the nav's words kept their
+            // light tone over it (navTone.js). It comes through this server
+            // now and COULD be read: the nav's words would turn dark over a
+            // bright still. That is a change a person can see; until it is
+            // decided on, the still is passed over as before.
+            ...(row.thumbnail ? { "data-tone-unread": "" } : {}),
             src: row.thumbnail
               ? artUrl(row.thumbnail)
               : `/img/frame/${encodeURIComponent(local.id)}?t=${Math.max(30, Math.floor((local.duration || 600) * 0.12))}`,
@@ -2671,7 +2691,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     loadEpJobs().then(() => renderEpisodes());
     // Live: the card's percent moves with the job; a finished or failed job
     // redraws the list (a finished one has a library file to show).
-    const unsub = onMessage("download_update", ({ job }) => {
+    const unsub = untilLeave(onMessage("download_update", ({ job }) => {
       if (!screen.isConnected) return unsub();
       if (!job || job.imdbId !== imdbId || !job.season || !job.episode) return;
       const key = epJobKey(job.season, job.episode);
@@ -2686,7 +2706,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         if (job.status === "done") loadLibrary(true).catch(() => {});
         renderEpisodes();
       }
-    });
+    }));
   }
   // Arriving from Up next (`?s=&e=`): that season, that episode's sources, no hunting.
   const jumpSeason = jump && seasons.find((s) => s.number === jump.season);
@@ -2721,7 +2741,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     if (again) openSources(again, { scroll: false });
   });
 
-  const unsubDone = onMessage("download_update", async ({ job }) => {
+  const unsubDone = untilLeave(onMessage("download_update", async ({ job }) => {
     if (!screen.isConnected) return unsubDone();
     if (!job || job.status !== "done") return;
     const mine =
@@ -2750,7 +2770,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         (e) => e.episode === openRow.episode,
       );
     if (again) openSources(again, { scroll: false });
-  });
+  }));
 
   // Extras (bonus downloads the scanner found next to the show).
   if (lib && lib.extras && lib.extras.length > 0) {

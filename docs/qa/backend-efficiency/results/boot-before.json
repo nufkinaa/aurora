@@ -1,0 +1,1975 @@
+{
+  "at": "2026-10-10T23:54:35.533Z",
+  "ref": "68e946a",
+  "runs": 5,
+  "profiles": {
+    "normal": {
+      "median": {
+        "listeningMs": 3742.5,
+        "cpuAtListeningMs": 2280,
+        "pingMs": 3826,
+        "warmMs": 22471,
+        "cpuAtWarmMs": 5405,
+        "rssAtListeningMb": 141.3,
+        "rssWarmMb": 158.5,
+        "heapWarmMb": 82,
+        "requireMs": 3654,
+        "modules": 254,
+        "syncSpawnMs": 730.8,
+        "syncSpawns": 6,
+        "storeReadMs": 53.3,
+        "usageReplayMs": 1.5,
+        "scanMs": 606.1,
+        "scanCalls": 6851
+      },
+      "topModulesSelf": [
+        {
+          "id": "ui-instance.js",
+          "self": 1420.2,
+          "incl": 3652.3
+        },
+        {
+          "id": "src/config.js",
+          "self": 748.1,
+          "incl": 748.1
+        },
+        {
+          "id": "src/profiles.js",
+          "self": 57.7,
+          "incl": 75.1
+        },
+        {
+          "id": "src/media/discover.js",
+          "self": 48.6,
+          "incl": 62.7
+        },
+        {
+          "id": "src/media/torrent.js",
+          "self": 48.3,
+          "incl": 69
+        },
+        {
+          "id": "src/telemetry.js",
+          "self": 26.1,
+          "incl": 26.1
+        },
+        {
+          "id": "src/routes/usage.js",
+          "self": 25.5,
+          "incl": 98.5
+        },
+        {
+          "id": "src/routes/api.js",
+          "self": 25,
+          "incl": 252.3
+        },
+        {
+          "id": "src/lib/imgvariant.js",
+          "self": 24.9,
+          "incl": 24.9
+        },
+        {
+          "id": "src/media/downloads.js",
+          "self": 24.8,
+          "incl": 82.3
+        },
+        {
+          "id": "src/routes/stream.js",
+          "self": 23.9,
+          "incl": 143.4
+        },
+        {
+          "id": "src/routes/auth.js",
+          "self": 22.5,
+          "incl": 33.8
+        },
+        {
+          "id": "src/lib/healer.js",
+          "self": 22.3,
+          "incl": 113.3
+        },
+        {
+          "id": "src/media/search.js",
+          "self": 22.1,
+          "incl": 39
+        },
+        {
+          "id": "src/media/online.js",
+          "self": 22,
+          "incl": 23
+        },
+        {
+          "id": "src/media/introdetect.js",
+          "self": 21.7,
+          "incl": 21.7
+        },
+        {
+          "id": "src/media/recs/index.js",
+          "self": 21.1,
+          "incl": 92.6
+        },
+        {
+          "id": "src/media/jit.js",
+          "self": 21,
+          "incl": 36.5
+        },
+        {
+          "id": "src/lib/healer-checks/system.js",
+          "self": 21,
+          "incl": 21
+        },
+        {
+          "id": "src/realtime.js",
+          "self": 20.8,
+          "incl": 72.2
+        },
+        {
+          "id": "src/routes/admin.js",
+          "self": 20.8,
+          "incl": 22.9
+        },
+        {
+          "id": "src/routes/profiles.js",
+          "self": 20.2,
+          "incl": 37.9
+        },
+        {
+          "id": "src/lib/health.js",
+          "self": 19.4,
+          "incl": 19.4
+        },
+        {
+          "id": "src/media/remux.js",
+          "self": 19.3,
+          "incl": 36.8
+        },
+        {
+          "id": "src/media/scanner.js",
+          "self": 19.2,
+          "incl": 52.9
+        },
+        {
+          "id": "src/lib/tel/timings.js",
+          "self": 18.7,
+          "incl": 35.3
+        },
+        {
+          "id": "src/routes/proxy.js",
+          "self": 18.7,
+          "incl": 18.7
+        },
+        {
+          "id": "src/media/recs/titleindex.js",
+          "self": 18.6,
+          "incl": 23.9
+        },
+        {
+          "id": "src/routes/torrent.js",
+          "self": 18.4,
+          "incl": 36.3
+        },
+        {
+          "id": "src/lib/healer-checks/stats.js",
+          "self": 18.2,
+          "incl": 18.2
+        }
+      ],
+      "topModulesInclusive": [
+        {
+          "id": "src/config.js",
+          "self": 748.1,
+          "incl": 748.1
+        },
+        {
+          "id": "src/routes/api.js",
+          "self": 25,
+          "incl": 252.3
+        },
+        {
+          "id": "node_modules/express/index.js",
+          "self": 1.3,
+          "incl": 162.9
+        },
+        {
+          "id": "node_modules/express/lib/express.js",
+          "self": 5.9,
+          "incl": 161.5
+        },
+        {
+          "id": "src/routes/stream.js",
+          "self": 23.9,
+          "incl": 143.4
+        },
+        {
+          "id": "node_modules/express/lib/application.js",
+          "self": 6,
+          "incl": 115.9
+        },
+        {
+          "id": "src/lib/healer.js",
+          "self": 22.3,
+          "incl": 113.3
+        },
+        {
+          "id": "src/media/hero.js",
+          "self": 16.9,
+          "incl": 108.7
+        },
+        {
+          "id": "src/routes/usage.js",
+          "self": 25.5,
+          "incl": 98.5
+        },
+        {
+          "id": "src/media/recs/index.js",
+          "self": 21.1,
+          "incl": 92.6
+        },
+        {
+          "id": "src/media/availability.js",
+          "self": 17.9,
+          "incl": 85.8
+        },
+        {
+          "id": "src/routes/downloads.js",
+          "self": 1.9,
+          "incl": 84.2
+        },
+        {
+          "id": "src/media/downloads.js",
+          "self": 24.8,
+          "incl": 82.3
+        },
+        {
+          "id": "src/lib/authz.js",
+          "self": 2.5,
+          "incl": 79.4
+        },
+        {
+          "id": "src/profiles.js",
+          "self": 57.7,
+          "incl": 75.1
+        },
+        {
+          "id": "src/realtime.js",
+          "self": 20.8,
+          "incl": 72.2
+        },
+        {
+          "id": "src/media/torrent.js",
+          "self": 48.3,
+          "incl": 69
+        },
+        {
+          "id": "src/media/discover.js",
+          "self": 48.6,
+          "incl": 62.7
+        },
+        {
+          "id": "src/lib/tel/index.js",
+          "self": 16.9,
+          "incl": 55.6
+        },
+        {
+          "id": "src/media/scanner.js",
+          "self": 19.2,
+          "incl": 52.9
+        },
+        {
+          "id": "node_modules/qs/lib/index.js",
+          "self": 1.1,
+          "incl": 45.2
+        },
+        {
+          "id": "node_modules/qs/lib/stringify.js",
+          "self": 3.8,
+          "incl": 43.3
+        },
+        {
+          "id": "src/media/search.js",
+          "self": 22.1,
+          "incl": 39
+        },
+        {
+          "id": "src/routes/profiles.js",
+          "self": 20.2,
+          "incl": 37.9
+        },
+        {
+          "id": "node_modules/side-channel/index.js",
+          "self": 4.2,
+          "incl": 37.4
+        },
+        {
+          "id": "node_modules/express/lib/utils.js",
+          "self": 6.9,
+          "incl": 37.4
+        },
+        {
+          "id": "src/media/remux.js",
+          "self": 19.3,
+          "incl": 36.8
+        },
+        {
+          "id": "src/media/jit.js",
+          "self": 21,
+          "incl": 36.5
+        },
+        {
+          "id": "src/routes/torrent.js",
+          "self": 18.4,
+          "incl": 36.3
+        },
+        {
+          "id": "src/lib/tel/timings.js",
+          "self": 18.7,
+          "incl": 35.3
+        },
+        {
+          "id": "src/routes/auth.js",
+          "self": 22.5,
+          "incl": 33.8
+        },
+        {
+          "id": "src/lib/healer-checks/logs.js",
+          "self": 17.5,
+          "incl": 32.1
+        },
+        {
+          "id": "node_modules/side-channel-map/index.js",
+          "self": 2.2,
+          "incl": 28.8
+        },
+        {
+          "id": "src/telemetry.js",
+          "self": 26.1,
+          "incl": 26.1
+        },
+        {
+          "id": "node_modules/send/index.js",
+          "self": 9.6,
+          "incl": 25.8
+        },
+        {
+          "id": "node_modules/get-intrinsic/index.js",
+          "self": 11.5,
+          "incl": 25.2
+        },
+        {
+          "id": "src/lib/imgvariant.js",
+          "self": 24.9,
+          "incl": 24.9
+        },
+        {
+          "id": "src/media/recs/titleindex.js",
+          "self": 18.6,
+          "incl": 23.9
+        },
+        {
+          "id": "node_modules/ws/index.js",
+          "self": 2,
+          "incl": 23.3
+        },
+        {
+          "id": "src/media/online.js",
+          "self": 22,
+          "incl": 23
+        }
+      ],
+      "spawns": [
+        {
+          "key": "ffmpeg tonemap chain @ src/media/tonemap.js:190",
+          "n": 3,
+          "ms": 0,
+          "sync": 0
+        },
+        {
+          "key": "where ffmpeg.exe @ src/config.js:43",
+          "n": 1,
+          "ms": 122.01,
+          "sync": 1
+        },
+        {
+          "key": "where ffprobe.exe @ src/config.js:43",
+          "n": 1,
+          "ms": 116.52,
+          "sync": 1
+        },
+        {
+          "key": "where tesseract.exe @ src/config.js:43",
+          "n": 1,
+          "ms": 193.3,
+          "sync": 1
+        },
+        {
+          "key": "where aria2c.exe @ src/config.js:43",
+          "n": 1,
+          "ms": 128.42,
+          "sync": 1
+        },
+        {
+          "key": "where python.exe @ src/config.js:43",
+          "n": 1,
+          "ms": 124.44,
+          "sync": 1
+        },
+        {
+          "key": "python.exe --version 2>&1 @ src/config.js:104",
+          "n": 1,
+          "ms": 46.07,
+          "sync": 1
+        },
+        {
+          "key": "ffmpeg -encoders @ src/lib/imgvariant.js:117",
+          "n": 1,
+          "ms": 0,
+          "sync": 0
+        },
+        {
+          "key": "git rev-parse HEAD @ src/lib/updatecheck.js:39",
+          "n": 1,
+          "ms": 0,
+          "sync": 0
+        },
+        {
+          "key": "ffmpeg -filters @ src/media/tonemap.js:210",
+          "n": 1,
+          "ms": 0,
+          "sync": 0
+        }
+      ],
+      "syncFsTop": [
+        {
+          "key": "readdirSync @ src/media/scanner.js:151",
+          "n": 5045,
+          "ms": 462.21
+        },
+        {
+          "key": "statSync @ src/media/scanner.js:159",
+          "n": 1801,
+          "ms": 163.2
+        },
+        {
+          "key": "readFileSync @ src/lib/jsonstore.js:14",
+          "n": 26,
+          "ms": 47.3
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:240",
+          "n": 1,
+          "ms": 26.53
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:383",
+          "n": 1,
+          "ms": 22.61
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:427",
+          "n": 1,
+          "ms": 21.88
+        },
+        {
+          "key": "readFileSync @ src/routes/downloads.js:4",
+          "n": 1,
+          "ms": 21.5
+        },
+        {
+          "key": "readFileSync @ src/routes/stream.js:323",
+          "n": 1,
+          "ms": 20.63
+        },
+        {
+          "key": "readFileSync @ src/routes/api.js:7",
+          "n": 1,
+          "ms": 20.27
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:230",
+          "n": 1,
+          "ms": 19.87
+        },
+        {
+          "key": "readFileSync @ src/lib/tel/index.js:17",
+          "n": 1,
+          "ms": 19.28
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:231",
+          "n": 1,
+          "ms": 18.76
+        },
+        {
+          "key": "readFileSync @ src/routes/api.js:628",
+          "n": 1,
+          "ms": 18.68
+        },
+        {
+          "key": "readFileSync @ src/media/availability.js:18",
+          "n": 1,
+          "ms": 18.46
+        },
+        {
+          "key": "readFileSync @ src/routes/stream.js:364",
+          "n": 1,
+          "ms": 18.3
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:229",
+          "n": 1,
+          "ms": 18.3
+        },
+        {
+          "key": "readFileSync @ src/lib/authz.js:5",
+          "n": 1,
+          "ms": 17.85
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:278",
+          "n": 1,
+          "ms": 17.79
+        },
+        {
+          "key": "readFileSync @ src/media/recs/index.js:21",
+          "n": 1,
+          "ms": 17.55
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:233",
+          "n": 1,
+          "ms": 17.31
+        },
+        {
+          "key": "readFileSync @ src/routes/profiles.js:718",
+          "n": 1,
+          "ms": 17.29
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:228",
+          "n": 1,
+          "ms": 17.17
+        },
+        {
+          "key": "readFileSync @ src/lib/tel/index.js:16",
+          "n": 1,
+          "ms": 17.13
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:419",
+          "n": 1,
+          "ms": 16.95
+        },
+        {
+          "key": "readFileSync @ src/media/downloads.js:33",
+          "n": 1,
+          "ms": 16.61
+        }
+      ],
+      "timers": [
+        {
+          "kind": "setTimeout",
+          "delay": 1500,
+          "site": "src/lib/jsonstore.js:49",
+          "created": 6
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 499,
+          "site": "?",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 4000,
+          "site": "src/media/discover.js:539",
+          "created": 2
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 3000,
+          "site": "src/lib/healer-checks/system.js:76",
+          "created": 2
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 3000,
+          "site": "src/lib/healer-checks/system.js:78",
+          "created": 2
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 20000,
+          "site": "ui-instance.js:412",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 15000,
+          "site": "ui-instance.js:420",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 500,
+          "site": "src/lib/watchdog.js:144",
+          "created": 2
+        },
+        {
+          "kind": "setInterval",
+          "delay": 20000,
+          "site": "src/lib/watchdog.js:172",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 15000,
+          "site": "src/lib/healer.js:668",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 20000,
+          "site": "ui-instance.js:459",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 3000,
+          "site": "src/media/librarywarm.js:63",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 5000,
+          "site": "src/media/introdetect.js:632",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 15000,
+          "site": "src/media/tonemap.js:264",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 900,
+          "site": "src/media/online.js:37",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 400,
+          "site": "src/media/librarywarm.js:13",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 3600000,
+          "site": "src/lib/perf.js:23",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 60000,
+          "site": "src/media/torrent.js:262",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 30000,
+          "site": "src/media/remux.js:208",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 30000,
+          "site": "src/media/jit.js:1001",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 30000,
+          "site": "src/media/torrent-transcode.js:620",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 30000,
+          "site": "src/telemetry.js:158",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 180000,
+          "site": "src/lib/daily.js:71",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 3600000,
+          "site": "src/lib/daily.js:73",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 180000,
+          "site": "src/media/wellknown.js:120",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 86400000,
+          "site": "src/media/wellknown.js:122",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 240000,
+          "site": "src/media/follows.js:113",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 10800000,
+          "site": "src/media/follows.js:114",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 60000,
+          "site": "src/lib/healer.js:665",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 30000,
+          "site": "src/lib/health.js:543",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 60000,
+          "site": "src/lib/health.js:545",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 30000,
+          "site": "src/media/introdetect.js:639",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 20000,
+          "site": "src/media/recs/titleindex.js:58",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 600000,
+          "site": "ui-instance.js:468",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 90000,
+          "site": "src/media/tonemap.js:265",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 300000,
+          "site": "src/media/tonemap.js:265",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 20000,
+          "site": "src/lib/healer.js:97",
+          "created": 22
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 60000,
+          "site": "src/media/offline.js:367",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 3600000,
+          "site": "src/media/offline.js:368",
+          "created": 1
+        }
+      ],
+      "runs": [
+        {
+          "listeningMs": 3750.7605,
+          "preloadMs": 67.2504,
+          "pingMs": 3865,
+          "cpuAtListeningMs": 2343,
+          "rssAtListeningMb": 141.484375,
+          "warmMs": 23148,
+          "cpuAtWarmMs": 5999,
+          "rssWarmMb": 164.08203125,
+          "heapWarmMb": 77.93655395507812,
+          "requireMs": 3664.4400000000023,
+          "modules": 254,
+          "syncSpawnMs": 730.7600000000001,
+          "syncSpawns": 6,
+          "storeReadMs": 47.3,
+          "usageReplayMs": 1.4000000000000001,
+          "scanMs": 642.09,
+          "scanCalls": 6851,
+          "gc": {
+            "scavenge": {
+              "n": 61,
+              "ms": 149.2459009885788,
+              "maxMs": 16.376700043678284
+            },
+            "incremental": {
+              "n": 5,
+              "ms": 2.618499994277954,
+              "maxMs": 1.055999994277954
+            },
+            "mark-compact": {
+              "n": 5,
+              "ms": 51.855300188064575,
+              "maxMs": 20.89740002155304
+            }
+          }
+        },
+        {
+          "listeningMs": 3742.4647,
+          "preloadMs": 67.9987,
+          "pingMs": 3826,
+          "cpuAtListeningMs": 2140,
+          "rssAtListeningMb": 141.5,
+          "warmMs": 22203,
+          "cpuAtWarmMs": 4484,
+          "rssWarmMb": 145.08203125,
+          "heapWarmMb": 81.99237060546875,
+          "requireMs": 3653.999999999998,
+          "modules": 254,
+          "syncSpawnMs": 740.45,
+          "syncSpawns": 6,
+          "storeReadMs": 57.72,
+          "usageReplayMs": 1.89,
+          "scanMs": 559.5200000000001,
+          "scanCalls": 6851,
+          "gc": {
+            "scavenge": {
+              "n": 58,
+              "ms": 66.17249989509583,
+              "maxMs": 3.8827000856399536
+            },
+            "incremental": {
+              "n": 5,
+              "ms": 2.18179988861084,
+              "maxMs": 0.8976999521255493
+            },
+            "mark-compact": {
+              "n": 5,
+              "ms": 37.78510010242462,
+              "maxMs": 18.2771999835968
+            }
+          }
+        },
+        {
+          "listeningMs": 3701.3115,
+          "preloadMs": 63.512,
+          "pingMs": 3787,
+          "cpuAtListeningMs": 2264,
+          "rssAtListeningMb": 141.3203125,
+          "warmMs": 22506,
+          "cpuAtWarmMs": 5405,
+          "rssWarmMb": 158.31640625,
+          "heapWarmMb": 81.55396270751953,
+          "requireMs": 3620.4200000000023,
+          "modules": 254,
+          "syncSpawnMs": 664.8700000000001,
+          "syncSpawns": 6,
+          "storeReadMs": 59.41,
+          "usageReplayMs": 1.83,
+          "scanMs": 606.08,
+          "scanCalls": 6851,
+          "gc": {
+            "scavenge": {
+              "n": 54,
+              "ms": 84.6997001171112,
+              "maxMs": 4.847100019454956
+            },
+            "incremental": {
+              "n": 5,
+              "ms": 2.3173998594284058,
+              "maxMs": 0.7339999675750732
+            },
+            "mark-compact": {
+              "n": 5,
+              "ms": 101.14310014247894,
+              "maxMs": 65.14110004901886
+            }
+          }
+        },
+        {
+          "listeningMs": 3822.2697,
+          "preloadMs": 68.1095,
+          "pingMs": 3907,
+          "cpuAtListeningMs": 2281,
+          "rssAtListeningMb": 141.15625,
+          "warmMs": 22471,
+          "cpuAtWarmMs": 6281,
+          "rssWarmMb": 158.4921875,
+          "heapWarmMb": 83.2393569946289,
+          "requireMs": 3733.760000000001,
+          "modules": 254,
+          "syncSpawnMs": 670.4699999999999,
+          "syncSpawns": 6,
+          "storeReadMs": 53.26,
+          "usageReplayMs": 1.4700000000000002,
+          "scanMs": 710.7,
+          "scanCalls": 6851,
+          "gc": {
+            "scavenge": {
+              "n": 53,
+              "ms": 90.07640051841736,
+              "maxMs": 4.49780011177063
+            },
+            "incremental": {
+              "n": 5,
+              "ms": 8.483999967575073,
+              "maxMs": 4.972499966621399
+            },
+            "mark-compact": {
+              "n": 5,
+              "ms": 85.85300028324127,
+              "maxMs": 56.88250005245209
+            }
+          }
+        },
+        {
+          "listeningMs": 3424.9297,
+          "preloadMs": 75.4652,
+          "pingMs": 3508,
+          "cpuAtListeningMs": 2280,
+          "rssAtListeningMb": 141.30078125,
+          "warmMs": 22369,
+          "cpuAtWarmMs": 5203,
+          "rssWarmMb": 182.51171875,
+          "heapWarmMb": 93.98682403564453,
+          "requireMs": 3332.090000000001,
+          "modules": 254,
+          "syncSpawnMs": 733.4399999999999,
+          "syncSpawns": 6,
+          "storeReadMs": 46.34,
+          "usageReplayMs": 1.54,
+          "scanMs": 509.44,
+          "scanCalls": 6851,
+          "gc": {
+            "scavenge": {
+              "n": 62,
+              "ms": 71.47620046138763,
+              "maxMs": 4.119800090789795
+            },
+            "incremental": {
+              "n": 6,
+              "ms": 2.215200185775757,
+              "maxMs": 0.4995999336242676
+            },
+            "mark-compact": {
+              "n": 5,
+              "ms": 38.65050005912781,
+              "maxMs": 18.72689998149872
+            }
+          }
+        }
+      ]
+    },
+    "weak": {
+      "median": {
+        "listeningMs": 4634.1,
+        "cpuAtListeningMs": 2374,
+        "pingMs": 4780,
+        "warmMs": 22084,
+        "cpuAtWarmMs": 4328,
+        "rssAtListeningMb": 137.3,
+        "rssWarmMb": 169.7,
+        "heapWarmMb": 73,
+        "requireMs": 4550.9,
+        "modules": 254,
+        "syncSpawnMs": 946.3,
+        "syncSpawns": 6,
+        "storeReadMs": 83.7,
+        "usageReplayMs": 1.4,
+        "scanMs": 594.4,
+        "scanCalls": 6851
+      },
+      "topModulesSelf": [
+        {
+          "id": "ui-instance.js",
+          "self": 1434,
+          "incl": 4549.1
+        },
+        {
+          "id": "src/config.js",
+          "self": 965.8,
+          "incl": 965.8
+        },
+        {
+          "id": "src/media/discover.js",
+          "self": 99.4,
+          "incl": 120.4
+        },
+        {
+          "id": "src/profiles.js",
+          "self": 68.9,
+          "incl": 90.2
+        },
+        {
+          "id": "src/media/torrent.js",
+          "self": 67.1,
+          "incl": 93
+        },
+        {
+          "id": "src/telemetry.js",
+          "self": 35.1,
+          "incl": 35.1
+        },
+        {
+          "id": "src/routes/auth.js",
+          "self": 31,
+          "incl": 39.6
+        },
+        {
+          "id": "src/lib/imgvariant.js",
+          "self": 30.9,
+          "incl": 30.9
+        },
+        {
+          "id": "src/routes/api.js",
+          "self": 29.3,
+          "incl": 365.3
+        },
+        {
+          "id": "src/media/remux.js",
+          "self": 28.1,
+          "incl": 49.8
+        },
+        {
+          "id": "src/media/downloads.js",
+          "self": 27.9,
+          "incl": 88.6
+        },
+        {
+          "id": "src/realtime.js",
+          "self": 27.8,
+          "incl": 110
+        },
+        {
+          "id": "src/routes/usage.js",
+          "self": 27.1,
+          "incl": 98.3
+        },
+        {
+          "id": "src/media/online.js",
+          "self": 26.7,
+          "incl": 28.6
+        },
+        {
+          "id": "src/media/search.js",
+          "self": 25.9,
+          "incl": 44.5
+        },
+        {
+          "id": "src/routes/admin.js",
+          "self": 24.9,
+          "incl": 26.7
+        },
+        {
+          "id": "src/routes/stream.js",
+          "self": 24.6,
+          "incl": 182.8
+        },
+        {
+          "id": "src/routes/profiles.js",
+          "self": 24.1,
+          "incl": 47.4
+        },
+        {
+          "id": "src/lib/push.js",
+          "self": 23.3,
+          "incl": 23.3
+        },
+        {
+          "id": "src/media/jit.js",
+          "self": 23.3,
+          "incl": 40.6
+        },
+        {
+          "id": "src/media/scanner.js",
+          "self": 22.7,
+          "incl": 65.8
+        },
+        {
+          "id": "src/lib/tel/vocab.js",
+          "self": 22.7,
+          "incl": 24.7
+        },
+        {
+          "id": "src/lib/tel/timings.js",
+          "self": 22.5,
+          "incl": 45.7
+        },
+        {
+          "id": "src/routes/proxy.js",
+          "self": 22.3,
+          "incl": 22.3
+        },
+        {
+          "id": "src/lib/healer.js",
+          "self": 22.1,
+          "incl": 112.1
+        },
+        {
+          "id": "src/media/tonemap.js",
+          "self": 22,
+          "incl": 22
+        },
+        {
+          "id": "src/routes/torrent.js",
+          "self": 21.5,
+          "incl": 40.2
+        },
+        {
+          "id": "src/lib/kids.js",
+          "self": 21.3,
+          "incl": 21.3
+        },
+        {
+          "id": "src/media/certification.js",
+          "self": 21,
+          "incl": 21
+        },
+        {
+          "id": "src/media/introdetect.js",
+          "self": 21,
+          "incl": 21
+        }
+      ],
+      "topModulesInclusive": [
+        {
+          "id": "src/config.js",
+          "self": 965.8,
+          "incl": 965.8
+        },
+        {
+          "id": "src/routes/api.js",
+          "self": 29.3,
+          "incl": 365.3
+        },
+        {
+          "id": "src/routes/stream.js",
+          "self": 24.6,
+          "incl": 182.8
+        },
+        {
+          "id": "node_modules/express/index.js",
+          "self": 1.9,
+          "incl": 172.3
+        },
+        {
+          "id": "node_modules/express/lib/express.js",
+          "self": 6.6,
+          "incl": 170.4
+        },
+        {
+          "id": "src/media/hero.js",
+          "self": 19.6,
+          "incl": 149.9
+        },
+        {
+          "id": "src/media/discover.js",
+          "self": 99.4,
+          "incl": 120.4
+        },
+        {
+          "id": "src/media/availability.js",
+          "self": 20.4,
+          "incl": 119.5
+        },
+        {
+          "id": "node_modules/express/lib/application.js",
+          "self": 6.5,
+          "incl": 118.5
+        },
+        {
+          "id": "src/lib/healer.js",
+          "self": 22.1,
+          "incl": 112.1
+        },
+        {
+          "id": "src/realtime.js",
+          "self": 27.8,
+          "incl": 110
+        },
+        {
+          "id": "src/routes/usage.js",
+          "self": 27.1,
+          "incl": 98.3
+        },
+        {
+          "id": "src/media/recs/index.js",
+          "self": 19.5,
+          "incl": 96
+        },
+        {
+          "id": "src/lib/authz.js",
+          "self": 2.4,
+          "incl": 95.8
+        },
+        {
+          "id": "src/media/torrent.js",
+          "self": 67.1,
+          "incl": 93
+        },
+        {
+          "id": "src/routes/downloads.js",
+          "self": 2,
+          "incl": 90.6
+        },
+        {
+          "id": "src/profiles.js",
+          "self": 68.9,
+          "incl": 90.2
+        },
+        {
+          "id": "src/media/downloads.js",
+          "self": 27.9,
+          "incl": 88.6
+        },
+        {
+          "id": "src/media/scanner.js",
+          "self": 22.7,
+          "incl": 65.8
+        },
+        {
+          "id": "src/lib/tel/index.js",
+          "self": 17,
+          "incl": 58.9
+        },
+        {
+          "id": "src/media/remux.js",
+          "self": 28.1,
+          "incl": 49.8
+        },
+        {
+          "id": "src/routes/profiles.js",
+          "self": 24.1,
+          "incl": 47.4
+        },
+        {
+          "id": "src/lib/tel/timings.js",
+          "self": 22.5,
+          "incl": 45.7
+        },
+        {
+          "id": "node_modules/ws/index.js",
+          "self": 7.2,
+          "incl": 45.5
+        },
+        {
+          "id": "src/media/search.js",
+          "self": 25.9,
+          "incl": 44.5
+        },
+        {
+          "id": "node_modules/qs/lib/index.js",
+          "self": 1.1,
+          "incl": 44
+        },
+        {
+          "id": "node_modules/qs/lib/stringify.js",
+          "self": 3.6,
+          "incl": 42.3
+        },
+        {
+          "id": "src/media/jit.js",
+          "self": 23.3,
+          "incl": 40.6
+        },
+        {
+          "id": "src/routes/torrent.js",
+          "self": 21.5,
+          "incl": 40.2
+        },
+        {
+          "id": "src/routes/auth.js",
+          "self": 31,
+          "incl": 39.6
+        },
+        {
+          "id": "node_modules/express/lib/utils.js",
+          "self": 6.9,
+          "incl": 38.5
+        },
+        {
+          "id": "node_modules/side-channel/index.js",
+          "self": 3.9,
+          "incl": 36.9
+        },
+        {
+          "id": "node_modules/ws/lib/stream.js",
+          "self": 0.9,
+          "incl": 35.4
+        },
+        {
+          "id": "src/telemetry.js",
+          "self": 35.1,
+          "incl": 35.1
+        },
+        {
+          "id": "node_modules/ws/lib/websocket.js",
+          "self": 10.9,
+          "incl": 34.3
+        },
+        {
+          "id": "src/lib/healer-checks/logs.js",
+          "self": 17.5,
+          "incl": 32.1
+        },
+        {
+          "id": "src/lib/imgvariant.js",
+          "self": 30.9,
+          "incl": 30.9
+        },
+        {
+          "id": "node_modules/side-channel-map/index.js",
+          "self": 2,
+          "incl": 30.1
+        },
+        {
+          "id": "src/media/online.js",
+          "self": 26.7,
+          "incl": 28.6
+        },
+        {
+          "id": "node_modules/send/index.js",
+          "self": 10.2,
+          "incl": 27.3
+        }
+      ],
+      "spawns": [
+        {
+          "key": "git rev-parse HEAD @ src/lib/updatecheck.js:39",
+          "n": 3,
+          "ms": 0,
+          "sync": 0
+        },
+        {
+          "key": "ffmpeg tonemap chain @ src/media/tonemap.js:190",
+          "n": 3,
+          "ms": 0,
+          "sync": 0
+        },
+        {
+          "key": "where ffmpeg.exe @ src/config.js:43",
+          "n": 1,
+          "ms": 135.41,
+          "sync": 1
+        },
+        {
+          "key": "where ffprobe.exe @ src/config.js:43",
+          "n": 1,
+          "ms": 178.41,
+          "sync": 1
+        },
+        {
+          "key": "where tesseract.exe @ src/config.js:43",
+          "n": 1,
+          "ms": 280.13,
+          "sync": 1
+        },
+        {
+          "key": "where aria2c.exe @ src/config.js:43",
+          "n": 1,
+          "ms": 185.77,
+          "sync": 1
+        },
+        {
+          "key": "where python.exe @ src/config.js:43",
+          "n": 1,
+          "ms": 141.94,
+          "sync": 1
+        },
+        {
+          "key": "python.exe --version 2>&1 @ src/config.js:104",
+          "n": 1,
+          "ms": 59.97,
+          "sync": 1
+        },
+        {
+          "key": "ffmpeg -encoders @ src/lib/imgvariant.js:117",
+          "n": 1,
+          "ms": 0,
+          "sync": 0
+        },
+        {
+          "key": "git ls-remote origin refs/heads/master @ src/lib/updatecheck.js:39",
+          "n": 1,
+          "ms": 0,
+          "sync": 0
+        },
+        {
+          "key": "ffmpeg -filters @ src/media/tonemap.js:210",
+          "n": 1,
+          "ms": 0,
+          "sync": 0
+        }
+      ],
+      "syncFsTop": [
+        {
+          "key": "readdirSync @ src/media/scanner.js:151",
+          "n": 5045,
+          "ms": 589.57
+        },
+        {
+          "key": "statSync @ src/media/scanner.js:159",
+          "n": 1801,
+          "ms": 144.02
+        },
+        {
+          "key": "readFileSync @ src/lib/jsonstore.js:14",
+          "n": 26,
+          "ms": 83.7
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:229",
+          "n": 1,
+          "ms": 35.47
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:228",
+          "n": 1,
+          "ms": 31.95
+        },
+        {
+          "key": "readFileSync @ src/routes/api.js:8",
+          "n": 1,
+          "ms": 31.19
+        },
+        {
+          "key": "readFileSync @ src/routes/api.js:7",
+          "n": 1,
+          "ms": 25.75
+        },
+        {
+          "key": "readFileSync @ src/lib/authz.js:5",
+          "n": 1,
+          "ms": 25.68
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:230",
+          "n": 1,
+          "ms": 24.37
+        },
+        {
+          "key": "readFileSync @ src/routes/stream.js:323",
+          "n": 1,
+          "ms": 24.33
+        },
+        {
+          "key": "readFileSync @ src/media/hero.js:30",
+          "n": 1,
+          "ms": 23.68
+        },
+        {
+          "key": "readFileSync @ src/media/availability.js:18",
+          "n": 1,
+          "ms": 23.39
+        },
+        {
+          "key": "readFileSync @ src/routes/profiles.js:718",
+          "n": 1,
+          "ms": 22.72
+        },
+        {
+          "key": "readFileSync @ src/media/recs/index.js:21",
+          "n": 1,
+          "ms": 22.32
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:14",
+          "n": 1,
+          "ms": 22.22
+        },
+        {
+          "key": "readFileSync @ src/routes/downloads.js:4",
+          "n": 1,
+          "ms": 21.36
+        },
+        {
+          "key": "readFileSync @ src/media/discover.js:9",
+          "n": 1,
+          "ms": 21.3
+        },
+        {
+          "key": "readFileSync @ ui-instance.js:231",
+          "n": 1,
+          "ms": 21.25
+        },
+        {
+          "key": "readFileSync @ src/routes/api.js:628",
+          "n": 1,
+          "ms": 21.2
+        },
+        {
+          "key": "readFileSync @ src/lib/tel/index.js:17",
+          "n": 1,
+          "ms": 21.07
+        },
+        {
+          "key": "readFileSync @ src/media/remux.js:14",
+          "n": 1,
+          "ms": 20.87
+        },
+        {
+          "key": "readFileSync @ src/lib/healer.js:49",
+          "n": 1,
+          "ms": 20.82
+        },
+        {
+          "key": "readFileSync @ src/media/scanner.js:14",
+          "n": 1,
+          "ms": 20.69
+        },
+        {
+          "key": "readFileSync @ src/profiles.js:318",
+          "n": 1,
+          "ms": 20.48
+        },
+        {
+          "key": "readFileSync @ src/routes/torrent.js:6",
+          "n": 1,
+          "ms": 20.31
+        }
+      ],
+      "timers": [
+        {
+          "kind": "setTimeout",
+          "delay": 1500,
+          "site": "src/lib/jsonstore.js:49",
+          "created": 6
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 499,
+          "site": "?",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 4000,
+          "site": "src/media/discover.js:539",
+          "created": 2
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 3000,
+          "site": "src/lib/healer-checks/system.js:76",
+          "created": 2
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 3000,
+          "site": "src/lib/healer-checks/system.js:78",
+          "created": 2
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 15000,
+          "site": "ui-instance.js:420",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 500,
+          "site": "src/lib/watchdog.js:144",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 15000,
+          "site": "src/lib/healer.js:668",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 3000,
+          "site": "src/media/librarywarm.js:63",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 5000,
+          "site": "src/media/introdetect.js:632",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 15000,
+          "site": "src/media/tonemap.js:264",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 900,
+          "site": "src/media/online.js:37",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 400,
+          "site": "src/media/librarywarm.js:13",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 3600000,
+          "site": "src/lib/perf.js:23",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 60000,
+          "site": "src/media/torrent.js:262",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 30000,
+          "site": "src/media/remux.js:208",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 30000,
+          "site": "src/media/jit.js:1001",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 30000,
+          "site": "src/media/torrent-transcode.js:620",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 30000,
+          "site": "src/telemetry.js:158",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 180000,
+          "site": "src/lib/daily.js:71",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 3600000,
+          "site": "src/lib/daily.js:73",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 180000,
+          "site": "src/media/wellknown.js:120",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 86400000,
+          "site": "src/media/wellknown.js:122",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 20000,
+          "site": "ui-instance.js:412",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 240000,
+          "site": "src/media/follows.js:113",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 10800000,
+          "site": "src/media/follows.js:114",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 20000,
+          "site": "src/lib/watchdog.js:172",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 60000,
+          "site": "src/lib/healer.js:665",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 30000,
+          "site": "src/lib/health.js:543",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 60000,
+          "site": "src/lib/health.js:545",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 20000,
+          "site": "ui-instance.js:459",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 30000,
+          "site": "src/media/introdetect.js:639",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 20000,
+          "site": "src/media/recs/titleindex.js:58",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 600000,
+          "site": "ui-instance.js:468",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 90000,
+          "site": "src/media/tonemap.js:265",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 300000,
+          "site": "src/media/tonemap.js:265",
+          "created": 1
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 20000,
+          "site": "src/lib/healer.js:97",
+          "created": 31
+        },
+        {
+          "kind": "setTimeout",
+          "delay": 60000,
+          "site": "src/media/offline.js:367",
+          "created": 1
+        },
+        {
+          "kind": "setInterval",
+          "delay": 3600000,
+          "site": "src/media/offline.js:368",
+          "created": 1
+        }
+      ],
+      "runs": [
+        {
+          "listeningMs": 4634.0699,
+          "preloadMs": 63.6054,
+          "pingMs": 4780,
+          "cpuAtListeningMs": 2577,
+          "rssAtListeningMb": 135.78515625,
+          "warmMs": 22246,
+          "cpuAtWarmMs": 4812,
+          "rssWarmMb": 167.0234375,
+          "heapWarmMb": 78.50270080566406,
+          "requireMs": 4550.910000000004,
+          "modules": 254,
+          "syncSpawnMs": 981.6300000000001,
+          "syncSpawns": 6,
+          "storeReadMs": 83.7,
+          "usageReplayMs": 1.6,
+          "scanMs": 755.95,
+          "scanCalls": 6851,
+          "gc": {
+            "scavenge": {
+              "n": 41,
+              "ms": 119.93750035762787,
+              "maxMs": 11.973600029945374
+            },
+            "incremental": {
+              "n": 3,
+              "ms": 4.650700092315674,
+              "maxMs": 3.9006000757217407
+            },
+            "mark-compact": {
+              "n": 3,
+              "ms": 23.071099877357483,
+              "maxMs": 12.259099960327148
+            }
+          }
+        },
+        {
+          "listeningMs": 3518.211,
+          "preloadMs": 85.8054,
+          "pingMs": 3603,
+          "cpuAtListeningMs": 2077,
+          "rssAtListeningMb": 135.82421875,
+          "warmMs": 22028,
+          "cpuAtWarmMs": 4218,
+          "rssWarmMb": 119.03515625,
+          "heapWarmMb": 59.480690002441406,
+          "requireMs": 3411.1200000000017,
+          "modules": 254,
+          "syncSpawnMs": 633.62,
+          "syncSpawns": 6,
+          "storeReadMs": 56.64,
+          "usageReplayMs": 1.4300000000000002,
+          "scanMs": 594.38,
+          "scanCalls": 6851,
+          "gc": {
+            "scavenge": {
+              "n": 42,
+              "ms": 84.16020023822784,
+              "maxMs": 6.130899906158447
+            },
+            "incremental": {
+              "n": 5,
+              "ms": 13.475299835205078,
+              "maxMs": 6.537299990653992
+            },
+            "mark-compact": {
+              "n": 5,
+              "ms": 73.42929995059967,
+              "maxMs": 40.617900013923645
+            }
+          }
+        },
+        {
+          "listeningMs": 7572.5941,
+          "preloadMs": 209.0357,
+          "pingMs": 7761,
+          "cpuAtListeningMs": 2530,
+          "rssAtListeningMb": 140.86328125,
+          "warmMs": 22014,
+          "cpuAtWarmMs": 4421,
+          "rssWarmMb": 170.56640625,
+          "heapWarmMb": 82.81272888183594,
+          "requireMs": 7305.939999999998,
+          "modules": 254,
+          "syncSpawnMs": 2835.79,
+          "syncSpawns": 6,
+          "storeReadMs": 243.29,
+          "usageReplayMs": 1.33,
+          "scanMs": 593.9300000000001,
+          "scanCalls": 6851,
+          "gc": {
+            "scavenge": {
+              "n": 38,
+              "ms": 144.18930077552795,
+              "maxMs": 22.492799997329712
+            },
+            "incremental": {
+              "n": 3,
+              "ms": 2.1173999309539795,
+              "maxMs": 1.0097999572753906
+            },
+            "mark-compact": {
+              "n": 3,
+              "ms": 29.84969997406006,
+              "maxMs": 14.958700060844421
+            }
+          }
+        },
+        {
+          "listeningMs": 4057.1836,
+          "preloadMs": 67.5392,
+          "pingMs": 4156,
+          "cpuAtListeningMs": 2296,
+          "rssAtListeningMb": 137.29296875,
+          "warmMs": 22084,
+          "cpuAtWarmMs": 4296,
+          "rssWarmMb": 170.8125,
+          "heapWarmMb": 66.3010025024414,
+          "requireMs": 3969.6400000000017,
+          "modules": 254,
+          "syncSpawnMs": 946.33,
+          "syncSpawns": 6,
+          "storeReadMs": 64.04,
+          "usageReplayMs": 1.37,
+          "scanMs": 583.6800000000001,
+          "scanCalls": 6851,
+          "gc": {
+            "scavenge": {
+              "n": 40,
+              "ms": 96.23680019378662,
+              "maxMs": 8.928400039672852
+            },
+            "incremental": {
+              "n": 4,
+              "ms": 8.632999897003174,
+              "maxMs": 7.714800000190735
+            },
+            "mark-compact": {
+              "n": 4,
+              "ms": 26.77339994907379,
+              "maxMs": 13.600199937820435
+            }
+          }
+        },
+        {
+          "listeningMs": 6123.3284,
+          "preloadMs": 67.2227,
+          "pingMs": 6207,
+          "cpuAtListeningMs": 2374,
+          "rssAtListeningMb": 137.3125,
+          "warmMs": 22223,
+          "cpuAtWarmMs": 4328,
+          "rssWarmMb": 169.6796875,
+          "heapWarmMb": 73.0179672241211,
+          "requireMs": 6036,
+          "modules": 254,
+          "syncSpawnMs": 806.2300000000001,
+          "syncSpawns": 6,
+          "storeReadMs": 188.26,
+          "usageReplayMs": 1.8499999999999999,
+          "scanMs": 628.7700000000001,
+          "scanCalls": 6851,
+          "gc": {
+            "scavenge": {
+              "n": 41,
+              "ms": 119.09320044517517,
+              "maxMs": 21.78880000114441
+            },
+            "incremental": {
+              "n": 3,
+              "ms": 4.659499883651733,
+              "maxMs": 4.0400999784469604
+            },
+            "mark-compact": {
+              "n": 3,
+              "ms": 27.09150004386902,
+              "maxMs": 16.23520004749298
+            }
+          }
+        }
+      ]
+    }
+  }
+}

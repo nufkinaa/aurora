@@ -36,28 +36,19 @@ try {
 // `where` on Windows, `command -v` on macOS/Linux (ffmpeg from apt/brew lives
 // on PATH with no .exe suffix, so the old Windows-only `where NAME.exe` found
 // nothing there → "ffmpeg MISSING" despite it being installed).
+//
+// All of them are found by ONE child process (lib/whichtools.js): the same
+// `where` / `command -v`, asked once for every program instead of once each.
+// Every question was a blocking process start before the server listened —
+// 0.8-1.1 s together on a two-core box (docs/qa/backend-efficiency).
 const isWindows = process.platform === "win32";
+const TOOLS = ["ffmpeg", "ffprobe", "tesseract", "aria2c", "python", "python3"];
+let located = null;
 const resolveExe = (name) => {
-  try {
-    if (isWindows) {
-      return execSync(`where ${name}.exe`, {
-        encoding: "utf-8",
-        stdio: ["ignore", "pipe", "ignore"],
-      })
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .find((l) => l.toLowerCase().endsWith(".exe"));
-    }
-    // POSIX: command -v prints the resolved path (or nothing) for the first
-    // match on PATH; run it through the shell since it's a shell builtin.
-    return execSync(`command -v ${name}`, {
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"],
-      shell: "/bin/sh",
-    }).trim() || null;
-  } catch {
-    return null;
-  }
+  const whichtools = require("./lib/whichtools");
+  if (!TOOLS.includes(name)) return whichtools.locate([name])[name] || null;
+  if (!located) located = whichtools.locate(TOOLS);
+  return located[name] || null;
 };
 
 const FFMPEG = resolveExe("ffmpeg");
@@ -181,6 +172,13 @@ module.exports = {
   // AURORA_BACKUP_DIR) at another drive, a NAS share or a synced folder for
   // that. `"backups": false` switches the daily snapshot off.
   BACKUP_DIR: path.resolve(ROOT, process.env.AURORA_BACKUP_DIR || userConfig.backupDir || path.join(DATA_DIR, "backups")),
+  // A SECOND place every snapshot is copied to (and verified in): another
+  // drive, a NAS share, a synced folder. With the default backup folder
+  // beside the data, this is what survives the disk. "backupMirrorDir" in
+  // config.json, or AURORA_BACKUP_MIRROR_DIR. Unset = no second copy.
+  BACKUP_MIRROR_DIR: (process.env.AURORA_BACKUP_MIRROR_DIR || userConfig.backupMirrorDir)
+    ? path.resolve(ROOT, process.env.AURORA_BACKUP_MIRROR_DIR || userConfig.backupMirrorDir)
+    : null,
   BACKUPS: userConfig.backups !== false,
   // How many snapshots are kept: { "daily": 7, "weekly": 4, "monthly": 3 }.
   BACKUP_KEEP: userConfig.backupKeep && typeof userConfig.backupKeep === "object" ? userConfig.backupKeep : {},
@@ -212,6 +210,13 @@ module.exports = {
   AUTH_MODE: ["open", "transition", "closed", "hybrid", "required"].includes(userConfig.authMode)
     ? userConfig.authMode
     : "open",
+  // An MP4 whose index is at the end of the file is served with it in front
+  // (media/faststart.js — nothing on disk changes). "serveFaststart": false
+  // serves every file byte for byte as it is.
+  SERVE_FASTSTART: userConfig.serveFaststart !== false,
+  // The TV player's start-up tuning, handed to the app as it is asked for
+  // (lib/tvtuning.js — checked there). Nothing set: the app's own values.
+  TV_PLAYER: userConfig.tvPlayer || null,
   FFMPEG,
   FFPROBE,
   TESSERACT,

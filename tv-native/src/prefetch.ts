@@ -20,6 +20,7 @@
 import {api, HeroItem} from './api';
 import {registerProfileCache} from './profileScope';
 import {onMove, whenSettled} from './settle';
+import {refreshTuning} from './playback/tuning';
 
 let profileId: string | null = null;
 export const setPrefetchProfile = (id: string | null) => {
@@ -42,6 +43,8 @@ export const warmSections = () => {
     // (Not the changelog. It was warmed here too: 123 KB of JSON parsed in
     // Home's first seconds, for a list only Settings → What's new shows, and
     // only behind its "Full changelog" button — that screen reads it itself.)
+    // the player's start-up tuning, so the first film of the evening has it
+    () => Promise.resolve(refreshTuning()),
   ];
   let i = 0;
   const next = () => {

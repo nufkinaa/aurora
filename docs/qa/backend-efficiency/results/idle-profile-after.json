@@ -1,0 +1,272 @@
+{
+  "at": "2026-10-11T00:31:18.552Z",
+  "ref": "working tree",
+  "weak": false,
+  "minutes": 21.01,
+  "cpuSecondsPerHour": 142.44,
+  "busySecondsPerHour": 13.23,
+  "functions": [
+    {
+      "name": "stat (native)",
+      "secondsPerHour": 3.41
+    },
+    {
+      "name": "readdir (native)",
+      "secondsPerHour": 1.34
+    },
+    {
+      "name": "(garbage collector) (native)",
+      "secondsPerHour": 1.29
+    },
+    {
+      "name": "_writeNow src/lib/jsonstore.js:36",
+      "secondsPerHour": 1.06
+    },
+    {
+      "name": "(anonymous) src/lib/healer.js:303",
+      "secondsPerHour": 0.94
+    },
+    {
+      "name": "getNearestParentPackageJSON (native)",
+      "secondsPerHour": 0.53
+    },
+    {
+      "name": "writeFileUtf8 (native)",
+      "secondsPerHour": 0.35
+    },
+    {
+      "name": "stat node:internal/fs/promises:1035",
+      "secondsPerHour": 0.28
+    },
+    {
+      "name": "rename (native)",
+      "secondsPerHour": 0.28
+    },
+    {
+      "name": "norm src/lib/libroots.js:39",
+      "secondsPerHour": 0.24
+    },
+    {
+      "name": "post node:inspector:112",
+      "secondsPerHour": 0.23
+    },
+    {
+      "name": "gatherFiles src/lib/healer-checks/system.js:87",
+      "secondsPerHour": 0.15
+    },
+    {
+      "name": "resolve node:path:190",
+      "secondsPerHour": 0.14
+    },
+    {
+      "name": "relative node:path:545",
+      "secondsPerHour": 0.13
+    },
+    {
+      "name": "scanMovies src/media/scanner.js:387",
+      "secondsPerHour": 0.13
+    },
+    {
+      "name": "compareTimersLists node:internal/timers:422",
+      "secondsPerHour": 0.11
+    },
+    {
+      "name": "resolve src/media/scanner.js:793",
+      "secondsPerHour": 0.1
+    },
+    {
+      "name": "normalizeString node:path:78",
+      "secondsPerHour": 0.1
+    },
+    {
+      "name": "normalize node:path:336",
+      "secondsPerHour": 0.09
+    },
+    {
+      "name": "join node:path:470",
+      "secondsPerHour": 0.08
+    },
+    {
+      "name": "statSync node:fs:1739",
+      "secondsPerHour": 0.08
+    },
+    {
+      "name": "register src/media/scanner.js:45",
+      "secondsPerHour": 0.06
+    },
+    {
+      "name": "write node:string_decoder:94",
+      "secondsPerHour": 0.06
+    },
+    {
+      "name": "externalSubtitleLabel src/media/scanner.js:216",
+      "secondsPerHour": 0.06
+    },
+    {
+      "name": "makeId src/media/scanner.js:33",
+      "secondsPerHour": 0.05
+    },
+    {
+      "name": "setTimeout node:timers:139",
+      "secondsPerHour": 0.05
+    },
+    {
+      "name": "(anonymous) node:internal/modules/cjs/loader:688",
+      "secondsPerHour": 0.05
+    },
+    {
+      "name": "queueHealth src/media/downloads.js:1717",
+      "secondsPerHour": 0.05
+    },
+    {
+      "name": "readdir node:internal/fs/promises:944",
+      "secondsPerHour": 0.05
+    },
+    {
+      "name": "TLSSocket node:_tls_wrap:505",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "(anonymous) node:internal/modules/cjs/loader:1035",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "(anonymous) src/lib/healer-checks/system.js:148",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "walk src/lib/healer-checks/system.js:119",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "collect src/media/scanner.js:261",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "pruneHourly src/telemetry.js:122",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "Readable.read node:internal/streams/readable:647",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "basename node:path:834",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "processTimers node:internal/timers:514",
+      "secondsPerHour": 0.03
+    },
+    {
+      "name": "readdirSync node:fs:1573",
+      "secondsPerHour": 0.03
+    },
+    {
+      "name": "walk src/media/scanner.js:474",
+      "secondsPerHour": 0.03
+    }
+  ],
+  "files": [
+    {
+      "name": "(native)",
+      "secondsPerHour": 3592.91
+    },
+    {
+      "name": "src/lib/jsonstore.js",
+      "secondsPerHour": 1.06
+    },
+    {
+      "name": "src/lib/healer.js",
+      "secondsPerHour": 0.99
+    },
+    {
+      "name": "src/media/scanner.js",
+      "secondsPerHour": 0.75
+    },
+    {
+      "name": "node:path",
+      "secondsPerHour": 0.59
+    },
+    {
+      "name": "node:internal/fs/promises",
+      "secondsPerHour": 0.36
+    },
+    {
+      "name": "src/lib/healer-checks/system.js",
+      "secondsPerHour": 0.3
+    },
+    {
+      "name": "src/lib/libroots.js",
+      "secondsPerHour": 0.27
+    },
+    {
+      "name": "node:inspector",
+      "secondsPerHour": 0.23
+    },
+    {
+      "name": "node:internal/timers",
+      "secondsPerHour": 0.18
+    },
+    {
+      "name": "node:internal/modules/cjs/loader",
+      "secondsPerHour": 0.15
+    },
+    {
+      "name": "node:fs",
+      "secondsPerHour": 0.13
+    },
+    {
+      "name": "src/media/introdetect.js",
+      "secondsPerHour": 0.09
+    },
+    {
+      "name": "node:string_decoder",
+      "secondsPerHour": 0.06
+    },
+    {
+      "name": "src/media/downloads.js",
+      "secondsPerHour": 0.06
+    },
+    {
+      "name": "node:timers",
+      "secondsPerHour": 0.05
+    },
+    {
+      "name": "src/profiles.js",
+      "secondsPerHour": 0.05
+    },
+    {
+      "name": "node:internal/fs/utils",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "node:_tls_wrap",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "src/media/identity.js",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "node:internal/modules/package_json_reader",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "node:internal/streams/readable",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "src/telemetry.js",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "src/media/online.js",
+      "secondsPerHour": 0.03
+    },
+    {
+      "name": "src/media/imdb.js",
+      "secondsPerHour": 0.03
+    }
+  ]
+}

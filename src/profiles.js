@@ -6,6 +6,13 @@ const { promisify } = require("util");
 const config = require("./config");
 const scanner = require("./media/scanner");
 const { JsonStore } = require("./lib/jsonstore");
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+// (titleKeyOf runs per history row.)
+const lazy = require("./lib/lazy");
+const identityLib = lazy(require, "./media/identity");
+const imdbLib = lazy(require, "./media/imdb");
+const discoverLib = lazy(require, "./media/discover");
 
 const store = new JsonStore(path.join(config.DATA_DIR, "profiles.json"), () => ({
   profiles: [
@@ -49,7 +56,7 @@ const sameIdentity = (a, b, deps = null) => {
   if (!str || !ref) return false;
   const findLibrary =
     (deps && deps.findLibrary) ||
-    ((r) => require("./media/identity").findLibraryFor(r));
+    ((r) => identityLib().findLibraryFor(r));
   const lib = findLibrary(ref);
   return !!lib && lib.id === str;
 };
@@ -850,6 +857,33 @@ const bumpSignals = (profileId) =>
   signalStamps.set(profileId, (signalStamps.get(profileId) || 0) + 1);
 const signalsStamp = (profileId) => signalStamps.get(profileId) || 0;
 
+// A stamp for everything about the household that is NOT one profile's watch
+// state: who the profiles are, their names, kids limits, locks, row
+// preferences, the kids PIN, pending requests. It moves when any of that
+// changes and stays put through the progress writes of somebody watching —
+// what the Home memo (routes/api.js) needs to know "is this answer still
+// right?" without comparing answers. Worked out lazily: a save marks it
+// stale, the next reader compares a serialisation of those few kilobytes.
+let shapeStale = true;
+let shapeSeen = "";
+let shapeN = 0;
+{
+  const save = store.save.bind(store);
+  store.save = () => { shapeStale = true; return save(); };
+}
+const shapeStamp = () => {
+  if (shapeStale) {
+    shapeStale = false;
+    let now = "";
+    try {
+      const { state, access, ...rest } = store.data; // (access: a per-device log that moves on every visit)
+      now = JSON.stringify(rest);
+    } catch {}
+    if (now !== shapeSeen) { shapeSeen = now; shapeN++; }
+  }
+  return shapeN;
+};
+
 // Taste signals: titles the person SAID they love (the onboarding picker).
 // Stronger than inferred signals; prompt 9's recommender consumes these
 // alongside likedGenres. Bounded and validated — stored forever.
@@ -944,7 +978,7 @@ const rewatchCount = (prev, next) => {
 // every alias. The player, Continue Watching and the watched flags read the
 // title, so a show streamed on Monday and downloaded on Tuesday is one
 // history, and dismissing it dismisses it everywhere.
-const titleKeyOf = (itemId, meta) => require("./media/identity").titleKeyFor(itemId, meta);
+const titleKeyOf = (itemId, meta) => identityLib().titleKeyFor(itemId, meta);
 
 const writeTitle = (state, key, row, itemId) => {
   const cur = state.titles[key];
@@ -1014,9 +1048,9 @@ const clearTitle = (state, itemId, keyFor) => {
 // hot path and a full fold exactly when something changed.
 let titlesFor = null;
 const ensureTitles = () => {
-  const identity = require("./media/identity");
+  const identity = identityLib();
   const keys = identity.ensureStamped();
-  const imdb = require("./media/imdb");
+  const imdb = imdbLib();
   const stamp = `${scanner.index.scannedAt}|${imdb.version()}`;
   if (stamp === titlesFor) return keys;
   let changed = false;
@@ -1104,7 +1138,7 @@ const toggleWatchlist = (profileId, item, add) => {
   if (!add) {
     // Build the library maps ONCE for the whole sweep — bare sameIdentity
     // rebuilds them per stream-ref entry (O(watchlist × library) per click).
-    const identity = require("./media/identity");
+    const identity = identityLib();
     const maps = identity._internals.libraryMaps();
     const deps = { findLibrary: (r) => identity.findLibraryFor(r, maps) };
     state.watchlist = state.watchlist.filter((e) => !sameIdentity(e, item, deps));
@@ -1140,7 +1174,7 @@ const getLikedGenres = (profileId) => stateFor(profileId).likedGenres;
 // Finished episodes advance to the next episode of the show.
 const continueWatching = (profileId) => {
   const state = stateFor(profileId);
-  const identity = require("./media/identity");
+  const identity = identityLib();
   const maps = identity._internals.libraryMaps();
   // The title view: a library episode first watched as a stream shows up
   // under its library id here, with the stream's position.
@@ -1209,8 +1243,8 @@ const realEpisodeName = (entry) => {
   try {
     if (!entry || !entry.showId || !/^Episode \d+$/.test(entry.title || "")) return entry;
     const show = scanner.findById(entry.showId);
-    const imdbId = require("./media/identity").imdbIdFor(show);
-    const meta = imdbId ? require("./media/discover").metaCached("series", imdbId) : null;
+    const imdbId = identityLib().imdbIdFor(show);
+    const meta = imdbId ? discoverLib().metaCached("series", imdbId) : null;
     const season = meta && meta.seasons && meta.seasons.find((se) => se.number === entry.season);
     const ep = season && season.episodes.find((e) => e.episode === entry.episode);
     return ep && ep.title && !/^Episode \d+$/.test(ep.title) ? { ...entry, title: ep.title } : entry;
@@ -1333,7 +1367,7 @@ const materializeWatchlist = (entries, deps) => {
 };
 
 const watchlistItems = (profileId) => {
-  const identity = require("./media/identity");
+  const identity = identityLib();
   const maps = identity._internals.libraryMaps();
   return materializeWatchlist(stateFor(profileId).watchlist, {
     findById: scanner.findById,
@@ -1511,6 +1545,7 @@ const markProgress = (profileId, entries) => {
 // silent no-op and the card came straight back. Stored per (show, episode):
 // watching past the dismissed episode changes the candidate and un-hides it.
 const dismissUpNext = (profileId, showId, episodeId) => {
+  bumpSignals(profileId); // Continue Watching changes: the Home memo's stamp for this profile
   const state = stateFor(profileId);
   state.upNextDismissed[String(showId)] = String(episodeId);
   store.save();
@@ -1518,6 +1553,7 @@ const dismissUpNext = (profileId, showId, episodeId) => {
 
 module.exports = {
   PREF_SWITCHES,
+  shapeStamp,
   followsOf,
   setFollow,
   searchesOf,

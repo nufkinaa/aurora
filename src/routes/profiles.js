@@ -8,6 +8,15 @@ const telemetry = require("../telemetry");
 const authz = require("../lib/authz");
 
 const router = express.Router();
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+// (A progress save arrives every 5 s per viewer and asked for two of these.)
+const lazy = require("../lib/lazy");
+const authmodeLib = lazy(require, "../lib/authmode");
+const smartdlLib = lazy(require, "../media/smartdl");
+const smartcleanLib = lazy(require, "../media/smartclean");
+const sessionsLib = lazy(require, "../lib/sessions");
+const apiRoutes = lazy(require, "./api");
 
 // Who is on the other end of this request — used for the per-profile device log
 // and for stamping a new-profile request with where it came from.
@@ -51,7 +60,7 @@ router.get("/api/profiles", (req, res) => {
   //                       transition is the claim period, nothing is gated)
   //   closed            — no session: 401 (clients show the login screen);
   //                       with a session: only the account's own profiles.
-  if (require("../lib/authmode").get() !== "closed") {
+  if (authmodeLib().get() !== "closed") {
     return res.json(profiles.publicList());
   }
   const s = authz.sessionFor(req);
@@ -115,7 +124,7 @@ router.post("/api/profiles/:id/unlock", async (req, res) => {
   try {
     const raw = profiles.list().find((x) => x.id === req.params.id);
     if (raw && profiles.isClaimed(raw) && raw.passwordHash) {
-      const sessions = require("../lib/sessions");
+      const sessions = sessionsLib();
       // the cookie being replaced dies with its replacement — otherwise every
       // wall unlock leaves a zombie row in the Preferences device list
       const old = require("../lib/authz").readCookie(req);
@@ -182,7 +191,7 @@ router.post("/api/profiles/:id/password", gate, async (req, res) => {
 router.post("/api/profiles", async (req, res) => {
   // closed mode: new watch profiles are requested by signed-in people
   // (account signup is the separate /api/auth/signup flow)
-  if (require("../lib/authmode").get() === "closed" && !authz.sessionFor(req)) {
+  if (authmodeLib().get() === "closed" && !authz.sessionFor(req)) {
     return res.status(401).json({ error: "sign in first", signinRequired: true });
   }
   const body = req.body || {};
@@ -280,7 +289,7 @@ async function kidsPinGuard(req, id) {
 // disagree about whether a lock is in force (a lock voided by a later
 // grown-up sign-in reads as no lock here too).
 const liveLock = (req) => {
-  const k = require("./api")._internals.kidsFor(req);
+  const k = apiRoutes()._internals.kidsFor(req);
   return k && k.source === "lock" ? { profile: k.profile, maxAge: k.maxAge } : null;
 };
 // The kids profile this browser is SIGNED IN as, while that still restricts
@@ -288,8 +297,8 @@ const liveLock = (req) => {
 // once the PIN has taken the browser out of it — and always under sign-in
 // "closed", where the session is the person and no PIN changes that.
 const kidsSession = (req) => {
-  if (require("../lib/authmode").get() === "closed") return null;
-  const sess = require("./api")._internals.kidsSession(req);
+  if (authmodeLib().get() === "closed") return null;
+  const sess = apiRoutes()._internals.kidsSession(req);
   const k = sess ? profiles.kidsOf(sess.profileId) : null;
   if (!k) return null;
   const out = kidsRules.readRelease(req);
@@ -310,7 +319,7 @@ router.get("/api/kids/status", (req, res) => {
     guard: profiles.kidsGuard(),
     // What the PIN does and doesn't promise, for the places it is set — one
     // honest sentence instead of an implied guarantee.
-    scope: kidsRules.scopeNote(require("../lib/authmode").get() === "closed"),
+    scope: kidsRules.scopeNote(authmodeLib().get() === "closed"),
   });
 });
 
@@ -403,7 +412,7 @@ router.delete("/api/profiles/:id", gate, (req, res) => {
     return res.status(404).json({ error: "Not found" });
   }
   // its sign-ins go with it, rather than lingering until they expire
-  require("../lib/sessions").revokeAllFor(req.params.id);
+  sessionsLib().revokeAllFor(req.params.id);
   res.json({ ok: true });
 });
 
@@ -493,12 +502,12 @@ router.post("/api/profiles/:id/progress", gate, (req, res) => {
   res.json({ ok: true });
   // Most of the way through an episode? Queue the next one (media/smartdl.js).
   // After the response, never on its critical path.
-  require("../media/smartdl")
+  smartdlLib()
     .onProgress(req.params.id, itemId, position, duration, item)
     .catch((e) => console.warn("[smart] failed:", e && e.message ? e.message : e));
   // …and the other half: a smart-downloaded episode this person has finished
   // and moved past leaves the disk (media/smartclean.js).
-  require("../media/smartclean")
+  smartcleanLib()
     .onProgress(req.params.id, itemId, position, duration, item)
     .catch((e) => console.warn("[smart] cleanup failed:", e && e.message ? e.message : e));
 });
@@ -747,7 +756,7 @@ router.post("/api/profiles/:id/signout-everywhere", gate, async (req, res) => {
   // this hands out an unlock token too — same PIN rule as unlock
   const guarded = await kidsPinGuard(req, id);
   if (guarded) return res.status(guarded.status).json(guarded.body);
-  const sessions = require("../lib/sessions");
+  const sessions = sessionsLib();
   const mine = authz.sessionFor(req);
   let ended = 0;
   for (const row of sessions.listFor(id)) {

@@ -32,10 +32,29 @@ let serverInfoP = null;
 export const serverFacts = () =>
   Promise.race([serverInfoP || Promise.resolve(), new Promise((r) => setTimeout(r, 2000))]);
 
+// The server could not read its saved profiles (or sign-ins, or settings)
+// and had nothing good to restore them from: it is running on defaults and
+// keeps nothing until its admin decides (server: lib/jsonstore.js, "safe
+// mode"). Said in words, at the top of every screen, for as long as it lasts
+// — an empty house with no explanation is the thing this exists to prevent.
+const safeModeBanner = (on) => {
+  const ID = "safe-mode-banner";
+  const had = document.getElementById(ID);
+  if (!on) { if (had) had.remove(); return; }
+  if (had) return;
+  const bar = document.createElement("div");
+  bar.id = ID;
+  bar.setAttribute("role", "alert");
+  bar.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999;padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top, 0px));background:#8a2a12;color:#fff;font:600 14px/1.4 system-ui,sans-serif;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.4)";
+  bar.textContent = `Aurora is in safe mode: it could not load its saved profiles and settings. Nothing you do now is kept. Tell ${state.adminName}.`;
+  document.body.appendChild(bar);
+};
+
 export const loadProfiles = async () => {
   // Best-effort: copy that mentions the admin reads fine with the fallback.
   serverInfoP = api.serverInfo().then((info) => {
     if (info && info.adminName) state.adminName = info.adminName;
+    try { safeModeBanner(!!(info && info.safeMode)); } catch {}
     if (info) {
       state.torrents = info.torrents !== false;
       try {
@@ -200,6 +219,14 @@ export const setProfile = async (profile, token = null) => {
   // build) or a blip must never block entry.
   if (relist) forgetWarm();
   document.documentElement.toggleAttribute("data-kids", !!profile.kids);
+  // index.html asks for the remembered profile's watch state and Home before
+  // any code loads — when this says it may, and how: "open" (no password) or
+  // "token" (with the tab's unlock token). Not for a kids profile (its door
+  // has to run first) or an admin-locked one.
+  try {
+    if (profile.kids || profile.locked) localStorage.removeItem("aurora-early");
+    else localStorage.setItem("aurora-early", profile.hasPassword ? "token" : "open");
+  } catch {}
   if (profile.kids) {
     try { await api.kidsEnter(profile.id); } catch {}
   }
@@ -242,6 +269,19 @@ export const savedToken = (profileId) => {
   try { return sessionStorage.getItem(`aurora-token-${profileId}`); } catch { return null; }
 };
 
+// When the profile's history was last READ from the server (and whose it
+// was): a screen that has just read it need not make the next one wait for
+// the same answer again (the player, opened from a title page — see
+// progressAge). Only a read that SUCCEEDED counts, and only while the
+// history this tab holds is still that profile's: a read that failed leaves
+// the age at "never", so the player asks again and its "could not read the
+// history → do not save over it" rule decides as it always has.
+let progressRead = { at: 0, profile: null };
+export const progressAge = () =>
+  state.profile && progressRead.profile === state.profile.id && state.historyOf === state.profile.id
+    ? Date.now() - progressRead.at
+    : Infinity;
+
 // Resolves true when the history was read from the server just now, false
 // when it could not be (the player refuses to save over a history it could
 // not read — see player.js).
@@ -253,6 +293,7 @@ export const refreshProgress = async () => {
     const { progress, ratings, likedGenres, episodeProgress, streamProgress } =
       await api.profileState(pid);
     if (!state.profile || state.profile.id !== pid) return false; // the profile changed while this was on its way
+    progressRead = { at: Date.now(), profile: pid };
     state.progress = progress || {};
     state.ratings = ratings || {};
     state.likedGenres = likedGenres || [];
@@ -302,9 +343,18 @@ export const ratingFor = (key) => (key && state.ratings[key]) || 0;
 export const episodeProgressFor = (imdbId, season, episode) =>
   (imdbId && state.episodeProgress && state.episodeProgress[`${imdbId}:${season}:${episode}`]) || null;
 
+// One library request in flight at a time: after a library change the socket
+// handler and the screen on show (a grid, search) both ask for a fresh copy in
+// the same moment — they share one answer instead of fetching it twice.
+let libraryLoading = null;
 export const loadLibrary = async (force = false) => {
   if (!state.library || force) {
-    state.library = await api.library(state.profile && state.profile.id);
+    if (!libraryLoading) {
+      libraryLoading = api.library(state.profile && state.profile.id)
+        .then((lib) => { state.library = lib; return lib; })
+        .finally(() => { libraryLoading = null; });
+    }
+    await libraryLoading;
   }
   return state.library;
 };

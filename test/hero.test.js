@@ -469,3 +469,44 @@ test("select never repeats a title within one hero", () => {
     assert.strictEqual(new Set(out.map((i) => i.title)).size, out.length, `seed ${seed}`);
   }
 });
+
+// ---------- ranking scores each title once (byScoreDesc) ----------
+test("byScoreDesc: the order a comparator sort gives — ties, missing years and ratings included", () => {
+  const { byScoreDesc } = hero._internals;
+  let seed = 7;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  const now = Date.UTC(2026, 9, 11);
+  const aff = hero._internals.affinityMap ? new Map([["Drama", 1.5], ["Comedy", -0.5], ["Action", 0.75]]) : new Map();
+  const genres = ["Drama", "Comedy", "Action", "Horror"];
+  const items = Array.from({ length: 600 }, (_, i) => ({
+    id: `i${i}`,
+    // many equal scores (so the tie order matters), and the holes real titles have
+    year: i % 7 === 0 ? null : 1990 + Math.floor(rnd() * 37),
+    rating: i % 5 === 0 ? null : Math.round((4 + rnd() * 5) * 2) / 2,
+    genres: i % 11 === 0 ? [] : [genres[Math.floor(rnd() * 4)], genres[Math.floor(rnd() * 4)]],
+    source: i % 3 ? "stream" : undefined,
+  }));
+  const oldTaste = [...items].sort((a, b) => tasteScore(b, aff, now) - tasteScore(a, aff, now));
+  const oldBlind = [...items].sort((a, b) => blindScore(b, now) - blindScore(a, now));
+  assert.deepEqual(byScoreDesc(items, (i) => tasteScore(i, aff, now)).map((i) => i.id), oldTaste.map((i) => i.id));
+  assert.deepEqual(byScoreDesc(items, (i) => blindScore(i, now)).map((i) => i.id), oldBlind.map((i) => i.id));
+  // the input is left as it was, each title is scored exactly once
+  let calls = 0;
+  const copy = items.slice();
+  byScoreDesc(items, (i) => { calls++; return blindScore(i, now); });
+  assert.equal(calls, items.length);
+  assert.deepEqual(items, copy);
+  assert.deepEqual(byScoreDesc([], () => 1), []);
+});
+
+test("the recency term reads the year of `now` it is given, whichever order it is asked in", () => {
+  const item = { year: 2020, rating: 7, genres: [] };
+  const in2026 = Date.UTC(2026, 5, 1);
+  const in2030 = Date.UTC(2030, 5, 1);
+  const a = blindScore(item, in2026);
+  const b = blindScore(item, in2030);
+  assert.ok(a > b, "older by the later clock");
+  assert.equal(blindScore(item, in2026), a, "asking about another moment in between changes nothing");
+  assert.equal(blindScore(item, in2030), b);
+  assert.equal(blindScore({ ...item, year: 2030 }, in2026), blindScore({ ...item, year: 2026 }, in2026), "a title from the future is not newer than new");
+});

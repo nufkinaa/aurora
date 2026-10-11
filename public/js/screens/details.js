@@ -8,6 +8,7 @@ import { api } from "../api.js";
 import { state } from "../state.js";
 import { starRating } from "../components.js";
 import { titleShown } from "../telemetry.js"; // [analytics]
+import { untilLeave } from "../router.js";
 // Exported for the unified detail page (discover-detail.js), which uses this
 // variant whenever the title has a library copy — the stream variant keys the
 // watchlist by IMDb id, this one by library id.
@@ -32,6 +33,7 @@ export const watchlistButton = (item) => {
     if (e.detail && e.detail.libraryId === item.id) { inList = !!e.detail.inList; paint(); }
   };
   window.addEventListener("aurora-watchlist", onElsewhere);
+  untilLeave(() => window.removeEventListener("aurora-watchlist", onElsewhere)); // (the event may never come: router.js)
 
   btn.addEventListener("click", async () => {
     if (!state.profile) return;
@@ -100,6 +102,7 @@ const coverDrift = (hero) => {
   };
   const onScroll = () => { if (!raf) raf = requestAnimationFrame(paint); };
   window.addEventListener("scroll", onScroll, { passive: true });
+  untilLeave(() => window.removeEventListener("scroll", onScroll)); // (nobody scrolls a page they have left: router.js)
 };
 
 const heroNode = (item, actions, metaParts, { rateKey = null, serverInfo = null } = {}) => {

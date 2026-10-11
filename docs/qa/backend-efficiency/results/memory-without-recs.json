@@ -1,0 +1,276 @@
+{
+  "at": "2026-10-11T00:57:34.806Z",
+  "ref": "working tree",
+  "weak": false,
+  "without": [
+    "recs"
+  ],
+  "byOwner": {
+    "baseline": {
+      "heapMb": 3.87,
+      "rssMb": 50.82
+    },
+    "end": {
+      "heapMb": 46.88,
+      "rssMb": 132.32,
+      "externalMb": 2.42
+    },
+    "steps": [
+      {
+        "name": "node + express, compression, ws (code)",
+        "onDiskMb": 0,
+        "heapMb": 3.24,
+        "rssMb": 9.13,
+        "externalMb": 0.62,
+        "ms": 170,
+        "cpuMs": 172
+      },
+      {
+        "name": "config (finding ffmpeg & co.)",
+        "onDiskMb": 0,
+        "heapMb": 0.1,
+        "rssMb": 0.32,
+        "externalMb": 0,
+        "ms": 603,
+        "cpuMs": 62
+      },
+      {
+        "name": "probe cache (metadata-cache.json)",
+        "onDiskMb": 0.89,
+        "heapMb": 1.15,
+        "rssMb": -0.03,
+        "externalMb": 0,
+        "ms": 12,
+        "cpuMs": 0
+      },
+      {
+        "name": "by-name metadata (online-metadata.json)",
+        "onDiskMb": 0.56,
+        "heapMb": 0.79,
+        "rssMb": 0.07,
+        "externalMb": 0,
+        "ms": 23,
+        "cpuMs": 0
+      },
+      {
+        "name": "catalogue: trending, title pages, ratings (discover, meta, certificates)",
+        "onDiskMb": 2.62,
+        "heapMb": 3.88,
+        "rssMb": 11.02,
+        "externalMb": 0,
+        "ms": 83,
+        "cpuMs": 47
+      },
+      {
+        "name": "IMDb ids (imdb-map.json)",
+        "onDiskMb": 0.09,
+        "heapMb": 0.19,
+        "rssMb": 0.29,
+        "externalMb": 0,
+        "ms": 3,
+        "cpuMs": 0
+      },
+      {
+        "name": "library index: scanner.scan()",
+        "onDiskMb": 0,
+        "heapMb": 4.67,
+        "rssMb": 20.76,
+        "externalMb": 0,
+        "ms": 352,
+        "cpuMs": 375
+      },
+      {
+        "name": "profiles + history (profiles.json)",
+        "onDiskMb": 3.64,
+        "heapMb": 5.27,
+        "rssMb": 0.23,
+        "externalMb": 0,
+        "ms": 70,
+        "cpuMs": 31
+      },
+      {
+        "name": "identity stamps + title history fold",
+        "onDiskMb": 0,
+        "heapMb": 0.1,
+        "rssMb": 0.13,
+        "externalMb": 0,
+        "ms": 29,
+        "cpuMs": 16
+      },
+      {
+        "name": "sign-ins (sessions.json)",
+        "onDiskMb": 0.02,
+        "heapMb": 0.06,
+        "rssMb": -0.39,
+        "externalMb": 0,
+        "ms": 3,
+        "cpuMs": 0
+      },
+      {
+        "name": "viewing sessions + hourly telemetry",
+        "onDiskMb": 0.97,
+        "heapMb": 1.43,
+        "rssMb": 1.18,
+        "externalMb": 0,
+        "ms": 27,
+        "cpuMs": 16
+      },
+      {
+        "name": "realtime (bans, watch-history.json)",
+        "onDiskMb": 0.07,
+        "heapMb": 0.18,
+        "rssMb": -0.54,
+        "externalMb": 0,
+        "ms": 20,
+        "cpuMs": 16
+      },
+      {
+        "name": "usage log replay (usage/events-*.jsonl)",
+        "onDiskMb": 0.5,
+        "heapMb": 0.05,
+        "rssMb": 0.09,
+        "externalMb": 0,
+        "ms": 16,
+        "cpuMs": 0
+      },
+      {
+        "name": "stream source lists (torrent-streams.json) + torrent module",
+        "onDiskMb": 4.41,
+        "heapMb": 0.49,
+        "rssMb": 0.04,
+        "externalMb": 0,
+        "ms": 147,
+        "cpuMs": 62
+      },
+      {
+        "name": "More like this (similar.json)",
+        "onDiskMb": 0.45,
+        "heapMb": 0.61,
+        "rssMb": 0.14,
+        "externalMb": 0,
+        "ms": 35,
+        "cpuMs": 0
+      },
+      {
+        "name": "X-Ray (xray.json)",
+        "onDiskMb": 0.11,
+        "heapMb": 0.21,
+        "rssMb": 0.27,
+        "externalMb": 0,
+        "ms": 35,
+        "cpuMs": 0
+      },
+      {
+        "name": "availability, skip segments, intro records",
+        "onDiskMb": 0.17,
+        "heapMb": 0.37,
+        "rssMb": 0.31,
+        "externalMb": 0.03,
+        "ms": 58,
+        "cpuMs": 63
+      },
+      {
+        "name": "well-known titles (search-known.json)",
+        "onDiskMb": 1.37,
+        "heapMb": 2.79,
+        "rssMb": 0.09,
+        "externalMb": 0,
+        "ms": 12,
+        "cpuMs": 16
+      },
+      {
+        "name": "search index: search.warm()",
+        "onDiskMb": 0,
+        "heapMb": 9.8,
+        "rssMb": 27.23,
+        "externalMb": 0,
+        "ms": 322,
+        "cpuMs": 360
+      },
+      {
+        "name": "recommender: title index file (recs-titles.json)",
+        "onDiskMb": 0,
+        "heapMb": 0,
+        "rssMb": 0,
+        "externalMb": 0,
+        "ms": 0,
+        "cpuMs": 0
+      },
+      {
+        "name": "recommender: vectors (recs.warm())",
+        "onDiskMb": 0,
+        "heapMb": 4.36,
+        "rssMb": 8.75,
+        "externalMb": 0,
+        "ms": 274,
+        "cpuMs": 204
+      },
+      {
+        "name": "every route module, healer, health, watchdog (code)",
+        "onDiskMb": 0,
+        "heapMb": 3.27,
+        "rssMb": 2.39,
+        "externalMb": 0.26,
+        "ms": 780,
+        "cpuMs": 235
+      }
+    ],
+    "spaces": [
+      {
+        "space": "read_only_space",
+        "usedMb": 0,
+        "committedMb": 0
+      },
+      {
+        "space": "new_space",
+        "usedMb": 0.03,
+        "committedMb": 32
+      },
+      {
+        "space": "old_space",
+        "usedMb": 42.87,
+        "committedMb": 44.25
+      },
+      {
+        "space": "code_space",
+        "usedMb": 1.01,
+        "committedMb": 1.25
+      },
+      {
+        "space": "shared_space",
+        "usedMb": 0,
+        "committedMb": 0
+      },
+      {
+        "space": "trusted_space",
+        "usedMb": 1.4,
+        "committedMb": 1.51
+      },
+      {
+        "space": "new_large_object_space",
+        "usedMb": 0,
+        "committedMb": 0
+      },
+      {
+        "space": "large_object_space",
+        "usedMb": 1.64,
+        "committedMb": 1.7
+      },
+      {
+        "space": "code_large_object_space",
+        "usedMb": 0,
+        "committedMb": 0
+      },
+      {
+        "space": "shared_large_object_space",
+        "usedMb": 0,
+        "committedMb": 0
+      },
+      {
+        "space": "trusted_large_object_space",
+        "usedMb": 0,
+        "committedMb": 0
+      }
+    ]
+  }
+}

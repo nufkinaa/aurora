@@ -10,7 +10,7 @@
 import { el, debounce, posterImg } from "./ui.js";
 import { api } from "./api.js";
 import { state } from "./state.js";
-import { navigate } from "./router.js";
+import { navigate, untilLeave } from "./router.js";
 
 // Where a suggestion goes when opened: the library page when we own it,
 // its Discover page otherwise.
@@ -135,6 +135,7 @@ export const attachSuggest = (input, host, opts = {}) => {
     first.focus();
   };
   document.addEventListener("nav-move", onNav);
+  untilLeave(() => document.removeEventListener("nav-move", onNav)); // (a phone never sends one: router.js)
   // Enter = "I'm committing to the full results" and Escape = "get out of my
   // way" — both dismiss the dropdown so it doesn't sit on top of the grid.
   input.addEventListener("keydown", (e) => {

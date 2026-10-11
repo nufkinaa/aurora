@@ -190,7 +190,8 @@ export const openPerson = (who, { inPlayer = false } = {}) => {
     const track2 = el("div", { class: "person-viewer-track" },
       data.photos.map((p, i) => el("div", { class: "person-viewer-slide" },
         el("img", { src: artUrl(p.url, 240), "data-full": p.full, alt: `${data.name}, photo ${i + 1} of ${data.photos.length}`, decoding: "async" }))));
-    const count = el("div", { class: "person-viewer-count" });
+    // filled at once (not on the first frame): the counter is never seen empty
+    const count = el("div", { class: "person-viewer-count" }, `${Math.max(0, Math.min(data.photos.length - 1, at)) + 1} / ${data.photos.length}`);
     let at2 = at;
     const show = (i, smoothly = true) => {
       at2 = Math.max(0, Math.min(data.photos.length - 1, i));
@@ -227,7 +228,7 @@ export const openPerson = (who, { inPlayer = false } = {}) => {
     sheet.append(node);
     pushScope(node);
     shut.focus({ preventScroll: true });
-    requestAnimationFrame(() => show(at, false));
+    requestAnimationFrame(() => show(at2, false)); // (at2: an arrow pressed before the first frame is kept)
     setTimeout(() => show(at2, false), 60);
     track("feat", { f: "person_photo" });
   };

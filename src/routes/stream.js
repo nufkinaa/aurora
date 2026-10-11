@@ -4,8 +4,15 @@ const path = require("path");
 const express = require("express");
 const scanner = require("../media/scanner");
 const subtitles = require("../media/subtitles");
+const faststart = require("../media/faststart");
 
 const router = express.Router();
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+const lazy = require("../lib/lazy");
+const configLib = lazy(require, "../config");
+const admissionLib = lazy(require, "../lib/admission");
+const stillsLib = lazy(require, "../media/stills");
 
 const MIME = {
   ".mp4": "video/mp4",
@@ -39,6 +46,10 @@ router.get("/stream/video/:id", (req, res) => {
   // leak file descriptors on the hottest route, and handle read errors instead
   // of letting them throw up to the global uncaughtException net.
   const onErr = () => { if (!res.headersSent) res.status(500).end(); else res.end(); };
+  // An MP4 with its index at the end goes out with the index in front
+  // (media/faststart.js): the same length, the same film, two round trips
+  // fewer before a player can show a frame. null = as it is on disk.
+  const plan = require("../config").SERVE_FASTSTART ? faststart.planFor(entry.path, stat) : null;
 
   if (range) {
     const m = range.match(/bytes=(\d*)-(\d*)/);
@@ -64,6 +75,7 @@ router.get("/stream/video/:id", (req, res) => {
       "Content-Length": end - start + 1,
       "Content-Type": mime,
     });
+    if (plan) return faststart.pipe(entry.path, plan, start, end, res, onErr);
     const s = fs.createReadStream(entry.path, { start, end });
     s.on("error", onErr);
     s.pipe(res);
@@ -74,6 +86,7 @@ router.get("/stream/video/:id", (req, res) => {
       "Content-Type": mime,
       "Accept-Ranges": "bytes",
     });
+    if (plan) return faststart.pipe(entry.path, plan, 0, total - 1, res, onErr);
     const s = fs.createReadStream(entry.path);
     s.on("error", onErr);
     s.pipe(res);
@@ -109,7 +122,7 @@ router.get("/img/still/:id", async (req, res) => {
   try {
     const entry = resolveKind(req.params.id, "video");
     if (!entry) return res.status(404).send("Not found");
-    const stills = require("../media/stills");
+    const stills = stillsLib();
     const file = await stills.getStill(entry.path);
     if (!file) return res.status(404).send("No still available");
     res.setHeader("Cache-Control", "public, max-age=604800");
@@ -135,7 +148,7 @@ router.get("/img/frame/:id", async (req, res) => {
     const entry = resolveKind(req.params.id, "video");
     if (!entry) return res.status(404).send("Not found");
     const t = Math.max(0, parseFloat(req.query.t) || 0);
-    const stills = require("../media/stills");
+    const stills = stillsLib();
     const file = await stills.getFrame(entry.path, t);
     if (!file) return res.status(404).send("No frame available");
     res.setHeader("Cache-Control", "public, max-age=604800");
@@ -154,10 +167,10 @@ router.get("/img/frame/:id", async (req, res) => {
 // SSRF lesson): exact host match, https only, bytes sniffed before caching.
 // (the list itself: lib/imghosts.js)
 const { extAllowed } = require("../lib/imghosts");
-const EXT_IMG_DIR = path.join(require("../config").CACHE_DIR, "posters-web");
+const EXT_IMG_DIR = path.join(configLib().CACHE_DIR, "posters-web");
 const MAX_EXT_IMAGES = 4000; // count cap; the byte cap below bounds each file
 const MAX_EXT_IMAGE_BYTES = 6 * 1024 * 1024; // backdrops can be big; originals aren't welcome
-const { MIN_IMAGE_BYTES, magicOk, sniffMime, validImageFile, readHead } = require("../lib/imgcheck");
+const { MIN_IMAGE_BYTES, magicOk, validImageFile, mimeOfFile } = require("../lib/imgcheck");
 const crypto = require("crypto");
 try { fs.mkdirSync(EXT_IMG_DIR, { recursive: true }); } catch {}
 // Sweep with HYSTERESIS, every 100th write only: a per-write readdir+stat of
@@ -228,12 +241,16 @@ const fetchExtImage = (url, file) => {
 const { variant: imgVariant } = require("../lib/imgvariant");
 // ?blur=<px>: pre-blurred (the TV's billboard layers — see imgvariant.js).
 // ?fmt=webp: that blurred variant as WebP (opt-in; ignored otherwise).
+// Who is asking, for the variant queue's per-client limit (lib/admission.js).
+const artClient = (res) => { try { return admissionLib().heavy.clientKey(res.req); } catch { return null; } };
 const sendArt = async (res, file, width, blur, fmt) => {
-  const v = width || blur ? await imgVariant(file, width, { blur, fmt }) : null;
+  const opts = { blur, fmt, client: artClient(res) };
+  const v = width || blur ? await imgVariant(file, width, opts) : null;
   const out = v || file;
-  const head = readHead(out);
-  res.setHeader("Content-Type", head ? sniffMime(head) : "image/jpeg");
-  res.setHeader("Cache-Control", "public, max-age=604800");
+  res.setHeader("Content-Type", mimeOfFile(out) || "image/jpeg");
+  // (the original sent because the variant queue was full is kept for a
+  // minute only: the variant is asked for again once the rush is over)
+  res.setHeader("Cache-Control", opts.shed ? "public, max-age=60" : "public, max-age=604800");
   res.sendFile(out);
 };
 router.get("/img/ext", async (req, res) => {
@@ -292,8 +309,9 @@ router.get("/img/:id", async (req, res) => {
   const entry = resolveKind(req.params.id, "image");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
   try {
-    const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, { blur: req.query.blur, fmt: req.query.fmt }) : null;
-    res.setHeader("Cache-Control", "public, max-age=86400");
+    const opts = { blur: req.query.blur, fmt: req.query.fmt, client: artClient(res) };
+    const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, opts) : null;
+    res.setHeader("Cache-Control", opts.shed ? "public, max-age=60" : "public, max-age=86400");
     res.sendFile(v || entry.path);
   } catch (e) {
     console.warn(`[img] ${req.params.id} w=${req.query.w || "-"} blur=${req.query.blur || "-"} failed: ${(e && e.message) || e}`);
@@ -305,11 +323,21 @@ router.get("/img/:id", async (req, res) => {
 // audio the browser can't decode (AC-3, DTS...). Playlist request starts the
 // job; segments stream as ffmpeg produces them.
 const remux = require("../media/remux");
+// "The server is busy" (no room in the encode budget) is 503 with
+// Retry-After on every stream route — the older single-rendition routes
+// answered 500, which a monitor and a client both read as a fault.
+const sendStreamError = (res, err) => {
+  if (err && err.busy) {
+    res.setHeader("Retry-After", String(err.retryAfter || 5));
+    return res.status(503).send(err.message);
+  }
+  res.status(500).send((err && err.message) || "stream failed");
+};
 
 router.get("/stream/hls/:id/index.m3u8", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
-  if (!require("../config").ffmpegAvailable) return res.status(503).send("ffmpeg not available");
+  if (!configLib().ffmpegAvailable) return res.status(503).send("ffmpeg not available");
 
   try {
     const dir = await remux.ensure(entry.path, req.params.id);
@@ -317,7 +345,7 @@ router.get("/stream/hls/:id/index.m3u8", async (req, res) => {
     res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.join(dir, "index.m3u8"));
   } catch (err) {
-    res.status(500).send(err.message);
+    sendStreamError(res, err);
   }
 });
 
@@ -347,6 +375,22 @@ router.get("/stream/hls/:id/:file", (req, res) => {
 // BEFORE the /:ss routes so the literal "jit" path can't parse as an offset.
 const jit = require("../media/jit");
 const ladder = require("../media/ladder");
+const { timed } = require("../lib/servertiming");
+
+// Who is reading a stream, for jit's "whose goodbye is it" (jit.release): the
+// sign-in session when the request has one (in sign-in mode "closed" every
+// request that reaches a route does), else the device as far as it can be
+// told — its address and browser. Never logged, never sent anywhere; a
+// player's segment requests and its goodbye beacon carry the same cookie
+// from the same browser, which is all this has to hold.
+const viewerOf = (req) => {
+  try {
+    const s = require("../lib/authz").sessionFor(req);
+    if (s && s.sessionKey) return `s:${s.sessionKey}`;
+  } catch {}
+  return "d:" + crypto.createHash("sha1")
+    .update(`${req.ip || ""}|${req.headers["user-agent"] || ""}`).digest("hex").slice(0, 20);
+};
 
 // The file's segment table (cached by jit; read from the file when it is not).
 const libraryTable = async (entry, key, size) => {
@@ -358,9 +402,44 @@ const libraryTable = async (entry, key, size) => {
     fs.readSync(fd, b, 0, len, start);
     return b;
   };
-  return jit.tableFor(key, readRange, size).finally(() => {
+  return jit.tableFor(key, readRange, size, { mp4: true }).finally(() => {
     try { fs.closeSync(fd); } catch {}
   });
+};
+
+// THE START HINT. A player that is about to start says so on its first
+// playlist request (X-Aurora-Start: where in the film, what its line carried
+// last time, or the rendition it will begin on — ladder.parseStartHint), and
+// the making of its first segment begins HERE, while the playlists are still
+// travelling: by the time the segment is asked for — two round trips later
+// on a master, one on a single playlist — it is made, or well on its way.
+// Nothing is waited for and nothing is answered differently; the bounds are
+// jit.warmSegment's (never a second producer, an encode only on an idle
+// server, a few starts a minute, the producer stops by itself).
+const warmStart = async (req, { entry, key, table, fmt, rungs = null, name = null }) => {
+  const hint = ladder.parseStartHint(req.get("x-aurora-start"));
+  if (!hint) return;
+  try {
+    // which rendition: the one the client named, else by its line (the
+    // website's own rule), else the single playlist's own
+    let v = name;
+    if (!v) {
+      if (!rungs || !rungs.length) return;
+      const named = hint.v ? rungs.find((r) => r.name === hint.v) : null;
+      v = (named || rungs[Math.max(0, ladder.startRung(rungs, hint.kbps))]).name;
+    }
+    const audio = ladder.audioFromQuery(req.query.a);
+    const k = jit.segmentAt(table.table, hint.at);
+    if (k < 0) return;
+    const dir = path.join(require("../config").CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
+    let input = { url: entry.path, extra: [], fmt, vtagHvc1: req.query.vtag === "hvc1", audio };
+    if (v !== "copy") {
+      if (jit.encodeDeclined(key)) return;
+      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path) });
+      if (!input) return;
+    }
+    jit.warmSegment(dir, jit.jobFor(dir, table, { enc: v !== "copy" }), input, k);
+  } catch {}
 };
 
 // ---------- the quality ladder (library files) ----------
@@ -372,9 +451,9 @@ const libraryTable = async (entry, key, size) => {
 router.get("/stream/transcode/:id/jit/master.m3u8", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
-  if (!require("../config").ffmpegAvailable) return res.status(503).send("ffmpeg not available");
+  if (!configLib().ffmpegAvailable) return res.status(503).send("ffmpeg not available");
   try {
-    const sfs = fs.statfsSync(require("../config").CACHE_DIR);
+    const sfs = fs.statfsSync(configLib().CACHE_DIR);
     if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
       return res.status(503).send("Server disk is nearly full — free space to stream");
     }
@@ -382,13 +461,18 @@ router.get("/stream/transcode/:id/jit/master.m3u8", async (req, res) => {
   try {
     const st = fs.statSync(entry.path);
     const key = `${req.params.id}-${Math.floor(st.mtimeMs)}`;
-    const table = await libraryTable(entry, key, st.size);
+    const table = await timed(res, "table", () => libraryTable(entry, key, st.size));
     if (!table) return res.status(404).send("No usable index in this file");
-    const m = await ladder.master(table, { key, input: entry.path, query: req.query, jit });
-    if (!m.text) return res.status(m.status).send(m.message);
+    const m = await timed(res, "ladder", () => ladder.master(table, { key, input: entry.path, query: req.query, jit }));
+    if (!m.text) {
+      // (busy — not "this file cannot be encoded": say when to ask again, as every stream route does)
+      if (m.status === 503) res.setHeader("Retry-After", "5");
+      return res.status(m.status).send(m.message);
+    }
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
     res.send(m.text);
+    warmStart(req, { entry, key, table, fmt: req.query.seg === "fmp4" ? "fmp4" : null, rungs: m.rungs });
   } catch (err) {
     res.status(500).send(err.message);
   }
@@ -397,12 +481,12 @@ router.get("/stream/transcode/:id/jit/master.m3u8", async (req, res) => {
 router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
-  if (!require("../config").ffmpegAvailable) return res.status(503).send("ffmpeg not available");
+  if (!configLib().ffmpegAvailable) return res.status(503).send("ffmpeg not available");
   // Same disk guard as the other transcoders: on a nearly-full disk the
   // producer grinds/fails silently and every segment request hangs to its
   // 90s deadline — refuse up front so the player falls back cleanly.
   try {
-    const sfs = fs.statfsSync(require("../config").CACHE_DIR);
+    const sfs = fs.statfsSync(configLib().CACHE_DIR);
     if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
       return res.status(503).send("Server disk is nearly full — free space to stream");
     }
@@ -410,15 +494,11 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
   try {
     const st = fs.statSync(entry.path);
     const key = `${req.params.id}-${Math.floor(st.mtimeMs)}`;
-    const fd = fs.openSync(entry.path, "r");
-    const readRange = async (start, len) => {
-      const b = Buffer.alloc(len);
-      fs.readSync(fd, b, 0, len, start);
-      return b;
-    };
-    const table = await jit.tableFor(key, readRange, st.size).finally(() => {
-      try { fs.closeSync(fd); } catch {}
-    });
+    // The index already in memory (every playlist after the first for this
+    // file): the film is not opened just to be closed again.
+    // (the same lookup the master playlist makes: libraryTable — memory
+    // first, then the file's own index, an MP4's included)
+    const table = await timed(res, "table", () => libraryTable(entry, key, st.size));
     // Permanent property of the file (not MKV / no usable Cues) — 404, so
     // the client falls back and nothing reads it as a server fault.
     if (!table) return res.status(404).send("No usable index in this file");
@@ -433,19 +513,40 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
       // no encoder free: say so now, before the player commits to the rendition
-      if (!jit.encodeRoom(key, v === "h264")) {
+      // (&need=1: the master playlist offered this rung because the full
+      // encode did not fit — it is this viewer's only way to play)
+      if (!jit.encodeRoom(key, v === "h264" || req.query.need === "1")) {
         try { require("../lib/signals").hit("no-encoder", "rendition"); } catch {}
+        res.setHeader("Retry-After", "5");
         return res.status(503).send("Server is busy — that rendition isn't available right now");
       }
     }
-    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}`;
+    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}${v !== "copy" && req.query.need === "1" ? "&need=1" : ""}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
     res.send(jit.playlistText(table, suffix, fmt));
+    warmStart(req, { entry, key, table, fmt, name: v });
   } catch (err) {
     res.status(500).send(err.message);
   }
 });
+// The player closed (or went on to the next episode): this title's producers
+// that nobody is waiting on stop now, so the encoder is free for whatever is
+// played next (jit.release). A beacon — nothing is answered.
+// Behind the same walls as the stream itself (sign-in, a forced password
+// reset, the kids gate: all run before any /stream route), and it only ever
+// stops what the one who says it was reading (viewerOf): a goodbye from
+// anybody else — or for a film they are not in — stops nothing.
+router.post("/stream/transcode/:id/jit/bye", (req, res) => {
+  const entry = resolveKind(req.params.id, "video");
+  if (!entry) return res.status(204).end();
+  try {
+    const st = fs.statSync(entry.path);
+    jit.release(`${req.params.id}-${Math.floor(st.mtimeMs)}`, viewerOf(req));
+  } catch {}
+  res.status(204).end();
+});
+
 router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry) return res.status(404).send("Not found");
@@ -468,7 +569,7 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
         fs.readSync(fd, b, 0, len, start);
         return b;
       };
-      table = await jit.tableFor(key, readRange, st.size)
+      table = await jit.tableFor(key, readRange, st.size, { mp4: true })
         .catch(() => null)
         .finally(() => { try { fs.closeSync(fd); } catch {} });
     }
@@ -477,23 +578,42 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
     // files; so does every rendition of the ladder, and every audio track.
     const v = ladder.renditionFromQuery(req.query.v);
     const audio = ladder.audioFromQuery(req.query.a);
-    const dir = path.join(require("../config").CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
+    const dir = path.join(configLib().CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
     let input = { url: entry.path, extra: [], fmt, vtagHvc1: req.query.vtag === "hvc1", audio };
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
-      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path) });
+      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path), need: req.query.need === "1" });
       if (!input) return res.status(404).send("No such rendition of this file");
     }
     const job = jit.jobFor(dir, table, { enc: v !== "copy" });
+    // &warm=1: a start is coming (the pointer is on Play, or the player is
+    // still loading its playlists) — begin making this segment now, send
+    // nothing. Bounded in jit.warmSegment; the answer says what was done.
+    if (req.query.warm === "1") {
+      const did = isInit ? "no" : jit.warmSegment(dir, job, input, parseInt(m[1], 10));
+      res.setHeader("X-Aurora-Warm", did);
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(204).end();
+    }
     const askedAt = Date.now();
-    const file = isInit
-      ? await jit.ensureInit(dir, job, input)
-      : await jit.ensureSegment(dir, job, input, parseInt(m[1], 10));
+    jit.noteViewer(job, viewerOf(req)); // (whose goodbye may stop this job's producers: jit.release)
+    const onDisk = !isInit && fs.existsSync(jit.segPath(dir, parseInt(m[1], 10), fmt));
+    // The client hanging up (a seek, a level change, the player closing)
+    // ends the wait for a segment still being made — see jit.ensureSegment.
+    let hungUp = false;
+    res.on("close", () => { if (!res.writableEnded) hungUp = true; });
+    const file = await timed(res, "seg", () => (isInit
+      ? jit.ensureInit(dir, job, input)
+      : jit.ensureSegment(dir, job, input, parseInt(m[1], 10), { gone: () => hungUp })), onDisk ? "ready" : "made");
+    if (hungUp) return; // nobody to answer
     // how long a player waited for this segment — a tally, for the healer
     if (!isInit) { try { require("../lib/signals").hit("seg-wait", !file ? "none" : Date.now() - askedAt >= 4000 ? "slow" : "ok"); } catch {} }
     // an encoded rendition with no encoder free: 503, so the player moves to
     // another rendition instead of waiting on this one
-    if (!file && jit.refusedJustNow(job)) return res.status(503).send("Server is busy — that rendition isn't available right now");
+    if (!file && jit.refusedJustNow(job)) {
+      res.setHeader("Retry-After", "5");
+      return res.status(503).send("Server is busy — that rendition isn't available right now");
+    }
     if (!file) return res.status(504).send("Segment not ready");
     res.setHeader("Content-Type", fmt ? "video/mp4" : "video/mp2t");
     res.setHeader("Cache-Control", "no-cache");
@@ -508,7 +628,7 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
 router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
-  if (!require("../config").ffmpegAvailable) return res.status(503).send("ffmpeg not available");
+  if (!configLib().ffmpegAvailable) return res.status(503).send("ffmpeg not available");
   const ss = Math.max(0, parseInt(req.params.ss, 10) || 0);
   // effectiveVcodec (now the identity — offset copy is PTS-honest, see
   // remux.js) is still applied here so the segment URIs below always name
@@ -521,7 +641,7 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
     const fmt = req.query.seg === "fmp4" ? "fmp4" : null; // Apple's HEVC-in-HLS format (S4)
     const vtag = req.query.vtag === "hvc1";
     const audio = Math.max(0, Math.min(31, parseInt(req.query.a, 10) || 0)); // which audio stream (multi-dub)
-    const dir = await remux.ensure(entry.path, req.params.id, { vcodec: v, ss, seek: req.query.seek === "1", fmt, vtag, audio });
+    const dir = await timed(res, "job", () => remux.ensure(entry.path, req.params.id, { vcodec: v, ss, seek: req.query.seek === "1", fmt, vtag, audio }));
     // Segment URIs carry ?v= (and &seg= for fMP4 jobs, &a= for a chosen audio
     // stream, EXT-X-MAP included) so the segment route can resolve this
     // exact job dir.
@@ -552,7 +672,7 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
     }
     res.send(text);
   } catch (err) {
-    res.status(500).send(err.message);
+    sendStreamError(res, err);
   }
 });
 

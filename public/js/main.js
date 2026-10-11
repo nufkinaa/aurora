@@ -29,6 +29,41 @@ import { track } from "./usage.js";
 import "./telemetry.js"; // [analytics] error reports, timings, control counts — behind the same switch
 import { onNet, netInfo, dataMode } from "./net.js";
 
+// "The first screen is done": it has painted and the pictures in view have
+// arrived (or enough time has passed that waiting longer helps nobody). Work
+// that is for LATER — the other screens' code, the offline worker and its
+// copy of the app — hangs off this instead of off "the browser is idle",
+// so it never competes with what the person is looking at for the line or
+// for the processor.
+const whenIdle = () => new Promise((resolve) =>
+  (window.requestIdleCallback || ((fn) => setTimeout(fn, 200)))(() => resolve(), { timeout: 2000 }));
+const firstScreen = new Promise((resolve) => {
+  let done = false;
+  const finish = () => { if (!done) { done = true; whenIdle().then(resolve); } };
+  const picturesIn = () => {
+    for (const img of document.images) {
+      if (img.complete) continue;
+      const r = img.getBoundingClientRect();
+      if (r.width > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth) return false;
+    }
+    return true;
+  };
+  window.addEventListener("aurora-route", () => {
+    // (a slow line gets longer: there the pictures are what the line is for)
+    const giveUpAt = performance.now() + (document.documentElement.dataset.net === "slow" ? 12000 : 6000);
+    const look = () => {
+      if (done) return;
+      if (picturesIn() || performance.now() > giveUpAt) return finish();
+      setTimeout(look, 300);
+    };
+    setTimeout(look, 300);
+  }, { once: true });
+  // No screen at all yet — the profile door or the sign-in page is up, and
+  // may stay up: the rest is warmed behind it, as it always was.
+  setTimeout(() => { if (!done && !document.querySelector("#app .screen")) finish(); }, 4000);
+  setTimeout(finish, 30000);
+});
+
 // Only what boot needs is imported statically: home, the profile door, the
 // sign-in screen and the shared chrome. Every other screen loads on first
 // navigation, the same shape as pair.js below — the player (150 KB), the
@@ -414,7 +449,10 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
 // offline the moment the server is back.
 {
   import("./offline.js").then((offline) => {
-    offline.registerWorker();
+    // The worker is for later (offline, the next visit): it registers once
+    // the first screen is done, so its install — which copies the app's code
+    // into its cache — does not share a thin line with that screen.
+    firstScreen.then(() => offline.registerWorker());
     const nav = $("#nav-saved");
     const paint = async () => {
       let any = false;
@@ -711,6 +749,9 @@ const boot = async () => {
     const me = await api.me(remembered || undefined);
     state.authMode = me.authMode || "open";
     state.user = me.user || null;
+    // (remembered for the next load: index.html's early requests ask for the
+    // profile list only where this visit could read it)
+    try { localStorage.setItem("aurora-authmode", state.authMode); } catch {}
     if (me.passwordResetRequired && me.resetProfile) {
       // Saved: this tab holds fresh credentials (the token is kept where an
       // unlock keeps it, the profile is the remembered one) and boot goes on
@@ -721,6 +762,10 @@ const boot = async () => {
     }
     booted = true;
     if (state.authMode === "closed" && !state.user) {
+      // No sign-in on a server that requires one: until somebody is in again
+      // the next load asks nothing early as the remembered profile (it would
+      // only be refused — index.html; setProfile says when it may again).
+      try { localStorage.removeItem("aurora-early"); } catch {}
       const res = await showLoginScreen();
       state.user = (res && res.user) || null;
       if (res && res.profile) loginEntry = res;
@@ -850,17 +895,31 @@ const boot = async () => {
 
 boot();
 
-// Warm the lazy screens once the browser goes idle: boot's critical path is
-// long done by then, and the module cache means the later route hit is
-// instant — same UX as when these were eager, minus their cost at boot.
-(window.requestIdleCallback || ((fn) => setTimeout(fn, 2500)))(() => {
+// Warm the lazy screens — but only once the FIRST screen is done, and one at
+// a time. They used to be fetched from a requestIdleCallback registered at
+// boot, and "idle" on a phone arrives early: the main thread is idle every
+// time boot waits on the network (who am I, the profiles, the watch state,
+// Home). So ten modules — the player's 250 KB among them — were fetched and
+// compiled in the middle of that chain, at the priority of the code the page
+// was waiting for: on a slow line some 160 KB ahead of Home's own data and
+// pictures, on a slow phone a few hundred milliseconds of compiling before
+// the first screen could build. Nothing a person does changes: a tap on a
+// screen whose code is still on its way loads it then, exactly as a tap
+// during the old warm-up did.
+firstScreen.then(async () => {
   for (const f of [
     "./screens/browse.js", "./screens/search.js", "./screens/discover-detail.js",
-    "./screens/player.js", "./screens/preferences.js", "./screens/whatsnew.js",
+    "./screens/player.js", "./screens/preferences.js",
     "./screens/wrapped.js", "./screens/taste.js", "./screens/requests.js", "./screens/pickforme.js",
-  ]) import(f).catch(() => {});
-  // The "New" tab's dot: lit until this version's page has been seen. Rides
-  // the warm-up — it's a nav dot, not something the first paint waits on.
+  ]) {
+    await whenIdle();
+    await import(f).catch(() => {});
+  }
+});
+// The "New" tab's dot: lit until this version's page has been seen. A nav
+// dot, not something the first paint waits on — it keeps its old moment (the
+// first idle), since it is something a person can see arrive.
+(window.requestIdleCallback || ((fn) => setTimeout(fn, 2500)))(() => {
   import("./screens/whatsnew.js").then((m) => m.paintNewDot()).catch(() => {});
 });
 

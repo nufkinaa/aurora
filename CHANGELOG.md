@@ -3,6 +3,42 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.96 — 2026-10-11
+
+- **The website opens much faster on a phone and on a weak line**, and looks exactly the same (before-and-after screenshots match pixel for pixel). On a slow phone with a slow-3G line, a first visit reaches a usable Home in about 3.3 s instead of 12 s, and a repeat visit in 1.3 s instead of 3.1 s; on a 1.5 Mbit/s line, 1.5 s instead of 3.7 s. What changed: the first screen's needs go first and everything else waits for it; the questions the app asks at start-up go out while its code is still arriving; the code travels at half the size; and the offline copy of the app no longer downloads everything a second time.
+- A request that never answers now gives up: a stalled Home ends in "Couldn't load the library — Try again" instead of an endless skeleton, and a stalled history read no longer leaves a blank page (progress is not saved over a history that could not be read, as before).
+- **Screens you leave are let go.** Title pages, Search, the grids and the player each stayed in memory after you left them, so a long session got heavier with every page; they are now released.
+- Episode pictures come through Aurora's own picture cache instead of straight from another site.
+- For whoever runs the server: run `npm install` after updating (the smaller code needs one new optional package; without it the site still works, with the code served as written).
+
+## 1.6.95 — 2026-10-11
+
+- **Films and episodes start sooner on the website.** Pressing Play now asks the server for everything at once instead of one thing after another, the server has the first seconds ready while you are still on the title's page, and the picture appears while the first piece is still arriving. On a fast line to a distant server a typical start went from about 3.7 s to under 1 s; on a slow line most starts are now between half a second and two seconds.
+- **A thin line no longer means a long wait.** The player used to pick a quality the line could not carry, give up and start over, sometimes for a minute or two. It now remembers how fast this device's line was, starts at a quality that fits, and steps up from there.
+- MP4 files whose index sits at the end of the file start without first downloading the film's tail.
+- Resuming goes straight to where you stopped instead of starting at the top and jumping.
+- Leaving a film tells the server at once, so the work it was doing for you stops and the next person is not kept waiting. Only your own film is stopped — never someone else's.
+- When the server is full, the player waits a few seconds and tries again instead of showing an error.
+- The TV app carries the same groundwork from its next update (its start-up tuning stays off until it has been measured on a TV).
+
+## 1.6.94 — 2026-10-11
+
+- **The server does much less work for the same answers**, which matters most on a small PC. Composing Home takes about a sixth of the processor time it did (341 → 55 ms on a two-core test machine with a 1,260-title library); search about half; pictures, video ranges and playlists a third less each. With five people watching, the slow tenth of Home loads went from 226 ms to 57 ms.
+- Adding many new files no longer freezes the server while they are examined: 300 new files used to hold everything for 18–30 seconds; now nothing waits.
+- An idle server wakes far less: the ten-minute library check reads each folder once, apps are no longer told "the library changed" when a check found nothing new, and the intro pass stops re-examining episodes it already knows it cannot analyse. Idle processor use is down about 40 %.
+- Start-up is about a second quicker, and the HDR speed test (12 processor-seconds at every start) is remembered instead of repeated.
+- The actor and director sheet: the photo counter no longer starts empty, and pressing an arrow the instant a photo opens is not lost.
+
+## 1.6.93 — 2026-10-11
+
+- **A keeper for the server.** `start-aurora.cmd` now starts Aurora under a small keeper that starts it again when it crashes or stops answering, keeps the log, and gives up politely (one alert, then a retry every 15 minutes) when it crashes five times in ten minutes. Admin → Restart works through it and takes about a second; on a server nothing is keeping, Restart now refuses with a sentence instead of stopping the server for good. To start with Windows: `deploy\windows\install-keeper-task.ps1`; on Linux: `deploy/linux/aurora.service`. docs/operations.md has the steps. `start-aurora.cmd --bare` is the old behaviour.
+- **Stopping cleanly.** On a stop or restart everything is saved, apps are told to come back, answers in flight get a few seconds to finish, and helper processes are ended.
+- **A damaged file can no longer become an empty household.** Saves are written through to the disk and retried when Windows has the file locked. Each store keeps two last-good copies; a file that is missing, cut short or the wrong shape at start-up is restored from the newest good copy, then from the newest verified backup, and the admin is told once what was lost. If nothing good exists for profiles, sign-ins or settings, Aurora goes into a safe mode that never overwrites the damaged file and says what to do (Admin → Actions → Data safety).
+- Backups: an optional second location on another disk (`backupMirrorDir`), a weekly restore drill that proves the newest snapshot can be read back, a warning when a snapshot suddenly holds half the profiles or history of the last one, and `node src/lib/backup.js restore-live`.
+- **A library change no longer makes every device ask at once.** The server sends one message per burst of changes; the website waits a random moment (none on Home) and asks once; Home and the library list are kept and answered with "unchanged" when they are; heavy requests take turns so small ones are not stuck behind them, and a client that hammers gets "try again shortly". With 100 devices and one rescan, other requests waited at most 0.17 s instead of 2.6 s.
+- **Background encodes stand behind the people watching.** Play-ready copies, intro detection and subtitle OCR run at the lowest priority on half the threads, wait while anyone is being transcoded for, and step aside when a viewer starts. A 1080p viewer encode beside a 4K copy ran at 1.5–1.8× real time before and 4× after.
+- **The number of simultaneous transcodes follows the machine** instead of being fixed at 2: Aurora measures its encode speed once and counts what each job costs (4K and HDR cost more). When full, a viewer is offered a lower quality that fits, then a short wait, then "busy". Admin → Server → Encoding shows the reasoning and can pin a number.
+
 ## 1.6.92 — 2026-10-10
 
 - **Search while you are still typing.** A half-typed word that happens to be the full name of some obscure film no longer pushes aside what you are obviously typing: "reach" now leads with Reacher from your library, then the films called "Reach". The rule: while typing, your library, trending and well-known titles that start with the letters lead (a well-known title one slip away too — "tory" finds Troy); once you press Enter, the exact name is strictly first as before. Well-known exact names ("Up", "Her", "Dune") lead either way.

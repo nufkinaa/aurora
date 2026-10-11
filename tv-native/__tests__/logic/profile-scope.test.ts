@@ -22,7 +22,7 @@ const SRC = path.join(__dirname, '../../src');
 
 // file (relative to src/) → the variables in it that belong to the profile
 const PROFILE: Record<string, string[]> = {
-  'api.ts': ['homeKept', 'memoStore'],
+  'api.ts': ['homeKept', 'memoStore', 'lastState'],
   'artPrefetch.ts': ['wants', 'queue', 'timer'],
   'homeScreen.ts': ['lastNext', 'lastChannel', 'lastConfig', 'lastRows', 'lastProfile', 'lastJobs'],
   'navSection.ts': ['cache', 'cacheAt', 'loading'],
@@ -95,6 +95,8 @@ const DEVICE: Record<string, Record<string, string>> = {
   'navLock.ts': {lastNav: 'a debounce stamp'},
   'navSection.ts': {newSeen: 'which release this TV has seen', newSubs: 'listeners'},
   'overlay.ts': {current: 'the open sheet (unmounts with the navigator)', subs: 'listeners'},
+  'playback/Player.tsx': {tunedBuffers: 'buffer settings by the server’s tuning — one object per setting, the same for everybody'},
+  'playback/tuning.ts': {current: 'what the server said about how a film starts (the admin’s, not a person’s)', asked: 'a debounce stamp'},
   'perfTier.ts': {
     lite: 'what this box can do',
     measuring: 'frame monitor',

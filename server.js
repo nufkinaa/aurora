@@ -119,6 +119,15 @@ server.on("error", (err) => {
   process.exit(1);
 });
 
+// While the server is stopping (lib/shutdown.js) every answer closes its
+// connection, so a keep-alive client's next request reaches the new process.
+app.use(require("./src/lib/shutdown").middleware);
+
+// How long the server itself took over each data and stream answer, as the
+// standard Server-Timing header (lib/servertiming.js) — so a slow start can
+// be put down to the server, the line or the player.
+app.use(["/api", "/stream"], require("./src/lib/servertiming").middleware);
+
 app.use(express.json());
 
 // Gzip/deflate for text payloads. Measured on this library (35 titles):
@@ -127,12 +136,10 @@ app.use(express.json());
 // else on the box moves that much data for that little work.
 //
 // The filter is an allow-list, not `compression`'s default, on purpose: video,
-// HLS segments and the APK must stream untouched. Re-compressing an .mp4 wastes
-// CPU for nothing, and buffering a range response to deflate it is how you turn
-// instant seeking into a stall.
+// HLS segments and the APK must stream untouched (lib/compressible.js has the
+// list and the reasons — HLS playlists are on it, segments never).
 const compression = require("compression");
 const zlib = require("zlib");
-const COMPRESSIBLE = /^(?:application\/(?:json|javascript|xml|manifest)|text\/|image\/svg)/i;
 app.use(
   compression({
     threshold: 1024, // below ~1 KB the header overhead is most of the packet
@@ -142,12 +149,7 @@ app.use(
     // the real payloads: q6 beats gzip ~5% on code and ~21% on /api/home
     // JSON at ~1-3ms per response; q9 shaves only ~2% more for 4x the CPU.
     brotli: { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 6 } },
-    filter: (req, res) => {
-      if (req.headers["x-no-compression"]) return false;
-      // 206 Partial Content is the seek path. Leave it alone.
-      if (res.statusCode === 206) return false;
-      return COMPRESSIBLE.test(String(res.getHeader("Content-Type") || ""));
-    },
+    filter: require("./src/lib/compressible").filter,
   })
 );
 
@@ -266,6 +268,15 @@ app.get("/css/aurora.css", (req, res) => {
   res.setHeader("ETag", `"${hash}"`);
   res.setHeader("Cache-Control", req.query.v ? "public, max-age=31536000, immutable" : "no-cache");
   if (req.headers["if-none-match"] === `"${hash}"`) return res.status(304).end();
+  // compressed once per version, not once per request (cssbundle.compressed);
+  // the compression middleware sees Content-Encoding and leaves it alone
+  const enc = req.headers["x-no-compression"] ? null : require("./src/lib/answermemo")._internals.pickEncoding(req.headers["accept-encoding"]);
+  const packed = enc ? cssbundle.compressed(path.join(__dirname, "public", "css"), enc) : null;
+  if (packed) {
+    res.setHeader("Content-Encoding", enc);
+    res.vary("Accept-Encoding");
+    return res.send(packed);
+  }
   res.send(css);
 });
 
@@ -333,6 +344,13 @@ app.get("/tv-version.json", (req, res, next) => {
   res.json(a);
 });
 
+// The website's modules: re-printed without comments, content-addressed and
+// pre-compressed (src/lib/jsassets.js). /js/x.js?v=<its hash> is immutable;
+// /js/x.js without one is what it always was — no-cache, an ETag, cheap 304s.
+// A path it does not know falls through to the static mount below.
+// (x.js.map: the way back to the file as written, for developer tools.)
+app.get(/^\/js\/.+\.js(?:\.map)?$/, require("./src/lib/jsassets").serve(path.join(__dirname, "public")));
+
 // Code revalidates on every load (cheap 304s) so updates land instantly;
 // images can cache for a day. The one exception: a CSS request that carries
 // the ?v= content hash the shells inject (assetver.js) is immutable — its
@@ -366,10 +384,26 @@ app.get("*", (req, res) => {
 
 realtime.attach(server);
 
+// Stopping well (lib/shutdown.js): on a signal, or when the keeper asks,
+// stores are flushed, live connections told to come back, answers in flight
+// allowed to finish, helper processes ended — then exit. The download engine
+// gets its tidy stop here too.
+{
+  const shutdown = require("./src/lib/shutdown");
+  shutdown.install({ server });
+  shutdown.register("download engine", () => { try { require("./src/media/aria2").shutdown(); } catch {} });
+  shutdown.register("usage statistics", () => { try { require("./src/lib/tel").flush(); } catch {} });
+  require("./src/lib/looplag").start();
+}
+
 // Library events -> clients
-scanner.events.on("updated", () => realtime.broadcastAll({ type: "library_updated" }));
-scanner.events.on("enriched", () => {
-  realtime.broadcastAll({ type: "library_updated" });
+scanner.events.on("updated", () => realtime.libraryUpdated());
+scanner.events.on("enriched", (info) => {
+  // Only when the pass found something (new probes, or the first pass since
+  // boot): the ten-minute rescan ends in "enriched" every time, and saying
+  // "ask again" for it made every connected app refetch the library, its
+  // state and Home six times an hour with nothing new.
+  if (scanner.enrichedChanged(info)) realtime.libraryUpdated();
   // Now that embedded-subtitle info is known, queue OCR for bitmap-only videos
   for (const v of scanner.bitmapOnlyVideos()) ocr.enqueue(v.path, v.name);
 });
@@ -393,6 +427,9 @@ require("./src/media/introdetect");
   // One verified snapshot a day of what cannot be rebuilt — profiles, watch
   // state, sign-ins, settings, config (lib/backup.js; restore steps there).
   daily.register("backup", () => require("./src/lib/backup").runDaily());
+  // …and once a week the newest snapshot is proved restorable: unpacked into
+  // a temporary folder, read as the server would read it, counted, removed.
+  daily.register("backup-drill", () => require("./src/lib/backup").drillIfDue());
   // My List downloads: copies fetched because a title was added to a list go
   // stale, then leave, when nobody watches them; failed ones get their one
   // more try (media/mylistdl.js has the rules).
@@ -430,15 +467,24 @@ require("./src/lib/healer").start();
 // loops — told to the admin (ntfy / Telegram) once, and again when they
 // clear; plus the dead-man's-switch ping when "healthPingUrl" is set.
 require("./src/lib/health").start();
+// A store that could not be read at boot was restored from a good copy, or
+// put in safe mode (lib/jsonstore.js): say each such event ONCE, through the
+// health alerts (the log, ntfy / Telegram, the admin page).
+{
+  const health = require("./src/lib/health");
+  require("./src/lib/jsonstore").announceRecoveries((r, sentence) => {
+    health.raise(`store:${r.store}`, r.safeMode ? "critical" : "warn", sentence, "Data safety");
+  });
+}
 online.events.on("updated", () => {
   scanner.scan();
-  realtime.broadcastAll({ type: "library_updated" });
+  realtime.libraryUpdated();
 });
 
 ocr.events.on("job", (job) => {
   if (job.status === "done") {
     scanner.scan(); // pick up the new .srt
-    realtime.broadcastAll({ type: "library_updated" });
+    realtime.libraryUpdated();
   }
   realtime.broadcastAll({ type: "subtitle_ocr", ...job });
 });
@@ -498,16 +544,28 @@ const lanAddress = () => {
   );
 };
 
-server.listen(config.PORT, () => {
+// The queue of connections waiting to be accepted. Node's default (511)
+// overflowed when 500 devices each opened three connections in the same
+// instant after a library change: 2,168 of them were refused at the socket
+// (measured). 4096 is taken as far as the OS allows: on Linux up to
+// net.core.somaxconn; a desktop Windows caps it at about 200 whatever is
+// asked for (measured — there the cure is the clients not arriving together).
+server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // Now that we OWN the port, clear last-run's transcode stumps. Deferred to
   // here (not module load) so a stale/second instance that loses the bind race
   // can't delete this live instance's in-progress transcodes. Synchronous, so
   // it finishes before any HTTP request handler runs.
   try { require("./src/media/remux").bootSweep(); } catch {}
   try { require("./src/media/torrent-transcode").bootSweep(); } catch {}
+  // How many viewers this machine may encode for at once: worked out from
+  // its CPU and its measured encode speed (media/encbudget.js), from here on.
+  try { require("./src/media/encbudget").start(); } catch {}
   // Remember which commit this process actually runs — the admin's update
   // card compares it against HEAD on disk to say "restart to apply".
   try { require("./src/lib/updatecheck").captureBoot(); } catch {}
+  // Tell the keeper (when there is one) that the port is ours: from here on
+  // it probes /healthz, and a server that stops answering is restarted.
+  require("./src/lib/supervisor").tell({ type: "listening", port: config.PORT, pid: process.pid });
 
   const { movies, shows } = scanner.index;
   const network = lanAddress();

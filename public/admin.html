@@ -506,8 +506,22 @@
       </div>
       <div id="ac-groups"><div class="empty-note">Loading…</div></div>
       <div class="card">
+        <h2>Data safety <span class="note">the files that hold the household — profiles, progress, sign-ins, settings: are they saved, and what happened if one was ever damaged</span></h2>
+        <div id="ds-state" class="empty-note">Checking…</div>
+        <div id="ds-safe" style="margin-top:10px;display:grid;gap:8px"></div>
+        <div id="ds-recoveries" style="margin-top:10px;display:grid;gap:6px"></div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini hidden" id="ds-ack-btn">Acknowledge — I have read these</button>
+        </div>
+      </div>
+      <div class="card">
         <h2>Backups <span class="note" id="ac-bk-note"></span></h2>
         <div id="ac-bk-advice" class="empty-note hidden" style="margin-bottom:10px"></div>
+        <div id="ac-bk-where" class="empty-note" style="margin-bottom:10px"></div>
+        <div id="ac-bk-drill" class="empty-note" style="margin-bottom:10px"></div>
+        <div style="margin:0 0 10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini" id="ac-bk-drill-btn">Test a restore now</button>
+        </div>
         <div class="table-scroll"><table>
           <thead><tr><th>Snapshot</th><th>Made</th><th>Size</th><th>Check</th><th></th></tr></thead>
           <tbody id="ac-bk-rows"></tbody>
@@ -884,6 +898,18 @@
         <div id="sv-health-events" class="empty-note">No watchdog events yet.</div>
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="mini" id="heal-btn">Heal now (drop caches, stop idle ffmpeg)</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Encoding <span class="note">how many viewers this machine converts video for at once — worked out from its CPU and its measured speed, or set by you</span></h2>
+        <div id="en-sentence" class="empty-note">Checking…</div>
+        <div class="stats" id="en-stats" style="margin:10px 0"></div>
+        <div id="en-running" class="empty-note"></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <label style="display:flex;gap:6px;align-items:center;font-size:0.88rem">At once
+            <select id="en-limit" aria-label="Encodes at once" style="max-width:150px"></select></label>
+          <button class="mini" id="en-apply">Apply</button>
+          <button class="mini" id="en-measure">Measure this machine again</button>
         </div>
       </div>
       <div class="card">
@@ -2505,8 +2531,20 @@
       if (!d || d.error) return;
       $("#ac-bk-note").textContent = d.enabled === false ? "the daily backup is switched off in config.json" : `daily, into ${d.dir}`;
       const adv = $("#ac-bk-advice");
-      adv.classList.toggle("hidden", !(d.sameDiskAsData && d.advice));
-      adv.textContent = d.advice || "";
+      adv.classList.toggle("hidden", !d.advice);
+      adv.innerHTML = d.advice ? `<span class="pill warn">one disk</span> ${esc(d.advice)}` : "";
+      // where the snapshots go: the folder, and the second location when one is set
+      const m = d.mirror;
+      $("#ac-bk-where").innerHTML = m
+        ? `Second location: <b>${esc(m.dir)}</b> — ${m.last && m.last.ok === false ? `<span class="pill bad">last copy failed</span> ${esc(m.last.error || "")}` : `${m.snapshots == null ? "not reachable right now" : `${m.snapshots} snapshot${m.snapshots === 1 ? "" : "s"} there`}${m.sameDiskAsData ? ' · <span class="pill warn">also on the data\'s disk</span>' : m.sameDiskAsData === false ? ' · <span class="pill live">another disk</span>' : ""}`}`
+        : 'Second location: not set <span class="muted">("backupMirrorDir" in config.json — every snapshot is then copied to that folder as well)</span>';
+      // the restore drill: when a restore was last proved to work
+      const dr = d.drill;
+      $("#ac-bk-drill").innerHTML = !dr
+        ? "Restore test: not run yet — it runs once a week by itself, or press the button."
+        : dr.ok
+          ? `Restore test: <span class="pill live">works</span> ${ago(new Date(dr.at).toISOString())} — ${esc(dr.snapshot)} restores ${dr.profiles == null ? "no" : dr.profiles} profile${dr.profiles === 1 ? "" : "s"}, ${dr.historyRows == null ? "no" : dr.historyRows.toLocaleString()} history rows; newest change ${dr.newestChangeAt ? ago(new Date(dr.newestChangeAt).toISOString()) : "unknown"}`
+          : `Restore test: <span class="pill bad">failed</span> ${ago(new Date(dr.at).toISOString())} — ${esc(dr.error || "")}`;
       const list = d.snapshots || [];
       $("#ac-bk-empty").classList.toggle("hidden", list.length > 0);
       $("#ac-bk-rows").innerHTML = list.map((b) => `<tr>
@@ -2517,6 +2555,58 @@
         <td><button class="mini" data-backup="${esc(b.name)}">Download</button></td>
       </tr>`).join("");
     }
+    $("#ac-bk-drill-btn").onclick = async () => {
+      const b = $("#ac-bk-drill-btn"); b.disabled = true; b.textContent = "Restoring into a temporary folder…";
+      try {
+        const r = await post("/api/admin/backups/drill");
+        toast(r.ok ? "The restore test passed — live data was not touched" : `The restore test failed: ${r.error || ""}`);
+      } catch { toast("The restore test could not run"); }
+      b.disabled = false; b.textContent = "Test a restore now";
+      loadBackups();
+    };
+
+    // ---------- data safety (lib/jsonstore.js) ----------
+    // Stores that could not be read at boot: what they were restored from and
+    // what was lost; and a store in SAFE MODE, which waits for a decision here.
+    async function loadDataSafety() {
+      let d;
+      try { d = await json("/api/admin/stores"); } catch { return; }
+      if (!d || d.error) return;
+      const kept = (d.stores || []).filter((x) => x.kind !== "cache");
+      const unsaved = (d.stores || []).filter((x) => x.unsavedSince);
+      const safe = (d.stores || []).filter((x) => x.safeMode);
+      $("#ds-state").innerHTML = safe.length
+        ? `<span class="pill bad">safe mode</span> ${safe.length} file${safe.length === 1 ? "" : "s"} could not be read and had no good copy — nothing is written to ${safe.length === 1 ? "it" : "them"} until you decide below.`
+        : unsaved.length
+          ? `<span class="pill bad">not saved</span> ${esc(unsaved.map((x) => x.name).join(", "))} cannot be written right now — Aurora keeps trying; do not restart until this clears.`
+          : `<span class="pill live">all saved</span> ${kept.length} files, each written atomically with a last-good copy beside it.`;
+      $("#ds-safe").innerHTML = safe.map((x) => `<div class="hl-find fail" style="margin-top:0">
+        <div class="hl-f-title">${esc(x.name)} — safe mode</div>
+        <div class="hl-f-line">It was ${esc(x.safeMode.problem || "damaged")} when Aurora started, and there was no last-good copy and no backup to restore it from. Aurora is showing its defaults and saves nothing to this file${x.name === "profiles.json" ? ": people see an empty house, and what they watch now is not kept" : x.name === "settings.json" ? "; the sign-in wall is closed meanwhile" : "; everyone has to sign in again"}.</div>
+        <div class="hl-f-line"><span>The damaged file</span>${x.safeMode.keptAs ? `is kept as data/${esc(x.safeMode.keptAs)} (and is still in place)` : "was empty"}</div>
+        <div class="hl-f-line"><span>You can</span>stop Aurora, put a good copy of data/${esc(x.name)} back (an old backup, a copy of your own) and start it — or start this file fresh:</div>
+        <div style="margin-top:6px"><button class="mini danger" data-store-accept="${esc(x.name)}">Start ${esc(x.name)} fresh</button></div>
+      </div>`).join("");
+      const recs = (d.recoveries || []).filter((r) => !r.safeMode);
+      const fresh = recs.filter((r) => !r.acknowledged);
+      $("#ds-recoveries").innerHTML = recs.length
+        ? recs.slice(0, 8).map((r) => `<div class="${r.acknowledged ? "muted" : ""}"><span class="muted">${ago(new Date(r.at).toISOString())}</span> · ${r.acknowledged ? "" : '<span class="pill warn">new</span> '}${esc(r.sentence || r.store)}</div>`).join("")
+        : '<div class="muted">No file has ever needed recovering.</div>';
+      $("#ds-ack-btn").classList.toggle("hidden", fresh.length === 0);
+    }
+    $("#ds-ack-btn").onclick = async () => {
+      try { await post("/api/admin/stores/ack"); toast("Acknowledged"); } catch { toast("Could not save that"); }
+      loadDataSafety();
+    };
+    $("#ds-safe").addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-store-accept]");
+      if (!b) return;
+      const name = b.dataset.storeAccept;
+      if (!await ask(`Start ${name} fresh? Aurora carries on from an empty ${name} and saves to it again. The damaged file stays where it was kept, but nothing will restore it by itself after this.`)) return;
+      try { await post(`/api/admin/stores/${encodeURIComponent(name)}/accept`); toast(`${name} started fresh`); } catch { toast("That did not work"); }
+      loadDataSafety();
+    });
+
     // A backup holds config.json and .env, so it is fetched with the admin
     // header (a plain link could not carry it) and handed over as a file.
     $("#ac-bk-rows").addEventListener("click", async (e) => {
@@ -2571,9 +2661,17 @@
     };
 
     $("#update-restart-btn").onclick = async () => {
-      if (!await ask("Restart Aurora now? Anyone watching will be interrupted for a few seconds. (The server must run under pm2 — outside pm2 this only stops it.)")) return;
+      if (!await ask("Restart Aurora now? Anyone watching will be interrupted for a few seconds.")) return;
       const host = $("#sv-update");
-      try { await post("/api/admin/update/restart"); } catch {}
+      // Not supervised: the server refuses (409) and stays up — say why.
+      try {
+        const r = await adminFetch("/api/admin/update/restart", { method: "POST" });
+        if (r.status === 409) {
+          const d = await r.json().catch(() => ({}));
+          host.innerHTML = `<span class="pill warn">not restarted</span> <span class="muted">${esc(d.error || "Nothing supervises the server, so it was not stopped.")}</span>`;
+          return;
+        }
+      } catch {}
       host.innerHTML = `<span class="pill warn">restarting…</span> <span class="muted">waiting for the server to come back</span>`;
       // Poll until the new process answers, then reload the whole page so
       // the admin UI itself is the freshly pulled version too.
@@ -2584,7 +2682,7 @@
           if (r.ok) { location.reload(); return; }
         } catch {}
         if (Date.now() - t0 < 60000) setTimeout(poll, 1000);
-        else host.innerHTML = `<span class="pill warn">still down</span> <span class="muted">the server didn't come back within a minute — check pm2 on the box</span>`;
+        else host.innerHTML = `<span class="pill warn">still down</span> <span class="muted">the server didn't come back within a minute — look at its supervisor on the box (docs/operations.md)</span>`;
       };
       setTimeout(poll, 1500);
     };
@@ -3056,7 +3154,17 @@
         [fmtBytes(n.heapUsed), "heap used", `of ${fmtBytes(n.heapTotal)}`],
         [`${n.lagMs} ms`, "event-loop lag", n.lagMs > h.thresholds.softLagMs ? "sluggish" : "responsive"],
         [String(n.ffmpeg), "ffmpeg children", n.ffmpeg > 0 ? "transcoding / probing now" : "idle"],
-        [h.pm2 ? "pm2" : "bare node", "self-restart", h.pm2 ? "a hard heal restarts the server" : "hard heals are logged only"],
+        (() => {
+          // who restarts the server, how often it has, and why last (lib/supervisor.js)
+          const sv = h.supervisor || { supervised: !!h.pm2, by: h.pm2 ? "pm2" : null };
+          if (!sv.supervised) return ["not supervised", "supervisor", "a crash or a hang lasts until somebody starts it again — see docs/operations.md"];
+          const bits = [`by ${sv.byWords || sv.by}`];
+          if (sv.restartsLastDay != null) bits.push(`${sv.restartsLastDay} restart${sv.restartsLastDay === 1 ? "" : "s"} in the last day`);
+          if (sv.lastExit && sv.lastExitWords) bits.push(`last: ${sv.lastExitWords}, ${ago(new Date(sv.lastExit.at).toISOString())}`);
+          if (sv.state === "parked") bits.push("the keeper gave up on quick restarts");
+          if (sv.survivesReboot === false) bits.push("started by hand: will not come back after a reboot");
+          return [`up ${fmtUptime(sv.uptimeSec)}`, "supervised", bits.join(" · ")];
+        })(),
       ].map(([v, k, note]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div>${note ? `<div class="note">${esc(note)}</div>` : ""}</div>`).join("");
       const ev = h.events || [];
       $("#sv-health-events").innerHTML = ev.length
@@ -3067,6 +3175,56 @@
       const b = $("#heal-btn"); b.disabled = true;
       try { await post("/api/admin/heal"); toast("Caches dropped, idle ffmpeg stopped"); } catch { toast("Heal failed"); }
       b.disabled = false; loadHealth(); loadServer();
+    };
+
+    // ---------- encoding (media/encbudget.js) ----------
+    function paintEncoding(e) {
+      if (!e || e.error && !e.limit) return;
+      $("#en-sentence").innerHTML = `${esc(e.sentence || "")}${e.overloaded ? ` <span class="pill bad">falling behind</span> ${esc(e.overloadWhy || "")} — new encodes are refused for a moment` : ""}`;
+      const run = e.running || {};
+      const cal = e.calibration;
+      const ex = e.examples || null;
+      $("#en-stats").innerHTML = [
+        [String(e.limit), "at once", e.mode === "auto" ? "standard 1080p transcodes that fit" : e.mode === "fixed" ? "fixed by you: every encode counts as one" : "the default until the server has started"],
+        [`${run.load == null ? 0 : run.load} / ${e.capacity}`, "in use", e.mode === "auto" ? "thread-seconds per second of film" : "encodes"],
+        [String(e.logical), "CPU threads", esc(e.cpu || "")],
+        [e.speed == null ? "—" : `${e.speed}×`, "measured speed", cal ? `${cal.cpuSecPerFilmSec} CPU-s per film-s of 1080p, ${ago(new Date(cal.at).toISOString())}` : e.mode === "auto" ? "not measured yet — a cautious guess" : "not used with a fixed number"],
+        [fmtBytes((e.memory.freeMb || 0) * 1048576), "memory free", `${fmtBytes((e.memory.budgetMb || 0) * 1048576)} for encoders (an encoder holds 0.3–1.1 GB)`],
+      ].map(([v, k, note]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div>${note ? `<div class="note">${note}</div>` : ""}</div>`).join("");
+      const cpu = e.cpu || {};
+      const viewers = cpu.viewers || [];
+      const bg = cpu.background || [];
+      $("#en-running").innerHTML =
+        (ex ? `<div class="muted" style="font-size:0.85rem">What fits at once: ${Object.entries(ex).map(([k, n]) => `${esc(k)} × ${n}`).join(" · ")}. A request that does not fit is offered a lower quality that does, waits a few seconds, then is told "busy".</div>` : "") +
+        `<div style="margin-top:6px">${viewers.length ? viewers.map((v) => `<div><span class="pill live">viewer</span> ${esc(v.kind)} · ${esc(v.label || "")} <span class="muted">cost ${esc(String(v.cost))}</span></div>`).join("") : '<span class="muted">Nobody is being encoded for right now.</span>'}</div>` +
+        (bg.length || (cpu.waiting || []).length ? `<div style="margin-top:6px">${bg.map((j) => `<div><span class="pill ${j.paused ? "warn" : ""}">${j.paused ? "paused" : "background"}</span> ${esc(j.kind)} · ${esc(j.label || "")}</div>`).join("")}${(cpu.waiting || []).length ? `<div class="muted">${cpu.waiting.length} background job${cpu.waiting.length === 1 ? "" : "s"} waiting${cpu.quiet ? "" : " for viewers' encodes to finish"}</div>` : ""}</div>` : "");
+      const sel = $("#en-limit");
+      const want = e.setting === "auto" ? "auto" : String(e.setting);
+      sel.innerHTML = `<option value="auto">Automatic</option>` + Array.from({ length: e.maxFixed || 16 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("");
+      sel.value = want;
+    }
+    async function loadEncoding() {
+      try { paintEncoding(await json("/api/admin/encoding")); } catch {}
+    }
+    $("#en-apply").onclick = async () => {
+      const v = $("#en-limit").value;
+      try {
+        const r = await adminFetch("/api/admin/encoding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ maxEncodes: v === "auto" ? "auto" : Number(v) }) });
+        const d = await r.json();
+        if (!r.ok) return toast(d.error || "That was not saved");
+        paintEncoding(d);
+        toast(v === "auto" ? "Automatic" : `Fixed at ${v} at once`);
+      } catch { toast("That was not saved"); }
+    };
+    $("#en-measure").onclick = async () => {
+      const b = $("#en-measure"); b.disabled = true; b.textContent = "Measuring…";
+      try {
+        const r = await adminFetch("/api/admin/encoding/calibrate", { method: "POST" });
+        const d = await r.json();
+        if (!r.ok) toast(d.error || "Could not measure now"); else toast("Measured");
+        paintEncoding(d);
+      } catch { toast("Could not measure now"); }
+      b.disabled = false; b.textContent = "Measure this machine again";
     };
 
     // ---------- the healer ----------
@@ -3696,11 +3854,11 @@
       telemetry: () => loadTelemetry(),
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
       profiles: () => loadPeople(),
-      server: () => { loadServer(); loadHealth(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
+      server: () => { loadServer(); loadHealth(); loadEncoding(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
       downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadLimits(); loadMyList(); },
       moderation: () => { loadReports(); loadRequests(); loadIntros(); },
       logs: () => loadLogs(),
-      actions: () => { loadActions(); loadBackups(); loadAlerts(); },
+      actions: () => { loadActions(); loadDataSafety(); loadBackups(); loadAlerts(); },
     };
     // What each page is for, said once at the top of it.
     const PAGES = {

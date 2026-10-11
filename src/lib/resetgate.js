@@ -160,6 +160,17 @@ const SIGN_IN_AGAIN = [
   ["GET", /^\/avatars\//],
 ];
 const signingInAgain = (req) => SIGN_IN_AGAIN.some(([method, re]) => req.method === method && re.test(req.path));
+// ...unless the request says it was asked EARLY: the website sends its first
+// questions (who am I, the wall's list, the remembered profile's history and
+// Home) from the page itself, before any of its code has run and so before
+// it knows that a new password is due (public/index.html, X-Early). Such a
+// request is nobody's decision to leave: read as one, the wall's list would
+// end the very sign-in the "pick a new password" screen is about to save
+// with. It is refused instead, like any other request made as that profile;
+// the page drops a refused early answer and asks again in its turn. The
+// header can only make this gate stricter (a refusal where the list would
+// have been served to "nobody"), so it is no way round anything.
+const askedEarly = (req) => !!(req.headers && req.headers["x-early"]);
 
 // A header credential the admin ended, and nothing live beside it.
 const signedOut = (req) => {
@@ -192,7 +203,7 @@ const middleware = (req, res, next) => {
   if (require("./internalpass").ok(req)) return next();
   if (rid) {
     if (allowedWhileRestricted(req, rid)) return next();
-    if (signingInAgain(req)) {
+    if (signingInAgain(req) && !askedEarly(req)) {
       // (only a session that came as the COOKIE is ended: a header was put
       // there by a client that may be sitting on its "new password" screen —
       // and not for a face on the wall: a picture is not a decision to leave)

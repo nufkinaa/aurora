@@ -1,0 +1,369 @@
+{
+  "at": "2026-10-10T23:23:34.556Z",
+  "before": "20a1f7e",
+  "after": "f52c246",
+  "weak": true,
+  "rounds": 7,
+  "rows": [
+    {
+      "name": "GET /api/ping",
+      "status": "200/200",
+      "bytesBefore": 80,
+      "bytesAfter": 80,
+      "beforeMs": 0.625,
+      "afterMs": 0.465,
+      "change": "-26 %",
+      "beforeMedianMs": 0.86,
+      "afterMedianMs": 1.015,
+      "changeMedian": "+18 %",
+      "beforeRuns": [
+        0.63,
+        2.03,
+        1.02,
+        0.86,
+        0.78,
+        0.63,
+        1.8
+      ],
+      "afterRuns": [
+        1.49,
+        1.01,
+        1.56,
+        0.79,
+        1.1,
+        0.47,
+        0.78
+      ]
+    },
+    {
+      "name": "GET /api/profiles/:id/state",
+      "status": "200/200",
+      "bytesBefore": 49305,
+      "bytesAfter": 49305,
+      "beforeMs": 15.94,
+      "afterMs": 12.18,
+      "change": "-24 %",
+      "beforeMedianMs": 16.58,
+      "afterMedianMs": 18.12,
+      "changeMedian": "+9 %",
+      "beforeRuns": [
+        18.44,
+        15.94,
+        16.24,
+        16.58,
+        16.24,
+        17.5,
+        17.82
+      ],
+      "afterRuns": [
+        18.12,
+        15.64,
+        19.36,
+        23.76,
+        16.24,
+        19.7,
+        12.18
+      ]
+    },
+    {
+      "name": "GET /api/home",
+      "status": "200/200",
+      "bytesBefore": 53995,
+      "bytesAfter": 53995,
+      "beforeMs": 251.133,
+      "afterMs": 108.267,
+      "change": "-57 %",
+      "beforeMedianMs": 294.733,
+      "afterMedianMs": 121.867,
+      "changeMedian": "-59 %",
+      "beforeRuns": [
+        345.87,
+        333.33,
+        357.27,
+        284.4,
+        294.73,
+        251.13,
+        277.07
+      ],
+      "afterRuns": [
+        131.27,
+        155.2,
+        121.87,
+        108.27,
+        129.27,
+        110.33,
+        109.4
+      ]
+    },
+    {
+      "name": "GET /api/home slim (TV)",
+      "status": "200/200",
+      "bytesBefore": 73481,
+      "bytesAfter": 73481,
+      "beforeMs": 297.867,
+      "afterMs": 105.2,
+      "change": "-65 %",
+      "beforeMedianMs": 345.867,
+      "afterMedianMs": 150,
+      "changeMedian": "-57 %",
+      "beforeRuns": [
+        302.07,
+        345.87,
+        297.93,
+        297.87,
+        350.07,
+        661.4,
+        587.53
+      ],
+      "afterRuns": [
+        120.87,
+        126.07,
+        150,
+        105.2,
+        242.67,
+        169.8,
+        153.13
+      ]
+    },
+    {
+      "name": "GET /api/item/:id (film)",
+      "status": "200/200",
+      "bytesBefore": 770,
+      "bytesAfter": 770,
+      "beforeMs": 1.567,
+      "afterMs": 1.667,
+      "change": "+6 %",
+      "beforeMedianMs": 2.293,
+      "afterMedianMs": 2.087,
+      "changeMedian": "-9 %",
+      "beforeRuns": [
+        2.39,
+        2.29,
+        1.87,
+        2.08,
+        2.29,
+        3.02,
+        1.57
+      ],
+      "afterRuns": [
+        1.87,
+        2.09,
+        1.67,
+        2.39,
+        2.29,
+        1.77,
+        2.19
+      ]
+    },
+    {
+      "name": "GET /api/item/:id (episode)",
+      "status": "200/200",
+      "bytesBefore": 645,
+      "bytesAfter": 645,
+      "beforeMs": 1.453,
+      "afterMs": 1.147,
+      "change": "-21 %",
+      "beforeMedianMs": 1.773,
+      "afterMedianMs": 1.353,
+      "changeMedian": "-24 %",
+      "beforeRuns": [
+        1.57,
+        1.87,
+        1.57,
+        1.97,
+        2.5,
+        1.77,
+        1.45
+      ],
+      "afterRuns": [
+        1.35,
+        1.35,
+        2.19,
+        1.46,
+        2.19,
+        1.15,
+        1.25
+      ]
+    },
+    {
+      "name": "GET /api/search/suggest v2",
+      "status": "200/200",
+      "bytesBefore": 615,
+      "bytesAfter": 615,
+      "beforeMs": 4.06,
+      "afterMs": 3.74,
+      "change": "-8 %",
+      "beforeMedianMs": 6.24,
+      "afterMedianMs": 4.68,
+      "changeMedian": "-25 %",
+      "beforeRuns": [
+        6.56,
+        4.06,
+        7.52,
+        6.24,
+        7.18,
+        5.96,
+        5
+      ],
+      "afterRuns": [
+        5.32,
+        3.74,
+        4.38,
+        6.26,
+        4.98,
+        4.08,
+        4.68
+      ]
+    },
+    {
+      "name": "GET /img/:id (cover, original)",
+      "status": "200/200",
+      "bytesBefore": 34673,
+      "bytesAfter": 34673,
+      "beforeMs": 1.253,
+      "afterMs": 0.833,
+      "change": "-34 %",
+      "beforeMedianMs": 1.56,
+      "afterMedianMs": 0.94,
+      "changeMedian": "-40 %",
+      "beforeRuns": [
+        1.56,
+        1.77,
+        1.25,
+        1.87,
+        1.35,
+        1.56,
+        1.36
+      ],
+      "afterRuns": [
+        1.15,
+        1.46,
+        0.83,
+        2.81,
+        0.94,
+        0.93,
+        0.94
+      ]
+    },
+    {
+      "name": "GET /img/:id?w=256 (variant made)",
+      "status": "200/200",
+      "bytesBefore": 4632,
+      "bytesAfter": 4632,
+      "beforeMs": 1.247,
+      "afterMs": 0.94,
+      "change": "-25 %",
+      "beforeMedianMs": 1.36,
+      "afterMedianMs": 1.047,
+      "changeMedian": "-23 %",
+      "beforeRuns": [
+        1.57,
+        1.97,
+        1.46,
+        1.36,
+        1.35,
+        1.25,
+        1.25
+      ],
+      "afterRuns": [
+        1.05,
+        1.03,
+        2.71,
+        1.04,
+        1.25,
+        0.94,
+        1.67
+      ]
+    },
+    {
+      "name": "GET /img/ext?u=&w=256 (cached, variant made)",
+      "status": "200/200",
+      "bytesBefore": 4632,
+      "bytesAfter": 4632,
+      "beforeMs": 1.347,
+      "afterMs": 0.833,
+      "change": "-38 %",
+      "beforeMedianMs": 1.467,
+      "afterMedianMs": 1.567,
+      "changeMedian": "+7 %",
+      "beforeRuns": [
+        1.98,
+        1.46,
+        1.47,
+        1.35,
+        1.87,
+        1.46,
+        1.56
+      ],
+      "afterRuns": [
+        0.83,
+        1.67,
+        1.57,
+        2.08,
+        1.57,
+        1.15,
+        1.45
+      ]
+    },
+    {
+      "name": "GET /stream/video/:id (range, 64 KB)",
+      "status": "206/206",
+      "bytesBefore": 65536,
+      "bytesAfter": 65536,
+      "beforeMs": 0.933,
+      "afterMs": 0.627,
+      "change": "-33 %",
+      "beforeMedianMs": 1.253,
+      "afterMedianMs": 0.84,
+      "changeMedian": "-33 %",
+      "beforeRuns": [
+        1.25,
+        0.94,
+        0.93,
+        1.46,
+        1.35,
+        1.25,
+        1.67
+      ],
+      "afterRuns": [
+        1.45,
+        0.84,
+        0.63,
+        0.93,
+        1.25,
+        0.73,
+        0.83
+      ]
+    },
+    {
+      "name": "GET /stream/subtitle/:id (sidecar)",
+      "status": "200/200",
+      "bytesBefore": 47,
+      "bytesAfter": 47,
+      "beforeMs": 0.47,
+      "afterMs": 0.15,
+      "change": "-68 %",
+      "beforeMedianMs": 0.78,
+      "afterMedianMs": 0.63,
+      "changeMedian": "-19 %",
+      "beforeRuns": [
+        1.1,
+        0.78,
+        0.78,
+        0.94,
+        0.93,
+        0.47,
+        0.78
+      ],
+      "afterRuns": [
+        0.93,
+        0.94,
+        0.63,
+        0.15,
+        0.95,
+        0.47,
+        0.62
+      ]
+    }
+  ]
+}

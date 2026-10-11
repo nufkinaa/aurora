@@ -869,6 +869,11 @@ function post<T>(path: string, body: unknown): Promise<T> {
 // check is what holds if a request slips in between.
 const MEMO_MAX = 80;
 const memoStore = new Map<string, {at: number; ttl: number; who: string | null; p: Promise<unknown>}>();
+// The profile's state as the server last gave it, and when (see api.state /
+// api.stateIfFresh): a screen that has just read it need not make the next
+// one wait for the same answer.
+let lastState: {profileId: string; at: number; st: unknown} | null = null;
+
 const memo = <T>(key: string, ttl: number, fn: () => Promise<T>, fresh = false): Promise<T> => {
   const hit = memoStore.get(key);
   const now = Date.now();
@@ -901,6 +906,7 @@ export const _memoInternals = {keys: () => [...memoStore.keys()], max: MEMO_MAX,
 registerProfileCache('api', () => {
   memoStore.clear();
   homeKept = null;
+  lastState = null;
 });
 
 // Health-check one candidate URL without touching the global baseUrl. Short
@@ -1276,7 +1282,26 @@ export const api = {
     return memo(path, 45000, () => request<Item>(path), fresh);
   },
   state: (profileId: string) =>
-    request<ProfileState>(`/api/profiles/${profileId}/state`),
+    request<ProfileState>(`/api/profiles/${profileId}/state`).then(st => {
+      lastState = {profileId, at: Date.now(), st};
+      return st;
+    }),
+  // The state a screen read from the server within the last `maxAgeMs`, or
+  // null. The title page reads it to draw Play / Resume; the player, opened
+  // from that page a moment later, starts from the same answer instead of
+  // asking again before it may begin (one round trip, on every start).
+  // Forgotten the moment anything is written to it (forgetState).
+  stateIfFresh: (profileId: string, maxAgeMs: number): ProfileState | null =>
+    lastState && lastState.profileId === profileId && Date.now() - lastState.at <= maxAgeMs
+      ? (lastState.st as ProfileState)
+      : null,
+  forgetState: () => {
+    lastState = null;
+  },
+  // The player's start-up tuning, as this server's admin set it (the
+  // server's lib/tvtuning.js). {} — or no answer at all, from a server that
+  // predates it — keeps the app's own values. See playback/tuning.ts.
+  tvTuning: () => request<Record<string, unknown>>('/api/tv/tuning'),
   // Hide a show's synthesized "up next" card. clearProgress can't (the card's
   // id is the NEXT episode's; the progress row lives under the previous one).
   dismissUpNext: (profileId: string, showId: string, episodeId: string) =>

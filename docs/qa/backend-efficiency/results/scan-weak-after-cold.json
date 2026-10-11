@@ -1,0 +1,89 @@
+{
+  "at": "2026-10-11T00:08:14.172Z",
+  "ref": "working tree",
+  "weak": true,
+  "walk": {
+    "runs": 3,
+    "quiet": true,
+    "films": 1201,
+    "shows": 60,
+    "wallMs": 441.1,
+    "cpuMs": 437,
+    "fsCalls": {
+      "readdirSync": 1383,
+      "statSync": 1801
+    },
+    "fsCallsTotal": 3184,
+    "wallRuns": [
+      441,
+      591,
+      331
+    ],
+    "cpuRuns": [
+      437,
+      500,
+      313
+    ]
+  },
+  "withListeners": {
+    "runs": 3,
+    "quiet": false,
+    "films": 1201,
+    "shows": 60,
+    "wallMs": 415.9,
+    "cpuMs": 312,
+    "fsCalls": {
+      "readdirSync": 1383,
+      "statSync": 1801
+    },
+    "fsCallsTotal": 3184,
+    "wallRuns": [
+      360,
+      978,
+      416
+    ],
+    "cpuRuns": [
+      312,
+      437,
+      297
+    ],
+    "afterScan": [
+      {
+        "what": "identity stamps (ensureStamped)",
+        "firstMs": 1.7,
+        "againMs": 0
+      },
+      {
+        "what": "title-history fold (getProgressView)",
+        "firstMs": 6.5,
+        "againMs": 0.5
+      },
+      {
+        "what": "search index (first suggest)",
+        "firstMs": 99.7,
+        "againMs": 7
+      },
+      {
+        "what": "continue watching",
+        "firstMs": 2,
+        "againMs": 1.3
+      }
+    ],
+    "afterScanTaxMs": 101.1
+  },
+  "cold": {
+    "files": 300,
+    "secondsUntilProbed": 33.4,
+    "listeningMs": 4218,
+    "probes": 301,
+    "blockedMsInProbes": 0,
+    "msPerProbe": 0,
+    "healthzLagMs": {
+      "p50": 2,
+      "p90": 30,
+      "max": 359,
+      "samples": 131
+    },
+    "sinceMs": 29076
+  }
+}
