@@ -25,12 +25,21 @@ const index = {
   enriched: false,
 };
 
-const makeId = (kind, relPath) =>
-  crypto
-    .createHash("md5")
-    .update(`${kind}|${relPath}`)
-    .digest("hex")
-    .slice(0, 12);
+// An id is a pure function of (kind, path), and a scan asks for the same
+// ones every ten minutes: remembered, so a rescan hashes only what is new.
+// (Bounded: forgotten wholesale long before it could matter.)
+const idMemo = new Map();
+const ID_MEMO_MAX = 200000;
+const makeId = (kind, relPath) => {
+  const key = `${kind}|${relPath}`;
+  let id = idMemo.get(key);
+  if (id === undefined) {
+    id = crypto.createHash("md5").update(key).digest("hex").slice(0, 12);
+    if (idMemo.size >= ID_MEMO_MAX) idMemo.clear();
+    idMemo.set(key, id);
+  }
+  return id;
+};
 
 const byPath = new Map(); // absPath -> id (the downloads queue asks "what did my file become?")
 const register = (kind, absPath, relPath) => {
@@ -44,8 +53,10 @@ const register = (kind, absPath, relPath) => {
 // exactly, so callers pass the same absolute path the scanner walked.
 const idForPath = (absPath) => byPath.get(absPath) || null;
 
-const naturalCompare = (a, b) =>
-  a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+// (One collator for every comparison: a.localeCompare(b, undefined, options)
+// is defined as exactly this compare, minus setting the collator up per call.)
+const naturalCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+const naturalCompare = (a, b) => naturalCollator.compare(a, b);
 
 // A multi-dub file's audio streams, for the player's audio menu — only when
 // there is a choice to make (one track = nothing to list).
@@ -796,5 +807,5 @@ module.exports = {
   subtitleDownloadName,
   // Test-only: folding "<Title>" and "<Title> (<Year>)" folders into one entry
   // must never drop an episode or renumber a season.
-  _internals: { mergeDuplicateShows, uniqueLabels },
+  _internals: { mergeDuplicateShows, uniqueLabels, naturalCompare },
 };
