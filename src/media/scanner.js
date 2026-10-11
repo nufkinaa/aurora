@@ -705,10 +705,12 @@ const enrich = () => {
       return;
     }
     const p = paths[i++];
-    try {
-      metadata.probe(p);
-    } catch {}
-    setImmediate(step); // keep the event loop breathing between probes
+    // One file at a time, as before — but waited for, not blocked on
+    // (metadata.probeAsync): requests are answered while ffprobe runs.
+    metadata
+      .probeAsync(p)
+      .catch(() => {})
+      .then(() => setImmediate(step));
   };
   step();
 };
