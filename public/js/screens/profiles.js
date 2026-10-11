@@ -9,6 +9,8 @@ import { pushScope, popScope } from "../focus.js";
 import * as narrator from "../narrator.js";
 import { showClaimModal } from "../claim.js";
 import { showLoginScreen } from "./login.js";
+import { showResetWall } from "../resetwall.js";
+import { profilePicked } from "../telemetry.js"; // [analytics]
 
 const AVATARS = [
   "🍿", "🎬", "🦊", "🐼", "🚀", "🌵", "🦖", "👾", "🐳", "🌙", "⚡", "🔥",
@@ -56,19 +58,43 @@ export const passwordPrompt = (profile, onSuccess) => {
       err.classList.add("hidden");
       try {
         const typed = input.value;
-        const res = await api.unlockProfile(profile.id, typed);
+        let res = await api.unlockProfile(profile.id, typed);
         close();
         narrator.call("onGoodPassword");
+        // The admin asked this profile for a new password (People → Reset
+        // password): the old one just proved who this is, and what it yielded
+        // opens nothing else on the server. The blocking screen first
+        // (resetwall.js); the profile is entered with the fresh unlock that
+        // saving returns. Remembered meanwhile, so a reload lands on the same
+        // screen (boot asks /api/me with it) rather than back at the wall.
+        if (res.mustReset) {
+          try {
+            localStorage.setItem("aurora-profile", profile.id);
+            if (res.token) sessionStorage.setItem(`aurora-token-${profile.id}`, res.token);
+          } catch {}
+          const fresh = await showResetWall({ profile, currentPassword: typed, token: res.token || null });
+          res = { ...res, mustReset: false, token: fresh.token, ...(fresh.user ? { user: fresh.user } : {}) };
+        }
         onSuccess(res.token, res);
-        // The admin asked for a new password at the next sign-in (People →
-        // Reset password): the old one just proved who this is; a new one is
-        // required before going on. After onSuccess, so the token is set.
-        if (res.mustReset) newPasswordPrompt(profile, typed);
-      } catch {
+      } catch (e) {
+        // Say what happened. Every failure used to read "Not quite. Try
+        // again." — also when the server had stopped taking guesses for a few
+        // minutes, when the admin had locked the profile, and when there was
+        // no server to ask: all three sent people back to retype a password
+        // that was never the problem.
+        const status = e && e.status;
+        const wrong = status === 401;
+        err.textContent =
+          wrong ? "Not quite. Try again."
+          : status === 429 ? `${String(e.message || "Too many attempts").replace(/^./, (c) => c.toUpperCase())}.`
+          : status === 403 ? `This profile has been locked. Take it up with ${state.adminName}.`
+          : "Couldn't reach Aurora. Try again in a moment.";
         err.classList.remove("hidden");
-        input.value = "";
+        if (wrong) {
+          input.value = "";
+          narrator.call("onWrongPassword");
+        }
         input.focus();
-        narrator.call("onWrongPassword");
       }
     };
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
@@ -76,7 +102,7 @@ export const passwordPrompt = (profile, onSuccess) => {
       el("h2", {}, `${profile.avatar} ${profile.name}`),
       el("div", { class: "field" }, el("label", {}, "Enter password"), input, err),
       el("div", { style: { display: "flex", gap: "10px", marginTop: "22px" } },
-        el("button", { class: "btn btn-primary focusable", onclick: submit }, "Unlock"),
+        el("button", { "data-ui": "profile.unlock", class: "btn btn-primary focusable", onclick: submit }, "Unlock"),
         el("button", { class: "btn focusable", onclick: close }, "Cancel")
       ),
     ];
@@ -148,16 +174,27 @@ export const pinPrompt = ({ title, note, choose = false, ok = "Continue", action
   });
 
 // This browser is locked to a kids profile and someone picked another one:
-// the household PIN first. Resolves true when it is fine to go on. Entering
-// the kids profile itself needs nothing; an older server (no kids routes) or
-// a blip has nothing to enforce here — the server-side gate is what counts.
+// the household PIN first — when the pick is a way OUT. Resolves true when it
+// is fine to go on. An older server (no kids routes) or a blip has nothing to
+// enforce here — the server-side gate is what counts.
 // `got.pin` is left holding the PIN that was just accepted, so the profile
 // being opened next doesn't ask for the same PIN a second time.
+//
+// What is not a way out, and so asks for nothing (the server's own rule —
+// POST /api/kids/enter in src/routes/profiles.js — and the TV app's):
+//   - the kids profile the browser is already locked to;
+//   - another KIDS profile that is at least as strict (its age limit is the
+//     same or lower): it can only restrict. Entering it moves the lock there.
+// A kids profile with a HIGHER limit, and any profile that is not a kids one,
+// is a way out: the PIN. Either way the profile's own password is still
+// asked where it has one (openProfile, below) — this is only about the PIN.
 const leaveKidsFirst = async (target, got = {}) => {
   let st = null;
   try { st = await api.kidsStatus(); } catch { return true; }
   const lock = st && st.lock;
   if (!lock || lock.profile === target.id) return true;
+  const limit = target.kids && typeof target.kids.maxAge === "number" ? target.kids.maxAge : null;
+  if (limit !== null && typeof lock.maxAge === "number" && limit <= lock.maxAge) return true;
   const from = state.profiles.find((x) => x.id === lock.profile);
   const lift = async (pin) => {
     await api.kidsExit(pin);
@@ -178,15 +215,27 @@ const leaveKidsFirst = async (target, got = {}) => {
   });
 };
 
-// A profile with NO password, in a house that has a kids profile and a PIN:
-// the PIN opens it (otherwise it is the one-tap way round the kids profile).
-// The server decides — it answers `pinRequired` — and it is the server that
-// refuses the unlock; this only asks. Resolves the unlock answer, or null
-// when the sheet was closed (stay at the wall). A failure that is NOT about
-// the PIN resolves {} as before: there is nothing to verify, entry goes on.
+// A profile with NO password. "No password" is what the wall's list said when
+// it was drawn; whether it is still true — and whether the profile may be
+// entered at all — is the server's to say, so it is ASKED (the unlock, which
+// also hands this device its token and puts it in the admin's device list),
+// and the answer is what opens the profile.
+//
+// FAILS CLOSED: no answer is not a yes. This used to resolve {} on any
+// failure that was not about the PIN and the profile was entered anyway —
+// with no server in reach, with the profile locked by the admin a moment
+// ago, with a password set on it since the list was drawn. The TV app always
+// refused; now this does (openProfile shows why, with a way to try again).
+//
+// In a house that has a kids profile and a PIN, the PIN opens such a profile
+// (otherwise it is the one-tap way round the kids profile). The server
+// decides — it answers `pinRequired` — and it is the server that refuses the
+// unlock; this only asks.
+// Resolves the unlock answer, or null when the PIN sheet was closed (stay at
+// the wall). Throws what the server (or the network) said otherwise.
 const unlockOpenProfile = async (p, pin = "") => {
   try { return await api.unlockProfile(p.id, "", pin); }
-  catch (e) { if (!(e && e.pinRequired)) return {}; }
+  catch (e) { if (!(e && e.pinRequired)) throw e; }
   let meta = null;
   const ok = await pinPrompt({
     title: "Grown-ups only",
@@ -194,42 +243,7 @@ const unlockOpenProfile = async (p, pin = "") => {
     ok: "Open",
     action: async (typed) => { meta = await api.unlockProfile(p.id, "", typed); },
   });
-  return ok ? meta || {} : null;
-};
-
-// "Pick a new password" — the forced reset. Not dismissable by a button: the
-// person either saves a new password or leaves the profile.
-const newPasswordPrompt = (profile, currentPassword) => {
-  const input = el("input", { type: "password", class: "focusable", placeholder: "New password (4+ characters)", autocomplete: "new-password" });
-  const again = el("input", { type: "password", class: "focusable", placeholder: "Once more", autocomplete: "new-password" });
-  const err = el("div", { class: "pw-error hidden" }, "");
-  const fail = (msg) => { err.textContent = msg; err.classList.remove("hidden"); };
-  modal((close) => {
-    const submit = async () => {
-      err.classList.add("hidden");
-      if (input.value.length < 4) return fail("At least 4 characters.");
-      if (input.value !== again.value) return fail("They don't match.");
-      try {
-        await api.setPassword(profile.id, input.value, currentPassword);
-        close();
-        toast("New password saved — it's your sign-in password too", "✅");
-      } catch (e) {
-        fail((e && e.message) || "Couldn't save it. Try again.");
-      }
-    };
-    again.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") again.focus(); });
-    return [
-      el("h2", {}, `${profile.avatar} Pick a new password`),
-      el("p", { class: "field-hint" }, `${state.adminName} asked you to choose a new password for “${profile.name}” before going on.`),
-      el("div", { class: "field" }, el("label", {}, "New password"), input),
-      el("div", { class: "field" }, el("label", {}, "Once more"), again, err),
-      el("div", { style: { display: "flex", gap: "10px", marginTop: "22px" } },
-        el("button", { class: "btn btn-primary focusable", onclick: submit }, "Save"),
-      ),
-    ];
-  });
-  setTimeout(() => input.focus(), 50);
+  return ok && meta ? meta : null;
 };
 
 // Shown once a new-profile request is filed. Creating a profile isn't instant
@@ -513,7 +527,7 @@ export const profileModal = (existing, onDone) => {
       kidsSection,
       el("div", { class: "field" }, pwSection, pwErr),
       el("div", { style: { display: "flex", gap: "10px", marginTop: "22px", flexWrap: "wrap" } },
-        el("button", { class: "btn btn-primary focusable", onclick: save }, existing ? "Save" : "Create"),
+        el("button", { "data-ui": "profile.save", class: "btn btn-primary focusable", onclick: save }, existing ? "Save" : "Create"),
         el("button", { class: "btn focusable", onclick: close }, "Cancel"),
         existing && !wasKids && state.profiles.length > 1 &&
           el("button", {
@@ -565,7 +579,7 @@ export const showProfileGate = (onChosen, opts = {}) => {
   if (opts.dismissable) {
     const onBack = (e) => { e.preventDefault(); cleanup(); };
     document.addEventListener("ui-back", onBack);
-    wrap.append(el("button", {
+    wrap.append(el("button", { "data-ui": "profile.gate.close",
       class: "gate-close focusable", "aria-label": "Close",
       onclick: () => cleanup(),
     }, "✕"));
@@ -576,6 +590,7 @@ export const showProfileGate = (onChosen, opts = {}) => {
     // Unlocking a claimed profile signs the device in as a side effect (the
     // server just verified the same password) — keep the client in step.
     if (meta && meta.user) state.user = meta.user;
+    profilePicked(); // [analytics] profile accepted → Home usable, as a timing
     await setProfile(p, token);
     cleanup();
     onChosen(p);
@@ -607,10 +622,56 @@ export const showProfileGate = (onChosen, opts = {}) => {
     enter(p, token, meta);
   };
 
+  // Why a profile did not open, said at the wall itself, with "Try again"
+  // where trying again can help. Gone on the next pick.
+  const notice = el("div", { class: "profiles-notice hidden", role: "alert" });
+  const clearNotice = () => { notice.classList.add("hidden"); notice.innerHTML = ""; };
+  const showNotice = (text, retry = null) => {
+    notice.innerHTML = "";
+    notice.append(el("span", {}, text));
+    if (retry) {
+      const again = el("button", { class: "btn small focusable", type: "button", onclick: retry }, "Try again");
+      notice.append(again);
+      setTimeout(() => again.focus({ preventScroll: true }), 30);
+    }
+    notice.classList.remove("hidden");
+  };
+  // The unlock of a password-less profile was not answered with a yes.
+  const refuseOpen = async (p, e) => {
+    const status = e && e.status;
+    const said = String((e && e.message) || "");
+    if (status === 401 && /wrong password/i.test(said)) {
+      // it has a password now (set since this wall was drawn): ask for it
+      await render();
+      const now = state.profiles.find((x) => x.id === p.id);
+      if (now && now.hasPassword) return openProfile(now);
+      return showNotice(`Couldn't open “${p.name}”.`, () => openProfile(now || p));
+    }
+    if (status === 404) {
+      await render();
+      return showNotice(`“${p.name}” isn't there any more.`);
+    }
+    if (status === 403 && /locked by admin/i.test(said)) {
+      await render(); // the tile shows the lock from here on
+      return showNotice(`“${p.name}” has been locked. Take it up with ${state.adminName}.`);
+    }
+    // the server's own words where it gave a reason a person can act on
+    if (status === 403 || status === 429) {
+      return showNotice(said ? said.replace(/^./, (c) => c.toUpperCase()) + (/[.!?]$/.test(said) ? "" : ".") : `Couldn't open “${p.name}”.`,
+        status === 429 ? () => openProfile(p) : null);
+    }
+    // a refusal the app already acts on (sign in again, pick a new password)
+    if (e && (e.signinRequired || e.passwordResetRequired || e.signedOut)) return;
+    // no answer at all, or the server fell over
+    showNotice("Can't reach the server — try again.", () => openProfile(p));
+  };
+
   const openProfile = async (p) => {
+    clearNotice();
     // Admin-locked: no way in, not even with the password.
     if (p.locked) return toast(`That profile's been locked. Take it up with ${state.adminName}.`, "🚫");
-    // Leaving a kids profile for any other one: the household PIN first.
+    // Leaving a kids profile for a less restricted one: the household PIN
+    // first (leaveKidsFirst has the rule).
     const got = {};
     if (!(await leaveKidsFirst(p, got))) return;
     // Signed in as this profile? The session was minted by the same password
@@ -637,19 +698,19 @@ export const showProfileGate = (onChosen, opts = {}) => {
       }
       return passwordPrompt(p, (token, meta) => maybeClaimThenEnter(p, token, meta));
     }
-    // No password to check, but still call unlock: it hands this device a
-    // session token and it's what tells the server which device entered, so the
-    // admin's per-profile device list covers open profiles too. A failure here
-    // must never block entry — there is nothing to verify.
-    // (The one thing that DOES block: the household PIN, when the server asks
-    // for it — see unlockOpenProfile. Closing that sheet stays at the wall.)
-    const meta = await unlockOpenProfile(p, got.pin || "");
+    // No password to type — but the server is still asked (unlockOpenProfile
+    // has the why), and only its yes opens the profile: with no answer the
+    // wall says so and offers to try again. Closing the PIN sheet, when the
+    // server asked for the household PIN, stays at the wall.
+    let meta = null;
+    try { meta = await unlockOpenProfile(p, got.pin || ""); }
+    catch (e) { return refuseOpen(p, e); }
     if (!meta) return;
     maybeClaimThenEnter(p, meta.token || null, meta);
   };
 
   const tile = (p) =>
-    el("button", {
+    el("button", { "data-ui": "profile.pick",
       class: "profile-tile focusable",
       style: p.locked ? { opacity: "0.45" } : {},
       title: p.name,
@@ -670,7 +731,7 @@ export const showProfileGate = (onChosen, opts = {}) => {
   // identity, password — avatar and colors come later, in Preferences).
   // The old create-modal survives only as the EDIT modal.
   const addTile = () =>
-    el("button", {
+    el("button", { "data-ui": "profile.add",
       class: "profile-tile add focusable",
       onclick: async () => {
         const r = await showLoginScreen({ view: "signup" });
@@ -757,6 +818,7 @@ export const showProfileGate = (onChosen, opts = {}) => {
             searchInput
           )
       ),
+      notice,
       body
     );
     paint();

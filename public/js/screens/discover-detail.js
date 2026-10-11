@@ -19,7 +19,9 @@ import {
   fmtAirDate,
   resolveAirStates,
   toast,
-  savedLine,
+  listAddedLine,
+  LIST_REMOVED,
+  listFailedLine,
   confirmSheet,
   artUrl,
   formatBadges,
@@ -57,7 +59,7 @@ import * as surprise from "../surprise.js";
 import { lite } from "../net.js";
 const streamWatchlistButton = (meta) => {
   let inList = false;
-  const btn = el("button", { class: "btn focusable" });
+  const btn = el("button", { "data-ui": "detail.mylist", class: "btn focusable" });
   const paint = () => {
     btn.innerHTML =
       (inList ? icons.check : icons.plus) +
@@ -73,6 +75,12 @@ const streamWatchlistButton = (meta) => {
       .catch(() => {});
   }
   paint();
+  // the same title put on (or taken off) the list from a person's sheet
+  const onElsewhere = (e) => {
+    if (!btn.isConnected) return window.removeEventListener("aurora-watchlist", onElsewhere);
+    if (e.detail && e.detail.imdbId === meta.imdbId) { inList = !!e.detail.inList; paint(); }
+  };
+  window.addEventListener("aurora-watchlist", onElsewhere);
   btn.addEventListener("click", async () => {
     if (!state.profile) return;
     inList = !inList;
@@ -95,10 +103,16 @@ const streamWatchlistButton = (meta) => {
         inList,
       );
       toast(
-        inList ? savedLine(meta.title, res) : "Off the list. Bold.",
+        inList ? listAddedLine(res) : LIST_REMOVED,
         inList ? "➕" : "➖",
       );
-    } catch {}
+    } catch {
+      // it did not happen: the button goes back, and says so
+      const adding = inList;
+      inList = !inList;
+      paint();
+      toast(listFailedLine(adding), "⚠️");
+    }
   });
   return btn;
 };
@@ -772,7 +786,7 @@ const ownedRow = ({ id, label, onDownload, item }) =>
     ),
     // onto this device as a file…
     onDownload &&
-      el("button", {
+      el("button", { "data-ui": "detail.source.download",
         class: "src-act src-icon focusable",
         html: `<span class="src-ic">${icons.downloadDevice}</span><span class="src-lbl">Download</span>`,
         title: "Download the file to this device",
@@ -781,7 +795,7 @@ const ownedRow = ({ id, label, onDownload, item }) =>
       }),
     // …or kept inside the app, playable with no server in reach
     item && offlineButton(item, { rail: true }),
-    el("button", {
+    el("button", { "data-ui": "detail.source.play",
       class: "src-act src-save src-play focusable",
       html: `<span class="src-ic">${icons.play}</span><span class="dl-cap">Play</span>`,
       onclick: () => navigate(`#/play/${id}`),
@@ -909,7 +923,7 @@ const loadSources = async (
       );
       if (collapse) {
         listHost.append(
-          el("button", {
+          el("button", { "data-ui": "detail.sources.more",
             class: "focusable src-more",
             onclick: () => {
               expanded = true;
@@ -962,7 +976,7 @@ const loadSources = async (
         "div",
         { class: "sources-empty" },
         "Couldn't reach the source provider.",
-        el("button", {
+        el("button", { "data-ui": "detail.sources.retry",
           class: "btn small focusable",
           style: { marginLeft: "12px" },
           onclick: () =>
@@ -1257,7 +1271,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   // only; the stills pipeline makes it). The image simply drops out when
   // there is no ffmpeg on the server.
   const resumeButton = (id, position, label, onclick) => {
-    const btn = el("button", { class: "btn btn-primary focusable resume-btn", onclick });
+    const btn = el("button", { "data-ui": "detail.play", class: "btn btn-primary focusable resume-btn", onclick });
     const img = el("img", {
       class: "resume-peek",
       src: `/img/frame/${encodeURIComponent(id)}?t=${Math.floor(position)}`,
@@ -1275,7 +1289,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         ? resumeButton(lib.id, movieProg.position, `Resume ${fmtClock(movieProg.position)}`, () =>
             navigate(`#/play/${lib.id}`),
           )
-        : el("button", {
+        : el("button", { "data-ui": "detail.play",
             class: "btn btn-primary focusable",
             html: icons.play + "<span>Play</span>",
             onclick: () => navigate(`#/play/${lib.id}`),
@@ -1283,7 +1297,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     );
     if (resumable) {
       actions.push(
-        el("button", {
+        el("button", { "data-ui": "detail.restart",
           class: "btn focusable",
           html: icons.play + "<span>Start over</span>",
           onclick: () => navigate(`#/play/${lib.id}?restart=1`),
@@ -1298,7 +1312,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         ? resumeButton(nextUp.local.id, p.position, `Continue S${nextUp.season} E${nextUp.episode} · ${fmtClock(p.position)}`, () =>
             navigate(`#/play/${nextUp.local.id}`),
           )
-        : el("button", {
+        : el("button", { "data-ui": "detail.play",
             class: "btn btn-primary focusable",
             html:
               icons.play +
@@ -1341,7 +1355,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     saveBtn.style.setProperty("--p", String(Math.max(0, Math.min(1, job.progress || 0))));
   };
   if (imdbId && !isShow && !lib && canSource) {
-    saveBtn = el("button", {
+    saveBtn = el("button", { "data-ui": "detail.save",
       class: "btn btn-primary focusable",
       html: icons.download + "<span>Save &amp; watch</span>",
       onclick: async () => {
@@ -1365,7 +1379,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   // while a film's "Stream instead" / "Other versions" has nowhere to go)
   if (imdbId && (isShow || canSource)) {
     actions.push(
-      el("button", {
+      el("button", { "data-ui": "detail.sources",
         class: `btn ${actions.length ? "" : "btn-primary"} focusable btn-sources`,
         html:
           icons.play +
@@ -1379,7 +1393,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   }
   if (surprise.landedHere()) {
     actions.push(
-      el("button", {
+      el("button", { "data-ui": "detail.rollagain",
         class: "btn focusable",
         html: "🎲 <span>Roll again</span>",
         onclick: () => surprise.rollAgain(),
@@ -1399,7 +1413,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       b.setAttribute("aria-pressed", following() ? "true" : "false");
       b.title = following() ? "New episodes download by themselves. Press to stop." : "Download new episodes by themselves when they air";
     };
-    const followBtn = el("button", {
+    const followBtn = el("button", { "data-ui": "detail.follow",
       class: "btn focusable btn-follow",
       onclick: async () => {
         const next = !following();
@@ -1431,7 +1445,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     const xrKeys = [lib && lib.id].filter(Boolean);
     let xrNode = null;
     let xrBackY = 0; // where the page was when X-Ray opened
-    const xrBtn = el("button", {
+    const xrBtn = el("button", { "data-ui": "detail.xray",
       class: "btn btn-icon focusable btn-xray",
       title: "X-Ray — cast, crew and ratings",
       "aria-label": "X-Ray",
@@ -1439,6 +1453,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     });
     const onXrBack = (e) => {
       if (!screen.isConnected || !screen.classList.contains("xray-on")) return document.removeEventListener("ui-back", onXrBack);
+      if (document.querySelector(".person-wrap")) return; // a person's sheet is on top: Back is its own
       e.preventDefault();
       toggleXray();
     };
@@ -1451,6 +1466,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     let xrSheet = null;
     let xrSheetLeave = null; // slides the open sheet off the foot of the screen
     const onSheetBack = (e) => {
+      if (document.querySelector(".person-wrap")) return; // a person's sheet is on top: Back is its own
       e.preventDefault();
       closeXraySheet();
     };
@@ -1482,7 +1498,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       sheet.classList.add("in");
       document.documentElement.style.overflow = "hidden"; // the page behind holds still
       document.addEventListener("ui-back", onSheetBack);
-      // a tap on a cast member goes to Search: the sheet does not follow
+      // leaving the page (a title opened from a person's sheet): the sheet does not follow
       window.addEventListener("hashchange", closeXraySheet);
       xrBtn.classList.add("on");
       xrBtn.setAttribute("aria-pressed", "true");
@@ -1642,7 +1658,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   }
   if (!isShow && lib && lib.downloadUrl) {
     actions.push(
-      el("button", {
+      el("button", { "data-ui": "detail.download.device",
         class: "btn btn-icon focusable",
         html: icons.downloadDevice,
         title: "Download to this device",
@@ -1657,7 +1673,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     const watchId = lib ? lib.id : streamProgressKey(imdbId);
     const seen = (lib ? movieProg : progressFor(watchId)) || null;
     actions.push(
-      el("button", {
+      el("button", { "data-ui": "detail.watched",
         class: "btn btn-icon focusable",
         html: icons.check,
         title: seen && seen.finished ? "Mark unwatched" : "Mark watched",
@@ -1734,7 +1750,6 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       !isShow && lib && lib.duration && fmtDuration(lib.duration),
       !isShow && !lib && meta && meta.runtime,
       !isShow && lib && lib.sizeBytes && fmtBytes(lib.sizeBytes),
-      meta && meta.director && `Dir. ${meta.director}`,
       upcoming && `Next episode ${fmtAirDate(upcoming)}`,
     ];
   };
@@ -1747,13 +1762,28 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   );
   if (keepY) restoreScrollY(keepY);
 
-  const castLine = (m) =>
-    el(
+  // Who is in it and who made it, each name a press away from that person's
+  // sheet (personSheet.js): photos, what else they made, straight onto My
+  // List. The director used to be "Dir. …" in the line under the title —
+  // plain text; here the name can be pressed.
+  const namesOf = (v) => (Array.isArray(v) ? v : v ? String(v).split(/,\s*/) : []).map((s) => String(s).trim()).filter(Boolean);
+  const personLink = (name, role) =>
+    el("button", {
+      class: "cast-name focusable", type: "button", "aria-haspopup": "dialog", title: `${name}: photos and titles`,
+      onclick: () => import("../personSheet.js").then((p) => p.openPerson({ name, role, of: imdbId || (meta && meta.imdbId) || null, type: isShow ? "series" : "movie" })),
+    }, name);
+  const dotted = (nodes) => nodes.flatMap((n, i) => (i ? [" · ", n] : [n]));
+  const hasPeople = (m) => !!m && (namesOf(m.cast).length > 0 || namesOf(m.director).length > 0);
+  const castLine = (m) => {
+    const cast = namesOf(m.cast);
+    const directors = namesOf(m.director).slice(0, 3);
+    return el(
       "div",
       { class: "detail-cast page-pad" },
-      el("span", { class: "cast-label" }, "Cast "),
-      m.cast.join(" · "),
+      cast.length > 0 && el("span", { class: "cast-group" }, el("span", { class: "cast-label" }, "Cast "), dotted(cast.map((n) => personLink(n, null)))),
+      directors.length > 0 && el("span", { class: "cast-group" }, el("span", { class: "cast-label" }, isShow ? "Created by " : "Director "), dotted(directors.map((n) => personLink(n, isShow ? "Creator" : "Director")))),
     );
+  };
   // On a phone the cast sits straight under the synopsis (inside the title
   // block, before the genres and the rating); on wider screens it stays the
   // line under the hero.
@@ -1762,7 +1792,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     if (syn) syn.after(node);
     else (screen.querySelector(".detail-hero") || screen.lastElementChild).after(node);
   };
-  if (meta && meta.cast && meta.cast.length) placeCast(castLine(meta));
+  if (hasPeople(meta)) placeCast(castLine(meta));
 
   // Late metadata: fill in what the library side doesn't know (backdrop,
   // synopsis, rating, cast, director), rebuild the hero with it, and let the
@@ -1785,7 +1815,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       oldHero.replaceWith(
         heroBlock(view, actions, metaPartsFor(null), { rateKey: imdbId || (lib && lib.id), serverInfo: serverInfoFor() }),
       );
-      if (m.cast && m.cast.length && !screen.querySelector(".detail-cast")) placeCast(castLine(m));
+      if (hasPeople(m) && !screen.querySelector(".detail-cast")) placeCast(castLine(m));
     }
     for (const hook of lateMetaHooks) {
       try { hook(m); } catch {}
@@ -1856,6 +1886,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         view.type === "show" ? "series" : "movie",
         imdbId,
         meta && meta.tmdbId,
+        state.profile ? state.profile.id : null,
       )
       .then(({ items, source }) => {
         const cards = (items || [])
@@ -1896,7 +1927,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     );
     if (lib) {
       screen.classList.add("has-sources-fold", "sources-folded");
-      const fold = el("button", {
+      const fold = el("button", { "data-ui": "detail.sources.fold",
         class: "sources-fold focusable",
         type: "button",
         "aria-expanded": "false",
@@ -2226,7 +2257,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
 
       const epBtn = el(
         "button",
-        {
+        { "data-ui": "detail.episode.play",
           "data-ep": epJobKey(row.season, row.episode),
           class:
             "episode" +
@@ -2339,7 +2370,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       // Only an episode we hold on disk can be handed to the viewer's machine.
       if (local && local.downloadUrl) {
         extras.push(
-          el("button", {
+          el("button", { "data-ui": "detail.episode.download",
             class: "ep-action focusable",
             title: "Download to this device",
             "aria-label": `Download episode ${row.episode} to this device`,
@@ -2353,7 +2384,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       // setWatched) — but nothing that hasn't aired, which nobody can have seen.
       if (state.profile && !unaired && (local || imdbId)) {
         extras.push(
-          el("button", {
+          el("button", { "data-ui": "detail.episode.watched",
             class: `ep-action focusable ${watched ? "on" : ""}`,
             title: watched ? "Mark unwatched" : "Mark watched",
             "aria-label": watched ? "Mark unwatched" : "Mark watched",
@@ -2413,7 +2444,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       // A long show's pills ran off the bar (scrollbar hidden, no affordance) —
       // one picker jumps anywhere. Same dropdown as the browse filters: scope-
       // safe for the D-pad, Back closes it.
-      const seasonBtn = el("button", { class: "picker-btn focusable" });
+      const seasonBtn = el("button", { "data-ui": "detail.season.open", class: "picker-btn focusable" });
       const face = () => {
         seasonBtn.innerHTML = "";
         seasonBtn.append(
@@ -2716,7 +2747,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
 // SAVE and DEVICE rails beside it.
 const offlineButton = (item, { compact = false, rail = false } = {}) => {
   if (!offline.available() || !item || !item.id) return null;
-  const btn = el("button", {
+  const btn = el("button", { "data-ui": "detail.offline",
     class: rail ? "src-act src-icon focusable btn-offline" : `btn ${compact ? "btn-icon" : ""} focusable btn-offline`,
     title: "Save offline — keep it inside Aurora on this device, playable with no server in reach",
     "aria-label": "Save offline on this device",
@@ -2792,7 +2823,7 @@ const offlineButton = (item, { compact = false, rail = false } = {}) => {
 // watch, in order (each with .local, the library item).
 const SEASON_SAVE = 3;
 const seasonOfflineButton = (nextEpisodes, showTitle) => {
-  const btn = el("button", {
+  const btn = el("button", { "data-ui": "detail.offline.season",
     class: "btn btn-icon focusable btn-offline",
     title: `Save the next ${SEASON_SAVE} episodes on this device — to watch with no internet`,
     "aria-label": `Save the next ${SEASON_SAVE} episodes`,
@@ -2860,7 +2891,7 @@ const seasonOfflineButton = (nextEpisodes, showTitle) => {
 const showTrailer = (ytIds, title) => {
   const ids = (ytIds || []).filter(Boolean);
   if (!ids.length) return;
-  const closeBtn = el("button", { class: "btn btn-icon focusable trailer-close", "aria-label": "Close trailer", html: "✕" });
+  const closeBtn = el("button", { "data-ui": "detail.trailer.close", class: "btn btn-icon focusable trailer-close", "aria-label": "Close trailer", html: "✕" });
   const embed = (id) => `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0&modestbranding=1`;
   const frame = el("iframe", {
     src: embed(ids[0]),
@@ -2873,7 +2904,7 @@ const showTrailer = (ytIds, title) => {
   const pills = ids.length > 1
     ? el("div", { class: "trailer-pills", role: "tablist", "aria-label": "Trailers" },
         ids.map((id, i) =>
-          el("button", {
+          el("button", { "data-ui": "detail.trailer.pick",
             class: `chip focusable${i === 0 ? " on" : ""}`,
             role: "tab",
             "aria-selected": i === 0 ? "true" : "false",
@@ -2927,7 +2958,7 @@ const showTrailer = (ytIds, title) => {
 };
 
 const trailerButton = (ytIds, title) =>
-  el("button", {
+  el("button", { "data-ui": "detail.trailer",
     class: "btn focusable btn-trailer",
     html: icons.clapper + "<span>Trailer</span>",
     onclick: () => showTrailer(ytIds, title),

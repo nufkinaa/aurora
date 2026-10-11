@@ -172,14 +172,18 @@ app.use((req, res, next) => {
   const authmode = require("./src/lib/authmode");
   // exact paths (or the /api/auth/ subtree) — prefix matching would let a
   // future route named e.g. /api/me-something slip through the wall unnoticed
-  const OPEN_PATHS = /^\/api\/(ping|me|server-info)$|^\/api\/auth\//;
+  // (usage: [analytics] a device the wall refuses may still say so — the
+  // route keeps only its error reports then, routes/usage.js)
+  const OPEN_PATHS = /^\/api\/(ping|me|server-info|usage)$|^\/api\/auth\//;
   // Everything that serves DATA: the API, video streams, avatars, the artwork
-  // proxy-cache (/img/*) and the generic URL proxy (/proxy). Deliberately NOT
+  // proxy-cache (/img/*), prepared offline copies (/offline/* — a whole film;
+  // it was missing here until 1.6.91, so one could be fetched with no session)
+  // and the generic URL proxy (/proxy). Deliberately NOT
   // gated: the app shell + login screen assets, /admin + /web shells (their
   // APIs gate themselves), and /download (the TV installer — a TV needs it
   // before it can ever sign in; it carries no personal data).
   const GATED = (p) =>
-    /^\/(api|stream|avatars|img)\//.test(p) || p === "/proxy";
+    /^\/(api|stream|avatars|img|offline)\//.test(p) || p === "/proxy";
   const wallSaid = new Map();
   app.use((req, res, next) => {
     if (authmode.get() !== "closed") return next();
@@ -210,6 +214,15 @@ app.use((req, res, next) => {
   });
 }
 
+// A forced password reset, and "signed out by the admin", in EVERY sign-in
+// mode: a credential of a profile that owes a new password opens nothing but
+// the routes that save one; a credential the admin ended sends its device
+// back to the sign-in screen. The rule, the routes and the two refusals are
+// in src/lib/resetgate.js. After the wall above, ahead of every router.
+app.use(require("./src/lib/resetgate").middleware);
+
+// [analytics] how long the heavy endpoints take to answer (lib/tel/timings.js)
+app.use(require("./src/lib/tel/timings").middleware);
 // Blur-up placeholders ride along on JSON answers for clients that ask (lib/blurup.js).
 app.use(require("./src/lib/blurup").middleware);
 app.use(require("./src/routes/auth"));
@@ -284,9 +297,13 @@ app.get("/web", (req, res) => shell(res, "browser.html"));
 // The TV-pairing QR encodes this short path; it lands the phone in the SPA's
 // confirm screen. A plain redirect so the QR stays small and the page gets
 // the full app (sign-in included) for free.
+// With no code — what the TV's "No camera handy? open {host}/link and type
+// this code" sends a person to — it lands on the same screen's code field
+// (#/pair): the old redirect went to "/#/pair/", which matched no route and
+// dropped the phone on Home.
 app.get("/link", (req, res) => {
   const code = String(req.query.code || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 12);
-  res.redirect(`/#/pair/${code}`);
+  res.redirect(code ? `/#/pair/${code}` : "/#/pair");
 });
 
 // The Android TV build. /download is the one path a person has to remember:
@@ -388,7 +405,30 @@ require("./src/media/introdetect");
   // stale, then leave, when nobody watches them; failed ones get their one
   // more try (media/mylistdl.js has the rules).
   daily.register("my-list-downloads", () => require("./src/media/mylistdl").daily());
+  // The recommender's knowledge of titles (media/recs): what people watched,
+  // the catalogue they browse, and a bounded step along what each person
+  // likes — so Home is not limited to this week's trending. TMDB only, free,
+  // counted and capped (recs/index.js BUDGET); without a key it still learns
+  // the catalogue's own genres and plots.
+  daily.register("recommendations", () => require("./src/media/recs").sync());
   daily.start();
+}
+// Search: the well-known titles (the catalogue's popularity list, kept on
+// disk and refreshed weekly, off the request path — media/wellknown.js), and
+// the search index built once before anyone types.
+require("./src/media/wellknown").start();
+{
+  const t = setTimeout(() => require("./src/media/search").warm(), 20 * 1000);
+  t.unref?.();
+}
+// The recommender reads its index into memory a little after boot and again
+// after each scan (a no-op when nothing changed). No network; until the first
+// build finishes Home falls back to the older taste model.
+{
+  const warmRecs = () => require("./src/media/recs").warm().catch(() => {});
+  const t = setTimeout(warmRecs, 15 * 1000);
+  t.unref?.();
+  scanner.events.on("scanned", warmRecs);
 }
 // Followed shows: new episodes download by themselves when they air.
 require("./src/media/follows").start();

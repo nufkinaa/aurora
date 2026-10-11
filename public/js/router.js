@@ -63,6 +63,7 @@ const render = async () => {
     markNav(hash);
     window.scrollTo(0, 0);
     const t0 = performance.now();
+    window.dispatchEvent(new CustomEvent("aurora-route-start", { detail: { pattern: r.pattern } })); // [analytics] which screen is being opened (the pattern, never an id)
     const cleanup = await r.render(appRoot, params);
     if (typeof cleanup === "function") current.cleanup = cleanup;
     // Which screen painted and how long it took (the pattern, never an id) —

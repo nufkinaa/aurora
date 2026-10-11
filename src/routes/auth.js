@@ -12,6 +12,7 @@ const realtime = require("../realtime");
 const {
   readCookie, setSessionCookie, clearSessionCookie, sessionFor,
 } = require("../lib/authz");
+const resetgate = require("../lib/resetgate");
 
 const router = express.Router();
 
@@ -58,12 +59,26 @@ const recordFail = (key) => {
 
 // ---------- core endpoints ----------
 
+// A profile that owes a new password (lib/resetgate.js) is NOT signed in as
+// far as this answer goes — `user` is null, which is what keeps a client that
+// predates the rule at its sign-in screen — and the answer says why:
+// `passwordResetRequired`, with the little a client needs to draw the "pick
+// a new password" screen. Asked with the session (cookie / X-Session) or the
+// unlock token (X-Profile-Token) the device holds.
 router.get("/api/me", (req, res) => {
+  const authMode = require("../lib/authmode").get();
+  const rid = resetgate.restrictedProfile(req);
+  const rp = rid ? profiles.list().find((x) => x.id === rid) : null;
+  if (rp) {
+    return res.json({
+      authMode,
+      user: null,
+      passwordResetRequired: true,
+      resetProfile: { id: rp.id, name: rp.name, avatar: rp.avatar, color: rp.color },
+    });
+  }
   const s = sessionFor(req);
-  res.json({
-    authMode: require("../lib/authmode").get(),
-    user: s ? s.user : null,
-  });
+  res.json({ authMode, user: s ? s.user : null });
 });
 
 // Sign in with username OR email + the profile's password. Success hands
@@ -71,6 +86,16 @@ router.get("/api/me", (req, res) => {
 // body for the TV), the profile card, and a profile unlock TOKEN — login
 // verified the very same password, so asking for it again at the wall would
 // be theater.
+//
+// `mustReset` (the admin's People → "Reset password"): every answer that
+// hands out a session says whether a new password is due — this one, the
+// TV's pairing poll, both Google flows and the wall's unlock
+// (/api/profiles/:id/unlock). When it is, what was just handed out is a
+// RESTRICTED credential: the server refuses everything made with it except
+// saving a new password (lib/resetgate.js has the rule, the list of routes
+// and the refusal). `mustReset` is how a client knows to go straight to its
+// "pick a new password" screen; a client that ignores it (an older TV build)
+// is refused on its next request and lands on its sign-in screen.
 router.post("/api/auth/login", async (req, res) => {
   const { username, password } = req.body || {};
   const ip = realtime.clientIp(req);
@@ -96,11 +121,19 @@ router.post("/api/auth/login", async (req, res) => {
     profile: result.profile,
     profileToken: profiles.issueToken(result.profileId),
     session: sid, // the TV stores this and sends it as X-Session
+    mustReset: !!result.mustReset,
   });
 });
 
 router.post("/api/auth/logout", (req, res) => {
   // both: a TV may carry a cookie from an unlock AND its stored header sid
+  // "Sign out" on the pick-a-new-password screen: the unlock token of a
+  // profile that owes a new password goes too (an unclaimed profile has no
+  // session — the token is all the device holds). Before the sessions: the
+  // check below reads them.
+  const token = req.get("X-Profile-Token");
+  const tokenOf = token ? profiles.tokenProfile(token) : null;
+  if (tokenOf && profiles.resetDue(tokenOf)) profiles.revokeToken(token);
   for (const sid of [readCookie(req), req.get("X-Session")]) if (sid) sessions.revoke(sid);
   clearSessionCookie(req, res);
   res.json({ ok: true });
@@ -206,13 +239,19 @@ router.post("/api/auth/claim", async (req, res) => {
   // claiming signs you in on the spot
   const sid = sessions.create(result.profileId, { ip, device: deviceOf(req) });
   setSessionCookie(req, res, sid);
-  res.json({ ok: true, user: result.user, profile: result.profile, session: sid });
+  res.json({ ok: true, user: result.user, profile: result.profile, session: sid, mustReset: !!result.mustReset });
 });
 
 // ---------- signed-in self-service ----------
 
 // Change my password (the profile's one and only password). Requires the
 // current one — a walked-away-from browser shouldn't be enough.
+// One of the two routes a must-reset session may still call (lib/resetgate.js;
+// the other is /api/profiles/:id/password): then the new password must differ
+// from the old one, and the answer carries fresh credentials for this device
+// ({ token, session, user } — resetgate.finish), every other session of the
+// profile being gone. A wrong current password counts against the same
+// limiter as a wrong unlock.
 router.post("/api/auth/password", async (req, res) => {
   const s = sessionFor(req);
   if (!s) return res.status(401).json({ error: "sign in first" });
@@ -220,9 +259,24 @@ router.post("/api/auth/password", async (req, res) => {
   if (!newPassword || String(newPassword).length < 4) {
     return res.status(400).json({ error: "new password too short (4+ chars)" });
   }
-  const r = await profiles.setPassword(s.profile.id, String(newPassword), currentPassword || "");
-  if (r.error) return res.status(401).json({ error: r.error === "wrong password" ? "current password is wrong" : r.error });
-  res.json({ ok: true });
+  const id = s.profile.id;
+  const ip = realtime.clientIp(req);
+  if (tooMany("unlock:" + ip) || tooMany("unlock:p:" + id)) {
+    return res.status(429).json({ error: "too many attempts — try again in a few minutes" });
+  }
+  const due = profiles.resetDue(id);
+  const r = await profiles.setPassword(id, String(newPassword), currentPassword || "");
+  if (r.error === "wrong password") {
+    recordFail("unlock:" + ip);
+    recordFail("unlock:p:" + id);
+  }
+  if (r.error) {
+    return res.status(r.code ? 400 : 401).json({
+      error: r.error === "wrong password" ? "current password is wrong" : r.error,
+      ...(r.code ? { code: r.code } : {}),
+    });
+  }
+  res.json({ ok: true, ...(due ? resetgate.finish(req, res, id) : {}) });
 });
 
 // Exchange my session for a profile unlock token. The session was minted by
@@ -280,9 +334,21 @@ router.post("/api/auth/device/start", (req, res) => {
 });
 
 // What the phone's confirm screen needs: who is asking (and code validity).
+// A code can be TYPED now (the /link page's code field), so a miss is counted
+// per address like a failed sign-in: ten in fifteen minutes, then 429. A code
+// only ever lets the asker give THEIR OWN session to that TV (devicepair.js),
+// so this is not what keeps pairing safe — it keeps the "who is asking"
+// answer (the TV's address and model) from being fished for by a script.
 router.get("/api/auth/device/describe/:code", (req, res) => {
+  const ip = realtime.clientIp(req);
+  if (tooMany("pairlook:" + ip)) {
+    return res.status(429).json({ error: "too many attempts — try again in a few minutes" });
+  }
   const d = devicepair.describe(req.params.code);
-  if (!d) return res.status(404).json({ error: "that code expired — ask the TV for a fresh one" });
+  if (!d) {
+    recordFail("pairlook:" + ip);
+    return res.status(404).json({ error: "that code expired — ask the TV for a fresh one" });
+  }
   res.json(d);
 });
 
@@ -311,6 +377,7 @@ router.post("/api/auth/device/poll", (req, res) => {
     profile: profiles.pub(p),
     profileToken: profiles.issueToken(p.id),
     session: sid, // the TV stores this and sends it as X-Session
+    mustReset: profiles.resetDue(p.id),
   });
 });
 
@@ -395,6 +462,7 @@ const googleOutcomeFor = (info, req) => {
       user: profiles.signinPub(prof),
       profile: profiles.pub(prof),
       profileToken: profiles.issueToken(prof.id),
+      mustReset: profiles.resetDue(prof.id),
     };
   }
   return { signupSub: { sub: info.sub, email: info.email || null, name: info.name || null } };
@@ -479,7 +547,7 @@ router.post("/api/auth/google/poll", async (req, res) => {
     if (p.signupSub) return res.json({ ok: true, signup: { email: p.signupSub.email, name: p.signupSub.name } });
     gPolls.delete((req.body || {}).pollId);
     setSessionCookie(req, res, p.session);
-    return res.json({ ok: true, user: p.user, profile: p.profile, profileToken: p.profileToken, session: p.session });
+    return res.json({ ok: true, user: p.user, profile: p.profile, profileToken: p.profileToken, session: p.session, mustReset: !!p.mustReset });
   }
   if (Date.now() > p.expiresAt) {
     gPolls.delete((req.body || {}).pollId);
@@ -632,7 +700,7 @@ router.post("/api/auth/google/web-finish", (req, res) => {
     return res.json({ ok: true, signup: { email: o.signupSub.email, name: o.signupSub.name }, pollId });
   }
   setSessionCookie(req, res, o.session);
-  res.json({ ok: true, user: o.user, profile: o.profile, profileToken: o.profileToken, session: o.session });
+  res.json({ ok: true, user: o.user, profile: o.profile, profileToken: o.profileToken, session: o.session, mustReset: !!o.mustReset });
 });
 
 // Link the signed-in profile to a Google identity (same device flow; the
@@ -654,4 +722,4 @@ router.post("/api/auth/google/link", (req, res) => {
 });
 
 module.exports = router;
-module.exports._internals = { tooMany, recordFail, fails, FAIL_MAX, FAIL_WINDOW };
+module.exports._internals = { tooMany, recordFail, fails, FAIL_MAX, FAIL_WINDOW, googleOutcomeFor, gPolls, gStates };

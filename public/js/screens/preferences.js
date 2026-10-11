@@ -3,7 +3,7 @@
 // Reopenable anytime from the nav gear.
 import { el, toast, rerenderInPlace, keptScrollFor, restoreScrollY, promptSheet, haptic } from "../ui.js";
 import { loadLibrary, loadProfiles, state, applyAppearance } from "../state.js";
-import { api } from "../api.js";
+import { api, setAuthToken } from "../api.js";
 import { navigate } from "../router.js";
 import { profileModal, kidsLabel } from "./profiles.js";
 import { playerPrefs, applyCueStyle } from "./player.js";
@@ -67,7 +67,7 @@ const iconFor = (name) => (ICONS[name] ? el("span", { class: "pref-icon", html: 
 const prefRow = (label, note, valueText, onCycle) => {
   const isSwitch = () => valueText() === "On" || valueText() === "Off";
   const value = el("span", {}, valueText());
-  const control = el("button", {
+  const control = el("button", { "data-ui": "settings.toggle",
     class: "btn small focusable pref-item-value",
     onclick: async () => { if (isSwitch()) haptic(8); await onCycle(); paint(); },
   }, value);
@@ -136,7 +136,7 @@ const appearanceSection = () => {
     const curLook = state.profile.look === "glass" ? "glass" : "legacy";
     lookRow.innerHTML = "";
     for (const l of LOOK_DEFS) {
-      lookRow.append(el("button", {
+      lookRow.append(el("button", { "data-ui": "settings.look",
         class: "focusable look-pick" + (l.id === curLook ? " on" : "") + (l.id === "glass" ? " glass-preview" : ""),
         onclick: () => saveAppearance({ look: l.id }),
       },
@@ -151,7 +151,7 @@ const appearanceSection = () => {
     }
     themeRow.innerHTML = "";
     for (const t of THEME_DEFS) {
-      themeRow.append(el("button", {
+      themeRow.append(el("button", { "data-ui": "settings.theme",
         class: "focusable",
         style: {
           display: "flex", flexDirection: "column", gap: "6px", padding: "12px 14px", minWidth: "150px",
@@ -171,7 +171,7 @@ const appearanceSection = () => {
     accentRow.innerHTML = "";
     for (const a of ACCENTS) {
       const active = (curAccent || "#8b7bff") === a;
-      accentRow.append(el("button", {
+      accentRow.append(el("button", { "data-ui": "settings.accent",
         class: "focusable",
         title: a,
         "aria-label": "Accent " + a,
@@ -268,7 +268,7 @@ const homeRowsSection = async () => {
             disabled: i === entries.length - 1 ? "disabled" : undefined,
             onclick: () => move(i, 1),
           }),
-          el("button", {
+          el("button", { "data-ui": "settings.rows.hide",
             class: "mini focusable",
             title: e.hidden ? "Show this row on Home" : "Hide this row from Home",
             onclick: () => { e.hidden = !e.hidden; flashId = e.id; paint(); save(); },
@@ -356,7 +356,7 @@ export const renderPreferences = async (root) => {
   // A row that goes somewhere (or does one thing) — the same shape as a
   // setting's row, with a chevron where a setting has its control.
   const linkRow = (label, note, onClick) =>
-    el("button", { class: "pref-item pref-link focusable", onclick: onClick },
+    el("button", { "data-ui": "settings.link", class: "pref-item pref-link focusable", onclick: onClick },
       iconFor(label),
       el("div", { class: "pref-item-text" },
         el("div", { class: "pref-item-label" }, label),
@@ -554,8 +554,12 @@ export const renderPreferences = async (root) => {
           class: "btn focusable",
           onclick: async () => {
             try {
-              const r = await api.signOutEverywhere(state.profile.id);
-              if (r.token) { state.token = r.token; try { sessionStorage.setItem(`aurora-token-${state.profile.id}`, r.token); } catch {} }
+              const r = await api.signOutEverywhere(state.profile.id, state.clientId);
+              // every unlock token of the profile just ended, this tab's too:
+              // the fresh one goes on the very next request (it used to be
+              // stored for the next reload only — a profile with a password
+              // and no sign-in was refused everything until then)
+              if (r.token) { state.token = r.token; setAuthToken(r.token); try { sessionStorage.setItem(`aurora-token-${state.profile.id}`, r.token); } catch {} }
               paintDevices();
               toast(r.ended ? `Signed out ${r.ended} other device${r.ended === 1 ? "" : "s"}` : "Every other device is signed out", "🔒");
             } catch (e) {
@@ -565,14 +569,9 @@ export const renderPreferences = async (root) => {
         }, "Sign out everywhere else"),
         el("button", {
           class: "btn danger focusable",
-          onclick: async () => {
-            try { await api.logout(); } catch {}
-            try {
-              localStorage.removeItem("aurora-profile");
-              sessionStorage.removeItem(`aurora-token-${state.profile.id}`);
-            } catch {}
-            location.reload();
-          },
+          // one sign-out for the whole app (main.js): it also takes this
+          // browser's notifications off the profile
+          onclick: () => document.dispatchEvent(new CustomEvent("aurora-sign-out")),
         }, "Sign out")),
     );
     return body;
@@ -892,7 +891,7 @@ export const renderPreferences = async (root) => {
       await whatsNew(),
     ),
     el("div", { class: "detail-actions", style: { padding: "8px var(--page-x) 26px" } },
-      el("button", { class: "btn btn-primary focusable", html: "<span>Done</span>", onclick: () => navigate("#/") })
+      el("button", { "data-ui": "settings.done", class: "btn btn-primary focusable", html: "<span>Done</span>", onclick: () => navigate("#/") })
     ),
   );
   if (keepY) restoreScrollY(keepY);

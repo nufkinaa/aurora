@@ -138,14 +138,39 @@ const MIN_PASSWORD = 4;
 // without the gate, anyone could SET a password on a password-less profile
 // (setPassword accepts any currentPassword when none exists) and lock its
 // owner out; in closed mode another signed-in member could do the same.
+//
+// THE FORCED RESET ends here (lib/resetgate.js): this is the route a profile
+// that owes a new password may still call, with the restricted session or
+// unlock token its sign-in yielded. Identity is proven by the CURRENT
+// password, as for any change — a forced reset changes who may go on using
+// the old password, not who the person is; someone who no longer knows it
+// needs the admin's "Set password". Then the new password must be a password
+// (not empty) and not the old one again (profiles.setPassword: 400 with
+// `code` "needed" / "same"), and the answer carries fresh credentials for
+// this device — { token, session?, user? } — while every other session and
+// token of the profile is gone (resetgate.finish).
+// A wrong current password counts against the unlock limiter, here as there.
 router.post("/api/profiles/:id/password", gate, async (req, res) => {
+  const id = req.params.id;
   const { newPassword, currentPassword } = req.body || {};
   if (newPassword && String(newPassword).length < MIN_PASSWORD) {
     return res.status(400).json({ error: `Passwords need at least ${MIN_PASSWORD} characters.` });
   }
-  const result = await profiles.setPassword(req.params.id, newPassword || "", currentPassword || "");
-  if (result.error) return res.status(result.error === "not found" ? 404 : 401).json(result);
-  res.json(result);
+  const { tooMany, recordFail } = require("./auth")._internals;
+  const ip = realtime.clientIp(req);
+  if (tooMany("unlock:" + ip) || tooMany("unlock:p:" + id)) {
+    return res.status(429).json({ error: "too many attempts — try again in a few minutes" });
+  }
+  const due = profiles.resetDue(id);
+  const result = await profiles.setPassword(id, newPassword || "", currentPassword || "");
+  if (result.error === "wrong password") {
+    recordFail("unlock:" + ip);
+    recordFail("unlock:p:" + id);
+  }
+  if (result.error) {
+    return res.status(result.error === "not found" ? 404 : result.code ? 400 : 401).json(result);
+  }
+  res.json(due ? { ...result, ...require("../lib/resetgate").finish(req, res, id) } : result);
 });
 
 // Asking for a profile does NOT create one — anyone who can reach the gate can
@@ -669,6 +694,24 @@ router.post("/api/profiles/:id/follow", gate, (req, res) => {
   res.json(r);
 });
 
+// Recent searches, on the server so every device of a profile shows the same
+// list (they used to live in each browser's storage; the TV had none).
+//   GET    → { items: ["dune", …] }      newest first
+//   POST   { q }  → remembers one        (a search that found something)
+//   DELETE { q }  → forgets one;  DELETE with no q → forgets them all
+router.get("/api/profiles/:id/searches", gate, (req, res) => {
+  res.json({ items: profiles.searchesOf(req.params.id) });
+});
+router.post("/api/profiles/:id/searches", gate, (req, res) => {
+  const q = (req.body || {}).q;
+  if (typeof q !== "string" || q.trim().length < 2) return res.status(400).json({ error: "q required" });
+  res.json({ items: profiles.addSearch(req.params.id, q) });
+});
+router.delete("/api/profiles/:id/searches", gate, (req, res) => {
+  const q = (req.body || {}).q != null ? (req.body || {}).q : req.query.q;
+  res.json({ items: profiles.removeSearch(req.params.id, typeof q === "string" ? q : null) });
+});
+
 // Web Push. The key is public by design; a subscription is filed under the
 // profile that switched it on, and the service worker reads its waiting
 // messages by the hash of its own endpoint (lib/push.js).
@@ -705,14 +748,34 @@ router.post("/api/profiles/:id/signout-everywhere", gate, async (req, res) => {
     ended++;
   }
   profiles.revokeTokensFor(id);
-  // sockets of this profile on other devices drop to the profile wall
-  try {
-    realtime.broadcastAll({ type: "profile_signed_out", profileId: id, except: String((req.body || {}).deviceId || "") });
-  } catch {}
-  res.json({ ok: true, ended, token: profiles.issueToken(id) });
+  // Tell this profile's OTHER open sockets, so a tab or a TV that just lost
+  // its sign-in goes to the sign-in screen now instead of failing on its next
+  // request. Only sockets that are on this profile hear it (by the session
+  // they connected with, or the profile they said hello as) — it used to go
+  // to every socket of every profile. The socket of the device that asked is
+  // left out: it names itself with the `clientId` its welcome message gave it.
+  // A client that hears it checks with the server before acting, so a tab
+  // that still holds a live session (another tab of the asking browser) stays.
+  const except = String((req.body || {}).clientId || "");
+  let told = 0;
+  try { told = tellSignedOut(id, except); } catch {}
+  res.json({ ok: true, ended, told, token: profiles.issueToken(id) });
 });
 
+const tellSignedOut = (profileId, exceptClientId = "") => {
+  let told = 0;
+  const msg = JSON.stringify({ type: "profile_signed_out", profileId });
+  for (const c of realtime.clients.values()) {
+    const ws = c.ws;
+    if (!ws || ws.readyState !== 1 /* OPEN */) continue;
+    if (exceptClientId && c.id === exceptClientId) continue;
+    if (c.profileId !== profileId && ws.profileId !== profileId && ws.restricted !== profileId) continue;
+    try { ws.send(msg); told++; } catch {}
+  }
+  return told;
+};
+
 // Test-only: the PIN attempt limiter (test/kids.test.js).
-router._internals = { pinAttempt, kidsPinGuard, markEntry };
+router._internals = { pinAttempt, kidsPinGuard, markEntry, tellSignedOut };
 
 module.exports = router;

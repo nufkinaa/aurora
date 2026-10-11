@@ -262,14 +262,14 @@ export default function SignIn({
           onSubmitEditing={submit}
         />
         <View style={styles.row}>
-          <Focusable round ref={anchor} onPress={submit} style={styles.btnPrimary}>
+          <Focusable uiId="signin.submit" round ref={anchor} onPress={submit} style={styles.btnPrimary}>
             {busy ? (
               <ActivityIndicator color={colors.bg} />
             ) : (
               <Text style={styles.btnPrimaryText}>Sign in</Text>
             )}
           </Focusable>
-          <Focusable round onPress={() => setMode('qr')} style={styles.btnGhost}>
+          <Focusable uiId="signin.mode.qr" round onPress={() => setMode('qr')} style={styles.btnGhost}>
             <Text style={styles.btnGhostText}>Back</Text>
           </Focusable>
         </View>
@@ -322,11 +322,11 @@ export default function SignIn({
         {gErr ? <Text style={styles.error}>{gErr}</Text> : null}
         <View style={styles.row}>
           {gSignup && !gSent ? (
-            <Focusable round hasTVPreferredFocus onPress={requestAccess} style={styles.btnPrimary}>
+            <Focusable uiId="signin.request" round hasTVPreferredFocus onPress={requestAccess} style={styles.btnPrimary}>
               {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.btnPrimaryText}>Request access</Text>}
             </Focusable>
           ) : null}
-          <Focusable round ref={anchor} hasTVPreferredFocus={!gSignup || gSent} onPress={() => setMode('qr')} style={styles.btnGhost}>
+          <Focusable uiId="signin.mode.qr" round ref={anchor} hasTVPreferredFocus={!gSignup || gSent} onPress={() => setMode('qr')} style={styles.btnGhost}>
             <Text style={styles.btnGhostText}>Back</Text>
           </Focusable>
         </View>
@@ -367,7 +367,7 @@ export default function SignIn({
       </View>
 
       <View style={styles.row}>
-        <Focusable
+        <Focusable uiId="signin.mode.typed"
           round
           ref={anchor}
           hasTVPreferredFocus
@@ -379,7 +379,7 @@ export default function SignIn({
           <Text style={styles.btnGhostText}>Type username & password</Text>
         </Focusable>
         {googleDevice ? (
-          <Focusable round onPress={() => setMode('google')} style={styles.btnGhost}>
+          <Focusable uiId="signin.mode.google" round onPress={() => setMode('google')} style={styles.btnGhost}>
             <Text style={styles.btnGhostText}>Continue with Google</Text>
           </Focusable>
         ) : null}

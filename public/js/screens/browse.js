@@ -20,7 +20,7 @@ import * as dice from "../surprise.js";
 const byTitle = (a, b) => (a.title || "").localeCompare(b.title || "");
 
 const chip = (label, isActive, onclick) =>
-  el("button", { class: `chip focusable ${isActive ? "on" : ""}`, onclick }, label);
+  el("button", { "data-ui": "browse.chip.pick", class: `chip focusable ${isActive ? "on" : ""}`, onclick }, label);
 
 // ---------- My List ----------
 //
@@ -97,7 +97,7 @@ const myListScreen = (items) => {
       gridHost.append(
         el("div", { class: "empty", style: { gridColumn: "1/-1" } },
           "Nothing matches.",
-          el("button", {
+          el("button", { "data-ui": "browse.filter.clear",
             class: "btn small focusable",
             style: { marginTop: "12px" },
             onclick: () => {
@@ -124,7 +124,7 @@ const myListScreen = (items) => {
     );
   };
 
-  const genreBtn = el("button", {
+  const genreBtn = el("button", { "data-ui": "browse.genre.open",
     class: "picker-btn focusable",
     onclick: () =>
       dropdown(
@@ -134,7 +134,7 @@ const myListScreen = (items) => {
         (v) => { genre = v; paint(); applyFilters(); },
       ),
   });
-  const sortBtn = el("button", {
+  const sortBtn = el("button", { "data-ui": "browse.sort.open",
     class: "picker-btn focusable",
     onclick: () =>
       dropdown(sortBtn, LIST_SORTS.map((s) => ({ label: s.label, value: s.id })), sortId,
@@ -258,7 +258,7 @@ export const dropdown = (anchor, options, current, onPick) => {
   };
   const onBack = (e) => { e.preventDefault(); close(); };
   const panel = el("div", { class: "dropdown ui-overlay" },
-    ...options.map((o) => el("button", {
+    ...options.map((o) => el("button", { "data-ui": "browse.option.pick",
       class: `dropdown-item focusable ${o.value === current ? "on" : ""}`,
       onclick: () => { close(); if (o.value !== current) onPick(o.value); },
     }, o.label)));
@@ -426,7 +426,7 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
   // ONE button node for the life of the screen, relabelled in place. Replacing
   // it would throw away the focus the viewer just pressed it with, which on a
   // remote means being dumped back to the nav on every page.
-  const moreBtn = el("button", { class: "btn focusable load-more", onclick: () => loadNext() });
+  const moreBtn = el("button", { "data-ui": "browse.loadmore", class: "btn focusable load-more", onclick: () => loadNext() });
   const paintMore = () => {
     // Local lists and search results are already complete — nothing to page.
     if (cat().local || st.query || (!st.hasMore && !loading)) {
@@ -485,7 +485,7 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
   // paint* helpers below mutate, they never rebuild.
   const catRow = el("div", { class: "cat-row" });
   const catPills = CATEGORIES.map((c) =>
-    el("button", {
+    el("button", { "data-ui": "browse.category.pick",
       class: "cat-pill focusable",
       onclick: () => {
         if (st.category === c.id) return;
@@ -502,7 +502,7 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
   };
 
   const tools = el("div", { class: "filter-bar tools" });
-  const genreBtn = el("button", {
+  const genreBtn = el("button", { "data-ui": "browse.genre.open",
     class: "picker-btn focusable",
     onclick: () => dropdown(genreBtn,
       [{ label: "All genres", value: "" }, ...genreList.map((g) => ({ label: g, value: g }))],
@@ -514,7 +514,7 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
         else reload();
       }),
   });
-  const unwatchedBtn = el("button", {
+  const unwatchedBtn = el("button", { "data-ui": "browse.unwatched",
     class: "chip focusable",
     onclick: () => {
       st.unwatched = !st.unwatched;
@@ -589,7 +589,7 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
   // ---------- head ----------
   const head = el("div", { class: "browse-head" }, el("h1", {}, title), countEl);
   if (surprise) {
-    head.append(el("button", {
+    head.append(el("button", { "data-ui": "browse.surprise",
       class: "btn small focusable",
       style: { marginLeft: "auto" },
       html: "🎲 <span>Surprise me</span>",
@@ -602,7 +602,7 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
   const searchWrap = el("div", { class: "search-wrap", style: { padding: "6px var(--page-x) 4px" } },
     el("div", { class: "search-box", html: icons.search }));
   // ✕ clears the box (the browser's own is hidden; a phone has no Esc)
-  const clearBtn = el("button", {
+  const clearBtn = el("button", { "data-ui": "browse.filter.clear",
     class: "search-clear focusable" + (st.query ? "" : " hidden"),
     type: "button",
     "aria-label": "Clear search",

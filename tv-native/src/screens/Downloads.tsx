@@ -155,7 +155,7 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
     // at the 44dp it is drawn (api.ts artSrc)
     const art = artSrc(j.poster, 44).src;
     return (
-      <Focusable
+      <Focusable uiId="downloads.row"
         key={j.id}
         scaleTo={1.01}
         edgeLeft

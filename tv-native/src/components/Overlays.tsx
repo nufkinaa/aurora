@@ -4,6 +4,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Animated, AppState, BackHandler, Easing, FlatList, Image, Linking, Platform, ScrollView, StyleSheet, TVFocusGuideView, Text, TextInput, View} from 'react-native';
 import Focusable from './Focusable';
+import PersonSheet from './PersonSheet';
 import Sheet, {glass} from './Sheet';
 import TrailerFrame, {TrailerState} from './Trailer';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
@@ -35,13 +36,14 @@ import theme from '../theme';
 const {colors, fontSize, radius, spacing} = theme;
 
 // ---------------------------------------------------------------- buttons
-const Primary = ({label, onPress, focus, busy}: {label: string; onPress: () => void; focus?: boolean; busy?: boolean}) => (
-  <Focusable round light ring="violet" hasTVPreferredFocus={focus} onPress={onPress} style={styles.primary}>
+// (uiId: [analytics] which control this is — Focusable.uiId)
+const Primary = ({label, onPress, focus, busy, uiId}: {label: string; onPress: () => void; focus?: boolean; busy?: boolean; uiId?: string}) => (
+  <Focusable round light ring="violet" hasTVPreferredFocus={focus} uiId={uiId} onPress={onPress} style={styles.primary}>
     {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.primaryText}>{label}</Text>}
   </Focusable>
 );
-const Ghost = ({label, onPress, focus}: {label: string; onPress: () => void; focus?: boolean}) => (
-  <Focusable round hasTVPreferredFocus={focus} onPress={onPress} style={styles.ghost}>
+const Ghost = ({label, onPress, focus, uiId}: {label: string; onPress: () => void; focus?: boolean; uiId?: string}) => (
+  <Focusable round hasTVPreferredFocus={focus} uiId={uiId} onPress={onPress} style={styles.ghost}>
     <Text style={styles.ghostText}>{label}</Text>
   </Focusable>
 );
@@ -185,9 +187,9 @@ function PeekSheet({item, onRemove}: {item: HeroItem; onRemove?: (item: HeroItem
         </View>
       </View>
       <View style={styles.actions}>
-        <Primary focus label={isEpisode || (item.type === 'movie' && item.source !== 'stream') ? '▶  Play' : '▶  Open'} onPress={play} />
-        <Ghost label="Details" onPress={details} />
-        {inList !== null ? <Ghost label={inList ? '✓  In My List' : '+  My List'} onPress={toggleList} /> : null}
+        <Primary uiId="peek.play" focus label={isEpisode || (item.type === 'movie' && item.source !== 'stream') ? '▶  Play' : '▶  Open'} onPress={play} />
+        <Ghost uiId="peek.details" label="Details" onPress={details} />
+        {inList !== null ? <Ghost uiId="peek.mylist" label={inList ? '✓  In My List' : '+  My List'} onPress={toggleList} /> : null}
         {onRemove ? (
           <Ghost
             label="Remove from Continue Watching"
@@ -256,7 +258,7 @@ function ReportSheet({hint}: {hint?: string}) {
       />
       {err ? <Text style={styles.error}>{err}</Text> : null}
       <View style={[styles.actions, styles.actionsSpread]}>
-        <Primary label="Send report" onPress={send} busy={busy} />
+        <Primary uiId="report.send" label="Send report" onPress={send} busy={busy} />
         <Ghost label="Cancel" onPress={closeOverlay} />
       </View>
     </Sheet>
@@ -302,7 +304,7 @@ function JoinSheet() {
       />
       {err ? <Text style={styles.error}>{err}</Text> : null}
       <View style={[styles.actions, styles.actionsSpread]}>
-        <Primary label="Join" onPress={join} busy={busy} />
+        <Primary uiId="party.join" label="Join" onPress={join} busy={busy} />
         <Ghost label="Cancel" onPress={closeOverlay} />
       </View>
     </Sheet>
@@ -350,7 +352,7 @@ function UpdateReadySheet({info}: {info: UpdateInfo}) {
       </Text>
       {err ? <Text style={styles.faint}>{err}</Text> : null}
       <View style={styles.actions}>
-        <Primary label="Restart now" onPress={now} focus busy={busy} />
+        <Primary uiId="update.restart" label="Restart now" onPress={now} focus busy={busy} />
         {busy ? null : <Ghost label="Later" onPress={closeOverlay} />}
         {busy || reopens !== false ? null : (
           <Ghost
@@ -444,8 +446,8 @@ function UpdateSheet({info}: {info: UpdateInfo}) {
           <Text style={styles.body}>{info.notes || 'A new version of the TV app is available.'}</Text>
           <Text style={styles.faint}>{`This TV runs ${APP_VERSION}. Press Update now — it downloads from your Aurora server and installs right here, about a minute. Later asks again in ten minutes.`}</Text>
           <View style={styles.actions}>
-            <Primary focus label="Update now" onPress={start} />
-            <Ghost label="Later" onPress={later} />
+            <Primary uiId="update.install" focus label="Update now" onPress={start} />
+            <Ghost uiId="update.later" label="Later" onPress={later} />
           </View>
         </>
       ) : null}
@@ -494,7 +496,7 @@ function UpdateSheet({info}: {info: UpdateInfo}) {
         <>
           <Text style={styles.error}>{err}</Text>
           <View style={styles.actions}>
-            <Primary focus label="Try again" onPress={start} />
+            <Primary uiId="update.retry" focus label="Try again" onPress={start} />
             <Ghost label="Later" onPress={later} />
           </View>
         </>
@@ -517,10 +519,14 @@ const initials = (name: string) =>
     .slice(0, 2)
     .join('')
     .toUpperCase();
-function Face({p, index}: {p: XrayPerson; index: number}) {
+function Face({p, index, onPress}: {p: XrayPerson; index: number; onPress?: (p: XrayPerson) => void}) {
   const [broken, setBroken] = useState(false);
   return (
-    <Focusable hasTVPreferredFocus={index === 0} style={styles.xrPerson} accessibilityLabel={`${p.name}${p.role ? `, ${p.role}` : ''}`}>
+    <Focusable
+      hasTVPreferredFocus={index === 0}
+      onPress={onPress ? () => onPress(p) : undefined}
+      style={styles.xrPerson}
+      accessibilityLabel={`${p.name}${p.role ? `, ${p.role}` : ''}`}>
       <View style={styles.xrFace}>
         <Text style={styles.xrInitials}>{initials(p.name)}</Text>
         {p.photo && !broken ? (
@@ -547,6 +553,12 @@ const fmtAired = (iso?: string | null) => {
 function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; onClose?: () => void}) {
   const [data, setData] = useState<XrayData | null>(null);
   const [failed, setFailed] = useState(false);
+  // OK on a person: their own sheet, on top of this one (PersonSheet.tsx).
+  // X-Ray stays mounted under it; its BACK listener is older than the person
+  // sheet's, so BACK closes that one first.
+  const [person, setPerson] = useState<XrayPerson | null>(null);
+  const openPerson = useCallback((p: XrayPerson) => setPerson(p), []);
+  const closePerson = useCallback(() => setPerson(null), []);
   // Rises from the foot of the screen the way the phone's sheet does, with a
   // little overshoot: a spring on translateY and scale, a short fade under it.
   const rise = useRef(new Animated.Value(0)).current;
@@ -603,7 +615,25 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
         .map(c => (c.job || c.role ? `${c.job || c.role}: ${c.name}` : c.name))
         .join('   ·   ');
   const showRegulars = cast.length > 0 && !(data?.anthology && guests.length);
-  const nobody = !!data && !guests.length && !showRegulars;
+  // The people who made it, as faces that can be pressed like the cast (the
+  // site's "Filmmakers"): one per person, their jobs joined; an episode's own
+  // director and writers lead. The line in the header stays as it was.
+  const makers: XrayPerson[] = [];
+  const maker = (name?: string | null, job?: string | null, photo?: string | null, id?: string | null) => {
+    if (!name) return;
+    let m = makers.find(x => x.name === name);
+    if (!m) makers.push((m = {name, role: null, photo: null, id: null}));
+    if (job && !(m.role || '').split(' · ').includes(job)) m.role = m.role ? `${m.role} · ${job}` : job;
+    if (photo && !m.photo) m.photo = photo;
+    if (id && !m.id) m.id = id;
+  };
+  const listOf = (v?: string | string[] | null) => (Array.isArray(v) ? v : v ? String(v).split(/,\s*/) : []);
+  if (ep) {
+    for (const n of listOf(ep.directors)) maker(n, 'Director');
+    for (const n of listOf(ep.writers)) maker(n, 'Writer');
+  }
+  for (const c of crew) maker(c.name, c.job || c.role, c.photo, c.id);
+  const nobody = !!data && !guests.length && !showRegulars && !makers.length;
   const row = (people: XrayPerson[], first: boolean) => (
     <FlatList
       data={people}
@@ -611,7 +641,7 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
       keyExtractor={(p, i) => `${p.name}-${i}`}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.xrRow}
-      renderItem={({item: p, index}) => <Face p={p} index={first ? index : -1} />}
+      renderItem={({item: p, index}) => <Face p={p} index={first ? index : -1} onPress={openPerson} />}
     />
   );
   const panelStyle = {
@@ -674,11 +704,25 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
                   {row(cast.slice(0, 18), !guests.length)}
                 </>
               ) : null}
+              {makers.length ? (
+                <>
+                  <Text style={styles.xrSection}>FILMMAKERS</Text>
+                  {row(makers.slice(0, 12), !guests.length && !showRegulars)}
+                </>
+              ) : null}
               {nobody ? <Text style={styles.faint}>Nothing known about this one yet.</Text> : null}
             </ScrollView>
           ) : null}
         </TVFocusGuideView>
       </Animated.View>
+      {person ? (
+        <PersonSheet
+          who={person}
+          of={data?.imdbId || query.imdbId || null}
+          type={data?.type || query.type || null}
+          onClose={closePerson}
+        />
+      ) : null}
     </View>
   );
 }
@@ -699,7 +743,7 @@ function ActionsSheet({title, sub, items}: {title: string; sub?: string; items: 
     <Sheet kicker={sub} title={title} width={520} onClose={closeOverlay}>
       <View style={styles.actionList}>
         {items.map((it, i) => (
-          <Focusable
+          <Focusable uiId="actions.pick"
             key={it.label}
             hasTVPreferredFocus={i === 0}
             onPress={() => {

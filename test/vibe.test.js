@@ -148,3 +148,39 @@ test("row cache: a failed vibe build retries within the hour, and any older-vers
   assert.ok(!fresh({ ...good, source: "genre", algo: ALGO - 1, at: now }), "a pre-upgrade genre fallback rebuilds");
   assert.ok(!fresh(undefined));
 });
+
+// v5: themes (recs/taxonomy.json) and makers.
+test("themes: the same idea under another spelling is vibe evidence (heist ~ bank robbery ~ caper)", () => {
+  const src = movie({ id: 3, genres: [80, 53], keywords: ["heist", "casino", "las vegas"] });
+  const synonym = movie({ title: "Bank Job", genres: [80, 53], keywords: ["bank robbery", "caper", "getaway driver"] });
+  const unrelated = movie({ title: "Courtroom", genres: [80, 53], keywords: ["trial", "lawyer", "jury"] });
+  const ranked = rankCandidates(src, [unrelated, synonym], { explain: true });
+  assert.equal(ranked[0].title, "Bank Job");
+  assert.deepEqual(ranked[0].shared, [], "not one keyword is shared word for word");
+  assert.ok(ranked[0].sharedThemes.includes("heist"));
+  assert.equal(ranked[0].why, "Same vibe: heist", "and the why names the theme");
+  // v4 saw two equally unrelated crime thrillers here
+  const v4 = rankCandidates(src, [unrelated, synonym], { explain: true, weights: { theme: 0, maker: 0 } });
+  assert.ok(ranked[0].score - ranked[1].score > v4[0].score - v4[1].score + 0.05);
+});
+
+test("themes never double-count a keyword that is literally shared", () => {
+  // "space travel" is shared word for word: the keyword match pays for it,
+  // weighted by how common it is here; its theme must not vote again
+  const { themeSim } = require("../src/media/vibe")._internals;
+  const a = movie({ keywords: ["space travel", "astronaut"] });
+  const b = movie({ keywords: ["space travel", "spacecraft"] });
+  assert.ok(themeSim(a, b).sim > 0.9, "on themes alone they are the same thing");
+  assert.equal(themeSim(a, b, new Set(["space"])).sim, 0, "credited to the keyword: nothing left for the theme");
+});
+
+test("the same director is a vote of its own", () => {
+  const withCrew = (over, director) => movie({ ...over, credits: { crew: [{ id: director, job: "Director" }], cast: [] } });
+  const src = withCrew({ id: 4, keywords: ["wormhole", "black hole"] }, 525);
+  const same = withCrew({ title: "Same Director", keywords: ["wormhole"] }, 525);
+  const other = withCrew({ title: "Other Director", keywords: ["wormhole"] }, 999);
+  const ranked = rankCandidates(src, [other, same], { explain: true });
+  assert.equal(ranked[0].title, "Same Director");
+  assert.equal(ranked[0].parts.maker, 1);
+  assert.equal(ranked[1].parts.maker, 0);
+});

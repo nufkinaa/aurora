@@ -273,7 +273,7 @@ export default function MyList({
                     {at > 0 && chipDefs[at - 1].group !== f.group ? (
                       <View style={styles.sep} />
                     ) : null}
-                    <Chip
+                    <Chip uiId="mylist.filter"
                       ref={at === 0 ? firstChipRef : undefined}
                       label={f.label}
                       on={picked[f.group] === f.id}

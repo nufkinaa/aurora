@@ -84,14 +84,41 @@ export const showLoginScreen = (opts = {}) =>
       popScope(wrap);
       wrap.remove();
     };
-    const done = (res) => {
+    // `typed`: the password this sign-in just verified (none for Google).
+    const done = async (res, typed = null) => {
       cleanup();
+      // The admin asked this profile for a new password (People → Reset
+      // password): what this sign-in yielded opens nothing else on the
+      // server, so nothing else is shown — the blocking "pick a new password"
+      // screen (resetwall.js), for every way of signing in. The sign-in only
+      // counts once it is saved, with the fresh credentials that came back.
+      // (A reload meanwhile lands on the same screen: boot asks /api/me.)
+      if (res && res.mustReset && res.profile) {
+        try {
+          localStorage.setItem("aurora-profile", res.profile.id);
+          if (res.profileToken) sessionStorage.setItem(`aurora-token-${res.profile.id}`, res.profileToken);
+        } catch {}
+        const { showResetWall } = await import("../resetwall.js");
+        const fresh = await showResetWall({ profile: res.profile, currentPassword: typed, token: res.profileToken || null });
+        res = {
+          ...res,
+          mustReset: false,
+          profileToken: fresh.token || null,
+          session: fresh.session || res.session,
+          user: fresh.user || res.user,
+        };
+      }
       opts.onSignedIn?.(res && res.user);
       resolve(res);
     };
 
     let serverInfo = null; // {googleWeb, googleDevice, ...} once fetched
-    const infoReady = api.serverInfo().then((i) => (serverInfo = i)).catch(() => null);
+    const infoReady = api.serverInfo().then((i) => {
+      // with the wall closed this screen comes before anything else has
+      // asked: its own copy (and the reset sheet) name the admin
+      if (i && i.adminName) state.adminName = i.adminName;
+      return (serverInfo = i);
+    }).catch(() => null);
 
     // One entry point for every Google button: the web popup where the
     // browser can use it (localhost/domain), the code flow otherwise.
@@ -140,8 +167,9 @@ export const showLoginScreen = (opts = {}) =>
         submitBtn.disabled = true;
         submitBtn.classList.add("busy");
         try {
-          const res = await api.login(user.input.value.trim(), pass.input.value);
-          done(res);
+          const typed = pass.input.value;
+          const res = await api.login(user.input.value.trim(), typed);
+          done(res, typed);
         } catch (e) {
           showErr(err, e.message || "Sign-in failed.");
           pass.input.value = "";

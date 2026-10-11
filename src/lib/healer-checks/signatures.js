@@ -161,8 +161,9 @@ const SIGNATURES = [
     // server.js (webrtc, boot banner), lib/health.js (its own alerts), media/torrent.js (self-recovering reads),
     // media/downloads.js (re-queues the healer itself causes), lib/push.js (boot prune), media/ai.js (salvaged reply),
     // media/mylistdl.js (a My List download that found no source / failed / could not be removed yet: written
-    // down and tried once more by a later daily pass — its decisions, not faults)
-    re: /^\[mylist\] (?:could not queue|download failed|could not delete) |^\[webrtc\] .*\(benign\)|^\[health\] (?:ALERT|the health ping|health alerts have nowhere|healthPingUrl)|^\[torrent\] (?:bitfield distrusted|read stalled|.+ — resuming)|^\[download\] \w+ (?:re-queued|no second source)|^\[download\] could not remember a source outcome|^\[push\] dropped \d+ subscription|^\[ai\] reply was truncated|^\s*⚠ /,
+    // down and tried once more by a later daily pass — its decisions, not faults; and media/downloads.js putting a
+    // My List download on hold for the others and carrying on with it after — the queue working as meant)
+    re: /^\[mylist\] (?:could not queue|download failed|could not delete|held|resumed) |^\[webrtc\] .*\(benign\)|^\[health\] (?:ALERT|the health ping|health alerts have nowhere|healthPingUrl)|^\[torrent\] (?:bitfield distrusted|read stalled|.+ — resuming)|^\[download\] \w+ (?:re-queued|no second source)|^\[download\] could not remember a source outcome|^\[push\] dropped \d+ subscription|^\[ai\] reply was truncated|^\s*⚠ /,
   },
   {
     id: "background", title: "A background job keeps failing", level: "warn", min: 10,

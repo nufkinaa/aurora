@@ -46,6 +46,8 @@ const json = async (url, options = {}, attempt = 0) => {
   if (!res) try {
     res = await fetch(url, { ...options, headers: withBlur(options, withToken(options.headers)) });
   } catch (err) {
+    // the caller gave up on this one (a newer search replaced it): not a blip
+    if (err && err.name === "AbortError") throw err;
     // A network blip (flaky wifi, server restarting). GETs are idempotent —
     // retry twice with a breath between instead of failing the screen.
     // HTTP error statuses are NOT retried here: some are meaningful signals
@@ -69,6 +71,32 @@ const json = async (url, options = {}, attempt = 0) => {
     // the status, and the one flag a caller acts on: "ask for the household PIN"
     err.status = res.status;
     if (body && body.pinRequired) err.pinRequired = true;
+    if (body && body.code) err.code = body.code;
+    // A new password is due on the profile this tab is using (the admin's
+    // "Reset password"): the server refuses everything until one is saved.
+    // Read BEFORE `signinRequired` — the refusal carries both, the second for
+    // clients that do not know the first. The app raises the screen that asks
+    // for the new password (resetwall.js, through main.js).
+    if (res.status === 401 && body && body.passwordResetRequired) {
+      err.passwordResetRequired = true;
+      try { window.dispatchEvent(new CustomEvent("aurora-password-reset", { detail: { url, profileId: body.profileId || null } })); } catch {}
+      throw err;
+    }
+    // The admin signed this profile out (Kick, Reset password) and this tab
+    // is still showing the unlock it had: back to the sign-in / profile wall.
+    if (res.status === 401 && body && body.signedOut) {
+      err.signedOut = true;
+      try { window.dispatchEvent(new CustomEvent("aurora-signed-out", { detail: { url } })); } catch {}
+      throw err;
+    }
+    // The sign-in wall refused this (the server began to require sign-in, or
+    // this session was revoked or ran out). The caller still gets its error;
+    // the app is told too, so it can go to the sign-in screen (session.js)
+    // instead of every screen failing on its own.
+    if (res.status === 401 && body && body.signinRequired) {
+      err.signinRequired = true;
+      try { window.dispatchEvent(new CustomEvent("aurora-signin-required", { detail: { url } })); } catch {}
+    }
     throw err;
   }
   // the tiny pictures that ride beside an answer go to blur.js; the screen
@@ -124,6 +152,23 @@ export const api = {
     return warmed(`/api/item/${encodeURIComponent(id)}${profile ? `?profile=${encodeURIComponent(profile)}` : ""}`, 60 * 1000, { low });
   },
   search: (q) => json(`/api/search?q=${encodeURIComponent(q)}`),
+  // The one ranked search (library + catalogue + a related tail). `wait`:
+  // also wait for the live catalogue; `pin`: the card that is first now.
+  searchAll: (q, { wait = false, commit = false, pin = null, profileId = "", signal } = {}) =>
+    json(
+      `/api/search?v=2&q=${encodeURIComponent(q)}${wait ? "&wait=1" : ""}${commit ? "&commit=1" : ""}` +
+        `${pin ? `&pin=${encodeURIComponent(pin)}` : ""}${profileId ? `&profile=${encodeURIComponent(profileId)}` : ""}`,
+      { signal },
+    ),
+  // Recent searches live on the server, per profile: every device shows the same list.
+  recentSearches: (profileId) => json(`/api/profiles/${profileId}/searches`),
+  addRecentSearch: (profileId, q) => post(`/api/profiles/${profileId}/searches`, { q }),
+  removeRecentSearch: (profileId, q) =>
+    json(`/api/profiles/${profileId}/searches`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(q == null ? {} : { q }),
+    }),
 
   // Torrent stream sources for a title (movies + per-episode series)
   torrentSources: ({ type, title, year, season, episode }) => {
@@ -165,6 +210,13 @@ export const api = {
   xray: ({ type, imdbId, season, episode, keys }) =>
     warmed(`/api/xray?type=${type}&imdbId=${encodeURIComponent(imdbId)}` +
       (season ? `&season=${season}&episode=${episode}` : "") + (keys && keys.length ? `&keys=${encodeURIComponent(keys.join(","))}` : ""), 10 * 60 * 1000),
+  // A person (the sheet behind a press on an actor or director): `id` is what
+  // X-Ray handed out ("tmdb:525") or "name:<their name>" with the title it was
+  // pressed on. Not warmed: its titles carry this profile's My List marks.
+  person: (id, { of = null, type = null, profile = null } = {}) =>
+    json(`/api/person/${encodeURIComponent(id)}?` + [
+      of && `of=${encodeURIComponent(of)}`, type && `type=${encodeURIComponent(type)}`, profile && `profile=${encodeURIComponent(profile)}`,
+    ].filter(Boolean).join("&")),
   // what the household has been watching lately (the empty Search screen)
   popular: (profileId) => warmed(`/api/popular?profile=${encodeURIComponent(profileId || "")}`, 5 * 60 * 1000),
   party: (code) => json(`/api/party/${encodeURIComponent(code)}`),
@@ -173,10 +225,12 @@ export const api = {
   offlinePrepare: (id, q, hevc) => post(`/api/offline/prepare/${encodeURIComponent(id)}?q=${encodeURIComponent(q || "720")}${hevc ? "&hevc=1" : ""}`, {}),
   offlineStatus: (id, q, hevc) => json(`/api/offline/status/${encodeURIComponent(id)}?q=${encodeURIComponent(q || "720")}${hevc ? "&hevc=1" : ""}`),
   parties: () => json("/api/party"),
-  discoverSimilar: (type, id, tmdbId) =>
-    json(
-      `/api/discover/similar/${type}/${encodeURIComponent(id)}${tmdbId ? `?tmdbId=${tmdbId}` : ""}`,
-    ),
+  // `profileId` (optional): the row comes back in that person's order, with
+  // what they have already watched left out.
+  discoverSimilar: (type, id, tmdbId, profileId) => {
+    const q = [tmdbId ? `tmdbId=${tmdbId}` : "", profileId ? `profile=${encodeURIComponent(profileId)}` : ""].filter(Boolean).join("&");
+    return json(`/api/discover/similar/${type}/${encodeURIComponent(id)}${q ? `?${q}` : ""}`);
+  },
   // One page of a Browse category (see /api/catalog). Paged per genre, so a
   // niche genre has a deep list of its own rather than a slice of trending.
   catalog: ({ type, category, genre, page = 0, low = false }) =>
@@ -202,7 +256,9 @@ export const api = {
 
   // ---- sign-in (prompt 10). The session rides an HttpOnly cookie the browser
   // sends by itself — nothing to attach client-side.
-  me: () => json("/api/me"),
+  // `token`: an unlock token to ask with, before any profile is active (boot
+  // asks whether the profile this tab remembers owes a new password)
+  me: (token) => json("/api/me", token ? { headers: { "X-Profile-Token": token } } : {}),
   login: (username, password) => post("/api/auth/login", { username, password }),
   logout: () => post("/api/auth/logout", {}),
   signupRequest: (fields) => post("/api/auth/signup", fields),
@@ -222,8 +278,12 @@ export const api = {
   googleStart: () => post("/api/auth/google/start", {}),
   googlePoll: (pollId) => post("/api/auth/google/poll", { pollId }),
   googleLink: (pollId) => post("/api/auth/google/link", { pollId }),
-  suggest: (q, type, limit) =>
-    json(`/api/search/suggest?q=${encodeURIComponent(q)}${type ? `&type=${type}` : ""}${limit ? `&limit=${limit}` : ""}`),
+  suggest: (q, type, limit, { profileId = "", signal } = {}) =>
+    json(
+      `/api/search/suggest?v=2&q=${encodeURIComponent(q)}${type ? `&type=${type}` : ""}${limit ? `&limit=${limit}` : ""}` +
+        `${profileId ? `&profile=${encodeURIComponent(profileId)}` : ""}`,
+      { signal },
+    ),
   intro: (key) => json(`/api/intro/${encodeURIComponent(key)}`),
   subtitlesFetch: (id, lang) => post("/api/subtitles/fetch", { id, lang }),
   report: (text, context, profile) => post("/api/reports", { text, context, profile }),
@@ -239,8 +299,10 @@ export const api = {
   // password once the house has a kids profile (the server answers
   // `pinRequired` when it wants one)
   unlockProfile: (id, password, pin) => post(`/api/profiles/${id}/unlock`, pin ? { password, pin } : { password }),
-  setPassword: (id, newPassword, currentPassword) =>
-    post(`/api/profiles/${id}/password`, { newPassword, currentPassword }),
+  // `clientId` (optional): this tab's socket, so a forced reset saved here
+  // does not tell this very tab that the profile was signed out
+  setPassword: (id, newPassword, currentPassword, clientId) =>
+    post(`/api/profiles/${id}/password`, { newPassword, currentPassword, ...(clientId ? { clientId } : {}) }),
   createProfile: (fields) => post("/api/profiles", fields),
   // Seconds watched today — only the narrator's "you've been at this a while" uses it.
   todayWatchTime: (id) => json(`/api/profiles/${encodeURIComponent(id)}/today`),
@@ -256,7 +318,9 @@ export const api = {
   follow: (id, imdbId, on, title) => post(`/api/profiles/${id}/follow`, { imdbId, on, title }),
   pushKey: () => json("/api/push/key"),
   pushSet: (id, body) => post(`/api/profiles/${id}/push`, body),
-  signOutEverywhere: (id) => post(`/api/profiles/${id}/signout-everywhere`, {}),
+  // `clientId`: this tab's own socket (ws.js keeps it), so the server does not
+  // tell the tab that asked that it was signed out
+  signOutEverywhere: (id, clientId) => post(`/api/profiles/${id}/signout-everywhere`, clientId ? { clientId } : {}),
   setTaste: (id, liked) => post(`/api/profiles/${id}/taste`, { liked }),
   updateProfile: (id, fields) =>
     json(`/api/profiles/${id}`, {

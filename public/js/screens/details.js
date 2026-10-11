@@ -1,18 +1,19 @@
 // Shared pieces of the detail page: the hero block and the library-side
 // "My List" button. The page itself lives in discover-detail.js, which serves
 // library titles and streamable titles as one screen.
-import { el, icons, resBadge, toast, savedLine, posterImg, artUrl, formatRow, heroArtWidth, smooth, haptic } from "../ui.js";
+import { el, icons, resBadge, toast, listAddedLine, LIST_REMOVED, listFailedLine, posterImg, artUrl, formatRow, heroArtWidth, smooth, haptic } from "../ui.js";
 import { upgradeArt } from "../artUpgrade.js";
 import { blurOf } from "../blur.js";
 import { api } from "../api.js";
 import { state } from "../state.js";
 import { starRating } from "../components.js";
+import { titleShown } from "../telemetry.js"; // [analytics]
 // Exported for the unified detail page (discover-detail.js), which uses this
 // variant whenever the title has a library copy — the stream variant keys the
 // watchlist by IMDb id, this one by library id.
 export const watchlistButton = (item) => {
   let inList = false;
-  const btn = el("button", { class: "btn focusable" });
+  const btn = el("button", { "data-ui": "detail.mylist", class: "btn focusable" });
 
   const paint = () => {
     btn.innerHTML = (inList ? icons.check : icons.plus) + `<span>${inList ? "In My List" : "My List"}</span>`;
@@ -25,6 +26,12 @@ export const watchlistButton = (item) => {
     }).catch(() => {});
   }
   paint();
+  // the same title put on (or taken off) the list from a person's sheet
+  const onElsewhere = (e) => {
+    if (!btn.isConnected) return window.removeEventListener("aurora-watchlist", onElsewhere);
+    if (e.detail && e.detail.libraryId === item.id) { inList = !!e.detail.inList; paint(); }
+  };
+  window.addEventListener("aurora-watchlist", onElsewhere);
 
   btn.addEventListener("click", async () => {
     if (!state.profile) return;
@@ -33,8 +40,14 @@ export const watchlistButton = (item) => {
     paint();
     try {
       const res = await api.toggleWatchlist(state.profile.id, item.id, inList);
-      toast(inList ? savedLine(item.title, res) : "Off the list. Bold.", inList ? "➕" : "➖");
-    } catch {}
+      toast(inList ? listAddedLine(res) : LIST_REMOVED, inList ? "➕" : "➖");
+    } catch {
+      // it did not happen: the button goes back, and says so
+      const adding = inList;
+      inList = !inList;
+      paint();
+      toast(listFailedLine(adding), "⚠️");
+    }
   });
   return btn;
 };
@@ -60,6 +73,7 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null, serverInfo
   if (item.backdrop) upgradeArt(hero, "--hero-art", item.backdrop, () => heroArtWidth({ full: true }));
   if (item.cover) upgradeArt(hero, "--hero-poster", item.cover, () => Math.min(600, heroArtWidth({ full: true })));
   coverDrift(hero);
+  titleShown(item.backdrop ? artUrl(item.backdrop, heroArtWidth()) : null); // [analytics] title page → content shown, → backdrop shown
   return hero;
 };
 
@@ -186,7 +200,7 @@ const labelled = (actions) => {
 // something was actually cut, and toggles the clamp.
 const synopsisBlock = (text) => {
   const p = el("p", { class: "detail-synopsis" }, text);
-  const more = el("button", { class: "syn-more focusable hidden", type: "button" }, "More");
+  const more = el("button", { "data-ui": "detail.synopsis.more", class: "syn-more focusable hidden", type: "button" }, "More");
   more.addEventListener("click", () => smooth(() => {
     const open = p.classList.toggle("open");
     more.textContent = open ? "Less" : "More";

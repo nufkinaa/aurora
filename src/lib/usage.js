@@ -104,7 +104,7 @@ const apply = (batch) => {
       bump(pl.byDevice, device);
       if (typeof p.ms === "number" && p.ms >= 0 && p.ms < 600000) sample(pl.ms, p.ms);
     } else if (ev.n === "error" && typeof p.m === "string") {
-      bump(agg.errors, p.m);
+      if (p.m in agg.errors || Object.keys(agg.errors).length < 300) bump(agg.errors, p.m);
     } else if (ev.n === "net" && NET_TIERS.has(p.tier)) {
       bump(agg.net.tiers, p.tier);
       if (p.tier === "slow") bump(agg.net.byDevice, device);
@@ -183,7 +183,11 @@ const validate = (body, now = Date.now()) => {
     // client clocks drift: anything outside the last day or the next hour is re-stamped
     let t = Number(ev.t);
     if (!Number.isFinite(t) || t < now - 86400000 || t > now + 3600000) t = now;
-    events.push({ n: ev.n, t, p: cleanProps(ev.p) });
+    const p = cleanProps(ev.p);
+    // an error's message is scrubbed like every other client string before it
+    // is counted or written (lib/tel/scrub.js): no address, path, id or quoted name
+    if (ev.n === "error" && typeof p.m === "string") p.m = require("./tel/scrub").safe(require("./tel/scrub").normMessage(p.m));
+    events.push({ n: ev.n, t, p });
   }
   if (!events.length) return null;
   return { profile, sid, device, look, events };

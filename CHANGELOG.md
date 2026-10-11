@@ -3,6 +3,62 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.92 — 2026-10-10
+
+- **Search while you are still typing.** A half-typed word that happens to be the full name of some obscure film no longer pushes aside what you are obviously typing: "reach" now leads with Reacher from your library, then the films called "Reach". The rule: while typing, your library, trending and well-known titles that start with the letters lead (a well-known title one slip away too — "tory" finds Troy); once you press Enter, the exact name is strictly first as before. Well-known exact names ("Up", "Her", "Dune") lead either way.
+- Suggestions know many more titles from the first letters: Aurora keeps a list of about 5,000 well-known films and series, so "du" offers Dune (2021) before the catalogue has answered. "se7" finds Seven.
+- Fixed in the same day's release before it reached anyone: the actor and director sheet (1.6.87) stopped opening after 1.6.91's My List wording change. Its messages now read like the TV's ("Stars Between: Added to My List").
+
+## 1.6.91 — 2026-10-10
+
+- **A forced password reset really forces it.** Admin → People → Reset password now signs that person out on every device at once, and until they have chosen a new password nothing else works for them — not on a reload, not through an old tab, not through a saved link. The screen that asks cannot be dismissed; it offers "Set new password" and "Sign out". After saving, the device they used carries on signed in and every other device stays signed out. The new password must differ from the old one, and changing it still needs the current one (someone who has forgotten theirs needs the admin's "Set password"). People shows "password reset pending" until it is done. A profile with no password, and a kids profile, are signed out everywhere instead — there is nothing for them to reset.
+- A device the admin signed out goes back to the sign-in screen on its next request, in every sign-in mode, instead of carrying on as a visitor.
+- **Prepared offline copies are behind the sign-in wall.** With sign-in required, a copy prepared for saving to a phone could be fetched without signing in; it cannot any more.
+- Kids profiles: a child can switch to another kids profile that is equally or more restricted without the household PIN, as on the TV. Anything less restricted, and every other profile, still asks.
+- My List says the same on the website as on the TV: "Added to My List" / "Removed from My List" (with "— downloading the film" or "— downloading the first episode" when a download starts). If adding or removing fails, the button goes back and says so.
+- The profile screen no longer lets you into a password-less profile when it could not reach the server to check — it says "Can't reach the server — try again."
+
+## 1.6.90 — 2026-10-10
+
+- **Aurora now hears about problems by itself.** With usage stats on, the website and the TV app report their own errors and warnings — a page that crashed, a request the server refused, pictures that failed to load (as one line: "37 pictures refused"), a player error, a TV app that ended without closing properly — grouped by what went wrong, with the app version, device model and screen they happened on. Admin → Insights → **App health** shows what is new since the last release, what is suddenly happening much more than usual, and what affects the most devices; anything can be marked known or ignored. A new problem on two devices (or twenty times in half an hour), or an old one at five times its usual rate, raises one alert.
+- **Timings for the moments you feel**, measured the same way on the website and the TV: opening the app to a usable Home, pressing Play to the first picture, a search to its results, a title page to its content, a download from request to ready, and how long the server takes for its heavy answers — each with the change against the previous version, so a release that made something slower shows at a glance.
+- **Most used**: which buttons and features are actually pressed on each app and each screen, and which have not been touched in 30 days.
+- **What is never collected**: titles, search text or anything typed, names, addresses, and anything identifying a person — the reports carry no profile at all, and messages are stripped of such details on the device and again on the server. All of it stays behind the usage-stats switch, which the server itself now enforces: a batch from a profile that switched it off is dropped. Reports are sent only while the device is idle — never while you are moving about or starting playback. docs/analytics.md lists every item.
+- The TV app sends the new reports from its next update.
+
+## 1.6.89 — 2026-10-10
+
+- **Search finds what you typed, first.** Type a title's exact name and it is the first card — it used to sit in the second or third row, because the page showed every library hit, then cached catalogue hits, then all films before all series, whatever matched best ("The Office" was the 14th card, behind thirteen films with "office" in the name). Now one list is ranked by how well each title matches: the exact name (ignoring capitals, accents, punctuation, a leading "the", and with or without the year), then names that start with what you typed, then whole-word matches, then near-misses and typos, then episode titles, then cast and directors, then the synopsis. A library copy and its catalogue twin are one card.
+- **More to browse after the matches.** Under the accurate results there is a "More like …" row: the same franchise, the same makers and cast, and close neighbours of the top match — or, when you searched a person or a genre, their titles.
+- **Suggestions rebuilt.** They start from the first letter, show titles you can actually open (the library first), and include people and genres with their own icons — "tom h" offers Tom Hardy, Tom Hanks, Tom Holland instead of unrelated films. No more padding with loosely related titles, and the top suggestion does not jump around as you keep typing.
+- Search can now find an episode by its title ("pine barrens" → The Sopranos, S3 E11) and titles by a cast member's name.
+- Recent searches are kept with your profile, so they follow you between devices, each with its own ✕ and a Clear. An empty search shows "Popular in this house".
+- The TV app uses the same search from its next update (it used to match plain text in the library only).
+
+## 1.6.88 — 2026-10-10
+
+- **Recommendations that know more about titles and about you.** Aurora now keeps a record of each title beyond its genres — its themes and moods (108 of them: heists, slow-burn mysteries, courtroom dramas, found families, dystopias…), who made it and who is in it, its franchise, and which other titles people who liked it also liked — and it reads more from what you do: finishing a film, binging a series, coming back to rewatch, following a show, adding to My List, dropping something after the pilot, or removing it from Continue Watching all count, with recent weeks weighing more than last year. It also looks further afield for candidates: the neighbours of your favourite titles, other work by the makers you return to, and more of the themes you like, not only this week's trending list.
+- Home gets rows that say why: "Because you finished …", "More heists & capers", "From the director of …", and "Something Different" for a deliberate step outside your usual. Nothing you have watched appears in them, nothing repeats between them, and the mix follows your own proportions instead of piling up one genre. A new profile starts from its Settings picks and from what the rest of the house has liked.
+- "More like this" is now the same on the website and the TV app (the TV used a plain genre list), ordered for the person asking.
+- The title records are collected a few hundred a day from TMDB, so the new rows get fuller over the first few days after this update.
+
+## 1.6.87 — 2026-10-10
+
+- **Press a person, see their work.** On the website (phone and desktop), pressing an actor or the director — in X-Ray or in the cast line of a title page — opens a sheet on top of what you were doing instead of jumping to search: a few portraits of them, a short biography, and their films and shows, the ones already in the library first. Pressing a title adds it to My List (the card shows a tick; press again or use Undo to take it off); "Details", a long press, a right-click or the I key opens the title's page instead. It works over a film, in fullscreen too, and the film stays as you left it. A kids profile only sees titles it is allowed. Photos and filmographies come from TMDB (IMDb offers no way to fetch them); the sheet links to the person's IMDb page. The TV app gets the same sheet with its next update.
+- **My List downloads wait their turn.** A download that started because someone added a title to their list is now the lowest priority: it starts after every other download, and while anything else is waiting or downloading it goes on hold, keeping what it already has, and carries on by itself about a minute after the queue is quiet. Downloads people ask for come first, then next-episode and followed-show downloads, then My List. Held downloads show as "On hold" with their progress; Admin → Downloads has "Start now" for them, and a setting to let them run alongside other downloads whenever a slot is free instead.
+
+## 1.6.86 — 2026-10-10
+
+Fixes on the website and the server, from a side-by-side check of the website and the TV app.
+
+- **Pairing a TV by typing its code works.** The TV says "open nufurora.com/link and type this code", but that page had no place to type it. It has one now. Ten wrong codes from one address in fifteen minutes pause lookups from that address for a while.
+- **A forced password reset is asked for** after every kind of sign-in when sign-in is required (it was only asked at the profile wall).
+- **"Sign out everywhere else" reaches the other devices at once** — it was announced to every device of every profile and acted on by none; now only that person's other tabs are told, and they return to the sign-in screen. A tab that signs in also joins the live connection straight away (it used to miss live updates until a reload).
+- **Notifications follow the person using the browser** — on a shared browser they stayed with whoever switched them on first. Signing out withdraws them.
+- **The website goes to the sign-in screen when sign-in is switched on mid-session**, instead of failing request by request.
+- **The player never saves progress over a watch history it could not read**, so a failed read cannot reset a title to the beginning.
+- The AI page forgets its last answer when the profile changes; downloads catch up when the connection returns; the password sheet says why an unlock failed (too many tries, locked by the admin, no connection) instead of "Not quite"; two pieces of wording corrected.
+
 ## 1.6.85 — 2026-10-10
 
 - **My List downloads.** Adding a film to your list downloads it; adding a show you have not started downloads its first episode (a show you are already watching is left to the next-episode downloads). The website says so when you add it ("saved for later — downloading the film"). A copy nobody has watched after 14 days is marked stale and offered first under Admin → Free up space → Suggest what to delete; after 21 days it is deleted by itself, and the title stays on your list to stream. Watching it at any point keeps it. Only copies fetched this way are ever removed — never something downloaded by hand. Two people adding the same title is one download; a kids profile never fetches something over its limit; each person starts at most 5 a day. Admin → Downloads → "My List downloads" has the switch, the day counts and a Keep button per copy. The TV app shows the same from its next update.

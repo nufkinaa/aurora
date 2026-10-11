@@ -51,6 +51,7 @@ import {defer, useSlide} from '../motion';
 import {useApp} from '../AppContext';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
+import {homeUsable} from '../telemetry'; // [analytics]
 
 const {colors, fontSize, spacing, radius, motion} = theme;
 
@@ -749,6 +750,7 @@ export default function Home({
         key={r.id}
         onLayout={e => {
           rowY.current[i] = e.nativeEvent.layout.y;
+          if (i === 0) homeUsable(); // [analytics] "Home is usable": the first row is laid out
         }}>
         <Row
           title={r.title}
@@ -774,7 +776,7 @@ export default function Home({
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.text} size="large" />
-        <Btn ref={escape} label="Switch profile" hasTVPreferredFocus edgeLeft onPress={switchProfile} />
+        <Btn uiId="home.switchprofile" ref={escape} label="Switch profile" hasTVPreferredFocus edgeLeft onPress={switchProfile} />
         <NavRail active="home" />
       </View>
     );
@@ -898,7 +900,7 @@ export default function Home({
             ✕) had nowhere to rescue focus to, at the stack root. */}
         {!hero ? (
           <View style={styles.noHeroBar}>
-            <Btn
+            <Btn uiId="home.retry"
               ref={escape}
               small
               label="Refresh"
@@ -948,7 +950,7 @@ export default function Home({
               </Text>
             ) : null}
             <View style={styles.actions}>
-              <Btn
+              <Btn uiId="home.hero.play"
                 primary
                 ref={escape}
                 // A stream is a slow start the viewer may not want: the warning
@@ -963,14 +965,14 @@ export default function Home({
                   heroPlay(hero);
                 }}
               />
-              <Btn
+              <Btn uiId="home.hero.details"
                 icon="info"
                 label="Details"
                 onFocusChange={onHeroBtn(1)}
                 onPress={() => openDetail(hero)}
               />
               {trailerOn ? (
-                <Btn
+                <Btn uiId="home.hero.mute"
                   small
                   glyph={unmuted ? '🔊' : '🔇'}
                   label={unmuted ? 'Mute' : 'Unmute'}
@@ -979,7 +981,7 @@ export default function Home({
                 />
               ) : null}
               {parties.slice(0, 2).map((p, i) => (
-                <Btn
+                <Btn uiId="home.hero.party"
                   key={p.code}
                   small
                   glyph="👥"

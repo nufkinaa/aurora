@@ -497,7 +497,7 @@ export function SourcesPanel({
               mistake is a slow start the viewer did not ask for — so it is one
               press further away (elia, 2026-10-06: "downloaded content easier
               to play, harder to select a stream"). */}
-          <Focusable
+          <Focusable uiId="detail.source.pick"
             scaleTo={1.01}
             hasTVPreferredFocus={
               claimOwned.current !== true &&
@@ -561,7 +561,7 @@ export function SourcesPanel({
           </Focusable>
           {/* Stream it now, nothing saved — gone once the copy is yours. */}
           {playsCopy ? null : (
-            <Focusable
+            <Focusable uiId="detail.source.play"
               scaleTo={1.03}
               onPress={() => play(s)}
               style={styles.streamBtn}
@@ -573,7 +573,7 @@ export function SourcesPanel({
           )}
           {/* A finished download is nothing to press; anything else can be
               (re)requested, including a failed one. */}
-          <Focusable
+          <Focusable uiId="detail.source.download"
             scaleTo={1.03}
             onPress={() => !isDone && requestDownload(s)}
             style={[
@@ -673,7 +673,7 @@ export function SourcesPanel({
           even while sources are still loading: your copy can play right now. */}
       {ownedRow ? (
         <View style={styles.ownedRowWrap}>
-          <Focusable
+          <Focusable uiId="detail.play"
             scaleTo={1.01}
             hasTVPreferredFocus={claimOwned.current === true}
             onPress={() => onPlayLibrary!(ownedRow.id)}

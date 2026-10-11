@@ -112,6 +112,7 @@ import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
 import theme from '../theme';
+import {playerError, seekResumed, seekStarted, seeking} from '../telemetry'; // [analytics]
 
 const {colors, radius, fontSize, spacing} = theme;
 
@@ -424,8 +425,9 @@ const MenuItem = React.forwardRef<
     hasTVPreferredFocus?: boolean;
     onPress: () => void;
     onFocusChange?: (f: boolean) => void;
+    uiId?: string; // [analytics] which control this is (Focusable.uiId)
   }
->(function PlayerMenuItem({label, tag, on, icon, hasTVPreferredFocus, onPress, onFocusChange}, ref) {
+>(function PlayerMenuItem({label, tag, on, icon, hasTVPreferredFocus, onPress, onFocusChange, uiId}, ref) {
   return (
     <Focusable
       ref={ref}
@@ -435,6 +437,7 @@ const MenuItem = React.forwardRef<
       highlightColor={colors.surfaceHover}
       hasTVPreferredFocus={hasTVPreferredFocus}
       onFocusChange={onFocusChange}
+      uiId={uiId}
       onPress={onPress}
       style={styles.menuItem}>
       <Text style={[styles.menuCheck, !on && styles.menuCheckOff]}>✓</Text>
@@ -561,9 +564,10 @@ const PBtn = React.forwardRef<
     hasTVPreferredFocus?: boolean;
     onPress: () => void;
     onFocusChange?: (focused: boolean) => void;
+    uiId?: string; // [analytics] which control this is (Focusable.uiId)
   }
 >(function PlayerButton(
-  {icon, label, big, badge, hasTVPreferredFocus, onPress, onFocusChange},
+  {icon, label, big, badge, hasTVPreferredFocus, onPress, onFocusChange, uiId},
   ref,
 ) {
   const [focused, setFocused] = useState(false);
@@ -579,6 +583,7 @@ const PBtn = React.forwardRef<
         setFocused(f);
         onFocusChange?.(f);
       }}
+      uiId={uiId}
       onPress={onPress}
       style={big ? styles.pbtnBig : styles.pbtn}>
       <Icon name={icon} size={big ? 28 : 21} color={focused ? colors.bg : colors.white} />
@@ -1765,6 +1770,7 @@ export default function Player({
     if (pendingSeek.current == null) return;
     const target = pendingSeek.current;
     pendingSeek.current = null;
+    seekStarted(target); // [analytics] seek → playing again, as a timing
     const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
     // A committed seek is shared with the party — unless it IS the party's
     // (partyEcho), which is how the room avoids echoing seeks back and forth.
@@ -2439,6 +2445,7 @@ export default function Player({
   const onProgress = (d: OnProgressData) => {
     const content = streamOffset.current + d.currentTime;
     curRef.current = content;
+    if (seeking()) seekResumed(content); // [analytics] (one boolean while no seek is being timed)
     // Re-anchor the cue clock (see timeRef): the interpolation between these
     // events is what keeps subtitles on the frame rather than up to a second out.
     progTime.current = content;
@@ -2548,6 +2555,7 @@ export default function Player({
   const onError = (e?: {error?: {errorString?: string; errorException?: string}}) => {
     const detail = `${e?.error?.errorString || ''} ${e?.error?.errorException || ''}`;
     console.log('[player] error:', detail);
+    playerError(detail, (e?.error as {errorCode?: string} | undefined)?.errorCode); // [analytics] ExoPlayer's error name and code, never the address
     mark('error', {m: detail.trim().slice(0, 40), at: Math.round(curRef.current || 0), app: 'tv'});
     const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
 
@@ -2705,7 +2713,7 @@ export default function Player({
         <Text style={styles.errorText}>{loadErr.title}</Text>
         {loadErr.detail ? <Text style={styles.statusSub}>{loadErr.detail}</Text> : null}
         <View style={styles.upNextActions}>
-          <Focusable
+          <Focusable uiId="player.retry"
             round
             hasTVPreferredFocus
             onPress={() => {
@@ -2891,7 +2899,7 @@ export default function Player({
             <View style={styles.scrim} pointerEvents="none">
               <Image source={SCRIM_TOP} style={styles.scrimImg} resizeMode="stretch" />
             </View>
-            <PBtn
+            <PBtn uiId="player.back"
               icon="back"
               label="Back"
               onFocusChange={markZone('top')}
@@ -2941,7 +2949,7 @@ export default function Player({
                 focus to its one focusable, the bar. */}
             <TVFocusGuideView autoFocus trapFocusLeft trapFocusRight style={styles.scrubRow}>
             <Text style={styles.time}>{fmt(shown)}</Text>
-            <Focusable
+            <Focusable uiId="player.scrub"
               noScale
               ref={scrubRef as never}
               hasTVPreferredFocus={!menuOpen && !upNext}
@@ -2991,13 +2999,13 @@ export default function Player({
             </Text>
             </TVFocusGuideView>
             <View style={styles.buttons}>
-              <PBtn
+              <PBtn uiId="player.seek.back"
                 icon="back10"
                 label="Back 10 seconds"
                 onFocusChange={markZone('row')}
                 onPress={() => skip(-1)}
               />
-              <PBtn
+              <PBtn uiId="player.playpause"
                 ref={pauseBtnRef}
                 big
                 icon={paused ? 'play' : 'pause'}
@@ -3005,14 +3013,14 @@ export default function Player({
                 onFocusChange={markZone('row')}
                 onPress={togglePlay}
               />
-              <PBtn
+              <PBtn uiId="player.seek.fwd"
                 icon="forward10"
                 label="Forward 10 seconds"
                 onFocusChange={markZone('row')}
                 onPress={() => skip(1)}
               />
               {nextEp ? (
-                <PBtn
+                <PBtn uiId="player.next"
                   icon="skip"
                   label={`Next episode — ${nextEp.title}`}
                   onFocusChange={markZone('row')}
@@ -3030,7 +3038,7 @@ export default function Player({
                   what actually sets the level on a TV, and they go to the device
                   whatever this screen does; mute is the part worth having here. */}
               <View style={styles.volGroup}>
-                <PBtn
+                <PBtn uiId="player.mute"
                   icon={muted || volume === 0 ? 'volumeOff' : 'volume'}
                   label="Mute"
                   onPress={() => setMuted(m => !m)}
@@ -3054,7 +3062,7 @@ export default function Player({
               </View>
               <View style={styles.spacer} />
               {tracks.length > 0 ? (
-                <PBtn
+                <PBtn uiId="player.subtitles.open"
                   icon="cc"
                   label="Subtitles"
                   badge={subKey ? undefined : 'off'}
@@ -3069,7 +3077,7 @@ export default function Player({
               {/* Speed keeps the site's icon, but shows the rate underneath when
                   it isn't 1x — otherwise nothing on screen tells you playback is
                   running fast. */}
-              <PBtn
+              <PBtn uiId="player.speed.open"
                 icon="speed"
                 label="Speed"
                 badge={rate === 1 ? undefined : `${rate}x`}
@@ -3080,7 +3088,7 @@ export default function Player({
                   setMenu('speed');
                 }}
               />
-              <PBtn
+              <PBtn uiId="player.xray"
                 icon="xray"
                 label="X-Ray"
                 onFocusChange={markZone('row')}
@@ -3100,7 +3108,7 @@ export default function Player({
                   });
                 }}
               />
-              <PBtn
+              <PBtn uiId="player.party"
                 icon="people"
                 label="Watch together"
                 badge={partyInfo ? String(partyInfo.members.length) : undefined}
@@ -3111,7 +3119,7 @@ export default function Player({
                   setMenu('party');
                 }}
               />
-              <PBtn
+              <PBtn uiId="player.settings.open"
                 icon="gear"
                 label="Settings"
                 onFocusChange={markZone('row')}
@@ -3129,7 +3137,7 @@ export default function Player({
       {/* Skip intro — inside the range, playing. It takes focus as it appears so
           OK skips; leaving the range hands focus back to the scrubber. */}
       {inIntro && uri && !menuOpen && !upNext ? (
-        <Focusable
+        <Focusable uiId="player.skipintro"
           round
           light
           hasTVPreferredFocus
@@ -3154,7 +3162,7 @@ export default function Player({
             <Text style={styles.resumeK}>RESUMING FROM</Text>
             <Text style={styles.resumeT}>{fmt(resumeCard.at)}</Text>
           </View>
-          <Focusable
+          <Focusable uiId="player.startover"
             round
             onFocusChange={markZone('card')}
             onPress={() => {
@@ -3179,13 +3187,13 @@ export default function Player({
                 and re-downloads the track. Cheap insurance for "the subs look off
                 and I don't want to fiddle with ±0.5s". */}
             {subKey ? (
-              <MenuItem
+              <MenuItem uiId="player.subtitles.resync"
                 label="⟲  Resync subtitles"
                 onFocusChange={markZone('menu')}
                 onPress={resyncSubs}
               />
             ) : null}
-            <MenuItem
+            <MenuItem uiId="player.subtitles.pick"
               label="Off"
               icon="close"
               on={!subKey}
@@ -3210,7 +3218,7 @@ export default function Player({
                     ? e => ccScroll.current?.scrollTo({y: Math.max(0, e.nativeEvent.layout.y - 160), animated: false})
                     : undefined
                 }>
-                <MenuItem
+                <MenuItem uiId="player.subtitles.pick"
                   label={t.label}
                   tag={t.embedded ? 'Embedded' : undefined}
                   on={subKey === t.key}
@@ -3289,7 +3297,7 @@ export default function Player({
           <MenuTitle icon="speed" label="SPEED" />
           <ScrollView style={styles.menuScroll}>
             {SPEEDS.map(sp => (
-              <MenuItem
+              <MenuItem uiId="player.speed.pick"
                 key={sp}
                 label={sp === 1 ? 'Normal' : `${sp}×`}
                 on={rate === sp}
@@ -3317,7 +3325,7 @@ export default function Player({
             <>
               <MenuTitle icon="volume" label="AUDIO" />
               {audioTracks.map(t => (
-                <MenuItem
+                <MenuItem uiId="player.audio.pick"
                   key={`a${t.index}`}
                   label={audioLabel(t)}
                   tag={[t.original ? 'Original' : null, t.codec ? t.codec.toUpperCase() : null, t.channels ? `${t.channels}ch` : null]
@@ -3337,7 +3345,7 @@ export default function Player({
           {epSeason && epEpisode ? (
             <>
               <MenuTitle icon="play" label="PLAYBACK" gap={audioTracks.length > 1} />
-              <MenuItem
+              <MenuItem uiId="player.autoplay"
                 label="Autoplay next episode"
                 tag={prefs.autoplayNext ? 'On' : 'Off'}
                 hasTVPreferredFocus={audioTracks.length <= 1}
@@ -3453,7 +3461,7 @@ export default function Player({
               <Text style={styles.partyHint}>
                 Start a party and Aurora hands you a four-letter code. Anyone on another device joins with it, and play, pause and jumps stay in step. Everyone on Aurora sees the party on their Home and can join.
               </Text>
-              <MenuItem
+              <MenuItem uiId="player.party.start"
                 label="Start a party"
                 hasTVPreferredFocus
                 onFocusChange={markZone('menu')}
@@ -3475,7 +3483,7 @@ export default function Player({
             {upNext.title}
           </Text>
           <View style={styles.upNextActions}>
-            <Focusable
+            <Focusable uiId="player.upnext.play"
               round
               light
               ring="violet"
@@ -3485,7 +3493,7 @@ export default function Player({
               style={styles.btnPrimary}>
               <Text style={styles.btnPrimaryText}>▶  Play now</Text>
             </Focusable>
-            <Focusable
+            <Focusable uiId="player.upnext.dismiss"
               round
               onFocusChange={markZone('menu')}
               onPress={dismissUpNext}
@@ -3508,7 +3516,7 @@ export default function Player({
               : 'Still loading… this connection is slow'}
           </Text>
           <View style={styles.upNextActions}>
-            <Focusable
+            <Focusable uiId="player.slowstart.wait"
               round
               light
               ring="violet"
@@ -3519,7 +3527,7 @@ export default function Player({
               <Text style={styles.btnPrimaryText}>Keep waiting</Text>
             </Focusable>
             {canLowerQuality ? (
-              <Focusable round onFocusChange={markZone('menu')} onPress={lowerQuality} style={styles.btn}>
+              <Focusable uiId="player.slowstart.lower" round onFocusChange={markZone('menu')} onPress={lowerQuality} style={styles.btn}>
                 <Text style={styles.btnText}>Lower quality</Text>
               </Focusable>
             ) : null}

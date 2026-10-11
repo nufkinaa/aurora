@@ -10,6 +10,10 @@ const ui = suite({
     srv.profiles.watcher = { id: "default", name: "Watcher", password: "" };
     srv.profiles.locked = await srv.api.createProfile("Locked");
     srv.profiles.open = await srv.api.createProfile("Open", { open: true });
+    // password-less profiles for the tests that make the wall's check fail
+    srv.profiles.unsure = await srv.api.createProfile("Unsure", { open: true });
+    srv.profiles.changed = await srv.api.createProfile("Changed", { open: true });
+    srv.profiles.frozen = await srv.api.createProfile("Frozen", { open: true });
   },
 });
 
@@ -54,6 +58,146 @@ ui.test("a wrong password shows the error and does not enter; the right one does
   assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), profiles.locked.id);
 });
 
+ui.test("the password sheet says why it failed: too many attempts, a locked profile, no server — not \"Not quite\"", {
+  allow: [/Failed to load resource.*(429|403|503).*\/unlock/, /Failed to load resource.*\/unlock/],
+}, async ({ page, goto, profiles }) => {
+  await goto("#/", { wait: false });
+  await page.click(tile("Locked"));
+  const input = page.locator('.modal input[type="password"]');
+  await input.waitFor();
+  const err = page.locator(".modal .pw-error");
+  const answer = async (status, body) => {
+    await page.unroute("**/api/profiles/*/unlock").catch(() => {});
+    await page.route("**/api/profiles/*/unlock", (route) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) }));
+  };
+  const attempt = async () => {
+    await input.fill(profiles.locked.password);
+    await page.click('.modal button:has-text("Unlock")');
+    await err.waitFor({ state: "visible" });
+    return (await err.textContent()).trim();
+  };
+
+  // the server has stopped taking guesses for a while (its own words)
+  await answer(429, { error: "too many attempts — try again in a few minutes" });
+  assert.equal(await attempt(), "Too many attempts — try again in a few minutes.");
+  assert.equal(await input.inputValue(), profiles.locked.password, "the password was not the problem: it is left in the field");
+
+  // the admin locked the profile after the wall was drawn
+  await answer(403, { error: "locked by admin" });
+  assert.match(await attempt(), /^This profile has been locked\./);
+
+  // the server fell over
+  await answer(503, { error: "" });
+  assert.match(await attempt(), /^Couldn't reach Aurora/);
+
+  // and a wrong password is still a wrong password
+  await page.unroute("**/api/profiles/*/unlock");
+  await input.fill("definitely-wrong");
+  await page.click('.modal button:has-text("Unlock")');
+  await page.waitForFunction(() => /Not quite/.test(document.querySelector(".modal .pw-error").textContent));
+  assert.equal(await input.inputValue(), "");
+  assert.equal(await page.locator(gate).count(), 1, "still at the wall");
+});
+
+// A profile with no password is still asked about at the server before it
+// opens, and only a yes opens it. (It used to open on any failure of that
+// check — no server, a lock, a password set a moment ago.)
+ui.test("a password-less profile does not open while the server cannot confirm it — the wall says so, and Try again opens it once it can", {
+  allow: [/Failed to load resource.*\/unlock/],
+}, async ({ page, goto, profiles }) => {
+  const p = profiles.unsure;
+  await goto("#/", { wait: false });
+  await page.waitForSelector(tile(p.name));
+  const notice = page.locator(`${gate} .profiles-notice`);
+  const notIn = async (why) => {
+    assert.equal(await page.locator(gate).count(), 1, `${why}: still at the wall`);
+    assert.equal(await page.locator("#app .screen").count(), 0, `${why}: nothing was entered`);
+    assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), null, `${why}: no profile was remembered`);
+  };
+  const failWith = async (how) => {
+    await page.unroute("**/api/profiles/*/unlock").catch(() => {});
+    await page.route("**/api/profiles/*/unlock", how);
+  };
+
+  // no answer at all (the server is out of reach)
+  await failWith((route) => route.abort("connectionrefused"));
+  await page.click(tile(p.name));
+  await notice.waitFor({ state: "visible" });
+  assert.match(await notice.textContent(), /^Can't reach the server — try again\./);
+  assert.equal(await notice.locator("button").textContent(), "Try again");
+  await notIn("no connection");
+
+  // the server fell over: the same — no answer is not a yes
+  await failWith((route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "" }) }));
+  await notice.locator("button").click();
+  await page.waitForTimeout(300);
+  await notice.waitFor({ state: "visible" });
+  assert.match(await notice.textContent(), /^Can't reach the server — try again\./);
+  await notIn("503");
+
+  // it has stopped taking tries for a while: its own words, and a way to try again
+  await failWith((route) => route.fulfill({ status: 429, contentType: "application/json", body: JSON.stringify({ error: "too many attempts — try again in a few minutes" }) }));
+  await page.click(tile(p.name));
+  await page.waitForFunction(() => /^Too many attempts — try again in a few minutes\./.test((document.querySelector(".profiles-notice") || {}).textContent || ""));
+  await notIn("429");
+
+  // picking another profile clears what was said about this one
+  await failWith((route) => route.abort("connectionrefused"));
+  await page.click(tile(profiles.open.name));
+  await page.waitForFunction(() => /Can't reach the server/.test((document.querySelector(".profiles-notice") || {}).textContent || ""));
+  await notIn("another profile, still no connection");
+
+  // the check goes through: Try again opens the profile that was asked for last
+  await page.unroute("**/api/profiles/*/unlock");
+  await notice.locator("button").click();
+  await page.waitForSelector(gate, { state: "detached" });
+  await waitForScreen(page);
+  assert.equal(await page.textContent("#nav-profile-name"), profiles.open.name);
+  assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), profiles.open.id);
+});
+
+ui.test("a password-less profile that got a password, or was locked, since the wall was drawn does not open on the old picture", {
+  allow: [/Failed to load resource.*(401|403).*\/unlock/],
+}, async ({ page, goto, api, profiles }) => {
+  await goto("#/", { wait: false });
+  await page.waitForSelector(tile(profiles.changed.name));
+  await page.waitForSelector(tile(profiles.frozen.name));
+  assert.equal(await page.locator(`${tile(profiles.changed.name)} .profile-lock`).count(), 0, "drawn as a profile with no password");
+
+  // a password is set on it from another device
+  await api.post(`/api/profiles/${profiles.changed.id}/password`, { newPassword: "now-private-1", currentPassword: "" });
+  profiles.changed.password = "now-private-1";
+  await page.click(tile(profiles.changed.name));
+  // not entered: the wall catches up (the tile shows its lock) and asks for the password
+  const pw = page.locator('.modal input[type="password"]');
+  await pw.waitFor();
+  assert.equal(await page.locator("#app .screen").count(), 0);
+  assert.equal(await page.locator(`${tile(profiles.changed.name)} .profile-lock`).count(), 1);
+  await pw.fill("now-private-1");
+  await page.click('.modal button:has-text("Unlock")');
+  await page.waitForSelector(gate, { state: "detached" });
+  await waitForScreen(page);
+  assert.equal(await page.textContent("#nav-profile-name"), profiles.changed.name);
+
+  // the admin locks a profile under a wall that still shows it open
+  await page.click("#nav-profile");
+  await page.click('.nav-menu button:has-text("Switch profile")');
+  await page.waitForSelector(tile(profiles.frozen.name));
+  await api.adminPost(`/api/admin/profiles/${profiles.frozen.id}/lock`, { locked: true });
+  try {
+    await page.click(tile(profiles.frozen.name));
+    const notice = page.locator(`${gate} .profiles-notice`);
+    await notice.waitFor({ state: "visible" });
+    assert.match(await notice.textContent(), /“Frozen” has been locked\./);
+    assert.equal(await notice.locator("button").count(), 0, "trying again cannot help");
+    assert.equal(await page.locator(gate).count(), 1);
+    assert.equal(await page.textContent("#nav-profile-name"), profiles.changed.name, "still the profile it was in");
+    assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), profiles.changed.id);
+  } finally {
+    await api.adminPost(`/api/admin/profiles/${profiles.frozen.id}/lock`, { locked: false });
+  }
+});
+
 ui.test("a reload of a protected profile stays in (this tab still holds its unlock)", async ({ page, goto, profiles }) => {
   await goto("#/", { wait: false });
   await page.click(tile("Locked"));
@@ -76,6 +220,8 @@ ui.test("the one-time notices appear once, do not block, and stay dismissed", as
   const notice = page.locator(".look-notice");
   await notice.waitFor({ timeout: 5000 });
   assert.match(await notice.textContent(), /new look/);
+  // it describes what is there: Home has no "Tonight row"
+  assert.doesNotMatch(await notice.textContent(), /Tonight row/);
   await page.click('.look-notice button:has-text("Got it")');
   await page.waitForSelector(".look-notice-wrap", { state: "detached" });
   await page.waitForFunction(async () => (await (await fetch("/api/profiles")).json()).find((p) => p.id === "default").lookNoticeSeen === true);

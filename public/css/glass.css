@@ -4275,3 +4275,574 @@ html[data-fx="lite"] .img-blurup.img-in { animation: none; }
    from a source AirPlay can fetch (js/screens/player.js, airBtn). Hidden it
    takes no room in the tools row. */
 .pbtn.airplay-btn.hidden { display: none; }
+
+/* ---------- the person sheet (js/personSheet.js) ----------
+   Press an actor or a director — in X-Ray or in a title page's cast line —
+   and this opens ON TOP of whatever is open: a few portraits, then their
+   titles. A press on a title puts it on My List; Details is its page.
+   No blur and no new shadows on the cards: this opens over a paused film and
+   over X-Ray's own sheet, and a second frosted layer is what made pages
+   stutter before. The panel is the X-Ray sheet's own dark glass, opaque. */
+/* a person in X-Ray is a button now (it was a link to Search) */
+button.xr-person {
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+button.xr-person:hover,
+button.xr-person:focus {
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+}
+button.xr-person:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
+}
+/* …and so is a name in a title page's cast line */
+.detail-cast .cast-group + .cast-group::before {
+  content: "";
+  display: inline-block;
+  width: 18px;
+}
+.cast-name {
+  border: 0;
+  padding: 2px 0;
+  margin: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.18);
+  text-underline-offset: 3px;
+}
+.cast-name:hover,
+.cast-name:focus {
+  color: var(--text);
+  text-decoration-color: currentColor;
+  outline: none;
+}
+.cast-name:focus-visible {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+.person-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 330; /* over the player (200), X-Ray's page sheet (300) and the peek sheet (310); under toasts (400) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 5, 10, 0.66);
+  animation: fade-in var(--t-fast);
+}
+.person-wrap.leaving {
+  opacity: 0;
+  transition: opacity 200ms var(--ease);
+  pointer-events: none;
+}
+.person-sheet {
+  position: relative;
+  width: min(880px, 100%);
+  height: min(86vh, 780px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 24px;
+  background: rgb(15, 17, 30);
+  background-image: linear-gradient(140deg, rgba(104, 86, 226, 0.16) 0%, rgba(14, 16, 28, 0) 46%, rgba(70, 200, 150, 0.08) 100%);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  animation: modal-in var(--t-med) var(--ease);
+}
+.person-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px 12px 20px;
+  position: relative;
+}
+.person-grab {
+  display: none;
+}
+.person-face {
+  width: 52px;
+  height: 52px;
+}
+.person-id {
+  flex: 1;
+  min-width: 0;
+}
+.person-name {
+  font-size: 1.32rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.person-sub {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.person-imdb {
+  flex: none;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  padding: 5px 9px;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.1);
+  text-decoration: none;
+}
+.person-imdb:hover,
+.person-imdb:focus {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  outline: none;
+}
+.person-close {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.13);
+  cursor: pointer;
+}
+.person-close:hover,
+.person-close:focus {
+  background: rgba(255, 255, 255, 0.26);
+  outline: none;
+}
+.person-close:focus-visible,
+.person-imdb:focus-visible,
+.pt-more:focus-visible,
+.person-photo:focus-visible,
+.person-viewer-nav:focus-visible {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7);
+}
+/* the sheet scrolls by itself; the page (or the film) under it holds still */
+.person-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 20px 26px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+/* photos: a strip of fixed height from the first frame — the placeholders
+   stand where the portraits will, so nothing below moves when they arrive */
+.person-photos {
+  display: flex;
+  gap: 8px;
+  height: 152px;
+  margin: 0 -20px;
+  padding: 2px 20px;
+  overflow: auto hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding: 0 20px;
+  scrollbar-width: none;
+}
+.person-photos::-webkit-scrollbar {
+  display: none;
+}
+.person-photos.none {
+  display: none;
+}
+.person-photo {
+  flex: 0 0 auto;
+  height: 148px;
+  aspect-ratio: 2 / 3;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: zoom-in;
+  scroll-snap-align: start;
+}
+.person-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  display: block;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.person-photo.in img {
+  opacity: 1;
+}
+.person-photo:focus {
+  outline: none;
+}
+.person-bio {
+  margin: 14px 0 0;
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  cursor: pointer;
+}
+.person-bio.open {
+  -webkit-line-clamp: unset;
+  display: block;
+}
+.person-how {
+  margin: 14px 0 0;
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  min-height: 1.2em;
+}
+.person-section {
+  margin-top: 18px;
+}
+.person-section h3 {
+  font-size: 1.02rem;
+  font-weight: 800;
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.person-titles > .person-grid:first-child {
+  margin-top: 18px;
+}
+.person-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 18px 14px;
+  /* room for a focused card's lift and aura inside the scroller */
+  padding: 4px 2px;
+}
+.pt {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.person-grid .card.poster.pt-card {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  display: block;
+  color: inherit;
+  font: inherit;
+}
+/* no noise-masked halo here: forty of them inside a scroller is paint for nothing */
+.person-grid .card.pt-card::before {
+  display: none;
+}
+.person-grid .card.pt-card:hover,
+.person-grid .card.pt-card:focus {
+  transform: scale(1.035) translateY(-2px);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 10px 26px rgba(0, 0, 0, 0.5);
+  outline: none;
+}
+.pt.busy .pt-card {
+  opacity: 0.7;
+}
+/* the state of the press: + to add, ✓ once it is on the list */
+.pt-mark {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(8, 9, 16, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  transition: background 0.18s ease, transform 0.18s var(--ease);
+}
+.pt-mark svg {
+  width: 17px;
+  height: 17px;
+}
+.pt.listed .pt-mark {
+  background: #35c47a;
+  box-shadow: none;
+  color: #04130b;
+  transform: scale(1.06);
+}
+.pt.listed .pt-card {
+  box-shadow: 0 0 0 2px rgba(53, 196, 122, 0.85);
+}
+.pt-flag {
+  position: absolute;
+  left: 7px;
+  bottom: 7px;
+  max-width: calc(100% - 14px);
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(8, 9, 16, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pt-flag.hidden {
+  display: none;
+}
+.pt-card .card-progress {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 4px;
+}
+.pt-text {
+  margin-top: 8px;
+  min-width: 0;
+  flex: 1; /* the Details buttons of one row line up, whatever the titles wrap to */
+}
+.pt-title {
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.pt-sub {
+  margin-top: 2px;
+  font-size: 0.76rem;
+  line-height: 1.3;
+  color: var(--text-dim);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+/* the other thing to do with a title: its page */
+.pt-more {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+.pt-more:hover,
+.pt-more:focus {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+  outline: none;
+}
+.person-fail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+/* what a press did, said inside the sheet (a fullscreen film hides toasts) */
+.person-status {
+  position: absolute;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%, 12px);
+  max-width: calc(100% - 28px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  border-radius: 14px;
+  font-size: 0.9rem;
+  background: rgba(24, 26, 40, 0.98);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 12px 30px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s var(--ease);
+  z-index: 4;
+}
+.person-status.on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+/* a photo, enlarged — inside the sheet, one swipe per photo */
+.person-viewer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  background: rgba(6, 7, 13, 0.97);
+  display: flex;
+  animation: fade-in var(--t-fast);
+}
+.person-viewer-track {
+  flex: 1;
+  display: flex;
+  overflow: auto hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.person-viewer-track::-webkit-scrollbar {
+  display: none;
+}
+.person-viewer-slide {
+  flex: 0 0 100%;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  display: grid;
+  place-items: center;
+  padding: 56px 16px calc(44px + env(safe-area-inset-bottom, 0px));
+  min-height: 0;
+}
+.person-viewer-slide img {
+  max-width: 100%;
+  max-height: 100%;
+  height: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: contain;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.person-viewer-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+}
+.person-viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+}
+.person-viewer-nav.prev { left: 12px; }
+.person-viewer-nav.next { right: 12px; }
+.person-viewer-nav:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+.person-viewer-nav:focus { outline: none; }
+.person-viewer-count {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+/* phones (and any narrow window): a sheet from the foot of the screen */
+@media (max-width: 720px) {
+  .person-wrap {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .person-sheet {
+    width: 100%;
+    height: 92%;
+    height: min(92dvh, calc(100% - env(safe-area-inset-top, 0px) - 10px));
+    border-radius: 26px 26px 0 0;
+    animation: sheet-up var(--t-med) var(--ease);
+  }
+  .person-head {
+    padding: 22px max(14px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+    gap: 12px;
+  }
+  .person-grab {
+    display: block;
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 38px;
+    height: 5px;
+    margin-left: -19px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.3);
+  }
+  .person-face { width: 46px; height: 46px; }
+  .person-name { font-size: 1.16rem; }
+  .person-close { width: 44px; height: 44px; }
+  .person-body {
+    padding: 2px max(16px, env(safe-area-inset-right, 0px)) calc(30px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  }
+  .person-photos {
+    height: 136px;
+    margin: 0 -16px;
+    padding: 2px 16px;
+    scroll-padding: 0 16px;
+  }
+  .person-photo { height: 132px; }
+  .person-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px 10px;
+  }
+  .pt-more { padding: 8px 12px; } /* a finger-sized target */
+  .person-viewer-nav { display: none; } /* a swipe does it */
+}
+/* a phone on its side (a film, usually): short and wide — the sheet takes
+   the height there is, the photos come down a size, more titles per row */
+@media (max-height: 480px) {
+  .person-wrap {
+    align-items: flex-end;
+    padding: 0 max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
+  }
+  .person-sheet {
+    width: min(880px, 100%);
+    height: calc(100% - 8px);
+    border-radius: 20px 20px 0 0;
+  }
+  .person-head { padding-top: 12px; padding-bottom: 8px; }
+  .person-grab { display: none; }
+  .person-photos { height: 104px; }
+  .person-photo { height: 100px; }
+  .person-bio { display: none; } /* the titles are what there is room for */
+  .person-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+  .person-viewer-slide { padding-top: 12px; padding-bottom: 28px; }
+}
+@media (hover: none) {
+  /* nothing hovers on a touch screen: a tapped card must not stay lifted */
+  .person-grid .card.pt-card:hover { transform: none; box-shadow: none; }
+  .pt.listed .pt-card:hover { box-shadow: 0 0 0 2px rgba(53, 196, 122, 0.85); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .person-sheet, .person-wrap, .person-viewer { animation: none; }
+  .person-grid .card.pt-card:hover, .person-grid .card.pt-card:focus { transform: none; }
+}

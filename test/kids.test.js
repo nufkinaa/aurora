@@ -601,6 +601,27 @@ test("gate: a locked device can't reach another profile, nor undo the kids profi
   assert.equal(tv.run({ path: "/api/profiles/adult/state" }).passed, true);
 });
 
+test("gate: a locked device may prove the password of a kids profile at least as strict — its unlock, nothing more", () => {
+  // locked to "kid" (limit 12); the house also has kids profiles at 0, 12 and 16
+  const limits = { tiny: { maxAge: 0 }, twin: { maxAge: 12 }, teen: { maxAge: 16 }, kid: { maxAge: 12 } };
+  const { run } = makeGate(KID, { kidsOf: (id) => limits[id] || null });
+  // stricter and equal: the unlock goes through to the route (which checks the password)
+  assert.equal(run({ method: "POST", path: "/api/profiles/tiny/unlock" }).passed, true);
+  assert.equal(run({ method: "POST", path: "/api/profiles/twin/unlock" }).passed, true);
+  // ...and only the unlock: that profile's data waits for the lock to move there
+  for (const [method, path] of [["GET", "/api/profiles/tiny/state"], ["GET", "/api/profiles/tiny/watchlist"], ["PUT", "/api/profiles/tiny"], ["POST", "/api/profiles/tiny/password"], ["GET", "/api/profiles/tiny/unlock"], ["POST", "/api/profiles/tiny/unlock/x"]]) {
+    const r = run({ method, path });
+    assert.deepEqual([r.status, r.body.kidsLocked], [403, true], `${method} ${path}`);
+  }
+  // looser, a grown-up's, and a profile that does not exist: the PIN's business, as before
+  for (const id of ["teen", "adult", "nobody"]) {
+    const r = run({ method: "POST", path: `/api/profiles/${id}/unlock` });
+    assert.deepEqual([r.status, r.body.kidsLocked], [403, true], id);
+  }
+  // a gate that was not told who the kids profiles are lets nothing extra through
+  assert.equal(makeGate(KID).run({ method: "POST", path: "/api/profiles/tiny/unlock" }).status, 403);
+});
+
 test("gate: a filter that throws fails closed", () => {
   const { run } = makeGate(KID, { certOf: () => { throw new Error("boom"); } });
   const r = run({ path: "/api/home" }, (q, res) => res.json(HOME()));
