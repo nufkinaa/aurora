@@ -1,0 +1,75 @@
+{
+  "at": "2026-10-11T00:06:46.262Z",
+  "before": "68e946a",
+  "after": "working tree",
+  "weak": true,
+  "profiles": 8,
+  "films": 1201,
+  "rows": [
+    {
+      "what": "sessions.get(sid) — sha256 + row copy",
+      "before": 2.35,
+      "after": 2.03
+    },
+    {
+      "what": "authz.sessionFor(req) — the same + profiles.list().find",
+      "before": 3.75,
+      "after": 2.03
+    },
+    {
+      "what": "profiles.exists(last of 8) — the array scan alone",
+      "before": 0.1,
+      "after": 0.05
+    },
+    {
+      "what": "resetgate: restrictedProfile + signedOut (every gated request)",
+      "before": 7.5,
+      "after": 3.9
+    },
+    {
+      "what": "scanner.findById(first film)",
+      "before": 0.08,
+      "after": 0.08
+    },
+    {
+      "what": "scanner.findById(last film)",
+      "before": 10.16,
+      "after": 0
+    },
+    {
+      "what": "scanner.findById(last episode of the last show)",
+      "before": 18.74,
+      "after": 0
+    },
+    {
+      "what": "scanner.findById(an id that is not in the library)",
+      "before": 11.86,
+      "after": 0.32
+    },
+    {
+      "what": "identity.findLibraryFor({title, year}) — no maps handed in",
+      "before": 3617.5,
+      "after": 0
+    },
+    {
+      "what": "identity._internals.libraryMaps()",
+      "before": 3853.33,
+      "after": 0
+    },
+    {
+      "what": "profiles.getProgressView(busiest profile)",
+      "before": 673.33,
+      "after": 466.67
+    },
+    {
+      "what": "profiles.continueWatching(busiest profile)",
+      "before": 6560,
+      "after": 1410
+    },
+    {
+      "what": "JSON.stringify(profiles store) — one save's worth",
+      "before": 21850,
+      "after": 18750
+    }
+  ]
+}

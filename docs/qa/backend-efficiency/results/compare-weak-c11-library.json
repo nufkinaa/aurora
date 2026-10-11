@@ -1,0 +1,69 @@
+{
+  "at": "2026-10-10T23:33:48.087Z",
+  "before": "03f9cf3",
+  "after": "3e158b2",
+  "weak": true,
+  "rounds": 7,
+  "rows": [
+    {
+      "name": "GET /api/library",
+      "status": "200/200",
+      "bytesBefore": 85993,
+      "bytesAfter": 85993,
+      "beforeMs": 36.4,
+      "afterMs": -0.018,
+      "change": "-100 %",
+      "beforeMedianMs": 56.267,
+      "afterMedianMs": 1.048,
+      "changeMedian": "-98 %",
+      "beforeRuns": [
+        36.47,
+        62.53,
+        60.4,
+        56.27,
+        48.93,
+        36.4,
+        80.2
+      ],
+      "afterRuns": [
+        1.05,
+        -0.02,
+        0.98,
+        1.05,
+        1.05,
+        2.05,
+        1.04
+      ]
+    },
+    {
+      "name": "GET /api/library (If-None-Match)",
+      "status": "304/304",
+      "bytesBefore": 0,
+      "bytesAfter": 0,
+      "beforeMs": 11.467,
+      "afterMs": -0.016,
+      "change": "-100 %",
+      "beforeMedianMs": 14.6,
+      "afterMedianMs": -0.011,
+      "changeMedian": "-100 %",
+      "beforeRuns": [
+        11.47,
+        16.67,
+        14.6,
+        21.87,
+        14.6,
+        13.53,
+        13.53
+      ],
+      "afterRuns": [
+        0.98,
+        -0.01,
+        -0.01,
+        2.05,
+        -0.02,
+        -0.01,
+        1.05
+      ]
+    }
+  ]
+}
