@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-11T01:08:59.246Z",
+  "weak": true,
+  "household": "today (5 profiles, about 40 rows each)",
+  "storeBytes": 99713,
+  "savesPerViewerHour": 720,
+  "json": {
+    "cpuMsPerSave": 3.061,
+    "loopMsPerSave": 5.02,
+    "longestSaveMs": 61.4,
+    "mbWrittenPerViewerHour": 68.5,
+    "loopBlockedSecPerViewerHour": 3.61,
+    "loadMs": 2.2
+  },
+  "sqlite": {
+    "engine": "node:sqlite (SQLite 3.47.2)",
+    "dbBytes": 73728,
+    "pageSize": 4096,
+    "importMs": 2,
+    "cpuMsPerSave": 0.151,
+    "loopMsPerSave": 0.14,
+    "longestSaveMs": 3.4,
+    "mbWrittenPerViewerHour": 3.93,
+    "loopBlockedSecPerViewerHour": 0.101,
+    "readOneProfileMs": 0.07
+  }
+}

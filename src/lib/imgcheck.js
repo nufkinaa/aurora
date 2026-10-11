@@ -40,15 +40,29 @@ const readHead = (file) => {
   }
 };
 
-const validImageFile = (file) => {
-  try {
-    const st = fs.statSync(file);
-    if (st.size < MIN_IMAGE_BYTES) return false;
-    const head = readHead(file);
-    return !!head && magicOk(head);
-  } catch {
-    return false;
-  }
+// What a picture file is — is it a whole image, and of which type — answered
+// from memory while the file on disk is the one that was looked at (same
+// date, same size). A cached poster was otherwise opened, read and closed
+// twice on EVERY request to be told the same thing: 9 blocking filesystem
+// calls per picture where 4 stats do, on a route a Home page asks 300 times.
+//   { valid, mime }   valid: validImageFile's answer; mime: the type its
+//                     first bytes say, or null when they could not be read
+const known = new Map(); // file -> { mtimeMs, size, valid, mime }
+const KNOWN_MAX = 12000;
+const look = (file) => {
+  let st;
+  try { st = fs.statSync(file); } catch { known.delete(file); return { valid: false, mime: null }; }
+  const hit = known.get(file);
+  if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit;
+  const head = readHead(file);
+  const rec = { mtimeMs: st.mtimeMs, size: st.size, valid: st.size >= MIN_IMAGE_BYTES && !!head && magicOk(head), mime: head ? sniffMime(head) : null };
+  if (known.size >= KNOWN_MAX) known.clear();
+  known.set(file, rec);
+  return rec;
 };
 
-module.exports = { MIN_IMAGE_BYTES, magicOk, sniffMime, validImageFile, readHead };
+const validImageFile = (file) => look(file).valid;
+// The Content-Type for a picture file: what its first bytes say, or null.
+const mimeOfFile = (file) => look(file).mime;
+
+module.exports = { MIN_IMAGE_BYTES, magicOk, sniffMime, validImageFile, mimeOfFile, readHead, _internals: { known, look } };

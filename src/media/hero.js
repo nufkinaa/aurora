@@ -214,9 +214,16 @@ const tasteTerm = (item, affinity) => {
 const ratingTerm = (item) =>
   item.rating ? (item.rating - RATING_PIVOT_PUBLIC) / 2 : 0;
 
+// (The year of `now` is worked out once per `now`, not per title: this runs
+// for every title of the catalogue and the library on every Home request.)
+let yearMemo = { now: NaN, year: 0 };
+const yearAt = (now) => {
+  if (yearMemo.now !== now) yearMemo = { now, year: new Date(now).getFullYear() };
+  return yearMemo.year;
+};
 const recencyTerm = (item, now) => {
   if (!item.year) return 0;
-  const age = Math.max(0, new Date(now).getFullYear() - item.year);
+  const age = Math.max(0, yearAt(now) - item.year);
   return 1 / (1 + age / RECENCY_HALF_LIFE);
 };
 
@@ -231,6 +238,16 @@ const blindScore = (item, now) =>
 
 const tasteScore = (item, affinity, now) =>
   tasteTerm(item, affinity) * W_TASTE + blindScore(item, now);
+
+// Best score first, each title scored ONCE. The same order as sorting with
+// `(a, b) => scoreOf(b) - scoreOf(a)` (the sort is stable and the differences
+// are the same numbers) — without working the score out again for both sides
+// of every comparison: 1,600 titles are about 17,000 comparisons.
+const byScoreDesc = (items, scoreOf) =>
+  items
+    .map((item) => ({ item, s: scoreOf(item) }))
+    .sort((a, b) => b.s - a.s)
+    .map((x) => x.item);
 
 // ---------- sampling ----------
 
@@ -398,12 +415,8 @@ const select = ({
   const rated = ratedBy(ratings);
   const eligible = all.filter((item) => !isSeen(item) && !rated(item) && playable(item, now));
 
-  const tasteRanked = [...eligible]
-    .sort((a, b) => tasteScore(b, affinity, now) - tasteScore(a, affinity, now))
-    .slice(0, POOL_CAP);
-  const blindRanked = [...eligible]
-    .sort((a, b) => blindScore(b, now) - blindScore(a, now))
-    .slice(0, POOL_CAP);
+  const tasteRanked = byScoreDesc(eligible, (i) => tasteScore(i, affinity, now)).slice(0, POOL_CAP);
+  const blindRanked = byScoreDesc(eligible, (i) => blindScore(i, now)).slice(0, POOL_CAP);
 
   return sample(tasteRanked, blindRanked, count, random);
 };
@@ -456,8 +469,8 @@ const recommend = ({
   const onScreen = new Set(exclude.map(titleKey));
   const rated = ratedBy(ratings);
 
-  return all
-    .filter(
+  return byScoreDesc(
+    all.filter(
       (item) =>
         item.source === "stream" &&
         !item.inLibrary &&
@@ -467,9 +480,9 @@ const recommend = ({
         !listed.has(item.imdbId) &&
         !onScreen.has(titleKey(item)) &&
         playable(item, now),
-    )
-    .sort((a, b) => tasteScore(b, affinity, now) - tasteScore(a, affinity, now))
-    .slice(0, count);
+    ),
+    (item) => tasteScore(item, affinity, now),
+  ).slice(0, count);
 };
 
 module.exports = {
@@ -484,6 +497,7 @@ module.exports = {
     affinityMap,
     tasteScore,
     blindScore,
+    byScoreDesc,
     sample,
     dayIndex,
     POOL_CAP,

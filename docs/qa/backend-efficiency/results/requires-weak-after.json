@@ -1,0 +1,311 @@
+{
+  "at": "2026-10-11T00:57:43.091Z",
+  "ref": "working tree",
+  "weak": true,
+  "rows": [
+    {
+      "name": "GET /healthz",
+      "status": 200,
+      "requires": 0,
+      "usEach": 40.7,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/ping",
+      "status": 200,
+      "requires": 0,
+      "usEach": 40.6,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/me",
+      "status": 200,
+      "requires": 0,
+      "usEach": 39.1,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/profiles",
+      "status": 200,
+      "requires": 0,
+      "usEach": 41.5,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/profiles/:id/state",
+      "status": 200,
+      "requires": 0,
+      "usEach": 43.8,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/profiles/:id/watchlist",
+      "status": 200,
+      "requires": 0,
+      "usEach": 41.5,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/library",
+      "status": 200,
+      "requires": 0,
+      "usEach": 40.7,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/library (If-None-Match)",
+      "status": 200,
+      "requires": 0,
+      "usEach": 43,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/home",
+      "status": 200,
+      "requires": 5,
+      "usEach": 45.3,
+      "ms": 0.23,
+      "top": [
+        {
+          "site": "src/routes/api.js -> ../lib/authz",
+          "perRequest": 3
+        },
+        {
+          "site": "src/routes/api.js -> ../lib/authmode",
+          "perRequest": 1
+        },
+        {
+          "site": "src/routes/api.js -> ../media/recs",
+          "perRequest": 1
+        }
+      ]
+    },
+    {
+      "name": "GET /api/home slim (TV)",
+      "status": 200,
+      "requires": 5,
+      "usEach": 46.1,
+      "ms": 0.23,
+      "top": [
+        {
+          "site": "src/routes/api.js -> ../lib/authz",
+          "perRequest": 3
+        },
+        {
+          "site": "src/routes/api.js -> ../lib/authmode",
+          "perRequest": 1
+        },
+        {
+          "site": "src/routes/api.js -> ../media/recs",
+          "perRequest": 1
+        }
+      ]
+    },
+    {
+      "name": "GET /api/item/:id (film)",
+      "status": 200,
+      "requires": 0,
+      "usEach": 58.6,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/item/:id (episode)",
+      "status": 200,
+      "requires": 0,
+      "usEach": 57.1,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/discover/meta (cached)",
+      "status": 200,
+      "requires": 0,
+      "usEach": 52.4,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/search/suggest v2",
+      "status": 200,
+      "requires": 0,
+      "usEach": 48.5,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/search v2",
+      "status": 200,
+      "requires": 0,
+      "usEach": 49.3,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/popular",
+      "status": 200,
+      "requires": 1,
+      "usEach": 56.3,
+      "ms": 0.06,
+      "top": [
+        {
+          "site": "src/routes/api.js -> ../profiles",
+          "perRequest": 1
+        }
+      ]
+    },
+    {
+      "name": "GET /api/intro/auto/:id (library episode)",
+      "status": 200,
+      "requires": 1,
+      "usEach": 54.7,
+      "ms": 0.05,
+      "top": [
+        {
+          "site": "src/routes/api.js -> ../media/introdetect",
+          "perRequest": 1
+        }
+      ]
+    },
+    {
+      "name": "GET /img/:id (cover, original)",
+      "status": 200,
+      "requires": 0,
+      "usEach": 55.5,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /img/:id?w=256 (variant made)",
+      "status": 200,
+      "requires": 0,
+      "usEach": 51.6,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /img/ext?u=&w=256 (cached, variant made)",
+      "status": 200,
+      "requires": 0,
+      "usEach": 72.7,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /stream/video/:id (range, 64 KB)",
+      "status": 206,
+      "requires": 0,
+      "usEach": 68.8,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /stream/subtitle/:id (sidecar)",
+      "status": 200,
+      "requires": 0,
+      "usEach": 65.7,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /stream/embedded/:id/0 (cached)",
+      "status": 200,
+      "requires": 0,
+      "usEach": 55.5,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET jit index.m3u8 (table cached)",
+      "status": 200,
+      "requires": 0,
+      "usEach": 68.8,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET jit segment (made)",
+      "status": 200,
+      "requires": 1,
+      "usEach": 58.6,
+      "ms": 0.06,
+      "top": [
+        {
+          "site": "src/routes/stream.js -> ../lib/signals",
+          "perRequest": 1
+        }
+      ]
+    },
+    {
+      "name": "GET / (app shell)",
+      "status": 200,
+      "requires": 1,
+      "usEach": 57.8,
+      "ms": 0.06,
+      "top": [
+        {
+          "site": "src/lib/assetver.js -> ./cssbundle",
+          "perRequest": 1
+        }
+      ]
+    },
+    {
+      "name": "GET /css/aurora.css?v=",
+      "status": 200,
+      "requires": 0,
+      "usEach": 56.2,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /js/main.js (If-None-Match)",
+      "status": 200,
+      "requires": 0,
+      "usEach": 50.1,
+      "ms": 0,
+      "top": []
+    },
+    {
+      "name": "GET /api/downloads",
+      "status": 200,
+      "requires": 3,
+      "usEach": 51.6,
+      "ms": 0.15,
+      "top": [
+        {
+          "site": "src/routes/downloads.js -> ../lib/authz",
+          "perRequest": 1
+        },
+        {
+          "site": "src/routes/downloads.js -> ../profiles",
+          "perRequest": 1
+        },
+        {
+          "site": "src/media/downloads.js -> ../lib/libroots",
+          "perRequest": 1
+        }
+      ]
+    },
+    {
+      "name": "GET /api/changelog?head=1",
+      "status": 200,
+      "requires": 1,
+      "usEach": 71.2,
+      "ms": 0.07,
+      "top": [
+        {
+          "site": "src/routes/api.js -> fs",
+          "perRequest": 1
+        }
+      ]
+    }
+  ]
+}

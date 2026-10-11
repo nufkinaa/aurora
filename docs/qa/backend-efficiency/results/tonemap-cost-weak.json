@@ -1,0 +1,65 @@
+{
+  "at": "2026-10-10T23:00:56.436Z",
+  "weak": true,
+  "processes": 8,
+  "cpuSecondsPerBoot": 11.98,
+  "wallSecondsPerBoot": 8.48,
+  "rows": [
+    {
+      "what": "ffmpeg -filters",
+      "secondsAfterBoot": 15,
+      "ok": true,
+      "cpuSeconds": null,
+      "wallSeconds": 0.04
+    },
+    {
+      "what": "hlg chain, 24 frames",
+      "secondsAfterBoot": 15,
+      "ok": true,
+      "cpuSeconds": 0.38,
+      "wallSeconds": 0.26
+    },
+    {
+      "what": "pq chain, 216 frames",
+      "secondsAfterBoot": 15,
+      "ok": true,
+      "cpuSeconds": 2.83,
+      "wallSeconds": 1.99
+    },
+    {
+      "what": "pq chain, 216 frames",
+      "secondsAfterBoot": 15,
+      "ok": true,
+      "cpuSeconds": 2.8,
+      "wallSeconds": 1.87
+    },
+    {
+      "what": "hlg chain, 24 frames (re-timing)",
+      "secondsAfterBoot": 90,
+      "ok": true,
+      "cpuSeconds": 0.34,
+      "wallSeconds": 0.25
+    },
+    {
+      "what": "pq chain, 216 frames (re-timing)",
+      "secondsAfterBoot": 90,
+      "ok": true,
+      "cpuSeconds": 2.69,
+      "wallSeconds": 1.92
+    },
+    {
+      "what": "hlg chain, 24 frames (re-timing)",
+      "secondsAfterBoot": 300,
+      "ok": true,
+      "cpuSeconds": 0.3,
+      "wallSeconds": 0.26
+    },
+    {
+      "what": "pq chain, 216 frames (re-timing)",
+      "secondsAfterBoot": 300,
+      "ok": true,
+      "cpuSeconds": 2.64,
+      "wallSeconds": 1.89
+    }
+  ]
+}

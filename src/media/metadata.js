@@ -2,7 +2,7 @@
 // One probe per file yields duration, resolution, and subtitle streams.
 const fs = require("fs");
 const path = require("path");
-const { execFileSync } = require("child_process");
+const { execFileSync, execFile } = require("child_process");
 const config = require("../config");
 const { JsonStore } = require("../lib/jsonstore");
 
@@ -23,6 +23,80 @@ const BROWSER_AUDIO_CODECS = new Set([
 // Bump when the probe result shape changes so old cache entries re-probe
 const PROBE_VERSION = 5; // 5: audio stream language/title (the player's audio menu)
 
+// What ffprobe is asked, and the empty answer a file that cannot be read gets.
+const probeArgs = (videoPath) => [
+  "-v", "quiet",
+  "-show_entries",
+  "format=duration:stream=index,codec_type,codec_name,profile,channels,channel_layout,width,height,pix_fmt,color_transfer,color_primaries:stream_tags=language,title:stream_side_data=side_data_type",
+  "-of", "json",
+  videoPath,
+];
+const blankResult = (mtime) => ({
+  v: PROBE_VERSION,
+  mtime,
+  duration: 0,
+  width: 0,
+  height: 0,
+  video: null,
+  audioStreams: [],
+  subtitleStreams: [],
+});
+
+// ffprobe's JSON -> the fields of `result`. Throws on output that is not
+// JSON; whatever was filled in before the throw stays, as it always did.
+const fillFromProbe = (result, out) => {
+  const data = JSON.parse(out);
+  result.duration = parseFloat(data.format?.duration) || 0;
+
+  let subIdx = 0;
+  for (const s of data.streams || []) {
+    if (s.codec_type === "video" && !result.video) {
+      result.width = s.width || 0;
+      result.height = s.height || 0;
+      // Video codec + bit depth: HEVC/AV1/10-bit play on TVs but not on most
+      // phones/desktops. Decodability is decided client-side (canPlayType) —
+      // the same file direct-plays on one device and transcodes on another.
+      const depth = /(\d+)(?:le|be)$/.exec(s.pix_fmt || "");
+      // HDR flavour, for the format badges: Dolby Vision rides as side
+      // data (a DOVI configuration record), HDR10 / HLG as the transfer
+      // characteristic. Text for the UI, never a logo.
+      const side = (s.side_data_list || []).map((d) => String(d.side_data_type || "").toLowerCase());
+      const dv = side.some((t) => t.includes("dovi") || t.includes("dolby vision"));
+      const transfer = String(s.color_transfer || "").toLowerCase();
+      const hdr = dv ? "dolby-vision" : transfer === "smpte2084" ? "hdr10" : transfer === "arib-std-b67" ? "hlg" : null;
+      result.video = {
+        codec: s.codec_name || null,
+        bitDepth: depth ? parseInt(depth[1], 10) : 8,
+        hdr,
+      };
+    } else if (s.codec_type === "audio") {
+      // ffprobe names Atmos in the PROFILE ("Dolby TrueHD + Dolby Atmos",
+      // "Dolby Digital Plus + Dolby Atmos") and DTS:X the same way.
+      const profile = String(s.profile || "");
+      result.audioStreams.push({
+        index: result.audioStreams.length,
+        language: s.tags?.language || null,
+        title: s.tags?.title || null,
+        codec: s.codec_name,
+        channels: s.channels || 2,
+        layout: s.channel_layout || null,
+        profile: profile || null,
+        atmos: /atmos/i.test(profile),
+        dtsx: /dts:x|dts-x|dtsx/i.test(profile),
+        compatible: BROWSER_AUDIO_CODECS.has(s.codec_name),
+      });
+    } else if (s.codec_type === "subtitle") {
+      result.subtitleStreams.push({
+        index: subIdx++,
+        codec: s.codec_name,
+        text: TEXT_SUBTITLE_CODECS.has(s.codec_name),
+        language: s.tags?.language || null,
+        title: s.tags?.title || null,
+      });
+    }
+  }
+};
+
 const probe = (videoPath) => {
   if (!config.ffmpegAvailable) return null;
 
@@ -36,79 +110,48 @@ const probe = (videoPath) => {
   const cached = store.data[videoPath];
   if (cached && cached.mtime === mtime && cached.v === PROBE_VERSION) return cached;
 
-  const result = {
-    v: PROBE_VERSION,
-    mtime,
-    duration: 0,
-    width: 0,
-    height: 0,
-    video: null,
-    audioStreams: [],
-    subtitleStreams: [],
-  };
-
+  const result = blankResult(mtime);
   try {
-    const out = execFileSync(
-      config.FFPROBE,
-      [
-        "-v", "quiet",
-        "-show_entries",
-        "format=duration:stream=index,codec_type,codec_name,profile,channels,channel_layout,width,height,pix_fmt,color_transfer,color_primaries:stream_tags=language,title:stream_side_data=side_data_type",
-        "-of", "json",
-        videoPath,
-      ],
-      { encoding: "utf-8", timeout: 15000 }
-    );
-    const data = JSON.parse(out);
-    result.duration = parseFloat(data.format?.duration) || 0;
+    fillFromProbe(result, execFileSync(config.FFPROBE, probeArgs(videoPath), { encoding: "utf-8", timeout: 15000 }));
+  } catch {
+    // Unprobeable file - cache the empty result so we don't retry every scan
+  }
 
-    let subIdx = 0;
-    for (const s of data.streams || []) {
-      if (s.codec_type === "video" && !result.video) {
-        result.width = s.width || 0;
-        result.height = s.height || 0;
-        // Video codec + bit depth: HEVC/AV1/10-bit play on TVs but not on most
-        // phones/desktops. Decodability is decided client-side (canPlayType) —
-        // the same file direct-plays on one device and transcodes on another.
-        const depth = /(\d+)(?:le|be)$/.exec(s.pix_fmt || "");
-        // HDR flavour, for the format badges: Dolby Vision rides as side
-        // data (a DOVI configuration record), HDR10 / HLG as the transfer
-        // characteristic. Text for the UI, never a logo.
-        const side = (s.side_data_list || []).map((d) => String(d.side_data_type || "").toLowerCase());
-        const dv = side.some((t) => t.includes("dovi") || t.includes("dolby vision"));
-        const transfer = String(s.color_transfer || "").toLowerCase();
-        const hdr = dv ? "dolby-vision" : transfer === "smpte2084" ? "hdr10" : transfer === "arib-std-b67" ? "hlg" : null;
-        result.video = {
-          codec: s.codec_name || null,
-          bitDepth: depth ? parseInt(depth[1], 10) : 8,
-          hdr,
-        };
-      } else if (s.codec_type === "audio") {
-        // ffprobe names Atmos in the PROFILE ("Dolby TrueHD + Dolby Atmos",
-        // "Dolby Digital Plus + Dolby Atmos") and DTS:X the same way.
-        const profile = String(s.profile || "");
-        result.audioStreams.push({
-          index: result.audioStreams.length,
-          language: s.tags?.language || null,
-          title: s.tags?.title || null,
-          codec: s.codec_name,
-          channels: s.channels || 2,
-          layout: s.channel_layout || null,
-          profile: profile || null,
-          atmos: /atmos/i.test(profile),
-          dtsx: /dts:x|dts-x|dtsx/i.test(profile),
-          compatible: BROWSER_AUDIO_CODECS.has(s.codec_name),
-        });
-      } else if (s.codec_type === "subtitle") {
-        result.subtitleStreams.push({
-          index: subIdx++,
-          codec: s.codec_name,
-          text: TEXT_SUBTITLE_CODECS.has(s.codec_name),
-          language: s.tags?.language || null,
-          title: s.tags?.title || null,
-        });
-      }
-    }
+  store.data[videoPath] = result;
+  store.save();
+  return result;
+};
+
+// The same probe without holding the event loop: ffprobe runs as a child the
+// server WAITS for instead of one it blocks on. The library enricher uses
+// this one — a blocking probe froze every request, picture and video segment
+// for the length of each ffprobe run (160 ms a file on a two-core box, 300 new
+// files = 48 s of freezes; docs/qa/backend-efficiency). Same question, same
+// answer, same cache entry; a file is still probed one at a time.
+const probeAsync = async (videoPath) => {
+  if (!config.ffmpegAvailable) return null;
+
+  let mtime;
+  try {
+    mtime = (await fs.promises.stat(videoPath)).mtimeMs;
+  } catch {
+    return null;
+  }
+
+  const cached = store.data[videoPath];
+  if (cached && cached.mtime === mtime && cached.v === PROBE_VERSION) return cached;
+
+  const result = blankResult(mtime);
+  try {
+    const out = await new Promise((resolve, reject) => {
+      execFile(
+        config.FFPROBE,
+        probeArgs(videoPath),
+        { encoding: "utf-8", timeout: 15000, windowsHide: true },
+        (err, stdout) => (err ? reject(err) : resolve(stdout)),
+      );
+    });
+    fillFromProbe(result, out);
   } catch {
     // Unprobeable file - cache the empty result so we don't retry every scan
   }
@@ -131,4 +174,4 @@ const clearCache = () => {
   store.flush();
 };
 
-module.exports = { probe, getCached, needsProbe, clearCache, TEXT_SUBTITLE_CODECS };
+module.exports = { probe, probeAsync, getCached, needsProbe, clearCache, TEXT_SUBTITLE_CODECS, _store: store };

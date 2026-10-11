@@ -8,6 +8,11 @@ const config = require("../config");
 const scanner = require("./scanner");
 const certification = require("./certification");
 const { JsonStore } = require("../lib/jsonstore");
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+const lazy = require("../lib/lazy");
+const identityLib = lazy(require, "./identity");
+const kidsLib = lazy(require, "../lib/kids");
 
 const cache = new JsonStore(path.join(config.CACHE_DIR, "discover.json"), {
   fetchedAt: 0,
@@ -49,7 +54,7 @@ const markLibrary = (items) => {
   // aware) — the old title-only map here merged "Dune" 1984 onto "Dune" 2021.
   // Lazily required: identity → imdb → THIS module; a top-level require
   // during our own load would hand imdb.js an empty partial export.
-  return require("./identity").markLibrary(items);
+  return identityLib().markLibrary(items);
 };
 
 // ---------- trending ----------
@@ -609,7 +614,7 @@ const certificateAge = (imdbId) => {
 // it, else whatever the label reads as; Infinity when neither says anything.
 const entryAge = (hit) => {
   if (hit && isAge(hit.a)) return hit.a;
-  const a = hit && hit.c ? require("../lib/kids").ageOf(hit.c) : null;
+  const a = hit && hit.c ? kidsLib().ageOf(hit.c) : null;
   return a == null ? Infinity : a;
 };
 // The same, asked by title — stream sources are looked up by title and year,

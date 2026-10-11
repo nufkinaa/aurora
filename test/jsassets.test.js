@@ -399,3 +399,18 @@ test("through the shutdown middleware a module still arrives whole (pre-compress
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ---- the stylesheet (src/lib/cssbundle.js compressed) ----
+test("the stylesheet bundle has ONE compressed copy: quality 6 at once, replaced in the same cache by brotli's best when that is ready", async () => {
+  const cssbundle = require("../src/lib/cssbundle");
+  const dir = path.join(PUBLIC, "css");
+  const css = cssbundle.get(dir).css;
+  const first = cssbundle.compressed(dir, "br");
+  assert.equal(zlib.brotliDecompressSync(first).toString("utf8"), css);
+  let better = first;
+  for (let i = 0; i < 200 && better === first; i++) { await new Promise((r) => setTimeout(r, 50)); better = cssbundle.compressed(dir, "br"); }
+  assert.notEqual(better, first, "the better copy took its place");
+  assert.ok(better.length < first.length * 0.95, `${first.length} -> ${better.length} bytes`);
+  assert.equal(zlib.brotliDecompressSync(better).toString("utf8"), css, "the same stylesheet");
+  assert.equal(cssbundle.compressed(dir, "br"), better, "and it is the one that is kept");
+});

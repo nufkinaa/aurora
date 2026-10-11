@@ -269,10 +269,16 @@ app.get("/css/aurora.css", (req, res) => {
   res.setHeader("ETag", `"${hash}"`);
   res.setHeader("Cache-Control", req.query.v ? "public, max-age=31536000, immutable" : "no-cache");
   if (req.headers["if-none-match"] === `"${hash}"`) return res.status(304).end();
-  // (compressed once at brotli's best and sent from memory — jsassets.send;
-  // 31 KB instead of the on-the-fly 36 KB, on the one request that blocks
-  // the first paint)
-  require("./src/lib/jsassets").send(req, res, `css:${hash}`, Buffer.from(css, "utf-8"));
+  // compressed once per version, not once per request (cssbundle.compressed);
+  // the compression middleware sees Content-Encoding and leaves it alone
+  const enc = req.headers["x-no-compression"] ? null : require("./src/lib/answermemo")._internals.pickEncoding(req.headers["accept-encoding"]);
+  const packed = enc ? cssbundle.compressed(path.join(__dirname, "public", "css"), enc) : null;
+  if (packed) {
+    res.setHeader("Content-Encoding", enc);
+    res.vary("Accept-Encoding");
+    return res.send(packed);
+  }
+  res.send(css);
 });
 
 // Without this the SPA fallback answered robots.txt with the HTML shell,
@@ -393,8 +399,12 @@ realtime.attach(server);
 
 // Library events -> clients
 scanner.events.on("updated", () => realtime.libraryUpdated());
-scanner.events.on("enriched", () => {
-  realtime.libraryUpdated();
+scanner.events.on("enriched", (info) => {
+  // Only when the pass found something (new probes, or the first pass since
+  // boot): the ten-minute rescan ends in "enriched" every time, and saying
+  // "ask again" for it made every connected app refetch the library, its
+  // state and Home six times an hour with nothing new.
+  if (scanner.enrichedChanged(info)) realtime.libraryUpdated();
   // Now that embedded-subtitle info is known, queue OCR for bitmap-only videos
   for (const v of scanner.bitmapOnlyVideos()) ocr.enqueue(v.path, v.name);
 });

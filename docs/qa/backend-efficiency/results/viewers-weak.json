@@ -1,0 +1,168 @@
+{
+  "at": "2026-10-11T00:31:19.193Z",
+  "ref": "working tree",
+  "weak": true,
+  "minutes": 5,
+  "household": "grown (8 profiles, up to 1,500 rows)",
+  "storeSizes": {
+    "profiles.json": 3817764,
+    "watch-sessions.json": 771164,
+    "telemetry-hours.json": 239761,
+    "sessions.json": 19457,
+    "watch-history.json": 71201
+  },
+  "runs": [
+    {
+      "viewers": 1,
+      "progressOk": 60,
+      "progressFailed": 0,
+      "perViewerHour": {
+        "mbWritten": 3188.8,
+        "fileRewrites": 2088,
+        "storeSaveBlockedSec": 206.14,
+        "cpuSeconds": 56.81
+      },
+      "wholeServer": {
+        "storeSavesPerHour": 1704,
+        "storeSaveBlockedSecPerHour": 206.14,
+        "longestSaveMs": 1533.94,
+        "loopBlockedPercent": 5.73,
+        "loopDelayP99Ms": 58,
+        "loopDelayMaxMs": 1983.9,
+        "cpuPercentOfOneCore": 1.56
+      },
+      "files": [
+        {
+          "file": "data/profiles.json",
+          "rewritesPerViewerHour": 720,
+          "mbPerViewerHour": 2621.5,
+          "bytesEach": 3817859
+        },
+        {
+          "file": "data/watch-sessions.json",
+          "rewritesPerViewerHour": 732,
+          "mbPerViewerHour": 538.6,
+          "bytesEach": 771494
+        },
+        {
+          "file": "data/telemetry-hours.json",
+          "rewritesPerViewerHour": 120,
+          "mbPerViewerHour": 27.4,
+          "bytesEach": 239754
+        },
+        {
+          "file": "data/watch-history.json",
+          "rewritesPerViewerHour": 12,
+          "mbPerViewerHour": 0.8,
+          "bytesEach": 71439
+        },
+        {
+          "file": "data/sessions.json",
+          "rewritesPerViewerHour": 12,
+          "mbPerViewerHour": 0.2,
+          "bytesEach": 19457
+        },
+        {
+          "file": "data/healer.json",
+          "rewritesPerViewerHour": 60,
+          "mbPerViewerHour": 0.1,
+          "bytesEach": 1320
+        },
+        {
+          "file": "data/usage/events-2026-10.jsonl",
+          "rewritesPerViewerHour": 360,
+          "mbPerViewerHour": 0.1,
+          "bytesEach": 205
+        },
+        {
+          "file": "data/health.json",
+          "rewritesPerViewerHour": 48,
+          "mbPerViewerHour": 0.1,
+          "bytesEach": 1430
+        },
+        {
+          "file": "data/cache/tonemap-speed.json",
+          "rewritesPerViewerHour": 24,
+          "mbPerViewerHour": 0,
+          "bytesEach": 213
+        }
+      ]
+    },
+    {
+      "viewers": 5,
+      "progressOk": 300,
+      "progressFailed": 0,
+      "perViewerHour": {
+        "mbWritten": 1266.9,
+        "fileRewrites": 991,
+        "storeSaveBlockedSec": 83.89,
+        "cpuSeconds": 27
+      },
+      "wholeServer": {
+        "storeSavesPerHour": 3132,
+        "storeSaveBlockedSecPerHour": 419.43,
+        "longestSaveMs": 2090.63,
+        "loopBlockedPercent": 11.65,
+        "loopDelayP99Ms": 63.3,
+        "loopDelayMaxMs": 2227.2,
+        "cpuPercentOfOneCore": 3.72
+      },
+      "files": [
+        {
+          "file": "data/profiles.json",
+          "rewritesPerViewerHour": 288,
+          "mbPerViewerHour": 1048.7,
+          "bytesEach": 3818303
+        },
+        {
+          "file": "data/watch-sessions.json",
+          "rewritesPerViewerHour": 288,
+          "mbPerViewerHour": 212.3,
+          "bytesEach": 772808
+        },
+        {
+          "file": "data/telemetry-hours.json",
+          "rewritesPerViewerHour": 24,
+          "mbPerViewerHour": 5.5,
+          "bytesEach": 239755
+        },
+        {
+          "file": "data/watch-history.json",
+          "rewritesPerViewerHour": 5,
+          "mbPerViewerHour": 0.3,
+          "bytesEach": 72153
+        },
+        {
+          "file": "data/usage/events-2026-10.jsonl",
+          "rewritesPerViewerHour": 360,
+          "mbPerViewerHour": 0.1,
+          "bytesEach": 205
+        },
+        {
+          "file": "data/sessions.json",
+          "rewritesPerViewerHour": 2,
+          "mbPerViewerHour": 0,
+          "bytesEach": 19457
+        },
+        {
+          "file": "data/healer.json",
+          "rewritesPerViewerHour": 12,
+          "mbPerViewerHour": 0,
+          "bytesEach": 1320
+        },
+        {
+          "file": "data/health.json",
+          "rewritesPerViewerHour": 7,
+          "mbPerViewerHour": 0,
+          "bytesEach": 1430
+        },
+        {
+          "file": "data/cache/tonemap-speed.json",
+          "rewritesPerViewerHour": 5,
+          "mbPerViewerHour": 0,
+          "bytesEach": 212
+        }
+      ]
+    }
+  ]
+}

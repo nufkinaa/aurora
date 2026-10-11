@@ -141,9 +141,9 @@ test("a title the server has never heard of is the one thing a scrubber cannot k
   const bad = [];
   for (const f of files) {
     if (/telemetry(-core|Core)?\.(js|ts)$/.test(f)) continue;
-    // (\r?\n: on a Windows checkout with CRLF the line kept its \r, the
-    // trailing-comment strip below — `//.*$` — stopped at it, and a comment
-    // that says "query" failed this test on a file that hands over nothing)
+    // (\r?\n: on a checkout with Windows line endings the "\r" left on each
+    // line kept the comment-stripping `//.*$` below from matching, and a
+    // comment that says "query" was read as a call handing over a query)
     for (const [i, line] of fs.readFileSync(f, "utf8").split(/\r?\n/).entries()) {
       if (!/\b(reportError|playerError|imageFailed|jsError|httpFailed|uiHit|tmValue|tmStart|tmEnd|tmLap|sinceNav|titleShown|playFirstFrame)\(/.test(line)) continue;
       const call = line.slice(line.search(/\b(reportError|playerError|imageFailed|jsError|httpFailed|uiHit|tmValue|tmStart|tmEnd|tmLap|sinceNav|titleShown|playFirstFrame)\(/)).replace(/\/\/.*$/, "")

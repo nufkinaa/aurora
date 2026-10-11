@@ -10,6 +10,10 @@
 // request rather than a download). Per-profile switch: prefs.smartDownloads
 // (on unless turned off in Preferences).
 const scanner = require("./scanner");
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+const lazy = require("../lib/lazy");
+const torrentgateLib = lazy(require, "../lib/torrentgate");
 const identity = require("./identity");
 const discover = require("./discover");
 const torrent = require("./torrent");
@@ -64,7 +68,7 @@ const pickSource = (streams, quality) => {
 };
 
 const onProgress = async (profileId, itemId, position, duration, meta) => {
-  if (!require("../lib/torrentgate").enabled()) return; // "torrents": false
+  if (!torrentgateLib().enabled()) return; // "torrents": false
   if (!(duration > 0) || position / duration < THRESHOLD) return;
   const profile = profiles.list().find((p) => p.id === profileId);
   if (!profile || (profile.prefs && profile.prefs.smartDownloads === false)) return;

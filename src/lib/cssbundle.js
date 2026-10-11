@@ -100,4 +100,35 @@ const get = (cssDir) => {
   return cache;
 };
 
-module.exports = { ORDER, minify, get };
+// The bundle compressed, once per version of it ("br" or "gzip"; null for
+// anything else). It is 38 KB of text that only changes with a release, and
+// the compression middleware was compressing it again for every request
+// (6-13 ms of CPU each on a two-core box).
+const zlib = require("zlib");
+const BROTLI_QUALITY = 6; // the quality server.js gives the middleware
+// …and then once more, at brotli's best. This is the one request that blocks
+// the first paint: quality 11 is ~13% smaller (31.5 KB against 36 KB) and far
+// too slow to make while a request waits (hundreds of ms), so the quality-6
+// copy answers at once and the better one takes its place when it is ready —
+// off the event loop's back (zlib's thread pool), once per version. Same
+// cache, same call: there is one compressed copy of the bundle, not two.
+const best = (c) => {
+  if (c.best) return;
+  c.best = true;
+  const body = Buffer.from(c.css, "utf8");
+  zlib.brotliCompress(body, {
+    params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: body.length },
+  }, (err, out) => { if (!err && out && c.br && out.length < c.br.length) c.br = out; });
+};
+const compressed = (cssDir, encoding) => {
+  const c = get(cssDir);
+  if (encoding === "br") {
+    if (!c.br) c.br = zlib.brotliCompressSync(Buffer.from(c.css, "utf8"), { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: BROTLI_QUALITY } });
+    best(c);
+    return c.br;
+  }
+  if (encoding === "gzip") return c.gzip || (c.gzip = zlib.gzipSync(Buffer.from(c.css, "utf8")));
+  return null;
+};
+
+module.exports = { ORDER, minify, get, compressed };

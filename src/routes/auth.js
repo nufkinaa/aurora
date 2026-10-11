@@ -15,6 +15,11 @@ const {
 const resetgate = require("../lib/resetgate");
 
 const router = express.Router();
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+// (/api/ping asks on every app start.)
+const lazy = require("../lib/lazy");
+const authmodeLib = lazy(require, "../lib/authmode");
 
 const deviceOf = (req) => realtime.parseDevice(req.headers["user-agent"] || "");
 
@@ -27,7 +32,7 @@ const deviceOf = (req) => realtime.parseDevice(req.headers["user-agent"] || "");
 // promise that the width ladder reaches 1920 (the TV's title-page backdrop
 // through /img/ext?w=) — docs/qa/native-bench/ART-FORMAT-PLAN.md.
 router.get("/api/ping", (req, res) => {
-  res.json({ ok: true, name: "aurora", authMode: require("../lib/authmode").get(), imgBlur: true, imgFmt: ["webp"] });
+  res.json({ ok: true, name: "aurora", authMode: authmodeLib().get(), imgBlur: true, imgFmt: ["webp"] });
 });
 
 // ---------- login rate limiting (per-IP and per-identifier) ----------
@@ -66,7 +71,7 @@ const recordFail = (key) => {
 // a new password" screen. Asked with the session (cookie / X-Session) or the
 // unlock token (X-Profile-Token) the device holds.
 router.get("/api/me", (req, res) => {
-  const authMode = require("../lib/authmode").get();
+  const authMode = authmodeLib().get();
   const rid = resetgate.restrictedProfile(req);
   const rp = rid ? profiles.list().find((x) => x.id === rid) : null;
   if (rp) {
@@ -207,7 +212,7 @@ const profileProof = (req, profileId) => {
 // unclaimed password-less profile has no proof to demand — so a stranger
 // could claim it (and mint a session) with one request. Closed = no claiming.
 const claimingOpen = (res) => {
-  if (require("../lib/authmode").get() === "closed") {
+  if (authmodeLib().get() === "closed") {
     res.status(403).json({ error: `sign-in setup is over — ask ${config.ADMIN_NAME} for access` });
     return false;
   }
@@ -390,7 +395,7 @@ const adminOnly = (req, res, next) => {
 // The sign-in rollout switch, LIVE — no restart, no config edits. Leaving
 // "open" takes a one-time backup of profiles.json (claiming writes into it).
 router.post("/api/admin/auth-mode", adminOnly, (req, res) => {
-  const authmode = require("../lib/authmode");
+  const authmode = authmodeLib();
   const mode = String((req.body || {}).mode || "");
   const target = mode === "hybrid" ? "transition" : mode === "required" ? "closed" : mode;
   if (!authmode.MODES.includes(target)) return res.status(400).json({ error: "unknown mode" });

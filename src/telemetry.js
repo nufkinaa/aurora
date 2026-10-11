@@ -24,13 +24,18 @@ const RING_MAX = Math.ceil((RING_HOURS * 3600 * 1000) / SAMPLE_MS);
 
 // A server restart leaves live sessions dangling - close them at their last
 // known update so durations stay honest.
+let closedAtBoot = 0;
 for (const s of sessions.data) {
   if (s.live) {
     s.live = false;
     s.endedAt = s.updatedAt || s.startedAt;
+    closedAtBoot++;
   }
 }
-sessions.save();
+// Written when something was closed (or when the file is not there yet, so a
+// fresh data folder still gets one): saving regardless rewrote the whole
+// viewing history at every boot to say nothing new.
+if (closedAtBoot || !require("fs").existsSync(sessions.filePath)) sessions.save();
 
 // clientId -> live session object (also present in sessions.data)
 const liveByClient = new Map();

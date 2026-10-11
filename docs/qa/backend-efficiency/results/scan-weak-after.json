@@ -1,0 +1,99 @@
+{
+  "at": "2026-10-11T01:04:34.430Z",
+  "ref": "working tree",
+  "weak": true,
+  "walk": {
+    "runs": 7,
+    "quiet": true,
+    "films": 1201,
+    "shows": 60,
+    "wallMs": 1270.7,
+    "cpuMs": 610,
+    "fsCalls": {
+      "readdirSync": 1383,
+      "statSync": 1801
+    },
+    "fsCallsTotal": 3184,
+    "wallRuns": [
+      10526,
+      1758,
+      1174,
+      1132,
+      726,
+      1271,
+      1591
+    ],
+    "cpuRuns": [
+      672,
+      578,
+      672,
+      688,
+      577,
+      578,
+      610
+    ]
+  },
+  "withListeners": {
+    "runs": 7,
+    "quiet": false,
+    "films": 1201,
+    "shows": 60,
+    "wallMs": 748.5,
+    "cpuMs": 500,
+    "fsCalls": {
+      "readdirSync": 1383,
+      "statSync": 1801
+    },
+    "fsCallsTotal": 3184,
+    "wallRuns": [
+      2795,
+      1200,
+      718,
+      932,
+      452,
+      550,
+      748
+    ],
+    "cpuRuns": [
+      703,
+      548,
+      499,
+      640,
+      422,
+      500,
+      453
+    ],
+    "afterScan": [
+      {
+        "what": "identity stamps (ensureStamped)",
+        "firstMs": 3.4,
+        "againMs": 0
+      },
+      {
+        "what": "title-history fold (getProgressView)",
+        "firstMs": 18.1,
+        "againMs": 1.6
+      },
+      {
+        "what": "search index (first suggest)",
+        "firstMs": 211.8,
+        "againMs": 16.9
+      },
+      {
+        "what": "continue watching",
+        "firstMs": 3.8,
+        "againMs": 4.1
+      }
+    ],
+    "afterScanTaxMs": 214.8
+  },
+  "aftermath": {
+    "idleCpuMsPer60s": 15,
+    "scanCpuMs": 688,
+    "cpuMsIn60sAfterScan": 1656,
+    "aboveIdleMs": 953,
+    "timers": [],
+    "spawns": [],
+    "fsTop": []
+  }
+}
