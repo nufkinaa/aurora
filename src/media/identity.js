@@ -58,7 +58,26 @@ const titlesMatch = (aTitle, aYear, bTitle, bYear) => {
 // titles are normalized ONCE here; findLibraryFor then only norms the query.
 // (Before this, markLibrary re-normed every catalog×library pair — measured
 // at 26ms per /api/home request on the household library.)
-const libraryMaps = (allItems = scanner.allItems()) => {
+//
+// The maps of the WHOLE library (no list given) are kept until the library or
+// the IMDb-id cache changes: building them normalises every title and looks
+// every id up, and callers ask several times per request — Home four or five
+// times, and findLibraryFor() with no maps of its own (a My List membership
+// check, the player asking "do we own this?") once per CALL. Measured on a
+// 1,260-title library: 25 ms of a Home request. Read-only by contract, like
+// the index itself; a caller that hands in its own list gets fresh maps.
+let wholeLibrary = null; // { movies, shows, nMovies, nShows, imdbV, maps }
+const libraryMaps = (allItems) => {
+  if (allItems !== undefined) return buildMaps(allItems);
+  const { movies, shows } = scanner.index;
+  const imdbV = imdb.version();
+  const w = wholeLibrary;
+  if (w && w.movies === movies && w.shows === shows && w.nMovies === movies.length && w.nShows === shows.length && w.imdbV === imdbV) return w.maps;
+  const maps = buildMaps(scanner.allItems());
+  wholeLibrary = { movies, shows, nMovies: movies.length, nShows: shows.length, imdbV, maps };
+  return maps;
+};
+const buildMaps = (allItems) => {
   const byImdb = new Map();
   const byTitle = new Map();
   const pools = { movie: [], show: [] };
