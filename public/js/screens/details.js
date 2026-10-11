@@ -1,7 +1,7 @@
 // Shared pieces of the detail page: the hero block and the library-side
 // "My List" button. The page itself lives in discover-detail.js, which serves
 // library titles and streamable titles as one screen.
-import { el, icons, resBadge, toast, listAddedLine, LIST_REMOVED, listFailedLine, posterImg, artUrl, formatRow, heroArtWidth, smooth, haptic } from "../ui.js";
+import { el, icons, resBadge, toast, listAddedLine, LIST_REMOVED, listFailedLine, posterImg, artUrl, formatRow, heroArtWidth, heroCover, heroShowsPoster, smooth, haptic } from "../ui.js";
 import { upgradeArt } from "../artUpgrade.js";
 import { blurOf } from "../blur.js";
 import { api } from "../api.js";
@@ -73,7 +73,11 @@ export const heroBlock = (item, actions, metaParts, { rateKey = null, serverInfo
   }
   // painted small on a slow line? the full picture follows when idle (artUpgrade.js)
   if (item.backdrop) upgradeArt(hero, "--hero-art", item.backdrop, () => heroArtWidth({ full: true }));
-  if (item.cover) upgradeArt(hero, "--hero-poster", item.cover, () => Math.min(600, heroArtWidth({ full: true })));
+  // (a phone's title page is headed by the poster: the large one, at once — see heroCover)
+  if (item.cover) {
+    if (heroShowsPoster()) upgradeArt(hero, "--hero-poster", heroCover(item.cover), () => Math.min(780, heroArtWidth({ full: true })), { now: true });
+    else upgradeArt(hero, "--hero-poster", item.cover, () => Math.min(600, heroArtWidth({ full: true })));
+  }
   coverDrift(hero);
   titleShown(item.backdrop ? artUrl(item.backdrop, heroArtWidth()) : null); // [analytics] title page → content shown, → backdrop shown
   return hero;

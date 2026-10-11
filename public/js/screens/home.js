@@ -1,5 +1,5 @@
 // Home: rotating hero billboard + shelves (Continue Watching, My List, ...)
-import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, heroArtWidth, restoreScrollY } from "../ui.js";
+import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, heroArtWidth, heroCover, heroShowsPoster, restoreScrollY } from "../ui.js";
 import { upgradeArt } from "../artUpgrade.js";
 import { blurOf } from "../blur.js";
 import { api } from "../api.js";
@@ -222,7 +222,14 @@ export const renderHome = async (root) => {
       // comes later, when the viewer is idle and the line has room
       // (artUpgrade.js) — the same picture, sharper.
       if (item.backdrop) upgradeArt(incoming, "--hero-art", item.backdrop, () => heroArtWidth({ full: true }));
-      if (item.cover) upgradeArt(incoming, "--hero-poster", item.cover, () => 400);
+      // On a portrait phone the poster IS the hero: the card-sized one painted
+      // above is replaced by the large one straight away (decoded off screen,
+      // then swapped: the same picture, sharper). Elsewhere it is a hidden
+      // fallback layer and stays small.
+      if (item.cover) {
+        if (heroShowsPoster()) upgradeArt(incoming, "--hero-poster", heroCover(item.cover), () => Math.min(780, heroArtWidth({ full: true })), { now: true });
+        else upgradeArt(incoming, "--hero-poster", item.cover, () => 400);
+      }
       // The focus pull lives on the ::after veil, keyed to `.on` — toggling
       // the class across rotations restarts it, no forced reflow needed.
       incoming.classList.add("on");

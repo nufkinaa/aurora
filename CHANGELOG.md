@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.100 — 2026-10-11
+
+- **The Home hero is sharp on a phone.** Held upright, a phone's hero (and a title page's header) is the poster, and it was painted from the catalogue's card-sized poster, 300 pixels wide, stretched over the whole screen whatever the connection. The small one still appears first; the large one (780 pixels wide, the biggest the catalogue has) replaces it at once, without waiting for you to be still. On a slow line or with data saver on, the small one stays, as before.
+
 ## 1.6.99 — 2026-10-11
 
 - **Downloads say who started them.** On the website's Downloads page, a download someone else started shows "Started by <name>"; on the admin page every download, waiting, in flight or finished, carries "by <name>". It is the person's name only; nothing else about them travels. (The TV app shows it from its next update.)

@@ -45,11 +45,16 @@ let running = false;
 // `node`: the element whose custom property carries the picture;
 // `prop`: "--hero-art" / "--hero-poster"; `src`: the picture's own address
 // (before sizing); `width()`: how wide it deserves to be on THIS screen now.
-export const upgradeArt = (node, prop, src, width) => {
+// `now`: do not wait for the viewer to be still — the picture on screen is
+// plainly too small for it (a phone's hero drawn from a card-sized poster),
+// so the sharp one is fetched at once whenever the line allows it at all.
+export const upgradeArt = (node, prop, src, width, { now = false } = {}) => {
   if (!node || !src || typeof src !== "string") return;
   const painted = node.style.getPropertyValue(prop);
   if (!painted) return;
-  jobs.add({ node, prop, src, width, painted });
+  const job = { node, prop, src, width, painted };
+  if (now && clear()) { run(job).catch(() => {}); return; }
+  jobs.add(job);
   arm();
 };
 

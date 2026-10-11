@@ -202,6 +202,20 @@ export const artUrl = (u, w, { full = false } = {}) => {
   return u;
 };
 
+// The catalogue hands out covers as its SMALL poster (300×450): right for a
+// card, and what a portrait phone's whole hero was painted with — stretched
+// over 1,200 device pixels (elia 2026-10-11: "the hero photos look really low
+// res especially on mobile", on a gigabit line). The same poster exists at
+// 780×1170; a hero asks for that one. Any other address is returned as it is.
+export const heroCover = (u) =>
+  typeof u === "string" && /^https:\/\/[a-z0-9.-]*metahub\.space\/poster\/(small|medium)\//.test(u)
+    ? u.replace(/\/poster\/(small|medium)\//, "/poster/large/")
+    : u;
+// Is the poster what this screen's hero shows (the portrait rule in CSS)?
+export const heroShowsPoster = () => {
+  try { return matchMedia("(max-width: 900px) and (orientation: portrait)").matches; } catch { return false; }
+};
+
 // How wide a full-bleed hero backdrop is worth fetching for this screen.
 // (CSS pixels — artUrl multiplies by the screen's density and stops at the
 // source's own 1920.)
