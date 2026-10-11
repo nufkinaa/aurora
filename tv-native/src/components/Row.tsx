@@ -40,7 +40,7 @@ import {View, Text, Image, StyleSheet, Animated, TVFocusGuideView, useWindowDime
 import Card, {CARD_W, CARD_H, FRAME_W, FRAME_H} from './Card';
 import {HeroItem} from '../api';
 import {defer, useSlide} from '../motion';
-import {aheadOf, restWindow, rowWindow, slideFor, visibleRange, Dir, Margins, MARGINS, MARGINS_LOW, RowGeom} from '../rowWindow';
+import {aheadOf, heldWindow, restWindow, rowWindow, slideFor, visibleRange, Dir, Margins, MARGINS, MARGINS_LOW, RowGeom, SETTLE_MS} from '../rowWindow';
 import {prefetchable} from '../cardArt';
 import {artIdle, limits} from '../artPrefetch';
 import {isLowRam} from '../perfTier';
@@ -144,10 +144,20 @@ function Row({
   const tx = useSlide(back ? -slideFor(backF, geom) : 0);
   // Where focus is and which way it is travelling: what the window is derived
   // from. `m` null = nobody has focused this shelf yet (it holds what shows).
-  const [at, setAt] = useState<{f: number; dir: Dir; m: Margins | null}>(() =>
-    back ? {f: backF, dir: back.dir, m: isLowRam() ? MARGINS_LOW : MARGINS} : {f: 0, dir: 1, m: null},
+  // `keep`: what stays mounted while the slide is still travelling (rowWindow.ts
+  // heldWindow) — null once the remote has rested.
+  const [at, setAt] = useState<{f: number; dir: Dir; m: Margins | null; keep: {from: number; to: number} | null}>(() =>
+    back ? {f: backF, dir: back.dir, m: isLowRam() ? MARGINS_LOW : MARGINS, keep: null} : {f: 0, dir: 1, m: null, keep: null},
   );
-  const win = at.m ? rowWindow(Math.max(0, Math.min(at.f, n - 1)), at.dir, n, geom, at.m) : restWindow(n, geom);
+  const resting = at.m ? rowWindow(Math.max(0, Math.min(at.f, n - 1)), at.dir, n, geom, at.m) : restWindow(n, geom);
+  const win = at.keep ? {from: Math.max(0, Math.min(at.keep.from, resting.from)), to: Math.min(n, Math.max(at.keep.to, resting.to))} : resting;
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (settle.current) clearTimeout(settle.current);
+    },
+    [],
+  );
   const from = win.from;
   const to = win.to;
   // What is committed, for the check below.
@@ -209,7 +219,22 @@ function Row({
 
       // The window follows focus — off the input path, because it changes
       // what is mounted. One card per press in a steady run.
-      defer(() => setAt(p => (p.f === index && p.dir === dir && p.m === m ? p : {f: index, dir, m})));
+      // While focus keeps moving nothing mounted is let go (the slide trails a
+      // held key by several cards); SETTLE_MS after the last move the window
+      // is cut back to what rests on screen.
+      const first = shown.current;
+      defer(() =>
+        setAt(p => {
+          if (p.f === index && p.dir === dir && p.m === m) return p;
+          const next = rowWindow(index, dir, count, geom, m);
+          return {f: index, dir, m, keep: heldWindow(p.keep || first, next, dir)};
+        }),
+      );
+      if (settle.current) clearTimeout(settle.current);
+      settle.current = setTimeout(() => {
+        settle.current = null;
+        defer(() => setAt(p => (p.keep ? {...p, keep: null} : p)));
+      }, SETTLE_MS);
 
       // And when the remote rests: the pictures of the cards beyond the
       // window, the way focus was travelling (artPrefetch.ts).

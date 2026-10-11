@@ -149,3 +149,20 @@ test('aheadOf: the next cards beyond the window, the way focus is travelling, cl
   expect(aheadOf({from: 0, to: 9}, -1, 40, 4)).toEqual([]);
   expect(aheadOf({from: 7, to: 18}, 1, 40, 0)).toEqual([]);
 });
+
+test('heldWindow: while focus keeps moving nothing mounted is let go, up to a bound', () => {
+  const {heldWindow} = require('../../src/rowWindow');
+  // a held RIGHT: the window grows ahead and keeps what is behind
+  let w = {from: 0, to: 9};
+  for (let f = 1; f <= 12; f++) w = heldWindow(w, rowWindow(f, 1, 40, POSTER), 1);
+  expect(w.from).toBe(0);
+  expect(w.to).toBe(rowWindow(12, 1, 40, POSTER).to);
+  // turning round keeps both ends
+  const back = heldWindow(w, rowWindow(11, -1, 40, POSTER), -1);
+  expect(back).toEqual({from: 0, to: Math.max(w.to, rowWindow(11, -1, 40, POSTER).to)});
+  // the bound: the far end behind the travel goes first, never the new focus's cards
+  const next = rowWindow(30, 1, 40, POSTER);
+  expect(heldWindow({from: 0, to: 30}, next, 1, 20)).toEqual({from: Math.min(next.from, next.to - 20), to: next.to});
+  const nextL = rowWindow(5, -1, 40, POSTER);
+  expect(heldWindow({from: 10, to: 40}, nextL, -1, 20)).toEqual({from: nextL.from, to: Math.max(nextL.to, nextL.from + 20)});
+});

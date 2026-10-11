@@ -33,14 +33,25 @@ const ITEMS: HeroItem[] = Array.from({length: 30}, (_, i) => ({id: `c${i}`, titl
 const onSelect = () => {};
 const range = (a: number, b: number) => Array.from({length: b - a + 1}, (_, i) => a + i);
 const mountedList = () => [...mockSeen.mounted].sort((a, b) => a - b);
-const focus = (i: number) => act(() => mockSeen.focus[i](ITEMS[i], i));
+// a press with the remote then left alone: the slide arrives and the window is
+// cut back to what rests on screen (rowWindow.ts SETTLE_MS)
+const rest = () => act(() => void jest.advanceTimersByTime(1000));
+const press = (i: number) => act(() => mockSeen.focus[i](ITEMS[i], i));
+const focus = (i: number) => {
+  press(i);
+  rest();
+};
 
 beforeEach(() => {
+  jest.useFakeTimers();
   mockSeen.renders = 0;
   mockSeen.mounted.clear();
   jest.spyOn(console, 'log').mockImplementation(() => {});
 });
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  jest.useRealTimers();
+  jest.restoreAllMocks();
+});
 
 test('poster shelf: 7 at rest, then one card per press, always two beyond the last one on screen', () => {
   act(() => {
@@ -84,4 +95,20 @@ test('Continue Watching (frame cards): 4 at rest, at most 8 mounted', () => {
     expect(mockSeen.mounted.size).toBeLessThanOrEqual(8);
     for (const i of range(Math.max(0, f - 2), f === 0 ? 3 : f + 2)) expect(mockSeen.mounted.has(i)).toBe(true);
   }
+});
+
+test('a held key: nothing mounted is let go until the remote rests (the slide trails focus by several cards)', () => {
+  act(() => {
+    TestRenderer.create(<Row title="r" items={ITEMS} onSelect={onSelect} />);
+  });
+  for (let f = 0; f <= 12; f++) {
+    const had = new Set(mockSeen.mounted);
+    press(f);
+    // every card that was there still is; one more ahead
+    for (const i of had) expect(mockSeen.mounted.has(i)).toBe(true);
+    expect(mountedList().filter(i => !had.has(i)).length).toBeLessThanOrEqual(2);
+  }
+  expect(mountedList()).toEqual(range(0, 12 + 5 + 2));
+  rest();
+  expect(mountedList()).toEqual(range(12 - 3, 12 + 5 + 2));
 });

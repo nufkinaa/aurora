@@ -81,3 +81,34 @@ export function aheadOf(win: {from: number; to: number}, dir: Dir, n: number, co
   else for (let i = win.from - 1; i >= Math.max(0, win.from - count); i--) out.push(i);
   return out;
 }
+
+// WHILE THE SHELF IS STILL SLIDING. The window above is what shows once the
+// slide has come to REST on the focused card. Under a held key it has not: the
+// slide is a spring that is re-aimed on every press (and starts each time from
+// no speed), so at 15-20 presses a second it runs five, six, seven cards
+// behind focus. Measured on the Mi TV (2026-10-11): the cards still on screen
+// had been unmounted behind it, and a held RIGHT showed an EMPTY shelf with
+// one card at its right edge until the key was let go.
+//
+// So while focus keeps moving, nothing that was mounted is let go: the window
+// only GROWS (the union of what was held and what the new focus needs), and it
+// is cut back to the resting window once the remote has been still for
+// SETTLE_MS, by which time the slide has arrived. HELD_MAX bounds it on a very
+// long shelf: the cards furthest behind the direction of travel go first.
+export const SETTLE_MS = 700;
+export const HELD_MAX = 30;
+export function heldWindow(
+  prev: {from: number; to: number},
+  next: {from: number; to: number},
+  dir: Dir,
+  max: number = HELD_MAX,
+): {from: number; to: number} {
+  let from = Math.min(prev.from, next.from);
+  let to = Math.max(prev.to, next.to);
+  if (to - from > max) {
+    // never cut into what the new focus needs
+    if (dir > 0) from = Math.min(next.from, to - max);
+    else to = Math.max(next.to, from + max);
+  }
+  return {from, to};
+}
