@@ -3,6 +3,14 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.96 — 2026-10-11
+
+- **The website opens much faster on a phone and on a weak line**, and looks exactly the same (before-and-after screenshots match pixel for pixel). On a slow phone with a slow-3G line, a first visit reaches a usable Home in about 3.3 s instead of 12 s, and a repeat visit in 1.3 s instead of 3.1 s; on a 1.5 Mbit/s line, 1.5 s instead of 3.7 s. What changed: the first screen's needs go first and everything else waits for it; the questions the app asks at start-up go out while its code is still arriving; the code travels at half the size; and the offline copy of the app no longer downloads everything a second time.
+- A request that never answers now gives up: a stalled Home ends in "Couldn't load the library — Try again" instead of an endless skeleton, and a stalled history read no longer leaves a blank page (progress is not saved over a history that could not be read, as before).
+- **Screens you leave are let go.** Title pages, Search, the grids and the player each stayed in memory after you left them, so a long session got heavier with every page; they are now released.
+- Episode pictures come through Aurora's own picture cache instead of straight from another site.
+- For whoever runs the server: run `npm install` after updating (the smaller code needs one new optional package; without it the site still works, with the code served as written).
+
 ## 1.6.95 — 2026-10-11
 
 - **Films and episodes start sooner on the website.** Pressing Play now asks the server for everything at once instead of one thing after another, the server has the first seconds ready while you are still on the title's page, and the picture appears while the first piece is still arriving. On a fast line to a distant server a typical start went from about 3.7 s to under 1 s; on a slow line most starts are now between half a second and two seconds.
