@@ -41,6 +41,10 @@
 "use strict";
 const fs = require("fs");
 const path = require("path");
+// (asked for once, lib/lazy.js: /healthz is polled)
+const lazy = require("./lazy");
+const shutdownLib = lazy(require, "./shutdown");
+const looplagLib = lazy(require, "./looplag");
 
 const GB = 1024 ** 3;
 const HOUR = 3600 * 1000;
@@ -635,10 +639,10 @@ const healthz = (req, res) => {
   }
   res.setHeader("Cache-Control", "no-store");
   let stopping = false;
-  try { stopping = require("./shutdown").stopping(); } catch {}
+  try { stopping = shutdownLib().stopping(); } catch {}
   if (stopping) return res.status(503).json({ ok: false, stopping: true, version });
   let loop = null;
-  try { loop = require("./looplag").read(); } catch {}
+  try { loop = looplagLib().read(); } catch {}
   res.json({ ok: true, uptime: Math.floor(process.uptime()), version, loop });
 };
 

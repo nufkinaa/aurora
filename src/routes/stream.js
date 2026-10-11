@@ -10,6 +10,7 @@ const router = express.Router();
 // instead of on every call — lib/lazy.js has the why.
 const lazy = require("../lib/lazy");
 const configLib = lazy(require, "../config");
+const admissionLib = lazy(require, "../lib/admission");
 const stillsLib = lazy(require, "../media/stills");
 
 const MIME = {
@@ -250,7 +251,7 @@ const { variant: imgVariant } = require("../lib/imgvariant");
 // ?blur=<px>: pre-blurred (the TV's billboard layers — see imgvariant.js).
 // ?fmt=webp: that blurred variant as WebP (opt-in; ignored otherwise).
 // Who is asking, for the variant queue's per-client limit (lib/admission.js).
-const artClient = (res) => { try { return require("../lib/admission").heavy.clientKey(res.req); } catch { return null; } };
+const artClient = (res) => { try { return admissionLib().heavy.clientKey(res.req); } catch { return null; } };
 const sendArt = async (res, file, width, blur, fmt) => {
   const opts = { blur, fmt, client: artClient(res) };
   const v = width || blur ? await imgVariant(file, width, opts) : null;

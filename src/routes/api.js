@@ -543,15 +543,15 @@ const kidKey = (req) => (req.kids ? `${req.kids.profile}:${req.kids.maxAge}` : "
 const blurKey = (req) => (req.get("X-Blur") === "1" ? "blur" : "");
 // Built from: the library, the IMDb ids stamped on it, the age ratings (the
 // kids filter reads them), the placeholders known so far.
-const libraryStamp = () => `${libRev}.${scanner.index.scannedAt}.${scanner.index.enriched ? 1 : 0}.${require("../media/imdb").version()}.${discover.stamp()}.${blurRev()}`;
+const libraryStamp = () => `${libRev}.${scanner.index.scannedAt}.${scanner.index.enriched ? 1 : 0}.${imdbLib().version()}.${discover.stamp()}.${blurRev()}`;
 // Home is built from all of that plus: the billboard pool, release verdicts,
 // the recommender's index, the settings, who the profiles are and their
 // limits — and, for a profile, ITS OWN writes (progress, list, ratings,
 // follows). Somebody else watching moves none of it. The day: the billboard
 // and the sampled rows are seeded per day.
-const recsRev = () => { try { return require("../media/recs")._internals.state.gen; } catch { return 0; } };
+const recsRev = () => { try { return recsLib()._internals.state.gen; } catch { return 0; } };
 const homeStamp = (profileId) =>
-  `${libraryStamp()}.${hero.poolStamp()}.${availability.stamp()}.${recsRev()}.${require("../lib/settings").rev}.${profiles.shapeStamp()}.${profileId ? profiles.signalsStamp(profileId) : 0}.${dayNumber()}`;
+  `${libraryStamp()}.${hero.poolStamp()}.${availability.stamp()}.${recsRev()}.${settingsLib().rev}.${profiles.shapeStamp()}.${profileId ? profiles.signalsStamp(profileId) : 0}.${dayNumber()}`;
 
 const libraryKept = (req, res, next) => {
   if (answermemo.begin(req, res, { key: `library|${kidKey(req)}|${blurKey(req)}`, stamp: libraryStamp })) return;
@@ -834,16 +834,16 @@ const homeWho = (req, res, next) => {
   // demanded (updated clients resolve via /api/ping instead), and a profile
   // the session's account doesn't own degrades to the generic home, same as
   // a wrong profile-token does today.
-  if (require("../lib/authmode").get() === "closed" && !require("../lib/authz").sessionFor(req)) {
+  if (authmodeLib().get() === "closed" && !authzLib().sessionFor(req)) {
     return res.status(401).json({ error: "sign in first", signinRequired: true });
   }
   const sessionOwns = (() => {
-    const s = require("../lib/authz").sessionFor(req);
+    const s = authzLib().sessionFor(req);
     return !!s && s.profile.id === reqProfile;
   })();
   const profileId =
     reqProfile &&
-    require("../lib/authz").profileAllowed(req, reqProfile) &&
+    authzLib().profileAllowed(req, reqProfile) &&
     !profiles.isLocked(reqProfile) &&
     (sessionOwns ||
       !profiles.isProtected(reqProfile) ||
@@ -989,7 +989,7 @@ router.get("/api/home", homeWho, heavy.middleware(), keptMeanwhile, (req, res) =
         if (f && f.showId) seen.add(f.showId);
       }
       const kid = kidsFor(req);
-      engine = require("../media/recs").homeRows({
+      engine = recsLib().homeRows({
         profileId,
         // already on the page (the billboard, Continue Watching, My List) or
         // already watched / rated / listed: never repeated in a row below
@@ -1003,7 +1003,7 @@ router.get("/api/home", homeWho, heavy.middleware(), keptMeanwhile, (req, res) =
         allow: kid ? (item) => kids.allowed(item, kid.maxAge, kidsCertOf) : null,
         allowKey: kid ? String(kid.maxAge) : "",
       });
-      if (!engine) tasteRows = require("../media/taste").homeRecommendations({
+      if (!engine) tasteRows = tasteLib().homeRecommendations({
         profileId,
         // hero.recommend's old playable contract, kept: an unreleased film
         // must never be recommended — its detail page has nothing to play
