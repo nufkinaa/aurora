@@ -139,11 +139,13 @@ const shape = (hash) => hash.replace(/tt\d+/g, ":id").replace(/\/[0-9a-f]{8,}/g,
       const detached = await page.evaluate((els) => {
         const by = {};
         for (const e of els) {
-          if (e.isConnected || !e.classList) continue;
-          if (!(e.classList.contains("screen") || e.classList.contains("player"))) continue;
-          if (e.parentNode) continue; // only the root of what is held
-          const k = "." + [...e.classList].join(".");
-          by[k] = (by[k] || 0) + 1;
+          try {
+            if (e.isConnected || !e.classList) continue;
+            if (!(e.classList.contains("screen") || e.classList.contains("player"))) continue;
+            if (e.parentNode) continue; // only the root of what is held
+            const k = "." + [...e.classList].join(".");
+            by[k] = (by[k] || 0) + 1;
+          } catch {} // (the list holds the prototypes themselves too)
         }
         return by;
       }, objects);

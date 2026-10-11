@@ -5391,6 +5391,17 @@ export const renderPlayer = async (root, { id }) => {
       } catch {}
       hls = null;
     }
+    // The subtitle tracks go with the player. Chromium keeps every text
+    // track on a list that belongs to the DOCUMENT (its style engine, for
+    // cue styling), and a <track> still sitting on its <video> stays on that
+    // list after the player has left the page: the track holds the <video>,
+    // the <video> the whole player — so every player ever opened stayed in
+    // memory (~290 elements each; tools/mobile-perf/retainers.js prints the
+    // chain). Switched off and taken out of the <video>, they are let go.
+    try {
+      for (const tt of video.textTracks) tt.mode = "disabled";
+      for (const t of [...video.querySelectorAll("track")]) t.remove();
+    } catch {}
     video.removeAttribute("src");
     video.load();
     document.removeEventListener("nav-move", onNavMove);

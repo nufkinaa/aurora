@@ -32,6 +32,17 @@ if (!fs.existsSync(path.join(dir, "server.js"))) {
   if (r.status !== 0) throw new Error("tar failed");
   fs.rmSync(tar, { force: true });
   fs.symlinkSync(path.join(repo, "node_modules"), path.join(dir, "node_modules"), "junction");
+  // A commit from before this harness (master, say) has a test-server script
+  // that does not know `preload` — it would start WITHOUT the made-up
+  // catalogue and pictures: a Home with no billboard, title pages that
+  // cannot load, and numbers that compare nothing. It gets this checkout's
+  // script (the same script plus that one option); the server and the
+  // website it runs are still the commit's own.
+  const script = path.join(dir, "scripts", "ui-test-server.js");
+  if (!/extraPreloads/.test(fs.readFileSync(script, "utf-8"))) {
+    fs.copyFileSync(path.join(repo, "scripts", "ui-test-server.js"), script);
+    fs.copyFileSync(path.join(repo, "test", "ui", "support", "server-preload.js"), path.join(dir, "test", "ui", "support", "server-preload.js"));
+  }
   // the generated test library is shared, not rebuilt
   fs.mkdirSync(path.join(dir, "test", "ui"), { recursive: true });
   if (fs.existsSync(path.join(repo, "test", "ui", ".cache"))) fs.symlinkSync(path.join(repo, "test", "ui", ".cache"), path.join(dir, "test", "ui", ".cache"), "junction");
