@@ -24,3 +24,14 @@ test("no line of the script is a stray fragment", () => {
     assert.match(line, /^(@echo|rem\b|cd |set |if |node |\s+"|\s+goto|\))/, `unexpected line: ${line}`);
   }
 });
+
+test("the keeper refuses an argument it does not know instead of starting a second server", () => {
+  const { spawnSync } = require("child_process");
+  const keeper = path.join(root, "scripts", "keeper.js");
+  const help = spawnSync(process.execPath, [keeper, "--help"], { encoding: "utf8", timeout: 20000 });
+  assert.equal(help.status, 0);
+  assert.match(help.stdout, /--status/);
+  const bad = spawnSync(process.execPath, [keeper, "--no-such-thing"], { encoding: "utf8", timeout: 20000 });
+  assert.equal(bad.status, 2);
+  assert.match(bad.stderr, /unknown argument --no-such-thing/);
+});

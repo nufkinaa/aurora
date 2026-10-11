@@ -34,6 +34,23 @@ const opt = (name) => {
 };
 const flag = (name) => argv.includes(`--${name}`);
 
+// An argument this script does not know must never start a second Aurora:
+// `keeper.js --help` once did exactly that, beside the running server, and
+// its crash loop raised a real alert. Unknown: say what exists, and leave.
+{
+  const VALUE = new Set(["--host", "--script", "--data", "--node-arg", "--set"]);
+  const BARE = new Set(["--quiet", "--no-alert", "--status", "--stop", "--restart"]);
+  for (let i = 0; i < argv.length; i++) {
+    if (VALUE.has(argv[i])) { i++; continue; }
+    if (BARE.has(argv[i])) continue;
+    const asked = argv[i] === "--help" || argv[i] === "-h";
+    const text = fs.readFileSync(__filename, "utf8").split(/\r?\n/).slice(1, 23).map((l) => l.replace(/^\/\/ ?/, "")).join("\n");
+    if (asked) console.log(text);
+    else console.error("keeper: unknown argument " + argv[i] + "\n\n" + text);
+    process.exit(asked ? 0 : 2);
+  }
+}
+
 const script = path.resolve(opt("script") || path.join(ROOT, "server.js"));
 const cwd = opt("script") ? path.dirname(script) : ROOT;
 const dataDir = path.resolve(opt("data") || path.join(cwd, "data"));
