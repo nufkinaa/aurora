@@ -429,6 +429,8 @@ const run = async () => {
     const now = Date.now();
     const d = data();
     d.checks = d.checks || {};
+    // what is on disk now, to tell at the end whether this round changed it
+    const stored = JSON.stringify(d);
     const results = [];
     const attempt = async (fn) => {
       try { for (const r of [].concat(await fn())) results.push(r); } catch (e) { console.warn(`[health] a check could not run: ${(e && e.message) || e}`); }
@@ -455,7 +457,10 @@ const run = async () => {
       for (const id of Object.keys(d.checks)) if (id.startsWith("disk:") && !seenIds.has(id)) { delete d.checks[id]; live.latest.delete(id); }
     }
     live.lastRunAt = now;
-    persist();
+    // Written only when the round changed something. A healthy server's round
+    // changes nothing, and saving anyway rewrote health.json every minute for
+    // ever — one of the writes that keep an idle server's disk from resting.
+    if (JSON.stringify(d) !== stored) persist();
   } finally {
     live.running = false;
   }

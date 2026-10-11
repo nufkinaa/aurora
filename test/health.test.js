@@ -317,3 +317,42 @@ test("the ping URL must be http(s); requiring the module starts no timers", () =
   assert.equal(live.pingTimer, null);
   assert.equal(live.store, null); // data/health.json is only opened by start()
 });
+
+// ---------- a round that changes nothing writes nothing ----------
+test("run(): health.json is saved when a round changed what is stored, and only then", async () => {
+  const live = health._internals.live;
+  const before = { store: live.store, deliver: live.deliver, latest: new Map(live.latest), lastRunAt: live.lastRunAt };
+  let saves = 0;
+  live.store = { data: { firstSeenAt: 1, boots: [], checks: {}, events: [] }, save() { saves++; }, flush() { saves++; } };
+  live.deliver = () => {}; // nobody is messaged from a test
+  try {
+    // every round: a save if and only if the stored record moved
+    // (the first rounds settle what this machine's disks and tools look like)
+    let settled = 0;
+    for (let i = 0; i < 8; i++) {
+      const was = JSON.stringify(live.store.data);
+      saves = 0;
+      await health.run();
+      const changed = JSON.stringify(live.store.data) !== was;
+      assert.equal(saves > 0, changed, `round ${i + 1}: ${changed ? "changed, so saved" : "unchanged, so not saved"}`);
+      if (!changed) settled++;
+    }
+    assert.ok(settled >= 2, "a machine in a steady state has rounds that change nothing");
+    // …and a round that does change something is still saved: a check that was
+    // "critical" on file and is fine now starts counting its way back to ok
+    for (const id of Object.keys(live.store.data.checks)) {
+      if (live.store.data.checks[id].level === "ok") { live.store.data.checks[id] = { ...live.store.data.checks[id], level: "critical", since: 1, message: "made up", alerted: true, alertedLevel: "critical" }; break; }
+    }
+    saves = 0;
+    const was = JSON.stringify(live.store.data);
+    await health.run();
+    assert.notEqual(JSON.stringify(live.store.data), was);
+    assert.ok(saves > 0, "the change reached the disk");
+  } finally {
+    live.store = before.store;
+    live.deliver = before.deliver;
+    live.latest.clear();
+    for (const [k, v] of before.latest) live.latest.set(k, v);
+    live.lastRunAt = before.lastRunAt;
+  }
+});
