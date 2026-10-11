@@ -306,6 +306,9 @@ const hookExit = () => {
 //                   made-up one this way (tools/mobile-perf); the tests pass none
 //   env             extra environment for the instance (read by such a preload)
 //   verbose         echo the server's output
+//   keeper          run the instance under its keeper (scripts/keeper.js), as
+//                   an installed server runs: true, or { set: { probeEveryMs: 500, … } }
+//                   for the keeper's timings. `pid` is then the keeper's.
 const start = async (opts = {}) => {
   hookExit();
   sweepStale();
@@ -362,7 +365,8 @@ const start = async (opts = {}) => {
       if (value == null) continue; // (a test can drop a default seed with null)
       const file = path.join(dataDir, rel);
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, typeof value === "string" ? value : JSON.stringify(value), "utf-8");
+      // (a Buffer is written as it is: a backup archive, say)
+      fs.writeFileSync(file, Buffer.isBuffer(value) || typeof value === "string" ? value : JSON.stringify(value), "utf-8");
     }
 
     const port = await freePort();
@@ -395,7 +399,13 @@ const start = async (opts = {}) => {
       ...(opts.env || {}),
     });
 
-    const child = spawn(process.execPath, ["-r", "./ui-preload.js", ...extraPreloads.flatMap((n) => ["-r", `./${n}`]), ENTRY], {
+    const preloads = ["./ui-preload.js", ...extraPreloads.map((n) => `./${n}`)];
+    const keeperArgs = opts.keeper
+      ? [path.join(REPO, "scripts", "keeper.js"), "--script", path.join(root, ENTRY), "--data", dataDir, "--no-alert",
+          ...preloads.flatMap((f) => ["--node-arg", "-r", "--node-arg", f]),
+          ...Object.entries((opts.keeper && opts.keeper.set) || {}).flatMap(([k, v]) => ["--set", `${k}=${v}`])]
+      : null;
+    const child = spawn(process.execPath, keeperArgs || [...preloads.flatMap((f) => ["-r", f]), ENTRY], {
       cwd: root, env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
       detached: process.platform !== "win32", // its own group, so the tree can be signalled
     });

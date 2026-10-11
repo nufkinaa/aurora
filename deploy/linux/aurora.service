@@ -1,0 +1,63 @@
+# Aurora under systemd: started at boot, restarted when it dies or hangs.
+#
+# systemd runs Aurora's keeper (scripts/keeper.js); the keeper runs the
+# server. The split is deliberate:
+#   - the keeper restarts the server when it crashes, backs off when it keeps
+#     crashing, and — what systemd alone cannot do for a Node process without
+#     a native module — restarts it when its event loop is stuck (it probes
+#     GET /healthz from outside);
+#   - systemd starts the keeper at boot, restarts the keeper itself should it
+#     ever die, ends every process of the service on stop (ffmpeg, the
+#     download engine), and keeps the output in the journal.
+#
+# Install (docs/operations.md has this with explanations):
+#   sudo cp deploy/linux/aurora.service /etc/systemd/system/aurora.service
+#   sudoedit /etc/systemd/system/aurora.service     # User=, WorkingDirectory=, ExecStart= node path
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now aurora
+#
+# Day to day:
+#   systemctl status aurora            is it up, since when
+#   journalctl -u aurora -f            the live log (also in data/server-stdout.log)
+#   sudo systemctl restart aurora      a clean restart
+#   sudo systemctl stop aurora         stop it (and keep it stopped until `start`)
+#   node scripts/keeper.js --status    what the keeper has seen: restarts and why
+[Unit]
+Description=Aurora media server (kept alive by its keeper)
+Documentation=https://github.com/nufkinaa/aurora
+After=network-online.target
+Wants=network-online.target
+# The keeper's own death is rare and restarted below; if even that loops
+# (a broken Node install), stop after 5 tries in 5 minutes instead of spinning.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# EDIT these three for your box: the account that owns the folder (never
+# root), the folder Aurora lives in, and the full path of node (`which node`).
+User=aurora
+WorkingDirectory=/opt/aurora
+ExecStart=/usr/bin/node scripts/keeper.js --host systemd
+Environment=NODE_ENV=production
+# libuv's pool serves every streaming read (the keeper sets the same default).
+Environment=UV_THREADPOOL_SIZE=6
+
+Restart=always
+RestartSec=3
+# Stop: SIGTERM goes to the keeper, which asks the server to stop cleanly
+# (stores saved, viewers told) and ends it after 12 s if it has not. Whatever
+# is left in the service's control group after 25 s is killed.
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=25
+# ffmpeg jobs open many segment files.
+LimitNOFILE=65536
+
+# The journal gets everything the server prints (the keeper echoes it).
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aurora
+
+[Install]
+WantedBy=multi-user.target

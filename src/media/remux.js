@@ -19,8 +19,19 @@ const IDLE_MS = 150000; // kill a remux whose player stopped requesting (>2.5 mi
 
 // Server-survival guards (same rationale as torrent-transcode.js): uncapped
 // libx264 processes starve the event loop and "freeze" the whole server.
-const MAX_ACTIVE_TRANSCODES = 2; // concurrent live h264 jobs (copy jobs are cheap)
+// How many may run is the machine's encode budget (encbudget.js: its CPU
+// threads and its measured encode speed, each job weighed by what it costs;
+// or the admin's fixed number) — shared with the ladder's encoders and the
+// torrent transcodes. Copy jobs are cheap and are not counted.
+const budget = require("./encbudget");
 const FFMPEG_THREADS = Math.max(1, os.cpus().length - 2);
+// "The server is busy": a refusal the routes answer 503 + Retry-After, the
+// same on every route (the older single-rendition route used to say 500).
+const busyError = (message) => Object.assign(new Error(message), { busy: true, retryAfter: 5 });
+// Everything being encoded for viewers right now, in the budget's units:
+// this module's jobs, the ladder's and the torrent side's all register
+// themselves (cpuwork.js).
+const viewerLoad = () => { try { return require("./cpuwork").viewer.cost(); } catch { return 0; } };
 
 const jobs = new Map(); // dir -> {proc, done, heavy, lastAccess}
 
@@ -372,17 +383,26 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   // watching a transcode could never seek — their own stream held a slot and
   // their seek was refused with "busy transcoding" (measured live).
   const handoff = victims.reduce((n, [, j]) => n + (j.heavy ? 1 : 0), 0);
-  if (heavy && activeTranscodes() + ladderEncodes() - handoff >= MAX_ACTIVE_TRANSCODES) {
-    try { require("../lib/signals").hit("no-encoder", "transcode"); } catch {}
-    return Promise.reject(new Error("Server is busy transcoding other streams — try again in a moment"));
-  }
-
+  const handoffCost = victims.reduce((n, [, j]) => n + (j.heavy && j.proc ? j.cost || budget.unit() : 0), 0);
+  // What this job would cost the machine: the source's size, codec and frame
+  // rate (the scanner's probe), the height it is folded to, tone mapping when
+  // the source is HDR.
+  const srcMeta = heavy ? require("./metadata").getCached(videoPath) || {} : {};
+  const spec = {
+    srcW: srcMeta.width, srcH: srcMeta.height, codec: srcMeta.video && srcMeta.video.codec, fps: srcMeta.fps || (srcMeta.video && srcMeta.video.fps),
+    outH: cap ? cap.h : 0, tonemap: !!(hdrFacts && tonemap.enabled() && tonemap.isHdr(hdrFacts)), legacy: true,
+  };
+  const cost = heavy ? budget.costFor(spec) : 0;
+  const memMb = heavy ? budget.memOf(spec) : 0;
   // A capped job is a courtesy to a slow line, not a need: the same title
-  // plays without it. It never takes the LAST encode slot — that one stays
-  // free for a device that cannot play its file any other way.
-  if (cap && activeTranscodes() + ladderEncodes() - handoff >= MAX_ACTIVE_TRANSCODES - 1) {
-    try { require("../lib/signals").hit("no-encoder", "lighter"); } catch {}
-    return Promise.reject(new Error("Server is busy — the lighter stream isn't available right now"));
+  // plays without it. It never takes the LAST of the room — that stays free
+  // for a device that cannot play its file any other way.
+  if (heavy) {
+    const a = budget.admit({ cost, memMb, running: Math.max(0, viewerLoad() - handoffCost), essential: !cap, replacing: handoff > 0 });
+    if (!a.ok) {
+      try { require("../lib/signals").hit("no-encoder", cap ? "lighter" : "transcode"); } catch {}
+      return Promise.reject(busyError(cap ? "Server is busy — the lighter stream isn't available right now" : "Server is busy transcoding other streams — try again in a moment"));
+    }
   }
 
   fs.mkdirSync(dir, { recursive: true });
@@ -460,12 +480,15 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
     { stdio: ["ignore", "ignore", "pipe"], windowsHide: true }
   );
   // Keep node responsive: ffmpeg yields CPU to the server under contention.
+  require("../lib/children").track(proc, "remux");
   try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
+  // a re-encode is somebody watching: background work stands back (cpuwork.js)
+  if (heavy) { try { require("./cpuwork").viewer.track(proc, { kind: "transcode", label: path.basename(videoPath), cost, memMb }); } catch {} }
 
   let stderr = "";
   proc.stderr.on("data", (d) => (stderr += d.toString()));
 
-  const job = { proc, done: false, heavy, lastAccess: Date.now(), startedAt: Date.now() };
+  const job = { proc, done: false, heavy, cost, lastAccess: Date.now(), startedAt: Date.now() };
   job.ready = new Promise((resolve, reject) => {
     // resolve as soon as the playlist appears so playback starts immediately
     const started = Date.now();
@@ -547,7 +570,10 @@ const helpers = (now = Date.now()) => {
 };
 // For the healer: how many encode slots are taken, of how many.
 // (`own`: this module's alone — jit.js adds its own to it for its cap)
-const encodeLoad = () => ({ active: activeTranscodes() + ladderEncodes(), own: activeTranscodes(), max: MAX_ACTIVE_TRANSCODES });
+// `max`: how many standard transcodes fit this machine right now (the
+// number the admin page shows); `load` / `capacity`: the same in the
+// budget's own units, for whoever wants the detail.
+const encodeLoad = () => ({ active: activeTranscodes() + ladderEncodes(), own: activeTranscodes(), max: budget.slots(), load: Math.round(viewerLoad() * 100) / 100, capacity: budget.capacity() });
 // Finished streams nobody is watching any more, removed (the healer calls
 // this when the disk is tight; in normal times the newest few are kept so a
 // re-open is instant). Returns bytes freed, roughly.

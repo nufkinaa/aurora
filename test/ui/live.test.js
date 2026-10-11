@@ -100,5 +100,116 @@ ui.test("Home takes the new film in as well, without a reload", async ({ page, s
   await page.waitForFunction(() => document.querySelectorAll('#app .card[aria-label^="Test Film Three"]').length === 0);
 });
 
+// ---------- not all at once (the stampede: docs/qa/capacity/REPORT.md §3a) ----------
+// Every "the library changed" used to be answered by every device in the same
+// instant. The server now sends ONE message per burst of changes, and a tab
+// waits a random 0.5–5 s before asking again — unless Home is on its screen.
+
+// Watch this tab's socket: when each library_updated ARRIVES, and when the
+// app's listeners HEAR it (after the wait).
+const watch = (page) => page.evaluate(async () => {
+  const { state } = await import("/js/state.js");
+  const { onMessage } = await import("/js/ws.js");
+  const w = (window.__lu = { arrived: [], heard: [] });
+  state.ws.addEventListener("message", (e) => { try { if (JSON.parse(e.data).type === "library_updated") w.arrived.push(performance.now()); } catch {} });
+  onMessage("library_updated", () => w.heard.push(performance.now()));
+});
+
+ui.test("one rescan is ONE message, and a tab that is not on Home answers it after a random wait, once", async ({ page, goto, signIn, freshProfile, api }) => {
+  await signIn(await freshProfile());
+  await goto("#/shows");
+  await socketUp(page);
+  await watch(page);
+  const requests = [];
+  page.on("request", (r) => { const u = new URL(r.url()); if (u.pathname === "/api/library" || u.pathname === "/api/home") requests.push(u.pathname); });
+  // what used to be two messages (the route and the scan) — asked for twice over, for good measure
+  await api.rescan();
+  await api.rescan();
+  await page.waitForFunction(() => window.__lu.heard.length >= 1, null, { timeout: 20000 });
+  await page.waitForTimeout(7000); // a second message, or a second refresh, would show by now
+  const w = await page.evaluate(() => window.__lu);
+  assert.equal(w.arrived.length, 1, `the server sent ${w.arrived.length} messages for one burst of changes`);
+  assert.equal(w.heard.length, 1, "the tab refreshed more than once");
+  const waited = w.heard[0] - w.arrived[0];
+  assert.ok(waited >= 450 && waited <= 5600, `the tab waited ${Math.round(waited)} ms before asking again (0.5–5 s)`);
+  assert.deepEqual(requests, ["/api/library"], "a grid asks for the library once, and never for Home");
+});
+
+ui.test("a tab with Home on its screen does not wait; a hidden tab waits until it is looked at", async ({ page, goto, signIn, freshProfile, api }) => {
+  await signIn(await freshProfile());
+  await goto("#/");
+  await socketUp(page);
+  await page.waitForSelector(".screen .hero-title");
+  await watch(page);
+  await api.rescan();
+  await page.waitForFunction(() => window.__lu.heard.length >= 1, null, { timeout: 20000 });
+  let w = await page.evaluate(() => window.__lu);
+  assert.ok(w.heard[0] - w.arrived[0] < 450, `Home was refreshed ${Math.round(w.heard[0] - w.arrived[0])} ms after the message (at once: within 0.3 s)`);
+
+  // the tab goes to the background: it hears nothing until it is seen again
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.__lu.arrived.length = 0; window.__lu.heard.length = 0;
+  });
+  await api.rescan();
+  await page.waitForFunction(() => window.__lu.arrived.length >= 1, null, { timeout: 20000 });
+  await page.waitForTimeout(1500);
+  assert.equal((await page.evaluate(() => window.__lu)).heard.length, 0, "a tab nobody is looking at refreshed anyway");
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await page.waitForFunction(() => window.__lu.heard.length >= 1, null, { timeout: 10000 });
+});
+
+ui.test("Home is never fetched twice at once, a 429 is waited out and tried again, and the waits are the documented ones", async ({ page, goto, signIn, freshProfile, allow }) => {
+  allow(/status of 429/); // the browser's own note about the refusal this test stages
+  const me = await freshProfile();
+  await signIn(me);
+  await goto("#/shows");
+  // one request in flight per profile, whoever asks
+  let homes = 0;
+  page.on("request", (r) => { if (new URL(r.url()).pathname === "/api/home") homes++; });
+  const same = await page.evaluate(async (pid) => {
+    const { api } = await import("/js/api.js");
+    const [a, b, c] = await Promise.all([api.home(pid), api.home(pid), api.home(pid)]);
+    return a === b && b === c && Array.isArray(a.rows);
+  }, me.id);
+  assert.equal(same, true);
+  assert.equal(homes, 1, "three callers, one request");
+
+  // "too many at once": the client waits what it is told (plus a little) and asks again
+  let n = 0;
+  await page.route("**/api/server-info", async (route) => {
+    n++;
+    if (n === 1) return route.fulfill({ status: 429, headers: { "Retry-After": "1", "Content-Type": "application/json" }, body: JSON.stringify({ error: "Too many requests at once" }) });
+    return route.continue();
+  });
+  const retried = await page.evaluate(async () => {
+    const { api } = await import("/js/api.js");
+    const t0 = performance.now();
+    const info = await api.serverInfo();
+    return { ms: performance.now() - t0, ok: !!(info && info.authMode) };
+  });
+  await page.unroute("**/api/server-info");
+  assert.equal(retried.ok, true, "the second try's answer is what the caller gets");
+  assert.equal(n, 2);
+  assert.ok(retried.ms >= 950 && retried.ms < 4000, `waited ${Math.round(retried.ms)} ms (Retry-After 1 s, plus up to 1.5 s)`);
+
+  // the two waits, as functions: a refresh, and a reconnect
+  const waits = await page.evaluate(async () => {
+    const ws = await import("/js/ws.js");
+    return {
+      gridMin: ws.refreshDelay({ home: false, caused: false, random: () => 0 }),
+      gridMax: ws.refreshDelay({ home: false, caused: false, random: () => 1 }),
+      home: [ws.refreshDelay({ home: true, caused: false, random: () => 0 }), ws.refreshDelay({ home: true, caused: false, random: () => 1 })],
+      mine: ws.refreshDelay({ home: false, caused: true, random: () => 1 }),
+      reconnect: [ws.reconnectWait(1000, () => 0), ws.reconnectWait(1000, () => 1), ws.reconnectWait(30000, () => 0), ws.reconnectWait(30000, () => 1)],
+    };
+  });
+  assert.deepEqual(waits, { gridMin: 500, gridMax: 5000, home: [0, 300], mine: 300, reconnect: [500, 1000, 15000, 30000] });
+});
+
 // one at a time: these tests change the library on disk, which every page sees
 ui.run({ concurrency: 1 });

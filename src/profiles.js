@@ -835,6 +835,33 @@ const bumpSignals = (profileId) =>
   signalStamps.set(profileId, (signalStamps.get(profileId) || 0) + 1);
 const signalsStamp = (profileId) => signalStamps.get(profileId) || 0;
 
+// A stamp for everything about the household that is NOT one profile's watch
+// state: who the profiles are, their names, kids limits, locks, row
+// preferences, the kids PIN, pending requests. It moves when any of that
+// changes and stays put through the progress writes of somebody watching —
+// what the Home memo (routes/api.js) needs to know "is this answer still
+// right?" without comparing answers. Worked out lazily: a save marks it
+// stale, the next reader compares a serialisation of those few kilobytes.
+let shapeStale = true;
+let shapeSeen = "";
+let shapeN = 0;
+{
+  const save = store.save.bind(store);
+  store.save = () => { shapeStale = true; return save(); };
+}
+const shapeStamp = () => {
+  if (shapeStale) {
+    shapeStale = false;
+    let now = "";
+    try {
+      const { state, access, ...rest } = store.data; // (access: a per-device log that moves on every visit)
+      now = JSON.stringify(rest);
+    } catch {}
+    if (now !== shapeSeen) { shapeSeen = now; shapeN++; }
+  }
+  return shapeN;
+};
+
 // Taste signals: titles the person SAID they love (the onboarding picker).
 // Stronger than inferred signals; prompt 9's recommender consumes these
 // alongside likedGenres. Bounded and validated — stored forever.
@@ -1496,12 +1523,14 @@ const markProgress = (profileId, entries) => {
 // silent no-op and the card came straight back. Stored per (show, episode):
 // watching past the dismissed episode changes the candidate and un-hides it.
 const dismissUpNext = (profileId, showId, episodeId) => {
+  bumpSignals(profileId); // Continue Watching changes: the Home memo's stamp for this profile
   const state = stateFor(profileId);
   state.upNextDismissed[String(showId)] = String(episodeId);
   store.save();
 };
 
 module.exports = {
+  shapeStamp,
   followsOf,
   setFollow,
   searchesOf,

@@ -126,7 +126,9 @@ const json = async (url, options = {}, attempt = 0) => {
       // not a second wait of the same length. Any other failure is asked again.
       if (err && err.timeout) throw err;
     }
-    if (r && r.ok) res = r;
+    // (a 429 is an answer too — "wait, then ask again": the turn-taking below
+    // waits what the server asked instead of asking again this instant)
+    if (r && (r.ok || r.status === 429)) res = r;
   }
   // One switch ends the request, whoever pulls it: the caller's own signal
   // (a newer search replaced this one), the first-byte limit, or an answer
@@ -162,6 +164,16 @@ const json = async (url, options = {}, attempt = 0) => {
     } finally {
       clearTimeout(timer);
     }
+  }
+  // "Too many at once — try again in a moment" (the server's turn-taking for
+  // its heavy answers, lib/admission.js): wait what it asks, plus a random
+  // bit so a crowd does not come back together, and ask again. Twice at most.
+  if (res.status === 429 && (options.method || "GET").toUpperCase() === "GET" && attempt < 2) {
+    const after = Math.min(5, Math.max(0.5, parseFloat(res.headers.get("Retry-After")) || 1));
+    try { if (res.body) res.body.cancel().catch(() => {}); } catch {} // (its body is not read: let the connection go)
+    await new Promise((r) => setTimeout(r, after * 1000 + Math.random() * 1500));
+    // (the next try has its own time limit: being asked to wait is not the server failing to answer)
+    return json(url, options, attempt + 1);
   }
   const giveUp = ctrl ? (err) => ctrl.abort(err) : null;
   if (!res.ok) {
@@ -240,13 +252,26 @@ const post = (url, body) =>
     body: JSON.stringify(body),
   });
 
+const homeInFlight = new Map(); // profile id -> the request on its way
+
 export const api = {
   // `profileId` rides in the address so the offline copy the service worker
   // keeps (it caches by URL) is one per profile: a kids profile offline must
   // never be handed the list a grown-up loaded on the same device. The server
   // reads `profile` only to recognise a kids profile.
   library: (profileId) => json(profileId ? `/api/library?profile=${encodeURIComponent(profileId)}` : "/api/library"),
-  home: (profileId) => json(`/api/home?profile=${encodeURIComponent(profileId || "")}`),
+  // One Home request in flight per profile, whoever asks: the screen, its
+  // refresh after a library change and the prefetch share the same answer
+  // instead of each fetching the heaviest thing the server makes.
+  home: (profileId) => {
+    const key = profileId || "";
+    let p = homeInFlight.get(key);
+    if (!p) {
+      p = json(`/api/home?profile=${encodeURIComponent(key)}`).finally(() => homeInFlight.delete(key));
+      homeInFlight.set(key, p);
+    }
+    return p;
+  },
   // Pass the active profile so torrent items can be rebuilt from stored state
   // after a page refresh (harmless for library items).
   // `low`: a prefetch (prefetch.js) — same answer, queued behind real work

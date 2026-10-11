@@ -205,6 +205,7 @@ const warm = async (items, now = Date.now()) => {
 };
 
 module.exports = {
+  stamp: () => store.rev, // moves when a verdict is learned (lib/answermemo.js keys on it)
   isReleased,
   isUpcoming,
   isAmbiguous,
