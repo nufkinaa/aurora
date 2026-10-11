@@ -11,7 +11,7 @@ const text = fs.readFileSync(path.join(root, "start-aurora.cmd"), "utf8");
 test("the start script's entry and every path it names exist", () => {
   const entries = [...text.matchAll(/AURORA_ENTRY=([^"\r\n]+)/g)].map((m) => m[1]);
   assert.ok(entries.length >= 2, "an entry for the keeper and one for --bare");
-  const named = [...text.matchAll(/((?:deploy|docs|scripts)\[\w\.-]+)/g)].map((m) => m[1]);
+  const named = [...text.matchAll(/((?:deploy|docs|scripts)\\[\w\\.-]+)/g)].map((m) => m[1]);
   assert.ok(named.length >= 2);
   for (const rel of [...entries, ...named]) {
     assert.ok(fs.existsSync(path.join(root, ...rel.split("\\"))), `${rel} is missing`);
