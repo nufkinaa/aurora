@@ -3,6 +3,16 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.95 — 2026-10-11
+
+- **Films and episodes start sooner on the website.** Pressing Play now asks the server for everything at once instead of one thing after another, the server has the first seconds ready while you are still on the title's page, and the picture appears while the first piece is still arriving. On a home network a typical start went from about 3.7 s to under 1 s; on a slow or distant line most starts are between half a second and two seconds.
+- **A thin line no longer means a long wait.** The player used to pick a quality the line could not carry, give up and start over, sometimes for a minute or two. It now remembers how fast this device's line was, starts at a quality that fits, and steps up from there.
+- MP4 files whose index sits at the end of the file start without first downloading the film's tail.
+- Resuming goes straight to where you stopped instead of starting at the top and jumping.
+- Leaving a film tells the server at once, so the work it was doing for you stops and the next person is not kept waiting. Only your own film is stopped — never someone else's.
+- When the server is full, the player waits a few seconds and tries again instead of showing an error.
+- The TV app carries the same groundwork from its next update (its start-up tuning stays off until it has been measured on a TV).
+
 ## 1.6.94 — 2026-10-11
 
 - **The server does much less work for the same answers**, which matters most on a small PC. Composing Home takes about a sixth of the processor time it did (341 → 55 ms on a two-core test machine with a 1,260-title library); search about half; pictures, video ranges and playlists a third less each. With five people watching, the slow tenth of Home loads went from 226 ms to 57 ms.
