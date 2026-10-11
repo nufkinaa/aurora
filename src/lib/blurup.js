@@ -33,6 +33,11 @@ const FAIL_TTL = 6 * 3600 * 1000;
 const KEYS = ["cover", "poster", "backdrop"];
 
 const mem = new Map(); // picture address -> data URI
+// Counts every placeholder that arrives in `mem`. annotate() of one body
+// changes only when this does, so a caller that keeps a finished answer
+// (lib/keptjson.js) knows when to ask again.
+let generation = 0;
+const learn = (u, uri) => { mem.set(u, uri); generation++; };
 const failed = new Map(); // picture address -> failedAt
 const queued = new Set();
 const queue = [];
@@ -84,7 +89,7 @@ const make = async (u) => {
   if (!r.ok) throw new Error(`picture answered ${r.status}`);
   const webp = await shrink(Buffer.from(await r.arrayBuffer()));
   const uri = `data:image/webp;base64,${webp.toString("base64")}`;
-  mem.set(u, uri);
+  learn(u, uri);
   fs.writeFile(fileFor(u), uri, () => {});
   return uri;
 };
@@ -115,7 +120,7 @@ const get = (u) => {
   // a restart finds yesterday's on disk — cheap, async, never blocks a request
   fs.readFile(fileFor(u), "utf8", (err, text) => {
     if (!err && text.startsWith("data:image/")) {
-      mem.set(u, text);
+      learn(u, text);
       queued.delete(u);
       return;
     }
@@ -170,6 +175,9 @@ const annotate = (body) => {
 // Express middleware: GET /api/* answers for a client that asked.
 const middleware = (req, res, next) => {
   if (req.method !== "GET" || req.get("X-Blur") !== "1" || !req.path.startsWith("/api/") || req.path.startsWith("/api/admin")) return next();
+  // (for a handler that sends a kept answer itself: this request wants the
+  // placeholders, and annotate() below is how it would have got them)
+  req.blurAsked = true;
   const json = res.json.bind(res);
   res.json = (body) => {
     try {
@@ -183,4 +191,4 @@ const middleware = (req, res, next) => {
   next();
 };
 
-module.exports = { middleware, get, annotate, _internals: { collect, localUrl, mem, shrink, make } };
+module.exports = { middleware, get, annotate, generation: () => generation, _internals: { collect, localUrl, mem, shrink, make, learn } };

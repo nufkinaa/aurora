@@ -509,16 +509,55 @@ router.get("/api/party/:code", (req, res) => {
   res.json(p);
 });
 
+// The answer is the same for everyone until the library is scanned again or
+// an IMDb id is learnt, so it is made once and kept (lib/keptjson.js): every
+// device asks for it at start-up and again on each "library_updated", and
+// building it per request cost 23 ms of CPU for 1,261 titles — 12 ms even to
+// answer "304, you have it". A kids profile's request is filtered on its way
+// out by the gate above, so it gets the object, as before.
+//
+// Both apps ask with X-Blur: 1 (lib/blurup.js adds the "_blur" placeholders
+// to the answer). The placeholders a body gets change only when a new one is
+// made (blurup.generation()), so the answer WITH them is kept too, made the
+// way the blur-up middleware makes it: { ...answer, _blur: map }.
+const keptjson = require("../lib/keptjson");
+const blurup = require("../lib/blurup");
+let libraryKept = null; // { movies, shows, nMovies, nShows, scannedAt, enriched, stamps, plain, blurred, blurGen }
+const libraryAnswer = () => ({
+  movies: scanner.index.movies,
+  shows: scanner.index.shows.map(listEntry),
+  scannedAt: scanner.index.scannedAt,
+  enriched: scanner.index.enriched,
+});
 router.get("/api/library", (req, res) => {
   // Library items carry the IMDb id we already know for them (identity.js
   // stamps the index; a no-op unless the library or the id cache changed).
-  identity.ensureStamped();
-  res.json({
-    movies: scanner.index.movies,
-    shows: scanner.index.shows.map(listEntry),
-    scannedAt: scanner.index.scannedAt,
-    enriched: scanner.index.enriched,
-  });
+  const stamps = identity.ensureStamped(); // (a new object whenever the items were stamped again)
+  // a kids profile: the gate filters the object on its way out — nothing kept
+  if (req.kids) return res.json(libraryAnswer());
+  const { movies, shows, scannedAt, enriched } = scanner.index;
+  let k = libraryKept;
+  if (!(k && k.movies === movies && k.shows === shows && k.nMovies === movies.length && k.nShows === shows.length &&
+        k.scannedAt === scannedAt && k.enriched === enriched && k.stamps === stamps)) {
+    k = libraryKept = { movies, shows, nMovies: movies.length, nShows: shows.length, scannedAt, enriched, stamps, plain: null, blurred: null, blurGen: -1 };
+  }
+  let kept;
+  if (req.blurAsked) {
+    if (!k.blurred || k.blurGen !== blurup.generation()) {
+      const answer = libraryAnswer();
+      const map = blurup.annotate(answer); // (also asks for the placeholders not made yet)
+      k.blurGen = blurup.generation();
+      k.blurred = keptjson.make(req.app, map ? { ...answer, _blur: map } : answer);
+    }
+    kept = k.blurred;
+  } else {
+    if (!k.plain) k.plain = keptjson.make(req.app, libraryAnswer());
+    kept = k.plain;
+  }
+  // (res.json is the fallback when this app's JSON settings are not the defaults;
+  // it goes through the blur-up middleware as it always did)
+  if (!kept) return res.json(libraryAnswer());
+  keptjson.send(req, res, kept);
 });
 
 // The library copy of a stream identity, if we own it: the movie, or the one
