@@ -107,7 +107,7 @@ import {
   sendPartyState,
   setPartyItem,
 } from '../party';
-import {isOpen as socketOpen, reportActivity} from '../realtime';
+import {holdLibraryRefresh, isOpen as socketOpen, reportActivity} from '../realtime';
 import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
 import {PERSON_KEYS, PersonKey, SUB_LANG_LABEL} from '../personPrefs';
 import {resumePoint, SKIP_STEPS} from '../episodeRules';
@@ -130,6 +130,7 @@ import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
 import theme from '../theme';
 import {refreshTuning, tuning, TUNING_DEFAULTS} from './tuning';
+import {SERVER_BUSY, whenRoom} from '../serverManners';
 import {playerError, seekResumed, seekStarted, seeking} from '../telemetry'; // [analytics]
 
 const {colors, radius, fontSize, spacing} = theme;
@@ -1100,6 +1101,70 @@ export default function Player({
     [],
   );
 
+  // THE SERVER IS BUSY (503 + Retry-After: no room in its encoder budget —
+  // server 1.6.93). The claim below is the one request of a start whose answer
+  // this code sees (ExoPlayer's own read of the playlist reports only "Source
+  // error"), so it is the claim that is watched: on 503 it waits what the
+  // server says (5 s at most) and asks again, three times at most
+  // (serverManners.ts whenRoom), with the loading state on screen. While the
+  // claim for the CURRENT source is in flight or waiting, a player error
+  // before anything has played is not run through the codec ladder (onError):
+  // a busy server refuses the player's playlist read too, and the ladder's
+  // answer to that — a heavier encode — is the wrong one. When there is room
+  // the source is handed over again if the player had given up on it; when
+  // there is none after the last try, ONE message with Try again / Back.
+  // The player is handed its source at once, as before: a start on a server
+  // with room is not a round trip slower for any of this.
+  const claimGen = useRef(0); // the source generation whose claim is pending (0 = none)
+  const claimSwallowed = useRef(0); // …and the generation a player error was held back for
+  const claimStream = useCallback((url: string, g: number) => {
+    claimGen.current = g;
+    const alive = () => !exited.current && gen.current === g;
+    whenRoom(
+      async () => {
+        // bounded, like the far-seek probe: a claim that never settled would
+        // hold errors back for ever
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 45000);
+        try {
+          const res = await fetch(`${url}&seek=1`, {headers: mediaHeaders(), signal: ctrl.signal});
+          return {status: res.status, retryAfter: res.headers.get('retry-after')};
+        } finally {
+          clearTimeout(t);
+        }
+      },
+      {
+        sleep,
+        alive,
+        onWait: (ms, n) => {
+          console.log(`[player] the server is busy: asking again in ${ms} ms (${n}/3)`);
+          // an error the player raised a moment before this answer may have
+          // armed the stuck-playlist retry: this wait owns the start now
+          if (retryTimer.current) clearTimeout(retryTimer.current);
+          retryTimer.current = null;
+          recoveries.current = 0;
+          setBuffering(true);
+        },
+      },
+    ).then(out => {
+      if (claimGen.current === g) claimGen.current = 0;
+      if (out.kind === 'gone' || !alive()) return;
+      const swallowed = claimSwallowed.current === g;
+      if (out.kind === 'busy') {
+        if (everPlayed.current) return; // the player got in by itself meanwhile
+        console.log('[player] the server is still busy: giving up on this start');
+        setBuffering(false);
+        setError(SERVER_BUSY);
+        return;
+      }
+      // Room (or an answer that is not "busy", or the claim itself failed):
+      // if the player's error was held back, the source is handed over once
+      // more — with no claim pending, whatever it says next is judged as
+      // always.
+      if (swallowed && !everPlayed.current) setUri(`${url}&g=${++gen.current}`);
+    });
+  }, []);
+
   // The web's startTranscode. `claim` fires the &seek=1 request that tells the
   // server the VIEWER chose this position — the only kind of request allowed to
   // retire the job still running at the previous offset. Without it the old
@@ -1122,10 +1187,11 @@ export default function Player({
       setCurrent(ss);
       setBuffering(true);
       const url = transcodeUrl(base, ss, v);
-      if (claim) fetch(`${url}&seek=1`, {headers: mediaHeaders()}).catch(() => {});
-      setUri(`${url}&g=${++gen.current}`);
+      const g = ++gen.current;
+      if (claim) claimStream(url, g);
+      setUri(`${url}&g=${g}`);
     },
-    [transcodeUrl],
+    [transcodeUrl, claimStream],
   );
 
   // Restart the transcode at an absolute content time — but PROBE the playlist
@@ -1148,33 +1214,63 @@ export default function Player({
       // stall watchdog and the transcode keepalive — a probe that never settled
       // wedged the player in "Fetching that part…" with every recovery
       // mechanism switched off. prefetchRegion already aborts this way.
-      const ctrl = new AbortController();
-      const probeTimer = setTimeout(() => ctrl.abort(), 45000);
+      // (Each ask has its own 45 s. A busy server — 503 + Retry-After — is
+      // waited for and asked again, three times at most, the loading state
+      // staying up: serverManners.ts whenRoom.)
+      const alive = () => !exited.current && token === probeToken.current;
       try {
-        const res = await fetch(`${transcodeUrl(base, ss, v)}&seek=1`, {
-          headers: mediaHeaders(),
-          signal: ctrl.signal,
-        });
-        if (exited.current || token !== probeToken.current) return true;
-        if (!res.ok) throw new Error('not ready');
+        const out = await whenRoom(
+          async () => {
+            const ctrl = new AbortController();
+            const probeTimer = setTimeout(() => ctrl.abort(), 45000);
+            try {
+              const res = await fetch(`${transcodeUrl(base, ss, v)}&seek=1`, {
+                headers: mediaHeaders(),
+                signal: ctrl.signal,
+              });
+              return {status: res.status, retryAfter: res.headers.get('retry-after')};
+            } finally {
+              clearTimeout(probeTimer);
+            }
+          },
+          {
+            sleep,
+            alive,
+            onWait: (ms, n) => console.log(`[player] the server is busy: asking again in ${ms} ms (${n}/3)`),
+          },
+        );
+        if (out.kind === 'gone' || !alive()) return true;
+        if (out.kind === 'busy') {
+          // No room after the last try. Something is playing: it stays, and
+          // the viewer is told. Nothing has played yet: one message with
+          // Try again / Back — never the same request in a loop, and not the
+          // start of the film instead of the point that was asked for.
+          console.log('[player] the server is still busy: this point is not started');
+          if (everPlayed.current) {
+            toast('The server is busy — try again in a moment');
+            return false;
+          }
+          setError(SERVER_BUSY);
+          return true;
+        }
+        if (out.kind !== 'answered' || out.status < 200 || out.status > 299) throw new Error('not ready');
         startTranscode(base, ss, v, false); // the probe already claimed it
         return true;
       } catch {
-        if (exited.current || token !== probeToken.current) return true;
+        if (!alive()) return true;
         if (fallbackToZero) {
           startTranscode(base, 0, v, false);
           return true;
         }
         return false;
       } finally {
-        clearTimeout(probeTimer);
         if (token === probeToken.current) {
           probing.current = false;
           setSeekWait(null);
         }
       }
     },
-    [startTranscode, transcodeUrl],
+    [startTranscode, transcodeUrl, toast],
   );
 
   // Another dub (elia, 2026-10-07: "users can't change the dub"): the stream
@@ -1606,6 +1702,21 @@ export default function Player({
     setPlayingContext({id, title});
     return () => setPlayingContext(null);
   }, [id, title]);
+  // While a film plays, a library change re-reads nothing behind it (the
+  // title page under the player used to re-read its library copy on every
+  // message): realtime.ts holds the news and tells the screens once, after
+  // the player is left. And on leaving — or going on to the next episode,
+  // which is a new player — the server is told it may stop what it was
+  // preparing for this viewer (api.playBye; library titles only: a torrent
+  // stream has no such route).
+  useEffect(() => {
+    const why = `player:${mountedAt.current}`;
+    holdLibraryRefresh(why, true);
+    return () => {
+      holdLibraryRefresh(why, false);
+      if (!isTorrent) api.playBye(id).catch(() => {});
+    };
+  }, [id, isTorrent]);
   const partySnapshot = useCallback((): PartyItem => {
     const it = itemRef.current;
     if (stream) return {...(streamMeta() || {}), id: stream.id, cover: stream.cover ?? null, backdrop: stream.backdrop ?? null} as PartyItem;
@@ -2694,6 +2805,8 @@ export default function Player({
     // analytics timing (usage.track('play') hands `ms` to telemetry's
     // play_first_frame) all carry this same reading.
     const ms = Date.now() - mountedAt.current;
+    // (the device's own copy of the number, for logcat beside the server's log)
+    console.log(`[player] first frame +${ms}ms meta=${startMs.current.meta} armed=${startMs.current.armed} buf=${tuning().startBufferMs}`);
     mark('first-frame', {
       ms,
       transcode: usingTranscodeRef.current,
@@ -2884,6 +2997,15 @@ export default function Player({
     // offset from here would recreate the retired job and yank playback back
     // to it, which is precisely "I skipped and it jumped back".
     if (probing.current) {
+      setBuffering(true);
+      return;
+    }
+    // The same for a start whose claim has not been answered yet, or is
+    // waiting on a busy server (claimStream): that answer decides what
+    // happens to this source — the ladder below would ask a busy server for a
+    // heavier encode.
+    if (claimGen.current && claimGen.current === gen.current && !everPlayed.current) {
+      claimSwallowed.current = gen.current;
       setBuffering(true);
       return;
     }

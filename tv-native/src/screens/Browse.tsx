@@ -287,7 +287,9 @@ export default function Browse({
             setLib((kind === 'show' ? l.shows : l.movies).map(i => ({...i, source: 'downloaded' as const})));
           })
           .catch(() => {});
-      }, 2500);
+        // (a short hold only: realtime.ts has already waited its random
+        // 0.5–5 s and folded a burst of messages into this one)
+      }, 100);
     });
     return () => {
       on = false;

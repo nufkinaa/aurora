@@ -22,14 +22,14 @@ const SRC = path.join(__dirname, '../../src');
 
 // file (relative to src/) → the variables in it that belong to the profile
 const PROFILE: Record<string, string[]> = {
-  'api.ts': ['homeKept', 'memoStore', 'lastState'],
+  'api.ts': ['homeKept', 'libraryKept', 'homeFlight', 'memoStore', 'lastState'],
   'artPrefetch.ts': ['wants', 'queue', 'timer'],
   'homeScreen.ts': ['lastNext', 'lastChannel', 'lastConfig', 'lastRows', 'lastProfile', 'lastJobs'],
   'navSection.ts': ['cache', 'cacheAt', 'loading'],
   'party.ts': ['pending'],
   'personSync.ts': ['active', 'asking', 'entering'],
   'prefetch.ts': ['profileId', 'idleTimer', 'idleRest', 'warmedSections', 'dwell'],
-  'realtime.ts': ['identity', 'lastActivity'],
+  'realtime.ts': ['identity', 'lastActivity', 'lastLibraryMsg'],
   'screens/Detail.tsx': ['seasonPicks'],
   'screens/Pick.tsx': ['last'],
   // (telemetry's unsent books — errors, timings, control counts — are objects
@@ -122,6 +122,10 @@ const DEVICE: Record<string, Record<string, string>> = {
     halted: 'the socket',
     delay: 'the socket',
     timer: 'the socket',
+    restartWaitMs: 'the socket (a restart the server announced)',
+    restartTries: 'the socket (a restart the server announced)',
+    homeOnScreen: 'which screen is looked at: Home sets and clears it',
+    holds: 'what holds a library refresh back (a mounted player, the app in the background)',
   },
   'settle.ts': {waiting: 'the at-rest clock', moveFns: 'the at-rest clock', lastMove: 'the at-rest clock', timer: 'the at-rest clock', timerDue: 'the at-rest clock'},
   'storage.ts': {

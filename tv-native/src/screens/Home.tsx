@@ -51,7 +51,7 @@ import {
   stepToward,
   visibleBetween,
 } from '../homeWindow';
-import {onMessage} from '../realtime';
+import {onMessage, setHomeOnScreen} from '../realtime';
 import {showToast} from '../toast';
 import {loadPrefs} from '../storage';
 import {track} from '../usage';
@@ -239,30 +239,28 @@ export default function Home({
   // without this the row showed boot-time data until the app restarted.
   const lastFetch = useRef(0);
   // The library changed on the server (a download landed, a rescan): the rows
-  // are asked for again through the very path a return to Home uses. Held a
-  // moment, because a season finishing says so once per episode; and when Home
-  // is not the live screen nothing is fetched at all — the throttle is simply
-  // lifted, so the next return to Home re-reads.
+  // are asked for again through the very path a return to Home uses. The
+  // WAIT is realtime.ts's now (one message to the screens however many the
+  // server sent, after a random moment — a blink when Home is the screen
+  // being looked at, which is what this effect tells it; never while a film
+  // plays): by the time this runs it is time to read. When Home is not the
+  // live screen nothing is fetched at all — the throttle is simply lifted, so
+  // the next return to Home re-reads.
   const [libTick, setLibTick] = useState(0);
   const liveRef = useRef(live);
   liveRef.current = live;
   useEffect(() => {
-    let t: ReturnType<typeof setTimeout> | null = null;
+    setHomeOnScreen(live);
+    return () => setHomeOnScreen(false);
+  }, [live]);
+  useEffect(() => {
     const off = onMessage('library_updated', () => {
       lastFetch.current = 0;
-      if (!liveRef.current || t) return;
-      t = setTimeout(() => {
-        t = null;
-        lastFetch.current = 0;
-        if (!liveRef.current) return;
-        console.log('[live] home: library changed, rows re-read');
-        setLibTick(n => n + 1);
-      }, 2500);
+      if (!liveRef.current) return;
+      console.log('[live] home: library changed, rows re-read');
+      setLibTick(n => n + 1);
     });
-    return () => {
-      off();
-      if (t) clearTimeout(t);
-    };
+    return off;
   }, []);
   useEffect(() => {
     if (!live) return;

@@ -6,6 +6,7 @@ import {PixelRatio} from 'react-native';
 import {httpFailed} from './telemetry'; // [analytics] (telemetry.ts imports nothing of the app's)
 import {takeBlur} from './blur';
 import {registerProfileCache} from './profileScope';
+import {tooManyWait, TOO_MANY_RETRIES} from './serverManners';
 import {pickServer} from './serverPick';
 
 let baseUrl = '';
@@ -723,19 +724,35 @@ async function send(path: string, options: RequestInit = {}, allow304 = false): 
   // server's lib/blurup.js; blur.ts keeps them, Card.tsx draws them).
   if (!options.method || String(options.method).toUpperCase() === 'GET') headers['X-Blur'] = '1';
   let res: Response;
-  try {
-    // Bounded. A request with no limit could wait on a stalled Wi-Fi link
-    // for minutes, and the screen behind it sat there "not responding" (a
-    // viewer's report, 2026-10-08) — nothing was wrong with the box. The
-    // timer is raced rather than relied on through AbortController (see
-    // pingUrl for why); a late answer after the race is simply dropped.
-    res = await fetchBounded(baseUrl + path, {...options, headers}, requestLimitMs(path, options));
-  } catch (e) {
-    if (e instanceof ApiError) throw e;
-    httpFailed(options.method, path, 0); // [analytics] by its shape, never the address
-    // Network-level failure (server down, wrong IP, wifi) — normalize to a
-    // friendly, catchable shape instead of a raw TypeError.
-    throw new ApiError(0, 'Cannot reach server');
+  for (let again = 0; ; again++) {
+    try {
+      // Bounded. A request with no limit could wait on a stalled Wi-Fi link
+      // for minutes, and the screen behind it sat there "not responding" (a
+      // viewer's report, 2026-10-08) — nothing was wrong with the box. The
+      // timer is raced rather than relied on through AbortController (see
+      // pingUrl for why); a late answer after the race is simply dropped.
+      res = await fetchBounded(baseUrl + path, {...options, headers}, requestLimitMs(path, options));
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+      httpFailed(options.method, path, 0); // [analytics] by its shape, never the address
+      // Network-level failure (server down, wrong IP, wifi) — normalize to a
+      // friendly, catchable shape instead of a raw TypeError.
+      throw new ApiError(0, 'Cannot reach server');
+    }
+    // "Too many requests at once" (server 1.6.93: more than a few heavy reads
+    // — Home, the library, a search — in hand from one device). Not an error
+    // to show: the read waits as long as the server said, plus a random
+    // moment, and is asked again — twice at most (serverManners.ts). A write
+    // is never repeated, and a limiter that says "minutes" is the answer.
+    if (res.status === 429) {
+      const wait = tooManyWait(options.method, again, res.headers.get('retry-after'));
+      if (wait != null) {
+        console.log(`[api] 429: asking again in ${wait} ms (${again + 1}/${TOO_MANY_RETRIES})`);
+        await new Promise<void>(r => setTimeout(r, wait));
+        continue;
+      }
+    }
+    break;
   }
   if (!res.ok && !(allow304 && res.status === 304)) {
     httpFailed(options.method, path, res.status); // [analytics] "GET /api/item/:id → 404", counted
@@ -805,9 +822,40 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 // Both hand back THE SAME OBJECT as last time, so React sees nothing new. A
 // body that really changed is parsed and replaces what is kept. One entry:
 // the profile is in the path, so another profile simply starts over.
-let homeKept: {path: string; etag: string | null; text: string; value: Home} | null = null;
-async function readHome(path: string): Promise<Home> {
-  const kept = homeKept && homeKept.path === path ? homeKept : null;
+//
+// The library list is kept the same way (server 1.6.93 answers both from
+// kept bytes with a strong ETag, 304 with no body): the list is ~90 KB, and
+// after a library_updated that did not change THIS profile's list the read
+// costs a round trip and nothing else.
+//
+// `who`: the profile the answer was read as. The library's path does not
+// name the profile (a kids profile's list is a different list under the same
+// path), so a kept answer is only ever used — and its ETag only ever sent —
+// as the profile that read it.
+type Kept<T> = {path: string; who: string | null; etag: string | null; text: string; value: T};
+let homeKept: Kept<Home> | null = null;
+let libraryKept: Kept<Library> | null = null;
+// NEVER MORE THAN ONE /api/home IN FLIGHT (docs/operations.md): a second ask
+// while the first is on its way — a return to Home during a library refresh —
+// shares its answer.
+let homeFlight: {path: string; who: string | null; p: Promise<Home>} | null = null;
+const readHome = (path: string): Promise<Home> => {
+  if (homeFlight && homeFlight.path === path && homeFlight.who === activeProfile) return homeFlight.p;
+  const p: Promise<Home> = readKept<Home>(path, homeKept, k => {
+    homeKept = k;
+  }).finally(() => {
+    if (homeFlight && homeFlight.p === p) homeFlight = null;
+  });
+  homeFlight = {path, who: activeProfile, p};
+  return p;
+};
+const readLibrary = (): Promise<Library> =>
+  readKept<Library>('/api/library', libraryKept, k => {
+    libraryKept = k;
+  });
+async function readKept<T>(path: string, last: Kept<T> | null, keep: (k: Kept<T>) => void): Promise<T> {
+  const who = activeProfile;
+  const kept = last && last.path === path && last.who === who ? last : null;
   let res: Response;
   if (kept?.etag) {
     try {
@@ -829,14 +877,14 @@ async function readHome(path: string): Promise<Home> {
     kept.etag = res.headers.get('etag') || kept.etag;
     return kept.value;
   }
-  let body: Home;
+  let body: T;
   try {
-    body = JSON.parse(text) as Home;
+    body = JSON.parse(text) as T;
   } catch {
     throw new ApiError(0, UNREADABLE);
   }
   const value = takeBlur(body);
-  homeKept = {path, etag: res.headers.get('etag'), text, value};
+  keep({path, who, etag: res.headers.get('etag'), text, value});
   return value;
 }
 
@@ -906,6 +954,8 @@ export const _memoInternals = {keys: () => [...memoStore.keys()], max: MEMO_MAX,
 registerProfileCache('api', () => {
   memoStore.clear();
   homeKept = null;
+  libraryKept = null;
+  homeFlight = null;
   lastState = null;
 });
 
@@ -1159,7 +1209,7 @@ export const api = {
   // a 450 KB payload that this device had to pull over wifi and parse on launch.
   home: (profileId: string) =>
     readHome(`/api/home?slim=1&profile=${encodeURIComponent(profileId)}`),
-  library: (fresh = false) => memo('library', 60000, () => request<Library>('/api/library'), fresh),
+  library: (fresh = false) => memo('library', 60000, readLibrary, fresh),
   setPreferences: (profileId: string, likedGenres: string[]) =>
     post<{ ok: boolean }>(`/api/profiles/${profileId}/preferences`, { likedGenres }),
   // Follow / unfollow a show: its new episodes download by themselves when
@@ -1541,6 +1591,20 @@ export const api = {
   // /api/play-mark, which lands in the server's log.
   playMark: (itemId: string, body: Record<string, unknown>) =>
     post<unknown>(`/api/play-mark/${encodeURIComponent(itemId)}`, body),
+  // The player was left (or went on to the next episode): the server may stop
+  // what it was preparing for this viewer and nobody else is waiting on
+  // (server 1.6.95, POST …/jit/bye — answered 204, nothing to read). Today
+  // the TV's repackaged path is the offset job, which this does not touch
+  // (it ends by itself when nothing asks for it); the call is what the server
+  // documents for every client, and costs one small request on leaving.
+  // A beacon, as the website sends it: not through send() — a server that
+  // predates the route answers 404, and that is not a failure to count.
+  playBye: (itemId: string): Promise<void> => {
+    if (!baseUrl) return Promise.resolve();
+    return fetch(`${baseUrl}/stream/transcode/${encodeURIComponent(itemId)}/jit/bye`, {method: 'POST', headers: mediaHeaders()})
+      .then(() => undefined)
+      .catch(() => undefined);
+  },
   // Request access with a verified Google account (the pollId from the device
   // flow) — the TV's one-press signup when no profile is linked yet.
   signup: (fields: {name: string; pollId?: string; note?: string}) =>
