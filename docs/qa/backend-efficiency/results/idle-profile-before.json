@@ -1,0 +1,272 @@
+{
+  "at": "2026-10-10T23:25:08.527Z",
+  "ref": "68e946a",
+  "weak": false,
+  "minutes": 21.01,
+  "cpuSecondsPerHour": 163.14,
+  "busySecondsPerHour": 38.49,
+  "functions": [
+    {
+      "name": "getNearestParentPackageJSON (native)",
+      "secondsPerHour": 21.29
+    },
+    {
+      "name": "readdir (native)",
+      "secondsPerHour": 3.08
+    },
+    {
+      "name": "stat (native)",
+      "secondsPerHour": 2.63
+    },
+    {
+      "name": "(garbage collector) (native)",
+      "secondsPerHour": 1.87
+    },
+    {
+      "name": "(anonymous) src/lib/healer.js:303",
+      "secondsPerHour": 0.68
+    },
+    {
+      "name": "(anonymous) node:internal/modules/cjs/loader:1035",
+      "secondsPerHour": 0.57
+    },
+    {
+      "name": "deserializePackageJSON node:internal/modules/package_json_reader:19",
+      "secondsPerHour": 0.55
+    },
+    {
+      "name": "(anonymous) src/lib/healer-checks/system.js:143",
+      "secondsPerHour": 0.49
+    },
+    {
+      "name": "stat node:internal/fs/promises:1035",
+      "secondsPerHour": 0.44
+    },
+    {
+      "name": "norm src/lib/libroots.js:39",
+      "secondsPerHour": 0.42
+    },
+    {
+      "name": "getNearestParentPackageJSON node:internal/modules/package_json_reader:110",
+      "secondsPerHour": 0.38
+    },
+    {
+      "name": "_writeNow src/lib/jsonstore.js:36",
+      "secondsPerHour": 0.36
+    },
+    {
+      "name": "(anonymous) node:internal/modules/cjs/loader:688",
+      "secondsPerHour": 0.36
+    },
+    {
+      "name": "get exports node:internal/modules/package_json_reader:62",
+      "secondsPerHour": 0.36
+    },
+    {
+      "name": "resolve node:path:190",
+      "secondsPerHour": 0.3
+    },
+    {
+      "name": "rename (native)",
+      "secondsPerHour": 0.24
+    },
+    {
+      "name": "post node:inspector:112",
+      "secondsPerHour": 0.23
+    },
+    {
+      "name": "gatherFiles src/lib/healer-checks/system.js:82",
+      "secondsPerHour": 0.21
+    },
+    {
+      "name": "trySelf node:internal/modules/cjs/loader:586",
+      "secondsPerHour": 0.17
+    },
+    {
+      "name": "writeFileUtf8 (native)",
+      "secondsPerHour": 0.16
+    },
+    {
+      "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+      "secondsPerHour": 0.15
+    },
+    {
+      "name": "normalizeString node:path:78",
+      "secondsPerHour": 0.14
+    },
+    {
+      "name": "checkLibrary src/lib/healer-checks/system.js:131",
+      "secondsPerHour": 0.13
+    },
+    {
+      "name": "naturalCompare src/media/scanner.js:47",
+      "secondsPerHour": 0.13
+    },
+    {
+      "name": "run src/lib/healer.js:611",
+      "secondsPerHour": 0.12
+    },
+    {
+      "name": "scanMovies src/media/scanner.js:358",
+      "secondsPerHour": 0.1
+    },
+    {
+      "name": "mkdir (native)",
+      "secondsPerHour": 0.08
+    },
+    {
+      "name": "join node:path:470",
+      "secondsPerHour": 0.08
+    },
+    {
+      "name": "externalSubtitleLabel src/media/scanner.js:187",
+      "secondsPerHour": 0.08
+    },
+    {
+      "name": "(anonymous) src/lib/healer-checks/system.js:92",
+      "secondsPerHour": 0.08
+    },
+    {
+      "name": "normalize node:path:336",
+      "secondsPerHour": 0.08
+    },
+    {
+      "name": "Hash (native)",
+      "secondsPerHour": 0.07
+    },
+    {
+      "name": "collect src/media/scanner.js:232",
+      "secondsPerHour": 0.07
+    },
+    {
+      "name": "(anonymous) node:internal/modules/cjs/loader:914",
+      "secondsPerHour": 0.06
+    },
+    {
+      "name": "readdirSync node:fs:1573",
+      "secondsPerHour": 0.06
+    },
+    {
+      "name": "register src/media/scanner.js:36",
+      "secondsPerHour": 0.06
+    },
+    {
+      "name": "write node:string_decoder:94",
+      "secondsPerHour": 0.06
+    },
+    {
+      "name": "relative node:path:545",
+      "secondsPerHour": 0.05
+    },
+    {
+      "name": "deprecate node:internal/util:149",
+      "secondsPerHour": 0.05
+    },
+    {
+      "name": "resolve src/media/scanner.js:729",
+      "secondsPerHour": 0.05
+    }
+  ],
+  "files": [
+    {
+      "name": "(native)",
+      "secondsPerHour": 3589.8
+    },
+    {
+      "name": "node:internal/modules/cjs/loader",
+      "secondsPerHour": 1.38
+    },
+    {
+      "name": "node:internal/modules/package_json_reader",
+      "secondsPerHour": 1.28
+    },
+    {
+      "name": "src/lib/healer-checks/system.js",
+      "secondsPerHour": 0.97
+    },
+    {
+      "name": "src/lib/healer.js",
+      "secondsPerHour": 0.83
+    },
+    {
+      "name": "src/media/scanner.js",
+      "secondsPerHour": 0.79
+    },
+    {
+      "name": "node:path",
+      "secondsPerHour": 0.69
+    },
+    {
+      "name": "node:internal/fs/promises",
+      "secondsPerHour": 0.55
+    },
+    {
+      "name": "src/lib/libroots.js",
+      "secondsPerHour": 0.47
+    },
+    {
+      "name": "src/lib/jsonstore.js",
+      "secondsPerHour": 0.36
+    },
+    {
+      "name": "node:inspector",
+      "secondsPerHour": 0.23
+    },
+    {
+      "name": "node:fs",
+      "secondsPerHour": 0.13
+    },
+    {
+      "name": "node:internal/timers",
+      "secondsPerHour": 0.1
+    },
+    {
+      "name": "node:internal/fs/utils",
+      "secondsPerHour": 0.1
+    },
+    {
+      "name": "src/media/introdetect.js",
+      "secondsPerHour": 0.1
+    },
+    {
+      "name": "node:internal/deps/undici/undici",
+      "secondsPerHour": 0.07
+    },
+    {
+      "name": "node:internal/crypto/hash",
+      "secondsPerHour": 0.06
+    },
+    {
+      "name": "node:internal/util",
+      "secondsPerHour": 0.06
+    },
+    {
+      "name": "node:string_decoder",
+      "secondsPerHour": 0.06
+    },
+    {
+      "name": "src/media/imdb.js",
+      "secondsPerHour": 0.05
+    },
+    {
+      "name": "node:net",
+      "secondsPerHour": 0.05
+    },
+    {
+      "name": "src/lib/healer-checks/stats.js",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "src/media/identity.js",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "src/profiles.js",
+      "secondsPerHour": 0.04
+    },
+    {
+      "name": "node:internal/modules/helpers",
+      "secondsPerHour": 0.04
+    }
+  ]
+}

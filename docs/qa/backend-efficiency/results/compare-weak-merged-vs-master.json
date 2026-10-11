@@ -1,0 +1,451 @@
+{
+  "at": "2026-10-11T02:06:40.785Z",
+  "before": "master",
+  "after": "working tree",
+  "weak": true,
+  "rounds": 5,
+  "rows": [
+    {
+      "name": "GET /api/ping",
+      "status": "200/200",
+      "bytesBefore": 80,
+      "bytesAfter": 80,
+      "beforeMs": 0.625,
+      "afterMs": 0.465,
+      "change": "-26 %",
+      "beforeMedianMs": 0.94,
+      "afterMedianMs": 0.545,
+      "changeMedian": "-42 %",
+      "beforeRuns": [
+        1.41,
+        0.94,
+        0.63,
+        0.63,
+        1.01
+      ],
+      "afterRuns": [
+        0.55,
+        0.55,
+        0.55,
+        0.47,
+        1.57
+      ]
+    },
+    {
+      "name": "POST progress (library film)",
+      "status": "200/200",
+      "bytesBefore": 11,
+      "bytesAfter": 11,
+      "beforeMs": 0.833,
+      "afterMs": 0.413,
+      "change": "-50 %",
+      "beforeMedianMs": 0.94,
+      "afterMedianMs": 0.62,
+      "changeMedian": "-34 %",
+      "beforeRuns": [
+        1.46,
+        0.83,
+        1.15,
+        0.94,
+        0.93
+      ],
+      "afterRuns": [
+        0.73,
+        0.63,
+        0.41,
+        0.62,
+        0.53
+      ]
+    },
+    {
+      "name": "POST progress (stream, with meta)",
+      "status": "200/200",
+      "bytesBefore": 11,
+      "bytesAfter": 11,
+      "beforeMs": 0.94,
+      "afterMs": 0.313,
+      "change": "-67 %",
+      "beforeMedianMs": 1.047,
+      "afterMedianMs": 0.413,
+      "changeMedian": "-61 %",
+      "beforeRuns": [
+        1.04,
+        1.15,
+        0.94,
+        1.05,
+        1.55
+      ],
+      "afterRuns": [
+        1.04,
+        0.32,
+        0.41,
+        1.04,
+        0.31
+      ]
+    },
+    {
+      "name": "GET /api/profiles/:id/state",
+      "status": "200/200",
+      "bytesBefore": 49402,
+      "bytesAfter": 49397,
+      "beforeMs": 11.26,
+      "afterMs": 9.7,
+      "change": "-14 %",
+      "beforeMedianMs": 12.5,
+      "afterMedianMs": 13.12,
+      "changeMedian": "+5 %",
+      "beforeRuns": [
+        11.26,
+        12.5,
+        11.56,
+        18.44,
+        19.38
+      ],
+      "afterRuns": [
+        9.7,
+        10,
+        13.12,
+        13.76,
+        15.62
+      ]
+    },
+    {
+      "name": "GET /api/library",
+      "status": "200/200",
+      "bytesBefore": 85097,
+      "bytesAfter": 85097,
+      "beforeMs": 1,
+      "afterMs": 1,
+      "change": "-0 %",
+      "beforeMedianMs": 2.067,
+      "afterMedianMs": 1.067,
+      "changeMedian": "-48 %",
+      "beforeRuns": [
+        1,
+        2.13,
+        2.07,
+        2.07,
+        1
+      ],
+      "afterRuns": [
+        1.07,
+        1.07,
+        2.07,
+        1,
+        2.07
+      ]
+    },
+    {
+      "name": "GET /api/library (If-None-Match)",
+      "status": "200/200",
+      "bytesBefore": 85993,
+      "bytesAfter": 85993,
+      "beforeMs": 1.067,
+      "afterMs": 0,
+      "change": "-100 %",
+      "beforeMedianMs": 3.2,
+      "afterMedianMs": 1.067,
+      "changeMedian": "-67 %",
+      "beforeRuns": [
+        3.2,
+        1.07,
+        4.13,
+        3.13,
+        15.67
+      ],
+      "afterRuns": [
+        0,
+        1.07,
+        1,
+        1.07,
+        6.27
+      ]
+    },
+    {
+      "name": "GET /api/home",
+      "status": "200/200",
+      "bytesBefore": 53843,
+      "bytesAfter": 53823,
+      "beforeMs": 0,
+      "afterMs": 0,
+      "change": "-0 %",
+      "beforeMedianMs": 1.067,
+      "afterMedianMs": 1.067,
+      "changeMedian": "-0 %",
+      "beforeRuns": [
+        1,
+        3.07,
+        0,
+        2.13,
+        1.07
+      ],
+      "afterRuns": [
+        9.4,
+        2.07,
+        0,
+        0,
+        1.07
+      ]
+    },
+    {
+      "name": "GET /api/home (composed: after a progress save)",
+      "status": "200/200",
+      "bytesBefore": 53840,
+      "bytesAfter": 53841,
+      "beforeMs": 340.6,
+      "afterMs": 55.267,
+      "change": "-84 %",
+      "beforeMedianMs": 352.133,
+      "afterMedianMs": 70.8,
+      "changeMedian": "-80 %",
+      "beforeRuns": [
+        340.6,
+        346.87,
+        352.13,
+        377.07,
+        489.6
+      ],
+      "afterRuns": [
+        71.87,
+        63.53,
+        55.27,
+        71.8,
+        70.8
+      ]
+    },
+    {
+      "name": "GET /api/home slim (composed)",
+      "status": "200/200",
+      "bytesBefore": 73432,
+      "bytesAfter": 73432,
+      "beforeMs": 343.733,
+      "afterMs": 51.067,
+      "change": "-85 %",
+      "beforeMedianMs": 360.4,
+      "afterMedianMs": 66.6,
+      "changeMedian": "-82 %",
+      "beforeRuns": [
+        512.53,
+        343.73,
+        343.73,
+        360.4,
+        397.93
+      ],
+      "afterRuns": [
+        76.07,
+        66.6,
+        81.2,
+        62.53,
+        51.07
+      ]
+    },
+    {
+      "name": "GET /api/home slim (TV)",
+      "status": "200/200",
+      "bytesBefore": 73432,
+      "bytesAfter": 73432,
+      "beforeMs": 1,
+      "afterMs": 0,
+      "change": "-100 %",
+      "beforeMedianMs": 1.067,
+      "afterMedianMs": 0,
+      "changeMedian": "-100 %",
+      "beforeRuns": [
+        1.07,
+        2.13,
+        1,
+        1,
+        2.13
+      ],
+      "afterRuns": [
+        1,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "GET /api/search v2",
+      "status": "200/200",
+      "bytesBefore": 1756,
+      "bytesAfter": 1756,
+      "beforeMs": 14.067,
+      "afterMs": 7.8,
+      "change": "-45 %",
+      "beforeMedianMs": 18.733,
+      "afterMedianMs": 7.833,
+      "changeMedian": "-58 %",
+      "beforeRuns": [
+        18.73,
+        19.27,
+        14.07,
+        17.2,
+        18.77
+      ],
+      "afterRuns": [
+        7.83,
+        7.8,
+        7.83,
+        11.97,
+        8.87
+      ]
+    },
+    {
+      "name": "GET /img/:id (cover, original)",
+      "status": "200/200",
+      "bytesBefore": 34673,
+      "bytesAfter": 34673,
+      "beforeMs": 1.247,
+      "afterMs": 0.933,
+      "change": "-25 %",
+      "beforeMedianMs": 1.353,
+      "afterMedianMs": 1.253,
+      "changeMedian": "-7 %",
+      "beforeRuns": [
+        1.35,
+        1.66,
+        1.47,
+        1.25,
+        1.35
+      ],
+      "afterRuns": [
+        0.93,
+        1.25,
+        1.66,
+        1.25,
+        1.15
+      ]
+    },
+    {
+      "name": "GET /img/:id?w=256 (variant made)",
+      "status": "200/200",
+      "bytesBefore": 4632,
+      "bytesAfter": 4632,
+      "beforeMs": 1.56,
+      "afterMs": 1.04,
+      "change": "-33 %",
+      "beforeMedianMs": 1.873,
+      "afterMedianMs": 1.147,
+      "changeMedian": "-39 %",
+      "beforeRuns": [
+        1.99,
+        2.4,
+        1.87,
+        1.67,
+        1.56
+      ],
+      "afterRuns": [
+        1.15,
+        1.15,
+        1.67,
+        1.04,
+        2.08
+      ]
+    },
+    {
+      "name": "GET /img/ext?u=&w=256 (cached, variant made)",
+      "status": "200/200",
+      "bytesBefore": 4632,
+      "bytesAfter": 4632,
+      "beforeMs": 1.873,
+      "afterMs": 1.147,
+      "change": "-39 %",
+      "beforeMedianMs": 1.98,
+      "afterMedianMs": 1.88,
+      "changeMedian": "-5 %",
+      "beforeRuns": [
+        2.19,
+        1.87,
+        1.98,
+        1.98,
+        2.6
+      ],
+      "afterRuns": [
+        1.88,
+        2.49,
+        1.15,
+        1.25,
+        1.98
+      ]
+    },
+    {
+      "name": "GET /stream/video/:id (range, 64 KB)",
+      "status": "206/206",
+      "bytesBefore": 65536,
+      "bytesAfter": 65536,
+      "beforeMs": 1.047,
+      "afterMs": 0.833,
+      "change": "-20 %",
+      "beforeMedianMs": 1.66,
+      "afterMedianMs": 1.04,
+      "changeMedian": "-37 %",
+      "beforeRuns": [
+        1.05,
+        1.66,
+        1.35,
+        2.09,
+        1.97
+      ],
+      "afterRuns": [
+        0.83,
+        1.04,
+        0.93,
+        1.36,
+        1.87
+      ]
+    },
+    {
+      "name": "GET jit index.m3u8 (table cached)",
+      "status": "200/200",
+      "bytesBefore": 511,
+      "bytesAfter": 511,
+      "beforeMs": 1.09,
+      "afterMs": 0.47,
+      "change": "-57 %",
+      "beforeMedianMs": 1.25,
+      "afterMedianMs": 0.62,
+      "changeMedian": "-50 %",
+      "beforeRuns": [
+        1.09,
+        1.41,
+        1.41,
+        1.25,
+        1.25
+      ],
+      "afterRuns": [
+        0.63,
+        0.62,
+        0.47,
+        0.63,
+        0.62
+      ]
+    },
+    {
+      "name": "GET /css/aurora.css?v=",
+      "status": "200/200",
+      "bytesBefore": 38246,
+      "bytesAfter": 38246,
+      "beforeMs": 6.267,
+      "afterMs": 1,
+      "change": "-84 %",
+      "beforeMedianMs": 7.3,
+      "afterMedianMs": 1.033,
+      "changeMedian": "-86 %",
+      "beforeRuns": [
+        7.8,
+        7.3,
+        6.27,
+        6.77,
+        7.8
+      ],
+      "afterRuns": [
+        1.03,
+        1.57,
+        1.03,
+        1.07,
+        1
+      ]
+    }
+  ]
+}

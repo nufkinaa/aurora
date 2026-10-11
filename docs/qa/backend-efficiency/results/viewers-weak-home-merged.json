@@ -1,0 +1,56 @@
+{
+  "at": "2026-10-11T02:39:39.225Z",
+  "ref": "working tree",
+  "weak": true,
+  "minutes": 3,
+  "household": "grown (8 profiles, up to 1,500 rows)",
+  "storeSizes": {
+    "profiles.json": 3817764,
+    "watch-sessions.json": 771164,
+    "telemetry-hours.json": 239761,
+    "sessions.json": 19457,
+    "watch-history.json": 71201
+  },
+  "runs": [
+    {
+      "viewers": 5,
+      "progressOk": 180,
+      "progressFailed": 0,
+      "perViewerHour": {
+        "mbWritten": 0.1,
+        "fileRewrites": 364,
+        "storeSaveBlockedSec": 27.9,
+        "cpuSeconds": 22.88
+      },
+      "wholeServer": {
+        "storeSavesPerHour": 3220,
+        "storeSaveBlockedSecPerHour": 139.52,
+        "longestSaveMs": 757.93,
+        "loopBlockedPercent": 3.88,
+        "loopDelayP99Ms": 23.5,
+        "loopDelayMaxMs": 829.9,
+        "cpuPercentOfOneCore": 3.11
+      },
+      "home": {
+        "requests": 43,
+        "p50Ms": 4,
+        "p90Ms": 57,
+        "maxMs": 154
+      },
+      "files": [
+        {
+          "file": "data/usage/events-2026-10.jsonl",
+          "rewritesPerViewerHour": 360,
+          "mbPerViewerHour": 0.1,
+          "bytesEach": 205
+        },
+        {
+          "file": "data/cache/tonemap-speed.json",
+          "rewritesPerViewerHour": 4,
+          "mbPerViewerHour": 0,
+          "bytesEach": 213
+        }
+      ]
+    }
+  ]
+}

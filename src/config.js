@@ -36,28 +36,19 @@ try {
 // `where` on Windows, `command -v` on macOS/Linux (ffmpeg from apt/brew lives
 // on PATH with no .exe suffix, so the old Windows-only `where NAME.exe` found
 // nothing there → "ffmpeg MISSING" despite it being installed).
+//
+// All of them are found by ONE child process (lib/whichtools.js): the same
+// `where` / `command -v`, asked once for every program instead of once each.
+// Every question was a blocking process start before the server listened —
+// 0.8-1.1 s together on a two-core box (docs/qa/backend-efficiency).
 const isWindows = process.platform === "win32";
+const TOOLS = ["ffmpeg", "ffprobe", "tesseract", "aria2c", "python", "python3"];
+let located = null;
 const resolveExe = (name) => {
-  try {
-    if (isWindows) {
-      return execSync(`where ${name}.exe`, {
-        encoding: "utf-8",
-        stdio: ["ignore", "pipe", "ignore"],
-      })
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .find((l) => l.toLowerCase().endsWith(".exe"));
-    }
-    // POSIX: command -v prints the resolved path (or nothing) for the first
-    // match on PATH; run it through the shell since it's a shell builtin.
-    return execSync(`command -v ${name}`, {
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"],
-      shell: "/bin/sh",
-    }).trim() || null;
-  } catch {
-    return null;
-  }
+  const whichtools = require("./lib/whichtools");
+  if (!TOOLS.includes(name)) return whichtools.locate([name])[name] || null;
+  if (!located) located = whichtools.locate(TOOLS);
+  return located[name] || null;
 };
 
 const FFMPEG = resolveExe("ffmpeg");

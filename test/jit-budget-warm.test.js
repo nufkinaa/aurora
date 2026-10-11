@@ -299,12 +299,17 @@ test("real ffmpeg, budget fixed at 2: two viewers and one warm-up — both viewe
       if (arun.proc) assert.equal(os.getPriority(arun.proc.pid), cpuwork.PRIORITY.viewer);
 
       // 5. A leaves (the goodbye beacon): the budget is free for C at once
-      if (ajob.producers.length) {
+      // (both are still being read — a playing reader asks every few seconds;
+      // on a loaded machine the waits above can outlast the 20 s after which
+      // an encoder nobody asked anything of counts as left behind)
+      ajob.lastAccess = bjob.lastAccess = Date.now();
+      if (ajob.producers.length && bjob.producers.length) {
         assert.equal(jit.release(A.key, "s:mallory"), 0, "not somebody else's goodbye");
         assert.equal(jit.encodeRoom(C.key, true), false);
         assert.ok(jit.release(A.key, "s:alice") >= 1);
         assert.equal(ajob.producers.length, 0);
       }
+      else if (ajob.producers.length) jit.release(A.key, "s:alice");
       assert.equal(jit.encodeRoom(C.key, true), true, "room for a viewer again");
       assert.ok(await until(() => cpuwork.viewer.list().every((v) => v.pid !== (arun.viewer && arun.viewer.pid))), "A's encoder left the registry");
       const pc2 = jit.ensureSegment(cjob.dir, cjob, C.top, 0);

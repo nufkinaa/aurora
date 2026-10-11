@@ -3,6 +3,10 @@
 // Kept out of routes/auth.js so data routes never import a router.
 const sessions = require("./sessions");
 const profiles = require("../profiles");
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+const lazy = require("./lazy");
+const authmodeLib = lazy(require, "./authmode");
 
 const COOKIE = "aurora_session";
 
@@ -65,7 +69,7 @@ const sessionFor = (req) => {
 // session check — open and transition keep today's behavior exactly, so
 // nothing changes for anyone until the admin closes the wall.
 const profileAllowed = (req, profileId) => {
-  if (require("./authmode").get() !== "closed") return true;
+  if (authmodeLib().get() !== "closed") return true;
   const s = sessionFor(req);
   return !!s && s.profile.id === profileId;
 };

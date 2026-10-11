@@ -6,6 +6,15 @@ const WebSocket = require("ws");
 const config = require("./config");
 const telemetry = require("./telemetry");
 const { JsonStore } = require("./lib/jsonstore");
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+// (One ran per socket per broadcast, another per WebSocket message.)
+const lazy = require("./lib/lazy");
+const authmodeLib = lazy(require, "./lib/authmode");
+const resetgateLib = lazy(require, "./lib/resetgate");
+const authzLib = lazy(require, "./lib/authz");
+const profilesLib = lazy(require, "./profiles");
+const torrentLib = lazy(require, "./media/torrent");
 
 const bans = new JsonStore(path.join(config.DATA_DIR, "bans.json"), {});
 const watchHistory = new JsonStore(path.join(config.DATA_DIR, "watch-history.json"), []);
@@ -62,7 +71,7 @@ const broadcastAll = (data) => {
     // authMode "closed": broadcasts can carry member data (download_update
     // has title names), so unauthenticated sockets don't get them. ws.authed
     // is stamped at upgrade time in attach(). Open/transition: everyone.
-    if (require("./lib/authmode").get() === "closed" && !ws.authed && !ws.isAdmin) return;
+    if (authmodeLib().get() === "closed" && !ws.authed && !ws.isAdmin) return;
     if (ws.readyState === WebSocket.OPEN) ws.send(msg);
   });
 };
@@ -108,7 +117,7 @@ const libraryUpdated = () => broadcastSoon({ type: "library_updated" });
 // say "mine" to the requester and nothing about who asked to everyone else.
 const broadcastEach = (fn) => {
   if (!wss) return;
-  const closed = require("./lib/authmode").get() === "closed";
+  const closed = authmodeLib().get() === "closed";
   for (const c of clients.values()) {
     const ws = c.ws;
     if (!ws || ws.readyState !== WebSocket.OPEN) continue;
@@ -200,12 +209,12 @@ const stampSocket = (ws, req) => {
   ws.profileId = null;
   ws.restricted = null;
   try {
-    const rid = require("./lib/resetgate").restrictedProfile(req);
+    const rid = resetgateLib().restrictedProfile(req);
     if (rid) {
       ws.restricted = rid;
       return;
     }
-    const sess = require("./lib/authz").sessionFor(req);
+    const sess = authzLib().sessionFor(req);
     ws.authed = !!sess;
     ws.profileId = sess ? sess.profile.id : null;
   } catch {}
@@ -233,7 +242,7 @@ const handleMessage = (client, data, ws) => {
   // (presence, activity, watch parties) — in every sign-in mode.
   if (data.type !== "admin_subscribe" && ws.restricted) {
     let due = false;
-    try { due = require("./profiles").resetDue(ws.restricted); } catch {}
+    try { due = profilesLib().resetDue(ws.restricted); } catch {}
     if (due) return;
   }
   // authMode "closed": an unauthenticated socket may still ASK to become
@@ -242,7 +251,7 @@ const handleMessage = (client, data, ws) => {
   if (
     data.type !== "admin_subscribe" &&
     !ws.authed && !ws.isAdmin &&
-    require("./lib/authmode").get() === "closed"
+    authmodeLib().get() === "closed"
   ) {
     return;
   }
@@ -340,7 +349,7 @@ const attach = (server) => {
   telemetry.start(() => {
     let downloadSpeed = 0, uploadSpeed = 0, peers = 0;
     try {
-      const torrent = require("./media/torrent");
+      const torrent = torrentLib();
       const cl = torrent.clientIfLoaded && torrent.clientIfLoaded();
       if (cl) {
         for (const t of cl.torrents) {

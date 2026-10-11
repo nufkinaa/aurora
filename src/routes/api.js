@@ -10,6 +10,18 @@ const availability = require("../media/availability");
 const newEpisodes = require("../media/newEpisodes");
 const identity = require("../media/identity");
 const { JsonStore } = require("../lib/jsonstore");
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+// (Three of these ran on EVERY request once a kids profile exists.)
+const lazy = require("../lib/lazy");
+const authmodeLib = lazy(require, "../lib/authmode");
+const authzLib = lazy(require, "../lib/authz");
+const sessionsLib = lazy(require, "../lib/sessions");
+const blurupLib = lazy(require, "../lib/blurup");
+const imdbLib = lazy(require, "../media/imdb");
+const recsLib = lazy(require, "../media/recs");
+const settingsLib = lazy(require, "../lib/settings");
+const tasteLib = lazy(require, "../media/taste");
 
 const router = express.Router();
 
@@ -22,10 +34,10 @@ const router = express.Router();
 // the rules and says how a request is recognised as a kids one).
 const kids = require("../lib/kids");
 const kidsDeps = {
-  closed: () => require("../lib/authmode").get() === "closed",
+  closed: () => authmodeLib().get() === "closed",
   session: (req) => {
-    const sid = require("../lib/authz").readCookie(req) || req.headers["x-session"] || null;
-    const row = sid ? require("../lib/sessions").get(String(sid)) : null;
+    const sid = authzLib().readCookie(req) || req.headers["x-session"] || null;
+    const row = sid ? sessionsLib().get(String(sid)) : null;
     return row ? { profileId: row.profileId, createdAt: row.createdAt } : null;
   },
   // a live token's profile — or, for a token that died with a restart, the
@@ -234,8 +246,8 @@ const listEntry = (i) => {
 // leaks member data" — this route was called out by name).
 router.get("/api/server-info", (req, res) => {
   const config = require("../config");
-  const mode = require("../lib/authmode").get();
-  const authed = mode !== "closed" || !!require("../lib/authz").sessionFor(req);
+  const mode = authmodeLib().get();
+  const authed = mode !== "closed" || !!authzLib().sessionFor(req);
   res.json({
     adminName: authed ? config.ADMIN_NAME : "the admin",
     authMode: mode,
@@ -437,7 +449,7 @@ router.get("/api/person/:id", async (req, res) => {
     });
     if (out.error) return res.status(out.status || 502).json({ error: out.error, ...(out.noKey ? { noKey: true } : {}) });
     // whose list and history: the same test /api/home applies to ?profile=
-    const authz = require("../lib/authz");
+    const authz = authzLib();
     const reqProfile = typeof req.query.profile === "string" ? req.query.profile : null;
     const sess = authz.sessionFor(req);
     const profileId =
@@ -525,24 +537,28 @@ const heavy = require("../lib/admission").heavy;
 // The library, as a number that moves whenever it changes: a scan, the
 // probes finishing, online metadata arriving (which ends in a scan).
 let libRev = 0;
-for (const ev of ["updated", "enriched", "scanned"]) scanner.events.on(ev, () => { libRev++; });
+for (const ev of ["updated", "scanned"]) scanner.events.on(ev, () => { libRev++; });
+// (a probe pass that found nothing new is not a change)
+scanner.events.on("enriched", (info) => { if (scanner.enrichedChanged(info)) libRev++; });
 const dayNumber = () => Math.floor(Date.now() / 86400000);
-const blurRev = () => { try { return require("../lib/blurup")._internals.mem.size; } catch { return 0; } };
+// (the placeholders: a count of every one that has arrived — an answer's
+// "_blur" map changes only when it moves)
+const blurRev = () => { try { return blurupLib().generation(); } catch { return 0; } };
 // What an answer is the same for: the kids limit in force, and whether
 // placeholders ride along (lib/blurup.js adds them for clients that ask).
 const kidKey = (req) => (req.kids ? `${req.kids.profile}:${req.kids.maxAge}` : "");
 const blurKey = (req) => (req.get("X-Blur") === "1" ? "blur" : "");
 // Built from: the library, the IMDb ids stamped on it, the age ratings (the
 // kids filter reads them), the placeholders known so far.
-const libraryStamp = () => `${libRev}.${scanner.index.scannedAt}.${scanner.index.enriched ? 1 : 0}.${require("../media/imdb").version()}.${discover.stamp()}.${blurRev()}`;
+const libraryStamp = () => `${libRev}.${scanner.index.scannedAt}.${scanner.index.enriched ? 1 : 0}.${imdbLib().version()}.${discover.stamp()}.${blurRev()}`;
 // Home is built from all of that plus: the billboard pool, release verdicts,
 // the recommender's index, the settings, who the profiles are and their
 // limits — and, for a profile, ITS OWN writes (progress, list, ratings,
 // follows). Somebody else watching moves none of it. The day: the billboard
 // and the sampled rows are seeded per day.
-const recsRev = () => { try { return require("../media/recs")._internals.state.gen; } catch { return 0; } };
+const recsRev = () => { try { return recsLib()._internals.state.gen; } catch { return 0; } };
 const homeStamp = (profileId) =>
-  `${libraryStamp()}.${hero.poolStamp()}.${availability.stamp()}.${recsRev()}.${require("../lib/settings").rev}.${profiles.shapeStamp()}.${profileId ? profiles.signalsStamp(profileId) : 0}.${dayNumber()}`;
+  `${libraryStamp()}.${hero.poolStamp()}.${availability.stamp()}.${recsRev()}.${settingsLib().rev}.${profiles.shapeStamp()}.${profileId ? profiles.signalsStamp(profileId) : 0}.${dayNumber()}`;
 
 const libraryKept = (req, res, next) => {
   if (answermemo.begin(req, res, { key: `library|${kidKey(req)}|${blurKey(req)}`, stamp: libraryStamp })) return;
@@ -625,7 +641,7 @@ router.get("/api/item/:id", (req, res) => {
     // required mode: a profile's stored play-item (what they were watching)
     // is personal — only its owner's session may rebuild it
     const stored =
-      req.query.profile && require("../lib/authz").profileAllowed(req, req.query.profile)
+      req.query.profile && authzLib().profileAllowed(req, req.query.profile)
         ? profiles.getStreamItem(req.query.profile, id)
         : null;
     if (stored) return res.json({ ...stored, subtitles: stored.subtitles || [] });
@@ -840,16 +856,16 @@ const homeWho = (req, res, next) => {
   // demanded (updated clients resolve via /api/ping instead), and a profile
   // the session's account doesn't own degrades to the generic home, same as
   // a wrong profile-token does today.
-  if (require("../lib/authmode").get() === "closed" && !require("../lib/authz").sessionFor(req)) {
+  if (authmodeLib().get() === "closed" && !authzLib().sessionFor(req)) {
     return res.status(401).json({ error: "sign in first", signinRequired: true });
   }
   const sessionOwns = (() => {
-    const s = require("../lib/authz").sessionFor(req);
+    const s = authzLib().sessionFor(req);
     return !!s && s.profile.id === reqProfile;
   })();
   const profileId =
     reqProfile &&
-    require("../lib/authz").profileAllowed(req, reqProfile) &&
+    authzLib().profileAllowed(req, reqProfile) &&
     !profiles.isLocked(reqProfile) &&
     (sessionOwns ||
       !profiles.isProtected(reqProfile) ||
@@ -995,7 +1011,7 @@ router.get("/api/home", homeWho, heavy.middleware(), keptMeanwhile, (req, res) =
         if (f && f.showId) seen.add(f.showId);
       }
       const kid = kidsFor(req);
-      engine = require("../media/recs").homeRows({
+      engine = recsLib().homeRows({
         profileId,
         // already on the page (the billboard, Continue Watching, My List) or
         // already watched / rated / listed: never repeated in a row below
@@ -1009,7 +1025,7 @@ router.get("/api/home", homeWho, heavy.middleware(), keptMeanwhile, (req, res) =
         allow: kid ? (item) => kids.allowed(item, kid.maxAge, kidsCertOf) : null,
         allowKey: kid ? String(kid.maxAge) : "",
       });
-      if (!engine) tasteRows = require("../media/taste").homeRecommendations({
+      if (!engine) tasteRows = tasteLib().homeRecommendations({
         profileId,
         // hero.recommend's old playable contract, kept: an unreleased film
         // must never be recommended — its detail page has nothing to play
