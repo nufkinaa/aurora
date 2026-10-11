@@ -220,7 +220,9 @@ const describe = (el) => {
     let t = thumbs.get(el);
     // a still is sampled once; a video frame every measure
     if (!t || t.key !== key || tag === "VIDEO") {
-      t = { key, data: grab(el, nw, nh) };
+      // (data-tone-unread: a picture that is to be passed over as one the
+      // browser will not hand over is — see the episode stills, discover-detail.js)
+      t = { key, data: el.hasAttribute("data-tone-unread") ? null : grab(el, nw, nh) };
       thumbs.set(el, t);
     }
     const [px, py] = String(own.objectPosition || "50% 50%").split(/\s+/);

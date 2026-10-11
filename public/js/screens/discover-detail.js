@@ -2292,6 +2292,13 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
             alt: "",
             loading: "lazy",
             decoding: "async",
+            // The catalogue's still used to come straight from its host — a
+            // picture the page may not read, so the nav's words kept their
+            // light tone over it (navTone.js). It comes through this server
+            // now and COULD be read: the nav's words would turn dark over a
+            // bright still. That is a change a person can see; until it is
+            // decided on, the still is passed over as before.
+            ...(row.thumbnail ? { "data-tone-unread": "" } : {}),
             src: row.thumbnail
               ? artUrl(row.thumbnail)
               : `/img/frame/${encodeURIComponent(local.id)}?t=${Math.max(30, Math.floor((local.duration || 600) * 0.12))}`,
