@@ -10,6 +10,13 @@ const availability = require("../media/availability");
 const newEpisodes = require("../media/newEpisodes");
 const identity = require("../media/identity");
 const { JsonStore } = require("../lib/jsonstore");
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+// (Three of these ran on EVERY request once a kids profile exists.)
+const lazy = require("../lib/lazy");
+const authmodeLib = lazy(require, "../lib/authmode");
+const authzLib = lazy(require, "../lib/authz");
+const sessionsLib = lazy(require, "../lib/sessions");
 
 const router = express.Router();
 
@@ -22,10 +29,10 @@ const router = express.Router();
 // the rules and says how a request is recognised as a kids one).
 const kids = require("../lib/kids");
 const kidsDeps = {
-  closed: () => require("../lib/authmode").get() === "closed",
+  closed: () => authmodeLib().get() === "closed",
   session: (req) => {
-    const sid = require("../lib/authz").readCookie(req) || req.headers["x-session"] || null;
-    const row = sid ? require("../lib/sessions").get(String(sid)) : null;
+    const sid = authzLib().readCookie(req) || req.headers["x-session"] || null;
+    const row = sid ? sessionsLib().get(String(sid)) : null;
     return row ? { profileId: row.profileId, createdAt: row.createdAt } : null;
   },
   // a live token's profile — or, for a token that died with a restart, the
@@ -227,8 +234,8 @@ const listEntry = (i) => {
 // leaks member data" — this route was called out by name).
 router.get("/api/server-info", (req, res) => {
   const config = require("../config");
-  const mode = require("../lib/authmode").get();
-  const authed = mode !== "closed" || !!require("../lib/authz").sessionFor(req);
+  const mode = authmodeLib().get();
+  const authed = mode !== "closed" || !!authzLib().sessionFor(req);
   res.json({
     adminName: authed ? config.ADMIN_NAME : "the admin",
     authMode: mode,
@@ -426,7 +433,7 @@ router.get("/api/person/:id", async (req, res) => {
     });
     if (out.error) return res.status(out.status || 502).json({ error: out.error, ...(out.noKey ? { noKey: true } : {}) });
     // whose list and history: the same test /api/home applies to ?profile=
-    const authz = require("../lib/authz");
+    const authz = authzLib();
     const reqProfile = typeof req.query.profile === "string" ? req.query.profile : null;
     const sess = authz.sessionFor(req);
     const profileId =
@@ -572,7 +579,7 @@ router.get("/api/item/:id", (req, res) => {
     // required mode: a profile's stored play-item (what they were watching)
     // is personal — only its owner's session may rebuild it
     const stored =
-      req.query.profile && require("../lib/authz").profileAllowed(req, req.query.profile)
+      req.query.profile && authzLib().profileAllowed(req, req.query.profile)
         ? profiles.getStreamItem(req.query.profile, id)
         : null;
     if (stored) return res.json({ ...stored, subtitles: stored.subtitles || [] });

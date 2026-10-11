@@ -6,6 +6,11 @@ const scanner = require("../media/scanner");
 const subtitles = require("../media/subtitles");
 
 const router = express.Router();
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+const lazy = require("../lib/lazy");
+const configLib = lazy(require, "../config");
+const stillsLib = lazy(require, "../media/stills");
 
 const MIME = {
   ".mp4": "video/mp4",
@@ -109,7 +114,7 @@ router.get("/img/still/:id", async (req, res) => {
   try {
     const entry = resolveKind(req.params.id, "video");
     if (!entry) return res.status(404).send("Not found");
-    const stills = require("../media/stills");
+    const stills = stillsLib();
     const file = await stills.getStill(entry.path);
     if (!file) return res.status(404).send("No still available");
     res.setHeader("Cache-Control", "public, max-age=604800");
@@ -135,7 +140,7 @@ router.get("/img/frame/:id", async (req, res) => {
     const entry = resolveKind(req.params.id, "video");
     if (!entry) return res.status(404).send("Not found");
     const t = Math.max(0, parseFloat(req.query.t) || 0);
-    const stills = require("../media/stills");
+    const stills = stillsLib();
     const file = await stills.getFrame(entry.path, t);
     if (!file) return res.status(404).send("No frame available");
     res.setHeader("Cache-Control", "public, max-age=604800");
@@ -163,7 +168,7 @@ const EXT_IMG_HOSTS = new Set([
   "upload.wikimedia.org",
   "thumb.wikimedia.org",
 ]);
-const EXT_IMG_DIR = path.join(require("../config").CACHE_DIR, "posters-web");
+const EXT_IMG_DIR = path.join(configLib().CACHE_DIR, "posters-web");
 const MAX_EXT_IMAGES = 4000; // count cap; the byte cap below bounds each file
 const MAX_EXT_IMAGE_BYTES = 6 * 1024 * 1024; // backdrops can be big; originals aren't welcome
 const { MIN_IMAGE_BYTES, magicOk, sniffMime, validImageFile, readHead } = require("../lib/imgcheck");
@@ -325,7 +330,7 @@ const remux = require("../media/remux");
 router.get("/stream/hls/:id/index.m3u8", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
-  if (!require("../config").ffmpegAvailable) return res.status(503).send("ffmpeg not available");
+  if (!configLib().ffmpegAvailable) return res.status(503).send("ffmpeg not available");
 
   try {
     const dir = await remux.ensure(entry.path, req.params.id);
@@ -388,9 +393,9 @@ const libraryTable = async (entry, key, size) => {
 router.get("/stream/transcode/:id/jit/master.m3u8", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
-  if (!require("../config").ffmpegAvailable) return res.status(503).send("ffmpeg not available");
+  if (!configLib().ffmpegAvailable) return res.status(503).send("ffmpeg not available");
   try {
-    const sfs = fs.statfsSync(require("../config").CACHE_DIR);
+    const sfs = fs.statfsSync(configLib().CACHE_DIR);
     if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
       return res.status(503).send("Server disk is nearly full — free space to stream");
     }
@@ -413,12 +418,12 @@ router.get("/stream/transcode/:id/jit/master.m3u8", async (req, res) => {
 router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
-  if (!require("../config").ffmpegAvailable) return res.status(503).send("ffmpeg not available");
+  if (!configLib().ffmpegAvailable) return res.status(503).send("ffmpeg not available");
   // Same disk guard as the other transcoders: on a nearly-full disk the
   // producer grinds/fails silently and every segment request hangs to its
   // 90s deadline — refuse up front so the player falls back cleanly.
   try {
-    const sfs = fs.statfsSync(require("../config").CACHE_DIR);
+    const sfs = fs.statfsSync(configLib().CACHE_DIR);
     if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
       return res.status(503).send("Server disk is nearly full — free space to stream");
     }
@@ -493,7 +498,7 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
     // files; so does every rendition of the ladder, and every audio track.
     const v = ladder.renditionFromQuery(req.query.v);
     const audio = ladder.audioFromQuery(req.query.a);
-    const dir = path.join(require("../config").CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
+    const dir = path.join(configLib().CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
     let input = { url: entry.path, extra: [], fmt, vtagHvc1: req.query.vtag === "hvc1", audio };
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
@@ -524,7 +529,7 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
 router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
-  if (!require("../config").ffmpegAvailable) return res.status(503).send("ffmpeg not available");
+  if (!configLib().ffmpegAvailable) return res.status(503).send("ffmpeg not available");
   const ss = Math.max(0, parseInt(req.params.ss, 10) || 0);
   // effectiveVcodec (now the identity — offset copy is PTS-honest, see
   // remux.js) is still applied here so the segment URIs below always name
