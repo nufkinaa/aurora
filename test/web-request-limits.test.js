@@ -213,3 +213,85 @@ test("a history read that timed out is \"could not be read\": nothing is marked 
     state.profile = null;
   });
 });
+
+// ---- with the server's turn-taking (1.6.93: lib/admission.js answers 429 +
+// Retry-After when a client has too many heavy requests waiting) ----
+test("429 + Retry-After is \"wait\", not a failure and not a timeout: the wait is honoured, then the request is asked again on a fresh clock", async (t) => {
+  const { api } = await load("api.js");
+  await withPage(t, async ({ calls, tick }) => {
+    const busy = () => new Response('{"error":"busy"}', { status: 429, headers: { "Retry-After": "2" } });
+    const o = outcome(api.item("x9"));
+    await settle();
+    // the server takes 40 s to say "busy" (inside the 45 s limit), then asks for 2 s
+    await tick(40000);
+    calls[0].resolve(busy());
+    await settle();
+    await tick(1900);
+    assert.equal(calls.length, 1, "not before the server's 2 s are up");
+    await tick(1700); // (2 s + up to 1.5 s of spread)
+    assert.equal(calls.length, 2, "asked again");
+    assert.equal(o.done, false);
+    // 40 s more on the second try: 80 s+ since the first was sent, and still no timeout — each try has its own clock
+    await tick(40000);
+    assert.equal(o.done, false, "the time spent being told to wait is not held against the request");
+    calls[1].resolve(jsonResponse({ id: "x9" }));
+    await settle();
+    assert.deepEqual(o.value, { id: "x9" });
+
+    // told to wait three times running: the third refusal is handed to the screen as what it is — a 429, not a timeout
+    const p = outcome(api.item("x8"));
+    await settle();
+    for (let i = 2; i < 5; i++) {
+      calls[i].resolve(busy());
+      await settle();
+      await tick(3600);
+    }
+    assert.equal(calls.length, 5, "two more tries, no more");
+    assert.equal(p.error.status, 429);
+    assert.equal(p.error.timeout, undefined);
+
+    // a write is never repeated behind the person's back
+    const w = outcome(api.logout());
+    await settle();
+    calls[5].resolve(busy());
+    await settle();
+    await tick(5000);
+    assert.equal(calls.length, 6);
+    assert.equal(w.error.status, 429);
+  });
+});
+
+test("Home: one request in flight, whoever asks — the page's early one included (one mechanism, not two)", async (t) => {
+  const { api } = await load("api.js");
+  await withPage(t, async ({ calls, tick }) => {
+    // the page asked for Home before any code ran; boot, a refresh and the prefetch all ask for it now
+    let answer;
+    global.window.__auroraEarly = { "/api/home?profile=p1|": { at: performance.now(), res: new Promise((r) => { answer = r; }) } };
+    const a = api.home("p1"), b = api.home("p1"), c = api.home("p1");
+    assert.equal(a, b);
+    assert.equal(b, c, "the same promise");
+    await settle();
+    assert.equal(calls.length, 0, "nobody asked the server again: the early request IS the one in flight");
+    answer(jsonResponse({ rows: [1] }));
+    await settle();
+    assert.deepEqual(await a, { rows: [1] });
+    // answered: the next one asks afresh (and alone)
+    const d = api.home("p1"), e = api.home("p1");
+    assert.equal(d, e);
+    await settle();
+    assert.equal(calls.length, 1);
+    calls[0].resolve(jsonResponse({ rows: [2] }));
+    assert.deepEqual(await d, { rows: [2] });
+
+    // an early answer that says "busy" is waited out like any other, then asked once
+    global.window.__auroraEarly = { "/api/home?profile=p2|": { at: performance.now(), res: Promise.resolve(new Response("{}", { status: 429, headers: { "Retry-After": "1" } })) } };
+    const f = outcome(api.home("p2"));
+    await settle();
+    assert.equal(calls.length, 1, "not asked again the instant the refusal is read");
+    await tick(2600);
+    assert.equal(calls.length, 2);
+    calls[1].resolve(jsonResponse({ rows: [3] }));
+    await settle();
+    assert.deepEqual(f.value, { rows: [3] });
+  });
+});

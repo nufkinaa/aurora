@@ -318,4 +318,46 @@ ui.test("the kids hop: a kids profile is never asked for early (its door runs fi
   assert.deepEqual(r.log.refused, []);
 });
 
+// The server takes its heavy answers in turn (1.6.93, lib/admission.js: Home,
+// the library list, a search — four in hand per client, more wait, far more
+// are told 429). The page now asks for Home before its code runs, beside
+// everything boot asks: that must stay far inside a client's share.
+ui.test("a normal boot never meets the server's turn-taking: no 429 on any route, alone or with two tabs opening at once, and never more than two heavy requests in flight", async ({ page, context, goto, signIn, srv, profiles, lib }) => {
+  const HEAVY = /\/api\/(home|library|search)(\?|$)/;
+  const seen = { refused: [], inFlight: 0, most: 0, heavy: [] };
+  const watch = (p) => {
+    p.on("request", (req) => { if (HEAVY.test(req.url())) { seen.inFlight++; seen.most = Math.max(seen.most, seen.inFlight); seen.heavy.push(req.url().replace(/^https?:\/\/[^/]+/, "").split("?")[0]); } });
+    const done = (req) => { if (HEAVY.test(req.url())) seen.inFlight--; };
+    p.on("requestfinished", done);
+    p.on("requestfailed", done);
+    p.on("response", (res) => { if (res.status() === 429) seen.refused.push(res.url()); });
+  };
+  watch(page);
+  await signIn(profiles.grown);
+  await goto("#/"); // (the device learns what a returning one knows: the next loads ask early)
+  const routes = ["#/", "#/movies", "#/search", `#/movie/${lib.film1.id}`, `#/show/${lib.show.id}`];
+  for (const hash of routes) {
+    seen.most = 0; seen.heavy.length = 0;
+    // one tab, loaded cold on that route
+    await page.goto("about:blank");
+    await page.goto(`${srv.url}/${hash}`);
+    await waitForScreen(page);
+    await page.waitForTimeout(700);
+    assert.deepEqual(seen.refused, [], `${hash}: told to wait (429)`);
+    assert.ok(seen.most <= 2, `${hash}: ${seen.most} heavy requests in flight at once (${seen.heavy.join(", ")})`);
+    if (hash === "#/") assert.deepEqual(seen.heavy, ["/api/home"], "Home's boot asks for Home once — the page's early request is the one boot uses");
+    // two tabs of the same browser (one client, to the server) opening it in the same instant
+    seen.most = 0; seen.heavy.length = 0;
+    const second = await context.newPage();
+    watch(second);
+    await page.goto("about:blank");
+    await Promise.all([page.goto(`${srv.url}/${hash}`), second.goto(`${srv.url}/${hash}`)]);
+    await Promise.all([waitForScreen(page), waitForScreen(second)]);
+    await page.waitForTimeout(700);
+    assert.deepEqual(seen.refused, [], `${hash}, two tabs: told to wait (429)`);
+    assert.ok(seen.most <= 4, `${hash}, two tabs: ${seen.most} heavy requests in flight at once — a client's whole share is 4 (${seen.heavy.join(", ")})`);
+    await second.close();
+  }
+});
+
 ui.run({ concurrency: 1 });

@@ -350,3 +350,52 @@ test("the offline worker's list (/sw-manifest.json) is the page, the stylesheet 
     await new Promise((r) => server.close(r));
   }
 });
+
+// ---- a server that is stopping, and the build after it (1.6.93: lib/shutdown.js) ----
+test("through the shutdown middleware a module still arrives whole (pre-compressed too); after a restart an old tab's old address gets the current code, not a year's licence", async () => {
+  const http = require("http");
+  const express = require("express");
+  const shutdown = require("../src/lib/shutdown");
+  const dir = tmpPublic({ "js/a.js": "// v1\nexport const a = 1; // " + "x".repeat(3000) + "\nexport const pad = '" + "y".repeat(3000) + "';\n" });
+  const app = express();
+  app.use(shutdown.middleware); // first in the chain, as in server.js
+  app.get(/^\/js\/.+\.js(?:\.map)?$/, jsassets.serve(dir));
+  const server = http.createServer(app);
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const get = async (p, enc = "br") => {
+    const res = await fetch(base + p, { headers: { "Accept-Encoding": enc } });
+    return { status: res.status, cache: res.headers.get("cache-control"), conn: res.headers.get("connection"), enc: res.headers.get("content-encoding"), text: await res.text() };
+  };
+  try {
+    const v1 = jsassets.asset(dir, "/js/a.js");
+    const served1 = v1.body.toString("utf-8");
+    // let the pre-compressed copy be made, so the stopping server sends THAT
+    for (let i = 0; i < 100 && (await get(`/js/a.js?v=${v1.hash}`)).enc !== "br"; i++) await new Promise((r) => setTimeout(r, 30));
+    shutdown._internals.state.stopping = true;
+    for (const enc of ["br", "gzip", "identity"]) {
+      const r = await get(`/js/a.js?v=${v1.hash}`, enc);
+      assert.equal(r.status, 200);
+      assert.equal(r.conn, "close", "the client is told to open its next connection against the new process");
+      assert.equal(r.text, served1, `${enc}: the module arrives whole`);
+      assert.equal(r.cache, "public, max-age=31536000, immutable");
+    }
+    shutdown._internals.state.stopping = false;
+
+    // the new build: the file changed, the process "restarted" (nothing is remembered between builds but the files)
+    fs.writeFileSync(path.join(dir, "js", "a.js"), "// v2\nexport const a = 2;\nexport const b = 3;\n");
+    const v2 = jsassets.asset(dir, "/js/a.js");
+    assert.notEqual(v2.hash, v1.hash);
+    // a tab opened before the restart still asks by the OLD address (its import map is the old page's)
+    const old = await get(`/js/a.js?v=${v1.hash}`);
+    assert.equal(old.status, 200, "not a 404: the tab keeps working");
+    assert.equal(old.text, v2.body.toString("utf-8"), "it is handed the current code (what a plain /js/a.js always answered)");
+    assert.equal(old.cache, "no-cache", "under the old name it is not kept: the next ask is asked of the server again");
+    assert.equal((await get(`/js/a.js?v=${v2.hash}`)).cache, "public, max-age=31536000, immutable");
+  } finally {
+    shutdown._internals.state.stopping = false;
+    server.closeAllConnections();
+    await new Promise((r) => server.close(r));
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
