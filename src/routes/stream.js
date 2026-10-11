@@ -283,7 +283,8 @@ router.get("/img/ext", async (req, res) => {
     await sendArt(res, file, req.query.w, req.query.blur, req.query.fmt);
   } catch (e) {
     // said out loud: a TV with no pictures is otherwise a silent 502 (2026-10-09)
-    console.warn(`[img] ext ${url.slice(0, 80)} w=${req.query.w || "-"} failed: ${(e && e.message) || e}`);
+    // (a picture the catalogue does not have is one line, not one per screen that asks again)
+    if (!e || e.message !== "recently failed") console.warn(`[img] ext ${url.slice(0, 80)} w=${req.query.w || "-"} failed: ${(e && e.message) || e}`);
     if (!res.headersSent) res.status(502).send("artwork unavailable");
   }
 });

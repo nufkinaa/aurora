@@ -481,13 +481,19 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
       "-hls_flags", "independent_segments+temp_file",
       // fMP4 segments when asked (Apple requires them for HEVC-in-HLS — S4)
       ...(fmt === "fmp4"
-        ? ["-hls_segment_type", "fmp4", "-hls_fmp4_init_filename", path.join(dir, "init.mp4"),
+        ? ["-hls_segment_type", "fmp4", "-hls_fmp4_init_filename", "init.mp4", // (a bare name — see the playlist argument below)
            // HEVC in fMP4 must carry the hvc1 sample tag for Apple — ffmpeg
            // defaults to hev1, which iOS refuses (black screen, 2026-08-26).
            ...(vtagHvc1 && vcodec === "copy" ? ["-tag:v", "hvc1"] : []),
            "-hls_segment_filename", path.join(dir, "seg%05d.m4s")]
         : ["-hls_segment_filename", path.join(dir, "seg%05d.ts")]),
-      playlist,
+      // ffmpeg puts the fMP4 init file in the PLAYLIST's folder, which it finds
+      // by the last "/" in this argument. A full path for the init file was
+      // joined onto that folder and failed every fMP4 job on Linux ("Could not
+      // write header", production 2026-10-10); it only worked on Windows because
+      // a back-slashed playlist path has no "/" to find. So: a bare init name,
+      // and the playlist with forward slashes — the same on both.
+      fmt === "fmp4" ? playlist.replace(/\\/g, "/") : playlist,
     ],
     { stdio: [seeking ? "ignore" : "pipe", "ignore", "pipe"], windowsHide: true }
   );

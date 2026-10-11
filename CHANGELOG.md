@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.97 — 2026-10-11
+
+- Fixed from the server's own log: on a Linux server, a film that had to be repackaged for an iPhone or Safari (HEVC video, or a second audio track) failed to start ("Remux failed … Could not write header"). It starts now.
+- A download source that found nobody to download from is no longer logged as a crash of the server.
+- A device that hangs up in the middle of sending a request, and a cached picture cleared at the moment it was asked for, are no longer logged as errors.
+- A picture the catalogue does not have is logged once instead of once per screen that asks for it again.
+- The start-up notice about a public address now says whether sign-in is required instead of claiming there is no authentication.
+- `keeper.js` with an option it does not know prints its help and stops instead of starting a second server.
+
 ## 1.6.96 — 2026-10-11
 
 - **The website opens much faster on a phone and on a weak line**, and looks exactly the same (before-and-after screenshots match pixel for pixel). On a slow phone with a slow-3G line, a first visit reaches a usable Home in about 3.3 s instead of 12 s, and a repeat visit in 1.3 s instead of 3.1 s; on a 1.5 Mbit/s line, 1.5 s instead of 3.7 s. What changed: the first screen's needs go first and everything else waits for it; the questions the app asks at start-up go out while its code is still arriving; the code travels at half the size; and the offline copy of the app no longer downloads everything a second time.

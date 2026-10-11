@@ -1347,9 +1347,11 @@ const readyTorrent = (infoHash) => {
   if (inflight) return inflight;
   const p = _readyTorrent(infoHash);
   readying.set(infoHash, p);
+  // (.finally returns a promise of its own that rejects with p: left alone it
+  // was the "[unhandledRejection] Timed out finding peers" in the log)
   p.finally(() => {
     if (readying.get(infoHash) === p) readying.delete(infoHash);
-  });
+  }).catch(() => {});
   // The map's reference has no consumer of its own — without this, a shared
   // rejection ("Timed out finding peers") also fires as an unhandledRejection
   // even though every real caller handled it.

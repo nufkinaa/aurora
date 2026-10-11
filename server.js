@@ -381,6 +381,22 @@ app.get("*", (req, res) => {
   shell(res, "index.html");
 });
 
+// Things that are not errors must not be logged as errors (they were, with a
+// stack, by Express's default handler): a client that hung up while sending
+// its request, and a cached picture swept between being chosen and being sent.
+// Everything else goes on to the default handler unchanged.
+app.use((err, req, res, next) => {
+  if (err && (err.type === "request.aborted" || err.code === "ECONNABORTED" || err.code === "ECONNRESET")) {
+    if (!res.headersSent) { try { res.status(400).end(); } catch {} }
+    return;
+  }
+  if (err && err.code === "ENOENT" && /^\/(img|avatars)\//.test(req.path)) {
+    if (!res.headersSent) res.status(404).end();
+    return;
+  }
+  next(err);
+});
+
 realtime.attach(server);
 
 // Stopping well (lib/shutdown.js): on a signal, or when the keeper asks,
@@ -591,7 +607,9 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
     a === "localhost";
   if (!isPrivateIp(network)) {
     console.warn(
-      `    ⚠ ${network} is not a private LAN address. Aurora has no authentication on most APIs — keep inbound connections firewalled.`
+      require("./src/lib/authmode").get() === "closed"
+        ? `    ${network} is not a private LAN address — sign-in is required for everything (auth mode "closed").`
+        : `    ⚠ ${network} is not a private LAN address and sign-in is not required for everything (auth mode "${require("./src/lib/authmode").get()}") — set it to "closed" or keep inbound connections firewalled.`
     );
   }
   if (!config.ADMIN_PASSWORD || !isPrivateIp(network)) console.log("");
