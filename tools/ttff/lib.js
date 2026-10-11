@@ -35,8 +35,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const startInstance = async ({ verbose = false, config = {}, tree = null } = {}) => {
   media.build({ quiet: true });
   const server = require(tree ? path.join(require("./snapshot").treeDir(tree), "scripts", "ui-test-server.js") : "../../scripts/ui-test-server");
+  // The machine's encode speed, as the server measured it the first time (a
+  // real server keeps it in data/cache and measures once; every private
+  // instance has an empty data folder and would measure again — twenty
+  // seconds of 1080p encoding, half a minute after each boot, in the middle
+  // of what is being timed). The first instance's measurement is kept here
+  // and handed to the ones after it.
+  const calFile = path.join(__dirname, ".runs", "encode-calibration.json");
+  let cal = null;
+  try { cal = JSON.parse(require("fs").readFileSync(calFile, "utf8")); } catch {}
   const srv = await server.start({
     verbose,
+    ...(cal ? { seed: { "cache/encode-calibration.json": cal } } : {}),
     config: {
       libraries: { movies: [path.join(media.ROOT, "movies")], shows: [path.join(media.ROOT, "shows")] },
       ...config,
@@ -84,6 +94,17 @@ const startInstance = async ({ verbose = false, config = {}, tree = null } = {})
       const m = lib.movies.find((x) => x.title === name);
       if (m) titles[t.key] = { key: t.key, id: m.id, duration: m.duration, item: m, why: t.why };
     }
+  }
+  if (!cal) {
+    const stop = srv.stop;
+    srv.stop = async () => {
+      try {
+        const fs = require("fs");
+        const made = path.join(srv.dataDir, "cache", "encode-calibration.json");
+        if (fs.existsSync(made)) { fs.mkdirSync(path.dirname(calFile), { recursive: true }); fs.copyFileSync(made, calFile); }
+      } catch {}
+      return stop();
+    };
   }
   return { srv, api, titles };
 };
