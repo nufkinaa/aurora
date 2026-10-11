@@ -5,7 +5,7 @@ Shown inside the app under Preferences → What's new. Newest first; one
 
 ## 1.6.95 — 2026-10-11
 
-- **Films and episodes start sooner on the website.** Pressing Play now asks the server for everything at once instead of one thing after another, the server has the first seconds ready while you are still on the title's page, and the picture appears while the first piece is still arriving. On a home network a typical start went from about 3.7 s to under 1 s; on a slow or distant line most starts are between half a second and two seconds.
+- **Films and episodes start sooner on the website.** Pressing Play now asks the server for everything at once instead of one thing after another, the server has the first seconds ready while you are still on the title's page, and the picture appears while the first piece is still arriving. On a fast line to a distant server a typical start went from about 3.7 s to under 1 s; on a slow line most starts are now between half a second and two seconds.
 - **A thin line no longer means a long wait.** The player used to pick a quality the line could not carry, give up and start over, sometimes for a minute or two. It now remembers how fast this device's line was, starts at a quality that fits, and steps up from there.
 - MP4 files whose index sits at the end of the file start without first downloading the film's tail.
 - Resuming goes straight to where you stopped instead of starting at the top and jumping.
