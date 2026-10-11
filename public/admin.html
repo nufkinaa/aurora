@@ -361,6 +361,34 @@
       .table-scroll.dense th, .table-scroll.dense td { padding: 7px 8px; }
     }
 
+    /* ---------- nothing may widen the page (elia 2026-10-11: the admin on a phone) ----------
+       iOS Safari zooms the whole page out to fit whatever is wider than the
+       screen: the healer's 120-bar strip, a wide table in a grid cell, one
+       long device name — each shrank a whole tab into a column at the left.
+       So: every grid cell may be narrower than its content, long words break,
+       what is wider than a phone scrolls inside its own box, the bar strip
+       fits, and the page clips at its edge as a backstop (clip, not hidden:
+       hidden would make body a scroll box and end every position: sticky). */
+    html, .wrap { overflow-x: clip; }
+    .wrap, .pane, .card, section, details.acard, .acard-body, .now-card, .stat { min-width: 0; max-width: 100%; }
+    .grid-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .grid-2 > *, .stats > *, .now-grid > *, .kv > * { min-width: 0; }
+    .kv { grid-template-columns: auto minmax(0, 1fr); }
+    .card, section, .now-card, .stat, td, .meta, .kv dd, .hl-check, .hl-rep, .log-row, .ac-row { overflow-wrap: anywhere; }
+    .table-scroll { max-width: 100%; }
+    #hl-history { overflow: hidden; }
+    #hl-history i { min-width: 0 !important; flex: 1 1 0 !important; }
+    input, select, textarea { max-width: 100%; }
+    @media (max-width: 980px) { .grid-2 { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 700px) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      /* the sign-in switch sits in the flow: stuck to the top it rode over
+         the People cards while scrolling, and a thumb kept hitting it */
+      .rollout { position: static; }
+      .rollout .ro-seg { display: flex; width: 100%; }
+      .rollout .ro-seg button { flex: 1; padding: 8px 4px; }
+    }
+
     /* ---------- People (2026-10-07) ---------- */
     /* the sign-in switch: on top, sticky, never folded */
     .rollout { position: sticky; top: 8px; z-index: 5; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
@@ -3364,6 +3392,8 @@
       }
       return j.phase;
     };
+    // who started a download, after its name (elia 2026-10-11)
+    const byTag = (j) => j.by ? ` <span class="muted" style="font-size:0.8rem;font-weight:600">· by ${esc(j.by)}</span>` : "";
     async function loadDownloads() {
       const jobs = await json("/api/downloads");
       const pending = jobs.filter((j) => j.status === "pending");
@@ -3375,7 +3405,7 @@
             <div class="avatar">${j.type === "show" ? "📺" : "🎬"}</div>
             <div>
               <div class="name">${esc(j.label || j.title)}${myListTag(j)}</div>
-              <div class="meta">${esc(j.quality || "?")} · ${fmtBytes(j.sizeBytes)}${j.provider ? " · " + esc(j.provider) : ""} · ${ago(j.at)}</div>
+              <div class="meta">${j.by ? esc(j.by) + " · " : ""}${esc(j.quality || "?")} · ${fmtBytes(j.sizeBytes)}${j.provider ? " · " + esc(j.provider) : ""} · ${ago(j.at)}</div>
               ${j.holdReason ? `<div class="meta" style="color:#f87171">${esc(j.holdReason)}</div>` : ""}
             </div>
           </div>
@@ -3424,7 +3454,7 @@
         const pct = Math.round((j.progress || 0) * 100);
         return `
         <tr data-dl-id="${esc(j.id)}"${j.held ? ' data-dl-held="1"' : ""}>
-          <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}${myListTag(j)}</td>
+          <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}${myListTag(j)}${byTag(j)}</td>
           <td class="num">${fmtBytes(j.sizeBytes)}</td>
           <td style="white-space:nowrap"><span class="mini-prog"><i style="width:${pct}%"></i></span><span class="muted num">${pct}%</span></td>
           <td class="num">${j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "—"}</td>
@@ -3439,7 +3469,7 @@
       $("#dl-done-empty").classList.toggle("hidden", finished.length > 0);
       $("#dl-done").innerHTML = finished.map((j) => `
         <tr>
-          <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}${myListTag(j)}</td>
+          <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}${myListTag(j)}${byTag(j)}</td>
           <td>${esc(j.quality || "—")}</td>
           <td class="num">${fmtBytes(j.sizeBytes)}</td>
           <td><span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(j.status)}</span>${j.error ? " <span class='muted' title='" + esc(j.error) + "'>" + esc(j.error.slice(0, 40)) + "</span>" : ""}</td>

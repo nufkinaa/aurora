@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.99 — 2026-10-11
+
+- **Downloads say who started them.** On the website's Downloads page, a download someone else started shows "Started by <name>"; on the admin page every download, waiting, in flight or finished, carries "by <name>". It is the person's name only; nothing else about them travels. (The TV app shows it from its next update.)
+- **The admin page on a phone no longer shrinks into a narrow column.** Anything wider than the screen (the healer's bar strip, a wide table inside a grid, a long device name) made the phone zoom the whole page out; now nothing can widen the page, long words wrap, and wide number tables scroll inside their own box. The Sign-in switch on People sits in the flow instead of riding over the cards while you scroll, with its three choices spread across the width.
+
 ## 1.6.98 — 2026-10-11
 
 - **Aurora TV 5.2.0.** Checked on the Mi TV, including once against a server that requires sign-in.

@@ -157,6 +157,12 @@ test("publicJob exposes what the pages and admin read, and hides the rest", () =
   assert.equal(job.announce, undefined, "tracker list stays server-side");
   assert.equal(job.destPath, undefined, "local paths stay server-side");
   assert.equal(job.profile, undefined, "who asked stays server-side");
+  // the requester is NAMED (elia 2026-10-11): the stored name, the name behind
+  // a stored id, or the oldest jobs' stored name itself — never an id
+  assert.equal(job.by, "Admin");
+  assert.equal(downloads.publicJob({ id: "x", profile: "0123456789ab", profileName: "Dor" }).by, "Dor");
+  assert.equal(downloads.publicJob({ id: "x", profile: "0123456789ab" }).by, null, "an id nobody has any more is not shown");
+  assert.equal(downloads.publicJob({ id: "x" }).by, null);
 });
 
 test("publicJobFor says 'mine' to the requester (by id, or by name for older jobs) and nothing about who asked", () => {

@@ -130,6 +130,19 @@ const episodeLookup = () => {
   };
 };
 
+// The requester's display name: stored with newer jobs; looked up for jobs
+// that carry only the id; the stored value itself for the oldest jobs, which
+// kept the name (an id is twelve hex characters, a name is not).
+const whoAsked = (j) => {
+  if (!j) return null;
+  if (j.profileName) return j.profileName;
+  if (!j.profile) return null;
+  try {
+    const p = require("../profiles").list().find((x) => x.id === j.profile);
+    if (p && p.name) return p.name;
+  } catch {}
+  return /^[0-9a-f]{12}$/i.test(j.profile) ? null : j.profile;
+};
 const isHeld = (j) => !!(j && j.held && j.status === "approved");
 
 // Strip fields nobody outside needs; keep it small for WS.
@@ -149,6 +162,9 @@ const publicJob = (j) => ({
   // under — the thing "Play" on the downloads page needs. WHO requested it
   // stays server-side (publicJobFor answers "mine" per viewer instead).
   seenAt: j.seenAt || null, smart: !!j.smart, resolvedAt: j.resolvedAt || null,
+  // Who started it, by NAME only (elia 2026-10-11: "downloads should say who
+  // started them"); the profile id stays server-side.
+  by: whoAsked(j),
   // "mylist" when My List downloads queued it (always `smart` too, so every
   // client that knows nothing of this field treats it as the quiet kind).
   auto: j.auto || null,

@@ -251,6 +251,7 @@ const row = (job, { others = false } = {}) => {
   if (job.type === "show" && job.season && job.episode && !/S\d+ ?E\d+/i.test(job.label || "")) sub.push(`S${job.season} E${job.episode}`);
   if (job.quality) sub.push(job.quality);
   if (job.provider && !others) sub.push(job.provider);
+  if (others && job.by) sub.push(`Started by ${job.by}`);
   return el(
     "div",
     { class: `dl-row tone-${d.tone} ${job.status}${job.held ? " held" : ""}${fresh ? " fresh" : ""}${others ? " others" : ""}`, "data-id": job.id },
@@ -295,7 +296,7 @@ const row = (job, { others = false } = {}) => {
 // it, and only rows whose state actually changed are rebuilt.
 const rowCache = new Map(); // id -> { sig, node }
 const rowSig = (j, others) =>
-  [j.status, j.phase || "", j.libraryId || "", !!j.seenAt, j.error || "", j.holdReason || "", j.label || j.title, others, busy.has(j.id), j.held ? j.heldReason || "held" : "", j.auto || ""].join("|");
+  [j.status, j.phase || "", j.libraryId || "", !!j.seenAt, j.error || "", j.holdReason || "", j.label || j.title, others, busy.has(j.id), j.held ? j.heldReason || "held" : "", j.auto || "", j.by || ""].join("|");
 const rowFor = (j, others) => {
   const sig = rowSig(j, others);
   const hit = rowCache.get(j.id);
