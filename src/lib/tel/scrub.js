@@ -141,7 +141,8 @@ const urlPattern = (u) => {
 };
 
 // Where it happened, coarse: "screens/player.js:onStall" from the site (its
-// modules are served as written, so a function name means something), a
+// modules are served without comments but never renamed — lib/jsassets.js —
+// so a function name means something), a
 // bare source tag from the TV (Hermes stacks are byte offsets — noise).
 // Line and column numbers never survive: they change with every release and
 // would make every release's errors "new".

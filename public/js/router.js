@@ -38,6 +38,33 @@ const markNav = (hash) => {
 
 let current = { cleanup: null };
 
+// What a screen hung on something that OUTLIVES it — a listener on window or
+// document, a subscription to the live socket — is let go when the screen is
+// left. These used to be written to remove themselves "the next time the
+// event arrives and finds the screen gone", and an event that never arrives
+// (no download running; a phone, which sends no remote-control moves; a page
+// nobody scrolls again) kept the listener for good — and through what it
+// closes over, the whole screen: every title page, grid and Search ever
+// opened stayed in memory (measured: tools/mobile-perf/holders.js). A
+// screen's own `return () => …` is still the place for what its render
+// function can reach; this is for code deep inside a screen, or shared by
+// several, that has no way to hand a cleanup up to the router.
+//   untilLeave(() => window.removeEventListener("scroll", onScroll));
+//   const unsub = untilLeave(onMessage("download_update", …));
+// -> the function it was given (so it can still be called earlier).
+const leaving = new Set();
+export const untilLeave = (undo) => {
+  if (typeof undo === "function") leaving.add(undo);
+  return undo;
+};
+const leave = () => {
+  for (const undo of [...leaving]) {
+    leaving.delete(undo);
+    try { undo(); } catch {}
+  }
+};
+export const _leaving = leaving; // (read-only, for tests)
+
 const render = async () => {
   const hash = location.hash || "#/";
   const path = hash.replace(/^#/, "");
@@ -58,6 +85,7 @@ const render = async () => {
 
     if (typeof current.cleanup === "function") current.cleanup();
     current.cleanup = null;
+    leave();
 
     appRoot.innerHTML = "";
     markNav(hash);

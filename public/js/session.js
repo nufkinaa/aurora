@@ -11,6 +11,9 @@ let leaving = false;
 export const backToSignIn = (message, glyph = "🔒") => {
   if (leaving) return;
   leaving = true;
+  // (the reload must not ask early as the profile that has just been put
+  // out: index.html reads this before any code runs)
+  try { localStorage.removeItem("aurora-early"); } catch {}
   toast(message, glyph);
   setTimeout(() => location.reload(), 1500);
 };

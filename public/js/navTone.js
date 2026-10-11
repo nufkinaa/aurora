@@ -194,57 +194,93 @@ const fromUrl = (url, x, y, box, size, position) => {
 
 // What one element puts at (x, y), top layer first: a list of { l, a } —
 // a = 1 is something solid (a picture, an opaque colour), less is a veil.
-const layersOf = (el, x, y) => {
-  const out = [];
+//
+// In two steps, because one measure asks about ~20 points and the same
+// elements sit under most of them (the page, the screen, a hero, a shelf):
+// what an element IS — its box, its computed style, its pictures and fades —
+// is read once per measure (`describe`, kept in `pass`), and only the lookup
+// at the point is done per point. Reading the style of every element under
+// every point again was most of what a measure cost on a slow phone, and a
+// measure runs on every scroll. The answer is the same to the last digit:
+// nothing on the page can change in the middle of one synchronous measure.
+let pass = null; // element → description, for the measure in progress
+const describe = (el) => {
   const tag = el.tagName;
   const box = el.getBoundingClientRect();
-  if (!box.width || !box.height) return out;
-  if (tag === "CANVAS" || tag === "IFRAME") return out;
+  if (!box.width || !box.height) return null;
+  if (tag === "CANVAS" || tag === "IFRAME") return null;
   const own = getComputedStyle(el);
   const op = parseFloat(own.opacity);
-  if (op < 0.08 || own.visibility === "hidden") return out;
+  if (op < 0.08 || own.visibility === "hidden") return null;
   if (tag === "IMG" || tag === "VIDEO") {
     const nw = tag === "IMG" ? el.naturalWidth : el.videoWidth;
     const nh = tag === "IMG" ? el.naturalHeight : el.videoHeight;
-    if (!nw || (tag === "IMG" && !el.complete) || (tag === "VIDEO" && el.readyState < 2)) return out;
+    if (!nw || (tag === "IMG" && !el.complete) || (tag === "VIDEO" && el.readyState < 2)) return null;
     const key = tag === "IMG" ? el.currentSrc || el.src : null;
     let t = thumbs.get(el);
-    // a still is sampled once; a video frame every time
+    // a still is sampled once; a video frame every measure
     if (!t || t.key !== key || tag === "VIDEO") {
-      t = { key, data: grab(el, nw, nh) };
+      // (data-tone-unread: a picture that is to be passed over as one the
+      // browser will not hand over is — see the episode stills, discover-detail.js)
+      t = { key, data: el.hasAttribute("data-tone-unread") ? null : grab(el, nw, nh) };
       thumbs.set(el, t);
     }
     const [px, py] = String(own.objectPosition || "50% 50%").split(/\s+/);
-    const uv = mapInto(x, y, box, nw, nh, own.objectFit === "contain" ? "contain" : own.objectFit === "fill" ? "fill" : "cover", pct(px), pct(py));
-    const l = uv ? at(t.data, uv[0], uv[1]) : null;
-    if (l != null) out.push({ l, a: op });
+    return { picture: true, box, op, nw, nh, data: t.data, fit: own.objectFit === "contain" ? "contain" : own.objectFit === "fill" ? "fill" : "cover", px: pct(px), py: pct(py) };
+  }
+  // ::after sits over the element's own background, ::before under ::after
+  const parts = [];
+  for (const pseudo of ["::after", null, "::before"]) {
+    const cs = pseudo ? getComputedStyle(el, pseudo) : own;
+    if (pseudo && (cs.content === "none" || cs.content === "normal" || cs.display === "none")) continue;
+    const images = [];
+    if (cs.backgroundImage && cs.backgroundImage !== "none") {
+      const size = cs.backgroundSize.split(",")[0].trim();
+      const position = cs.backgroundPosition.split(",")[0].trim();
+      for (const layer of splitTop(cs.backgroundImage)) {
+        const um = /^url\(["']?([^"')]+)["']?\)$/.exec(layer);
+        if (um) images.push({ url: um[1], size, position });
+        else {
+          const g = parseGradient(layer);
+          if (g) images.push({ grad: g });
+        }
+      }
+    }
+    parts.push({ images, color: parseColor(cs.backgroundColor), veil: pseudo ? parseFloat(cs.opacity) || 1 : 1 });
+  }
+  return { picture: false, box, op, parts };
+};
+const layersOf = (el, x, y) => {
+  const out = [];
+  let d = pass ? pass.get(el) : undefined;
+  if (d === undefined) {
+    d = describe(el);
+    if (pass) pass.set(el, d);
+  }
+  if (!d) return out;
+  const box = d.box;
+  if (d.picture) {
+    const uv = mapInto(x, y, box, d.nw, d.nh, d.fit, d.px, d.py);
+    const l = uv ? at(d.data, uv[0], uv[1]) : null;
+    if (l != null) out.push({ l, a: d.op });
     return out;
   }
   const u = (x - box.left) / box.width;
   const v = (y - box.top) / box.height;
-  // ::after sits over the element's own background, ::before under ::after
-  for (const pseudo of ["::after", null, "::before"]) {
-    const cs = pseudo ? getComputedStyle(el, pseudo) : own;
-    if (pseudo && (cs.content === "none" || cs.content === "normal" || cs.display === "none")) continue;
+  for (const part of d.parts) {
     const mine = [];
-    if (cs.backgroundImage && cs.backgroundImage !== "none") {
-      for (const layer of splitTop(cs.backgroundImage)) {
-        const um = /^url\(["']?([^"')]+)["']?\)$/.exec(layer);
-        if (um) {
-          const l = fromUrl(um[1], x, y, box, cs.backgroundSize.split(",")[0].trim(), cs.backgroundPosition.split(",")[0].trim());
-          if (l != null) mine.push({ l, a: 1 });
-        } else {
-          const g = parseGradient(layer);
-          if (g) {
-            const c = gradientAt(g, u, v);
-            if (c.a > 0.02) mine.push(c);
-          }
-        }
+    for (const image of part.images) {
+      if (image.url) {
+        const l = fromUrl(image.url, x, y, box, image.size, image.position);
+        if (l != null) mine.push({ l, a: 1 });
+      } else {
+        const c = gradientAt(image.grad, u, v);
+        if (c.a > 0.02) mine.push(c);
       }
     }
-    const c = parseColor(cs.backgroundColor);
+    const c = part.color;
     if (c && c.a > 0.02) mine.push(c);
-    for (const m of mine) out.push({ l: m.l, a: m.a * (pseudo ? parseFloat(cs.opacity) || 1 : 1) * op });
+    for (const m of mine) out.push({ l: m.l, a: m.a * part.veil * d.op }); // (the same order of multiplying as ever: same last digit)
   }
   return out;
 };
@@ -273,6 +309,10 @@ export const startNavTone = () => {
   const skip = (el) => nav.contains(el) || el.id === "toasts" || (el.closest && !!el.closest("#toasts, #offline-banner"));
   const measure = () => {
     if (document.hidden) return;
+    pass = new Map(); // (see describe: one reading of each element per measure)
+    try { measureNow(); } finally { pass = null; }
+  };
+  const measureNow = () => {
     const glass = document.documentElement.dataset.look === "glass";
     const off = !glass || !!document.querySelector(".player");
     for (const b of nav.querySelectorAll(TARGETS)) {

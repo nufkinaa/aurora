@@ -161,6 +161,12 @@ const PROXY_ART_HOSTS = new Set([
   "image.tmdb.org",
   "images.metahub.space",
   "live.metahub.space",
+  // Episode stills (a series page's list). These were the one kind of picture
+  // still fetched by the browser straight from the catalogue's own host: a
+  // second connection to open on a thin line, nothing kept by the server, and
+  // an outside party told which series this household is looking at. Same
+  // bytes, now through the server's cache like every other picture.
+  "episodes.metahub.space",
   "static.tvmaze.com",
   "commons.wikimedia.org",
   "upload.wikimedia.org",

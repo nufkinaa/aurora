@@ -1,0 +1,9 @@
+{
+  "name": "aurora-mobile-perf",
+  "private": true,
+  "description": "Mobile performance harness for the Aurora website (see README.md). Its own package so the server's dependencies stay as they are.",
+  "license": "MIT",
+  "devDependencies": {
+    "lighthouse": "^12.6.0"
+  }
+}

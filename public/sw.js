@@ -25,9 +25,19 @@ const API_KEEP = [
 const LIVE_ONLY = [/^\/stream\//, /^\/api\/admin\//, /^\/proxy/, /^\/avatars\//, /^\/offline\/file\//, /^\/api\/offline\//, /^\/api\/torrents\//];
 
 // Precache the whole shell from the server's manifest — every JS module and
-// stylesheet, plus "/" — bypassing the HTTP cache so what lands here is what
-// the server has now. Re-run whenever the manifest's version moves (the
-// page pings "precache" on every load; a deploy costs one refetch).
+// the stylesheet, plus "/" — so what lands here is what the server has now.
+// Re-run whenever the manifest's version moves (the page pings "precache" on
+// every load; a deploy costs one refetch).
+//
+// Each file is asked for with `cache: "no-cache"`: the browser checks with
+// the server (so the copy is current) but reuses what it already holds when
+// the server says it has not changed. It used to be "reload", which threw
+// away what the page had downloaded seconds earlier and fetched all of it a
+// second time — measured on a first visit: 74 requests and 760 KB on top of
+// the page's own 1.5 MB, at the page's own priority, before Home's data had
+// arrived. Four at a time and at low priority, so on a thin line it queues
+// behind whatever the page itself is asking for.
+const PRECACHE_AT_ONCE = 4;
 const precache = async () => {
   const res = await fetch("/sw-manifest.json", { cache: "no-store" });
   if (!res.ok) return;
@@ -35,12 +45,26 @@ const precache = async () => {
   const c = await caches.open(SHELL);
   const stamp = await c.match("/__shell-version");
   if (stamp && (await stamp.text()) === manifest.version) return;
-  await Promise.all(
-    (manifest.files || []).map((f) =>
-      fetch(new Request(f, { cache: "reload" })).then((r) => (r.ok ? c.put(f, r) : null)).catch(() => null),
-    ),
-  );
-  await c.put("/__shell-version", new Response(manifest.version));
+  const files = (manifest.files || []).slice();
+  let failed = 0;
+  const worker = async () => {
+    while (files.length) {
+      const f = files.shift();
+      // { url, from }: stored under `url` (what the app asks for offline),
+      // fetched from `from` — the content-addressed address the page itself
+      // loaded, so the HTTP cache answers and nothing is downloaded twice
+      const key = typeof f === "string" ? f : f.url;
+      const from = typeof f === "string" ? f : f.from || f.url;
+      try {
+        const r = await fetch(new Request(from, { cache: "no-cache", priority: "low" }));
+        if (r.ok) await c.put(key, r);
+        else failed++;
+      } catch { failed++; }
+    }
+  };
+  await Promise.all(Array.from({ length: PRECACHE_AT_ONCE }, worker));
+  // (a copy with holes is not stamped: the next load tries again)
+  if (!failed) await c.put("/__shell-version", new Response(manifest.version));
 };
 
 self.addEventListener("install", (e) => {
@@ -185,7 +209,12 @@ self.addEventListener("fetch", (e) => {
       .then((res) => {
         if (res.ok && (req.mode === "navigate" || /\.(js|css|html)$/.test(p) || p === "/")) {
           const copy = res.clone();
-          caches.open(SHELL).then((c) => c.put(req, copy)).catch(() => {});
+          // A content-addressed file (…?v=<hash>) is kept under its plain
+          // path: one copy per file, replaced by the next version, instead of
+          // one more entry for every version this phone ever saw. (The
+          // offline fallback below already looks a file up without its query.)
+          const key = /[?&]v=/.test(url.search) && req.mode !== "navigate" ? p : req;
+          caches.open(SHELL).then((c) => c.put(key, copy)).catch(() => {});
         }
         return res;
       })

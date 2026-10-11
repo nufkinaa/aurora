@@ -169,6 +169,7 @@ const EXT_IMG_HOSTS = new Set([
   "image.tmdb.org",
   "images.metahub.space",
   "live.metahub.space",
+  "episodes.metahub.space", // episode stills (ui.js PROXY_ART_HOSTS has the why)
   "static.tvmaze.com",
   // X-Ray portraits for films (media/xray.js): Commons' FilePath redirect
   // and the upload host it lands on

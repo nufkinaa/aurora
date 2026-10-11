@@ -479,22 +479,45 @@ router.get("/sw-manifest.json", (req, res) => {
   const fs = require("fs");
   const pub = path.join(__dirname, "..", "..", "public");
   if (Date.now() - shellManifest.at > 30000 || !shellManifest.data) {
-    // the bundled stylesheet the shell actually loads, plus the sources
-    const files = ["/", "/index.html", "/css/aurora.css"];
+    // What the app shell is made of: the page, the ONE stylesheet it loads
+    // (the bundle — the six source sheets used to be listed too, 76 KB a
+    // phone downloaded and nothing ever asked its cache for) and every
+    // module. A module is listed as { url, from }: kept by the worker under
+    // `url`, fetched from `from` — the content-addressed address the page
+    // itself loaded (lib/jsassets.js), so the browser's cache answers and the
+    // worker's copy costs no second download.
+    const files = ["/", "/index.html"];
     let stamp = 0;
-    const walk = (dir, prefix) => {
+    let made = "";
+    try {
+      const assetver = require("../lib/assetver");
+      const v = assetver.versionFor(path.join(pub, "css", "aurora.css"));
+      files.push(v ? { url: "/css/aurora.css", from: `/css/aurora.css?v=${v}` } : "/css/aurora.css");
+      made += v || "";
+    } catch { files.push("/css/aurora.css"); }
+    const jsassets = require("../lib/jsassets");
+    const walk = (dir, prefix, list) => {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (e.isDirectory()) walk(path.join(dir, e.name), `${prefix}/${e.name}`);
+        if (e.isDirectory()) walk(path.join(dir, e.name), `${prefix}/${e.name}`, list);
         else if (/\.(js|css)$/.test(e.name)) {
-          files.push(`${prefix}/${e.name}`);
+          if (list) {
+            const url = `${prefix}/${e.name}`;
+            const a = jsassets.asset(pub, url);
+            files.push(a ? { url, from: `${url}?v=${a.hash}` } : url);
+            made += a ? a.hash : "";
+          }
           try { stamp = Math.max(stamp, Math.floor(fs.statSync(path.join(dir, e.name)).mtimeMs)); } catch {}
         }
       }
     };
-    for (const sub of ["js", "css"]) {
-      try { walk(path.join(pub, sub), `/${sub}`); } catch {}
-    }
-    shellManifest = { at: Date.now(), data: { version: String(stamp), files } };
+    try { walk(path.join(pub, "js"), "/js", true); } catch {}
+    try { walk(path.join(pub, "css"), "/css", false); } catch {} // (the bundle's sources: they move the version)
+    try { stamp = Math.max(stamp, Math.floor(fs.statSync(path.join(pub, "index.html")).mtimeMs)); } catch {}
+    // The version: the newest file's time AND what is actually served — the
+    // same sources re-printed differently (esbuild added or removed) are a
+    // different shell.
+    const version = `${stamp}-${require("crypto").createHash("md5").update(made).digest("hex").slice(0, 8)}`;
+    shellManifest = { at: Date.now(), data: { version, files } };
   }
   res.setHeader("Cache-Control", "no-store");
   res.json(shellManifest.data);

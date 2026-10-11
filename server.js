@@ -343,6 +343,13 @@ app.get("/tv-version.json", (req, res, next) => {
   res.json(a);
 });
 
+// The website's modules: re-printed without comments, content-addressed and
+// pre-compressed (src/lib/jsassets.js). /js/x.js?v=<its hash> is immutable;
+// /js/x.js without one is what it always was — no-cache, an ETag, cheap 304s.
+// A path it does not know falls through to the static mount below.
+// (x.js.map: the way back to the file as written, for developer tools.)
+app.get(/^\/js\/.+\.js(?:\.map)?$/, require("./src/lib/jsassets").serve(path.join(__dirname, "public")));
+
 // Code revalidates on every load (cheap 304s) so updates land instantly;
 // images can cache for a day. The one exception: a CSS request that carries
 // the ?v= content hash the shells inject (assetver.js) is immutable — its
