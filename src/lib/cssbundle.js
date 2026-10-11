@@ -100,4 +100,17 @@ const get = (cssDir) => {
   return cache;
 };
 
-module.exports = { ORDER, minify, get };
+// The bundle compressed, once per version of it ("br" or "gzip"; null for
+// anything else). It is 38 KB of text that only changes with a release, and
+// the compression middleware was compressing it again for every request
+// (6-13 ms of CPU each on a two-core box).
+const zlib = require("zlib");
+const BROTLI_QUALITY = 6; // the quality server.js gives the middleware
+const compressed = (cssDir, encoding) => {
+  const c = get(cssDir);
+  if (encoding === "br") return c.br || (c.br = zlib.brotliCompressSync(Buffer.from(c.css, "utf8"), { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: BROTLI_QUALITY } }));
+  if (encoding === "gzip") return c.gzip || (c.gzip = zlib.gzipSync(Buffer.from(c.css, "utf8")));
+  return null;
+};
+
+module.exports = { ORDER, minify, get, compressed };

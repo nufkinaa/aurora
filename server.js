@@ -269,6 +269,15 @@ app.get("/css/aurora.css", (req, res) => {
   res.setHeader("ETag", `"${hash}"`);
   res.setHeader("Cache-Control", req.query.v ? "public, max-age=31536000, immutable" : "no-cache");
   if (req.headers["if-none-match"] === `"${hash}"`) return res.status(304).end();
+  // compressed once per version, not once per request (cssbundle.compressed);
+  // the compression middleware sees Content-Encoding and leaves it alone
+  const enc = req.headers["x-no-compression"] ? null : require("./src/lib/answermemo")._internals.pickEncoding(req.headers["accept-encoding"]);
+  const packed = enc ? cssbundle.compressed(path.join(__dirname, "public", "css"), enc) : null;
+  if (packed) {
+    res.setHeader("Content-Encoding", enc);
+    res.vary("Accept-Encoding");
+    return res.send(packed);
+  }
   res.send(css);
 });
 

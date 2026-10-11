@@ -172,7 +172,7 @@ const EXT_IMG_HOSTS = new Set([
 const EXT_IMG_DIR = path.join(configLib().CACHE_DIR, "posters-web");
 const MAX_EXT_IMAGES = 4000; // count cap; the byte cap below bounds each file
 const MAX_EXT_IMAGE_BYTES = 6 * 1024 * 1024; // backdrops can be big; originals aren't welcome
-const { MIN_IMAGE_BYTES, magicOk, sniffMime, validImageFile, readHead } = require("../lib/imgcheck");
+const { MIN_IMAGE_BYTES, magicOk, validImageFile, mimeOfFile } = require("../lib/imgcheck");
 const crypto = require("crypto");
 try { fs.mkdirSync(EXT_IMG_DIR, { recursive: true }); } catch {}
 // Sweep with HYSTERESIS, every 100th write only: a per-write readdir+stat of
@@ -256,8 +256,7 @@ const sendArt = async (res, file, width, blur, fmt) => {
   const opts = { blur, fmt, client: artClient(res) };
   const v = width || blur ? await imgVariant(file, width, opts) : null;
   const out = v || file;
-  const head = readHead(out);
-  res.setHeader("Content-Type", head ? sniffMime(head) : "image/jpeg");
+  res.setHeader("Content-Type", mimeOfFile(out) || "image/jpeg");
   // (the original sent because the variant queue was full is kept for a
   // minute only: the variant is asked for again once the rush is over)
   res.setHeader("Cache-Control", opts.shed ? "public, max-age=60" : "public, max-age=604800");
@@ -448,15 +447,20 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
   try {
     const st = fs.statSync(entry.path);
     const key = `${req.params.id}-${Math.floor(st.mtimeMs)}`;
-    const fd = fs.openSync(entry.path, "r");
-    const readRange = async (start, len) => {
-      const b = Buffer.alloc(len);
-      fs.readSync(fd, b, 0, len, start);
-      return b;
-    };
-    const table = await jit.tableFor(key, readRange, st.size).finally(() => {
-      try { fs.closeSync(fd); } catch {}
-    });
+    // The index already in memory (every playlist after the first for this
+    // file): the film is not opened just to be closed again.
+    let table = await jit.tableFor(key, null, 0);
+    if (!table) {
+      const fd = fs.openSync(entry.path, "r");
+      const readRange = async (start, len) => {
+        const b = Buffer.alloc(len);
+        fs.readSync(fd, b, 0, len, start);
+        return b;
+      };
+      table = await jit.tableFor(key, readRange, st.size).finally(() => {
+        try { fs.closeSync(fd); } catch {}
+      });
+    }
     // Permanent property of the file (not MKV / no usable Cues) — 404, so
     // the client falls back and nothing reads it as a server fault.
     if (!table) return res.status(404).send("No usable index in this file");
