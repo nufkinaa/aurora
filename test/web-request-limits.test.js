@@ -177,6 +177,11 @@ test("the answers the page asked for early are held to the same clock, counted f
 
 test("a history read that timed out is \"could not be read\": nothing is marked as known, so the player will not save over it", async (t) => {
   const { state, refreshProgress } = await load("state.js");
+  // refreshProgress ends by reading the device's own queue (offline.js, loaded
+  // when first needed): loaded here, so that no test step waits on the disk —
+  // and each step below waits for the read to END, however long the machine takes
+  await load("offline.js").catch(() => {});
+  const ended = async (o) => { for (let i = 0; i < 5000 && !o.done; i++) await new Promise((r) => setImmediate(r)); };
   await withPage(t, async ({ calls, tick }) => {
     state.profile = { id: "p1", name: "P" };
     state.historyOf = null;
@@ -187,7 +192,7 @@ test("a history read that timed out is \"could not be read\": nothing is marked 
     await tick(19000);
     assert.equal(o.done, false, "boot is still waiting for the history");
     await tick(1000);
-    await settle();
+    await ended(o);
     assert.equal(o.done, true, "20 s: boot goes on without it — no blank page for ever");
     assert.equal(o.value, false, "the read is reported as failed");
     assert.equal(state.historyOf, null, "and the history is NOT known (player.js: historyKnown() === false → it refuses to save)");
@@ -197,7 +202,7 @@ test("a history read that timed out is \"could not be read\": nothing is marked 
     const next = outcome(refreshProgress());
     await settle();
     calls[1].resolve(jsonResponse({ progress: { x1: { position: 3000, duration: 6000 } } }));
-    await settle();
+    await ended(next);
     assert.equal(next.value, true);
     assert.equal(state.historyOf, "p1");
     assert.equal(state.progress.x1.position, 3000);
@@ -206,7 +211,7 @@ test("a history read that timed out is \"could not be read\": nothing is marked 
     const third = outcome(refreshProgress());
     await settle();
     await tick(20000);
-    await settle();
+    await ended(third);
     assert.equal(third.value, false);
     assert.equal(state.historyOf, "p1");
     assert.equal(state.progress.x1.position, 3000);
