@@ -356,8 +356,10 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
   let room = activeCount() - victims.length < Math.max(MAX_ACTIVE, budget.slots());
   if (room && vcodec !== "copy") {
     let load = 0;
-    try { load = require("./cpuwork").viewer.cost(); } catch {}
+    // (an encoder whose viewer has gone is not counted, and is stopped when this one is let in)
+    try { load = require("./cpuwork").viewer.load(); } catch {}
     room = budget.admit({ cost, memMb, running: Math.max(0, load - victimCost), essential: true, replacing: victims.length > 0 }).ok;
+    if (room) { try { require("./cpuwork").viewer.reclaim(); } catch {} }
   }
   if (!room) {
     try { require("../lib/signals").hit("no-encoder", "torrent"); } catch {}

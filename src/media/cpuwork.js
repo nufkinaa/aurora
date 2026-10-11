@@ -39,6 +39,25 @@
 //       (encbudget.js watches), the newest background job is SHED: stopped
 //       and put back in its queue (background.shedNewest).
 //
+//   A viewer encoder whose viewer has GONE (viewer.track's `idle` — the
+//   ladder says so of an encoder nobody has asked anything of for a while)
+//   is still running, but it is nobody's: viewer.load() leaves it out of
+//   what an admission counts, and viewer.reclaim() stops it when another
+//   viewer's encode is let in.
+//
+//   SPECULATIVE work is a start made ready before anybody pressed Play (the
+//   ladder's warm-up of an ENCODED rendition's first seconds, jit.js
+//   warmSegment). It is nobody's yet:
+//     - it is never in the viewers' registry — no admission counts it, so it
+//       cannot take a viewer's room or cause one to be refused or degraded;
+//     - it is stopped the moment ANY viewer encode registers (viewer.track),
+//       and it is the first thing shed when the viewers' encoders fall
+//       behind (background.shedNewest) — before any background job;
+//     - background work is not held back for it;
+//     - when its viewer does come, its owner takes it out of here and
+//       registers it as viewer work (speculative.track → release, then
+//       viewer.track).
+//
 // Everything that touches the OS is a replaceable dependency (deps), so the
 // rules are tested without a process.
 "use strict";
@@ -86,7 +105,14 @@ const viewer = {
   // entry ({ id, release, … }); `meta`: { kind, label, cost, memMb }.
   track(child, meta = {}) {
     const id = ++viewerSeq;
-    const entry = { id, kind: meta.kind || "encode", label: meta.label || "", cost: meta.cost || 1, memMb: meta.memMb || 0, since: deps.now(), pid: child && child.pid, release: null };
+    const entry = {
+      id, kind: meta.kind || "encode", label: meta.label || "", cost: meta.cost || 1, memMb: meta.memMb || 0, since: deps.now(), pid: child && child.pid, release: null,
+      // `idle()`: its viewer has gone (it is still running); `reclaim()`: stop it
+      idle: typeof meta.idle === "function" ? meta.idle : null,
+      reclaim: typeof meta.reclaim === "function" ? meta.reclaim : null,
+    };
+    // a viewer is being encoded for: nothing speculative runs beside it
+    speculative.shedAll("a viewer's encoder started");
     viewers.set(id, entry);
     entry.release = whenGone(child, () => {
       if (!viewers.delete(id)) return;
@@ -98,13 +124,57 @@ const viewer = {
   },
   count: () => viewers.size,
   busy: () => viewers.size > 0,
-  list: () => [...viewers.values()].map(({ release, ...v }) => v),
+  list: () => [...viewers.values()].map(({ release, idle, reclaim, ...v }) => ({ ...v, idle: isIdle({ idle }) })),
   // Has no viewer encode been running for the quiet period?
   quiet: (now = deps.now()) => viewers.size === 0 && now - lastViewerEndedAt >= QUIET_MS,
   // what is being encoded for viewers, in the budget's units (encbudget.js);
   // `only`: a filter on the entries
   cost: (only = null) => { let c = 0; for (const v of viewers.values()) if (!only || only(v)) c += v.cost; return c; },
   memMb: () => { let m = 0; for (const v of viewers.values()) m += v.memMb; return m; },
+  // What an admission counts: the same, less the encoders whose viewer has
+  // gone (see track's `idle`) — they are stopped when the room is wanted.
+  load: (only = null) => { let c = 0; for (const v of viewers.values()) if (!isIdle(v) && (!only || only(v))) c += v.cost; return c; },
+  // Another viewer's encode was let in: stop the ones whose viewer has gone.
+  // Returns how many were asked to stop.
+  reclaim: () => {
+    let n = 0;
+    for (const v of [...viewers.values()]) {
+      if (!isIdle(v) || !v.reclaim) continue;
+      try { v.reclaim(); n++; } catch {}
+    }
+    return n;
+  },
+};
+const isIdle = (v) => { try { return !!(v.idle && v.idle()); } catch { return false; } };
+
+// -------------------------------------------------------- speculative work
+
+const specs = new Map(); // id -> { kind, label, cost, memMb, since, pid, onShed }
+let specSeq = 0;
+const speculative = {
+  // Register a speculative process until it is gone, shed, or released by
+  // its owner (who then registers it as viewer work). Returns { id, release }.
+  // meta: { kind, label, cost, memMb, onShed(why) } — onShed stops it.
+  track(child, meta = {}) {
+    const id = ++specSeq;
+    specs.set(id, { id, kind: meta.kind || "warm-up", label: meta.label || "", cost: meta.cost || 1, memMb: meta.memMb || 0, since: deps.now(), pid: child && child.pid, onShed: typeof meta.onShed === "function" ? meta.onShed : null });
+    const release = () => { specs.delete(id); };
+    whenGone(child, release);
+    return { id, release };
+  },
+  count: () => specs.size,
+  list: () => [...specs.values()].map(({ onShed, ...s }) => s),
+  // Stop every speculative process. Returns how many.
+  shedAll(why = "") {
+    let n = 0;
+    for (const s of [...specs.values()]) {
+      specs.delete(s.id);
+      stats.specShed++;
+      try { if (s.onShed) s.onShed(why); } catch {}
+      n++;
+    }
+    return n;
+  },
 };
 
 // --------------------------------------------------------- background work
@@ -113,7 +183,7 @@ const jobs = new Map(); // id -> { kind, label, weight, child, pausable, paused,
 const waiters = []; // { weight, kind, meta, resolve }
 let bgSeq = 0;
 let quietTimer = null;
-const stats = { started: 0, paused: 0, resumed: 0, shed: 0, heldBack: 0 };
+const stats = { started: 0, paused: 0, resumed: 0, shed: 0, heldBack: 0, specShed: 0 };
 
 const used = () => { let u = 0; for (const j of jobs.values()) u += j.weight; return u; };
 const weightOf = (kind) => (WEIGHTS[kind] == null ? 1 : WEIGHTS[kind]);
@@ -201,6 +271,12 @@ const background = {
   // The viewers' encoders are falling behind: stop the newest background job
   // that can be put back in its queue. Returns its label, or null.
   shedNewest(why = "") {
+    // what nobody is waiting for at all goes first
+    if (specs.size) {
+      const label = [...specs.values()].map((x) => x.label || x.kind).join(", ");
+      speculative.shedAll(why);
+      return label;
+    }
     const cand = [...jobs.values()].filter((j) => typeof j.onShed === "function" && j.child).sort((x, y) => y.since - x.since || y.id - x.id)[0];
     if (!cand) return null;
     stats.shed++;
@@ -230,6 +306,7 @@ const background = {
 const status = () => ({
   viewers: viewer.list(),
   background: background.list(),
+  speculative: speculative.list(),
   backgroundBudget: BUDGET,
   backgroundUsed: used(),
   waiting: waiters.map((w) => w.kind),
@@ -242,6 +319,7 @@ const status = () => ({
 
 const _reset = () => {
   viewers.clear();
+  specs.clear();
   jobs.clear();
   waiters.length = 0;
   lastViewerEndedAt = 0;
@@ -249,4 +327,4 @@ const _reset = () => {
   for (const k of Object.keys(stats)) stats[k] = 0;
 };
 
-module.exports = { viewer, background, status, PRIORITY, QUIET_MS, BUDGET, WEIGHTS, _internals: { deps, jobs, viewers, waiters, stats, drain, _reset } };
+module.exports = { viewer, background, speculative, status, PRIORITY, QUIET_MS, BUDGET, WEIGHTS, _internals: { deps, jobs, viewers, waiters, stats, drain, _reset } };

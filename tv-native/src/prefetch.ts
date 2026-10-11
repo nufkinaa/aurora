@@ -10,6 +10,7 @@
 // show something different from what it would have fetched itself, and a
 // warm that is never used costs one small request on an idle connection.
 import {api, HeroItem} from './api';
+import {refreshTuning} from './playback/tuning';
 
 let profileId: string | null = null;
 export const setPrefetchProfile = (id: string | null) => {
@@ -29,6 +30,8 @@ export const warmSections = () => {
     () => api.catalogGenres('movie'),
     () => api.catalogGenres('show'),
     () => api.changelog(),
+    // the player's start-up tuning, so the first film of the evening has it
+    () => Promise.resolve(refreshTuning()),
   ];
   let i = 0;
   const next = () => {

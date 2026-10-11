@@ -207,6 +207,19 @@ export const savedToken = (profileId) => {
   try { return sessionStorage.getItem(`aurora-token-${profileId}`); } catch { return null; }
 };
 
+// When the profile's history was last READ from the server (and whose it
+// was): a screen that has just read it need not make the next one wait for
+// the same answer again (the player, opened from a title page — see
+// progressAge). Only a read that SUCCEEDED counts, and only while the
+// history this tab holds is still that profile's: a read that failed leaves
+// the age at "never", so the player asks again and its "could not read the
+// history → do not save over it" rule decides as it always has.
+let progressRead = { at: 0, profile: null };
+export const progressAge = () =>
+  state.profile && progressRead.profile === state.profile.id && state.historyOf === state.profile.id
+    ? Date.now() - progressRead.at
+    : Infinity;
+
 // Resolves true when the history was read from the server just now, false
 // when it could not be (the player refuses to save over a history it could
 // not read — see player.js).
@@ -218,6 +231,7 @@ export const refreshProgress = async () => {
     const { progress, ratings, likedGenres, episodeProgress, streamProgress } =
       await api.profileState(pid);
     if (!state.profile || state.profile.id !== pid) return false; // the profile changed while this was on its way
+    progressRead = { at: Date.now(), profile: pid };
     state.progress = progress || {};
     state.ratings = ratings || {};
     state.likedGenres = likedGenres || [];

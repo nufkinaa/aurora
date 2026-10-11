@@ -96,6 +96,7 @@ const SEGMENTS = new Set((
   "signout-everywhere signup similar sources start state stats status still stream sub subtitle subtitles suggest taste telemetry timeseries today torrent " +
   "torrents trailer transcode tree tv-app unban unlock update update-check upnext-dismiss usage video watch-history watchlist web web-callback web-finish " +
   "web-start websub wrapped xray errors alert-rules " +
+  "bye tuning tv " + // the player's goodbye beacon (/stream/transcode/:id/jit/bye), /api/tv/tuning
   "stores accept ack drill encoding calibrate " +
   "js screens vendor ws " +
   ".m3u8 .ts .m4s .mp4 .mkv .webm .vtt .srt .jpg .jpeg .png .webp .avif .svg .gif .ico .js .css .json .html .txt .apk .woff2 .webmanifest " +

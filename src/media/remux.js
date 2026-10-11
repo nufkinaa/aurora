@@ -31,7 +31,10 @@ const busyError = (message) => Object.assign(new Error(message), { busy: true, r
 // Everything being encoded for viewers right now, in the budget's units:
 // this module's jobs, the ladder's and the torrent side's all register
 // themselves (cpuwork.js).
-const viewerLoad = () => { try { return require("./cpuwork").viewer.cost(); } catch { return 0; } };
+// (An encoder whose viewer has gone is not counted — viewer.load — and is
+// stopped when a job is let in: reclaimIdle.)
+const viewerLoad = () => { try { return require("./cpuwork").viewer.load(); } catch { return 0; } };
+const reclaimIdle = () => { try { require("./cpuwork").viewer.reclaim(); } catch {} };
 
 const jobs = new Map(); // dir -> {proc, done, heavy, lastAccess}
 
@@ -403,6 +406,7 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
       try { require("../lib/signals").hit("no-encoder", cap ? "lighter" : "transcode"); } catch {}
       return Promise.reject(busyError(cap ? "Server is busy — the lighter stream isn't available right now" : "Server is busy transcoding other streams — try again in a moment"));
     }
+    reclaimIdle();
   }
 
   fs.mkdirSync(dir, { recursive: true });

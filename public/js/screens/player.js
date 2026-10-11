@@ -2,7 +2,7 @@
 // ±10s, subtitle + speed menus, Up Next auto-advance, server-side resume.
 import { el, icons, fmtClock, toast, formatRow } from "../ui.js";
 import { api } from "../api.js";
-import { state, progressFor, titleProgressFor, refreshProgress, readyDownloads } from "../state.js";
+import { state, progressFor, titleProgressFor, refreshProgress, progressAge, readyDownloads } from "../state.js";
 import { navigate, cameFrom } from "../router.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
@@ -14,6 +14,7 @@ import { uiHit, reportError, playMounted, playFirstFrame, playGone } from "../te
 import { playCap, capFor, netTier, measured, probe, dataMode } from "../net.js";
 import { followVideo } from "../glassTone.js";
 import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio } from "../lang.js";
+import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM } from "../playstart.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -182,37 +183,331 @@ export const copyableFor = (v, video, nativeHls) =>
   ((v.codec === "h264" && (v.bitDepth || 8) <= 8) ||
     (v.codec === "hevc" && (nativeHls || !!video.canPlayType('video/mp4; codecs="hvc1.2.4.L123.B0"'))));
 
-// Start the server side of playback for a library title BEFORE the tap: the
-// same first request the player would make (the jit full-timeline playlist,
-// or the h264 offset job) — so the index/first segment is ready when Play
-// lands. Direct-play files have nothing to warm. Torrents are never warmed
-// here (that would join a swarm). Returns the URL asked, or null.
-let probeEl = null;
-export const warmPlayback = (item) => {
+// ---------- the start, ahead of time ----------
+// Everything between the press on Play and the first segment used to be a
+// queue of round trips, one waiting for the other: the profile's progress,
+// the stream's master playlist (asked once by the player to see that it is
+// there), hls.js itself, the master again (asked by hls.js), the rendition's
+// playlist, the segment. On a far server each is a fifth of a second and
+// more (measured 2026-10-10, tools/ttff: six in a row, 1.9 s before the first
+// media byte at 200 ms). None of the first five depends on another's answer
+// beyond "the master names the rendition playlists" — so they are asked
+// together, as early as the title is known, and what comes back is kept for
+// the moments the player and hls.js ask for the same thing.
+
+// hls.js, once (two calls while it is on its way used to add two <script>s).
+let hlsScript = null;
+const loadHlsScript = () => {
+  if (window.Hls) return Promise.resolve();
+  if (!hlsScript) {
+    hlsScript = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "/js/vendor/hls.min.js";
+      s.onload = resolve;
+      s.onerror = () => { hlsScript = null; s.remove(); reject(new Error("hls.js did not load")); };
+      document.head.append(s);
+    });
+  }
+  return hlsScript;
+};
+
+// Playlists asked for ahead of their moment: absolute URL -> { at, p }, where
+// p resolves to { ok, status, text }. An answer is used for PRE_TTL_MS and no
+// longer — a master names the renditions the server could make THEN.
+const PRE_TTL_MS = 30000;
+const pre = new Map();
+const absUrl = (u) => {
+  try { return new URL(u, location.href).href; } catch { return u; }
+};
+// `fresh`: ask the server whatever is kept (a change of quality mid-film must
+// see the renditions the server can make NOW, not the ones of half a minute
+// ago) — the new answer replaces the kept one.
+// `hint`: the start hint for the server (X-Aurora-Start — see prestart).
+const preflight = (url, { low = false, fresh = false, hint = null } = {}) => {
+  const key = absUrl(url);
+  const hit = pre.get(key);
+  if (!fresh && hit && Date.now() - hit.at < PRE_TTL_MS) return hit.p;
+  const p = fetch(url, { cache: "no-store", ...(low ? { priority: "low" } : {}), ...(hint ? { headers: { "X-Aurora-Start": hint } } : {}) })
+    // (`retryAfter`: seconds — the server's "busy, ask again" on a 503)
+    .then(async (r) => ({ ok: r.ok, status: r.status, text: r.ok ? await r.text() : "", retryAfter: r.ok ? 0 : parseFloat(r.headers.get("Retry-After")) || 0 }))
+    .catch(() => ({ ok: false, status: 0, text: "", retryAfter: 0 }));
+  if (pre.size > 40) pre.clear();
+  pre.set(key, { at: Date.now(), p });
+  // a refusal is never kept: the next ask goes to the server again
+  p.then((r) => { if (!r.ok && pre.get(key) && pre.get(key).p === p) pre.delete(key); });
+  return p;
+};
+// What was asked ahead for this URL, if it is still good (else null) — handed
+// over ONCE: it is for the start it was asked for. A stream that is rebuilt
+// later (a recovery, a retry) asks the server, whose answer may have changed.
+const takePreflight = (url) => {
+  const key = absUrl(url);
+  const hit = pre.get(key);
+  if (!hit) return null;
+  pre.delete(key);
+  return Date.now() - hit.at < PRE_TTL_MS ? hit.p : null;
+};
+// The rendition playlists a master names (playstart.js), with their
+// addresses made absolute against this page.
+const masterVariants = (text, masterUrl) => variantsOf(text, absUrl(masterUrl));
+
+// ---------- segments, played as they arrive ----------
+// hls.js can hand a segment to the decoder while it is still downloading
+// ("progressive", its fetch loader). Our segments are long — at least six
+// seconds, ten where the film's keyframes are ten apart — so without it the
+// first frame waits for megabytes it does not need: 3 MB at 3 Mbit/s is
+// eight seconds, where the first picture is in the first few hundred kB.
+// Measured 2026-10-10 (tools/ttff, docs/qa/ttff/REPORT.md): on a 3 Mbit/s
+// line the first frame of a repackaged film at 1.5 s instead of 8; on a far
+// fast line a second sooner; the repackaged-stream browser tests (seeking,
+// subtitles, audio switch, resume, stall recovery) pass with it.
+// hls.js still calls the mode experimental, so it has a switch:
+//   localStorage["aurora-hls-progressive"] = "0"  off      "1"  on
+// and is off by itself where the browser has no streaming fetch.
+const PROGRESSIVE_DEFAULT = true;
+const progressiveOn = () => {
+  let v = null;
+  try { v = localStorage.getItem("aurora-hls-progressive"); } catch {}
+  if (v === "0") return false;
+  if (v !== "1" && !PROGRESSIVE_DEFAULT) return false;
+  try { return !!(self.fetch && self.AbortController && self.ReadableStream && self.Request); } catch { return false; }
+};
+
+// ---------- which rung a ladder starts on ----------
+// What this device's line carried the last time a film played here, in
+// kbit/s: hls.js's own running estimate, kept (on the device) so the NEXT
+// start does not have to begin blind. The page's general line measurement
+// (net.js) cannot stand in for it: it times small answers that arrive in one
+// burst, and read a 3 Mbit/s line as 65 (measured 2026-10-10).
+const LINE_KEY = "aurora-line-kbps";
+const LINE_TTL_MS = 14 * 24 * 3600 * 1000;
+export const lineKbps = () => {
   try {
-    if (!item || item._isTorrent || item.magnet || String(item.id || "").startsWith("torrent|") || item._offline) return null;
-    if (!item.transcodeBase) return null;
-    const video = probeEl || (probeEl = document.createElement("video"));
-    const nativeHls = nativeHlsFor(video);
-    const needV = videoTranscodeFor(item, video);
-    const needA = audioRemuxFor(item, video);
-    const copyable = copyableFor(item.video || {}, video, nativeHls);
-    // the three server-backed branches of renderPlayer's start decision
-    const hevcMkv = !nativeHls && item.video && item.video.codec === "hevc" && /mkv|matroska/i.test(item.container || "") && copyable;
-    let url = null;
-    if (hevcMkv || (needV && copyable) || (!needV && needA)) {
-      const isHevc = item.video && item.video.codec === "hevc";
-      url = `${item.transcodeBase}/jit/index.m3u8${nativeHls ? `?seg=fmp4${isHevc ? "&vtag=hvc1" : ""}` : ""}`;
-    } else if (needV) {
-      url = `${item.transcodeBase}/0/index.m3u8?v=h264`;
+    const j = JSON.parse(localStorage.getItem(LINE_KEY) || "null");
+    return j && j.kbps > 0 && Date.now() - j.at < LINE_TTL_MS ? j.kbps : 0;
+  } catch {
+    return 0;
+  }
+};
+const rememberLine = (kbps) => {
+  if (!(kbps > 0) || !Number.isFinite(kbps)) return;
+  // (a segment read back from the browser's own cache "arrives" at gigabits)
+  try { localStorage.setItem(LINE_KEY, JSON.stringify({ kbps: Math.round(Math.min(kbps, 500000)), at: Date.now() })); } catch {}
+};
+// Where a title picks up: this exact file first, else the title's shared
+// history (the same episode watched from another source resumes where it
+// stopped). 0 = from the top.
+const resumePoint = (item, restart = false) => {
+  const p = progressFor(item.id) || titleProgressFor(item);
+  return !restart && p && !p.finished && p.position > 10 && (!item.duration || p.position < item.duration - 20)
+    // four seconds early: you come back mid-sentence otherwise, and the
+    // last thing you saw is the first thing you see (2026-10-07)
+    ? Math.max(0, Math.floor(p.position) - 4)
+    : 0;
+};
+// The track a title starts on: the one the server marked `original`, unless
+// this viewer chose a dub last time (the language follows the profile).
+const startAudioIdx = (item) => {
+  const tracks = (item && item.audioTracks) || [];
+  const orig = tracks.find((t) => t.original);
+  const liked = profilePick("audioLang");
+  const mine = liked ? tracks.find((t) => sameAudio(t.language, liked)) : null;
+  const pick = mine || orig;
+  const oi = pick ? (pick.index != null ? pick.index : tracks.indexOf(pick)) : 0;
+  return oi > 0 ? oi : 0;
+};
+
+// The URL of a title's jit stream — the master playlist of its quality
+// ladder, or the single playlist. ONE place: the player (tryJitSwitch) and
+// the early asks (prestart) must name the same thing or nothing is shared.
+const jitUrlFor = (item, { isTorrent = false, nativeHls = false, isHevc = false, top = "copy", useLadder = false, audioIdx = 0 } = {}) => {
+  const base = isTorrent ? item.transcodeBase : `/stream/transcode/${item.id}`;
+  const q = [
+    nativeHls && "seg=fmp4",
+    nativeHls && isHevc && top === "copy" && "vtag=hvc1",
+    useLadder && top === "h264" && "top=h264",
+    useLadder && audioIdx > 0 && `a=${audioIdx}`,
+  ].filter(Boolean).join("&");
+  return `${base}/jit/${useLadder ? "master" : "index"}.m3u8${q ? `?${q}` : ""}`;
+};
+// Can this browser move between an HEVC level and an H.264 one in one
+// stream? (MediaSource with changeType — hls.js uses it for exactly this.)
+const ladderMixedOk = () => {
+  try {
+    const MS = window.ManagedMediaSource || window.MediaSource;
+    const SB = window.ManagedSourceBuffer || window.SourceBuffer;
+    return !!(MS && SB && SB.prototype && typeof SB.prototype.changeType === "function");
+  } catch {
+    return false;
+  }
+};
+
+// hls.js's playlist loader, taught to take a playlist that was asked ahead
+// (preflight) instead of asking the server for it a second time. Anything
+// not asked ahead — or refused, or gone stale — is loaded as it always was.
+// Fragments are not its business: only the manifest and the rendition
+// playlists come through a playlist loader.
+let PreLoader = null;
+const preLoaderFor = (Hls) => {
+  if (PreLoader) return PreLoader;
+  const Base = Hls.DefaultConfig.loader;
+  PreLoader = class extends Base {
+    load(context, config, callbacks) {
+      const ahead = context && context.url ? takePreflight(context.url) : null;
+      if (!ahead) return super.load(context, config, callbacks);
+      this.preGone = false;
+      ahead.then((r) => {
+        if (this.preGone) return;
+        if (!r || !r.ok || !r.text) return super.load(context, config, callbacks);
+        const now = performance.now();
+        const stats = this.stats;
+        stats.loading.start = stats.loading.first = stats.loading.end = now;
+        stats.loaded = stats.total = r.text.length;
+        callbacks.onSuccess({ url: context.url, data: r.text, code: 200 }, stats, context, null);
+      });
     }
-    if (!url) return null;
-    fetch(url, { cache: "no-store", priority: "low" }).catch(() => {});
-    return url;
+    abort() {
+      this.preGone = true;
+      super.abort();
+    }
+    destroy() {
+      this.preGone = true;
+      super.destroy();
+    }
+  };
+  return PreLoader;
+};
+
+// A LONG INDEX ON A THIN LINE. An MP4 that this device plays as the file
+// itself shows nothing until the browser holds its whole index (the moov
+// box): 2.5 MB for an hour of film, 4–9 MB for a long one (the owner's
+// library, 2026-10-10) — seven to twenty-five seconds of a 3 Mbit/s line
+// before the first frame, where the same film as a stream starts on a few
+// kB of playlist and the head of a segment. So when this device KNOWS its
+// line (lineKbps — what it carried the last time a film played here, the
+// index's own download included) and the stream would save more than a
+// second and a half (playstart.js streamSaves), the film is opened as the
+// jit stream: its video untouched (the single playlist — a copy, no lighter
+// renditions: the picture is the file's, as it would have been), its index
+// never downloaded. On a line that carries the index in a moment — a home
+// network — nothing changes: the file plays as the file.
+const streamBeatsFile = (item, nativeHls) => {
+  if (!item || !item.index || !item.transcodeBase || !item.id) return false;
+  // (H.264 only: the one codec every browser's stream pipeline takes as surely as its file pipeline)
+  if (!item.video || item.video.codec !== "h264" || (item.video.bitDepth || 8) > 8) return false;
+  const fileKbps = item.sizeBytes && item.duration ? (item.sizeBytes * 8) / item.duration / 1000 : 0;
+  return streamSaves({ indexBytes: item.index.bytes, kbps: lineKbps(), fileKbps, progressive: !nativeHls && progressiveOn() }) > STREAM_WORTH_SEC;
+};
+
+// How a library title will most likely start on this device, worked out from
+// the same module-level rules renderPlayer decides by (never a fork of them:
+// a wrong guess here costs one wasted request, nothing else).
+//   { kind: "direct" }                         the file itself
+//   { kind: "jit", url, ladder }               the full-timeline stream
+//   { kind: "offset", url }                    the h264 offset job (no ladder to be had)
+let probeEl = null;
+export const startPlan = (item) => {
+  if (!item || item._isTorrent || item.magnet || String(item.id || "").startsWith("torrent|") || item._offline) return null;
+  if (!item.transcodeBase || !item.id) return null;
+  const video = probeEl || (probeEl = document.createElement("video"));
+  const nativeHls = nativeHlsFor(video);
+  const needV = videoTranscodeFor(item, video);
+  const needA = audioRemuxFor(item, video);
+  const copyable = copyableFor(item.video || {}, video, nativeHls);
+  const isHevc = !!(item.video && item.video.codec === "hevc") || item.videoCodecHint === "hevc";
+  const hevcMkv = !nativeHls && isHevc && /mkv|matroska/i.test(item.container || "") && copyable;
+  const audioIdx = startAudioIdx(item);
+  let ladderNative = false;
+  try { ladderNative = localStorage.getItem("aurora-ladder-native") === "1"; } catch {}
+  const undecodable = needV && !copyable;
+  const top = undecodable ? "h264" : "copy";
+  let useLadder = !nativeHls || ladderNative;
+  if (useLadder && nativeHls && (top !== "copy" || isHevc || dataMode() === "full")) useLadder = false;
+  if (useLadder && top === "copy" && isHevc && !ladderMixedOk()) useLadder = false;
+  if (!(hevcMkv || needV || needA)) {
+    // the file itself — unless its index is the wait (streamBeatsFile)
+    if (audioIdx === 0 && streamBeatsFile(item, nativeHls)) {
+      return { kind: "jit", ladder: false, url: jitUrlFor(item, { nativeHls, isHevc, top: "copy", useLadder: false }), nativeHls };
+    }
+    return { kind: "direct" };
+  }
+  if (!useLadder) {
+    if (undecodable) return { kind: "offset", url: `${item.transcodeBase}/0/index.m3u8?v=h264` };
+    if (audioIdx > 0) return null; // the single playlist carries the first track only
+  }
+  return { kind: "jit", ladder: useLadder, url: jitUrlFor(item, { nativeHls, isHevc, top, useLadder, audioIdx }), nativeHls };
+};
+// The rendition a ladder's player will begin on, out of a master's variants:
+// the one a slow line was capped to (`capH`), else by what the line carried
+// last time (startRung).
+const startVariant = (variants, capH = 0) => {
+  if (!variants.length) return null;
+  const capped = capH ? variants.find((v) => v.v === `h264-${capH}`) : null;
+  return capped || variants[Math.max(0, startRung(variants, lineKbps()))];
+};
+
+// Ask now for what the start will need. `low`: on a hint (the pointer over
+// Play), behind anything the screen itself is waiting for; without it, the
+// player has been opened and these ARE what it is waiting for.
+// Direct-play files have nothing to ask. Torrents are never touched here
+// (that would join a swarm). Returns the URL asked, or null.
+const warmed = new Map(); // segment warm-ups asked: url -> when
+// `restart`: the viewer asked to begin from the top (no resume point).
+// `soft`: the title's page was opened, no more — nothing that takes one of
+// the server's two encoders for certain is started on that alone.
+export const prestart = (item, { low = false, restart = false, soft = false } = {}) => {
+  try {
+    const plan = startPlan(item);
+    if (!plan || plan.kind === "direct") return null;
+    if (plan.kind === "offset") {
+      // the offset job itself is the wait: starting it is the whole warm-up
+      // (a full encode, held for minutes: only when Play is being reached for)
+      if (low && !soft) fetch(plan.url, { cache: "no-store", priority: "low" }).catch(() => {});
+      return plan.url;
+    }
+    if (!plan.nativeHls) loadHlsScript().catch(() => {});
+    // The first playlist request carries the START HINT: where in the film
+    // this will begin, and what is known of the rung it will begin on (the
+    // one a slow line was capped to, else what the line carried last time).
+    // The server starts making that first segment as it answers — while the
+    // playlists are still on their way here (routes/stream.js warmStart).
+    const at = resumePoint(item, restart);
+    const cap = playCap();
+    const kbps = lineKbps();
+    const hint = `at=${at}${kbps ? `; kbps=${kbps}` : ""}${cap ? `; v=h264-${cap}` : ""}`;
+    const master = preflight(plan.url, { low, hint });
+    // …and the playlist of the rendition it will start on, as soon as the
+    // master has named it (an iPhone's own player asks for itself)
+    if (plan.ladder && !plan.nativeHls) {
+      master.then((r) => {
+        if (!r.ok) return;
+        const v = startVariant(masterVariants(r.text, plan.url), cap);
+        if (!v) return;
+        // …and, the moment that playlist says which segment the film starts
+        // on, the server is told to begin making it (&warm=1: nothing comes
+        // back) — it is ready, or well on its way, by the time hls.js has
+        // loaded, parsed and asked. Bounded on the server (jit.warmSegment).
+        preflight(v.uri, { low }).then((pl) => {
+          if (!pl.ok) return;
+          const seg = segmentAt(pl.text, at);
+          if (!seg) return;
+          const u = new URL(seg, v.uri);
+          u.searchParams.set("warm", "1");
+          // (once: the hint on Play and the player's own opening both come through here)
+          if (Date.now() - (warmed.get(u.href) || 0) < 10000) return;
+          if (warmed.size > 40) warmed.clear();
+          warmed.set(u.href, Date.now());
+          fetch(u.href, { cache: "no-store", ...(low ? { priority: "low" } : {}) }).catch(() => {});
+        });
+      });
+    }
+    return plan.url;
   } catch {
     return null;
   }
 };
+// The Play button's warm-up (prefetch.js): the same asks, quietly.
+export const warmPlayback = (item, { soft = false } = {}) => prestart(item, { low: true, soft });
 
 // Subtitle appearance is styled globally via ::cue
 export const applyCueStyle = () => {
@@ -231,7 +526,12 @@ export const applyCueStyle = () => {
     `font-family: inherit; line-height: 1.4; }`;
 };
 
+// A start the server answers "busy, ask again" (503 + Retry-After): how many
+// times it is asked again, and the longest one wait may be (see tryJitSwitch).
+const BUSY_RETRIES = 3;
+const BUSY_WAIT_MAX_S = 5;
 let playerOrigin = null; // the page the current run of players was opened from
+const PROGRESS_FRESH_MS = 30000; // see renderPlayer: progress read this recently is not read again
 
 export const renderPlayer = async (root, { id }) => {
   // Where the viewer was before the player (exit() goes back there). An
@@ -319,7 +619,19 @@ export const renderPlayer = async (root, { id }) => {
           })
           .catch(() => null)
       : Promise.resolve(null);
-  const [owned, historyRead0] = await Promise.all([ownedP, refreshProgress()]);
+  // The stream's first asks go out NOW, beside the progress read — they do
+  // not depend on it (see prestart).
+  if (!isTorrent && !offlineMode) prestart(item, { restart });
+  // The title page this player was opened from read the profile's progress
+  // moments ago, to draw its Play / Resume button: that answer is the one the
+  // viewer just acted on, and asking again only put a round trip between the
+  // press and the picture. Anything older is read again, as always.
+  // "Read moments ago" means a read that SUCCEEDED, for this profile, and
+  // that this tab still holds (state.js progressAge): it counts as this
+  // start's read. A read that failed never looks fresh, so the rule below —
+  // no saving over a history that could not be read — is not got round.
+  const historyFresh = progressAge() < PROGRESS_FRESH_MS;
+  const [owned, historyRead0] = await Promise.all([ownedP, historyFresh ? true : refreshProgress()]);
   if (location.hash !== entryHash) return;
   // The saved position is read here, and the save loop below WRITES over it.
   // A read that fails leaves "no progress": the film would start at 0:00 and
@@ -421,8 +733,9 @@ export const renderPlayer = async (root, { id }) => {
   // under [play] — so "it takes too long" comes with the step that took it.
   const t0 = performance.now();
   const playMarks = [];
-  const mark = (name, extra = {}) => {
-    const ms = Math.round(performance.now() - t0);
+  // (`at`: the moment it happened, when that is not now — a frame's own stamp)
+  const mark = (name, extra = {}, at = null) => {
+    const ms = Math.round((at == null ? performance.now() : at) - t0);
     playMarks.push({ name, ms, ...extra });
     if (isTorrent || item._offline) return;
     try {
@@ -512,16 +825,6 @@ export const renderPlayer = async (root, { id }) => {
   //  hold     — {gen, pos, at, carded}: a rebuild is coming back to media time `pos`
   //  userAt   — when the viewer (or the party) last asked for a seek
   const stall = { url: null, lad: null, inFlight: false, netAt: 0, hold: null, userAt: 0 };
-  const loadHlsScript = () =>
-    new Promise((resolve, reject) => {
-      if (window.Hls) return resolve();
-      const s = document.createElement("script");
-      s.src = "/js/vendor/hls.min.js";
-      s.onload = resolve;
-      s.onerror = reject;
-      document.head.append(s);
-    });
-
   // Start playback and cope with the browser refusing to.
   //
   // iOS (and Chrome without media engagement for this origin) blocks
@@ -558,6 +861,17 @@ export const renderPlayer = async (root, { id }) => {
 
   const startDirect = () => {
     mark("path", { path: "direct" });
+    // An MP4's index is a download of known size that nothing else shares
+    // the line with: when it took long enough to be the line's doing (two
+    // seconds and more), its rate is what this line carries — remembered
+    // for the next start (lineKbps), which may then be a stream instead.
+    if (!isTorrent && !item._offline && item.index && item.index.bytes >= 500000) {
+      const t0d = performance.now();
+      video.addEventListener("loadedmetadata", () => {
+        const ms = performance.now() - t0d;
+        if (ms >= 2000 && video.currentSrc && video.currentSrc.includes(item.videoUrl)) rememberLine((item.index.bytes * 8) / ms);
+      }, { once: true });
+    }
     video.src = item.videoUrl;
     tryPlay();
   };
@@ -621,8 +935,16 @@ export const renderPlayer = async (root, { id }) => {
       if (first) {
         // start where the line can carry it (a slow line was measured before
         // the film was opened), never above the data-saver ceiling
-        let i = ladderIdx(startH);
-        if (i < 0) i = ladderIdx(0);
+        let i = startH ? ladderIdx(startH) : -1;
+        if (i < 0) {
+          // …or where it carried a film the last time one played on this
+          // device (startRung): the levels top first, as the master lists them
+          const top = ladderIdx(0);
+          const order = ladderLevels().sort((a, b) => (a.h === 0 ? -1 : b.h === 0 ? 1 : b.h - a.h));
+          const pickAt = startRung(order.map((l) => ({ bandwidth: (hls.levels[l.i] || {}).bitrate || 0 })), lineKbps());
+          i = pickAt >= 0 ? order[pickAt].i : top;
+          if (i !== top) mark("start-rung", { v: order[pickAt].v, kbps: lineKbps() });
+        }
         if (cap >= 0 && i > cap) i = cap;
         if (i >= 0) hls.startLevel = i;
       } else hls.nextLevel = ladderMixed() ? ladderBest() : -1; // (drops what is buffered ahead, so Auto shows within seconds)
@@ -661,8 +983,15 @@ export const renderPlayer = async (root, { id }) => {
       // as soon as the line no longer carries the level it is on.
       if (!ladderMixed()) return;
       let movedAt = 0;
+      // Not before a segment has arrived: until then hls.js's "estimate" is
+      // its stock half megabit (or what this device remembered), not this
+      // line — and stepping down on it took the first segment away while it
+      // was still loading (the start watch below owns that moment).
+      let measuredOnce = false;
+      if (E.FRAG_BUFFERED) h.on(E.FRAG_BUFFERED, (_e, d) => { if (d && d.frag && d.frag.sn !== "initSegment") measuredOnce = true; });
       const iv = setInterval(() => {
         if (gen !== hlsGen || h !== hls) return void clearInterval(iv);
+        if (!measuredOnce) return;
         if (!ladderOn || ladderPick !== "auto" || video.paused || video.seeking) return;
         const cur = h.loadLevel >= 0 ? h.loadLevel : h.currentLevel;
         const lv = h.levels[cur];
@@ -683,6 +1012,98 @@ export const renderPlayer = async (root, { id }) => {
         }
       }, 3000);
     });
+    // THE START WATCH. A start is the one moment hls.js cannot protect: with
+    // nothing buffered and nothing playing, its own "this fragment will never
+    // make it" rule stands down, and the first segment of the top rung is
+    // waited for however long it takes — 10 MB at 3 Mbit/s is half a minute
+    // (measured 2026-10-10: an 8 Mbit/s film on a 3 Mbit/s line, 55–90 s to
+    // the first frame). So the first segment is watched as it arrives. A
+    // second and a half after its first byte (by then a far server's
+    // connection has opened up — sooner would read TCP's slow start as a
+    // slow line) the rate of the last stretch says how long the rest will
+    // take; when that is long and a lighter rung would be here in well under
+    // the time (startStepDown), the load is given up for that rung, once.
+    // The same thing hls.js does mid-film (its emergency switch), done by its
+    // own means: the next level named, the request aborted, the abort told.
+    let firstSeen = false;
+    if (E.FRAG_LOADING) h.on(E.FRAG_LOADING, (_e, d) => {
+      const frag = d && d.frag;
+      if (firstSeen || gen !== hlsGen || h !== hls || !frag || frag.sn === "initSegment" || (frag.type && frag.type !== "main")) return;
+      firstSeen = true;
+      if (!ladderOn || ladderPick !== "auto") return;
+      const samples = [];
+      const iv = setInterval(() => {
+        const stop = () => clearInterval(iv);
+        if (exited || gen !== hlsGen || h !== hls || !ladderOn || ladderPick !== "auto") return stop();
+        const st = frag.stats;
+        if (!st || st.aborted || (st.total && st.loaded >= st.total) || (st.loading && st.loading.end)) return stop();
+        const first = st.loading && st.loading.first;
+        const now = performance.now();
+        if (!first) {
+          // The server is still making it: that is not the line. But a
+          // lighter rung is an ENCODE, and an encoder on a busy server may be
+          // a long time coming (measured: 9–52 s on a saturated machine).
+          // Three seconds of nothing, and the film's own video is taken
+          // instead — a copy, made at the speed of the disk; the lighter rung
+          // is there for hls.js to come down to when the server has made it.
+          const cur = ladderLevels().find((l) => l.i === frag.level);
+          const top = ladderLevels().find((l) => l.h === 0);
+          const waited = st.loading && st.loading.start ? now - st.loading.start : 0;
+          // (a line known to be too thin for that copy waits far longer: see startStepUp)
+          const known = lineKbps();
+          const thin = !!(top && known > 0 && ((h.levels[top.i] || {}).bitrate || 0) > known * 1000 * START_HEADROOM);
+          if (!startStepUp({ waited, encoded: !!(cur && cur.h), copyTop: !!(top && top.v === "copy" && cur && top.i !== cur.i), thin })) return;
+          stop();
+          mark("start-up", { from: cur.v, waited: Math.round(waited) });
+          try {
+            h.nextLoadLevel = top.i;
+            frag.abortRequests();
+            h.trigger(E.FRAG_LOAD_EMERGENCY_ABORTED, { frag, part: null, stats: st });
+          } catch {}
+          return;
+        }
+        samples.push({ t: now, n: st.loaded || 0 });
+        while (samples.length > 2 && now - samples[0].t > 900) samples.shift();
+        if (now - first < 1500 || now - samples[0].t < 500) return;
+        stop(); // one look
+        const rate = ((samples[samples.length - 1].n - samples[0].n) * 8000) / (now - samples[0].t);
+        const lv = h.levels[frag.level];
+        const total = st.total || ((lv && lv.bitrate) || 0) * frag.duration / 8;
+        if (!(rate > 0) || !(total > 0)) return;
+        const eta = ((total - st.loaded) * 8) / rate;
+        const cap = ladderCapIdx();
+        const lower = ladderLevels()
+          .filter((l) => l.h && (cap < 0 || l.i <= cap) && ((h.levels[l.i] || {}).bitrate || 0) < ((lv && lv.bitrate) || Infinity))
+          .sort((a, b) => b.h - a.h);
+        const k = startStepDown({ eta, rate, dur: frag.duration, lower: lower.map((l) => ({ bandwidth: h.levels[l.i].bitrate })) });
+        if (k < 0) return;
+        mark("start-down", { from: (ladderLevels().find((l) => l.i === frag.level) || {}).v || "", to: lower[k].v, kbps: Math.round(rate / 1000), eta: Math.round(eta) });
+        try {
+          h.nextLoadLevel = lower[k].i;
+          frag.abortRequests();
+          h.trigger(E.FRAG_LOAD_EMERGENCY_ABORTED, { frag, part: null, stats: st });
+        } catch {}
+      }, 200);
+    });
+    // What the line carried, kept for the next start (lineKbps): hls.js's own
+    // estimate, from the first segment that came down a line on.
+    {
+      let buffered = 0;
+      let savedAt = 0;
+      if (E.FRAG_BUFFERED) h.on(E.FRAG_BUFFERED, (_e, d) => {
+        if (gen !== hlsGen || h !== hls || !d || !d.frag || d.frag.sn === "initSegment") return;
+        // Only segments that visibly came down a line count: one handed back
+        // by the browser's own cache (a film replayed) arrives in no time at
+        // all, and would be remembered as a line that carries anything.
+        const st = d.stats || d.frag.stats;
+        const took = st && st.loading ? st.loading.end - st.loading.first : 0;
+        if (!(took >= 50)) return;
+        buffered++;
+        if (Date.now() - savedAt < 10000) return;
+        savedAt = Date.now();
+        rememberLine((h.bandwidthEstimate || 0) / 1000);
+      });
+    }
     h.on(E.LEVEL_SWITCHED, (_e, d) => {
       if (gen !== hlsGen || !ladderOn) return;
       const lv = ladderLevels().find((l) => l.i === d.level);
@@ -708,6 +1129,11 @@ export const renderPlayer = async (root, { id }) => {
       const at = d.frag ? d.frag.level : d.context && d.context.level != null ? d.context.level : d.level;
       const lv = ladderLevels().find((l) => l.i === at);
       if (!lv || !lv.h || h.levels.length < 2) return;
+      // A rung the server offered IN PLACE of the full encode (&need=1: it
+      // is this device's way to play, not a courtesy) that is busy for a
+      // moment is waited for — hls.js asks again by itself, with its own
+      // back-off. Only a rung that does not exist (404) leaves the ladder.
+      if (code === 503 && /[?&]need=1(&|$)/.test(String((h.levels[at] && (h.levels[at].uri || (h.levels[at].url && h.levels[at].url[0]))) || ""))) return;
       mark("ladder-drop", { v: lv.v, code });
       if (ladderPick === lv.h) {
         ladderPick = "auto";
@@ -862,6 +1288,17 @@ export const renderPlayer = async (root, { id }) => {
             // streamOffset, so position 0 IS where playback belongs; for a
             // finished (VOD) playlist this is the default anyway. Never -1.
             startPosition: startAt,
+            // The manifest and the first rendition playlist were asked for
+            // while hls.js itself was loading (prestart): take those answers.
+            pLoader: preLoaderFor(window.Hls),
+            // …and hls.js's idea of the line starts from what it carried
+            // last time (lineKbps), not from its stock half megabit.
+            ...(lad && lineKbps() ? { abrEwmaDefaultEstimate: lineKbps() * 1000 } : {}),
+            // A segment is fed to the decoder AS IT ARRIVES instead of once it
+            // is all here (hls.js "progressive": fetch + streaming demux). A
+            // jit segment is 6–10 s of film — 3 MB and more — and the first
+            // frame is in its first few hundred kB. See progressiveOn.
+            ...(progressiveOn() ? { progressive: true } : {}),
             // We manage subtitle <track>s ourselves; stop hls.js from also
             // auto-enabling one (which showed two subtitle tracks at once).
             subtitleDisplay: false,
@@ -992,20 +1429,57 @@ export const renderPlayer = async (root, { id }) => {
           if (lad) ladderWire(hls, gen, lad);
           hls.loadSource(url);
           hls.attachMedia(video);
+          // A RESUME, with segments played as they arrive: hls.js moves the
+          // playhead to the start position only when the first segment is
+          // buffered WHOLE (its onFragBuffered) — so a resume waited for all
+          // of a segment where a start from the top needs its first chunk
+          // (measured 2026-10-10: the first frame at the very moment the
+          // segment's last byte arrived, whatever the resume point's place
+          // in it). The playhead is put there here, as soon as the film is
+          // buffered at that point; hls.js finds it already done.
+          if (startAt > 0 && hls.config && hls.config.progressive) {
+            const h = hls;
+            const t0s = Date.now();
+            const iv = setInterval(() => {
+              if (exited || gen !== hlsGen || h !== hls || Date.now() - t0s > 90000) return void clearInterval(iv);
+              if (video.currentTime >= startAt - 0.25) return void clearInterval(iv); // hls.js (or a seek) got there
+              if (video.seeking) return;
+              const b = video.buffered;
+              for (let i = 0; i < b.length; i++) {
+                if (b.start(i) <= startAt + 0.05 && b.end(i) >= startAt + 0.4) {
+                  clearInterval(iv);
+                  try { video.currentTime = startAt; } catch {}
+                  tryPlay();
+                  return;
+                }
+              }
+            }, 100);
+          }
           // Rare attach race (observed on copy-seek restarts, 2026-08-26):
           // the loader sits idle with an EMPTY buffer for ~20s, then appends
           // everything at once and plays fine — it always self-heals, so
           // this only shortens the hiccup. One bounded nudge: if nothing
           // buffered shortly after start, kick the loader once.
-          setTimeout(() => {
+          // ONLY AN IDLE LOADER. On a thin line the first segment is still
+          // arriving five seconds in (3 MB at 3 Mbit/s is eight seconds), the
+          // buffer is rightly empty — and the kick threw the download away
+          // and began it again: measured 2026-10-10, 1.6 MB discarded and the
+          // first frame at 14 s instead of 9. A loader that has a request
+          // out, or did anything in the last three seconds, is not stuck; it
+          // is looked at again later instead.
+          const kick = (left) => {
             if (exited || gen !== hlsGen || !hls) return;
-            if (video.buffered.length === 0) {
-              try {
-                hls.stopLoad();
-                hls.startLoad(startAt || -1);
-              } catch {}
+            if (video.buffered.length !== 0) return;
+            if (stall.inFlight || Date.now() - stall.netAt < 3000) {
+              if (left > 0) setTimeout(() => kick(left - 1), 5000);
+              return;
             }
-          }, 5000);
+            try {
+              hls.stopLoad();
+              hls.startLoad(startAt || -1);
+            } catch {}
+          };
+          setTimeout(() => kick(5), 5000);
         } else {
           video.src = url; // Safari plays HLS natively
         }
@@ -1086,19 +1560,11 @@ export const renderPlayer = async (root, { id }) => {
   // the title), not on whichever track the release happened to list first.
   // A track other than the first rides the transcode path with &a= — the
   // same restart an audio switch does, only from the start.
-  {
-    const tracks = item.audioTracks || [];
-    const orig = tracks.find((t) => t.original);
-    // …unless this viewer chose a dub last time: the language they picked in
-    // the Audio menu follows the profile to every title that has it.
-    // Compared as a LANGUAGE (lang.js), not as a string: "he" remembered on
-    // one file is the "heb" track of the next.
-    const liked = profilePick("audioLang");
-    const mine = liked ? tracks.find((t) => sameAudio(t.language, liked)) : null;
-    const pick = mine || orig;
-    const oi = pick ? (pick.index != null ? pick.index : tracks.indexOf(pick)) : 0;
-    if (oi > 0) audioIdx = oi;
-  }
+  // …unless this viewer chose a dub last time: the language they picked in
+  // the Audio menu follows the profile to every title that has it.
+  // Compared as a LANGUAGE (lang.js), not as a string: "he" remembered on
+  // one file is the "heb" track of the next. (startAudioIdx, module scope.)
+  audioIdx = startAudioIdx(item);
   // A height the stream is capped at — 720 or 480, 0 for the file as it is.
   // A slow line (net.js) starts a library title on a capped h264 encode: a
   // 1–2 Mbit/s stream that plays, where the untouched file (6–15 Mbit/s)
@@ -1466,7 +1932,12 @@ export const renderPlayer = async (root, { id }) => {
   // encode as its top rung (a codec this device cannot decode — every seek
   // native there too) and the file's other audio tracks.
   const ladderEligible = () => canCap && !!item.id && (!nativeHlsOnly || ladderNative);
+  let jitAsked = false; // the start has been through tryJitSwitch once
   const tryJitSwitch = async (fromSec, lad = null) => {
+    // What was asked ahead (prestart) is for the start. Any later switch — a
+    // step down, a quality pick, another audio track — asks the server anew.
+    const atStart = !jitAsked;
+    jitAsked = true;
     const isHevc =
       (item.video && item.video.codec === "hevc") || item.videoCodecHint === "hevc";
     const undecodable = !isTorrent && !!item.video && videoNeedsTranscode() && !codecCopyable(item.video);
@@ -1496,29 +1967,46 @@ export const renderPlayer = async (root, { id }) => {
     } else if (undecodable && !useLadder) {
       return false; // truly undecodable here — needs the real h264 encode
     }
-    const base = isTorrent ? item.transcodeBase : `/stream/transcode/${item.id}`;
-    const q = [
-      nativeHlsOnly && "seg=fmp4",
-      nativeHlsOnly && isHevc && top === "copy" && "vtag=hvc1",
-      useLadder && top === "h264" && "top=h264",
-      useLadder && audioIdx > 0 && `a=${audioIdx}`,
-    ].filter(Boolean).join("&");
-    const jitUrl = `${base}/jit/${useLadder ? "master" : "index"}.m3u8${q ? `?${q}` : ""}`;
-    try {
-      const r = await fetch(jitUrl, { cache: "no-store" });
+    const jitUrl = jitUrlFor(item, { isTorrent, nativeHls: nativeHlsOnly, isHevc, top, useLadder, audioIdx });
+    {
+      // (asked ahead by prestart when this is the start; asked here otherwise.
+      // A torrent's playlist is never kept: its answer depends on the swarm.)
+      let r = isTorrent
+        ? await fetch(jitUrl, { cache: "no-store" }).then(async (x) => ({ ok: x.ok, text: x.ok ? await x.text() : "" })).catch(() => ({ ok: false, text: "" }))
+        : await preflight(jitUrl, { fresh: !atStart });
+      // THE SERVER IS BUSY (503 with Retry-After: no room to encode for this
+      // device right now, even after its own short wait and after offering a
+      // lighter rung in the full one's place). At a start that is a wait,
+      // not a failure and not a reason to try the other ways in — they need
+      // the same encoder and would be refused the same: ask again when the
+      // server said to, a few times, the spinner up. Only at a start (a
+      // switch mid-film keeps the stream it has), and only on that answer (a
+      // 503 without Retry-After is a file with no index: nothing to wait for).
+      for (let i = 0; atStart && !isTorrent && !r.ok && r.status === 503 && r.retryAfter > 0 && i < BUSY_RETRIES; i++) {
+        const wait = Math.min(BUSY_WAIT_MAX_S, Math.max(1, r.retryAfter));
+        mark("busy-wait", { n: i + 1, s: wait });
+        await new Promise((res) => setTimeout(res, wait * 1000));
+        if (exited) return true;
+        r = await preflight(jitUrl, { fresh: true });
+      }
       if (!r.ok) {
         // no ladder for this file right now (no encoder free, no index): the
         // single playlist is still worth asking where it could play
         if (useLadder && !pinned && !startH) return tryJitSwitch(fromSec, { plain: true });
         return false;
       }
-      if (useLadder && pinned) {
-        // the pinned quality has to be one of the rungs offered
-        const text = await r.text();
-        if (!text.includes(`v=h264-${pinned}`)) return false;
-      }
-    } catch {
-      return false;
+      // the pinned quality has to be one of the rungs offered
+      if (useLadder && pinned && !r.text.includes(`v=h264-${pinned}`)) return false;
+      // …and so has a lighter rung a slow line asked to begin on. A master
+      // with no rung under its top (every encoder busy with someone else's
+      // film) used to be "switched to" all the same: the same single stream
+      // again, from the start of its first segment — and the step-down that
+      // had asked, finding the line still too thin, asked again ten seconds
+      // later, for as long as the server stayed busy (measured 2026-10-10:
+      // a next episode on a 3 Mbit/s line, 73 s to its first frame, eight
+      // restarts). No: the caller keeps what it has, or takes the capped
+      // stream if the server can make one.
+      if (useLadder && startH && !r.text.includes(`v=h264-${startH}`)) return false;
     }
     if (exited) return true; // switched-to-nothing: just don't start legacy
     mark("path", { path: useLadder ? "ladder" : "jit", from: fromSec || 0 });
@@ -1532,33 +2020,11 @@ export const renderPlayer = async (root, { id }) => {
     startHls(jitUrl, Math.max(0, fromSec || 0), useLadder ? { pick: pinned != null ? pinned : "auto", startH } : null);
     return true;
   };
-  // Can this browser move between an HEVC level and an H.264 one in one
-  // stream? (MediaSource with changeType — hls.js uses it for exactly this.)
-  const ladderMixedOk = () => {
-    try {
-      const MS = window.ManagedMediaSource || window.MediaSource;
-      const SB = window.ManagedSourceBuffer || window.SourceBuffer;
-      return !!(MS && SB && SB.prototype && typeof SB.prototype.changeType === "function");
-    } catch {
-      return false;
-    }
-  };
-
   // Resume point (baked into the transcode's start offset for streams, applied
   // as a native seek for direct/library playback).
   // This exact file/torrent first, else the title's shared history (the same
   // episode watched from another source resumes where it stopped).
-  const prog0 = progressFor(item.id) || titleProgressFor(item);
-  const resumeAt =
-    !restart &&
-    prog0 &&
-    !prog0.finished &&
-    prog0.position > 10 &&
-    (!item.duration || prog0.position < item.duration - 20)
-      // four seconds early: you come back mid-sentence otherwise, and the
-      // last thing you saw is the first thing you see (2026-10-07)
-      ? Math.max(0, Math.floor(prog0.position) - 4)
-      : 0;
+  const resumeAt = resumePoint(item, restart);
 
   // Probe data replaces the tag guess THROUGH the same fields library items
   // carry, so the one set of capability functions decides for both. For
@@ -1725,6 +2191,12 @@ export const renderPlayer = async (root, { id }) => {
         startTranscode(0, item.transcodeV);
       }
     }
+  } else if (!isTorrent && audioIdx === 0 && streamBeatsFile(item, nativeHlsOnly)) {
+    // A long index on a thin line (streamBeatsFile): the stream, its video
+    // untouched; the file itself if the stream cannot be had.
+    mark("decision", { why: `index ${Math.round(item.index.bytes / 1e5) / 10} MB on ${lineKbps()} kbit/s → stream` });
+    const jitOk = await tryJitSwitch(resumeAt, { plain: true });
+    if (!jitOk) startDirect();
   } else {
     startDirect();
   }
@@ -4008,6 +4480,23 @@ export const renderPlayer = async (root, { id }) => {
     return null;
   };
 
+  // The next episode is about to be asked for (Up next is on screen, or the
+  // pointer is on Next episode): have its start ready. Its record goes into
+  // the short-lived cache the next player reads; the same early asks a title
+  // page's Play button makes go out for it (prestart — its playlists, and the
+  // server begins its first segment); and the profile's progress is read now
+  // rather than between the two episodes. A library file only — a streamed
+  // episode has a source to be picked first. Once per episode.
+  let nextWarmed = null;
+  const warmNext = (next) => {
+    if (!next || next._stream || next._savedCopy || isTorrent || item._offline || nextWarmed === next.id) return;
+    nextWarmed = next.id;
+    api.item(next.id, { low: true })
+      .then((it) => { if (!exited && it) prestart(it, { low: true }); })
+      .catch(() => {});
+    refreshProgress().catch(() => {});
+  };
+
   const showUpNext = async () => {
     if (upNextShown) return;
     upNextShown = true;
@@ -4021,6 +4510,7 @@ export const renderPlayer = async (root, { id }) => {
       return;
     }
     if (!next || exited) return;
+    warmNext(next);
 
     // Auto-advance only where "play" is unambiguous (a library file). A
     // streamed next episode needs a source picked — never auto-pick a torrent.
@@ -4166,6 +4656,8 @@ export const renderPlayer = async (root, { id }) => {
         nextKnown = n;
         nextBtn.title = `Next episode — S${n.season} E${n.episode}${n.title ? ` · ${n.title}` : ""}`;
         nextBtn.classList.remove("hidden");
+        // the pointer (or the focus) on the button is the hint, as on a title page's Play
+        for (const ev of ["pointerenter", "focus", "touchstart"]) nextBtn.addEventListener(ev, () => warmNext(n), { passive: true });
       } catch {}
     }, 1500);
   }
@@ -4545,7 +5037,11 @@ export const renderPlayer = async (root, { id }) => {
     const watcher = setInterval(() => {
       if (exited) return clearInterval(watcher);
       const now = Date.now();
-      if (ladderAsked || !autoQuality || video.paused || video.seeking || probing || steppingDown || holdEl || now < watchFrom) {
+      // (an hls.js stream that has not shown its first frame is STARTING, not
+      // starving: with segments played as they arrive its buffer is short by
+      // design in those seconds, and a step down here rebuilt the stream it
+      // was about to show — the start has its own watch, see ladderWire)
+      if (ladderAsked || !autoQuality || video.paused || video.seeking || probing || steppingDown || holdEl || now < watchFrom || (hls && !firstFrameMarked)) {
         win.length = 0;
         thinSince = richSince = 0;
         return;
@@ -5339,18 +5835,64 @@ export const renderPlayer = async (root, { id }) => {
     else navigate("#/");
   };
 
-  // first picture, once
+  // Tell the server this title is no longer being watched here: its
+  // producers stop now instead of running on until they are found idle —
+  // and the encoder is free for whatever is played next (the next episode,
+  // on a thin line, needs it for its lighter rendition). A beacon: it
+  // leaves even while the page is going away (a closed tab, a reload), and
+  // nothing is waited for.
+  const sayBye = () => {
+    if (!jitMode || isTorrent || !item.id) return;
+    try { navigator.sendBeacon(`/stream/transcode/${encodeURIComponent(item.id)}/jit/bye`); } catch {}
+  };
+  window.addEventListener("pagehide", sayBye);
+
+  // First picture, once — ONE definition, for the play mark, the usage
+  // statistic and the analytics timing alike, and the one the ttff harness
+  // measures by (tools/ttff/lib.js): the first frame of the film AS ASKED
+  // FOR that reaches the screen (requestVideoFrameCallback), stamped with
+  // that frame's own time. At a resume that is the first frame at the resume
+  // point — not one from the top of the file shown for an instant before the
+  // seek lands, and not a frame of a seek still on its way. (The harness
+  // counts from the press, this from the player's mount: the same end, a
+  // start a few tens of milliseconds later.)
+  // Where frames cannot be watched — no requestVideoFrameCallback, a tab in
+  // the background (nothing is presented there), a resume that ended up
+  // somewhere else — it is the element's `playing` event, as it always was,
+  // at the moment that event fired.
   let firstFrameMarked = false;
-  video.addEventListener("playing", () => {
-    if (firstFrameMarked) return;
+  const firstFrame = (at) => {
+    if (firstFrameMarked || exited) return;
     firstFrameMarked = true;
-    mark("first-frame", { transcode: usingTranscode, jit: jitMode, v: currentV || null });
+    const ms = Math.round(at - t0);
+    mark("first-frame", { transcode: usingTranscode, jit: jitMode, v: currentV || null }, at);
     track("play", {
-      ms: Math.round(performance.now() - t0),
+      ms,
       path: jitMode ? "jit" : usingTranscode ? currentV : "direct",
       kind: isTorrent ? "torrent" : item._offline ? "offline" : "library",
     });
-    playFirstFrame(Math.round(performance.now() - t0), { torrent: isTorrent, offline: !!item._offline, remux: jitMode, transcode: usingTranscode }); // [analytics]
+    playFirstFrame(ms, { torrent: isTorrent, offline: !!item._offline, remux: jitMode, transcode: usingTranscode }); // [analytics]
+  };
+  // "At the resume point": within half a minute before it (a stream begins on
+  // the keyframe before, and four seconds early by design) — and never more
+  // than half-way back to the top, so a resume twenty seconds in is not taken
+  // for the film's first frame either. The harness's own rule (lib.js digest).
+  const frameAsked = (mediaTime) =>
+    resumeAt <= 0 || (usingTranscode ? clockBase : 0) + mediaTime >= resumeAt - Math.min(30, resumeAt / 2);
+  if (video.requestVideoFrameCallback) {
+    const onFrame = (now, meta) => {
+      if (firstFrameMarked || exited) return;
+      if (!video.seeking && frameAsked(meta.mediaTime)) return firstFrame(now);
+      video.requestVideoFrameCallback(onFrame);
+    };
+    video.requestVideoFrameCallback(onFrame);
+  }
+  video.addEventListener("playing", () => {
+    if (firstFrameMarked) return;
+    const at = performance.now();
+    if (!video.requestVideoFrameCallback) return firstFrame(at);
+    // frames are being watched: give the one asked for a moment to arrive
+    setTimeout(() => firstFrame(at), 2000);
   });
 
   applyCueStyle();
@@ -5391,6 +5933,8 @@ export const renderPlayer = async (root, { id }) => {
       } catch {}
       hls = null;
     }
+    window.removeEventListener("pagehide", sayBye);
+    sayBye();
     video.removeAttribute("src");
     video.load();
     document.removeEventListener("nav-move", onNavMove);
