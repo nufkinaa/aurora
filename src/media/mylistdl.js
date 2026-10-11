@@ -815,7 +815,7 @@ const realDeps = () => {
     afterDelete: () => {
       scanner.scan();
       downloads.pruneGone();
-      realtime.broadcastAll({ type: "library_updated" });
+      realtime.libraryUpdated();
     },
   };
 };

@@ -164,7 +164,7 @@ router.delete("/api/admin/library/file/:id", (req, res) => {
     return res.status(refusal ? 400 : 500).json({ error: refusal ? err.message : `Delete failed: ${err.message}` });
   }
   scanner.scan();
-  realtime.broadcastAll({ type: "library_updated" });
+  realtime.libraryUpdated();
   console.log(`[admin] deleted file ${req.params.id} → ${result.deleted.join(", ")} (${result.freedBytes} bytes)`);
   res.json({ ok: true, ...result });
 });
@@ -209,7 +209,7 @@ router.delete("/api/admin/library/:type/:id", (req, res) => {
     return res.status(500).json({ error: `Delete failed: ${err.message}` });
   }
   scanner.scan();
-  realtime.broadcastAll({ type: "library_updated" });
+  realtime.libraryUpdated();
   console.log(`[admin] deleted ${type} "${req.params.id}" → ${folder}`);
   res.json({ ok: true });
 });
@@ -316,7 +316,18 @@ router.post("/api/admin/mylist/keep", (req, res) => {
 
 // ---------- health (watchdog) ----------
 router.get("/api/admin/health", (req, res) => {
-  res.json(require("../lib/watchdog").status());
+  // …plus the counters of the three things that keep a rush from becoming a
+  // freeze: answers kept and served from memory (lib/answermemo.js), heavy
+  // requests taking turns (lib/admission.js), "library changed" messages
+  // collected into one (realtime.js).
+  const load = {};
+  try { load.kept = { ...require("../lib/answermemo").stats }; } catch {}
+  try { load.heavy = require("../lib/admission").heavy.status(); } catch {}
+  try { load.broadcasts = { ...realtime._internals.coalesced }; } catch {}
+  // who the CPU is working for: viewer encodes, and the background work
+  // standing behind them (media/cpuwork.js)
+  try { load.cpu = require("../media/cpuwork").status(); } catch {}
+  res.json({ ...require("../lib/watchdog").status(), load });
 });
 router.post("/api/admin/heal", (req, res) => {
   require("../lib/watchdog").softHeal("asked from the admin page");
@@ -823,7 +834,7 @@ router.post("/api/admin/broadcast", (req, res) => {
 router.post("/api/admin/rescan", (req, res) => {
   scanner.scan();
   scanner.enrich();
-  realtime.broadcastAll({ type: "library_updated" });
+  realtime.libraryUpdated();
   res.json({ ok: true, scannedAt: scanner.index.scannedAt });
 });
 
@@ -899,18 +910,16 @@ router.post("/api/admin/update/pull", async (req, res) => {
   res.json({ ok: true, output: r.output, state: await require("../lib/updatecheck").check(true) });
 });
 
-// The Restart button. The reply goes out first, then the process exits and
-// pm2's autorestart brings it back up on the NEW code — this server has no
-// in-place reload, a clean death is the honest restart. (Run outside pm2,
-// this just stops the server; the button's confirm says as much.)
+// The Restart button. The reply goes out first, then the server shuts down
+// cleanly (lib/shutdown.js) and exits with the code its supervisor reads as
+// "start me again now" (lib/supervisor.js) — this server has no in-place
+// reload, a clean death is the honest restart. When nothing supervises the
+// server it is NOT stopped: the answer is 409 with the sentence to show.
 router.post("/api/admin/update/restart", (req, res) => {
-  res.json({ ok: true });
-  setTimeout(() => {
-    // process.exit does not fire "beforeExit", so the stores' debounced
-    // writes (up to 1.5 s of watch progress) were lost on every Restart press
-    try { require("../lib/jsonstore").flushAll(); } catch {}
-    process.exit(0);
-  }, 400);
+  const supervisor = require("../lib/supervisor");
+  if (!supervisor.detect()) return res.status(409).json({ ok: false, supervised: false, error: supervisor.NOT_SUPERVISED });
+  res.json({ ok: true, by: supervisor.detect() });
+  setTimeout(() => { supervisor.requestRestart("restart from the admin page"); }, 400);
 });
 
 // aria2 global speed caps. GET reports the EFFECTIVE daemon values when it
@@ -1016,6 +1025,87 @@ router.get("/api/admin/backups/:name/download", async (req, res) => {
     if (err && !res.headersSent) res.status(500).json({ error: "could not read the backup" });
   });
 });
+// Test a restore now (lib/backup.js drill): the newest snapshot is unpacked
+// into a temporary folder, read the way the server reads its stores, counted,
+// and removed. Live data is never touched.
+router.post("/api/admin/backups/drill", async (req, res) => {
+  try {
+    const backup = require("../lib/backup");
+    const r = await backup.drillNow();
+    res.json({ ...r, sentence: backup.drillSentence(r) });
+  } catch (e) {
+    res.status(500).json({ error: String((e && e.message) || e) });
+  }
+});
+
+// ---------- the encoder limit (media/encbudget.js) ----------
+// How many viewers may be encoded for at once: "Automatic (N now, because …)"
+// with the numbers it was worked out from, what is being encoded for whom
+// right now, and what stands behind them in the background.
+const encodingView = () => {
+  const budget = require("../media/encbudget");
+  let load = null;
+  try { load = require("../media/remux").encodeLoad(); } catch {}
+  let cpu = null;
+  try { cpu = require("../media/cpuwork").status(); } catch {}
+  return { ...budget.explain(), running: load, cpu, maxFixed: budget.MAX_FIXED };
+};
+router.get("/api/admin/encoding", (req, res) => res.json(encodingView()));
+// { maxEncodes: "auto" | 1…16 } — anything else is refused.
+router.post("/api/admin/encoding", (req, res) => {
+  const budget = require("../media/encbudget");
+  const settings = require("../lib/settings");
+  const v = (req.body || {}).maxEncodes;
+  const n = Number(v);
+  if (v === "auto") delete settings.data.maxEncodes;
+  else if (Number.isInteger(n) && n >= 1 && n <= budget.MAX_FIXED) settings.data.maxEncodes = n;
+  else return res.status(400).json({ error: `Choose "auto" or a whole number from 1 to ${budget.MAX_FIXED}.` });
+  settings.save();
+  console.log(`[encode] limit set from the admin page: ${budget.explain().sentence}`);
+  res.json({ ok: true, ...encodingView() });
+});
+// Measure this machine's encode speed again, now (a few seconds of CPU at
+// the lowest priority). Refused while somebody's stream is being encoded:
+// it would read low, and take their cores.
+router.post("/api/admin/encoding/calibrate", async (req, res) => {
+  const budget = require("../media/encbudget");
+  try {
+    if (require("../media/cpuwork").viewer.busy()) return res.status(409).json({ error: "Somebody's stream is being encoded right now — measure when the server is quiet.", ...encodingView() });
+  } catch {}
+  await budget.calibrate({ force: true }).catch(() => {});
+  res.json({ ok: true, ...encodingView() });
+});
+
+// ---------- data safety (lib/jsonstore.js) ----------
+// Every store: saved or not, in safe mode or not; and what was recovered at
+// boot, from what, and what was lost.
+router.get("/api/admin/stores", (req, res) => {
+  const js = require("../lib/jsonstore");
+  const st = js.status();
+  res.json({ ...st, recoveries: st.recoveries.slice(0, 20).map((r) => ({ ...r, sentence: js.recoverySentence(r) })) });
+});
+// "I have read these": the recoveries stop being findings. Nothing is deleted.
+router.post("/api/admin/stores/ack", (req, res) => {
+  const js = require("../lib/jsonstore");
+  const n = js.acknowledgeRecoveries();
+  try {
+    const health = require("../lib/health");
+    for (const c of health.status().checks) if (c.id.startsWith("store:") && !js.inSafeMode(c.id.slice(6))) health.clear(c.id, "Acknowledged on the admin page.");
+  } catch {}
+  res.json({ ok: true, acknowledged: n });
+});
+// The decision for a store in SAFE MODE: start it fresh. The name must be one
+// of the stores that ARE in safe mode — nothing else is accepted. The damaged
+// file stays where it was set aside; writing resumes from what is in memory.
+router.post("/api/admin/stores/:name/accept", (req, res) => {
+  const js = require("../lib/jsonstore");
+  const name = String(req.params.name || "");
+  if (!js.status().safeMode.includes(name)) return res.status(404).json({ error: "That store is not in safe mode." });
+  js.leaveSafeMode(name);
+  try { require("../lib/health").clear(`store:${name}`, `${name} was started fresh on the admin's decision.`); } catch {}
+  res.json({ ok: true, name });
+});
+
 // Health alerts: every check's settled level and sentence, when each last
 // alerted and recovered, where alerts are delivered (and a warning when they
 // go nowhere), and the dead-man's-switch ping. (/api/admin/health above is

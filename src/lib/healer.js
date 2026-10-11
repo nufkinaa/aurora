@@ -136,7 +136,10 @@ const checkProcess = async () => {
   else if (n.rss > t.softRss) { status = "warn"; notes.push("memory high"); }
   if (n.lagMs > t.hardLagMs) { status = "fail"; notes.push("event loop stuck"); }
   else if (n.lagMs > t.softLagMs && status === "ok") { status = "warn"; notes.push("event loop sluggish"); }
-  if (n.ffmpeg > 6 && status === "ok") { status = "warn"; notes.push(`${n.ffmpeg} ffmpeg children`); }
+  // (more than the encoder limit allows, plus the copies and helpers that ride beside it — the limit follows the machine: media/encbudget.js)
+  let manyFfmpeg = 6;
+  try { manyFfmpeg = Math.max(6, require("../media/encbudget").slots() + 4); } catch {}
+  if (n.ffmpeg > manyFfmpeg && status === "ok") { status = "warn"; notes.push(`${n.ffmpeg} ffmpeg children`); }
   return { status, summary: bits.join(" · "), detail: notes.join("; ") || null };
 };
 
@@ -537,6 +540,7 @@ const CHECKS = [
   ["process", "Process", "Process & memory", checkProcess],
   ["memtrend", "Memory and load trend", "Process & memory", statChecks.checkMemTrend],
   ["helpers", "Helper processes", "Process & memory", statChecks.checkHelpers],
+  ["supervisor", "Supervisor", "Process & memory", sysChecks.checkSupervisor],
 
   ["errors", "Errors in the log", "Logs", logChecks.checkErrors],
   ["newerrors", "New kinds of error", "Logs", logChecks.checkNewErrors],
@@ -564,6 +568,7 @@ const CHECKS = [
   ["scanner", "Library scan", "Library & data", checkScanner],
   ["temp", "Temporary files", "Library & data", checkTemp],
   ["data", "Data files", "Library & data", checkData],
+  ["stores", "Data safety", "Library & data", sysChecks.checkStores],
   ["growth", "Data growth", "Library & data", sysChecks.checkGrowth],
   ["backups", "Backups", "Library & data", sysChecks.checkBackups],
 

@@ -151,10 +151,8 @@ const saveNow = () => {
   if (!file || !dirty) return;
   dirty = false;
   try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify({ v: 1, days }));
-    fs.renameSync(tmp, file);
+    // temp file + rename, tried again while a scanner holds the file (lib/jsonstore.js)
+    require("../jsonstore").atomicWriteSync(file, JSON.stringify({ v: 1, days }), { durable: false });
   } catch (e) {
     console.warn("[telemetry] could not save the control counts:", e && e.message);
   }

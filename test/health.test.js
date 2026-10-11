@@ -260,7 +260,7 @@ test("process: reads the watchdog's numbers and events, measures nothing", () =>
   assert.equal(loop.level, "critical");
   const noPm2 = decideProcess(w(200, 3, [{ at: now - 5 * MIN, kind: "hard heal skipped" }]), now);
   assert.equal(noPm2.level, "critical");
-  assert.match(noPm2.message, /not running under pm2/);
+  assert.match(noPm2.message, /nothing supervises it/);
   assert.equal(decideProcess(w(200, 3, [{ at: now - 45 * MIN, kind: "restart loop suspected" }]), now).level, "ok"); // old news
   assert.equal(decideProcess(w(200, 3, [{ at: now - MIN, kind: "soft heal" }]), now).level, "ok");
   assert.equal(decideProcess(null, now).level, "ok");
@@ -297,15 +297,53 @@ test("raise / clear (how backup.js reports a failed snapshot): said once, cleare
   }
 });
 
-test("/healthz answers ok, uptime and version — and nothing else", () => {
+test("/healthz answers ok, uptime, version and how the event loop is doing — and nothing else", () => {
   let body = null;
   const headers = {};
   health.healthz({}, { setHeader: (k, v) => { headers[k] = v; }, json: (b) => { body = b; } });
-  assert.deepEqual(Object.keys(body).sort(), ["ok", "uptime", "version"]);
+  assert.deepEqual(Object.keys(body).sort(), ["loop", "ok", "uptime", "version"]);
   assert.equal(body.ok, true);
   assert.equal(Number.isInteger(body.uptime), true);
   assert.equal(body.version, require("../package.json").version);
+  // what the keeper judges a hang by: milliseconds, no names, no paths
+  assert.deepEqual(Object.keys(body.loop).sort(), ["maxMs", "meanMs", "p99Ms", "windowMs"]);
+  for (const v of Object.values(body.loop)) assert.equal(typeof v, "number");
   assert.equal(headers["Cache-Control"], "no-store");
+});
+
+test("/healthz while the server is stopping: 503 { stopping }, which the keeper does not count as a hang", () => {
+  const shutdown = require("../src/lib/shutdown");
+  shutdown._internals.state.stopping = true;
+  try {
+    let body = null;
+    let code = 200;
+    const res = { setHeader() {}, status(c) { code = c; return res; }, json(b) { body = b; } };
+    health.healthz({}, res);
+    assert.equal(code, 503);
+    assert.equal(body.stopping, true);
+    assert.equal(require("../src/lib/keeper").probeVerdict({ status: code, body }).ok, true);
+  } finally {
+    shutdown._internals._reset();
+  }
+});
+
+test("looplag: a blocked loop shows up in the window, and the window rolls", async () => {
+  const lag = require("../src/lib/looplag");
+  lag.start();
+  try {
+    await new Promise((r) => setTimeout(r, 60));
+    const t0 = Date.now();
+    while (Date.now() - t0 < 250) {} // block the loop for a quarter second
+    await new Promise((r) => setTimeout(r, 60));
+    assert.ok(lag.read().maxMs >= 150, `saw the block (${lag.read().maxMs} ms)`);
+    lag._roll();
+    assert.ok(lag.read().maxMs >= 150, "the finished window keeps it");
+    await new Promise((r) => setTimeout(r, 60));
+    lag._roll();
+    assert.ok(lag.read().maxMs < 150, "and the next window forgets it");
+  } finally {
+    lag.stop();
+  }
 });
 
 test("the ping URL must be http(s); requiring the module starts no timers", () => {

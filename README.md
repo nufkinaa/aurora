@@ -89,7 +89,7 @@ A real native app (react-native-tvos + ExoPlayer) rather than a web page in a bo
 
 - **Four runtime dependencies** (`express`, `compression`, `ws`, `webtorrent`), vanilla ES modules on the front end, no bundler, no database — JSON stores in `data/`.
 - **A daily round** re-checks skip timestamps and library metadata; a scan picks up new files every ten minutes.
-- **A watchdog and a healer.** Memory, event-loop lag, ffmpeg children, the download queue, the download engine, temp folders and disk trend are checked continuously; caches are dropped under pressure, stuck jobs restarted, and under pm2 the server restarts itself cleanly if it must. The healer also reads the log (known errors by name with what to press, a never-seen error reported once, the file that keeps failing named) and the numbers (time to first frame by path, failed starts, stalls per hour watched, refused encoders, download results, a missing library drive, backup age, clock drift), and may run a handful of safe actions by itself — see `healer` in the config table.
+- **A watchdog and a healer.** Memory, event-loop lag, ffmpeg children, the download queue, the download engine, temp folders and disk trend are checked continuously; caches are dropped under pressure, stuck jobs restarted, and when it runs under a supervisor (the keeper, pm2 or systemd) the server restarts itself cleanly if it must — the keeper also restarts a server that has stopped answering. The healer also reads the log (known errors by name with what to press, a never-seen error reported once, the file that keeps failing named) and the numbers (time to first frame by path, failed starts, stalls per hour watched, refused encoders, download results, a missing library drive, backup age, clock drift), and may run a handful of safe actions by itself — see `healer` in the config table.
 - **Play-ready copies only where needed**, sized artwork (WebP variants), an offline-capable service worker, and idle-time prefetch of the page you are likely to open next.
 
 ---
@@ -184,6 +184,10 @@ All of it is read once at startup by [`src/config.js`](src/config.js). Machine s
 | `healer.autoRepair` | `true` | The healer (about thirty checks every minute: the log, playback / download / transcoding statistics, library folders, backups, updates, alert delivery) may press a few safe actions by itself — tidy stream leftovers, re-apply the torrent-library patch, rescan when a library folder comes back, back up when the newest backup is older than `health.backupMaxAgeHours`, retry a file that was replaced. Each at most a few times a day per problem; after that the finding says "tried N times, needs you" and names the button. `false` switches every automatic repair off — the checks still run and each finding names what to press. It never updates, pulls, installs, restarts, runs the tests or sends a test alert. |
 | `healer.off` | `[]` | Single automatic repairs to switch off, by name: `"sweep-streams"`, `"patch-webtorrent"`, `"rescan"`, `"backup-now"`, `"jit-forget-changed"`. |
 | `healer.ai` | `false` | With an OpenRouter key set, a kind of error the server has never seen before may be explained by the model: once per error, five requests a day at most, two sentences shown beside the error on the admin page. Only the error's normalized message is sent, with paths, addresses, hostnames, e-mails and anything key-like removed. The answer is displayed, never acted on. |
+| `backups` | `true` | One verified snapshot a day of everything that cannot be rebuilt (profiles, progress, sign-ins, settings, `config.json`, `.env`). `false` switches it off. |
+| `backupDir` | `data/backups` | Where the snapshots are written. The default is beside the data: good against a damaged file or a mistake, not against losing the disk. |
+| `backupMirrorDir` | — | A **second** folder every snapshot is copied to and checked in — put it on another drive, a NAS or a synced folder. The admin page says so while every copy sits on the data's disk. |
+| `backupKeep` | `{ "daily": 7, "weekly": 4, "monthly": 3 }` | How many snapshots are kept (in both folders). |
 | `aria2Path` | auto-detected | Full path to `aria2c` if it is not on `PATH`. |
 | `aria2Port` | `6801` | RPC port for Aurora's own aria2 process (bound to localhost). |
 | `aiModel` | `google/gemini-2.5-flash` | OpenRouter model for the AI picker. |
@@ -255,7 +259,7 @@ The server reads the version out of the published APK itself and announces that 
 
 ## Deploying
 
-**Keep it running.** `pm2 start ecosystem.config.js` (the file sets restart limits and a memory ceiling, and lets the watchdog restart the process cleanly). On Windows you can instead drop a shortcut to `start-aurora.cmd` into `shell:startup`. There is no Dockerfile.
+**Keep it running.** Aurora ships its own small supervisor, the keeper (`scripts/keeper.js`): it restarts the server after a crash or a hang, backs off when it keeps crashing, and lets the admin page's **Restart Aurora** button work. `start-aurora.cmd` (or `node scripts/keeper.js`) runs it by hand; `deploy/windows/install-keeper-task.ps1` (a Scheduled Task) and `deploy/linux/aurora.service` (systemd) start it with the machine. [`docs/operations.md`](docs/operations.md) has the steps for both, and what each choice means. `pm2 start ecosystem.config.js` still works. Plain `node server.js` runs unsupervised, and the admin page says so. There is no Dockerfile.
 
 **HTTPS.** The server speaks plain HTTP. On a LAN that is enough to browse and watch, but browsers only allow the service worker, offline copies, Web Push and *Add to Home Screen* on a secure origin. To get those — or to reach Aurora from outside — put a reverse proxy or tunnel with a certificate in front of it (Caddy, nginx, Cloudflare Tunnel…) and forward WebSocket upgrades. Aurora reads `X-Forwarded-Proto` and `X-Forwarded-For`, and marks the session cookie `Secure` when the request arrived over HTTPS.
 
@@ -263,7 +267,7 @@ The server reads the version out of the published APK itself and announces that 
 
 **Updating.** `git pull`, `npm install`, restart — or use `/admin → Server`, which checks GitHub, pulls and restarts on a button press. Front-end changes need no restart; pages revalidate on every load.
 
-**Data and backups.**
+**Data and backups.** Every store is written atomically and flushed to the disk, keeps two last-good copies beside it (`<name>.good1`, `.good2`), and — if its file is ever missing, empty or damaged at start — is restored from the newest good copy or the newest verified backup by itself, with one alert saying what was lost. A critical store with nothing good anywhere puts the server in *safe mode* (nothing is written to it until the admin decides) instead of starting an empty house. A restore is tested once a week in a temporary folder. [`docs/operations.md`](docs/operations.md) has the details, the restore command and what safe mode looks like.
 
 | Path | What is in it | Back it up? |
 | --- | --- | --- |

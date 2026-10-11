@@ -181,6 +181,13 @@ module.exports = {
   // AURORA_BACKUP_DIR) at another drive, a NAS share or a synced folder for
   // that. `"backups": false` switches the daily snapshot off.
   BACKUP_DIR: path.resolve(ROOT, process.env.AURORA_BACKUP_DIR || userConfig.backupDir || path.join(DATA_DIR, "backups")),
+  // A SECOND place every snapshot is copied to (and verified in): another
+  // drive, a NAS share, a synced folder. With the default backup folder
+  // beside the data, this is what survives the disk. "backupMirrorDir" in
+  // config.json, or AURORA_BACKUP_MIRROR_DIR. Unset = no second copy.
+  BACKUP_MIRROR_DIR: (process.env.AURORA_BACKUP_MIRROR_DIR || userConfig.backupMirrorDir)
+    ? path.resolve(ROOT, process.env.AURORA_BACKUP_MIRROR_DIR || userConfig.backupMirrorDir)
+    : null,
   BACKUPS: userConfig.backups !== false,
   // How many snapshots are kept: { "daily": 7, "weekly": 4, "monthly": 3 }.
   BACKUP_KEEP: userConfig.backupKeep && typeof userConfig.backupKeep === "object" ? userConfig.backupKeep : {},

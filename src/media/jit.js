@@ -507,9 +507,12 @@ const reapable = (job, now) => {
 // A copy producer is cheap (it is the disk's speed). An ENCODING producer —
 // a rendition of the quality ladder — is a libx264 process, and the machine
 // serves other people. Three rules:
-//  • at most MAX_ENCODES encoders at once across the whole server, counted
-//    together with the single-rendition encodes (remux.js) and the torrent
-//    transcodes. A lower rung under a copy is a courtesy to a slow line —
+//  • encoders across the whole server stay inside the machine's budget
+//    (encbudget.js: worked out from its CPU threads and its measured encode
+//    speed, each encode weighed by what it costs — a 4K source takes the
+//    room of two or three 1080p ones; or a fixed count when the admin set
+//    one), counted together with the single-rendition encodes (remux.js)
+//    and the torrent transcodes. A lower rung under a copy is a courtesy to a slow line —
 //    the title plays without it — so it never takes the LAST slot; the top
 //    rung of a device that cannot decode the file (`essential`) may. The
 //    same goes for a SECOND encoder of one rendition (two viewers far apart
@@ -526,7 +529,10 @@ const reapable = (job, now) => {
 //    its reader asked for is parked too — a rendition the player left costs
 //    nothing more, and one being watched is resumed as its reader gets
 //    within ENC_LEAD_MIN segments of the end of what is made.
-const MAX_ENCODES = 2; // the same figure as remux.js MAX_ACTIVE_TRANSCODES
+const budget = require("./encbudget");
+// What one of a job's encoders counts as (set from its input when the first
+// one is asked for; "one standard transcode" until then).
+const costOfJob = (j) => (j && j.cost > 0 ? j.cost : budget.unit());
 const ENC_LEAD_MAX = 20; // ~2 minutes of film
 const ENC_LEAD_MIN = 5;
 const encodeCount = (except = null) => {
@@ -534,13 +540,17 @@ const encodeCount = (except = null) => {
   for (const j of jobs.values()) if (j.enc && j !== except) n += j.producers.length;
   return n;
 };
-// Encoders running outside jit (lazy requires: those modules load this one's
-// neighbours, and the tests load this module alone).
+// What is being encoded outside jit, in the budget's units: the
+// single-rendition transcodes and the torrent transcodes, which register
+// themselves as viewer work (cpuwork.js). (A lazy require: the tests load
+// this module alone, and replace this.)
 let outsideEncodes = () => {
-  let n = 0;
-  try { n += require("./remux").encodeLoad().own; } catch {}
-  try { n += require("./torrent-transcode")._internals.activeCount(); } catch {}
-  return n;
+  try { return require("./cpuwork").viewer.cost((v) => v.kind !== "ladder"); } catch { return 0; }
+};
+// Is anything being encoded for a viewer, by anyone (the registry every
+// viewer-facing encoder is in)? — what a warm-up asks before it starts.
+const viewerEncodes = () => {
+  try { return require("./cpuwork").viewer.count(); } catch { return 0; }
 };
 // Stop every encoder of a rendition (what it made stays).
 const park = (dir, job, why) => {
@@ -562,10 +572,45 @@ const park = (dir, job, why) => {
 // resumeAhead — exactly as after any park).
 const ABANDONED_MS = 20000; // a playing reader asks at least once per segment (CLAIM_MS)
 const abandoned = (j, now) => !(j.waiting > 0) && now - (j.lastAccess || 0) > ABANDONED_MS;
+// A job whose every producer is a warm-up nobody has come for (warmSegment):
+// speculative work. It holds no slot against anyone.
+const speculative = (j) => !(j.waiting > 0) && j.producers.length > 0 && j.producers.every((r) => r.warm != null);
+// An encoder somebody is watching registers as viewer work (cpuwork.js) —
+// with how to tell that its viewer has gone (`idle`: abandoned, above) and
+// how to stop it then (`reclaim`), so the single-rendition and torrent
+// transcodes, which count the same registry, neither count an abandoned
+// ladder encoder against their viewer nor leave it running in the way.
+const asViewer = (dir, job, run, proc) => {
+  try {
+    run.viewer = require("./cpuwork").viewer.track(proc, {
+      kind: "ladder", label: path.basename(dir), cost: run.cost, memMb: run.memMb,
+      idle: () => abandoned(job, Date.now()),
+      reclaim: () => park(dir, job, "nobody has asked for it lately, and another viewer needs the encoder"),
+    });
+  } catch {}
+};
+// A viewer has come for what a warm-up was making: from here it is an
+// ordinary producer — no bound, and (an encoder) viewer work: registered as
+// such, and back at normal priority until the segment being waited for is
+// out, where the OS lets a priority be raised (Windows; elsewhere it stays
+// at the viewers' lower one, which is where it would end up anyway).
+const promote = (dir, job, run) => {
+  if (run.warm == null) return;
+  run.warm = null;
+  if (!run.spec) return;
+  const spec = run.spec;
+  run.spec = null;
+  try { spec.release(); } catch {}
+  if (!run.proc || run.stopped) return;
+  try { os.setPriority(run.proc.pid, os.constants.priority.PRIORITY_NORMAL); run.yielding = false; } catch {}
+  asViewer(dir, job, run, run.proc);
+};
 // Encoders running for OTHER titles (and outside jit), and for this title's
 // other renditions: those someone is waiting on (`waited`, a count of
 // encoders), and those nobody is (`idle`, the jobs). `left`: other titles'
-// encoders that were abandoned (above) — not counted, parked on admission.
+// encoders that were abandoned (above), and warm-ups nobody came for
+// (speculative, see warmSegment) — not counted, parked on admission.
+// (`others` and `waited` are in the budget's units: encoders × what each costs)
 const encodeCensus = (title, except, now = Date.now()) => {
   let others = outsideEncodes();
   let waited = 0;
@@ -574,23 +619,34 @@ const encodeCensus = (title, except, now = Date.now()) => {
   for (const [d, j] of jobs) {
     if (!j.enc || !j.producers.length || j === except) continue;
     if (j.title !== title) {
-      if (abandoned(j, now)) left.push([d, j]);
-      else others += j.producers.length;
-    } else if (j.waiting > 0) waited += j.producers.length;
+      if (abandoned(j, now) || speculative(j)) left.push([d, j]);
+      else others += j.producers.length * costOfJob(j);
+    } else if (j.waiting > 0) waited += j.producers.length * costOfJob(j);
     else idle.push([d, j]);
   }
   return { others, waited, idle, left };
 };
 // Could this job start an encoder now? `replacing`: one of its own that
 // would be stopped for it. Nothing is changed by asking.
+// The rule, as it always was, now by cost instead of by count: one more
+// encoder of a rendition that already has one must fit beside everything;
+// a rendition's first must fit beside the OTHER titles (within the courtesy
+// limit when it is one) and, with its own title's waited-on renditions,
+// within the whole budget. An encode with nothing else running is always
+// allowed (encbudget.admit).
 const encodeAdmission = (job, essential, replacing = null) => {
   const c = encodeCensus(job.title, job);
-  const own = job.producers.length - (replacing ? 1 : 0);
-  const limit = essential ? MAX_ENCODES : MAX_ENCODES - 1;
-  const ok = own > 0
-    ? c.others + c.waited + own < limit
-    : c.others < limit && c.others + c.waited < MAX_ENCODES;
-  return { ok, idle: c.idle, left: c.left };
+  const cost = costOfJob(job);
+  const memMb = job.memMb || 0;
+  const own = (job.producers.length - (replacing ? 1 : 0)) * cost;
+  let a;
+  if (own > 0) {
+    a = budget.admit({ cost, memMb, running: c.others + c.waited + own, essential, replacing: !!replacing });
+  } else {
+    a = budget.admit({ cost, memMb, running: c.others, essential, replacing: !!replacing });
+    if (a.ok) a = budget.admit({ cost, memMb, running: c.others + c.waited, essential: true, replacing: !!replacing });
+  }
+  return { ok: a.ok, idle: c.idle, left: c.left, why: a.why };
 };
 // May this job start (or restart) an encoder now? Parks the renditions of
 // its own title that nobody is waiting on. Records a refusal so the route
@@ -603,14 +659,37 @@ const admitEncode = (job, essential, replacing = null) => {
     return false;
   }
   for (const [d, j] of a.idle) park(d, j, "its viewer moved to another rendition");
-  for (const [d, j] of a.left) park(d, j, "nobody has asked for it lately, and another title needs the encoder");
+  for (const [d, j] of a.left) park(d, j, speculative(j) ? "a warm-up nobody came for, and a viewer needs the encoder" : "nobody has asked for it lately, and another title needs the encoder");
   return true;
 };
 // Would a new encoder be admitted right now? (the routes ask before they
 // offer or serve an encoded rendition; nothing is parked by asking)
-const encodeRoom = (title, essential) => {
+// `cost`: what the rendition asked about would cost (the ladder knows the
+// source); without it, one standard transcode.
+const encodeRoom = (title, essential, cost = 0) => {
   const c = encodeCensus(title, null);
-  return c.others < (essential ? MAX_ENCODES : MAX_ENCODES - 1) && c.others + c.waited < MAX_ENCODES;
+  const k = cost > 0 ? cost : budget.unit();
+  return budget.admit({ cost: k, running: c.others, essential }).ok
+    && budget.admit({ cost: k, running: c.others + c.waited, essential: true }).ok;
+};
+// The same question, asked for a little while: an encoder that is about to be
+// parked or reaped frees its room within seconds, and a person pressing Play
+// is better served by a short wait than by "busy". Resolves true as soon as
+// there is room, false after `ms`.
+const encodeRoomSoon = async (title, essential, cost = 0, ms = 3000) => {
+  const until = Date.now() + ms;
+  for (;;) {
+    if (encodeRoom(title, essential, cost)) return true;
+    if (Date.now() >= until || budget.overloaded()) return false;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+};
+// For the admin page and the healer: what jit is encoding.
+const encodeLoad = () => {
+  let count = 0;
+  let cost = 0;
+  for (const j of jobs.values()) if (j.enc) { count += j.producers.length; cost += j.producers.length * costOfJob(j); }
+  return { count, cost: Math.round(cost * 100) / 100 };
 };
 
 const failJob = (dir, job, why, declineFile) => {
@@ -701,6 +780,12 @@ const advance = (dir, job, run) => {
     run.nextSeg = seg + 1;
     // the segment an encoder was started for is decided: from here it yields
     if (job.enc) yieldCpu(run);
+    // how much film this encoder has made since it started, and whether
+    // somebody is waiting on it — encbudget notices one that falls behind
+    if (job.enc) {
+      const t = job.table[seg];
+      budget.progress(run, t.start + (t.dur || 0) - job.table[run.fromSeg].start, job.waiting > 0);
+    }
     run.queue = run.queue
       .then(async () => {
         await Promise.all(drop.map((i) => unlinkQuiet(gopPath(run, i))));
@@ -780,7 +865,10 @@ const onClosed = (dir, job, run, i, start) => {
 const yieldCpu = (run, proc = run.proc) => {
   if (run.yielding || !proc) return;
   run.yielding = true;
-  try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
+  try { os.setPriority(proc.pid, viewerPriority()); } catch {}
+};
+const viewerPriority = () => {
+  try { return require("./cpuwork").PRIORITY.viewer; } catch { return os.constants.priority.PRIORITY_BELOW_NORMAL; }
 };
 
 // Split a child's output stream into lines.
@@ -831,15 +919,43 @@ const startProducer = (dir, job, input, fromSeg, { quiet = false } = {}) => {
   fs.mkdirSync(run.pdir, { recursive: true });
   const start = job.table[fromSeg].start;
   const args = producerArgs(run, input, fromSeg > 0 ? start : null);
-  const proc = spawn(config.FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+  const proc = require("../lib/children").track(spawn(config.FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true }), "jit");
   // An encoder yields the CPU to the server itself (as remux.js does) — but
   // not before it has made the segment it was started for. That one is what a
   // viewer is looking at a black screen for, and on a machine with anything
   // else to do a below-normal process may not run for a long time: measured
   // 2026-10-10 on a box with every core busy, 9–52 s for ten seconds of 480p
   // that take one second when the encoder gets its turn. So it starts at
-  // normal priority and steps down once its first segment is out (advance).
-  if (input.enc && quiet) yieldCpu(run, proc);
+  // normal priority and steps down to the viewers' own (cpuwork.PRIORITY.viewer)
+  // once its first segment is out (advance). Background work runs a step
+  // under that the whole time, so the order cpuwork keeps — viewers first —
+  // holds in both phases.
+  // And it says what it is (cpuwork.js): an encoder a viewer asked for is
+  // VIEWER work from the start — background work stands back, the budget
+  // counts it; a warm-up is SPECULATIVE — counted against nobody, at the
+  // viewers' lower priority from its first instruction, and stopped the
+  // moment any viewer's encoder starts. A copy producer is the disk's speed
+  // and is neither.
+  if (input.enc) {
+    run.cost = input.enc.cost;
+    run.memMb = input.enc.memMb;
+    if (quiet) {
+      yieldCpu(run, proc);
+      try {
+        run.spec = require("./cpuwork").speculative.track(proc, {
+          kind: "warm-up", label: path.basename(dir), cost: input.enc.cost, memMb: input.enc.memMb,
+          onShed: (why) => {
+            if (run.stopped || run.warm == null) return;
+            console.log(`[jit] warm-up ${path.basename(dir)} stopped (${why || "a viewer needs the encoder"})`);
+            stopRun(job, run);
+            wake(job);
+          },
+        });
+      } catch {}
+    } else {
+      asViewer(dir, job, run, proc);
+    }
+  }
   let errTail = "";
   eachLine(proc.stderr, (line) => {
     const open = parseOpenLine(line);
@@ -855,6 +971,7 @@ const startProducer = (dir, job, input, fromSeg, { quiet = false } = {}) => {
     const i = job.producers.indexOf(run);
     if (i >= 0) job.producers.splice(i, 1);
     run.proc = null;
+    budget.forget(run);
     if (code === 0 && !run.stopped) {
       // EOF: the last file is closed too, and no later keyframe will come
       run.ended = true;
@@ -900,6 +1017,10 @@ const tick = (job) =>
 // route says 503), or "busy" (every producer is somebody's: wait).
 const acquire = (dir, job, input, k, now, polite = false) => {
   const essential = !!(job.enc && input.enc.essential);
+  if (job.enc && input.enc) {
+    if (input.enc.cost > 0) job.cost = input.enc.cost;
+    if (input.enc.memMb > 0) job.memMb = input.enc.memMb;
+  }
   const room = job.producers.length < MAX_PRODUCERS_PER_JOB
     && (job.enc ? encodeAdmission(job, essential).ok : extraCount() < MAX_EXTRA_PRODUCERS);
   const step = plan(job, now, { room, polite });
@@ -927,10 +1048,16 @@ const ensureSegment = async (dir, job, input, k, { gone = null } = {}) => {
   // One rendition, one set of encoder arguments for as long as its job
   // lives: whatever the first request decided (tone mapping depends on how
   // busy the machine was) holds for every later producer of this job.
-  if (job.enc) input = { ...input, enc: job.encArgs || (job.encArgs = input.enc) };
+  if (job.enc) {
+    // (a rendition first asked for by a warm-up, or as a courtesy, and now
+    // by a viewer for whom it is the only way to play — &need=1: it is
+    // admitted as that from here on)
+    if (job.encArgs && input.enc && input.enc.essential && !job.encArgs.essential) job.encArgs = { ...job.encArgs, essential: true };
+    input = { ...input, enc: job.encArgs || (job.encArgs = input.enc) };
+  }
   noteReader(job, k, now);
-  // a viewer is here: no warm-up bound applies
-  for (const run of job.producers) run.warm = null;
+  // a viewer is here: no warm-up bound applies, and what was speculative is theirs
+  for (const run of job.producers) promote(dir, job, run);
   job.waiting = (job.waiting || 0) + 1;
   job.wanted.push(k);
   try {
@@ -1033,8 +1160,20 @@ const warmSegment = (dir, job, input, k, now = Date.now()) => {
   for (const run of job.runs) if (k >= run.fromSeg && k < run.nextSeg) return "coming"; // on its way to disk
   if (job.producers.length) return "busy";
   if (job.enc) {
-    if (encodeCount() + outsideEncodes() > 0) return "refused";
+    // Speculative work never takes room a viewer could want: only while
+    // nothing at all is being encoded (here, or by the single-rendition and
+    // torrent transcodes — everything in cpuwork's viewer registry, and any
+    // other warm-up), not while the viewers' encoders are behind real time
+    // (encbudget), and only if it fits the machine's memory. Once running it
+    // is counted against nobody (encodeCensus `left`, cpuwork.speculative)
+    // and is the first thing stopped — by the next viewer's encoder, whoever
+    // starts it, and by the budget when the machine falls behind.
+    if (encodeCount() + outsideEncodes() > 0 || viewerEncodes() > 0) return "refused";
+    if (budget.overloaded()) return "refused";
     input = { ...input, enc: job.encArgs || (job.encArgs = input.enc) };
+    if (input.enc.cost > 0 && !(job.cost > 0)) job.cost = input.enc.cost;
+    if (input.enc.memMb > 0 && !(job.memMb > 0)) job.memMb = input.enc.memMb;
+    if (!budget.admit({ cost: costOfJob(job), memMb: job.memMb || 0, running: 0, essential: false }).ok) return "refused";
   }
   while (warmStarts.length && now - warmStarts[0] > 60000) warmStarts.shift();
   if (warmStarts.length >= WARM_MAX_PER_MIN) return "throttled";
@@ -1234,6 +1373,8 @@ module.exports = {
   // the quality ladder (ladder.js, the routes)
   encodeCount,
   encodeRoom,
+  encodeRoomSoon,
+  encodeLoad,
   encodeDeclined: (key) => declinedReason(encKey(key)),
   refusedJustNow: (job) => Date.now() - (job.refusedAt || 0) < 2000,
   // Test-only.
@@ -1242,11 +1383,11 @@ module.exports = {
     dropJob, decline,
     setDeclinedFile: (f) => { declinedFile = f; declined = null; },
     TARGET_SEG_SEC, TS_OFFSET_SEC, BOUNDARY_TOL_SEC,
-    sourceRate, admitEncode, park, MAX_ENCODES, ENC_LEAD_MAX, ENC_LEAD_MIN,
+    sourceRate, admitEncode, park, get MAX_ENCODES() { return budget.slots(); }, ENC_LEAD_MAX, ENC_LEAD_MIN,
     // producers and readers
     plan, noteReader, usage, reapable, contended, coversRun, extraCount, stopRun,
     MAX_PRODUCERS_PER_JOB, MAX_EXTRA_PRODUCERS, CLAIM_MS, READER_TTL_MS, STEAL_LEAD, BUSY_WAIT_MS, COVER_AHEAD,
     setOutsideEncodes: (fn) => { outsideEncodes = fn; },
-    jobs, encodeCensus, abandoned, ABANDONED_MS, WARM_AHEAD, WARM_MAX_PER_MIN, warmStarts, advance, yieldCpu,
+    jobs, encodeCensus, abandoned, ABANDONED_MS, speculative, promote, WARM_AHEAD, WARM_MAX_PER_MIN, warmStarts, advance, yieldCpu,
   },
 };

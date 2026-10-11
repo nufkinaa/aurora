@@ -228,8 +228,9 @@ const preflight = (url, { low = false, fresh = false, hint = null } = {}) => {
   const hit = pre.get(key);
   if (!fresh && hit && Date.now() - hit.at < PRE_TTL_MS) return hit.p;
   const p = fetch(url, { cache: "no-store", ...(low ? { priority: "low" } : {}), ...(hint ? { headers: { "X-Aurora-Start": hint } } : {}) })
-    .then(async (r) => ({ ok: r.ok, status: r.status, text: r.ok ? await r.text() : "" }))
-    .catch(() => ({ ok: false, status: 0, text: "" }));
+    // (`retryAfter`: seconds — the server's "busy, ask again" on a 503)
+    .then(async (r) => ({ ok: r.ok, status: r.status, text: r.ok ? await r.text() : "", retryAfter: r.ok ? 0 : parseFloat(r.headers.get("Retry-After")) || 0 }))
+    .catch(() => ({ ok: false, status: 0, text: "", retryAfter: 0 }));
   if (pre.size > 40) pre.clear();
   pre.set(key, { at: Date.now(), p });
   // a refusal is never kept: the next ask goes to the server again
@@ -525,6 +526,10 @@ export const applyCueStyle = () => {
     `font-family: inherit; line-height: 1.4; }`;
 };
 
+// A start the server answers "busy, ask again" (503 + Retry-After): how many
+// times it is asked again, and the longest one wait may be (see tryJitSwitch).
+const BUSY_RETRIES = 3;
+const BUSY_WAIT_MAX_S = 5;
 let playerOrigin = null; // the page the current run of players was opened from
 const PROGRESS_FRESH_MS = 30000; // see renderPlayer: progress read this recently is not read again
 
@@ -1124,6 +1129,11 @@ export const renderPlayer = async (root, { id }) => {
       const at = d.frag ? d.frag.level : d.context && d.context.level != null ? d.context.level : d.level;
       const lv = ladderLevels().find((l) => l.i === at);
       if (!lv || !lv.h || h.levels.length < 2) return;
+      // A rung the server offered IN PLACE of the full encode (&need=1: it
+      // is this device's way to play, not a courtesy) that is busy for a
+      // moment is waited for — hls.js asks again by itself, with its own
+      // back-off. Only a rung that does not exist (404) leaves the ladder.
+      if (code === 503 && /[?&]need=1(&|$)/.test(String((h.levels[at] && (h.levels[at].uri || (h.levels[at].url && h.levels[at].url[0]))) || ""))) return;
       mark("ladder-drop", { v: lv.v, code });
       if (ladderPick === lv.h) {
         ladderPick = "auto";
@@ -1961,9 +1971,24 @@ export const renderPlayer = async (root, { id }) => {
     {
       // (asked ahead by prestart when this is the start; asked here otherwise.
       // A torrent's playlist is never kept: its answer depends on the swarm.)
-      const r = isTorrent
+      let r = isTorrent
         ? await fetch(jitUrl, { cache: "no-store" }).then(async (x) => ({ ok: x.ok, text: x.ok ? await x.text() : "" })).catch(() => ({ ok: false, text: "" }))
         : await preflight(jitUrl, { fresh: !atStart });
+      // THE SERVER IS BUSY (503 with Retry-After: no room to encode for this
+      // device right now, even after its own short wait and after offering a
+      // lighter rung in the full one's place). At a start that is a wait,
+      // not a failure and not a reason to try the other ways in — they need
+      // the same encoder and would be refused the same: ask again when the
+      // server said to, a few times, the spinner up. Only at a start (a
+      // switch mid-film keeps the stream it has), and only on that answer (a
+      // 503 without Retry-After is a file with no index: nothing to wait for).
+      for (let i = 0; atStart && !isTorrent && !r.ok && r.status === 503 && r.retryAfter > 0 && i < BUSY_RETRIES; i++) {
+        const wait = Math.min(BUSY_WAIT_MAX_S, Math.max(1, r.retryAfter));
+        mark("busy-wait", { n: i + 1, s: wait });
+        await new Promise((res) => setTimeout(res, wait * 1000));
+        if (exited) return true;
+        r = await preflight(jitUrl, { fresh: true });
+      }
       if (!r.ok) {
         // no ladder for this file right now (no encoder free, no index): the
         // single playlist is still worth asking where it could play

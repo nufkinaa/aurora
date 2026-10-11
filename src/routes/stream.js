@@ -251,12 +251,17 @@ const fetchExtImage = (url, file) => {
 const { variant: imgVariant } = require("../lib/imgvariant");
 // ?blur=<px>: pre-blurred (the TV's billboard layers — see imgvariant.js).
 // ?fmt=webp: that blurred variant as WebP (opt-in; ignored otherwise).
+// Who is asking, for the variant queue's per-client limit (lib/admission.js).
+const artClient = (res) => { try { return require("../lib/admission").heavy.clientKey(res.req); } catch { return null; } };
 const sendArt = async (res, file, width, blur, fmt) => {
-  const v = width || blur ? await imgVariant(file, width, { blur, fmt }) : null;
+  const opts = { blur, fmt, client: artClient(res) };
+  const v = width || blur ? await imgVariant(file, width, opts) : null;
   const out = v || file;
   const head = readHead(out);
   res.setHeader("Content-Type", head ? sniffMime(head) : "image/jpeg");
-  res.setHeader("Cache-Control", "public, max-age=604800");
+  // (the original sent because the variant queue was full is kept for a
+  // minute only: the variant is asked for again once the rush is over)
+  res.setHeader("Cache-Control", opts.shed ? "public, max-age=60" : "public, max-age=604800");
   res.sendFile(out);
 };
 router.get("/img/ext", async (req, res) => {
@@ -315,8 +320,9 @@ router.get("/img/:id", async (req, res) => {
   const entry = resolveKind(req.params.id, "image");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
   try {
-    const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, { blur: req.query.blur, fmt: req.query.fmt }) : null;
-    res.setHeader("Cache-Control", "public, max-age=86400");
+    const opts = { blur: req.query.blur, fmt: req.query.fmt, client: artClient(res) };
+    const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, opts) : null;
+    res.setHeader("Cache-Control", opts.shed ? "public, max-age=60" : "public, max-age=86400");
     res.sendFile(v || entry.path);
   } catch (e) {
     console.warn(`[img] ${req.params.id} w=${req.query.w || "-"} blur=${req.query.blur || "-"} failed: ${(e && e.message) || e}`);
@@ -328,6 +334,16 @@ router.get("/img/:id", async (req, res) => {
 // audio the browser can't decode (AC-3, DTS...). Playlist request starts the
 // job; segments stream as ffmpeg produces them.
 const remux = require("../media/remux");
+// "The server is busy" (no room in the encode budget) is 503 with
+// Retry-After on every stream route — the older single-rendition routes
+// answered 500, which a monitor and a client both read as a fault.
+const sendStreamError = (res, err) => {
+  if (err && err.busy) {
+    res.setHeader("Retry-After", String(err.retryAfter || 5));
+    return res.status(503).send(err.message);
+  }
+  res.status(500).send((err && err.message) || "stream failed");
+};
 
 router.get("/stream/hls/:id/index.m3u8", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
@@ -340,7 +356,7 @@ router.get("/stream/hls/:id/index.m3u8", async (req, res) => {
     res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.join(dir, "index.m3u8"));
   } catch (err) {
-    res.status(500).send(err.message);
+    sendStreamError(res, err);
   }
 });
 
@@ -459,7 +475,11 @@ router.get("/stream/transcode/:id/jit/master.m3u8", async (req, res) => {
     const table = await timed(res, "table", () => libraryTable(entry, key, st.size));
     if (!table) return res.status(404).send("No usable index in this file");
     const m = await timed(res, "ladder", () => ladder.master(table, { key, input: entry.path, query: req.query, jit }));
-    if (!m.text) return res.status(m.status).send(m.message);
+    if (!m.text) {
+      // (busy — not "this file cannot be encoded": say when to ask again, as every stream route does)
+      if (m.status === 503) res.setHeader("Retry-After", "5");
+      return res.status(m.status).send(m.message);
+    }
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
     res.send(m.text);
@@ -508,12 +528,15 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
       // no encoder free: say so now, before the player commits to the rendition
-      if (!jit.encodeRoom(key, v === "h264")) {
+      // (&need=1: the master playlist offered this rung because the full
+      // encode did not fit — it is this viewer's only way to play)
+      if (!jit.encodeRoom(key, v === "h264" || req.query.need === "1")) {
         try { require("../lib/signals").hit("no-encoder", "rendition"); } catch {}
+        res.setHeader("Retry-After", "5");
         return res.status(503).send("Server is busy — that rendition isn't available right now");
       }
     }
-    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}`;
+    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}${v !== "copy" && req.query.need === "1" ? "&need=1" : ""}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
     res.send(jit.playlistText(table, suffix, fmt));
@@ -574,7 +597,7 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
     let input = { url: entry.path, extra: [], fmt, vtagHvc1: req.query.vtag === "hvc1", audio };
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
-      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path) });
+      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path), need: req.query.need === "1" });
       if (!input) return res.status(404).send("No such rendition of this file");
     }
     const job = jit.jobFor(dir, table, { enc: v !== "copy" });
@@ -602,7 +625,10 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
     if (!isInit) { try { require("../lib/signals").hit("seg-wait", !file ? "none" : Date.now() - askedAt >= 4000 ? "slow" : "ok"); } catch {} }
     // an encoded rendition with no encoder free: 503, so the player moves to
     // another rendition instead of waiting on this one
-    if (!file && jit.refusedJustNow(job)) return res.status(503).send("Server is busy — that rendition isn't available right now");
+    if (!file && jit.refusedJustNow(job)) {
+      res.setHeader("Retry-After", "5");
+      return res.status(503).send("Server is busy — that rendition isn't available right now");
+    }
     if (!file) return res.status(504).send("Segment not ready");
     res.setHeader("Content-Type", fmt ? "video/mp4" : "video/mp2t");
     res.setHeader("Cache-Control", "no-cache");
@@ -661,7 +687,7 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
     }
     res.send(text);
   } catch (err) {
-    res.status(500).send(err.message);
+    sendStreamError(res, err);
   }
 });
 

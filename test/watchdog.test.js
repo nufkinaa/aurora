@@ -14,16 +14,18 @@ test("soft heal runs the hooks and records an event", () => {
   assert.ok(ev.some((e) => e.kind === "soft heal" && /test cache dropped/.test(e.detail)));
 });
 
-test("hard heal without pm2 is a log line, not an exit", () => {
-  const savedPm = process.env.pm_id, savedHome = process.env.PM2_HOME;
-  delete process.env.pm_id; delete process.env.PM2_HOME;
+const SUP_ENV = ["pm_id", "PM2_HOME", "AURORA_SUPERVISOR", "INVOCATION_ID", "AURORA_SUPERVISED"];
+test("hard heal with nothing supervising the server is a log line, not an exit", () => {
+  const saved = {};
+  for (const k of SUP_ENV) { saved[k] = process.env[k]; delete process.env[k]; }
   try {
     wd.hardHeal("unit test");
     const ev = wd._internals.events;
-    assert.ok(ev.some((e) => e.kind === "hard heal skipped"));
+    assert.ok(ev.some((e) => e.kind === "hard heal skipped" && /not supervised/.test(e.detail)));
+    assert.equal(wd.status().pm2, false);
+    assert.equal(wd.status().supervisor.supervised, false);
   } finally {
-    if (savedPm != null) process.env.pm_id = savedPm;
-    if (savedHome != null) process.env.PM2_HOME = savedHome;
+    for (const k of SUP_ENV) if (saved[k] != null) process.env[k] = saved[k];
   }
 });
 
