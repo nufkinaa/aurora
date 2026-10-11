@@ -21,7 +21,8 @@ import {track} from '../usage';
 import {tmLap, tmStart} from '../telemetry'; // [analytics]
 import {canNavigate} from '../navLock';
 import {warmItem} from '../prefetch';
-import {noteFocus, railOpen, useFocusFallback, useTVKeys} from '../focus';
+import {noteFocus, noteOwnFocusMove, pressMovedFocus, railOpen, useFocusFallback, useTVKeys} from '../focus';
+import {useRouteShown} from '../useRouteShown';
 import {useApp} from '../AppContext';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
@@ -81,13 +82,22 @@ export default function Search({
         // Never while the nav rail's panel is up (see Browse's escape) — this
         // one would even summon the IME on top of the open rail.
         if (railOpen()) return;
+        // JS hears this UP on its RELEASE; Android already moved focus on the
+        // key-down. So the UP that carried focus from the second row INTO the
+        // top row (or from the top row into the chips, when the native search
+        // did find them) must not also be read as "UP from the top row" (or
+        // "UP from the chips") and jump a second band — focus.ts
+        // pressMovedFocus. A press that STARTS there moved nothing, and acts.
+        if (pressMovedFocus()) return;
         if (inChips.current) {
           inChips.current = false;
+          noteOwnFocusMove();
           inputRef.current?.focus();
           return;
         }
         if (!inGrid.current || gridIdx.current >= cols) return;
         inGrid.current = false;
+        noteOwnFocusMove();
         const chip = hasChips.current ? (firstChipRef.current as {requestTVFocus?: () => void} | null) : null;
         if (chip?.requestTVFocus) chip.requestTVFocus();
         else inputRef.current?.focus();
@@ -108,11 +118,29 @@ export default function Search({
     }
   }, []);
 
+  // usage stats: this screen's content is on (routeTiming.ts) — the shelf
+  // under the empty field has arrived, or was refused
+  const [shown, setShown] = useState(false);
+  useRouteShown(shown);
   useEffect(() => {
     let live = true;
+    // Everything on this screen was asked AS a profile (recents, the popular
+    // shelf, results filtered for a kids profile): none of it outlives it.
+    setRecent([]);
+    setPopular([]);
+    setAnswer(EMPTY);
+    setSuggestions([]);
+    setQ('');
+    setPhase('idle');
     if (profileId) {
       api.recentSearches(profileId).then(r => live && setRecent(r.items || [])).catch(() => {});
-      api.popular(profileId).then(r => live && setPopular((r.items || []).map(i => ({...i, source: 'downloaded' as const})))).catch(() => {});
+      api
+        .popular(profileId)
+        .then(r => live && setPopular((r.items || []).map(i => ({...i, source: 'downloaded' as const}))))
+        .catch(() => {})
+        .then(() => live && setShown(true));
+    } else {
+      setShown(true);
     }
     return () => {
       live = false;
@@ -296,6 +324,7 @@ export default function Search({
         <View style={styles.chips}>
           {chips.map((s, at) => (
             <Chip
+              uiId="search.suggestion.pick"
               key={`${s.kind}-${s.id || s.imdbId || s.name}`}
               ref={at === 0 ? firstChipRef : undefined}
               small
@@ -312,6 +341,7 @@ export default function Search({
           <Text style={styles.bandLabel}>Recent</Text>
           {recents.map((r, at) => (
             <Chip
+              uiId="search.recent.pick"
               key={r}
               ref={at === 0 ? firstChipRef : undefined}
               small

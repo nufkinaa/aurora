@@ -6,21 +6,23 @@
 // The richer half — error reports, timings, control counts (telemetry.ts) —
 // rides in the same batch, under the same switch.
 //
-// THE SWITCH. Two things must both say yes before anything is sent:
-//   • this box's own setting (Settings → Privacy; setUsageEnabled), and
-//   • the PROFILE's choice, read from the server (its prefs.usageStats) each
-//     time a profile is entered — a person who switched usage stats off on
-//     their phone has switched them off on every TV they use.
-// Until the profile's choice has been read, events are held (bounded), not
-// sent. And the server enforces it whatever this app believes: a batch for a
-// profile that said no is dropped there and answered `X-Usage: off`, on
-// which this app stops sending for that profile.
+// THE SWITCH — ONE SOURCE. Usage stats are a setting of the PERSON, kept on
+// the profile (prefs.usageStats) and the same on the website and on every TV:
+// personSync.ts reads it (this box's remembered copy at once, then the
+// profile itself, and again whenever it changes on another device) and
+// SessionWiring hands each answer to setUsageEnabled; Settings → Privacy
+// writes it through the same door. This file reads the profile from nowhere
+// else. Until the first answer for the profile just entered, events are held
+// (bounded), not sent. And the server enforces it whatever this app believes:
+// a batch for a profile that said no is dropped there and answered
+// `X-Usage: off`, on which this app stops sending for that profile.
 //
 // WHEN. Never while the remote is in use or a play is starting: a batch waits
 // for three seconds without a key (telemetry.quiet()). Nothing here writes to
 // storage.
 import {AppState} from 'react-native';
-import {api, getAuthMode, getBaseUrl, getSession} from './api';
+import {getAuthMode, getBaseUrl, getSession} from './api';
+import {registerProfileCache} from './profileScope';
 import * as tel from './telemetry';
 import {normMessage} from './telemetryCore';
 import {APP_VERSION} from './update';
@@ -29,9 +31,8 @@ type Ev = {n: string; t: number; p: Record<string, string | number | boolean>};
 const queue: Ev[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 let profile: string | null = null;
-let enabledFlag = true;
-// The profile's own choice on the server: null = not read yet (hold), true /
-// false once known. Read again for every profile entered.
+// The person's own choice (see THE SWITCH): null = not known yet for the
+// profile just entered (hold), true / false once personSync has said.
 let profileAllows: boolean | null = null;
 let errors = 0;
 // What a build says about itself in its frame reports — which components are
@@ -50,7 +51,7 @@ const forget = () => {
 };
 
 // telemetry.ts counts nothing while the answer is a known "no"
-const sayOff = () => tel.setOff(!enabledFlag || profileAllows === false);
+const sayOff = () => tel.setOff(profileAllows === false);
 
 export const setUsageProfile = (id: string | null) => {
   if (profile && profile !== id) {
@@ -62,28 +63,16 @@ export const setUsageProfile = (id: string | null) => {
   profile = id;
   profileAllows = null;
   sayOff();
-  if (!id) return;
-  // the person's own switch (the site writes it; this TV only reads it)
-  api
-    .profiles()
-    .then(list => {
-      if (profile !== id) return;
-      const p = list.find(x => x.id === id);
-      profileAllows = !(p && p.prefs && p.prefs.usageStats === false);
-      sayOff();
-      if (!profileAllows) forget();
-    })
-    .catch(() => {
-      // not known: nothing is sent on a guess; the next profile entry asks again
-    });
 };
+/** The active person's switch, as personSync knows it (SessionWiring, Settings). */
 export const setUsageEnabled = (on: boolean) => {
-  enabledFlag = on;
+  profileAllows = on;
   sayOff();
   if (!on) forget();
+  else if (queue.length || tel.pending()) arm(); // what was held may go
 };
-/** Is this profile, on this box, sending usage stats? (null: not known yet) */
-export const usageAllowed = (): boolean | null => (!enabledFlag ? false : profileAllows);
+/** Is the active profile sending usage stats? (null: not known yet) */
+export const usageAllowed = (): boolean | null => profileAllows;
 
 // What this box is, for the error reports: the model and Android level it
 // already knows (perfTier.ts — required lazily, it imports this file).
@@ -112,7 +101,7 @@ const flush = (force = false) => {
   if (timer) clearTimeout(timer);
   timer = null;
   if (!profile) return;
-  if (!enabledFlag || profileAllows === false) return forget();
+  if (profileAllows === false) return forget();
   if (!queue.length && !tel.pending()) return;
   // the profile's choice or the install id not read yet, the remote in use,
   // a play starting: later
@@ -161,18 +150,19 @@ const flush = (force = false) => {
     })
     .catch(() => tel.giveBack(extra));
 };
-const arm = () => {
+function arm() {
   if (!timer) timer = setTimeout(flush, FLUSH_MS);
-};
+}
 tel.wire({poke: arm, version: APP_VERSION});
 
 // track('feat', {f: 'party_start'}) — props are short strings, numbers, booleans.
 export const track = (name: string, props: Record<string, string | number | boolean> = {}) => {
   // What the richer half learns from events the app already sends — so these
-  // need no call site of their own: which screen is on show, a play's first
+  // need no call site of their own: a play's first
   // frame, a memory warning, a stall mid-play.
-  if (name === 'route' && typeof props.r === 'string') tel.setScreen(props.r);
-  else if (name === 'play' && typeof props.ms === 'number') {
+  // (which screen is on show: routeTiming.ts tells telemetry itself, when the
+  // navigation starts — the `route` event is only sent once its content is on)
+  if (name === 'play' && typeof props.ms === 'number') {
     tel.playFirstFrame(props.ms, {
       torrent: props.kind === 'stream',
       transcode: props.path !== 'direct',
@@ -184,7 +174,7 @@ export const track = (name: string, props: Record<string, string | number | bool
     if (typeof props.exp === 'string' && props.exp) buildFlags.push(`exp:${props.exp.toLowerCase()}`);
   }
   else if (name === 'feat' && props.f === 'stall_tv') tel.playbackStalled();
-  if (!enabledFlag || !profile || profileAllows === false) return;
+  if (!profile || profileAllows === false) return;
   queue.push({n: name, t: Date.now(), p: props});
   if (queue.length > MAX_QUEUE) queue.shift();
   if (queue.length >= MAX_BATCH) {
@@ -208,4 +198,14 @@ export const trackError = (message: string, fatal?: boolean) => {
 
 AppState.addEventListener('change', s => {
   if (s !== 'active') flush(true);
+});
+
+// A profile is left: what it did is sent as it (setUsageProfile flushes), what
+// could not be sent is dropped — unsent reports included, by design — and
+// nothing more is counted under its name (profileScope.ts).
+registerProfileCache('usage', () => {
+  setUsageProfile(null);
+  queue.length = 0;
+  errors = 0;
+  tel.clear();
 });

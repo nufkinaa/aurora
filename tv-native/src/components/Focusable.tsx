@@ -12,7 +12,7 @@
 // elements at once. Every Focusable registers a clear() in a global registry and
 // whoever GAINS focus clears the one that was lit, so at most one ring can exist
 // no matter which blur events got lost (works across screens too).
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Animated,
   Easing,
@@ -206,6 +206,16 @@ export default function Focusable({
   const springAnim = useRef(new Animated.Value(0)).current;
   const idRef = useRef(0);
   if (!idRef.current) idRef.current = nextId++;
+  // Is this element's ring up (or on its way up)? True from its focus event
+  // until the first thing that sends it back down. TWO things can send it
+  // down — its own blur, and the registry clear run by whoever gains focus
+  // (the net for a dropped blur) — and when both arrive for one move, the
+  // second used to start the same two animations to 0 again, on values
+  // already heading there. Each start is a native call in front of the next
+  // keypress. Whichever comes first does it; the other finds this false.
+  // Nothing else writes `anim` / `springAnim`, so an element that is not lit
+  // is at 0 or already animating to it: skipping changes no end state.
+  const lit = useRef(false);
 
   // Held as well as forwarded: focus.ts needs this element's native node to
   // give focus back to it later (requestTVFocus lives on the host instance).
@@ -244,6 +254,8 @@ export default function Focusable({
     // rather than travel. A fade-out costs the same as the fade-in and is
     // idempotent, so it still cleans up a dropped blur event, just gracefully.
     ringRegistry.set(id, () => {
+      if (!lit.current) return;
+      lit.current = false;
       Animated.timing(anim, {
         toValue: 0,
         duration: focus.duration,
@@ -289,16 +301,24 @@ export default function Focusable({
   ]) as ViewStyle;
   const ringRadius = (flat.borderRadius as number) ?? radius.m;
 
-  const scale = springAnim.interpolate({
-    // Past 1 so the spring's overshoot has somewhere to go instead of clipping.
-    inputRange: [0, 1, 2],
-    outputRange: [1, scaleTo ?? focus.scale, (scaleTo ?? focus.scale) * 2 - 1],
-  });
+  // Memoised: an interpolation made during render is a new animated node each
+  // time, so every re-render of the element had Animated attach a new node to
+  // the native view and detach the old one — for the same curve.
+  const scale = useMemo(
+    () =>
+      springAnim.interpolate({
+        // Past 1 so the spring's overshoot has somewhere to go instead of clipping.
+        inputRange: [0, 1, 2],
+        outputRange: [1, scaleTo ?? focus.scale, (scaleTo ?? focus.scale) * 2 - 1],
+      }),
+    [springAnim, scaleTo],
+  );
   // Same spring, same overshoot allowance, so the rise and the growth are one
   // movement rather than two.
-  const translateY = lift
-    ? springAnim.interpolate({inputRange: [0, 1, 2], outputRange: [0, -lift, -lift * 2]})
-    : null;
+  const translateY = useMemo(
+    () => (lift ? springAnim.interpolate({inputRange: [0, 1, 2], outputRange: [0, -lift, -lift * 2]}) : null),
+    [springAnim, lift],
+  );
 
   return (
     <AnimatedPressable
@@ -318,6 +338,7 @@ export default function Focusable({
       onLongPress={onLongPress}
       onFocus={() => {
         claimRing(idRef.current);
+        lit.current = true;
         noteFocus(node.current, !!edgeLeft, !!edgeRight);
         // focus.duration (110ms) with a decelerating curve, up from a linear
         // 60ms. 60ms is below the threshold where the eye reads a transition at
@@ -354,19 +375,23 @@ export default function Focusable({
       }}
       onBlur={() => {
         releaseRing(idRef.current);
-        Animated.timing(anim, {
-          toValue: 0,
-          duration: focus.duration,
-          easing: EASE,
-          useNativeDriver: true,
-          isInteraction: false,
-        }).start();
-        Animated.spring(springAnim, {
-          toValue: 0,
-          ...focus.spring,
-          useNativeDriver: true,
-          isInteraction: false,
-        }).start();
+        // (not when the registry clear has already sent it down — see `lit`)
+        if (lit.current) {
+          lit.current = false;
+          Animated.timing(anim, {
+            toValue: 0,
+            duration: focus.duration,
+            easing: EASE,
+            useNativeDriver: true,
+            isInteraction: false,
+          }).start();
+          Animated.spring(springAnim, {
+            toValue: 0,
+            ...focus.spring,
+            useNativeDriver: true,
+            isInteraction: false,
+          }).start();
+        }
         onFocusChange?.(false);
       }}
       // The scale is what makes focus feel like movement rather than a jump. It

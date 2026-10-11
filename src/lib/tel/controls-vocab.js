@@ -29,7 +29,7 @@ module.exports = {
   "detail.offline": "w",
   "detail.offline.season": "w",
   "detail.play": "wt",
-  "detail.restart": "w",
+  "detail.restart": "wt",
   "detail.rollagain": "w",
   "detail.save": "w",
   "detail.season.open": "w",
@@ -80,6 +80,9 @@ module.exports = {
   "nav.search": "wt",
   "nav.settings": "wt",
   "nav.shows": "wt",
+  // newpassword
+  "newpassword.signout": "t",
+  "newpassword.submit": "t",
   // party
   "party.join": "t",
   // peek
@@ -120,9 +123,11 @@ module.exports = {
   "player.slowstart.wait": "t",
   "player.speed.open": "wt",
   "player.speed.pick": "wt",
+  "player.stall.lower": "t",
+  "player.stall.retry": "t",
   "player.startover": "wt",
-  "player.stillwatching.done": "w",
-  "player.stillwatching.keep": "w",
+  "player.stillwatching.done": "wt",
+  "player.stillwatching.keep": "wt",
   "player.subtitles.open": "wt",
   "player.subtitles.pick": "wt",
   "player.subtitles.resync": "t",
@@ -147,9 +152,9 @@ module.exports = {
   "saved.remove": "w",
   // search
   "search.clear": "w",
-  "search.recent.pick": "w",
+  "search.recent.pick": "wt",
   "search.retry": "w",
-  "search.suggestion.pick": "w",
+  "search.suggestion.pick": "wt",
   // settings
   "settings.accent": "w",
   "settings.autoplay": "t",

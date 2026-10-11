@@ -39,20 +39,24 @@ import Card, {CARD_W} from '../components/Card';
 import {api, HeroItem, ProfileState} from '../api';
 import {onMessage} from '../realtime';
 import {warmItem} from '../prefetch';
+import {artIdle, artForget, limits as artLimits} from '../artPrefetch';
+import {prefetchable} from '../cardArt';
 import {watchStateFor} from '../watchState';
 import {canNavigate} from '../navLock';
 import {
   atRightEdge,
   captureFocus,
   focusJustMoved,
+  pressMovedFocus,
   railOpen,
   useFocusFallback,
   useIsLive,
   useListClaim,
   useTVKeys,
 } from '../focus';
-import {useScreenIn} from '../motion';
+import {defer, useScreenIn} from '../motion';
 import {useApp} from '../AppContext';
+import {useRouteShown} from '../useRouteShown';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 
@@ -73,6 +77,39 @@ const STRIP_W = 44;
 // How close to the end of the loaded list focus has to get before the next page
 // is fetched: two rows out, so the page lands before the viewer reaches it.
 const PREFETCH_ROWS = 2;
+// HOW MUCH OF THE GRID EXISTS — IN ROWS. With numColumns the list's "items"
+// are ROWS (FlatList hands VirtualizedList ceil(n / numColumns) of them), so
+// the three numbers below count rows of six cards, not cards. They used to be
+// 24 / 12 / 3, written as if they counted cards: the first commit of Movies
+// mounted up to 24 ROWS — every title of the library and the whole first
+// catalogue page, 78 cards on this server, ~900 views and 78 picture requests
+// — before the screen could show its first three; a batch was 72 cards; and
+// beyond those first rows only one viewport either side was kept.
+//
+// Geometry (960×540 canvas): a row is 186 + 13 = 199dp; the list is 472dp
+// tall under the heading, so three rows show at the top and parts of four
+// once it has scrolled — 2.4 rows to a viewport.
+//
+//  • FIRST COMMIT: 5 rows (30 cards) — what shows, and a row and a half
+//    under it. These first rows are never unmounted (VirtualizedList keeps
+//    them), so focus restore, "Change filters" → first card and the scroll
+//    back to the top always find them.
+//  • THEN, BY THEMSELVES, 2 rows (12 cards) per batch, 50 ms apart, until the
+//    window is full — small commits after the first picture instead of one
+//    huge one in front of it.
+//  • THE WINDOW: 11 viewports — 5 either side, ≈ 12 rows. A held DOWN moves
+//    a row every ~110 ms, so that is 1.3 s of rows already mounted (with
+//    their pictures asked for) ahead of focus, against a fill rate of 2 rows
+//    per batch; before it was the first 24 rows and then one viewport (0.26
+//    s) ahead. Mounted at most: 5 + 12 + 3.4 + 12 ≈ 30 rows, about what the
+//    old numbers held (24 + 6).
+// A grid of up to ~15 rows ends up fully mounted, as it always was — only no
+// longer in its first commit.
+const GRID_FIRST_ROWS = 5;
+const GRID_BATCH_ROWS = 2;
+const GRID_WINDOW = 11;
+// Rows the list keeps rendered beyond the viewport, each way.
+const GRID_AHEAD = Math.round(((GRID_WINDOW - 1) / 2) * 2.4);
 // A failed read is tried again by itself after these waits (then it waits for
 // Retry). Measured through a 0.9 Mbit / 250 ms line: one dropped request used
 // to read as "nothing here" for good. Spaced out so a struggling line is not
@@ -134,6 +171,8 @@ export default function Browse({
   const [loading, setLoading] = useState(false);
   const [profState, setProfState] = useState<ProfileState | null>(null);
   const [likedGenres, setLikedGenres] = useState<string[]>([]);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(lib !== null || fetched.length > 0);
   // Started/finished across ALL THREE progress maps. A bare progress[id] lookup
   // only ever answers for downloaded FILMS — catalog items have no library id
   // at all and streamed history lives in streamProgress/episodeProgress — so
@@ -217,13 +256,28 @@ export default function Browse({
   // Downloaded shelf of this grid is read again. Only that — the catalogue
   // pages already on screen stay as they are, so the grid under the viewer's
   // focus does not reshuffle. Held a moment: a season landing says so per file.
+  //
+  // Only while this grid is the screen on top. Under a title page or the
+  // player it used to read the whole library (and re-render, frozen) once per
+  // burst of messages — a season landing during a film meant a 90 KB parse
+  // behind the player every few seconds. Now the change is noted, and read
+  // once when the grid is back on top (Home does the same with its rows).
+  const libStale = useRef(false);
   useEffect(() => {
     let on = true;
     let t: ReturnType<typeof setTimeout> | null = null;
     const off = onMessage('library_updated', () => {
+      if (!screenLiveRef.current) {
+        libStale.current = true;
+        return;
+      }
       if (t) return;
       t = setTimeout(() => {
         t = null;
+        if (!screenLiveRef.current) {
+          libStale.current = true;
+          return;
+        }
         console.log('[live] browse: library changed, shelf re-read');
         api
           .library(true)
@@ -233,7 +287,9 @@ export default function Browse({
             setLib((kind === 'show' ? l.shows : l.movies).map(i => ({...i, source: 'downloaded' as const})));
           })
           .catch(() => {});
-      }, 2500);
+        // (a short hold only: realtime.ts has already waited its random
+        // 0.5–5 s and folded a burst of messages into this one)
+      }, 100);
     });
     return () => {
       on = false;
@@ -241,6 +297,25 @@ export default function Browse({
       if (t) clearTimeout(t);
     };
   }, [kind]);
+  useEffect(() => {
+    if (!screenLive || !libStale.current) return;
+    libStale.current = false;
+    let on = true;
+    console.log('[live] browse: library changed while away, shelf re-read');
+    // Not `fresh`: the message already dropped the kept list (realtime.ts), so
+    // this is either a new read or the one another screen made since.
+    api
+      .library()
+      .then(l => {
+        if (!on) return;
+        setLibErr(false);
+        setLib((kind === 'show' ? l.shows : l.movies).map(i => ({...i, source: 'downloaded' as const})));
+      })
+      .catch(() => {});
+    return () => {
+      on = false;
+    };
+  }, [screenLive, kind]);
 
   // What "For you" is built from: the genres you picked in Preferences if you
   // picked any, otherwise the ones your own library leans on.
@@ -366,6 +441,23 @@ export default function Browse({
   // The last card focus rested on, so the retry timer can tell whether the
   // viewer is still down at the end of the list.
   const lastFocusIdx = useRef(0);
+  // PAGING IS ASKED FOR FROM A CARD'S FOCUS HANDLER, so what it does there has
+  // to be next to nothing. It used to setLoading(true) on the spot — a render
+  // of this whole screen in front of the next press — and apply the answer
+  // (a page of new cells) the same way. The request still leaves at once (a
+  // held DOWN needs the page; waiting for rest would stop the list at its end
+  // for no reason), but every state change is a transition (motion.ts defer):
+  // React does it between presses and drops it for the next one.
+  //
+  // Because `loading` now lands a moment late, "a page is on its way" is a
+  // ref for the guard; it is let go only once the commit that carries the new
+  // page (or the failure) has happened — `loadSeq` — so a press in between
+  // cannot ask for the same page twice.
+  const nextBusy = useRef(false);
+  const [loadSeq, setLoadSeq] = useState(0);
+  useEffect(() => {
+    nextBusy.current = false;
+  }, [loadSeq, cacheKey]);
   useEffect(() => {
     nextFails.current = 0;
     nextNotBefore.current = 0;
@@ -380,10 +472,11 @@ export default function Browse({
     [],
   );
   const loadNext = useCallback(() => {
-    if (loading || !hasMore || localOnly || page < 0) return;
+    if (nextBusy.current || loading || !hasMore || localOnly || page < 0) return;
     if (Date.now() < nextNotBefore.current) return;
     const id = reqId.current;
-    setLoading(true);
+    nextBusy.current = true;
+    defer(() => setLoading(true));
     api
       .catalog({type: kind, category: cat.catalog || 'trending', genre: genre || null, page: page + 1})
       .then(r => {
@@ -391,17 +484,19 @@ export default function Browse({
         // De-dupe on append: the catalogs overlap between pages often enough that
         // letting them through gave the grid the same poster twice.
         const nextPage = r.page ?? page + 1;
-        setFetched(prev => {
-          const have = new Set(prev.map(keyOf));
-          const merged = [...prev, ...(r.items || []).filter(i => !have.has(keyOf(i)))];
-          cache.current.set(cacheKey, {items: merged, page: nextPage, hasMore: !!r.hasMore});
-          return merged;
-        });
-        setPage(nextPage);
-        setHasMore(!!r.hasMore);
         nextFails.current = 0;
         nextNotBefore.current = 0;
-        setNextErr(false);
+        defer(() => {
+          setFetched(prev => {
+            const have = new Set(prev.map(keyOf));
+            const merged = [...prev, ...(r.items || []).filter(i => !have.has(keyOf(i)))];
+            cache.current.set(cacheKey, {items: merged, page: nextPage, hasMore: !!r.hasMore});
+            return merged;
+          });
+          setPage(nextPage);
+          setHasMore(!!r.hasMore);
+          setNextErr(false);
+        });
       })
       .catch(() => {
         if (id !== reqId.current) return;
@@ -419,7 +514,17 @@ export default function Browse({
           if (lastFocusIdx.current >= itemCountRef.current - colsRef.current * PREFETCH_ROWS) loadNextRef.current();
         }, wait + 50);
       })
-      .finally(() => id === reqId.current && setLoading(false));
+      .finally(() => {
+        // superseded (another category was opened): that round owns `loading`
+        if (id !== reqId.current) {
+          nextBusy.current = false;
+          return;
+        }
+        defer(() => {
+          setLoading(false);
+          setLoadSeq(n => n + 1);
+        });
+      });
   }, [cacheKey, cat.catalog, genre, hasMore, kind, loading, localOnly, page]);
   // Read through a ref by the card focus handler, which must keep a stable
   // identity (it is a prop on every memoized card).
@@ -427,6 +532,15 @@ export default function Browse({
   loadNextRef.current = loadNext;
   const colsRef = useRef(cols);
   colsRef.current = cols;
+
+  // A catalogue title as the grid shows it: tagged `source: 'stream'`. ONE
+  // tagged object per fetched title, made once and kept. The tagging used to
+  // be a `.map(i => ({...i, source}))` inside the list memo below, which runs
+  // again whenever a page is appended (or the library / profile state lands):
+  // every title got a new object each time, so every memoised card in the
+  // mounted window re-rendered on each page — while a key was held down the
+  // grid. (`fetched` itself stays untagged: "Surprise me" reads it.)
+  const streamTagged = useRef(new WeakMap<HeroItem, HeroItem>()).current;
 
   // ---- what to show ------------------------------------------------------
   // `visible()` transcribed (browse.js:310-327): the WHOLE downloaded library,
@@ -447,7 +561,14 @@ export default function Browse({
     const libTitles = new Set(downloaded.map(i => norm(i.title)));
     let stream = fetched.filter(m => m.imdbId && !libTitles.has(norm(m.title)));
     if (unwatched) stream = stream.filter(m => !marks(m).finished);
-    let tagged = stream.map(i => ({...i, source: 'stream' as const}));
+    let tagged = stream.map(i => {
+      let t = streamTagged.get(i);
+      if (!t) {
+        t = {...i, source: 'stream' as const};
+        streamTagged.set(i, t);
+      }
+      return t;
+    });
     // "For you": float the genres this profile actually watches to the front,
     // keeping catalog order within each group.
     if (cat.taste && tasteGenres.length && !genre) {
@@ -457,10 +578,13 @@ export default function Browse({
       tagged = [...hit, ...rest];
     }
     return {list: [...local, ...tagged], owned: local.length};
-  }, [cat, fetched, genre, lib, localOnly, marks, tasteGenres, unwatched]);
+  }, [cat, fetched, genre, lib, localOnly, marks, streamTagged, tasteGenres, unwatched]);
   const itemCount = items.length;
   const itemCountRef = useRef(itemCount);
   itemCountRef.current = itemCount;
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  useEffect(() => () => artForget('grid'), []);
 
   const openDetail = useCallback(
     (item: HeroItem) => {
@@ -555,7 +679,7 @@ export default function Browse({
     (evt: {eventType: string}) => {
       const t = evt.eventType;
       if (!panel) {
-        if (t === 'right' && atRightEdge() && !railOpen() && !focusJustMoved(120)) openPanel();
+        if (t === 'right' && atRightEdge() && !railOpen() && !focusJustMoved(120) && !pressMovedFocus()) openPanel();
         return;
       }
       if (t === 'left') closePanel();
@@ -584,6 +708,22 @@ export default function Browse({
   const onCardFocus = useCallback((item: HeroItem, index: number) => {
     warmItem(item); // the Detail page's data, if focus holds a moment
     lastFocusIdx.current = index;
+    // The rows BELOW. The list keeps about twelve rows rendered under the
+    // viewport (GRID_WINDOW) and their cards ask for their own pictures, so
+    // there is no mount to see here; what can show is a picture arriving
+    // while the list is still filling, in the first second after it opens.
+    // While the remote rests, the next rows' pictures are fetched ahead
+    // (artPrefetch.ts), so holding DOWN runs onto pictures that are already
+    // decoded. Anything already drawn or asked for is skipped there, so the
+    // overlap with rendered rows is free.
+    artIdle('grid', () => {
+      const rows = artLimits().gridRows;
+      if (!rows) return [];
+      const row = Math.floor(index / cols);
+      // (from the edge of what the list keeps rendered below: ~2 rows on screen under focus + GRID_AHEAD)
+      const from = row + 2 + GRID_AHEAD;
+      return itemsRef.current.slice(from * cols, (from + 2 + rows) * cols).map(i => prefetchable(i));
+    });
     // Automatic paging, two rows ahead of the focus. The page APPENDS, so no
     // card already on screen moves; the only visible change is more rows
     // below, which is what "scrolling" is.
@@ -707,14 +847,14 @@ export default function Browse({
             keyExtractor={keyOf}
             columnWrapperStyle={styles.rowGap}
             contentContainerStyle={[styles.grid, {paddingBottom: CLEARANCE.below + safeBottom}]}
-            initialNumToRender={24}
-            maxToRenderPerBatch={12}
+            initialNumToRender={GRID_FIRST_ROWS}
+            maxToRenderPerBatch={GRID_BATCH_ROWS}
             // Measured on the Streamer (see git history for the numbers): with
             // clipping off the grid degraded to 750ms frames the longer you
             // browsed; on, it stays flat. The clearance is contentContainer
             // padding, so a focused card's ring on the last row is never clipped.
             removeClippedSubviews
-            windowSize={3}
+            windowSize={GRID_WINDOW}
             renderItem={renderCard}
             ListFooterComponent={footer}
           />

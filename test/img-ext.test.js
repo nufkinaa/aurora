@@ -145,7 +145,9 @@ test("the website and the server agree on the hosts — and the TV app's list is
     const body = src.slice(at, src.indexOf("]);", at)).replace(/\/\/.*$/gm, "");
     return [...body.matchAll(/["']([a-z0-9.-]+\.[a-z]{2,})["']/g)].map((m) => m[1]).sort();
   };
-  const server = listIn("src/routes/stream.js", "EXT_IMG_HOSTS");
+  // (the server's list lives in a module of its own on the TV bundle's branch —
+  // src/lib/imghosts.js, which /api/ping also reads to say what was added)
+  const server = [...require("../src/lib/imghosts").EXT_IMG_HOSTS].sort();
   const web = listIn("public/js/ui.js", "PROXY_ART_HOSTS");
   assert.ok(server.includes("episodes.metahub.space"));
   for (const h of web) assert.ok(server.includes(h), `the website would send ${h} through a proxy that refuses it`);

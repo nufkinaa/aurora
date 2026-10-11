@@ -49,6 +49,9 @@ object HomeScreenRows {
   const val KEY_SESSION = "session"
   const val KEY_PROFILE = "profileId"
   const val KEY_TOKEN = "profileToken"
+  // the picture-cache names each writer last referred to (sweepArt)
+  private const val KEY_ART_NEXT = "artNext"
+  private const val KEY_ART_ROW = "artRow"
 
   const val CHANNEL_NAME = "Aurora"
   private const val JOB_ID = 48151
@@ -67,11 +70,25 @@ object HomeScreenRows {
 
   // ---------------------------------------------------------------- Watch Next
 
-  /** Replaces the launcher's "Continue watching" entries of this app. */
-  fun writeWatchNext(ctx: Context, items: List<Map<String, Any?>>): Int {
+  /**
+   * Replaces the launcher's "Continue watching" entries of this app.
+   *
+   * The pictures go through [artUri], like the row's: handed the server's own
+   * address the launcher fetched it itself, with no session, and a
+   * sign-in-required server answered 401 (`[auth] 401 /img/… ua=Dalvik…` in
+   * the server log, and a card with no picture). [base] / [session] left out
+   * fall back to what the app saved for the background job.
+   */
+  fun writeWatchNext(ctx: Context, items: List<Map<String, Any?>>, base: String? = null, session: String? = null): Int {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return 0
     synchronized(lock) {
       val cr = ctx.contentResolver
+      val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+      val b0 = if (base.isNullOrEmpty()) prefs.getString(KEY_BASE, null) else base
+      val s0 = if (session.isNullOrEmpty()) prefs.getString(KEY_SESSION, null) else session
+      // pictures first, then the swap (as the row does)
+      val used = HashSet<String>()
+      val arts = items.map { m -> str(m, "art")?.let { artUri(ctx, it, b0, s0, used) } }
       cr.delete(TvContractCompat.WatchNextPrograms.CONTENT_URI, null, null)
       var n = 0
       val now = System.currentTimeMillis()
@@ -90,8 +107,8 @@ object HomeScreenRows {
           b.setEpisodeNumber(num(m, "episode").toInt())
         }
         str(m, "description")?.let { b.setDescription(it) }
-        str(m, "art")?.let {
-          b.setPosterArtUri(Uri.parse(it))
+        arts[i]?.let {
+          b.setPosterArtUri(it)
           b.setPosterArtAspectRatio(TvContractCompat.PreviewPrograms.ASPECT_RATIO_16_9)
         }
         val dur = (num(m, "duration") * 1000).toInt()
@@ -104,6 +121,7 @@ object HomeScreenRows {
         b.setInternalProviderId(str(m, "id") ?: link)
         if (cr.insert(TvContractCompat.WatchNextPrograms.CONTENT_URI, b.build().toContentValues()) != null) n++
       }
+      sweepArt(ctx, KEY_ART_NEXT, used)
       return n
     }
   }
@@ -182,8 +200,16 @@ object HomeScreenRows {
    * to AND that is more than a day old is deleted (the day is slack for a
    * launcher still drawing the row it was given a moment ago). Never throws.
    */
-  private fun sweepArt(ctx: Context, used: Set<String>) {
+  private fun sweepArt(ctx: Context, who: String, mine: Set<String>) {
     try {
+      // Two writers share the folder (Continue watching, and the row) and each
+      // is rebuilt on its own: what the OTHER one last referred to is kept
+      // too. Both lists are saved, so this holds across the app and the job.
+      val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+      prefs.edit().putStringSet(who, HashSet(mine)).apply()
+      val other = if (who == KEY_ART_NEXT) KEY_ART_ROW else KEY_ART_NEXT
+      val used = HashSet(mine)
+      prefs.getStringSet(other, null)?.let { used.addAll(it) }
       val files = artDir(ctx).listFiles() ?: return
       val cutoff = System.currentTimeMillis() - DAY_MS
       var gone = 0
@@ -259,7 +285,7 @@ object HomeScreenRows {
         b.setInternalProviderId(str(m, "id") ?: link)
         if (cr.insert(TvContractCompat.PreviewPrograms.CONTENT_URI, b.build().toContentValues()) != null) n++
       }
-      sweepArt(ctx, used)
+      sweepArt(ctx, KEY_ART_ROW, used)
       return n
     }
   }
@@ -391,7 +417,7 @@ object HomeScreenRows {
 
     // the profile may have left the TV while the server was answering
     if (prefs.getString(KEY_PROFILE, null) != profile) return "skipped: the profile changed"
-    val n1 = writeWatchNext(ctx, next)
+    val n1 = writeWatchNext(ctx, next, base, session)
     val n2 = if (row.isNotEmpty()) writeChannel(ctx, CHANNEL_NAME, row, base, session) else 0
     val n3 = if (jobs != null) DownloadNotices.announceAll(ctx, jobs, base, session) else 0
     return "continue watching $n1 of ${next.size}, row $n2 of ${row.size}, announced $n3"

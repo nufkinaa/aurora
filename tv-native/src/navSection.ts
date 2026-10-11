@@ -3,6 +3,7 @@
 import {useEffect, useState} from 'react';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {api, Profile} from './api';
+import {registerProfileCache} from './profileScope';
 import {loadNewSeen, saveNewSeen} from './storage';
 import {APP_VERSION} from './update';
 import type {IconName} from './components/Icon';
@@ -37,7 +38,7 @@ export const NAV_SECTIONS: {
   // AI sits where New was (elia, 2026-10-06); the New page is still under
   // Settings → What's new, and its unseen dot now lives on that row.
   {key: 'ai', label: 'AI'},
-  {key: 'settings', label: 'Preferences', icon: 'gear', iconSize: 19, foot: true},
+  {key: 'settings', label: 'Settings', icon: 'gear', iconSize: 19, foot: true},
 ];
 
 // The "New" dot: on until this release's page has been opened on this TV.
@@ -106,7 +107,7 @@ export const goSection = <R extends keyof RootStackParamList>(
   // Pressing the section you're already on should do nothing rather than stack a
   // second copy of the same screen behind you. "Already on" is decided by the
   // ROUTE, not by the rail's highlight: a film's Detail page lights Movies up
-  // as its section (and Downloads lights Preferences), and with `current`
+  // as its section (and Downloads lights Settings), and with `current`
   // alone a press on that lit item did nothing at all — the rail just closed
   // (Mi TV, 2026-10-06). From a title page, Movies must still take you there.
   if (onSectionScreen(nav, section)) return;
@@ -155,6 +156,13 @@ export const goSection = <R extends keyof RootStackParamList>(
 const cache = new Map<string, Profile | null>();
 const cacheAt = new Map<string, number>();
 const loading = new Map<string, Promise<Profile | null>>();
+// A profile is left: its record (and the remembered picks in it) is read
+// again by whoever comes next (profileScope.ts).
+registerProfileCache('navSection', () => {
+  cache.clear();
+  cacheAt.clear();
+  loading.clear();
+});
 
 // The same record for code that is not a component — the player's remembered
 // languages, the Follow button. Answers from the cache while it is younger

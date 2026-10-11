@@ -62,7 +62,7 @@ One `POST /api/usage` per batch, at most every 20 seconds while there is somethi
 
 | `n` | Fields | Meaning |
 |---|---|---|
-| `route` | `r` pattern, `ms` | a screen was shown (the website: time to painted) |
+| `route` | `r` pattern, `ms` | a screen was shown; `ms` = navigation start → content painted on both clients (the same measurement as `nav_paint`; absent on the TV for a return to a mounted screen) |
 | `feat` | `f` name, sometimes `hits`, `s`, `st`, `w` | a feature was used (`peek`, `skip_intro`, `quality_720` …) |
 | `nav` | `to` | a nav tab was tapped (website) |
 | `play` | `kind`, `path`, `ms` | a play reached its first frame |
@@ -108,7 +108,7 @@ Client limits: one entry per kind (repeats count up), 40 kinds a session, 120 ki
 |---|---|---|
 | `app_start_home` | the page's navigation start / the TV bundle starting to run → **Home usable**: the first row's cards are in the layout and one frame has been drawn. Only when the app opened straight onto Home (no profile wall), in the foreground | – |
 | `gate_home` | a profile accepted at the wall (password and PIN already answered) → Home usable | – |
-| `nav_paint` | **navigation start → first content painted**: the route change is dispatched → the first frame after the destination screen has rendered its content. Website: the router's own clock around the screen's render. TV: the navigator's state change → the screen's `contentPainted()` (Home's first row, a title page's layout). **Not** the previous screen's dwell time — the TV's older `route` event reported that as `ms` | screen pattern |
+| `nav_paint` | **navigation start → first content painted**: the route change is dispatched → the first frame after the destination screen has rendered its content. Website: the router's own clock around the screen's render. TV: ONE clock, `tv-native/src/routeTiming.ts` — the press that asked for the screen (or the navigator's state change when nothing was pressed) → the screen says its content is on (`useRouteShown`: its first list has arrived and is committed). The same number is the `route` event's `ms`, as on the website; a return to a screen that is still mounted is counted (`route` without `ms`) and not timed. **Not** the previous screen's dwell time — before 5.1.32 the TV's `route` event reported that as `ms` | screen pattern |
 | `title_content` | a title page asked for → its hero block (title, buttons) laid out, plus a frame | `library` `catalogue` |
 | `title_backdrop` | a title page asked for → its backdrop picture loaded | `library` `catalogue` |
 | `grid_first_poster` | a screen with a grid or shelves asked for → the first card poster loaded | screen pattern |
@@ -137,30 +137,31 @@ A control is tagged where it is built:
 - website: `"data-ui": "detail.play"` on the element (one delegated click listener reads it; nothing is ever guessed from a control's text). A control that is not a click on an element — a keyboard shortcut, a tap zone — calls `uiHit("player.seek.fwd")`.
 - TV: `uiId="detail.play"` on a `Focusable`, `Btn` or `Chip` (and the small wrappers that pass it through). Without it nothing happens.
 
-The vocabulary (`src/lib/tel/controls-vocab.js`) — 162 ids: 115 on the website, 103 on the TV, 56 on both.
+The vocabulary (`src/lib/tel/controls-vocab.js`) — 166 ids: 115 on the website, 112 on the TV, 61 on both.
 
 | Area | Website only | TV app only | Both |
 |---|---|---|---|
 | actions | – | `actions.pick` | – |
 | browse | `browse.chip.pick` `browse.filter.clear` `browse.genre.open` `browse.loadmore` `browse.option.pick` `browse.sort.open` | `browse.retry` | `browse.category.pick` `browse.surprise` `browse.unwatched` |
 | card | `card.remove` | – | `card.open` |
-| detail | `detail.download.device` `detail.episode.download` `detail.episode.watched` `detail.offline` `detail.offline.season` `detail.restart` `detail.rollagain` `detail.save` `detail.season.open` `detail.sources.fold` `detail.sources.more` `detail.sources.retry` `detail.synopsis.more` `detail.trailer.close` `detail.trailer.pick` | `detail.season.pick` `detail.season.watched` `detail.similar` `detail.source.pick` | `detail.episode.play` `detail.follow` `detail.mylist` `detail.play` `detail.source.download` `detail.source.play` `detail.sources` `detail.trailer` `detail.watched` `detail.xray` |
+| detail | `detail.download.device` `detail.episode.download` `detail.episode.watched` `detail.offline` `detail.offline.season` `detail.rollagain` `detail.save` `detail.season.open` `detail.sources.fold` `detail.sources.more` `detail.sources.retry` `detail.synopsis.more` `detail.trailer.close` `detail.trailer.pick` | `detail.season.pick` `detail.season.watched` `detail.similar` `detail.source.pick` | `detail.episode.play` `detail.follow` `detail.mylist` `detail.play` `detail.restart` `detail.source.download` `detail.source.play` `detail.sources` `detail.trailer` `detail.watched` `detail.xray` |
 | downloadpicker | `downloadpicker.confirm` | – | – |
 | downloads | `downloads.cancel` `downloads.open` `downloads.play` `downloads.remove` `downloads.retry` | `downloads.row` | – |
 | home | `home.hero.pick` | `home.hero.party` `home.switchprofile` | `home.hero.details` `home.hero.mute` `home.hero.play` `home.retry` |
 | mylist | – | `mylist.filter` | – |
 | nav | `nav.downloads` `nav.new` `nav.saved` | – | `nav.ai` `nav.home` `nav.movies` `nav.mylist` `nav.profile` `nav.search` `nav.settings` `nav.shows` |
+| newpassword | – | `newpassword.signout` `newpassword.submit` | – |
 | party | – | `party.join` | – |
 | peek | `peek.close` `peek.remove` | – | `peek.details` `peek.mylist` `peek.play` |
 | pick | – | `pick.retry` `pick.unfold` | `pick.example` `pick.go` `pick.option` |
 | picker | – | `picker.open` `picker.pick` | – |
-| player | `player.airplay` `player.fullscreen` `player.pip` `player.quality.pick` `player.stillwatching.done` `player.stillwatching.keep` | `player.autoplay` `player.back` `player.slowstart.lower` `player.slowstart.wait` `player.subtitles.resync` | `player.audio.pick` `player.mute` `player.next` `player.party` `player.party.start` `player.playpause` `player.retry` `player.scrub` `player.seek.back` `player.seek.fwd` `player.settings.open` `player.skipintro` `player.speed.open` `player.speed.pick` `player.startover` `player.subtitles.open` `player.subtitles.pick` `player.upnext.dismiss` `player.upnext.play` `player.xray` |
+| player | `player.airplay` `player.fullscreen` `player.pip` `player.quality.pick` | `player.autoplay` `player.back` `player.slowstart.lower` `player.slowstart.wait` `player.stall.lower` `player.stall.retry` `player.subtitles.resync` | `player.audio.pick` `player.mute` `player.next` `player.party` `player.party.start` `player.playpause` `player.retry` `player.scrub` `player.seek.back` `player.seek.fwd` `player.settings.open` `player.skipintro` `player.speed.open` `player.speed.pick` `player.startover` `player.stillwatching.done` `player.stillwatching.keep` `player.subtitles.open` `player.subtitles.pick` `player.upnext.dismiss` `player.upnext.play` `player.xray` |
 | profile | `profile.add` `profile.gate.close` `profile.save` | `profile.pin.submit` | `profile.pick` `profile.unlock` |
 | rating | `rating.star` | – | – |
 | report | – | – | `report.send` |
 | row | `row.arrow` | – | – |
 | saved | `saved.play` `saved.remove` | – | – |
-| search | `search.clear` `search.recent.pick` `search.retry` `search.suggestion.pick` | – | – |
+| search | `search.clear` `search.retry` | – | `search.recent.pick` `search.suggestion.pick` |
 | settings | `settings.accent` `settings.done` `settings.link` `settings.look` `settings.rows.hide` `settings.theme` `settings.toggle` | `settings.autoplay` `settings.downloads` `settings.genre` `settings.notices` `settings.party` `settings.report` `settings.signout` `settings.subs.auto` `settings.subs.bg` `settings.subs.lang` `settings.subs.size` `settings.trailers` `settings.update` `settings.usagestats` `settings.whatsnew` | – |
 | signin | – | `signin.mode.google` `signin.mode.qr` `signin.mode.typed` `signin.request` `signin.submit` | – |
 | state | – | `state.action` | – |

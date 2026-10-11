@@ -36,7 +36,7 @@ const UPNEXT_GLOW = require('../assets/upnext-glow.png');
 const OWNED_UPNEXT_GLOW = require('../assets/owned-upnext-glow.png');
 import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
-import {api, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, listAddedLine, ListDownload, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry} from '../api';
+import {api, ApiError, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, listAddedLine, ListDownload, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry} from '../api';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
 import {openTrailer, openActions, openXray} from '../overlay';
@@ -45,6 +45,9 @@ import {showToast} from '../toast';
 import {focusJustMoved, useFocusFallback, useKeyTrap} from '../focus';
 import {SourcesPanel} from './Sources';
 import {useApp} from '../AppContext';
+import {useRouteShown} from '../useRouteShown';
+import {pickUp, startSeason} from '../episodeRules';
+import {registerProfileCache} from '../profileScope';
 import {loadMe, patchMe, peekMe} from '../navSection';
 import type {NavSection} from '../navSection';
 import {RootStackParamList} from '../navigation';
@@ -492,11 +495,23 @@ const GhostBtn = ({
   </Focusable>
 );
 
+// The season last picked BY HAND on a show's page, per show, for this run —
+// the site keeps the same in localStorage (`aurora-season-<id>`). A profile's:
+// dropped when the profile is left (profileScope.ts).
+const seasonPicks = new Map<string, number>();
+registerProfileCache('Detail', () => {
+  seasonPicks.clear();
+});
+
 type UiEp = {
   key: string;
   num: number;
   label: string;
   onPlay: () => void;
+  // the file's progress row, for the "which episode does Play stand for" rule
+  // (episodeRules.ts pickUp): where it was left and when it was last touched
+  position?: number;
+  touchedAt?: number | null;
   // Everything below mirrors the site's .episode row.
   owned?: boolean; // in the library, so it plays instantly
   durationLabel?: string;
@@ -828,6 +843,8 @@ export default function Detail({
     }).catch(() => {});
   }, [streamMeta?.imdbId, streamMeta?.trailers, streamMeta?.type, streamMeta?.year, item.title, item.year]);
   const [loading, setLoading] = useState(true);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(!loading);
   const [season, setSeason] = useState<number | null>(null);
   const [inList, setInList] = useState(false);
   // The inline sources panel. `null` = closed. A whole screen for one list threw
@@ -856,6 +873,40 @@ export default function Detail({
 
   // Library items get their full record (movies: videoUrl; shows: seasons).
   //
+  // THE SERVER REFUSED THIS TITLE (403): it is over this kids profile's limit.
+  // The site says so in the server's words and goes back; this page used to
+  // swallow the refusal and stay up from the card's data, with a Play that
+  // could only fail (audit B21 / C-14). Once per page.
+  const leftRefused = useRef(false);
+  const refused = useCallback(
+    (e: unknown) => {
+      if (!(e instanceof ApiError) || e.status !== 403 || e.passwordResetRequired || leftRefused.current) return false;
+      leftRefused.current = true;
+      showToast(e.message || "This title isn't available on this profile", '🚫');
+      if (navigation.isFocused()) navigation.goBack();
+      return true;
+    },
+    [navigation],
+  );
+  // Torrents switched off by the admin: nothing can be saved, streamed or
+  // followed. The site hides those buttons; here they say so instead of
+  // sending a request that can only be refused (audit E43).
+  const [torrentsOff, setTorrentsOff] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api.torrentsOff().then(off => live && setTorrentsOff(off));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const torrentsOffRef = useRef(false);
+  torrentsOffRef.current = torrentsOff;
+  const sayTorrentsOff = useCallback(() => {
+    if (!torrentsOffRef.current) return false;
+    showToast("That isn't on this server yet — downloads are switched off here", '📭');
+    return true;
+  }, []);
+
   // THE GUARD IS `!item.id` ALONE. It used to be `stream || !item.id`, and that
   // `stream` term is why a DOWNLOADED EPISODE OPENED AS A STREAM: `source` says
   // which shelf the card came from, not whether the title is on disk. Open a show
@@ -881,8 +932,11 @@ export default function Detail({
           setSeason(prev => (prev == null ? f.seasons![0].number : prev));
         }
       })
-      // A stub or a miss just leaves `full` null, which is what it was before.
-      .catch(() => {})
+      // A stub or a miss just leaves `full` null, which is what it was before
+      // — but a REFUSAL is an answer (see `refused`).
+      .catch(e => {
+        if (live) refused(e);
+      })
       .finally(() => live && setLoading(false));
     return () => {
       live = false;
@@ -1037,8 +1091,15 @@ export default function Detail({
   const mountCheck = useRef(false);
   // true = something here is still on its way; false = nothing is; null = the
   // read failed (the poll keeps going on what the page already shows)
+  // The id the jobs are matched on. ONE value, and the only thing about the
+  // ids loadEpJobs depends on: it used to list `item.imdbId` and `libImdb`
+  // separately, so for a library title that already carries its IMDb id (most
+  // do) the mount effect's `setLibImdb(known)` gave loadEpJobs a new identity
+  // with the SAME id — the jobs effect below was torn down and run again, and
+  // /api/downloads was read twice on every open of the page.
+  const jobImdb = item.imdbId || libImdb || null;
   const loadEpJobs = useCallback(async (): Promise<boolean | null> => {
-    const imdb = item.imdbId || libImdb;
+    const imdb = jobImdb;
     if (!imdb) return false;
     try {
       const jobs = await api.downloads();
@@ -1101,11 +1162,11 @@ export default function Detail({
     } catch {
       return null;
     }
-  }, [item.imdbId, libImdb, bumpLibrarySoon, noteLive]);
+  }, [jobImdb, bumpLibrarySoon, noteLive]);
   const loadEpJobsRef = useRef(loadEpJobs);
   loadEpJobsRef.current = loadEpJobs;
   const jobImdbRef = useRef<string | null>(null);
-  jobImdbRef.current = item.imdbId || libImdb || null;
+  jobImdbRef.current = jobImdb;
   const imdbKind: 'movie' | 'show' = item.type === 'show' ? 'show' : 'movie';
   // Resolve the library title to its IMDb id. This used to be gated to
   // `item.type === 'show'`, which is why SOURCES WERE BROKEN FOR EVERY LIBRARY
@@ -1188,6 +1249,13 @@ export default function Detail({
           setSeason(prev => (prev == null ? m.seasons![0].number : prev));
         }
       })
+      // A refusal sends the viewer back (see `refused`); anything else — the
+      // catalogue did not answer — leaves the page on what the card and the
+      // library gave it. (There was no handler here at all: a refusal or a
+      // 502 was an unhandled rejection.)
+      .catch(e => {
+        if (live) refused(e);
+      })
       .finally(() => live && setLoading(false));
     return () => {
       live = false;
@@ -1217,9 +1285,10 @@ export default function Detail({
       } else {
         res = await api.toggleWatchlist(profileId, item.id, next);
       }
-      // The button itself shows the add; a line is only said when the add
-      // also started a download (My List downloads), so that is not a surprise.
-      if (next && res?.download?.queued) showToast(listAddedLine(res), '⬇');
+      // Said every time, in the peek sheet's words (owner, 2026-10-10: one
+      // wording on both products) — and an add says what it started
+      // downloading, when it started anything.
+      showToast(next ? listAddedLine(res) : 'Removed from My List', next && res?.download?.queued ? '⬇' : '✓');
     } catch {
       setInList(!next); // revert on failure
     }
@@ -1459,6 +1528,7 @@ export default function Detail({
     // one-shot gate, so spending it here meant the real check after the await
     // always failed and the button did nothing at all.
     if (!navigation.isFocused()) return;
+    if (sayTorrentsOff()) return;
     // Torrent search is keyed by IMDb id; a library item's `id` is a local key
     // and the provider returns nothing for it. Never fall back to it.
     const id = await ensureImdb();
@@ -1481,6 +1551,7 @@ export default function Detail({
       // The RESOLVED IMDb id, never the library key, and resolved on press if
       // the lookup hasn't landed yet. No navigation guard: this opens a panel on
       // the page it is already on, so there is no push to race.
+      if (sayTorrentsOff()) return;
       const id = await ensureImdb();
       if (!id) return;
       setSrcPanel({
@@ -1492,7 +1563,7 @@ export default function Detail({
         sub: item.title,
       });
     },
-    [ensureImdb, item.title],
+    [ensureImdb, item.title, sayTorrentsOff],
   );
 
   // THE PICTURE: the title's key art (metahub's background, by IMDb id) before
@@ -1685,6 +1756,8 @@ export default function Detail({
           ? () => playEpisode(ep, title || (ep.title && !/^Episode \d+$/.test(ep.title) ? ep.title : undefined))
           : () => downloadBestRef.current(seasonNo, episodeNo, air),
         owned: !!ep,
+        position: ep && pr ? pr.position : 0,
+        touchedAt: ep && pr ? pr.updatedAt || 0 : null,
         durationLabel: fmtDuration(ep?.duration),
         durationMin: ep?.duration ? Math.round(ep.duration / 60) : showRuntimeMin,
         hasSubs: !!ep?.subtitles?.length,
@@ -1732,11 +1805,41 @@ export default function Detail({
     return [];
   }, [full, streamMeta, progress, epProgress, epJobs, playEpisode, item.imdbId, libImdb]);
 
-  // Fall back to the first season rather than rendering nothing: the selected
-  // number is set from whichever list arrived first, and the merged list can
-  // legitimately not contain it (a library show whose only downloaded season is
-  // numbered differently from Cinemeta's, a specials season, and so on).
-  const curSeason = uiSeasons.find(s => s.number === season) || uiSeasons[0];
+  // What the show page's primary button does — the site's `nextUp`, by the
+  // site's rule (episodeRules.ts pickUp): the episode on disk you touched
+  // last — the one after it when that one is finished — else the first on
+  // disk. `at` is where it resumes (0: from the start). A show page whose
+  // only action is "My List" makes you hunt for your own place in it, which
+  // is the one thing you came for.
+  const nextUp = useMemo(() => {
+    const hit = pickUp(uiSeasons.flatMap(se => se.episodes));
+    if (!hit) return null;
+    return {season: hit.ep.season, episode: hit.ep.num, resume: hit.resumed, at: hit.mid ? hit.ep.position || 0 : 0, play: hit.ep.onPlay};
+  }, [uiSeasons]);
+
+  // WHICH SEASON IS OPEN (episodeRules.ts startSeason): the one picked by hand
+  // (now, or earlier this run for this show), else the season of the episode
+  // Play stands for, else whichever list arrived first set — and the first
+  // season rather than nothing when the merged list does not contain it (a
+  // library show whose only downloaded season is numbered differently from
+  // Cinemeta's, a specials season, and so on).
+  const seasonKey = `${item.imdbId || libImdb || item.id}`;
+  const [seasonPick, setSeasonPick] = useState<number | null>(seasonPicks.get(seasonKey) ?? null);
+  const pickSeason = useCallback(
+    (n: number) => {
+      seasonPicks.set(seasonKey, n);
+      setSeasonPick(n);
+      setSeason(n);
+    },
+    [seasonKey],
+  );
+  const openSeason = startSeason(
+    uiSeasons.map(s => s.number),
+    seasonPick ?? seasonPicks.get(seasonKey),
+    nextUp?.season,
+    season,
+  );
+  const curSeason = uiSeasons.find(s => s.number === openSeason) || uiSeasons[0];
 
   // ---- marking watched (elia, 2026-10-07: "tv should also have the control
   // like the web for things like mark season watched"). The same two writes
@@ -1848,6 +1951,28 @@ export default function Detail({
   // so does the Play button when the episode is its own (dlNote / dlStatus):
   // the press is answered AT the button the moment it lands, not only on a
   // card further down the page.
+  // The episode whose sources were last made available by a press (see
+  // downloadBest): what the pill above the episodes opens. `known` null = the
+  // list is not in hand yet (an episode that was already on its way): it is
+  // read quietly, so the pill can say how many there are.
+  const [epSrc, setEpSrc] = useState<{season: number; episode: number; count: number | null; best: string} | null>(null);
+  const offerSources = useCallback(
+    (s: number, e: number, known: {count: number; best: string} | null) => {
+      setEpSrc({season: s, episode: e, count: known ? known.count : null, best: known ? known.best : ''});
+      if (known) return;
+      ensureImdb()
+        .then(imdb => (imdb ? api.torrentSources({type: 'series', title: imdb, year: item.year ?? undefined, season: s, episode: e}) : null))
+        .then(r => {
+          if (!r) return;
+          const all = r.streams || [];
+          const alive = all.filter(x => x.seeders > 0);
+          const n = (alive.length ? alive : all).length;
+          setEpSrc(cur => (cur && cur.season === s && cur.episode === e ? {...cur, count: n} : cur));
+        })
+        .catch(() => {});
+    },
+    [ensureImdb, item.year],
+  );
   const downloadBest = useCallback(
     async (s: number, e: number, air: UiEp['air']) => {
       const key = `${s}x${e}`;
@@ -1857,8 +1982,10 @@ export default function Detail({
         setDlNote({key, kind: 'failed', text: air === 'tba' ? `${name} isn't scheduled yet` : `${name} hasn't aired yet`});
         return;
       }
+      if (sayTorrentsOff()) return;
       // Pressed again while it is on its way — running, or the first press's
-      // request still in flight: say so, never ask twice.
+      // request still in flight: say so, never ask twice. Its sources are made
+      // available all the same (the pill above the episodes — see epSrc).
       const running = epJobsRef.current[key];
       if (running || inflight.current.has(key)) {
         setDlNote({key, kind: 'already'});
@@ -1868,6 +1995,7 @@ export default function Detail({
             : `${name} is already on its way`,
           '⏳',
         );
+        offerSources(s, e, null);
         return;
       }
       inflight.current.add(key);
@@ -1892,6 +2020,14 @@ export default function Detail({
           setDlNote({key, kind: 'failed', text: `No sources for ${name} yet  ·  try again later`});
           return;
         }
+        // …AND ITS SOURCES ARE OPENED, IN PLACE (owner, 2026-10-10: "like the
+        // TV today. But also open sources for that episode, just not scroll
+        // the user to there"): the list that was just read is kept, a
+        // "Sources · S1 E5" pill appears on the line above the episodes —
+        // where there was a hint, so nothing on the page moves — and pressing
+        // it (or holding the card, as before) opens the list at once. Focus
+        // stays on the card that was pressed.
+        offerSources(s, e, {count: (alive.length ? alive : streams || []).length, best: [pick.quality, pick.sizeString].filter(Boolean).join(' · ')});
         const res = await api.requestDownload({
           infoHash: pick.infoHash,
           fileIdx: pick.fileIdx,
@@ -1938,7 +2074,7 @@ export default function Detail({
         if (keepFocus.current?.key === key) keepFocus.current = {key, until: Date.now() + 3000};
       }
     },
-    [ensureImdb, openEpisodeSources, item.title, item.year, profileId, bumpLibrarySoon],
+    [ensureImdb, openEpisodeSources, item.title, item.year, profileId, bumpLibrarySoon, sayTorrentsOff, offerSources],
   );
   const downloadBestRef = useRef<(s: number, e: number, air: UiEp['air']) => void>(() => {});
   downloadBestRef.current = downloadBest;
@@ -1948,6 +2084,7 @@ export default function Detail({
   // episode's does (dlStatus, key "film").
   const downloadBestMovie = useCallback(async () => {
     const key = 'film';
+    if (sayTorrentsOff()) return;
     if (movieJobRef.current || inflight.current.has(key)) {
       setDlNote({key, kind: 'already'});
       showToast(
@@ -2066,29 +2203,7 @@ export default function Detail({
     [curSeason, seasonBusy, episodeMark, profileId, reloadProgress],
   );
 
-  // What the show page's primary button does — the site's `nextUp`. In order of
-  // preference: the episode you are part-way through, else the first downloaded
-  // one you haven't finished. A show page whose only action is "My List" makes
-  // you hunt for your own place in it, which is the one thing you came for.
-  const nextUp = useMemo(() => {
-    let firstUnwatched: {season: number; ep: UiEp} | null = null;
-    for (const se of uiSeasons) {
-      for (const ep of se.episodes) {
-        if (!ep.owned) continue;
-        if (ep.pct) return {season: se.number, episode: ep.num, resume: true, play: ep.onPlay};
-        if (!ep.watched && !firstUnwatched) firstUnwatched = {season: se.number, ep};
-      }
-    }
-    if (firstUnwatched) {
-      return {
-        season: firstUnwatched.season,
-        episode: firstUnwatched.ep.num,
-        resume: false,
-        play: firstUnwatched.ep.onPlay,
-      };
-    }
-    return null;
-  }, [uiSeasons]);
+  // (nextUp is worked out with the seasons, above: the open season depends on it)
 
   // ---- the Play button's own download (see dlNote) ----
   // The episode a show's Play stands for: nextUp, else the first episode of
@@ -2435,7 +2550,7 @@ export default function Detail({
             <>
               <IconBtn uiId="detail.mylist" ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
               {/* Follow: only once the show's IMDb id is known — that is what the server follows by */}
-              {followImdb ? (
+              {followImdb && !torrentsOff ? (
                 <IconBtn uiId="detail.follow" icon={following ? 'check' : 'plus'} on={following} label={following ? 'Following' : 'Follow'} onPress={toggleFollow} />
               ) : null}
               {streamMeta?.trailers?.length ? (
@@ -2463,7 +2578,8 @@ export default function Detail({
               heroDl.busy
                 ? `Getting ${heroName}…`
                 : nextUp?.resume
-                  ? `▶  Continue S${nextUp.season} E${nextUp.episode}`
+                  ? // the clock when it is part-way through (past 10 s), as the site's
+                    `▶  Continue S${nextUp.season} E${nextUp.episode}${nextUp.at ? ` · ${fmtClock(nextUp.at)}` : ''}`
                   : `▶  Play ${heroName}`
             }
             onPress={() => heroEp?.onPlay()}
@@ -2486,12 +2602,12 @@ export default function Detail({
               renderItem={({item: se, index}) => (
                 <Focusable uiId="detail.season.pick"
                   round
-                  light={se.number === season}
+                  light={se.number === curSeason?.number}
                   edgeLeft={index === 0}
                   holdLeft={index === 0}
-                  onPress={() => setSeason(se.number)}
-                  style={[styles.pill, se.number === season && styles.pillOn]}>
-                  <Text style={[styles.pillText, se.number === season && styles.pillTextOn]}>
+                  onPress={() => pickSeason(se.number)}
+                  style={[styles.pill, se.number === curSeason?.number && styles.pillOn]}>
+                  <Text style={[styles.pillText, se.number === curSeason?.number && styles.pillTextOn]}>
                     {`Season ${se.number}`}
                   </Text>
                 </Focusable>
@@ -2507,7 +2623,19 @@ export default function Detail({
                   {seasonBusy ? 'Saving…' : seasonAllWatched ? 'Mark season unwatched' : `Mark season watched${seasonAired.filter(e => !e.watched).length < seasonAired.length ? ` (${seasonAired.filter(e => !e.watched).length} left)` : ''}`}
                 </Text>
               </Focusable>
-              <Text style={styles.seasonHint}>Hold OK on an episode for more</Text>
+              {/* The sources a press just made available (downloadBest): one
+                  press opens the list, already read. It stands where the hint
+                  was, on a line that is already there — nothing moves, and it
+                  never asks for focus. */}
+              {epSrc ? (
+                <Focusable uiId="detail.sources" round onPress={() => openEpisodeSources(epSrc.season, epSrc.episode)} style={styles.pill}>
+                  <Text style={styles.pillText}>
+                    {`Sources · S${epSrc.season} E${epSrc.episode}${epSrc.count != null ? ` · ${epSrc.count}` : ''}${epSrc.best ? ` · saving ${epSrc.best}` : ''}  ›`}
+                  </Text>
+                </Focusable>
+              ) : (
+                <Text style={styles.seasonHint}>Hold OK on an episode for more</Text>
+              )}
             </View>
           ) : null}
           {loading && !curSeason ? (
@@ -2575,6 +2703,10 @@ export default function Detail({
         secondary={
           <>
             <IconBtn uiId="detail.mylist" ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
+            {/* Start over — the site's button, under the site's condition: only
+                beside a Resume (a film you hold and are part-way through). The
+                function had been here since 5.1.4 with no button calling it. */}
+            {ownedMovieId && movieResume ? <IconBtn uiId="detail.restart" glyph="↺" label="Start over" onPress={playFromStart} /> : null}
             {streamMeta?.trailers?.length ? (
               <IconBtn uiId="detail.trailer" icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title, {imdbId: streamMeta.imdbId, type: streamMeta.type || item.type, year: streamMeta.year})} />
             ) : null}

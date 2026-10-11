@@ -254,7 +254,7 @@ export function SourcesPanel({
   }, [type, imdbId, year, season, episode]);
 
   // Download states for these sources. The site fetches them once on load and
-  // then repaints from a WebSocket; the TV has no socket client, so it polls —
+  // then repaints from a WebSocket; this panel polls instead (it predates the app's socket, realtime.ts) —
   // but only while something is actually in flight, so a settled list costs one
   // request and then nothing. requestDownload restarts an idle chain through
   // pullRef — without that, pressing SAVE on a quiet panel started a download

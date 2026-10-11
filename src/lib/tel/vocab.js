@@ -90,7 +90,7 @@ const SEGMENTS = new Set((
   "actions admin ai alerts analytics api approve aria2-limits auth auth-mode auto avatar-image avatars backups ban bans broadcast cancel catalog changelog " +
   "claim claimable clear clear-caches clients collection css decline describe device discover disk dismiss download downloads email embedded enter exit ext " +
   "fetch file follow for force-reset frame genres google google-check heal healer health healthz hls home imdb-for img intro intros item jit keep key kick " +
-  "kids kids-pin library link lock log login logout logs mark me meta mylist netprobe offline options overview party password pending pending-counts people " +
+  "kids kids-pin library link lock log login logout logs mark me meta mylist netprobe next-episode offline options overview party password pending pending-counts people " +
   "perf-mark person ping play-mark poll popular poster preferences prepare probe profile-access profile-requests profile-token profiles progress proxy pull push " +
   "rating recommend reject remove report reports requests rescan restart run runs search searches seen segments server server-info sessions settings signin " +
   "signout-everywhere signup similar sources start state stats status still stream sub subtitle subtitles suggest taste telemetry timeseries today torrent " +

@@ -29,14 +29,21 @@
 //    owns that now, and its header is where the reasoning lives.
 //
 // 3. Losing FlatList means losing virtualization, so the windowing is done here
-//    — see VISIBLE_AHEAD/BEHIND. It is coarse on purpose: the window only moves
-//    in blocks, so most keypresses still cost zero React renders, which is the
-//    property the card layer was rebuilt around.
-import React, {useCallback, useMemo, useState} from 'react';
-import {View, Text, Image, StyleSheet, Animated, TVFocusGuideView} from 'react-native';
+//    — rowWindow.ts: the cards that can be on screen for this focus, plus a
+//    margin, following focus ONE card per press. (It used to move in blocks of
+//    three so that two presses in three rendered nothing; the price was that
+//    the right-most cards on screen did not exist until the block moved, and
+//    then three mounted at once in view.) A press now re-renders this Row —
+//    eleven memoised cards that bail out — and mounts one card, off screen.
+import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {View, Text, Image, StyleSheet, Animated, TVFocusGuideView, useWindowDimensions} from 'react-native';
 import Card, {CARD_W, CARD_H, FRAME_W, FRAME_H} from './Card';
 import {HeroItem} from '../api';
 import {defer, useSlide} from '../motion';
+import {aheadOf, heldWindow, restWindow, rowWindow, slideFor, visibleRange, Dir, Margins, MARGINS, MARGINS_LOW, RowGeom, SETTLE_MS} from '../rowWindow';
+import {prefetchable} from '../cardArt';
+import {artIdle, limits} from '../artPrefetch';
+import {isLowRam} from '../perfTier';
 import theme from '../theme';
 
 // The page colour melting to clear over the row's left margin, so a card that
@@ -54,36 +61,55 @@ const {colors, fontSize, spacing, CLEARANCE, CANCEL} = theme;
 // the same place.
 const LEAD = 1;
 
-// The window of cards that actually exist, either side of the focused one.
-// AHEAD is generous because that is the direction you travel; BEHIND only has to
-// cover LEAD plus enough that a quick reversal does not hit an empty slot.
-//
-// These are mount counts, not pixels: at ~5 visible cards a 14-card window is
-// under three screens of shelf.
-// EXPERIMENT v46: 9/5 -> 5/3. Every mounted card holds a decoded poster texture,
-// and Home keeps every row you have passed mounted, so the live-texture count is
-// (rows visited) x (window). Measured before: Home went 53 -> 69 -> 73 -> 650ms
-// median frame over four identical bursts, GPU 87 -> 110MB.
-const VISIBLE_AHEAD = 5;
-const VISIBLE_BEHIND = 3;
-// The window is recomputed only when focus leaves the middle of it, so stepping
-// one card usually re-renders nothing at all.
-const WINDOW_SLACK = 3;
+// A shelf's geometry, for rowWindow.ts. A wide shelf is Continue Watching,
+// which draws the frame card.
+export const shelfGeom = (wide: boolean, viewportW: number): RowGeom => ({
+  step: (wide ? FRAME_W : CARD_W) + spacing.md,
+  cardW: wide ? FRAME_W : CARD_W,
+  contentLeft: spacing.contentLeft,
+  viewportW,
+  lead: LEAD,
+});
 
+// What a shelf remembers while it is not mounted (Home's vertical window,
+// homeWindow.ts): the card focus was on, and which way it was travelling.
+// From those two the shelf comes back exactly as it was left — the same slide
+// offset, the same cards mounted, and focus returning to that card.
+export type ShelfMemory = {f: number; dir: Dir};
+
+// THE MOUNTED WINDOW, IN NUMBERS (960dp canvas; rowWindow.ts has the rule).
+// Posters (step 138): cards f-2 … f+5 intersect the viewport around focus f;
+// with two ahead and one behind that is f-3 … f+7 — 11 cards (it was 9, at
+// [anchor-3, anchor+5] with the anchor up to 2 behind focus). Continue
+// Watching (step 238): f-2 … f+2 visible, 8 mounted (was 9). A shelf nobody
+// has focused holds only what shows: 7 posters / 4 frames (was 6 / 6 — the
+// seventh poster's 48dp at the right edge did not exist).
+// Every mounted card holds a decoded picture and 11–14 views, and Home keeps
+// every shelf you have passed, so this stays a margin, not a second screen:
+// v46 measured 9/5 (15 cards) against 5/3 and Home's frames went 53 → 650 ms
+// over four bursts. A low-memory box keeps one ahead and none behind (9).
 function Row({
   title,
   items,
   onSelect,
   onItemFocus,
+  rowIndex,
   showKind,
   wide,
   onRemove,
+  store,
+  storeKey,
 }: {
   title: string;
   items: HeroItem[];
   onSelect: (item: HeroItem) => void;
-  // Bubbled up from the cards so Home can spotlight whatever has focus.
-  onItemFocus?: (item: HeroItem) => void;
+  // Bubbled up from the cards so Home can spotlight whatever has focus. It is
+  // handed `rowIndex` back, so the caller can pass ONE function to every row:
+  // a function made per row per render (an inline arrow) is a new prop each
+  // time, and this memoised Row — and through `focusCard` every memoised Card
+  // in it — then re-renders whenever the caller does.
+  onItemFocus?: (item: HeroItem, rowIndex: number) => void;
+  rowIndex?: number;
   // Passed straight to Card — the FILM / SERIES corner tag, for rows that mix
   // the two.
   showKind?: boolean;
@@ -91,37 +117,135 @@ function Row({
   wide?: boolean;
   // Continue Watching only — draws the ✕ and binds long-press OK to removal.
   onRemove?: (item: HeroItem) => void;
+  // Given by a caller that may unmount this shelf and mount it again (Home's
+  // vertical window): where this shelf's ShelfMemory is kept, and under which
+  // key. Written on every card focus (no render); read ONCE, at mount. Without
+  // it the shelf is what it always was.
+  store?: Map<string, ShelfMemory>;
+  storeKey?: string;
 }) {
-  // One step = a card plus the gap after it.
-  // A wide shelf is Continue Watching, which draws the frame card now.
-  const step = (wide ? FRAME_W : CARD_W) + spacing.md;
+  const {width} = useWindowDimensions();
+  const geom = useMemo(() => shelfGeom(!!wide, width), [wide, width]);
   // Every card in the row is absolutely positioned, so none of them contributes
   // height and the track would collapse to nothing. Both card shapes have a
   // known size (Card.tsx owns the geometry), so the row states it outright.
   const cardH = wide ? FRAME_H : CARD_H;
-  const tx = useSlide();
-  // Where the window is centred. State, because it changes what is mounted —
-  // but it only changes when focus nears the window's edge (WINDOW_SLACK), not
-  // on every keypress.
-  const [anchor, setAnchor] = useState(0);
+  const n = items ? items.length : 0;
+  // MOUNTED AGAIN (a shelf Home had replaced with a spacer): it starts where
+  // it was left, in its first commit —
+  //   • the slide already at that card's offset (no travel to see),
+  //   • the same cards mounted as when focus was last here,
+  //   • and the focus guide pointed at that card (below): a new guide has no
+  //     "last focused child", and would hand focus to its first card.
+  const kept = store && storeKey != null && n > 0 ? store.get(storeKey) : undefined;
+  // (a copy: the kept one is written on every focus)
+  const back = useRef(kept ? {f: kept.f, dir: kept.dir} : undefined).current;
+  const backF = back ? Math.max(0, Math.min(back.f, n - 1)) : -1;
+  const tx = useSlide(back ? -slideFor(backF, geom) : 0);
+  // Where focus is and which way it is travelling: what the window is derived
+  // from. `m` null = nobody has focused this shelf yet (it holds what shows).
+  // `keep`: what stays mounted while the slide is still travelling (rowWindow.ts
+  // heldWindow) — null once the remote has rested.
+  const [at, setAt] = useState<{f: number; dir: Dir; m: Margins | null; keep: {from: number; to: number} | null}>(() =>
+    back ? {f: backF, dir: back.dir, m: isLowRam() ? MARGINS_LOW : MARGINS, keep: null} : {f: 0, dir: 1, m: null, keep: null},
+  );
+  const resting = at.m ? rowWindow(Math.max(0, Math.min(at.f, n - 1)), at.dir, n, geom, at.m) : restWindow(n, geom);
+  const win = at.keep ? {from: Math.max(0, Math.min(at.keep.from, resting.from)), to: Math.min(n, Math.max(at.keep.to, resting.to))} : resting;
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (settle.current) clearTimeout(settle.current);
+    },
+    [],
+  );
+  const from = win.from;
+  const to = win.to;
+  // What is committed, for the check below.
+  const shown = useRef(win);
+  useEffect(() => {
+    shown.current = {from, to};
+  }, [from, to]);
+  // Read through a ref: `items` in focusCard's deps would hand every card a
+  // new onFocus (and a re-render) each time Home's data is replaced.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const lastIdx = useRef(back ? backF : 0);
+  const dirRef = useRef<Dir>(back ? back.dir : 1);
+  // The focus guide, and the card it is pointed at until focus has come in
+  // once. `destinations` outranks the guide's own memory (ReactViewGroup
+  // .requestFocus), so it is taken away again on the first focus inside:
+  // from then on the guide remembers by itself, as it does on a shelf that
+  // was never unmounted.
+  const guide = useRef<React.ComponentRef<typeof TVFocusGuideView> | null>(null);
+  const backCard = useRef<View | null>(null);
+  const aimed = useRef(false);
+  useLayoutEffect(() => {
+    if (!back || !backCard.current || !guide.current?.setDestinations) return;
+    guide.current.setDestinations([backCard.current]);
+    aimed.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const focusCard = useCallback(
     (item: HeroItem, index: number) => {
-      onItemFocus?.(item);
+      onItemFocus?.(item, rowIndex ?? 0);
+      if (aimed.current) {
+        aimed.current = false;
+        guide.current?.setDestinations?.([]);
+      }
 
       // Moves the TARGET of the spring that is already running (motion.ts).
-      tx.to(-Math.max(0, (index - LEAD) * step));
+      tx.to(-slideFor(index, geom));
 
-      // Widen the mounted window only when focus approaches its edge — and off
-      // the input path, because it changes what is mounted.
+      if (index !== lastIdx.current) dirRef.current = index > lastIdx.current ? 1 : -1;
+      lastIdx.current = index;
+      const dir = dirRef.current;
+      if (store && storeKey != null) {
+        const mem = store.get(storeKey);
+        if (mem) {
+          mem.f = index;
+          mem.dir = dir;
+        } else store.set(storeKey, {f: index, dir});
+      }
+      const m = isLowRam() ? MARGINS_LOW : MARGINS;
+      const list = itemsRef.current || [];
+      const count = list.length;
+
+      // Should never print: a card of this focus's resting viewport is not
+      // mounted yet — the margin was used up (commits running 2+ presses late).
+      const v = visibleRange(index, count, geom);
+      if (v.last >= shown.current.to || v.first < shown.current.from) {
+        console.log(`[row] behind row=${rowIndex ?? 0} idx=${index} visible=${v.first}..${v.last} mounted=${shown.current.from}..${shown.current.to - 1}`);
+      }
+
+      // The window follows focus — off the input path, because it changes
+      // what is mounted. One card per press in a steady run.
+      // While focus keeps moving nothing mounted is let go (the slide trails a
+      // held key by several cards); SETTLE_MS after the last move the window
+      // is cut back to what rests on screen.
+      const first = shown.current;
       defer(() =>
-        setAnchor(prev => (Math.abs(index - prev) >= WINDOW_SLACK ? index : prev)),
+        setAt(p => {
+          if (p.f === index && p.dir === dir && p.m === m) return p;
+          const next = rowWindow(index, dir, count, geom, m);
+          return {f: index, dir, m, keep: heldWindow(p.keep || first, next, dir)};
+        }),
       );
+      if (settle.current) clearTimeout(settle.current);
+      settle.current = setTimeout(() => {
+        settle.current = null;
+        defer(() => setAt(p => (p.keep ? {...p, keep: null} : p)));
+      }, SETTLE_MS);
+
+      // And when the remote rests: the pictures of the cards beyond the
+      // window, the way focus was travelling (artPrefetch.ts).
+      artIdle('row', () => {
+        const w = rowWindow(index, dir, count, geom, m);
+        return aheadOf(w, dir, count, limits().row).map(i => prefetchable(list[i], {wide, frame: wide}));
+      });
     },
-    [onItemFocus, step, tx],
+    [onItemFocus, rowIndex, geom, tx, wide, store, storeKey],
   );
 
-  const from = Math.max(0, anchor - VISIBLE_BEHIND);
-  const to = Math.min(items.length, anchor + VISIBLE_AHEAD + 1);
   const window = useMemo(() => items.slice(from, to), [items, from, to]);
 
   if (!items || items.length === 0) return null;
@@ -136,6 +260,7 @@ function Row({
           bypass a focus guide entirely (react-native-tvos#1087), and there is no
           longer a scroller in the way. */}
       <TVFocusGuideView
+        ref={guide}
         autoFocus
         trapFocusLeft
         trapFocusRight
@@ -160,10 +285,11 @@ function Row({
                 // reflow the ones already on screen — with a flex row, mounting
                 // a card at the front would shove every other card sideways
                 // underneath the focus.
-                style={[styles.slot, {left: spacing.contentLeft + index * step}]}>
+                style={[styles.slot, {left: geom.contentLeft + index * geom.step}]}>
                 <Card
                   item={item}
                   index={index}
+                  ref={index === backF ? backCard : undefined}
                   onPress={onSelect}
                   onFocus={focusCard}
                   wide={wide}
@@ -204,7 +330,7 @@ const styles = StyleSheet.create({
     paddingRight: spacing.pageX,
   },
   // No overflow:'hidden'. The cards that slide past the left edge are simply not
-  // mounted (the window starts at `anchor - VISIBLE_BEHIND`), and clipping here
+  // mounted (rowWindow.ts), and clipping here
   // would cut the focus halo off the top and bottom of every card — the same
   // slicing the vertical padding exists to prevent.
   // Padding AND the cancelling margins on the SAME box, which is how the site

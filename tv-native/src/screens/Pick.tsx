@@ -35,9 +35,11 @@ import Skeleton from '../components/Skeleton';
 import NavRail from '../components/NavRail';
 import {api, HeroItem} from '../api';
 import {canNavigate} from '../navLock';
+import {useRouteShown} from '../useRouteShown';
 import {warmItem} from '../prefetch';
-import {noteFocus, railOpen, requestRailOpen, useFocusFallback, useTVKeys} from '../focus';
+import {noteFocus, railOpen, requestRailOpen, useFocusFallback, useTVKeys, pressMovedFocus} from '../focus';
 import {showToast} from '../toast';
+import {registerProfileCache} from '../profileScope';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 
@@ -94,7 +96,14 @@ const MINT = '#8cffbe';
 
 type PickItem = HeroItem & {why?: string};
 type Answer = {vibe: string; kind: 'movie' | 'show'; era: string; length: string; items: PickItem[]; status: string};
+// The last answer, so coming back to the tab shows it again — THIS PROFILE'S
+// last answer: it is dropped when the profile is left (profileScope.ts). It
+// used to live for the whole run with no owner, so the next person — a kids
+// profile included — opened the tab on the previous person's picks (audit X8).
 let last: Answer | null = null;
+registerProfileCache('Pick', () => {
+  last = null;
+});
 
 // One labelled dial group: a small icon and a caps label, then its pills.
 function Group({icon, label, children}: {icon: IconName; label: string; children: React.ReactNode}) {
@@ -117,6 +126,8 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
     Math.floor((width - spacing.contentLeft - spacing.pageX + GAP) / (COMPACT_W + GAP)),
   );
   const [enabled, setEnabled] = useState<boolean | null>(null);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(enabled !== null);
   const [vibe, setVibe] = useState(last?.vibe || '');
   const [kind, setKind] = useState<'movie' | 'show'>(last?.kind || 'movie');
   const [era, setEra] = useState(last?.era || 'any');
@@ -194,6 +205,9 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
     useCallback(
       (evt: {eventType: string}) => {
         if (railOpen()) return;
+        // never on the release of the press that carried focus to where it is
+        // now (focus.ts pressMovedFocus): one press would move twice
+        if (pressMovedFocus()) return;
         // LEFT from Find with the field off: native focus search skipped the
         // disabled field and dropped on whichever Era pill was nearest ("Not
         // too old", Mi TV 2026-10-09). Find is wrapped in a left trap while

@@ -5,16 +5,29 @@
 import {PixelRatio} from 'react-native';
 import {httpFailed} from './telemetry'; // [analytics] (telemetry.ts imports nothing of the app's)
 import {takeBlur} from './blur';
+import {registerProfileCache} from './profileScope';
+import {tooManyWait, TOO_MANY_RETRIES} from './serverManners';
+import {pickServer} from './serverPick';
 
 let baseUrl = '';
 let token: string | null = null;
 
 // WHERE THE SERVER IS. In code, deliberately — there is no setup screen and the
-// viewer is never asked. The LAN address is tried first; if it does not answer on
-// the first try the remote one BECOMES the server for this run.
+// viewer is never asked. Tried IN THIS ORDER (serverPick.ts): nufurora.com
+// first, and the house server only when nufurora.com does not answer (elia,
+// 2026-10-10: "we should have nufurora.com right away and home server only
+// after if we don't find nufurora"). With the house address first, a TV away
+// from home sat on a black screen for 4 s on every launch waiting for an
+// address it could never reach.
+//
+// A QA build puts its own address FIRST — one line inserted right under the
+// `[`, tagged with the QA-variant marker and removed again by deleting the
+// lines that carry the marker (which is why the marker is not spelled out in
+// this comment). The first entry is always the one tried first, so that line
+// still decides where a QA build goes.
 export const SERVER_CANDIDATES = [
-  "http://10.0.0.1:4000",
   'https://nufurora.com',
+  "http://10.0.0.1:4000",
 ];
 
 export const setBaseUrl = (url: string) => {
@@ -57,11 +70,23 @@ let authMode = 'open';
 export const getAuthMode = () => authMode;
 // The app-level reaction to a 401 {signinRequired:true} — App.tsx registers
 // "clear credentials, show the login screen". One hook, so no screen has to
-// remember; fired at most once per burst.
-let signinRequiredCb: (() => void) | null = null;
+// remember; fired at most once per burst. `signedOut`: the server said the
+// credential this TV presented was ENDED by the admin (a kick, a forced
+// reset) — it says so in every sign-in mode, so where the TV goes next is
+// the profile wall (open / transition) or the sign-in screen (closed).
+let signinRequiredCb: ((o: {signedOut: boolean}) => void) | null = null;
 let signinFiredAt = 0;
-export const onSigninRequired = (cb: (() => void) | null) => {
+export const onSigninRequired = (cb: ((o: {signedOut: boolean}) => void) | null) => {
   signinRequiredCb = cb;
+};
+// The same, for a request refused with {passwordResetRequired:true} (the
+// server's lib/resetgate.js: this credential is a must-reset profile's, and
+// everything but the way to a new password is refused): App.tsx puts the
+// "pick a new password" screen up. Once per burst. `profileId`: whose.
+let resetRequiredCb: ((profileId: string | null) => void) | null = null;
+let resetFiredAt = 0;
+export const onPasswordResetRequired = (cb: ((profileId: string | null) => void) | null) => {
+  resetRequiredCb = cb;
 };
 
 // The signed-in account card (prompt 10; profiles.signinPub). ACCOUNT =
@@ -80,6 +105,10 @@ export type SigninResult = {
   profile: Profile;
   profileToken: string;
   session: string;
+  // The admin asked for a new password at the next sign-in (People → Reset
+  // password). A note to the client: the session works in full; the app asks
+  // for a new password before going on (screens/NewPassword.tsx).
+  mustReset?: boolean;
 };
 
 export type Profile = {
@@ -491,10 +520,15 @@ export type MyDownload = DownloadJob & {
   doneAt?: string | null;
   at?: string;
   holdReason?: string | null;
+  // A My List download that was running and gave way (publicJob): still
+  // `approved`, with the progress it keeps.
+  held?: boolean;
+  heldReason?: string | null;
   poster?: string | null;
   quality?: string;
   imdbId?: string | null;
   type?: string;
+  provider?: string | null;
   // A finished episode: its show's library id and the episode's own name
   // (server publicJobFor) — the home-screen row and the TV notification.
   showId?: string;
@@ -534,6 +568,24 @@ export type PartySummary = {
   members: number;
 };
 
+/** The same parties, as the hero band draws them (so a list that arrives
+ *  unchanged — every return to Home asks — is not a new state). */
+export const sameParties = (a: PartySummary[], b: PartySummary[]) =>
+  a === b ||
+  (a.length === b.length &&
+    a.every((p, i) => {
+      const q = b[i];
+      return p.code === q.code && p.host === q.host && p.title === q.title && p.members === q.members && (p.cover || null) === (q.cover || null);
+    }));
+
+// What the server knows about an episode's skippable parts (both
+// /api/intro/auto/:id and /api/segments answer this shape).
+export type Segments = {
+  intro: {start: number; end: number} | null;
+  recap?: {start: number; end: number} | null;
+  credits: {start: number} | null;
+  source?: string | null;
+};
 export type TrailerAnswer =
   | {source: 'apple'; hls: string; id: string; quality?: number}
   | {source: 'youtube'; ids: string[]}
@@ -575,6 +627,16 @@ class ApiError extends Error {
   // {pinRequired:true}: the household PIN is wanted (leaving a kids profile,
   // or opening a profile that has no password) — or the one sent was wrong.
   pinRequired?: boolean;
+  // {passwordResetRequired:true}: the admin forced a new password and this
+  // credential is held back until one is set (screens/NewPassword.tsx). It
+  // arrives as a 401 that ALSO says signinRequired (for clients that do not
+  // know it): this flag is read first, and `signinRequired` is then not set.
+  passwordResetRequired?: boolean;
+  // {signedOut:true} beside signinRequired: the credential was ended by the admin.
+  signedOut?: boolean;
+  // The server's machine word for a refusal, when it has one (the password
+  // route: "same" = that is the old password, "needed" = one is required).
+  code?: string;
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
@@ -610,6 +672,7 @@ const fetchBounded = (url: string, init: RequestInit, firstByteMs: number): Prom
     const fail = (why: string) => {
       if (done) return;
       done = true;
+      if (timer) clearTimeout(timer);
       try {
         xhr.abort();
       } catch {}
@@ -637,13 +700,19 @@ const fetchBounded = (url: string, init: RequestInit, firstByteMs: number): Prom
         const i = line.indexOf(':');
         if (i > 0) h.append(line.slice(0, i).trim(), line.slice(i + 1).trim());
       }
-      resolve(new Response(xhr.response, {status: xhr.status, statusText: xhr.statusText, headers: h}));
+      // (a 304 has no body by definition — and a Response that follows the
+      // standard refuses to be built with one, even an empty string)
+      resolve(new Response(xhr.status === 304 ? null : xhr.response, {status: xhr.status, statusText: xhr.statusText, headers: h}));
     };
     arm(firstByteMs, 'The server took too long to answer');
     xhr.send(init.body == null ? null : (init.body as string));
   });
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+const UNREADABLE = 'The server sent an answer the app could not read';
+
+// The request itself, up to an answer that is not an error. `allow304` lets a
+// conditional read (If-None-Match) have its "nothing changed" answer back.
+async function send(path: string, options: RequestInit = {}, allow304 = false): Promise<Response> {
   if (!baseUrl) throw new ApiError(0, 'No server configured');
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -655,45 +724,168 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // server's lib/blurup.js; blur.ts keeps them, Card.tsx draws them).
   if (!options.method || String(options.method).toUpperCase() === 'GET') headers['X-Blur'] = '1';
   let res: Response;
-  try {
-    // Bounded. A request with no limit could wait on a stalled Wi-Fi link
-    // for minutes, and the screen behind it sat there "not responding" (a
-    // viewer's report, 2026-10-08) — nothing was wrong with the box. The
-    // timer is raced rather than relied on through AbortController (see
-    // pingUrl for why); a late answer after the race is simply dropped.
-    res = await fetchBounded(baseUrl + path, {...options, headers}, requestLimitMs(path, options));
-  } catch (e) {
-    if (e instanceof ApiError) throw e;
-    httpFailed(options.method, path, 0); // [analytics] by its shape, never the address
-    // Network-level failure (server down, wrong IP, wifi) — normalize to a
-    // friendly, catchable shape instead of a raw TypeError.
-    throw new ApiError(0, 'Cannot reach server');
+  for (let again = 0; ; again++) {
+    try {
+      // Bounded. A request with no limit could wait on a stalled Wi-Fi link
+      // for minutes, and the screen behind it sat there "not responding" (a
+      // viewer's report, 2026-10-08) — nothing was wrong with the box. The
+      // timer is raced rather than relied on through AbortController (see
+      // pingUrl for why); a late answer after the race is simply dropped.
+      res = await fetchBounded(baseUrl + path, {...options, headers}, requestLimitMs(path, options));
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+      httpFailed(options.method, path, 0); // [analytics] by its shape, never the address
+      // Network-level failure (server down, wrong IP, wifi) — normalize to a
+      // friendly, catchable shape instead of a raw TypeError.
+      throw new ApiError(0, 'Cannot reach server');
+    }
+    // "Too many requests at once" (server 1.6.93: more than a few heavy reads
+    // — Home, the library, a search — in hand from one device). Not an error
+    // to show: the read waits as long as the server said, plus a random
+    // moment, and is asked again — twice at most (serverManners.ts). A write
+    // is never repeated, and a limiter that says "minutes" is the answer.
+    if (res.status === 429) {
+      const wait = tooManyWait(options.method, again, res.headers.get('retry-after'));
+      if (wait != null) {
+        console.log(`[api] 429: asking again in ${wait} ms (${again + 1}/${TOO_MANY_RETRIES})`);
+        await new Promise<void>(r => setTimeout(r, wait));
+        continue;
+      }
+    }
+    break;
   }
-  if (!res.ok) {
+  if (!res.ok && !(allow304 && res.status === 304)) {
     httpFailed(options.method, path, res.status); // [analytics] "GET /api/item/:id → 404", counted
     // The server writes its error bodies for viewers ("too many attempts —
     // try again in a few minutes") — surface them instead of a status line.
-    let body: {error?: string; signinRequired?: boolean; pinRequired?: boolean} = {};
+    let body: {error?: string; signinRequired?: boolean; pinRequired?: boolean; passwordResetRequired?: boolean; signedOut?: boolean; profileId?: string; code?: string} = {};
     try {
       body = await res.json();
     } catch {}
     const err = new ApiError(res.status, body.error || `${res.status} ${path}`);
     if (body.pinRequired) err.pinRequired = true;
-    if (body.signinRequired) {
+    if (typeof body.code === 'string') err.code = body.code;
+    // FIRST, and instead of signinRequired: the refusal of a must-reset
+    // credential carries both (401 {signinRequired, passwordResetRequired,
+    // profileId}). Read as a plain "sign in again" it would clear the very
+    // credentials the new-password screen saves with, and the TV would go
+    // round: sign in, refused, sign in.
+    if (body.passwordResetRequired) {
+      err.passwordResetRequired = true;
+      if (resetRequiredCb && Date.now() - resetFiredAt > 3000) {
+        resetFiredAt = Date.now();
+        resetRequiredCb(typeof body.profileId === 'string' ? body.profileId : null);
+      }
+    } else if (body.signinRequired) {
       err.signinRequired = true;
+      if (body.signedOut) err.signedOut = true;
       // The wall went up (mode flipped, session revoked/expired): route the
       // app to the login screen — once per burst, because every in-flight
       // request on the screen fails together.
       if (signinRequiredCb && Date.now() - signinFiredAt > 3000) {
         signinFiredAt = Date.now();
-        signinRequiredCb();
+        signinRequiredCb({signedOut: !!body.signedOut});
       }
     }
     throw err;
   }
+  return res;
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await send(path, options);
+  // A 200 that is not JSON — a captive portal's sign-in page, a proxy's error
+  // page — used to throw the parser's own SyntaxError, and a screen printed
+  // "JSON Parse error: Unexpected character: <" as its detail. It is the same
+  // kind of failure as not reaching the server, and is reported as one.
+  let body: T;
+  try {
+    body = JSON.parse(await res.text()) as T;
+  } catch {
+    throw new ApiError(0, UNREADABLE);
+  }
   // the tiny pictures that ride beside an answer go to blur.ts; the screen
   // gets the answer it always got
-  return takeBlur((await res.json()) as T);
+  return takeBlur(body);
+}
+
+// ---- Home's rows, kept between visits -----------------------------------
+// Home asks for its rows again on every return to it (Continue Watching is
+// what changes while the viewer is away). Most of the time nothing changed:
+// two answers in a row are the same bytes. Parsing them again gave every
+// item a NEW object, so every memoised row and card re-rendered during the
+// fade back to Home, for the same picture. The last answer is kept, and
+//   - the server is asked conditionally (If-None-Match with the ETag Express
+//     sent): "304, nothing changed" costs no download and no parse;
+//   - a 200 whose text equals the kept text (a server or proxy that does not
+//     answer conditionally) is not parsed again either.
+// Both hand back THE SAME OBJECT as last time, so React sees nothing new. A
+// body that really changed is parsed and replaces what is kept. One entry:
+// the profile is in the path, so another profile simply starts over.
+//
+// The library list is kept the same way (server 1.6.93 answers both from
+// kept bytes with a strong ETag, 304 with no body): the list is ~90 KB, and
+// after a library_updated that did not change THIS profile's list the read
+// costs a round trip and nothing else.
+//
+// `who`: the profile the answer was read as. The library's path does not
+// name the profile (a kids profile's list is a different list under the same
+// path), so a kept answer is only ever used — and its ETag only ever sent —
+// as the profile that read it.
+type Kept<T> = {path: string; who: string | null; etag: string | null; text: string; value: T};
+let homeKept: Kept<Home> | null = null;
+let libraryKept: Kept<Library> | null = null;
+// NEVER MORE THAN ONE /api/home IN FLIGHT (docs/operations.md): a second ask
+// while the first is on its way — a return to Home during a library refresh —
+// shares its answer.
+let homeFlight: {path: string; who: string | null; p: Promise<Home>} | null = null;
+const readHome = (path: string): Promise<Home> => {
+  if (homeFlight && homeFlight.path === path && homeFlight.who === activeProfile) return homeFlight.p;
+  const p: Promise<Home> = readKept<Home>(path, homeKept, k => {
+    homeKept = k;
+  }).finally(() => {
+    if (homeFlight && homeFlight.p === p) homeFlight = null;
+  });
+  homeFlight = {path, who: activeProfile, p};
+  return p;
+};
+const readLibrary = (): Promise<Library> =>
+  readKept<Library>('/api/library', libraryKept, k => {
+    libraryKept = k;
+  });
+async function readKept<T>(path: string, last: Kept<T> | null, keep: (k: Kept<T>) => void): Promise<T> {
+  const who = activeProfile;
+  const kept = last && last.path === path && last.who === who ? last : null;
+  let res: Response;
+  if (kept?.etag) {
+    try {
+      res = await send(path, {headers: {'If-None-Match': kept.etag}}, true);
+    } catch (e) {
+      // An answer from the server (401, 500…) is the answer. Anything else —
+      // the line, or a network stack that will not carry a conditional read —
+      // is asked once more the plain way, so this can never be the reason
+      // Home's rows stop refreshing.
+      if (e instanceof ApiError && e.status !== 0) throw e;
+      res = await send(path);
+    }
+  } else {
+    res = await send(path);
+  }
+  if (kept && res.status === 304) return kept.value;
+  const text = await res.text();
+  if (kept && text === kept.text) {
+    kept.etag = res.headers.get('etag') || kept.etag;
+    return kept.value;
+  }
+  let body: T;
+  try {
+    body = JSON.parse(text) as T;
+  } catch {
+    throw new ApiError(0, UNREADABLE);
+  }
+  const value = takeBlur(body);
+  keep({path, who, etag: res.headers.get('etag'), text, value});
+  return value;
 }
 
 function post<T>(path: string, body: unknown): Promise<T> {
@@ -707,8 +899,24 @@ function post<T>(path: string, body: unknown): Promise<T> {
 // A small read cache: a screen the viewer is about to open is warmed while
 // they still look at the last one (prefetch.ts), and a second visit costs
 // nothing. Only reads whose answer barely changes are memoised; TTLs are
-// short and library_updated (realtime.ts) empties it.
-const memoStore = new Map<string, {at: number; ttl: number; p: Promise<unknown>}>();
+// short and library_updated (realtime.ts) drops what the library decides.
+//
+// BOUNDED. An expired entry used to leave only when the same key was asked
+// again, so an evening of browsing kept every title a card had dwelt on (its
+// metadata and its item), every catalogue page opened, every trailer answer.
+// Each new entry now takes the expired ones out with it, and past MEMO_MAX
+// the oldest go (a Map keeps insertion order). An entry that is dropped is
+// only ever fetched again — never answered differently.
+//
+// EVERY ENTRY BELONGS TO THE PROFILE IT WAS ASKED AS (`who`). The server
+// filters what it lists by profile — a kids profile's library is a different
+// list — and the key is only the path, so an entry is never answered to
+// anyone else: a kids profile entered within a minute of a grown-up was shown
+// the grown-up's library list and first catalogue page (audit X7). The store
+// is also emptied on every profile change (registerProfileCache, below); this
+// check is what holds if a request slips in between.
+const MEMO_MAX = 80;
+const memoStore = new Map<string, {at: number; ttl: number; who: string | null; p: Promise<unknown>}>();
 // The profile's state as the server last gave it, and when (see api.state /
 // api.stateIfFresh): a screen that has just read it need not make the next
 // one wait for the same answer.
@@ -716,15 +924,40 @@ let lastState: {profileId: string; at: number; st: unknown} | null = null;
 
 const memo = <T>(key: string, ttl: number, fn: () => Promise<T>, fresh = false): Promise<T> => {
   const hit = memoStore.get(key);
-  if (hit && !fresh && Date.now() - hit.at < hit.ttl) return hit.p as Promise<T>;
+  const now = Date.now();
+  if (hit && !fresh && hit.who === activeProfile && now - hit.at < hit.ttl) return hit.p as Promise<T>;
   const p = fn();
-  memoStore.set(key, {at: Date.now(), ttl, p});
+  memoStore.delete(key); // asked again: it goes back in at the young end
+  for (const [k, v] of memoStore) if (now - v.at >= v.ttl) memoStore.delete(k);
+  while (memoStore.size >= MEMO_MAX) memoStore.delete(memoStore.keys().next().value as string);
+  memoStore.set(key, {at: now, ttl, who: activeProfile, p});
   p.catch(() => memoStore.delete(key)); // a failure is never cached
   return p;
 };
 export const forgetMemo = (prefix = '') => {
   for (const k of [...memoStore.keys()]) if (k.startsWith(prefix)) memoStore.delete(k);
 };
+// The library changed on the server: the reads it decides are forgotten — the
+// library list, every library item, and the catalogue pages (their cards
+// carry `inLibrary`). What it does not touch stays: a title's Cinemeta
+// metadata, the genre lists, trailer answers, IMDb lookups, the changelog.
+// (This used to empty the whole store, so every screen then read everything
+// again from cold.)
+export const forgetLibraryReads = () => {
+  forgetMemo('library');
+  forgetMemo('/api/item/');
+  forgetMemo('/api/catalog');
+};
+/** Test-only. */
+export const _memoInternals = {keys: () => [...memoStore.keys()], max: MEMO_MAX, clear: () => memoStore.clear()};
+// A profile is left: nothing that was read as it stays (profileScope.ts).
+registerProfileCache('api', () => {
+  memoStore.clear();
+  homeKept = null;
+  libraryKept = null;
+  homeFlight = null;
+  lastState = null;
+});
 
 // Health-check one candidate URL without touching the global baseUrl. Short
 // timeout: a dead LAN IP can otherwise hang for many seconds of SYN retries.
@@ -738,6 +971,14 @@ export const forgetMemo = (prefix = '') => {
 // and the app hangs on a black loading screen with no way forward. Racing the
 // fetch against a timer that RESOLVES false removes that failure mode: the ping
 // always answers in time whether or not the underlying socket ever does.
+//
+// WHAT A SERVER SAID ABOUT ITSELF IS KEPT PER ADDRESS (pinged) and only the
+// CHOSEN server's answer is applied (resolveServer). A ping used to write the
+// sign-in mode and the blur flag straight into the globals, so an answer that
+// arrived after its timeout — from an address that had been given up on —
+// overwrote what the chosen server had said.
+type Pinged = {authMode: string | null; imgBlur: boolean; hosts: string[]};
+const pinged = new Map<string, Pinged>();
 const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
   const ctrl = new AbortController();
   // /api/ping, NOT /api/home: ping is tiny, stays open in EVERY auth mode
@@ -748,9 +989,15 @@ const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
       if (!res.ok) return false;
       try {
         const j = await res.json();
-        if (j && typeof j.authMode === 'string') authMode = j.authMode;
-        serverBlurs = !!(j && j.imgBlur);
-      } catch {}
+        const hosts: unknown = j && j.imgHosts;
+        pinged.set(url, {
+          authMode: j && typeof j.authMode === 'string' ? j.authMode : null,
+          imgBlur: !!(j && j.imgBlur),
+          hosts: Array.isArray(hosts) ? hosts.filter((h): h is string => typeof h === 'string' && LATER_ART_HOSTS.includes(h)) : [],
+        });
+      } catch {
+        pinged.delete(url);
+      }
       return true;
     })
     .catch(() => false);
@@ -778,28 +1025,25 @@ const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
 // there healthy. The remembered URL is kept only so the first request has a base
 // before this resolves; it is never a preference.
 //
-// IN ORDER, one try each: "if the first does not answer on the first try, the
-// fallback becomes the main URL" — for that run, and only that run. Not parallel
-// — parallel would let the remote win a race the LAN should always win.
-//
-// The cost of a spurious failover (the TV's Wi-Fi still waking from power-save
-// can fail a first ping) is that a session runs over the internet instead of the
-// LAN. That is slower, not broken — and the next launch tries the LAN first again.
-//
-// ONE RETRY FOR THE FIRST CANDIDATE. Measured on the Mi TV (Android 14,
-// 2026-10-06): the very first launch after the box woke from its screensaver
-// failed the LAN ping inside the 2 s and the whole session ran on the remote —
-// in closed mode that is the QR sign-in screen instead of the profile gate,
-// for a server that was healthy a second later. Wi-Fi coming out of power-save
-// is the one failure worth a second look; the remote still wins if the LAN is
-// really gone (worst case two seconds slower to boot).
+// IN ORDER, and never in parallel — the order, the waits and the first
+// address's one second look are serverPick.ts (which says what each costs).
+// Every call walks the list from the top: a Retry on the offline screen, and
+// the next launch, start at the first address again, so a run that fell back
+// to the second address is that run only.
 export const resolveServer = async (_savedUrl?: string | null): Promise<string | null> => {
-  for (const [i, candidate] of SERVER_CANDIDATES.entries()) {
-    const url = candidate.replace(/\/+$/, '');
-    if (await pingUrl(url)) return url;
-    if (i === 0 && (await pingUrl(url))) return url;
+  const url = await pickServer(SERVER_CANDIDATES, {
+    ping: pingUrl,
+    now: Date.now,
+    sleep: ms => new Promise<void>(r => setTimeout(r, ms)),
+  });
+  if (url) {
+    // what THIS server said — not whichever answered last
+    const said = pinged.get(url);
+    if (said?.authMode) authMode = said.authMode;
+    serverBlurs = !!said?.imgBlur;
+    serverArtHosts = new Set(said?.hosts || []);
   }
-  return null;
+  return url;
 };
 
 // Absolute URL for an image/stream path the server returns as root-relative
@@ -848,6 +1092,16 @@ const PROXY_ART_HOSTS = new Set([
   'commons.wikimedia.org',
   'upload.wikimedia.org',
 ]);
+// Hosts a NEWER server also proxies. A picture from one of these goes through
+// /img/ext only when the server this run is talking to says so (/api/ping
+// `imgHosts`): an older server answers 403 for a host it does not know, and
+// the picture would be missing instead of merely unsized.
+//  - episodes.metahub.space: the episode stills on a show's title page. They
+//    were fetched from the internet at 780 px and re-encoded on the box, per
+//    episode card; proxied, they arrive from the server at the drawn width.
+const LATER_ART_HOSTS = ['episodes.metahub.space'];
+let serverArtHosts = new Set<string>();
+
 // Whether the server can pre-blur art (?blur=, reported by /api/ping). An
 // older server ignores the parameter and would hand back a SHARP picture,
 // so the billboard keeps blurring on the box until the server says it can.
@@ -878,7 +1132,7 @@ export function artPath(pathOrUrl: string | null | undefined, px: number | null,
   }
   if (!pathOrUrl.startsWith('https://')) return null;
   const host = (/^https:\/\/([^/?#]+)/.exec(pathOrUrl) || [])[1];
-  if (!host || !PROXY_ART_HOSTS.has(host)) return null;
+  if (!host || !(PROXY_ART_HOSTS.has(host) || serverArtHosts.has(host))) return null;
   return `/img/ext?u=${encodeURIComponent(pathOrUrl)}&${q}`;
 }
 
@@ -909,8 +1163,6 @@ export function mediaHeaders(): Record<string, string> | undefined {
 }
 
 export const api = {
-  // Health check: /api/home with no profile is public and cheap.
-  ping: () => request<Home>('/api/home'),
   profiles: () => request<Profile[]>('/api/profiles'),
   // `pin`: the household PIN. It opens a profile that has no password once
   // the house has a kids profile — the server answers 401 {pinRequired:true}
@@ -926,9 +1178,23 @@ export const api = {
       // makes the later flip to closed free). Store these when present.
       session?: string;
       user?: SigninUser;
+      // see SigninResult.mustReset
+      mustReset?: boolean;
     }>(
       `/api/profiles/${id}/unlock`,
       pin ? { password, pin } : { password },
+    ),
+  // A new password for a profile: needs the current one, and ends every
+  // unlock token and session of the profile. When the reset was FORCED (the
+  // credential sent — X-Session / X-Profile-Token — is a restricted one) the
+  // answer hands this device its fresh credentials: `token` always, `session`
+  // (+ `user`) when the profile signs in, `passwordReset: "done"`. Refusals:
+  // 401 the current password is wrong, 400 with `code` "same" (that is the
+  // old password) or "needed", 429 too many attempts.
+  setPassword: (id: string, newPassword: string, currentPassword: string) =>
+    post<{ok?: boolean; error?: string; token?: string; session?: string; user?: SigninUser; passwordReset?: string}>(
+      `/api/profiles/${id}/password`,
+      {newPassword, currentPassword},
     ),
   // ---- kids profiles ----
   // Is a household PIN set at all? (No PIN: leaving a kids profile asks nothing.)
@@ -942,8 +1208,8 @@ export const api = {
   // and Detail/Player fetch /api/item for the rest — so those fields were 60% of
   // a 450 KB payload that this device had to pull over wifi and parse on launch.
   home: (profileId: string) =>
-    request<Home>(`/api/home?slim=1&profile=${encodeURIComponent(profileId)}`),
-  library: (fresh = false) => memo('library', 60000, () => request<Library>('/api/library'), fresh),
+    readHome(`/api/home?slim=1&profile=${encodeURIComponent(profileId)}`),
+  library: (fresh = false) => memo('library', 60000, readLibrary, fresh),
   setPreferences: (profileId: string, likedGenres: string[]) =>
     post<{ ok: boolean }>(`/api/profiles/${profileId}/preferences`, { likedGenres }),
   // Follow / unfollow a show: its new episodes download by themselves when
@@ -972,7 +1238,6 @@ export const api = {
       (year ? `&year=${encodeURIComponent(String(year))}` : '');
     return memo(path, 30 * 60000, () => request<{ imdbId: string | null }>(path));
   },
-  discover: () => request<Discover>('/api/discover'),
   // One page of a Browse category. Paged SERVER-side and per genre, which is the
   // whole point: the old client fetched a fixed slice of trending and filtered it
   // locally, so a niche genre came back with three titles and "load more" was a
@@ -1138,9 +1403,12 @@ export const api = {
     if (params.year) q.set('year', String(params.year));
     if (params.season) q.set('season', String(params.season));
     if (params.episode) q.set('episode', String(params.episode));
-    return request<{ imdbId: string; streams: Stream[] }>(
-      `/api/torrents/sources?${q.toString()}`,
-    );
+    // Kept a minute and a half: a press on an episode asks for its sources to
+    // pick the best one, and the sources list opened a moment later (a hold,
+    // the Sources pill) is the same question — it opens filled instead of
+    // searching again. Seeder counts do not move in that time.
+    const path = `/api/torrents/sources?${q.toString()}`;
+    return memo(path, 90000, () => request<{ imdbId: string; streams: Stream[] }>(path));
   },
   torrentStatus: (infoHash: string) =>
     request<TorrentStatus>(`/api/torrents/status/${infoHash}`),
@@ -1201,9 +1469,27 @@ export const api = {
       google?: boolean;
       googleWeb?: boolean;
       googleDevice?: boolean;
+      // `false` when the admin has switched torrents off: nothing can be
+      // streamed, saved or followed (absent otherwise)
+      torrents?: boolean;
     }>('/api/server-info'),
+  // Has the admin switched torrents off? Asked once in a while; a server that
+  // cannot be asked is taken to have them on (the request itself then says).
+  torrentsOff: () =>
+    memo('server-info:torrents', 5 * 60000, () =>
+      request<{torrents?: boolean}>('/api/server-info').then(i => i.torrents === false),
+    ).catch(() => false),
   // Is the stored session alive? user === null means no/dead session.
-  me: () => request<{ authMode: string; user: SigninUser | null }>('/api/me'),
+  // With a must-reset credential: `user: null, passwordResetRequired: true`
+  // and `resetProfile` — who has to pick the new password.
+  me: () =>
+    request<{
+      authMode: string;
+      user: (SigninUser & {mustReset?: boolean}) | null;
+      mustReset?: boolean;
+      passwordResetRequired?: boolean;
+      resetProfile?: {id: string; name: string; avatar?: string | null; color?: string | null} | null;
+    }>('/api/me'),
   // Username OR email + the profile's password.
   login: (username: string, password: string) =>
     post<SigninResult>('/api/auth/login', { username, password }),
@@ -1250,14 +1536,33 @@ export const api = {
   setIntro: (key: string, start: number, end: number, by?: string | null) =>
     post<{ok: boolean}>(`/api/intro/${encodeURIComponent(key)}`, {start, end, by}),
   introAuto: (id: string) =>
-    request<{
-      intro: {start: number; end: number} | null;
-      credits: {start: number} | null;
-      source?: string | null;
-    }>(`/api/intro/auto/${encodeURIComponent(id)}`),
+    request<Segments>(`/api/intro/auto/${encodeURIComponent(id)}`),
+  // The same answer for something that is NOT a library file — a streamed
+  // episode has nothing to fingerprint, so its Skip intro / Skip recap and its
+  // credits-timed Up next come from the public databases, asked by identity
+  // (server: media/skipsegments.js). A cold answer takes a second or two.
+  segments: (q: {imdbId: string; season?: number | null; episode?: number | null; duration?: number}) =>
+    request<Segments>(
+      `/api/segments?imdbId=${encodeURIComponent(q.imdbId)}${q.season ? `&season=${q.season}` : ''}${q.episode ? `&episode=${q.episode}` : ''}${q.duration ? `&duration=${Math.round(q.duration)}` : ''}`,
+    ),
+  // Which episode comes after this one — the server's one rule for the
+  // website and the TV (src/media/nextep.js). By library episode id, or by a
+  // streamed episode's identity. playerRules.ts readNext reads the answer.
+  nextEpisode: (q: {id: string} | {imdbId: string; season: number; episode: number; title?: string; year?: number | null}) => {
+    const p = new URLSearchParams();
+    if ('id' in q) p.set('id', q.id);
+    else {
+      p.set('imdbId', q.imdbId);
+      p.set('season', String(q.season));
+      p.set('episode', String(q.episode));
+      if (q.title) p.set('title', q.title);
+      if (q.year) p.set('year', String(q.year));
+    }
+    return request<unknown>(`/api/next-episode?${p.toString()}`);
+  },
   // A subtitle in the preferred language for a library file the server holds
   // no track for; it is written next to the file, for everyone.
-  subtitlesFetch: (id: string, lang: 'he' | 'en') =>
+  subtitlesFetch: (id: string, lang: 'he' | 'en' | 'ru') =>
     post<{tracks: SubtitleTrack[]}>('/api/subtitles/fetch', {id, lang}),
   report: (text: string, context: Record<string, unknown>, profile: string | null) =>
     post<{ok: boolean; id: string}>('/api/reports', {text, context, profile}),
@@ -1277,11 +1582,29 @@ export const api = {
     post<{ok: boolean}>(`/api/downloads/${encodeURIComponent(id)}/seen`, {profile}),
   downloadCancel: (id: string, profile: string) =>
     post<{ok: boolean}>(`/api/downloads/${encodeURIComponent(id)}/cancel`, {profile}),
+  // Clear a DEAD request of your own (failed / declined / cancelled) off the
+  // page. A live one is refused with 409 — that one is cancelled first.
+  downloadDismiss: (id: string, profile: string) =>
+    post<{ok: boolean}>(`/api/downloads/${encodeURIComponent(id)}/dismiss`, {profile}),
   usage: (body: unknown) => post<unknown>('/api/usage', body),
   // One playback mark (start time, path, stall, error) - the site's
   // /api/play-mark, which lands in the server's log.
   playMark: (itemId: string, body: Record<string, unknown>) =>
     post<unknown>(`/api/play-mark/${encodeURIComponent(itemId)}`, body),
+  // The player was left (or went on to the next episode): the server may stop
+  // what it was preparing for this viewer and nobody else is waiting on
+  // (server 1.6.95, POST …/jit/bye — answered 204, nothing to read). Today
+  // the TV's repackaged path is the offset job, which this does not touch
+  // (it ends by itself when nothing asks for it); the call is what the server
+  // documents for every client, and costs one small request on leaving.
+  // A beacon, as the website sends it: not through send() — a server that
+  // predates the route answers 404, and that is not a failure to count.
+  playBye: (itemId: string): Promise<void> => {
+    if (!baseUrl) return Promise.resolve();
+    return fetch(`${baseUrl}/stream/transcode/${encodeURIComponent(itemId)}/jit/bye`, {method: 'POST', headers: mediaHeaders()})
+      .then(() => undefined)
+      .catch(() => undefined);
+  },
   // Request access with a verified Google account (the pollId from the device
   // flow) — the TV's one-press signup when no profile is linked yet.
   signup: (fields: {name: string; pollId?: string; note?: string}) =>

@@ -6,6 +6,37 @@
 // the player's size, and failed in ways nothing could see.
 //
 // Mounted only while a trailer runs; none exists at rest.
+//
+// THE PICTURE IS A SurfaceView — ON THE BILLBOARD TOO. This file used to ask
+// for a TextureView there (`viewType={hero ? TEXTURE : SURFACE}`) and said so
+// in its comments, and the lab's research took that at its word. On Android,
+// react-native-video 6.19.2 ignores the prop: ReactExoplayerViewManager
+// .setViewType → ReactExoplayerView.setViewType → ExoPlayerView
+// .updateSurfaceView, whose whole body is a TODO (ExoPlayerView.kt:142). The
+// view is media3's `PlayerView(context)`, built without attributes, and a
+// PlayerView without a `surface_type` attribute makes a SurfaceView
+// (media3-ui 1.8.0, PlayerView's constructor: the default is 1,
+// SURFACE_TYPE_SURFACE_VIEW; a TextureView only for surface_type 2). So the
+// trailer has always composed on its own plane behind a hole in the window,
+// and a video frame redraws nothing of ours — the cost the research worried
+// about is not there. `viewType` is now SURFACE for both, which changes
+// nothing today and is what we want if the library ever honours it.
+//
+// WHAT FOLLOWS FROM IT BEING A SurfaceView (the film player is one as well):
+//  • It sits BELOW the window; what our views draw after it (the billboard's
+//    dim, scrim and text; the sheet's head bar) is blended over it by
+//    SurfaceFlinger. The window is made translucent by the platform the
+//    moment a SurfaceView asks for a transparent region (ViewRootImpl
+//    .requestTransparentRegion), so per-pixel alpha above the hole works.
+//  • It cannot be alpha-animated by an ancestor's opacity in a way that is
+//    the same on every Android: what an ancestor's alpha does to the HOLE
+//    differs by version. The billboard's cross-fade is therefore offered a
+//    second way that does not depend on it — HERO_TRAILER_COVER below.
+//  • Rounded clipping does not reach it (nothing here rounds it). The
+//    billboard's 115% frame simply hangs over the window's edges, and
+//    resizeMode "cover" enlarges the surface past its box the same way; both
+//    are cut by the screen, not by a clip.
+//  • The canvas scale (canvas.tsx) reaches it: measured on the Mi TV.
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {StyleSheet, View, ViewStyle, StyleProp} from 'react-native';
 import Video, {OnProgressData, OnVideoErrorData, ViewType} from 'react-native-video';
@@ -13,6 +44,32 @@ import {refreshTrailer, ResolvedTrailer, trailerPlayFailed} from '../trailers';
 import {track} from '../usage';
 
 export type TrailerState = 'ready' | 'playing' | 'paused' | 'ended' | 'error';
+
+/** How the billboard cross-fades between its art and the trailer (Home.tsx).
+ *
+ *  false — AS IT HAS BEEN: the layer that holds the video animates its
+ *  opacity 0 → 1. The video is a SurfaceView behind a hole, so what that
+ *  looks like is the platform's doing: the hole is cut by SurfaceView's draw
+ *  (a CLEAR / punch-hole op) inside an ancestor that is being drawn with
+ *  alpha, and React Native views draw alpha op by op, without an offscreen
+ *  layer (ReactViewGroup.hasOverlappingRendering is false unless
+ *  needsOffscreenAlphaCompositing). Where the punch-hole op carries alpha
+ *  (Android 13/14's RecordingCanvas.punchHole) that is close to a cross-fade,
+ *  dipping a little dark half-way; where it does not, the hole opens fully at
+ *  the first frame and the "fade" is a cut. Not established on the TV yet.
+ *
+ *  true — THE ART FADES, ABOVE THE HOLE. The video's layer goes from absent
+ *  (opacity 0: no hole) to fully there in one step at the instant playback
+ *  starts, and in that same frame a copy of the billboard's art is drawn over
+ *  it at full strength — the same picture, so nothing shows — and then fades
+ *  out over the 800 ms, and back in over the 700 ms when the trailer ends.
+ *  The window above a SurfaceView is blended per pixel, so that is a true
+ *  cross-fade on every Android by construction. While no trailer plays the
+ *  copy is not drawn (opacity 0), so the billboard at rest is unchanged.
+ *
+ *  Default false: the two cannot be shown identical from here (the first is
+ *  version-dependent). Flip it on the TV, film both fades, keep the better. */
+export const HERO_TRAILER_COVER: boolean = false;
 
 // Kept for the callers: the WebView's quality step-down has nothing to do now —
 // ExoPlayer adapts on its own, and the caps below bound it.
@@ -48,8 +105,7 @@ export default function TrailerFrame({
   onState: (s: TrailerState) => void;
   // Written with a `cmd` the owner can call (mute/unmute) without re-rendering.
   handle?: React.MutableRefObject<TrailerHandle | null>;
-  // the billboard: a TextureView (so the cross-fade's opacity reaches the
-  // picture — a SurfaceView ignores it) and the lower bitrate cap
+  // the billboard: the lower bitrate cap, and no claim on the audio focus
   hero?: boolean;
 }) {
   const [src, setSrc] = useState<ResolvedTrailer>(trailer);
@@ -149,7 +205,8 @@ export default function TrailerFrame({
         repeat={false}
         controls={false}
         resizeMode="cover"
-        viewType={hero ? ViewType.TEXTURE : ViewType.SURFACE}
+        // (ignored on Android by this version of the library — see the header)
+        viewType={ViewType.SURFACE}
         maxBitRate={hero ? MAX_BITRATE_HERO : MAX_BITRATE_SHEET}
         shutterColor="transparent"
         focusable={false}

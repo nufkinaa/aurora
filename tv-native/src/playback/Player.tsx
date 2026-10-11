@@ -87,6 +87,7 @@ import Focusable from '../components/Focusable';
 import Icon, {IconName} from '../components/Icon';
 import {api, ApiError, assetUrl, imgSrc, mediaHeaders, Item, Party, PartyItem, ProfileState, SubtitleTrack} from '../api';
 import {useApp} from '../AppContext';
+import {useRouteShown} from '../useRouteShown';
 import {setPlayingContext} from '../errors';
 import {acceptTvEvent, useFocusFallback} from '../focus';
 import {canNavigate} from '../navLock';
@@ -106,13 +107,30 @@ import {
   sendPartyState,
   setPartyItem,
 } from '../party';
-import {isOpen as socketOpen, reportActivity} from '../realtime';
+import {holdLibraryRefresh, isOpen as socketOpen, reportActivity} from '../realtime';
 import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
+import {PERSON_KEYS, PersonKey, SUB_LANG_LABEL} from '../personPrefs';
+import {resumePoint, SKIP_STEPS} from '../episodeRules';
+import {
+  nextAutoRun,
+  NextEp,
+  nextFile,
+  planUpNext,
+  Range,
+  rangeOf,
+  readNext,
+  skippableAt,
+  stallStep,
+  upNextState,
+} from '../playerRules';
+import {openReport, overlayOpen} from '../overlay';
+import {onPersonPrefs, setPersonPref} from '../personSync';
 import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
 import theme from '../theme';
 import {refreshTuning, tuning, TUNING_DEFAULTS} from './tuning';
+import {SERVER_BUSY, whenRoom} from '../serverManners';
 import {playerError, seekResumed, seekStarted, seeking} from '../telemetry'; // [analytics]
 
 const {colors, radius, fontSize, spacing} = theme;
@@ -125,9 +143,9 @@ const SCRIM_TOP = require('../assets/player-top.png');
 const SCRIM_BOTTOM = require('../assets/player-bottom.png');
 
 // ---------------------------------------------------------------- constants
-// All ported verbatim from player.js.
+// From player.js. (The skip steps and the resume rule live in episodeRules.ts,
+// where a test holds them to the website's.)
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
-const SKIP_STEPS = [10, 10, 10, 30, 60, 60, 120, 300];
 const SKIP_CHAIN_MS = 900;
 // The site hides its chrome 3200ms after the last input. That is a mouse-era
 // number and it does not survive a remote: reaching Subtitles is six D-pad
@@ -219,6 +237,7 @@ const fmtSpeed = (bytesPerSec: number) => {
   return mb >= 1 ? `${mb.toFixed(1)} MB/s` : `${Math.round(bytesPerSec / 1024)} KB/s`;
 };
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+const NO_FILE = 'This title has no playable file.';
 // The ?v= of a transcode job: the remux, the full re-encode, or one of the
 // server's CAPPED encodes for a slow line (media/remux.js CAPS — 720p at about
 // 2.4 Mbit/s all in, 480p at about 1.1) — the site's Quality ladder.
@@ -493,6 +512,7 @@ const buildTracks = (subs: SubtitleTrack[]): Track[] => {
 const SUB_LANG_TEST: Record<string, {code: RegExp; label: RegExp}> = {
   he: {code: /^(he|heb|iw)/i, label: /hebrew|עבר/i},
   en: {code: /^(en|eng)/i, label: /english/i},
+  ru: {code: /^(ru|rus)/i, label: /russian|русск/i},
 };
 const autoTrack = (tracks: Track[], prefs: Prefs, profileSub?: string | null): Track | null => {
   if (!tracks.length) return null;
@@ -556,11 +576,15 @@ const autoTrack = (tracks: Track[], prefs: Prefs, profileSub?: string | null): T
       tracks.find(t => test.code.test(t.lang || '') || test.label.test(t.label || '')) || null
     );
   };
-  // The viewer's chosen language wins. With 'any' the web falls back to the
-  // first track; here Hebrew is tried first, because that is what this household
-  // watches with and what the previous build hard-coded — a strict port would
-  // have silently changed the default to whatever track happens to be first.
-  return match(prefs.subLang) || match('he') || tracks[0];
+  // The viewer's chosen language wins; with "First available" — or a title
+  // that has nothing in that language — the first track, as on the site.
+  // (This TV used to try Hebrew before the first track under "First
+  // available", a rule of its own from when the setting lived on the box. The
+  // setting is the person's now and means the same on every device: someone
+  // who wants Hebrew says Hebrew, once, and the player also goes and fetches
+  // it when a title lacks it. What was picked by hand still wins over all of
+  // this — see the top of this function.)
+  return match(prefs.subLang) || tracks[0];
 };
 
 // .pbtn — the site's circular transport button.
@@ -617,7 +641,7 @@ export default function Player({
   route,
   navigation,
 }: NativeStackScreenProps<RootStackParamList, 'Player'>) {
-  const {id, title, epTitle, stream, restart, party: partyCode} = route.params;
+  const {id, title, epTitle, stream, restart, party: partyCode, autoRun: autoRunParam} = route.params;
   const isTorrent = !!stream;
   // Decided once per player: the buffer config is part of the video source,
   // and changing it mid-film would reload the source.
@@ -645,7 +669,9 @@ export default function Player({
   const [error, setError] = useState('');
   // The item request itself failed (not: the title has no file). Kept apart
   // from `error` because this one can be retried — `loadTry` re-runs the load.
-  const [loadErr, setLoadErr] = useState<{title: string; detail?: string} | null>(null);
+  // (`retry: false` — the server REFUSED: a title a kids profile may not
+  // open, one that is gone. Asking again gets the same answer, so only Back.)
+  const [loadErr, setLoadErr] = useState<{title: string; detail?: string; retry?: boolean} | null>(null);
   const [loadTry, setLoadTry] = useState(0);
   // The slow-start card (see the watchdog by that name): null, 'slow' at 25s
   // with no first frame, 'big' at 90s. Declared up here because the remote
@@ -666,6 +692,8 @@ export default function Player({
   const [current, setCurrent] = useState(0);
   const [buffered, setBuffered] = useState(0);
   const [buffering, setBuffering] = useState(true);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(!!uri && !buffering);
   const [controls, setControls] = useState(true);
   const [subKey, setSubKey] = useState<string | null>(null); // null = off
   const [cues, setCues] = useState<Cue[] | null>(null);
@@ -709,14 +737,22 @@ export default function Player({
   // registered and then jumped seconds later.
   const [seekPreview, setSeekPreview] = useState<number | null>(null);
   const [toastMsg, setToastMsg] = useState('');
+  // The Up next card: which episode, the seconds left before it starts by
+  // itself (null: nothing starts by itself), and whether this is the "Still
+  // watching?" form of it (playerRules.ts planUpNext).
   const [upNext, setUpNext] = useState<{
-    id: string;
-    title: string;
+    next: NextEp;
     countdown: number | null;
+    still: boolean;
   } | null>(null);
-  // Skip intro: inside a known range right now (the button shows).
+  // Skip intro / Skip recap: inside a known range right now (the button
+  // shows), and which of the two it would skip.
   const [inIntro, setInIntro] = useState(false);
   const inIntroRef = useRef(false);
+  const [skipKind, setSkipKind] = useState<'intro' | 'recap'>('intro');
+  const skipKindRef = useRef<'intro' | 'recap'>('intro');
+  // The direct-play stall card (see the watchdog by that name).
+  const [stallCard, setStallCard] = useState(false);
   // The resume card — "Resuming from 12:34" with the frame, Start over beside it.
   const [resumeCard, setResumeCard] = useState<{at: number} | null>(null);
   // The watch party this player is in, for the pill and the panel.
@@ -820,6 +856,10 @@ export default function Player({
   // Intro ranges: the household's hand-marked one wins over the detected one.
   const intro = useRef<{start: number; end: number} | null>(null);
   const autoIntro = useRef<{start: number; end: number} | null>(null);
+  // "Previously on…" — only the public databases know these (a recap repeats
+  // in no other episode, so the audio comparison can never find one). The
+  // same button offers it, under its own name (the site's autoRecap).
+  const autoRecap = useRef<Range | null>(null);
   // Bumped when a mark lands, so the ticks on the track repaint (the marks
   // themselves live in refs — the 4 Hz progress loop reads them).
   const [marksTick, setMarksTick] = useState(0);
@@ -831,7 +871,7 @@ export default function Player({
   const keepParty = useRef(false);
   const pendingLand = useRef<PartyStateMsg | null>(null);
   // Auto-subtitles: the language a fetch was asked for, to switch on when it lands.
-  const autoLangWanted = useRef<'he' | 'en' | null>(null);
+  const autoLangWanted = useRef<'he' | 'en' | 'ru' | null>(null);
   const subsFetched = useRef(false);
   const playTracked = useRef(false);
   // Where the start's time went, in ms since mount — sent with the
@@ -918,11 +958,19 @@ export default function Player({
       setPrefs(p);
       setPrefsLoaded(true);
     });
+    // A setting that follows the person, changed on another device while this
+    // plays (personSync.ts): it applies from here on.
+    const off = onPersonPrefs(person => {
+      const next = {...prefsRef.current, ...person};
+      prefsRef.current = next;
+      setPrefs(next);
+    });
     // The profile's remembered dub and subtitle pick (navSection's record):
     // asked for again when the copy is over five minutes old, so a choice made
     // on the site is known here. Not waited for — the copy already held is
     // what arming and the subtitle auto-pick read if this is still in flight.
     loadMe(profileId, 5 * 60000);
+    return off;
   }, [profileId]);
 
   // ---------------------------------------------------------------- chrome
@@ -1053,6 +1101,70 @@ export default function Player({
     [],
   );
 
+  // THE SERVER IS BUSY (503 + Retry-After: no room in its encoder budget —
+  // server 1.6.93). The claim below is the one request of a start whose answer
+  // this code sees (ExoPlayer's own read of the playlist reports only "Source
+  // error"), so it is the claim that is watched: on 503 it waits what the
+  // server says (5 s at most) and asks again, three times at most
+  // (serverManners.ts whenRoom), with the loading state on screen. While the
+  // claim for the CURRENT source is in flight or waiting, a player error
+  // before anything has played is not run through the codec ladder (onError):
+  // a busy server refuses the player's playlist read too, and the ladder's
+  // answer to that — a heavier encode — is the wrong one. When there is room
+  // the source is handed over again if the player had given up on it; when
+  // there is none after the last try, ONE message with Try again / Back.
+  // The player is handed its source at once, as before: a start on a server
+  // with room is not a round trip slower for any of this.
+  const claimGen = useRef(0); // the source generation whose claim is pending (0 = none)
+  const claimSwallowed = useRef(0); // …and the generation a player error was held back for
+  const claimStream = useCallback((url: string, g: number) => {
+    claimGen.current = g;
+    const alive = () => !exited.current && gen.current === g;
+    whenRoom(
+      async () => {
+        // bounded, like the far-seek probe: a claim that never settled would
+        // hold errors back for ever
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 45000);
+        try {
+          const res = await fetch(`${url}&seek=1`, {headers: mediaHeaders(), signal: ctrl.signal});
+          return {status: res.status, retryAfter: res.headers.get('retry-after')};
+        } finally {
+          clearTimeout(t);
+        }
+      },
+      {
+        sleep,
+        alive,
+        onWait: (ms, n) => {
+          console.log(`[player] the server is busy: asking again in ${ms} ms (${n}/3)`);
+          // an error the player raised a moment before this answer may have
+          // armed the stuck-playlist retry: this wait owns the start now
+          if (retryTimer.current) clearTimeout(retryTimer.current);
+          retryTimer.current = null;
+          recoveries.current = 0;
+          setBuffering(true);
+        },
+      },
+    ).then(out => {
+      if (claimGen.current === g) claimGen.current = 0;
+      if (out.kind === 'gone' || !alive()) return;
+      const swallowed = claimSwallowed.current === g;
+      if (out.kind === 'busy') {
+        if (everPlayed.current) return; // the player got in by itself meanwhile
+        console.log('[player] the server is still busy: giving up on this start');
+        setBuffering(false);
+        setError(SERVER_BUSY);
+        return;
+      }
+      // Room (or an answer that is not "busy", or the claim itself failed):
+      // if the player's error was held back, the source is handed over once
+      // more — with no claim pending, whatever it says next is judged as
+      // always.
+      if (swallowed && !everPlayed.current) setUri(`${url}&g=${++gen.current}`);
+    });
+  }, []);
+
   // The web's startTranscode. `claim` fires the &seek=1 request that tells the
   // server the VIEWER chose this position — the only kind of request allowed to
   // retire the job still running at the previous offset. Without it the old
@@ -1075,10 +1187,11 @@ export default function Player({
       setCurrent(ss);
       setBuffering(true);
       const url = transcodeUrl(base, ss, v);
-      if (claim) fetch(`${url}&seek=1`, {headers: mediaHeaders()}).catch(() => {});
-      setUri(`${url}&g=${++gen.current}`);
+      const g = ++gen.current;
+      if (claim) claimStream(url, g);
+      setUri(`${url}&g=${g}`);
     },
-    [transcodeUrl],
+    [transcodeUrl, claimStream],
   );
 
   // Restart the transcode at an absolute content time — but PROBE the playlist
@@ -1101,33 +1214,63 @@ export default function Player({
       // stall watchdog and the transcode keepalive — a probe that never settled
       // wedged the player in "Fetching that part…" with every recovery
       // mechanism switched off. prefetchRegion already aborts this way.
-      const ctrl = new AbortController();
-      const probeTimer = setTimeout(() => ctrl.abort(), 45000);
+      // (Each ask has its own 45 s. A busy server — 503 + Retry-After — is
+      // waited for and asked again, three times at most, the loading state
+      // staying up: serverManners.ts whenRoom.)
+      const alive = () => !exited.current && token === probeToken.current;
       try {
-        const res = await fetch(`${transcodeUrl(base, ss, v)}&seek=1`, {
-          headers: mediaHeaders(),
-          signal: ctrl.signal,
-        });
-        if (exited.current || token !== probeToken.current) return true;
-        if (!res.ok) throw new Error('not ready');
+        const out = await whenRoom(
+          async () => {
+            const ctrl = new AbortController();
+            const probeTimer = setTimeout(() => ctrl.abort(), 45000);
+            try {
+              const res = await fetch(`${transcodeUrl(base, ss, v)}&seek=1`, {
+                headers: mediaHeaders(),
+                signal: ctrl.signal,
+              });
+              return {status: res.status, retryAfter: res.headers.get('retry-after')};
+            } finally {
+              clearTimeout(probeTimer);
+            }
+          },
+          {
+            sleep,
+            alive,
+            onWait: (ms, n) => console.log(`[player] the server is busy: asking again in ${ms} ms (${n}/3)`),
+          },
+        );
+        if (out.kind === 'gone' || !alive()) return true;
+        if (out.kind === 'busy') {
+          // No room after the last try. Something is playing: it stays, and
+          // the viewer is told. Nothing has played yet: one message with
+          // Try again / Back — never the same request in a loop, and not the
+          // start of the film instead of the point that was asked for.
+          console.log('[player] the server is still busy: this point is not started');
+          if (everPlayed.current) {
+            toast('The server is busy — try again in a moment');
+            return false;
+          }
+          setError(SERVER_BUSY);
+          return true;
+        }
+        if (out.kind !== 'answered' || out.status < 200 || out.status > 299) throw new Error('not ready');
         startTranscode(base, ss, v, false); // the probe already claimed it
         return true;
       } catch {
-        if (exited.current || token !== probeToken.current) return true;
+        if (!alive()) return true;
         if (fallbackToZero) {
           startTranscode(base, 0, v, false);
           return true;
         }
         return false;
       } finally {
-        clearTimeout(probeTimer);
         if (token === probeToken.current) {
           probing.current = false;
           setSeekWait(null);
         }
       }
     },
-    [startTranscode, transcodeUrl],
+    [startTranscode, transcodeUrl, toast],
   );
 
   // Another dub (elia, 2026-10-07: "users can't change the dub"): the stream
@@ -1231,15 +1374,10 @@ export default function Player({
             episode: stream.episode,
             year: stream.year ?? undefined,
           } as Item;
-          const p = restart ? null : st.progress?.[id];
-          if (
-            p &&
-            !p.finished &&
-            p.position > 10 &&
-            (!it.duration || p.position < it.duration - 20)
-          ) {
-            resumeAt.current = Math.floor(p.position);
-          }
+          // Where it resumes (episodeRules.ts resumePoint — the site's rule:
+          // past ten seconds, not in the last twenty, four seconds early).
+          const at = restart ? null : resumePoint(st.progress?.[id], it.duration);
+          if (at != null) resumeAt.current = at;
           durRef.current = it.duration || 0;
           setDuration(it.duration || 0);
           setMeta({item: it});
@@ -1265,19 +1403,12 @@ export default function Player({
           const it = await (itemP as Promise<Item>);
           if (!live) return;
           if (!it.videoUrl && !it.transcodeBase) {
-            setError('This title has no playable file.');
+            setError(NO_FILE);
             return;
           }
           // `restart` (Detail's "Start over") means ignore the saved position.
-          const p = restart ? null : st.progress?.[id];
-          if (
-            p &&
-            !p.finished &&
-            p.position > 10 &&
-            (!it.duration || p.position < it.duration - 20)
-          ) {
-            resumeAt.current = Math.floor(p.position);
-          }
+          const at = restart ? null : resumePoint(st.progress?.[id], it.duration);
+          if (at != null) resumeAt.current = at;
           durRef.current = it.duration || 0;
           setDuration(it.duration || 0);
           startMs.current.meta = Date.now() - mountedAt.current;
@@ -1290,10 +1421,15 @@ export default function Player({
         // (api.ts request()) — so the line is to blame, not the title. Anything
         // else carries the server's own message, which is written for viewers.
         const unreachable = !(e instanceof ApiError) || e.status === 0;
+        // A refusal (403: over a kids profile's limit; 404: the title is
+        // gone) is final — the server's own words, and no Retry to press.
+        const refused = e instanceof ApiError && (e.status === 403 || e.status === 404);
         setLoadErr(
           unreachable
             ? {title: "Couldn't reach the server", detail: e instanceof ApiError ? e.message : undefined}
-            : {title: "Couldn't load this title", detail: (e as Error).message},
+            : refused
+              ? {title: (e as Error).message || "This title can't be opened", retry: false}
+              : {title: "Couldn't load this title", detail: (e as Error).message},
         );
       }
     })();
@@ -1494,13 +1630,27 @@ export default function Player({
         })
         .catch(() => {});
     }
-    if (!stream && it.showId) {
-      Promise.all([api.introAuto(id), loadIgnoredIntros()])
+    // One shape from both doors (the site's applyAutoSegments): a library
+    // episode asks by file id — its own detection first, the public databases
+    // under it; a STREAMED episode has no file to analyse and asks by
+    // identity (/api/segments) — which is what gives streams a Skip intro, a
+    // Skip recap and an Up next timed to the credits. They had none here.
+    const streamedEp = !!(stream && stream.imdbId && stream.season && stream.episode);
+    const ask =
+      !stream && it.showId
+        ? api.introAuto(id)
+        : streamedEp
+          ? api.segments({imdbId: stream!.imdbId as string, season: stream!.season, episode: stream!.episode, duration: it.duration || 0})
+          : null;
+    if (ask) {
+      Promise.all([ask, loadIgnoredIntros()])
         .then(([r, ignored]) => {
-          if (!live) return;
-          if (r.intro && isFinite(r.intro.start) && isFinite(r.intro.end) && !(key && ignored.includes(key))) {
-            autoIntro.current = {start: r.intro.start, end: r.intro.end};
-          }
+          if (!live || !r) return;
+          const off = !!key && ignored.includes(key); // "ignore the detected intro" covers both
+          const i = rangeOf(r.intro);
+          const rc = rangeOf(r.recap);
+          if (i && !off) autoIntro.current = i;
+          if (rc && !off) autoRecap.current = rc;
           if (r.credits && isFinite(r.credits.start)) creditsStart.current = r.credits.start;
           setMarksTick(t => t + 1);
         })
@@ -1512,12 +1662,14 @@ export default function Player({
   }, [meta, stream, id]);
   const activeIntro = () => intro.current || autoIntro.current;
   const skipIntro = useCallback(() => {
-    const range = activeIntro();
-    if (!range) return;
+    // what the button would skip right now: the recap while inside it, else
+    // the intro (playerRules.ts skippableAt — the site's skippableNow)
+    const seg = skippableAt(curRef.current, {recap: autoRecap.current, intro: activeIntro()});
+    if (!seg) return;
     inIntroRef.current = false;
     setInIntro(false);
-    track('feat', {f: 'skip_intro'});
-    seekTo(range.end);
+    track('feat', {f: seg.kind === 'recap' ? 'skip_recap' : 'skip_intro'});
+    seekTo(seg.range.end);
     showControls();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1535,11 +1687,11 @@ export default function Player({
     subsFetched.current = true;
     console.log(`[player] no ${want} subtitles on disk — asking the server`);
     api
-      .subtitlesFetch(id, want as 'he' | 'en')
+      .subtitlesFetch(id, want as 'he' | 'en' | 'ru')
       .then(r => {
         console.log(`[player] subtitle fetch: ${r?.tracks?.length || 0} track(s)`);
         if (exited.current || !r?.tracks?.length) return;
-        autoLangWanted.current = want as 'he' | 'en';
+        autoLangWanted.current = want as 'he' | 'en' | 'ru';
         addSubs(r.tracks.map(t => ({...t, lang: t.lang || want})));
       })
       .catch(e => console.log('[player] subtitle fetch failed:', (e as Error).message));
@@ -1550,6 +1702,21 @@ export default function Player({
     setPlayingContext({id, title});
     return () => setPlayingContext(null);
   }, [id, title]);
+  // While a film plays, a library change re-reads nothing behind it (the
+  // title page under the player used to re-read its library copy on every
+  // message): realtime.ts holds the news and tells the screens once, after
+  // the player is left. And on leaving — or going on to the next episode,
+  // which is a new player — the server is told it may stop what it was
+  // preparing for this viewer (api.playBye; library titles only: a torrent
+  // stream has no such route).
+  useEffect(() => {
+    const why = `player:${mountedAt.current}`;
+    holdLibraryRefresh(why, true);
+    return () => {
+      holdLibraryRefresh(why, false);
+      if (!isTorrent) api.playBye(id).catch(() => {});
+    };
+  }, [id, isTorrent]);
   const partySnapshot = useCallback((): PartyItem => {
     const it = itemRef.current;
     if (stream) return {...(streamMeta() || {}), id: stream.id, cover: stream.cover ?? null, backdrop: stream.backdrop ?? null} as PartyItem;
@@ -1700,7 +1867,7 @@ export default function Player({
         autoLangWanted.current = null;
         autoSubsApplied.current = true;
         setSubKey(hit.key);
-        toast(`${want === 'he' ? 'Hebrew' : 'English'} subtitles found — switched on`);
+        toast(`${SUB_LANG_LABEL[want]} subtitles found — switched on`);
         return;
       }
     }
@@ -2008,6 +2175,13 @@ export default function Player({
   const onTV = useCallback(
     (evt: {eventType: string}) => {
       if (!acceptTvEvent(evt)) return; // one press, one event (focus.ts)
+      // Someone is there: the run of episodes that started by themselves is
+      // over (the site's noteInput — "Still watching?" counts hands-off ones).
+      autoRun.current = 0;
+      // A sheet is up over the player (X-Ray, Report a problem): the remote is
+      // the sheet's. Without this an OK pressed in the sheet also reached this
+      // handler and, once the chrome had hidden, paused the film under it.
+      if (overlayOpen()) return;
       const t = evt.eventType;
       // The web's media-key handler. A remote (or an HDMI-CEC transport control)
       // sends the discrete play/pause keys, not just the toggle — treating only
@@ -2023,7 +2197,7 @@ export default function Player({
       }
       if (t === 'fastForward') return skip(1);
       if (t === 'rewind') return skip(-1);
-      if (menuOpen || upNext || slowStart) return; // the overlay's own focusables handle it
+      if (menuOpen || upNext || slowStart || stallCard) return; // the overlay's own focusables handle it
       if (!controls) {
         if (t === 'left') return skip(-1);
         if (t === 'right') return skip(1);
@@ -2051,7 +2225,7 @@ export default function Player({
       }
       showControls(); // any activity keeps the chrome alive
     },
-    [controls, menuOpen, upNext, slowStart, skip, togglePlay, showControls],
+    [controls, menuOpen, upNext, slowStart, stallCard, skip, togglePlay, showControls],
   );
   useTVEventHandler(onTV);
 
@@ -2082,10 +2256,21 @@ export default function Player({
         setControls(false);
         return true;
       }
+      // A HOST leaving ends the party for everyone in it: with guests in the
+      // room that takes a second Back within six seconds (the site's rule) —
+      // one press aimed at the chrome must not end the evening for the rest.
+      if (party.current && party.role === 'host' && (party.current.members?.length || 0) > 1) {
+        if (Date.now() - hostBackAt.current > 6000) {
+          hostBackAt.current = Date.now();
+          toast('Press Back again to end the party for everyone');
+          return true;
+        }
+      }
       return false; // picture is clean — let navigation pop
     });
     return () => sub.remove();
-  }, [menuOpen, upNext, controls, uri, error, closeMenu, dismissUpNext]);
+  }, [menuOpen, upNext, controls, uri, error, closeMenu, dismissUpNext, toast]);
+  const hostBackAt = useRef(0);
 
   // ------------------------------------------------------- progress + keepalive
   // For torrent streams the play-item rides along, so Continue Watching can
@@ -2362,104 +2547,250 @@ export default function Player({
     return () => clearInterval(iv);
   }, [stream, transcodeUrl]);
 
-  // ---------------------------------------------------------------- Up Next
-  const showUpNext = useCallback(async () => {
-    if (upNextShown.current) return;
+  // Direct-play stall watchdog — a library file played as it is (no
+  // repackaging). The watchdog above only covers repackaged streams; a direct
+  // file whose connection went quiet mid-film just sat on a spinner with
+  // nothing said (audit F40). The site's staged recovery, with its timings
+  // (playerRules.ts stallStep): a nudge at 6 s (seek to where we are — that
+  // alone restarts a reader that gave up), the source handed over again at
+  // 20 s (at the same position), and at 45 s a card that says so and offers a
+  // way out. One of each per stall; the picture moving again ends the stall.
+  // After two re-hands in one film the next stall goes straight to the card.
+  // A torrent is left alone — its own status copy says what the swarm is doing.
+  const stallAt = useRef({since: 0, nudged: false, rebuilt: false, carded: false});
+  const stallRebuilds = useRef(0);
+  const rebuildDirect = useCallback(() => {
     const it = itemRef.current;
-    if (!it?.showId) return;
-    upNextShown.current = true;
-    try {
-      const show = await api.item(it.showId, profileId);
-      const flat = (show.seasons || []).flatMap(s => s.episodes);
-      const i = flat.findIndex(e => e.id === id);
-      const next = i >= 0 ? flat[i + 1] : null;
-      if (!next || exited.current) return;
-      const label = `S${next.season} E${next.episode} · ${next.title || ''}`.trim();
-      const auto = prefs.autoplayNext;
-      setUpNext({id: next.id, title: label, countdown: auto ? 15 : null});
-      setControls(true);
-      if (auto) {
-        if (countdownTimer.current) clearInterval(countdownTimer.current);
-        countdownTimer.current = setInterval(() => {
-          setUpNext(prev => {
-            if (!prev || prev.countdown == null) return prev;
-            return {...prev, countdown: prev.countdown - 1};
-          });
-        }, 1000);
+    if (!it?.videoUrl || usingTranscodeRef.current) return;
+    if (curRef.current > 5) resumeAt.current = curRef.current;
+    const base = assetUrl(it.videoUrl) as string;
+    // the same file again: `g` only makes the address new, so the player
+    // really reloads it (the server ignores it)
+    setUri(`${base}${base.includes('?') ? '&' : '?'}g=${++gen.current}`);
+  }, []);
+  useEffect(() => {
+    if (isTorrent) return;
+    const iv = setInterval(() => {
+      const d = stallAt.current;
+      const stuck =
+        !exited.current &&
+        playTracked.current &&
+        !pausedRef.current &&
+        bufferingRef.current &&
+        !usingTranscodeRef.current &&
+        !probing.current &&
+        pendingSeek.current == null;
+      if (!stuck) {
+        if (d.since) {
+          stallAt.current = {since: 0, nudged: false, rebuilt: false, carded: false};
+          setStallCard(c => (c ? false : c));
+        }
+        return;
       }
-    } catch {
-      upNextShown.current = false; // transient — later ticks retry
-    }
-  }, [id, prefs.autoplayNext, profileId]);
+      if (!d.since) d.since = Date.now();
+      let step = stallStep(Date.now() - d.since, d);
+      if (step === 'rebuild' && stallRebuilds.current >= 2) {
+        d.rebuilt = true;
+        step = 'card';
+      }
+      if (step === 'nudge') {
+        d.nudged = true;
+        mark('stall-nudge', {at: Math.round(curRef.current || 0), app: 'tv'});
+        videoRef.current?.seek(Math.max(0, curRef.current - streamOffset.current));
+      } else if (step === 'rebuild') {
+        d.rebuilt = true;
+        stallRebuilds.current += 1;
+        mark('stall-rebuild', {at: Math.round(curRef.current || 0), app: 'tv'});
+        toast('Still stuck — loading it again…');
+        rebuildDirect();
+      } else if (step === 'card') {
+        d.carded = true;
+        mark('stall-card', {at: Math.round(curRef.current || 0), app: 'tv'});
+        setStallCard(true);
+      }
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [isTorrent, mark, rebuildDirect, toast]);
+  // The card's own ways out: once more (and the card goes until the next
+  // stall has lasted as long), the 480p encode where the file has one, or Back.
+  const stallRetry = useCallback(() => {
+    stallAt.current = {since: 0, nudged: true, rebuilt: true, carded: false};
+    setStallCard(false);
+    rebuildDirect();
+  }, [rebuildDirect]);
 
-  // The episode after this one, known from the start (elia, 2026-10-07: "add
-  // a button of next episode — someone can just dismiss [Up next], and on an
-  // episode we can skip to the next one and start to play it"). Library
-  // episodes only: a streamed one needs a source picked first.
-  const [nextEp, setNextEp] = useState<{id: string; title: string} | null>(null);
+  // ---------------------------------------------------------------- Up Next
+  // WHICH EPISODE IS NEXT is the server's answer (GET /api/next-episode — one
+  // rule for the website and this app, src/media/nextep.js): the REAL next
+  // episode of the series. This player used to take "the next file in the
+  // library's list", which only lists what is on disk — with E1–E4 and E8
+  // downloaded, Up next after E4 was E8 (audit C-2) — and a streamed episode
+  // had no Up next at all (A-6). Asked once, as the episode starts; the Next
+  // button and the Up next card both read it.
+  //   library  on disk: Play now, and it may start by itself
+  //   stream   not on disk: "Choose episode" opens its sources; never by itself
+  const [nextEp, setNextEp] = useState<NextEp | null>(null);
+  const nextEpRef = useRef<NextEp | null>(null);
   const showIdOfItem = meta?.item?.showId || null;
   useEffect(() => {
+    nextEpRef.current = null;
     setNextEp(null);
-    if (!showIdOfItem) return;
+    if (!meta) return;
+    const lib = !stream && !!showIdOfItem;
+    const streamed = !!(stream && stream.imdbId && stream.season && stream.episode);
+    if (!lib && !streamed) return;
     let live = true;
-    api
-      .item(showIdOfItem, profileId)
-      .then(show => {
-        if (!live) return;
-        const flat = (show.seasons || []).flatMap(s => s.episodes);
-        const i = flat.findIndex(e => e.id === id);
-        const next = i >= 0 ? flat[i + 1] : null;
-        if (next) setNextEp({id: next.id, title: `S${next.season} E${next.episode} · ${next.title || ''}`.trim()});
+    const set = (n: NextEp | null) => {
+      if (!live) return;
+      nextEpRef.current = n;
+      setNextEp(n);
+    };
+    const ask = lib
+      ? api.nextEpisode({id})
+      : api.nextEpisode({
+          imdbId: stream!.imdbId as string,
+          season: stream!.season as number,
+          episode: stream!.episode as number,
+          title: meta.item.showTitle || meta.item.title || title,
+          year: stream!.year ?? null,
+        });
+    ask
+      .then(r => {
+        const n = readNext(r);
+        if (n === undefined) throw new Error('not an answer');
+        set(n);
       })
-      .catch(() => {});
+      .catch(() => {
+        // A server from before the route (404), or no answer: a library
+        // episode falls back to the next file on disk, as this player always
+        // did; a streamed one has nothing to fall back to.
+        if (!lib || !live) return;
+        api
+          .item(showIdOfItem as string, profileId)
+          .then(show => set(nextFile(show.seasons, id)))
+          .catch(() => {});
+      });
     return () => {
       live = false;
     };
-  }, [showIdOfItem, id, profileId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta, showIdOfItem, id, profileId]);
 
-  const advanceTo = useCallback(
-    (target: {id: string; title: string}) => {
+  // "Still watching?" — how many episodes in a row started BY THEMSELVES up to
+  // and including this one (the route carries the count from player to
+  // player). Any press on the remote ends the run (onTV).
+  const autoRun = useRef(Math.max(0, Math.floor(autoRunParam || 0)));
+
+  const showUpNext = useCallback(() => {
+    if (upNextShown.current) return;
+    const next = nextEpRef.current;
+    if (!next) return; // not known yet, or nothing is next: later ticks ask again
+    upNextShown.current = true;
+    const inParty = !!party.current;
+    const plan = planUpNext({
+      next,
+      autoplayPref: prefsRef.current.autoplayNext,
+      inParty,
+      guest: inParty && party.role !== 'host',
+      autoRun: autoRun.current,
+    });
+    if (plan.card === 'still') track('feat', {f: 'still_watching_shown'});
+    setUpNext({next, countdown: plan.countdown, still: plan.card === 'still'});
+    setControls(true);
+    if (countdownTimer.current) clearInterval(countdownTimer.current);
+    countdownTimer.current = null;
+    if (plan.countdown != null) {
+      countdownTimer.current = setInterval(() => {
+        setUpNext(prev => {
+          if (!prev || prev.countdown == null) return prev;
+          return {...prev, countdown: prev.countdown - 1};
+        });
+      }, 1000);
+    }
+  }, []);
+  // The viewer went back out of the credits: the card goes (and any countdown
+  // with it) and is armed again for when the credits return — the site's rule.
+  const retractUpNext = useCallback(() => {
+    if (!upNextShown.current) return;
+    upNextShown.current = false;
+    if (countdownTimer.current) clearInterval(countdownTimer.current);
+    countdownTimer.current = null;
+    setUpNext(prev => (prev ? null : prev));
+  }, []);
+
+  // On to the next episode. `byCountdown`: it started by itself (the card ran
+  // out) — everything else is a person's press (Play now, Keep watching, the
+  // Next button).
+  const goNext = useCallback(
+    (target: NextEp, byCountdown: boolean) => {
       if (advancing.current) return; // guard against OK double-firing
       advancing.current = true;
       if (countdownTimer.current) clearInterval(countdownTimer.current);
+      countdownTimer.current = null;
       setUpNext(null);
       saveProgress();
-      if (party.current) {
-        if (party.role !== 'host') {
-          advancing.current = false;
-          return;
-        }
-        const it = itemRef.current;
-        setPartyItem({id: target.id, title: target.title, showTitle: it?.showTitle, cover: it?.cover ?? null});
+      const inParty = !!party.current;
+      // A GUEST NEVER ADVANCES ON THEIR OWN — the host's party_item does it
+      // for the whole room (see onPartyItem). Say so, and give the player
+      // back: this branch used to return with the guard still set, which left
+      // the Next button dead for the rest of the episode (audit X6).
+      if (inParty && party.role !== 'host') {
+        advancing.current = false;
+        toast('Following the host — the next episode starts when theirs does');
+        showControls();
+        setTimeout(() => pauseBtnRef.current?.requestTVFocus?.(), 0);
+        return;
+      }
+      const it = itemRef.current;
+      // Not on disk: its sources, to pick one (the site sends the viewer to
+      // the show's page on that episode for the same reason — a source is
+      // never chosen for them). A party does not come along: there is no one
+      // file yet for the room to follow.
+      if (target.kind === 'stream') {
+        navigation.replace('Sources', {
+          type: 'series',
+          imdbId: target.imdbId,
+          title: it?.showTitle || it?.title || title,
+          season: target.season,
+          episode: target.episode,
+          year: stream?.year ?? it?.year ?? null,
+          poster: stream?.cover ?? it?.cover ?? null,
+        });
+        return;
+      }
+      // A hosted party comes along: the guests are told the new episode.
+      if (inParty) {
+        setPartyItem({id: target.id, title: target.label, showTitle: it?.showTitle, cover: it?.cover ?? null});
         keepParty.current = true;
       }
-      navigation.replace('Player', {id: target.id, title: target.title, party: party.current?.code});
+      navigation.replace('Player', {
+        id: target.id,
+        title: it?.showTitle ? `${it.showTitle} · S${target.season} E${target.episode}` : target.label,
+        epTitle: target.name || undefined,
+        party: party.current?.code,
+        autoRun: nextAutoRun({byCountdown, inParty, autoRun: autoRun.current}),
+      });
     },
-    [navigation, saveProgress],
+    [navigation, saveProgress, showControls, stream, title, toast],
   );
-
   const playUpNext = useCallback(() => {
-    if (advancing.current || !upNext) return; // guard against OK double-firing
-    advancing.current = true;
+    if (!upNext) return;
+    if (upNext.still) track('feat', {f: 'still_watching_keep'});
+    goNext(upNext.next, false);
+  }, [goNext, upNext]);
+  // "I'm done" on Still watching?: out of the player.
+  const doneWatching = useCallback(() => {
+    track('feat', {f: 'still_watching_done'});
     if (countdownTimer.current) clearInterval(countdownTimer.current);
-    const target = upNext;
     setUpNext(null);
     saveProgress();
-    // The host carries the room along; a guest must not advance on its own —
-    // it follows the host's party_item (see onPartyItem).
-    if (party.current) {
-      if (party.role !== 'host') return;
-      const it = itemRef.current;
-      setPartyItem({id: target.id, title: target.title, showTitle: it?.showTitle, cover: it?.cover ?? null});
-      keepParty.current = true;
-    }
-    navigation.replace('Player', {id: target.id, title: target.title, party: party.current?.code});
-  }, [navigation, saveProgress, upNext]);
+    if (navigation.isFocused()) navigation.goBack();
+  }, [navigation, saveProgress]);
   // The countdown reaching zero is the autoplay. Driven off state rather than
   // from inside the interval so it can never fire twice.
   useEffect(() => {
-    if (upNext && upNext.countdown != null && upNext.countdown <= 0) playUpNext();
-  }, [upNext, playUpNext]);
+    if (upNext && upNext.countdown != null && upNext.countdown <= 0) goNext(upNext.next, true);
+  }, [upNext, goNext]);
 
   // ---------------------------------------------------------------- video events
   // The first picture, once — from whichever of the two reports it first: the
@@ -2474,6 +2805,8 @@ export default function Player({
     // analytics timing (usage.track('play') hands `ms` to telemetry's
     // play_first_frame) all carry this same reading.
     const ms = Date.now() - mountedAt.current;
+    // (the device's own copy of the number, for logcat beside the server's log)
+    console.log(`[player] first frame +${ms}ms meta=${startMs.current.meta} armed=${startMs.current.armed} buf=${tuning().startBufferMs}`);
     mark('first-frame', {
       ms,
       transcode: usingTranscodeRef.current,
@@ -2571,23 +2904,42 @@ export default function Player({
       setCurrent(content);
       setBuffered(bufRef.current);
     }
-    // Skip intro: inside a known range, playing, and not in its final second.
-    const range = intro.current || autoIntro.current;
-    const inR = !!range && content >= range.start && content < range.end - 1 && !pausedRef.current;
+    // Skip intro / Skip recap: inside a known range, playing, and not in its
+    // final second — the recap while inside it, else the intro.
+    const seg = pausedRef.current ? null : skippableAt(content, {recap: autoRecap.current, intro: intro.current || autoIntro.current});
+    if (seg && seg.kind !== skipKindRef.current) {
+      skipKindRef.current = seg.kind;
+      setSkipKind(seg.kind);
+    }
+    const inR = !!seg;
     if (inR !== inIntroRef.current) {
       inIntroRef.current = inR;
       setInIntro(inR);
     }
     // Up next at the detected credits; otherwise a window that scales with the
-    // runtime (a fixed 30s missed hour-long episodes' credits).
-    const dur = durRef.current;
-    if (dur && itemRef.current?.showId) {
-      const win = Math.max(30, Math.min(90, dur * 0.05));
-      if (creditsStart.current != null ? content >= creditsStart.current : dur - content < win) showUpNext();
+    // runtime — for any episode whose next one is known, streamed ones too
+    // (playerRules.ts upNextState). Only while playing: pausing on the last
+    // minute must not pop a countdown over the frame. Going back out of the
+    // credits takes the card away again.
+    if (nextEpRef.current || upNextShown.current) {
+      const s = upNextState(content, durRef.current, creditsStart.current);
+      if (s === 'show' && !pausedRef.current) showUpNext();
+      else if (s === 'retract') retractUpNext();
     }
     if (d.currentTime > 0) noteFirstFrame();
   };
 
+  // The episode ran out with the Up next card on. A card that was counting
+  // down starts the next episode now; one that was NOT (autoplay is off, the
+  // next episode needs a source picked, "Still watching?", a party guest)
+  // stays up and waits to be answered — the end of an episode used to start
+  // the next one whatever the card said, the setting included.
+  const endOnCard = () => {
+    if (!upNext) return false;
+    if (upNext.countdown != null) goNext(upNext.next, true);
+    else setPaused(true);
+    return true;
+  };
   const onEnd = () => {
     // A transcode that "ends" FAR before the known duration is a truncated
     // playlist (its input starved server-side), not the end of the movie —
@@ -2616,12 +2968,9 @@ export default function Player({
         startTranscodeAt(base, curRef.current, currentV.current).then(ok => {
           if (ok || exited.current) return;
           setBuffering(false);
-          // No saveProgress here: playUpNext saves, and the goBack path saves
-          // in the unmount cleanup — a third call was just a duplicate POST.
-          if (upNext) {
-            playUpNext();
-            return;
-          }
+          // No saveProgress here: goNext saves, and the goBack path saves in
+          // the unmount cleanup — a third call was just a duplicate POST.
+          if (endOnCard()) return;
           if (navigation.isFocused()) navigation.goBack();
         });
         return;
@@ -2629,7 +2978,7 @@ export default function Player({
       // Budget spent: accept this as the actual end of the title.
     }
     saveProgress();
-    if (upNext) return playUpNext();
+    if (endOnCard()) return;
     // isFocused guard: a spurious second end event (or one arriving after the
     // user already backed out) must not pop an extra screen off the stack.
     if (navigation.isFocused()) navigation.goBack();
@@ -2648,6 +2997,15 @@ export default function Player({
     // offset from here would recreate the retired job and yank playback back
     // to it, which is precisely "I skipped and it jumped back".
     if (probing.current) {
+      setBuffering(true);
+      return;
+    }
+    // The same for a start whose claim has not been answered yet, or is
+    // waiting on a busy server (claimStream): that answer decides what
+    // happens to this source — the ladder below would ask a busy server for a
+    // heavier encode.
+    if (claimGen.current && claimGen.current === gen.current && !everPlayed.current) {
+      claimSwallowed.current = gen.current;
       setBuffering(true);
       return;
     }
@@ -2734,7 +3092,7 @@ export default function Player({
         fallbackToTranscode();
         return;
       }
-      setError('Lost the stream. Press Back and pick the source again.');
+      setError('Lost the stream. Try again, or go back and pick another source.');
       return;
     }
     if (!base) {
@@ -2767,7 +3125,10 @@ export default function Player({
       const next = {...prefsRef.current, [key]: value};
       prefsRef.current = next;
       setPrefs(next);
-      savePrefs(next);
+      // a choice that follows the person goes to their profile; one that is
+      // this screen's stays on the box (personPrefs.ts)
+      if ((PERSON_KEYS as string[]).includes(key)) setPersonPref(key as PersonKey, value as never);
+      else savePrefs(next);
       showControls();
     },
     [showControls],
@@ -2796,17 +3157,19 @@ export default function Player({
         <Text style={styles.errorText}>{loadErr.title}</Text>
         {loadErr.detail ? <Text style={styles.statusSub}>{loadErr.detail}</Text> : null}
         <View style={styles.upNextActions}>
-          <Focusable uiId="player.retry"
-            round
-            hasTVPreferredFocus
-            onPress={() => {
-              setLoadErr(null);
-              setLoadTry(t => t + 1);
-            }}
-            style={styles.exitBtn}>
-            <Text style={styles.exitText}>Retry</Text>
-          </Focusable>
-          <Focusable round onPress={() => canNavigate(navigation) && navigation.goBack()} style={styles.exitBtn}>
+          {loadErr.retry === false ? null : (
+            <Focusable uiId="player.retry"
+              round
+              hasTVPreferredFocus
+              onPress={() => {
+                setLoadErr(null);
+                setLoadTry(t => t + 1);
+              }}
+              style={styles.exitBtn}>
+              <Text style={styles.exitText}>Retry</Text>
+            </Focusable>
+          )}
+          <Focusable round hasTVPreferredFocus={loadErr.retry === false} onPress={() => canNavigate(navigation) && navigation.goBack()} style={styles.exitBtn}>
             <Text style={styles.exitText}>Back</Text>
           </Focusable>
         </View>
@@ -2814,16 +3177,37 @@ export default function Player({
     );
   }
   if (error) {
+    // Not a dead end (the site's "Playback stopped" card: Try again / Back).
+    // Try again is a FRESH player on the same title — it resumes from the
+    // position saved a moment ago and walks the whole source ladder again,
+    // which is what recovers a server that was restarting or a line that
+    // dropped. A title with no file at all has nothing to try again.
+    const canRetry = error !== NO_FILE;
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>{error}</Text>
-        <Focusable
-          round
-          hasTVPreferredFocus
-          onPress={() => canNavigate(navigation) && navigation.goBack()}
-          style={styles.exitBtn}>
-          <Text style={styles.exitText}>Back</Text>
-        </Focusable>
+        <View style={styles.upNextActions}>
+          {canRetry ? (
+            <Focusable uiId="player.retry"
+              round
+              hasTVPreferredFocus
+              onPress={() => {
+                if (!canNavigate(navigation)) return;
+                track('feat', {f: 'player_retry'});
+                navigation.replace('Player', {id, title, epTitle, stream, party: partyCode});
+              }}
+              style={styles.exitBtn}>
+              <Text style={styles.exitText}>Try again</Text>
+            </Focusable>
+          ) : null}
+          <Focusable
+            round
+            hasTVPreferredFocus={!canRetry}
+            onPress={() => canNavigate(navigation) && navigation.goBack()}
+            style={styles.exitBtn}>
+            <Text style={styles.exitText}>Back</Text>
+          </Focusable>
+        </View>
       </View>
     );
   }
@@ -3113,9 +3497,9 @@ export default function Player({
               {nextEp ? (
                 <PBtn uiId="player.next"
                   icon="skip"
-                  label={`Next episode — ${nextEp.title}`}
+                  label={`Next episode — ${nextEp.label}${nextEp.kind === 'stream' ? ' (choose a source)' : ''}`}
                   onFocusChange={markZone('row')}
-                  onPress={() => advanceTo(nextEp)}
+                  onPress={() => goNext(nextEp, false)}
                 />
               ) : null}
               {/* .vol-group — the mute button, with the level bar collapsed to
@@ -3185,8 +3569,11 @@ export default function Player({
                 onFocusChange={markZone('row')}
                 onPress={() => {
                   // the film waits while you read; it resumes when the sheet goes
-                  const wasPlaying = !pausedRef.current;
-                  setPaused(true);
+                  // — except in a watch party, where it keeps playing (the
+                  // site's rule): pausing only THIS TV took it out of step
+                  // with the room without telling anyone (audit X11).
+                  const wasPlaying = !pausedRef.current && !party.current;
+                  if (!party.current) setPaused(true);
                   const it = itemRef.current;
                   openXray({
                     query: it?.id && !String(it.id).startsWith('torrent|')
@@ -3235,7 +3622,7 @@ export default function Player({
           onFocusChange={markZone('skip')}
           onPress={skipIntro}
           style={[styles.skipIntro, {bottom: controls ? 144 : 56}]}>
-          <Text style={styles.skipIntroText}>Skip intro</Text>
+          <Text style={styles.skipIntroText}>{skipKind === 'recap' ? 'Skip recap' : 'Skip intro'}</Text>
           <Icon name="skip" size={18} color={colors.bg} />
         </Focusable>
       ) : null}
@@ -3456,6 +3843,7 @@ export default function Player({
                   onPress={() => {
                     if (introKey.current) ignoreIntro(introKey.current);
                     autoIntro.current = null;
+                    autoRecap.current = null;
                     inIntroRef.current = false;
                     setInIntro(false);
                     toast('Skip intro is off for this show on this TV');
@@ -3526,6 +3914,21 @@ export default function Player({
             onFocusChange={markZone('menu')}
             onPress={() => setPref('cueBackground', !prefs.cueBackground)}
           />
+          {/* Report a problem, from where the problems are (the site's player
+              has the same entry). The film waits while the sheet is up; what
+              was playing, the position and the last errors go with the report
+              by themselves. */}
+          <MenuTitle icon="gear" label="HELP" gap />
+          <MenuItem
+            label="Report a problem"
+            onFocusChange={markZone('menu')}
+            onPress={() => {
+              setMenu(null);
+              if (!party.current) setPaused(true);
+              track('feat', {f: 'report_player'});
+              openReport(`In the player: ${activityLabel()} at ${fmt(curRef.current)}${usingTranscodeRef.current ? `, ${currentV.current}` : ', direct'}`);
+            }}
+          />
         </TVFocusGuideView>
       ) : null}
 
@@ -3537,7 +3940,7 @@ export default function Player({
             <>
               <Text style={styles.partyCode}>{partyInfo.code.split('').join(' ')}</Text>
               <Text style={styles.partyHint}>
-                {`${partyInfo.members.map(m => m.name).join(', ')} · ${partyInfo.members.length} watching. On another device: profile menu → Join a watch party, and type the code. Anyone can play, pause or jump — everyone follows.`}
+                {`${partyInfo.members.map(m => m.name).join(', ')} · ${partyInfo.members.length} watching. On another device: Join a watch party (on a TV it is under Settings, on the website in the profile menu), and type the code. Anyone can play, pause or jump — everyone follows.`}
               </Text>
               <MenuItem
                 label={party.role === 'host' ? 'End party' : 'Leave party'}
@@ -3569,12 +3972,14 @@ export default function Player({
       {/* Up Next — focus trapped for the same reason as the subtitle menu. */}
       {upNext ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.upNext}>
-          <Text style={styles.upNextKicker}>UP NEXT</Text>
+          {/* "Still watching?" — three episodes started by themselves with
+              nobody touching the remote: this one waits to be asked for. */}
+          <Text style={styles.upNextKicker}>{upNext.still ? 'STILL WATCHING?' : 'UP NEXT'}</Text>
           <Text style={styles.upNextTitle} numberOfLines={1}>
-            {upNext.title}
+            {upNext.still ? `Up next · ${upNext.next.label}` : upNext.next.label}
           </Text>
           <View style={styles.upNextActions}>
-            <Focusable uiId="player.upnext.play"
+            <Focusable uiId={upNext.still ? 'player.stillwatching.keep' : 'player.upnext.play'}
               round
               light
               ring="violet"
@@ -3582,16 +3987,46 @@ export default function Player({
               onFocusChange={markZone('menu')}
               onPress={playUpNext}
               style={styles.btnPrimary}>
-              <Text style={styles.btnPrimaryText}>▶  Play now</Text>
+              <Text style={styles.btnPrimaryText}>
+                {upNext.still ? '▶  Keep watching' : upNext.next.kind === 'stream' ? '▶  Choose episode' : '▶  Play now'}
+              </Text>
             </Focusable>
-            <Focusable uiId="player.upnext.dismiss"
+            <Focusable uiId={upNext.still ? 'player.stillwatching.done' : 'player.upnext.dismiss'}
               round
               onFocusChange={markZone('menu')}
-              onPress={dismissUpNext}
+              onPress={upNext.still ? doneWatching : dismissUpNext}
               style={styles.btn}>
               <Text style={styles.btnText}>
-                {upNext.countdown != null ? `Dismiss (${upNext.countdown})` : 'Dismiss'}
+                {upNext.still ? "I'm done" : upNext.countdown != null ? `Dismiss (${upNext.countdown})` : 'Dismiss'}
               </Text>
+            </Focusable>
+          </View>
+        </TVFocusGuideView>
+      ) : null}
+
+      {/* The picture stopped and did not come back (the direct-play stall
+          watchdog): say so, with a way out — the same box as the slow start. */}
+      {stallCard && !upNext && !menuOpen && !slowStart ? (
+        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.upNext}>
+          <Text style={styles.upNextTitle}>Playback has stalled — the connection to the server went quiet</Text>
+          <View style={styles.upNextActions}>
+            <Focusable uiId="player.stall.retry" round light ring="violet" hasTVPreferredFocus onFocusChange={markZone('menu')} onPress={stallRetry} style={styles.btnPrimary}>
+              <Text style={styles.btnPrimaryText}>Try again</Text>
+            </Focusable>
+            {canLowerQuality ? (
+              <Focusable uiId="player.stall.lower"
+                round
+                onFocusChange={markZone('menu')}
+                onPress={() => {
+                  setStallCard(false);
+                  lowerQuality();
+                }}
+                style={styles.btn}>
+                <Text style={styles.btnText}>Lower quality</Text>
+              </Focusable>
+            ) : null}
+            <Focusable round onFocusChange={markZone('menu')} onPress={() => canNavigate(navigation) && navigation.goBack()} style={styles.btn}>
+              <Text style={styles.btnText}>Back</Text>
             </Focusable>
           </View>
         </TVFocusGuideView>

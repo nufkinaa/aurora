@@ -2,7 +2,7 @@
 // defaults, and the liked genres used to tailor Home recommendations.
 // Reopenable anytime from the nav gear.
 import { el, toast, rerenderInPlace, keptScrollFor, restoreScrollY, promptSheet, haptic } from "../ui.js";
-import { loadLibrary, loadProfiles, state, applyAppearance } from "../state.js";
+import { loadLibrary, loadProfiles, state, applyAppearance, setPersonPref } from "../state.js";
 import { api, setAuthToken } from "../api.js";
 import { navigate } from "../router.js";
 import { profileModal, kidsLabel } from "./profiles.js";
@@ -710,7 +710,12 @@ export const renderPreferences = async (root) => {
             "Play the next episode",
             "When an episode ends, the next one starts by itself.",
             () => (playerPrefs.get("autoplayNext", true) ? "On" : "Off"),
-            () => playerPrefs.set("autoplayNext", !playerPrefs.get("autoplayNext", true))
+            () => {
+              // follows the profile to every device (state.js setPersonPref)
+              const on = !playerPrefs.get("autoplayNext", true);
+              playerPrefs.set("autoplayNext", on);
+              setPersonPref("autoplayNext", on);
+            }
           )
         )),
       section("Subtitles", null,
@@ -719,7 +724,11 @@ export const renderPreferences = async (root) => {
             "Subtitles on by themselves",
             "When a title has subtitles, they switch on.",
             () => (playerPrefs.get("subsDefault", true) ? "On" : "Off"),
-            () => playerPrefs.set("subsDefault", !playerPrefs.get("subsDefault", true))
+            () => {
+              const on = !playerPrefs.get("subsDefault", true);
+              playerPrefs.set("subsDefault", on);
+              setPersonPref("subsDefault", on);
+            }
           ),
           prefRow(
             "Subtitle language",

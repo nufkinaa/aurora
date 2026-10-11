@@ -24,8 +24,9 @@
 // comes to the front or leaves it, and when a batch with errors goes out —
 // never per event.
 //
-// This file imports nothing of the app's own (usage.ts hands it what it
-// needs), so anything may import it without a cycle.
+// This file imports nothing of the app's own but the profile registry (which
+// imports nothing): usage.ts hands it what it needs, so anything may import it
+// without a cycle.
 import {AppState, TVEventHandler} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -41,6 +42,7 @@ import {
   ControlRow,
   TimingRow,
 } from './telemetryCore';
+import {registerProfileCache} from './profileScope';
 
 const K_IID = 'aurora.iid';
 const K_DAY = 'aurora.telDay';
@@ -301,7 +303,7 @@ let navOnce: Record<string, 1> = {};
 let lastPath = 'direct';
 const startedAt = Date.now(); // the bundle began to run
 
-/** The navigator says a screen was opened (usage.track('route') hands it on). */
+/** The navigator says a screen was opened (routeTiming.ts routeStarted hands it on). */
 export const setScreen = (pattern: string) => {
   screen = pattern;
   navAt = Date.now();
@@ -320,9 +322,14 @@ const sinceNav = (name: string, dim?: string) => {
   navOnce[name] = 1;
   if (timers.value(name, Date.now() - navAt, dim)) poke();
 };
-/** A screen's first real content is on the glass (call it from the layout of
- *  that content): navigation start → first content painted. */
-export const contentPainted = () => requestAnimationFrame(() => sinceNav('nav_paint', screen || '?'));
+/** `nav_paint`: navigation start → first content painted. ONE CLOCK on the TV
+ *  — routeTiming.ts (the press that asked for the screen → the screen says its
+ *  content is on, useRouteShown) — which also sends the same number as the
+ *  `route` usage event's `ms`, exactly as the site's router feeds both from
+ *  its one measurement. Nothing in this file times it a second way. */
+export const navPaint = (ms: number, pattern: string) => {
+  if (timers.value('nav_paint', ms, pattern || '?')) poke();
+};
 
 // App start → Home usable, and profile picked → Home usable. "Usable" is the
 // same moment as on the site: the first row's cards are laid out and a frame
@@ -340,7 +347,6 @@ export const homeUsable = () => {
     else if (!homeSeen) timers.value('app_start_home', at - startedAt);
     gateAt = 0;
     homeSeen = true;
-    sinceNav('nav_paint', screen || 'tv:home');
   });
 };
 
@@ -351,7 +357,6 @@ export const titleShown = (catalogue: boolean) => {
   titleDim = catalogue ? 'catalogue' : 'library';
   requestAnimationFrame(() => {
     sinceNav('title_content', titleDim);
-    sinceNav('nav_paint', screen || '?');
   });
 };
 export const backdropShown = () => sinceNav('title_backdrop', titleDim);
@@ -453,3 +458,12 @@ export const clear = () => {
   timers.done.length = 0;
   controls.clear();
 };
+
+// A profile is left: what was counted under it and not sent yet — error
+// reports, timings, control counts — is dropped, by design (it is never
+// carried over to the next person), and the switch is "not known" again until
+// usage.ts says what the next profile chose (profileScope.ts).
+registerProfileCache('telemetry', () => {
+  clear();
+  off = false;
+});

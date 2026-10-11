@@ -48,10 +48,14 @@ const AVATAR = 104;
 // dead end that only ever got in the way.
 export default function ProfileGate({
   onChosen,
+  notice,
 }: {
   // `sid` is the sign-in session the unlock of a CLAIMED profile mints
   // (prompt 10's silent migration) — null for open/unclaimed profiles.
-  onChosen: (profileId: string, token: string | null, sid?: string | null) => void;
+  // `extra.mustReset`: the admin asked for a new password (App.tsx).
+  onChosen: (profileId: string, token: string | null, sid?: string | null, extra?: {mustReset?: boolean; typed?: string | null}) => void;
+  // why the wall is up again (a kick, a sign-out from another device)
+  notice?: string;
 }) {
   const {width, safeBottom} = useTvMetrics();
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
@@ -149,7 +153,7 @@ export default function ProfileGate({
         }
         // A claimed profile's unlock signs the device in on the spot — carry
         // the session up so the eventual flip to closed mode costs nothing.
-        onChosen(p.id, res.token, res.session || null);
+        onChosen(p.id, res.token, res.session || null, res.mustReset ? {mustReset: true, typed: pw} : undefined);
       } else {
         setPwError(res.error === 'wrong password' ? 'Wrong password' : 'Could not unlock');
       }
@@ -202,7 +206,41 @@ export default function ProfileGate({
   };
 
   // Past the kids lock (or there was none): the profile's own door.
-  const open = (p: Profile) => {
+  //
+  // YOUR OWN PROFILE, ON A TV THAT IS SIGNED IN AS YOU, asks for no password:
+  // the session this TV holds was made by that very password (the website
+  // does the same at its picker). The server decides — /api/me says whose
+  // session it is and /api/auth/profile-token turns it into an unlock token;
+  // anything short of that (no session, someone else's, a refusal, no
+  // answer) falls through to the password, as before.
+  const open = async (p: Profile) => {
+    if (p.hasPassword && getSession() && !busy) {
+      setBusy(true);
+      try {
+        const who = await api.me();
+        // This TV's session is that profile's and a new password is owed
+        // (server: /api/me says so instead of naming the user): straight to
+        // the new-password screen, which saves with the session it holds.
+        if (who.passwordResetRequired && who.resetProfile?.id === p.id) {
+          onChosen(p.id, null, null, {mustReset: true, typed: null});
+          return;
+        }
+        if (who.user && who.user.profileId === p.id) {
+          const t = await api.profileTokenFromSession();
+          if (t.token && t.profileId === p.id) {
+            await pushRecentProfile(p.id);
+            if (p.kids) await saveKidsLock({id: p.id, maxAge: p.kids.maxAge});
+            else await clearKidsLock();
+            onChosen(p.id, t.token, null, who.user.mustReset || who.mustReset ? {mustReset: true, typed: null} : undefined);
+            return;
+          }
+        }
+      } catch {
+        // the password it is
+      } finally {
+        setBusy(false);
+      }
+    }
     if (p.hasPassword) {
       setPinFor(null);
       setPwFor(p);
@@ -436,6 +474,8 @@ export default function ProfileGate({
         ListHeaderComponent={
           <View>
             <Text style={styles.heading}>Who's watching?</Text>
+            {/* why the wall is up again: an admin's sign-out, a sign-out from another device */}
+            {notice ? <Text style={styles.notice}>{notice}</Text> : null}
             {profiles === null && !loadError ? (
               <ActivityIndicator color={colors.text} style={{marginTop: spacing.lg}} />
             ) : null}
@@ -538,4 +578,5 @@ const styles = StyleSheet.create({
   },
   btnGhostText: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
   error: {color: '#ff8080', fontSize: fontSize.small, marginTop: spacing.md},
+  notice: {color: '#fbbf24', fontSize: fontSize.body, fontWeight: '700', marginTop: spacing.sm},
 });

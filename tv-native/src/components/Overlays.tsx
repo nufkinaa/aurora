@@ -18,6 +18,7 @@ import {resolvePartyRoute} from '../party';
 import {currentRouteName, pushScreen, rootNav} from '../rootNav';
 import {dismissUpdate} from '../storage';
 import {showToast, useToasts} from '../toast';
+import {isOpen as socketOpen} from '../realtime';
 import {
   APP_VERSION,
   canInstall,
@@ -225,7 +226,8 @@ function ReportSheet({hint}: {hint?: string}) {
           look: 'tv',
           ua: `Aurora TV ${APP_VERSION} · Android ${c.Release || ''} · ${c.Model || 'TV'}`,
           viewport: 'tv',
-          online: true,
+          // (was always `true`: whether the app's socket to the server is up)
+          online: socketOpen(),
           version: APP_VERSION,
           errors: recentErrors(),
         },
@@ -297,7 +299,7 @@ function JoinSheet() {
         autoFocus
         autoCapitalize="characters"
         autoCorrect={false}
-        maxLength={6}
+        maxLength={4}
         placeholder="ABCD"
         placeholderTextColor={colors.textFaint}
         onSubmitEditing={join}
@@ -440,7 +442,7 @@ function UpdateSheet({info}: {info: UpdateInfo}) {
   const pct = prog.total > 0 ? Math.min(100, Math.round((prog.received / prog.total) * 100)) : null;
 
   return (
-    <Sheet kicker="UPDATE AVAILABLE" title={`Aurora TV ${info.version} is ready`} width={680} accent onClose={later}>
+    <Sheet kicker="UPDATE AVAILABLE" title={`Aurora TV ${info.version} is available`} width={680} accent onClose={later}>
       {stage === 'offer' ? (
         <>
           <Text style={styles.body}>{info.notes || 'A new version of the TV app is available.'}</Text>
@@ -530,7 +532,15 @@ function Face({p, index, onPress}: {p: XrayPerson; index: number; onPress?: (p: 
       <View style={styles.xrFace}>
         <Text style={styles.xrInitials}>{initials(p.name)}</Text>
         {p.photo && !broken ? (
-          <Image source={imgSrc(p.photo) as {uri: string}} style={styles.xrPhoto} resizeMode="cover" onError={() => setBroken(true)} />
+          <Image
+            source={imgSrc(p.photo) as {uri: string}}
+            style={styles.xrPhoto}
+            resizeMode="cover"
+            // up to twenty faces arrive together over a paused film: no
+            // cross-fade each (Android's default is 300 ms)
+            fadeDuration={0}
+            onError={() => setBroken(true)}
+          />
         ) : null}
       </View>
       <Text style={styles.xrName} numberOfLines={1}>
@@ -559,6 +569,8 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
   const [person, setPerson] = useState<XrayPerson | null>(null);
   const openPerson = useCallback((p: XrayPerson) => setPerson(p), []);
   const closePerson = useCallback(() => setPerson(null), []);
+  const personUp = useRef(false);
+  personUp.current = !!person;
   // Rises from the foot of the screen the way the phone's sheet does, with a
   // little overshoot: a spring on translateY and scale, a short fade under it.
   const rise = useRef(new Animated.Value(0)).current;
@@ -571,6 +583,12 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
   }, [onClose, rise]);
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      // The person sheet is up: this BACK is its own. Its listener is the
+      // newer one as long as this effect has not run again since it opened —
+      // and `close` changes whenever the opener passes a new onClose, which
+      // would put THIS listener first and close X-Ray under the person sheet.
+      // Declining here hands the press to the next listener, which is that one.
+      if (personUp.current) return false;
       close();
       return true;
     });

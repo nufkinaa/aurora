@@ -15,15 +15,15 @@
 // 13 · SPEC/99-open.md §I.3). So is the compact caption that named the focused
 // card: the site puts labels on the cards that have them (wide, episode, up-next)
 // and nothing at all on a poster, and Card now does the same.
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {View, Text, Image, StyleSheet, ActivityIndicator, Animated, Easing, PixelRatio} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Btn from '../components/Btn';
-import Row from '../components/Row';
+import Row, {shelfGeom, ShelfMemory} from '../components/Row';
 import NavRail from '../components/NavRail';
 import {ErrorState} from '../components/States';
-import TrailerFrame, {TrailerHandle, TrailerState} from '../components/Trailer';
-import {api, artPath, ART_LADDER, imgSrc, ImgSource, serverCanBlur, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
+import TrailerFrame, {HERO_TRAILER_COVER, TrailerHandle, TrailerState} from '../components/Trailer';
+import {api, artPath, ART_LADDER, imgSrc, ImgSource, sameParties, serverCanBlur, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
 import {checkForUpdate, holdPromptFor, onUpdateReady, updateReady, UpdateInfo} from '../update';
 import {currentRouteName} from '../rootNav';
 import {syncHomeScreen, useHomeScreenLinks} from '../homeScreen';
@@ -34,11 +34,30 @@ import {isLite, measureOnce} from '../perfTier';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import {resolvePartyRoute} from '../party';
 import {warmItem, warmSections} from '../prefetch';
-import {onMessage} from '../realtime';
+import {artIdle, artForget, limits as artLimits} from '../artPrefetch';
+import {prefetchable} from '../cardArt';
+import {restWindow, rowWindow} from '../rowWindow';
+import {
+  HOME_WINDOW,
+  EST_SHELF_H,
+  EST_WIDE_H,
+  Layout,
+  Win,
+  layoutOf,
+  nextWindow,
+  restOffset,
+  sameWin,
+  spacerHeight,
+  stepToward,
+  visibleBetween,
+} from '../homeWindow';
+import {onMessage, setHomeOnScreen} from '../realtime';
+import {showToast} from '../toast';
 import {loadPrefs} from '../storage';
 import {track} from '../usage';
 import {
   focusJustMoved,
+  pressMovedFocus,
   onRailClose,
   onRailOpen,
   railOpen,
@@ -48,7 +67,9 @@ import {
   useTVKeys,
 } from '../focus';
 import {defer, useSlide} from '../motion';
+import {isSettled, whenSettled} from '../settle';
 import {useApp} from '../AppContext';
+import {useRouteShown} from '../useRouteShown';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 import {homeUsable} from '../telemetry'; // [analytics]
@@ -79,8 +100,17 @@ const EASE = Easing.bezier(0.2, 0.7, 0.2, 1);
 // blur. `brightness()` is transcribed as the black scrim the value implies —
 // 0.55 → α 0.45 at rest, 0.58 → α 0.42 once scrolled — rather than as the --bg
 // wash this screen used to paint, which is the darkening the CSS rejects.
-const REST = {blur: 1, dim: 0.45};
-const SCROLLED = {blur: 2, dim: 0.42};
+//
+// LESS DIM (elia, 2026-10-10: "less dim hero + shadow behind the text"). The
+// whole-picture black went from 0.45 / 0.42 to 0.18: the photo reads as a
+// photo. What keeps the words readable is local now: the baked left ramp and
+// foot veil (hero-scrim.png), unchanged, and a text shadow on every line of
+// the lockup (drawn by the text renderer: no layer, no blur view).
+const REST = {blur: 1, dim: 0.18};
+const SCROLLED = {blur: 2, dim: 0.18};
+// How long after the billboard first appears the first trailer lookup waits
+// (see the prepare in Home): the launch's first pictures go first.
+const FIRST_PREP_DELAY_MS = 2000;
 
 // THE BLUR IS DONE BY THE SERVER. `blurRadius` made Android run Fresco's
 // iterative box blur on the decoded 1920×1080 backdrop — a copy of the whole
@@ -123,6 +153,7 @@ const HeroArt = React.memo(function HeroArtLayer({
   scrolledArt,
   atTop,
   h,
+  cover,
   children,
 }: {
   art: HeroLayers;
@@ -139,6 +170,10 @@ const HeroArt = React.memo(function HeroArtLayer({
   // The trailer layer, drawn over the art and UNDER the scrims, so the lockup
   // stays readable while the picture moves.
   children?: React.ReactNode;
+  // HERO_TRAILER_COVER only, and only while a trailer is mounted: the opacity
+  // of a COPY of the art drawn over the trailer (Trailer.tsx says why). The
+  // same picture, the same box and the same blur as the art under the hole.
+  cover?: Animated.AnimatedInterpolation<number> | null;
 }) {
   // A still stays sharp in both states, so it needs one layer; blurred art needs
   // two, because the blur is baked into each picture and cannot be animated.
@@ -163,6 +198,15 @@ const HeroArt = React.memo(function HeroArtLayer({
         />
       ) : null}
       {children}
+      {cover ? (
+        <Animated.Image
+          source={art.rest.src}
+          style={[styles.art, {opacity: cover}]}
+          resizeMode="cover"
+          blurRadius={art.rest.deviceBlur}
+          fadeDuration={0}
+        />
+      ) : null}
       <Animated.View style={[styles.artDim, {opacity: dim}]} />
       <Image source={HERO_SCRIM} style={styles.artScrim} resizeMode="stretch" fadeDuration={0} />
     </View>
@@ -175,6 +219,8 @@ export default function Home({
   const {profileId, switchProfile} = useApp();
   const {width, height, heroH, heroPadBottom, heroTitle, safeBottom} = useTvMetrics();
   const [data, setData] = useState<HomeData | null>(null);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(data !== null);
   const [error, setError] = useState('');
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   // Watch parties running on the server right now — a Join pill per party in
@@ -199,30 +245,28 @@ export default function Home({
   // without this the row showed boot-time data until the app restarted.
   const lastFetch = useRef(0);
   // The library changed on the server (a download landed, a rescan): the rows
-  // are asked for again through the very path a return to Home uses. Held a
-  // moment, because a season finishing says so once per episode; and when Home
-  // is not the live screen nothing is fetched at all — the throttle is simply
-  // lifted, so the next return to Home re-reads.
+  // are asked for again through the very path a return to Home uses. The
+  // WAIT is realtime.ts's now (one message to the screens however many the
+  // server sent, after a random moment — a blink when Home is the screen
+  // being looked at, which is what this effect tells it; never while a film
+  // plays): by the time this runs it is time to read. When Home is not the
+  // live screen nothing is fetched at all — the throttle is simply lifted, so
+  // the next return to Home re-reads.
   const [libTick, setLibTick] = useState(0);
   const liveRef = useRef(live);
   liveRef.current = live;
   useEffect(() => {
-    let t: ReturnType<typeof setTimeout> | null = null;
+    setHomeOnScreen(live);
+    return () => setHomeOnScreen(false);
+  }, [live]);
+  useEffect(() => {
     const off = onMessage('library_updated', () => {
       lastFetch.current = 0;
-      if (!liveRef.current || t) return;
-      t = setTimeout(() => {
-        t = null;
-        lastFetch.current = 0;
-        if (!liveRef.current) return;
-        console.log('[live] home: library changed, rows re-read');
-        setLibTick(n => n + 1);
-      }, 2500);
+      if (!liveRef.current) return;
+      console.log('[live] home: library changed, rows re-read');
+      setLibTick(n => n + 1);
     });
-    return () => {
-      off();
-      if (t) clearTimeout(t);
-    };
+    return off;
   }, []);
   useEffect(() => {
     if (!live) return;
@@ -293,9 +337,13 @@ export default function Home({
   useEffect(() => {
     if (!live) return;
     let on = true;
-    const load = () => api.parties().then(d => on && setParties(d.parties || [])).catch(() => {});
+    // The same list is the same state: every return to Home asks, and the
+    // usual answer (no parties) was a new empty array — one more render of
+    // the whole screen during the fade back.
+    const put = (next: PartySummary[]) => setParties(prev => (sameParties(prev, next) ? prev : next));
+    const load = () => api.parties().then(d => on && put(d.parties || [])).catch(() => {});
     load();
-    const off = onMessage('party_list', d => on && setParties((d.parties as PartySummary[]) || []));
+    const off = onMessage('party_list', d => on && put((d.parties as PartySummary[]) || []));
     const off2 = onMessage('welcome', load);
     return () => {
       on = false;
@@ -363,6 +411,32 @@ export default function Home({
 
   // ---- the sliding column --------------------------------------------------
   const ty = useSlide();
+  // Where the column was last sent. Every card focus calls toRow, so a step
+  // ALONG a shelf used to start the page spring again with the target it
+  // already had — one native animation start per keypress for no movement
+  // (and, mid-slide, a restart of the slide from zero velocity). The spring is
+  // started only when the target is a different one; nothing but `slideTo`
+  // moves this value, so it is always at, or on its way to, `tyTarget`.
+  const tyTarget = useRef(0);
+  const slideTo = useCallback(
+    (y: number) => {
+      if (y === tyTarget.current) return;
+      tyTarget.current = y;
+      ty.to(y);
+    },
+    [ty],
+  );
+  // Made once, not per render (a new interpolation is a new animated node
+  // attached to the view each time Home renders).
+  const artFadeOpacity = useMemo(
+    () =>
+      ty.value.interpolate({
+        inputRange: [-Math.round(heroH * 0.9), -Math.round(heroH * 0.3), 0],
+        outputRange: [0, 1, 1],
+        extrapolate: 'clamp',
+      }),
+    [ty, heroH],
+  );
   // Each shelf's y inside the column, measured rather than computed: a Continue
   // Watching row is shorter than a poster row, so there is no single row height.
   const rowY = useRef<number[]>([]);
@@ -372,7 +446,81 @@ export default function Home({
   // Everything above the focused row stays mounted (you can always come back up)
   // and Row does its own card windowing, so this only stops the whole catalogue
   // mounting at once on first paint.
-  const [reach, setReach] = useState(3);
+  //
+  // THE FIRST COMMIT MOUNTS TWO SHELVES, NOT FOUR. At rest the hero takes 66%
+  // of the screen and only the first shelf shows; shelves 3 and 4 were 12
+  // more cards (and 12 more poster requests) in the commit that has to put the
+  // first picture on screen. `reach` starts at 1 and goes to 3 — where it
+  // always started — one frame after the rows first draw, as a transition.
+  //
+  // What that must not break, and why it does not:
+  //  - DOWN finds a shelf. The first DOWN lands on shelf 0 and the second on
+  //    shelf 1; both are in the first commit. Shelf 2 is wanted by the third
+  //    press at the earliest, a held key's second repeat (≥ 0.5 s later); the
+  //    growth is asked for one frame after the first draw, and toRow asks for
+  //    it too (index + 3, as before).
+  //  - Where a shelf comes to rest. toRow clamps the slide to the column's
+  //    height, and for a frame or two the column is two shelves short: a DOWN
+  //    in that window would rest shelf 0 a little low. So the one layout in
+  //    which the column grows to its usual height re-runs the slide for the
+  //    shelf that holds focus (`settling`, below) — the same target the old
+  //    first commit gave.
+  const [reach, setReach] = useState(1);
+  const settling = useRef(false);
+  // The shelf that holds focus (-1: the hero band).
+  const curRow = useRef(-1);
+  const rowsRef = useRef<HomeRow[]>([]);
+  rowsRef.current = data?.rows || [];
+  // ---- the vertical window (homeWindow.ts) ---------------------------------
+  // OFF unless HOME_WINDOW: then `win` never changes and every shelf up to
+  // `reach` is mounted, as above. ON: shelves outside `win` that have been
+  // measured stand as spacers of their measured height (renderRow), so the
+  // column's height, every rowY and so every slide target stay what they were.
+  const [win, setWin] = useState<Win>({from: 0, to: 3});
+  // What is committed, for the press that comes before the next commit.
+  const winShown = useRef(win);
+  const reachShown = useRef(reach);
+  // Each shelf's measured height, by row id (a re-read of Home may reorder).
+  const rowH = useRef(new Map<string, number>()).current;
+  // What each shelf remembers while it is a spacer (Row.tsx ShelfMemory).
+  const shelfStore = useRef(new Map<string, ShelfMemory>()).current;
+  // The column as the window maths sees it: measured heights where a shelf
+  // has been laid out, Row's pitch where it has not (below everything mounted).
+  const layoutNow = useCallback(
+    (): Layout =>
+      layoutOf(
+        rowY.current[0] ?? heroH,
+        rowsRef.current.map(r => (r.items.length === 0 ? 0 : rowH.get(r.id) ?? (r.id === 'continue' ? EST_WIDE_H : EST_SHELF_H))),
+        safeBottom,
+        height,
+        spacing.pageY,
+      ),
+    [heroH, safeBottom, height, rowH],
+  );
+  // One step of the window toward where focus needs it: ONE shelf mounted and
+  // one dropped per commit, as a transition; the commit's effect (below) asks
+  // for the next step a frame later, until there is nothing left to do.
+  const pump = useCallback(() => {
+    if (!HOME_WINDOW) return;
+    const L = layoutNow();
+    if (!L.tops.length) return;
+    const cur = winShown.current;
+    const rows = rowsRef.current;
+    const f = curRow.current;
+    const next = stepToward(cur, nextWindow(cur, f, L), f, i => !!rows[i] && rowH.has(rows[i].id));
+    if (next === cur) return;
+    defer(() => {
+      setWin(w => (sameWin(w, next) ? w : next));
+      setReach(r => (next.to > r ? next.to : r));
+    });
+  }, [layoutNow, rowH]);
+  useEffect(() => {
+    winShown.current = win;
+    reachShown.current = reach;
+    if (!HOME_WINDOW) return;
+    const raf = requestAnimationFrame(pump);
+    return () => cancelAnimationFrame(raf);
+  }, [win, reach, pump]);
   // ---- hero rotation -------------------------------------------------------
   // home.js:168-173 — one title every 9s, and `holdUntil` freezes it for 15s
   // after the viewer moves it themselves.
@@ -389,20 +537,42 @@ export default function Home({
   heroIdxRef.current = heroIdx;
   const holdUntil = useRef(0);
   const swap = useRef(new Animated.Value(1)).current;
+  const swapX = useMemo(() => swap.interpolate({inputRange: [0, 1], outputRange: [52, 0]}), [swap]);
 
   // The site's `.scrolled` boolean, which is the ONLY thing scroll changes there.
   const atTop = useRef(new Animated.Value(1)).current;
   const isTop = useRef(true);
   // Which pick the SCROLLED art layer shows (HeroArt): -1 until focus first
   // leaves the hero, then the pick on show at the moment it left.
+  //
+  // WHEN it is mounted (settle, then enrich): mounting it is a 1280×720 decode,
+  // and it used to start in the very press that leaves the hero — the first
+  // DOWN, competing with the slide. But the art layer fades out with the
+  // scroll and is gone (opacity 0) by 0.9·heroH, which is less than the slide
+  // to the first shelf: on a page with two shelves or more the scrolled layer
+  // cannot be seen at rest from ANY shelf, only in transit, under a layer that
+  // is fading. So it waits until focus has rested (settle.ts) and is not
+  // mounted at all for a viewer who is back on the hero before that. Where
+  // the art DOES still show at the resting place (`artShows`: a page so short
+  // that the column cannot travel that far) it is mounted at once, as before.
   const [scrolledIdx, setScrolledIdx] = useState(-1);
+  const scrolledWait = useRef<(() => void) | null>(null);
+  useEffect(() => () => scrolledWait.current?.(), []);
   const setTop = useCallback(
-    (next: boolean) => {
+    (next: boolean, artShows = true) => {
       if (next === isTop.current) return;
       isTop.current = next;
+      scrolledWait.current?.();
+      scrolledWait.current = null;
       if (!next) {
         const at = heroIdxRef.current;
-        defer(() => setScrolledIdx(at));
+        if (artShows) defer(() => setScrolledIdx(at));
+        else {
+          scrolledWait.current = whenSettled(() => {
+            scrolledWait.current = null;
+            defer(() => setScrolledIdx(at));
+          });
+        }
       }
       Animated.timing(atTop, {
         toValue: next ? 1 : 0,
@@ -438,6 +608,17 @@ export default function Home({
   const [trailerOn, setTrailerOn] = useState(false);
   const [unmuted, setUnmuted] = useState(false);
   const trailerFade = useRef(new Animated.Value(0)).current;
+  // HERO_TRAILER_COVER (Trailer.tsx): the video's layer is absent at 0 and
+  // wholly there from the first step of the fade; the art's copy is absent at
+  // 0, at full strength at that same first step, and fades out to 1.
+  const holeOpacity = useMemo(
+    () => trailerFade.interpolate({inputRange: [0, 0.001, 1], outputRange: [0, 1, 1]}),
+    [trailerFade],
+  );
+  const coverOpacity = useMemo(
+    () => trailerFade.interpolate({inputRange: [0, 0.001, 1], outputRange: [0, 1, 0]}),
+    [trailerFade],
+  );
   const trailerBusy = useRef(false);
   const trailerGen = useRef(0);
   const trailerHandle = useRef<TrailerHandle | null>(null);
@@ -458,6 +639,8 @@ export default function Home({
   // Home starts the count again. And on a box that is struggling as it is
   // (perfTier.ts) there are none: the backdrops still rotate.
   const trailersThisVisit = useRef(0);
+  // When the billboard first had a pick to show this run (see the prepare below).
+  const heroSince = useRef(0);
   useEffect(() => {
     if (!live) return;
     trailersThisVisit.current = 0;
@@ -469,7 +652,12 @@ export default function Home({
   }, [live]);
 
   const stopTrailer = useCallback(
-    (advance = false) => {
+    // `leaving`: focus is going down to the shelves. Only HERO_TRAILER_COVER
+    // reads it: the whole art layer fades out with the scroll in ~0.3 s, and a
+    // hole still half open inside a layer that is itself fading is the one
+    // case the cover cannot make version-proof — so the art is back over the
+    // hole well before that, instead of in 700 ms.
+    (advance = false, leaving = false) => {
       trailerGen.current++;
       trailerBusy.current = false;
       if (capTimer.current) clearTimeout(capTimer.current);
@@ -486,7 +674,8 @@ export default function Home({
         // WebView used to sit under the player all film long still decoding
         // behind it. So the trailer is also told to stop for good the moment
         // the fade has finished, and the unmount follows on return.
-        Animated.timing(trailerFade, {toValue: 0, duration: 700, useNativeDriver: true, isInteraction: false}).start(() => {
+        const out = HERO_TRAILER_COVER && leaving ? 120 : 700;
+        Animated.timing(trailerFade, {toValue: 0, duration: out, useNativeDriver: true, isInteraction: false}).start(() => {
           trailerHandle.current?.cmd('stop');
           setTrailer(null);
         });
@@ -536,6 +725,7 @@ export default function Home({
   const [railEpoch, setRailEpoch] = useState(0);
   useEffect(() => {
     const hero = heroNow;
+    if (hero && !heroSince.current) heroSince.current = Date.now();
     if (!live || !hero || !heroTrailersPref.current) return;
     if (!hero.imdbId || noTrailer.current.has(hero.imdbId)) return;
     if (isLite() || trailersThisVisit.current >= 2) return;
@@ -544,7 +734,38 @@ export default function Home({
     // Resolve NOW, during the hold, not when it ends (elia, 2026-10-09): the
     // 1-2 s of lookups run while the still art shows, so the trailer is ready
     // at 4.5 s. prepareTrailer remembers the answer for the visit.
-    const prep: Promise<ResolvedTrailer | null> = (async () => {
+    //
+    // Except in the first 2 s after the billboard first appears (in effect:
+    // the first pick of a run), when the lookups wait: at launch they (a
+    // metadata read, /api/trailer, and for YouTube the extractor's network and
+    // deciphering on a pool thread) ran against the first posters and the hero
+    // backdrop on the same few cores.
+    // The trailer still cannot start before 4.5 s, and 2 s + the 1-2 s of
+    // lookups is inside that; only a lookup slower than 2.5 s now ends later
+    // than it did (the 4.5 s timer waits for it, as it always has).
+    //
+    // AND ONLY AT REST (settle, then enrich). The lookups used to start the
+    // moment the pick changed — also when the viewer had turned the slide
+    // themselves and was still turning, or pressed DOWN a moment after a
+    // rotation: a metadata read, /api/trailer and the extractor then ran
+    // against the slide. They now start when focus has been still for
+    // SETTLE_MS on the hero; a pick the viewer passes in under that is never
+    // looked up. Left for the shelves before that and back in time: the
+    // 4.5 s timer starts them itself (the trailer is then later by the
+    // lookups, 1-2 s).
+    const holdPrep = Math.max(0, heroSince.current + FIRST_PREP_DELAY_MS - Date.now());
+    const onHeroAtRest = () => gen === trailerGen.current && isTop.current && !railOpen();
+    let prep: Promise<ResolvedTrailer | null> | null = null;
+    const startPrep = () => prep || (prep = lookUp());
+    const waits: (() => void)[] = [];
+    const prepTimer = setTimeout(() => {
+      waits.push(
+        whenSettled(() => {
+          if (onHeroAtRest()) startPrep();
+        }),
+      );
+    }, holdPrep);
+    const lookUp = async (): Promise<ResolvedTrailer | null> => {
       let keys: string[] = [];
       try {
         // the keys this TV already knows — what plays if the server is one
@@ -566,20 +787,26 @@ export default function Home({
       } catch {
         return null;
       }
-    })();
+    };
     const timer = setTimeout(async () => {
-      if (gen !== trailerGen.current || !isTop.current || railOpen()) return;
+      if (!onHeroAtRest()) return;
       trailerBusy.current = true; // holds the rotation while the trailer runs
-      const t = await prep;
+      const t = await startPrep();
       if (!t && gen === trailerGen.current) noTrailer.current.add(hero.imdbId!);
-      if (gen !== trailerGen.current || !isTop.current || railOpen() || !t) {
-        trailerBusy.current = false;
+      // The player is the heaviest thing this screen mounts: not while focus
+      // is moving between the hero's buttons — when it has stopped.
+      if (t && onHeroAtRest() && !isSettled()) await new Promise<void>(r => waits.push(whenSettled(r)));
+      if (!onHeroAtRest() || !t) {
+        // (a stop — moving down, the rail — has already let the rotation go)
+        if (gen === trailerGen.current) trailerBusy.current = false;
         return;
       }
       setTrailer({t, key: gen});
     }, 4500);
     return () => {
+      clearTimeout(prepTimer);
       clearTimeout(timer);
+      for (const off of waits) off();
       stopTrailer(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -611,9 +838,11 @@ export default function Home({
   }, [heroIdx, swap]);
 
   const toHero = useCallback(() => {
+    curRow.current = -1;
     setTop(true);
-    ty.to(0);
-  }, [setTop, ty]);
+    slideTo(0);
+    if (HOME_WINDOW) pump();
+  }, [setTop, slideTo, pump]);
 
   // THE HERO'S OWN KEYS (elia, 2026-10-06): RIGHT on the last button and LEFT
   // on the first move the billboard a slide, the way the site's dots do with a
@@ -644,6 +873,12 @@ export default function Home({
       (evt: {eventType: string}) => {
         const t = evt.eventType;
         if (heroBtn.current < 0 || !isTop.current) return;
+        // Not the press that only just ARRIVED on this button (UP from the
+        // first shelf, LEFT / RIGHT between the buttons): JS hears a key when
+        // it comes up, after the focus engine has already moved on its
+        // key-down, so without this the press that landed on Play also opened
+        // the rail — "the menu opens by itself" (focus.ts pressMovedFocus).
+        if (pressMovedFocus()) return;
         if (t === 'up' || (t === 'left' && heroBtn.current === 0)) {
           railFromBtn.current = heroBtn.current;
           requestRailOpen();
@@ -694,10 +929,8 @@ export default function Home({
 
   const toRow = useCallback(
     (index: number) => {
-      setTop(false);
-      if (trailerBusy.current || trailerOnRef.current) stopTrailer(false);
+      curRow.current = index;
       const y = rowY.current[index];
-      if (y == null) return;
       // The focused row comes to rest at the page's top inset — "scroll until
       // this row is at the top", which is what a viewer does on the site. The
       // hero travels off above it.
@@ -706,13 +939,38 @@ export default function Home({
       // past its own bottom. Without this the last few rows each slid to the top
       // and left a screenful of dead space under them — measured on the Streamer,
       // and it reads as a broken page rather than as the end of one.
-      const max = Math.max(0, colH.current - height);
-      ty.to(-Math.min(Math.max(0, y - spacing.pageY), max));
+      // (restOffset: the same formula the window is derived from.)
+      const rest = restOffset(y, colH.current, height, spacing.pageY);
+      // Does the art still show where this shelf comes to rest? (see setTop)
+      setTop(false, y == null || rest < Math.round(heroH * 0.9));
+      if (trailerBusy.current || trailerOnRef.current) stopTrailer(false, true);
+      if (y == null) {
+        if (HOME_WINDOW) pump();
+        return;
+      }
+      // Should never print: a shelf that the slide from where the column was
+      // to where it is going brings into the viewport is not mounted — the
+      // commits are running more presses late than the margin allows for.
+      // (adb logcat -s ReactNativeJS | grep "\[home\] behind")
+      const v = visibleBetween(-tyTarget.current, rest, layoutNow());
+      if (v) {
+        const from = HOME_WINDOW ? winShown.current.from : 0;
+        const to = HOME_WINDOW ? Math.min(reachShown.current, winShown.current.to) : reachShown.current;
+        const rows = rowsRef.current;
+        let missing = false;
+        for (let i = v.from; i <= v.to && !missing; i++) {
+          // (with the window on, a shelf outside it that was never measured is still mounted)
+          missing = i > reachShown.current || (HOME_WINDOW && (i < from || i > to) && !!rows[i] && rowH.has(rows[i].id));
+        }
+        if (missing) console.log(`[home] behind row=${index} visible=${v.from}..${v.to} mounted=${from}..${to}`);
+      }
+      slideTo(-rest);
       // Mounting another shelf changes what is mounted, so it goes off the input
       // path — a held DOWN must never wait for a row to render.
-      defer(() => setReach(r => (index + 3 > r ? index + 3 : r)));
+      if (HOME_WINDOW) pump();
+      else defer(() => setReach(r => (index + 3 > r ? index + 3 : r)));
     },
-    [setTop, ty, height, stopTrailer],
+    [setTop, slideTo, height, heroH, stopTrailer, layoutNow, pump, rowH],
   );
 
   // Continue Watching's ✕ — drawn on the focused card, removed by LONG-PRESS OK
@@ -725,48 +983,171 @@ export default function Home({
   const removeFromContinue = useCallback(
     (item: HeroItem) => {
       if (!item.id) return;
+      let at = -1; // where it stood, for putting it back
       setData(d =>
         d
           ? {
               ...d,
-              rows: d.rows.map(r =>
-                r.id === 'continue' ? {...r, items: r.items.filter(i => i.id !== item.id)} : r,
-              ),
+              rows: d.rows.map(r => {
+                if (r.id !== 'continue') return r;
+                at = r.items.findIndex(i => i.id === item.id);
+                return {...r, items: r.items.filter(i => i.id !== item.id)};
+              }),
             }
           : d,
       );
+      // Said, and undone when the server did not take it (the site's card
+      // does both; here the failure was swallowed and the card came back on
+      // the next visit with no word why).
+      const done = () => showToast('Removed from Continue Watching', '✓');
+      const back = () => {
+        showToast("Couldn't remove it — it is back in Continue Watching", '⚠');
+        setData(d =>
+          d
+            ? {
+                ...d,
+                rows: d.rows.map(r => {
+                  if (r.id !== 'continue' || r.items.some(i => i.id === item.id)) return r;
+                  const items = r.items.slice();
+                  items.splice(at >= 0 ? Math.min(at, items.length) : 0, 0, item);
+                  return {...r, items};
+                }),
+              }
+            : d,
+        );
+      };
       if (item.upNext && item.showId) {
-        api.dismissUpNext(profileId, item.showId, item.id).catch(() => {});
+        api.dismissUpNext(profileId, item.showId, item.id).then(done, back);
       } else {
-        api.clearProgress(profileId, item.id).catch(() => {});
+        api.clearProgress(profileId, item.id).then(done, back);
       }
     },
     [profileId],
   );
 
+  // The rows have drawn once: now the shelves the first commit left out (see
+  // `reach`). A frame later, and as a transition, so it never sits in front of
+  // the first picture or a keypress.
+  const hasRows = (data?.rows?.length || 0) > 0;
+  const rowCount = data?.rows?.length || 0;
+  useEffect(() => {
+    if (!hasRows) return;
+    // only when there ARE more shelves to mount — otherwise the column never
+    // grows and there is nothing to settle
+    settling.current = rowCount > 2 && reach < 3;
+    const raf = requestAnimationFrame(() => defer(() => setReach(r => (r < 3 ? 3 : r))));
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRows]);
+
+  // ONE function for every shelf (Row hands its index back). This used to be
+  // an arrow written inside renderRow — a new function per row on every Home
+  // render, so React.memo(Row) and, through Row's focusCard, React.memo(Card)
+  // never held: the hero rotating, a new shelf being reached, a party list
+  // arriving each re-rendered every mounted card (the storm motion.ts's
+  // useSlide note describes, re-opened).
+  //
+  // The shelves BELOW: `reach` keeps three of them mounted under the focused
+  // one, with their first cards and those cards' pictures already asked for —
+  // a step down lands on a shelf that is there. What is not there yet is the
+  // shelf after those; while the remote rests its first cards' pictures (the
+  // ones that will show when it mounts) are fetched ahead (artPrefetch.ts).
+  // Shelves above stay mounted, so going up needs nothing.
+  //
+  // With the vertical window on (homeWindow.ts) there are also shelves that
+  // WERE mounted and are spacers now, above and below. The ones next to the
+  // window are the next to be mounted again, so at rest their cards' pictures
+  // — the cards each will come back with (its ShelfMemory) — are asked for
+  // again: still decoded, nothing happens; let go by the memory cache, they
+  // are decoded again before the shelf is.
+  useEffect(
+    () => () => {
+      artForget('shelves');
+      artForget('shelves-back');
+    },
+    [],
+  );
+  const onRowItemFocus = useCallback(
+    (it: HeroItem, rowIndex: number) => {
+      toRow(rowIndex);
+      warmItem(it);
+      artIdle('shelves', () => {
+        const out = [];
+        // (rows up to rowIndex + 3 are mounted — toRow's reach; with the
+        // window on, up to the window's last shelf)
+        const first = HOME_WINDOW ? Math.max(winShown.current.to, reachShown.current) + 1 : rowIndex + 4;
+        for (const r of rowsRef.current.slice(first, first + artLimits().shelves)) {
+          const wide = r.id === 'continue';
+          const w = restWindow(r.items.length, shelfGeom(wide, width));
+          for (const item of r.items.slice(w.from, w.to)) out.push(prefetchable(item, {wide, frame: wide}));
+        }
+        return out;
+      });
+      if (!HOME_WINDOW) return;
+      artIdle(
+        'shelves-back',
+        () => {
+          const out: ReturnType<typeof prefetchable>[] = [];
+          const rows = rowsRef.current;
+          const {from, to} = winShown.current;
+          const add = (r: HomeRow | undefined) => {
+            if (!r || !r.items.length || !rowH.has(r.id)) return;
+            const wide = r.id === 'continue';
+            const g = shelfGeom(wide, width);
+            const mem = shelfStore.get(r.id);
+            const w = mem
+              ? rowWindow(Math.max(0, Math.min(mem.f, r.items.length - 1)), mem.dir, r.items.length, g)
+              : restWindow(r.items.length, g);
+            for (const item of r.items.slice(w.from, w.to)) out.push(prefetchable(item, {wide, frame: wide}));
+          };
+          for (let k = 1; k <= artLimits().shelves; k++) {
+            add(rows[to + k]);
+            add(rows[from - k]);
+          }
+          return out;
+        },
+        true,
+      );
+    },
+    [toRow, width, rowH, shelfStore],
+  );
+
   const renderRow = useCallback(
-    (r: HomeRow, i: number) => (
-      <View
-        key={r.id}
-        onLayout={e => {
-          rowY.current[i] = e.nativeEvent.layout.y;
-          if (i === 0) homeUsable(); // [analytics] "Home is usable": the first row is laid out
-        }}>
-        <Row
-          title={r.title}
-          items={r.items}
-          onSelect={openDetail}
-          onItemFocus={it => {
-            toRow(i);
-            warmItem(it);
-          }}
-          showKind
-          wide={r.id === 'continue'}
-          onRemove={r.id === 'continue' ? removeFromContinue : undefined}
-        />
-      </View>
-    ),
-    [openDetail, toRow, removeFromContinue],
+    (r: HomeRow, i: number) => {
+      // A SPACER stands in for a shelf outside the window: the same wrapper
+      // (same key, so its place in the column and its rowY are untouched),
+      // with the height the shelf was measured at and nothing inside. Only a
+      // shelf that HAS been measured — one that has not stays mounted — and
+      // never an empty one (Row draws nothing for it; its height is 0).
+      const h = spacerHeight(HOME_WINDOW, i, win, r.items.length, rowH.get(r.id));
+      const spacer = h != null;
+      return (
+        <View
+          key={r.id}
+          style={spacer ? {height: h} : undefined}
+          onLayout={e => {
+            rowY.current[i] = e.nativeEvent.layout.y;
+            if (i === 0) homeUsable(); // [analytics] "Home is usable": the first row is laid out
+            if (!spacer) rowH.set(r.id, e.nativeEvent.layout.height);
+          }}>
+          {spacer ? null : (
+            <Row
+              title={r.title}
+              items={r.items}
+              onSelect={openDetail}
+              onItemFocus={onRowItemFocus}
+              rowIndex={i}
+              showKind
+              wide={r.id === 'continue'}
+              onRemove={r.id === 'continue' ? removeFromContinue : undefined}
+              store={HOME_WINDOW ? shelfStore : undefined}
+              storeKey={r.id}
+            />
+          )}
+        </View>
+      );
+    },
+    [openDetail, onRowItemFocus, removeFromContinue, win, rowH, shelfStore],
   );
 
   if (!data && !error) {
@@ -830,8 +1211,10 @@ export default function Home({
   const n = Math.max(1, heroes.length);
   const scrolledArt = scrolledIdx >= 0 && scrolledIdx % n === heroIdx % n ? art : null;
   const isEpisode = !!hero?.showId && hero?.type !== 'show';
+  // The score is drawn apart from the rest of the line: a gold star (the
+  // title page's gold) and a silver number.
+  const score = hero?.rating ? String(hero.rating) : '';
   const facts = [
-    hero?.rating ? `★ ${hero.rating}` : null,
     hero?.year ? String(hero.year) : null,
     isEpisode ? `S${hero!.season} E${hero!.episode}` : null,
     hero?.genres?.length ? hero.genres.slice(0, 3).join(' · ') : null,
@@ -852,19 +1235,15 @@ export default function Home({
       <Animated.View
         style={[
           styles.artFade,
-          {
-            opacity: ty.value.interpolate({
-              inputRange: [-Math.round(heroH * 0.9), -Math.round(heroH * 0.3), 0],
-              outputRange: [0, 1, 1],
-              extrapolate: 'clamp',
-            }),
-          },
+          {opacity: artFadeOpacity},
         ]}
         pointerEvents="none">
       {art ? (
-        <HeroArt art={art} scrolledArt={scrolledArt} atTop={atTop} h={height}>
+        <HeroArt art={art} scrolledArt={scrolledArt} atTop={atTop} h={height} cover={HERO_TRAILER_COVER && trailer ? coverOpacity : null}>
           {trailer ? (
-            <Animated.View style={[styles.trailerLayer, {opacity: trailerFade}]} pointerEvents="none">
+            <Animated.View
+              style={[styles.trailerLayer, {opacity: HERO_TRAILER_COVER ? holeOpacity : trailerFade}]}
+              pointerEvents="none">
               <TrailerFrame
                 key={trailer.key}
                 trailer={trailer.t}
@@ -891,7 +1270,15 @@ export default function Home({
       <Animated.View
         style={[styles.column, {transform: [{translateY: ty.value}]}]}
         onLayout={e => {
-          colH.current = e.nativeEvent.layout.height;
+          const h = e.nativeEvent.layout.height;
+          const grew = h > colH.current;
+          colH.current = h;
+          // The column has just reached its usual first height (see `reach`):
+          // a shelf focused while it was short is sent to where it belongs.
+          if (settling.current && grew && reach >= 3) {
+            settling.current = false;
+            if (curRow.current >= 0) toRow(curRow.current);
+          }
         }}
         pointerEvents="box-none">
         {/* No hero but real rows (a server mid-warmup can emit that): the Play
@@ -925,7 +1312,7 @@ export default function Home({
                 {
                   opacity: swap,
                   transform: [
-                    {translateX: swap.interpolate({inputRange: [0, 1], outputRange: [52, 0]})},
+                    {translateX: swapX},
                   ],
                 },
               ]}>
@@ -940,7 +1327,14 @@ export default function Home({
             <Text style={[styles.title, {fontSize: heroTitle}]} numberOfLines={2}>
               {isEpisode ? hero.showTitle || hero.title : hero.title}
             </Text>
-            {facts ? <Text style={styles.facts}>{facts}</Text> : null}
+            {score || facts ? (
+              <Text style={styles.facts}>
+                {score ? <Text style={styles.star}>{'★ '}</Text> : null}
+                {score ? <Text style={styles.score}>{score}</Text> : null}
+                {score && facts ? '   ·   ' : null}
+                {facts}
+              </Text>
+            ) : null}
             {/* `.hero-synopsis` — three lines, clamped (screens.css:261-270). */}
             {hero.synopsis ? (
               <Text
@@ -1071,27 +1465,41 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginTop: 8,
     marginBottom: 13,
+    textShadowColor: 'rgba(0,0,0,0.9)',
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 8,
   },
   // `.hero-kind` — the smallest element in the lockup, and it answers "what am I
   // looking at" before you have read a word of the name.
-  kicker: {fontSize: 12, fontWeight: '900', letterSpacing: 2, marginBottom: 4},
+  kicker: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 2,
+    marginBottom: 4,
+    textShadowColor: 'rgba(0,0,0,0.9)',
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 6,
+  },
   title: {
     color: colors.text,
     fontWeight: '900',
     letterSpacing: -1.4,
-    textShadowColor: 'rgba(0,0,0,0.55)',
-    textShadowOffset: {width: 0, height: 3},
-    textShadowRadius: 26,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: {width: 0, height: 2},
+    textShadowRadius: 16,
   },
   facts: {
     color: colors.textDim,
     fontSize: fontSize.small,
     fontWeight: '700',
     marginTop: 6,
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowColor: 'rgba(0,0,0,0.9)',
     textShadowOffset: {width: 0, height: 1},
-    textShadowRadius: 10,
+    textShadowRadius: 8,
   },
+  // the title page's gold star; the number beside it in a light silver
+  star: {color: colors.star},
+  score: {color: '#C9CED6', fontWeight: '800'},
   actions: {flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm + 4, flexWrap: 'wrap', alignItems: 'center'},
   partyNote: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '600', marginTop: 8},
   trailerLayer: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000'},

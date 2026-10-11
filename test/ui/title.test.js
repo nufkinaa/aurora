@@ -89,20 +89,99 @@ ui.test("the card of a downloaded 1080p episode plays it", async ({ page, goto, 
   assert.match(await page.textContent(".player-subtitle"), /S1 E3/);
 });
 
-// APPLICATION BUG (reported, not fixed here). A downloaded episode below
-// 1080p opens its sources list instead of playing, "where your copy sits
-// first". When the source provider cannot be reached, loadSources' catch
-// branch (public/js/screens/discover-detail.js, "Couldn't reach the source
-// provider.") drops the owned row: the card of an episode that is on disk
-// offers nothing to play. The success and the empty branches both keep it.
-ui.test("the card of a downloaded episode below 1080p still offers the copy on disk when the source provider is down", async ({ page, goto, signIn, freshProfile, lib }) => {
+// A downloaded episode PLAYS, whatever its size (owner, 2026-10-10 — the TV
+// always did). One below 1080p used to open its sources list instead, "where
+// your copy sits first"; its other versions are a hold away now.
+ui.test("the card of a downloaded episode below 1080p plays it too", async ({ page, goto, signIn, freshProfile, lib }) => {
   await signIn(await freshProfile());
   await goto(`#/show/${lib.show.id}`, { selector: "#app .screen .episode-list .episode" });
   await page.locator(".detail-actions .btn-xray").waitFor();
   await page.click('.episode-list .episode[data-ep="1x2"]');
-  await page.waitForFunction(() => /Sources · S1 E2/.test(document.querySelector("#app .screen").innerText));
-  await page.waitForFunction(() => /Couldn't reach the source provider|No other sources/.test(document.querySelector("#app .screen").innerText));
-  await page.waitForFunction(() => /in your library/i.test(document.querySelector("#app .screen").innerText), null, { timeout: 3000 });
+  await page.waitForFunction((id) => location.hash === `#/play/${id}`, lib.e2.id);
+  await playing(page);
+  assert.match(await page.textContent(".player-subtitle"), /S1 E2/);
+});
+
+// PRESSING AN EPISODE YOU DO NOT HOLD (owner, 2026-10-10): the best source
+// starts downloading at once, as on the TV, AND that episode's sources open
+// below — in place: the page does not scroll and nothing takes the focus from
+// the card that was pressed. Everything the page asks about the catalogue,
+// the sources and the download is answered here: no real download is started.
+const CAT = "tt7654321";
+const HASH_FIRST = "a".repeat(40);
+const HASH_BEST = "b".repeat(40);
+const catalogueShow = async (page, posted) => {
+  const episodes = Array.from({ length: 18 }, (_, i) => ({ season: 1, episode: i + 1, title: `Catalogue ${i + 1}`, released: "2020-01-01T00:00:00.000Z" }));
+  await page.route(`**/api/discover/meta/series/${CAT}`, (route) =>
+    route.fulfill({ json: { type: "show", imdbId: CAT, title: "Catalogue Show", year: 2020, genres: [], cast: [], trailers: [], seasons: [{ number: 1, episodes }] } }));
+  await page.route(/\/api\/torrents\/sources\?/, (route) =>
+    route.fulfill({ json: { imdbId: CAT, streams: [
+      { infoHash: HASH_FIRST, fileIdx: 0, name: "Catalogue.Show.S01.720p", title: "Catalogue.Show.S01.720p", quality: "720p", sizeBytes: 7e8, sizeString: "700 MB", seeders: 40, provider: "test" },
+      { infoHash: HASH_BEST, fileIdx: 0, name: "Catalogue.Show.S01.1080p", title: "Catalogue.Show.S01.1080p", quality: "1080p", sizeBytes: 2e9, sizeString: "2.0 GB", seeders: 25, provider: "test", recommended: true },
+      { infoHash: "c".repeat(40), fileIdx: 0, name: "Catalogue.Show.S01.480p", title: "Catalogue.Show.S01.480p", quality: "480p", sizeBytes: 3e8, sizeString: "300 MB", seeders: 9, provider: "test" },
+    ] } }));
+  await page.route(/\/api\/downloads(\?|$)/, (route) => {
+    const req = route.request();
+    if (req.method() !== "POST") return route.fulfill({ json: [] });
+    const body = req.postDataJSON();
+    posted.push(body);
+    return route.fulfill({ json: { job: { id: `job${posted.length}`, status: "downloading", phase: "downloading", progress: 0.12, infoHash: body.infoHash, fileIdx: body.fileIdx, imdbId: body.imdbId, season: body.season, episode: body.episode, title: body.title, label: body.label, mine: true } } });
+  });
+};
+
+ui.test("pressing an episode you do not hold saves the best source and opens its sources in place — no scroll, no focus change, no second job", async ({ page, goto, signIn, freshProfile }) => {
+  await signIn(await freshProfile());
+  const posted = [];
+  await catalogueShow(page, posted);
+  await goto(`#/discover/series/${CAT}`, { selector: '#app .screen .episode-list .episode[data-ep="1x12"]' });
+  const card = page.locator('.episode-list .episode[data-ep="1x12"]');
+  assert.ok(!(await card.evaluate((c) => c.classList.contains("owned"))), "the episode is on disk — this test needs one that is not");
+
+  // somewhere down the page, the way a person would be when they press it
+  await card.evaluate((c) => c.scrollIntoView({ block: "center" }));
+  await card.focus();
+  const before = await page.evaluate(() => ({ y: Math.round(window.scrollY), ep: document.activeElement && document.activeElement.dataset.ep }));
+  assert.ok(before.y > 0, "the page did not scroll at all: the test would prove nothing about the scroll position");
+  assert.equal(before.ep, "1x12");
+
+  await page.keyboard.press("Enter");
+
+  // (a) a download of the BEST source is requested — the one marked recommended, not the first listed
+  await page.waitForFunction(() => document.querySelector('.episode-list .episode[data-ep="1x12"]')?.classList.contains("dl"));
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].infoHash, HASH_BEST);
+  assert.deepEqual([posted[0].type, posted[0].imdbId, posted[0].season, posted[0].episode], ["show", CAT, 1, 12]);
+
+  // (b) that episode's sources are on the page, below
+  await page.waitForFunction(() => /Sources · S1 E12/.test(document.querySelector("#app .screen").innerText));
+  assert.ok((await page.locator(".sources-section .src-list > *").count()) >= 3, "the sources list is not in the DOM");
+  assert.ok(await page.locator(".sources-section").isVisible());
+
+  // …and the viewer has not been moved
+  const after = await page.evaluate(() => ({ y: Math.round(window.scrollY), ep: document.activeElement && document.activeElement.dataset.ep }));
+  assert.equal(after.y, before.y, "the page scrolled");
+  assert.equal(after.ep, "1x12", "the focus left the card that was pressed");
+  assert.equal(await page.evaluate(() => location.hash), `#/discover/series/${CAT}`);
+
+  // pressed again while it is on its way: no second job, the sources stay
+  await page.keyboard.press("Enter");
+  await page.locator('.toast:has-text("its sources are below")').first().waitFor();
+  assert.equal(posted.length, 1, "a second download was requested for the same episode");
+  assert.ok((await page.locator(".sources-section .src-list > *").count()) >= 3);
+  const again = await page.evaluate(() => Math.round(window.scrollY));
+  assert.equal(again, before.y, "the second press scrolled the page");
+});
+
+ui.test("an episode with no sources starts nothing and says so where the sources would be", async ({ page, goto, signIn, freshProfile }) => {
+  await signIn(await freshProfile());
+  const posted = [];
+  await catalogueShow(page, posted);
+  await page.route(/\/api\/torrents\/sources\?/, (route) => route.fulfill({ json: { imdbId: CAT, streams: [] } }));
+  await goto(`#/discover/series/${CAT}`, { selector: '#app .screen .episode-list .episode[data-ep="1x2"]' });
+  await page.click('.episode-list .episode[data-ep="1x2"]');
+  await page.waitForFunction(() => /No sources found/.test(document.querySelector("#app .screen").innerText));
+  assert.equal(posted.length, 0);
+  assert.ok(!(await page.locator('.episode-list .episode[data-ep="1x2"]').evaluate((c) => c.classList.contains("dl"))));
 });
 
 ui.test("episode cards show watched, in-progress and up-next; the hero continues where you are", async ({ page, goto, signIn, freshProfile, api, lib }) => {

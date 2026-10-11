@@ -26,7 +26,7 @@ const walk = (dir, ext, out = []) => {
 const tagsIn = (files, lineRe) => {
   const ids = new Map(); // id -> first file
   for (const f of files) {
-    for (const line of fs.readFileSync(f, "utf8").split("\n")) {
+    for (const line of fs.readFileSync(f, "utf8").split(/\r?\n/)) {
       if (!lineRe.test(line)) continue;
       for (const m of line.matchAll(/["']([a-z]+(?:\.[a-z]+)+)["']/g)) if (!/\.(js|ts|tsx|css|html|json)$/.test(m[1]) && !ids.has(m[1])) ids.set(m[1], path.relative(ROOT, f));
     }

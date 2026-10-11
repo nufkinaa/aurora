@@ -9,6 +9,7 @@ import NavRail from '../components/NavRail';
 import {openJoinParty, openReport} from '../overlay';
 import {api} from '../api';
 import {useApp} from '../AppContext';
+import {useRouteShown} from '../useRouteShown';
 import {useMe, goSection, markNewSeen} from '../navSection';
 import {RootStackParamList} from '../navigation';
 import {APP_VERSION} from '../update';
@@ -87,6 +88,8 @@ export default function WhatsNew({navigation}: NativeStackScreenProps<RootStackP
   const me = useMe(profileId);
   const {safeBottom} = useTvMetrics();
   const [log, setLog] = useState<{version: string; date: string | null; items: string[]}[] | null>(null);
+  // usage stats: this screen's content is on (routeTiming.ts)
+  useRouteShown(true);
   const [showLog, setShowLog] = useState(false);
   useEffect(() => {
     let live = true;
@@ -157,7 +160,9 @@ export default function WhatsNew({navigation}: NativeStackScreenProps<RootStackP
               <View key={r.version} style={styles.release}>
                 <Text style={styles.relHead}>{`${r.version}${r.date ? ` — ${r.date}` : ''}`}</Text>
                 {r.items.map((it, i) => (
-                  <Text key={i} style={styles.relItem}>{`•  ${it}`}</Text>
+                  // (the changelog is written in Markdown: the site draws
+                  // **bold**, this list printed the asterisks)
+                  <Text key={i} style={styles.relItem}>{`•  ${it.replace(/\*\*(.+?)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1')}`}</Text>
                 ))}
               </View>
             ))
