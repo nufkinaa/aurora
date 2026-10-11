@@ -252,7 +252,10 @@ app.get("/css/aurora.css", (req, res) => {
   res.setHeader("ETag", `"${hash}"`);
   res.setHeader("Cache-Control", req.query.v ? "public, max-age=31536000, immutable" : "no-cache");
   if (req.headers["if-none-match"] === `"${hash}"`) return res.status(304).end();
-  res.send(css);
+  // (compressed once at brotli's best and sent from memory — jsassets.send;
+  // 31 KB instead of the on-the-fly 36 KB, on the one request that blocks
+  // the first paint)
+  require("./src/lib/jsassets").send(req, res, `css:${hash}`, Buffer.from(css, "utf-8"));
 });
 
 // Without this the SPA fallback answered robots.txt with the HTML shell,
@@ -314,6 +317,12 @@ app.get("/tv-version.json", (req, res, next) => {
   if (a.none) return res.status(404).json({ error: "no Android TV build has been published" });
   res.json(a);
 });
+
+// The website's modules: re-printed without comments, content-addressed and
+// pre-compressed (src/lib/jsassets.js). /js/x.js?v=<its hash> is immutable;
+// /js/x.js without one is what it always was — no-cache, an ETag, cheap 304s.
+// A path it does not know falls through to the static mount below.
+app.get(/^\/js\/.+\.js$/, require("./src/lib/jsassets").serve(path.join(__dirname, "public")));
 
 // Code revalidates on every load (cheap 304s) so updates land instantly;
 // images can cache for a day. The one exception: a CSS request that carries
