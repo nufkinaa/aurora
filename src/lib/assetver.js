@@ -78,18 +78,52 @@ const readShell = (abs) => {
 // refreshProgress) and aurora-sky.js (the glass look's sky; it was on the
 // hand-kept list too).
 const BOOT_ENTRIES = ["/js/main.js", "/js/offline.js", "/js/aurora-sky.js"];
-// Address (location.hash) -> the screen module main.js loads for it. A hint
-// only: an address missing here, or a module that moved, costs the round trip
-// it always cost and nothing else.
-const ROUTE_ENTRIES = [
-  ["^#/(movies|shows|list)$", "/js/screens/browse.js"],
-  ["^#/search", "/js/screens/search.js"],
-  ["^#/(movie|show|discover)/", "/js/screens/discover-detail.js"],
-  ["^#/play/", "/js/screens/player.js"],
-  ["^#/preferences", "/js/screens/preferences.js"],
-  ["^#/downloads", "/js/screens/downloads.js"],
-  ["^#/new$", "/js/screens/whatsnew.js"],
-];
+// Address (location.hash) -> the screen module main.js loads for it. READ
+// FROM main.js's own route table (`route("/movies", lazy("./screens/browse.js"
+// …))`) every time the file changes — this was a table kept by hand here, and
+// a table kept by hand is how the preload list fell behind. A hint only: a
+// route written in a shape this does not read costs the round trip it always
+// cost and nothing else (test/jsassets.test.js says which shapes are read,
+// and fails when a route that loads a screen is not among them).
+//   -> [[pattern (a RegExp source, tested against location.hash), module URL], …]
+const routeTables = new Map(); // main.js's asset stamp -> entries
+const routeEntries = (publicDir) => {
+  let jsassets, main, source;
+  try {
+    jsassets = require("./jsassets");
+    main = jsassets.asset(publicDir, "/js/main.js");
+    if (!main) return [];
+    const hit = routeTables.get(publicDir);
+    if (hit && hit.stamp === main.stamp) return hit.entries;
+    source = fs.readFileSync(main.abs, "utf-8");
+  } catch {
+    return [];
+  }
+  const toUrl = (spec) => path.posix.normalize(path.posix.join("/js", spec));
+  // helpers that stand for one screen: `const renderDetailLazy = (root, opts) =>
+  //   import("./screens/discover-detail.js")…`
+  const helpers = new Map();
+  for (const m of source.matchAll(/^const (\w+) = \([^)]*\) =>\s*import\("(\.\/[^"]+\.js)"\)/gm)) helpers.set(m[1], toUrl(m[2]));
+  const byModule = new Map(); // module URL -> [address patterns]
+  const starts = [...source.matchAll(/^route\("([^"]+)",/gm)];
+  for (const [i, m] of starts.entries()) {
+    // one route(...) statement: up to the next one, or to the first line that
+    // closes it at the left margin
+    let body = source.slice(m.index, i + 1 < starts.length ? starts[i + 1].index : m.index + 4000);
+    const end = /^(?:route\(.*\);|\}\)?\);)[ \t]*(?:\/\/.*)?\r?$/m.exec(body);
+    if (end) body = body.slice(0, end.index + end[0].length);
+    const first = /(?:import|lazy)\("(\.\/[^"]+\.js)"|\b(\w+)\(root\b/.exec(body.slice(m[0].length));
+    const url = first ? (first[1] ? toUrl(first[1]) : helpers.get(first[2])) : null;
+    if (!url || !jsassets.asset(publicDir, url)) continue; // (Home, or a route that only redirects)
+    // "/movie/:id" -> "/movie/[^/]+"; the address may go on (a query, a deeper path)
+    const pattern = m[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/:[a-zA-Z]+/g, "[^/]+");
+    if (!byModule.has(url)) byModule.set(url, []);
+    byModule.get(url).push(pattern);
+  }
+  const entries = [...byModule].map(([url, patterns]) => [`^#(?:${patterns.join("|")})(?:[/?]|$)`, url]);
+  routeTables.set(publicDir, { stamp: main.stamp, entries });
+  return entries;
+};
 const PRELOAD_BLOCK = /(?:[ \t]*<link rel="modulepreload" href="[^"]+" \/>\r?\n)+/;
 const STYLESHEET = /([ \t]*)<link rel="stylesheet" href="\/css\/aurora\.css/;
 const ENTRY = '<script type="module" src="/js/main.js"></script>';
@@ -110,7 +144,7 @@ const withModules = (html, publicDir) => {
   // that imports join the list, so a page opened (or reloaded, or restored by
   // the phone) on a title, a grid or Search does not find out only after boot
   // that it needs another round trip or two of code.
-  const routes = ROUTE_ENTRIES
+  const routes = routeEntries(publicDir)
     .map(([pattern, entry]) => [pattern, jsassets.closure(publicDir, [entry]).filter((url) => !bootUrls.includes(url)).map(pair)])
     .filter(([, list]) => list.length);
   // (the entry is asked for by its versioned URL in every browser — see ENTRY below)
@@ -149,4 +183,4 @@ const sendShell = (publicDir) => (res, name) => {
   res.type("html").send(html);
 };
 
-module.exports = { sendShell, versionFor, withModules, BOOT_ENTRIES, ROUTE_ENTRIES };
+module.exports = { sendShell, versionFor, withModules, BOOT_ENTRIES, routeEntries };

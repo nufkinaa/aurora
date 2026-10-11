@@ -53,20 +53,20 @@ const minifier = () => {
 // Re-printed without comments and layout whitespace; the source itself when
 // that cannot be done (no esbuild, a file it cannot parse, a file that is
 // minified already).
+const REPRINT = {
+  loader: "js",
+  minifyWhitespace: true,
+  minifyIdentifiers: false,
+  minifySyntax: false,
+  legalComments: "none",
+  charset: "utf8", // the app's strings carry emoji and Hebrew: keep them as written
+  target: "esnext", // re-print only: no syntax is lowered
+};
 const minify = (source, file) => {
   const es = minifier();
   if (!es || /\.min\.js$/.test(file)) return source;
   try {
-    return es.transformSync(source, {
-      loader: "js",
-      minifyWhitespace: true,
-      minifyIdentifiers: false,
-      minifySyntax: false,
-      legalComments: "none",
-      charset: "utf8", // the app's strings carry emoji and Hebrew: keep them as written
-      target: "esnext", // re-print only: no syntax is lowered
-      sourcefile: file,
-    }).code;
+    return es.transformSync(source, { ...REPRINT, sourcefile: file }).code;
   } catch (e) {
     console.warn(`[js] ${file} served as written: ${String((e && e.message) || e).split("\n")[0]}`);
     return source;
@@ -172,11 +172,13 @@ const asset = (publicDir, url) => {
   const hit = assets.get(url);
   if (hit && hit.stamp === stamp && hit.abs === abs) return hit;
   const source = fs.readFileSync(abs, "utf-8");
-  const body = Buffer.from(minify(source, url), "utf-8");
+  const printed = minify(source, url);
+  const body = Buffer.from(printed, "utf-8");
   const a = {
     abs,
     stamp,
     body,
+    reprinted: printed !== source,
     hash: crypto.createHash("md5").update(body).digest("hex").slice(0, 10),
     imports: importsOf(source, url),
   };
@@ -214,10 +216,48 @@ const versioned = (publicDir, url) => {
   return a ? `${url}?v=${a.hash}` : url;
 };
 
-// GET /js/**.js
+// LINE NUMBERS. A re-printed module is one long line: a stack trace reads
+// "ui.js:1:48211" where the file as written says line 1322. (esbuild has no
+// "drop the comments, keep the lines" — it prints its own layout either way —
+// so keeping line numbers was not on offer.) What depends on it:
+//   - the error reports (public/js/telemetry-core.js locOf, lib/tel/scrub.js
+//     normLocation) group by FILE AND FUNCTION NAME and drop line, column and
+//     the ?v= stamp on purpose — and names are never touched here. A fault
+//     has the same fingerprint served either way (test/jsassets.test.js).
+//   - a person reading a stack in the browser's own tools. For them every
+//     re-printed module names its source map in a response header
+//     (`SourceMap: /js/ui.js.map` — a header, so not one byte is added to
+//     the code), and the map is made only when it is asked for, which is
+//     when developer tools are open. It carries the file as written, so the
+//     tools show the real lines, comments and all.
+const sourceMap = (publicDir, url) => {
+  const es = minifier();
+  const a = asset(publicDir, url);
+  if (!es || !a || !a.reprinted) return null;
+  try {
+    return es.transformSync(fs.readFileSync(a.abs, "utf-8"), {
+      ...REPRINT,
+      sourcefile: path.posix.basename(url),
+      sourcemap: "external",
+      sourcesContent: true,
+    }).map;
+  } catch {
+    return null;
+  }
+};
+
+// GET /js/**.js (and /js/**.js.map — "LINE NUMBERS" above)
 const serve = (publicDir) => (req, res, next) => {
+  if (req.path.endsWith(".js.map")) {
+    const map = sourceMap(publicDir, req.path.slice(0, -4));
+    if (!map) return next();
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache");
+    return res.send(map);
+  }
   const a = asset(publicDir, req.path);
   if (!a) return next();
+  if (a.reprinted) res.setHeader("SourceMap", `${req.path}.map`);
   const etag = `"${a.hash}"`;
   res.setHeader("Content-Type", "text/javascript; charset=utf-8");
   res.setHeader("ETag", etag);
@@ -229,4 +269,4 @@ const serve = (publicDir) => (req, res, next) => {
   send(req, res, `js:${a.hash}`, a.body);
 };
 
-module.exports = { serve, asset, list, closure, importMap, importsOf, versioned, minify, send, pack, accepts, _minifier: minifier };
+module.exports = { serve, asset, list, closure, importMap, importsOf, versioned, minify, sourceMap, send, pack, accepts, _minifier: minifier };

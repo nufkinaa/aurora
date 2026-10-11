@@ -202,10 +202,26 @@ test("what a client accepts", () => {
 });
 
 test("an address that names another screen preloads that screen's code too", () => {
-  for (const [pattern, entry] of assetver.ROUTE_ENTRIES) {
+  // the table is read from main.js's own routes — never kept by hand
+  const entries = assetver.routeEntries(PUBLIC);
+  for (const [pattern, entry] of entries) {
     assert.ok(jsassets.asset(PUBLIC, entry), `${entry} (for ${pattern}) is not there`);
     assert.doesNotThrow(() => new RegExp(pattern));
   }
+  // ...and every route main.js declares is in it, but the two that load no
+  // screen of their own: Home (boot's code) and a party link (it redirects
+  // to the player). A route written in a shape assetver cannot read fails here.
+  const main = fs.readFileSync(path.join(PUBLIC, "js", "main.js"), "utf-8");
+  const declared = [...main.matchAll(/^route\("([^"]+)"/gm)].map((m) => m[1]);
+  assert.ok(declared.length >= 15, "found main.js's routes");
+  assert.equal(declared.length, (main.match(/\broute\(\s*["'`]/g) || []).length, "every route( call is at the left margin with a double-quoted pattern");
+  for (const r of declared) {
+    const address = "#" + r.replace(/:[a-zA-Z]+/g, "x1");
+    const hit = entries.filter(([pattern]) => new RegExp(pattern).test(address));
+    if (r === "/" || r === "/party/:code") assert.equal(hit.length, 0, r);
+    else assert.equal(hit.length, 1, `${r}: its screen's module is not known to the preload table`);
+  }
+  assert.equal(entries.find(([, e]) => e === "/js/screens/discover-detail.js")[0], "^#(?:/movie/[^/]+|/show/[^/]+|/discover/[^/]+/[^/]+)(?:[/?]|$)");
   const html = assetver.withModules(fs.readFileSync(path.join(PUBLIC, "index.html"), "utf-8"), PUBLIC);
   const code = html.slice(html.indexOf("<script>(function(){var S=") + 8).split("</script>")[0];
   const run = (hash) => {
@@ -221,4 +237,116 @@ test("an address that names another screen preloads that screen's code too", () 
   assert.ok(run("#/discover/movie/tt123").includes("/js/screens/discover-detail.js"));
   assert.ok(run("#/search").includes("/js/screens/search.js"));
   assert.equal(new Set(run("#/show/abc")).size, run("#/show/abc").length, "nothing is listed twice");
+});
+
+// ---- the error reports (src/lib/tel, public/js/telemetry-core.js) ----
+// A re-printed module is one line, under an address with a hash in it. The
+// reports name a fault by file and function — never by line, column or
+// version stamp — so the same fault must come out as the same report.
+test("an error thrown in a re-printed module is reported under the same place and fingerprint as in the file as written", { skip: !jsassets._minifier() && "esbuild is not installed: files are served as written" }, async () => {
+  const { pathToFileURL } = require("url");
+  const scrub = require("../src/lib/tel/scrub");
+  const { locOf } = await import(pathToFileURL(path.join(PUBLIC, "js", "telemetry-core.js")).href);
+  const source = [
+    "// a module written to be read: comments, blank lines, one statement a line",
+    "",
+    "/* what the player does when a stream stops */",
+    "export const onStall = (why) => {",
+    "  // (the reason is a code, never a title)",
+    "  throw new Error(`stalled: ${why}`);",
+    "};",
+    "",
+    "export function retry(why) {",
+    "  // twice, then give up",
+    "  return onStall(why);",
+    "}",
+    "",
+  ].join("\n");
+  // (package.json: Node 20 reads a bare .js as CommonJS unless told otherwise)
+  const dir = tmpPublic({ "package.json": '{"type":"module"}', "js/screens/thrower.js": source });
+  try {
+    const a = jsassets.asset(dir, "/js/screens/thrower.js");
+    assert.ok(a.reprinted && !a.body.toString().includes("\n  "), "served as one line");
+    fs.mkdirSync(path.join(dir, "served", "js", "screens"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "served", "js", "screens", "thrower.js"), a.body);
+    const stackOf = async (file, query) => {
+      const m = await import(pathToFileURL(file).href + query);
+      try { m.retry("net"); } catch (e) { return e.stack; }
+      throw new Error("did not throw");
+    };
+    const written = await stackOf(path.join(dir, "js", "screens", "thrower.js"), "");
+    const served = await stackOf(path.join(dir, "served", "js", "screens", "thrower.js"), `?v=${a.hash}`);
+    assert.match(written, /thrower\.js:6:\d+/, "as written: line 6");
+    assert.match(served, new RegExp(`thrower\\.js\\?v=${a.hash}:1:\\d+`), "as served: line 1, under the hashed address");
+    assert.equal(locOf(served), "screens/thrower.js:onStall < screens/thrower.js:retry");
+    assert.equal(locOf(served), locOf(written), "the page reports the same place");
+    assert.equal(scrub.normLocation(locOf(served)), scrub.normLocation(locOf(written)));
+    // ...and a client that sent the raw frame anyway: the server drops the stamp, the line and the column
+    const raw = (stack) => /\((file:[^)]+)\)/.exec(stack.split("\n")[1])[1].replace(/^.*\/js\//, "http://h/js/") + ":onStall";
+    assert.equal(scrub.normLocation(`http://h/js/screens/thrower.js?v=${a.hash}:1:57`), scrub.normLocation("http://h/js/screens/thrower.js:6:9"));
+    assert.ok(!scrub.normLocation(raw(served)).includes(a.hash));
+    const fp = (stack) => scrub.fingerprint("web", "js", "stalled: net", scrub.normLocation(locOf(stack)));
+    assert.equal(fp(served), fp(written), "one fault, one fingerprint — whatever the release's hashes are");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("the way back to real line numbers: a source map named in a header, made when asked for", async () => {
+  const handler = jsassets.serve(PUBLIC);
+  const call = (p) => new Promise((resolve) => {
+    const out = { headers: {}, status: 200, body: null };
+    const res = {
+      setHeader: (k, v) => { out.headers[k.toLowerCase()] = v; },
+      status: (s) => { out.status = s; return res; },
+      end: (b) => { out.body = b || null; resolve(out); },
+      send: (b) => { out.body = b; resolve(out); },
+    };
+    handler({ path: p, query: {}, headers: {}, method: "GET" }, res, () => resolve(null));
+  });
+  const js = await call("/js/ui.js");
+  const map = await call("/js/ui.js.map");
+  if (!jsassets._minifier()) {
+    // served as written: the lines are the real ones, there is nothing to map
+    assert.equal(js.headers["sourcemap"], undefined);
+    assert.equal(map, null, "falls through (a 404 from the static mount)");
+    return;
+  }
+  assert.equal(js.headers["sourcemap"], "/js/ui.js.map");
+  assert.ok(!js.body.toString().includes("sourceMappingURL"), "not a byte of it in the code");
+  const m = JSON.parse(map.body);
+  assert.equal(m.version, 3);
+  assert.deepEqual(m.sources, ["ui.js"]);
+  assert.equal(m.sourcesContent[0], fs.readFileSync(path.join(PUBLIC, "js", "ui.js"), "utf-8"), "it carries the file as written");
+  assert.ok(m.mappings.length > 1000);
+  assert.equal(map.headers["cache-control"], "no-cache");
+  // a file that is served as it is has none; neither has a path that is not a module
+  assert.equal((await call("/js/vendor/hls.min.js")).headers["sourcemap"], undefined);
+  assert.equal(await call("/js/vendor/hls.min.js.map"), null);
+  assert.equal(await call("/js/nope.js.map"), null);
+  assert.equal(await call("/js/../server.js.map"), null);
+});
+
+test("the offline worker's list (/sw-manifest.json) is the page, the stylesheet bundle and every module — each fetched from the address the page loaded", async () => {
+  const http = require("http");
+  const express = require("express");
+  const app = express();
+  app.use(require("../src/routes/api"));
+  const server = http.createServer(app);
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/sw-manifest.json`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("cache-control"), "no-store");
+    const manifest = await res.json();
+    const key = (f) => (typeof f === "string" ? f : f.url);
+    const modules = manifest.files.filter((f) => key(f).startsWith("/js/"));
+    // walked from the folder, never listed by hand: every module there is, once
+    assert.deepEqual(modules.map(key).sort(), jsassets.list(PUBLIC));
+    const map = jsassets.importMap(PUBLIC);
+    for (const f of modules) assert.equal(f.from, map[f.url], `${f.url} is copied from the address the import map gives it`);
+    assert.deepEqual(manifest.files.filter((f) => !key(f).startsWith("/js/")).map(key), ["/", "/index.html", "/css/aurora.css"]);
+    assert.match(manifest.version, /^\d+-[0-9a-f]{8}$/);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((r) => server.close(r));
+  }
 });
