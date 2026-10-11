@@ -59,6 +59,15 @@ const hevc10 = (kbps, gopSec) => [
   "-b:v", `${kbps}k`,
   "-x265-params", `keyint=${Math.round(gopSec * 24)}:min-keyint=${Math.round(gopSec * 24)}:scenecut=0:vbv-maxrate=${Math.round(kbps * 1.5)}:vbv-bufsize=${kbps * 2}:log-level=error`,
 ];
+// HDR10: the same, signalled as BT.2020 / PQ with mastering metadata — what
+// the server has to tone-map when it re-encodes the film to 8-bit H.264 (a
+// lighter rung for a thin line, or the whole film for a browser without HEVC).
+const hdr10 = (kbps, gopSec) => [
+  "-c:v", "libx265", "-preset", "ultrafast", "-pix_fmt", "yuv420p10le", "-tag:v", "hvc1",
+  "-b:v", `${kbps}k`,
+  "-color_primaries", "bt2020", "-color_trc", "smpte2084", "-colorspace", "bt2020nc",
+  "-x265-params", `keyint=${Math.round(gopSec * 24)}:min-keyint=${Math.round(gopSec * 24)}:scenecut=0:vbv-maxrate=${Math.round(kbps * 1.5)}:vbv-bufsize=${kbps * 2}:log-level=error:hdr10=1:repeat-headers=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1):max-cll=1000,400`,
+];
 const AAC = ["-c:a", "aac", "-b:a", "128k", "-ac", "2"];
 const AC3 = ["-c:a", "ac3", "-b:a", "640k", "-ac", "6"];
 const EAC3 = ["-c:a", "eac3", "-b:a", "640k", "-ac", "6"];
@@ -102,6 +111,9 @@ const TITLES = [
     key: `ep${e}-mp4`, show: "Ttff Direct Show", season: 1, episode: e, ext: "mp4", video: h264(2400, 5), audio: AAC, base: 150, loops: 1, mov: ["-movflags", "+faststart"],
     why: `episode ${e}: MP4 H.264 + AAC, direct play`,
   })),
+  // --- HDR (last: a title's place in this list is its grain's seed) ---
+  { key: "mkv-hdr10", title: "Ttff India (2009)", ext: "mkv", video: hdr10(2400, 5), audio: EAC3, base: 180, loops: 2,
+    why: "MKV HEVC Main10 HDR10 (BT.2020 PQ) + E-AC-3, 2.5 Mbit/s, 6 min, keyframes 5 s apart — its H.264 renditions are tone-mapped" },
 ];
 
 const fileOf = (t) => {

@@ -347,8 +347,10 @@ const digest = ({ t0, videos, requests, watchMs, expectFrom = 0 }) => {
   // the first frame at the resume point is — or, on a stream whose clock
   // starts at zero wherever it begins, the frame playback started from.
   const frames = v.frames.filter((f) => f.t >= t0);
-  const wanted = expectFrom > 30
-    ? frames.find((f) => f.mt >= expectFrom - 30) || (playAt != null ? frames.find((f) => f.t >= playAt - 150) : null)
+  // (within half a minute before the point, and never more than half-way
+  // back to the top — the player's own first-frame mark uses the same rule)
+  const wanted = expectFrom > 0
+    ? frames.find((f) => f.mt >= expectFrom - Math.min(30, expectFrom / 2)) || (playAt != null ? frames.find((f) => f.t >= playAt - 150) : null)
     : frames[0];
   out.firstFrame = wanted ? rel(wanted.t) : null;
   out.firstFrameAt = wanted ? +wanted.mt.toFixed(2) : null;

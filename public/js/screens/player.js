@@ -5848,8 +5848,12 @@ export const renderPlayer = async (root, { id }) => {
     });
     playFirstFrame(ms, { torrent: isTorrent, offline: !!item._offline, remux: jitMode, transcode: usingTranscode }); // [analytics]
   };
-  const FRAME_NEAR_S = 30; // (the harness's own allowance around a resume point)
-  const frameAsked = (mediaTime) => resumeAt <= FRAME_NEAR_S || (usingTranscode ? clockBase : 0) + mediaTime >= resumeAt - FRAME_NEAR_S;
+  // "At the resume point": within half a minute before it (a stream begins on
+  // the keyframe before, and four seconds early by design) — and never more
+  // than half-way back to the top, so a resume twenty seconds in is not taken
+  // for the film's first frame either. The harness's own rule (lib.js digest).
+  const frameAsked = (mediaTime) =>
+    resumeAt <= 0 || (usingTranscode ? clockBase : 0) + mediaTime >= resumeAt - Math.min(30, resumeAt / 2);
   if (video.requestVideoFrameCallback) {
     const onFrame = (now, meta) => {
       if (firstFrameMarked || exited) return;
