@@ -206,6 +206,27 @@ const judgeBackups = (x, now) => {
   return { status: stale || x.newestVerified === false ? "warn" : "ok", stale, age, broken: x.newestVerified === false, text: null };
 };
 
+// The restore drill (lib/backup.js drill), judged. x: { drill, drillOkAt,
+// oldestAt } — the last attempt, the last one that worked, the age of the
+// oldest snapshot. { words, finding? }
+//   the last test failed                     fail
+//   never tested, and backups are a week old warn (the weekly round should have)
+//   last good test over 30 days ago          warn
+const DRILL_STALE_MS = 30 * DAY;
+const judgeDrill = (x, now) => {
+  const last = x.drill || null;
+  if (last && last.ok === false && last.snapshot) {
+    return { words: "the last restore test FAILED", finding: { level: "fail", title: "A test restore of the backup failed", text: `Restoring ${last.snapshot} into a temporary folder did not work: ${last.error}. If the data were lost today this backup might not bring it back.`, evidence: `tested ${fmtAge(now - last.at)} ago`, press: pressFor("backup-now"), setting: "Make a new backup, then Server → Actions → Test a restore." } };
+  }
+  const okAt = (last && last.ok ? last.at : 0) || x.drillOkAt || 0;
+  if (!okAt) {
+    if (x.oldestAt && now - x.oldestAt > 8 * DAY) return { words: "a restore has never been tested", finding: { level: "warn", title: "No restore has ever been tested", text: "There are backups, but none has been restored yet, even as a test. A test takes a few seconds and touches nothing live.", press: pressFor("backup-drill") } };
+    return { words: "a restore has not been tested yet" };
+  }
+  if (now - okAt > DRILL_STALE_MS) return { words: `a restore was last tested ${fmtAge(now - okAt)} ago`, finding: { level: "warn", title: "The restore test is overdue", text: `A restore was last tested ${fmtAge(now - okAt)} ago (it should run every week by itself).`, evidence: `last good test ${fmtAge(now - okAt)} ago`, press: pressFor("backup-drill") } };
+  return { words: `a restore was tested ${fmtAge(now - okAt)} ago` };
+};
+
 const checkBackups = async (ctx = {}) => {
   const now = ctx.now || Date.now();
   const config = ctx.config || require("../../config");
@@ -218,7 +239,15 @@ const checkBackups = async (ctx = {}) => {
     const ok = list.find((s) => s.verified) || null;
     let maxAgeH = 48;
     try { maxAgeH = require("../health")._internals.thresholds(config.HEALTH || {}).backupMaxAgeHours; } catch {}
-    return { enabled: true, count: list.length, newestAt: newest ? newest.createdAt : null, newestVerified: newest ? !!newest.verified : null, newestName: newest ? newest.name : null, newestOkAt: ok ? ok.createdAt : null, sameDisk: backup._internals.sameVolume(config.DATA_DIR, config.BACKUP_DIR), maxAgeH };
+    const loc = backup.locations(config);
+    const state = backup._internals.readState(config.DATA_DIR);
+    return {
+      enabled: true, count: list.length, newestAt: newest ? newest.createdAt : null, newestVerified: newest ? !!newest.verified : null, newestName: newest ? newest.name : null, newestOkAt: ok ? ok.createdAt : null,
+      // "same disk" = no location at all is off the data's volume (the backup folder, or the second one)
+      sameDisk: loc.offDisk ? false : true, mirrorDir: loc.mirrorDir, mirror: backup._internals.live.mirror || null,
+      drill: state.lastDrill || null, drillOkAt: state.lastDrillOkAt || null, oldestAt: list.length ? list[list.length - 1].createdAt : null,
+      maxAgeH,
+    };
   }, 10 * MIN);
   const j = judgeBackups(x, now);
   if (j.text && !j.none) return { status: j.status, summary: j.text, quiet: true };
@@ -243,11 +272,24 @@ const checkBackups = async (ctx = {}) => {
   if (x.sameDisk !== false && !st.data.notes.backupSameDisk) {
     st.data.notes.backupSameDisk = now;
     st.save();
-    findings.push({ level: "info", title: "Backups share a disk with the data", text: "The backup folder is on the same disk as the data it copies. That protects against a damaged file or a mistake, not against losing the disk.", setting: "Set \"backupDir\" in config.json to another drive, a NAS or a synced folder. (Said once; it stays in the summary.)" });
+    findings.push({ level: "info", title: "Backups share a disk with the data", text: "Every backup is on the same disk as the data it copies. That protects against a damaged file or a mistake, not against losing the disk.", setting: "Set \"backupMirrorDir\" in config.json to a folder on another drive, a NAS or a synced folder: every snapshot is then copied there too. (Said once; it stays in the summary and under Server → Data safety.)" });
+  }
+  // the second location, when one is set, must really be receiving copies
+  let status = j.status;
+  if (x.mirror && x.mirror.ok === false) {
+    status = status === "ok" ? "warn" : status;
+    findings.push({ level: "warn", title: "The second backup location is not being written", text: `The last snapshot could not be copied to ${x.mirror.dir || x.mirrorDir}: ${x.mirror.error}. Until it is reachable the backups exist only in the first folder.`, evidence: "copy or check failed", press: pressFor("backup-now") });
+  }
+  // a backup nobody has ever restored is a hope, not a backup
+  const d = judgeDrill(x, now);
+  if (d.finding) {
+    findings.push(d.finding);
+    if (d.finding.level === "fail") status = "fail";
+    else if (d.finding.level === "warn" && status === "ok") status = "warn";
   }
   return {
-    status: j.status, quiet: true, // health alerts already announce a stale backup
-    summary: `newest working backup ${x.newestOkAt ? `${fmtAge(now - x.newestOkAt)} old` : "missing"} · newest snapshot ${x.newestVerified ? "passes its check" : "FAILS its check"} · ${plural(x.count, "snapshot")}${x.sameDisk !== false ? " · on the same disk as the data" : " · on a different disk from the data"}`,
+    status, quiet: true, // health alerts already announce a stale backup (and a failed restore test)
+    summary: `newest working backup ${x.newestOkAt ? `${fmtAge(now - x.newestOkAt)} old` : "missing"} · newest snapshot ${x.newestVerified ? "passes its check" : "FAILS its check"} · ${plural(x.count, "snapshot")}${x.sameDisk !== false ? " · on the same disk as the data" : " · on a different disk from the data"} · ${d.words}`,
     findings, healed,
   };
 };
@@ -517,7 +559,99 @@ const checkGrowth = async (ctx = {}) => {
   };
 };
 
+// ------------------------------------------------------------ data safety
+
+// lib/jsonstore.js status(), judged. x: { stores, safeMode: [names],
+// unsaved: [names], recoveries: [{ at, store, safeMode, source, acknowledged, … }] }
+//   a store in SAFE MODE            fail: it is not being saved, by design,
+//                                   until the admin decides
+//   a store that cannot be saved    fail once it has lasted a minute
+//   a recovery nobody has read yet  warn, with what was lost
+const judgeStores = (x, now, sentence = (r) => `${r.store} was recovered`) => {
+  const findings = [];
+  for (const name of x.safeMode || []) {
+    const s = (x.stores || []).find((y) => y.name === name) || {};
+    findings.push({
+      level: "fail", title: `${name} is in safe mode`,
+      text: `${name} could not be read when Aurora started (${(s.safeMode && s.safeMode.problem) || "damaged"}) and no good copy exists — no last-good copy and no backup. Aurora shows its defaults for it and writes NOTHING to that file, so the damaged file cannot be replaced by an empty one.${name === "profiles.json" ? " People see an empty house, and what they watch now is not kept." : name === "settings.json" ? " The sign-in wall is closed meanwhile." : " Everyone has to sign in again, and sign-ins are not kept across a restart."}`,
+      evidence: s.safeMode && s.safeMode.keptAs ? `the damaged file is kept as ${s.safeMode.keptAs}` : "the file was empty",
+      setting: "Server → Data safety: put a good copy of the file back and restart, or press \"Start it fresh\".",
+    });
+  }
+  for (const name of x.unsaved || []) {
+    const s = (x.stores || []).find((y) => y.name === name) || {};
+    const forMs = now - (s.unsavedSince || now);
+    if (forMs < MIN) continue; // a scanner holding the file for a moment
+    findings.push({ level: "fail", title: `${name} cannot be saved`, text: `Aurora has been unable to write ${name} for ${fmtAge(forMs)} (${plural(s.failures || 0, "attempt")}). It keeps trying; what changed since exists only in memory and would be lost if the server stopped now.`, evidence: `unsaved for ${fmtAge(forMs)}`, setting: "Look at the Disk line and the folder's permissions; do not restart until this stops." });
+  }
+  const fresh = (x.recoveries || []).filter((r) => !r.acknowledged && !r.safeMode);
+  for (const r of fresh.slice(0, 5)) {
+    findings.push({ level: "warn", title: `${r.store} was damaged and recovered`, text: sentence(r), evidence: `${fmtAge(now - r.at)} ago`, setting: "Server → Data safety → Acknowledge, once you have read it." });
+  }
+  const worstLevel = findings.some((f) => f.level === "fail") ? "fail" : findings.length ? "warn" : "ok";
+  const kept = (x.stores || []).filter((s) => s.kind !== "cache");
+  const summary = worstLevel === "ok"
+    ? `${plural(kept.length, "store")} saved and readable, each with a last-good copy · ${plural((x.recoveries || []).length, "recovery", "recoveries")} on record`
+    : [x.safeMode && x.safeMode.length ? `SAFE MODE: ${x.safeMode.join(", ")}` : null, findings.some((f) => /cannot be saved/.test(f.title)) ? "a store cannot be saved" : null, fresh.length ? `${plural(fresh.length, "recovery", "recoveries")} to read` : null].filter(Boolean).join(" · ");
+  return { status: worstLevel, summary, findings };
+};
+
+const checkStores = async (ctx = {}) => {
+  const now = ctx.now || Date.now();
+  const js = require("../jsonstore");
+  const x = ctx.stores || js.status();
+  return { ...judgeStores(x, now, js.recoverySentence), quiet: true }; // announced once at boot through the health alerts
+};
+
+// ------------------------------------------------------------ the supervisor
+
+// Who restarts the server (lib/supervisor.js info()), judged:
+//   nothing supervises it        a crash or a hang lasts until somebody
+//                                notices — the finding names the fix
+//   the keeper has given up      the server keeps crashing (it is up now only
+//                                because a slow retry worked): fail
+//   3+ crashes or hangs in a day worth a look: warn, with the last reason
+//   started by hand              supervised, but gone after a reboot: info
+const RESTARTS_WARN = 3;
+const judgeSupervisor = (x) => {
+  const findings = [];
+  if (!x || !x.supervised) {
+    findings.push({
+      level: "warn", title: "Nothing restarts Aurora if it stops",
+      text: "The server is running as a bare process. If it crashes or hangs, it stays down until somebody starts it again; the watchdog can only write that down, and the Restart button is refused.",
+      evidence: "no keeper, pm2 or systemd in this process's environment",
+      setting: "Start Aurora through its keeper: start-aurora.cmd (Windows) or the systemd unit in deploy/linux — the steps are in docs/operations.md.",
+    });
+    return { status: "warn", summary: "not supervised — a crash or a hang lasts until somebody notices", findings };
+  }
+  const bits = [`supervised by ${x.byWords || x.by}`];
+  let status = "ok";
+  if (x.restartsLastDay != null) bits.push(`${plural(x.restartsLastDay, "restart")} in the last day`);
+  if (x.lastExitWords) bits.push(`last: ${x.lastExitWords}`);
+  if (x.state === "parked") {
+    status = "fail";
+    findings.push({ level: "fail", title: "Aurora keeps crashing", text: `The keeper gave up on quick restarts because the server kept dying${x.lastExitWords ? ` (it last ${x.lastExitWords})` : ""}. It is up now from a slow retry and may go down again.`, evidence: `${x.crashesLastDay == null ? "several" : x.crashesLastDay} crashes or hangs in the last day`, setting: "Read the end of data/server-stderr.log (or the Logs tab) for the error that repeats." });
+  } else if ((x.crashesLastDay || 0) >= RESTARTS_WARN) {
+    status = "warn";
+    findings.push({ level: "warn", title: "Aurora has been restarted after crashes", text: `The server crashed or stopped answering ${x.crashesLastDay} times in the last day and was started again each time${x.lastExitWords ? ` (it last ${x.lastExitWords})` : ""}. Viewers were interrupted for a few seconds each time.`, evidence: `${x.crashesLastDay} crashes or hangs in 24 h`, setting: "The Logs tab, filtered to errors, shows what happens just before each restart." });
+  }
+  if (x.by === "keeper" && x.survivesReboot === false) {
+    findings.push({ level: "info", title: "The keeper was started by hand", text: "Aurora restarts after a crash or a hang, but nothing starts it after the machine reboots.", setting: "Install the Scheduled Task (Windows) or the systemd unit (Linux): docs/operations.md." });
+  }
+  return { status, summary: bits.join(" · "), findings };
+};
+
+const checkSupervisor = async (ctx = {}) => {
+  let x = ctx.supervisor;
+  if (x === undefined) {
+    let boots = [];
+    try { boots = require("../health").status().boots || []; } catch {}
+    x = require("../supervisor").info({ boots });
+  }
+  return judgeSupervisor(x);
+};
+
 module.exports = {
-  checkLibrary, checkBackups, checkUpdates, checkDelivery, checkClock, checkGrowth,
-  _internals: { judgeRoots, judgeFiles, judgeBackups, lockDrift, judgeUpdates, judgeDelivery, judgeClock, growthOf, judgeGrowth, patchApplied, gatherDrift, SANE },
+  checkLibrary, checkBackups, checkUpdates, checkDelivery, checkClock, checkGrowth, checkSupervisor, checkStores,
+  _internals: { judgeSupervisor, judgeStores, judgeDrill, judgeRoots, judgeFiles, judgeBackups, lockDrift, judgeUpdates, judgeDelivery, judgeClock, growthOf, judgeGrowth, patchApplied, gatherDrift, SANE },
 };

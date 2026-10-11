@@ -315,12 +315,13 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/index.m3u8", async (req, 
     const audio = ladder.audioFromQuery(req.query.a);
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
-      if (!jit.encodeRoom(key, v === "h264")) {
+      if (!jit.encodeRoom(key, v === "h264" || req.query.need === "1")) {
         try { require("../lib/signals").hit("no-encoder", "rendition"); } catch {}
+        res.setHeader("Retry-After", "5");
         return res.status(503).send("Server is busy — that rendition isn't available right now");
       }
     }
-    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}`;
+    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}${v !== "copy" && req.query.need === "1" ? "&need=1" : ""}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
     res.send(jit.playlistText(table, suffix, fmt));
@@ -359,7 +360,7 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/:file", async (req, res) 
     let input = { url: src.url, extra: src.extra, fmt, vtagHvc1: req.query.vtag === "hvc1", audio };
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
-      input = await ladder.encInput(input, { key, name: v, fmt, audio, http: src.http, jit, label: file.name });
+      input = await ladder.encInput(input, { key, name: v, fmt, audio, http: src.http, jit, label: file.name, need: req.query.need === "1" });
       if (!input) return res.status(404).send("No such rendition of this file");
     }
     // fMP4 producers get their own dir — same table, different segment
@@ -441,6 +442,11 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
     }
     res.send(text);
   } catch (err) {
+    // no room in the encode budget: the same quick 503 as every other route
+    if (err && err.busy) {
+      res.setHeader("Retry-After", String(err.retryAfter || 5));
+      return res.status(503).send(err.message);
+    }
     res.status(504).send("Transcode not ready: " + err.message);
   }
 });

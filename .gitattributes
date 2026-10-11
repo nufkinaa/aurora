@@ -4,3 +4,5 @@
 # `setlocal`. This bit the TV build script once already.
 *.bat text eol=crlf
 *.cmd text eol=crlf
+# A systemd unit copied from a Windows checkout to a Linux box must not carry CRs.
+*.service text eol=lf

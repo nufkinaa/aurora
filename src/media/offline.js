@@ -25,6 +25,14 @@
 //
 // One ffmpeg at a time (a phone can wait; the streaming server can't be
 // starved), progress parsed from ffmpeg's own -progress stream.
+//
+// These are BACKGROUND jobs (cpuwork.js): they run at the lowest priority on
+// half the machine's threads; an ENCODE is not started while somebody's
+// stream is being encoded, is paused when one starts (Linux/macOS; on Windows
+// the idle priority class does the yielding), and can be shed back into this
+// queue. A copy somebody asked for goes ahead of the play-ready copies made
+// after a download. (Before, they ran at normal priority on every thread —
+// above the viewers' own encoders.)
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
@@ -263,16 +271,20 @@ const prepare = (id, quality, caps = {}, { keepMs = 0 } = {}) => {
     return { state: "error", quality: q, error: "the server is short on disk space — try a smaller size, or again later" };
   }
   jobs.set(jobKey(id, q), { state: "queued", progress: 0, caps, keepMs });
-  queue.push({ id, q });
+  // (keepMs marks a play-ready copy made ahead of time: nobody is waiting)
+  queue.push({ id, q, ahead: keepMs > 0 });
   pump();
   return status(id, q, caps);
 };
 
 // The ffmpeg arguments for one job. Exported for tests: this is where
 // "original" becomes a copy instead of an encode.
-const argsFor = (srcPath, tmp, q, caps = {}) => {
+// `threads` (the background cap, cpuwork.js): decoder, filters and encoder
+// alike — without it ffmpeg takes every core for each.
+const argsFor = (srcPath, tmp, q, caps = {}, { threads = 0 } = {}) => {
   const m = metadata.getCached(srcPath);
-  const head = ["-v", "error", "-nostdin", "-y", "-i", srcPath, "-map", "0:v:0", "-map", "0:a:0?"];
+  const cap = threads > 0 ? ["-threads", String(threads)] : [];
+  const head = ["-v", "error", "-nostdin", "-y", ...cap, ...(threads > 0 ? ["-filter_threads", String(threads)] : []), "-i", srcPath, "-map", "0:v:0", "-map", "0:a:0?"];
   const tail = ["-movflags", "+faststart", "-progress", "pipe:1", "-f", "mp4", tmp];
   if (q === "original" && originalMode(srcPath, caps) === "remux") {
     const hevc = m && m.video && m.video.codec === "hevc";
@@ -289,7 +301,7 @@ const argsFor = (srcPath, tmp, q, caps = {}) => {
   const target = q === "original" ? 1080 : Number(q);
   return [
     ...head,
-    "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+    "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", ...cap,
     "-vf", `scale=-2:'min(${target},ih)'`,
     "-pix_fmt", "yuv420p",
     "-c:a", "aac", "-b:a", "128k", "-ac", "2",
@@ -297,12 +309,41 @@ const argsFor = (srcPath, tmp, q, caps = {}) => {
   ];
 };
 
+// Does this job re-encode the picture (heavy), or only repackage it (the
+// disk's speed)?
+const isEncode = (srcPath, q, caps) => !(q === "original" && originalMode(srcPath, caps) === "remux");
+
+const cpuwork = require("./cpuwork");
+const spawner = { spawn }; // (replaceable: the tests start no ffmpeg)
+
 const pump = () => {
   if (running || queue.length === 0) return;
-  const { id, q } = queue.shift();
+  // somebody's own request first; the copies made ahead of time after
+  const at = Math.max(0, queue.findIndex((x) => !x.ahead));
+  const { id, q, ahead } = queue.splice(at, 1)[0];
   const e = entryFor(id);
   const job = jobs.get(jobKey(id, q));
   if (!e || !job) return pump();
+  running = jobKey(id, q);
+  const encode = isEncode(e.path, q, job.caps || {});
+  if (!encode) return start({ id, q, ahead, e, job, place: null });
+  // an encode waits for its place: no viewer encode running, none for a
+  // while, nothing else heavy in the background (cpuwork.js)
+  if (!cpuwork.background.mayStart("encode")) console.log(`[offline] ${id} at ${q} is waiting — somebody's stream is being encoded`);
+  cpuwork.background
+    .gate("encode", {
+      label: `${ahead ? "play-ready copy" : "copy"} of ${path.basename(e.path)}`,
+      pausable: true,
+      // shed: stop, and back to the front of this queue
+      onShed: () => { job.shed = true; try { if (job.child) job.child.kill("SIGKILL"); } catch {} },
+    })
+    .then((place) => {
+      if (jobs.get(jobKey(id, q)) !== job || !entryFor(id)) { place.release(); running = null; return pump(); }
+      start({ id, q, ahead, e, job, place });
+    });
+};
+
+const start = ({ id, q, ahead, e, job, place }) => {
   fs.mkdirSync(DIR, { recursive: true });
   const out = outFileFor(id, e.path, q);
   const tmp = out + ".part";
@@ -310,10 +351,16 @@ const pump = () => {
   const duration = meta && meta.duration ? meta.duration : 0;
   job.state = "working";
   job.progress = 0;
+  job.shed = false;
   job.startedAt = Date.now();
-  running = jobKey(id, q);
   console.log(`[offline] preparing ${id} at ${q} (${path.basename(e.path)})`);
-  const child = spawn(config.FFMPEG, argsFor(e.path, tmp, q, job.caps || {}), { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+  const child = require("../lib/children").track(
+    spawner.spawn(config.FFMPEG, argsFor(e.path, tmp, q, job.caps || {}, { threads: place ? cpuwork.background.threads() : 0 }), { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }),
+    "offline",
+  );
+  job.child = child;
+  if (place) place.attach(child);
+  else cpuwork.background.lower(child); // a repackaging: quick, but still nobody's stream
   let buf = "";
   child.stdout.on("data", (d) => {
     buf += d.toString();
@@ -329,6 +376,17 @@ const pump = () => {
   child.stderr.on("data", (d) => { err += d.toString().slice(-500); });
   child.on("close", (code) => {
     running = null;
+    job.child = null;
+    if (job.shed) {
+      // stopped to make room for viewers: nothing failed, it is queued again
+      try { fs.unlinkSync(tmp); } catch {}
+      job.shed = false;
+      job.state = "queued";
+      job.progress = 0;
+      queue.unshift({ id, q, ahead });
+      console.log(`[offline] ${id} at ${q} was set aside for viewers — queued again`);
+      return pump();
+    }
     if (code === 0 && fs.existsSync(tmp)) {
       try { fs.renameSync(tmp, out); } catch {}
       if (job.keepMs > 0) {
@@ -347,6 +405,7 @@ const pump = () => {
   });
   child.on("error", (e2) => {
     running = null;
+    job.child = null;
     job.state = "error";
     job.error = e2.message;
     pump();
@@ -373,4 +432,4 @@ const load = () => {
   return { running: running || null, since: j ? j.startedAt : null, progress: j ? j.progress || 0 : 0, queued: queue.length };
 };
 
-module.exports = { status, prepare, fileFor, options, sweep, load, DIR, MAX_BYTES, QUALITIES, _internals: { toRemove, KEEP_MS, isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS } };
+module.exports = { status, prepare, fileFor, options, sweep, load, DIR, MAX_BYTES, QUALITIES, _internals: { toRemove, KEEP_MS, isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS, isEncode, spawner, jobs, queue, pump } };

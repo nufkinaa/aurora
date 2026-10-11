@@ -8,10 +8,15 @@
 //              process was started with --expose-gc. Logged, and reported to
 //              the admin's Health card.
 //   hard heal  (memory still climbing after a soft heal, or the loop stuck):
-//              a clean exit — pm2 restarts the process on the same code in
-//              ~3s, every JsonStore flushed on the way out. Only under pm2
-//              (PM2_HOME / pm_id in the env); bare `node server.js` logs the
-//              verdict and keeps running, since nothing would bring it back.
+//              a clean exit (lib/shutdown.js: stores flushed, viewers told)
+//              with the code that means "the watchdog is restarting me" —
+//              whatever supervises the server (the keeper, pm2, systemd:
+//              lib/supervisor.js) starts it again on the same code in a few
+//              seconds. Bare `node server.js` logs the verdict and keeps
+//              running, since nothing would bring it back.
+//
+// A loop that is stuck OUTRIGHT cannot run this file's timer either: that
+// case is the keeper's, which probes /healthz from outside (lib/keeper.js).
 //
 // Thresholds sit under pm2's max_memory_restart (1500M) so the process is
 // recycled tidily instead of being killed mid-write.
@@ -33,7 +38,8 @@ let lagStrikes = 0;
 let softHooks = []; // () => string | void — registered by modules with caches
 let timer = null;
 
-const underPm2 = () => !!(process.env.pm_id || process.env.PM2_HOME);
+const supervisor = require("./supervisor");
+const supervisedBy = () => supervisor.detect();
 
 const note = (kind, detail) => {
   events.push({ at: Date.now(), kind, detail });
@@ -114,8 +120,8 @@ const softHeal = (why) => {
 const hardHeal = (why) => {
   hardStrikes = 0;
   lagStrikes = 0;
-  if (!underPm2()) {
-    note("hard heal skipped", `${why} — not under pm2, nothing would restart the server`);
+  if (!supervisedBy()) {
+    note("hard heal skipped", `${why} — not supervised, nothing would restart the server`);
     return;
   }
   rstore = rstore || restartStore();
@@ -129,11 +135,10 @@ const hardHeal = (why) => {
   try {
     require("../realtime").broadcastAll({ type: "server_notice", message: "Aurora is restarting itself for a moment — back in a few seconds." });
   } catch {}
-  // flush now, and again at the very end for anything saved in between
+  // flush now; the shutdown sequence flushes again at the very end
   try { require("./jsonstore").flushAll(); } catch {}
   setTimeout(() => {
-    try { require("./jsonstore").flushAll(); } catch {}
-    process.exit(3);
+    require("./shutdown").run({ reason: `watchdog: ${why}`, code: supervisor.EXIT.HEAL, notice: "restart" }).catch(() => process.exit(supervisor.EXIT.HEAL));
   }, 800);
 };
 
@@ -171,7 +176,7 @@ const start = () => {
   probeLag();
   timer = setInterval(tick, EVERY_MS);
   timer.unref?.();
-  note("armed", `soft at ${SOFT_RSS / 1048576} MB / ${SOFT_LAG_MS} ms lag, restart at ${HARD_RSS / 1048576} MB${underPm2() ? " (pm2)" : " (no pm2: log only)"}`);
+  note("armed", `soft at ${SOFT_RSS / 1048576} MB / ${SOFT_LAG_MS} ms lag, restart at ${HARD_RSS / 1048576} MB${supervisedBy() ? ` (supervised by ${supervisedBy()})` : " (not supervised: log only)"}`);
 };
 
 const status = () => {
@@ -179,7 +184,12 @@ const status = () => {
   return {
     now: { rss: m.rss, heapUsed: m.heapUsed, heapTotal: m.heapTotal, lagMs, ffmpeg: ffmpegCount(), uptimeSec: Math.floor(process.uptime()), load: os.loadavg() },
     thresholds: { softRss: SOFT_RSS, hardRss: HARD_RSS, softLagMs: SOFT_LAG_MS, hardLagMs: HARD_LAG_MS },
-    pm2: underPm2(),
+    pm2: !!supervisedBy(), // the name the admin page has always read: "something restarts it"
+    supervisor: (() => {
+      let boots = [];
+      try { boots = require("./health").status().boots || []; } catch {}
+      return supervisor.info({ boots });
+    })(),
     lastSoftAt: lastSoftAt || null,
     history: history.slice(-90),
     events: events.slice(-20),

@@ -316,10 +316,8 @@ const saveNow = () => {
   if (!file || !dirty) return;
   dirty = false;
   try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(state));
-    fs.renameSync(tmp, file);
+    // temp file + rename, tried again while a scanner holds the file (lib/jsonstore.js)
+    require("../jsonstore").atomicWriteSync(file, JSON.stringify(state), { durable: false });
   } catch (e) {
     console.warn("[telemetry] could not save the error book:", e && e.message);
   }

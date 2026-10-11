@@ -243,6 +243,9 @@ const supportNow = () => support;
 const recalibrate = async () => {
   const s = await probeSupport();
   if (!s.ok) return s;
+  // not while somebody's stream is being encoded: the timing would take
+  // their cores, and would read low anyway (cpuwork.js)
+  try { if (require("./cpuwork").viewer.busy()) return s; } catch {}
   const short = await runChain("hlg", CAL_SHORT);
   const long = short === null ? null : await runChain("pq", CAL_LONG);
   if (short === null || long === null) return s;
