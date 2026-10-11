@@ -324,12 +324,36 @@ ui.test("the kids hop: a kids profile is never asked for early (its door runs fi
 // everything boot asks: that must stay far inside a client's share.
 ui.test("a normal boot never meets the server's turn-taking: no 429 on any route, alone or with two tabs opening at once, and never more than two heavy requests in flight", async ({ page, context, goto, signIn, srv, profiles, lib }) => {
   const HEAVY = /\/api\/(home|library|search)(\?|$)/;
-  const seen = { refused: [], inFlight: 0, most: 0, heavy: [] };
+  // In flight = asked and not yet ended, kept per REQUEST (a set, not a count
+  // that goes up and down). One trap: a request cut off by its page being
+  // navigated away gets NO requestfinished / requestfailed from the browser.
+  // The loads below leave by way of about:blank, and on a slow run the
+  // warm-up's Home was still on its way then — a plain counter stayed one too
+  // high for the rest of the test ("2 at once" with one request listed).
+  // Checked against the server's own log: it saw that request closed by the
+  // client 60 ms BEFORE the next load's Home arrived — one per load, never two
+  // at once. So: when a page moves to another document, the requests its old
+  // document had open are over; and a closed tab's are too.
+  const seen = { refused: [], open: new Set(), most: 0, heavy: [] };
   const watch = (p) => {
-    p.on("request", (req) => { if (HEAVY.test(req.url())) { seen.inFlight++; seen.most = Math.max(seen.most, seen.inFlight); seen.heavy.push(req.url().replace(/^https?:\/\/[^/]+/, "").split("?")[0]); } });
-    const done = (req) => { if (HEAVY.test(req.url())) seen.inFlight--; };
+    p.on("request", (req) => {
+      if (!HEAVY.test(req.url())) return;
+      seen.open.add(req);
+      seen.most = Math.max(seen.most, seen.open.size);
+      seen.heavy.push(req.url().replace(/^https?:\/\/[^/]+/, "").split("?")[0]);
+    });
+    const done = (req) => { seen.open.delete(req); };
     p.on("requestfinished", done);
     p.on("requestfailed", done);
+    const mine = (req) => { try { return req.frame().page() === p; } catch { return true; } };
+    const dropMine = () => { for (const req of [...seen.open]) if (mine(req)) seen.open.delete(req); };
+    let doc = "about:blank";
+    p.on("framenavigated", (frame) => {
+      if (frame !== p.mainFrame()) return;
+      const now = frame.url().split("#")[0]; // (a change of #route is the same document: its requests live on)
+      if (now !== doc) { doc = now; dropMine(); }
+    });
+    p.on("close", dropMine);
     p.on("response", (res) => { if (res.status() === 429) seen.refused.push(res.url()); });
   };
   watch(page);
@@ -340,6 +364,7 @@ ui.test("a normal boot never meets the server's turn-taking: no 429 on any route
     seen.most = 0; seen.heavy.length = 0;
     // one tab, loaded cold on that route
     await page.goto("about:blank");
+    seen.open.clear(); // (the only tab is on a blank page: nothing of the app is in flight, whatever events are still on their way)
     await page.goto(`${srv.url}/${hash}`);
     await waitForScreen(page);
     await page.waitForTimeout(700);
@@ -353,6 +378,7 @@ ui.test("a normal boot never meets the server's turn-taking: no 429 on any route
     const second = await context.newPage();
     watch(second);
     await page.goto("about:blank");
+    seen.open.clear();
     await Promise.all([page.goto(`${srv.url}/${hash}`), second.goto(`${srv.url}/${hash}`)]);
     await Promise.all([waitForScreen(page), waitForScreen(second)]);
     await page.waitForTimeout(700);
