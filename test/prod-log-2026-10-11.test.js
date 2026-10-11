@@ -19,6 +19,7 @@ test("fMP4 jobs name their init file barely: ffmpeg joins it to the playlist's f
 
 test("ffmpeg really writes init.mp4 beside the playlist with those arguments", (t) => {
   const config = require("../src/config");
+  if (!config.FFMPEG) return t.skip("no ffmpeg here");
   const probe = spawnSync(config.FFMPEG, ["-version"], { encoding: "utf8" });
   if (probe.status !== 0) return t.skip("no ffmpeg here");
   const dir = fs.mkdtempSync(path.join(require("os").tmpdir(), "aurora-fmp4-"));
