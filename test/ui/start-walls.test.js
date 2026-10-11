@@ -331,6 +331,34 @@ ui.test("subtitles on by default: a repackaged film starts with its embedded tra
   assert.deepEqual(seen.bad(), []);
 });
 
+// ---------- a busy server ----------
+ui.test("the server is busy at a start (503 + Retry-After): the player waits and asks again — one stream, no restarts — and the film plays", {
+  allow: [/Failed to load resource.*503/],
+}, async ({ page, goto, signIn, freshProfile, lib }) => {
+  const me = await freshProfile();
+  await signIn(me);
+  const marks = player.marks(page);
+  let asked = 0;
+  // the first two asks for the film's playlist: "busy, ask again in a second"
+  await page.route("**/jit/master.m3u8*", (route) => {
+    asked++;
+    if (asked <= 2) return route.fulfill({ status: 503, headers: { "Retry-After": "1" }, body: "Server is busy transcoding other streams" });
+    return route.continue();
+  });
+  await goto("#/movies");
+  const t0 = Date.now();
+  await page.evaluate((h) => { location.hash = h; }, `#/play/${lib.film2.id}`);
+  await page.waitForSelector("#app .player video");
+  await player.playing(page, { id: lib.film2.id });
+  await firstFrame(marks);
+  assert.ok(Date.now() - t0 >= 1900, "it did not wait for the server");
+  assert.deepEqual(marks.named("busy-wait").map((m) => m.n), [1, 2]);
+  assert.equal(asked, 3, "asked again exactly when told to, then served");
+  assert.equal(marks.named("path").length, 1, "one stream was started, once");
+  assert.equal(marks.named("path")[0].path, "ladder", "…the one that was asked for, not a fallback");
+  assert.equal(marks.named("first-frame").length, 1);
+});
+
 // ---------- a watch party ----------
 ui.test("a watch party on a repackaged film: the guest joins where the host is, and a pause, a jump and a play are followed", async ({ page, srv, context, signIn, freshProfile, lib }) => {
   const id = lib.film2.id;
