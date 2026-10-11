@@ -38,6 +38,8 @@ Needs what the UI tests need (Node 20+, Chrome, ffmpeg) plus Python 3 with Pillo
 | `session.js` | Bytes for five minutes of browsing, by kind and by minute, with and without Data saver; which connection tier the app settled on | `out/<label>/session/` |
 | `resilience.js` | A request that stalls, one that fails, pictures that fail, offline and back, a lossy line: what is on screen, does a tap still work | `out/<label>/resilience/` |
 | `leaks.js` | Which screen is still in memory after it was left: each route visited six times with a forced collection after each | `out/<label>/leaks.json` |
+| `holders.js` | WHY a left screen is still in memory: per route, the screens alive outside the page after a collection, the listeners left on window / document / the socket by the line that registered them, intervals left running | `out/<label>/holders.json` |
+| `retainers.js` | …and when none of those is left: the chain of references from the heap's roots to the left screen, from a heap snapshot | `out/<label>/retainers.<route>.json` |
 | `correctness.js` | Sideways scroll (portrait, landscape, larger text), tap targets under 44 px, things hidden behind the nav, a shorter viewport, what still moves with "reduce motion" | `out/<label>/correctness/` |
 | `shots.js` + `diff.py` | Screenshots of every screen at rest, five viewports × two looks, and their pixel-for-pixel comparison | `out/<label>/shots/`, `out/diff-…/` |
 
