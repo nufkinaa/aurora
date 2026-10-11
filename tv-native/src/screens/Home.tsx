@@ -100,8 +100,14 @@ const EASE = Easing.bezier(0.2, 0.7, 0.2, 1);
 // blur. `brightness()` is transcribed as the black scrim the value implies —
 // 0.55 → α 0.45 at rest, 0.58 → α 0.42 once scrolled — rather than as the --bg
 // wash this screen used to paint, which is the darkening the CSS rejects.
-const REST = {blur: 1, dim: 0.45};
-const SCROLLED = {blur: 2, dim: 0.42};
+//
+// LESS DIM (elia, 2026-10-10: "less dim hero + shadow behind the text"). The
+// whole-picture black went from 0.45 / 0.42 to 0.18: the photo reads as a
+// photo. What keeps the words readable is local now: the baked left ramp and
+// foot veil (hero-scrim.png), unchanged, and a text shadow on every line of
+// the lockup (drawn by the text renderer: no layer, no blur view).
+const REST = {blur: 1, dim: 0.18};
+const SCROLLED = {blur: 2, dim: 0.18};
 // How long after the billboard first appears the first trailer lookup waits
 // (see the prepare in Home): the launch's first pictures go first.
 const FIRST_PREP_DELAY_MS = 2000;
@@ -1205,8 +1211,10 @@ export default function Home({
   const n = Math.max(1, heroes.length);
   const scrolledArt = scrolledIdx >= 0 && scrolledIdx % n === heroIdx % n ? art : null;
   const isEpisode = !!hero?.showId && hero?.type !== 'show';
+  // The score is drawn apart from the rest of the line: a gold star (the
+  // title page's gold) and a silver number.
+  const score = hero?.rating ? String(hero.rating) : '';
   const facts = [
-    hero?.rating ? `★ ${hero.rating}` : null,
     hero?.year ? String(hero.year) : null,
     isEpisode ? `S${hero!.season} E${hero!.episode}` : null,
     hero?.genres?.length ? hero.genres.slice(0, 3).join(' · ') : null,
@@ -1319,7 +1327,14 @@ export default function Home({
             <Text style={[styles.title, {fontSize: heroTitle}]} numberOfLines={2}>
               {isEpisode ? hero.showTitle || hero.title : hero.title}
             </Text>
-            {facts ? <Text style={styles.facts}>{facts}</Text> : null}
+            {score || facts ? (
+              <Text style={styles.facts}>
+                {score ? <Text style={styles.star}>{'★ '}</Text> : null}
+                {score ? <Text style={styles.score}>{score}</Text> : null}
+                {score && facts ? '   ·   ' : null}
+                {facts}
+              </Text>
+            ) : null}
             {/* `.hero-synopsis` — three lines, clamped (screens.css:261-270). */}
             {hero.synopsis ? (
               <Text
@@ -1450,27 +1465,41 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginTop: 8,
     marginBottom: 13,
+    textShadowColor: 'rgba(0,0,0,0.9)',
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 8,
   },
   // `.hero-kind` — the smallest element in the lockup, and it answers "what am I
   // looking at" before you have read a word of the name.
-  kicker: {fontSize: 12, fontWeight: '900', letterSpacing: 2, marginBottom: 4},
+  kicker: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 2,
+    marginBottom: 4,
+    textShadowColor: 'rgba(0,0,0,0.9)',
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 6,
+  },
   title: {
     color: colors.text,
     fontWeight: '900',
     letterSpacing: -1.4,
-    textShadowColor: 'rgba(0,0,0,0.55)',
-    textShadowOffset: {width: 0, height: 3},
-    textShadowRadius: 26,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: {width: 0, height: 2},
+    textShadowRadius: 16,
   },
   facts: {
     color: colors.textDim,
     fontSize: fontSize.small,
     fontWeight: '700',
     marginTop: 6,
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowColor: 'rgba(0,0,0,0.9)',
     textShadowOffset: {width: 0, height: 1},
-    textShadowRadius: 10,
+    textShadowRadius: 8,
   },
+  // the title page's gold star; the number beside it in a light silver
+  star: {color: colors.star},
+  score: {color: '#C9CED6', fontWeight: '800'},
   actions: {flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm + 4, flexWrap: 'wrap', alignItems: 'center'},
   partyNote: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '600', marginTop: 8},
   trailerLayer: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000'},
