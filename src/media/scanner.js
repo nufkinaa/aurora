@@ -146,12 +146,30 @@ const seasonFromFolder = (relDir) => {
 
 // ---------- folder helpers ----------
 
-const listDir = (dir) => {
+// One listing per folder per scan. A scan asked for the same folder again
+// and again: a film's folder three times (its videos, its cover, its
+// subtitles), a season's folder once per EPISODE (each episode lists the
+// folder to find its own subtitle files) and the show's folder once per
+// episode on top — 5,042 directory reads for 1,800 files where 1,382 folders
+// exist (measured, docs/qa/backend-efficiency). While scan() runs, the first
+// listing of a folder is kept and handed out again; nobody changes the array
+// they are given. Outside a scan nothing is remembered.
+let scanListings = null;
+const readDir = (dir) => {
   try {
     return fs.readdirSync(dir, { withFileTypes: true });
   } catch {
     return [];
   }
+};
+const listDir = (dir) => {
+  if (!scanListings) return readDir(dir);
+  let hit = scanListings.get(dir);
+  if (!hit) {
+    hit = readDir(dir);
+    scanListings.set(dir, hit);
+  }
+  return hit;
 };
 
 const statSafe = (p) => {
@@ -635,8 +653,13 @@ const mergeDuplicateShows = (shows) => {
 const scan = () => {
   registry.clear();
   byPath.clear();
-  index.movies = scanMovies();
-  index.shows = scanShows();
+  scanListings = new Map();
+  try {
+    index.movies = scanMovies();
+    index.shows = scanShows();
+  } finally {
+    scanListings = null;
+  }
   index.scannedAt = Date.now();
   events.emit("scanned");
   return index;
