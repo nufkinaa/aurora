@@ -790,8 +790,13 @@ const startProducer = (dir, job, input, fromSeg) => {
   const start = job.table[fromSeg].start;
   const args = producerArgs(run, input, fromSeg > 0 ? start : null);
   const proc = require("../lib/children").track(spawn(config.FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true }), "jit");
-  // An encoder yields the CPU to the server itself (as remux.js does).
-  if (input.enc) { try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {} }
+  // An encoder yields the CPU to the server itself (as remux.js does) — and
+  // is somebody watching: background work stands back while it runs
+  // (cpuwork.js). A copy producer is the disk's speed and is neither.
+  if (input.enc) {
+    try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
+    try { require("./cpuwork").viewer.track(proc, { kind: "ladder", label: path.basename(dir), cost: input.enc.cost, memMb: input.enc.memMb }); } catch {}
+  }
   let errTail = "";
   eachLine(proc.stderr, (line) => {
     const open = parseOpenLine(line);

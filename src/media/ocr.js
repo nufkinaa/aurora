@@ -40,6 +40,13 @@ const processQueue = () => {
   queued.delete(job.videoPath);
   running = job.videoPath;
 
+  // Background work (cpuwork.js): it waits while somebody's stream is being
+  // encoded, and runs at the lowest priority (its tesseract and ffmpeg
+  // children inherit that).
+  require("./cpuwork").background.gate("ocr", { label: job.displayName }).then((place) => runJob(job, place));
+};
+
+const runJob = (job, place) => {
   console.log(`Auto-OCR: generating subtitles for ${job.displayName}...`);
   events.emit("job", { status: "started", name: job.displayName });
 
@@ -48,6 +55,7 @@ const processQueue = () => {
     windowsHide: true,
   });
   require("../lib/children").track(proc, "ocr");
+  place.attach(proc);
 
   let output = "";
   proc.stdout.on("data", (d) => (output += d.toString()));

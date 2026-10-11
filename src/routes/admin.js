@@ -324,6 +324,9 @@ router.get("/api/admin/health", (req, res) => {
   try { load.kept = { ...require("../lib/answermemo").stats }; } catch {}
   try { load.heavy = require("../lib/admission").heavy.status(); } catch {}
   try { load.broadcasts = { ...realtime._internals.coalesced }; } catch {}
+  // who the CPU is working for: viewer encodes, and the background work
+  // standing behind them (media/cpuwork.js)
+  try { load.cpu = require("../media/cpuwork").status(); } catch {}
   res.json({ ...require("../lib/watchdog").status(), load });
 });
 router.post("/api/admin/heal", (req, res) => {

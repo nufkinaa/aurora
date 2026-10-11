@@ -475,6 +475,8 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
     { stdio: [seeking ? "ignore" : "pipe", "ignore", "pipe"], windowsHide: true }
   );
   deprioritize(proc);
+  // a re-encode is somebody watching: background work stands back (cpuwork.js)
+  if (vcodec !== "copy") { try { require("./cpuwork").viewer.track(proc, { kind: "torrent-transcode", label: file && file.name ? String(file.name).slice(0, 60) : infoHash }); } catch {} }
 
   let rs = null;
   let inputBytes = 0; // how much of the file actually reached ffmpeg

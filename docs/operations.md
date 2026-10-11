@@ -329,3 +329,38 @@ The counters are in `GET /api/admin/health` under `load`.
   (sent just before a planned restart, then the socket closes with code 1012)
   wait `retryInMs` plus a random 0–3 s before the first try, and do not show
   "can't reach the server" for the first few tries.
+
+# Background work and the people watching
+
+Some of the server's ffmpeg work is for somebody watching right now (a
+transcode, a rendition of the quality ladder). The rest is not: the
+play-ready copy made after a download, a phone copy, intro and credits
+detection, subtitle OCR, speed calibrations. (The tiny blurred placeholders a page load asks for are left alone: they are a few milliseconds each and somebody is looking.)
+
+Background work now always gives way (`src/media/cpuwork.js`):
+
+- it runs at the **lowest priority** the OS has (Windows: the idle class;
+  Linux: nice 19 and the idle I/O class), one step under the viewers' own
+  encoders;
+- a background encode uses **half the machine's threads** at most;
+- it **does not start** while a viewer's stream is being encoded, nor for 20
+  seconds after the last one ended;
+- one that is already running when a viewer encode starts is **paused** on
+  Linux and macOS (SIGSTOP, continued after the quiet period). Windows cannot
+  suspend another process without native code: there the idle priority class
+  does the yielding — the copy only gets cores nobody else wants;
+- background jobs are counted against one small budget, so a play-ready copy,
+  OCR and intro detection do not all run together;
+- if the viewers' encoders fall behind real time all the same, the newest
+  background encode is stopped and put back in its queue.
+
+What a person may notice: a play-ready copy or a phone copy takes longer than
+before when the server is busy (it used to take every core at normal
+priority), and waits while somebody's stream is being transcoded. A copy a
+person asked for goes ahead of the copies made in advance. What is running
+for whom is in `GET /api/admin/health` under `load.cpu`.
+
+Measured on 8 logical CPUs of the development PC (a 1080p HEVC → H.264 viewer
+encode beside a 4K play-ready copy, three rounds): beside the copy as it used
+to run, the viewer's encoder made 1.5–1.8× real time (0.8× in one round);
+with the rules above 4.0–4.4×, the same as with no copy running at all.

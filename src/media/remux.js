@@ -462,6 +462,8 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   // Keep node responsive: ffmpeg yields CPU to the server under contention.
   require("../lib/children").track(proc, "remux");
   try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
+  // a re-encode is somebody watching: background work stands back (cpuwork.js)
+  if (heavy) { try { require("./cpuwork").viewer.track(proc, { kind: "transcode", label: path.basename(videoPath) }); } catch {} }
 
   let stderr = "";
   proc.stderr.on("data", (d) => (stderr += d.toString()));
