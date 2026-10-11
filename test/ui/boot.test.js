@@ -85,7 +85,8 @@ const record = async (page) => {
 // refused request by its shape)
 const reportedAboutBoot = (page) => page.evaluate(async () => {
   const tel = await import("/js/telemetry.js");
-  return [...tel._state.book.items.values()].map((i) => `${i.k || i.kind} ${i.m || i.msg || ""}`).filter((s) => /\/api\/(me|server-info|profiles|home)/.test(s));
+  // every kind of fault this page has counted, sent or not: "kind|message|where|status"
+  return [...tel._state.book.seen].filter((s) => /\/api\/(me|server-info|profiles|home)/.test(s));
 });
 
 ui.test("sign-in required, a first visit: the sign-in screen, and nothing was asked that it could not answer", {

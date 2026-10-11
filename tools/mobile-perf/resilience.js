@@ -104,10 +104,16 @@ const main = async () => {
       const { page, errors } = await fresh();
       await rule(page, (r) => /\/api\/profiles\/[^/]+\/state/.test(r.url()));
       await page.goto(`${origin}/#/`, { waitUntil: "domcontentloaded" });
-      await sleep(20000);
+      await sleep(15000);
       const seen = await see(page);
-      await shot(page, "state-stalls-20s");
-      out["state-stalls"] = { after20s: seen, note: "boot awaits the watch state before the first screen", errors };
+      await shot(page, "state-stalls-15s");
+      // (the page gives up on the history read 20 s after asking — js/api.js)
+      await sleep(15000);
+      const later = await see(page);
+      await shot(page, "state-stalls-30s");
+      // what the player goes by before it saves progress: is the history known?
+      const historyOf = await page.evaluate(async () => { try { return (await import("/js/state.js")).state.historyOf; } catch (e) { return `? ${e.message}`; } });
+      out["state-stalls"] = { after15s: seen, after30s: later, historyKnownTo: historyOf, note: "boot awaits the watch state before the first screen", errors };
       await page.close();
     }
     { // ---- pictures-fail

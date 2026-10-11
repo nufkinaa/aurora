@@ -37,45 +37,140 @@ const takeEarly = (url, options) => {
     const hit = store[key];
     if (!hit) return null;
     delete store[key];
-    return performance.now() - hit.at <= EARLY_MAX_AGE_MS ? hit.res : null;
+    return performance.now() - hit.at <= EARLY_MAX_AGE_MS ? hit : null;
   } catch {
     return null;
   }
 };
 
+// ---- how long a request may take ----
+// Nothing here used to give up: a server that accepted a request and then
+// said nothing left Home on its skeleton for as long as the browser cared to
+// wait (minutes), and a history read that never answered left the page blank,
+// because boot waits for it. Now a request that has not begun to answer in
+// time fails like any request that fails — into the screen's own "couldn't
+// load / Try again", and for the history into "could not be read", which is
+// what the player's refusal to save over an unread history keys on
+// (state.js refreshProgress, player.js).
+// The limit is for the FIRST BYTE. An answer that has started may take as
+// long as it takes while bytes keep coming; only a silence ends it. (The TV
+// app's rule and numbers — tv-native/src/api.ts — where a fixed limit on the
+// whole answer was measured turning a slow line into "the server took too
+// long" on every list.) Generous on purpose: a slow answer that is still
+// coming is not a dead one.
+//   what boot waits for before it can draw anything      20 s
+//   reads                                                45 s
+//   the calls that think, and the big lists              90 s
+//   writes                                               30 s
+//   a file on its way up (an avatar)                     no limit
+const IDLE_MS = 30000;
+const BOOT_PATHS = /^\/api\/(me|server-info|profiles|profiles\/[^/]+\/state)$/;
+const BIG_PATHS = /^\/api\/(ai\/|torrents\/sources|discover\/(search|catalog)|catalog|xray|library|browse|search|person\/)/;
+export const requestLimitMs = (url, options = {}) => {
+  if (options.body != null && typeof options.body !== "string") return 0;
+  const path = String(url).split("?")[0];
+  if (BIG_PATHS.test(path)) return 90000;
+  if (BOOT_PATHS.test(path)) return 20000;
+  return String(options.method || "GET").toUpperCase() === "GET" ? 45000 : 30000;
+};
+// What a caller catches. Not an AbortError: that name means "the caller gave
+// up" and is passed over in silence everywhere (the error reports included —
+// this one is counted, as a request that got no answer).
+const tooSlow = (url, why = "The server took too long to answer") => {
+  const err = new Error(why);
+  err.name = "TimeoutError";
+  err.timeout = true;
+  err.url = url;
+  return err;
+};
+// `p`, or a TimeoutError after `ms` (0: no limit).
+const within = (p, ms, url, why) => {
+  if (!(ms > 0)) return p;
+  let timer = 0;
+  const late = new Promise((_, reject) => { timer = setTimeout(() => reject(tooSlow(url, why)), ms); });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+};
+// The answer's text, given up on only when the line goes quiet for IDLE_MS.
+const readText = async (res, url, giveUp = null) => {
+  const quiet = "The connection went quiet";
+  const fail = (err) => { if (err && err.timeout && giveUp) { try { giveUp(err); } catch {} } throw err; };
+  // (no readable stream to watch — an old browser, a stubbed answer: the whole text, on a longer leash)
+  if (!res.body || typeof res.body.getReader !== "function") return within(res.text(), IDLE_MS * 2, url, quiet).catch(fail);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  try {
+    for (;;) {
+      const { done, value } = await within(reader.read(), IDLE_MS, url, quiet);
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+    }
+    return text + decoder.decode();
+  } catch (err) {
+    try { reader.cancel().catch(() => {}); } catch {}
+    return fail(err);
+  }
+};
+
 const json = async (url, options = {}, attempt = 0) => {
   let res = null;
+  const limit = requestLimitMs(url, options);
   const early = attempt === 0 ? takeEarly(url, options) : null;
   if (early) {
+    let r = null;
     try {
-      const r = await early;
-      if (r && r.ok) res = r;
-    } catch {}
-  }
-  if (!res) try {
-    res = await fetch(url, { ...options, headers: withBlur(options, withToken(options.headers)) });
-  } catch (err) {
-    // the caller gave up on this one (a newer search replaced it): not a blip
-    if (err && err.name === "AbortError") throw err;
-    // A network blip (flaky wifi, server restarting). GETs are idempotent —
-    // retry twice with a breath between instead of failing the screen.
-    // HTTP error statuses are NOT retried here: some are meaningful signals
-    // (the transcode probe's 504 means "not ready", not "try again").
-    const method = (options.method || "GET").toUpperCase();
-    // (two retries, ~1.2s in all — a dead server used to take 2.5s to admit)
-    if (method === "GET" && attempt < 2) {
-      await new Promise((r) => setTimeout(r, 350 * (attempt + 1) + Math.random() * 150));
-      return json(url, options, attempt + 1);
+      // (its time started when the page asked, not now)
+      r = await within(early.res, limit ? Math.max(1, limit - (performance.now() - early.at)) : 0, url);
+    } catch (err) {
+      // it has had its time: the same end as the ordinary request below,
+      // not a second wait of the same length. Any other failure is asked again.
+      if (err && err.timeout) throw err;
     }
-    throw err;
+    if (r && r.ok) res = r;
   }
+  // One switch ends the request, whoever pulls it: the caller's own signal
+  // (a newer search replaced this one), the first-byte limit, or an answer
+  // that went quiet half-way.
+  const ctrl = !res && typeof AbortController === "function" ? new AbortController() : null;
+  let late = null;
+  if (!res) {
+    const outer = options.signal;
+    if (ctrl && outer) {
+      if (outer.aborted) ctrl.abort();
+      else outer.addEventListener("abort", () => ctrl.abort(), { once: true });
+    }
+    const timer = ctrl && limit ? setTimeout(() => { late = tooSlow(url); ctrl.abort(late); }, limit) : 0;
+    try {
+      res = await fetch(url, { ...options, ...(ctrl ? { signal: ctrl.signal } : {}), headers: withBlur(options, withToken(options.headers)) });
+    } catch (err) {
+      // the limit: no second try — the screen's own "Try again" is the retry
+      if (late) throw late;
+      // the caller gave up on this one (a newer search replaced it): not a blip
+      if (err && err.name === "AbortError") throw err;
+      // A network blip (flaky wifi, server restarting). GETs are idempotent —
+      // retry twice with a breath between instead of failing the screen.
+      // HTTP error statuses are NOT retried here: some are meaningful signals
+      // (the transcode probe's 504 means "not ready", not "try again").
+      const method = (options.method || "GET").toUpperCase();
+      // (two retries, ~1.2s in all — a dead server used to take 2.5s to admit)
+      if (method === "GET" && attempt < 2) {
+        clearTimeout(timer);
+        await new Promise((r) => setTimeout(r, 350 * (attempt + 1) + Math.random() * 150));
+        return json(url, options, attempt + 1);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  const giveUp = ctrl ? (err) => ctrl.abort(err) : null;
   if (!res.ok) {
     // Surface the server's own `error` when it sent one: routes reject with a
     // message written for the viewer ("that name is already taken"), which is
     // far more use than "400 /api/profiles". Falls back to the status line.
     let msg = "";
     let body = null;
-    try { body = await res.json(); msg = (body && body.error) || ""; } catch {}
+    try { body = JSON.parse(await readText(res, url, giveUp)); msg = (body && body.error) || ""; } catch {}
     const err = new Error(msg || `${res.status} ${url}`);
     // the status, and the one flag a caller acts on: "ask for the household PIN"
     err.status = res.status;
@@ -110,7 +205,7 @@ const json = async (url, options = {}, attempt = 0) => {
   }
   // the tiny pictures that ride beside an answer go to blur.js; the screen
   // gets the answer it always got
-  return takeBlur(await res.json());
+  return takeBlur(JSON.parse(await readText(res, url, giveUp)));
 };
 
 let changelogP = null;
