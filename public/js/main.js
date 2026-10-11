@@ -757,6 +757,10 @@ const boot = async () => {
     }
     booted = true;
     if (state.authMode === "closed" && !state.user) {
+      // No sign-in on a server that requires one: until somebody is in again
+      // the next load asks nothing early as the remembered profile (it would
+      // only be refused — index.html; setProfile says when it may again).
+      try { localStorage.removeItem("aurora-early"); } catch {}
       const res = await showLoginScreen();
       state.user = (res && res.user) || null;
       if (res && res.profile) loginEntry = res;

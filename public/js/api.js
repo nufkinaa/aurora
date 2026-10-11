@@ -23,8 +23,17 @@ const EARLY_MAX_AGE_MS = 15000;
 const takeEarly = (url, options) => {
   try {
     const store = window.__auroraEarly;
-    if (!store || options.method || options.headers || options.body || options.priority) return null;
-    const key = `${url}|${authToken || ""}`;
+    if (!store || options.method || options.body || options.priority || options.signal) return null;
+    // The one call that names its own token: boot's "who am I", asked with
+    // the remembered profile's unlock token before any profile is active
+    // (api.me). The early one went out with the same token, or with none.
+    let token = authToken || "";
+    if (options.headers) {
+      const names = Object.keys(options.headers);
+      if (names.length !== 1 || names[0] !== "X-Profile-Token") return null;
+      token = options.headers["X-Profile-Token"] || "";
+    }
+    const key = `${url}|${token}`;
     const hit = store[key];
     if (!hit) return null;
     delete store[key];

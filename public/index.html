@@ -69,31 +69,43 @@
          aurora-early      how the remembered profile is entered (state.js):
                            "open" — no password; "token" — with this tab's
                            unlock token; absent (a kids profile, a locked
-                           one, nobody yet) — the door decides, nothing early.
-       Home is asked for only when Home is the page being opened. -->
+                           one, nobody yet, or a tab that has just learned
+                           its sign-in is gone — session.js, main.js) — the
+                           door decides, nothing early.
+       Home is asked for only when Home is the page being opened.
+       "Who am I" goes out with the remembered profile's unlock token, as
+       boot asks it (that is how a profile that owes a new password is told
+       apart). Every one of these says it is early (X-Early): the server
+       must not read a question asked before the page knows who it is as a
+       decision — for a profile that owes a new password, asking for the
+       wall's list means "this device has left" and ends its sign-in
+       (src/lib/resetgate.js); an early one is refused instead, like any
+       other request made as that profile, and boot asks again in its turn. -->
   <script>
     (() => {
       try {
         const store = (window.__auroraEarly = {});
         const ask = (url, token) => {
-          const headers = { "X-Blur": "1" };
+          const headers = { "X-Blur": "1", "X-Early": "1" };
           if (token) headers["X-Profile-Token"] = token;
           const res = fetch(url, { headers });
           res.catch(() => {});
           store[url + "|" + (token || "")] = { at: performance.now(), res };
         };
-        ask("/api/me");
-        ask("/api/server-info");
         const mode = localStorage.getItem("aurora-authmode");
         const how = localStorage.getItem("aurora-early");
         const id = localStorage.getItem("aurora-profile");
-        const known = !!id && /^[A-Za-z0-9_-]{1,40}$/.test(id) && (how === "open" || how === "token");
+        const named = !!id && /^[A-Za-z0-9_-]{1,40}$/.test(id);
+        let mine = null;
+        if (named) {
+          try { mine = sessionStorage.getItem("aurora-token-" + id); } catch {}
+        }
+        ask("/api/me", mine);
+        ask("/api/server-info");
+        const known = named && (how === "open" || how === "token");
         if (mode === "open" || mode === "transition" || (mode === "closed" && known)) ask("/api/profiles");
         if (known && mode) {
-          let token = null;
-          if (how === "token") {
-            try { token = sessionStorage.getItem("aurora-token-" + id); } catch {}
-          }
+          const token = how === "token" ? mine : null;
           if (how === "open" || token) {
             ask("/api/profiles/" + id + "/state", token);
             if (!location.hash || location.hash === "#/") ask("/api/home?profile=" + encodeURIComponent(id), token);
@@ -130,33 +142,10 @@
        full round trip. Declaring them here starts them all at once.
        THE SERVER WRITES THIS LIST when it serves the page (src/lib/assetver.js
        walks main.js's static imports, and adds the import map that gives
-       every module its cacheable address): the lines below are replaced and
-       only stand in if that rewrite cannot be made. Kept by hand they had
-       fallen four modules behind. -->
-  <link rel="modulepreload" href="/js/main.js" />
-  <link rel="modulepreload" href="/js/focus.js" />
-  <link rel="modulepreload" href="/js/ui.js" />
-  <link rel="modulepreload" href="/js/router.js" />
-  <link rel="modulepreload" href="/js/state.js" />
-  <link rel="modulepreload" href="/js/api.js" />
-  <link rel="modulepreload" href="/js/ws.js" />
-  <link rel="modulepreload" href="/js/screens/home.js" />
-  <link rel="modulepreload" href="/js/components.js" />
-  <link rel="modulepreload" href="/js/rowArrows.js" />
-  <link rel="modulepreload" href="/js/narrator.js" />
-  <link rel="modulepreload" href="/js/peek.js" />
-  <link rel="modulepreload" href="/js/usage.js" />
-  <link rel="modulepreload" href="/js/prefetch.js" />
-  <link rel="modulepreload" href="/js/heroTrailer.js" />
-  <link rel="modulepreload" href="/js/screens/profiles.js" />
-  <link rel="modulepreload" href="/js/claim.js" />
-  <link rel="modulepreload" href="/js/screens/login.js" />
-  <link rel="modulepreload" href="/js/aurora-sky.js" />
-  <link rel="modulepreload" href="/js/google.js" />
-  <link rel="modulepreload" href="/js/screens/shortcuts.js" />
-  <link rel="modulepreload" href="/js/report.js" />
-  <link rel="modulepreload" href="/js/aurora.js" />
-  <link rel="modulepreload" href="/js/screensaver.js" />
+       every module its cacheable address) — ahead of the stylesheet above.
+       Nothing is listed here: a list kept by hand had fallen four modules
+       behind, and a page served without the rewrite simply loads as the
+       import tree unfolds. -->
 </head>
 <body>
   <!-- the glass look's sky: a full-viewport aurora behind every page (js/aurora-sky.js) -->

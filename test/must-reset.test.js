@@ -694,3 +694,43 @@ test("the TV's pairing poll hands a must-reset profile a restricted session, and
     isResetRefusal(await srv.call("GET", "/api/library", null, { "X-Session": got.body.session }), "p-cat", "the paired TV");
   });
 });
+
+// The website asks its first questions from the page itself, before its code
+// has run (public/index.html) — the wall's list among them. For a profile
+// that owes a new password that list is otherwise "this device has left".
+test("a question the page asked early (X-Early) is not a decision to leave: refused, and the sign-in the new password will be saved with is still there", async () => {
+  await withServer("closed", async (srv) => {
+    await addProfile("p-eve", { username: "eve", password: "old-pass" });
+    profiles.setMustReset("p-eve", true);
+    const signed = await srv.call("POST", "/api/auth/login", { username: "eve", password: "old-pass" });
+    assert.strictEqual(signed.body.mustReset, true);
+    const C = cookieOf(signed.body.session);
+    const EARLY = { "X-Early": "1" };
+    // the browser's cookie alone, then the cookie with the tab's unlock token — what a reload sends
+    for (const h of [{ ...C, ...EARLY }, { ...C, ...EARLY, "X-Profile-Token": signed.body.profileToken }]) {
+      isResetRefusal(await srv.call("GET", "/api/profiles", null, h), "p-eve", "the wall's list, asked early");
+      isResetRefusal(await srv.call("GET", "/api/profiles/p-eve/state", null, h), "p-eve", "the history, asked early");
+      const me = await srv.call("GET", "/api/me", null, h);
+      assert.strictEqual(me.body.passwordResetRequired, true, "who am I still answers, early or not");
+    }
+    assert.ok(sessions.get(signed.body.session), "the session is alive");
+    // ...and the new password is saved with it
+    const saved = await srv.call("POST", "/api/auth/password", { currentPassword: "old-pass", newPassword: "new-pass-1" }, C);
+    assert.equal(saved.status, 200);
+    assert.strictEqual(profiles.resetDue("p-eve"), false);
+  });
+  // the same list asked in boot's own turn (no X-Early) is still the device walking away
+  await withServer("closed", async (srv) => {
+    await addProfile("p-eve", { username: "eve", password: "old-pass" });
+    profiles.setMustReset("p-eve", true);
+    const signed = await srv.call("POST", "/api/auth/login", { username: "eve", password: "old-pass" });
+    await srv.call("GET", "/api/profiles", null, cookieOf(signed.body.session));
+    assert.equal(sessions.get(signed.body.session), null, "unchanged: asked for real, the wall's list ends a must-reset session");
+  });
+  // and to a visitor who owes nothing the header means nothing
+  await withServer("transition", async (srv) => {
+    await addProfile("p-open", {});
+    const r = await srv.call("GET", "/api/profiles", null, { "X-Early": "1" });
+    assert.equal(r.status, 200);
+  });
+});
