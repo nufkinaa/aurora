@@ -33,7 +33,7 @@ const listed = async (api, me) => (await api.get(`/api/profiles/${me.id}/watchli
 const toastSays = (page, re) => page.waitForFunction((src) => new RegExp(src).test(document.getElementById("toasts").innerText), re.source);
 const openXrayOnFilm = async ({ page, goto, lib }) => {
   await goto(`#/movie/${lib.film1.id}`);
-  await page.locator(".detail-actions .btn-xray").click();
+  await page.locator(".detail-actions .btn-xray").last().click();
   await page.locator('.xray-panel .xr-person:has(.xr-name:text-is("Nora Chris"))').first().waitFor();
 };
 const pressPerson = (page, name, role) =>
@@ -174,9 +174,10 @@ ui.test("Details opens the title's page (button, the I key, a right-click) — a
   const backToSheet = async () => {
     await page.goBack();
     await there(from);
-    await page.locator(".detail-actions .btn-xray").waitFor();
+    // (the page being left can still be in the document while it fades: the newest one)
+    await page.locator(".detail-actions .btn-xray").last().waitFor();
     await page.locator(".person-wrap").waitFor({ state: "detached" }); // (it fades for a fifth of a second)
-    if (!(await page.locator(".xray-panel").count())) await page.locator(".detail-actions .btn-xray").click();
+    if (!(await page.locator(".xray-panel").count())) await page.locator(".detail-actions .btn-xray").last().click();
     await pressPerson(page, "Nora Chris", "Director");
     await page.locator(`${sheet} .person-section`).first().waitFor();
   };
@@ -275,7 +276,7 @@ ui.test("phone: the sheet rises over X-Ray's own sheet, fits the screen, and the
   await pictures(page);
   const hash = `#/movie/${lib.film1.id}`;
   await goto(hash);
-  await page.locator(".detail-actions .btn-xray").click();
+  await page.locator(".detail-actions .btn-xray").last().click();
   await page.locator(".xray-sheet-page.in").waitFor();
   await page.locator('.xray-sheet-page .xr-person:has(.xr-name:text-is("Nora Chris"))').first().tap();
   await page.locator(`${sheet} .person-section`).first().waitFor();

@@ -25,12 +25,21 @@ const index = {
   enriched: false,
 };
 
-const makeId = (kind, relPath) =>
-  crypto
-    .createHash("md5")
-    .update(`${kind}|${relPath}`)
-    .digest("hex")
-    .slice(0, 12);
+// An id is a pure function of (kind, path), and a scan asks for the same
+// ones every ten minutes: remembered, so a rescan hashes only what is new.
+// (Bounded: forgotten wholesale long before it could matter.)
+const idMemo = new Map();
+const ID_MEMO_MAX = 200000;
+const makeId = (kind, relPath) => {
+  const key = `${kind}|${relPath}`;
+  let id = idMemo.get(key);
+  if (id === undefined) {
+    id = crypto.createHash("md5").update(key).digest("hex").slice(0, 12);
+    if (idMemo.size >= ID_MEMO_MAX) idMemo.clear();
+    idMemo.set(key, id);
+  }
+  return id;
+};
 
 const byPath = new Map(); // absPath -> id (the downloads queue asks "what did my file become?")
 const register = (kind, absPath, relPath) => {
@@ -44,8 +53,10 @@ const register = (kind, absPath, relPath) => {
 // exactly, so callers pass the same absolute path the scanner walked.
 const idForPath = (absPath) => byPath.get(absPath) || null;
 
-const naturalCompare = (a, b) =>
-  a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+// (One collator for every comparison: a.localeCompare(b, undefined, options)
+// is defined as exactly this compare, minus setting the collator up per call.)
+const naturalCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+const naturalCompare = (a, b) => naturalCollator.compare(a, b);
 
 // A multi-dub file's audio streams, for the player's audio menu — only when
 // there is a choice to make (one track = nothing to list).
@@ -146,12 +157,30 @@ const seasonFromFolder = (relDir) => {
 
 // ---------- folder helpers ----------
 
-const listDir = (dir) => {
+// One listing per folder per scan. A scan asked for the same folder again
+// and again: a film's folder three times (its videos, its cover, its
+// subtitles), a season's folder once per EPISODE (each episode lists the
+// folder to find its own subtitle files) and the show's folder once per
+// episode on top — 5,042 directory reads for 1,800 files where 1,382 folders
+// exist (measured, docs/qa/backend-efficiency). While scan() runs, the first
+// listing of a folder is kept and handed out again; nobody changes the array
+// they are given. Outside a scan nothing is remembered.
+let scanListings = null;
+const readDir = (dir) => {
   try {
     return fs.readdirSync(dir, { withFileTypes: true });
   } catch {
     return [];
   }
+};
+const listDir = (dir) => {
+  if (!scanListings) return readDir(dir);
+  let hit = scanListings.get(dir);
+  if (!hit) {
+    hit = readDir(dir);
+    scanListings.set(dir, hit);
+  }
+  return hit;
 };
 
 const statSafe = (p) => {
@@ -635,8 +664,13 @@ const mergeDuplicateShows = (shows) => {
 const scan = () => {
   registry.clear();
   byPath.clear();
-  index.movies = scanMovies();
-  index.shows = scanShows();
+  scanListings = new Map();
+  try {
+    index.movies = scanMovies();
+    index.shows = scanShows();
+  } finally {
+    scanListings = null;
+  }
   index.scannedAt = Date.now();
   events.emit("scanned");
   return index;
@@ -677,15 +711,23 @@ const enrich = () => {
         scan(); // rebuild index with the new metadata
         events.emit("updated");
       }
+      // "enriched" says what this pass found: how many files it probed, and
+      // whether this is the first pass to finish since the server started.
+      // A pass with neither changed nothing anybody is looking at — and one
+      // runs every ten minutes (server.js): listeners that make every device
+      // ask again (enrichedChanged below) must not do so for it.
+      const first = !index.enriched;
       index.enriched = true;
-      events.emit("enriched");
+      events.emit("enriched", { probed: paths.length, first });
       return;
     }
     const p = paths[i++];
-    try {
-      metadata.probe(p);
-    } catch {}
-    setImmediate(step); // keep the event loop breathing between probes
+    // One file at a time, as before — but waited for, not blocked on
+    // (metadata.probeAsync): requests are answered while ffprobe runs.
+    metadata
+      .probeAsync(p)
+      .catch(() => {})
+      .then(() => setImmediate(step));
   };
   step();
 };
@@ -710,20 +752,52 @@ const bitmapOnlyVideos = () => {
   return result;
 };
 
+// Did an "enriched" pass change what clients have? (No info at all — an
+// emitter from before the info existed — counts as yes.)
+const enrichedChanged = (info) => !info || info.probed > 0 || !!info.first;
+
 const allItems = () => [...index.movies, ...index.shows];
 
-const findById = (id) => {
-  for (const m of index.movies) if (m.id === id) return m;
+// id -> the film, the show, or the episode with its show. findById used to
+// walk the whole library for every id: every film, then every show and each
+// of its episodes — and an id that is not in the library at all (a streamed
+// title's `torrent|…` key, which is what most of a watch history is made of)
+// walked ALL of it before answering null. Home asks about every row of a
+// profile's history, so one Home request made about 3,000 of those walks over
+// 1,860 entries (measured, docs/qa/backend-efficiency: 575 ms of CPU a
+// request on a two-core box). The map is built on first use after a scan
+// and answers what the walk answered: the first match in the same order
+// (films, then each show followed by its own episodes).
+let lookup = null;
+let lookupOf = { movies: null, shows: null, nMovies: -1, nShows: -1 };
+const lookupMap = () => {
+  if (
+    lookup && lookupOf.movies === index.movies && lookupOf.shows === index.shows &&
+    lookupOf.nMovies === index.movies.length && lookupOf.nShows === index.shows.length
+  ) return lookup;
+  const map = new Map();
+  for (const m of index.movies) if (m && !map.has(m.id)) map.set(m.id, { item: m });
   for (const s of index.shows) {
-    if (s.id === id) return s;
-    for (const season of s.seasons) {
-      for (const ep of season.episodes) {
-        if (ep.id === id)
-          return { ...ep, showId: s.id, showTitle: s.title, cover: s.cover };
+    if (!s) continue;
+    if (!map.has(s.id)) map.set(s.id, { item: s });
+    for (const season of s.seasons || []) {
+      for (const ep of (season && season.episodes) || []) {
+        if (ep && !map.has(ep.id)) map.set(ep.id, { ep, show: s });
       }
     }
   }
-  return null;
+  lookup = map;
+  lookupOf = { movies: index.movies, shows: index.shows, nMovies: index.movies.length, nShows: index.shows.length };
+  return map;
+};
+
+const findById = (id) => {
+  const hit = lookupMap().get(id);
+  if (!hit) return null;
+  if (hit.item) return hit.item;
+  // an episode: a fresh object every time, as before (callers add to it)
+  const s = hit.show;
+  return { ...hit.ep, showId: s.id, showTitle: s.title, cover: s.cover };
 };
 
 const resolve = (id) => registry.get(id) || null;
@@ -734,6 +808,7 @@ module.exports = {
   scan,
   enrich,
   isEnriching: () => enriching,
+  enrichedChanged,
   resolve,
   idForPath,
   findById,
@@ -743,5 +818,5 @@ module.exports = {
   subtitleDownloadName,
   // Test-only: folding "<Title>" and "<Title> (<Year>)" folders into one entry
   // must never drop an episode or renumber a season.
-  _internals: { mergeDuplicateShows, uniqueLabels },
+  _internals: { mergeDuplicateShows, uniqueLabels, naturalCompare },
 };

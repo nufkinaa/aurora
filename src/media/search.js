@@ -67,6 +67,12 @@ const config = require("../config");
 const scanner = require("./scanner");
 const discover = require("./discover");
 const { JsonStore } = require("../lib/jsonstore");
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+const lazy = require("../lib/lazy");
+const identityLib = lazy(require, "./identity");
+const wellknownLib = lazy(require, "./wellknown");
+const similarLib = lazy(require, "./similar");
 const { norm: baseNorm } = require("./searchindex")._internals;
 
 // ---------- normalisation ----------
@@ -481,10 +487,10 @@ let src = {
   stamp: () => scanner.index.scannedAt,
   libraryItems: () => scanner.allItems(),
   imdbIdFor: (item) => {
-    try { return require("./identity").imdbIdFor(item); } catch { return null; }
+    try { return identityLib().imdbIdFor(item); } catch { return null; }
   },
   markLibrary: (items) => {
-    try { return require("./identity").markLibrary(items); } catch { return items; }
+    try { return identityLib().markLibrary(items); } catch { return items; }
   },
   trending: () => discover.trendingCached(),
   // titles the live catalogue named in earlier searches (kept on disk)
@@ -521,8 +527,8 @@ let src = {
     return out;
   },
   // the catalogue's most popular titles, kept on disk (media/wellknown.js)
-  knownTitles: () => require("./wellknown").all(),
-  knownStamp: () => require("./wellknown").stamp(),
+  knownTitles: () => wellknownLib().all(),
+  knownStamp: () => wellknownLib().stamp(),
   // the recommender's title index (media/recs/titleindex.js): full records only
   recTitles: () => {
     const out = [];
@@ -539,10 +545,10 @@ let src = {
   },
   liveCached: (q) => discover.searchCached(q),
   live: (q) => discover.search(q),
-  similarCached: (type, imdbId) => require("./similar").similarCached(type === "show" ? "series" : "movie", imdbId),
-  collectionCached: (imdbId) => require("./similar").collectionCached(imdbId),
+  similarCached: (type, imdbId) => similarLib().similarCached(type === "show" ? "series" : "movie", imdbId),
+  collectionCached: (imdbId) => similarLib().collectionCached(imdbId),
   canFetchSimilar: () => !!config.TMDB_KEY,
-  similarFetch: async (type, imdbId) => (await require("./similar").similar(type === "show" ? "series" : "movie", imdbId)).items || [],
+  similarFetch: async (type, imdbId) => (await similarLib().similar(type === "show" ? "series" : "movie", imdbId)).items || [],
   canFetchPeople: () => !!config.TMDB_KEY,
   personFetch: (name) => tmdbPerson(name),
   remember: (items) => rememberSeen(items),
@@ -980,7 +986,7 @@ const tmdbPerson = async (name) => {
   if (personMiss.has(key) && Date.now() - personMiss.get(key) < 6 * 3600 * 1000) return null;
   if (personInFlight.has(key)) return personInFlight.get(key);
   const p = (async () => {
-    const { tmdb, addImdbIds, mapItems } = require("./similar");
+    const { tmdb, addImdbIds, mapItems } = similarLib();
     const found = ((await tmdb("search/person", `&query=${encodeURIComponent(name)}`)).results || [])
       .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
     const qv = mkView(key.split(" "));

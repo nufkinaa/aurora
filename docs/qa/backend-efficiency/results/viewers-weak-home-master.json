@@ -1,0 +1,50 @@
+{
+  "at": "2026-10-11T02:35:54.797Z",
+  "ref": "master",
+  "weak": true,
+  "minutes": 3,
+  "household": "grown (8 profiles, up to 1,500 rows)",
+  "storeSizes": {
+    "profiles.json": 3817764,
+    "watch-sessions.json": 771164,
+    "telemetry-hours.json": 239761,
+    "sessions.json": 19457,
+    "watch-history.json": 71201
+  },
+  "runs": [
+    {
+      "viewers": 5,
+      "progressOk": 180,
+      "progressFailed": 0,
+      "perViewerHour": {
+        "mbWritten": 0.1,
+        "fileRewrites": 360,
+        "storeSaveBlockedSec": 23.11,
+        "cpuSeconds": 35.94
+      },
+      "wholeServer": {
+        "storeSavesPerHour": 3240,
+        "storeSaveBlockedSecPerHour": 115.53,
+        "longestSaveMs": 589.91,
+        "loopBlockedPercent": 3.21,
+        "loopDelayP99Ms": 31.5,
+        "loopDelayMaxMs": 590.9,
+        "cpuPercentOfOneCore": 4.84
+      },
+      "home": {
+        "requests": 43,
+        "p50Ms": 5,
+        "p90Ms": 226,
+        "maxMs": 248
+      },
+      "files": [
+        {
+          "file": "data/usage/events-2026-10.jsonl",
+          "rewritesPerViewerHour": 360,
+          "mbPerViewerHour": 0.1,
+          "bytesEach": 205
+        }
+      ]
+    }
+  ]
+}

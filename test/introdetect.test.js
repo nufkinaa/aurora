@@ -172,3 +172,67 @@ test("the cooperative fingerprint equals the synchronous one, frame for frame", 
     assert.equal(snapToBlack([], 2), null, "credits over the picture: no opinion");
   });
 }
+
+// ---------- the pass: what is due, "nothing to say" on file, one stat per file ----------
+{
+  const { analysisDue, noneRecord, NONE_RETRY_MS, ANALYSIS_V: V, mtimeOf, mtimeMemoFor } = require("../src/media/introdetect")._internals;
+  const NOW = 1_800_000_000_000;
+
+  test("due: never analysed, a changed file, an older analysis — exactly as before", () => {
+    assert.equal(analysisDue(undefined, 5, NOW), true);
+    assert.equal(analysisDue({ mtime: 4, v: V, intro: null, credits: null, source: "audio" }, 5, NOW), true, "the file changed");
+    assert.equal(analysisDue({ mtime: 5, v: V - 1, intro: { start: 1, end: 2 } }, 5, NOW), true, "an older analysis version");
+    assert.equal(analysisDue({ mtime: 5, intro: null, credits: null, source: null, db: {} }, 5, NOW), true, "a record the databases made (no v)");
+    assert.equal(analysisDue({ mtime: 5, v: V, intro: { start: 1, end: 2 }, source: "audio", at: 0 }, 5, NOW), false);
+    assert.equal(analysisDue({ mtime: 5, v: V, intro: null, credits: null, source: "audio", at: 0 }, 5, NOW), false, "analysed, found nothing: settled as before");
+  });
+
+  test("an episode the analysis could say nothing about is on file as such, and tried again after a week", () => {
+    const rec = noneRecord(undefined, 5, NOW);
+    assert.deepEqual(rec, { mtime: 5, at: NOW, v: V, intro: null, credits: null, source: null, none: true });
+    assert.equal(analysisDue(rec, 5, NOW + 60000), false, "not decoded again after the next scan");
+    assert.equal(analysisDue(rec, 5, NOW + NONE_RETRY_MS - 1), false);
+    assert.equal(analysisDue(rec, 5, NOW + NONE_RETRY_MS + 1), true, "a decode can fail for a passing reason");
+    assert.equal(analysisDue(rec, 6, NOW + 60000), true, "or at once when the file changes");
+    // what the databases said about it rides along
+    const db = { at: 1, intro: { start: 3, end: 9 }, source: "skipdb" };
+    assert.deepEqual(noneRecord({ mtime: 5, at: 1, intro: null, credits: null, source: null, db }, 5, NOW).db, db);
+    assert.equal(noneRecord({ mtime: 4, at: 1, intro: null, credits: null, source: null, db }, 5, NOW).db, undefined, "…unless it was about another file");
+  });
+
+  test("an answer already on file for this file is never replaced by 'nothing'", () => {
+    assert.equal(noneRecord({ mtime: 5, v: V - 1, intro: { start: 10, end: 40 }, credits: null, source: "audio" }, 5, NOW), null);
+    assert.equal(noneRecord({ mtime: 5, v: V - 1, intro: null, credits: { start: 1200 }, source: "chapters" }, 5, NOW), null);
+    assert.notEqual(noneRecord({ mtime: 4, v: V, intro: { start: 10, end: 40 }, source: "audio" }, 5, NOW), null, "a changed file starts over");
+  });
+
+  test("the player's answer for such a record is the empty one it always got", () => {
+    const introdetect = require("../src/media/introdetect");
+    const empty = introdetect.get("no-such-episode-id");
+    assert.deepEqual([empty.intro, empty.credits, empty.recap, empty.preview, empty.source], [null, null, null, null, null]);
+  });
+
+  test("inside a run a file's date is read from the disk once; outside, every time", () => {
+    const fs = require("fs");
+    const real = fs.statSync;
+    let stats = 0;
+    fs.statSync = function (...a) { stats++; return real.apply(this, a); };
+    try {
+      const here = __filename;
+      const direct = mtimeOf(here);
+      mtimeOf(here);
+      assert.equal(stats, 2, "no memo outside a run");
+      stats = 0;
+      mtimeMemoFor(() => {
+        assert.equal(mtimeOf(here), direct);
+        assert.equal(mtimeOf(here), direct);
+        assert.equal(mtimeOf("no/such/file.mkv"), 0);
+        assert.equal(mtimeOf("no/such/file.mkv"), 0);
+      });
+      assert.equal(stats, 2, "one read per file, missing files included");
+      stats = 0;
+      mtimeOf(here);
+      assert.equal(stats, 1, "and nothing is remembered once the run is over");
+    } finally { fs.statSync = real; }
+  });
+}

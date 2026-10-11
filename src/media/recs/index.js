@@ -37,13 +37,17 @@ const DAY = 86400000;
 const dayOf = (now) => Math.floor(now / DAY);
 
 // ---------- lazy deps (this module must load in tests without the server) ----------
+// (Each is asked for ONCE, lib/lazy.js: homeRows calls dep.scanner() per id
+// it is handed — 1,736 times for one Home request of a long history, and a
+// require() from inside a function costs 40 µs a call here, not 1.)
+const lazy = require("../../lib/lazy");
 const dep = {
-  scanner: () => require("../scanner"),
-  identity: () => require("../identity"),
-  discover: () => require("../discover"),
-  hero: () => require("../hero"),
-  availability: () => require("../availability"),
-  profiles: () => require("../../profiles"),
+  scanner: lazy(require, "../scanner"),
+  identity: lazy(require, "../identity"),
+  discover: lazy(require, "../discover"),
+  hero: lazy(require, "../hero"),
+  availability: lazy(require, "../availability"),
+  profiles: lazy(require, "../../profiles"),
 };
 
 // ---------- vectors ----------

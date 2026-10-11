@@ -1,0 +1,159 @@
+{
+  "at": "2026-10-10T23:31:22.955Z",
+  "before": "9aa74c8",
+  "after": "fe67937",
+  "weak": true,
+  "rounds": 7,
+  "rows": [
+    {
+      "name": "GET /api/profiles/:id/watchlist",
+      "status": "200/200",
+      "bytesBefore": 3702,
+      "bytesAfter": 3702,
+      "beforeMs": 5.445,
+      "afterMs": 2.658,
+      "change": "-51 %",
+      "beforeMedianMs": 7.575,
+      "afterMedianMs": 2.691,
+      "changeMedian": "-64 %",
+      "beforeRuns": [
+        7.58,
+        8.17,
+        5.7,
+        8.44,
+        6.31,
+        8.18,
+        5.44
+      ],
+      "afterRuns": [
+        2.95,
+        5.17,
+        3.3,
+        2.67,
+        2.69,
+        2.66,
+        2.68
+      ]
+    },
+    {
+      "name": "GET /api/home",
+      "status": "200/200",
+      "bytesBefore": 53995,
+      "bytesAfter": 53995,
+      "beforeMs": 99.715,
+      "afterMs": 55.745,
+      "change": "-44 %",
+      "beforeMedianMs": 108.957,
+      "afterMedianMs": 71.386,
+      "changeMedian": "-34 %",
+      "beforeRuns": [
+        119.65,
+        117.23,
+        107.87,
+        108.96,
+        99.72,
+        114.14,
+        101.85
+      ],
+      "afterRuns": [
+        71.39,
+        85.65,
+        90.32,
+        64,
+        56.81,
+        71.86,
+        55.75
+      ]
+    },
+    {
+      "name": "GET /api/home slim (TV)",
+      "status": "200/200",
+      "bytesBefore": 73481,
+      "bytesAfter": 73481,
+      "beforeMs": 110.294,
+      "afterMs": 68.541,
+      "change": "-38 %",
+      "beforeMedianMs": 134.885,
+      "afterMedianMs": 102.837,
+      "changeMedian": "-24 %",
+      "beforeRuns": [
+        142.33,
+        205.55,
+        182.94,
+        134.89,
+        130.06,
+        110.29,
+        133.28
+      ],
+      "afterRuns": [
+        103.33,
+        102.84,
+        117.14,
+        114.77,
+        68.54,
+        73.47,
+        71.8
+      ]
+    },
+    {
+      "name": "GET /api/search/suggest v2",
+      "status": "200/200",
+      "bytesBefore": 615,
+      "bytesAfter": 615,
+      "beforeMs": 3.284,
+      "afterMs": 3.211,
+      "change": "-2 %",
+      "beforeMedianMs": 4.498,
+      "afterMedianMs": 4.187,
+      "changeMedian": "-7 %",
+      "beforeRuns": [
+        5.71,
+        4.5,
+        4.22,
+        4.5,
+        4.16,
+        5.42,
+        3.28
+      ],
+      "afterRuns": [
+        5.39,
+        4.18,
+        3.21,
+        4.77,
+        4.41,
+        4.12,
+        4.19
+      ]
+    },
+    {
+      "name": "GET /api/search v2",
+      "status": "200/200",
+      "bytesBefore": 1758,
+      "bytesAfter": 1756,
+      "beforeMs": 16.461,
+      "afterMs": 9.931,
+      "change": "-40 %",
+      "beforeMedianMs": 28.083,
+      "afterMedianMs": 15.379,
+      "changeMedian": "-45 %",
+      "beforeRuns": [
+        22.42,
+        16.46,
+        29.71,
+        40.51,
+        28.08,
+        28.94,
+        27.59
+      ],
+      "afterRuns": [
+        11.3,
+        9.93,
+        15.38,
+        16.58,
+        15.57,
+        20.97,
+        15.22
+      ]
+    }
+  ]
+}

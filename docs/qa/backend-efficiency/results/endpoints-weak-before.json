@@ -1,0 +1,5612 @@
+{
+  "at": "2026-10-10T23:45:08.932Z",
+  "ref": "68e946a",
+  "weak": true,
+  "mode": "closed",
+  "rows": [
+    {
+      "name": "GET /healthz",
+      "freq": "monitor",
+      "status": 200,
+      "bytes": 42,
+      "n": 400,
+      "cpuMs": 0.537,
+      "cpuMedianMs": 0.575,
+      "cpuMsRuns": [
+        0.575,
+        0.537,
+        0.695
+      ],
+      "loopMs": 0.427,
+      "wallMs": 0.51,
+      "allocKb": 60.9,
+      "allocTop": [
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 15.4
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 9.1
+        },
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 7.9
+        },
+        {
+          "name": "writeHead node:_http_server:348",
+          "kb": 2.2
+        },
+        {
+          "name": "setWriteHeadHeaders node_modules/on-headers/index.js:119",
+          "kb": 2
+        }
+      ],
+      "profile": {
+        "busyMs": 126,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 87.75
+          },
+          {
+            "name": "writev (native)",
+            "ms": 4.81
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 3.64
+          },
+          {
+            "name": "end node:_http_outgoing:1084",
+            "ms": 2.42
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 1.82
+          },
+          {
+            "name": "setHeader node:_http_outgoing:697",
+            "ms": 1.69
+          },
+          {
+            "name": "parserOnIncoming node:_http_server:1040",
+            "ms": 1.67
+          },
+          {
+            "name": "parserOnMessageComplete node:_http_common:135",
+            "ms": 1.43
+          },
+          {
+            "name": "processTicksAndRejections node:internal/process/task_queues:72",
+            "ms": 1.38
+          },
+          {
+            "name": "(anonymous) ui-instance.js:188",
+            "ms": 1.12
+          },
+          {
+            "name": "(anonymous) node_modules/express/lib/router/index.js:280",
+            "ms": 1.1
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 1.07
+          },
+          {
+            "name": "writeHead node:_http_server:348",
+            "ms": 1.01
+          },
+          {
+            "name": "matchLayer node_modules/express/lib/router/index.js:583",
+            "ms": 0.82
+          },
+          {
+            "name": "parse node_modules/content-type/index.js:106",
+            "ms": 0.76
+          },
+          {
+            "name": "Socket._writeGeneric node:net:940",
+            "ms": 0.67
+          },
+          {
+            "name": "setWriteHeadHeaders node_modules/on-headers/index.js:119",
+            "ms": 0.65
+          },
+          {
+            "name": "afterWriteDispatched node:internal/stream_base_commons:154",
+            "ms": 0.64
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 87.75
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 11.95
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 4.62
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 3.19
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 2.01
+          },
+          {
+            "name": "node:_http_common",
+            "ms": 2
+          },
+          {
+            "name": "ui-instance.js",
+            "ms": 1.71
+          },
+          {
+            "name": "node_modules/on-headers",
+            "ms": 1.17
+          },
+          {
+            "name": "node_modules/compression",
+            "ms": 1.13
+          },
+          {
+            "name": "node_modules/content-type",
+            "ms": 0.76
+          },
+          {
+            "name": "node:net",
+            "ms": 0.67
+          },
+          {
+            "name": "node:internal/stream_base_commons",
+            "ms": 0.64
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/ping",
+      "freq": "each app start",
+      "status": 200,
+      "bytes": 80,
+      "n": 400,
+      "cpuMs": 0.691,
+      "cpuMedianMs": 0.73,
+      "cpuMsRuns": [
+        0.691,
+        0.73,
+        0.956
+      ],
+      "loopMs": 0.488,
+      "wallMs": 0.61,
+      "allocKb": 45.4,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 7.4
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 6.7
+        },
+        {
+          "name": "writeHead node:_http_server:348",
+          "kb": 2.7
+        },
+        {
+          "name": "middleware src/lib/blurup.js:171",
+          "kb": 1.7
+        },
+        {
+          "name": "setWriteHeadHeaders node_modules/on-headers/index.js:119",
+          "kb": 1.5
+        }
+      ],
+      "profile": {
+        "busyMs": 178,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 108.62
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 7.66
+          },
+          {
+            "name": "writev (native)",
+            "ms": 7.55
+          },
+          {
+            "name": "afterWriteDispatched node:internal/stream_base_commons:154",
+            "ms": 5.68
+          },
+          {
+            "name": "updateOutgoingData node:_http_server:766",
+            "ms": 4.71
+          },
+          {
+            "name": "processTicksAndRejections node:internal/process/task_queues:72",
+            "ms": 3.25
+          },
+          {
+            "name": "send node_modules/express/lib/response.js:111",
+            "ms": 3.11
+          },
+          {
+            "name": "setHeader node:_http_outgoing:697",
+            "ms": 2.44
+          },
+          {
+            "name": "parserOnHeadersComplete node:_http_common:71",
+            "ms": 2.03
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 2.01
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 1.82
+          },
+          {
+            "name": "header node_modules/express/lib/request.js:65",
+            "ms": 1.37
+          },
+          {
+            "name": "clearIncoming node:_http_server:967",
+            "ms": 1.37
+          },
+          {
+            "name": "Hash (native)",
+            "ms": 1.23
+          },
+          {
+            "name": "_dump node:_http_incoming:429",
+            "ms": 1.18
+          },
+          {
+            "name": "end node_modules/compression/index.js:113",
+            "ms": 1.11
+          },
+          {
+            "name": "jsonParser node_modules/body-parser/lib/types/json.js:105",
+            "ms": 1.07
+          },
+          {
+            "name": "(anonymous) node_modules/express/lib/router/index.js:280",
+            "ms": 1.04
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 108.62
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 11.13
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 6.64
+          },
+          {
+            "name": "node:internal/stream_base_commons",
+            "ms": 5.68
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 3.62
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 3.25
+          },
+          {
+            "name": "node:_http_common",
+            "ms": 3.17
+          },
+          {
+            "name": "node_modules/compression",
+            "ms": 1.62
+          },
+          {
+            "name": "node:events",
+            "ms": 1.27
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 1.21
+          },
+          {
+            "name": "node:_http_incoming",
+            "ms": 1.18
+          },
+          {
+            "name": "node:internal/streams/writable",
+            "ms": 1.14
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/me",
+      "freq": "each app start",
+      "status": 200,
+      "bytes": 158,
+      "n": 400,
+      "cpuMs": 0.498,
+      "cpuMedianMs": 0.611,
+      "cpuMsRuns": [
+        0.729,
+        0.611,
+        0.498
+      ],
+      "loopMs": 0.484,
+      "wallMs": 0.6,
+      "allocKb": 48,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 9
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 6.5
+        },
+        {
+          "name": "writeHead node:_http_server:348",
+          "kb": 2.2
+        },
+        {
+          "name": "expressInit node_modules/express/lib/middleware/init.js:29",
+          "kb": 2.2
+        },
+        {
+          "name": "middleware src/lib/blurup.js:171",
+          "kb": 2.1
+        }
+      ],
+      "profile": {
+        "busyMs": 191,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 109.59
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 11.88
+          },
+          {
+            "name": "writev (native)",
+            "ms": 7.87
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 5.27
+          },
+          {
+            "name": "stringify node_modules/express/lib/response.js:1155",
+            "ms": 3.79
+          },
+          {
+            "name": "setWriteHeadHeaders node_modules/on-headers/index.js:119",
+            "ms": 2.81
+          },
+          {
+            "name": "parserOnIncoming node:_http_server:1040",
+            "ms": 2.77
+          },
+          {
+            "name": "writeHead node:_http_server:348",
+            "ms": 2.17
+          },
+          {
+            "name": "processTicksAndRejections node:internal/process/task_queues:72",
+            "ms": 1.88
+          },
+          {
+            "name": "resOnFinish node:_http_server:980",
+            "ms": 1.76
+          },
+          {
+            "name": "getHeader node:_http_outgoing:784",
+            "ms": 1.6
+          },
+          {
+            "name": "createHash node:crypto:138",
+            "ms": 1.56
+          },
+          {
+            "name": "middleware src/lib/blurup.js:171",
+            "ms": 1.47
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+            "ms": 1.46
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 1.42
+          },
+          {
+            "name": "checkInvalidHeaderChar node:_http_common:221",
+            "ms": 1.32
+          },
+          {
+            "name": "_addListener node:events:552",
+            "ms": 1.21
+          },
+          {
+            "name": "_handles_method node_modules/express/lib/router/route.js:58",
+            "ms": 1.2
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 109.59
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 12.3
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 8.24
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 7.16
+          },
+          {
+            "name": "node_modules/on-headers",
+            "ms": 3.47
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 2.76
+          },
+          {
+            "name": "src/lib/resetgate.js",
+            "ms": 1.9
+          },
+          {
+            "name": "node:_http_common",
+            "ms": 1.89
+          },
+          {
+            "name": "node:events",
+            "ms": 1.82
+          },
+          {
+            "name": "node_modules/vary",
+            "ms": 1.81
+          },
+          {
+            "name": "node:crypto",
+            "ms": 1.56
+          },
+          {
+            "name": "src/lib/blurup.js",
+            "ms": 1.47
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "POST progress (library film)",
+      "freq": "every 5 s per viewer",
+      "status": 200,
+      "bytes": 11,
+      "n": 300,
+      "cpuMs": 1.073,
+      "cpuMedianMs": 1.12,
+      "cpuMsRuns": [
+        1.45,
+        1.12,
+        1.073
+      ],
+      "loopMs": 1.119,
+      "wallMs": 1.23,
+      "allocKb": 64.9,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 8.9
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 7.4
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 5.1
+        },
+        {
+          "name": "require node:internal/modules/helpers:135",
+          "kb": 3.1
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 2.9
+        }
+      ],
+      "profile": {
+        "busyMs": 339,
+        "functions": [
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 98.99
+          },
+          {
+            "name": "post node:inspector:112",
+            "ms": 97.78
+          },
+          {
+            "name": "writev (native)",
+            "ms": 14.61
+          },
+          {
+            "name": "findById src/media/scanner.js:715",
+            "ms": 6.25
+          },
+          {
+            "name": "json node_modules/express/lib/response.js:250",
+            "ms": 6.22
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:688",
+            "ms": 4.94
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 4.49
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 4.05
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 3.62
+          },
+          {
+            "name": "compression node_modules/compression/index.js:80",
+            "ms": 3.52
+          },
+          {
+            "name": "(anonymous) ui-instance.js:155",
+            "ms": 2.93
+          },
+          {
+            "name": "etag node_modules/etag/index.js:70",
+            "ms": 2.86
+          },
+          {
+            "name": "digest (native)",
+            "ms": 2.72
+          },
+          {
+            "name": "handle node_modules/express/lib/application.js:165",
+            "ms": 2.48
+          },
+          {
+            "name": "Hash node:internal/crypto/hash:66",
+            "ms": 2.28
+          },
+          {
+            "name": "Hash (native)",
+            "ms": 2.19
+          },
+          {
+            "name": "expressInit node_modules/express/lib/middleware/init.js:29",
+            "ms": 2.04
+          },
+          {
+            "name": "readStream node_modules/raw-body/index.js:155",
+            "ms": 2
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 97.78
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 28.64
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 6.92
+          },
+          {
+            "name": "src/media/scanner.js",
+            "ms": 6.25
+          },
+          {
+            "name": "node:_http_incoming",
+            "ms": 6.09
+          },
+          {
+            "name": "node_modules/compression",
+            "ms": 5.93
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 5.65
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 3.91
+          },
+          {
+            "name": "node_modules/content-type",
+            "ms": 3.86
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 3.65
+          },
+          {
+            "name": "ui-instance.js",
+            "ms": 3.63
+          },
+          {
+            "name": "node_modules/raw-body",
+            "ms": 3.62
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "POST progress (stream, with meta)",
+      "freq": "every 5 s per stream viewer",
+      "status": 200,
+      "bytes": 11,
+      "n": 300,
+      "cpuMs": 0.813,
+      "cpuMedianMs": 1.068,
+      "cpuMsRuns": [
+        1.175,
+        0.813,
+        1.068
+      ],
+      "loopMs": 0.978,
+      "wallMs": 1.11,
+      "allocKb": 64.5,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 8.7
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 7.6
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 6.4
+        },
+        {
+          "name": "require node:internal/modules/helpers:135",
+          "kb": 3.1
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 3.1
+        }
+      ],
+      "profile": {
+        "busyMs": 275,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 91.78
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 68.09
+          },
+          {
+            "name": "writev (native)",
+            "ms": 7.07
+          },
+          {
+            "name": "write_ node:_http_outgoing:942",
+            "ms": 6.07
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 5.98
+          },
+          {
+            "name": "get exports node:internal/modules/package_json_reader:62",
+            "ms": 4.8
+          },
+          {
+            "name": "Hash node:internal/crypto/hash:66",
+            "ms": 4.25
+          },
+          {
+            "name": "onError node:_http_incoming:439",
+            "ms": 4.14
+          },
+          {
+            "name": "deserializePackageJSON node:internal/modules/package_json_reader:19",
+            "ms": 3.36
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:1035",
+            "ms": 3.13
+          },
+          {
+            "name": "Hash (native)",
+            "ms": 2.93
+          },
+          {
+            "name": "Socket._writeGeneric node:net:940",
+            "ms": 2.92
+          },
+          {
+            "name": "Readable.read node:internal/streams/readable:647",
+            "ms": 2.9
+          },
+          {
+            "name": "gate src/routes/profiles.js:22",
+            "ms": 2.89
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 2.83
+          },
+          {
+            "name": "read node_modules/body-parser/lib/read.js:40",
+            "ms": 2.61
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+            "ms": 2.34
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 2.29
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 91.78
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 15.88
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 8.84
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 8.46
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 8.16
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 7.62
+          },
+          {
+            "name": "node_modules/body-parser",
+            "ms": 6.71
+          },
+          {
+            "name": "node:internal/crypto/hash",
+            "ms": 5.55
+          },
+          {
+            "name": "node:_http_incoming",
+            "ms": 4.82
+          },
+          {
+            "name": "src/routes/profiles.js",
+            "ms": 4.06
+          },
+          {
+            "name": "node_modules/content-type",
+            "ms": 3.71
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 3.23
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "POST /api/usage (5 events)",
+      "freq": "every 20 s per active device",
+      "status": 204,
+      "bytes": 0,
+      "n": 300,
+      "cpuMs": 1.165,
+      "cpuMedianMs": 1.171,
+      "cpuMsRuns": [
+        1.165,
+        1.171,
+        1.174
+      ],
+      "loopMs": 1.01,
+      "wallMs": 1.32,
+      "allocKb": 71.3,
+      "allocTop": [
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 12.9
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 9.2
+        },
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 8.6
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 6
+        },
+        {
+          "name": "jsonParser node_modules/body-parser/lib/types/json.js:105",
+          "kb": 2.7
+        }
+      ],
+      "profile": {
+        "busyMs": 275,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 95.74
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 66.5
+          },
+          {
+            "name": "writeLatin1String (native)",
+            "ms": 13.2
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 9.63
+          },
+          {
+            "name": "expressInit node_modules/express/lib/middleware/init.js:29",
+            "ms": 5
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 3.25
+          },
+          {
+            "name": "clientIp src/realtime.js:39",
+            "ms": 3.08
+          },
+          {
+            "name": "setWriteHeadHeaders node_modules/on-headers/index.js:119",
+            "ms": 3.07
+          },
+          {
+            "name": "compression node_modules/compression/index.js:80",
+            "ms": 3.02
+          },
+          {
+            "name": "createHash node:crypto:138",
+            "ms": 2.84
+          },
+          {
+            "name": "getNearestParentPackageJSON node:internal/modules/package_json_reader:110",
+            "ms": 2.75
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 2.45
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 2.4
+          },
+          {
+            "name": "apply src/lib/usage.js:76",
+            "ms": 2.31
+          },
+          {
+            "name": "validAdminPassword src/realtime.js:141",
+            "ms": 2.16
+          },
+          {
+            "name": "(anonymous) src/routes/usage.js:37",
+            "ms": 2.11
+          },
+          {
+            "name": "writeHead node:_http_server:348",
+            "ms": 1.98
+          },
+          {
+            "name": "end node:_http_outgoing:1084",
+            "ms": 1.91
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 95.74
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 23.26
+          },
+          {
+            "name": "src/lib/usage.js",
+            "ms": 5.61
+          },
+          {
+            "name": "node_modules/compression",
+            "ms": 5.32
+          },
+          {
+            "name": "src/realtime.js",
+            "ms": 5.25
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 4.7
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 4.53
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 4.48
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 4.35
+          },
+          {
+            "name": "node_modules/on-headers",
+            "ms": 4.27
+          },
+          {
+            "name": "node:_http_incoming",
+            "ms": 3.72
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 3.68
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/profiles",
+      "freq": "each app start",
+      "status": 200,
+      "bytes": 246,
+      "n": 300,
+      "cpuMs": 0.86,
+      "cpuMedianMs": 0.92,
+      "cpuMsRuns": [
+        1.063,
+        0.86,
+        0.92
+      ],
+      "loopMs": 0.754,
+      "wallMs": 1.37,
+      "allocKb": 57.2,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 8.7
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 7.1
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 4.5
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 2.7
+        },
+        {
+          "name": "writeHead node:_http_server:348",
+          "kb": 2.2
+        }
+      ],
+      "profile": {
+        "busyMs": 224,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 127.19
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 30.84
+          },
+          {
+            "name": "writev (native)",
+            "ms": 5.28
+          },
+          {
+            "name": "setWriteHeadHeaders node_modules/on-headers/index.js:119",
+            "ms": 3.03
+          },
+          {
+            "name": "parserOnHeadersComplete node:_http_common:71",
+            "ms": 2.83
+          },
+          {
+            "name": "end node:_http_outgoing:1084",
+            "ms": 2.6
+          },
+          {
+            "name": "get exports node:internal/modules/package_json_reader:62",
+            "ms": 2.57
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:688",
+            "ms": 2.39
+          },
+          {
+            "name": "kidsFor src/routes/api.js:38",
+            "ms": 2.39
+          },
+          {
+            "name": "getNearestParentPackageJSON node:internal/modules/package_json_reader:110",
+            "ms": 2.31
+          },
+          {
+            "name": "writeHead node:_http_server:348",
+            "ms": 2.03
+          },
+          {
+            "name": "matchKnownFields node:_http_incoming:276",
+            "ms": 1.92
+          },
+          {
+            "name": "send node_modules/express/lib/response.js:111",
+            "ms": 1.68
+          },
+          {
+            "name": "json node_modules/express/lib/response.js:250",
+            "ms": 1.44
+          },
+          {
+            "name": "parserOnIncoming node:_http_server:1040",
+            "ms": 1.39
+          },
+          {
+            "name": "endReadableNT node:internal/streams/readable:1692",
+            "ms": 1.33
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 1.29
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 1.28
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 127.19
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 9.55
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 5.71
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 5.41
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 4.87
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 3.58
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 3.08
+          },
+          {
+            "name": "node_modules/on-headers",
+            "ms": 3.03
+          },
+          {
+            "name": "node:_http_incoming",
+            "ms": 3.01
+          },
+          {
+            "name": "node:_http_common",
+            "ms": 2.83
+          },
+          {
+            "name": "src/routes/api.js",
+            "ms": 2.39
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 1.91
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/profiles/:id/state",
+      "freq": "app start + each library_updated",
+      "status": 200,
+      "bytes": 49405,
+      "n": 100,
+      "cpuMs": 11.04,
+      "cpuMedianMs": 12.078,
+      "cpuMsRuns": [
+        11.04,
+        12.078,
+        12.097
+      ],
+      "loopMs": 5.941,
+      "wallMs": 12.83,
+      "allocKb": 1274.6,
+      "allocTop": [
+        {
+          "name": "entries (native)",
+          "kb": 328.7
+        },
+        {
+          "name": "json node_modules/express/lib/response.js:250",
+          "kb": 319.7
+        },
+        {
+          "name": "materializeProgress src/profiles.js:970",
+          "kb": 255.3
+        },
+        {
+          "name": "titleRows src/profiles.js:1037",
+          "kb": 174.6
+        },
+        {
+          "name": "collect src/lib/blurup.js:131",
+          "kb": 74.9
+        }
+      ],
+      "profile": {
+        "busyMs": 837,
+        "functions": [
+          {
+            "name": "stringify node_modules/express/lib/response.js:1155",
+            "ms": 151.75
+          },
+          {
+            "name": "post node:inspector:112",
+            "ms": 94.06
+          },
+          {
+            "name": "titleRows src/profiles.js:1037",
+            "ms": 85.06
+          },
+          {
+            "name": "materializeProgress src/profiles.js:970",
+            "ms": 62.47
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 58.86
+          },
+          {
+            "name": "close (native)",
+            "ms": 56.57
+          },
+          {
+            "name": "(garbage collector) (native)",
+            "ms": 50.28
+          },
+          {
+            "name": "collect src/lib/blurup.js:131",
+            "ms": 46.18
+          },
+          {
+            "name": "write (native)",
+            "ms": 29.67
+          },
+          {
+            "name": "update (native)",
+            "ms": 22.72
+          },
+          {
+            "name": "writev (native)",
+            "ms": 21.09
+          },
+          {
+            "name": "ensureTitles src/profiles.js:1001",
+            "ms": 14.74
+          },
+          {
+            "name": "getProgressView src/profiles.js:1031",
+            "ms": 12.24
+          },
+          {
+            "name": "processCallback node:zlib:500",
+            "ms": 8.92
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 6.08
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 5.94
+          },
+          {
+            "name": "getNearestParentPackageJSON node:internal/modules/package_json_reader:110",
+            "ms": 4.81
+          },
+          {
+            "name": "subarray node:buffer:1177",
+            "ms": 4.09
+          }
+        ],
+        "files": [
+          {
+            "name": "src/profiles.js",
+            "ms": 175.78
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 175.72
+          },
+          {
+            "name": "node:inspector",
+            "ms": 94.06
+          },
+          {
+            "name": "src/lib/blurup.js",
+            "ms": 50.11
+          },
+          {
+            "name": "node:zlib",
+            "ms": 9.46
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 7.53
+          },
+          {
+            "name": "node:internal/streams/writable",
+            "ms": 6.34
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 6.1
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 5.95
+          },
+          {
+            "name": "node:buffer",
+            "ms": 5.86
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 5.55
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 4.99
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/profiles/:id/watchlist",
+      "freq": "My List",
+      "status": 200,
+      "bytes": 3702,
+      "n": 100,
+      "cpuMs": 7.057,
+      "cpuMedianMs": 7.845,
+      "cpuMsRuns": [
+        7.057,
+        7.845,
+        8.134
+      ],
+      "loopMs": 5.398,
+      "wallMs": 6.37,
+      "allocKb": 2126.8,
+      "allocTop": [
+        {
+          "name": "libraryMaps src/media/identity.js:61",
+          "kb": 916.6
+        },
+        {
+          "name": "replace (native)",
+          "kb": 751.1
+        },
+        {
+          "name": "set (native)",
+          "kb": 223.9
+        },
+        {
+          "name": "trim (native)",
+          "kb": 74.1
+        },
+        {
+          "name": "json node_modules/express/lib/response.js:250",
+          "kb": 51.9
+        }
+      ],
+      "profile": {
+        "busyMs": 604,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 88.34
+          },
+          {
+            "name": "norm src/media/identity.js:18",
+            "ms": 70.6
+          },
+          {
+            "name": "libraryMaps src/media/identity.js:61",
+            "ms": 67.21
+          },
+          {
+            "name": "norm src/media/imdb.js:18",
+            "ms": 65.15
+          },
+          {
+            "name": "(garbage collector) (native)",
+            "ms": 52.58
+          },
+          {
+            "name": "cachedIdFor src/media/imdb.js:76",
+            "ms": 36.09
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 31.5
+          },
+          {
+            "name": "stringify node_modules/express/lib/response.js:1155",
+            "ms": 24.07
+          },
+          {
+            "name": "close (native)",
+            "ms": 16.17
+          },
+          {
+            "name": "materializeWatchlist src/profiles.js:1269",
+            "ms": 14.59
+          },
+          {
+            "name": "watchlistItems src/profiles.js:1320",
+            "ms": 10.08
+          },
+          {
+            "name": "findById src/media/scanner.js:715",
+            "ms": 9.48
+          },
+          {
+            "name": "getLibuvNow (native)",
+            "ms": 7.11
+          },
+          {
+            "name": "findLibraryFor src/media/identity.js:82",
+            "ms": 6.66
+          },
+          {
+            "name": "update (native)",
+            "ms": 6.2
+          },
+          {
+            "name": "writev (native)",
+            "ms": 5.25
+          },
+          {
+            "name": "write (native)",
+            "ms": 3.36
+          },
+          {
+            "name": "keyFor src/media/imdb.js:23",
+            "ms": 3.35
+          }
+        ],
+        "files": [
+          {
+            "name": "src/media/identity.js",
+            "ms": 144.47
+          },
+          {
+            "name": "src/media/imdb.js",
+            "ms": 104.58
+          },
+          {
+            "name": "node:inspector",
+            "ms": 88.34
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 38.8
+          },
+          {
+            "name": "src/profiles.js",
+            "ms": 25.78
+          },
+          {
+            "name": "src/media/scanner.js",
+            "ms": 9.48
+          },
+          {
+            "name": "src/lib/blurup.js",
+            "ms": 8.93
+          },
+          {
+            "name": "node_modules/compression",
+            "ms": 4.97
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 4.51
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 4.34
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 4.27
+          },
+          {
+            "name": "node:internal/streams/writable",
+            "ms": 2.31
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/library",
+      "freq": "app start + each library_updated",
+      "status": 200,
+      "bytes": 85993,
+      "n": 30,
+      "cpuMs": 29.065,
+      "cpuMedianMs": 36.8,
+      "cpuMsRuns": [
+        29.065,
+        36.8,
+        52.171
+      ],
+      "loopMs": 15.21,
+      "wallMs": 37.32,
+      "allocKb": 2140.1,
+      "allocTop": [
+        {
+          "name": "json node_modules/express/lib/response.js:250",
+          "kb": 1539.1
+        },
+        {
+          "name": "annotate src/lib/blurup.js:151",
+          "kb": 166.2
+        },
+        {
+          "name": "add (native)",
+          "kb": 160.3
+        },
+        {
+          "name": "(V8 API) (native)",
+          "kb": 103.8
+        },
+        {
+          "name": "collect src/lib/blurup.js:131",
+          "kb": 56.4
+        }
+      ],
+      "profile": {
+        "busyMs": 1187,
+        "functions": [
+          {
+            "name": "stringify node_modules/express/lib/response.js:1155",
+            "ms": 472.76
+          },
+          {
+            "name": "(garbage collector) (native)",
+            "ms": 152.5
+          },
+          {
+            "name": "collect src/lib/blurup.js:131",
+            "ms": 114.81
+          },
+          {
+            "name": "post node:inspector:112",
+            "ms": 88.73
+          },
+          {
+            "name": "close (native)",
+            "ms": 79.9
+          },
+          {
+            "name": "update (native)",
+            "ms": 71.23
+          },
+          {
+            "name": "writev (native)",
+            "ms": 32.51
+          },
+          {
+            "name": "(anonymous) (native)",
+            "ms": 19.86
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 16.68
+          },
+          {
+            "name": "write (native)",
+            "ms": 16.34
+          },
+          {
+            "name": "listOnTimeout node:internal/timers:534",
+            "ms": 12.76
+          },
+          {
+            "name": "Hash node:internal/crypto/hash:66",
+            "ms": 9.97
+          },
+          {
+            "name": "get detail node:internal/perf/performance_entry:108",
+            "ms": 8.73
+          },
+          {
+            "name": "annotate src/lib/blurup.js:151",
+            "ms": 6.76
+          },
+          {
+            "name": "Readable node:internal/streams/readable:320",
+            "ms": 5.43
+          },
+          {
+            "name": "clearBuffer node:internal/streams/writable:744",
+            "ms": 5.1
+          },
+          {
+            "name": "get src/lib/blurup.js:107",
+            "ms": 4.11
+          },
+          {
+            "name": "handle node_modules/express/lib/router/index.js:136",
+            "ms": 3.59
+          }
+        ],
+        "files": [
+          {
+            "name": "node_modules/express",
+            "ms": 488.3
+          },
+          {
+            "name": "src/lib/blurup.js",
+            "ms": 126.83
+          },
+          {
+            "name": "node:inspector",
+            "ms": 88.73
+          },
+          {
+            "name": "node:internal/timers",
+            "ms": 12.76
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 10.13
+          },
+          {
+            "name": "node:internal/crypto/hash",
+            "ms": 9.97
+          },
+          {
+            "name": "node:internal/perf/performance_entry",
+            "ms": 8.73
+          },
+          {
+            "name": "node:internal/streams/writable",
+            "ms": 8.02
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 5.33
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 4.15
+          },
+          {
+            "name": "src/telemetry.js",
+            "ms": 4.03
+          },
+          {
+            "name": "node:internal/stream_base_commons",
+            "ms": 2.53
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/library (If-None-Match)",
+      "freq": "the same, client copy current",
+      "status": 304,
+      "bytes": 0,
+      "n": 30,
+      "cpuMs": 21.011,
+      "cpuMedianMs": 21.286,
+      "cpuMsRuns": [
+        21.286,
+        21.011,
+        23.582
+      ],
+      "loopMs": 16.344,
+      "wallMs": 19.56,
+      "allocKb": 2015.2,
+      "allocTop": [
+        {
+          "name": "json node_modules/express/lib/response.js:250",
+          "kb": 1542.3
+        },
+        {
+          "name": "annotate src/lib/blurup.js:151",
+          "kb": 162.9
+        },
+        {
+          "name": "add (native)",
+          "kb": 158.6
+        },
+        {
+          "name": "collect src/lib/blurup.js:131",
+          "kb": 63.7
+        },
+        {
+          "name": "listEntry src/routes/api.js:216",
+          "kb": 25.4
+        }
+      ],
+      "profile": {
+        "busyMs": 1520,
+        "functions": [
+          {
+            "name": "stringify node_modules/express/lib/response.js:1155",
+            "ms": 699.71
+          },
+          {
+            "name": "collect src/lib/blurup.js:131",
+            "ms": 447.86
+          },
+          {
+            "name": "post node:inspector:112",
+            "ms": 155.08
+          },
+          {
+            "name": "update (native)",
+            "ms": 98.79
+          },
+          {
+            "name": "(anonymous) (native)",
+            "ms": 33.12
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 12.16
+          },
+          {
+            "name": "(garbage collector) (native)",
+            "ms": 11.61
+          },
+          {
+            "name": "writeLatin1String (native)",
+            "ms": 9.98
+          },
+          {
+            "name": "get src/lib/blurup.js:107",
+            "ms": 6.23
+          },
+          {
+            "name": "annotate src/lib/blurup.js:151",
+            "ms": 6.02
+          },
+          {
+            "name": "digest (native)",
+            "ms": 5.27
+          },
+          {
+            "name": "listEntry src/routes/api.js:216",
+            "ms": 4.83
+          },
+          {
+            "name": "process_params node_modules/express/lib/router/index.js:338",
+            "ms": 1.76
+          },
+          {
+            "name": "(anonymous) ui-instance.js:155",
+            "ms": 1.75
+          },
+          {
+            "name": "getLibuvNow (native)",
+            "ms": 1.43
+          },
+          {
+            "name": "etag node_modules/etag/index.js:70",
+            "ms": 1.22
+          },
+          {
+            "name": "writeHead node:_http_server:348",
+            "ms": 1.22
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 1.19
+          }
+        ],
+        "files": [
+          {
+            "name": "node_modules/express",
+            "ms": 706.82
+          },
+          {
+            "name": "src/lib/blurup.js",
+            "ms": 460.11
+          },
+          {
+            "name": "node:inspector",
+            "ms": 155.08
+          },
+          {
+            "name": "src/routes/api.js",
+            "ms": 5.41
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 2.36
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 2.27
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 2.05
+          },
+          {
+            "name": "ui-instance.js",
+            "ms": 1.75
+          },
+          {
+            "name": "node_modules/etag",
+            "ms": 1.22
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 1.19
+          },
+          {
+            "name": "node_modules/on-headers",
+            "ms": 1.18
+          },
+          {
+            "name": "node:internal/buffer",
+            "ms": 0.97
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/home",
+      "freq": "each visit to Home",
+      "status": 200,
+      "bytes": 53874,
+      "n": 30,
+      "cpuMs": 371.334,
+      "cpuMedianMs": 374.116,
+      "cpuMsRuns": [
+        398.096,
+        374.116,
+        371.334
+      ],
+      "loopMs": 389.336,
+      "wallMs": 397.44,
+      "allocKb": 39404.8,
+      "allocTop": [
+        {
+          "name": "libraryMaps src/media/identity.js:61",
+          "kb": 9167
+        },
+        {
+          "name": "replace (native)",
+          "kb": 8122.9
+        },
+        {
+          "name": "set (native)",
+          "kb": 2728.3
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 1940.9
+        },
+        {
+          "name": "(anonymous) src/media/hero.js:403",
+          "kb": 1781.7
+        }
+      ],
+      "profile": {
+        "busyMs": 12105,
+        "functions": [
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 5515.44
+          },
+          {
+            "name": "findById src/media/scanner.js:715",
+            "ms": 1487.01
+          },
+          {
+            "name": "homeRows src/media/recs/index.js:285",
+            "ms": 473.32
+          },
+          {
+            "name": "watchedIndex src/media/watched.js:23",
+            "ms": 428.62
+          },
+          {
+            "name": "(garbage collector) (native)",
+            "ms": 353.59
+          },
+          {
+            "name": "norm src/media/imdb.js:18",
+            "ms": 255.06
+          },
+          {
+            "name": "libraryMaps src/media/identity.js:61",
+            "ms": 247.25
+          },
+          {
+            "name": "norm src/media/identity.js:18",
+            "ms": 244.31
+          },
+          {
+            "name": "stringify node_modules/express/lib/response.js:1155",
+            "ms": 203.49
+          },
+          {
+            "name": "recommendations src/profiles.js:1218",
+            "ms": 201.37
+          },
+          {
+            "name": "recencyTerm src/media/hero.js:215",
+            "ms": 200.25
+          },
+          {
+            "name": "(anonymous) src/routes/api.js:757",
+            "ms": 191.46
+          },
+          {
+            "name": "cachedIdFor src/media/imdb.js:76",
+            "ms": 162
+          },
+          {
+            "name": "post node:inspector:112",
+            "ms": 158.06
+          },
+          {
+            "name": "init (native)",
+            "ms": 153.92
+          },
+          {
+            "name": "findLibraryFor src/media/identity.js:82",
+            "ms": 103.23
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:688",
+            "ms": 95.78
+          },
+          {
+            "name": "deserializePackageJSON node:internal/modules/package_json_reader:19",
+            "ms": 93.35
+          }
+        ],
+        "files": [
+          {
+            "name": "src/media/scanner.js",
+            "ms": 1487.01
+          },
+          {
+            "name": "src/media/identity.js",
+            "ms": 620.26
+          },
+          {
+            "name": "src/media/recs/index.js",
+            "ms": 509.38
+          },
+          {
+            "name": "src/media/watched.js",
+            "ms": 457.72
+          },
+          {
+            "name": "src/media/imdb.js",
+            "ms": 420.37
+          },
+          {
+            "name": "src/routes/api.js",
+            "ms": 411.91
+          },
+          {
+            "name": "src/media/hero.js",
+            "ms": 358.89
+          },
+          {
+            "name": "src/profiles.js",
+            "ms": 290.1
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 274.2
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 247.69
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 218.97
+          },
+          {
+            "name": "node:inspector",
+            "ms": 158.06
+          }
+        ]
+      },
+      "syncFs": 0.23,
+      "syncFsSites": [
+        "statSync @ src/lib/health.js:357 x0.13",
+        "existsSync @ src/lib/health.js:341 x0.07",
+        "readdirSync @ src/lib/healer.js:427 x0.03"
+      ]
+    },
+    {
+      "name": "GET /api/home slim (TV)",
+      "freq": "each visit to Home (TV)",
+      "status": 200,
+      "bytes": 73403,
+      "n": 30,
+      "cpuMs": 358.437,
+      "cpuMedianMs": 368.995,
+      "cpuMsRuns": [
+        358.437,
+        433.453,
+        368.995
+      ],
+      "loopMs": 339.085,
+      "wallMs": 358.64,
+      "allocKb": 40859.7,
+      "allocTop": [
+        {
+          "name": "libraryMaps src/media/identity.js:61",
+          "kb": 9188
+        },
+        {
+          "name": "replace (native)",
+          "kb": 8149.5
+        },
+        {
+          "name": "set (native)",
+          "kb": 2731.4
+        },
+        {
+          "name": "stringify node_modules/express/lib/response.js:1155",
+          "kb": 2626.8
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 1914.4
+        }
+      ],
+      "profile": {
+        "busyMs": 11362,
+        "functions": [
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 5259.9
+          },
+          {
+            "name": "findById src/media/scanner.js:715",
+            "ms": 1314.96
+          },
+          {
+            "name": "(garbage collector) (native)",
+            "ms": 413.59
+          },
+          {
+            "name": "homeRows src/media/recs/index.js:285",
+            "ms": 366.28
+          },
+          {
+            "name": "watchedIndex src/media/watched.js:23",
+            "ms": 344.17
+          },
+          {
+            "name": "stringify node_modules/express/lib/response.js:1155",
+            "ms": 287.43
+          },
+          {
+            "name": "norm src/media/identity.js:18",
+            "ms": 247.83
+          },
+          {
+            "name": "norm src/media/imdb.js:18",
+            "ms": 221.83
+          },
+          {
+            "name": "(anonymous) src/routes/api.js:757",
+            "ms": 191.2
+          },
+          {
+            "name": "libraryMaps src/media/identity.js:61",
+            "ms": 184.96
+          },
+          {
+            "name": "recencyTerm src/media/hero.js:215",
+            "ms": 182.87
+          },
+          {
+            "name": "recommendations src/profiles.js:1218",
+            "ms": 162.43
+          },
+          {
+            "name": "cachedIdFor src/media/imdb.js:76",
+            "ms": 144.46
+          },
+          {
+            "name": "init (native)",
+            "ms": 134.83
+          },
+          {
+            "name": "post node:inspector:112",
+            "ms": 127.59
+          },
+          {
+            "name": "deserializePackageJSON node:internal/modules/package_json_reader:19",
+            "ms": 102.58
+          },
+          {
+            "name": "findLibraryFor src/media/identity.js:82",
+            "ms": 89.77
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:1035",
+            "ms": 87.65
+          }
+        ],
+        "files": [
+          {
+            "name": "src/media/scanner.js",
+            "ms": 1316.02
+          },
+          {
+            "name": "src/media/identity.js",
+            "ms": 554.98
+          },
+          {
+            "name": "src/media/recs/index.js",
+            "ms": 396.86
+          },
+          {
+            "name": "src/media/imdb.js",
+            "ms": 371.03
+          },
+          {
+            "name": "src/media/watched.js",
+            "ms": 364.73
+          },
+          {
+            "name": "src/routes/api.js",
+            "ms": 355.15
+          },
+          {
+            "name": "src/media/hero.js",
+            "ms": 344.35
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 297.45
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 271.29
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 254.88
+          },
+          {
+            "name": "src/profiles.js",
+            "ms": 247.12
+          },
+          {
+            "name": "node:inspector",
+            "ms": 127.59
+          }
+        ]
+      },
+      "syncFs": 0.03,
+      "syncFsSites": [
+        "readdirSync @ src/media/offline.js:112 x0.03"
+      ]
+    },
+    {
+      "name": "GET /api/item/:id (film)",
+      "freq": "each title page / play",
+      "status": 200,
+      "bytes": 764,
+      "n": 300,
+      "cpuMs": 2.41,
+      "cpuMedianMs": 2.527,
+      "cpuMsRuns": [
+        2.691,
+        2.527,
+        2.41
+      ],
+      "loopMs": 2.847,
+      "wallMs": 4.73,
+      "allocKb": 67.1,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 9.6
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 4.6
+        },
+        {
+          "name": "process_params node_modules/express/lib/router/index.js:338",
+          "kb": 3.6
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 3.3
+        },
+        {
+          "name": "json node_modules/express/lib/response.js:250",
+          "kb": 2.4
+        }
+      ],
+      "profile": {
+        "busyMs": 417,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 149.5
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 57.46
+          },
+          {
+            "name": "close (native)",
+            "ms": 34.53
+          },
+          {
+            "name": "write (native)",
+            "ms": 23.75
+          },
+          {
+            "name": "writev (native)",
+            "ms": 9.89
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 6.2
+          },
+          {
+            "name": "(anonymous) src/routes/api.js:564",
+            "ms": 5.81
+          },
+          {
+            "name": "writeHead node_modules/on-headers/index.js:34",
+            "ms": 4.39
+          },
+          {
+            "name": "writeLatin1String (native)",
+            "ms": 4.03
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 3.63
+          },
+          {
+            "name": "Duplex node:internal/streams/duplex:64",
+            "ms": 3.4
+          },
+          {
+            "name": "parseAcceptEncoding node_modules/negotiator/lib/encoding.js:31",
+            "ms": 3.32
+          },
+          {
+            "name": "onResponseHeaders node_modules/compression/index.js:161",
+            "ms": 3.28
+          },
+          {
+            "name": "resOnFinish node:_http_server:980",
+            "ms": 3.23
+          },
+          {
+            "name": "(garbage collector) (native)",
+            "ms": 2.98
+          },
+          {
+            "name": "send node_modules/express/lib/response.js:111",
+            "ms": 2.89
+          },
+          {
+            "name": "stringify node_modules/express/lib/response.js:1155",
+            "ms": 2.85
+          },
+          {
+            "name": "parse node_modules/content-type/index.js:106",
+            "ms": 2.77
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 149.5
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 23.42
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 7.45
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 6.92
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 6.72
+          },
+          {
+            "name": "src/routes/api.js",
+            "ms": 6.6
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 6.58
+          },
+          {
+            "name": "node_modules/negotiator",
+            "ms": 6.36
+          },
+          {
+            "name": "src/lib/blurup.js",
+            "ms": 6.1
+          },
+          {
+            "name": "node:events",
+            "ms": 5.88
+          },
+          {
+            "name": "node_modules/compression",
+            "ms": 5.31
+          },
+          {
+            "name": "node_modules/on-headers",
+            "ms": 5.05
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/item/:id (episode)",
+      "freq": "each episode play",
+      "status": 200,
+      "bytes": 618,
+      "n": 300,
+      "cpuMs": 2.04,
+      "cpuMedianMs": 2.2,
+      "cpuMsRuns": [
+        2.04,
+        2.348,
+        2.2
+      ],
+      "loopMs": 1.63,
+      "wallMs": 2.05,
+      "allocKb": 61.5,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 8.1
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 4.3
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 3.9
+        },
+        {
+          "name": "process_params node_modules/express/lib/router/index.js:338",
+          "kb": 3
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 2.7
+        }
+      ],
+      "profile": {
+        "busyMs": 550,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 134.85
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 63.53
+          },
+          {
+            "name": "close (native)",
+            "ms": 52.03
+          },
+          {
+            "name": "write (native)",
+            "ms": 42.01
+          },
+          {
+            "name": "(anonymous) src/routes/api.js:564",
+            "ms": 14.01
+          },
+          {
+            "name": "writev (native)",
+            "ms": 13.51
+          },
+          {
+            "name": "Hash node:internal/crypto/hash:66",
+            "ms": 11.95
+          },
+          {
+            "name": "withOriginalAudio src/routes/api.js:542",
+            "ms": 9.22
+          },
+          {
+            "name": "findById src/media/scanner.js:715",
+            "ms": 7.97
+          },
+          {
+            "name": "writeLatin1String (native)",
+            "ms": 6.39
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 5.84
+          },
+          {
+            "name": "middleware src/lib/blurup.js:171",
+            "ms": 5.65
+          },
+          {
+            "name": "json node_modules/express/lib/response.js:250",
+            "ms": 5.16
+          },
+          {
+            "name": "parse node_modules/content-type/index.js:106",
+            "ms": 5.14
+          },
+          {
+            "name": "_storeHeader node:_http_outgoing:454",
+            "ms": 4.76
+          },
+          {
+            "name": "Hash (native)",
+            "ms": 4.34
+          },
+          {
+            "name": "endReadableNT node:internal/streams/readable:1692",
+            "ms": 4.28
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 4.04
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 134.85
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 36.12
+          },
+          {
+            "name": "src/routes/api.js",
+            "ms": 23.76
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 19.34
+          },
+          {
+            "name": "node:internal/crypto/hash",
+            "ms": 13.46
+          },
+          {
+            "name": "src/lib/blurup.js",
+            "ms": 10.3
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 8.51
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 8.37
+          },
+          {
+            "name": "src/media/scanner.js",
+            "ms": 7.97
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 7.19
+          },
+          {
+            "name": "node:internal/streams/writable",
+            "ms": 7.17
+          },
+          {
+            "name": "node_modules/compression",
+            "ms": 7.07
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/discover/meta (cached)",
+      "freq": "each title page",
+      "status": 200,
+      "bytes": 626,
+      "n": 200,
+      "cpuMs": 2.058,
+      "cpuMedianMs": 2.53,
+      "cpuMsRuns": [
+        2.53,
+        2.684,
+        2.058
+      ],
+      "loopMs": 1.797,
+      "wallMs": 2.54,
+      "allocKb": 74.8,
+      "allocTop": [
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 10.2
+        },
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 9.1
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 6.3
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 2.5
+        },
+        {
+          "name": "encoding node_modules/negotiator/index.js:47",
+          "kb": 2.5
+        }
+      ],
+      "profile": {
+        "busyMs": 450,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 167.38
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 48.98
+          },
+          {
+            "name": "close (native)",
+            "ms": 40.29
+          },
+          {
+            "name": "write (native)",
+            "ms": 12.63
+          },
+          {
+            "name": "Hash (native)",
+            "ms": 9.77
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 9.13
+          },
+          {
+            "name": "writev (native)",
+            "ms": 8.89
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 6.14
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 5.44
+          },
+          {
+            "name": "writeLatin1String (native)",
+            "ms": 5.15
+          },
+          {
+            "name": "json node_modules/express/lib/response.js:250",
+            "ms": 4.01
+          },
+          {
+            "name": "resOnFinish node:_http_server:980",
+            "ms": 3.86
+          },
+          {
+            "name": "(anonymous) ui-instance.js:155",
+            "ms": 3.81
+          },
+          {
+            "name": "_addHeaderLine node:_http_incoming:382",
+            "ms": 3.63
+          },
+          {
+            "name": "runMicrotasks (native)",
+            "ms": 3.51
+          },
+          {
+            "name": "Brotli node:zlib:792",
+            "ms": 2.92
+          },
+          {
+            "name": "on node_modules/compression/index.js:140",
+            "ms": 2.8
+          },
+          {
+            "name": "Hash node:internal/crypto/hash:66",
+            "ms": 2.75
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 167.38
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 37.18
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 8.01
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 7.95
+          },
+          {
+            "name": "node:internal/streams/writable",
+            "ms": 7.93
+          },
+          {
+            "name": "node_modules/compression",
+            "ms": 6.81
+          },
+          {
+            "name": "node:zlib",
+            "ms": 6.21
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 5.98
+          },
+          {
+            "name": "node:_http_incoming",
+            "ms": 5.63
+          },
+          {
+            "name": "node:internal/stream_base_commons",
+            "ms": 5.41
+          },
+          {
+            "name": "ui-instance.js",
+            "ms": 5.29
+          },
+          {
+            "name": "src/lib/blurup.js",
+            "ms": 3.38
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/search/suggest v2",
+      "freq": "each keystroke",
+      "status": 200,
+      "bytes": 615,
+      "n": 100,
+      "cpuMs": 5.04,
+      "cpuMedianMs": 5.967,
+      "cpuMsRuns": [
+        6.87,
+        5.04,
+        5.967
+      ],
+      "loopMs": 5.606,
+      "wallMs": 6.78,
+      "allocKb": 1871.6,
+      "allocTop": [
+        {
+          "name": "tierView src/media/search.js:194",
+          "kb": 1267.9
+        },
+        {
+          "name": "suggest src/media/search.js:1201",
+          "kb": 352.9
+        },
+        {
+          "name": "wordHits src/media/search.js:176",
+          "kb": 101.9
+        },
+        {
+          "name": "highlight src/media/search.js:1157",
+          "kb": 28.1
+        },
+        {
+          "name": "scoreDoc src/media/search.js:315",
+          "kb": 19.9
+        }
+      ],
+      "profile": {
+        "busyMs": 585,
+        "functions": [
+          {
+            "name": "tierView src/media/search.js:194",
+            "ms": 126.18
+          },
+          {
+            "name": "post node:inspector:112",
+            "ms": 112.9
+          },
+          {
+            "name": "suggest src/media/search.js:1201",
+            "ms": 60.85
+          },
+          {
+            "name": "scoreDoc src/media/search.js:315",
+            "ms": 59.18
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 40.56
+          },
+          {
+            "name": "wordHits src/media/search.js:176",
+            "ms": 18.19
+          },
+          {
+            "name": "close (native)",
+            "ms": 16.31
+          },
+          {
+            "name": "(garbage collector) (native)",
+            "ms": 15.34
+          },
+          {
+            "name": "tierForms src/media/search.js:232",
+            "ms": 9.33
+          },
+          {
+            "name": "writev (native)",
+            "ms": 7.62
+          },
+          {
+            "name": "(anonymous) src/media/search.js:212",
+            "ms": 7.16
+          },
+          {
+            "name": "highlight src/media/search.js:1157",
+            "ms": 3.98
+          },
+          {
+            "name": "write (native)",
+            "ms": 3.96
+          },
+          {
+            "name": "stringify node_modules/express/lib/response.js:1155",
+            "ms": 3.68
+          },
+          {
+            "name": "cmp src/media/search.js:364",
+            "ms": 3.11
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 2.81
+          },
+          {
+            "name": "writeHead node:_http_server:348",
+            "ms": 2.58
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 2.56
+          }
+        ],
+        "files": [
+          {
+            "name": "src/media/search.js",
+            "ms": 293.25
+          },
+          {
+            "name": "node:inspector",
+            "ms": 112.9
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 13.3
+          },
+          {
+            "name": "node:events",
+            "ms": 5.48
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 5.31
+          },
+          {
+            "name": "node:zlib",
+            "ms": 4.12
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 3.94
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 3.56
+          },
+          {
+            "name": "node_modules/compression",
+            "ms": 3.42
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 3.08
+          },
+          {
+            "name": "src/lib/blurup.js",
+            "ms": 3.01
+          },
+          {
+            "name": "node_modules/negotiator",
+            "ms": 2.83
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/search v2",
+      "freq": "each keystroke (debounced)",
+      "status": 200,
+      "bytes": 1758,
+      "n": 60,
+      "cpuMs": 19.423,
+      "cpuMedianMs": 19.671,
+      "cpuMsRuns": [
+        19.423,
+        19.956,
+        19.671
+      ],
+      "loopMs": 17.611,
+      "wallMs": 18.36,
+      "allocKb": 9155.1,
+      "allocTop": [
+        {
+          "name": "scoreDoc src/media/search.js:315",
+          "kb": 2172
+        },
+        {
+          "name": "libraryMaps src/media/identity.js:61",
+          "kb": 2034.6
+        },
+        {
+          "name": "tierView src/media/search.js:194",
+          "kb": 1885.8
+        },
+        {
+          "name": "replace (native)",
+          "kb": 1630.4
+        },
+        {
+          "name": "set (native)",
+          "kb": 586.1
+        }
+      ],
+      "profile": {
+        "busyMs": 1301,
+        "functions": [
+          {
+            "name": "tierView src/media/search.js:194",
+            "ms": 216.73
+          },
+          {
+            "name": "post node:inspector:112",
+            "ms": 135.46
+          },
+          {
+            "name": "norm src/media/identity.js:18",
+            "ms": 127.64
+          },
+          {
+            "name": "scoreDoc src/media/search.js:315",
+            "ms": 107.8
+          },
+          {
+            "name": "norm src/media/imdb.js:18",
+            "ms": 103
+          },
+          {
+            "name": "libraryMaps src/media/identity.js:61",
+            "ms": 93.71
+          },
+          {
+            "name": "(garbage collector) (native)",
+            "ms": 92.84
+          },
+          {
+            "name": "cachedIdFor src/media/imdb.js:76",
+            "ms": 60.88
+          },
+          {
+            "name": "(anonymous) src/media/search.js:358",
+            "ms": 48.64
+          },
+          {
+            "name": "neighbours src/media/search.js:887",
+            "ms": 45.33
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 34.09
+          },
+          {
+            "name": "wordHits src/media/search.js:176",
+            "ms": 31.44
+          },
+          {
+            "name": "markLibrary src/media/identity.js:206",
+            "ms": 24.64
+          },
+          {
+            "name": "close (native)",
+            "ms": 21.29
+          },
+          {
+            "name": "stringify node_modules/express/lib/response.js:1155",
+            "ms": 17.19
+          },
+          {
+            "name": "(anonymous) src/media/search.js:912",
+            "ms": 13.13
+          },
+          {
+            "name": "editWithin src/media/search.js:142",
+            "ms": 10.54
+          },
+          {
+            "name": "rank src/media/search.js:804",
+            "ms": 10.14
+          }
+        ],
+        "files": [
+          {
+            "name": "src/media/search.js",
+            "ms": 511.09
+          },
+          {
+            "name": "src/media/identity.js",
+            "ms": 246
+          },
+          {
+            "name": "src/media/imdb.js",
+            "ms": 164.9
+          },
+          {
+            "name": "node:inspector",
+            "ms": 135.46
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 24.1
+          },
+          {
+            "name": "src/lib/blurup.js",
+            "ms": 5.89
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 3.05
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 2.79
+          },
+          {
+            "name": "node:internal/stream_base_commons",
+            "ms": 2.46
+          },
+          {
+            "name": "node:internal/crypto/hash",
+            "ms": 2.44
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 2.34
+          },
+          {
+            "name": "src/routes/api.js",
+            "ms": 2.17
+          }
+        ]
+      },
+      "syncFs": 0.18,
+      "syncFsSites": [
+        "statSync @ src/lib/health.js:357 x0.07",
+        "statSync @ src/lib/imgcheck.js:45 x0.05",
+        "existsSync @ src/lib/health.js:341 x0.03",
+        "realpathSync @ src/lib/healer-checks/logs.js:268 x0.02",
+        "readdirSync @ src/lib/healer.js:427 x0.02"
+      ]
+    },
+    {
+      "name": "GET /api/popular",
+      "freq": "opening Search",
+      "status": 200,
+      "bytes": 1359,
+      "n": 60,
+      "cpuMs": 5.359,
+      "cpuMedianMs": 5.38,
+      "cpuMsRuns": [
+        5.597,
+        5.38,
+        5.359
+      ],
+      "loopMs": 4.6,
+      "wallMs": 5.47,
+      "allocKb": 2599.6,
+      "allocTop": [
+        {
+          "name": "entries (native)",
+          "kb": 1151.9
+        },
+        {
+          "name": "(anonymous) src/routes/api.js:304",
+          "kb": 1139.9
+        },
+        {
+          "name": "set (native)",
+          "kb": 182.2
+        },
+        {
+          "name": "Set (native)",
+          "kb": 34.6
+        },
+        {
+          "name": "json node_modules/express/lib/response.js:250",
+          "kb": 14
+        }
+      ],
+      "profile": {
+        "busyMs": 407,
+        "functions": [
+          {
+            "name": "(anonymous) src/routes/api.js:304",
+            "ms": 181.22
+          },
+          {
+            "name": "post node:inspector:112",
+            "ms": 109.64
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 18.11
+          },
+          {
+            "name": "close (native)",
+            "ms": 10.27
+          },
+          {
+            "name": "(garbage collector) (native)",
+            "ms": 9.64
+          },
+          {
+            "name": "write (native)",
+            "ms": 4.58
+          },
+          {
+            "name": "etag node_modules/etag/index.js:70",
+            "ms": 3.56
+          },
+          {
+            "name": "Hash node:internal/crypto/hash:66",
+            "ms": 3.18
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 2.31
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:688",
+            "ms": 2.26
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 2.25
+          },
+          {
+            "name": "stringify node_modules/express/lib/response.js:1155",
+            "ms": 2.23
+          },
+          {
+            "name": "createHash node:crypto:138",
+            "ms": 2.04
+          },
+          {
+            "name": "_addListener node:events:552",
+            "ms": 2.01
+          },
+          {
+            "name": "send node_modules/express/lib/response.js:111",
+            "ms": 1.77
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 1.73
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 1.72
+          },
+          {
+            "name": "compression node_modules/compression/index.js:80",
+            "ms": 1.67
+          }
+        ],
+        "files": [
+          {
+            "name": "src/routes/api.js",
+            "ms": 183.28
+          },
+          {
+            "name": "node:inspector",
+            "ms": 109.64
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 13.01
+          },
+          {
+            "name": "node:internal/streams/writable",
+            "ms": 5.32
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 3.91
+          },
+          {
+            "name": "node:events",
+            "ms": 3.73
+          },
+          {
+            "name": "node_modules/etag",
+            "ms": 3.56
+          },
+          {
+            "name": "node:internal/crypto/hash",
+            "ms": 3.18
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 2.86
+          },
+          {
+            "name": "node:_http_incoming",
+            "ms": 2.72
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 2.36
+          },
+          {
+            "name": "src/lib/blurup.js",
+            "ms": 2.24
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/intro/auto/:id (library episode)",
+      "freq": "each episode play",
+      "status": 200,
+      "bytes": 132,
+      "n": 300,
+      "cpuMs": 0.868,
+      "cpuMedianMs": 0.919,
+      "cpuMsRuns": [
+        0.868,
+        1.284,
+        0.919
+      ],
+      "loopMs": 0.829,
+      "wallMs": 0.94,
+      "allocKb": 54,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 9
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 7.8
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 3.9
+        },
+        {
+          "name": "writeHead node:_http_server:348",
+          "kb": 2.2
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 2.1
+        }
+      ],
+      "profile": {
+        "busyMs": 237,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 124.62
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 43.16
+          },
+          {
+            "name": "Hash node:internal/crypto/hash:66",
+            "ms": 4.17
+          },
+          {
+            "name": "session src/routes/api.js:26",
+            "ms": 4.08
+          },
+          {
+            "name": "writev (native)",
+            "ms": 3.6
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 3.15
+          },
+          {
+            "name": "Hash (native)",
+            "ms": 2.25
+          },
+          {
+            "name": "expressInit node_modules/express/lib/middleware/init.js:29",
+            "ms": 2.22
+          },
+          {
+            "name": "Writable.write node:internal/streams/writable:504",
+            "ms": 1.72
+          },
+          {
+            "name": "parse node_modules/content-type/index.js:106",
+            "ms": 1.7
+          },
+          {
+            "name": "dispatch node_modules/express/lib/router/route.js:101",
+            "ms": 1.67
+          },
+          {
+            "name": "handle node_modules/express/lib/application.js:165",
+            "ms": 1.62
+          },
+          {
+            "name": "get src/media/introdetect.js:613",
+            "ms": 1.31
+          },
+          {
+            "name": "clearIncoming node:_http_server:967",
+            "ms": 1.27
+          },
+          {
+            "name": "_addListener node:events:552",
+            "ms": 1.23
+          },
+          {
+            "name": "middleware src/lib/blurup.js:171",
+            "ms": 1.22
+          },
+          {
+            "name": "parserOnHeadersComplete node:_http_common:71",
+            "ms": 1.21
+          },
+          {
+            "name": "update (native)",
+            "ms": 1.17
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 124.62
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 15.4
+          },
+          {
+            "name": "node:internal/crypto/hash",
+            "ms": 4.17
+          },
+          {
+            "name": "src/routes/api.js",
+            "ms": 4.08
+          },
+          {
+            "name": "node:internal/streams/writable",
+            "ms": 3.87
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 3.36
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 2.85
+          },
+          {
+            "name": "src/lib/blurup.js",
+            "ms": 2.33
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 1.83
+          },
+          {
+            "name": "node:_http_common",
+            "ms": 1.79
+          },
+          {
+            "name": "node_modules/content-type",
+            "ms": 1.7
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 1.69
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /img/:id (cover, original)",
+      "freq": "pictures",
+      "status": 200,
+      "bytes": 34673,
+      "n": 300,
+      "cpuMs": 1.228,
+      "cpuMedianMs": 1.271,
+      "cpuMsRuns": [
+        1.271,
+        1.48,
+        1.228
+      ],
+      "loopMs": 1.107,
+      "wallMs": 1.47,
+      "allocKb": 72.7,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 9.7
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 7.6
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 3.5
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 3.4
+        },
+        {
+          "name": "_addListener node:events:552",
+          "kb": 3.2
+        }
+      ],
+      "profile": {
+        "busyMs": 291,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 138.22
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 39.83
+          },
+          {
+            "name": "existsSync (native)",
+            "ms": 21.3
+          },
+          {
+            "name": "writev (native)",
+            "ms": 7.14
+          },
+          {
+            "name": "close (native)",
+            "ms": 3.55
+          },
+          {
+            "name": "FSReqCallback (native)",
+            "ms": 2.95
+          },
+          {
+            "name": "end node:_http_outgoing:1084",
+            "ms": 2.6
+          },
+          {
+            "name": "attachListener node_modules/on-finished/index.js:141",
+            "ms": 2.45
+          },
+          {
+            "name": "open (native)",
+            "ms": 2.4
+          },
+          {
+            "name": "send node_modules/send/index.js:83",
+            "ms": 2.29
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 2.09
+          },
+          {
+            "name": "parserOnIncoming node:_http_server:1040",
+            "ms": 1.91
+          },
+          {
+            "name": "(anonymous) src/routes/stream.js:307",
+            "ms": 1.89
+          },
+          {
+            "name": "checkIsHttpToken node:_http_common:210",
+            "ms": 1.89
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 1.74
+          },
+          {
+            "name": "stat (native)",
+            "ms": 1.65
+          },
+          {
+            "name": "(anonymous) node:internal/fs/streams:130",
+            "ms": 1.62
+          },
+          {
+            "name": "emitReadable_ node:internal/streams/readable:830",
+            "ms": 1.54
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 138.22
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 7.36
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 5.88
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 5.38
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 4.85
+          },
+          {
+            "name": "node_modules/on-finished",
+            "ms": 4.8
+          },
+          {
+            "name": "node_modules/send",
+            "ms": 4.13
+          },
+          {
+            "name": "node:events",
+            "ms": 3.28
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 3.25
+          },
+          {
+            "name": "node:_http_common",
+            "ms": 3.17
+          },
+          {
+            "name": "src/lib/tel/timings.js",
+            "ms": 3.08
+          },
+          {
+            "name": "node:internal/fs/streams",
+            "ms": 2.75
+          }
+        ]
+      },
+      "syncFs": 1,
+      "syncFsSites": [
+        "existsSync @ src/routes/stream.js:309 x1"
+      ]
+    },
+    {
+      "name": "GET /img/:id?w=256 (variant made)",
+      "freq": "about 40-300 per Home",
+      "status": 200,
+      "bytes": 4632,
+      "n": 300,
+      "cpuMs": 1.634,
+      "cpuMedianMs": 1.785,
+      "cpuMsRuns": [
+        1.785,
+        1.634,
+        2.145
+      ],
+      "loopMs": 1.446,
+      "wallMs": 1.96,
+      "allocKb": 75,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 9.4
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 7.5
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 3.8
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 2.6
+        },
+        {
+          "name": "onFinished node_modules/on-finished/index.js:46",
+          "kb": 2.5
+        }
+      ],
+      "profile": {
+        "busyMs": 323,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 119.6
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 29.25
+          },
+          {
+            "name": "existsSync (native)",
+            "ms": 21.47
+          },
+          {
+            "name": "stat (native)",
+            "ms": 13.74
+          },
+          {
+            "name": "writev (native)",
+            "ms": 8.79
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 4.41
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 4.05
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 3.85
+          },
+          {
+            "name": "write node_modules/compression/index.js:99",
+            "ms": 3.44
+          },
+          {
+            "name": "getStatsFromBinding node:internal/fs/utils:552",
+            "ms": 3.41
+          },
+          {
+            "name": "close (native)",
+            "ms": 3.28
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 3.02
+          },
+          {
+            "name": "processTicksAndRejections node:internal/process/task_queues:72",
+            "ms": 2.93
+          },
+          {
+            "name": "sendFile node_modules/express/lib/response.js:419",
+            "ms": 2.75
+          },
+          {
+            "name": "open (native)",
+            "ms": 2.71
+          },
+          {
+            "name": "writeHead node:_http_server:348",
+            "ms": 2.65
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:1035",
+            "ms": 2.64
+          },
+          {
+            "name": "jsonParser node_modules/body-parser/lib/types/json.js:105",
+            "ms": 2.04
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 119.6
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 19.8
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 8.68
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 6.98
+          },
+          {
+            "name": "node_modules/send",
+            "ms": 6.8
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 6.15
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 6.1
+          },
+          {
+            "name": "node:events",
+            "ms": 5.99
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 5.9
+          },
+          {
+            "name": "node_modules/compression",
+            "ms": 5.69
+          },
+          {
+            "name": "node:internal/fs/utils",
+            "ms": 4.99
+          },
+          {
+            "name": "node_modules/on-finished",
+            "ms": 4.94
+          }
+        ]
+      },
+      "syncFs": 3,
+      "syncFsSites": [
+        "existsSync @ src/routes/stream.js:309 x1",
+        "statSync @ src/lib/imgvariant.js:216 x1",
+        "statSync @ src/lib/imgvariant.js:197 x1"
+      ]
+    },
+    {
+      "name": "GET /img/ext?u=&w=256 (cached, variant made)",
+      "freq": "about 300 per Home",
+      "status": 200,
+      "bytes": 4632,
+      "n": 300,
+      "cpuMs": 1.473,
+      "cpuMedianMs": 1.635,
+      "cpuMsRuns": [
+        1.635,
+        2.205,
+        1.473
+      ],
+      "loopMs": 1.411,
+      "wallMs": 1.8,
+      "allocKb": 86.6,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 8.5
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 8.4
+        },
+        {
+          "name": "(V8 API) (native)",
+          "kb": 8.1
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 3.6
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 3.3
+        }
+      ],
+      "profile": {
+        "busyMs": 345,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 146.73
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 33.76
+          },
+          {
+            "name": "stat (native)",
+            "ms": 26.98
+          },
+          {
+            "name": "open (native)",
+            "ms": 14.79
+          },
+          {
+            "name": "writev (native)",
+            "ms": 5.71
+          },
+          {
+            "name": "close (native)",
+            "ms": 5.68
+          },
+          {
+            "name": "read (native)",
+            "ms": 5.25
+          },
+          {
+            "name": "writeHead node:_http_server:348",
+            "ms": 4.36
+          },
+          {
+            "name": "processTicksAndRejections node:internal/process/task_queues:72",
+            "ms": 3.7
+          },
+          {
+            "name": "sendArt src/routes/stream.js:247",
+            "ms": 2.68
+          },
+          {
+            "name": "emit node:events:471",
+            "ms": 2.64
+          },
+          {
+            "name": "handle node_modules/express/lib/router/index.js:136",
+            "ms": 2.4
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 2.3
+          },
+          {
+            "name": "_storeHeader node:_http_outgoing:454",
+            "ms": 2.14
+          },
+          {
+            "name": "compression node_modules/compression/index.js:80",
+            "ms": 2.09
+          },
+          {
+            "name": "Socket._writeGeneric node:net:940",
+            "ms": 1.82
+          },
+          {
+            "name": "(anonymous) ui-instance.js:155",
+            "ms": 1.63
+          },
+          {
+            "name": "createHash node:crypto:138",
+            "ms": 1.62
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 146.73
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 13.65
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 8.93
+          },
+          {
+            "name": "node:events",
+            "ms": 6.88
+          },
+          {
+            "name": "node_modules/send",
+            "ms": 6.19
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 6.06
+          },
+          {
+            "name": "node_modules/on-finished",
+            "ms": 5.35
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 5.15
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 4.19
+          },
+          {
+            "name": "src/routes/stream.js",
+            "ms": 3.68
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 2.98
+          },
+          {
+            "name": "node:net",
+            "ms": 2.42
+          }
+        ]
+      },
+      "syncFs": 9,
+      "syncFsSites": [
+        "openSync @ src/lib/imgcheck.js:28 x2",
+        "closeSync @ src/lib/imgcheck.js:37 x2",
+        "readSync @ src/lib/imgcheck.js:30 x2",
+        "statSync @ src/lib/imgcheck.js:45 x1",
+        "statSync @ src/lib/imgvariant.js:197 x1",
+        "statSync @ src/lib/imgvariant.js:216 x1"
+      ]
+    },
+    {
+      "name": "GET /stream/video/:id (range, 64 KB)",
+      "freq": "each seek / buffer refill",
+      "status": 206,
+      "bytes": 65536,
+      "n": 300,
+      "cpuMs": 1.73,
+      "cpuMedianMs": 2.143,
+      "cpuMsRuns": [
+        1.73,
+        2.401,
+        2.143
+      ],
+      "loopMs": 1.255,
+      "wallMs": 2.23,
+      "allocKb": 57.4,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 9.4
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 7
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 3.9
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 3.6
+        },
+        {
+          "name": "nextTick node:internal/process/task_queues:113",
+          "kb": 2.2
+        }
+      ],
+      "profile": {
+        "busyMs": 263,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 115.2
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 26.22
+          },
+          {
+            "name": "existsSync (native)",
+            "ms": 22.3
+          },
+          {
+            "name": "(garbage collector) (native)",
+            "ms": 10.1
+          },
+          {
+            "name": "writev (native)",
+            "ms": 7.1
+          },
+          {
+            "name": "forwarded node_modules/forwarded/index.js:24",
+            "ms": 6.93
+          },
+          {
+            "name": "stat (native)",
+            "ms": 6.31
+          },
+          {
+            "name": "writeHead node:_http_server:348",
+            "ms": 3.6
+          },
+          {
+            "name": "(anonymous) node_modules/express/lib/router/index.js:280",
+            "ms": 2.77
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 2.47
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 2.35
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:1035",
+            "ms": 2.35
+          },
+          {
+            "name": "emit node:events:471",
+            "ms": 2.35
+          },
+          {
+            "name": "compression node_modules/compression/index.js:80",
+            "ms": 2.27
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 2.24
+          },
+          {
+            "name": "processTicksAndRejections node:internal/process/task_queues:72",
+            "ms": 2.12
+          },
+          {
+            "name": "endReadableNT node:internal/streams/readable:1692",
+            "ms": 1.96
+          },
+          {
+            "name": "get exports node:internal/modules/package_json_reader:62",
+            "ms": 1.82
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 115.2
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 10.98
+          },
+          {
+            "name": "node_modules/forwarded",
+            "ms": 6.93
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 6.87
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 5.8
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 5.13
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 4.99
+          },
+          {
+            "name": "node:events",
+            "ms": 4.67
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 4.35
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 4.02
+          },
+          {
+            "name": "node:internal/stream_base_commons",
+            "ms": 2.92
+          },
+          {
+            "name": "node:_http_incoming",
+            "ms": 2.47
+          }
+        ]
+      },
+      "syncFs": 2,
+      "syncFsSites": [
+        "existsSync @ src/routes/stream.js:31 x1",
+        "statSync @ src/routes/stream.js:33 x1"
+      ]
+    },
+    {
+      "name": "GET /stream/subtitle/:id (sidecar)",
+      "freq": "each play",
+      "status": 200,
+      "bytes": 47,
+      "n": 200,
+      "cpuMs": 0.987,
+      "cpuMedianMs": 1.059,
+      "cpuMsRuns": [
+        1.059,
+        1.219,
+        0.987
+      ],
+      "loopMs": 1.336,
+      "wallMs": 1.56,
+      "allocKb": 53.1,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 8.5
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 7.7
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 3
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 2.9
+        },
+        {
+          "name": "writeHead node:_http_server:348",
+          "kb": 2.2
+        }
+      ],
+      "profile": {
+        "busyMs": 349,
+        "functions": [
+          {
+            "name": "open (native)",
+            "ms": 105.7
+          },
+          {
+            "name": "post node:inspector:112",
+            "ms": 105.35
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 42.67
+          },
+          {
+            "name": "writev (native)",
+            "ms": 6.46
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:1035",
+            "ms": 5.06
+          },
+          {
+            "name": "close (native)",
+            "ms": 4.1
+          },
+          {
+            "name": "parse node_modules/content-type/index.js:106",
+            "ms": 3.99
+          },
+          {
+            "name": "fstat (native)",
+            "ms": 3.6
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 2.87
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 2.65
+          },
+          {
+            "name": "serveExternal src/media/subtitles.js:43",
+            "ms": 2.51
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 2.49
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:688",
+            "ms": 1.96
+          },
+          {
+            "name": "digest (native)",
+            "ms": 1.9
+          },
+          {
+            "name": "read (native)",
+            "ms": 1.81
+          },
+          {
+            "name": "Hash (native)",
+            "ms": 1.81
+          },
+          {
+            "name": "getNearestParentPackageJSON node:internal/modules/package_json_reader:110",
+            "ms": 1.66
+          },
+          {
+            "name": "_flushOutput node:_http_outgoing:1209",
+            "ms": 1.35
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 105.35
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 13.57
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 7.02
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 5.67
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 5.59
+          },
+          {
+            "name": "node_modules/content-type",
+            "ms": 4.58
+          },
+          {
+            "name": "src/media/subtitles.js",
+            "ms": 3.67
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 3.56
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 2.78
+          },
+          {
+            "name": "node:_http_common",
+            "ms": 2.5
+          },
+          {
+            "name": "node_modules/on-headers",
+            "ms": 2.42
+          },
+          {
+            "name": "node:fs",
+            "ms": 2.13
+          }
+        ]
+      },
+      "syncFs": 4,
+      "syncFsSites": [
+        "readFileSync @ src/media/subtitles.js:46 x1",
+        "openSync @ src/media/subtitles.js:46 x1",
+        "readSync @ src/media/subtitles.js:46 x1",
+        "closeSync @ src/media/subtitles.js:46 x1"
+      ]
+    },
+    {
+      "name": "GET /stream/embedded/:id/0 (cached)",
+      "freq": "each play",
+      "status": 200,
+      "bytes": 69,
+      "n": 200,
+      "cpuMs": 1.376,
+      "cpuMedianMs": 1.443,
+      "cpuMsRuns": [
+        1.446,
+        1.443,
+        1.376
+      ],
+      "loopMs": 1.08,
+      "wallMs": 1.88,
+      "allocKb": 79,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 9.9
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 9.1
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 3.5
+        },
+        {
+          "name": "onFinished node_modules/on-finished/index.js:46",
+          "kb": 3.2
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 3.1
+        }
+      ],
+      "profile": {
+        "busyMs": 402,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 104.44
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 58.36
+          },
+          {
+            "name": "stat (native)",
+            "ms": 35.5
+          },
+          {
+            "name": "existsSync (native)",
+            "ms": 26.78
+          },
+          {
+            "name": "writev (native)",
+            "ms": 13.68
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 13.48
+          },
+          {
+            "name": "serveEmbedded src/media/subtitles.js:58",
+            "ms": 10.27
+          },
+          {
+            "name": "getStatsFromBinding node:internal/fs/utils:552",
+            "ms": 5.71
+          },
+          {
+            "name": "Readable.removeAllListeners node:internal/streams/readable:1181",
+            "ms": 5.3
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 5.14
+          },
+          {
+            "name": "Hash node:internal/crypto/hash:66",
+            "ms": 4.95
+          },
+          {
+            "name": "wrap node_modules/on-finished/index.js:219",
+            "ms": 4.23
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 4.01
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:1035",
+            "ms": 3.96
+          },
+          {
+            "name": "canBeRequiredWithoutScheme node:internal/bootstrap/realm:298",
+            "ms": 3.71
+          },
+          {
+            "name": "(anonymous) src/lib/kids.js:296",
+            "ms": 3.05
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 2.89
+          },
+          {
+            "name": "FSReqCallback (native)",
+            "ms": 2.85
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 104.44
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 21.63
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 15.01
+          },
+          {
+            "name": "src/media/subtitles.js",
+            "ms": 10.27
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 10.19
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 8.74
+          },
+          {
+            "name": "node:internal/fs/utils",
+            "ms": 8.28
+          },
+          {
+            "name": "node_modules/on-finished",
+            "ms": 7.49
+          },
+          {
+            "name": "node:events",
+            "ms": 7.26
+          },
+          {
+            "name": "node:fs",
+            "ms": 6.55
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 6.09
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 5.06
+          }
+        ]
+      },
+      "syncFs": 2.02,
+      "syncFsSites": [
+        "existsSync @ src/media/subtitles.js:78 x1",
+        "statSync @ src/media/subtitles.js:64 x1",
+        "renameSync @ src/media/subtitles.js:135 x0.02"
+      ]
+    },
+    {
+      "name": "GET jit index.m3u8 (table cached)",
+      "freq": "each play of a repackaged file",
+      "status": 200,
+      "bytes": 511,
+      "n": 200,
+      "cpuMs": 1.829,
+      "cpuMedianMs": 2.793,
+      "cpuMsRuns": [
+        2.793,
+        3.018,
+        1.829
+      ],
+      "loopMs": 2.127,
+      "wallMs": 5.18,
+      "allocKb": 64.5,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 9.1
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 7.7
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 6.1
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 3.3
+        },
+        {
+          "name": "_writeNow src/lib/jsonstore.js:36",
+          "kb": 2.7
+        }
+      ],
+      "profile": {
+        "busyMs": 428,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 178.81
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 61.56
+          },
+          {
+            "name": "existsSync (native)",
+            "ms": 28.78
+          },
+          {
+            "name": "close (native)",
+            "ms": 18.93
+          },
+          {
+            "name": "stat (native)",
+            "ms": 12.42
+          },
+          {
+            "name": "writev (native)",
+            "ms": 11.18
+          },
+          {
+            "name": "statfs (native)",
+            "ms": 8.33
+          },
+          {
+            "name": "(anonymous) src/routes/stream.js:413",
+            "ms": 8.13
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 8.06
+          },
+          {
+            "name": "open (native)",
+            "ms": 6.6
+          },
+          {
+            "name": "getHeader node:_http_outgoing:784",
+            "ms": 5.06
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 4.51
+          },
+          {
+            "name": "handle node_modules/express/lib/router/layer.js:86",
+            "ms": 4.25
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 3.63
+          },
+          {
+            "name": "resOnFinish node:_http_server:980",
+            "ms": 3
+          },
+          {
+            "name": "format node_modules/content-type/index.js:65",
+            "ms": 2.63
+          },
+          {
+            "name": "update (native)",
+            "ms": 2.57
+          },
+          {
+            "name": "parserOnMessageComplete node:_http_common:135",
+            "ms": 2.5
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 178.81
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 21.08
+          },
+          {
+            "name": "src/routes/stream.js",
+            "ms": 8.73
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 8.05
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 5.97
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 4.51
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 4.49
+          },
+          {
+            "name": "node_modules/content-type",
+            "ms": 3.74
+          },
+          {
+            "name": "node:_http_common",
+            "ms": 3.67
+          },
+          {
+            "name": "node:net",
+            "ms": 3.44
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 2.87
+          },
+          {
+            "name": "src/lib/sessions.js",
+            "ms": 2.85
+          }
+        ]
+      },
+      "syncFs": 5,
+      "syncFsSites": [
+        "existsSync @ src/routes/stream.js:415 x1",
+        "openSync @ src/routes/stream.js:429 x1",
+        "statSync @ src/routes/stream.js:427 x1",
+        "statfsSync @ src/routes/stream.js:421 x1",
+        "closeSync @ src/routes/stream.js:436 x1"
+      ]
+    },
+    {
+      "name": "GET jit segment (made)",
+      "freq": "every 6-10 s per repackaged viewer",
+      "status": 200,
+      "bytes": 1585028,
+      "n": 200,
+      "cpuMs": 15.859,
+      "cpuMedianMs": 18.005,
+      "cpuMsRuns": [
+        18.005,
+        20.73,
+        15.859
+      ],
+      "loopMs": 10.918,
+      "wallMs": 37.92,
+      "allocKb": 207.2,
+      "allocTop": [
+        {
+          "name": "(V8 API) (native)",
+          "kb": 71.1
+        },
+        {
+          "name": "nextTick node:internal/process/task_queues:113",
+          "kb": 8.9
+        },
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 8.1
+        },
+        {
+          "name": "_write node:internal/streams/writable:453",
+          "kb": 5.9
+        },
+        {
+          "name": "Socket._write node:net:982",
+          "kb": 5.4
+        }
+      ],
+      "profile": {
+        "busyMs": 1646,
+        "functions": [
+          {
+            "name": "(garbage collector) (native)",
+            "ms": 639.82
+          },
+          {
+            "name": "writeBuffer (native)",
+            "ms": 327.09
+          },
+          {
+            "name": "post node:inspector:112",
+            "ms": 120.2
+          },
+          {
+            "name": "read (native)",
+            "ms": 99.84
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 89.13
+          },
+          {
+            "name": "writev (native)",
+            "ms": 32.94
+          },
+          {
+            "name": "pause node:internal/streams/readable:980",
+            "ms": 29.72
+          },
+          {
+            "name": "FastBuffer node:internal/buffer:960",
+            "ms": 22.51
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 21.41
+          },
+          {
+            "name": "stat (native)",
+            "ms": 16.64
+          },
+          {
+            "name": "open (native)",
+            "ms": 16.53
+          },
+          {
+            "name": "existsSync (native)",
+            "ms": 15.13
+          },
+          {
+            "name": "(anonymous) node:fs:188",
+            "ms": 13.17
+          },
+          {
+            "name": "FSReqCallback (native)",
+            "ms": 12.93
+          },
+          {
+            "name": "Writable.write node:internal/streams/writable:504",
+            "ms": 10.99
+          },
+          {
+            "name": "deprecate node:internal/util:149",
+            "ms": 9.97
+          },
+          {
+            "name": "get node:_http_outgoing:247",
+            "ms": 8.52
+          },
+          {
+            "name": "processTicksAndRejections node:internal/process/task_queues:72",
+            "ms": 7.16
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 120.2
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 45.41
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 28.57
+          },
+          {
+            "name": "node:internal/buffer",
+            "ms": 22.51
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 20.47
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 18.03
+          },
+          {
+            "name": "node:fs",
+            "ms": 17.83
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 16.11
+          },
+          {
+            "name": "node:internal/streams/writable",
+            "ms": 14.11
+          },
+          {
+            "name": "node:internal/util",
+            "ms": 9.97
+          },
+          {
+            "name": "node:events",
+            "ms": 9.25
+          },
+          {
+            "name": "node_modules/send",
+            "ms": 8.3
+          }
+        ]
+      },
+      "syncFs": 2.1,
+      "syncFsSites": [
+        "statSync @ src/routes/stream.js:473 x1",
+        "existsSync @ src/media/jit.js:905 x1",
+        "existsSync @ src/media/jit.js:618 x0.05",
+        "existsSync @ src/media/jit.js:632 x0.05"
+      ]
+    },
+    {
+      "name": "GET / (app shell)",
+      "freq": "each page load",
+      "status": 200,
+      "bytes": 3733,
+      "n": 200,
+      "cpuMs": 2.223,
+      "cpuMedianMs": 2.684,
+      "cpuMsRuns": [
+        2.684,
+        3.225,
+        2.223
+      ],
+      "loopMs": 1.459,
+      "wallMs": 2.57,
+      "allocKb": 102.6,
+      "allocTop": [
+        {
+          "name": "replace (native)",
+          "kb": 23.2
+        },
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 9
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 8.9
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 6.9
+        },
+        {
+          "name": "normalize node:path:336",
+          "kb": 6.5
+        }
+      ],
+      "profile": {
+        "busyMs": 403,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 126.23
+          },
+          {
+            "name": "stat (native)",
+            "ms": 72.67
+          },
+          {
+            "name": "close (native)",
+            "ms": 35.78
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 17.31
+          },
+          {
+            "name": "writev (native)",
+            "ms": 6.68
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 5.8
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 5.15
+          },
+          {
+            "name": "write (native)",
+            "ms": 4.4
+          },
+          {
+            "name": "(anonymous) src/lib/assetver.js:56",
+            "ms": 3.93
+          },
+          {
+            "name": "Brotli node:zlib:792",
+            "ms": 3.49
+          },
+          {
+            "name": "_storeHeader node:_http_outgoing:454",
+            "ms": 3.23
+          },
+          {
+            "name": "writeLatin1String (native)",
+            "ms": 3.14
+          },
+          {
+            "name": "setCharset node_modules/express/lib/utils.js:246",
+            "ms": 3.09
+          },
+          {
+            "name": "write_ node:_http_outgoing:942",
+            "ms": 2.96
+          },
+          {
+            "name": "digest (native)",
+            "ms": 2.87
+          },
+          {
+            "name": "emit node:events:471",
+            "ms": 2.7
+          },
+          {
+            "name": "onResponseHeaders node_modules/compression/index.js:161",
+            "ms": 2.63
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 2.5
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 126.23
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 23.3
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 11.97
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 10.33
+          },
+          {
+            "name": "node:zlib",
+            "ms": 6.89
+          },
+          {
+            "name": "node:internal/streams/writable",
+            "ms": 6
+          },
+          {
+            "name": "node_modules/compression",
+            "ms": 5.69
+          },
+          {
+            "name": "src/lib/assetver.js",
+            "ms": 4.82
+          },
+          {
+            "name": "node:events",
+            "ms": 4.7
+          },
+          {
+            "name": "node:internal/buffer",
+            "ms": 4.64
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 4.55
+          },
+          {
+            "name": "node:_http_incoming",
+            "ms": 4.32
+          }
+        ]
+      },
+      "syncFs": 7.03,
+      "syncFsSites": [
+        "statSync @ src/lib/cssbundle.js:76 x6",
+        "statSync @ src/lib/assetver.js:46 x1",
+        "existsSync @ src/media/jit.js:632 x0.02",
+        "existsSync @ src/media/jit.js:618 x0.02"
+      ]
+    },
+    {
+      "name": "GET /css/aurora.css?v=",
+      "freq": "once per release per browser",
+      "status": 200,
+      "bytes": 38246,
+      "n": 60,
+      "cpuMs": 12.822,
+      "cpuMedianMs": 14.645,
+      "cpuMsRuns": [
+        12.822,
+        14.645,
+        16.179
+      ],
+      "loopMs": 6.194,
+      "wallMs": 10.42,
+      "allocKb": 140.3,
+      "allocTop": [
+        {
+          "name": "(V8 API) (native)",
+          "kb": 60.7
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 9.1
+        },
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 8.8
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 7.3
+        },
+        {
+          "name": "process_params node_modules/express/lib/router/index.js:338",
+          "kb": 7
+        }
+      ],
+      "profile": {
+        "busyMs": 350,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 121.98
+          },
+          {
+            "name": "(garbage collector) (native)",
+            "ms": 75.13
+          },
+          {
+            "name": "stat (native)",
+            "ms": 28.3
+          },
+          {
+            "name": "close (native)",
+            "ms": 26.25
+          },
+          {
+            "name": "processCallback node:zlib:500",
+            "ms": 16.79
+          },
+          {
+            "name": "(anonymous) node:internal/buffer:1061",
+            "ms": 13.87
+          },
+          {
+            "name": "(anonymous) (native)",
+            "ms": 11.68
+          },
+          {
+            "name": "write (native)",
+            "ms": 7.99
+          },
+          {
+            "name": "writev (native)",
+            "ms": 7.48
+          },
+          {
+            "name": "writeHead node_modules/on-headers/index.js:34",
+            "ms": 5.22
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 2.64
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 2.17
+          },
+          {
+            "name": "_storeHeader node:_http_outgoing:454",
+            "ms": 1.76
+          },
+          {
+            "name": "writeHead node:_http_server:348",
+            "ms": 1.75
+          },
+          {
+            "name": "write node:_http_outgoing:898",
+            "ms": 1.24
+          },
+          {
+            "name": "Brotli node:zlib:792",
+            "ms": 1.16
+          },
+          {
+            "name": "match node_modules/express/lib/router/layer.js:110",
+            "ms": 1.11
+          },
+          {
+            "name": "Socket._writeGeneric node:net:940",
+            "ms": 1.07
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 121.98
+          },
+          {
+            "name": "node:zlib",
+            "ms": 18.54
+          },
+          {
+            "name": "node:internal/buffer",
+            "ms": 13.87
+          },
+          {
+            "name": "node_modules/on-headers",
+            "ms": 5.85
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 5.44
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 5.14
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 3.19
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 2.39
+          },
+          {
+            "name": "node:internal/streams/readable",
+            "ms": 2.19
+          },
+          {
+            "name": "node:internal/streams/writable",
+            "ms": 1.8
+          },
+          {
+            "name": "node:internal/streams/transform",
+            "ms": 1.31
+          },
+          {
+            "name": "node_modules/negotiator",
+            "ms": 1.18
+          }
+        ]
+      },
+      "syncFs": 6.07,
+      "syncFsSites": [
+        "statSync @ src/lib/cssbundle.js:76 x6",
+        "existsSync @ src/media/jit.js:632 x0.03",
+        "existsSync @ src/media/jit.js:618 x0.03"
+      ]
+    },
+    {
+      "name": "GET /js/main.js (If-None-Match)",
+      "freq": "about 60 files per page load",
+      "status": 304,
+      "bytes": 0,
+      "n": 300,
+      "cpuMs": 0.456,
+      "cpuMedianMs": 0.459,
+      "cpuMsRuns": [
+        0.459,
+        0.456,
+        0.715
+      ],
+      "loopMs": 0.433,
+      "wallMs": 0.71,
+      "allocKb": 58,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 9.7
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 8.7
+        },
+        {
+          "name": "process_params node_modules/express/lib/router/index.js:338",
+          "kb": 7.1
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 5.7
+        },
+        {
+          "name": "_addListener node:events:552",
+          "kb": 2
+        }
+      ],
+      "profile": {
+        "busyMs": 150,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 109.73
+          },
+          {
+            "name": "writeLatin1String (native)",
+            "ms": 6.14
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 2.76
+          },
+          {
+            "name": "notModified node_modules/send/index.js:371",
+            "ms": 2.17
+          },
+          {
+            "name": "get node:_http_incoming:109",
+            "ms": 1.79
+          },
+          {
+            "name": "expressInit node_modules/express/lib/middleware/init.js:29",
+            "ms": 1.52
+          },
+          {
+            "name": "send node_modules/send/index.js:601",
+            "ms": 1.46
+          },
+          {
+            "name": "stat (native)",
+            "ms": 1.3
+          },
+          {
+            "name": "(anonymous) node:fs:197",
+            "ms": 1.25
+          },
+          {
+            "name": "set node:internal/fs/utils:468",
+            "ms": 1.16
+          },
+          {
+            "name": "dispatch (native)",
+            "ms": 1.13
+          },
+          {
+            "name": "end node_modules/compression/index.js:113",
+            "ms": 1.11
+          },
+          {
+            "name": "FSReqCallback (native)",
+            "ms": 1.09
+          },
+          {
+            "name": "parseurl node_modules/parseurl/index.js:35",
+            "ms": 1.08
+          },
+          {
+            "name": "end node:_http_outgoing:1084",
+            "ms": 1.04
+          },
+          {
+            "name": "(anonymous) node_modules/express/lib/router/index.js:640",
+            "ms": 1.04
+          },
+          {
+            "name": "setHeader node:_http_outgoing:697",
+            "ms": 0.96
+          },
+          {
+            "name": "removeContentHeaderFields node_modules/send/index.js:355",
+            "ms": 0.92
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 109.73
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 6.48
+          },
+          {
+            "name": "node_modules/send",
+            "ms": 5.12
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 3.62
+          },
+          {
+            "name": "node:_http_incoming",
+            "ms": 2.86
+          },
+          {
+            "name": "node:internal/fs/utils",
+            "ms": 2.21
+          },
+          {
+            "name": "node_modules/compression",
+            "ms": 1.66
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 1.63
+          },
+          {
+            "name": "ui-instance.js",
+            "ms": 1.6
+          },
+          {
+            "name": "node:fs",
+            "ms": 1.25
+          },
+          {
+            "name": "node_modules/on-headers",
+            "ms": 1.12
+          },
+          {
+            "name": "node:internal/stream_base_commons",
+            "ms": 1.09
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/downloads",
+      "freq": "Downloads page poll",
+      "status": 200,
+      "bytes": 2,
+      "n": 200,
+      "cpuMs": 0.982,
+      "cpuMedianMs": 1.063,
+      "cpuMsRuns": [
+        1.151,
+        0.982,
+        1.063
+      ],
+      "loopMs": 0.852,
+      "wallMs": 1.61,
+      "allocKb": 69.9,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 9.3
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 6.8
+        },
+        {
+          "name": "handle node_modules/express/lib/router/index.js:136",
+          "kb": 6.1
+        },
+        {
+          "name": "process_params node_modules/express/lib/router/index.js:338",
+          "kb": 5.7
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 5.7
+        }
+      ],
+      "profile": {
+        "busyMs": 334,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 203.75
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 50.54
+          },
+          {
+            "name": "writev (native)",
+            "ms": 13.77
+          },
+          {
+            "name": "handle node_modules/express/lib/router/index.js:136",
+            "ms": 5.09
+          },
+          {
+            "name": "router node_modules/express/lib/router/index.js:46",
+            "ms": 3.86
+          },
+          {
+            "name": "parse node_modules/content-type/index.js:106",
+            "ms": 2.42
+          },
+          {
+            "name": "(anonymous) src/routes/downloads.js:29",
+            "ms": 2.4
+          },
+          {
+            "name": "dispatch node_modules/express/lib/router/route.js:101",
+            "ms": 2.38
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 2.29
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:914",
+            "ms": 2.16
+          },
+          {
+            "name": "clearIncoming node:_http_server:967",
+            "ms": 1.85
+          },
+          {
+            "name": "(anonymous) node:internal/modules/cjs/loader:1035",
+            "ms": 1.69
+          },
+          {
+            "name": "update node:internal/crypto/hash:107",
+            "ms": 1.67
+          },
+          {
+            "name": "afterWriteDispatched node:internal/stream_base_commons:154",
+            "ms": 1.67
+          },
+          {
+            "name": "(anonymous) node_modules/express/lib/router/index.js:640",
+            "ms": 1.66
+          },
+          {
+            "name": "Hash node:internal/crypto/hash:66",
+            "ms": 1.6
+          },
+          {
+            "name": "middleware src/lib/resetgate.js:184",
+            "ms": 1.52
+          },
+          {
+            "name": "createHash node:crypto:138",
+            "ms": 1.35
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 203.75
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 19.66
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 7.39
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 4.7
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 4.33
+          },
+          {
+            "name": "node:internal/crypto/hash",
+            "ms": 3.27
+          },
+          {
+            "name": "node_modules/content-type",
+            "ms": 2.42
+          },
+          {
+            "name": "src/routes/downloads.js",
+            "ms": 2.4
+          },
+          {
+            "name": "node:internal/stream_base_commons",
+            "ms": 2.27
+          },
+          {
+            "name": "node:_http_common",
+            "ms": 2.05
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 1.81
+          },
+          {
+            "name": "src/lib/sessions.js",
+            "ms": 1.75
+          }
+        ]
+      },
+      "syncFs": 0,
+      "syncFsSites": []
+    },
+    {
+      "name": "GET /api/changelog?head=1",
+      "freq": "each page load",
+      "status": 200,
+      "bytes": 20,
+      "n": 300,
+      "cpuMs": 0.661,
+      "cpuMedianMs": 0.916,
+      "cpuMsRuns": [
+        1.019,
+        0.916,
+        0.661
+      ],
+      "loopMs": 0.694,
+      "wallMs": 1.06,
+      "allocKb": 54,
+      "allocTop": [
+        {
+          "name": "compression node_modules/compression/index.js:80",
+          "kb": 8.8
+        },
+        {
+          "name": "next node_modules/express/lib/router/index.js:177",
+          "kb": 3.8
+        },
+        {
+          "name": "process_params node_modules/express/lib/router/index.js:338",
+          "kb": 3.3
+        },
+        {
+          "name": "(anonymous) node:internal/modules/cjs/loader:1158",
+          "kb": 3
+        },
+        {
+          "name": "writeHead node:_http_server:348",
+          "kb": 2.8
+        }
+      ],
+      "profile": {
+        "busyMs": 219,
+        "functions": [
+          {
+            "name": "post node:inspector:112",
+            "ms": 112.69
+          },
+          {
+            "name": "getNearestParentPackageJSON (native)",
+            "ms": 29.96
+          },
+          {
+            "name": "stat (native)",
+            "ms": 6.48
+          },
+          {
+            "name": "writev (native)",
+            "ms": 5.68
+          },
+          {
+            "name": "writeHead node:_http_server:348",
+            "ms": 5.22
+          },
+          {
+            "name": "next node_modules/express/lib/router/index.js:177",
+            "ms": 3.93
+          },
+          {
+            "name": "nextTick node:internal/process/task_queues:113",
+            "ms": 2.87
+          },
+          {
+            "name": "send node_modules/express/lib/response.js:111",
+            "ms": 2.6
+          },
+          {
+            "name": "getHeader node:_http_outgoing:784",
+            "ms": 2.58
+          },
+          {
+            "name": "Hash (native)",
+            "ms": 1.89
+          },
+          {
+            "name": "json node_modules/express/lib/response.js:250",
+            "ms": 1.88
+          },
+          {
+            "name": "compression node_modules/compression/index.js:80",
+            "ms": 1.86
+          },
+          {
+            "name": "Hash node:internal/crypto/hash:66",
+            "ms": 1.85
+          },
+          {
+            "name": "_finish node:_http_server:238",
+            "ms": 1.45
+          },
+          {
+            "name": "middleware src/lib/blurup.js:171",
+            "ms": 1.38
+          },
+          {
+            "name": "setWriteHeadHeaders node_modules/on-headers/index.js:119",
+            "ms": 1.27
+          },
+          {
+            "name": "_storeHeader node:_http_outgoing:454",
+            "ms": 1.22
+          },
+          {
+            "name": "(anonymous) node_modules/express/lib/request.js:467",
+            "ms": 1.2
+          }
+        ],
+        "files": [
+          {
+            "name": "node:inspector",
+            "ms": 112.69
+          },
+          {
+            "name": "node_modules/express",
+            "ms": 16.63
+          },
+          {
+            "name": "node:_http_server",
+            "ms": 9.41
+          },
+          {
+            "name": "node:_http_outgoing",
+            "ms": 6.14
+          },
+          {
+            "name": "node:internal/process/task_queues",
+            "ms": 2.87
+          },
+          {
+            "name": "node_modules/compression",
+            "ms": 2.47
+          },
+          {
+            "name": "src/lib/blurup.js",
+            "ms": 2.35
+          },
+          {
+            "name": "node_modules/qs",
+            "ms": 2.14
+          },
+          {
+            "name": "node:_http_incoming",
+            "ms": 1.88
+          },
+          {
+            "name": "node:internal/crypto/hash",
+            "ms": 1.85
+          },
+          {
+            "name": "node:internal/modules/cjs/loader",
+            "ms": 1.69
+          },
+          {
+            "name": "node:internal/modules/package_json_reader",
+            "ms": 1.64
+          }
+        ]
+      },
+      "syncFs": 1,
+      "syncFsSites": [
+        "statSync @ src/routes/api.js:256 x1"
+      ]
+    }
+  ],
+  "idleCpuMsPerSec": 19.62
+}

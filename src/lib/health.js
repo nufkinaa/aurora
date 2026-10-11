@@ -41,6 +41,10 @@
 "use strict";
 const fs = require("fs");
 const path = require("path");
+// (asked for once, lib/lazy.js: /healthz is polled)
+const lazy = require("./lazy");
+const shutdownLib = lazy(require, "./shutdown");
+const looplagLib = lazy(require, "./looplag");
 
 const GB = 1024 ** 3;
 const HOUR = 3600 * 1000;
@@ -431,6 +435,8 @@ const run = async () => {
     const now = Date.now();
     const d = data();
     d.checks = d.checks || {};
+    // what is on disk now, to tell at the end whether this round changed it
+    const stored = JSON.stringify(d);
     const results = [];
     const attempt = async (fn) => {
       try { for (const r of [].concat(await fn())) results.push(r); } catch (e) { console.warn(`[health] a check could not run: ${(e && e.message) || e}`); }
@@ -457,7 +463,10 @@ const run = async () => {
       for (const id of Object.keys(d.checks)) if (id.startsWith("disk:") && !seenIds.has(id)) { delete d.checks[id]; live.latest.delete(id); }
     }
     live.lastRunAt = now;
-    persist();
+    // Written only when the round changed something. A healthy server's round
+    // changes nothing, and saving anyway rewrote health.json every minute for
+    // ever — one of the writes that keep an idle server's disk from resting.
+    if (JSON.stringify(d) !== stored) persist();
   } finally {
     live.running = false;
   }
@@ -630,10 +639,10 @@ const healthz = (req, res) => {
   }
   res.setHeader("Cache-Control", "no-store");
   let stopping = false;
-  try { stopping = require("./shutdown").stopping(); } catch {}
+  try { stopping = shutdownLib().stopping(); } catch {}
   if (stopping) return res.status(503).json({ ok: false, stopping: true, version });
   let loop = null;
-  try { loop = require("./looplag").read(); } catch {}
+  try { loop = looplagLib().read(); } catch {}
   res.json({ ok: true, uptime: Math.floor(process.uptime()), version, loop });
 };
 

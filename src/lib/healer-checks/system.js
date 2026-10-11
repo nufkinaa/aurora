@@ -7,6 +7,11 @@
 // goes through ctx.slowly (the healer's every-few-minutes cache), so a round
 // stays a matter of milliseconds.
 "use strict";
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+// (The library check asked once per title, per round.)
+const lazy = require("../lazy");
+const librootsLib = lazy(require, "../libroots");
 const fs = require("fs");
 const path = require("path");
 const { fmtBytes, fmtAge, plural, pressFor } = require("./util");
@@ -89,7 +94,7 @@ const gatherFiles = async (scanner, roots, budget = 6000) => {
     if (n++ >= budget) break;
     const e = scanner.resolve(it.id);
     if (!e) continue;
-    const root = (roots.find((r) => require("../libroots").isUnder(e.path, [r.dir])) || {}).dir || null;
+    const root = (roots.find((r) => librootsLib().isUnder(e.path, [r.dir])) || {}).dir || null;
     const st = await fs.promises.stat(e.path).catch(() => null);
     out.push({ name: path.basename(e.path), root, size: st ? st.size : 0, mtimeMs: st ? st.mtimeMs : 0, duration: it.duration || 0, exists: !!st });
     if (n % 200 === 0) await new Promise((r) => setImmediate(r));
@@ -133,7 +138,7 @@ const checkLibrary = async (ctx = {}) => {
   const config = ctx.config || require("../../config");
   const st = ctx.store || require("./store").get();
   const scanner = ctx.scanner || require("../../media/scanner");
-  const roots = ctx.roots || require("../libroots").roots();
+  const roots = ctx.roots || librootsLib().roots();
   if (!roots.length) return { status: "info", summary: "no library folders are configured" };
   // every round: can each folder be read, and does it hold anything?
   const observed = [];
@@ -142,7 +147,7 @@ const checkLibrary = async (ctx = {}) => {
     const names = s && s.isDirectory() ? await readdirSoon(r.dir) : null;
     const indexed = ((r.kind === "movies" ? scanner.index.movies : scanner.index.shows) || []).filter((it) => {
       const e = scanner.resolve(it.id) || (it.seasons && it.seasons[0] && it.seasons[0].episodes[0] && scanner.resolve(it.seasons[0].episodes[0].id));
-      return e && require("../libroots").isUnder(e.path, [r.dir]);
+      return e && librootsLib().isUnder(e.path, [r.dir]);
     }).length;
     observed.push({ kind: r.kind, dir: r.dir, ok: !!names, entries: names ? names.filter((n) => !n.startsWith(".")).length : 0, indexed });
   }

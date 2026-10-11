@@ -15,12 +15,19 @@ const tel = require("../lib/tel");
 const realtime = require("../realtime");
 
 const router = express.Router();
+// Imports that have to stay inside functions (circular), asked for once
+// instead of on every call — lib/lazy.js has the why.
+const lazy = require("../lib/lazy");
+const authmodeLib = lazy(require, "../lib/authmode");
+const profilesLib = lazy(require, "../profiles");
+const authzLib = lazy(require, "../lib/authz");
+const scannerLib = lazy(require, "../media/scanner");
 usage.boot();
 tel.boot(usage.DIR);
 // the household's own words, which a client message must never be stored with
 tel.setDictionarySource(() => ({
-  titles: require("../media/scanner").allItems().map((i) => i.title),
-  people: require("../profiles").list().map((p) => p.name),
+  titles: scannerLib().allItems().map((i) => i.title),
+  people: profilesLib().list().map((p) => p.name),
 }));
 process.once("exit", () => { try { tel.flush(); } catch {} }); // synchronous writes: safe in an exit handler
 
@@ -37,11 +44,11 @@ const overLimit = (ip, now = Date.now()) => {
 router.post("/api/usage", (req, res) => {
   try {
     if (!overLimit(realtime.clientIp(req))) {
-      const mode = require("../lib/authmode").get();
+      const mode = authmodeLib().get();
       const v = tel.verdict(req.body, {
-        profiles: require("../profiles").list(),
+        profiles: profilesLib().list(),
         mode,
-        session: mode === "closed" ? require("../lib/authz").sessionFor(req) : null,
+        session: mode === "closed" ? authzLib().sessionFor(req) : null,
         admin: mode === "closed" && realtime.isAdmin(req),
       });
       if (v === "drop") res.setHeader("X-Usage", "off");
