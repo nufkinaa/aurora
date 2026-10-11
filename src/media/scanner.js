@@ -735,18 +735,46 @@ const bitmapOnlyVideos = () => {
 
 const allItems = () => [...index.movies, ...index.shows];
 
-const findById = (id) => {
-  for (const m of index.movies) if (m.id === id) return m;
+// id -> the film, the show, or the episode with its show. findById used to
+// walk the whole library for every id: every film, then every show and each
+// of its episodes — and an id that is not in the library at all (a streamed
+// title's `torrent|…` key, which is what most of a watch history is made of)
+// walked ALL of it before answering null. Home asks about every row of a
+// profile's history, so one Home request made about 3,000 of those walks over
+// 1,860 entries (measured, docs/qa/backend-efficiency: 575 ms of CPU a
+// request on a two-core box). The map is built on first use after a scan
+// and answers what the walk answered: the first match in the same order
+// (films, then each show followed by its own episodes).
+let lookup = null;
+let lookupOf = { movies: null, shows: null, nMovies: -1, nShows: -1 };
+const lookupMap = () => {
+  if (
+    lookup && lookupOf.movies === index.movies && lookupOf.shows === index.shows &&
+    lookupOf.nMovies === index.movies.length && lookupOf.nShows === index.shows.length
+  ) return lookup;
+  const map = new Map();
+  for (const m of index.movies) if (m && !map.has(m.id)) map.set(m.id, { item: m });
   for (const s of index.shows) {
-    if (s.id === id) return s;
-    for (const season of s.seasons) {
-      for (const ep of season.episodes) {
-        if (ep.id === id)
-          return { ...ep, showId: s.id, showTitle: s.title, cover: s.cover };
+    if (!s) continue;
+    if (!map.has(s.id)) map.set(s.id, { item: s });
+    for (const season of s.seasons || []) {
+      for (const ep of (season && season.episodes) || []) {
+        if (ep && !map.has(ep.id)) map.set(ep.id, { ep, show: s });
       }
     }
   }
-  return null;
+  lookup = map;
+  lookupOf = { movies: index.movies, shows: index.shows, nMovies: index.movies.length, nShows: index.shows.length };
+  return map;
+};
+
+const findById = (id) => {
+  const hit = lookupMap().get(id);
+  if (!hit) return null;
+  if (hit.item) return hit.item;
+  // an episode: a fresh object every time, as before (callers add to it)
+  const s = hit.show;
+  return { ...hit.ep, showId: s.id, showTitle: s.title, cover: s.cover };
 };
 
 const resolve = (id) => registry.get(id) || null;
