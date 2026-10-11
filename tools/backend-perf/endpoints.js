@@ -27,7 +27,11 @@ const { start } = require("./instance");
 const { median, round, saveJson, arg, table, sleep } = require("./lib");
 
 const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
-const call = (srv, e, i) => new Promise((resolve, reject) => {
+const call = async (srv, e, i) => {
+  if (e.pre) await call1(srv, e.pre(i), i);
+  return call1(srv, e, i);
+};
+const call1 = (srv, e, i) => new Promise((resolve, reject) => {
   const p = typeof e.path === "function" ? e.path(i) : e.path;
   const body = e.body ? JSON.stringify(typeof e.body === "function" ? e.body(i) : e.body) : null;
   const req = http.request(srv.url + p, {
@@ -63,6 +67,12 @@ const endpoints = (srv) => {
     { name: "GET /api/library", path: "/api/library", n: 30, freq: "app start + each library_updated" },
     { name: "GET /api/library (If-None-Match)", path: "/api/library", n: 30, needsEtag: true, freq: "the same, client copy current" },
     { name: "GET /api/home", path: `/api/home?profile=${P}`, n: 30, freq: "each visit to Home" },
+    // The server keeps a finished Home for 30 s while nothing it was built from changes
+    // (lib/answermemo.js), so the two rows above are mostly the kept answer. These two
+    // save a progress row for the same profile first — what a household that is watching
+    // does every 5 s — so Home is composed afresh each time.
+    { name: "GET /api/home (composed: after a progress save)", path: `/api/home?profile=${P}`, n: 30, freq: "Home while that profile watches", pre: (i) => ({ method: "POST", path: `/api/profiles/${P}/progress`, body: { itemId: films[i % 5], position: 700 + i, duration: 6000 } }) },
+    { name: "GET /api/home slim (composed)", path: `/api/home?profile=${P}&slim=1`, n: 30, freq: "the same, TV", pre: (i) => ({ method: "POST", path: `/api/profiles/${P}/progress`, body: { itemId: films[i % 5], position: 900 + i, duration: 6000 } }) },
     { name: "GET /api/home slim (TV)", path: `/api/home?profile=${P}&slim=1`, n: 30, freq: "each visit to Home (TV)" },
     { name: "GET /api/item/:id (film)", path: (i) => `/api/item/${films[i % films.length]}`, n: 300, freq: "each title page / play" },
     { name: "GET /api/item/:id (episode)", path: (i) => `/api/item/${eps[i % eps.length]}`, n: 300, freq: "each episode play" },
