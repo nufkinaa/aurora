@@ -12,9 +12,38 @@ const withToken = (headers = {}) =>
 const withBlur = (options, headers) =>
   !options.method || String(options.method).toUpperCase() === "GET" ? { ...headers, "X-Blur": "1" } : headers;
 
-const json = async (url, options = {}, attempt = 0) => {
-  let res;
+// Boot's first questions are already on the wire when this module loads —
+// index.html asks them before any code has arrived (see the note there). A
+// plain GET that matches one (same address, same profile token) takes that
+// answer instead of asking again. Once only, only while it is fresh, and only
+// a 200: anything else is asked the ordinary way, so a failure, a refusal
+// from before a sign-in, or an answer that has sat through a long wait at the
+// profile door can never stand in for a real one.
+const EARLY_MAX_AGE_MS = 15000;
+const takeEarly = (url, options) => {
   try {
+    const store = window.__auroraEarly;
+    if (!store || options.method || options.headers || options.body || options.priority) return null;
+    const key = `${url}|${authToken || ""}`;
+    const hit = store[key];
+    if (!hit) return null;
+    delete store[key];
+    return performance.now() - hit.at <= EARLY_MAX_AGE_MS ? hit.res : null;
+  } catch {
+    return null;
+  }
+};
+
+const json = async (url, options = {}, attempt = 0) => {
+  let res = null;
+  const early = attempt === 0 ? takeEarly(url, options) : null;
+  if (early) {
+    try {
+      const r = await early;
+      if (r && r.ok) res = r;
+    } catch {}
+  }
+  if (!res) try {
     res = await fetch(url, { ...options, headers: withBlur(options, withToken(options.headers)) });
   } catch (err) {
     // A network blip (flaky wifi, server restarting). GETs are idempotent —

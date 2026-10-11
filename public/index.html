@@ -51,6 +51,57 @@
       } catch {}
     })();
   </script>
+  <!-- Boot's first questions, asked NOW. The app cannot draw its first
+       screen before it knows who is signed in, which profiles exist, this
+       profile's watch state and what Home holds — and it used to ask them
+       one after another, each only once the answer before had arrived, and
+       the first only once all its code had been fetched and run: four round
+       trips in a row, on a line where a round trip is half a second. Asked
+       from here they travel beside the code, in parallel, and js/api.js
+       hands each waiting answer to the call that would have made the
+       request (same address, same headers; an answer that is not a plain
+       200, or is older than a few seconds, is dropped and asked again the
+       usual way).
+       Nothing is asked that boot would not ask, so nothing is refused that
+       was not refused before. What this device learned last time decides:
+         aurora-authmode   the sign-in mode (main.js). The profile list is
+                           asked for only where the last visit could read it.
+         aurora-early      how the remembered profile is entered (state.js):
+                           "open" — no password; "token" — with this tab's
+                           unlock token; absent (a kids profile, a locked
+                           one, nobody yet) — the door decides, nothing early.
+       Home is asked for only when Home is the page being opened. -->
+  <script>
+    (() => {
+      try {
+        const store = (window.__auroraEarly = {});
+        const ask = (url, token) => {
+          const headers = { "X-Blur": "1" };
+          if (token) headers["X-Profile-Token"] = token;
+          const res = fetch(url, { headers });
+          res.catch(() => {});
+          store[url + "|" + (token || "")] = { at: performance.now(), res };
+        };
+        ask("/api/me");
+        ask("/api/server-info");
+        const mode = localStorage.getItem("aurora-authmode");
+        const how = localStorage.getItem("aurora-early");
+        const id = localStorage.getItem("aurora-profile");
+        const known = !!id && /^[A-Za-z0-9_-]{1,40}$/.test(id) && (how === "open" || how === "token");
+        if (mode === "open" || mode === "transition" || (mode === "closed" && known)) ask("/api/profiles");
+        if (known && mode) {
+          let token = null;
+          if (how === "token") {
+            try { token = sessionStorage.getItem("aurora-token-" + id); } catch {}
+          }
+          if (how === "open" || token) {
+            ask("/api/profiles/" + id + "/state", token);
+            if (!location.hash || location.hash === "#/") ask("/api/home?profile=" + encodeURIComponent(id), token);
+          }
+        }
+      } catch {}
+    })();
+  </script>
   <!-- A deploy can land between one module fetch and the next, so a page
        may hold half old, half new code — the symptom is an import that
        names a binding the cached module lacks. One reload, at most once a

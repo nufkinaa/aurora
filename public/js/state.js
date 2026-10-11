@@ -137,6 +137,14 @@ export const setProfile = async (profile, token = null) => {
   // build) or a blip must never block entry.
   if (relist) forgetWarm();
   document.documentElement.toggleAttribute("data-kids", !!profile.kids);
+  // index.html asks for the remembered profile's watch state and Home before
+  // any code loads — when this says it may, and how: "open" (no password) or
+  // "token" (with the tab's unlock token). Not for a kids profile (its door
+  // has to run first) or an admin-locked one.
+  try {
+    if (profile.kids || profile.locked) localStorage.removeItem("aurora-early");
+    else localStorage.setItem("aurora-early", profile.hasPassword ? "token" : "open");
+  } catch {}
   if (profile.kids) {
     try { await api.kidsEnter(profile.id); } catch {}
   }

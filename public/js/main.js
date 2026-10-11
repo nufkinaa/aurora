@@ -655,6 +655,9 @@ const boot = async () => {
     const me = await api.me();
     state.authMode = me.authMode || "open";
     state.user = me.user || null;
+    // (remembered for the next load: index.html's early requests ask for the
+    // profile list only where this visit could read it)
+    try { localStorage.setItem("aurora-authmode", state.authMode); } catch {}
     if (state.authMode === "closed" && !state.user) {
       const res = await showLoginScreen();
       state.user = (res && res.user) || null;
