@@ -68,20 +68,21 @@ object AuroraQa {
   // `[mounts] <uptimeMs> focusable=+c/-d card=+c/-d` after every focus gain while the focus log is
   // on: how many AuroraFocusable / AuroraCard views Fabric created and dropped since the previous
   // line, anywhere in the app. It is the one count that reads the same for a FlatList (which has
-  // no native container to count in) and for the recycling grid. Four int increments otherwise.
-  private val made = java.util.concurrent.atomic.AtomicIntegerArray(4)
+  // no native container to count in) and for the recycling grid.
+  private val made = IntArray(4) // UI thread only (view managers create and drop views there)
 
-  /** kind 0 = focusable, 1 = card layer. */
-  fun viewMade(kind: Int) { made.incrementAndGet(kind * 2) }
+  /** kind 0 = focusable, 1 = card layer. Nothing is counted while the focus log is off. */
+  fun viewMade(kind: Int) {
+    if (focuslog) made[kind * 2]++
+  }
 
-  fun viewDropped(kind: Int) { made.incrementAndGet(kind * 2 + 1) }
+  fun viewDropped(kind: Int) {
+    if (focuslog) made[kind * 2 + 1]++
+  }
 
   private fun logMounts() {
-    Log.d(
-      TAG_ANIM,
-      "[mounts] ${SystemClock.uptimeMillis()} focusable=+${made.getAndSet(0, 0)}/-${made.getAndSet(1, 0)} " +
-        "card=+${made.getAndSet(2, 0)}/-${made.getAndSet(3, 0)}",
-    )
+    Log.d(TAG_ANIM, "[mounts] ${SystemClock.uptimeMillis()} focusable=+${made[0]}/-${made[1]} card=+${made[2]}/-${made[3]}")
+    made.fill(0)
   }
 
   /** `[ring] <uptimeMs> claim|release <tag>`. */
