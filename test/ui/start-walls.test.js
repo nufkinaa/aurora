@@ -211,6 +211,8 @@ ui.test("usage stats off: the film starts the same, its start is still logged fo
 ui.test("usage stats on: the analytics timing of a start is the play mark's own number — one first frame, defined once", async ({ page, goto, signIn, freshProfile, api, lib }) => {
   const me = await freshProfile();
   const marks = player.marks(page);
+  const batches = [];
+  page.on("request", (r) => { if (new URL(r.url()).pathname === "/api/usage") { try { batches.push(JSON.parse(r.postData() || "null")); } catch {} } });
   await signIn(me);
   // the page's own record of what was presented, to hold the mark against
   // (before any of the app's code: it keeps its own reference to createElement)
@@ -230,8 +232,6 @@ ui.test("usage stats on: the analytics timing of a start is the play mark's own 
     };
   });
   await goto(`#/movie/${lib.film2.id}`);
-  const before = await api.adminGet("/api/admin/telemetry");
-  const had = before.timings.rows.filter((r) => r.app === "web" && r.metric === "play_first_frame").reduce((n, r) => n + r.n, 0);
   await pressPlay(page);
   await player.playing(page, { id: lib.film2.id });
   const ff = await firstFrame(marks);
@@ -247,20 +247,16 @@ ui.test("usage stats on: the analytics timing of a start is the play mark's own 
   const first = frames.find((f) => !f.seeking);
   const mountAt = first.at - ff.ms;
   assert.ok(mountAt <= videoAt + 2 && videoAt - mountAt < 80, `the mark (${ff.ms} ms) is not the first presented frame: frame at ${first.at.toFixed(0)}, <video> made at ${videoAt.toFixed(0)}, playing at ${playingAt && playingAt.toFixed(0)}`);
+  // what the page hands the statistics: the same number, to the millisecond
   await sendNow(page);
-  let row = null;
-  for (let i = 0; i < 40 && !row; i++) {
-    await new Promise((r) => setTimeout(r, 150));
-    const t = await api.adminGet("/api/admin/telemetry");
-    const rows = t.timings.rows.filter((r) => r.app === "web" && r.metric === "play_first_frame");
-    if (rows.reduce((n, r) => n + r.n, 0) > had) row = rows;
+  let sent = null;
+  for (let i = 0; i < 40 && !sent; i++) {
+    for (const body of batches) for (const t of (body && body.tel && body.tel.t) || []) if (t[0] === "play_first_frame") sent = t;
+    if (!sent) await page.waitForTimeout(100);
   }
-  assert.ok(row, "the start's timing never reached the server");
-  if (had === 0) {
-    const r = row[0];
-    assert.equal(row.length, 1);
-    assert.ok(Math.abs(r.p50 - ff.ms) <= Math.max(60, ff.ms * 0.15), `analytics says ${r.p50} ms, the play mark ${ff.ms} ms`);
-  }
+  assert.ok(sent, `no batch carried the start's timing: ${JSON.stringify(batches).slice(0, 300)}`);
+  assert.equal(sent[1], ff.ms, "the analytics timing and the play mark are two readings");
+  assert.equal(batches.filter((b) => b && b.tel && (b.tel.t || []).some((t) => t[0] === "play_first_frame")).length, 1, "the start was timed more than once");
 });
 
 // ---------- the person sheet, around a start ----------
