@@ -345,7 +345,9 @@ ui.test("a normal boot never meets the server's turn-taking: no 429 on any route
     await page.waitForTimeout(700);
     assert.deepEqual(seen.refused, [], `${hash}: told to wait (429)`);
     assert.ok(seen.most <= 2, `${hash}: ${seen.most} heavy requests in flight at once (${seen.heavy.join(", ")})`);
-    if (hash === "#/") assert.deepEqual(seen.heavy, ["/api/home"], "Home's boot asks for Home once — the page's early request is the one boot uses");
+    // (Home may be asked again later — a library change refreshes it — but never twice at once:
+    // the page's early request is the one boot uses; the "asked once, early" count is the test above)
+    if (hash === "#/") assert.ok(seen.heavy.includes("/api/home") && seen.most === 1, `Home's boot: ${seen.most} at once (${seen.heavy.join(", ")})`);
     // two tabs of the same browser (one client, to the server) opening it in the same instant
     seen.most = 0; seen.heavy.length = 0;
     const second = await context.newPage();
