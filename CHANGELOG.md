@@ -3,6 +3,14 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.6.94 — 2026-10-11
+
+- **The server does much less work for the same answers**, which matters most on a small PC. Composing Home takes about a sixth of the processor time it did (341 → 55 ms on a two-core test machine with a 1,260-title library); search about half; pictures, video ranges and playlists a third less each. With five people watching, the slow tenth of Home loads went from 226 ms to 57 ms.
+- Adding many new files no longer freezes the server while they are examined: 300 new files used to hold everything for 18–30 seconds; now nothing waits.
+- An idle server wakes far less: the ten-minute library check reads each folder once, apps are no longer told "the library changed" when a check found nothing new, and the intro pass stops re-examining episodes it already knows it cannot analyse. Idle processor use is down about 40 %.
+- Start-up is about a second quicker, and the HDR speed test (12 processor-seconds at every start) is remembered instead of repeated.
+- The actor and director sheet: the photo counter no longer starts empty, and pressing an arrow the instant a photo opens is not lost.
+
 ## 1.6.93 — 2026-10-11
 
 - **A keeper for the server.** `start-aurora.cmd` now starts Aurora under a small keeper that starts it again when it crashes or stops answering, keeps the log, and gives up politely (one alert, then a retry every 15 minutes) when it crashes five times in ten minutes. Admin → Restart works through it and takes about a second; on a server nothing is keeping, Restart now refuses with a sentence instead of stopping the server for good. To start with Windows: `deploy\windows\install-keeper-task.ps1`; on Linux: `deploy/linux/aurora.service`. docs/operations.md has the steps. `start-aurora.cmd --bare` is the old behaviour.
