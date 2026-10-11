@@ -45,6 +45,9 @@
 //   AURORA_TONEMAP=0        never tone-map (also: off / false / no)
 //   AURORA_TONEMAP=force    skip the speed gate (filters + real HDR still required)
 //   AURORA_TONEMAP_MIN_SPEED=2.0   demand more (or less) headroom than 1.5x
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 const { execFile } = require("child_process");
 const config = require("../config");
 
@@ -200,34 +203,106 @@ const runChain = (kind, frames) =>
     );
   });
 
+// ---- …remembered between starts ----
+// The answer belongs to the pair (this ffmpeg, this CPU), not to a start of
+// the server — yet every start asked again: one `ffmpeg -filters` and seven
+// timed chains in the first five minutes, 12 CPU-seconds on a two-core box
+// with both cores flat out for 8 s (docs/qa/backend-efficiency), right when a
+// restarted server is scanning and its viewers are reconnecting. So the
+// answer is kept in cache/tonemap-speed.json, keyed by the ffmpeg binary
+// (path, size, date) and the CPU (model, logical count):
+//   - a start that finds its answer there runs no chain at +15 s;
+//   - the fastest timing ever taken is the one kept — the rule recalibrate()
+//     already applied within one start ("what the host can do"), now across
+//     starts;
+//   - re-timing goes on until SETTLED_AFTER timings have been folded in (the
+//     first start contributes three), then stops: later starts run nothing;
+//   - a new ffmpeg or a different CPU is a different key: measured afresh.
+// "chain failed" is never remembered (a busy minute can cause it), nor is an
+// ffmpeg that did not answer the filter list; "filters missing" read off a
+// list that DID come back is (it is a property of the binary).
+const SETTLED_AFTER = 6;
+const io = {
+  runChain,
+  filters: () =>
+    new Promise((resolve) => {
+      execFile(config.FFMPEG, ["-hide_banner", "-filters"], { windowsHide: true, timeout: 8000, maxBuffer: 4 * 1024 * 1024 }, (err, out) => resolve(err ? null : String(out || "")));
+    }),
+  key: () => {
+    try {
+      const st = fs.statSync(config.FFMPEG);
+      const cpus = os.cpus();
+      return `${config.FFMPEG}|${st.size}|${Math.floor(st.mtimeMs)}|${cpus.length}|${cpus[0] ? cpus[0].model : ""}`;
+    } catch {
+      return null;
+    }
+  },
+  file: () => path.join(config.CACHE_DIR, "tonemap-speed.json"),
+  read: (file) => fs.promises.readFile(file, "utf8"),
+  write: (file, text) => fs.promises.writeFile(file, text),
+};
+let timings = 0; // how many timings the kept mpps is the fastest of
+const remembered = async () => {
+  try {
+    const key = io.key();
+    if (!key) return null;
+    const j = JSON.parse(await io.read(io.file()));
+    if (!j || j.v !== 1 || j.key !== key || typeof j.ok !== "boolean") return null;
+    if (j.ok && !(Number.isFinite(j.mpps) && j.mpps > 0)) return null;
+    return j;
+  } catch {
+    return null;
+  }
+};
+const remember = (s) => {
+  try {
+    const key = io.key();
+    if (!key) return;
+    if (!s.ok && (s.why !== "filters missing" || s.unsure)) return;
+    const text = JSON.stringify({ v: 1, key, ok: s.ok, zscale: s.zscale, tonemap: s.tonemap, mpps: s.mpps, ...(s.ok ? {} : { why: s.why }), timings, at: Date.now() });
+    Promise.resolve(io.write(io.file(), text)).catch(() => {});
+  } catch {}
+};
+
 let support = null; // resolved value, once known
 let supportP = null;
+const measureSupport = async () => {
+  const text = await io.filters();
+  const zscale = text !== null && /^\s*\S+\s+zscale\s/m.test(text);
+  const tonemap = text !== null && /^\s*\S+\s+tonemap\s/m.test(text);
+  // (`unsure`: ffmpeg did not answer at all — reported as before, but never remembered)
+  if (!zscale || !tonemap) return { ok: false, zscale, tonemap, mpps: 0, why: "filters missing", ...(text === null ? { unsure: true } : {}) };
+  // Prove both chains run, and time the filter: the long run minus the
+  // short one cancels process start-up. The HLG run is the short one.
+  const short = await io.runChain("hlg", CAL_SHORT);
+  const long1 = short === null ? null : await io.runChain("pq", CAL_LONG);
+  const long2 = long1 === null ? null : await io.runChain("pq", CAL_LONG);
+  if (short === null || long1 === null || long2 === null) return { ok: false, zscale, tonemap, mpps: 0, why: "chain failed" };
+  const ms = Math.max(1, Math.min(long1, long2) - short);
+  const mpps = ((CAL_LONG - CAL_SHORT) * CAL_W * CAL_H) / 1e6 / (ms / 1000);
+  return { ok: true, zscale, tonemap, mpps: Math.round(mpps) };
+};
 const probeSupport = () => {
   if (supportP) return supportP;
-  supportP = new Promise((resolve) => {
-    const none = (why) => resolve({ ok: false, zscale: false, tonemap: false, mpps: 0, why });
-    if (!config.FFMPEG) return none("no ffmpeg");
-    execFile(config.FFMPEG, ["-hide_banner", "-filters"], { windowsHide: true, timeout: 8000, maxBuffer: 4 * 1024 * 1024 }, async (err, out) => {
-      const text = String(out || "");
-      const zscale = !err && /^\s*\S+\s+zscale\s/m.test(text);
-      const tonemap = !err && /^\s*\S+\s+tonemap\s/m.test(text);
-      if (!zscale || !tonemap) return resolve({ ok: false, zscale, tonemap, mpps: 0, why: "filters missing" });
-      // Prove both chains run, and time the filter: the long run minus the
-      // short one cancels process start-up. The HLG run is the short one.
-      const short = await runChain("hlg", CAL_SHORT);
-      const long1 = short === null ? null : await runChain("pq", CAL_LONG);
-      const long2 = long1 === null ? null : await runChain("pq", CAL_LONG);
-      if (short === null || long1 === null || long2 === null) return resolve({ ok: false, zscale, tonemap, mpps: 0, why: "chain failed" });
-      const ms = Math.max(1, Math.min(long1, long2) - short);
-      const mpps = ((CAL_LONG - CAL_SHORT) * CAL_W * CAL_H) / 1e6 / (ms / 1000);
-      resolve({ ok: true, zscale, tonemap, mpps: Math.round(mpps) });
-    });
-  }).then((s) => {
+  supportP = (async () => {
+    if (!config.FFMPEG) return { ok: false, zscale: false, tonemap: false, mpps: 0, why: "no ffmpeg" };
+    const kept = await remembered();
+    if (kept) {
+      timings = Number.isInteger(kept.timings) && kept.timings > 0 ? kept.timings : 1;
+      return kept.ok
+        ? { ok: true, zscale: !!kept.zscale, tonemap: !!kept.tonemap, mpps: kept.mpps, remembered: true }
+        : { ok: false, zscale: !!kept.zscale, tonemap: !!kept.tonemap, mpps: 0, why: kept.why || "filters missing", remembered: true };
+    }
+    const s = await measureSupport();
+    timings = 1;
+    remember(s);
+    return s;
+  })().then((s) => {
     support = s;
     const eg = (w, h, oh) => predictSpeed({ width: w, height: h, outHeight: oh, fps: 24, mpps: s.mpps }).toFixed(1);
     console.log(
       s.ok
-        ? `[tonemap] HDR tone mapping available — ${s.mpps} MP/s; at 24fps: 2160p→1080p ${eg(3840, 2160, 0)}x, 1080p→1080p ${eg(1920, 1080, 0)}x, 2160p→720p ${eg(3840, 2160, 720)}x (needs ${minSpeed()}x; AURORA_TONEMAP=${mode()})`
+        ? `[tonemap] HDR tone mapping available — ${s.mpps} MP/s${s.remembered ? " (timed on an earlier start)" : ""}; at 24fps: 2160p→1080p ${eg(3840, 2160, 0)}x, 1080p→1080p ${eg(1920, 1080, 0)}x, 2160p→720p ${eg(3840, 2160, 720)}x (needs ${minSpeed()}x; AURORA_TONEMAP=${mode()})`
         : `[tonemap] HDR tone mapping unavailable (${s.why}; zscale=${s.zscale}, tonemap=${s.tonemap}) — HDR re-encodes stay as they were`,
     );
     return s;
@@ -240,17 +315,22 @@ const supportNow = () => support;
 // call itself slow until the next restart (seen here — 173 MP/s with other
 // work running, 235 idle). Timed again later, the FASTEST answer is kept: the
 // question is what the host can do, the same footing the plain encode is on.
+// (Across starts too: see "remembered between starts" above. Once enough
+// timings are in, there is nothing left to learn and nothing is run.)
 const recalibrate = async () => {
   const s = await probeSupport();
   if (!s.ok) return s;
-  const short = await runChain("hlg", CAL_SHORT);
-  const long = short === null ? null : await runChain("pq", CAL_LONG);
+  if (timings >= SETTLED_AFTER) return s;
+  const short = await io.runChain("hlg", CAL_SHORT);
+  const long = short === null ? null : await io.runChain("pq", CAL_LONG);
   if (short === null || long === null) return s;
   const mpps = Math.round(((CAL_LONG - CAL_SHORT) * CAL_W * CAL_H) / 1e6 / (Math.max(1, long - short) / 1000));
   if (mpps > s.mpps) {
     console.log(`[tonemap] re-timed: ${s.mpps} → ${mpps} MP/s`);
     s.mpps = mpps;
   }
+  timings++;
+  remember(s);
   return s;
 };
 
@@ -405,5 +485,9 @@ module.exports = {
   vfFor,
   enabled,
   mode,
-  _internals: { tonemapChain, defaultScale, REF_MPPS, MIN_SPEED_DEFAULT },
+  _internals: {
+    tonemapChain, defaultScale, REF_MPPS, MIN_SPEED_DEFAULT, SETTLED_AFTER, CAL_SHORT, CAL_LONG, CAL_W, CAL_H, io,
+    // tests: a new start of the server (what is in memory forgotten, the file kept)
+    restart: () => { support = null; supportP = null; timings = 0; },
+  },
 };
