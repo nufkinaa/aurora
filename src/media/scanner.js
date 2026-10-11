@@ -711,8 +711,14 @@ const enrich = () => {
         scan(); // rebuild index with the new metadata
         events.emit("updated");
       }
+      // "enriched" says what this pass found: how many files it probed, and
+      // whether this is the first pass to finish since the server started.
+      // A pass with neither changed nothing anybody is looking at — and one
+      // runs every ten minutes (server.js): listeners that make every device
+      // ask again (enrichedChanged below) must not do so for it.
+      const first = !index.enriched;
       index.enriched = true;
-      events.emit("enriched");
+      events.emit("enriched", { probed: paths.length, first });
       return;
     }
     const p = paths[i++];
@@ -745,6 +751,10 @@ const bitmapOnlyVideos = () => {
   }
   return result;
 };
+
+// Did an "enriched" pass change what clients have? (No info at all — an
+// emitter from before the info existed — counts as yes.)
+const enrichedChanged = (info) => !info || info.probed > 0 || !!info.first;
 
 const allItems = () => [...index.movies, ...index.shows];
 
@@ -798,6 +808,7 @@ module.exports = {
   scan,
   enrich,
   isEnriching: () => enriching,
+  enrichedChanged,
   resolve,
   idForPath,
   findById,

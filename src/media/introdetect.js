@@ -643,7 +643,9 @@ const get = (episodeId) => {
   };
 };
 
-scanner.events.on("enriched", () => setTimeout(run, 5000));
+// (a probe pass that found nothing new has nothing for this pass either: the
+// scan that preceded it already asked for one, below)
+scanner.events.on("enriched", (info) => { if (scanner.enrichedChanged(info)) setTimeout(run, 5000); });
 // Without ffmpeg there is no enrichment (and so no "enriched") — the database
 // fill still has work to do, so a scan wakes it too. Debounced: scans come in
 // bursts, and a pass with nothing new to ask is a walk over cached records.

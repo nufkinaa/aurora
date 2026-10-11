@@ -383,8 +383,12 @@ realtime.attach(server);
 
 // Library events -> clients
 scanner.events.on("updated", () => realtime.libraryUpdated());
-scanner.events.on("enriched", () => {
-  realtime.libraryUpdated();
+scanner.events.on("enriched", (info) => {
+  // Only when the pass found something (new probes, or the first pass since
+  // boot): the ten-minute rescan ends in "enriched" every time, and saying
+  // "ask again" for it made every connected app refetch the library, its
+  // state and Home six times an hour with nothing new.
+  if (scanner.enrichedChanged(info)) realtime.libraryUpdated();
   // Now that embedded-subtitle info is known, queue OCR for bitmap-only videos
   for (const v of scanner.bitmapOnlyVideos()) ocr.enqueue(v.path, v.name);
 });

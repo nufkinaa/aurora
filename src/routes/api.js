@@ -530,7 +530,9 @@ const heavy = require("../lib/admission").heavy;
 // The library, as a number that moves whenever it changes: a scan, the
 // probes finishing, online metadata arriving (which ends in a scan).
 let libRev = 0;
-for (const ev of ["updated", "enriched", "scanned"]) scanner.events.on(ev, () => { libRev++; });
+for (const ev of ["updated", "scanned"]) scanner.events.on(ev, () => { libRev++; });
+// (a probe pass that found nothing new is not a change)
+scanner.events.on("enriched", (info) => { if (scanner.enrichedChanged(info)) libRev++; });
 const dayNumber = () => Math.floor(Date.now() / 86400000);
 // (the placeholders: a count of every one that has arrived — an answer's
 // "_blur" map changes only when it moves)

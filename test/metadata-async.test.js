@@ -96,7 +96,8 @@ test("enrich: every new file probed, in order, without one blocking probe — th
 
   const events = [];
   const onUpdated = () => events.push("updated");
-  const onEnriched = () => events.push("enriched");
+  const infos = [];
+  const onEnriched = (info) => { events.push("enriched"); infos.push(info); };
   scanner.events.on("updated", onUpdated);
   scanner.events.on("enriched", onEnriched);
   // the old enricher called the blocking probe (metadata.probe) once per file; this one must never
@@ -121,6 +122,8 @@ test("enrich: every new file probed, in order, without one blocking probe — th
   assert.equal(blocking, 0, "no blocking probe");
   assert.ok(ticks >= 3, `the event loop kept turning while ffprobe ran (${ticks} timer ticks)`);
   assert.deepEqual(events, ["updated", "enriched"], "one rebuild announced, then done");
+  assert.equal(infos[0].probed, 3, "the event says how many files were probed");
+  assert.equal(scanner.enrichedChanged(infos[0]), true);
   assert.equal(scanner.isEnriching(), false);
   assert.equal(scanner.index.enriched, true);
   for (const m of scanner.index.movies) {
@@ -134,9 +137,15 @@ test("enrich: every new file probed, in order, without one blocking probe — th
   // nothing new: finishes at once (in the caller's turn, as it always did) and announces only "enriched"
   const again = [];
   const u2 = () => again.push("updated");
-  const e2 = () => again.push("enriched");
+  let quiet = null;
+  const e2 = (info) => { again.push("enriched"); quiet = info; };
   scanner.events.on("updated", u2);
   scanner.events.on("enriched", e2);
   try { scanner.enrich(); } finally { scanner.events.off("updated", u2); scanner.events.off("enriched", e2); }
   assert.deepEqual(again, ["enriched"]);
+  // …and says it found nothing: the listeners that make every device ask again stay silent
+  assert.deepEqual(quiet, { probed: 0, first: false });
+  assert.equal(scanner.enrichedChanged(quiet), false);
+  assert.equal(scanner.enrichedChanged({ probed: 0, first: true }), true, "the first pass since boot always counts");
+  assert.equal(scanner.enrichedChanged(undefined), true, "an event with no info is treated as a change");
 });
