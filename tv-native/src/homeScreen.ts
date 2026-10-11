@@ -13,7 +13,7 @@ import {api, assetUrl, getBaseUrl, getSession, getToken, HeroItem, HomeRow, MyDo
 import {registerProfileCache} from './profileScope';
 
 type Native = {
-  setWatchNext: (items: object[]) => Promise<number>;
+  setWatchNext: (items: object[], base: string | null, session: string | null) => Promise<number>;
   setChannel: (name: string, items: object[], base: string | null, session: string | null) => Promise<number>;
   clear: () => Promise<boolean>;
   // 5.1.20+: who the background refresh job asks the server as, and a way to
@@ -186,7 +186,7 @@ export function syncHomeScreen(rows: HomeRow[] | undefined, profileId?: string) 
   if (sigNext !== lastNext) {
     lastNext = sigNext;
     native
-      .setWatchNext(next)
+      .setWatchNext(next, getBaseUrl() || null, getSession() || null)
       .then(n => console.log('[homescreen] continue watching:', n, 'of', next.length))
       .catch(e => {
         lastNext = '';

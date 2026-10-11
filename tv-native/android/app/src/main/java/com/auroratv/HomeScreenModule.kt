@@ -44,7 +44,7 @@ class HomeScreenModule(private val ctx: ReactApplicationContext) : ReactContextB
   }
 
   @ReactMethod
-  fun setWatchNext(items: ReadableArray, promise: Promise) {
+  fun setWatchNext(items: ReadableArray, base: String?, session: String?, promise: Promise) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
       promise.resolve(0)
       return
@@ -52,7 +52,7 @@ class HomeScreenModule(private val ctx: ReactApplicationContext) : ReactContextB
     val list = entries(items)
     Thread {
       try {
-        promise.resolve(HomeScreenRows.writeWatchNext(ctx.applicationContext, list))
+        promise.resolve(HomeScreenRows.writeWatchNext(ctx.applicationContext, list, base, session))
       } catch (e: Exception) {
         promise.reject("homescreen", e.message ?: "could not write the Continue watching row")
       }
