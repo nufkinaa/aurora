@@ -1038,6 +1038,44 @@ router.post("/api/admin/backups/drill", async (req, res) => {
   }
 });
 
+// ---------- the encoder limit (media/encbudget.js) ----------
+// How many viewers may be encoded for at once: "Automatic (N now, because …)"
+// with the numbers it was worked out from, what is being encoded for whom
+// right now, and what stands behind them in the background.
+const encodingView = () => {
+  const budget = require("../media/encbudget");
+  let load = null;
+  try { load = require("../media/remux").encodeLoad(); } catch {}
+  let cpu = null;
+  try { cpu = require("../media/cpuwork").status(); } catch {}
+  return { ...budget.explain(), running: load, cpu, maxFixed: budget.MAX_FIXED };
+};
+router.get("/api/admin/encoding", (req, res) => res.json(encodingView()));
+// { maxEncodes: "auto" | 1…16 } — anything else is refused.
+router.post("/api/admin/encoding", (req, res) => {
+  const budget = require("../media/encbudget");
+  const settings = require("../lib/settings");
+  const v = (req.body || {}).maxEncodes;
+  const n = Number(v);
+  if (v === "auto") delete settings.data.maxEncodes;
+  else if (Number.isInteger(n) && n >= 1 && n <= budget.MAX_FIXED) settings.data.maxEncodes = n;
+  else return res.status(400).json({ error: `Choose "auto" or a whole number from 1 to ${budget.MAX_FIXED}.` });
+  settings.save();
+  console.log(`[encode] limit set from the admin page: ${budget.explain().sentence}`);
+  res.json({ ok: true, ...encodingView() });
+});
+// Measure this machine's encode speed again, now (a few seconds of CPU at
+// the lowest priority). Refused while somebody's stream is being encoded:
+// it would read low, and take their cores.
+router.post("/api/admin/encoding/calibrate", async (req, res) => {
+  const budget = require("../media/encbudget");
+  try {
+    if (require("../media/cpuwork").viewer.busy()) return res.status(409).json({ error: "Somebody's stream is being encoded right now — measure when the server is quiet.", ...encodingView() });
+  } catch {}
+  await budget.calibrate({ force: true }).catch(() => {});
+  res.json({ ok: true, ...encodingView() });
+});
+
 // ---------- data safety (lib/jsonstore.js) ----------
 // Every store: saved or not, in safe mode or not; and what was recovered at
 // boot, from what, and what was lost.

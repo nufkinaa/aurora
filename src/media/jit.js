@@ -502,9 +502,12 @@ const reapable = (job, now) => {
 // A copy producer is cheap (it is the disk's speed). An ENCODING producer —
 // a rendition of the quality ladder — is a libx264 process, and the machine
 // serves other people. Three rules:
-//  • at most MAX_ENCODES encoders at once across the whole server, counted
-//    together with the single-rendition encodes (remux.js) and the torrent
-//    transcodes. A lower rung under a copy is a courtesy to a slow line —
+//  • encoders across the whole server stay inside the machine's budget
+//    (encbudget.js: worked out from its CPU threads and its measured encode
+//    speed, each encode weighed by what it costs — a 4K source takes the
+//    room of two or three 1080p ones; or a fixed count when the admin set
+//    one), counted together with the single-rendition encodes (remux.js)
+//    and the torrent transcodes. A lower rung under a copy is a courtesy to a slow line —
 //    the title plays without it — so it never takes the LAST slot; the top
 //    rung of a device that cannot decode the file (`essential`) may. The
 //    same goes for a SECOND encoder of one rendition (two viewers far apart
@@ -521,7 +524,10 @@ const reapable = (job, now) => {
 //    its reader asked for is parked too — a rendition the player left costs
 //    nothing more, and one being watched is resumed as its reader gets
 //    within ENC_LEAD_MIN segments of the end of what is made.
-const MAX_ENCODES = 2; // the same figure as remux.js MAX_ACTIVE_TRANSCODES
+const budget = require("./encbudget");
+// What one of a job's encoders counts as (set from its input when the first
+// one is asked for; "one standard transcode" until then).
+const costOfJob = (j) => (j && j.cost > 0 ? j.cost : budget.unit());
 const ENC_LEAD_MAX = 20; // ~2 minutes of film
 const ENC_LEAD_MIN = 5;
 const encodeCount = (except = null) => {
@@ -529,13 +535,12 @@ const encodeCount = (except = null) => {
   for (const j of jobs.values()) if (j.enc && j !== except) n += j.producers.length;
   return n;
 };
-// Encoders running outside jit (lazy requires: those modules load this one's
-// neighbours, and the tests load this module alone).
+// What is being encoded outside jit, in the budget's units: the
+// single-rendition transcodes and the torrent transcodes, which register
+// themselves as viewer work (cpuwork.js). (A lazy require: the tests load
+// this module alone, and replace this.)
 let outsideEncodes = () => {
-  let n = 0;
-  try { n += require("./remux").encodeLoad().own; } catch {}
-  try { n += require("./torrent-transcode")._internals.activeCount(); } catch {}
-  return n;
+  try { return require("./cpuwork").viewer.cost((v) => v.kind !== "ladder"); } catch { return 0; }
 };
 // Stop every encoder of a rendition (what it made stays).
 const park = (dir, job, why) => {
@@ -547,28 +552,40 @@ const park = (dir, job, why) => {
 // Encoders running for OTHER titles (and outside jit), and for this title's
 // other renditions: those someone is waiting on (`waited`, a count of
 // encoders), and those nobody is (`idle`, the jobs).
+// (`others` and `waited` are in the budget's units: encoders × what each costs)
 const encodeCensus = (title, except) => {
   let others = outsideEncodes();
   let waited = 0;
   const idle = [];
   for (const [d, j] of jobs) {
     if (!j.enc || !j.producers.length || j === except) continue;
-    if (j.title !== title) others += j.producers.length;
-    else if (j.waiting > 0) waited += j.producers.length;
+    if (j.title !== title) others += j.producers.length * costOfJob(j);
+    else if (j.waiting > 0) waited += j.producers.length * costOfJob(j);
     else idle.push([d, j]);
   }
   return { others, waited, idle };
 };
 // Could this job start an encoder now? `replacing`: one of its own that
 // would be stopped for it. Nothing is changed by asking.
+// The rule, as it always was, now by cost instead of by count: one more
+// encoder of a rendition that already has one must fit beside everything;
+// a rendition's first must fit beside the OTHER titles (within the courtesy
+// limit when it is one) and, with its own title's waited-on renditions,
+// within the whole budget. An encode with nothing else running is always
+// allowed (encbudget.admit).
 const encodeAdmission = (job, essential, replacing = null) => {
   const c = encodeCensus(job.title, job);
-  const own = job.producers.length - (replacing ? 1 : 0);
-  const limit = essential ? MAX_ENCODES : MAX_ENCODES - 1;
-  const ok = own > 0
-    ? c.others + c.waited + own < limit
-    : c.others < limit && c.others + c.waited < MAX_ENCODES;
-  return { ok, idle: c.idle };
+  const cost = costOfJob(job);
+  const memMb = job.memMb || 0;
+  const own = (job.producers.length - (replacing ? 1 : 0)) * cost;
+  let a;
+  if (own > 0) {
+    a = budget.admit({ cost, memMb, running: c.others + c.waited + own, essential, replacing: !!replacing });
+  } else {
+    a = budget.admit({ cost, memMb, running: c.others, essential, replacing: !!replacing });
+    if (a.ok) a = budget.admit({ cost, memMb, running: c.others + c.waited, essential: true, replacing: !!replacing });
+  }
+  return { ok: a.ok, idle: c.idle, why: a.why };
 };
 // May this job start (or restart) an encoder now? Parks the renditions of
 // its own title that nobody is waiting on. Records a refusal so the route
@@ -585,9 +602,32 @@ const admitEncode = (job, essential, replacing = null) => {
 };
 // Would a new encoder be admitted right now? (the routes ask before they
 // offer or serve an encoded rendition; nothing is parked by asking)
-const encodeRoom = (title, essential) => {
+// `cost`: what the rendition asked about would cost (the ladder knows the
+// source); without it, one standard transcode.
+const encodeRoom = (title, essential, cost = 0) => {
   const c = encodeCensus(title, null);
-  return c.others < (essential ? MAX_ENCODES : MAX_ENCODES - 1) && c.others + c.waited < MAX_ENCODES;
+  const k = cost > 0 ? cost : budget.unit();
+  return budget.admit({ cost: k, running: c.others, essential }).ok
+    && budget.admit({ cost: k, running: c.others + c.waited, essential: true }).ok;
+};
+// The same question, asked for a little while: an encoder that is about to be
+// parked or reaped frees its room within seconds, and a person pressing Play
+// is better served by a short wait than by "busy". Resolves true as soon as
+// there is room, false after `ms`.
+const encodeRoomSoon = async (title, essential, cost = 0, ms = 3000) => {
+  const until = Date.now() + ms;
+  for (;;) {
+    if (encodeRoom(title, essential, cost)) return true;
+    if (Date.now() >= until || budget.overloaded()) return false;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+};
+// For the admin page and the healer: what jit is encoding.
+const encodeLoad = () => {
+  let count = 0;
+  let cost = 0;
+  for (const j of jobs.values()) if (j.enc) { count += j.producers.length; cost += j.producers.length * costOfJob(j); }
+  return { count, cost: Math.round(cost * 100) / 100 };
 };
 
 const failJob = (dir, job, why, declineFile) => {
@@ -676,6 +716,12 @@ const advance = (dir, job, run) => {
     const { seg, members, drop } = step;
     run.cursor = members[members.length - 1] + 1;
     run.nextSeg = seg + 1;
+    // how much film this encoder has made since it started, and whether
+    // somebody is waiting on it — encbudget notices one that falls behind
+    if (job.enc) {
+      const t = job.table[seg];
+      budget.progress(run, t.start + (t.dur || 0) - job.table[run.fromSeg].start, job.waiting > 0);
+    }
     run.queue = run.queue
       .then(async () => {
         await Promise.all(drop.map((i) => unlinkQuiet(gopPath(run, i))));
@@ -812,6 +858,7 @@ const startProducer = (dir, job, input, fromSeg) => {
     const i = job.producers.indexOf(run);
     if (i >= 0) job.producers.splice(i, 1);
     run.proc = null;
+    budget.forget(run);
     if (code === 0 && !run.stopped) {
       // EOF: the last file is closed too, and no later keyframe will come
       run.ended = true;
@@ -857,6 +904,10 @@ const tick = (job) =>
 // route says 503), or "busy" (every producer is somebody's: wait).
 const acquire = (dir, job, input, k, now, polite = false) => {
   const essential = !!(job.enc && input.enc.essential);
+  if (job.enc && input.enc) {
+    if (input.enc.cost > 0) job.cost = input.enc.cost;
+    if (input.enc.memMb > 0) job.memMb = input.enc.memMb;
+  }
   const room = job.producers.length < MAX_PRODUCERS_PER_JOB
     && (job.enc ? encodeAdmission(job, essential).ok : extraCount() < MAX_EXTRA_PRODUCERS);
   const step = plan(job, now, { room, polite });
@@ -1073,6 +1124,8 @@ module.exports = {
   // the quality ladder (ladder.js, the routes)
   encodeCount,
   encodeRoom,
+  encodeRoomSoon,
+  encodeLoad,
   encodeDeclined: (key) => declinedReason(encKey(key)),
   refusedJustNow: (job) => Date.now() - (job.refusedAt || 0) < 2000,
   // Test-only.
@@ -1081,7 +1134,7 @@ module.exports = {
     dropJob, decline,
     setDeclinedFile: (f) => { declinedFile = f; declined = null; },
     TARGET_SEG_SEC, TS_OFFSET_SEC, BOUNDARY_TOL_SEC,
-    sourceRate, admitEncode, park, MAX_ENCODES, ENC_LEAD_MAX, ENC_LEAD_MIN,
+    sourceRate, admitEncode, park, get MAX_ENCODES() { return budget.slots(); }, ENC_LEAD_MAX, ENC_LEAD_MIN,
     // producers and readers
     plan, noteReader, usage, reapable, contended, coversRun, extraCount, stopRun,
     MAX_PRODUCERS_PER_JOB, MAX_EXTRA_PRODUCERS, CLAIM_MS, READER_TTL_MS, STEAL_LEAD, BUSY_WAIT_MS, COVER_AHEAD,

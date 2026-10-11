@@ -327,6 +327,16 @@ router.get("/img/:id", async (req, res) => {
 // audio the browser can't decode (AC-3, DTS...). Playlist request starts the
 // job; segments stream as ffmpeg produces them.
 const remux = require("../media/remux");
+// "The server is busy" (no room in the encode budget) is 503 with
+// Retry-After on every stream route — the older single-rendition routes
+// answered 500, which a monitor and a client both read as a fault.
+const sendStreamError = (res, err) => {
+  if (err && err.busy) {
+    res.setHeader("Retry-After", String(err.retryAfter || 5));
+    return res.status(503).send(err.message);
+  }
+  res.status(500).send((err && err.message) || "stream failed");
+};
 
 router.get("/stream/hls/:id/index.m3u8", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
@@ -339,7 +349,7 @@ router.get("/stream/hls/:id/index.m3u8", async (req, res) => {
     res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.join(dir, "index.m3u8"));
   } catch (err) {
-    res.status(500).send(err.message);
+    sendStreamError(res, err);
   }
 });
 
@@ -455,12 +465,15 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
       // no encoder free: say so now, before the player commits to the rendition
-      if (!jit.encodeRoom(key, v === "h264")) {
+      // (&need=1: the master playlist offered this rung because the full
+      // encode did not fit — it is this viewer's only way to play)
+      if (!jit.encodeRoom(key, v === "h264" || req.query.need === "1")) {
         try { require("../lib/signals").hit("no-encoder", "rendition"); } catch {}
+        res.setHeader("Retry-After", "5");
         return res.status(503).send("Server is busy — that rendition isn't available right now");
       }
     }
-    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}`;
+    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}${v !== "copy" && req.query.need === "1" ? "&need=1" : ""}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
     res.send(jit.playlistText(table, suffix, fmt));
@@ -503,7 +516,7 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
     let input = { url: entry.path, extra: [], fmt, vtagHvc1: req.query.vtag === "hvc1", audio };
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
-      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path) });
+      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path), need: req.query.need === "1" });
       if (!input) return res.status(404).send("No such rendition of this file");
     }
     const job = jit.jobFor(dir, table, { enc: v !== "copy" });
@@ -574,7 +587,7 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
     }
     res.send(text);
   } catch (err) {
-    res.status(500).send(err.message);
+    sendStreamError(res, err);
   }
 });
 

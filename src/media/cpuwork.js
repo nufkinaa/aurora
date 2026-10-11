@@ -101,7 +101,9 @@ const viewer = {
   list: () => [...viewers.values()].map(({ release, ...v }) => v),
   // Has no viewer encode been running for the quiet period?
   quiet: (now = deps.now()) => viewers.size === 0 && now - lastViewerEndedAt >= QUIET_MS,
-  cost: () => { let c = 0; for (const v of viewers.values()) c += v.cost; return c; },
+  // what is being encoded for viewers, in the budget's units (encbudget.js);
+  // `only`: a filter on the entries
+  cost: (only = null) => { let c = 0; for (const v of viewers.values()) if (!only || only(v)) c += v.cost; return c; },
   memMb: () => { let m = 0; for (const v of viewers.values()) m += v.memMb; return m; },
 };
 

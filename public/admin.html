@@ -901,6 +901,18 @@
         </div>
       </div>
       <div class="card">
+        <h2>Encoding <span class="note">how many viewers this machine converts video for at once — worked out from its CPU and its measured speed, or set by you</span></h2>
+        <div id="en-sentence" class="empty-note">Checking…</div>
+        <div class="stats" id="en-stats" style="margin:10px 0"></div>
+        <div id="en-running" class="empty-note"></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <label style="display:flex;gap:6px;align-items:center;font-size:0.88rem">At once
+            <select id="en-limit" aria-label="Encodes at once" style="max-width:150px"></select></label>
+          <button class="mini" id="en-apply">Apply</button>
+          <button class="mini" id="en-measure">Measure this machine again</button>
+        </div>
+      </div>
+      <div class="card">
         <h2>Healer <span class="note">every minute, about thirty checks: what the log really says, how playback, downloads and transcoding are going by the numbers, the library folders, backups, updates, alerts — it fixes what it safely can, and for the rest names the button to press</span></h2>
         <div id="hl-overall" class="empty-note">Waiting for the first round…</div>
         <div id="hl-checks" style="margin-top:10px;display:grid;gap:8px"></div>
@@ -3165,6 +3177,56 @@
       b.disabled = false; loadHealth(); loadServer();
     };
 
+    // ---------- encoding (media/encbudget.js) ----------
+    function paintEncoding(e) {
+      if (!e || e.error && !e.limit) return;
+      $("#en-sentence").innerHTML = `${esc(e.sentence || "")}${e.overloaded ? ` <span class="pill bad">falling behind</span> ${esc(e.overloadWhy || "")} — new encodes are refused for a moment` : ""}`;
+      const run = e.running || {};
+      const cal = e.calibration;
+      const ex = e.examples || null;
+      $("#en-stats").innerHTML = [
+        [String(e.limit), "at once", e.mode === "auto" ? "standard 1080p transcodes that fit" : e.mode === "fixed" ? "fixed by you: every encode counts as one" : "the default until the server has started"],
+        [`${run.load == null ? 0 : run.load} / ${e.capacity}`, "in use", e.mode === "auto" ? "thread-seconds per second of film" : "encodes"],
+        [String(e.logical), "CPU threads", esc(e.cpu || "")],
+        [e.speed == null ? "—" : `${e.speed}×`, "measured speed", cal ? `${cal.cpuSecPerFilmSec} CPU-s per film-s of 1080p, ${ago(new Date(cal.at).toISOString())}` : e.mode === "auto" ? "not measured yet — a cautious guess" : "not used with a fixed number"],
+        [fmtBytes((e.memory.freeMb || 0) * 1048576), "memory free", `${fmtBytes((e.memory.budgetMb || 0) * 1048576)} for encoders (an encoder holds 0.3–1.1 GB)`],
+      ].map(([v, k, note]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div>${note ? `<div class="note">${note}</div>` : ""}</div>`).join("");
+      const cpu = e.cpu || {};
+      const viewers = cpu.viewers || [];
+      const bg = cpu.background || [];
+      $("#en-running").innerHTML =
+        (ex ? `<div class="muted" style="font-size:0.85rem">What fits at once: ${Object.entries(ex).map(([k, n]) => `${esc(k)} × ${n}`).join(" · ")}. A request that does not fit is offered a lower quality that does, waits a few seconds, then is told "busy".</div>` : "") +
+        `<div style="margin-top:6px">${viewers.length ? viewers.map((v) => `<div><span class="pill live">viewer</span> ${esc(v.kind)} · ${esc(v.label || "")} <span class="muted">cost ${esc(String(v.cost))}</span></div>`).join("") : '<span class="muted">Nobody is being encoded for right now.</span>'}</div>` +
+        (bg.length || (cpu.waiting || []).length ? `<div style="margin-top:6px">${bg.map((j) => `<div><span class="pill ${j.paused ? "warn" : ""}">${j.paused ? "paused" : "background"}</span> ${esc(j.kind)} · ${esc(j.label || "")}</div>`).join("")}${(cpu.waiting || []).length ? `<div class="muted">${cpu.waiting.length} background job${cpu.waiting.length === 1 ? "" : "s"} waiting${cpu.quiet ? "" : " for viewers' encodes to finish"}</div>` : ""}</div>` : "");
+      const sel = $("#en-limit");
+      const want = e.setting === "auto" ? "auto" : String(e.setting);
+      sel.innerHTML = `<option value="auto">Automatic</option>` + Array.from({ length: e.maxFixed || 16 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("");
+      sel.value = want;
+    }
+    async function loadEncoding() {
+      try { paintEncoding(await json("/api/admin/encoding")); } catch {}
+    }
+    $("#en-apply").onclick = async () => {
+      const v = $("#en-limit").value;
+      try {
+        const r = await adminFetch("/api/admin/encoding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ maxEncodes: v === "auto" ? "auto" : Number(v) }) });
+        const d = await r.json();
+        if (!r.ok) return toast(d.error || "That was not saved");
+        paintEncoding(d);
+        toast(v === "auto" ? "Automatic" : `Fixed at ${v} at once`);
+      } catch { toast("That was not saved"); }
+    };
+    $("#en-measure").onclick = async () => {
+      const b = $("#en-measure"); b.disabled = true; b.textContent = "Measuring…";
+      try {
+        const r = await adminFetch("/api/admin/encoding/calibrate", { method: "POST" });
+        const d = await r.json();
+        if (!r.ok) toast(d.error || "Could not measure now"); else toast("Measured");
+        paintEncoding(d);
+      } catch { toast("Could not measure now"); }
+      b.disabled = false; b.textContent = "Measure this machine again";
+    };
+
     // ---------- the healer ----------
     const HL_COLOR = { ok: "#4ade80", warn: "#f5c542", fail: "#ff7a7a", info: "#9aa3b8" };
     const hlDot = (st) => `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${HL_COLOR[st] || HL_COLOR.info};box-shadow:0 0 6px ${HL_COLOR[st] || HL_COLOR.info};flex:none;margin-top:5px"></span>`;
@@ -3792,7 +3854,7 @@
       telemetry: () => loadTelemetry(),
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
       profiles: () => loadPeople(),
-      server: () => { loadServer(); loadHealth(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
+      server: () => { loadServer(); loadHealth(); loadEncoding(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
       downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadLimits(); loadMyList(); },
       moderation: () => { loadReports(); loadRequests(); loadIntros(); },
       logs: () => loadLogs(),

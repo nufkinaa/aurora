@@ -364,3 +364,64 @@ Measured on 8 logical CPUs of the development PC (a 1080p HEVC → H.264 viewer
 encode beside a 4K play-ready copy, three rounds): beside the copy as it used
 to run, the viewer's encoder made 1.5–1.8× real time (0.8× in one round);
 with the rules above 4.0–4.4×, the same as with no copy running at all.
+
+# How many people can be transcoded for at once
+
+It used to be the number 2, whatever the machine. It is now worked out
+(`src/media/encbudget.js`), and shown with its reasons on the admin page:
+Server → Encoding — "Automatic: 5 now, because 12 CPU threads × 0.86 (this
+machine's measured speed against the reference) × 70% = 7.22 thread-seconds
+per second of film, and a 1080p transcode costs 1.23."
+
+- **The machine is measured.** About 25 seconds after the first start the
+  server times the ladder's own encoder settings on a generated 1080p picture
+  (a few seconds of CPU at the lowest priority, never while somebody's stream
+  is being encoded), keeps the result in
+  `data/cache/encode-calibration.json`, and measures again only when the CPU
+  or ffmpeg changes, or after a month. Until the first measurement it assumes
+  a slow machine. "Measure this machine again" on the card does it on demand.
+- **Other programs count.** The share of the CPU that everything else on the
+  machine is using — looked at while Aurora is encoding nothing — is taken
+  off first. A server that shares its box with other work gets a lower number
+  while that work runs, by itself.
+- **Each encode is weighed by what it costs**, not counted as one: a 4K source
+  takes the room of two 1080p ones, a 4K HDR title that is tone-mapped the
+  room of three, a 480p rendition less than half of one. The card says how
+  many of each fit.
+- **70% of the machine at most** goes to viewers' encodes; the rest is for
+  the server itself, direct play, downloads and the OS — and is what keeps
+  every encode running faster than the film (measured: about 1.3× real
+  time each at the limit).
+- **Memory is a limit too**: an encoder holds 0.3–1.1 GB; none is started
+  that does not fit in what is free, less a 1 GB reserve.
+
+**When a request does not fit**, in this order: a lower quality that does fit
+is offered instead (the master playlist lists only those renditions); if none
+fits, the request waits up to three seconds for an encoder that is about to
+be released; then it gets the quick "Server is busy" — `503` with
+`Retry-After` on every stream route (the older single-rendition route used to
+answer `500`). One encode is always allowed when nothing else is being
+encoded, whatever it costs.
+
+**While running**: if an encoder that somebody is waiting on makes less than
+one second of film per second for 15 seconds on a machine whose CPUs are busy,
+new encodes are refused for 30 seconds and the newest background job is put
+back in its queue — whatever the sums said.
+
+**To set it yourself**: Server → Encoding → *At once* → a number from 1 to 16,
+*Apply*. A fixed number is a plain count (every encode one slot, as it always
+was). *Automatic* puts it back. The setting is kept in `data/settings.json`
+(`maxEncodes`).
+
+What the automatic value comes to (thread budget ÷ cost; the first two scaled
+from the reference machine by the capacity study's factors):
+
+| Machine | 1080p → 1080p | 4K → 1080p | 4K HDR → 1080p, tone-mapped |
+| --- | --- | --- | --- |
+| i5-10400 (6 cores / 12 threads, 0.86× per thread) | 5 | 3 | 1 |
+| i5-10210U laptop (4 cores / 8 threads, 0.65×) | 2 | 1 | 1 (alone, below real time) |
+| i7-10700K (8 cores / 16 threads, the reference), idle | 9 | 4 | 2 |
+| the same with other programs using 39% of it (measured 2026-10-11) | 6 | 3 | 1 |
+
+Measured on the last line: six simultaneous 1080p HEVC → H.264 encodes made
+1.34× real time each; eight made 1.07×; nine 0.86× (below real time).

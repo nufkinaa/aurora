@@ -538,6 +538,9 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // it finishes before any HTTP request handler runs.
   try { require("./src/media/remux").bootSweep(); } catch {}
   try { require("./src/media/torrent-transcode").bootSweep(); } catch {}
+  // How many viewers this machine may encode for at once: worked out from
+  // its CPU and its measured encode speed (media/encbudget.js), from here on.
+  try { require("./src/media/encbudget").start(); } catch {}
   // Remember which commit this process actually runs — the admin's update
   // card compares it against HEAD on disk to say "restart to apply".
   try { require("./src/lib/updatecheck").captureBoot(); } catch {}
