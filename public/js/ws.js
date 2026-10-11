@@ -5,6 +5,7 @@ import { backToSignIn, onProfileSignedOut } from "./session.js";
 import { wsDown, wsUp } from "./telemetry.js"; // [analytics]
 
 const listeners = new Map(); // type -> Set<fn>
+export const _listeners = listeners; // (read-only, for tools/mobile-perf/holders.js and tests: handlers per message type)
 
 export const onMessage = (type, fn) => {
   if (!listeners.has(type)) listeners.set(type, new Set());
