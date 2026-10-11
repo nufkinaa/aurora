@@ -204,6 +204,7 @@ test("a process killed while saving flat out never leaves an unreadable store", 
     const { JsonStore } = require(${JSON.stringify(path.join(__dirname, "..", "src", "lib", "jsonstore.js"))});
     const s = new JsonStore(${JSON.stringify(file)}, { n: 0, pad: [] });
     for (let i = 0; i < 4000; i++) s.data.pad[i] = "row " + i + " ".repeat(40);
+    s.data.n++; s.flush(); // (the file exists before "ready": a slow machine was killed before its first save)
     process.stdout.write("ready\\n");
     for (;;) { s.data.n++; s.flush(); }
   `);
