@@ -27,6 +27,7 @@ type Job = {
   progress?: number;
   held?: boolean;
   heldReason?: string | null;
+  by?: string | null;
 };
 
 export const DEAD = ['error', 'declined', 'canceled'];
@@ -62,4 +63,14 @@ export const downloadActions = (
   }
   // finished, still being indexed (or a status this build does not know)
   return {press: null, all: title, label: ''};
+};
+
+/** Whose download it is, for a row that is NOT this profile's: "Started by
+ *  Dor" — the website's words (public/js/screens/downloads.js). Nothing on
+ *  your own rows, and nothing when the server did not say (an older server,
+ *  a job whose requester is gone). */
+export const startedBy = (j: Job, own: boolean): string | null => {
+  if (own) return null;
+  const name = typeof j.by === 'string' ? j.by.trim() : '';
+  return name ? `Started by ${name}` : null;
 };

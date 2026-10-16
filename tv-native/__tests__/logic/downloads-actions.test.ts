@@ -1,5 +1,5 @@
 // What one press, and holding, does on a row of My downloads (downloadsLogic.ts).
-import {downloadActions, heldLine, isHeld, isReady} from '../../src/downloadsLogic';
+import {downloadActions, heldLine, isHeld, isReady, startedBy} from '../../src/downloadsLogic';
 
 const job = (o: Record<string, unknown>) => ({status: 'downloading', mine: true, imdbId: 'tt1', infoHash: 'abc', ...o} as never);
 
@@ -48,4 +48,13 @@ test('a My List download on hold says so, with what it has - and cancels like an
   // `held` on anything but a queued job means nothing (the server only sets it there)
   expect(isHeld(job({status: 'downloading', held: true}))).toBe(false);
   expect(isHeld(job({status: 'approved'}))).toBe(false);
+});
+
+test("someone else's download says who started it, by name - the website's words; your own rows say nothing", () => {
+  expect(startedBy(job({mine: false, by: 'Dor'}), false)).toBe('Started by Dor');
+  expect(startedBy(job({mine: true, by: 'Dor'}), true)).toBeNull();
+  // an older server (no field), or one that could not say
+  expect(startedBy(job({mine: false}), false)).toBeNull();
+  expect(startedBy(job({mine: false, by: null}), false)).toBeNull();
+  expect(startedBy(job({mine: false, by: '  '}), false)).toBeNull();
 });

@@ -511,6 +511,9 @@ export type MyDownload = DownloadJob & {
   season?: number | null;
   episode?: number | null;
   mine?: boolean;
+  // Who started it, by display NAME only (publicJob `by`, server 1.6.99);
+  // null when the server cannot say, absent on an older server.
+  by?: string | null;
   smart?: boolean;
   // "mylist": fetched because the title was added to My List (always `smart` too).
   auto?: string | null;
