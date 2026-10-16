@@ -1,7 +1,7 @@
 // The shelf's mounted window (src/rowWindow.ts): a card exists before any
 // part of it can be on screen, one card is mounted per press, and the count
 // stays bounded.
-import {aheadOf, restWindow, rowWindow, visibleRange, Dir, MARGINS, MARGINS_LOW, RowGeom} from '../../src/rowWindow';
+import {aheadOf, HELD_EXTRA, HELD_GAP_MS, nextRun, restWindow, rowWindow, runMargins, visibleRange, Dir, MARGINS, MARGINS_LOW, RowGeom} from '../../src/rowWindow';
 
 const POSTER: RowGeom = {step: 138, cardW: 124, contentLeft: 84, viewportW: 960, lead: 1};
 const FRAME: RowGeom = {step: 238, cardW: 224, contentLeft: 84, viewportW: 960, lead: 1};
@@ -165,4 +165,65 @@ test('heldWindow: while focus keeps moving nothing mounted is let go, up to a bo
   expect(heldWindow({from: 0, to: 30}, next, 1, 20)).toEqual({from: Math.min(next.from, next.to - 20), to: next.to});
   const nextL = rowWindow(5, -1, 40, POSTER);
   expect(heldWindow({from: 10, to: 40}, nextL, -1, 20)).toEqual({from: nextL.from, to: Math.max(nextL.to, nextL.from + 20)});
+});
+
+// A HELD KEY (rowWindow.ts runMargins): the Mi TV logged a held LEFT whose
+// committed window was three presses behind focus.
+describe('a held key leads further, both ways', () => {
+  test('presses close together in one direction are a run; a turn or a pause starts again', () => {
+    let r = nextRun(null, 1, 0);
+    expect(r.n).toBe(1);
+    r = nextRun(r, 1, 100);
+    expect(r.n).toBe(2);
+    r = nextRun(r, 1, 200);
+    expect(r.n).toBe(3);
+    expect(nextRun(r, -1, 250).n).toBe(1); // turned round
+    expect(nextRun(r, 1, 200 + HELD_GAP_MS + 1).n).toBe(1); // let go
+  });
+
+  test('the lead grows one card a press up to HELD_EXTRA more (one more on a low-memory box); the trail never', () => {
+    expect(runMargins(MARGINS, 1)).toBe(MARGINS);
+    expect(runMargins(MARGINS, 2)).toEqual({lead: 3, trail: 1});
+    expect(runMargins(MARGINS, 3)).toEqual({lead: 2 + HELD_EXTRA, trail: 1});
+    expect(runMargins(MARGINS, 50)).toBe(runMargins(MARGINS, 3)); // same object: compared by identity
+    expect(runMargins(MARGINS_LOW, 9)).toEqual({lead: 2, trail: 0});
+  });
+
+  test.each(SHAPES)('%s shelf: a commit running up to lead+HELD_EXTRA presses late under a held key shows no hole, LEFT as well as RIGHT', (_n, g) => {
+    for (const n of LENGTHS)
+      for (const dir of DIRS)
+        for (let f = 0; f < n; f++)
+          for (let lag = 0; lag <= MARGINS.lead + HELD_EXTRA; lag++) {
+            const was = f - dir * lag;
+            if (was < 0 || was >= n) continue;
+            // the press that committed was deep in the run already
+            const w = rowWindow(was, dir, n, g, runMargins(MARGINS, 10));
+            for (const i of onScreen(f, n, g)) {
+              const leading = dir > 0 ? i >= was : i <= was;
+              if (leading) expect(i >= w.from && i < w.to).toBe(true);
+            }
+          }
+  });
+
+  test('the device case: held LEFT reaching card 2 with the commit of card 5 — the left-edge card is there', () => {
+    const w = rowWindow(5, -1, 40, POSTER, runMargins(MARGINS, 4));
+    expect(w.from).toBe(0); // was 1 (`mounted=1..11`)
+    expect(onScreen(2, 40, POSTER)[0]).toBe(0);
+  });
+
+  test('while the lead grows, a press mounts at most two cards; once grown, one', () => {
+    for (const n of LENGTHS)
+      for (const dir of DIRS) {
+        let f = dir > 0 ? 0 : n - 1;
+        let k = 1;
+        let prev = rowWindow(f, dir, n, POSTER, runMargins(MARGINS, k));
+        for (f += dir, k++; f >= 0 && f < n; f += dir, k++) {
+          const w = rowWindow(f, dir, n, POSTER, runMargins(MARGINS, k));
+          let mounted = 0;
+          for (let i = w.from; i < w.to; i++) if (i < prev.from || i >= prev.to) mounted++;
+          expect(mounted).toBeLessThanOrEqual(k <= 1 + HELD_EXTRA ? 2 : 1);
+          prev = w;
+        }
+      }
+  });
 });
