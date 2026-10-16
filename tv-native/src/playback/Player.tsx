@@ -128,7 +128,8 @@ import {onPersonPrefs, setPersonPref} from '../personSync';
 import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
-import theme from '../theme';
+import theme, {useTvMetrics} from '../theme';
+import {menuMaxHeight} from '../popupFit';
 import {refreshTuning, tuning, TUNING_DEFAULTS} from './tuning';
 import {SERVER_BUSY, whenRoom} from '../serverManners';
 import {playerError, seekResumed, seekStarted, seeking} from '../telemetry'; // [analytics]
@@ -714,6 +715,12 @@ export default function Player({
   const audioIdxRef = useRef(0);
   const audioChosen = useRef(false); // the viewer picked one: the default stops applying
   const menuOpen = menu !== null;
+  // The menus' ceiling on this screen (popupFit.ts): each one scrolls inside
+  // it, and Android scrolls the focused row into view — nothing overflows the
+  // top of a 540dp panel any more (owner, 2026-10-17).
+  const {height: winH} = useTvMetrics();
+  const menuH = menuMaxHeight(winH);
+  const gearScroll = useRef<ScrollView>(null);
   const [rate, setRate] = useState(1);
   // Level, for the indicator and for <Video volume>. Not adjustable from here
   // — see the .vol-group comment in the transport row.
@@ -3658,7 +3665,7 @@ export default function Player({
       {/* Subtitle menu. Focus is trapped inside while it's open — otherwise a
           stray D-pad press wanders to the transport bar behind the overlay. */}
       {menu === 'cc' ? (
-        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
+        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           <MenuTitle icon="cc" label="SUBTITLES" />
           <ScrollView ref={ccScroll} style={styles.menuScroll}>
             {/* The site's first CC entry: one press that drops any manual delay
@@ -3771,7 +3778,7 @@ export default function Player({
 
       {/* Speed — the site's SPEEDS menu. */}
       {menu === 'speed' ? (
-        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
+        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           <MenuTitle icon="speed" label="SPEED" />
           <ScrollView style={styles.menuScroll}>
             {SPEEDS.map(sp => (
@@ -3798,13 +3805,25 @@ export default function Player({
           the site (and are already on Aurora's own Settings screen), not things
           you set mid-film. */}
       {menu === 'settings' ? (
-        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
+        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
+          {/* Its own scroller (it had none: a film with several dubs and an
+              intro to mark ran past the top of the screen). */}
+          <ScrollView ref={gearScroll} style={styles.menuScroll} showsVerticalScrollIndicator={false}>
           {audioTracks.length > 1 ? (
             <>
               <MenuTitle icon="volume" label="AUDIO" />
               {audioTracks.map(t => (
-                <MenuItem uiId="player.audio.pick"
+                // the ticked dub claims focus, so the list must SHOW it (the
+                // subtitle menu's rule: Android does not scroll to a child
+                // focused before layout)
+                <View
                   key={`a${t.index}`}
+                  onLayout={
+                    audioIdx === t.index
+                      ? e => gearScroll.current?.scrollTo({y: Math.max(0, e.nativeEvent.layout.y - 120), animated: false})
+                      : undefined
+                  }>
+                <MenuItem uiId="player.audio.pick"
                   label={audioLabel(t)}
                   tag={[t.original ? 'Original' : null, t.codec ? t.codec.toUpperCase() : null, t.channels ? `${t.channels}ch` : null]
                     .filter(Boolean)
@@ -3817,6 +3836,7 @@ export default function Player({
                     switchAudio(t.index, audioLabel(t));
                   }}
                 />
+                </View>
               ))}
             </>
           ) : null}
@@ -3929,13 +3949,15 @@ export default function Player({
               openReport(`In the player: ${activityLabel()} at ${fmt(curRef.current)}${usingTranscodeRef.current ? `, ${currentV.current}` : ', direct'}`);
             }}
           />
+          </ScrollView>
         </TVFocusGuideView>
       ) : null}
 
       {/* Watch together — the party panel (site: .party-panel). */}
       {menu === 'party' ? (
-        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
+        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           <MenuTitle icon="people" label="WATCH TOGETHER" />
+          <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
           {partyInfo ? (
             <>
               <Text style={styles.partyCode}>{partyInfo.code.split('').join(' ')}</Text>
@@ -3966,6 +3988,7 @@ export default function Player({
               <MenuItem label="Close" onFocusChange={markZone('menu')} onPress={closeMenu} />
             </>
           )}
+          </ScrollView>
         </TVFocusGuideView>
       ) : null}
 
