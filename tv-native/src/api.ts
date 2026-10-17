@@ -9,6 +9,7 @@ import {registerProfileCache} from './profileScope';
 import {tooManyWait, TOO_MANY_RETRIES} from './serverManners';
 import {pickServer} from './serverPick';
 import type {TasteCard, Verdict} from './tasteSession';
+import type {ResyncAnswer, ResyncBody, SubTiming} from './playback/resync';
 
 let baseUrl = '';
 let token: string | null = null;
@@ -204,6 +205,16 @@ export type SubtitleTrack = {
   // trackRank ranks them after a full track)
   forced?: boolean;
   sdh?: boolean;
+  // The server's ★ (2026-10-17, src/media/scanner.js starBest): at most one
+  // track per language, the one that matches THIS release by its audio. The
+  // menu marks it ("Matches this release") and the auto pick prefers it
+  // among equals (lang.ts bestTrackIndex).
+  star?: boolean;
+  starWhy?: string;
+  // What the server knows about the track's timing against this file
+  // (playback/resync.ts SubTiming): "in-time" | "moved" | "parts" |
+  // "unmatched" | "original", by the audio or the track, in words.
+  timing?: SubTiming;
 };
 export type Progress = {
   position: number;
@@ -1613,6 +1624,11 @@ export const api = {
   // no track for; it is written next to the file, for everyone.
   subtitlesFetch: (id: string, lang: 'he' | 'en' | 'ru') =>
     post<{tracks: SubtitleTrack[]}>('/api/subtitles/fetch', {id, lang}),
+  // The Resync button (playback/resync.ts): start — or join — the server's
+  // match of one library track against the playing audio track, then ask
+  // how it goes about once a second. A server from before these answers 404.
+  subtitleResync: (body: ResyncBody) => post<ResyncAnswer>('/api/subtitles/resync', body),
+  subtitleResyncStatus: (body: ResyncBody) => post<ResyncAnswer>('/api/subtitles/resync/status', body),
   report: (text: string, context: Record<string, unknown>, profile: string | null) =>
     post<{ok: boolean; id: string}>('/api/reports', {text, context, profile}),
   changelog: () =>
