@@ -1564,7 +1564,7 @@
         ? [
             [`${it.analyzed} / ${it.episodes}`, "episodes analysed", it.episodes ? `${Math.round((it.analyzed / it.episodes) * 100)}% of what the detector considers (seasons of 2+)` : "no multi-episode seasons yet"],
             [String(it.intro), "intros detected", it.analyzed ? `${Math.round((it.intro / it.analyzed) * 100)}% of analysed · ${it.chapters} from chapter names` : ""],
-            [String(it.credits), "credits detected", "Up next appears when these start"],
+            [String(it.credits), "credits detected", `Up next appears when these start${it.picture ? ` · ${it.picture} read from the picture` : ""}`],
             [String(it.manual), "marked by hand", "manual marks win over detection"],
             // the daily re-ask of SkipDB / TheIntroDB (lib/daily.js)
             ...((a.daily || []).filter((d) => d.name === "skip-timestamps").map((d) => [
