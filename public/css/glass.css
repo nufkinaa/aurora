@@ -3188,6 +3188,14 @@ html[data-look="glass"]:root .card.wide .card-progress {
     width: 114px;
     border-radius: 12px;
   }
+  /* ...on a shelf. In a grid (Search, Movies, Shows, My List) a poster fills
+     its cell, as it does everywhere else: the fixed 114px above outranked
+     `.grid .card.poster` and left each card stuck to the left of a wider
+     cell (two columns with a ragged gutter at 360px) or spilling 3px into
+     the gap of a narrower one (390px). */
+  html[data-look="glass"]:root .grid .card.poster {
+    width: 100%;
+  }
   /* Continue Watching: a taller frame for a landscape picture (components.js
      gives a wide card the title's backdrop), with the words on a deep fade */
   html[data-look="glass"]:root .card.wide {

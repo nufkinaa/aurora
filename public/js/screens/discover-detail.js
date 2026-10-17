@@ -680,6 +680,7 @@ const requestDownload = async (stream, base, label, season, episode, { onStream 
       season: season || null,
       episode: episode || null,
       provider: stream.provider || null,
+      release: stream.release || stream.filename || null,
       seeders: stream.seeders || 0,
       profile: state.profile ? state.profile.id : null,
     });

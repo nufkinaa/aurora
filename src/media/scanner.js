@@ -55,6 +55,11 @@ const register = (kind, absPath, relPath) => {
 // exactly, so callers pass the same absolute path the scanner walked.
 const idForPath = (absPath) => byPath.get(absPath) || null;
 
+// movie id -> the other video files in its folder, which are not indexed
+// (absolute paths, as the last scan saw them). Only movies with more than one.
+const siblingVideos = new Map();
+const otherVideosOf = (movieId) => siblingVideos.get(movieId) || [];
+
 // (One collator for every comparison: a.localeCompare(b, undefined, options)
 // is defined as exactly this compare, minus setting the collator up per call.)
 const naturalCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
@@ -435,6 +440,10 @@ const scanMovies = () => {
       const videoAbs = path.join(dir, videoFile);
       const videoRel = path.relative(root, videoAbs);
       const id = register("video", videoAbs, videoRel);
+      // A second video in a movie's folder (a 720p beside the 1080p, two
+      // releases) is not indexed — the first one is the film — but the admin
+      // is shown it as another copy (media/copies.js).
+      if (videos.length > 1) siblingVideos.set(id, videos.slice(1).map((v) => path.join(dir, v)));
       const stat = statSafe(videoAbs);
       const cover = findCover(dir);
       const coverId = cover
@@ -698,6 +707,7 @@ const mergeDuplicateShows = (shows) => {
 const scan = () => {
   registry.clear();
   byPath.clear();
+  siblingVideos.clear();
   scanListings = new Map();
   try {
     index.movies = scanMovies();
@@ -901,6 +911,7 @@ module.exports = {
   enrichedChanged,
   resolve,
   idForPath,
+  otherVideosOf,
   findById,
   allItems,
   bitmapOnlyVideos,

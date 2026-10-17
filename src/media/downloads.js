@@ -402,7 +402,7 @@ const listFor = (viewer) => {
 const create = (fields) => {
   const {
     infoHash, fileIdx, type, imdbId, title, label, year, poster,
-    quality, sizeBytes, season, episode, provider, seeders, profile, smart,
+    quality, sizeBytes, season, episode, provider, seeders, profile, smart, release,
   } = fields || {};
   // Which automatic feature queued it, when it was not "the next episode":
   // "mylist" = My List downloads (media/mylistdl.js). Null for a person's own.
@@ -481,6 +481,9 @@ const create = (fields) => {
     season: season || null,
     episode: episode || null,
     provider: provider || null,
+    // The release name the source was listed under (the admin's "copies of
+    // one title" tells two downloads of a film apart by it — media/copies.js).
+    release: release ? String(release).slice(0, 200) : null,
     seeders: seeders || 0,
     profile: profile ? String(profile).slice(0, 24) : null,
     // The person, for the admin's notification (profile is an id).
@@ -967,6 +970,7 @@ const adopt = (job, src) => {
   job.quality = src.quality || job.quality;
   job.sizeBytes = src.sizeBytes || job.sizeBytes;
   job.provider = src.provider || null;
+  job.release = src.release ? String(src.release).slice(0, 200) : job.release || null;
   job.seeders = src.seeders || 0;
   clearStalled(job); // another source: it is a download that needs the queue again
 };
@@ -1319,8 +1323,11 @@ const completeJob = async (job, rec, file, engineStatus) => {
   const ext = path.extname(file.path) || ".mkv";
   const destPath = path.join(rec.dir, `${rec.base}${ext}`);
   // The library file takes the title's name; the release's own name is kept
-  // on the job — it is what tells which providers' subtitles fit it.
-  job.release = path.basename(file.path);
+  // on the job — it is what tells which providers' subtitles fit it, and the
+  // admin's copies apart (media/copies.js). ONE field: the name the source was
+  // listed under, set by create()/adopt(); a job that came without one (an
+  // older client, a source with no name) takes the name of the file it wrote.
+  if (!job.release) job.release = path.basename(file.path).slice(0, 200);
 
   job.phase = "copying";
   job.progress = 1;
