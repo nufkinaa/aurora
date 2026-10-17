@@ -2050,6 +2050,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   // The episode whose sources are on screen, so a finished download can put its
   // "plays your copy" row in front of you without you doing anything.
   let openRow = null;
+  let openListed = null; // that list's own promise (openSources)
 
   // → the list's own promise ({ streams, best, jobs }), so a caller can act
   // on what was found (saveBestEpisode below); null when there is no list.
@@ -2059,7 +2060,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     epSourcesLabel.textContent = `Sources · S${row.season} E${row.episode}`;
     epSourcesLabel.hidden = false;
     sourcesSection.hidden = false;
-    const listed = loadSources(
+    const listed = (openListed = loadSources(
       sourcesSection,
       {
         type: "series",
@@ -2119,7 +2120,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
             card.scrollIntoView({ behavior: "smooth", block: "center" });
           }
         }),
-    );
+    ));
     if (scroll) {
       // room for the floating nav: the heading used to end up under it
       sourcesSection.style.scrollMarginTop = "96px";
@@ -2143,7 +2144,13 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   const saveBestEpisode = async (row) => {
     const key = epJobKey(row.season, row.episode);
     const running = epJobs.get(key);
-    const listed = openSources(row, { scroll: false });
+    // This episode's list already on screen (a second press, or a press after
+    // holding the card): it stays as it is. Opening it again emptied it to a
+    // spinner and fetched it all over (the "no second job, the sources stay"
+    // test caught the list gone right after the second press).
+    const showing = openListed && openRow && !sourcesSection.hidden &&
+      openRow.season === row.season && openRow.episode === row.episode;
+    const listed = showing ? openListed : openSources(row, { scroll: false });
     if (running) return toast(`${epJobText(running)} — its sources are below`, "⏳");
     if (savingEps.has(key) || !listed) return;
     savingEps.add(key);
