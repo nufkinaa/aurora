@@ -107,7 +107,7 @@ ui.test("the copies are listed: a film twice in its folder, an episode twice, a 
   await page.click("#cp-card > summary"); // fold the card: the jump opens it again
   await page.click(`#lib-tree [data-cp-jump="${IDS.film1}"]`);
   await page.waitForFunction(() => document.getElementById("cp-card").open);
-  assert.ok(await g.evaluate((d) => d.open && d.classList.contains("cp-hot")));
+  await page.waitForFunction((key) => { const d = document.querySelector(`#cp-groups .cp-group[data-cp-group="${key}"]`); return d && d.open && d.classList.contains("cp-hot"); }, IDS.film1);
   assert.ok(filmId);
 });
 

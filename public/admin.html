@@ -3587,6 +3587,7 @@
     // "2 copies" and jump to them.
     let copiesData = null;
     let copiesByLib = new Map();
+    let copiesHot = null; // the group a "N copies" pill jumped to: stays lit across repaints
     const copyPill = (id) => {
       const g = copiesByLib.get(id);
       if (!g) return "";
@@ -3762,7 +3763,7 @@
         ? `${groups.length} title${groups.length > 1 ? "s are" : " is"} here more than once${spare ? ` · keeping only the biggest copy of each would free <b>${fmtBytes(spare)}</b>` : ""}. Deleting a copy removes that file only; watch history stays (it is kept per title).`
         : "";
       const open = new Set([...document.querySelectorAll("#cp-groups .cp-group[open]")].map((d) => d.dataset.cpGroup));
-      $("#cp-groups").innerHTML = groups.map((g) => `<details class="cp-group" data-cp-group="${esc(g.key)}"${open.has(g.key) ? " open" : ""}>
+      $("#cp-groups").innerHTML = groups.map((g) => `<details class="cp-group${g.key === copiesHot ? " cp-hot" : ""}" data-cp-group="${esc(g.key)}"${open.has(g.key) ? " open" : ""}>
           <summary>${libThumb(g.cover, g.kind === "episode" ? "📺" : "🎬")}
             <span class="cp-head"><b>${esc(cpTitle(g))}</b>${cpBadge(g)}<span class="muted num" style="font-size:0.82rem">${fmtBytes(g.sizeBytes)}</span></span></summary>
           ${g.copies.map((c) => cpCopyRow(g, c)).join("")}${g.downloads.map(cpDownloadRow).join("")}
@@ -3782,6 +3783,7 @@
       if (!g) return;
       g.open = true;
       document.querySelectorAll("#cp-groups .cp-hot").forEach((x) => x.classList.remove("cp-hot"));
+      copiesHot = key;
       g.classList.add("cp-hot");
       g.scrollIntoView({ behavior: "smooth", block: "center" });
     }
