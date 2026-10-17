@@ -422,7 +422,27 @@ scanner.events.on("enriched", (info) => {
   if (scanner.enrichedChanged(info)) realtime.libraryUpdated();
   // Now that embedded-subtitle info is known, queue OCR for bitmap-only videos
   for (const v of scanner.bitmapOnlyVideos()) ocr.enqueue(v.path, v.name);
+  // …and read the language of the subtitle tracks nothing names off their
+  // text, so the menu says "Spanish", not "Track 7" (media/sublang.js)
+  for (const job of scanner.unnamedSubtitleWork()) require("./src/media/sublang").enqueue(job);
+  // …and line sidecars up against the video's own text track, where it has
+  // one (a provider's file timed for another release — media/subsync.js)
+  for (const job of scanner.subtitleSyncWork()) require("./src/media/sublang").enqueue(job);
 });
+// A file's tracks were just named from their text: the library learns the
+// names (one rescan for a burst of files, never one per file).
+{
+  let renameTimer = null;
+  require("./src/media/sublang").events.on("detected", () => {
+    if (renameTimer) return;
+    renameTimer = setTimeout(() => {
+      renameTimer = null;
+      scanner.scan();
+      realtime.libraryUpdated();
+    }, 3000);
+    renameTimer.unref?.();
+  });
+}
 
 // Online metadata (genres, synopsis, art) fills in after each scan
 scanner.events.on("scanned", () => online.enrich(scanner.allItems()));

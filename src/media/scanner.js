@@ -11,6 +11,8 @@ const crypto = require("crypto");
 const { EventEmitter } = require("events");
 const config = require("../config");
 const metadata = require("./metadata");
+const subnames = require("./subnames");
+const sublang = require("./sublang");
 const online = require("./online");
 
 const events = new EventEmitter();
@@ -63,13 +65,20 @@ const naturalCompare = (a, b) => naturalCollator.compare(a, b);
 const audioTracksOf = (meta) => {
   const list = (meta && meta.audioStreams) || [];
   if (list.length < 2) return undefined;
-  return list.map((a, i) => ({
-    index: a.index != null ? a.index : i,
-    language: a.language || null,
-    title: a.title || null,
-    codec: a.codec || null,
-    channels: a.channels || 2,
-  }));
+  return list.map((a, i) => {
+    const name = subnames.audioName(a, i);
+    return {
+      index: a.index != null ? a.index : i,
+      language: a.language || null,
+      title: a.title || null,
+      codec: a.codec || null,
+      channels: a.channels || 2,
+      // the menu's name for it, the same on the site and the TV
+      // ("English", "English · Commentary"; "Track 2" only when the file says nothing)
+      label: name.label,
+      ...(name.lang ? { lang: name.lang } : {}),
+    };
+  });
 };
 
 // ---------- name parsing ----------
@@ -114,8 +123,9 @@ const LANGUAGE_NAMES = {
   hi: "Hindi",
 };
 
+// (every other tag or name subnames.js knows, too: "cat", "Catalan", "nob")
 const languageName = (code) =>
-  code ? LANGUAGE_NAMES[code.toLowerCase()] || null : null;
+  code ? LANGUAGE_NAMES[code.toLowerCase()] || (require("./subnames").normLang(code) || {}).name || null : null;
 
 const extractYear = (name) => {
   const m = name.match(/\((19|20)\d{2}\)/) || name.match(/\b(19|20)\d{2}\b/);
@@ -298,12 +308,16 @@ const findSubtitleFiles = (dir, videoFile, extraDirs = []) => {
   return found;
 };
 
-const embeddedSubtitleLabel = (stream, idx) => {
-  const lang = languageName(stream.language);
-  if (stream.title && lang && !stream.title.includes(lang)) {
-    return `${lang} - ${stream.title}`;
-  }
-  return stream.title || lang || `Track ${idx + 1}`;
+// An embedded stream's name, language code and flags — media/subnames.js
+// (the file's tag, its title, its dispositions; for a stream the file left
+// untagged, the language read off its text by media/sublang.js).
+const embeddedSubtitleTrack = (stream, detected) => subnames.subtitleName(stream, detected, stream.index);
+
+// The language a sidecar's label names ("Hebrew 2" -> he), or null.
+const labelLang = (label) => {
+  const l = subnames.normLang(String(label || "").replace(/\s+\d+$/, "")) ||
+    subnames.normLang(String(label || "").split(/[\s(]/)[0]);
+  return l ? l.code : null;
 };
 
 // Build the subtitle track list for a video (external + embedded-from-cache).
@@ -311,20 +325,7 @@ const embeddedSubtitleLabel = (stream, idx) => {
 // "English" next to an embedded stream whose language is also English. Both are
 // real and both should stay, but a menu with two identical entries is a coin
 // toss, so later collisions get numbered the way extra sidecars already are.
-const uniqueLabels = (tracks) => {
-  const taken = new Set();
-  for (const t of tracks) {
-    if (!taken.has(t.label)) {
-      taken.add(t.label);
-      continue;
-    }
-    let n = 2;
-    while (taken.has(`${t.label} ${n}`)) n++;
-    t.label = `${t.label} ${n}`;
-    taken.add(t.label);
-  }
-  return tracks;
-};
+const uniqueLabels = (tracks) => subnames.uniqueLabels(tracks);
 
 // The name a sidecar takes when it is downloaded to a viewer's machine. Desktop
 // players only pick a sidecar up automatically when it sits beside the video
@@ -348,6 +349,7 @@ const subtitleDownloadName = (videoAbs, subAbs) => {
 
 const buildSubtitleTracks = (videoAbs, videoRel, videoFile, dir, extraDirs) => {
   const tracks = [];
+  const sidecarPaths = new Map(); // track -> its file
   const videoId = makeId("video", videoRel);
 
   for (const sub of findSubtitleFiles(dir, videoFile, extraDirs)) {
@@ -357,24 +359,56 @@ const buildSubtitleTracks = (videoAbs, videoRel, videoFile, dir, extraDirs) => {
       subAbs,
       path.relative(config.ROOT, subAbs),
     );
+    let label = externalSubtitleLabel(sub.file, videoFile);
+    let lang = labelLang(label);
+    let sdh = /\b(?:sdh|cc)\b/i.test(sub.file);
+    let forced = /\bforced\b/i.test(sub.file);
+    if (!lang) {
+      // a name that says no language ("Movie.srt", "2_Eng_track.srt" aside):
+      // the text says it (media/sublang.js, read once in the background)
+      const det = sublang.forFile(subAbs);
+      if (det && det.lang) {
+        const named = subnames.subtitleName({ language: det.lang, sdh: sdh || det.sdh, forced }, null);
+        label = named.label;
+        lang = named.lang;
+        sdh = named.sdh;
+      }
+    }
     tracks.push({
-      label: externalSubtitleLabel(sub.file, videoFile),
+      label,
       url: `/stream/subtitle/${subId}`,
       // A sidecar is a real file, so it can be handed to a browser as-is. The
       // embedded tracks below only exist as an ffmpeg extraction and carry no
       // downloadUrl — that is how the client knows what it can offer.
       downloadUrl: `/stream/download/${videoId}/sub/${subId}`,
+      ...(lang ? { lang } : {}),
+      ...(sdh ? { sdh: true } : {}),
+      ...(forced ? { forced: true } : {}),
     });
+    sidecarPaths.set(tracks[tracks.length - 1], subAbs);
   }
+  // A sidecar the background check could NOT line up with the video's own
+  // track (a different cut, a wrong file: media/sublang.js) goes after the
+  // ones it could, so the automatic pick — the first full track in the
+  // viewer's language (lang.js bestTrackIndex) — lands on one in time.
+  // Stable: everything else keeps its order (and its name).
+  const rank = (t) => (sublang.syncVerdict(sidecarPaths.get(t)) === "unmatched" ? 1 : 0);
+  tracks.sort((a, b) => rank(a) - rank(b));
 
   const meta = metadata.getCached(videoAbs);
   if (meta) {
+    const detected = sublang.forVideo(videoAbs, meta.mtime);
     for (const s of meta.subtitleStreams) {
       if (!s.text) continue;
+      const named = embeddedSubtitleTrack(s, detected && detected[s.index]);
       tracks.push({
-        label: embeddedSubtitleLabel(s, s.index),
+        label: named.label,
         url: `/stream/embedded/${videoId}/${s.index}`,
         embedded: true,
+        ...(named.lang ? { lang: named.lang } : {}),
+        ...(named.forced ? { forced: true } : {}),
+        ...(named.sdh ? { sdh: true } : {}),
+        ...(named.commentary ? { commentary: true } : {}),
       });
     }
   }
@@ -752,6 +786,62 @@ const bitmapOnlyVideos = () => {
   return result;
 };
 
+// Subtitle tracks nothing names — embedded text streams with no language tag
+// or telling title, and sidecars whose file name says no language — that
+// media/sublang.js has not read yet. -> jobs for sublang.enqueue
+const unnamedSubtitleWork = () => {
+  const jobs = [];
+  const check = (item) => {
+    const entry = registry.get(item.id);
+    if (!entry) return;
+    const meta = metadata.getCached(entry.path);
+    const unnamed = sublang.unnamedTracks(meta);
+    if (unnamed.length && !sublang.known(entry.path, meta.mtime)) {
+      jobs.push({ kind: "video", path: entry.path, indices: unnamed.map((s) => s.index) });
+    }
+    for (const t of item.subtitles || []) {
+      if (t.embedded || t.lang || !t.url) continue;
+      const sub = registry.get(t.url.split("/").pop());
+      if (sub && sub.path && !sublang.known(sub.path)) jobs.push({ kind: "file", path: sub.path });
+    }
+  };
+  index.movies.forEach(check);
+  for (const s of index.shows) {
+    for (const season of s.seasons) season.episodes.forEach(check);
+  }
+  return jobs;
+};
+
+// Sidecars of videos that carry a text track of their own, not yet lined up
+// against it (media/sublang.js "sync" jobs: media/subsync.js align). The
+// reference is the file's own English track when it has one (not SDH, never
+// a forced one), else its first full text track.
+const subtitleSyncWork = () => {
+  const jobs = [];
+  const check = (item) => {
+    const entry = registry.get(item.id);
+    if (!entry) return;
+    const meta = metadata.getCached(entry.path);
+    const text = ((meta && meta.subtitleStreams) || []).filter((s) => s.text && !s.forced && !/forced/i.test(s.title || ""));
+    if (!text.length) return;
+    const detected = sublang.forVideo(entry.path, meta.mtime) || {};
+    const english = (s) => (subnames.normLang(s.language) || {}).code === "en" || (detected[s.index] || {}).lang === "eng";
+    const ref = (text.find((s) => english(s) && !s.sdh) || text.find(english) || text[0]).index;
+    const subs = [];
+    for (const t of item.subtitles || []) {
+      if (t.embedded || !t.url) continue;
+      const sub = registry.get(t.url.split("/").pop());
+      if (sub && sub.path && !sublang.syncKnown(sub.path, entry.path)) subs.push(sub.path);
+    }
+    if (subs.length) jobs.push({ kind: "sync", path: entry.path, ref, subs });
+  };
+  index.movies.forEach(check);
+  for (const s of index.shows) {
+    for (const season of s.seasons) season.episodes.forEach(check);
+  }
+  return jobs;
+};
+
 // Did an "enriched" pass change what clients have? (No info at all — an
 // emitter from before the info existed — counts as yes.)
 const enrichedChanged = (info) => !info || info.probed > 0 || !!info.first;
@@ -814,6 +904,8 @@ module.exports = {
   findById,
   allItems,
   bitmapOnlyVideos,
+  unnamedSubtitleWork,
+  subtitleSyncWork,
   makeId,
   subtitleDownloadName,
   // Test-only: folding "<Title>" and "<Title> (<Year>)" folders into one entry

@@ -21,13 +21,15 @@ const BROWSER_AUDIO_CODECS = new Set([
 ]);
 
 // Bump when the probe result shape changes so old cache entries re-probe
-const PROBE_VERSION = 5; // 5: audio stream language/title (the player's audio menu)
+// 6: stream dispositions (forced / hearing impaired / commentary — the track
+//    names), the file's start time and the video frame rate (subtitle timing)
+const PROBE_VERSION = 6;
 
 // What ffprobe is asked, and the empty answer a file that cannot be read gets.
 const probeArgs = (videoPath) => [
   "-v", "quiet",
   "-show_entries",
-  "format=duration:stream=index,codec_type,codec_name,profile,channels,channel_layout,width,height,pix_fmt,color_transfer,color_primaries:stream_tags=language,title:stream_side_data=side_data_type",
+  "format=duration,start_time:stream=index,codec_type,codec_name,profile,channels,channel_layout,width,height,pix_fmt,color_transfer,color_primaries,r_frame_rate,avg_frame_rate:stream_tags=language,title,handler_name:stream_disposition=default,forced,hearing_impaired,visual_impaired,comment:stream_side_data=side_data_type",
   "-of", "json",
   videoPath,
 ];
@@ -35,6 +37,7 @@ const blankResult = (mtime) => ({
   v: PROBE_VERSION,
   mtime,
   duration: 0,
+  start: 0,
   width: 0,
   height: 0,
   video: null,
@@ -42,11 +45,32 @@ const blankResult = (mtime) => ({
   subtitleStreams: [],
 });
 
+// "24000/1001" -> 23.976
+const frameRate = (r) => {
+  const m = /^(\d+)\/(\d+)$/.exec(String(r || ""));
+  if (!m || !+m[2]) return 0;
+  const f = +m[1] / +m[2];
+  return f > 1 && f < 300 ? Math.round(f * 1000) / 1000 : 0;
+};
+// A stream's title. MP4s name every track in handler_name, which is nearly
+// always boilerplate ("SoundHandler", "SubtitleHandler", "Core Media Text")
+// and only sometimes a real name ("English SDH") — the boilerplate is dropped.
+const HANDLER_BOILERPLATE = /^(?:sound|video|subtitle|text|timed ?text|closed caption|hint|gpac|apple|mainconcept|isomedia|core media|l-smash)\b.*(?:handler|media|text|caption)?$|handler$/i;
+const titleOf = (s) => {
+  if (s.tags?.title) return s.tags.title;
+  const h = s.tags?.handler_name;
+  return h && !HANDLER_BOILERPLATE.test(String(h).trim()) ? String(h).trim() : null;
+};
+
 // ffprobe's JSON -> the fields of `result`. Throws on output that is not
 // JSON; whatever was filled in before the throw stays, as it always did.
 const fillFromProbe = (result, out) => {
   const data = JSON.parse(out);
   result.duration = parseFloat(data.format?.duration) || 0;
+  // Where the file's clock begins. Nearly always 0 (or a few ms either way);
+  // a cut from a TV capture can start seconds in, and the offset copy jobs
+  // (-copyts) carry that into the player's clock — see routes/stream.js.
+  result.start = parseFloat(data.format?.start_time) || 0;
 
   let subIdx = 0;
   for (const s of data.streams || []) {
@@ -68,6 +92,9 @@ const fillFromProbe = (result, out) => {
         codec: s.codec_name || null,
         bitDepth: depth ? parseInt(depth[1], 10) : 8,
         hdr,
+        // frames a second (23.976, 25…): a subtitle timed for another rate
+        // drifts, and providers say which rate theirs was timed for
+        fps: frameRate(s.avg_frame_rate) || frameRate(s.r_frame_rate) || null,
       };
     } else if (s.codec_type === "audio") {
       // ffprobe names Atmos in the PROFILE ("Dolby TrueHD + Dolby Atmos",
@@ -76,7 +103,8 @@ const fillFromProbe = (result, out) => {
       result.audioStreams.push({
         index: result.audioStreams.length,
         language: s.tags?.language || null,
-        title: s.tags?.title || null,
+        title: titleOf(s),
+        commentary: !!s.disposition?.comment,
         codec: s.codec_name,
         channels: s.channels || 2,
         layout: s.channel_layout || null,
@@ -91,7 +119,12 @@ const fillFromProbe = (result, out) => {
         codec: s.codec_name,
         text: TEXT_SUBTITLE_CODECS.has(s.codec_name),
         language: s.tags?.language || null,
-        title: s.tags?.title || null,
+        title: titleOf(s),
+        // what the file says about the track (the menu names it by these)
+        forced: !!s.disposition?.forced,
+        sdh: !!s.disposition?.hearing_impaired,
+        commentary: !!s.disposition?.comment,
+        default: !!s.disposition?.default,
       });
     }
   }

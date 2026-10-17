@@ -663,10 +663,29 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
     // see remux.js): tell the player where playback begins — audio starts
     // exactly at ss, video rolls back to its keyframe. Header for our own
     // player, EXT-X-START for native HLS (iPhone).
-    if (v === "copy" && ss > 0) {
-      const s = await require("../media/streamprobe").segmentStart(path.join(dir, "seg00000.ts"));
+    if (v === "copy" && ss > 0 && fmt === "fmp4") {
+      // the iPhone's copy job: zero-based, so the header says what content
+      // time its media 0 is (streamprobe.fmp4ClockBase) — no EXT-X-START,
+      // the native player starts where the job starts
+      const sp = require("../media/streamprobe");
+      const meta = require("../media/metadata").getCached(entry.path);
+      const base = await sp.fmp4ClockBase(entry.path, dir, ss, meta && meta.start).catch(() => null);
+      if (base != null) {
+        res.setHeader("X-Aurora-Base", String(base));
+        res.setHeader("X-Aurora-Offset", "0");
+      }
+    } else if (v === "copy" && ss > 0) {
+      const sp = require("../media/streamprobe");
+      const s = await sp.segmentStart(path.join(dir, "seg00000.ts"));
       if (s) {
-        res.setHeader("X-Aurora-Base", String(s.base));
+        // The clock in the FILM's time. -copyts keeps the file's own
+        // timestamps, which begin at its start time — nearly always 0, but a
+        // cut from a TV capture starts seconds in, and every other path (the
+        // file itself, jit, the subtitles ffmpeg extracts, the sidecars)
+        // counts from that start. Measured with tools/subs-rig: a file
+        // starting at 1.5 s had every cue 1.53 s early after a resume here.
+        const meta = require("../media/metadata").getCached(entry.path);
+        res.setHeader("X-Aurora-Base", String(sp.clockBase(s.base, meta && meta.start)));
         res.setHeader("X-Aurora-Offset", String(s.offset));
         text = text.replace("#EXTM3U", `#EXTM3U\n#EXT-X-START:TIME-OFFSET=${s.offset},PRECISE=YES`);
       }
