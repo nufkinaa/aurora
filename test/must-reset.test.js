@@ -647,6 +647,47 @@ for (const mode of ["open", "transition"]) {
   });
 }
 
+// ---------- deleting a profile in admin signs its devices out, like Kick ----------
+
+for (const mode of ["open", "transition", "closed"]) {
+  test(`[${mode}] the admin deleting a profile ends its sessions and tokens and tells its sockets`, async () => {
+    await withServer(mode, async (srv) => {
+      await addProfile("p-ann", { username: "ann", password: "old-pass" });
+      await addProfile("p-bob", { username: "bob", password: "bob-pass" });
+      const tv = (await srv.call("POST", "/api/auth/login", { username: "ann", password: "old-pass" })).body;
+      const bob = (await srv.call("POST", "/api/auth/login", { username: "bob", password: "bob-pass" })).body;
+      const byHello = fakeClient("c-hello", { hello: "p-ann", helloId: "p-ann" });
+      const bySession = fakeClient("c-sess", { session: "p-ann" });
+      const other = fakeClient("c-bob", { hello: "p-bob", helloId: "p-bob", session: "p-bob" });
+
+      const r = await srv.call("DELETE", "/api/admin/profiles/p-ann", null, ADMIN);
+      assert.equal(r.status, 200);
+      assert.deepEqual(r.body, { ok: true, kicked: 2, sessions: 1 });
+      assert.equal(profiles.list().some((p) => p.id === "p-ann"), false, "the profile is gone");
+      assert.equal(sessions.listFor("p-ann").length, 0, "no session of it is left");
+      assert.equal(profiles.tokenValid("p-ann", tv.profileToken), false);
+      for (const c of [byHello, bySession]) {
+        assert.deepEqual(c.got.map((m) => m.type), ["kicked"]);
+        assert.strictEqual(c.ws.closed, true);
+      }
+      assert.deepEqual(other.got, [], "nobody else's socket hears a thing");
+      assert.equal(sessions.listFor("p-bob").length, 1);
+      assert.equal((await srv.call("GET", "/api/library", null, { "X-Session": bob.session })).status, 200, "bob carries on");
+
+      // the device that was signed in to it: told to sign in again, not carrying on as a visitor
+      for (const h of [{ "X-Session": tv.session }, { "X-Profile-Token": tv.profileToken }]) {
+        const lib = await srv.call("GET", "/api/library", null, h);
+        assert.deepEqual([lib.status, lib.body.signinRequired, lib.body.signedOut], [401, true, true], JSON.stringify(h));
+      }
+      // an unknown id is still a 404, and nobody is kicked by it
+      await addProfile("p-cat"); // (the last profile cannot be deleted at all)
+      const miss = await srv.call("DELETE", "/api/admin/profiles/p-nobody", null, ADMIN);
+      assert.equal(miss.status, 404);
+      assert.equal(sessions.listFor("p-bob").length, 1);
+    });
+  });
+}
+
 test("guessing the current password on the change route runs into the unlock limiter", async () => {
   await withServer("transition", async (srv) => {
     await addProfile("p-ann", { username: "ann", password: "old-pass" });
