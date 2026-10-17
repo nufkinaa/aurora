@@ -31,7 +31,8 @@ const tmdb = require("./tmdb");
 // by a newer one. (More-like-this rows on disk have their own ALGO in
 // similar.js, same rule: bump it when vibe.js or the blend changes.)
 //   1  2026-10-10  first version of the feature/person/rank engine
-const ALGO = 1;
+//   2  2026-10-17  the taste picker's "Not for me" is a signal (person.js W.notForMe)
+const ALGO = 2;
 
 const DAY = 86400000;
 const dayOf = (now) => Math.floor(now / DAY);
@@ -464,6 +465,7 @@ const evidenceWants = (profileId) => {
   for (const e of st.watchlist || []) if (e && typeof e === "object") add(e.imdbId, e.type === "show" ? "tv" : "movie");
   for (const key of Object.keys(st.ratings || {})) add(key, "movie");
   for (const t of st.likedTitles || []) add(t.imdbId, "movie");
+  for (const t of st.dislikedTitles || []) add(t.imdbId, "movie");
   for (const f of profiles.followsOf(profileId)) add(f.imdbId, "tv");
   return [...wants.values()];
 };

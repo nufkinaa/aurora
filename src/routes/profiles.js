@@ -659,10 +659,141 @@ router.delete("/api/profiles/:id/avatar-image", gate, (req, res) => {
 // Taste onboarding: the titles this profile SAID they love. Read by the
 // picker (to show current picks) and by prompt 9's recommender.
 router.get("/api/profiles/:id/taste", gate, (req, res) => {
-  res.json({ liked: profiles.getLikedTitles(req.params.id) });
+  // each answer with the picture the picker showed (the list draws them)
+  let byKey = null;
+  try {
+    byKey = new Map();
+    for (const c of tastePool()) {
+      byKey.set(c.imdbId, c.poster);
+      if (c.id) byKey.set(c.id, c.poster);
+    }
+  } catch { byKey = null; }
+  const pic = (t) => (byKey && (byKey.get(t.imdbId) || byKey.get(t.id))) || null;
+  res.json({
+    liked: profiles.getLikedTitles(req.params.id).map((t) => ({ ...t, ...(pic(t) ? { poster: pic(t) } : {}) })),
+    disliked: profiles.getDislikedTitles(req.params.id).map((t) => ({ imdbId: t.imdbId, title: t.title, ...(pic(t) ? { poster: pic(t) } : {}) })),
+    counts: profiles.tasteCounts(req.params.id),
+  });
 });
 router.post("/api/profiles/:id/taste", gate, (req, res) => {
   res.json({ liked: profiles.setLikedTitles(req.params.id, (req.body || {}).liked) });
+});
+
+// The swipe picker (2026-10-17): one card at a time, three answers.
+//   GET  /api/profiles/:id/taste/deck?n=6&queued=tt1,tt2
+//        -> { cards, goal, more, counts }
+//   POST /api/profiles/:id/taste/answer { imdbId, id?, title, verdict, queued?, n? }
+//        verdict "love" | "nope" | "skip" | null (null = take the answer back;
+//        Undo sends the answer the title had before, which the reply names)
+//        -> { verdict, was, counts, cards }   (cards: n more, when n > 0)
+// Which titles, and why, is media/tastedeck.js; this gathers its inputs.
+const tastedeck = require("../media/tastedeck");
+const wellknownLib = lazy(require, "../media/wellknown");
+const titleindexLib = lazy(require, "../media/recs/titleindex");
+const identityLib = lazy(require, "../media/identity");
+const discoverLib = lazy(require, "../media/discover");
+const kidsLib = lazy(require, "../lib/kids");
+let deckPool = { key: null, pool: [] };
+const tastePool = () => {
+  const key = `${wellknownLib().stamp()}|${scanner.index.scannedAt}`;
+  if (deckPool.key === key) return deckPool.pool;
+  const identity = identityLib();
+  const library = [];
+  for (const it of scanner.allItems()) {
+    let imdbId = it.imdbId || null;
+    try { imdbId = imdbId || identity.imdbIdFor(it); } catch {}
+    if (imdbId) library.push({ id: it.id, imdbId, type: it.type, title: it.title, year: it.year, cover: it.cover, genres: it.genres, synopsis: it.synopsis, rating: it.rating });
+  }
+  const describe = (imdbId) => {
+    try { const r = titleindexLib().get(imdbId); return (r && r.ov) || null; } catch { return null; }
+  };
+  deckPool = { key, pool: tastedeck.buildPool({ known: wellknownLib().all(), library, describe }) };
+  return deckPool.pool;
+};
+// Everything this profile already has a relationship with: never asked about.
+const tasteExclude = (profileId) => {
+  const st = profiles.stateOf(profileId) || {};
+  const out = new Set();
+  for (const key of Object.keys(st.titles || {})) out.add(key.split(":")[0]);
+  for (const key of Object.keys(st.ratings || {})) out.add(key);
+  for (const key of Object.keys(st.progress || {})) out.add(key);
+  for (const sm of Object.values(st.streamItems || {})) if (sm && sm.imdbId) out.add(sm.imdbId);
+  for (const e of st.watchlist || []) out.add(typeof e === "string" ? e : e && e.imdbId);
+  for (const f of profiles.followsOf(profileId)) if (f && f.imdbId) out.add(f.imdbId);
+  return out;
+};
+const tasteAnswers = (profileId, pool) => {
+  const byLib = new Map();
+  for (const c of pool) if (c.id) byLib.set(c.id, c.imdbId);
+  const out = [];
+  for (const t of profiles.getLikedTitles(profileId)) {
+    const imdbId = t.imdbId || byLib.get(t.id);
+    if (imdbId) out.push({ imdbId, verdict: "love" });
+  }
+  for (const t of profiles.getDislikedTitles(profileId)) out.push({ imdbId: t.imdbId, verdict: "nope" });
+  for (const t of profiles.getTasteSkipped(profileId)) out.push({ imdbId: t.imdbId, verdict: "skip" });
+  return out;
+};
+// A kids profile (its own setting, or the device's kids lock — the stricter):
+// only what it may see. A title with no known rating is out, as everywhere;
+// a few of those are looked up in the background so the deck fills up.
+const tasteAllow = (req, profileId) => {
+  const own = profiles.kidsOf(profileId);
+  const ages = [own && own.maxAge, req.kids && req.kids.maxAge].filter((a) => typeof a === "number");
+  if (!ages.length) return null;
+  const maxAge = Math.min(...ages);
+  const kids = kidsLib();
+  const certOf = apiRoutes()._internals.kidsCertOf;
+  let warmed = 0;
+  return (c) => {
+    const item = { imdbId: c.imdbId, type: c.type, ...(c.id ? { id: c.id } : {}) };
+    const age = kids.ageOf(certOf(item));
+    if (age == null) {
+      if (warmed < 30 && c.pop > 0.5) { try { if (discoverLib().warmCertificate(c.type, c.imdbId)) warmed++; } catch {} }
+      return false;
+    }
+    return age <= maxAge;
+  };
+};
+const tasteCards = (req, profileId, { n, queued }) => {
+  const pool = tastePool();
+  const answers = tasteAnswers(profileId, pool);
+  const counts = profiles.tasteCounts(profileId);
+  const day = Math.floor(Date.now() / 86400000);
+  const cards = tastedeck.pick({
+    pool, answers, exclude: tasteExclude(profileId), queued, n,
+    allow: tasteAllow(req, profileId),
+    seed: `${profileId}|${day}|${counts.love + counts.nope + counts.skip}`,
+  });
+  return cards.map(tastedeck.cardOf);
+};
+const queuedOf = (v) => (Array.isArray(v) ? v : String(v || "").split(","))
+  .map((s) => String(s).trim()).filter((s) => /^tt\d{4,12}$/.test(s)).slice(0, 40);
+const countOf = (v, dflt) => {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? Math.max(0, Math.min(20, n)) : dflt;
+};
+router.get("/api/profiles/:id/taste/deck", gate, (req, res) => {
+  const id = req.params.id;
+  res.json({
+    cards: tasteCards(req, id, { n: countOf(req.query.n, 6), queued: queuedOf(req.query.queued) }),
+    goal: tastedeck.GOAL,
+    more: tastedeck.MORE,
+    counts: profiles.tasteCounts(id),
+  });
+});
+router.post("/api/profiles/:id/taste/answer", gate, (req, res) => {
+  const id = req.params.id;
+  const b = req.body || {};
+  const verdict = b.verdict == null ? null : String(b.verdict);
+  const done = profiles.setTasteAnswer(id, { imdbId: b.imdbId, id: b.id, title: b.title }, verdict);
+  if (!done) return res.status(400).json({ error: "a title (imdbId) and an answer (love, nope, skip or null)" });
+  const n = countOf(b.n, 0);
+  res.json({
+    ...done,
+    counts: profiles.tasteCounts(id),
+    cards: n ? tasteCards(req, id, { n, queued: queuedOf(b.queued) }) : [],
+  });
 });
 
 // Aurora Wrapped: this profile's viewing, aggregated from the telemetry
