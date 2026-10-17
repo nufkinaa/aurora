@@ -14,6 +14,7 @@ import {track} from './usage';
 import {routeStarted} from './routeTiming';
 import {frameScreen} from './perfTier';
 import {focusJustMoved} from './focus';
+import {useQaNav} from './qaNav';
 
 // EVERY SCREEN BUT HOME IS LOADED WHEN IT IS FIRST WANTED.
 //
@@ -119,6 +120,7 @@ const navTheme = {
 
 export default function AppNavigator() {
   useEffect(() => warmScreens(), []);
+  useQaNav(); // the QA harness's `nav` (a QA variant only — qaNav.ts)
   return (
     <View style={styles.root}>
       <Ambient />

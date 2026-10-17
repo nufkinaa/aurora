@@ -68,7 +68,15 @@ const DEVICE: Record<string, Record<string, string>> = {
     map: 'placeholders keyed by picture address; the server gates the pictures themselves',
     drawn: 'which pictures this run has drawn, by address',
   },
-  'components/Focusable.tsx': {nextId: 'an id counter', ringRegistry: 'mounted focus rings', litRing: 'which ring is lit'},
+  'components/Focusable.tsx': {
+    nextId: 'an id counter',
+    ringRegistry: 'mounted focus rings',
+    litRing: 'which ring is lit',
+    nativeEverLit: 'a native focus ring has lit in this process',
+  },
+  'components/NavRail.tsx': {railLinks: 'an id counter (the native rail’s link)'},
+  'screens/Home.tsx': {columnLinks: 'an id counter (the native column’s link)'},
+  'qa.ts': {qaBuild: 'what this build is', listeners: 'the QA flags’ subscribers (a QA build only)'},
   'errors.ts': {ring: 'the last errors of this run, for a report', playing: 'set and cleared by the player while it is mounted'},
   'focus.ts': {
     held: 'focus engine',

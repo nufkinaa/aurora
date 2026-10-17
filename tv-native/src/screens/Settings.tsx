@@ -32,6 +32,7 @@ import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 import {isLite} from '../perfTier';
 import {askNotificationPermission, setDownloadNotices} from '../homeScreen';
+import RenderDevPanel from '../components/RenderDevPanel';
 
 const {colors, fontSize, spacing, radius} = theme;
 
@@ -43,12 +44,14 @@ const Row = React.memo(function PrefRow({
   note,
   value,
   onPress,
+  onLongPress,
 }: {
   uiId?: string; // [analytics] which control this is (Focusable.uiId)
   label: string;
   note?: string;
   value: string;
   onPress: () => void;
+  onLongPress?: () => void;
 }) {
   return (
     // 1.01, the site's .source-row / .episode figure: a full-width row lifts a
@@ -59,6 +62,7 @@ const Row = React.memo(function PrefRow({
       edgeLeft
       uiId={uiId}
       onPress={onPress}
+      onLongPress={onLongPress}
       style={styles.row}
       highlightColor={colors.surfaceHover}>
       <View style={styles.rowText}>
@@ -89,6 +93,9 @@ export default function Settings({
   }, []);
   const {safeBottom} = useTvMetrics();
   const me = useMe(profileId);
+  // The developer's rendering switches (RenderDevPanel.tsx): hidden until OK is HELD
+  // on the version row, for this visit of the screen only.
+  const [devRender, setDevRender] = useState(false);
 
   const [genres, setGenres] = useState<string[] | null>(null);
   // usage stats: this screen's content is on (routeTiming.ts)
@@ -376,8 +383,10 @@ export default function Settings({
             }
             value={update && typeof update === 'object' ? 'Update' : 'Check'}
             onPress={() => (update && typeof update === 'object' ? openUpdate(update) : checkUpdate())}
+            onLongPress={() => setDevRender(true)}
           />
         </View>
+        {devRender ? <RenderDevPanel /> : null}
 
         {getSession() && !me?.kids ? (
           <>

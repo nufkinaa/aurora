@@ -15,7 +15,7 @@
 // 13 · SPEC/99-open.md §I.3). So is the compact caption that named the focused
 // card: the site puts labels on the cards that have them (wide, episode, up-next)
 // and nothing at all on a poster, and Card now does the same.
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {View, Text, Image, StyleSheet, ActivityIndicator, Animated, Easing, PixelRatio} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Btn from '../components/Btn';
@@ -68,6 +68,12 @@ import {
 } from '../focus';
 import {defer, useSlide} from '../motion';
 import {isSettled, whenSettled} from '../settle';
+import {nativeOn} from '../render';
+import {isFrozen, isMid, trailerAllowed, traceValue} from '../qa';
+import {traceDerived, useTraces} from '../qaExtra';
+import {artFadeAt, artFadeStops, COL_TOP_ID, colRowId, columnTargets} from '../homeMath';
+import AuroraHeroArt from '../specs/AuroraHeroArtNativeComponent';
+import AuroraSlideColumn, {Commands as ColumnCommands} from '../specs/AuroraSlideColumnNativeComponent';
 import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
 import {RootStackParamList} from '../navigation';
@@ -212,6 +218,120 @@ const HeroArt = React.memo(function HeroArtLayer({
     </View>
   );
 });
+
+// =============================================================================
+// THE NATIVE BILLBOARD AND COLUMN (render.ts `nativeOn.hero`, off by default;
+// docs/qa/native-lab/). With the switch on, two Fabric views stand where the
+// JS ones stand:
+//
+//   NativeHeroArt  one AuroraHeroArt view for HeroArt's five layers (same
+//                  sources, same dims, the art fade's two stops); the trailer
+//                  layer is still its React child.
+//   NativeColumn   an AuroraSlideColumn where the Animated.View column was. It
+//                  slides itself, inside the focus change, to the target Home
+//                  measured for the shelf focus landed in (`targets`), and the
+//                  art follows its offset and its hero/shelves state natively.
+//
+// Everything else is Home's own code in both: every number (the art's addresses
+// and blur, the targets from the measured layout — homeMath.ts / homeWindow.ts),
+// the lockup, buttons and dots, the trailer, the rotation, `isTop`, the mounted
+// shelves. toRow / toHero still run on every focus; their `slideTo` hands the
+// target to the native column, which ignores one it is already heading to — so
+// a layout the native side had not been told of yet (the column growing after
+// the first commit, `settling`) still lands where the JS column would.
+// Not with HERO_TRAILER_COVER (off in this build): the native art has no cover.
+// =============================================================================
+const NATIVE_HERO = nativeOn.hero && !HERO_TRAILER_COVER;
+
+const headersJson = (src: ImgSource) => (src.headers ? JSON.stringify(src.headers) : '');
+
+const NativeHeroArt = React.memo(function NativeHeroArtLayer({
+  art,
+  scrolledArt,
+  h,
+  heroH,
+  link,
+  children,
+}: {
+  art: HeroLayers;
+  scrolledArt: HeroLayers | null;
+  h: number;
+  heroH: number;
+  link: string;
+  children?: React.ReactNode;
+}) {
+  // The same condition HeroArt mounts its second <Image> on.
+  const scrolled = art.scrolled && scrolledArt?.scrolled ? scrolledArt.scrolled : null;
+  const {fadeOutAt, fadeInAt} = artFadeStops(heroH);
+  return (
+    <AuroraHeroArt
+      style={[styles.artLayer, {height: h}]}
+      pointerEvents="none"
+      link={link}
+      restUri={art.rest.src.uri}
+      restHeadersJson={headersJson(art.rest.src)}
+      restBlur={art.rest.deviceBlur}
+      scrolledUri={scrolled ? scrolled.src.uri : ''}
+      scrolledHeadersJson={scrolled ? headersJson(scrolled.src) : ''}
+      scrolledBlur={scrolled ? scrolled.deviceBlur : 0}
+      restDim={REST.dim}
+      scrolledDim={SCROLLED.dim}
+      fadeOutAt={fadeOutAt}
+      fadeInAt={fadeInAt}>
+      {children}
+    </AuroraHeroArt>
+  );
+});
+
+type ColumnApi = {setTargets: (next: number[]) => void; slideTo: (to: number) => void};
+// Holds `targets` as its OWN state, so a layout event re-renders this wrapper
+// and commits one prop — not Home (its `children` keep their identity, so React
+// does not walk the shelves again).
+function NativeColumn({
+  link,
+  api,
+  onReady,
+  style,
+  onLayout,
+  pointerEvents,
+  children,
+}: {
+  link: string;
+  api: React.MutableRefObject<ColumnApi | null>;
+  onReady: () => void;
+  style?: React.ComponentProps<typeof AuroraSlideColumn>['style'];
+  onLayout?: React.ComponentProps<typeof AuroraSlideColumn>['onLayout'];
+  pointerEvents?: React.ComponentProps<typeof AuroraSlideColumn>['pointerEvents'];
+  children?: React.ReactNode;
+}) {
+  const [targets, setTargets] = useState<number[]>([]);
+  const host = useRef<React.ElementRef<typeof AuroraSlideColumn> | null>(null);
+  // Registered in the LAYOUT phase and followed by one `onReady` (Home's
+  // syncTargets). As a passive effect it lost a race on the Mi TV (lab,
+  // 2026-10-10): the first onLayout events reached JS before the effect had run,
+  // found no api, and the column held no targets until a later layout.
+  useLayoutEffect(() => {
+    api.current = {
+      setTargets: next =>
+        setTargets(prev => (prev.length === next.length && prev.every((v, i) => v === next[i]) ? prev : next)),
+      slideTo: to => {
+        if (host.current) ColumnCommands.slideTo(host.current, to);
+      },
+    };
+    onReady();
+    return () => {
+      api.current = null;
+    };
+  }, [api, onReady]);
+  return (
+    <AuroraSlideColumn ref={host} style={style} pointerEvents={pointerEvents} link={link} targets={targets} onLayout={onLayout}>
+      {children}
+    </AuroraSlideColumn>
+  );
+}
+let columnLinks = 0;
+// The column and the art: the JS views, or the native ones (NATIVE_HERO).
+const Column = (NATIVE_HERO ? NativeColumn : Animated.View) as React.ComponentType<Record<string, unknown>>;
 
 export default function Home({
   navigation,
@@ -418,11 +538,19 @@ export default function Home({
   // started only when the target is a different one; nothing but `slideTo`
   // moves this value, so it is always at, or on its way to, `tyTarget`.
   const tyTarget = useRef(0);
+  // (NATIVE_HERO) the native column, and the string its art finds it by.
+  const columnApi = useRef<ColumnApi | null>(null);
+  const columnLink = useRef(`home-${++columnLinks}`).current;
   const slideTo = useCallback(
     (y: number) => {
       if (y === tyTarget.current) return;
       tyTarget.current = y;
-      ty.to(y);
+      // (QA `freeze on,mid`: the column stops half way, to be captured still)
+      const to = isMid() ? y / 2 : y;
+      // The native column has usually started for this target already, inside
+      // the focus change; it ignores one it is already heading to.
+      if (NATIVE_HERO) columnApi.current?.slideTo(to);
+      else ty.to(to);
     },
     [ty],
   );
@@ -574,6 +702,13 @@ export default function Home({
           });
         }
       }
+      // (NATIVE_HERO: the native art runs this fade itself, from the column's focus change)
+      if (NATIVE_HERO) return;
+      // (QA `freeze on,mid`: the fade down stops half way, to be captured still)
+      if (isMid() && !next) {
+        Animated.timing(atTop, {toValue: 0.5, duration: motion.med, easing: EASE, useNativeDriver: true, isInteraction: false}).start();
+        return;
+      }
       Animated.timing(atTop, {
         toValue: next ? 1 : 0,
         duration: motion.med,
@@ -590,6 +725,8 @@ export default function Home({
   useEffect(() => {
     if (heroes.length < 2 || !live) return;
     const t = setInterval(() => {
+      // (`freeze on` from the QA receiver: the timer ticks but never turns — qa.ts)
+      if (isFrozen()) return;
       if (!isTop.current || Date.now() < holdUntil.current || trailerBusy.current) return;
       setHeroIdx(i => (i + 1) % heroes.length);
     }, 9000);
@@ -729,6 +866,8 @@ export default function Home({
     if (!live || !hero || !heroTrailersPref.current) return;
     if (!hero.imdbId || noTrailer.current.has(hero.imdbId)) return;
     if (isLite() || trailersThisVisit.current >= 2) return;
+    // (`freeze on` from the QA receiver: as if heroTrailers were off; `on,trailer` lets one start — qa.ts)
+    if (!trailerAllowed()) return;
     const gen = ++trailerGen.current;
     trailerBusy.current = false;
     // Resolve NOW, during the hold, not when it ends (elia, 2026-10-09): the
@@ -973,6 +1112,32 @@ export default function Home({
     [setTop, slideTo, height, heroH, stopTrailer, layoutNow, pump, rowH],
   );
 
+  // ---- NATIVE_HERO: the native column's targets ------------------------------
+  // Home's own numbers (toRow's restOffset for every measured shelf), committed
+  // as a prop whenever a layout changes them.
+  const syncTargets = useCallback(() => {
+    columnApi.current?.setTargets(columnTargets(rowY.current, colH.current, height, spacing.pageY));
+  }, [height]);
+  // (also when `height` itself changes, and once the column has registered)
+  useEffect(() => {
+    if (NATIVE_HERO) syncTargets();
+  }, [syncTargets]);
+  // QA traces (tools/tv-bench/tv-pixel-diff/PROTOCOL.md §4): `[anim] … hero.ty / hero.atTop /
+  // hero.art / hero.swap` while the receiver has tracing on. With NATIVE_HERO the first three
+  // come from the native views (same ids); the lockup's `swap` is JS in both.
+  useTraces(
+    () =>
+      NATIVE_HERO
+        ? [traceValue('hero.swap', swap)]
+        : [
+            traceValue('hero.ty', ty.value),
+            traceValue('hero.atTop', atTop),
+            traceDerived('hero.art', ty.value, v => artFadeAt(v, heroH)),
+            traceValue('hero.swap', swap),
+          ],
+    [ty, atTop, swap, heroH],
+  );
+
   // Continue Watching's ✕ — drawn on the focused card, removed by LONG-PRESS OK
   // (P12/P20). The card is dropped locally as well as on the server, because the
   // site does the same (`components.js:187-191`: `node.remove()` then the call).
@@ -1125,10 +1290,14 @@ export default function Home({
         <View
           key={r.id}
           style={spacer ? {height: h} : undefined}
+          // (NATIVE_HERO: the marker the native column reads, on a view that must exist)
+          nativeID={NATIVE_HERO ? colRowId(i) : undefined}
+          collapsable={NATIVE_HERO ? false : undefined}
           onLayout={e => {
             rowY.current[i] = e.nativeEvent.layout.y;
             if (i === 0) homeUsable(); // [analytics] "Home is usable": the first row is laid out
             if (!spacer) rowH.set(r.id, e.nativeEvent.layout.height);
+            if (NATIVE_HERO) syncTargets();
           }}>
           {spacer ? null : (
             <Row
@@ -1147,7 +1316,7 @@ export default function Home({
         </View>
       );
     },
-    [openDetail, onRowItemFocus, removeFromContinue, win, rowH, shelfStore],
+    [openDetail, onRowItemFocus, removeFromContinue, win, rowH, shelfStore, syncTargets],
   );
 
   if (!data && !error) {
@@ -1222,6 +1391,32 @@ export default function Home({
     .filter(Boolean)
     .join('   ·   ');
 
+  // The trailer layer: the same element over the JS art or the native one.
+  const trailerLayer = trailer ? (
+    <Animated.View
+      style={[styles.trailerLayer, {opacity: HERO_TRAILER_COVER ? holeOpacity : trailerFade}]}
+      pointerEvents="none">
+      <TrailerFrame
+        key={trailer.key}
+        trailer={trailer.t}
+        muted
+        hero
+        handle={trailerHandle}
+        onState={onTrailerState}
+        // 16:9 at 15% over the window: the trailer's own letterbox
+        // and burnt-in edges sit outside the frame (the site does the
+        // same).
+        style={{
+          position: 'absolute',
+          width: Math.round(width * 1.15),
+          height: Math.round((width * 1.15 * 9) / 16),
+          left: -Math.round(width * 0.075),
+          top: Math.round((height - (width * 1.15 * 9) / 16) / 2),
+        }}
+      />
+    </Animated.View>
+  ) : null;
+
   return (
     <View style={styles.root}>
       {/* The artwork is a FIXED layer behind the column that FADES with the
@@ -1235,44 +1430,28 @@ export default function Home({
       <Animated.View
         style={[
           styles.artFade,
-          {opacity: artFadeOpacity},
+          // (NATIVE_HERO: the native art fades with the column by itself)
+          {opacity: NATIVE_HERO ? 1 : artFadeOpacity},
         ]}
         pointerEvents="none">
-      {art ? (
+      {art && NATIVE_HERO ? (
+        <NativeHeroArt art={art} scrolledArt={scrolledArt} h={height} heroH={heroH} link={columnLink}>
+          {trailerLayer}
+        </NativeHeroArt>
+      ) : art ? (
         <HeroArt art={art} scrolledArt={scrolledArt} atTop={atTop} h={height} cover={HERO_TRAILER_COVER && trailer ? coverOpacity : null}>
-          {trailer ? (
-            <Animated.View
-              style={[styles.trailerLayer, {opacity: HERO_TRAILER_COVER ? holeOpacity : trailerFade}]}
-              pointerEvents="none">
-              <TrailerFrame
-                key={trailer.key}
-                trailer={trailer.t}
-                muted
-                hero
-                handle={trailerHandle}
-                onState={onTrailerState}
-                // 16:9 at 15% over the window: the trailer's own letterbox
-                // and burnt-in edges sit outside the frame (the site does the
-                // same).
-                style={{
-                  position: 'absolute',
-                  width: Math.round(width * 1.15),
-                  height: Math.round((width * 1.15 * 9) / 16),
-                  left: -Math.round(width * 0.075),
-                  top: Math.round((height - (width * 1.15 * 9) / 16) / 2),
-                }}
-              />
-            </Animated.View>
-          ) : null}
+          {trailerLayer}
         </HeroArt>
       ) : null}
       </Animated.View>
-      <Animated.View
-        style={[styles.column, {transform: [{translateY: ty.value}]}]}
-        onLayout={e => {
+      <Column
+        style={[styles.column, NATIVE_HERO ? null : {transform: [{translateY: ty.value}]}]}
+        {...(NATIVE_HERO ? {link: columnLink, api: columnApi, onReady: syncTargets} : null)}
+        onLayout={(e: {nativeEvent: {layout: {height: number}}}) => {
           const h = e.nativeEvent.layout.height;
           const grew = h > colH.current;
           colH.current = h;
+          if (NATIVE_HERO) syncTargets();
           // The column has just reached its usual first height (see `reach`):
           // a shelf focused while it was short is sent to where it belongs.
           if (settling.current && grew && reach >= 3) {
@@ -1303,7 +1482,11 @@ export default function Home({
             under it (screens.css:2-7). It is INSIDE the column, so it scrolls
             away with the page exactly as the site's does. */}
         {hero ? (
-          <View style={[styles.hero, {height: heroH, paddingBottom: heroPadBottom}]}>
+          <View
+            style={[styles.hero, {height: heroH, paddingBottom: heroPadBottom}]}
+            // (NATIVE_HERO: the marker the native column reads, on a view that must exist)
+            nativeID={NATIVE_HERO ? COL_TOP_ID : undefined}
+            collapsable={NATIVE_HERO ? false : undefined}>
             {/* `.hero-inner` — the info column and the poster, bottom-aligned
                 with a 48px→24dp gap between them (screens.css:138-142). */}
             <Animated.View
@@ -1413,7 +1596,7 @@ export default function Home({
 
         {(data!.rows || []).slice(0, reach + 1).map(renderRow)}
         <View style={{height: safeBottom}} />
-      </Animated.View>
+      </Column>
 
       <NavRail active="home" />
 

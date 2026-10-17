@@ -5,6 +5,13 @@
 //
 // Memoized: rows re-render around it and dozens of cards re-rendering per frame is
 // what made D-pad movement stutter.
+//
+// TWO IMPLEMENTATIONS, ONE SWITCH (render.ts `nativeOn.card`, read once at
+// startup; docs/qa/native-lab/). Off — the default — the export is today's body
+// (`JsCard`). On, it is `NativeCard`, which derives exactly the same values and
+// hands the DRAWN layers (blur-up, picture, tile gradient, shades, brighten) to
+// the AuroraCard Fabric view (AuroraCardView.kt). Both sit inside the same
+// Focusable.
 import React from 'react';
 import {View, Text, Image, StyleSheet} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
@@ -18,6 +25,8 @@ import {blurOf, markDrawn, wasDrawn} from '../blur';
 import {openPeek} from '../overlay';
 import theme from '../theme';
 import {firstPoster} from '../telemetry'; // [analytics]
+import {nativeOn} from '../render';
+import AuroraCard, {Commands as CardCommands, ImageFailedEvent, ImageLoadedEvent, ImageRetryEvent} from '../specs/AuroraCardNativeComponent';
 
 const {colors, radius, cardAura} = theme;
 
@@ -66,7 +75,10 @@ const FrameShade = React.memo(function CardFrameShade() {
 // server connection comes back.
 const ROUND_MS = [30000, 120000, 480000];
 
-function Card({
+// =============================================================================
+// The JS reference implementation — today's body.
+// =============================================================================
+function JsCard({
   item,
   index,
   onPress,
@@ -426,7 +438,242 @@ function Card({
   );
 }
 
-export default React.memo(Card);
+type CardProps = Parameters<typeof JsCard>[0];
+
+// =============================================================================
+// The native implementation (render.ts `nativeOn.card`; docs/qa/native-lab/).
+// The same derivation as JsCard — cardArt.ts for the picture and its address,
+// the same backup chain, blur key, tags and progress — and the RESULTS go to two
+// AuroraCard views (AuroraCardView.kt) inside the same Focusable:
+//
+//   the ART layer     first child, absolute fill of the card's padding box:
+//                     blur-up → picture → tile gradient → shade at rest;
+//   the FOCUS layer   inside `focusOverlay` (alpha = ring value, driven by the
+//                     Focusable): brighten + the poster shade of a label-less
+//                     card. The ✕ follows it, so it stays above the brighten
+//                     exactly as in the JS overlay.
+//
+// What stays RN here, on purpose (pixel-identical by the lab's diff): every
+// Text; the NEW pill and the kind pill (their width is the Text/Icon's); the
+// progress bar (RN's own box-shadow / gradient drawables, painted above the
+// label as the last child).
+//
+// The failure ladder (1.5 s → r=1 → backup → tile → 30/120/480 s → park) runs
+// in AuroraCardView.kt with the same numbers; this wrapper keeps JS's duties:
+// trackError on the first failure, markDrawn + firstPoster on load, the tile's
+// title, and the `welcome` un-park (a native command).
+// =============================================================================
+
+const shapeOf = (uri: string) =>
+  uri.replace(/^https?:\/\/[^/]+/, '').replace(/u=[^&]+/, 'u=…').replace(/\/img\/[A-Za-z0-9]{12}/, '/img/<id>').slice(0, 60);
+
+function NativeCard({
+  item,
+  index,
+  onPress,
+  onFocus,
+  onRemove,
+  hasTVPreferredFocus,
+  wide,
+  frame,
+  hideLabel,
+  showKind,
+  edgeLeft,
+  holdLeft,
+  edgeRight,
+  compact,
+  noPeek,
+  ref,
+}: CardProps) {
+  // ---- the derivation, line for line with JsCard --------------------------
+  const {isEpisode, landscape, canFrame, artDp, sizedPath, src, blurKey} = cardArt(item, {wide, frame, compact});
+  const prog = item.progress;
+  const pct =
+    prog && prog.duration > 0 && !prog.finished
+      ? Math.min(100, Math.round((prog.position / prog.duration) * 100))
+      : null;
+  const backupPath =
+    !canFrame && /^tt\d+$/.test(String(item.imdbId || ''))
+      ? `/img/poster/${item.imdbId}?type=${item.type === 'show' || isEpisode ? 'show' : 'movie'}` +
+        (item.showTitle || item.title ? `&t=${encodeURIComponent(String(item.showTitle || item.title).slice(0, 80))}` : '') +
+        (item.year ? `&y=${item.year}` : '')
+      : null;
+  const backup = backupPath ? imgSrc(artPath(backupPath, artPx(artDp)) || backupPath) : null;
+  const retryUri = src ? `${src.uri}${src.uri.includes('?') ? '&' : '?'}r=1` : undefined;
+  const blur = blurOf(blurKey);
+  const showLabel = !hideLabel && (landscape || item.upNext);
+  const left =
+    frame && prog && pct != null && prog.duration > 0
+      ? `${Math.max(1, Math.round((prog.duration - prog.position) / 60))} min left`
+      : null;
+  const removable = onRemove;
+  const isNew = !!item.addedAt && Date.now() - item.addedAt < NEW_WINDOW_MS && !prog;
+  const leftTag: 'new' | null = isNew ? 'new' : null;
+  const kind = showKind && !landscape && !onRemove;
+
+  // ---- what JS still owns of the picture's life -----------------------------
+  const art = React.useRef<React.ElementRef<typeof AuroraCard> | null>(null);
+  // The tile's title is an RN Text: it mounts when native says the tile shows
+  // (JsCard: `broken`), and goes when a slow round or `welcome` asks again.
+  const [tileUri, setTileUri] = React.useState<string | null>(null);
+  const [parked, setParked] = React.useState<string | null>(null);
+  const tileShown = !!src && tileUri === src.uri;
+  React.useEffect(() => {
+    if (!parked) return;
+    return onMessage('welcome', () => {
+      if (art.current) CardCommands.unpark(art.current);
+      setParked(null);
+      setTileUri(t => (t === parked ? null : t));
+    });
+  }, [parked]);
+  const onImageLoaded = React.useCallback((e: {nativeEvent: ImageLoadedEvent}) => {
+    const {uri} = e.nativeEvent;
+    firstPoster(); // [analytics] as JsCard's onImgLoad
+    markDrawn(uri);
+    setTileUri(t => (t === uri ? null : t));
+  }, []);
+  const onImageFailed = React.useCallback((e: {nativeEvent: ImageFailedEvent}) => {
+    const {uri, error, tries, tile, parked: p} = e.nativeEvent;
+    if (tries === 1) trackError(`image ${shapeOf(uri)}: ${String(error || '').slice(0, 90)}`);
+    if (tile) setTileUri(uri);
+    if (p) setParked(uri);
+  }, []);
+  const onImageRetry = React.useCallback((e: {nativeEvent: ImageRetryEvent}) => {
+    const {uri} = e.nativeEvent;
+    setTileUri(t => (t === uri ? null : t));
+  }, []);
+
+  const headersJson = src?.headers ? JSON.stringify(src.headers) : '';
+  const backupHeadersJson = backup?.headers ? JSON.stringify(backup.headers) : '';
+  // JsCard's showBlur minus the parts native tracks itself (broken, loaded).
+  const blurUri = blur && src && !wasDrawn(src.uri) ? blur : undefined;
+
+  return (
+    <Focusable uiId="card.open"
+      scaleTo={1.055}
+      lift={cardAura.lift}
+      ringWidth={cardAura.edge.width}
+      ringColor={cardAura.edge.color}
+      shadow={cardAura.shadow}
+      hasTVPreferredFocus={hasTVPreferredFocus}
+      ref={ref}
+      edgeLeft={edgeLeft}
+      holdLeft={holdLeft}
+      edgeRight={edgeRight}
+      onPress={() => onPress(item)}
+      onLongPress={noPeek ? undefined : () => openPeek(item, removable || undefined)}
+      onFocusChange={onFocus ? f => f && onFocus(item, index ?? 0) : undefined}
+      focusOverlay={
+        <>
+          {/* brighten (white @0.055, radius 12) then the poster shade of a
+              label-less card — JsCard's first two overlay children, drawn by
+              one native layer in that order. */}
+          <AuroraCard style={styles.layer} brighten shade={showLabel ? 'none' : 'poster'} />
+          {removable ? (
+            <View style={styles.remove} pointerEvents="none">
+              <Text style={styles.removeGlyph}>✕</Text>
+            </View>
+          ) : null}
+        </>
+      }
+      style={frame ? styles.cardFrame : landscape ? styles.cardWide : compact ? styles.cardCompact : styles.card}>
+      <AuroraCard
+        ref={art}
+        style={styles.layer}
+        uri={src?.uri}
+        headersJson={headersJson}
+        // JsCard draws with resizeMethod 'auto' (no on-box re-encode) for a
+        // sized picture and for a resume frame; 'resize' otherwise.
+        sized={!!sizedPath || canFrame}
+        retryUri={retryUri}
+        backupUri={backup?.uri}
+        backupHeadersJson={backupHeadersJson}
+        blurUri={blurUri}
+        tile={!src}
+        shade={showLabel ? (frame ? 'frame' : 'poster') : 'none'}
+        onImageLoaded={onImageLoaded}
+        onImageFailed={onImageFailed}
+        onImageRetry={onImageRetry}
+      />
+      {!src || tileShown ? (
+        // `.card-fallback`'s title: the gradient is native, the words are RN
+        // Text in JsCard's exact boxes (styles.poster → fallbackCentre).
+        <View style={styles.poster} pointerEvents="none">
+          <View style={styles.fallbackCentre}>
+            <Text style={styles.fallbackText} numberOfLines={3}>
+              {item.title}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {showLabel && frame ? (
+        <View style={styles.frameLabel} pointerEvents="none">
+          <Text style={styles.frameTitle} numberOfLines={1} ellipsizeMode="tail">
+            {isEpisode ? item.showTitle || item.title : item.title}
+          </Text>
+          {isEpisode ? (
+            <Text style={styles.frameSub} numberOfLines={1} ellipsizeMode="tail">
+              {`S${item.season} E${item.episode} · ${item.title}`}
+            </Text>
+          ) : null}
+          {left ? <Text style={styles.frameMeta}>{`▶  ${left}`}</Text> : null}
+        </View>
+      ) : showLabel ? (
+        <View style={[styles.label, pct != null && styles.labelRaised]} pointerEvents="none">
+          {isEpisode ? (
+            <>
+              <Text style={styles.labelSub} numberOfLines={1} ellipsizeMode="tail">
+                {item.showTitle || ''}
+              </Text>
+              <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
+                {`S${item.season} E${item.episode} · ${item.title}`}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
+              {item.title}
+            </Text>
+          )}
+        </View>
+      ) : null}
+
+      {leftTag === 'new' ? (
+        <View style={[styles.tag, styles.tagLeft, styles.tagNew]} pointerEvents="none">
+          <Text style={[styles.tagText, styles.tagNewText]}>NEW</Text>
+        </View>
+      ) : null}
+
+      {kind ? (
+        <View
+          style={[
+            styles.tag,
+            styles.tagKind,
+            item.type === 'show' ? styles.kindSeries : styles.kindFilm,
+          ]}
+          pointerEvents="none">
+          <Icon
+            name={item.type === 'show' ? 'series' : 'film'}
+            size={11}
+            color={item.type === 'show' ? colors.kindSeries : colors.kindFilm}
+          />
+        </View>
+      ) : null}
+
+      {pct != null ? (
+        <View style={[styles.progress, frame && styles.progressFrame]} pointerEvents="none">
+          <View style={[styles.progressFill, {width: `${pct}%`}]}>
+            <View style={styles.progressHead} />
+          </View>
+        </View>
+      ) : null}
+    </Focusable>
+  );
+}
+
+/** The switch (render.ts). Chosen once at load: no wrapper component on either path. */
+export default React.memo(nativeOn.card ? NativeCard : JsCard);
+
 
 const styles = StyleSheet.create({
   // No overflow:'hidden' — `.card` is explicitly not clipped (components.css:237-241),
@@ -442,6 +689,9 @@ const styles = StyleSheet.create({
   // The baked shades: the padding box, at the card's radius (the SVG's rx).
   shade: {position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', borderRadius: radius.m},
   blur: {position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderRadius: radius.m - 1},
+  // A native AuroraCard layer (NativeCard): the card's padding box (what the blur,
+  // poster and shade Images above all resolve to), so its (0,0,w,h) is their rect.
+  layer: {position: 'absolute', left: 0, top: 0, right: 0, bottom: 0},
   // The frame card's words — glass.css `.card.wide .card-label`: 16/16/24 → ×0.7.
   frameLabel: {position: 'absolute', left: 11, right: 11, bottom: 17},
   frameTitle: {color: colors.text, fontSize: 17, fontWeight: '800', letterSpacing: -0.2, lineHeight: 20, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 10},
