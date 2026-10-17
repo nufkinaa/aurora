@@ -6,3 +6,5 @@
 *.cmd text eol=crlf
 # A systemd unit copied from a Windows checkout to a Linux box must not carry CRs.
 *.service text eol=lf
+# The TV bench scripts run in Git Bash / on the box: a CR at a line end breaks them.
+tools/tv-bench/**/*.sh text eol=lf
