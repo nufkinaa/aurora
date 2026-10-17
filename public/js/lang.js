@@ -87,10 +87,12 @@ export const pickOf = (track) => (track ? langOf(track) : "off");
 // How good a default a track is, within its language: 0 a full track,
 // 1 SDH / closed captions (sound descriptions nobody asked for), 2 forced /
 // signs / commentary (only part of the dialogue).
+// The server's flags (forced / sdh, src/media/subnames.js) count as much as
+// the words — they only add to what the label says.
 export const trackRank = (track) => {
   const l = String((track && track.label) || "");
-  if (/forced|(?:^|[^a-z])signs?(?:[^a-z]|$)|songs|commentary/i.test(l)) return 2;
-  if (/(?:^|[^a-z])(?:sdh|cc)(?:[^a-z]|$)|hearing|closed.?caption/i.test(l)) return 1;
+  if ((track && track.forced === true) || /forced|(?:^|[^a-z])signs?(?:[^a-z]|$)|songs|commentary/i.test(l)) return 2;
+  if ((track && track.sdh === true) || /(?:^|[^a-z])(?:sdh|cc)(?:[^a-z]|$)|hearing|closed.?caption/i.test(l)) return 1;
   return 0;
 };
 

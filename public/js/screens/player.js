@@ -13,7 +13,8 @@ import { track } from "../usage.js";
 import { uiHit, reportError, playMounted, playFirstFrame, playGone } from "../telemetry.js"; // [analytics]
 import { playCap, capFor, netTier, measured, probe, dataMode } from "../net.js";
 import { followVideo } from "../glassTone.js";
-import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio } from "../lang.js";
+import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "../lang.js";
+import { savedDelay, saveDelay } from "../subdelay.js";
 import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM } from "../playstart.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -49,6 +50,9 @@ const menuTitle = (icon, text, gap) =>
   el("div", { class: "menu-title", style: gap ? { marginTop: "6px" } : null, html: `${icons[icon] || ""}<span>${text}</span>` });
 
 const audioTrackName = (t, i) => {
+  // the server names tracks now (src/media/subnames.js audioName — the same
+  // name on the TV); the rules below are for an older server's answer
+  if (t && t.label) return t.label;
   const code = String(t.language || "").toLowerCase();
   const lang = code && code !== "und" ? AUDIO_LANG_NAMES[code] || code.toUpperCase() : "";
   const title = t.title && !/^(stereo|surround|\d\.\d)$/i.test(t.title) ? t.title : "";
@@ -85,6 +89,14 @@ const prefs = {
 export const playerPrefs = prefs;
 
 const CUE_SIZES = { S: "1.4vw", M: "2.2vw", L: "3.2vw" };
+// …and never smaller than this: on a phone held upright 2.2vw is 8.6 px —
+// unreadable (seen 2026-10-17 while fixing the cue position there)
+const CUE_MIN_PX = { S: 12, M: 15, L: 19 };
+const cueFontPx = () => {
+  const k = prefs.get("cueSize", "M");
+  const vw = parseFloat(CUE_SIZES[k] || CUE_SIZES.M);
+  return Math.max((vw * window.innerWidth) / 100, CUE_MIN_PX[k] || CUE_MIN_PX.M);
+};
 
 // ---- "Still watching?" (2026-10-08) ----
 // How many episodes in a row started BY THEMSELVES (Up next counting down to
@@ -517,7 +529,8 @@ export const applyCueStyle = () => {
     styleEl.id = "cue-style";
     document.head.append(styleEl);
   }
-  const size = CUE_SIZES[prefs.get("cueSize", "M")] || CUE_SIZES.M;
+  const key = prefs.get("cueSize", "M");
+  const size = `max(${CUE_SIZES[key] || CUE_SIZES.M}, ${CUE_MIN_PX[key] || CUE_MIN_PX.M}px)`;
   const bg = prefs.get("cueBackground", true)
     ? "rgba(0, 0, 0, 0.75)"
     : "transparent";
@@ -1644,6 +1657,18 @@ export const renderPlayer = async (root, { id }) => {
         clockBase = c.base;
         windowStart = c.base;
         startHls(url, c.offset || 0);
+      } else if (isCopySeek && nativeHlsOnly && c && isFinite(c.base) && c.base <= streamOffset + 1 && c.base >= streamOffset - 60) {
+        // The iPhone's fMP4 copy job starts at its keyframe, up to a GOP
+        // before the asked second, on a zero-based clock: the server says
+        // what content time that zero is (routes/stream.js, measured with
+        // tools/subs-rig). Assuming the asked second put every cue and the
+        // scrubber that far ahead (2-5 s on the rig, up to ~10 s on real
+        // HEVC releases). (Unverified on a real iPhone: Safari's native HLS
+        // clock for fMP4 is taken to start at the first sample, as the
+        // comments above have measured for the copy path.)
+        clockBase = c.base;
+        windowStart = c.base;
+        startHls(url, 0);
       } else {
         clockBase = streamOffset;
         windowStart = streamOffset;
@@ -2943,29 +2968,52 @@ export const renderPlayer = async (root, { id }) => {
   // subtitle file positioned itself (a sign translated at the top of the
   // frame) are never touched. Native iOS fullscreen draws its own captions
   // around its own controls, so it's left alone too.
+  //
+  // CHROME HAS NO lineAlign (measured 2026-10-17 through the cue boxes in the
+  // user-agent shadow DOM, tools/subs-rig): `cue.lineAlign = "end"` is simply
+  // ignored there, so a cue aimed to END at the line STARTED at it and hung
+  // down under the scrubber — the report "subs appear behind the timeline".
+  // Where lineAlign is missing (Chrome, Edge, Android Chrome) the cue's TOP is
+  // aimed instead: the line, less the cue's own height, from its line count and
+  // the size Chrome lays one line out at (max(1.53 × font, 6 % of the video's
+  // height) — fitted on 1280/844/390-wide windows at every cue size, a little
+  // generous on purpose). Safari and Firefox keep lineAlign "end", exact.
   let cuesLifted = false;
-  const liftedCues = new WeakSet();
+  const liftedCues = new WeakMap(); // cue -> the line it was given
+  const LINE_ALIGN = typeof VTTCue !== "undefined" && "lineAlign" in VTTCue.prototype;
   const liftLine = () => {
     const v = video.getBoundingClientRect();
     const d = dockEl && dockEl.getBoundingClientRect();
     if (!v.height || !d || !d.height) return null;
     const bottom = Math.min(v.bottom, d.top - 12);
-    return Math.max(8, Math.min(96, ((bottom - v.top) / v.height) * 100));
+    return { pct: Math.max(8, Math.min(96, ((bottom - v.top) / v.height) * 100)), w: v.width, h: v.height };
+  };
+  // Where a cue's top goes so its bottom sits on `at.pct` (no lineAlign).
+  const cueTopFor = (cue, at) => {
+    const fontPx = cueFontPx();
+    const linePx = Math.max(1.53 * fontPx, 0.06 * at.h);
+    const perLine = Math.max(8, Math.floor((at.w * 0.9) / (fontPx * 0.55))); // characters before a wrap
+    const lines = String(cue.text || "")
+      .replace(/<[^>]*>/g, "")
+      .split("\n")
+      .reduce((n, l) => n + Math.max(1, Math.ceil(l.length / perLine)), 0);
+    return Math.max(0, at.pct - ((lines * linePx) / at.h) * 100);
   };
   // true when the cue actually moved
-  const placeCue = (cue, line) => {
-    if (line != null) {
+  const placeCue = (cue, at) => {
+    if (at != null) {
       if (!liftedCues.has(cue) && cue.line !== "auto") return false; // the file placed it — leave it
+      const line = LINE_ALIGN ? at.pct : cueTopFor(cue, at);
       if (liftedCues.has(cue) && cue.line === line) return false;
       cue.snapToLines = false;
-      cue.lineAlign = "end";
+      if (LINE_ALIGN) cue.lineAlign = "end";
       cue.line = line;
-      liftedCues.add(cue);
+      liftedCues.set(cue, line);
       return true;
     }
     if (!liftedCues.has(cue)) return false;
     cue.snapToLines = true;
-    cue.lineAlign = "start";
+    if (LINE_ALIGN) cue.lineAlign = "start";
     cue.line = "auto";
     liftedCues.delete(cue);
     return true;
@@ -3007,6 +3055,10 @@ export const renderPlayer = async (root, { id }) => {
   };
   for (const tt of video.textTracks) tt.addEventListener("cuechange", onCueChange);
   video.textTracks.addEventListener("addtrack", (e) => e.track && e.track.addEventListener("cuechange", onCueChange));
+  // iPhone native fullscreen: the system player draws the captions around its
+  // own controls and cannot be styled — a cue still aimed at OUR dock would
+  // float mid-picture there, so everything goes back to its own placement.
+  video.addEventListener("webkitbeginfullscreen", () => liftCues(false));
   // a resize / fullscreen flip moves the dock — re-aim while lifted
   const onLiftResize = () => cuesLifted && placeAllCues();
   window.addEventListener("resize", onLiftResize);
@@ -3234,12 +3286,11 @@ export const renderPlayer = async (root, { id }) => {
     }
     if (!prefs.get("subsDefault", true)) return -1;
     const want = prefs.get("subLang", "any");
-    const test = SUB_LANG_TEST[want];
-    if (test) {
-      const subs = item.subtitles || [];
-      const i = subs.findIndex(
-        (t) => test.code.test(t.lang || "") || test.label.test(t.label || ""),
-      );
+    if (SUB_LANG_TEST[want]) {
+      // the same rule as a remembered pick: the best track in that language
+      // (a full one before SDH before forced — the server now names and flags
+      // embedded tracks, so a file's "Forced" track is no longer taken for it)
+      const i = bestTrackIndex(item.subtitles || [], want);
       if (i >= 0) return i;
     }
     return from;
@@ -3266,6 +3317,11 @@ export const renderPlayer = async (root, { id }) => {
           reloadTrackEl(trackEl);
         } else {
           applyOffsetToTrack(tracks[idx]);
+        }
+        const o = offsetFor(idx);
+        if (o && !delayAnnounced.has(idx)) {
+          delayAnnounced.add(idx);
+          toast(`Subtitle delay ${o > 0 ? "+" : ""}${o.toFixed(1)}s, as you left it — Subtitles › Reset to undo`, "💬", null, { quiet: true });
         }
       }, 250);
   };
@@ -3304,8 +3360,30 @@ export const renderPlayer = async (root, { id }) => {
   // film, the first cue landed anywhere from 0.0s to 357.0s — so a delay that
   // fixes one track is wrong for the next. A single shared value silently
   // followed you from track to track.
+  // …and it is REMEMBERED, per title and track, on this device (subdelay.js):
+  // the report "the subs sync button does not work" was, for a good part, a
+  // delay that was gone again after the next reload or the next evening —
+  // nothing was ever saved.
   const trackOffsets = new Map(); // textTracks index -> seconds
-  const offsetFor = (idx) => trackOffsets.get(idx) || 0;
+  const trackUrlAt = (idx) => {
+    const t = (item.subtitles || [])[idx];
+    if (t && t.url) return t.url;
+    const el = [...video.querySelectorAll("track")][idx];
+    return el ? el.getAttribute("src") : null;
+  };
+  let delayStore = null;
+  try { delayStore = window.localStorage; } catch {}
+  const offsetFor = (idx) => {
+    if (idx < 0) return 0;
+    if (!trackOffsets.has(idx)) trackOffsets.set(idx, savedDelay(delayStore, item.id, trackUrlAt(idx)));
+    return trackOffsets.get(idx) || 0;
+  };
+  const setOffset = (idx, seconds) => {
+    trackOffsets.set(idx, seconds);
+    saveDelay(delayStore, item.id, trackUrlAt(idx), seconds);
+  };
+  // said once per track, when one comes back with a remembered delay
+  const delayAnnounced = new Set();
   const appliedOffset = new WeakMap();
   const applyOffsetToTrack = (tt) => {
     if (!tt || !tt.cues || !tt.cues.length) return;
@@ -3342,9 +3420,11 @@ export const renderPlayer = async (root, { id }) => {
   const nudgeSubs = (delta) => {
     if (activeTrack < 0) return toast("Turn a subtitle track on first", "💬");
     const next = Math.round((offsetFor(activeTrack) + delta) * 10) / 10;
-    trackOffsets.set(activeTrack, next);
+    setOffset(activeTrack, next);
     applyOffsetToTrack(video.textTracks[activeTrack]); // only this track moves
-    toast(`Subtitle delay ${next >= 0 ? "+" : ""}${next.toFixed(1)}s`, "💬");
+    // With the menu open its own row shows the value — a toast there landed
+    // right on top of the timing buttons on a phone (seen 2026-10-17).
+    if (menuKind !== "cc") toast(`Subtitle delay ${next >= 0 ? "+" : ""}${next.toFixed(1)}s`, "💬");
   };
   // A track that finished "loading" with ZERO cues hit a transient fetch
   // failure (server restart mid-load, flaky subtitle upstream) — browsers
@@ -3391,7 +3471,7 @@ export const renderPlayer = async (root, { id }) => {
     if (activeTrack < 0) return toast("Turn a subtitle track on first", "💬");
     const label =
       [...video.querySelectorAll("track")][activeTrack]?.label || "Subtitles";
-    trackOffsets.delete(activeTrack); // back to the file's own timing
+    setOffset(activeTrack, 0); // back to the file's own timing (and forgotten)
     for (const tt of video.textTracks) appliedOffset.delete(tt);
     // Reload the ACTIVE track from scratch (cache-busted). Its 'load' event
     // re-applies the anchor via armTrackOffset.
@@ -5770,7 +5850,7 @@ export const renderPlayer = async (root, { id }) => {
       if (exited || (item.subtitles && item.subtitles.length)) return;
       const subType = item.season && item.episode ? "series" : "movie";
       api
-        .torrentSubtitles(subType, item.imdbId, item.season, item.episode)
+        .torrentSubtitles(subType, item.imdbId, item.season, item.episode, item.release || null)
         .then(({ subtitles }) => {
           if (subtitles && subtitles.length) addTracks(subtitles);
         })
@@ -5786,7 +5866,8 @@ export const renderPlayer = async (root, { id }) => {
   if (!isTorrent && !item._offline && prefs.get("subsDefault", true)) {
     const want = prefs.get("subLang", "any");
     const test = SUB_LANG_TEST[want];
-    const matches = (t) => test && (test.code.test(t.lang || "") || test.label.test(t.label || ""));
+    // (lang.js: a "he" / "heb" / "iw" tag, or a label in any of its spellings)
+    const matches = (t) => !!test && langOf(t) === want;
     if (test && !(item.subtitles || []).some(matches)) {
       api.subtitlesFetch(item.id, want)
         .then((r) => {
