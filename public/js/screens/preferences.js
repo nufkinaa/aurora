@@ -56,7 +56,7 @@ const ICONS = {
   "Change photo": '<path d="M4 8.500A1.500 1.500 0 015.500 7H8l1.500-2h5L16 7h2.500A1.500 1.500 0 0120 8.500V18a1.500 1.500 0 01-1.500 1.500h-13A1.500 1.500 0 014 18z"/><circle cx="12" cy="13" r="3.200"/>',
   "Remove photo": '<path d="M4 7h16M9 7V4.500h6V7M6.500 7l1 13h9l1-13"/>',
   "Your Aurora Wrapped": '<path d="M12 3l1.800 4.700L18.500 9.500l-4.700 1.800L12 16l-1.800-4.700L5.500 9.500l4.700-1.800z"/><path d="M19 15l.800 2.200L22 18l-2.200.800L19 21l-.800-2.200L16 18l2.200-.800z"/>',
-  "Pick titles you love": '<path d="M12 20s-7-4.300-7-9.500A4 4 0 0112 8a4 4 0 017 2.500C19 15.700 12 20 12 20z"/>',
+  "Swipe your taste": '<rect x="7" y="3.500" width="11" height="16" rx="2" transform="rotate(8 12.500 11.500)"/><rect x="5" y="4.500" width="11" height="16" rx="2"/><path d="M10.500 15.500s-2.800-1.700-2.800-3.700a1.500 1.500 0 012.800-.900 1.500 1.500 0 012.800.900c0 2-2.800 3.700-2.800 3.700z"/>',
   "Help improve Aurora": '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
 };
 const iconFor = (name) => (ICONS[name] ? el("span", { class: "pref-icon", html: svg(ICONS[name]) }) : null);
@@ -412,7 +412,7 @@ export const renderPreferences = async (root) => {
         } catch { toast("Couldn't remove it", "⚠️"); }
       }),
       linkRow("Your Aurora Wrapped", "Your year in numbers, with a few roasts.", () => navigate("#/wrapped")),
-      linkRow("Pick titles you love", "Teach Home your taste in a minute.", () => navigate("#/taste")),
+      linkRow("Swipe your taste", "Love it, not for me, or haven't seen — one title at a time. Home learns from every answer.", () => navigate("#/taste")),
     ),
   );
 

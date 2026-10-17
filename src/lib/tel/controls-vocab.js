@@ -178,6 +178,18 @@ module.exports = {
   "settings.update": "t",
   "settings.usagestats": "t",
   "settings.whatsnew": "t",
+  // taste (the swipe picker, #/taste)
+  "taste.back": "w",
+  "taste.done": "w",
+  "taste.edit": "w",
+  "taste.key": "w",
+  "taste.love": "w",
+  "taste.more": "w",
+  "taste.nope": "w",
+  "taste.skip": "w",
+  "taste.swipe": "w",
+  "taste.undo": "w",
+  "taste.unnope": "w",
   // signin
   "signin.mode.google": "t",
   "signin.mode.qr": "t",

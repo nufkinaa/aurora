@@ -163,6 +163,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 166 ids: 115 on the website
 | saved | `saved.play` `saved.remove` | – | – |
 | search | `search.clear` `search.retry` | – | `search.recent.pick` `search.suggestion.pick` |
 | settings | `settings.accent` `settings.done` `settings.link` `settings.look` `settings.rows.hide` `settings.theme` `settings.toggle` | `settings.autoplay` `settings.downloads` `settings.genre` `settings.notices` `settings.party` `settings.report` `settings.signout` `settings.subs.auto` `settings.subs.bg` `settings.subs.lang` `settings.subs.size` `settings.trailers` `settings.update` `settings.usagestats` `settings.whatsnew` | – |
+| taste | `taste.back` `taste.done` `taste.edit` `taste.key` `taste.love` `taste.more` `taste.nope` `taste.skip` `taste.swipe` `taste.undo` `taste.unnope` | – | – |
 | signin | – | `signin.mode.google` `signin.mode.qr` `signin.mode.typed` `signin.request` `signin.submit` | – |
 | state | – | `state.action` | – |
 | update | – | `update.install` `update.later` `update.restart` `update.retry` | – |
