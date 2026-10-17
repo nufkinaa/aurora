@@ -25,6 +25,7 @@ const IDLE_MS = 150000; // kill a transcode whose player stopped requesting (>2.
 const MAX_ACTIVE = 2; // live ffmpeg jobs of any kind here (copies too), at the least
 // Re-encodes share the machine's encode budget with the library's (encbudget.js).
 const budget = require("./encbudget");
+const goodbye = require("./goodbye");
 const busyError = (message) => Object.assign(new Error(message), { busy: true, retryAfter: 5 });
 const FFMPEG_THREADS = Math.max(1, os.cpus().length - 2); // leave cores for node
 const activeCount = () => {
@@ -80,7 +81,7 @@ const RETIRED_MS = 5000;
 // Drop a job that a newer one replaced: kill ffmpeg, and delete its dir once
 // the process has let go of its files — a headless EVENT playlist left on disk
 // would stall every future replay at its edge.
-const retire = (d, j) => {
+const retire = (d, j, why = "superseded") => {
   const now = Date.now();
   for (const [k, t] of retired) if (now - t >= RETIRED_MS) retired.delete(k);
   retired.set(d, now);
@@ -91,7 +92,7 @@ const retire = (d, j) => {
     setTimeout(() => { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} }, 150);
   });
   try { old.kill("SIGKILL"); } catch {}
-  console.log(`[torrent-transcode] superseded ${path.basename(d)}`);
+  console.log(`[torrent-transcode] ${why} ${path.basename(d)}`);
 };
 
 // Boot sweep: a playlist WITHOUT #EXT-X-ENDLIST whose ffmpeg died with the
@@ -635,9 +636,31 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
 
 // Mark a job as still-in-use (called on every playlist/segment request) so the
 // idle sweeper doesn't kill a stream the player is actively watching.
-const touch = (infoHash, fileIdx, ss = 0, fmt = null, audio = 0) => {
+// `viewer` (the routes' viewerOf): who is reading it — whose goodbye may stop
+// it (release, below).
+const touch = (infoHash, fileIdx, ss = 0, fmt = null, audio = 0, viewer = null) => {
   const job = jobs.get(jobDir(infoHash, fileIdx, ss, fmt, audio));
-  if (job) job.lastAccess = Date.now();
+  if (job) {
+    job.lastAccess = Date.now();
+    goodbye.note(job, viewer);
+  }
+};
+const noteViewer = (dir, viewer) => goodbye.note(jobs.get(dir), viewer);
+
+// A viewer LEFT this torrent file (the TV's player closed): its offset
+// transcodes nobody else is in stop now rather than at the idle sweep —
+// media/goodbye.js has whose goodbye it is. → how many stopped.
+const release = (infoHash, fileIdx, viewer, now = Date.now()) => {
+  if (!/^[a-f0-9]{40}$/i.test(String(infoHash)) || !/^\d+$/.test(String(fileIdx))) return 0;
+  const prefix = `${String(infoHash).toLowerCase()}-${fileIdx}-`;
+  const mine = [];
+  for (const [d, j] of jobs) if (path.basename(d).toLowerCase().startsWith(prefix)) mine.push([d, j]);
+  const stop = goodbye.toStop(mine, viewer, now);
+  for (const d of stop) {
+    const j = jobs.get(d);
+    if (j) retire(d, j, "its viewer left:");
+  }
+  return stop.length;
 };
 
 // Kill transcodes whose player has stopped requesting segments (tab closed,
@@ -695,4 +718,4 @@ const sweepStale = (maxAgeMs = 24 * 3600 * 1000) => {
   } catch {}
   return freed;
 };
-module.exports = { ensure, touch, filePath, bootSweep, sweepStale, HLS_ROOT, _internals: { jobKey, videoArgsFor, SCALE, activeCount } };
+module.exports = { ensure, touch, noteViewer, release, filePath, bootSweep, sweepStale, HLS_ROOT, _internals: { jobKey, jobDir, videoArgsFor, SCALE, activeCount, jobs } };

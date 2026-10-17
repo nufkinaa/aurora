@@ -56,6 +56,9 @@ const DEVICE: Record<string, Record<string, string>> = {
     serverBlurs: 'what the server said about itself',
     PROXY_ART_HOSTS: 'a fixed list',
   },
+  'rowWindow.ts': {
+    heldCache: 'fixed margin objects per run length (a held key), the same for everyone',
+  },
   'artPrefetch.ts': {
     native: 'the native module',
     busy: 'pictures in flight, by address',

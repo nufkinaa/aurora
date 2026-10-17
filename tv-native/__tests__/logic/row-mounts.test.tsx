@@ -108,7 +108,24 @@ test('a held key: nothing mounted is let go until the remote rests (the slide tr
     for (const i of had) expect(mockSeen.mounted.has(i)).toBe(true);
     expect(mountedList().filter(i => !had.has(i)).length).toBeLessThanOrEqual(2);
   }
-  expect(mountedList()).toEqual(range(0, 12 + 5 + 2));
+  // held, the lead has grown by HELD_EXTRA (rowWindow.ts runMargins): two more ahead
+  expect(mountedList()).toEqual(range(0, 12 + 5 + 2 + 2));
   rest();
   expect(mountedList()).toEqual(range(12 - 3, 12 + 5 + 2));
+});
+
+test('a held LEFT leads LEFT just as far: the left-edge card is mounted before the slide shows it', () => {
+  act(() => {
+    TestRenderer.create(<Row title="r" items={ITEMS} onSelect={onSelect} />);
+  });
+  // walk out to card 14 and let the remote rest there
+  for (let f = 0; f <= 14; f++) focus(f);
+  // hold LEFT: no rest between presses
+  for (let f = 13; f >= 0; f--) {
+    press(f);
+    for (const i of range(Math.max(0, f - 2), f === 0 ? 6 : f + 5)) expect(mockSeen.mounted.has(i)).toBe(true);
+  }
+  expect((console.log as jest.Mock).mock.calls.filter(c => String(c[0]).startsWith('[row] behind'))).toEqual([]);
+  rest();
+  expect(mountedList()).toEqual(range(0, 6 + 1));
 });

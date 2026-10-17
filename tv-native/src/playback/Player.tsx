@@ -128,13 +128,14 @@ import {onPersonPrefs, setPersonPref} from '../personSync';
 import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
-import theme from '../theme';
+import theme, {useTvMetrics} from '../theme';
+import {menuMaxHeight} from '../popupFit';
 import {refreshTuning, tuning, TUNING_DEFAULTS} from './tuning';
 import {Clock, clockBaseFor, clockFromHeaders, toContent, toMedia} from './clock';
 import {Cue, cueBottom, cueTextAt, parseVtt} from './cues';
 import {delaysForItem, loadDelays, roundDelay, saveDelay} from './subDelay';
 import {audioName, autoPick, buildTracks, followPick, hasLang, langName, Track as SubTrack} from './subTracks';
-import {SERVER_BUSY, whenRoom} from '../serverManners';
+import {afterClaim, claimFirst, SERVER_BUSY, whenRoom} from '../serverManners';
 import {playerError, seekResumed, seekStarted, seeking} from '../telemetry'; // [analytics]
 
 const {colors, radius, fontSize, spacing} = theme;
@@ -561,6 +562,12 @@ export default function Player({
   const audioIdxRef = useRef(0);
   const audioChosen = useRef(false); // the viewer picked one: the default stops applying
   const menuOpen = menu !== null;
+  // The menus' ceiling on this screen (popupFit.ts): each one scrolls inside
+  // it, and Android scrolls the focused row into view — nothing overflows the
+  // top of a 540dp panel any more (owner, 2026-10-17).
+  const {height: winH} = useTvMetrics();
+  const menuH = menuMaxHeight(winH);
+  const gearScroll = useRef<ScrollView>(null);
   const [rate, setRate] = useState(1);
   // Level, for the indicator and for <Video volume>. Not adjustable from here
   // — see the .vol-group comment in the transport row.
@@ -971,9 +978,14 @@ export default function Player({
   // with room is not a round trip slower for any of this.
   const claimGen = useRef(0); // the source generation whose claim is pending (0 = none)
   const claimSwallowed = useRef(0); // …and the generation a player error was held back for
+  // `handOver`: the claim goes FIRST (serverManners.ts claimFirst — an encode
+  // that has not played yet): the player is handed its source only once the
+  // server has said there is room, so ExoPlayer never meets the refusal.
   // `onClock`: the claim's answer is the job's playlist, and on a copy job at
   // an offset it carries the job's real clock (X-Aurora-Base — see clockBase).
-  const claimStream = useCallback((url: string, g: number, onClock?: (c: Clock | null) => void) => {
+  // On a handed-over start it lands BEFORE the player gets the source, so the
+  // first frame is already on the job's own clock.
+  const claimStream = useCallback((url: string, g: number, handOver = false, onClock?: (c: Clock | null) => void) => {
     claimGen.current = g;
     const alive = () => !exited.current && gen.current === g;
     whenRoom(
@@ -1006,6 +1018,17 @@ export default function Player({
     ).then(out => {
       if (claimGen.current === g) claimGen.current = 0;
       if (out.kind === 'gone' || !alive()) return;
+      if (handOver) {
+        const next = afterClaim(out);
+        if (next === 'busy') {
+          console.log('[player] the server is still busy: giving up on this start');
+          setBuffering(false);
+          setError(SERVER_BUSY);
+        } else if (next === 'play') {
+          setUri(`${url}&g=${g}`);
+        }
+        return;
+      }
       const swallowed = claimSwallowed.current === g;
       if (out.kind === 'busy') {
         if (everPlayed.current) return; // the player got in by itself meanwhile
@@ -1051,8 +1074,11 @@ export default function Player({
       setBuffering(true);
       const url = transcodeUrl(base, ss, v);
       const g = ++gen.current;
+      // an encode that has not played yet asks first and is handed over by
+      // the claim (claimFirst); anything else goes to the player at once
+      const first = claim && claimFirst(v, everPlayed.current);
       if (claim) {
-        claimStream(url, g, c => {
+        claimStream(url, g, first, c => {
           // still this job (the generation check is claimStream's alive())
           const b = clockBaseFor(ss, v, c);
           if (b !== clockBase.current) {
@@ -1061,7 +1087,7 @@ export default function Player({
           }
         });
       }
-      setUri(`${url}&g=${g}`);
+      if (!first) setUri(`${url}&g=${g}`);
     },
     [transcodeUrl, claimStream],
   );
@@ -1586,15 +1612,18 @@ export default function Player({
   // message): realtime.ts holds the news and tells the screens once, after
   // the player is left. And on leaving — or going on to the next episode,
   // which is a new player — the server is told it may stop what it was
-  // preparing for this viewer (api.playBye; library titles only: a torrent
-  // stream has no such route).
+  // preparing for this viewer (api.playBye — the jit producers and the
+  // offset transcode of a library title; api.torrentBye for a torrent).
   useEffect(() => {
     const why = `player:${mountedAt.current}`;
     holdLibraryRefresh(why, true);
     return () => {
       holdLibraryRefresh(why, false);
+      // (a torrent: its own goodbye, for the transcode it may be playing)
       if (!isTorrent) api.playBye(id).catch(() => {});
+      else if (stream?.infoHash) api.torrentBye(stream.infoHash, stream.fileIdx).catch(() => {});
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isTorrent]);
   const partySnapshot = useCallback((): PartyItem => {
     const it = itemRef.current;
@@ -3637,7 +3666,7 @@ export default function Player({
       {/* Subtitle menu. Focus is trapped inside while it's open — otherwise a
           stray D-pad press wanders to the transport bar behind the overlay. */}
       {menu === 'cc' ? (
-        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
+        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           <MenuTitle icon="cc" label="SUBTITLES" />
           <ScrollView ref={ccScroll} style={styles.menuScroll}>
             {/* The site's first CC entry: one press that drops any manual delay
@@ -3750,7 +3779,7 @@ export default function Player({
 
       {/* Speed — the site's SPEEDS menu. */}
       {menu === 'speed' ? (
-        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
+        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           <MenuTitle icon="speed" label="SPEED" />
           <ScrollView style={styles.menuScroll}>
             {SPEEDS.map(sp => (
@@ -3777,13 +3806,25 @@ export default function Player({
           the site (and are already on Aurora's own Settings screen), not things
           you set mid-film. */}
       {menu === 'settings' ? (
-        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
+        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
+          {/* Its own scroller (it had none: a film with several dubs and an
+              intro to mark ran past the top of the screen). */}
+          <ScrollView ref={gearScroll} style={styles.menuScroll} showsVerticalScrollIndicator={false}>
           {audioTracks.length > 1 ? (
             <>
               <MenuTitle icon="volume" label="AUDIO" />
               {audioTracks.map(t => (
-                <MenuItem uiId="player.audio.pick"
+                // the ticked dub claims focus, so the list must SHOW it (the
+                // subtitle menu's rule: Android does not scroll to a child
+                // focused before layout)
+                <View
                   key={`a${t.index}`}
+                  onLayout={
+                    audioIdx === t.index
+                      ? e => gearScroll.current?.scrollTo({y: Math.max(0, e.nativeEvent.layout.y - 120), animated: false})
+                      : undefined
+                  }>
+                <MenuItem uiId="player.audio.pick"
                   label={audioName(t)}
                   tag={[t.original ? 'Original' : null, t.codec ? t.codec.toUpperCase() : null, t.channels ? `${t.channels}ch` : null]
                     .filter(Boolean)
@@ -3796,6 +3837,7 @@ export default function Player({
                     switchAudio(t.index, audioName(t));
                   }}
                 />
+                </View>
               ))}
             </>
           ) : null}
@@ -3908,13 +3950,15 @@ export default function Player({
               openReport(`In the player: ${activityLabel()} at ${fmt(curRef.current)}${usingTranscodeRef.current ? `, ${currentV.current}` : ', direct'}`);
             }}
           />
+          </ScrollView>
         </TVFocusGuideView>
       ) : null}
 
       {/* Watch together — the party panel (site: .party-panel). */}
       {menu === 'party' ? (
-        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.menu}>
+        <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           <MenuTitle icon="people" label="WATCH TOGETHER" />
+          <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
           {partyInfo ? (
             <>
               <Text style={styles.partyCode}>{partyInfo.code.split('').join(' ')}</Text>
@@ -3945,6 +3989,7 @@ export default function Player({
               <MenuItem label="Close" onFocusChange={markZone('menu')} onPress={closeMenu} />
             </>
           )}
+          </ScrollView>
         </TVFocusGuideView>
       ) : null}
 

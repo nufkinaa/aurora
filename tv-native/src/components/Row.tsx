@@ -40,7 +40,7 @@ import {View, Text, Image, StyleSheet, Animated, TVFocusGuideView, useWindowDime
 import Card, {CARD_W, CARD_H, FRAME_W, FRAME_H} from './Card';
 import {HeroItem} from '../api';
 import {defer, useSlide} from '../motion';
-import {aheadOf, heldWindow, restWindow, rowWindow, slideFor, visibleRange, Dir, Margins, MARGINS, MARGINS_LOW, RowGeom, SETTLE_MS} from '../rowWindow';
+import {aheadOf, heldWindow, nextRun, restWindow, rowWindow, runMargins, slideFor, visibleRange, Dir, Margins, MARGINS, MARGINS_LOW, Run, RowGeom, SETTLE_MS} from '../rowWindow';
 import {prefetchable} from '../cardArt';
 import {artIdle, limits} from '../artPrefetch';
 import {isLowRam} from '../perfTier';
@@ -171,6 +171,8 @@ function Row({
   itemsRef.current = items;
   const lastIdx = useRef(back ? backF : 0);
   const dirRef = useRef<Dir>(back ? back.dir : 1);
+  // the run of presses this one belongs to (rowWindow.ts runMargins)
+  const runRef = useRef<Run | null>(null);
   // The focus guide, and the card it is pointed at until focus has come in
   // once. `destinations` outranks the guide's own memory (ReactViewGroup
   // .requestFocus), so it is taken away again on the first focus inside:
@@ -206,7 +208,9 @@ function Row({
           mem.dir = dir;
         } else store.set(storeKey, {f: index, dir});
       }
-      const m = isLowRam() ? MARGINS_LOW : MARGINS;
+      // a held key leads further, either way (rowWindow.ts runMargins)
+      runRef.current = nextRun(runRef.current, dir, Date.now());
+      const m = runMargins(isLowRam() ? MARGINS_LOW : MARGINS, runRef.current.n);
       const list = itemsRef.current || [];
       const count = list.length;
 
@@ -233,7 +237,9 @@ function Row({
       if (settle.current) clearTimeout(settle.current);
       settle.current = setTimeout(() => {
         settle.current = null;
-        defer(() => setAt(p => (p.keep ? {...p, keep: null} : p)));
+        // at rest the plain margins again: the held lead was for the run
+        const plain = isLowRam() ? MARGINS_LOW : MARGINS;
+        defer(() => setAt(p => (p.keep || (p.m && p.m !== plain) ? {...p, keep: null, m: plain} : p)));
       }, SETTLE_MS);
 
       // And when the remote rests: the pictures of the cards beyond the

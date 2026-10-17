@@ -32,7 +32,8 @@ import {useKeyTrap} from '../focus';
 import {rootNav} from '../rootNav';
 import {showToast} from '../toast';
 import {track} from '../usage';
-import theme from '../theme';
+import theme, {useTvMetrics} from '../theme';
+import {bottomSheetMaxHeight} from '../popupFit';
 
 const {colors, fontSize, radius, spacing} = theme;
 
@@ -139,6 +140,8 @@ export default function PersonSheet({
   type?: 'movie' | 'series' | null;
   onClose: () => void;
 }) {
+  // never past the top's safe area, whatever the panel (popupFit.ts)
+  const {height: winH} = useTvMetrics();
   const [data, setData] = useState<PersonData | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   // key -> on the list / a download was started for it. Seeded from the
@@ -260,7 +263,7 @@ export default function PersonSheet({
   return (
     <View style={styles.backdrop}>
       <Animated.View style={[styles.wash, washStyle]} />
-      <Animated.View style={[styles.panel, panelStyle]}>
+      <Animated.View style={[styles.panel, panelStyle, {maxHeight: bottomSheetMaxHeight(winH, 500)}]}>
         <TVFocusGuideView autoFocus trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.guide}>
           <View style={styles.head}>
             <View style={styles.face}>

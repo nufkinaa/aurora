@@ -24,6 +24,7 @@ const IDLE_MS = 150000; // kill a remux whose player stopped requesting (>2.5 mi
 // or the admin's fixed number) — shared with the ladder's encoders and the
 // torrent transcodes. Copy jobs are cheap and are not counted.
 const budget = require("./encbudget");
+const goodbye = require("./goodbye");
 const FFMPEG_THREADS = Math.max(1, os.cpus().length - 2);
 // "The server is busy": a refusal the routes answer 503 + Retry-After, the
 // same on every route (the older single-rendition route used to say 500).
@@ -49,7 +50,7 @@ const RETIRED_MS = 5000;
 // Drop a job that a newer one replaced: kill ffmpeg, and delete its dir once the
 // process has let go of its files (a headless EVENT playlist left behind would
 // stall every future replay at its edge).
-const retire = (d, j) => {
+const retire = (d, j, why = "superseded") => {
   const now = Date.now();
   for (const [k, t] of retired) if (now - t >= RETIRED_MS) retired.delete(k);
   retired.set(d, now);
@@ -60,7 +61,7 @@ const retire = (d, j) => {
     setTimeout(() => { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} }, 150);
   });
   try { old.kill("SIGKILL"); } catch {}
-  console.log(`[remux] superseded ${path.basename(d)}`);
+  console.log(`[remux] ${why} ${path.basename(d)}`);
 };
 
 // Boot sweep: unfinished playlists from a previous server run are stumps that
@@ -212,10 +213,39 @@ const dirName = (id, mtime, vcodec = "copy", ss = 0, fmt = null, audio = 0) =>
 
 const jobDir = (id, mtime, vcodec, ss, fmt, audio = 0) => path.join(HLS_ROOT, dirName(id, mtime, vcodec, ss, fmt, audio));
 
-// Keep an actively-watched job alive (called on segment/playlist requests).
-const touch = (id, mtime, vcodec, ss, fmt, audio = 0) => {
+// Keep an actively-watched job alive (called on segment/playlist requests),
+// and remember who is reading it (`viewer`, the routes' viewerOf): whose
+// goodbye may stop it (release, below).
+const touch = (id, mtime, vcodec, ss, fmt, audio = 0, viewer = null) => {
   const job = jobs.get(jobDir(id, mtime, vcodec, ss, fmt, audio));
-  if (job) job.lastAccess = Date.now();
+  if (job) {
+    job.lastAccess = Date.now();
+    goodbye.note(job, viewer);
+  }
+};
+// The same for the playlist route, which knows the job by the dir ensure()
+// answered with.
+const noteViewer = (dir, viewer) => goodbye.note(jobs.get(dir), viewer);
+
+// A viewer LEFT this file (the TV's player closed, or went on to the next
+// episode — api.playBye): its offset jobs that nobody else is in stop now,
+// instead of holding an encoder slot until the idle sweep (IDLE_MS) or the
+// next seek. Whose goodbye it is: media/goodbye.js. Stopped like a
+// superseded offset (retire: killed, the stump removed, and a late poll from
+// the player that just left refused for a few seconds). → how many stopped.
+const release = (id, mtime, viewer, now = Date.now()) => {
+  const prefix = `${id}-${Math.floor(mtime)}`;
+  const mine = [];
+  for (const [d, j] of jobs) {
+    const base = path.basename(d);
+    if (base === prefix || base.startsWith(`${prefix}-`)) mine.push([d, j]);
+  }
+  const stop = goodbye.toStop(mine, viewer, now);
+  for (const d of stop) {
+    const j = jobs.get(d);
+    if (j) retire(d, j, "its viewer left:");
+  }
+  return stop.length;
 };
 
 // Kill remuxes whose player has gone away so ffmpeg doesn't keep running.
@@ -636,4 +666,4 @@ const sweepStale = (maxAgeMs = 24 * 3600 * 1000) => {
   } catch {}
   return freed;
 };
-module.exports = { ensure, touch, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr } };
+module.exports = { ensure, touch, noteViewer, release, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr, jobs } };

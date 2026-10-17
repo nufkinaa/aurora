@@ -44,6 +44,35 @@ export const MARGINS: Margins = {lead: 2, trail: 1};
 // count the old rule kept, but placed where the viewport is).
 export const MARGINS_LOW: Margins = {lead: 1, trail: 0};
 
+// A HELD KEY LEADS FURTHER. Under a held key the deferred commits can fall
+// more than the margin behind: on the Mi TV (5.2.0 device pass, 2026-10-11) a
+// held LEFT logged `[row] behind … visible=0..7 mounted=1..11` — the window of
+// a focus three presses back, so the left-edge card mounted a press late. The
+// rule is the same both ways: while presses keep coming in one direction
+// (each within HELD_GAP_MS of the last) the lead grows by one card a press, up
+// to HELD_EXTRA more, so a commit running up to lead+HELD_EXTRA presses late
+// still finds every card it needs. A turn, or a pause, starts again from the
+// plain margin. Only the lead grows: the cards behind are already seen.
+export const HELD_GAP_MS = 250;
+export const HELD_EXTRA = 2;
+/** Presses in one run: `prev` the run so far (n presses, last at `at`). */
+export type Run = {dir: Dir; at: number; n: number};
+export function nextRun(prev: Run | null, dir: Dir, at: number): Run {
+  return prev && prev.dir === dir && at - prev.at <= HELD_GAP_MS ? {dir, at, n: prev.n + 1} : {dir, at, n: 1};
+}
+const heldCache = new Map<Margins, Margins[]>();
+/** The margins for the `n`-th press of a run (the same object for the same
+ *  answer, so a caller can compare them by identity). A low-memory box grows
+ *  by one card at most. */
+export function runMargins(m: Margins, n: number): Margins {
+  const max = Math.min(HELD_EXTRA, m.lead);
+  const extra = Math.max(0, Math.min(max, n - 1));
+  if (!extra) return m;
+  let list = heldCache.get(m);
+  if (!list) heldCache.set(m, (list = []));
+  return list[extra] || (list[extra] = {lead: m.lead + extra, trail: m.trail});
+}
+
 /** How far the shelf has slid, at rest, with card `f` focused. */
 export const slideFor = (f: number, g: RowGeom) => Math.max(0, f - g.lead) * g.step;
 

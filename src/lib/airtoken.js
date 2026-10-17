@@ -202,8 +202,13 @@ const makeMiddleware = (depsIn = null) => {
     delete h["x-profile"];
     delete h["x-admin-password"];
     delete h["x-aurora-internal"];
+    // …and the TV app's viewer tag (lib/viewer.js): a receiver is a viewer of
+    // its own, named by its link (`req.air.viewer`), never the one who asked
+    // for it — so the asker's goodbye leaves the job the receiver is playing,
+    // and the link (GET/HEAD only: no goodbye goes through it) stops nothing
+    delete h["x-aurora-viewer"];
     req.url = inner;
-    req.air = { profile: p.p || null, maxAge: p.k >= 0 ? p.k : null, title: p.t, expiresAt: p.e * 1000 };
+    req.air = { profile: p.p || null, maxAge: p.k >= 0 ? p.k : null, title: p.t, expiresAt: p.e * 1000, viewer: String(p.n || "") };
     // nothing a receiver is handed is for any cache along the way
     res.setHeader("Referrer-Policy", "no-referrer");
     next();

@@ -11,6 +11,7 @@ import Icon from '../components/Icon';
 import Svg, {Circle} from 'react-native-svg';
 import {api, imgSrc, DownloadJob, Stream, TorrentPlayItem} from '../api';
 import {canNavigate} from '../navLock';
+import {streamPlayItem} from '../playBest';
 import {useApp} from '../AppContext';
 import {RootStackParamList} from '../navigation';
 import theme from '../theme';
@@ -23,25 +24,8 @@ const {colors, radius, fontSize, spacing} = theme;
 const HERO_SIDE = require('../assets/hero-side.png');
 const HERO_VEIL = require('../assets/ambient-veil-tall.png');
 
-// Ported from the browser client (screens/discover-detail.js). The server
-// already tags each source; these are the tags that mean "this device will not
-// play it as-is", so the remux is chosen up front instead of after ExoPlayer
-// walks into a passthrough AudioTrack failure and recovers from it.
-const VIDEO_TRANSCODE_TAGS = ['H.265', 'AV1'];
-const AUDIO_TRANSCODE_TAGS = ['DTS', 'DTS-HD', 'TrueHD', 'Atmos', 'DD+'];
-
-// Cinemeta runtime ("152 min", "1h 52min") -> seconds. A torrent is still
-// downloading, so ExoPlayer can derive no duration; this is what gives the
-// scrubber a real total length instead of leaving it dead.
-const runtimeToSeconds = (runtime?: string | number | null): number => {
-  if (!runtime) return 0;
-  const str = String(runtime);
-  const h = str.match(/(\d+)\s*h/i);
-  const m = str.match(/(\d+)\s*m/i);
-  if (h || m) return ((h ? +h[1] : 0) * 60 + (m ? +m[1] : 0)) * 60;
-  const n = parseInt(str, 10);
-  return isNaN(n) ? 0 : n * 60; // a bare number is minutes
-};
+// The release tags that mean a remux, and the runtime arithmetic: playBest.ts
+// (one copy, shared with the title page's one-press Play).
 
 // What a source's download button shows, ported from the browser client's
 // dlFace(). Each state is a different question the viewer is asking, so they get
@@ -374,33 +358,16 @@ export function SourcesPanel({
       onPlayLibrary(owned.id);
       return;
     }
-    const tags = s.tags || [];
-    const needsVideo = tags.some(t => VIDEO_TRANSCODE_TAGS.includes(t));
-    const needsAudio = tags.some(t => AUDIO_TRANSCODE_TAGS.includes(t));
-    const item: TorrentPlayItem = {
-      id: `torrent|${s.infoHash}|${s.fileIdx}`,
-      title,
-      videoUrl: `/stream/torrent/${s.infoHash}/${s.fileIdx}`,
-      transcodeBase: `/stream/torrent/hls/${s.infoHash}/${s.fileIdx}`,
-      infoHash: s.infoHash,
-      fileIdx: s.fileIdx,
-      isTorrent: true,
-      type: type === 'series' ? 'show' : 'movie',
+    const item: TorrentPlayItem = streamPlayItem(s, {
+      type: type === 'series' ? 'series' : 'movie',
       imdbId,
-      season: season || undefined,
-      episode: episode || undefined,
-      release: s.filename || s.release || undefined,
-      // The same three decisions the browser client makes when it builds a play
-      // item: whether the remux is needed, which flavour, and the true runtime.
-      needsTranscode: needsVideo || needsAudio,
-      transcodeV: needsVideo ? 'h264' : 'copy',
-      duration: runtimeToSeconds(runtime),
-      // Card metadata, so the Continue Watching entry the player saves has a
-      // poster and a year rather than being a blank tile (see TorrentPlayItem).
-      year: year ?? null,
-      cover: poster ?? null,
-      quality: s.quality,
-    };
+      title,
+      year,
+      season,
+      episode,
+      runtime,
+      poster,
+    });
     onPlay(item);
   };
 

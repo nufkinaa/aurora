@@ -80,7 +80,9 @@ export type RootStackParamList = {
   WhatsNew: undefined;
   Pick: undefined;
   Downloads: undefined;
-  Detail: {item: HeroItem};
+  // `play`: the page presses its own Play once it knows what that means (Home's
+  // hero — one press from the sofa to the film; playBest.ts autoPlayStep).
+  Detail: {item: HeroItem; play?: boolean};
   Sources: {
     type: 'movie' | 'series';
     imdbId: string;
