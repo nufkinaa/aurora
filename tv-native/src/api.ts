@@ -8,6 +8,7 @@ import {takeBlur} from './blur';
 import {registerProfileCache} from './profileScope';
 import {tooManyWait, TOO_MANY_RETRIES} from './serverManners';
 import {pickServer} from './serverPick';
+import type {TasteCard, Verdict} from './tasteSession';
 
 let baseUrl = '';
 let token: string | null = null;
@@ -1212,6 +1213,21 @@ export const api = {
   library: (fresh = false) => memo('library', 60000, readLibrary, fresh),
   setPreferences: (profileId: string, likedGenres: string[]) =>
     post<{ ok: boolean }>(`/api/profiles/${profileId}/preferences`, { likedGenres }),
+  // The swipe taste picker (screens/Taste.tsx; server: routes/profiles.js).
+  // An answer's reply carries the next `n` cards, chosen knowing it; verdict
+  // null takes an answer back (Undo sends the one the title had before).
+  tasteDeck: (profileId: string, n: number, queued: string[] = []) =>
+    request<{cards: TasteCard[]; goal: number; more: number; counts: Record<Verdict, number>}>(
+      `/api/profiles/${profileId}/taste/deck?n=${n}${queued.length ? `&queued=${queued.map(encodeURIComponent).join(',')}` : ''}`,
+    ),
+  tasteAnswer: (
+    profileId: string,
+    body: {imdbId: string; id?: string; title: string; verdict: Verdict | null; queued?: string[]; n?: number},
+  ) =>
+    post<{verdict: Verdict | null; was: Verdict | null; counts: Record<Verdict, number>; cards: TasteCard[]}>(
+      `/api/profiles/${profileId}/taste/answer`,
+      body,
+    ),
   // Follow / unfollow a show: its new episodes download by themselves when
   // they air (server: media/follows.js). Answers the profile's full list.
   follow: (profileId: string, imdbId: string, on: boolean, title?: string) =>
