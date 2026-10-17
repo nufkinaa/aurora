@@ -760,6 +760,211 @@
   justify-content: center;
 }
 
+/* ---------- Taste: the swipe picker (#/taste) ----------
+   One card on a stage of FIXED size: the card flies, nothing around it moves.
+   Everything that animates is transform or opacity. */
+.taste-swipe {
+  /* exactly one screen tall: the page never scrolls under a drag, and
+     nothing in it can move when a card goes */
+  --ts-reserve: 0px; /* room #app keeps under the page (the phone's tab bar) */
+  height: calc(100dvh - var(--ts-reserve));
+  min-height: 0; /* (.screen's 100vh would win over the height) */
+  padding-top: calc(var(--nav-h) + 14px);
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  overflow: hidden; /* a card flying out never widens the page */
+}
+.ts-head {
+  width: 100%;
+  max-width: 760px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "title tools" "progress tools";
+  align-items: center;
+  gap: 8px 20px;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+.ts-head h1 { grid-area: title; font-size: var(--fs-title); margin: 0; }
+.ts-head .ts-progress { grid-area: progress; }
+.ts-head .ts-toolbar { grid-area: tools; }
+.ts-progress { display: flex; align-items: center; gap: 10px; color: var(--text-dim); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.ts-bar { display: block; width: 140px; height: 4px; border-radius: 2px; background: var(--surface-hover); overflow: hidden; }
+.ts-bar-fill { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left center; transform: scaleX(0); transition: transform 260ms var(--ease); }
+.ts-toolbar { display: flex; gap: 8px; }
+.ts-tool[disabled] { opacity: 0.4; pointer-events: none; }
+.ts-stage {
+  position: relative;
+  width: 100%;
+  /* whatever height is left is the card's (it is fixed for the page's life) */
+  flex: 1 1 0;
+  min-height: 240px;
+  max-height: 640px;
+  display: flex;
+  justify-content: center;
+}
+.ts-deck {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 2 / 3;
+  max-width: 100%;
+}
+.ts-card {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-l);
+  overflow: hidden;
+  background: var(--bg-raised);
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  outline: none;
+  will-change: transform;
+  transition: transform 300ms var(--ease), opacity 260ms ease;
+}
+.ts-card.top { z-index: 3; }
+.ts-card.behind { z-index: 1; transform: translateY(14px) scale(0.94); opacity: 0.55; pointer-events: none; }
+.ts-card.behind .ts-info { opacity: 0; } /* (its words would show through the one on top as it flies) */
+.ts-card.leaving { z-index: 4; pointer-events: none; }
+.ts-card.entering { opacity: 0; }
+.ts-card.top.entering { transform: scale(0.96); }
+.ts-card.dragging { cursor: grabbing; }
+.ts-card:focus-visible { box-shadow: var(--focus-ring); }
+/* a touch screen has no use for the remote's ring on the card it is holding */
+@media (hover: none) { .ts-card:focus-visible { box-shadow: 0 22px 50px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.08); } }
+.ts-poster, .ts-poster-fallback { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; -webkit-user-drag: none; }
+.ts-poster-fallback { display: flex; align-items: center; justify-content: center; padding: 20px; text-align: center; font-weight: 800; font-size: 1.3rem; color: var(--text-dim); }
+.ts-info {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 70px 18px 18px;
+  background: linear-gradient(to top, rgba(6, 7, 12, 0.94) 0%, rgba(6, 7, 12, 0.78) 45%, transparent 100%);
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+.ts-title { font-size: 1.35rem; font-weight: 800; line-height: 1.2; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6); }
+.ts-meta { margin-top: 4px; color: rgba(243, 244, 248, 0.78); font-size: 0.88rem; font-weight: 600; }
+.ts-line {
+  margin-top: 6px;
+  color: rgba(243, 244, 248, 0.72);
+  font-size: 0.86rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ts-stamp {
+  position: absolute;
+  top: 22px;
+  padding: 4px 12px;
+  border: 3px solid currentColor;
+  border-radius: 10px;
+  font-weight: 900;
+  font-size: 1.4rem;
+  letter-spacing: 0.06em;
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.25);
+}
+.ts-stamp.love { left: 18px; color: #6ee7a8; transform: rotate(-12deg); }
+.ts-stamp.nope { right: 18px; color: #ff7b8a; transform: rotate(12deg); }
+.ts-stamp.skip { left: 50%; top: 40%; color: #cfd5ff; font-size: 1.1rem; transform: translateX(-50%); white-space: nowrap; }
+.ts-answers {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: clamp(14px, 5vw, 28px);
+  margin-top: 18px;
+  flex-shrink: 0;
+  transition: opacity var(--t-fast);
+}
+.ts-answers.off { opacity: 0; pointer-events: none; }
+/* the glass look's entrance (glass.css g-reveal) fills "both", which would
+   hold the answers' opacity at 1 for ever: keep the entrance, let go after */
+html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards; }
+.ts-answer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 14px;
+  padding: 4px 6px;
+}
+.ts-answer-glyph {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 10px 24px rgba(0, 0, 0, 0.35);
+  transition: transform var(--t-fast) var(--ease), background var(--t-fast);
+}
+.ts-answer.skip .ts-answer-glyph { width: 48px; height: 48px; font-size: 1.15rem; }
+.ts-answer.love .ts-answer-glyph { color: #6ee7a8; }
+.ts-answer.nope .ts-answer-glyph { color: #ff7b8a; }
+.ts-answer:hover .ts-answer-glyph { transform: scale(1.08); background: var(--surface-hover); }
+.ts-answer:active .ts-answer-glyph { transform: scale(0.94); }
+.ts-answer:focus { outline: none; }
+.ts-answer:focus-visible .ts-answer-glyph { box-shadow: var(--focus-ring); }
+.ts-hint { margin: 12px 0 0; color: var(--text-faint); font-size: 0.8rem; text-align: center; }
+@media (hover: none) { .ts-hint { display: none; } }
+.ts-end, .ts-wait {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 10px;
+  padding: 0 12px;
+}
+.ts-end h2 { margin: 0; font-size: 1.35rem; max-width: 420px; }
+.ts-end-glyph { font-size: 2.6rem; }
+.ts-end-tally { margin: 0; color: var(--text-dim); }
+.ts-end-actions { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; justify-content: center; }
+.taste-back-swipe { margin: 0 0 16px; }
+.taste-nopes { margin-top: 28px; }
+.taste-nopes h2 { font-size: var(--fs-row); margin: 0 0 10px; }
+.taste-nope-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.taste-nope-chip { padding: 8px 14px; border-radius: 999px; background: var(--surface); color: var(--text-dim); font-weight: 600; font-size: 0.9rem; }
+.taste-nope-chip:hover { background: var(--surface-hover); color: var(--text); }
+.taste-nope-chip:focus { box-shadow: var(--focus-ring); }
+@media (max-width: 599px) {
+  .ts-head { grid-template-areas: "title title" "progress tools"; gap: 8px 10px; margin-bottom: 12px; }
+  .ts-head h1 { font-size: 1.35rem; }
+  .ts-bar { width: 72px; }
+  .ts-tool.btn.small { padding: 7px 12px; font-size: 0.82rem; }
+  .ts-answers { margin-top: 14px; }
+  .ts-answer-glyph { width: 56px; height: 56px; }
+  .ts-answer.skip .ts-answer-glyph { width: 44px; height: 44px; }
+}
+/* phones in the glass look: the tab bar floats over the bottom of the page
+   and #app keeps 92px for it (glass.css) */
+@media (max-width: 720px) {
+  html[data-look="glass"] .taste-swipe { --ts-reserve: 92px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ts-card, .ts-bar-fill, .ts-answers, .ts-answer-glyph { transition: opacity 120ms linear !important; }
+  .ts-card.behind { transform: none; }
+  .ts-card.top.entering { transform: none; }
+}
+
 /* An uploaded avatar photo fills its tile/chip round frame */
 .avatar-photo {
   position: absolute;

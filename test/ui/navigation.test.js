@@ -41,7 +41,8 @@ const ROUTES = (lib) => ({
   "/discover/:type/:id": { hash: "#/discover/movie/tt0000001", lands: null, toast: "Couldn't load that title" },
   "/preferences": { hash: "#/preferences", text: "Settings" },
   "/wrapped": { hash: "#/wrapped", text: "Aurora Wrapped" },
-  "/taste": { hash: "#/taste" },
+  "/taste": { hash: "#/taste", text: "What's your taste?" },
+  "/taste/list": { hash: "#/taste/list", text: "What do you love?" },
   "/pick": { hash: "#/pick" },
   "/new": { hash: "#/new", text: "New in Aurora" },
   // a pairing code nobody issued

@@ -266,6 +266,15 @@ export default function Settings({
           </View>
         )}
 
+        <View style={[styles.list, {marginTop: spacing.md}]}>
+          <Row uiId="settings.taste"
+            label="Swipe your taste"
+            note="One title at a time: ▶ love it, ◀ not for me, ▼ haven't seen. Home learns from every answer."
+            value="›"
+            onPress={() => navigation.push('Taste')}
+          />
+        </View>
+
         <Text style={styles.h2}>Aurora</Text>
         <View style={styles.list}>
           <Row uiId="settings.whatsnew"

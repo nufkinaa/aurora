@@ -115,7 +115,12 @@ const scoreAll = (model, cands, { seed = "", household = null, mix = MIX, simWei
     const near = nearest.reduce((n, e, i) => n + e.val / (i + 1), 0) / (top3 * (1 + 1 / 2 + 1 / 3) / 3 || 1);
     let dislike = 0;
     for (let i = 0; i < neg.length; i++) {
-      const d = -neg[i].eff * features.similarity(v, neg[i].v, simWeights);
+      const a = neg[i];
+      let sim = features.similarity(v, a.v, simWeights);
+      // an anchor with a floor (a "Not for me", person.js) repels only what is
+      // actually like it
+      if (a.simFloor) sim = Math.max(0, (sim - a.simFloor) / (1 - a.simFloor));
+      const d = -a.eff * sim;
       if (d > dislike) dislike = d;
     }
     const fit = mix.taste * taste + mix.nearest * Math.min(1.5, near) - mix.dislike * Math.min(1, dislike);

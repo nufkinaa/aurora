@@ -471,6 +471,10 @@ export const api = {
   // tell the tab that asked that it was signed out
   signOutEverywhere: (id, clientId) => post(`/api/profiles/${id}/signout-everywhere`, clientId ? { clientId } : {}),
   setTaste: (id, liked) => post(`/api/profiles/${id}/taste`, { liked }),
+  // the swipe picker: the next cards, and one answer (verdict null = take it back)
+  tasteDeck: (id, { n = 6, queued = [] } = {}) =>
+    json(`/api/profiles/${id}/taste/deck?n=${n}${queued.length ? `&queued=${queued.map(encodeURIComponent).join(",")}` : ""}`),
+  tasteAnswer: (id, body) => post(`/api/profiles/${id}/taste/answer`, body),
   updateProfile: (id, fields) =>
     json(`/api/profiles/${id}`, {
       method: "PUT",

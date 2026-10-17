@@ -100,9 +100,10 @@ const SEGMENTS = new Set((
   "air airplay " + // AirPlay links (/air/:token/stream/…, /api/airplay/link, /stream/airplay/:id/…)
   "stores accept ack drill encoding calibrate " +
   "js screens vendor ws " +
+  "deck answer " + // the taste picker (/api/profiles/:id/taste/deck, /taste/answer)
   ".m3u8 .ts .m4s .mp4 .mkv .webm .vtt .srt .jpg .jpeg .png .webp .avif .svg .gif .ico .js .css .json .html .txt .apk .woff2 .webmanifest " +
   "?a ?blur ?category ?code ?days ?duration ?episode ?error ?fmt ?force ?genre ?head ?hevc ?imdbid ?intent ?itemid ?k ?kb ?keys ?limit ?page ?profile ?pw " +
-  "?q ?season ?seek ?seg ?slim ?state ?t ?title ?tmdbid ?type ?u ?url ?v ?vtag ?w ?h ?y ?year ?r"
+  "?n ?queued ?q ?season ?seek ?seg ?slim ?state ?t ?title ?tmdbid ?type ?u ?url ?v ?vtag ?w ?h ?y ?year ?r"
 ).split(/\s+/));
 // the query keys whose (small, numeric) value is kept: a size, not content
 const QUERY_KEEP = new Set(["w", "h"]);

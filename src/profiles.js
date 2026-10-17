@@ -899,10 +899,72 @@ const setLikedTitles = (profileId, list) => {
       title: String(t.title || "").slice(0, 200),
     }))
     .filter((t) => t.title);
+  // a title picked as loved in the list is no longer "not for me" or skipped
+  const loved = new Set(state.likedTitles.map((t) => t.imdbId).filter(Boolean));
+  if (loved.size) {
+    if (state.dislikedTitles) state.dislikedTitles = state.dislikedTitles.filter((t) => !loved.has(t.imdbId));
+    if (state.tasteSkipped) state.tasteSkipped = state.tasteSkipped.filter((t) => !loved.has(t.imdbId));
+  }
   store.save();
   return state.likedTitles;
 };
 const getLikedTitles = (profileId) => stateFor(profileId).likedTitles || [];
+
+// The swipe picker's three answers (2026-10-17). One title has at most ONE
+// answer: "Love" is an entry in likedTitles (above — so everything that
+// already reads the picks keeps working), "Not for me" an entry in
+// `dislikedTitles` (a small negative signal: recs/person.js), "Haven't seen"
+// an entry in `tasteSkipped` (no signal at all — only so the picker does not
+// ask about it again). Bounded like the picks; the oldest go first.
+const TASTE_MAX = { liked: 100, disliked: 300, skipped: 500 };
+const TASTE_VERDICTS = new Set(["love", "nope", "skip"]);
+const verdictOf = (profileId, key) => {
+  const state = stateFor(profileId);
+  if (!key) return null;
+  if ((state.likedTitles || []).some((t) => t.imdbId === key || t.id === key)) return "love";
+  if ((state.dislikedTitles || []).some((t) => t.imdbId === key)) return "nope";
+  if ((state.tasteSkipped || []).some((t) => t.imdbId === key)) return "skip";
+  return null;
+};
+// Answer one title (verdict null = take the answer back — the picker's Undo
+// sends the answer the title had before). Returns { verdict, was }.
+const setTasteAnswer = (profileId, title, verdict) => {
+  const imdbId = title && typeof title.imdbId === "string" && /^tt\d{4,12}$/.test(title.imdbId) ? title.imdbId : null;
+  if (!imdbId) return null;
+  if (verdict != null && !TASTE_VERDICTS.has(verdict)) return null;
+  const state = stateFor(profileId);
+  const libId = typeof title.id === "string" && title.id.length <= 40 && title.id !== imdbId ? title.id : null;
+  const was = verdictOf(profileId, imdbId) || (libId ? verdictOf(profileId, libId) : null);
+  const name = String(title.title || "").slice(0, 200);
+  const same = (t) => t.imdbId === imdbId || (libId && t.id === libId);
+  state.likedTitles = (state.likedTitles || []).filter((t) => !same(t));
+  state.dislikedTitles = (state.dislikedTitles || []).filter((t) => t.imdbId !== imdbId);
+  state.tasteSkipped = (state.tasteSkipped || []).filter((t) => t.imdbId !== imdbId);
+  const at = Date.now();
+  if (verdict === "love" && name) {
+    state.likedTitles.push({ ...(libId ? { id: libId } : {}), imdbId, title: name });
+    if (state.likedTitles.length > TASTE_MAX.liked) state.likedTitles.splice(0, state.likedTitles.length - TASTE_MAX.liked);
+  } else if (verdict === "nope") {
+    state.dislikedTitles.push({ imdbId, title: name, at });
+    if (state.dislikedTitles.length > TASTE_MAX.disliked) state.dislikedTitles.splice(0, state.dislikedTitles.length - TASTE_MAX.disliked);
+  } else if (verdict === "skip") {
+    state.tasteSkipped.push({ imdbId, at });
+    if (state.tasteSkipped.length > TASTE_MAX.skipped) state.tasteSkipped.splice(0, state.tasteSkipped.length - TASTE_MAX.skipped);
+  }
+  if (!state.dislikedTitles.length) delete state.dislikedTitles;
+  if (!state.tasteSkipped.length) delete state.tasteSkipped;
+  // a skip says nothing about taste; love and "not for me" do
+  if (verdict === "love" || verdict === "nope" || was === "love" || was === "nope") bumpSignals(profileId);
+  store.save();
+  return { verdict: verdict || null, was };
+};
+const getDislikedTitles = (profileId) => stateFor(profileId).dislikedTitles || [];
+const getTasteSkipped = (profileId) => stateFor(profileId).tasteSkipped || [];
+const tasteCounts = (profileId) => ({
+  love: getLikedTitles(profileId).length,
+  nope: getDislikedTitles(profileId).length,
+  skip: getTasteSkipped(profileId).length,
+});
 
 // Set (or clear) the processed avatar image URL — written only by the upload
 // route, which owns validation and the file on disk.
@@ -1596,6 +1658,10 @@ module.exports = {
   rowPrefs,
   setLikedTitles,
   getLikedTitles,
+  setTasteAnswer,
+  getDislikedTitles,
+  getTasteSkipped,
+  tasteCounts,
   signalsStamp,
   remove,
   setProgress,

@@ -108,7 +108,7 @@ const recommend = (vector, candidates, { seen = new Set(), max = 16, maxPerGenre
 const W = {
   rate5: 3, rate4: 2, rate2: -2, rate1: -3,
   finished: 1.5, deep: 1, abandoned: -0.75,
-  listed: 1, loved: 2.5, likedGenre: 1.5,
+  listed: 1, loved: 2.5, likedGenre: 1.5, notForMe: -1,
 };
 
 // Everything known about a title, from the caches only.
@@ -190,6 +190,12 @@ const collectSignals = (profileId, meta) => {
     const key = t.imdbId || t.id;
     if (!key) continue;
     push(key, W.loved, `Because you love ${t.title}`);
+  }
+
+  // the swipe picker's "Not for me" (recs/person.js has the same, lighter
+  // than a 2-star rating: the title was judged, not watched)
+  for (const t of profiles.getDislikedTitles ? profiles.getDislikedTitles(profileId) : []) {
+    if (t && t.imdbId) push(t.imdbId, W.notForMe, `not for you: ${t.title}`);
   }
 
   for (const g of profiles.getLikedGenres(profileId)) {
