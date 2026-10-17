@@ -78,6 +78,7 @@ const DEVICE: Record<string, Record<string, string>> = {
     nativeEverLit: 'a native focus ring has lit in this process',
   },
   'components/NavRail.tsx': {railLinks: 'an id counter (the native rail’s link)'},
+  'components/Card.tsx': {DECOR: 'Card.tsx’s own styles as JSON (render switch cardtext), the same for everyone'},
   'screens/Home.tsx': {columnLinks: 'an id counter (the native column’s link)'},
   'qa.ts': {qaBuild: 'what this build is', listeners: 'the QA flags’ subscribers (a QA build only)'},
   'errors.ts': {ring: 'the last errors of this run, for a report', playing: 'set and cleared by the player while it is mounted'},

@@ -52,6 +52,28 @@ export interface NativeProps extends ViewProps {
   brighten?: CT.WithDefault<boolean, false>;
   // No picture at all (`!src`): draw the titled tile's gradient (the title is an RN Text child).
   tile?: CT.WithDefault<boolean, false>;
+  // ---- render switch `cardtext` (Card.tsx DeepCard; ui/card/CardDecor.kt) ----
+  // src/cardDecor.ts's JSON of Card.tsx's own text / tag / bar styles (the same on every card).
+  // Empty: the view draws only its picture layers, as before.
+  decor?: string;
+  // '' | 'label' (t1) | 'labelEp' (t1 the show, t2 "S1 E2 · …") | 'frame' (t1, t3) | 'frameEp' (t1, t2, t3)
+  textMode?: CT.WithDefault<string, ''>;
+  t1?: string;
+  t2?: string;
+  t3?: string;
+  // the label sits higher over a progress bar (labelRaised)
+  raised?: CT.WithDefault<boolean, false>;
+  tagNew?: CT.WithDefault<boolean, false>;
+  // '' | 'film' | 'series'
+  tagKind?: CT.WithDefault<string, ''>;
+  // 0..100, −1 = no bar
+  pct?: CT.WithDefault<CT.Int32, -1>;
+  // the frame card's bar (progressFrame)
+  frameBar?: CT.WithDefault<boolean, false>;
+  // the tile's title, drawn when the tile shows
+  tileTitle?: string;
+  // the ✕ (the focus layer of a removable card)
+  xGlyph?: CT.WithDefault<boolean, false>;
   onImageLoaded?: CT.DirectEventHandler<ImageLoadedEvent>;
   onImageFailed?: CT.DirectEventHandler<ImageFailedEvent>;
   onImageRetry?: CT.DirectEventHandler<ImageRetryEvent>;

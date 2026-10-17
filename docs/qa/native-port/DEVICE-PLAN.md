@@ -29,6 +29,9 @@ server first, never signed in to nufurora.com. Profile "Claude QA" only.
 | `pool` | fix | a shelf hands card views on (shelfPool.ts) instead of unmount/mount; needs `row` + `card` | lab: held key frames >32 ms 106→18 |
 | `recommended` | preset | focusable, card, row, hero, rail, cardlayer, cull, shadowcache, unstuff, pool | lab "ccsu" + pool: janky S1 5.5→1.6 %, S2 10.1→3.5 %; p90 39→26 / 47→30 ms |
 
+Four deeper switches built after the port — `keyrate`, `cardtext`, `ringshare`, `herotext`, none in the preset — have
+their own pass: `docs/qa/native-deep/DEVICE-PLAN.md`.
+
 Not ported (the lab measured them and they lost or were never tried): the native grid (`G`),
 `taglayer`, `gridfree`, `recycle`, `prepdraw`, the `x_…` attribution removals.
 

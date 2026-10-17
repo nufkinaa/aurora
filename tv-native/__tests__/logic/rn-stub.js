@@ -35,4 +35,6 @@ module.exports = {
   codegenNativeComponent: name => name,
   codegenNativeCommands: ({supportedCommands}) => Object.fromEntries((supportedCommands || []).map(c => [c, () => {}])),
   DeviceEventEmitter: {addListener: () => ({remove: () => {}})},
+  // a stable number per colour string (Card.tsx's `cardtext` decor; the real one packs ARGB)
+  processColor: c => (c == null ? c : [...String(c)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7)),
 };

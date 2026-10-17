@@ -64,6 +64,8 @@ class QaReceiver : BroadcastReceiver() {
         "framestats" -> cmdFrameStats(rid)
         "layout" -> cmdLayout(app, arg, rid)
         "nav" -> cmdNav(app, arg, rid)
+        "keyrate" -> cmdKeyRate(app, arg, rid)
+        "views" -> cmdViews(app, rid)
         "ping" -> {
           // what the NEXT launch runs with (the harness force-stops and relaunches after a change)
           val (set, src) = AuroraRender.next(app)
@@ -120,6 +122,50 @@ class QaReceiver : BroadcastReceiver() {
     }
     AuroraRender.writeQa(app, set)
     ok("render", rid, AuroraRender.encode(set).ifEmpty { "-" })
+  }
+
+  /**
+   * `keyrate 66` / `keyrate clear` — the held-key interval of the `keyrate` switch
+   * (KeyRepeatGate.kt), for tuning it on the device. Next launch; the switch itself is set
+   * with `exp keyrate=1`.
+   */
+  private fun cmdKeyRate(app: Context, arg: String, rid: String?) {
+    if (arg == "clear") {
+      AuroraRender.writeKeyRateMs(app, null)
+      ok("keyrate", rid, "ms=${com.auroratv.ui.input.KeyRepeatGate.INTERVAL_MS} (built in)")
+      return
+    }
+    val ms = arg.toLongOrNull()
+    if (ms == null || ms < com.auroratv.ui.input.KeyRepeatGate.MIN_INTERVAL_MS || ms > com.auroratv.ui.input.KeyRepeatGate.MAX_INTERVAL_MS) {
+      err("keyrate", rid, "arg must be clear or ${com.auroratv.ui.input.KeyRepeatGate.MIN_INTERVAL_MS}..${com.auroratv.ui.input.KeyRepeatGate.MAX_INTERVAL_MS} (ms)")
+      return
+    }
+    AuroraRender.writeKeyRateMs(app, ms)
+    ok("keyrate", rid, "ms=$ms")
+  }
+
+  /**
+   * `views` — the deeper switches' offline-provable claim, read on the device: how many Views
+   * the window holds now (every one is a RenderNode prepareTree walks), how many of them are
+   * TextViews, the shared rings (`ringshare`: in use / most at once / made) and the recorded
+   * card decors (`cardtext`).
+   */
+  private fun cmdViews(app: Context, rid: String?) {
+    val root = currentActivity(app)?.window?.decorView
+    if (root == null) {
+      err("views", rid, "no window")
+      return
+    }
+    var views = 0
+    var texts = 0
+    fun walk(v: android.view.View) {
+      views++
+      if (v is android.widget.TextView) texts++
+      if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+    }
+    walk(root)
+    val p = com.auroratv.ui.view.SharedRingStats.read()
+    ok("views", rid, "views=$views texts=$texts rings=${p[0]}/${p[1]}/${p[2]} decor=${com.auroratv.ui.view.AuroraCardView.decorNodes()}")
   }
 
   private fun cmdFreeze(app: Context, arg: String, rid: String?) {

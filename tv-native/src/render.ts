@@ -69,9 +69,9 @@ export const renderLetters: string = typeof c.letters === 'string' ? c.letters :
 /** "cardlayer+cull", "-" when no fix is on (the perf event's `exp`). */
 export const renderFixTag: string = typeof c.fixTag === 'string' ? c.fixTag : '-';
 /** The fixes as one letter each — cardlayer l, cull c, shadowcache s, unstuff u, unstuffq q,
- *  pool p — '' when none: the perf event's `exp`, short enough for a telemetry flag. */
+ *  pool p, keyrate k, cardtext t, ringshare r, herotext h — '' when none: the perf event's `exp`, short enough for a telemetry flag. */
 export const renderFixCode: string = (() => {
-  const L: Record<RenderFix, string> = {cardlayer: 'l', cull: 'c', shadowcache: 's', unstuff: 'u', unstuffq: 'q', pool: 'p'};
+  const L: Record<RenderFix, string> = {cardlayer: 'l', cull: 'c', shadowcache: 's', unstuff: 'u', unstuffq: 'q', pool: 'p', keyrate: 'k', cardtext: 't', ringshare: 'r', herotext: 'h'};
   return FIXES.filter(k => c.on?.[k] === true)
     .map(k => L[k])
     .join('');

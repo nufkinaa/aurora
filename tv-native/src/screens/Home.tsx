@@ -68,12 +68,13 @@ import {
 } from '../focus';
 import {defer, useSlide} from '../motion';
 import {isSettled, whenSettled} from '../settle';
-import {nativeOn} from '../render';
+import {fixOn, nativeOn} from '../render';
 import {isFrozen, isMid, trailerAllowed, traceValue} from '../qa';
 import {traceDerived, useTraces} from '../qaExtra';
 import {artFadeAt, artFadeStops, COL_TOP_ID, colRowId, columnTargets} from '../homeMath';
 import AuroraHeroArt from '../specs/AuroraHeroArtNativeComponent';
 import AuroraSlideColumn, {Commands as ColumnCommands} from '../specs/AuroraSlideColumnNativeComponent';
+import AuroraTextLayer from '../specs/AuroraTextLayerNativeComponent';
 import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
 import {RootStackParamList} from '../navigation';
@@ -1522,6 +1523,7 @@ export default function Home({
                 },
               ]}>
             <View style={[styles.info, {maxWidth: Math.round(width * 0.46)}]}>
+            <HeroWords>
             <Text
               style={[
                 styles.kicker,
@@ -1548,6 +1550,7 @@ export default function Home({
                 {hero.synopsis}
               </Text>
             ) : null}
+            </HeroWords>
             <View style={styles.actions}>
               <Btn uiId="home.hero.play"
                 primary
@@ -1630,6 +1633,16 @@ export default function Home({
     </View>
   );
 }
+
+// render switch `herotext` (docs/qa/native-deep/DEVICE-PLAN.md §herotext): the billboard's
+// words in ONE native container that holds a hardware layer while it is drawn whole
+// (AuroraTextLayerView.kt), so their blurred text shadows are rendered once instead of on
+// every frame. A plain column: the four Texts keep their own margins and stretch as they
+// did inside `info`, so Yoga places every one of them where it placed them before. Off —
+// the default — there is no wrapper at all.
+const HeroWords: React.FC<{children?: React.ReactNode}> = fixOn.herotext
+  ? ({children}) => <AuroraTextLayer collapsable={false}>{children}</AuroraTextLayer>
+  : ({children}) => <>{children}</>;
 
 const styles = StyleSheet.create({
   // No backgroundColor: android:windowBackground already paints it, and painting

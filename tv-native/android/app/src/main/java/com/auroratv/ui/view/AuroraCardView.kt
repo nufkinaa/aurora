@@ -7,9 +7,11 @@ import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.RenderNode
 import android.graphics.Shader
 import android.graphics.drawable.Animatable
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -18,7 +20,11 @@ import com.auroratv.ui.AuroraRender
 import com.auroratv.ui.anim.AuroraClock
 import com.auroratv.ui.anim.AuroraDriver
 import com.auroratv.ui.anim.AuroraTiming
+import com.auroratv.ui.card.CardContent
+import com.auroratv.ui.card.CardDecor
+import com.auroratv.ui.card.CardGeometry
 import com.auroratv.ui.card.CardImageLadder
+import com.auroratv.ui.card.CardStamps
 import com.auroratv.ui.card.CardImageLadder.Show
 import com.auroratv.ui.image.AuroraImages
 import com.facebook.drawee.backends.pipeline.Fresco
@@ -89,6 +95,26 @@ class AuroraCardView(context: Context) : View(context) {
   var brighten = false
   /** No picture at all (Card.tsx `!src`): the tile. */
   var tile = false
+
+  // ---- render switch `cardtext` (Card.tsx DeepCard; ui/card/CardDecor.kt) ------------------
+  // With a `decor` this one view also draws what Card.tsx otherwise mounts as RN views: the
+  // label / the frame card's words, the NEW and kind pills, the progress bar, the tile's title
+  // and (the focus instance) the ✕ — through React Native's own views used as stamps
+  // (CardStamps.kt), recorded ONCE per content into a RenderNode shared by every card that
+  // shows the same thing (DecorNodes below). Empty `decor` = the two-layer native card.
+  var decorJson = ""
+  var textMode = ""
+  var t1 = ""
+  var t2 = ""
+  var t3 = ""
+  var raised = false
+  var tagNew = false
+  var tagKind = ""
+  var pct = -1
+  var frameBar = false
+  var tileTitle = ""
+  var xGlyph = false
+  private var content = CardContent()
 
   // ---- applied state -----------------------------------------------------------------------
   private var appliedUri: String? = null
@@ -176,6 +202,7 @@ class AuroraCardView(context: Context) : View(context) {
       appliedBlur = blurUri
       submitBlur()
     }
+    content = CardContent(textMode, t1, t2, t3, raised, tagNew, tagKind, pct, frameBar, tileTitle, xGlyph)
     invalidate()
   }
 
@@ -337,8 +364,11 @@ class AuroraCardView(context: Context) : View(context) {
     // or the ladder gave up on one. NOT merely "no uri": the FOCUS instance has none (it
     // carries only brighten + shade) and painted the opaque tile over the art on focus.
     val showTile = tile || (uri.isNotEmpty() && ladder.show() == Show.TILE)
+    val decor = if (decorJson.isEmpty()) null else CardDecor.of(decorJson)
     if (showTile) {
       drawTile(canvas, w, h, r12)
+      // JsCard's tile: the gradient, then its title (fallbackCentre), then the shade over both
+      if (decor != null && content.tileTitle.isNotEmpty()) drawDecor(canvas, decor, w, h, tileOnly = true)
     } else {
       if (blurShown) {
         blurHolder.topLevelDrawable?.let { d ->
@@ -357,6 +387,141 @@ class AuroraCardView(context: Context) : View(context) {
     if (brighten) canvas.drawRoundRect(rect, r12, r12, brightenPaint)
     shadeBitmap(shade)?.let { bmp ->
       RoundClip.draw(this, canvas, rect, r12) { canvas.drawBitmap(bmp, null, rect, AuroraImages.BITMAP_PAINT) }
+    }
+    if (decor != null && content.hasDecor) drawDecor(canvas, decor, w, h, tileOnly = false)
+  }
+
+  // =========================================================================================
+  // `cardtext`: the words, pills and bar — Card.tsx's RN children, in their paint order
+  // =========================================================================================
+
+  private fun drawDecor(canvas: Canvas, d: CardDecor, w: Int, h: Int, tileOnly: Boolean) {
+    val rtl = layoutDirection == LAYOUT_DIRECTION_RTL
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && canvas.isHardwareAccelerated) {
+      val key = DecorNodes.key(d, content, w, h, rtl, tileOnly)
+      val node = DecorNodes.get(key) ?: DecorNodes.record(key, w, h) { c -> paintDecor(c, d, w, h, rtl, tileOnly) }
+      canvas.drawRenderNode(node)
+    } else {
+      paintDecor(canvas, d, w, h, rtl, tileOnly)
+    }
+  }
+
+  private fun paintDecor(canvas: Canvas, d: CardDecor, w: Int, h: Int, rtl: Boolean, tileOnly: Boolean) {
+    val st = CardStamps.of(context, d)
+    val s = PixelUtil.getDisplayMetricDensity().toDouble()
+    val root = CardGeometry.root(w, h)
+    val wdp = w / s
+    val hdp = h / s
+    val c = content
+    if (tileOnly) {
+      // `.card-fallback`: fallbackCentre fills the poster box, padding 10, the title centred (AT_MOST)
+      val fb = d.fallbackCentre
+      val sp = st.fallbackText.spannable(c.tileTitle)
+      val m = st.fallbackText.measure(sp, CardGeometry.atMostPx(wdp - fb.pl - fb.pr, s), false, rtl)
+      val n = CardGeometry.centred(root, 0.0, 0.0, wdp, hdp, fb.pl, m[0], m[1], s)
+      st.fallbackText.draw(canvas, sp, n[1].box, rtl)
+      return
+    }
+    // the label (`.card-label`), or the frame card's words
+    if (c.mode == "label" || c.mode == "labelEp" || c.mode == "frame" || c.mode == "frameEp") {
+      val frame = c.mode.startsWith("frame")
+      val box = if (frame) d.frameLabel else if (c.raised) d.labelRaised else d.label
+      val parts = ArrayList<Pair<CardStamps.TextStamp, String>>()
+      when (c.mode) {
+        "label" -> parts.add(st.labelText to c.t1)
+        "labelEp" -> {
+          parts.add(st.labelSub to c.t1)
+          parts.add(st.labelText to c.t2)
+        }
+        else -> {
+          parts.add(st.frameTitle to c.t1)
+          if (c.mode == "frameEp") parts.add(st.frameSub to c.t2)
+          if (c.t3.isNotEmpty()) parts.add(st.frameMeta to c.t3)
+        }
+      }
+      val left = box.left ?: 0.0
+      val right = box.right ?: 0.0
+      val widthPx = ((wdp - left - right) * s).toFloat()
+      val spans = parts.map { (stamp, text) -> stamp.spannable(text) }
+      val lines = parts.mapIndexed { i, (stamp, _) -> CardGeometry.Line(stamp.measure(spans[i], widthPx, true, rtl)[1], stamp.st.marginTop) }
+      val nodes = CardGeometry.stack(root, wdp, hdp, left, right, box.bottom ?: 0.0, lines, s)
+      parts.forEachIndexed { i, (stamp, _) -> stamp.draw(canvas, spans[i], nodes[i + 1].box, rtl) }
+    }
+    // NEW (`.card-tag` + tagLeft + tagNew)
+    if (c.tagNew) {
+      val b = d.newPill
+      val sp = st.newText.spannable("NEW")
+      val avail = (b.maxWidth ?: wdp) - b.pl - b.pr - 2 * b.borderWidth
+      val m = st.newText.measure(sp, CardGeometry.atMostPx(avail, s), false, rtl)
+      val n = CardGeometry.pill(root, wdp, b.top ?: 0.0, b.left ?: 0.0, null, m[0] / s, m[1] / s, b.pt, b.pr, b.pb, b.pl, b.borderWidth, s)
+      st.drawBox(canvas, "new", n[0].box)
+      st.newText.draw(canvas, sp, n[1].box, rtl)
+    }
+    // the kind pill: an icon-only tag (P11) at the right
+    if (c.tagKind == "film" || c.tagKind == "series") {
+      val b = if (c.tagKind == "series") d.seriesPill else d.filmPill
+      val n = CardGeometry.pill(root, wdp, b.top ?: 0.0, b.left, b.right ?: 0.0, d.iconSize, d.iconSize, b.pt, b.pr, b.pb, b.pl, b.borderWidth, s)
+      st.drawBox(canvas, c.tagKind, n[0].box)
+      st.drawIcon(canvas, c.tagKind, n[1].box)
+    }
+    // the progress bar, last (above the label's shadow, as Card.tsx paints it)
+    if (c.pct >= 0) {
+      val t = if (c.frameBar) d.progressFrame else d.progress
+      val hd = d.progressHead
+      val n = CardGeometry.progress(
+        root, wdp, hdp, t.left ?: 0.0, t.right ?: 0.0, t.bottom ?: 0.0, t.height ?: 0.0,
+        c.pct.coerceIn(0, 100), hd.right ?: 0.0, hd.top ?: 0.0, hd.width ?: 0.0, hd.height ?: 0.0, s,
+      )
+      st.drawProgress(canvas, c.frameBar, n.map { it.box })
+    }
+    // the ✕ of a removable card (the focus instance; `.card-remove`, its glyph centred)
+    if (c.xGlyph) {
+      val b = d.remove
+      val bw = b.width ?: 30.0
+      val bh = b.height ?: 30.0
+      val sp = st.removeGlyph.spannable("✕")
+      val m = st.removeGlyph.measure(sp, CardGeometry.atMostPx(bw, s), false, rtl)
+      val n = CardGeometry.centred(root, wdp - (b.right ?: 0.0) - bw, b.top ?: 0.0, bw, bh, 0.0, m[0], m[1], s)
+      st.drawBox(canvas, "remove", n[0].box)
+      st.removeGlyph.draw(canvas, sp, n[1].box, rtl)
+    }
+  }
+
+  /**
+   * The recorded decor, shared: every card that shows the same words, tags and bar at the same
+   * size draws ONE RenderNode (a shelf scrolled back and forth re-mounts the same titles). An
+   * LRU of [MAX] entries; a RenderNode is a display list, and any number of parents may draw it.
+   */
+  @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
+  private object DecorNodes {
+    private const val MAX = 96
+    private val map =
+      object : LinkedHashMap<String, RenderNode>(MAX, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, RenderNode>?): Boolean = size > MAX
+      }
+
+    fun key(d: CardDecor, c: CardContent, w: Int, h: Int, rtl: Boolean, tileOnly: Boolean): String {
+      val fs = android.content.res.Resources.getSystem().configuration.fontScale
+      val part = if (tileOnly) "tile|${c.tileTitle}" else c.copy(tileTitle = "").toString()
+      return "${System.identityHashCode(d)}|$w|$h|$rtl|${PixelUtil.getDisplayMetricDensity()}|$fs|$part"
+    }
+
+    fun get(key: String): RenderNode? = map[key]
+
+    val size: Int get() = map.size
+
+    fun record(key: String, w: Int, h: Int, draw: (Canvas) -> Unit): RenderNode {
+      val node = RenderNode("AuroraCardDecor")
+      node.setPosition(0, 0, w, h)
+      node.clipToBounds = false
+      val rc = node.beginRecording(w, h)
+      try {
+        draw(rc)
+      } finally {
+        node.endRecording()
+      }
+      map[key] = node
+      return node
     }
   }
 
@@ -438,6 +603,8 @@ class AuroraCardView(context: Context) : View(context) {
     release()
     uri = ""; headersJson = ""; sized = false; retryUri = ""; backupUri = ""; backupHeadersJson = ""; blurUri = ""
     shade = "none"; brighten = false; tile = false
+    decorJson = ""; textMode = ""; t1 = ""; t2 = ""; t3 = ""; raised = false; tagNew = false; tagKind = ""
+    pct = -1; frameBar = false; tileTitle = ""; xGlyph = false; content = CardContent()
     appliedUri = null; appliedRetry = ""; appliedBackup = ""; appliedHeaders = ""; appliedBackupHeaders = ""
     appliedSized = false; appliedBlur = null; headers = null; backupHeaders = null
     ladder = CardImageLadder(false)
@@ -491,6 +658,9 @@ class AuroraCardView(context: Context) : View(context) {
   }
 
   companion object {
+    /** `cardtext`: how many recorded decors are kept (the QA `views` command). */
+    fun decorNodes(): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) DecorNodes.size else 0
+
     const val TRACE_FADE = "card.fade"
     // Card.tsx:27 BLUR_RADIUS = 1 (dp); :471/:474 radius.m − 1; :473/:503 radius.m
     const val BLUR_RADIUS_DP = 1f

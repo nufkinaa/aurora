@@ -56,6 +56,44 @@ class AuroraCardManager : SimpleViewManager<AuroraCardView>() {
   @ReactProp(name = "tile")
   fun setTile(view: AuroraCardView, v: Boolean) { view.tile = v }
 
+  // ---- render switch `cardtext` (Card.tsx DeepCard; CardDecor.kt) -----------------------
+
+  @ReactProp(name = "decor")
+  fun setDecor(view: AuroraCardView, v: String?) { view.decorJson = v ?: "" }
+
+  @ReactProp(name = "textMode")
+  fun setTextMode(view: AuroraCardView, v: String?) { view.textMode = v ?: "" }
+
+  @ReactProp(name = "t1")
+  fun setT1(view: AuroraCardView, v: String?) { view.t1 = v ?: "" }
+
+  @ReactProp(name = "t2")
+  fun setT2(view: AuroraCardView, v: String?) { view.t2 = v ?: "" }
+
+  @ReactProp(name = "t3")
+  fun setT3(view: AuroraCardView, v: String?) { view.t3 = v ?: "" }
+
+  @ReactProp(name = "raised")
+  fun setRaised(view: AuroraCardView, v: Boolean) { view.raised = v }
+
+  @ReactProp(name = "tagNew")
+  fun setTagNew(view: AuroraCardView, v: Boolean) { view.tagNew = v }
+
+  @ReactProp(name = "tagKind")
+  fun setTagKind(view: AuroraCardView, v: String?) { view.tagKind = v ?: "" }
+
+  @ReactProp(name = "pct", defaultInt = -1)
+  fun setPct(view: AuroraCardView, v: Int) { view.pct = v }
+
+  @ReactProp(name = "frameBar")
+  fun setFrameBar(view: AuroraCardView, v: Boolean) { view.frameBar = v }
+
+  @ReactProp(name = "tileTitle")
+  fun setTileTitle(view: AuroraCardView, v: String?) { view.tileTitle = v ?: "" }
+
+  @ReactProp(name = "xGlyph")
+  fun setXGlyph(view: AuroraCardView, v: Boolean) { view.xGlyph = v }
+
   override fun onAfterUpdateTransaction(view: AuroraCardView) {
     super.onAfterUpdateTransaction(view)
     view.applyProps()

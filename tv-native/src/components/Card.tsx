@@ -25,7 +25,8 @@ import {blurOf, markDrawn, wasDrawn} from '../blur';
 import {openPeek} from '../overlay';
 import theme from '../theme';
 import {firstPoster} from '../telemetry'; // [analytics]
-import {nativeOn} from '../render';
+import {fixOn, nativeOn} from '../render';
+import {buildDecor, CardStyles} from '../cardDecor';
 import AuroraCard, {Commands as CardCommands, ImageFailedEvent, ImageLoadedEvent, ImageRetryEvent} from '../specs/AuroraCardNativeComponent';
 
 const {colors, radius, cardAura} = theme;
@@ -671,8 +672,179 @@ function NativeCard({
   );
 }
 
+// =============================================================================
+// The single-view native card (render switch `cardtext`, needs `card`;
+// docs/qa/native-deep/DEVICE-PLAN.md §cardtext). NativeCard's derivation, line
+// for line, but NOTHING of the card is an RN view any more except the Focusable
+// and the focusOverlay wrapper it drives: the art view also draws the label /
+// the frame card's words, the NEW and kind pills, the progress bar and the
+// tile's title; the focus view also draws the ✕. Natively, through React
+// Native's own TextView / View drawing (AuroraCardView.kt, ui/card/CardStamps.kt),
+// recorded once per content. The styles are THIS file's StyleSheet, handed over
+// as `decor` (src/cardDecor.ts) — the Kotlin side holds no style value of its own.
+// Per card: 4 views instead of 8–16 (a poster with its kind pill: 10; a Continue
+// Watching card: 14).
+// =============================================================================
+
+let DECOR: string | null = null;
+/** Card.tsx's styles as the native card reads them — built at the first DeepCard render. */
+const decorJson = (): string => {
+  if (DECOR != null) return DECOR;
+  try {
+    /* eslint-disable @typescript-eslint/no-var-requires */
+    const {processColor} = require('react-native');
+    const boxShadow = require('react-native/Libraries/StyleSheet/processBoxShadow').default;
+    const backgroundImage = require('react-native/Libraries/StyleSheet/processBackgroundImage').default;
+    /* eslint-enable @typescript-eslint/no-var-requires */
+    DECOR = buildDecor(
+      styles as unknown as CardStyles,
+      s => StyleSheet.flatten(s as never) as Record<string, unknown>,
+      {color: c => processColor(c) as number | null | undefined, boxShadow, backgroundImage},
+      // Icon.tsx: `<Icon name="film|series" size={11} color={colors.kindFilm|kindSeries} />`
+      {size: 11, film: colors.kindFilm, series: colors.kindSeries},
+    );
+  } catch {
+    DECOR = '';
+  }
+  return DECOR;
+};
+
+/** `cardtext`'s card, or NativeCard if the styles could not be handed over (decor ''). The
+ *  answer is the same for the whole run, so the branch never changes a mounted card's hooks. */
+function DeepOrNativeCard(props: CardProps) {
+  return decorJson() ? <DeepCard {...props} /> : <NativeCard {...props} />;
+}
+
+function DeepCard({
+  item,
+  index,
+  onPress,
+  onFocus,
+  onRemove,
+  hasTVPreferredFocus,
+  wide,
+  frame,
+  hideLabel,
+  showKind,
+  edgeLeft,
+  holdLeft,
+  edgeRight,
+  compact,
+  noPeek,
+  ref,
+}: CardProps) {
+  // ---- the derivation, line for line with JsCard / NativeCard ---------------
+  const {isEpisode, landscape, canFrame, artDp, sizedPath, src, blurKey} = cardArt(item, {wide, frame, compact});
+  const prog = item.progress;
+  const pct =
+    prog && prog.duration > 0 && !prog.finished
+      ? Math.min(100, Math.round((prog.position / prog.duration) * 100))
+      : null;
+  const backupPath =
+    !canFrame && /^tt\d+$/.test(String(item.imdbId || ''))
+      ? `/img/poster/${item.imdbId}?type=${item.type === 'show' || isEpisode ? 'show' : 'movie'}` +
+        (item.showTitle || item.title ? `&t=${encodeURIComponent(String(item.showTitle || item.title).slice(0, 80))}` : '') +
+        (item.year ? `&y=${item.year}` : '')
+      : null;
+  const backup = backupPath ? imgSrc(artPath(backupPath, artPx(artDp)) || backupPath) : null;
+  const retryUri = src ? `${src.uri}${src.uri.includes('?') ? '&' : '?'}r=1` : undefined;
+  const blur = blurOf(blurKey);
+  const showLabel = !hideLabel && (landscape || item.upNext);
+  const left =
+    frame && prog && pct != null && prog.duration > 0
+      ? `${Math.max(1, Math.round((prog.duration - prog.position) / 60))} min left`
+      : null;
+  const removable = onRemove;
+  const isNew = !!item.addedAt && Date.now() - item.addedAt < NEW_WINDOW_MS && !prog;
+  const kind = showKind && !landscape && !onRemove;
+
+  // ---- what the RN children said, as props ---------------------------------
+  // JsCard: frame → title (the show's name on an episode), "S1 E2 · …" on an
+  // episode, "▶  N min left"; label → the show's name ('' allowed: an empty line
+  // still takes its height) over "S1 E2 · …" on an episode, the title otherwise.
+  const epLine = isEpisode ? `S${item.season} E${item.episode} · ${item.title}` : '';
+  const textMode = !showLabel ? '' : frame ? (isEpisode ? 'frameEp' : 'frame') : isEpisode ? 'labelEp' : 'label';
+  const t1 = !showLabel ? '' : frame ? String((isEpisode ? item.showTitle || item.title : item.title) ?? '') : String((isEpisode ? item.showTitle || '' : item.title) ?? '');
+  const t2 = showLabel && isEpisode ? epLine : '';
+  const t3 = showLabel && frame && left ? `▶  ${left}` : '';
+
+  // ---- what JS still owns of the picture's life (NativeCard's, minus the tile Text)
+  const art = React.useRef<React.ElementRef<typeof AuroraCard> | null>(null);
+  const [parked, setParked] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!parked) return;
+    return onMessage('welcome', () => {
+      if (art.current) CardCommands.unpark(art.current);
+      setParked(null);
+    });
+  }, [parked]);
+  const onImageLoaded = React.useCallback((e: {nativeEvent: ImageLoadedEvent}) => {
+    firstPoster(); // [analytics] as JsCard's onImgLoad
+    markDrawn(e.nativeEvent.uri);
+  }, []);
+  const onImageFailed = React.useCallback((e: {nativeEvent: ImageFailedEvent}) => {
+    const {uri, error, tries, parked: p} = e.nativeEvent;
+    if (tries === 1) trackError(`image ${shapeOf(uri)}: ${String(error || '').slice(0, 90)}`);
+    if (p) setParked(uri);
+  }, []);
+
+  const headersJson = src?.headers ? JSON.stringify(src.headers) : '';
+  const backupHeadersJson = backup?.headers ? JSON.stringify(backup.headers) : '';
+  const blurUri = blur && src && !wasDrawn(src.uri) ? blur : undefined;
+  const decor = decorJson();
+
+  return (
+    <Focusable uiId="card.open"
+      scaleTo={1.055}
+      lift={cardAura.lift}
+      ringWidth={cardAura.edge.width}
+      ringColor={cardAura.edge.color}
+      shadow={cardAura.shadow}
+      hasTVPreferredFocus={hasTVPreferredFocus}
+      ref={ref}
+      edgeLeft={edgeLeft}
+      holdLeft={holdLeft}
+      edgeRight={edgeRight}
+      onPress={() => onPress(item)}
+      onLongPress={noPeek ? undefined : () => openPeek(item, removable || undefined)}
+      onFocusChange={onFocus ? f => f && onFocus(item, index ?? 0) : undefined}
+      focusOverlay={
+        // brighten, the poster shade of a label-less card, the ✕ — JsCard's overlay, one view
+        <AuroraCard style={styles.layer} brighten shade={showLabel ? 'none' : 'poster'} decor={decor} xGlyph={!!removable} />
+      }
+      style={frame ? styles.cardFrame : landscape ? styles.cardWide : compact ? styles.cardCompact : styles.card}>
+      <AuroraCard
+        ref={art}
+        style={styles.layer}
+        uri={src?.uri}
+        headersJson={headersJson}
+        sized={!!sizedPath || canFrame}
+        retryUri={retryUri}
+        backupUri={backup?.uri}
+        backupHeadersJson={backupHeadersJson}
+        blurUri={blurUri}
+        tile={!src}
+        shade={showLabel ? (frame ? 'frame' : 'poster') : 'none'}
+        decor={decor}
+        textMode={textMode}
+        t1={t1}
+        t2={t2}
+        t3={t3}
+        raised={pct != null}
+        tagNew={isNew}
+        tagKind={kind ? (item.type === 'show' ? 'series' : 'film') : ''}
+        pct={pct ?? -1}
+        frameBar={!!frame}
+        tileTitle={String(item.title ?? '')}
+        onImageLoaded={onImageLoaded}
+        onImageFailed={onImageFailed}
+      />
+    </Focusable>
+  );
+}
+
 /** The switch (render.ts). Chosen once at load: no wrapper component on either path. */
-export default React.memo(nativeOn.card ? NativeCard : JsCard);
+export default React.memo(nativeOn.card ? (fixOn.cardtext ? DeepOrNativeCard : NativeCard) : JsCard);
 
 
 const styles = StyleSheet.create({
