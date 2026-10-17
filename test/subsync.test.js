@@ -124,3 +124,21 @@ test("repair: the reference wins; without one the provider's frame rate; nothing
   assert.deepEqual(nothing.how, []);
   assert.equal(nothing.srt, srt, "untouched, byte for byte");
 });
+
+test("the AirPlay subtitle text (subtitles.vttText) is the repaired file the player gets, not the raw one", () => {
+  const fs = require("fs");
+  const os = require("os");
+  const path = require("path");
+  const subtitles = require("../src/media/subtitles");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-airsub-"));
+  const f = path.join(dir, "Film.he.srt");
+  const reversed = Array.from({ length: 30 }, (_, i) => `${i + 1}\n00:00:${String(i).padStart(2, "0")},000 --> 00:00:${String(i).padStart(2, "0")},900\n${i % 2 ? ".שלום לכולם" : "?מה קורה"}\n`).join("\n");
+  fs.writeFileSync(f, reversed);
+  return subtitles.vttText({ subPath: f }).then((text) => {
+    assert.match(text, /^WEBVTT/);
+    assert.match(text, /00:00:01\.000 --> 00:00:01\.900/);
+    assert.match(text, /שלום לכולם\./);
+    assert.equal(text, subtitles.playable(f, reversed).text);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});

@@ -160,6 +160,13 @@ app.use((req, res, next) => {
   next();
 });
 
+// AirPlay links (/air/<token>/stream/…): the address an Apple TV is handed
+// with a film, which it fetches with no credential of its own. A good link
+// becomes a request for that one title's stream, marked req.air and stripped
+// of every credential; a bad, expired or out-of-scope one is refused here.
+// BEFORE the wall, which lets a marked request through (lib/airtoken.js).
+app.use(require("./src/lib/airtoken").middleware);
+
 // authMode "closed" is the login-wall posture (any site, incl. nufurora.com):
 // every data and stream route needs a session, not just the profile-
 // parameterized ones — an open /api/library or /stream/* would hand the whole
@@ -191,6 +198,8 @@ app.use((req, res, next) => {
     if (authmode.get() !== "closed") return next();
     if (!GATED(req.path)) return next();
     if (OPEN_PATHS.test(req.path)) return next();
+    // an AirPlay link, checked above: one title's stream, as the session that asked for it
+    if (req.air) return next();
     if (authz.sessionFor(req)) return next();
     if (realtime.isAdmin(req)) return next();
     if (require("./src/lib/internalpass").ok(req)) return next(); // the server reading its own /img (blur-up)
@@ -231,6 +240,7 @@ app.use(require("./src/routes/auth"));
 app.use(require("./src/routes/api"));
 app.use(require("./src/routes/profiles"));
 app.use(require("./src/routes/stream"));
+app.use(require("./src/routes/airplay"));
 app.use(require("./src/routes/ai"));
 app.use(require("./src/routes/admin"));
 app.use(require("./src/routes/requests"));

@@ -255,6 +255,9 @@ const post = (url, body) =>
 const homeInFlight = new Map(); // profile id -> the request on its way
 
 export const api = {
+  // An AirPlay link for the stream an Apple TV should play (public/js/airplay.js,
+  // src/routes/airplay.js) -> { url, expiresAt, needed }
+  airplayLink: (path, profileId) => post("/api/airplay/link", { path, ...(profileId ? { profile: profileId } : {}) }),
   // `profileId` rides in the address so the offline copy the service worker
   // keeps (it caches by URL) is one per profile: a kids profile offline must
   // never be handed the list a grown-up loaded on the same device. The server

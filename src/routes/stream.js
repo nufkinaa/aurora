@@ -717,6 +717,104 @@ router.get("/stream/transcode/:id/:ss/:file", (req, res) => {
   res.sendFile(abs);
 });
 
+// ---------- AirPlay: the film WITH its subtitles, for an Apple TV ----------
+// A film handed to an Apple TV is fetched by the Apple TV (lib/airtoken.js),
+// and it shows no subtitles the page draws or adds as <track>s: only the
+// subtitle renditions a MASTER playlist names (Apple's HLS rules). So a
+// library title with subtitles goes to the receiver through this master: the
+// jit stream (exactly the playlist the player would name — the same query,
+// passed through) as its one variant, and every subtitle of the title as a
+// WebVTT rendition the receiver's own subtitle menu offers.
+//   ?sub=<n>   the one showing on the sender: DEFAULT=YES (the receiver
+//              starts with it on); the rest AUTOSELECT=YES, DEFAULT=NO
+// Each subtitle is ONE segment as long as the film; its cues are timed from
+// the film's start, and X-TIMESTAMP-MAP ties them to the jit media clock
+// (movie time + jit.TS_OFFSET_SEC, in 90 kHz units).
+const airItem = (id) => {
+  const entry = resolveKind(id, "video");
+  if (!entry || !fs.existsSync(entry.path)) return null;
+  return { entry, item: scanner.findById(id) || {} };
+};
+const airQuery = (q) => {
+  const parts = [];
+  const v = ladder.renditionFromQuery(q.v);
+  if (v !== "copy") parts.push(`v=${v}`);
+  if (q.seg === "fmp4") parts.push("seg=fmp4");
+  if (q.vtag === "hvc1") parts.push("vtag=hvc1");
+  const a = ladder.audioFromQuery(q.a);
+  if (a) parts.push(`a=${a}`);
+  return parts.length ? `?${parts.join("&")}` : "";
+};
+const airLabel = (s) => String(s || "Subtitles").replace(/["\r\n]/g, "'").slice(0, 60);
+router.get("/stream/airplay/:id/master.m3u8", (req, res) => {
+  const found = airItem(req.params.id);
+  if (!found) return res.status(404).send("Not found");
+  const { item } = found;
+  const subs = Array.isArray(item.subtitles) ? item.subtitles.slice(0, 40) : [];
+  const def = parseInt(req.query.sub, 10);
+  // BANDWIDTH is required on a variant: the file's own rate (the copy) or
+  // the full encode's ceiling, with the audio on top — an upper bound, as
+  // the attribute is defined
+  const v = ladder.renditionFromQuery(req.query.v);
+  const fileBps = item.sizeBytes && item.duration ? (item.sizeBytes * 8) / item.duration : 0;
+  const bandwidth = Math.ceil(v === "copy" && fileBps > 0 ? fileBps * 1.25 + 192000 : 12000000);
+  const lines = ["#EXTM3U", "#EXT-X-VERSION:7", "#EXT-X-INDEPENDENT-SEGMENTS"];
+  subs.forEach((s, i) => {
+    // LANGUAGE from the track's language (media/subnames.js: ISO 639-1, or
+    // the 3-letter code) so the receiver's own menu and auto-pick know it
+    const lang = /^[a-z]{2,3}$/i.test(String(s.lang || "")) ? `,LANGUAGE="${String(s.lang).toLowerCase()}"` : "";
+    lines.push(`#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${airLabel(s.label)}"${lang},DEFAULT=${i === def ? "YES" : "NO"},AUTOSELECT=YES,FORCED=NO,URI="sub/${i}.m3u8"`);
+  });
+  lines.push(`#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth}${subs.length ? ',SUBTITLES="subs"' : ""}`);
+  // relative: under /air/<token>/stream/airplay/<id>/ this is
+  // /air/<token>/stream/transcode/<id>/jit/index.m3u8 — the token rides along
+  lines.push(`../../transcode/${encodeURIComponent(req.params.id)}/jit/index.m3u8${airQuery(req.query)}`);
+  res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+  res.setHeader("Cache-Control", "no-cache");
+  res.send(lines.join("\n") + "\n");
+});
+router.get("/stream/airplay/:id/sub/:file", async (req, res) => {
+  const m = /^(\d{1,2})\.(m3u8|vtt)$/.exec(req.params.file);
+  const found = m ? airItem(req.params.id) : null;
+  if (!found) return res.status(404).send("Not found");
+  const { entry, item } = found;
+  const sub = (item.subtitles || [])[Number(m[1])];
+  if (!sub) return res.status(404).send("Not found");
+  if (m[2] === "m3u8") {
+    const dur = item.duration > 0 ? item.duration : 4 * 3600;
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    res.setHeader("Cache-Control", "no-cache");
+    return res.send([
+      "#EXTM3U", "#EXT-X-VERSION:3", `#EXT-X-TARGETDURATION:${Math.ceil(dur)}`, "#EXT-X-MEDIA-SEQUENCE:0",
+      "#EXT-X-PLAYLIST-TYPE:VOD", `#EXTINF:${dur.toFixed(3)},`, `${m[1]}.vtt`, "#EXT-X-ENDLIST", "",
+    ].join("\n"));
+  }
+  // the subtitle's own text: a sidecar file, or a track inside the film
+  let text = null;
+  const ext = /^\/stream\/subtitle\/([^/?]+)$/.exec(sub.url || "");
+  const emb = /^\/stream\/embedded\/[^/]+\/(\d+)$/.exec(sub.url || "");
+  if (ext) {
+    const s = resolveKind(ext[1], "subtitle");
+    if (s) text = await subtitles.vttText({ subPath: s.path });
+  } else if (emb) {
+    text = await subtitles.vttText({ videoPath: entry.path, trackIndex: parseInt(emb[1], 10) || 0 });
+  }
+  if (text == null) return res.status(404).send("Subtitle not available");
+  res.setHeader("Content-Type", "text/vtt; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache");
+  res.send(airVtt(text, jit.TS_OFFSET_SEC || 10));
+});
+// The WebVTT with Apple's timestamp map in its header (kept when it has one).
+const airVtt = (text, offsetSec) => {
+  const t = String(text).replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+  if (/^X-TIMESTAMP-MAP=/m.test(t.split("\n\n")[0])) return t;
+  const map = `X-TIMESTAMP-MAP=MPEGTS:${Math.round(offsetSec * 90000)},LOCAL:00:00:00.000`;
+  if (!/^WEBVTT/.test(t)) return `WEBVTT\n${map}\n\n${t}`;
+  const nl = t.indexOf("\n");
+  return nl < 0 ? `${t}\n${map}\n` : `${t.slice(0, nl)}\n${map}${t.slice(nl)}`;
+};
+router._internals = { airVtt, airQuery };
+
 // External subtitle file -> WebVTT
 router.get("/stream/subtitle/:id", (req, res) => {
   const entry = resolveKind(req.params.id, "subtitle");

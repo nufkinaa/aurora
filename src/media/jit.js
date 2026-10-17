@@ -1370,6 +1370,8 @@ module.exports = {
   noteViewer,
   segPath,
   declinedReason,
+  // the media clock's constant offset (an AirPlay subtitle playlist maps its cues onto it)
+  TS_OFFSET_SEC,
   // the quality ladder (ladder.js, the routes)
   encodeCount,
   encodeRoom,

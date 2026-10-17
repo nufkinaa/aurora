@@ -242,10 +242,42 @@ const serveEmbedded = (videoPath, trackIndex, res) => {
   res.on("close", () => ffmpeg.stdout.unpipe(res));
 };
 
+// A subtitle's WebVTT as TEXT (null when it can't be had), for a caller that
+// has to change it before it goes out — the AirPlay subtitle playlist adds
+// the timestamp map Apple's players want (routes/stream.js). The same
+// conversion and the same extraction cache as the two routes above.
+const vttText = async ({ subPath = null, videoPath = null, trackIndex = 0 } = {}) => {
+  if (subPath) {
+    try {
+      // as the player gets it (serveExternal): lined up and with the
+      // punctuation repaired, so the Apple TV shows the same timing
+      return playable(subPath, decodeSubtitle(fs.readFileSync(subPath))).text;
+    } catch {
+      return null;
+    }
+  }
+  if (!videoPath || !config.ffmpegAvailable) return null;
+  let mtime = 0;
+  try { mtime = fs.statSync(videoPath).mtimeMs; } catch { return null; }
+  const cacheFile = cacheFileFor(videoPath, mtime, trackIndex);
+  const read = () => { try { return fs.readFileSync(cacheFile, "utf-8"); } catch { return null; } };
+  if (fs.existsSync(cacheFile)) return read();
+  // run the extraction into a sink that keeps nothing: what is wanted is
+  // the cache file it leaves behind
+  const { Writable } = require("stream");
+  const sink = new Writable({ write(_c, _e, cb) { cb(); } });
+  Object.assign(sink, { headersSent: false, setHeader() {}, status() { return sink; }, send() { sink.end(); }, sendFile() { sink.end(); } });
+  serveEmbedded(videoPath, trackIndex, sink);
+  if (fs.existsSync(cacheFile)) return read();
+  const job = inflight.get(cacheFile);
+  if (!job) return null;
+  return (await job) ? read() : null;
+};
+
 const clearCache = () => {
   try {
     fs.rmSync(VTT_CACHE_DIR, { recursive: true, force: true });
   } catch {}
 };
 
-module.exports = { serveExternal, serveEmbedded, clearCache, extractAll, cacheFileFor, decodeSubtitle, srtToVtt, playable };
+module.exports = { serveExternal, serveEmbedded, vttText, clearCache, extractAll, cacheFileFor, decodeSubtitle, srtToVtt, playable };
