@@ -1,0 +1,58 @@
+package com.auroratv.ui.focus
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
+import org.junit.Test
+
+/** `ringshare`'s pool (RingPool.kt): one ring at rest, reuse, the overlap of fades. */
+class RingPoolTest {
+  private class Ring(val n: Int)
+
+  @Test fun oneRingAtRestIsReusedMoveAfterMove() {
+    val p = RingPool<String, Ring>()
+    var n = 0
+    // focus moves slowly: each ring fades out before the next is lit
+    val a = p.acquire("home") { Ring(++n) }
+    p.release("home", a)
+    val b = p.acquire("home") { Ring(++n) }
+    assertSame(a, b)
+    p.release("home", b)
+    assertEquals(1, p.made)
+    assertEquals(1, p.peak)
+    assertEquals(0, p.inUse)
+  }
+
+  @Test fun aHeldKeyOverlapsTheFades() {
+    // 15 moves a second (66.7 ms) against a 160 ms fade: a ring is out while lit and fading
+    val p = RingPool<String, Ring>()
+    var n = 0
+    val live = ArrayDeque<Pair<Ring, Double>>()
+    var t = 0.0
+    repeat(30) {
+      while (live.isNotEmpty() && live.first().second <= t) p.release("home", live.removeFirst().first)
+      val r = p.acquire("home") { Ring(++n) }
+      live.addLast(r to t + 66.7 + 160.0) // lit until the next move, then 160 ms of fade
+      t += 66.7
+    }
+    assertEquals(4, p.peak) // the lit one + the ones still fading
+    assertEquals(4, p.made)
+    while (live.isNotEmpty()) p.release("home", live.removeFirst().first)
+    assertEquals(0, p.inUse)
+    assertEquals(4, p.freeCount("home"))
+  }
+
+  @Test fun screensDoNotShareAndDoubleReleaseIsIgnored() {
+    val p = RingPool<String, Ring>(keep = 2)
+    var n = 0
+    val a = p.acquire("home") { Ring(++n) }
+    p.release("home", a)
+    p.release("home", a)
+    assertEquals(1, p.freeCount("home"))
+    val b = p.acquire("detail") { Ring(++n) }
+    assertEquals(2, b.n)
+    p.release("detail", b)
+    // a foreign ring is not taken in
+    p.release("home", Ring(99))
+    assertEquals(1, p.freeCount("home"))
+  }
+}

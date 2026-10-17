@@ -7,7 +7,7 @@
 import React, {useState} from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import Focusable from './Focusable';
-import {activeRender, localRender, nextRender, renderSource, serverRender, setLocalRender} from '../render';
+import {activeRender, baseRender, localRender, nextRender, renderSource, serverRender, setLocalRender} from '../render';
 import {cycleTri, inertBecause, KEYS, RenderKey, RenderSay, resolveRender, triOf} from '../renderRules';
 import theme from '../theme';
 
@@ -26,6 +26,10 @@ const WHAT: Record<RenderKey | 'recommended', string> = {
   unstuff: 'Holds one vsync back when the pipeline runs a frame behind.',
   unstuffq: 'The same for one queued buffer (latency over a repeated frame).',
   pool: 'Shelf cards are handed on instead of unmounted.',
+  keyrate: 'A held arrow key moves focus at a steady 15 a second, once per frame at most, and stops the moment it is let go.',
+  cardtext: 'A card draws its words, tags and progress bar in its own native view (needs card).',
+  ringshare: 'One focus ring per screen moves to the focused element (needs focusable).',
+  herotext: "Home's billboard words are drawn by one native view.",
 };
 
 const label = (say: RenderSay, k: RenderKey | 'recommended') => {
@@ -38,7 +42,7 @@ export default function RenderDevPanel() {
   const server = serverRender();
   const next = nextRender();
   const now = activeRender();
-  const nextOn = next.qa ? next.on : resolveRender(server, local);
+  const nextOn = next.qa ? next.on : resolveRender(server, local, baseRender());
   const change = (k: RenderKey | 'recommended') => {
     const n = cycleTri(local, k);
     setLocal(n);

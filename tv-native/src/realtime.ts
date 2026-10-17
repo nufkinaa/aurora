@@ -81,6 +81,17 @@ const refresher = createRefresher({
     if (subs) for (const fn of [...subs]) fn(data);
   },
 });
+// The library changed, told AT ONCE even while the refresh is held — for the
+// one small read a mounted player keeps up to date itself (which episode is
+// next: an episode that lands while the one before it plays). Whoever listens
+// owes the server the manners: a random wait before asking. Returns the unsubscribe.
+const newsNow = new Set<Handler>();
+export const onLibraryNews = (fn: Handler) => {
+  newsNow.add(fn);
+  return () => {
+    newsNow.delete(fn);
+  };
+};
 export const setHomeOnScreen = (on: boolean) => {
   homeOnScreen = on;
 };
@@ -170,6 +181,7 @@ const open = () => {
         forgetLibraryReads();
         lastLibraryMsg = data;
         refresher.changed(); // the screens hear it later, once
+        for (const fn of [...newsNow]) fn(data); // (onLibraryNews: at once, held or not)
         return;
       }
       if (data.type === 'kicked' || data.type === 'banned') halted = true;

@@ -75,6 +75,10 @@ describe('the auto pick', () => {
   test('"First available", or a title with nothing in the language: the first track — and wait for the language', () => {
     expect(autoPick(tracks, P(), 'x')).toEqual({index: 0, upgradeTo: null, why: 'first'});
     expect(autoPick([T('English'), T('French')], P({subLang: 'he'}), 'x')).toEqual({index: 0, upgradeTo: 'he', why: 'first'});
+    // …the first language's best track: the ★, or a full one over SDH / forced listed first
+    const nh = [T('English (SDH)', {lang: 'en', sdh: true}), T('English 2', {lang: 'en'}), T('English 4', {lang: 'en', star: true}), T('French', {lang: 'fr', star: true})];
+    expect(autoPick(nh, P(), 'x')).toEqual({index: 2, upgradeTo: null, why: 'first'});
+    expect(autoPick([T('English', {lang: 'en'}), T('English 2', {lang: 'en', star: true})], P(), 'x').index).toBe(1);
   });
 
   test('a remembered language the title lacks: Settings decide, the remembered one is waited for', () => {

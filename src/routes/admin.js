@@ -830,14 +830,21 @@ router.post("/api/admin/profiles/:id/force-reset", (req, res) => {
 
 // Delete a profile and all its state (progress, watchlist, ratings). Admin
 // override — no profile token needed, unlike the user-facing delete.
+// Its devices are signed out at once, as Kick and Reset password do
+// (kickProfile: sessions and unlock tokens ended and remembered, sockets told
+// "kicked"): a TV signed in to a deleted profile used to carry on on Home.
 router.delete("/api/admin/profiles/:id", (req, res) => {
   if (profiles.list().length <= 1) {
     return res.status(400).json({ error: "Can't delete the last profile" });
   }
+  const p = profiles.list().find((x) => x.id === req.params.id);
+  if (!p) return res.status(404).json({ error: "Not found" });
+  // (before the profile goes: its sockets are found by what they said hello as)
+  const r = kickProfile(p, "This profile was deleted");
   if (!profiles.remove(req.params.id)) {
     return res.status(404).json({ error: "Not found" });
   }
-  res.json({ ok: true });
+  res.json({ ok: true, kicked: r.kicked, sessions: r.sessions });
 });
 
 router.post("/api/admin/sessions/clear", (req, res) => {

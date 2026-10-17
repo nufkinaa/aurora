@@ -150,3 +150,39 @@ export const stallStep = (ms: number, done: {nudged: boolean; rebuilt: boolean; 
   if (ms >= STALL_NUDGE_MS && !done.nudged) return 'nudge';
   return null;
 };
+
+// ---- the stall marks' clock (Player.tsx noteBuffering / noteFirstFrame) ----
+// A stall is buffering that lasts three seconds or more AFTER the first frame.
+// The wait before the first frame is the start (the first-frame mark times
+// it): counting it made every slow start a "stall-end" as long as the wait.
+export const STALL_MARK_MS = 3000;
+export type StallClock = {tracked: boolean; since: number};
+export const stallClockNew = (): StallClock => ({tracked: false, since: 0});
+/** The first picture showed: from here on buffering is a stall; nothing before carries over. */
+export const stallClockFirstFrame = (c: StallClock): void => {
+  c.tracked = true;
+  c.since = 0;
+};
+/** Buffering began: true when it is a stall's clock starting (arm the stall mark's timer). */
+export const stallClockOn = (c: StallClock, now: number): boolean => {
+  if (!c.tracked) return false;
+  if (!c.since) c.since = now;
+  return true;
+};
+/** Buffering ended: how long the stall lasted when it was one to mark (>= STALL_MARK_MS), else 0. */
+export const stallClockOff = (c: StallClock, now: number): number => {
+  const ms = c.tracked && c.since ? now - c.since : 0;
+  c.since = 0;
+  return ms >= STALL_MARK_MS ? ms : 0;
+};
+
+// ---- which episode is next, asked again (Player.tsx askNext) ----
+/** The player asks the server again this long before the end (seconds), once:
+ *  an episode that landed during the film is then the Up next card's. */
+export const NEXT_REASK_BEFORE_END_S = 240;
+/** Whether a fresh answer names a different next episode (or a different way to play it). */
+export const nextAnswerChanged = (was: NextEp | null, now: NextEp | null): boolean => {
+  if (!was || !now) return was !== now;
+  if (was.kind !== now.kind || was.season !== now.season || was.episode !== now.episode) return true;
+  return was.kind === 'library' && now.kind === 'library' ? was.id !== now.id : false;
+};

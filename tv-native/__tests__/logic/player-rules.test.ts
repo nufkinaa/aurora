@@ -160,3 +160,48 @@ describe('a stall on direct play', () => {
     expect(stallStep(90000, {nudged: true, rebuilt: true, carded: true})).toBeNull();
   });
 });
+
+describe('the stall marks’ clock (a slow start is not a stall)', () => {
+  const {stallClockNew, stallClockOn, stallClockOff, stallClockFirstFrame, STALL_MARK_MS} = require('../../src/playerRules');
+  test('buffering before the first frame never starts the clock, and never ends as a stall', () => {
+    const c = stallClockNew();
+    expect(stallClockOn(c, 1000)).toBe(false); // the start's wait
+    stallClockFirstFrame(c); // 9 s later the picture shows
+    expect(stallClockOff(c, 10000)).toBe(0); // the READY that ends the start: no stall-end
+  });
+  test('a start wait still open at the first frame does not carry over', () => {
+    const c = stallClockNew();
+    stallClockOn(c, 0);
+    stallClockFirstFrame(c);
+    expect(stallClockOff(c, 8000)).toBe(0);
+  });
+  test('after the first frame, buffering of 3 s or more is a stall, of its own length', () => {
+    const c = stallClockNew();
+    stallClockFirstFrame(c);
+    expect(stallClockOn(c, 20000)).toBe(true);
+    expect(stallClockOn(c, 21000)).toBe(true); // a repeat "on" keeps the first moment
+    expect(stallClockOff(c, 20000 + 4500)).toBe(4500);
+    expect(stallClockOn(c, 30000)).toBe(true);
+    expect(stallClockOff(c, 30000 + STALL_MARK_MS - 1)).toBe(0); // a blink is not one
+    expect(stallClockOff(c, 99999)).toBe(0); // off twice: nothing open
+  });
+});
+
+describe('which episode is next, asked again while the player is open', () => {
+  const {nextAnswerChanged, NEXT_REASK_BEFORE_END_S} = require('../../src/playerRules');
+  test('an episode that landed on disk changes the answer (stream -> library)', () => {
+    expect(nextAnswerChanged(str, lib)).toBe(true);
+    expect(nextAnswerChanged(null, lib)).toBe(true);
+    expect(nextAnswerChanged(lib, null)).toBe(true);
+  });
+  test('the same answer again is not a change (no card flicker)', () => {
+    expect(nextAnswerChanged(lib, {...lib, name: 'Renamed', label: 'x'})).toBe(false);
+    expect(nextAnswerChanged(str, {...str})).toBe(false);
+    expect(nextAnswerChanged(null, null)).toBe(false);
+    expect(nextAnswerChanged(lib, {...lib, id: 'e5b'})).toBe(true); // another copy
+    expect(nextAnswerChanged(lib, {...lib, episode: 6})).toBe(true);
+  });
+  test('asked once near the end, before the Up next window of a normal episode', () => {
+    expect(NEXT_REASK_BEFORE_END_S).toBeGreaterThanOrEqual(120);
+  });
+});

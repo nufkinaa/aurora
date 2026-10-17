@@ -3,9 +3,15 @@
 // A few numbers decide how long a film takes to start on a TV, and the right
 // values can only be found on the device, on real lines. So they are not
 // baked into the APK: the app asks this server once, and what it gets is
-// config.json's "tvPlayer" — checked and clamped here. An empty answer (the
-// default) changes nothing: every key left out keeps the behaviour the app
-// was built with.
+// config.json's "tvPlayer" — checked and clamped here, over DEFAULT_PLAYER.
+//
+// DEFAULT_PLAYER is what the Mi TV measured best (2026-10-17, the device pass:
+// thin lines remux -2.7..-4.8 s and resume -1.7..-2.7 s to the first frame, a
+// LAN within noise, never an added stall), so a server whose config.json says
+// nothing tells every TV these. config.json still wins key by key: a key it
+// sets (inside its range) replaces the default; to go back to what the app was
+// built with, set its own values (startBufferMs 2000, rebufferMs 8000,
+// resumeAtSource false).
 //
 //   "tvPlayer": {
 //     "startBufferMs": 1000,     // film buffered before the first frame is shown
@@ -28,7 +34,7 @@
 // told for its NEXT launch (they are read once at startup).
 //
 //   "tvRender": {
-//     "recommended": true,        // the set the lab measured best (below)
+//     "recommended": true,        // the set the Mi TV measured best (below; the TV's own default)
 //     "pool": false,              // …minus one switch
 //     "models": {                 // per TV model (the app's Build.MODEL):
 //       "MiTV-AFMU0": { "recommended": true }   // these keys win over the ones above
@@ -36,10 +42,15 @@
 //   }
 //
 // The switches: focusable, card, row, hero, rail (native components);
-// cardlayer, cull, shadowcache, unstuff, unstuffq, pool (render fixes).
+// cardlayer, cull, shadowcache, unstuff, unstuffq, pool (render fixes);
+// keyrate, cardtext, ringshare, herotext (the deeper options, docs/qa/native-deep/DEVICE-PLAN.md).
 // "recommended" = the five components + cardlayer, cull, shadowcache, unstuff,
-// pool. Unknown keys and non-boolean values are dropped; no "tvRender", or one
-// that names nothing, adds nothing to the answer.
+// pool, ringshare, herotext (the 2026-10-17 Mi TV pass). Unknown keys and
+// non-boolean values are dropped; no "tvRender", or one that names nothing, adds
+// nothing to the answer — and a TV told nothing runs "recommended" (its release
+// default, tv-native/src/renderRules.ts releaseDefault). So this section is the
+// EMERGENCY LEVER: {"recommended": false} turns every switch off on every TV
+// (or one model's), {"pool": false} one switch.
 "use strict";
 
 const RANGES = {
@@ -66,6 +77,7 @@ const RENDER_KEYS = [
   "recommended",
   "focusable", "card", "row", "hero", "rail",
   "cardlayer", "cull", "shadowcache", "unstuff", "unstuffq", "pool",
+  "keyrate", "cardtext", "ringshare", "herotext",
 ];
 
 const switchesOf = (raw) => {
@@ -89,12 +101,24 @@ const renderFor = (raw, model) => {
   return out;
 };
 
+// The measured start-up (see the top). Frozen: callers get copies.
+const DEFAULT_PLAYER = Object.freeze({ startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: true });
+
+// PURE: config.json's "tvPlayer" -> what the app is told: the defaults, with
+// every valid key config.json sets in their place.
+const playerFor = (raw) => {
+  const out = { ...DEFAULT_PLAYER, ...sanitize(raw) };
+  // the same rule as sanitize's: never resume on less than a start needs
+  if (out.rebufferMs < out.startBufferMs) delete out.rebufferMs;
+  return out;
+};
+
 const current = (model) => {
   const cfg = require("../config");
-  const out = sanitize(cfg.TV_PLAYER);
+  const out = playerFor(cfg.TV_PLAYER);
   const render = renderFor(cfg.TV_RENDER, model);
   if (Object.keys(render).length) out.tvRender = render;
   return out;
 };
 
-module.exports = { sanitize, current, renderFor, RANGES, FLAGS, RENDER_KEYS };
+module.exports = { sanitize, playerFor, current, renderFor, DEFAULT_PLAYER, RANGES, FLAGS, RENDER_KEYS };

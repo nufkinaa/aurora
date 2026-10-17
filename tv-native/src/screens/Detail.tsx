@@ -970,12 +970,17 @@ export default function Detail({
           const pool = item.type === 'show' ? l.shows : l.movies;
           libId = libMatch(pool, item.title, item.year)?.id || null;
         }
-        if (!libId || !live) return;
-        const f = await api.item(libId, profileId);
         if (!live) return;
-        setFull(f);
-        if (f.seasons && f.seasons.length) {
-          setSeason(prev => (prev == null ? f.seasons![0].number : prev));
+        // (NOT a `return` when there is no copy: "not in the library" is an
+        // answer too, and the auto-press waits for it — a stream film's Play
+        // from Home's hero was dropped after 12 s every time, device pass)
+        if (libId) {
+          const f = await api.item(libId, profileId);
+          if (!live) return;
+          setFull(f);
+          if (f.seasons && f.seasons.length) {
+            setSeason(prev => (prev == null ? f.seasons![0].number : prev));
+          }
         }
       } catch {
         // No match (or the library call failed) just means the page stays a
@@ -2336,7 +2341,7 @@ export default function Detail({
       }
       autoDone.current = true;
       if (out === 'drop') {
-        console.log('[play] the title page could not tell what Play means in time: left as it is');
+        console.log(`[play] the title page could not tell what Play means in time: left as it is (${Object.entries(facts).filter(([, v]) => !v).map(([k]) => k).join(',')}${target ? '' : ',target'})`);
         return;
       }
       console.log(`[play] pressed for you: ${heroOwned ? 'the copy on disk' : 'the best source, streamed while it downloads'}`);

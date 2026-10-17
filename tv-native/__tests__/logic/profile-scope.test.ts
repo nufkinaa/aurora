@@ -55,6 +55,8 @@ const DEVICE: Record<string, Record<string, string>> = {
     serverArtHosts: 'what the server said about itself',
     serverBlurs: 'what the server said about itself',
     PROXY_ART_HOSTS: 'a fixed list',
+    heldMarks: 'play marks held through an outage: the box’s playback diagnostics (the server files them by title and address, never by profile)',
+    flushingMarks: 'the same (a send in progress)',
   },
   'rowWindow.ts': {
     heldCache: 'fixed margin objects per run length (a held key), the same for everyone',
@@ -78,6 +80,7 @@ const DEVICE: Record<string, Record<string, string>> = {
     nativeEverLit: 'a native focus ring has lit in this process',
   },
   'components/NavRail.tsx': {railLinks: 'an id counter (the native rail’s link)'},
+  'components/Card.tsx': {DECOR: 'Card.tsx’s own styles as JSON (render switch cardtext), the same for everyone'},
   'screens/Home.tsx': {columnLinks: 'an id counter (the native column’s link)'},
   'qa.ts': {qaBuild: 'what this build is', listeners: 'the QA flags’ subscribers (a QA build only)'},
   'errors.ts': {ring: 'the last errors of this run, for a report', playing: 'set and cleared by the player while it is mounted'},
@@ -138,6 +141,7 @@ const DEVICE: Record<string, Record<string, string>> = {
     restartTries: 'the socket (a restart the server announced)',
     homeOnScreen: 'which screen is looked at: Home sets and clears it',
     holds: 'what holds a library refresh back (a mounted player, the app in the background)',
+    newsNow: 'listeners (a mounted player’s next-episode ask)',
   },
   'settle.ts': {waiting: 'the at-rest clock', moveFns: 'the at-rest clock', lastMove: 'the at-rest clock', timer: 'the at-rest clock', timerDue: 'the at-rest clock'},
   'storage.ts': {

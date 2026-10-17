@@ -16,6 +16,8 @@ import com.facebook.react.bridge.UiThreadUtil
  *
  *   components  focusable, card, row, hero (billboard art + the sliding column), rail
  *   fixes       cardlayer, cull, shadowcache, unstuff, unstuffq, pool
+ *   deeper      keyrate, cardtext, ringshare, herotext (docs/qa/native-deep/DEVICE-PLAN.md; ringshare and
+ *               herotext are in the preset since the 2026-10-17 Mi TV pass, keyrate and cardtext are not)
  *
  * Read ONCE per process (a component swapped while mounted would move focus; the fixes are
  * plain fields read on hot paths), so a change takes effect on the NEXT launch, never live.
@@ -41,18 +43,21 @@ object AuroraRender {
   private val LETTERS = mapOf("focusable" to "F", "card" to "C", "row" to "R", "hero" to "H", "rail" to "N")
 
   /** The render fixes (the lab's `exp` switch). */
-  val FIXES = listOf("cardlayer", "cull", "shadowcache", "unstuff", "unstuffq", "pool")
+  val FIXES = listOf("cardlayer", "cull", "shadowcache", "unstuff", "unstuffq", "pool", "keyrate", "cardtext", "ringshare", "herotext")
 
   val KEYS: List<String> = COMPONENTS + FIXES
 
   /**
-   * The set the lab measured best on the Mi TV (docs/qa/native-lab/6-…md "ccsu" + 7-…md pool):
-   * all five components, cardlayer + cull + shadowcache + unstuff, and the shelf pool.
+   * The set the Mi TV measured best (docs/qa/native-lab/6-…md "ccsu" + 7-…md pool, and the
+   * 2026-10-17 device pass, docs/qa/release-next/PASS-REPORT.md): all five components, cardlayer +
+   * cull + shadowcache + unstuff, the shelf pool, ringshare and herotext. JS resolves it as the
+   * release default when the server says nothing (renderRules.ts releaseDefault) and stores it for
+   * the next launch.
    * `unstuffq` is NOT in it (a trade of one repeated frame for latency — a call for an eye on
    * the TV). Kept in step with src/renderRules.ts RECOMMENDED (AuroraRenderTest checks it).
    */
   val RECOMMENDED: Set<String> =
-    linkedSetOf("focusable", "card", "row", "hero", "rail", "cardlayer", "cull", "shadowcache", "unstuff", "pool")
+    linkedSetOf("focusable", "card", "row", "hero", "rail", "cardlayer", "cull", "shadowcache", "unstuff", "pool", "ringshare", "herotext")
 
   @Volatile private var on: Set<String> = emptySet()
   @Volatile private var source = "build"
@@ -193,6 +198,20 @@ object AuroraRender {
 
   internal const val KEY_SERVER = SERVER
   internal const val KEY_LOCAL = LOCAL
+
+  // ---- `keyrate`'s interval, QA builds only (QaReceiver `keyrate <ms>|clear`) ----------------
+  private const val KEYRATE_MS = "keyrate_ms"
+
+  /** The held-key interval a QA override asked for (ms), or null for the built-in one. Read at launch. */
+  fun keyRateMs(ctx: Context): Long? =
+    if (!BuildConfig.QA_RECEIVER) null
+    else prefs(ctx).getLong(KEYRATE_MS, -1L).takeIf { it > 0L }
+
+  fun writeKeyRateMs(ctx: Context, ms: Long?) {
+    val ed = prefs(ctx).edit()
+    if (ms == null) ed.remove(KEYRATE_MS) else ed.putLong(KEYRATE_MS, ms)
+    ed.commit()
+  }
 }
 
 /**

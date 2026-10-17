@@ -102,6 +102,7 @@ const SEGMENTS = new Set((
   "copies delete " + // /api/admin/library/copies, …/copies/delete (media/copies.js)
   "js screens vendor ws " +
   "deck answer " + // the taste picker (/api/profiles/:id/taste/deck, /taste/answer)
+  "resync undo " + // the subtitle Resync button (/api/subtitles/resync, …/status, …/undo — media/subaudio.js)
   ".m3u8 .ts .m4s .mp4 .mkv .webm .vtt .srt .jpg .jpeg .png .webp .avif .svg .gif .ico .js .css .json .html .txt .apk .woff2 .webmanifest " +
   "?a ?blur ?category ?code ?days ?duration ?episode ?error ?fmt ?force ?genre ?head ?hevc ?imdbid ?intent ?itemid ?k ?kb ?keys ?limit ?page ?profile ?pw " +
   "?n ?queued ?q ?season ?seek ?seg ?slim ?state ?t ?title ?tmdbid ?type ?u ?url ?v ?vtag ?w ?h ?y ?year ?r"

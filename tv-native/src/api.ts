@@ -9,6 +9,7 @@ import {registerProfileCache} from './profileScope';
 import {tooManyWait, TOO_MANY_RETRIES} from './serverManners';
 import {pickServer} from './serverPick';
 import type {TasteCard, Verdict} from './tasteSession';
+import type {ResyncAnswer, ResyncBody, SubTiming} from './playback/resync';
 
 let baseUrl = '';
 let token: string | null = null;
@@ -204,6 +205,16 @@ export type SubtitleTrack = {
   // trackRank ranks them after a full track)
   forced?: boolean;
   sdh?: boolean;
+  // The server's ★ (2026-10-17, src/media/scanner.js starBest): at most one
+  // track per language, the one that matches THIS release by its audio. The
+  // menu marks it ("Matches this release") and the auto pick prefers it
+  // among equals (lang.ts bestTrackIndex).
+  star?: boolean;
+  starWhy?: string;
+  // What the server knows about the track's timing against this file
+  // (playback/resync.ts SubTiming): "in-time" | "moved" | "parts" |
+  // "unmatched" | "original", by the audio or the track, in words.
+  timing?: SubTiming;
 };
 export type Progress = {
   position: number;
@@ -733,6 +744,55 @@ const UNREADABLE = 'The server sent an answer the app could not read';
 
 // The request itself, up to an answer that is not an error. `allow304` lets a
 // conditional read (If-None-Match) have its "nothing changed" answer back.
+// PLAY MARKS SENT DURING AN OUTAGE (the device pass: they were dropped for
+// good — and an outage is exactly when the stall and error marks matter).
+// One that could not reach the server (status 0) is held, at most
+// MARKS_HELD_MAX of them (the oldest give way) and none older than
+// MARKS_HELD_MAX_AGE_MS, and sent, in order, by the next request the server
+// answers. Each says how long it waited (`queued`, seconds). A mark the
+// server refuses (4xx/5xx) is not held: sending it again changes nothing.
+export const MARKS_HELD_MAX = 30;
+export const MARKS_HELD_MAX_AGE_MS = 6 * 3600 * 1000;
+type HeldMark = {itemId: string; body: Record<string, unknown>; at: number};
+let heldMarks: HeldMark[] = [];
+let flushingMarks = false;
+const holdMark = (m: HeldMark) => {
+  heldMarks.push(m);
+  if (heldMarks.length > MARKS_HELD_MAX) heldMarks = heldMarks.slice(-MARKS_HELD_MAX);
+};
+export const heldMarkCount = () => heldMarks.length;
+export const flushHeldMarks = async (): Promise<void> => {
+  if (flushingMarks || !heldMarks.length) return;
+  flushingMarks = true;
+  try {
+    while (heldMarks.length) {
+      const m = heldMarks[0];
+      if (Date.now() - m.at > MARKS_HELD_MAX_AGE_MS) {
+        heldMarks.shift();
+        continue;
+      }
+      try {
+        await request<unknown>(`/api/play-mark/${encodeURIComponent(m.itemId)}`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({...m.body, queued: Math.round((Date.now() - m.at) / 1000)}),
+        });
+        heldMarks.shift();
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 0) return; // still away: keep them all
+        heldMarks.shift(); // refused: drop this one, go on
+      }
+    }
+  } finally {
+    flushingMarks = false;
+  }
+};
+/** (tests) */
+export const __resetHeldMarks = () => {
+  heldMarks = [];
+  flushingMarks = false;
+};
+
 async function send(path: string, options: RequestInit = {}, allow304 = false): Promise<Response> {
   if (!baseUrl) throw new ApiError(0, 'No server configured');
   const headers: Record<string, string> = {
@@ -775,6 +835,8 @@ async function send(path: string, options: RequestInit = {}, allow304 = false): 
     }
     break;
   }
+  // the server answers again: the play marks held while it did not go now
+  if (res.ok && heldMarks.length) setTimeout(flushHeldMarks, 0);
   if (!res.ok && !(allow304 && res.status === 304)) {
     httpFailed(options.method, path, res.status); // [analytics] "GET /api/item/:id → 404", counted
     // The server writes its error bodies for viewers ("too many attempts —
@@ -1613,6 +1675,11 @@ export const api = {
   // no track for; it is written next to the file, for everyone.
   subtitlesFetch: (id: string, lang: 'he' | 'en' | 'ru') =>
     post<{tracks: SubtitleTrack[]}>('/api/subtitles/fetch', {id, lang}),
+  // The Resync button (playback/resync.ts): start — or join — the server's
+  // match of one library track against the playing audio track, then ask
+  // how it goes about once a second. A server from before these answers 404.
+  subtitleResync: (body: ResyncBody) => post<ResyncAnswer>('/api/subtitles/resync', body),
+  subtitleResyncStatus: (body: ResyncBody) => post<ResyncAnswer>('/api/subtitles/resync/status', body),
   report: (text: string, context: Record<string, unknown>, profile: string | null) =>
     post<{ok: boolean; id: string}>('/api/reports', {text, context, profile}),
   changelog: () =>
@@ -1638,8 +1705,12 @@ export const api = {
   usage: (body: unknown) => post<unknown>('/api/usage', body),
   // One playback mark (start time, path, stall, error) - the site's
   // /api/play-mark, which lands in the server's log.
+  // One the server could not be reached for is held and sent later (heldMarks).
   playMark: (itemId: string, body: Record<string, unknown>) =>
-    post<unknown>(`/api/play-mark/${encodeURIComponent(itemId)}`, body),
+    post<unknown>(`/api/play-mark/${encodeURIComponent(itemId)}`, body).catch(e => {
+      if (e instanceof ApiError && e.status === 0) holdMark({itemId, body, at: Date.now()});
+      throw e;
+    }),
   // The player was left (or went on to the next episode): the server may stop
   // what it was preparing for this viewer and nobody else is waiting on
   // (server 1.6.95, POST …/jit/bye — answered 204, nothing to read). Today

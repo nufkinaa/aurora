@@ -47,7 +47,7 @@ describe('how the two sources combine', () => {
     const on = resolveRender({recommended: true}, {});
     expect(on).toEqual(new Set(RECOMMENDED));
     expect(on.has('unstuffq')).toBe(false);
-    expect([...on].sort()).toEqual(['card', 'cardlayer', 'cull', 'focusable', 'hero', 'pool', 'rail', 'row', 'shadowcache', 'unstuff']);
+    expect([...on].sort()).toEqual(['card', 'cardlayer', 'cull', 'focusable', 'hero', 'herotext', 'pool', 'rail', 'ringshare', 'row', 'shadowcache', 'unstuff']);
   });
   test('an explicit switch wins over the preset at the same level', () => {
     expect(resolveRender({recommended: true, pool: false}, {}).has('pool')).toBe(false);
@@ -65,7 +65,7 @@ describe('how the two sources combine', () => {
   test('stored as a word list in KEYS order, and back', () => {
     const on = resolveRender({recommended: true}, {pool: false});
     const s = encodeRender(on);
-    expect(s).toBe('focusable,card,row,hero,rail,cardlayer,cull,shadowcache,unstuff');
+    expect(s).toBe('focusable,card,row,hero,rail,cardlayer,cull,shadowcache,unstuff,ringshare,herotext');
     expect(decodeRender(s)).toEqual(on);
     expect(encodeRender(set())).toBe('');
     expect(decodeRender('card,retired,,cull')).toEqual(set('card', 'cull'));
@@ -100,6 +100,52 @@ describe('the developer setting’s three positions', () => {
     expect(inertBecause(set('unstuff'), 'unstuff')).toMatch(/native/);
     expect(inertBecause(set(), 'pool')).toBeNull();
     expect(inertBecause(new Set(RECOMMENDED), 'pool')).toBeNull();
+    // the deeper switches (docs/qa/native-deep/DEVICE-PLAN.md)
+    expect(inertBecause(set('cardtext'), 'cardtext')).toMatch(/card/);
+    expect(inertBecause(set('cardtext', 'card'), 'cardtext')).toBeNull();
+    expect(inertBecause(set('ringshare'), 'ringshare')).toMatch(/focusable/);
+    expect(inertBecause(set('ringshare', 'focusable'), 'ringshare')).toBeNull();
+    expect(inertBecause(set('keyrate'), 'keyrate')).toBeNull();
+    expect(inertBecause(set('herotext'), 'herotext')).toBeNull();
+  });
+
+  test('the Mi TV pass: ringshare and herotext joined the preset, keyrate and cardtext did not', () => {
+    for (const k of ['keyrate', 'cardtext'] as const) {
+      expect(RECOMMENDED).not.toContain(k);
+      expect(resolveRender({}, {recommended: true}).has(k)).toBe(false);
+      expect(resolveRender({[k]: true}, {}).has(k)).toBe(true);
+    }
+    for (const k of ['ringshare', 'herotext'] as const) {
+      expect(RECOMMENDED).toContain(k);
+      expect(resolveRender({}, {recommended: true}).has(k)).toBe(true);
+      expect(resolveRender({recommended: true, [k]: false}, {}).has(k)).toBe(false);
+    }
+  });
+});
+
+describe('the release default (the Mi TV pass, 2026-10-17)', () => {
+  const {releaseDefault} = require('../../src/renderRules');
+  test('nothing said by the server or the developer: the preset, on a 1:1 canvas', () => {
+    expect(resolveRender({}, {}, releaseDefault(true))).toEqual(new Set(RECOMMENDED));
+    for (const raw of [undefined, null, 7, 'x', {}]) expect(resolveRender(sanitizeSay(raw), {}, releaseDefault(true))).toEqual(new Set(RECOMMENDED));
+  });
+  test('a scaled canvas: the preset without the two layer fixes, unless the server names them', () => {
+    const on = resolveRender({}, {}, releaseDefault(false));
+    expect(on.has('cardlayer') || on.has('shadowcache')).toBe(false);
+    expect(on.has('card') && on.has('pool') && on.has('ringshare')).toBe(true);
+    expect(resolveRender({cardlayer: true}, {}, releaseDefault(false)).has('cardlayer')).toBe(true);
+  });
+  test('the server is the emergency lever: the whole preset or one switch off', () => {
+    expect(resolveRender({recommended: false}, {}, releaseDefault(true))).toEqual(set());
+    const noPool = resolveRender({pool: false}, {}, releaseDefault(true));
+    expect(noPool.has('pool')).toBe(false);
+    expect(noPool.has('card')).toBe(true);
+    // a model entry the server resolved to (tvtuning renderFor) is the same say
+    expect(resolveRender({recommended: false, card: true}, {}, releaseDefault(true))).toEqual(set('card'));
+  });
+  test('the developer setting still beats both', () => {
+    expect(resolveRender({}, {recommended: false}, releaseDefault(true))).toEqual(set());
+    expect(resolveRender({recommended: false}, {recommended: true}, releaseDefault(true))).toEqual(new Set(RECOMMENDED));
   });
 });
 

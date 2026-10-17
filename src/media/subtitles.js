@@ -50,9 +50,26 @@ const playable = (subPath, content) => {
   const how = [];
   let text = content;
   let srt = ext === ".srt";
+  // Lined up with the FILM'S AUDIO (media/subaudio.js: the Resync button, or
+  // the background's confident result) goes first — it is what is actually
+  // said; else lined up with the video's own text track (media/sublang.js).
+  let audio = null;
+  let trackSync = true;
+  try {
+    const subaudio = require("./subaudio");
+    audio = subaudio.planFor({ kind: "file", path: subPath });
+    trackSync = subaudio.trackSyncAllowed({ kind: "file", path: subPath });
+  } catch {}
   let sync = null;
-  try { sync = require("./sublang").syncFor(subPath); } catch {}
-  if (sync && (ext === ".srt" || ext === ".vtt")) {
+  if (!audio && trackSync) { try { sync = require("./sublang").syncFor(subPath); } catch {} }
+  if (audio && (ext === ".srt" || ext === ".vtt")) {
+    const cues = subsync.parse(text);
+    if (cues.length) {
+      text = subsync.toSrt(require("./audiosync").applyPlan(cues, audio.plan));
+      srt = true;
+      how.push(`audio: ${audio.words}${audio.source === "resync" ? " (resync)" : ""}`);
+    }
+  } else if (sync && (ext === ".srt" || ext === ".vtt")) {
     const cues = subsync.parse(text);
     if (cues.length) {
       text = subsync.toSrt(subsync.retime(cues, sync.scale, sync.offset));
@@ -141,9 +158,36 @@ const extractAll = (videoPath, indices, opts = {}) =>
 
 // Extract an embedded text subtitle track as WebVTT, streaming to the
 // response while also caching to disk for instant repeats.
+// An embedded track somebody pressed Resync on is served moved to the audio
+// (media/subaudio.js), for everyone; the extraction cache stays the file's.
+// Revalidated (no-cache, a 304 by ETag) rather than kept for a day, so such
+// a correction reaches the other devices on their next load.
 const serveEmbedded = (videoPath, trackIndex, res) => {
   if (!config.ffmpegAvailable)
     return res.status(503).send("ffmpeg not available");
+  const audio = embeddedPlan(videoPath, trackIndex);
+  if (audio) {
+    return vttText({ videoPath, trackIndex, original: true }).then((text) => {
+      if (text == null) return res.status(500).send("Failed to extract subtitle");
+      res.setHeader("Content-Type", "text/vtt; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("X-Aurora-Subtitle-Repair", `audio: ${audio.words} (resync)`.slice(0, 200));
+      res.send(moveEmbedded(text, audio));
+    }, () => res.status(500).send("Failed to extract subtitle"));
+  }
+  return extractEmbedded(videoPath, trackIndex, res);
+};
+
+const embeddedPlan = (videoPath, trackIndex) => {
+  try { return require("./subaudio").planFor({ kind: "emb", video: videoPath, index: trackIndex }); } catch { return null; }
+};
+const moveEmbedded = (text, audio) => {
+  const subsync = require("./subsync");
+  return srtToVtt(subsync.toSrt(require("./audiosync").applyPlan(subsync.parse(text), audio.plan)));
+};
+
+// The extraction itself (the file's own timing).
+const extractEmbedded = (videoPath, trackIndex, res) => {
 
   let mtime = 0;
   try {
@@ -155,7 +199,7 @@ const serveEmbedded = (videoPath, trackIndex, res) => {
   const cacheFile = cacheFileFor(videoPath, mtime, trackIndex);
 
   res.setHeader("Content-Type", "text/vtt; charset=utf-8");
-  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.setHeader("Cache-Control", "no-cache");
 
   if (fs.existsSync(cacheFile)) return res.sendFile(cacheFile);
 
@@ -246,7 +290,16 @@ const serveEmbedded = (videoPath, trackIndex, res) => {
 // has to change it before it goes out — the AirPlay subtitle playlist adds
 // the timestamp map Apple's players want (routes/stream.js). The same
 // conversion and the same extraction cache as the two routes above.
-const vttText = async ({ subPath = null, videoPath = null, trackIndex = 0 } = {}) => {
+// `original`: the embedded track as the file has it, without a Resync's
+// correction (what the alignment itself reads).
+const vttText = async ({ subPath = null, videoPath = null, trackIndex = 0, original = false } = {}) => {
+  if (videoPath && !subPath && !original) {
+    const audio = embeddedPlan(videoPath, trackIndex);
+    if (audio) {
+      const text = await vttText({ videoPath, trackIndex, original: true });
+      return text == null ? null : moveEmbedded(text, audio);
+    }
+  }
   if (subPath) {
     try {
       // as the player gets it (serveExternal): lined up and with the
@@ -267,7 +320,7 @@ const vttText = async ({ subPath = null, videoPath = null, trackIndex = 0 } = {}
   const { Writable } = require("stream");
   const sink = new Writable({ write(_c, _e, cb) { cb(); } });
   Object.assign(sink, { headersSent: false, setHeader() {}, status() { return sink; }, send() { sink.end(); }, sendFile() { sink.end(); } });
-  serveEmbedded(videoPath, trackIndex, sink);
+  extractEmbedded(videoPath, trackIndex, sink);
   if (fs.existsSync(cacheFile)) return read();
   const job = inflight.get(cacheFile);
   if (!job) return null;

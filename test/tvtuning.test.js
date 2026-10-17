@@ -68,12 +68,32 @@ test("the answer carries tvRender only when it names something", () => {
   try {
     cfg.TV_PLAYER = { startBufferMs: 1000 };
     cfg.TV_RENDER = null;
-    assert.deepEqual(current("MiTV-AFMU0"), { startBufferMs: 1000 });
+    const D = { startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: true };
+    assert.deepEqual(current("MiTV-AFMU0"), D);
     cfg.TV_RENDER = { models: { "MiTV-AFMU0": { recommended: true } } };
-    assert.deepEqual(current("MiTV-AFMU0"), { startBufferMs: 1000, tvRender: { recommended: true } });
-    assert.deepEqual(current("Chromecast"), { startBufferMs: 1000 });
+    assert.deepEqual(current("MiTV-AFMU0"), { ...D, tvRender: { recommended: true } });
+    assert.deepEqual(current("Chromecast"), D);
   } finally {
     cfg.TV_PLAYER = was.p;
     cfg.TV_RENDER = was.r;
   }
+});
+
+// ---- the measured defaults (the Mi TV device pass, 2026-10-17) ----
+const { playerFor, DEFAULT_PLAYER } = require("../src/lib/tvtuning");
+
+test("config.json says nothing: the TV is told the measured start-up", () => {
+  const D = { startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: true };
+  assert.deepEqual({ ...DEFAULT_PLAYER }, D);
+  for (const raw of [undefined, null, {}, [], "fast", 7, true]) assert.deepEqual(playerFor(raw), D, JSON.stringify(raw));
+  assert.ok(Object.isFrozen(DEFAULT_PLAYER));
+  const a = playerFor(null); a.startBufferMs = 9; assert.equal(DEFAULT_PLAYER.startBufferMs, 1000, "callers get a copy");
+});
+
+test("config.json still wins key by key; an invalid key keeps the default", () => {
+  assert.deepEqual(playerFor({ resumeAtSource: false }), { startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: false });
+  assert.deepEqual(playerFor({ startBufferMs: 2000, rebufferMs: 8000, resumeAtSource: false }), { startBufferMs: 2000, rebufferMs: 8000, resumeAtSource: false }, "the app's own values, back");
+  assert.deepEqual(playerFor({ startBufferMs: 3000 }), { startBufferMs: 3000, rebufferMs: 5000, resumeAtSource: true });
+  assert.deepEqual(playerFor({ startBufferMs: 100, rebufferMs: "x", resumeAtSource: 1 }), { startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: true });
+  assert.deepEqual(playerFor({ startBufferMs: 5000 }), { startBufferMs: 5000, rebufferMs: 5000, resumeAtSource: true }, "never resumes on less than it starts on");
 });
