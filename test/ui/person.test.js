@@ -19,6 +19,7 @@
 const assert = require("node:assert/strict");
 const { suite, player, assertNoHorizontalOverflow, IDS, PHONE } = require("./helpers");
 const { seed, STARS } = require("./support/person-seed");
+const { overlapReport, crowded, LONG_NAME } = require("./support/person-layout");
 
 const ui = suite({ server: { seed: seed() } });
 
@@ -337,6 +338,7 @@ ui.test("over a film: the sheet opens on top of X-Ray, the film stays paused und
   assert.equal((await player.state(page)).paused, true);
   assert.equal(await page.locator(`${sheet} .person-imdb`).count(), 0, "nothing links out of the app over a film");
   assert.equal(await titleCard(page, "Stars Between").locator(".pt-more").getAttribute("title"), "Open its page (leaves the film)");
+  await assertNoOverlap(page, "over a film"); // (the layout checks, below)
   // the sheet is the top layer: its close button is what a click there reaches
   assert.equal(await page.evaluate(() => {
     const r = document.querySelector(".person-wrap .person-close").getBoundingClientRect();
@@ -379,6 +381,116 @@ ui.test("over a FULLSCREEN film the sheet is inside the fullscreen element (visi
   await page.keyboard.press("Escape");
   await page.locator(".person-wrap").waitFor({ state: "detached" });
   assert.equal(await page.locator(".player .xray-sheet").count(), 1);
+});
+
+// ---------- the layout: nothing on top of anything (elia, 2026-10-17: "on
+// actor/director popup the elements [are] over each other") ----------
+// support/person-layout.js says what is checked: the header's parts, the
+// photos, the biography, the titles (poster, words, Details, the + mark, the
+// flag and the watch bar) and the enlarged photo do not overlap, and nothing
+// spills out of the sheet. One window, resized through every width the sheet
+// has a layout for; at each, the top of the list and its end.
+const SIZES = [
+  { width: 1920, height: 1080 }, { width: 1440, height: 900 }, { width: 1280, height: 720 },
+  { width: 820, height: 1180 }, // iPad portrait
+  { width: 932, height: 430 }, { width: 844, height: 390 }, // a phone on its side
+  { width: 430, height: 932 }, { width: 390, height: 844 }, { width: 360, height: 780 },
+];
+const settled = (page) => page.waitForFunction(() => {
+  const s = document.querySelector(".person-wrap .person-sheet");
+  // (the placeholders' shimmer runs for ever: only the animations that end count)
+  return !!s && s.getAnimations({ subtree: true }).every((a) => a.playState !== "running" || a.effect.getTiming().iterations === Infinity);
+});
+const assertNoOverlap = async (page, where) => {
+  await page.mouse.move(0, 0);
+  await settled(page);
+  const problems = await page.evaluate(overlapReport);
+  assert.deepEqual(problems, [], `${where}:\n  ${problems.join("\n  ")}`);
+};
+const sweepSizes = async (page, look) => {
+  const body = page.locator(`${sheet} .person-body`);
+  for (const size of SIZES) {
+    await page.setViewportSize(size);
+    await body.evaluate((b) => { b.scrollTop = 0; });
+    await assertNoOverlap(page, `${look} ${size.width}x${size.height}, top`);
+    await body.evaluate((b) => { b.scrollTop = b.scrollHeight; });
+    await assertNoOverlap(page, `${look} ${size.width}x${size.height}, end of the list`);
+  }
+};
+// the server's own answer for Nora Chris, made as crowded as a person gets
+const crowdedPerson = (page) => page.route("**/api/person/**", async (route) => {
+  const res = await route.fetch();
+  await route.fulfill({ json: crowded(await res.json()) });
+});
+
+for (const look of ["glass", "legacy"]) {
+  ui.test(`layout (${look} look): a long name, twenty photos, sixty long titles without posters — nothing overlaps and nothing leaves the sheet, from 1920 wide down to 360, and on a phone on its side`, async (h) => {
+    const { page, signIn, freshProfile, api } = h;
+    const me = await freshProfile();
+    if (look === "legacy") await api.ok("PUT", `/api/profiles/${me.id}`, { look: "legacy" }, await api.as(me));
+    await signIn(me);
+    await pictures(page);
+    await crowdedPerson(page);
+    await openXrayOnFilm(h);
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.look || "legacy"), look);
+    await pressPerson(page, "Nora Chris", "Director");
+    await page.locator(`${sheet} .person-section`).first().waitFor();
+    assert.equal(await page.locator(`${sheet} .person-name`).textContent(), LONG_NAME);
+    assert.equal(await page.locator(`${sheet} .person-photo`).count(), 20);
+    assert.equal(await page.locator(`${sheet} .pt`).count(), 60);
+    // (a part-watched card has its watch bar: the flag must stand clear of it)
+    assert.ok(await page.locator(`${sheet} .pt-card.pt-progress .card-progress`).count() > 0);
+    // no posters: the titled tiles stand in (after the picture and its backup failed)
+    await page.waitForFunction(() => document.querySelectorAll(".person-wrap .pt-card .card-fallback").length >= 6);
+    await sweepSizes(page, look);
+    // the enlarged photo: on a phone, on its side, and on a desktop
+    for (const size of [{ width: 390, height: 844 }, { width: 844, height: 390 }, { width: 1280, height: 720 }]) {
+      await page.setViewportSize(size);
+      await page.locator(`${sheet} .person-body`).evaluate((b) => { b.scrollTop = 0; });
+      await page.locator(`${sheet} .person-photo`).nth(1).click();
+      await page.locator(`${sheet} .person-viewer`).waitFor();
+      await page.waitForFunction(() => document.querySelector(".person-viewer-count")?.textContent === "2 / 20");
+      await page.waitForTimeout(450); // (the strip glides to the photo)
+      await assertNoOverlap(page, `${look} enlarged photo at ${size.width}x${size.height}`);
+      await page.keyboard.press("Escape");
+      await page.locator(`${sheet} .person-viewer`).waitFor({ state: "detached" });
+    }
+  });
+}
+
+ui.test("layout on a phone: the placeholders while the person loads sit side by side, and the titles that replace them too; no photo and one photo leave no hole", { viewport: { width: 360, height: 780 } }, async (h) => {
+  const { page, signIn, freshProfile } = h;
+  await signIn(await freshProfile());
+  await pictures(page);
+  let release;
+  const held = new Promise((r) => { release = r; });
+  let shape = (d) => d;
+  await page.route("**/api/person/**", async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    await held;
+    await route.fulfill({ json: shape(body) });
+  });
+  await page.goto(`${h.srv.url}/#/movie/${h.lib.film1.id}`, { waitUntil: "domcontentloaded" });
+  await page.locator(".detail-actions .btn-xray").last().click();
+  await page.locator(".xray-sheet-page.in").waitFor();
+  await page.locator('.xray-sheet-page .xr-person:has(.xr-name:text-is("Nora Chris"))').first().tap();
+  // still loading: the skeleton
+  await page.locator(`${sheet} .person-titles .skeleton`).first().waitFor();
+  await assertNoOverlap(page, "the placeholders");
+  release();
+  await page.locator(`${sheet} .person-section`).first().waitFor();
+  await assertNoOverlap(page, "the titles in place of the placeholders");
+  // the same person with no photo, then with one: the strip folds away / holds one
+  for (const [label, fn, count] of [["no photo", (d) => ({ ...d, photos: [] }), 0], ["one photo", (d) => ({ ...d, photos: d.photos.slice(0, 1) }), 1]]) {
+    shape = fn;
+    await page.locator(`${sheet} .person-close`).tap();
+    await page.locator(".person-wrap").waitFor({ state: "detached" });
+    await page.locator('.xray-sheet-page .xr-person:has(.xr-name:text-is("Nora Chris"))').first().tap();
+    await page.locator(`${sheet} .person-section`).first().waitFor();
+    assert.equal(await page.locator(`${sheet} .person-photo`).count(), count, label);
+    await assertNoOverlap(page, label);
+  }
 });
 
 // LAST, and the file runs one test at a time: making a kids profile changes

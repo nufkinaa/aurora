@@ -278,7 +278,8 @@ export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-f
       img.src = backup;
       return;
     }
-    img.replaceWith(el("div", { class: fallbackCls }, title || ""));
+    // (the words in a span of their own: a tile can clamp them — personSheet)
+    img.replaceWith(el("div", { class: fallbackCls }, el("span", {}, title || "")));
   };
   return img;
 };
