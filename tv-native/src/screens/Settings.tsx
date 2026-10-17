@@ -35,6 +35,10 @@ import {askNotificationPermission, setDownloadNotices} from '../homeScreen';
 
 const {colors, fontSize, spacing, radius} = theme;
 
+// How long Settings waits for its genre chips before giving first focus to
+// the row under them (see firstFocus).
+const FIRST_FOCUS_WAIT_MS = 800;
+
 // One tappable row: label, explanation, and the current value on the right. The
 // site's `prefRow` in the same shape — pressing it cycles the value.
 const Row = React.memo(function PrefRow({
@@ -43,12 +47,14 @@ const Row = React.memo(function PrefRow({
   note,
   value,
   onPress,
+  hasTVPreferredFocus,
 }: {
   uiId?: string; // [analytics] which control this is (Focusable.uiId)
   label: string;
   note?: string;
   value: string;
   onPress: () => void;
+  hasTVPreferredFocus?: boolean;
 }) {
   return (
     // 1.01, the site's .source-row / .episode figure: a full-width row lifts a
@@ -58,6 +64,7 @@ const Row = React.memo(function PrefRow({
       // A full-width row has nothing to its left, so LEFT belongs to the rail.
       edgeLeft
       uiId={uiId}
+      hasTVPreferredFocus={hasTVPreferredFocus}
       onPress={onPress}
       style={styles.row}
       highlightColor={colors.surfaceHover}>
@@ -91,6 +98,22 @@ export default function Settings({
   const me = useMe(profileId);
 
   const [genres, setGenres] = useState<string[] | null>(null);
+  // FIRST FOCUS (5.2.0 device pass: Settings opened with nothing visibly
+  // focused — the rail's press left focus in the rail, which then folded
+  // away). The screen's first item takes it: the first genre chip when the
+  // genres are here within FIRST_FOCUS_WAIT_MS (they usually are: the library
+  // read is memoised), else "What's new", which is always there — never a
+  // chip that turns up later and yanks focus from where the viewer went.
+  const [firstFocus, setFirstFocus] = useState<'genre' | 'row' | null>(null);
+  useEffect(() => {
+    if (firstFocus) return;
+    if (genres) {
+      setFirstFocus(genres.length ? 'genre' : 'row');
+      return;
+    }
+    const t = setTimeout(() => setFirstFocus(f => f || 'row'), FIRST_FOCUS_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [genres, firstFocus]);
   // usage stats: this screen's content is on (routeTiming.ts)
   useRouteShown(genres !== null);
   const [liked, setLiked] = useState<Set<string>>(new Set());
@@ -213,7 +236,7 @@ export default function Settings({
           <ActivityIndicator color={colors.text} style={{marginTop: spacing.md, alignSelf: 'flex-start'}} />
         ) : (
           <View style={styles.chips}>
-            {genres.map(g => {
+            {genres.map((g, gi) => {
               const on = spellingsOf(g).some(x => liked.has(x));
               return (
                 // The wrapper exists to MEASURE: with flexWrap, which chips
@@ -224,6 +247,8 @@ export default function Settings({
                     round
                     light={on}
                     edgeLeft={edgeGenres.has(g)}
+                    // in the same commit as the chip itself (not a render later)
+                    hasTVPreferredFocus={gi === 0 && firstFocus !== 'row'}
                     onPress={() => toggleGenre(g)}
                     style={[styles.chip, on && styles.chipOn]}>
                     <Text style={[styles.chipText, on && styles.chipTextOn]}>{g}</Text>
@@ -237,6 +262,7 @@ export default function Settings({
         <Text style={styles.h2}>Aurora</Text>
         <View style={styles.list}>
           <Row uiId="settings.whatsnew"
+            hasTVPreferredFocus={firstFocus === 'row'}
             label={newUnseen ? "What's new  •" : "What's new"}
             note="What this TV can do now, and how."
             value="›"
