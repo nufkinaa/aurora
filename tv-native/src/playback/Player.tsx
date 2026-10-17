@@ -93,7 +93,7 @@ import {acceptTvEvent, useFocusFallback} from '../focus';
 import {canNavigate} from '../navLock';
 import {openXray} from '../overlay';
 import {loadMe, profilePick, rememberPick, useMe} from '../navSection';
-import {audioPick, bestTrackIndex, langOf, normPick, pickOf, sameAudio, SubPick} from '../lang';
+import {audioPick, langCode, langOf, pickOf, sameAudio} from '../lang';
 import {
   createParty,
   joinParty,
@@ -109,7 +109,7 @@ import {
 } from '../party';
 import {holdLibraryRefresh, isOpen as socketOpen, reportActivity} from '../realtime';
 import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
-import {PERSON_KEYS, PersonKey, SUB_LANG_LABEL} from '../personPrefs';
+import {PERSON_KEYS, PersonKey} from '../personPrefs';
 import {resumePoint, SKIP_STEPS} from '../episodeRules';
 import {
   nextAutoRun,
@@ -130,6 +130,10 @@ import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
 import theme from '../theme';
 import {refreshTuning, tuning, TUNING_DEFAULTS} from './tuning';
+import {Clock, clockBaseFor, clockFromHeaders, toContent, toMedia} from './clock';
+import {Cue, cueBottom, cueTextAt, parseVtt} from './cues';
+import {delaysForItem, loadDelays, roundDelay, saveDelay} from './subDelay';
+import {audioName, autoPick, buildTracks, followPick, hasLang, langName, Track as SubTrack} from './subTracks';
 import {SERVER_BUSY, whenRoom} from '../serverManners';
 import {playerError, seekResumed, seekStarted, seeking} from '../telemetry'; // [analytics]
 
@@ -315,47 +319,10 @@ const torrentStatusCopy = ({
 const NO_NATIVE_TEXT: SelectedTrack = {type: SelectedTrackType.DISABLED};
 
 // ------------------------------------------------------------------ WebVTT
-// Everything the server serves is WebVTT (src/media/subtitles.js converts SRT
-// and extracts embedded tracks to it), so one small parser covers every track.
-type Cue = {start: number; end: number; text: string};
-const parseTs = (s: string): number | null => {
-  // hh:mm:ss.mmm, mm:ss.mmm, and the comma form in case an SRT slips through.
-  const m = /(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})/.exec(s);
-  if (!m) return null;
-  return (
-    (m[1] ? parseInt(m[1], 10) : 0) * 3600 +
-    parseInt(m[2], 10) * 60 +
-    parseInt(m[3], 10) +
-    parseInt(m[4].padEnd(3, '0'), 10) / 1000
-  );
-};
-const parseVtt = (raw: string): Cue[] => {
-  const out: Cue[] = [];
-  for (const block of raw.replace(/\r\n?/g, '\n').split(/\n\s*\n+/)) {
-    const lines = block.split('\n').filter(l => l.trim() !== '');
-    // The header, NOTE and STYLE blocks have no timing line; skipping on that
-    // rather than on position also tolerates a cue id above the timings.
-    const i = lines.findIndex(l => l.includes('-->'));
-    if (i < 0) continue;
-    const [a, b] = lines[i].split('-->');
-    const start = parseTs(a);
-    const end = parseTs(b);
-    if (start == null || end == null) continue;
-    const text = lines
-      .slice(i + 1)
-      .join('\n')
-      // <i>/<b>/<c.classname>/<v Speaker> markup, and ASS override blocks that
-      // survive a sloppy conversion. RN's Text can't do inline styling from a
-      // string, and a visible "<i>" is worse than losing the italics.
-      .replace(/<[^>]*>/g, '')
-      .replace(/\{\\[^}]*\}/g, '')
-      .trim();
-    if (text) out.push({start, end, text});
-  }
-  // Some tracks ship out of order; the renderer's cursor assumes sorted cues.
-  out.sort((x, y) => x.start - y.start);
-  return out;
-};
+// The parser, the lookup and the cue layer's position are in cues.ts (pure,
+// with logic tests): everything the server serves is meant to be WebVTT, but a
+// torrent's own .srt, a provider's BOM or a missing blank line must not cost
+// the viewer the subtitles.
 
 // The cue layer. Deliberately its own component with its own state: it ticks at
 // 200ms for accurate cue boundaries, but only calls setState when the TEXT
@@ -377,23 +344,17 @@ const Subtitles = React.memo(function CueLayer({
   bottom: number;
 }) {
   const [text, setText] = useState('');
-  const cursor = useRef(0);
   useEffect(() => {
-    cursor.current = 0;
     if (!cues || !cues.length) {
       setText('');
       return;
     }
+    // A stateless lookup (cues.ts cueTextAt, a binary search): there is no
+    // cursor to leave behind, so a seek or a delay nudge in EITHER direction
+    // shows the right cue on the very next tick — and `offset` is a dependency,
+    // so a nudge re-runs this at once rather than on the next 200 ms beat.
     const tick = () => {
-      const t = timeRef.current() - offset;
-      let i = cursor.current;
-      // A backward seek moves the clock behind the cursor; restart from 0 (once,
-      // then the walk below is amortised to nothing).
-      if (i >= cues.length || cues[i].start > t) i = 0;
-      while (i < cues.length && cues[i].end < t) i++;
-      cursor.current = i;
-      const c = i < cues.length && cues[i].start <= t ? cues[i] : null;
-      const next = c ? c.text : '';
+      const next = cueTextAt(cues, timeRef.current() - offset);
       setText(prev => (prev === next ? prev : next));
     };
     tick();
@@ -421,28 +382,8 @@ const Subtitles = React.memo(function CueLayer({
 // scannable at a glance. A background fill alone — which is what this app had —
 // tells you something is highlighted but not which one is ON, and at 10 feet
 // with focus ALSO drawing a background they were easy to confuse.
-// A dub's name for the menu: the language, the track's own title when it adds
-// something ("Commentary"), else its number.
-const LANG_NAMES: Record<string, string> = {
-  en: 'English', eng: 'English', he: 'Hebrew', heb: 'Hebrew', fr: 'French', fre: 'French', fra: 'French',
-  de: 'German', ger: 'German', deu: 'German', es: 'Spanish', spa: 'Spanish', it: 'Italian', ita: 'Italian',
-  ja: 'Japanese', jpn: 'Japanese', ko: 'Korean', kor: 'Korean', ru: 'Russian', rus: 'Russian',
-  pt: 'Portuguese', por: 'Portuguese', zh: 'Chinese', chi: 'Chinese', zho: 'Chinese', hi: 'Hindi', hin: 'Hindi',
-  ar: 'Arabic', ara: 'Arabic', tr: 'Turkish', tur: 'Turkish', pl: 'Polish', pol: 'Polish', nl: 'Dutch',
-  dut: 'Dutch', nld: 'Dutch', sv: 'Swedish', swe: 'Swedish', no: 'Norwegian', nor: 'Norwegian', da: 'Danish',
-  dan: 'Danish', fi: 'Finnish', fin: 'Finnish', cs: 'Czech', cze: 'Czech', ces: 'Czech', hu: 'Hungarian',
-  hun: 'Hungarian', el: 'Greek', gre: 'Greek', ell: 'Greek', th: 'Thai', tha: 'Thai', uk: 'Ukrainian',
-  ukr: 'Ukrainian', ro: 'Romanian', rum: 'Romanian', ron: 'Romanian', fa: 'Persian', per: 'Persian', fas: 'Persian',
-  id: 'Indonesian', ind: 'Indonesian', vi: 'Vietnamese', vie: 'Vietnamese', ta: 'Tamil', tam: 'Tamil',
-  te: 'Telugu', tel: 'Telugu', ms: 'Malay', may: 'Malay', msa: 'Malay', tl: 'Filipino', fil: 'Filipino', tgl: 'Filipino',
-};
-const audioLabel = (t: {index: number; language?: string | null; title?: string | null}) => {
-  const code = (t.language || '').toLowerCase().split(/[-_]/)[0];
-  const lang = LANG_NAMES[code] || (code && code !== 'und' ? code.toUpperCase() : '');
-  const title = (t.title || '').trim();
-  if (lang && title && !new RegExp(lang, 'i').test(title)) return `${lang} · ${title}`;
-  return lang || title || `Track ${t.index + 1}`;
-};
+// A dub's name for the menu: subTracks.ts audioName (the server's label, else
+// the language and what the track's title adds).
 
 // A menu section's title with its glyph (elia, 2026-10-07: "add icons where
 // it makes sense"): the same icon family as the transport row, dim, 13dp.
@@ -489,103 +430,9 @@ const MenuItem = React.forwardRef<
 });
 
 // A subtitle track as the player uses it: the server's track plus `key`, a
-// stable unique id for the menu and the current selection. Duplicate labels are
-// numbered so two tracks can never share a key.
-type Track = SubtitleTrack & {key: string};
-const buildTracks = (subs: SubtitleTrack[]): Track[] => {
-  const seen = new Map<string, number>();
-  const out: Track[] = [];
-  const urls = new Set<string>();
-  for (const [i, t] of subs.entries()) {
-    if (!t || !t.url || urls.has(t.url)) continue; // the same file twice is noise
-    urls.add(t.url);
-    const base = t.label || `Track ${i + 1}`;
-    const n = (seen.get(base) || 0) + 1;
-    seen.set(base, n);
-    out.push({...t, label: base, key: n > 1 ? `${base} (${n})` : base});
-  }
-  return out;
-};
-
-// Which subtitle track to switch on by itself — the web's autoTrackIndex,
-// honouring the same stored Preferences.
-const SUB_LANG_TEST: Record<string, {code: RegExp; label: RegExp}> = {
-  he: {code: /^(he|heb|iw)/i, label: /hebrew|עבר/i},
-  en: {code: /^(en|eng)/i, label: /english/i},
-  ru: {code: /^(ru|rus)/i, label: /russian|русск/i},
-};
-const autoTrack = (tracks: Track[], prefs: Prefs, profileSub?: string | null): Track | null => {
-  if (!tracks.length) return null;
-
-  // WHAT YOU PICKED LAST TIME WINS, over everything below.
-  //
-  // Without this, every episode came up on whatever the generic rules chose, so
-  // a viewer re-picked their subtitles at the top of every single episode.
-  // Autoplay makes that worse, not better: the next episode starts by itself
-  // and the subtitles are wrong again.
-  //
-  // PRECEDENCE (the same on the site — player.js autoTrackIndex):
-  //   1. What was last picked BY HAND in the subtitle menu: "off" stays off;
-  //      "he" / "en" / "ru" is found again on the next title. It is a
-  //      LANGUAGE, never a track's label, because the next episode's subtitles
-  //      are a different file from a different uploader (2026-10-08: a
-  //      remembered "Hebrew 2" did not match an episode that only had
-  //      "Hebrew"). The best track in it: a full one before SDH before forced,
-  //      and among equals the first listed — lang.ts bestTrackIndex. A pick in
-  //      any other language, or of a track whose language cannot be told, is a
-  //      one-off for that title and is not remembered (rememberSub).
-  //   2. The title has nothing in that language, or nothing was ever picked:
-  //      the Settings rules at the bottom, exactly as before.
-  // So the last explicit pick wins until the next one; Settings decides only
-  // where a pick has nothing to say.
-  //
-  // WHERE (1) IS READ FROM. The profile's own memory first (`prefs.subPick` on
-  // the server): every pick, here or on the site or on another TV, lands
-  // there, so it is the LATEST one, and it is this viewer's and nobody else's.
-  // This TV's own copy (`lastSub*` in storage.ts) is the fallback for when the
-  // profile says nothing — not loaded yet, or never picked. Now that both hold
-  // the same thing (a language), the TV's copy has no extra precision to win
-  // with, which is why the order changed from "the TV first when it is mine".
-  //
-  // Values older builds stored — "Hebrew 2", "eng", "English - SDH" on the
-  // profile; a raw tag in lastSubLang or a label in lastSubLabel here — are
-  // read as their language; what cannot be placed counts as nothing remembered.
-  let local: SubPick | null = null;
-  if (prefs.lastSubSet) {
-    // An explicit "off" carries over too. Someone who turned subtitles off meant
-    // it, and `lastSubSet` is what tells that apart from a fresh install.
-    local =
-      !prefs.lastSubLang && !prefs.lastSubLabel
-        ? 'off'
-        : langOf({lang: prefs.lastSubLang, label: prefs.lastSubLabel});
-  }
-  const last = normPick(profileSub) || local;
-  if (last === 'off') return null;
-  if (last) {
-    const i = bestTrackIndex(tracks, last);
-    if (i >= 0) return tracks[i];
-    // Remembered a language this release simply does not have. Fall through to
-    // the generic rules rather than showing nothing.
-  }
-
-  if (!prefs.subsDefault) return null;
-  const match = (want: string) => {
-    const test = SUB_LANG_TEST[want];
-    if (!test) return null;
-    return (
-      tracks.find(t => test.code.test(t.lang || '') || test.label.test(t.label || '')) || null
-    );
-  };
-  // The viewer's chosen language wins; with "First available" — or a title
-  // that has nothing in that language — the first track, as on the site.
-  // (This TV used to try Hebrew before the first track under "First
-  // available", a rule of its own from when the setting lived on the box. The
-  // setting is the person's now and means the same on every device: someone
-  // who wants Hebrew says Hebrew, once, and the player also goes and fetches
-  // it when a title lacks it. What was picked by hand still wins over all of
-  // this — see the top of this function.)
-  return match(prefs.subLang) || tracks[0];
-};
+// stable unique id for the menu and the current selection (subTracks.ts
+// buildTracks). Which one switches on by itself is subTracks.ts autoPick.
+type Track = SubTrack<SubtitleTrack>;
 
 // .pbtn — the site's circular transport button.
 //
@@ -777,8 +624,17 @@ export default function Player({
   // playlist itself is (the web's `streamOffset`). A live transcode is generated
   // forward from one starting point, so its playlist only ever spans
   // [streamOffset, transcoded edge]; seeking outside it has to re-generate the
-  // transcode AT the target, and the player's own clock is relative to it.
+  // transcode AT the target.
+  // streamOffset NAMES the job (the /:ss/ of its URL) and is nothing more.
+  // Every content <-> media conversion goes through clockBase instead: the
+  // content time at media position 0 (playback/clock.ts). They are the same
+  // number except on a COPY job at an offset, which keeps the source's own
+  // timestamps and starts at the keyframe before ss — there the playlist
+  // answer says where (X-Aurora-Base), and assuming ss put the scrubber, the
+  // saved position and every subtitle cue up to a GOP ahead of the picture.
+  // Direct play: 0.
   const streamOffset = useRef(0);
+  const clockBase = useRef(0);
   const localDur = useRef(0);
   const usingTranscodeRef = useRef(false);
   const currentV = useRef<VCodec>('copy');
@@ -833,7 +689,6 @@ export default function Player({
     return progTime.current + elapsed * rateRef.current;
   });
   const advancing = useRef(false);
-  const autoSubsApplied = useRef(false);
   // Set when /state could not be read even on retry: saving progress would
   // then overwrite a resume point we never saw. See the load effect.
   const progressReadFailed = useRef(false);
@@ -870,8 +725,7 @@ export default function Player({
   const partyEcho = useRef(0);
   const keepParty = useRef(false);
   const pendingLand = useRef<PartyStateMsg | null>(null);
-  // Auto-subtitles: the language a fetch was asked for, to switch on when it lands.
-  const autoLangWanted = useRef<'he' | 'en' | 'ru' | null>(null);
+  // Auto-subtitles: the server was asked once for a track in the person's language.
   const subsFetched = useRef(false);
   const playTracked = useRef(false);
   // Where the start's time went, in ms since mount — sent with the
@@ -1117,7 +971,9 @@ export default function Player({
   // with room is not a round trip slower for any of this.
   const claimGen = useRef(0); // the source generation whose claim is pending (0 = none)
   const claimSwallowed = useRef(0); // …and the generation a player error was held back for
-  const claimStream = useCallback((url: string, g: number) => {
+  // `onClock`: the claim's answer is the job's playlist, and on a copy job at
+  // an offset it carries the job's real clock (X-Aurora-Base — see clockBase).
+  const claimStream = useCallback((url: string, g: number, onClock?: (c: Clock | null) => void) => {
     claimGen.current = g;
     const alive = () => !exited.current && gen.current === g;
     whenRoom(
@@ -1128,6 +984,7 @@ export default function Player({
         const t = setTimeout(() => ctrl.abort(), 45000);
         try {
           const res = await fetch(`${url}&seek=1`, {headers: mediaHeaders(), signal: ctrl.signal});
+          if (res.ok && onClock && alive()) onClock(clockFromHeaders(h => res.headers.get(h)));
           return {status: res.status, retryAfter: res.headers.get('retry-after')};
         } finally {
           clearTimeout(t);
@@ -1171,10 +1028,16 @@ export default function Player({
   // ffmpeg keeps its slot and the next seek is answered with "busy
   // transcoding". ExoPlayer is handed the URL WITHOUT the flag, exactly as
   // hls.js is.
+  //
+  // `clock`: the job's published clock when the caller already has it (the
+  // far-seek probe WAS the claim). Unclaimed here, the claim's own answer
+  // brings it a moment later; until then the clock is the offset, which is
+  // exact for every encode and for ss = 0, and at most a GOP early for a copy.
   const startTranscode = useCallback(
-    (base: string, offset: number, v: VCodec, claim = true) => {
+    (base: string, offset: number, v: VCodec, claim = true, clock: Clock | null = null) => {
       const ss = Math.max(0, Math.floor(offset || 0));
       streamOffset.current = ss;
+      clockBase.current = clockBaseFor(ss, v, clock);
       localDur.current = 0;
       usingTranscodeRef.current = true;
       currentV.current = v;
@@ -1188,7 +1051,16 @@ export default function Player({
       setBuffering(true);
       const url = transcodeUrl(base, ss, v);
       const g = ++gen.current;
-      if (claim) claimStream(url, g);
+      if (claim) {
+        claimStream(url, g, c => {
+          // still this job (the generation check is claimStream's alive())
+          const b = clockBaseFor(ss, v, c);
+          if (b !== clockBase.current) {
+            console.log(`[player] copy job at ${ss}: its clock starts at ${b.toFixed(2)}`);
+            clockBase.current = b;
+          }
+        });
+      }
       setUri(`${url}&g=${g}`);
     },
     [transcodeUrl, claimStream],
@@ -1218,6 +1090,7 @@ export default function Player({
       // waited for and asked again, three times at most, the loading state
       // staying up: serverManners.ts whenRoom.)
       const alive = () => !exited.current && token === probeToken.current;
+      let clock: Clock | null = null; // the job's published clock (see clockBase)
       try {
         const out = await whenRoom(
           async () => {
@@ -1228,6 +1101,7 @@ export default function Player({
                 headers: mediaHeaders(),
                 signal: ctrl.signal,
               });
+              if (res.ok) clock = clockFromHeaders(h => res.headers.get(h));
               return {status: res.status, retryAfter: res.headers.get('retry-after')};
             } finally {
               clearTimeout(probeTimer);
@@ -1254,7 +1128,7 @@ export default function Player({
           return true;
         }
         if (out.kind !== 'answered' || out.status < 200 || out.status > 299) throw new Error('not ready');
-        startTranscode(base, ss, v, false); // the probe already claimed it
+        startTranscode(base, ss, v, false, clock); // the probe already claimed it
         return true;
       } catch {
         if (!alive()) return true;
@@ -1395,6 +1269,7 @@ export default function Player({
                 stream.imdbId,
                 stream.season,
                 stream.episode,
+                stream.release,
               )
               .then(r => live && addSubs(r.subtitles || []))
               .catch(() => {});
@@ -1567,9 +1442,10 @@ export default function Player({
       // The resume point goes into the OFFSET, not a later seek. A live playlist
       // only spans [offset, transcoded edge], so starting at 0 and seeking meant
       // waiting for ffmpeg to reach the resume point — which is what made
-      // resuming a remuxed file sit and buffer. (The server upgrades copy->h264
-      // for any non-zero start, since it cannot cut a copied stream off a
-      // keyframe; the web accepts that trade for the same reason.)
+      // resuming a remuxed file sit and buffer. (The server used to upgrade
+      // copy->h264 for any non-zero start; it no longer does: an offset copy
+      // keeps the source's timestamps and starts at the keyframe before the
+      // offset, and its playlist answer says where — see clockBase.)
       //
       // No videoUrl at all (never seen in practice, but the gate above only
       // rejects an item with NEITHER) means the transcode is the only route, and
@@ -1679,19 +1555,22 @@ export default function Player({
   // everyone; it switches on here the moment it lands (the site's behaviour).
   useEffect(() => {
     if (stream || !meta || !prefsLoaded || subsFetched.current || !prefs.subsDefault) return;
-    const want = prefs.subLang;
-    const test = SUB_LANG_TEST[want];
-    if (!test) return;
-    const matches = (t: SubtitleTrack) => test.code.test(t.lang || '') || test.label.test(t.label || '');
-    if ((meta.item.subtitles || []).some(matches)) return;
+    const want = langCode(prefs.subLang); // "any" asks for nothing
+    if (!want) return;
+    // Told by lang.ts, the rule the auto pick uses — a sidecar labelled
+    // "HEB" or a torrent's "Movie.2020.heb" IS Hebrew (the old regexes here
+    // only knew "hebrew" / "עבר" and asked the server for a track the file
+    // already had).
+    if (hasLang(meta.item.subtitles, want)) return;
     subsFetched.current = true;
     console.log(`[player] no ${want} subtitles on disk — asking the server`);
     api
-      .subtitlesFetch(id, want as 'he' | 'en' | 'ru')
+      .subtitlesFetch(id, want)
       .then(r => {
         console.log(`[player] subtitle fetch: ${r?.tracks?.length || 0} track(s)`);
         if (exited.current || !r?.tracks?.length) return;
-        autoLangWanted.current = want as 'he' | 'en' | 'ru';
+        // tagged with the language asked for, so the auto pick (which waits
+        // for it: autoPick upgradeTo) knows it when it lands
         addSubs(r.tracks.map(t => ({...t, lang: t.lang || want})));
       })
       .catch(e => console.log('[player] subtitle fetch failed:', (e as Error).message));
@@ -1847,46 +1726,68 @@ export default function Player({
 
   // ---------------------------------------------------------------- subtitles
   const tracks = useMemo(() => buildTracks(subs), [subs]);
-  // Pick a default track the first time any exist — the web's autoTrackIndex,
-  // once per title rather than on every media (re)load, so a viewer who turned
-  // subtitles off is never overruled by the next seek.
+  // THE AUTO PICK (subTracks.ts autoPick — the web's autoTrackIndex, same
+  // precedence: the last hand pick, then Settings). Decided once the person's
+  // settings are loaded and the first tracks exist — and then it keeps
+  // FOLLOWING the tracks until the viewer picks by hand, because tracks keep
+  // arriving after the start: OpenSubtitles answers seconds later, a torrent's
+  // own files come with its metadata, the server's fetch for a missing
+  // language lands later still. It used to be decided ONCE, on whatever came
+  // first, so a stream whose first answer was the torrent's English file
+  // stayed on English (or on nothing) when the Hebrew track arrived a moment
+  // later — one of the ways "subtitles are not working" (Dor, 2026-10-17).
+  // After the first decision it only ever switches subtitles ON or to the
+  // language it was waiting for (`upgradeTo`), never off; a reload or a seek
+  // re-decides nothing (no dependency on them).
+  //
+  // A track that switched on BY ITSELF and then could not be loaded, or came
+  // back with no cues, is set aside (badSubs) and the next best one tried —
+  // a dead provider link must not leave the viewer with nothing. A track the
+  // viewer picked is never second-guessed.
+  const subHand = useRef(false); // the viewer picked in the menu: the auto pick stops
+  const subAutoDone = useRef(false);
+  const badSubs = useRef(new Set<string>());
+  const [badTick, setBadTick] = useState(0);
+  const subKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    // A track fetched for the preferred language switches on the moment it lands.
-    if (autoLangWanted.current && tracks.length) {
-      const want = autoLangWanted.current;
-      const test = SUB_LANG_TEST[want];
-      const hit = tracks.find(t => test.code.test(t.lang || '') || test.label.test(t.label || ''));
-      // …unless that would overrule the viewer's own last pick: "Off" stays
-      // off, and a remembered language this title already carries keeps its
-      // track. The fetched track is still in the menu.
-      const mine = normPick(profilePick(profileId, 'subPick'));
-      const overruled = mine === 'off' || (!!mine && mine !== want && bestTrackIndex(tracks, mine) >= 0);
-      if (hit && overruled) {
-        autoLangWanted.current = null;
-      } else if (hit) {
-        autoLangWanted.current = null;
-        autoSubsApplied.current = true;
-        setSubKey(hit.key);
-        toast(`${SUB_LANG_LABEL[want]} subtitles found — switched on`);
-        return;
-      }
+    subKeyRef.current = subKey;
+  }, [subKey]);
+  useEffect(() => {
+    if (subHand.current || !prefsLoaded || !tracks.length) return;
+    const usable = tracks.filter(t => !badSubs.current.has(t.url));
+    const p = autoPick(usable, prefs, profileId, profilePick(profileId, 'subPick'));
+    const pickKey = p.index >= 0 ? usable[p.index].key : null;
+    const cur = subKeyRef.current;
+    const first = !subAutoDone.current;
+    subAutoDone.current = true;
+    const step = followPick({first, cur, curUsable: !!cur && usable.some(t => t.key === cur), pickKey});
+    if (first) {
+      console.log(
+        `[player] ${tracks.length} track(s):`,
+        tracks.map(t => t.key).join(' | '),
+        `→ ${pickKey || 'off'} (${p.why}${p.upgradeTo ? `, waiting for ${p.upgradeTo}` : ''})`,
+      );
     }
-    if (autoSubsApplied.current || !tracks.length || !prefsLoaded) return;
-    autoSubsApplied.current = true;
-    console.log(`[player] ${tracks.length} track(s):`, tracks.map(t => t.key).join(' | '));
-    const pick = autoTrack(tracks, prefs, profilePick(profileId, 'subPick'));
-    if (pick) setSubKey(pick.key);
-  }, [tracks, prefsLoaded, prefs, toast, profileId]);
+    if (!step.change) return;
+    if (!first) console.log(`[player] subtitles: ${cur || 'off'} → ${step.key || 'off'} (${p.why})`);
+    subKeyRef.current = step.key; // (the mirror effect runs after this render)
+    setSubKey(step.key);
+    if (step.announce && p.index >= 0) {
+      const name = langName(usable[p.index].lang) || langName(langOf(usable[p.index]));
+      toast(name ? `${name} subtitles found — switched on` : 'Subtitles found — switched on');
+    }
+  }, [tracks, prefsLoaded, prefs.subsDefault, prefs.subLang, prefs.lastSubSet, prefs.lastSubLang, profileId, badTick, toast]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Remember a HAND-PICKED track (or "off") so the next episode comes up the
-  // same way — see autoTrack. Only called from the subtitle menu: an automatic
+  // same way — see autoPick. Only called from the subtitle menu: an automatic
   // pick must never write here, or the preference would be whatever the rules
   // guessed rather than what the viewer actually chose.
   const rememberSub = useCallback((t: Track | null) => {
+    subHand.current = true; // whatever was picked, the auto pick is over for this title
     // "off", or the track's language when it is Hebrew, English or Russian.
     // Anything else — another language, a "Track 4" nobody can place — is a
     // one-off for this title: what was remembered stays as it was, here and on
-    // the profile (see autoTrack).
+    // the profile (see subTracks.ts rememberedPick).
     const pick = pickOf(t);
     if (!pick) return;
     // Computed OUTSIDE the updater: savePrefs inside one could run twice or
@@ -1914,7 +1815,11 @@ export default function Player({
   // Load the chosen track's cues. A file that comes back empty is worth saying
   // out loud: on the web an empty track was a silent dead end (browsers never
   // retry one), and "I turned subtitles on and nothing happened" is exactly the
-  // report this player exists to stop.
+  // report this player exists to stop. A track that switched on BY ITSELF and
+  // fails is set aside and the auto pick tries the next one (see above).
+  // A track pulled out of the film's own file is extracted by the server on
+  // first use, which reads the whole file — that can take a while, so after a
+  // few seconds the wait is said out loud instead of looking broken.
   useEffect(() => {
     if (!subUrl) {
       setCues(null);
@@ -1925,6 +1830,14 @@ export default function Player({
     // `reload` is what Resync bumps, and it goes on the URL as well: a track that
     // came back short or empty once would otherwise be served from cache forever.
     const url = `${assetUrl(subUrl)}${reload ? `${subUrl.includes('?') ? '&' : '?'}retry=${reload}` : ''}`;
+    const slow = setTimeout(() => live && toast('Preparing subtitles…'), 4000);
+    const failed = (msg: string) => {
+      if (!subHand.current && !badSubs.current.has(subUrl)) {
+        badSubs.current.add(subUrl);
+        setBadTick(n => n + 1); // the auto pick moves on to the next track
+        toast(`${msg} — trying another track`);
+      } else toast(msg);
+    };
     fetch(url, {headers: mediaHeaders()})
       .then(r => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
       .then(txt => {
@@ -1932,43 +1845,78 @@ export default function Player({
         const parsed = parseVtt(txt);
         console.log(`[player] cues loaded: ${parsed.length} from ${subUrl}`);
         setCues(parsed.length ? parsed : null);
-        if (!parsed.length) toast('That subtitle file has no cues — try another track');
+        if (!parsed.length) failed('That subtitle file has no cues');
       })
-      .catch(() => {
+      .catch(e => {
         if (!live) return;
+        console.log(`[player] cues failed: ${subUrl} (${(e as Error).message})`);
         setCues(null);
-        toast("That subtitle track couldn't be loaded");
-      });
+        failed("That subtitle track couldn't be loaded");
+      })
+      .finally(() => clearTimeout(slow));
     return () => {
       live = false;
+      clearTimeout(slow);
     };
   }, [subUrl, reload, toast]);
 
-  const subOffset = (subKey && subOffsets[subKey]) || 0;
+  // The delay of the track on screen (seconds, positive = subtitles later),
+  // per track and remembered on this box per title + track (subDelay.ts): a
+  // track that needed +2.5 s needs it again next time, resume included.
+  // Keyed by the track's URL, not its menu key — the URL is what names the
+  // file; the key is only its place in this menu.
+  const subOffsetsRef = useRef<Record<string, number>>({});
+  useEffect(() => {
+    let live = true;
+    loadDelays().then(map => {
+      if (!live) return;
+      // what was nudged in the moment before this answered wins
+      const merged = {...delaysForItem(map, id), ...subOffsetsRef.current};
+      subOffsetsRef.current = merged;
+      setSubOffsets(merged);
+    });
+    return () => {
+      live = false;
+    };
+  }, [id]);
+  const subOffset = (subUrl && subOffsets[subUrl]) || 0;
+  const setSubDelay = useCallback(
+    (url: string, seconds: number) => {
+      const v = roundDelay(seconds);
+      const next = {...subOffsetsRef.current, [url]: v};
+      subOffsetsRef.current = next;
+      setSubOffsets(next);
+      saveDelay(id, url, v); // 0 (Reset) removes the entry
+    },
+    [id],
+  );
   // The web's nudgeSubs: positive = subtitles later. Applied by looking cues up
   // at (clock - offset), so nothing about the parsed file is ever mutated and
-  // repeated nudges can't accumulate error.
+  // repeated nudges can't accumulate error. The cue layer takes the new
+  // offset as a prop and looks up again at once.
   const nudgeSubs = useCallback(
     (delta: number) => {
-      if (!subKey) return;
-      setSubOffsets(prev => {
-        const next = Math.round(((prev[subKey] || 0) + delta) * 10) / 10;
-        return {...prev, [subKey]: next};
-      });
+      if (!subUrl) return;
+      setSubDelay(subUrl, (subOffsetsRef.current[subUrl] || 0) + delta);
       showControls();
     },
-    [subKey, showControls],
+    [subUrl, setSubDelay, showControls],
   );
+  const resetSubDelay = useCallback(() => {
+    if (!subUrl) return;
+    setSubDelay(subUrl, 0);
+    showControls();
+  }, [subUrl, setSubDelay, showControls]);
   // The site's resyncSubs, and deliberately the nuclear option there too: throw
   // the loaded cues away, re-download the file, and drop the manual delay. It
   // exists for "the subs look off and I don't want to fiddle with ±0.5s" — one
   // press, and it says what it did rather than leaving you guessing.
   const resyncSubs = useCallback(() => {
-    if (!subKey) return;
-    setSubOffsets(prev => ({...prev, [subKey]: 0}));
+    if (!subKey || !subUrl) return;
+    setSubDelay(subUrl, 0);
     setReload(n => n + 1);
     toast(`“${subKey}” re-downloaded, delay reset to 0.0s`);
-  }, [subKey, toast]);
+  }, [subKey, subUrl, setSubDelay, toast]);
 
   // uri + bufferConfig + minLoadRetryCount in ONE memo, because that is exactly
   // what react-native-video folds into one native source (rule 1). Anything
@@ -2017,8 +1965,10 @@ export default function Player({
       // outside that cannot be served — it has to be re-generated from the
       // target, which is exactly what the web does. Without this the seek
       // silently waited on ffmpeg reaching the target from the old offset.
-      const edge = streamOffset.current + localDur.current;
-      if (target < streamOffset.current || target >= edge + 4) {
+      // (content times: the playlist's data begins at clockBase — for a copy
+      // job the keyframe before its offset — and runs localDur past it)
+      const edge = clockBase.current + localDur.current;
+      if (target < clockBase.current || target >= edge + 4) {
         setSeekPreview(target); // hold the destination on screen while it loads
         // The web PAUSES here, to stop the old spot playing on while the bar
         // shows the new one. This port must not: `paused` can only be cleared
@@ -2060,7 +2010,7 @@ export default function Player({
           // re-prepares the player where it was. Buffering stays true until
           // that reload's onLoad; if the reload itself fails, onError now runs
           // normally and its ladder takes over.
-          if (curRef.current > streamOffset.current + 5) resumeAt.current = curRef.current;
+          if (curRef.current > clockBase.current + 5) resumeAt.current = curRef.current;
           setUri(`${transcodeUrl(base, streamOffset.current, currentV.current)}&g=${++gen.current}`);
         }
         return;
@@ -2090,9 +2040,9 @@ export default function Player({
       setSeekWait(null);
       setSeekPreview(null);
     }
-    // Native seeks are in PLAYLIST time: content time minus the offset the
-    // playlist started at.
-    videoRef.current?.seek(Math.max(0, target - streamOffset.current));
+    // Native seeks are in PLAYLIST (media) time: content time minus the
+    // clock base of the playlist (clock.ts).
+    videoRef.current?.seek(toMedia(clockBase.current, target));
     curRef.current = target;
     progTime.current = target;
     progAt.current = Date.now();
@@ -2541,7 +2491,7 @@ export default function Player({
       // loop then saved that over the real position. onLoad routes resumeAt
       // through commitSeek, which native-seeks if the revived playlist still
       // spans the position and restarts the transcode at it if not.
-      if (curRef.current > streamOffset.current + 5) resumeAt.current = curRef.current;
+      if (curRef.current > clockBase.current + 5) resumeAt.current = curRef.current;
       setUri(`${transcodeUrl(base, streamOffset.current, currentV.current)}&g=${++gen.current}`);
     }, 5000);
     return () => clearInterval(iv);
@@ -2596,7 +2546,7 @@ export default function Player({
       if (step === 'nudge') {
         d.nudged = true;
         mark('stall-nudge', {at: Math.round(curRef.current || 0), app: 'tv'});
-        videoRef.current?.seek(Math.max(0, curRef.current - streamOffset.current));
+        videoRef.current?.seek(toMedia(clockBase.current, curRef.current));
       } else if (step === 'rebuild') {
         d.rebuilt = true;
         stallRebuilds.current += 1;
@@ -2829,7 +2779,7 @@ export default function Player({
     // mirrors the web's totalDuration().
     localDur.current = d.duration || 0;
     const dur = Math.max(
-      streamOffset.current + localDur.current,
+      clockBase.current + localDur.current,
       itemRef.current?.duration || 0,
     );
     durRef.current = dur;
@@ -2857,7 +2807,7 @@ export default function Player({
         pendingSeek.current = r;
         commitSeek();
       } else {
-        videoRef.current?.seek(Math.max(0, r - streamOffset.current));
+        videoRef.current?.seek(toMedia(clockBase.current, r));
         curRef.current = r;
         progTime.current = r;
         progAt.current = Date.now();
@@ -2867,14 +2817,15 @@ export default function Player({
   };
 
   const onProgress = (d: OnProgressData) => {
-    const content = streamOffset.current + d.currentTime;
+    // media → content through clockBase (clock.ts), not the job's offset
+    const content = toContent(clockBase.current, d.currentTime);
     curRef.current = content;
     if (seeking()) seekResumed(content); // [analytics] (one boolean while no seek is being timed)
     // Re-anchor the cue clock (see timeRef): the interpolation between these
     // events is what keeps subtitles on the frame rather than up to a second out.
     progTime.current = content;
     progAt.current = Date.now();
-    bufRef.current = streamOffset.current + (d.playableDuration || 0);
+    bufRef.current = toContent(clockBase.current, d.playableDuration || 0);
     if (d.currentTime > 0) everPlayed.current = true;
     // THE PLAYLIST GROWS; localDur MUST GROW WITH IT. It was written once, at
     // onLoad, when an event playlist is ~2-8s long — so half an hour in, the
@@ -2887,7 +2838,7 @@ export default function Player({
       // carried no runtime, durRef froze at that first tiny playlist, which
       // clamped forward skips to ~8s and had progress saves mark the title
       // finished within seconds (position/duration ≈ 1).
-      const grown = streamOffset.current + d.seekableDuration;
+      const grown = toContent(clockBase.current, d.seekableDuration);
       if (grown > durRef.current) {
         durRef.current = grown;
         if (controlsRef.current) setDuration(grown);
@@ -3052,7 +3003,7 @@ export default function Player({
         const g = gen.current;
         retryTimer.current = setTimeout(() => {
           if (exited.current || gen.current !== g || probing.current) return;
-          if (curRef.current > streamOffset.current + 5) resumeAt.current = curRef.current;
+          if (curRef.current > clockBase.current + 5) resumeAt.current = curRef.current;
           setUri(`${url}&g=${++gen.current}`);
         }, wait);
         return;
@@ -3078,7 +3029,7 @@ export default function Player({
       retryTimer.current = setTimeout(() => {
         if (exited.current || gen.current !== gh || probing.current) return;
         recoveries.current = 0;
-        if (curRef.current > streamOffset.current + 5) resumeAt.current = curRef.current;
+        if (curRef.current > clockBase.current + 5) resumeAt.current = curRef.current;
         setUri(`${transcodeUrl(base, streamOffset.current, currentV.current)}&g=${++gen.current}`);
       }, RECOVERY_WINDOW_MS);
       return;
@@ -3150,6 +3101,31 @@ export default function Player({
     seekWait,
     stalled,
   });
+
+  // Where the bottom bar's top edge is, as distance from the bottom of the
+  // screen, for the cue layer (cueBottom). The bar is the last child of the
+  // full-screen controls column, so (column height − bar y) is that distance;
+  // children are laid out before their parent reports, so until the column's
+  // height is known the bar's own height stands in (the same number, as the
+  // bar sits flush with the bottom).
+  const chromeH = useRef(0);
+  const bottomBar = useRef<{y: number; h: number} | null>(null);
+  const [chromeLift, setChromeLift] = useState<number | null>(null);
+  const liftFromLayout = () => {
+    const b = bottomBar.current;
+    if (!b) return;
+    const v = Math.round(chromeH.current > 0 ? chromeH.current - b.y : b.h);
+    setChromeLift(prev => (prev === v ? prev : v));
+  };
+  const onBottomLayout = (e: {nativeEvent: {layout: {y: number; height: number}}}) => {
+    bottomBar.current = {y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height};
+    liftFromLayout();
+  };
+  const onControlsLayout = (e: {nativeEvent: {layout: {height: number}}}) => {
+    chromeH.current = e.nativeEvent.layout.height;
+    liftFromLayout();
+  };
+  // (hooks above this line: the early returns below must not change their number)
 
   if (loadErr) {
     return (
@@ -3312,11 +3288,14 @@ export default function Player({
         offset={subOffset}
         sizePx={CUE_PX[prefs.cueSize]}
         background={prefs.cueBackground}
-        // 198 dated from the taller chrome; with the slimmer timeline the cue
-        // floated mid-picture while the controls were up (elia, 2026-10-07:
-        // "take the subs down a bit when the timeline is open"). 150 clears
-        // the scrubber row with a line to spare.
-        bottom={controls ? 150 : 48}
+        // Chrome up: just above the real top of the bottom bar (its scrubber
+        // row is the bar's first line), measured by onLayout — so a cue can
+        // never be drawn under the scrubber whatever the bar's height on this
+        // screen, and does not float mid-picture either (elia, 2026-10-07:
+        // "take the subs down a bit when the timeline is open"). Until the bar
+        // has been measured, the 150 that used to be the only answer. Chrome
+        // hidden: 48, as always. (cues.ts cueBottom)
+        bottom={cueBottom(controls, chromeLift, chromeH.current || undefined)}
       />
 
       {/* Mid-playback stall. The site only darkens the picture and explains
@@ -3367,7 +3346,7 @@ export default function Player({
 
       {/* Controls */}
       {controls ? (
-        <View style={styles.controls} pointerEvents="box-none">
+        <View style={styles.controls} pointerEvents="box-none" onLayout={onControlsLayout}>
           {/* box-none, not none: the Back button inside is a real focus target,
               same as the site's .player-top back button. */}
           <View style={styles.topBar} pointerEvents="box-none">
@@ -3409,7 +3388,7 @@ export default function Player({
             </View>
           </View>
 
-          <View style={styles.bottom}>
+          <View style={styles.bottom} onLayout={onBottomLayout}>
             <View style={styles.scrim} pointerEvents="none">
               <Image source={SCRIM_BOTTOM} style={styles.scrimImg} resizeMode="stretch" />
             </View>
@@ -3758,7 +3737,7 @@ export default function Player({
                     highlightColor={colors.surfaceHover}
                     accessibilityLabel="Reset subtitle timing"
                     onFocusChange={markZone('menu')}
-                    onPress={() => nudgeSubs(-subOffset)}
+                    onPress={resetSubDelay}
                     style={styles.syncBtn}>
                     <Text style={styles.syncBtnText} numberOfLines={1}>Reset</Text>
                   </Focusable>
@@ -3805,7 +3784,7 @@ export default function Player({
               {audioTracks.map(t => (
                 <MenuItem uiId="player.audio.pick"
                   key={`a${t.index}`}
-                  label={audioLabel(t)}
+                  label={audioName(t)}
                   tag={[t.original ? 'Original' : null, t.codec ? t.codec.toUpperCase() : null, t.channels ? `${t.channels}ch` : null]
                     .filter(Boolean)
                     .join(' · ')}
@@ -3814,7 +3793,7 @@ export default function Player({
                   onFocusChange={markZone('menu')}
                   onPress={() => {
                     closeMenu();
-                    switchAudio(t.index, audioLabel(t));
+                    switchAudio(t.index, audioName(t));
                   }}
                 />
               ))}

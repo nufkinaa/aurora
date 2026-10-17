@@ -186,12 +186,23 @@ export type HomeRow = { id: string; title: string; items: HeroItem[] };
 export type Home = { hero: HeroItem[]; rows: HomeRow[] };
 
 export type SubtitleTrack = {
+  // The name to show. From 2026-10-17 the server makes it final, human and
+  // unique per title ("Hebrew", "English (SDH)", "English (Forced)",
+  // "Spanish (Latin America)", "English 2"); an older server can still send
+  // "Track 4" or "Subtitles" (playback/subTracks.ts subLabel reads `lang`
+  // for those).
   label: string;
   url: string;
+  // ISO 639-1 ("he", "en", "fr") when known, else a 3-letter code; absent
+  // when nobody knows.
   lang?: string;
   // Set by the scanner (src/media/scanner.js) on tracks pulled out of the video
   // file itself. The site tags these in its subtitle menu.
   embedded?: boolean;
+  // only the foreign / signs lines; for the deaf and hard of hearing (lang.ts
+  // trackRank ranks them after a full track)
+  forced?: boolean;
+  sdh?: boolean;
 };
 export type Progress = {
   position: number;
@@ -250,6 +261,9 @@ export type AudioTrack = {
   index: number;
   language?: string | null;
   title?: string | null;
+  // the name to show ("English", "English · Commentary"), from a server that
+  // sends one (2026-10-17); playback/subTracks.ts audioLabel is the fallback
+  label?: string | null;
   codec?: string | null;
   channels?: number;
   original?: boolean;
@@ -360,6 +374,9 @@ export type TorrentPlayItem = {
   imdbId?: string;
   season?: number;
   episode?: number;
+  // The release's own name (the torrent's file name): the server ranks the
+  // providers' subtitles timed for it first (src/media/websubs.js rank).
+  release?: string;
   // Card metadata, carried purely so the player can hand it back to the server
   // with the saved position (Player's streamMeta / the web's streamMeta). A
   // `torrent|…` id is not in the library scanner, so profiles.setProgress needs
@@ -1417,10 +1434,12 @@ export const api = {
     imdbId: string,
     season?: number | null,
     episode?: number | null,
+    release?: string | null,
   ) => {
     const q = new URLSearchParams();
     if (season) q.set('season', String(season));
     if (episode) q.set('episode', String(episode));
+    if (release) q.set('release', String(release).slice(0, 200));
     const qs = q.toString();
     return request<{ subtitles: SubtitleTrack[] }>(
       `/api/torrents/subtitles/${type}/${imdbId}${qs ? `?${qs}` : ''}`,
