@@ -9,7 +9,20 @@ const scanner = require("../media/scanner");
 const websubs = require("../media/websubs");
 const imdb = require("../media/imdb");
 
+const metadata = require("../media/metadata");
+
 const router = express.Router();
+
+// The name of the release a library file came from: the torrent's own file
+// name when Aurora downloaded it (downloads keep it as `release`), else the
+// file's name, which for a file added by hand usually IS the release name.
+const releaseOf = (videoPath) => {
+  try {
+    const job = require("../media/downloads").rawJobs().find((j) => j && j.destPath === videoPath && j.release);
+    if (job) return job.release;
+  } catch {}
+  return require("path").basename(videoPath);
+};
 const LANG = {
   he: { code: "heb", name: /hebrew/i },
   en: { code: "eng", name: /english/i },
@@ -48,14 +61,28 @@ const fetchFor = async (id, lang) => {
     } catch {}
   }
   if (!imdbId) return { error: "no IMDb match for this title" };
-  const tracks = (await websubs.list(isEpisode ? "series" : "movie", imdbId, item.season, item.episode))
+  // What is being watched, so the files timed for it come first: the release
+  // name the download had (its torrent's file name), else the file's own
+  // name; its frame rate and length for the timing repairs.
+  const facts = (await metadata.probeAsync(entry.path).catch(() => null)) || {};
+  const release = releaseOf(entry.path);
+  const tracks = (await websubs.list(isEpisode ? "series" : "movie", imdbId, item.season, item.episode, { release, fps: facts.video && facts.video.fps }))
     .filter((t) => t.lang === LANG[lang].code)
     .slice(0, PER_FETCH * 2);
   if (!tracks.length) return { tracks: [] };
   const before = new Set((item.subtitles || []).map((t) => t.url));
-  const { written } = await websubs.writeSidecars(tracks.slice(0, PER_FETCH), entry.path);
+  const { written } = await websubs.writeSidecars(tracks.slice(0, PER_FETCH), entry.path, {
+    facts: { fps: facts.video && facts.video.fps, duration: facts.duration },
+  });
   if (!written.length) return { tracks: [] };
   await rescanSoon(); // sidecars get their ids here — one walk for every caller in the same moment
+  // the fresh files are lined up against the video's own text track, if it
+  // has one, in the background (media/sublang.js) — the next load of the
+  // track is served in time
+  try {
+    const sublang = require("../media/sublang");
+    for (const job of scanner.subtitleSyncWork()) if (job.path === entry.path) sublang.enqueue(job);
+  } catch {}
   const fresh = scanner.findById(id);
   const added = ((fresh && fresh.subtitles) || []).filter((t) => !before.has(t.url) && !t.embedded);
   return { tracks: added.map((t) => ({ ...t, lang })) };

@@ -32,7 +32,8 @@ import {
   UpdateInfo,
 } from '../update';
 import {track} from '../usage';
-import theme from '../theme';
+import theme, {useTvMetrics} from '../theme';
+import {bottomSheetMaxHeight} from '../popupFit';
 
 const {colors, fontSize, radius, spacing} = theme;
 
@@ -561,6 +562,8 @@ const fmtAired = (iso?: string | null) => {
   return d.toLocaleDateString(undefined, {day: 'numeric', month: 'short', year: 'numeric'});
 };
 function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; onClose?: () => void}) {
+  // never past the top's safe area, whatever the panel (popupFit.ts)
+  const {height: winH} = useTvMetrics();
   const [data, setData] = useState<XrayData | null>(null);
   const [failed, setFailed] = useState(false);
   // OK on a person: their own sheet, on top of this one (PersonSheet.tsx).
@@ -673,7 +676,7 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
   return (
     <View style={styles.xrBackdrop}>
       <Animated.View style={[styles.xrWash, washStyle]} />
-      <Animated.View style={[styles.xrPanel, panelStyle]}>
+      <Animated.View style={[styles.xrPanel, panelStyle, {maxHeight: bottomSheetMaxHeight(winH, 446)}]}>
         <TVFocusGuideView autoFocus trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.xrGuide}>
           <View style={styles.xrHead}>
             <View style={styles.xrHeadText}>

@@ -37,6 +37,9 @@ const parse = (json) => {
   for (const [re, name] of CONTAINERS) if (re.test(format)) { container = name; break; }
   return {
     container,
+    // where the file's clock begins (format start_time): the offset copy
+    // jobs' -copyts clock carries it, routes/torrent.js takes it back out
+    start: parseFloat((j.format || {}).start_time) || 0,
     video: v
       ? {
           codec: v.codec_name === "mpeg2video" ? "mpeg2" : v.codec_name,
@@ -54,6 +57,8 @@ const parse = (json) => {
         channels: s.channels || 2,
         language: (s.tags && s.tags.language) || null,
         title: (s.tags && s.tags.title) || null,
+        // the audio menu's name for it (media/subnames.js, as for the library)
+        label: require("./subnames").audioName({ language: s.tags && s.tags.language, title: s.tags && s.tags.title, commentary: !!(s.disposition && s.disposition.comment) }, i).label,
       })),
   };
 };
@@ -165,4 +170,92 @@ const segmentStart = (file) => {
   });
 };
 
-module.exports = { probe, segmentStart };
+// ---------- the fMP4 (iPhone) copy job's clock ----------
+// An fMP4 copy job at an offset does NOT keep the source's timestamps (Apple's
+// player chokes on them — remux.js): ffmpeg starts it at the keyframe at or
+// before the asked second and its clock at ~0 there. The player assumed media
+// 0 = the asked second, so on an iPhone every cue and the scrubber ran up to a
+// keyframe interval AHEAD after a resume or a far seek (measured with
+// tools/subs-rig: 5.1 s at ss=20 on a 5 s GOP; real HEVC releases use 10 s).
+// The truth is told from two reads: where that keyframe is in the source (the
+// demuxer's packet flags — no decoding), and where the job's first video
+// frame sits on its own clock (init + first fragment, read as one file).
+
+const run = (args, ms = 8000) =>
+  new Promise((resolve) => {
+    if (!config.FFPROBE) return resolve(null);
+    const proc = spawn(config.FFPROBE, args, { stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
+    let out = "";
+    proc.stdout.on("data", (d) => { if (out.length < 200000) out += d; });
+    const timer = setTimeout(() => { try { proc.kill("SIGKILL"); } catch {} }, ms);
+    proc.on("error", () => { clearTimeout(timer); resolve(null); });
+    proc.on("close", (code) => { clearTimeout(timer); resolve(code === 0 ? out : null); });
+  });
+
+// The source time of the last video keyframe at or before `ss`, or null.
+const keyframeAtOrBefore = async (file, ss) => {
+  const from = Math.max(0, ss - 60);
+  const out = await run(["-v", "error", "-select_streams", "v:0", "-read_intervals", `${from}%${ss + 0.5}`,
+    "-show_entries", "packet=pts_time,flags", "-of", "csv=p=0", file]);
+  if (!out) return null;
+  let best = null;
+  for (const line of out.split(/\r?\n/)) {
+    const [t, flags] = line.split(",");
+    const v = parseFloat(t);
+    if (isFinite(v) && /K/.test(flags || "") && v <= ss + 0.001 && (best == null || v > best)) best = v;
+  }
+  return best;
+};
+
+// The first video frame's time on an fMP4 job's own clock (init.mp4 + the
+// first fragment, read back to back).
+const fmp4FirstVideo = async (dir) => {
+  const fs = require("fs");
+  const path = require("path");
+  const init = path.join(dir, "init.mp4");
+  const seg = path.join(dir, "seg00000.m4s");
+  // (the playlist can be answered a moment before the first fragment is on
+  // disk under its final name — seen once on a cold start: a short wait)
+  for (let i = 0; i < 6 && !(fs.existsSync(init) && fs.existsSync(seg)); i++) await new Promise((r) => setTimeout(r, 250));
+  if (!fs.existsSync(init) || !fs.existsSync(seg)) return null;
+  const out = await run(["-v", "error", "-select_streams", "v:0", "-read_intervals", "%+#1",
+    "-show_entries", "packet=pts_time", "-of", "csv=p=0", `concat:${init.replace(/\\/g, "/")}|${seg.replace(/\\/g, "/")}`]);
+  const v = out ? parseFloat(out.split(/\r?\n/)[0]) : NaN;
+  return isFinite(v) ? v : null;
+};
+
+// Content time at media position 0 of an fMP4 copy job at `ss` (the file's
+// start time taken out, as for the TS jobs), or null when it cannot be told.
+//
+// WHICH keyframe ffmpeg lands on is its own rule (fftools ffmpeg_demux.c,
+// ffmpeg 6): the asked second plus the file's start time, and — for a
+// container that does not seek by PTS (Matroska; MP4/MOV do) with a video
+// stream that reorders frames (B-frames) — 3/23 s earlier still; then the
+// keyframe at or before that. Measured on the rig's MKV: asked 20, keyframes
+// every 5 s, it begins at 15, not 20.
+const hasBFrames = async (file) => {
+  const out = await run(["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=has_b_frames", "-of", "csv=p=0", file]);
+  return !!out && parseInt(out, 10) > 0;
+};
+const fmp4ClockBase = async (file, dir, ss, fileStart = 0) => {
+  const seeksByPts = /\.(mp4|m4v|mov)$/i.test(file);
+  const delay = !seeksByPts && (await hasBFrames(file)) ? 3 / 23 : 0;
+  const target = ss + (Number(fileStart) > 0 ? Number(fileStart) : 0) - delay;
+  const [kf, first] = await Promise.all([keyframeAtOrBefore(file, target), fmp4FirstVideo(dir)]);
+  if (kf == null || first == null) return null;
+  const base = clockBase(kf - first, fileStart);
+  return base <= ss + 1 && base >= ss - 60 ? base : null;
+};
+
+// The X-Aurora-Base a copy job's player is told: the segment's first
+// timestamp, less the file's own start time (only a positive one — the few
+// milliseconds below zero some files report are below what anyone sees).
+const clockBase = (segBase, fileStart) => {
+  const st = Number(fileStart) > 0 ? Number(fileStart) : 0;
+  return Math.round((segBase - st) * 1000) / 1000;
+};
+
+// A probe already answered for this file, or null (never starts one).
+const cached = (infoHash, fileIdx) => results.get(`${String(infoHash).toLowerCase()}:${fileIdx}`) || null;
+
+module.exports = { probe, segmentStart, cached, clockBase, fmp4ClockBase, keyframeAtOrBefore, _parse: parse };

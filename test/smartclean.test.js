@@ -97,6 +97,12 @@ test("a hand-requested download of the same file wins", () => {
   assert.equal(decide(base({ manualShare: true })).why, "someone asked for it by hand");
 });
 
+test("somebody playing the file right now (lib/fileinuse.js) → keep it, for now", () => {
+  const r = decide(base({ inUse: true }));
+  assert.deepEqual(r, { clean: false, why: "someone is playing it right now" });
+  assert.equal(decide(base({ inUse: false })).clean, true, "once they stop, the next check cleans it");
+});
+
 // ---------- end to end, on a real (temporary) disk ----------
 // Every store is swapped for an in-memory fake with a no-op save BEFORE
 // anything runs, and the library root is a temp dir — so this exercises the

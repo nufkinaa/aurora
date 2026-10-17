@@ -14,6 +14,15 @@ const configLib = lazy(require, "../config");
 const admissionLib = lazy(require, "../lib/admission");
 const stillsLib = lazy(require, "../media/stills");
 
+// Every request for a library file's bytes says "someone is on this file
+// right now" (lib/inuse.js) — what the admin's "delete this copy" asks
+// before it deletes anything.
+const inuse = require("../lib/inuse");
+router.use(["/stream/video/:id", "/stream/hls/:id", "/stream/transcode/:id", "/stream/download/:id"], (req, res, next) => {
+  inuse.touch(req.params.id);
+  next();
+});
+
 const MIME = {
   ".mp4": "video/mp4",
   ".m4v": "video/mp4",
@@ -378,20 +387,10 @@ const jit = require("../media/jit");
 const ladder = require("../media/ladder");
 const { timed } = require("../lib/servertiming");
 
-// Who is reading a stream, for jit's "whose goodbye is it" (jit.release): the
-// sign-in session when the request has one (in sign-in mode "closed" every
-// request that reaches a route does), else the device as far as it can be
-// told — its address and browser. Never logged, never sent anywhere; a
-// player's segment requests and its goodbye beacon carry the same cookie
-// from the same browser, which is all this has to hold.
-const viewerOf = (req) => {
-  try {
-    const s = require("../lib/authz").sessionFor(req);
-    if (s && s.sessionKey) return `s:${s.sessionKey}`;
-  } catch {}
-  return "d:" + crypto.createHash("sha1")
-    .update(`${req.ip || ""}|${req.headers["user-agent"] || ""}`).digest("hex").slice(0, 20);
-};
+// Who is reading a stream, for "whose goodbye is it" (jit.release, and
+// remux.release for the offset jobs): the sign-in session, the TV app's own
+// tag, else the device's address and browser — lib/viewer.js.
+const { viewerOf } = require("../lib/viewer");
 
 // The file's segment table (cached by jit; read from the file when it is not).
 const libraryTable = async (entry, key, size) => {
@@ -538,12 +537,18 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
 // reset, the kids gate: all run before any /stream route), and it only ever
 // stops what the one who says it was reading (viewerOf): a goodbye from
 // anybody else — or for a film they are not in — stops nothing.
+// The SAME goodbye stops the viewer's OFFSET transcodes of the file too
+// (remux.release, same ownership rule — media/goodbye.js): the TV app plays
+// those, and sends this beacon on leaving the player; before, its job ran on
+// until the idle sweep, 2.5 minutes later, holding an encoder for nobody.
 router.post("/stream/transcode/:id/jit/bye", (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry) return res.status(204).end();
   try {
     const st = fs.statSync(entry.path);
-    jit.release(`${req.params.id}-${Math.floor(st.mtimeMs)}`, viewerOf(req));
+    const viewer = viewerOf(req);
+    jit.release(`${req.params.id}-${Math.floor(st.mtimeMs)}`, viewer);
+    remux.release(req.params.id, st.mtimeMs, viewer);
   } catch {}
   res.status(204).end();
 });
@@ -643,6 +648,7 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
     const vtag = req.query.vtag === "hvc1";
     const audio = Math.max(0, Math.min(31, parseInt(req.query.a, 10) || 0)); // which audio stream (multi-dub)
     const dir = await timed(res, "job", () => remux.ensure(entry.path, req.params.id, { vcodec: v, ss, seek: req.query.seek === "1", fmt, vtag, audio }));
+    remux.noteViewer(dir, viewerOf(req)); // whose goodbye may stop it (the bye route below)
     // Segment URIs carry ?v= (and &seg= for fMP4 jobs, &a= for a chosen audio
     // stream, EXT-X-MAP included) so the segment route can resolve this
     // exact job dir.
@@ -663,10 +669,29 @@ router.get("/stream/transcode/:id/:ss/index.m3u8", async (req, res) => {
     // see remux.js): tell the player where playback begins — audio starts
     // exactly at ss, video rolls back to its keyframe. Header for our own
     // player, EXT-X-START for native HLS (iPhone).
-    if (v === "copy" && ss > 0) {
-      const s = await require("../media/streamprobe").segmentStart(path.join(dir, "seg00000.ts"));
+    if (v === "copy" && ss > 0 && fmt === "fmp4") {
+      // the iPhone's copy job: zero-based, so the header says what content
+      // time its media 0 is (streamprobe.fmp4ClockBase) — no EXT-X-START,
+      // the native player starts where the job starts
+      const sp = require("../media/streamprobe");
+      const meta = require("../media/metadata").getCached(entry.path);
+      const base = await sp.fmp4ClockBase(entry.path, dir, ss, meta && meta.start).catch(() => null);
+      if (base != null) {
+        res.setHeader("X-Aurora-Base", String(base));
+        res.setHeader("X-Aurora-Offset", "0");
+      }
+    } else if (v === "copy" && ss > 0) {
+      const sp = require("../media/streamprobe");
+      const s = await sp.segmentStart(path.join(dir, "seg00000.ts"));
       if (s) {
-        res.setHeader("X-Aurora-Base", String(s.base));
+        // The clock in the FILM's time. -copyts keeps the file's own
+        // timestamps, which begin at its start time — nearly always 0, but a
+        // cut from a TV capture starts seconds in, and every other path (the
+        // file itself, jit, the subtitles ffmpeg extracts, the sidecars)
+        // counts from that start. Measured with tools/subs-rig: a file
+        // starting at 1.5 s had every cue 1.53 s early after a resume here.
+        const meta = require("../media/metadata").getCached(entry.path);
+        res.setHeader("X-Aurora-Base", String(sp.clockBase(s.base, meta && meta.start)));
         res.setHeader("X-Aurora-Offset", String(s.offset));
         text = text.replace("#EXTM3U", `#EXTM3U\n#EXT-X-START:TIME-OFFSET=${s.offset},PRECISE=YES`);
       }
@@ -690,13 +715,111 @@ router.get("/stream/transcode/:id/:ss/:file", (req, res) => {
   const v = remux.effectiveVcodec(remux.vcodecFromQuery(req.query.v), ss);
   const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
   const audio = Math.max(0, Math.min(31, parseInt(req.query.a, 10) || 0));
-  remux.touch(req.params.id, mtime, v, ss, fmt, audio); // keep an actively-watched job alive
+  remux.touch(req.params.id, mtime, v, ss, fmt, audio, viewerOf(req)); // keep an actively-watched job alive (and whose it is)
   const abs = remux.filePath(remux.dirName(req.params.id, mtime, v, ss, fmt, audio), req.params.file);
   if (!abs) return res.status(404).send("Not found");
   res.setHeader("Content-Type", /\.(m4s|mp4)$/.test(req.params.file) ? "video/mp4" : "video/mp2t");
   res.setHeader("Cache-Control", "no-cache");
   res.sendFile(abs);
 });
+
+// ---------- AirPlay: the film WITH its subtitles, for an Apple TV ----------
+// A film handed to an Apple TV is fetched by the Apple TV (lib/airtoken.js),
+// and it shows no subtitles the page draws or adds as <track>s: only the
+// subtitle renditions a MASTER playlist names (Apple's HLS rules). So a
+// library title with subtitles goes to the receiver through this master: the
+// jit stream (exactly the playlist the player would name — the same query,
+// passed through) as its one variant, and every subtitle of the title as a
+// WebVTT rendition the receiver's own subtitle menu offers.
+//   ?sub=<n>   the one showing on the sender: DEFAULT=YES (the receiver
+//              starts with it on); the rest AUTOSELECT=YES, DEFAULT=NO
+// Each subtitle is ONE segment as long as the film; its cues are timed from
+// the film's start, and X-TIMESTAMP-MAP ties them to the jit media clock
+// (movie time + jit.TS_OFFSET_SEC, in 90 kHz units).
+const airItem = (id) => {
+  const entry = resolveKind(id, "video");
+  if (!entry || !fs.existsSync(entry.path)) return null;
+  return { entry, item: scanner.findById(id) || {} };
+};
+const airQuery = (q) => {
+  const parts = [];
+  const v = ladder.renditionFromQuery(q.v);
+  if (v !== "copy") parts.push(`v=${v}`);
+  if (q.seg === "fmp4") parts.push("seg=fmp4");
+  if (q.vtag === "hvc1") parts.push("vtag=hvc1");
+  const a = ladder.audioFromQuery(q.a);
+  if (a) parts.push(`a=${a}`);
+  return parts.length ? `?${parts.join("&")}` : "";
+};
+const airLabel = (s) => String(s || "Subtitles").replace(/["\r\n]/g, "'").slice(0, 60);
+router.get("/stream/airplay/:id/master.m3u8", (req, res) => {
+  const found = airItem(req.params.id);
+  if (!found) return res.status(404).send("Not found");
+  const { item } = found;
+  const subs = Array.isArray(item.subtitles) ? item.subtitles.slice(0, 40) : [];
+  const def = parseInt(req.query.sub, 10);
+  // BANDWIDTH is required on a variant: the file's own rate (the copy) or
+  // the full encode's ceiling, with the audio on top — an upper bound, as
+  // the attribute is defined
+  const v = ladder.renditionFromQuery(req.query.v);
+  const fileBps = item.sizeBytes && item.duration ? (item.sizeBytes * 8) / item.duration : 0;
+  const bandwidth = Math.ceil(v === "copy" && fileBps > 0 ? fileBps * 1.25 + 192000 : 12000000);
+  const lines = ["#EXTM3U", "#EXT-X-VERSION:7", "#EXT-X-INDEPENDENT-SEGMENTS"];
+  subs.forEach((s, i) => {
+    // LANGUAGE from the track's language (media/subnames.js: ISO 639-1, or
+    // the 3-letter code) so the receiver's own menu and auto-pick know it
+    const lang = /^[a-z]{2,3}$/i.test(String(s.lang || "")) ? `,LANGUAGE="${String(s.lang).toLowerCase()}"` : "";
+    lines.push(`#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${airLabel(s.label)}"${lang},DEFAULT=${i === def ? "YES" : "NO"},AUTOSELECT=YES,FORCED=NO,URI="sub/${i}.m3u8"`);
+  });
+  lines.push(`#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth}${subs.length ? ',SUBTITLES="subs"' : ""}`);
+  // relative: under /air/<token>/stream/airplay/<id>/ this is
+  // /air/<token>/stream/transcode/<id>/jit/index.m3u8 — the token rides along
+  lines.push(`../../transcode/${encodeURIComponent(req.params.id)}/jit/index.m3u8${airQuery(req.query)}`);
+  res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+  res.setHeader("Cache-Control", "no-cache");
+  res.send(lines.join("\n") + "\n");
+});
+router.get("/stream/airplay/:id/sub/:file", async (req, res) => {
+  const m = /^(\d{1,2})\.(m3u8|vtt)$/.exec(req.params.file);
+  const found = m ? airItem(req.params.id) : null;
+  if (!found) return res.status(404).send("Not found");
+  const { entry, item } = found;
+  const sub = (item.subtitles || [])[Number(m[1])];
+  if (!sub) return res.status(404).send("Not found");
+  if (m[2] === "m3u8") {
+    const dur = item.duration > 0 ? item.duration : 4 * 3600;
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    res.setHeader("Cache-Control", "no-cache");
+    return res.send([
+      "#EXTM3U", "#EXT-X-VERSION:3", `#EXT-X-TARGETDURATION:${Math.ceil(dur)}`, "#EXT-X-MEDIA-SEQUENCE:0",
+      "#EXT-X-PLAYLIST-TYPE:VOD", `#EXTINF:${dur.toFixed(3)},`, `${m[1]}.vtt`, "#EXT-X-ENDLIST", "",
+    ].join("\n"));
+  }
+  // the subtitle's own text: a sidecar file, or a track inside the film
+  let text = null;
+  const ext = /^\/stream\/subtitle\/([^/?]+)$/.exec(sub.url || "");
+  const emb = /^\/stream\/embedded\/[^/]+\/(\d+)$/.exec(sub.url || "");
+  if (ext) {
+    const s = resolveKind(ext[1], "subtitle");
+    if (s) text = await subtitles.vttText({ subPath: s.path });
+  } else if (emb) {
+    text = await subtitles.vttText({ videoPath: entry.path, trackIndex: parseInt(emb[1], 10) || 0 });
+  }
+  if (text == null) return res.status(404).send("Subtitle not available");
+  res.setHeader("Content-Type", "text/vtt; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache");
+  res.send(airVtt(text, jit.TS_OFFSET_SEC || 10));
+});
+// The WebVTT with Apple's timestamp map in its header (kept when it has one).
+const airVtt = (text, offsetSec) => {
+  const t = String(text).replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+  if (/^X-TIMESTAMP-MAP=/m.test(t.split("\n\n")[0])) return t;
+  const map = `X-TIMESTAMP-MAP=MPEGTS:${Math.round(offsetSec * 90000)},LOCAL:00:00:00.000`;
+  if (!/^WEBVTT/.test(t)) return `WEBVTT\n${map}\n\n${t}`;
+  const nl = t.indexOf("\n");
+  return nl < 0 ? `${t}\n${map}\n` : `${t.slice(0, nl)}\n${map}${t.slice(nl)}`;
+};
+router._internals = { airVtt, airQuery };
 
 // External subtitle file -> WebVTT
 router.get("/stream/subtitle/:id", (req, res) => {

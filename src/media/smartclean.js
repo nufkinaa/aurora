@@ -11,6 +11,8 @@
 //   - anyone else is part-way through that exact file (deleting it would pull
 //     the rug from under a paused episode);
 //   - someone ASKED for the same file by hand (a manual job shares the path);
+//   - someone is PLAYING the file right now (lib/fileinuse.js) — the next
+//     progress save after the throttle simply asks again;
 //   - the requester switched the feature off (prefs.smartCleanup === false).
 // Deletion goes through libfiles.deleteVideoFile, which refuses anything
 // outside a library root and takes the episode's sidecar subtitles with it.
@@ -21,6 +23,7 @@ const scanner = require("./scanner");
 const downloads = require("./downloads");
 const profiles = require("../profiles");
 const libfiles = require("../lib/libfiles");
+const { fileInUse } = require("../lib/fileinuse");
 const realtime = require("../realtime");
 const { watchedIndex, watchedEpisodesFor } = require("./watched");
 const { episodeOf } = require("./smartdl");
@@ -49,7 +52,8 @@ const before = (a, b) => a.season < b.season || (a.season === b.season && a.epis
 //   others       [{ position, finished }] — every OTHER profile's progress on
 //                this exact file
 //   manualShare  true when a non-smart job points at the same file
-const decide = ({ job, requester, now, finished, others = [], manualShare = false }) => {
+//   inUse        true when somebody is reading the file's bytes right now
+const decide = ({ job, requester, now, finished, others = [], manualShare = false, inUse = false }) => {
   if (!job || !job.smart) return { clean: false, why: "not a smart download" };
   if (job.status !== "done" || !job.destPath) return { clean: false, why: "not finished downloading" };
   if (!requester || (job.profile !== requester.id && job.profile !== requester.name)) {
@@ -64,6 +68,7 @@ const decide = ({ job, requester, now, finished, others = [], manualShare = fals
   if (manualShare) return { clean: false, why: "someone asked for it by hand" };
   const midway = others.find((o) => o && !o.finished && o.position >= OTHERS_MIDWAY_S);
   if (midway) return { clean: false, why: "someone else is part-way through it" };
+  if (inUse) return { clean: false, why: "someone is playing it right now" };
   return { clean: true, why: "watched and moved on" };
 };
 
@@ -107,8 +112,14 @@ const onProgress = async (profileId, itemId, position, duration, meta) => {
       finished,
       others,
       manualShare,
+      inUse: fileInUse(job.destPath),
     });
-    if (!verdict.clean) continue;
+    if (!verdict.clean) {
+      if (verdict.why === "someone is playing it right now") {
+        console.log(`[smart] not cleaning ${job.label || path.basename(job.destPath)} yet: someone is playing it — asked again later`);
+      }
+      continue;
+    }
     try {
       const r = libfiles.deleteVideoFile(job.destPath, roots, config.SUBTITLE_EXTENSIONS);
       cleaned.push({ job: job.id, label: job.label, freedBytes: r.freedBytes });

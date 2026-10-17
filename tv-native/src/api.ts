@@ -8,6 +8,7 @@ import {takeBlur} from './blur';
 import {registerProfileCache} from './profileScope';
 import {tooManyWait, TOO_MANY_RETRIES} from './serverManners';
 import {pickServer} from './serverPick';
+import type {TasteCard, Verdict} from './tasteSession';
 
 let baseUrl = '';
 let token: string | null = null;
@@ -186,12 +187,23 @@ export type HomeRow = { id: string; title: string; items: HeroItem[] };
 export type Home = { hero: HeroItem[]; rows: HomeRow[] };
 
 export type SubtitleTrack = {
+  // The name to show. From 2026-10-17 the server makes it final, human and
+  // unique per title ("Hebrew", "English (SDH)", "English (Forced)",
+  // "Spanish (Latin America)", "English 2"); an older server can still send
+  // "Track 4" or "Subtitles" (playback/subTracks.ts subLabel reads `lang`
+  // for those).
   label: string;
   url: string;
+  // ISO 639-1 ("he", "en", "fr") when known, else a 3-letter code; absent
+  // when nobody knows.
   lang?: string;
   // Set by the scanner (src/media/scanner.js) on tracks pulled out of the video
   // file itself. The site tags these in its subtitle menu.
   embedded?: boolean;
+  // only the foreign / signs lines; for the deaf and hard of hearing (lang.ts
+  // trackRank ranks them after a full track)
+  forced?: boolean;
+  sdh?: boolean;
 };
 export type Progress = {
   position: number;
@@ -250,6 +262,9 @@ export type AudioTrack = {
   index: number;
   language?: string | null;
   title?: string | null;
+  // the name to show ("English", "English · Commentary"), from a server that
+  // sends one (2026-10-17); playback/subTracks.ts audioLabel is the fallback
+  label?: string | null;
   codec?: string | null;
   channels?: number;
   original?: boolean;
@@ -360,6 +375,9 @@ export type TorrentPlayItem = {
   imdbId?: string;
   season?: number;
   episode?: number;
+  // The release's own name (the torrent's file name): the server ranks the
+  // providers' subtitles timed for it first (src/media/websubs.js rank).
+  release?: string;
   // Card metadata, carried purely so the player can hand it back to the server
   // with the saved position (Player's streamMeta / the web's streamMeta). A
   // `torrent|…` id is not in the library scanner, so profiles.setProgress needs
@@ -511,6 +529,9 @@ export type MyDownload = DownloadJob & {
   season?: number | null;
   episode?: number | null;
   mine?: boolean;
+  // Who started it, by display NAME only (publicJob `by`, server 1.6.99);
+  // null when the server cannot say, absent on an older server.
+  by?: string | null;
   smart?: boolean;
   // "mylist": fetched because the title was added to My List (always `smart` too).
   auto?: string | null;
@@ -1158,8 +1179,15 @@ function ownHeaders(): Record<string, string> | undefined {
 // The same, for the video element: react-native-video forwards source.headers
 // to ExoPlayer's data source, which is what lets /stream/* through the wall.
 // X-Profile is what makes /stream/* refuse an over-age title to a kids profile.
-export function mediaHeaders(): Record<string, string> | undefined {
-  return ownHeaders();
+// X-Aurora-Viewer: one random value per run of the app, on the player's reads
+// AND on its goodbye (playBye / torrentBye). They go out through two HTTP
+// stacks with two user agents (ExoPlayer, fetch); without a shared tag the
+// server's "whose goodbye is it" (src/lib/viewer.js) saw two viewers on an
+// open server, and the goodbye stopped nothing. It names this run of this
+// app to this server and nothing else.
+const VIEWER_TAG = `tv${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+export function mediaHeaders(): Record<string, string> {
+  return {...(ownHeaders() || {}), 'X-Aurora-Viewer': VIEWER_TAG};
 }
 
 export const api = {
@@ -1212,6 +1240,21 @@ export const api = {
   library: (fresh = false) => memo('library', 60000, readLibrary, fresh),
   setPreferences: (profileId: string, likedGenres: string[]) =>
     post<{ ok: boolean }>(`/api/profiles/${profileId}/preferences`, { likedGenres }),
+  // The swipe taste picker (screens/Taste.tsx; server: routes/profiles.js).
+  // An answer's reply carries the next `n` cards, chosen knowing it; verdict
+  // null takes an answer back (Undo sends the one the title had before).
+  tasteDeck: (profileId: string, n: number, queued: string[] = []) =>
+    request<{cards: TasteCard[]; goal: number; more: number; counts: Record<Verdict, number>}>(
+      `/api/profiles/${profileId}/taste/deck?n=${n}${queued.length ? `&queued=${queued.map(encodeURIComponent).join(',')}` : ''}`,
+    ),
+  tasteAnswer: (
+    profileId: string,
+    body: {imdbId: string; id?: string; title: string; verdict: Verdict | null; queued?: string[]; n?: number},
+  ) =>
+    post<{verdict: Verdict | null; was: Verdict | null; counts: Record<Verdict, number>; cards: TasteCard[]}>(
+      `/api/profiles/${profileId}/taste/answer`,
+      body,
+    ),
   // Follow / unfollow a show: its new episodes download by themselves when
   // they air (server: media/follows.js). Answers the profile's full list.
   follow: (profileId: string, imdbId: string, on: boolean, title?: string) =>
@@ -1351,7 +1394,11 @@ export const api = {
   // The player's start-up tuning, as this server's admin set it (the
   // server's lib/tvtuning.js). {} — or no answer at all, from a server that
   // predates it — keeps the app's own values. See playback/tuning.ts.
-  tvTuning: () => request<Record<string, unknown>>('/api/tv/tuning'),
+  // `model` (Build.MODEL) lets the admin turn the rendering switches on for one
+  // kind of TV (`tvRender.models`, lib/tvtuning.js); a server that predates it
+  // ignores the query.
+  tvTuning: (model?: string | null) =>
+    request<Record<string, unknown>>(`/api/tv/tuning${model ? `?model=${encodeURIComponent(String(model).slice(0, 40))}` : ''}`),
   // Hide a show's synthesized "up next" card. clearProgress can't (the card's
   // id is the NEXT episode's; the progress row lives under the previous one).
   dismissUpNext: (profileId: string, showId: string, episodeId: string) =>
@@ -1417,10 +1464,12 @@ export const api = {
     imdbId: string,
     season?: number | null,
     episode?: number | null,
+    release?: string | null,
   ) => {
     const q = new URLSearchParams();
     if (season) q.set('season', String(season));
     if (episode) q.set('episode', String(episode));
+    if (release) q.set('release', String(release).slice(0, 200));
     const qs = q.toString();
     return request<{ subtitles: SubtitleTrack[] }>(
       `/api/torrents/subtitles/${type}/${imdbId}${qs ? `?${qs}` : ''}`,
@@ -1602,6 +1651,15 @@ export const api = {
   playBye: (itemId: string): Promise<void> => {
     if (!baseUrl) return Promise.resolve();
     return fetch(`${baseUrl}/stream/transcode/${encodeURIComponent(itemId)}/jit/bye`, {method: 'POST', headers: mediaHeaders()})
+      .then(() => undefined)
+      .catch(() => undefined);
+  },
+  // The same goodbye for a TORRENT played through the server's transcode
+  // (server: POST /stream/torrent/hls/:infoHash/:fileIdx/bye): its offset
+  // jobs that nobody else reads stop now, not at the 2.5-minute idle sweep.
+  torrentBye: (infoHash: string, fileIdx: number): Promise<void> => {
+    if (!baseUrl) return Promise.resolve();
+    return fetch(`${baseUrl}/stream/torrent/hls/${encodeURIComponent(infoHash)}/${Math.max(0, Math.floor(fileIdx || 0))}/bye`, {method: 'POST', headers: mediaHeaders()})
       .then(() => undefined)
       .catch(() => undefined);
   },

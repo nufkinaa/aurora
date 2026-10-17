@@ -2,9 +2,10 @@
 // inside, Back closes. Every overlay in Overlays.tsx is one of these, so they
 // all behave the same from the sofa.
 import React, {useEffect} from 'react';
-import {BackHandler, StyleSheet, Text, TVFocusGuideView, View} from 'react-native';
+import {BackHandler, ScrollView, StyleSheet, Text, TVFocusGuideView, View} from 'react-native';
 import {useKeyTrap} from '../focus';
-import theme from '../theme';
+import {sheetMaxHeight} from '../popupFit';
+import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing} = theme;
 
@@ -33,6 +34,11 @@ export default function Sheet({
     });
     return () => sub.remove();
   }, [onClose]);
+  // A ceiling in dp (popupFit.ts) instead of '92%', and the body scrolls
+  // under the heading: a long changelog, a long list of actions or a sheet on
+  // a 540dp panel keeps its buttons reachable — the focused one is scrolled
+  // into view by Android itself.
+  const {height} = useTvMetrics();
   return (
     <View style={[styles.backdrop, accent && styles.backdropDeep]}>
       <TVFocusGuideView
@@ -41,10 +47,12 @@ export default function Sheet({
         trapFocusDown
         trapFocusLeft
         trapFocusRight
-        style={[styles.card, {width}, accent && styles.cardAccent]}>
+        style={[styles.card, {width, maxHeight: sheetMaxHeight(height, spacing.pageX)}, accent && styles.cardAccent]}>
         {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
         {title ? <Text style={styles.title}>{title}</Text> : null}
-        {children}
+        <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+          {children}
+        </ScrollView>
       </TVFocusGuideView>
     </View>
   );
@@ -79,8 +87,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: spacing.xl,
     maxWidth: '92%',
-    maxHeight: '92%',
   },
+  // grows with its content up to the card's ceiling, then scrolls
+  body: {flexGrow: 0, flexShrink: 1},
   backdropDeep: {backgroundColor: 'rgba(5,6,12,0.86)'},
   cardAccent: {
     borderColor: 'rgba(139,123,255,0.55)',

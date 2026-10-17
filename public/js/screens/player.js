@@ -13,7 +13,9 @@ import { track } from "../usage.js";
 import { uiHit, reportError, playMounted, playFirstFrame, playGone } from "../telemetry.js"; // [analytics]
 import { playCap, capFor, netTier, measured, probe, dataMode } from "../net.js";
 import { followVideo } from "../glassTone.js";
-import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio } from "../lang.js";
+import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "../lang.js";
+import { savedDelay, saveDelay } from "../subdelay.js";
+import { createAirplay } from "../airplay.js";
 import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM } from "../playstart.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -49,6 +51,9 @@ const menuTitle = (icon, text, gap) =>
   el("div", { class: "menu-title", style: gap ? { marginTop: "6px" } : null, html: `${icons[icon] || ""}<span>${text}</span>` });
 
 const audioTrackName = (t, i) => {
+  // the server names tracks now (src/media/subnames.js audioName — the same
+  // name on the TV); the rules below are for an older server's answer
+  if (t && t.label) return t.label;
   const code = String(t.language || "").toLowerCase();
   const lang = code && code !== "und" ? AUDIO_LANG_NAMES[code] || code.toUpperCase() : "";
   const title = t.title && !/^(stereo|surround|\d\.\d)$/i.test(t.title) ? t.title : "";
@@ -85,6 +90,14 @@ const prefs = {
 export const playerPrefs = prefs;
 
 const CUE_SIZES = { S: "1.4vw", M: "2.2vw", L: "3.2vw" };
+// …and never smaller than this: on a phone held upright 2.2vw is 8.6 px —
+// unreadable (seen 2026-10-17 while fixing the cue position there)
+const CUE_MIN_PX = { S: 12, M: 15, L: 19 };
+const cueFontPx = () => {
+  const k = prefs.get("cueSize", "M");
+  const vw = parseFloat(CUE_SIZES[k] || CUE_SIZES.M);
+  return Math.max((vw * window.innerWidth) / 100, CUE_MIN_PX[k] || CUE_MIN_PX.M);
+};
 
 // ---- "Still watching?" (2026-10-08) ----
 // How many episodes in a row started BY THEMSELVES (Up next counting down to
@@ -517,7 +530,8 @@ export const applyCueStyle = () => {
     styleEl.id = "cue-style";
     document.head.append(styleEl);
   }
-  const size = CUE_SIZES[prefs.get("cueSize", "M")] || CUE_SIZES.M;
+  const key = prefs.get("cueSize", "M");
+  const size = `max(${CUE_SIZES[key] || CUE_SIZES.M}, ${CUE_MIN_PX[key] || CUE_MIN_PX.M}px)`;
   const bg = prefs.get("cueBackground", true)
     ? "rgba(0, 0, 0, 0.75)"
     : "transparent";
@@ -805,6 +819,13 @@ export const renderPlayer = async (root, { id }) => {
   const codecCopyable = (v) => copyableFor(v, video, nativeHlsOnly);
 
   let hls = null;
+  // AirPlay (js/airplay.js) — made with the controls further down. While the
+  // film plays on a TV the element plays the TV's own address and NOTHING
+  // here may put another stream on it: every way a stream is (re)started
+  // asks `onAir()` first. The controller puts the local stream back itself
+  // when AirPlay ends (airBack).
+  let air = null;
+  const onAir = () => !!air && air.active();
   // Rebuilds after a FATAL hls.js error (see the ERROR handler). Bounded per
   // BURST rather than for the whole session: four quick attempts, then an honest
   // message — but if the next failure comes more than a window later the budget
@@ -860,6 +881,7 @@ export const renderPlayer = async (root, { id }) => {
   };
 
   const startDirect = () => {
+    if (onAir()) return;
     mark("path", { path: "direct" });
     // An MP4's index is a download of known size that nothing else shares
     // the line with: when it took long enough to be the line's doing (two
@@ -1210,6 +1232,7 @@ export const renderPlayer = async (root, { id }) => {
   // `lad`: this url is a ladder's master playlist — { pick, startH } (see
   // tryJitSwitch). Anything else is a single stream and the ladder is off.
   const startHls = (url, startAt = 0, lad = null) => {
+    if (onAir()) return;
     if (holdNext) {
       holdNext = false;
       holdFrame();
@@ -1427,6 +1450,9 @@ export const renderPlayer = async (root, { id }) => {
             });
           }
           if (lad) ladderWire(hls, gen, lad);
+          // AirPlay: hls.js's MediaSource is on the element (again, after a
+          // media-error recovery too) — the TV's address goes in beside it
+          hls.on(window.Hls.Events.MEDIA_ATTACHED, () => { if (gen === hlsGen && air) air.attached(); });
           hls.loadSource(url);
           hls.attachMedia(video);
           // A RESUME, with segments played as they arrive: hls.js moves the
@@ -1608,6 +1634,7 @@ export const renderPlayer = async (root, { id }) => {
     return `${item.transcodeBase}/${Math.max(0, Math.floor(ss || 0))}/index.m3u8?v=${vv}${cap}${seg}${vtag}${a}`;
   };
   const startTranscode = (offset, v, { claimed = false, clock = null, startAt = 0 } = {}) => {
+    if (onAir()) return;
     streamOffset = Math.max(0, Math.floor(offset || 0));
     usingTranscode = true;
     // Any offset job means we've LEFT the jit world (e.g. the media-error
@@ -1644,6 +1671,18 @@ export const renderPlayer = async (root, { id }) => {
         clockBase = c.base;
         windowStart = c.base;
         startHls(url, c.offset || 0);
+      } else if (isCopySeek && nativeHlsOnly && c && isFinite(c.base) && c.base <= streamOffset + 1 && c.base >= streamOffset - 60) {
+        // The iPhone's fMP4 copy job starts at its keyframe, up to a GOP
+        // before the asked second, on a zero-based clock: the server says
+        // what content time that zero is (routes/stream.js, measured with
+        // tools/subs-rig). Assuming the asked second put every cue and the
+        // scrubber that far ahead (2-5 s on the rig, up to ~10 s on real
+        // HEVC releases). (Unverified on a real iPhone: Safari's native HLS
+        // clock for fMP4 is taken to start at the first sample, as the
+        // comments above have measured for the copy path.)
+        clockBase = c.base;
+        windowStart = c.base;
+        startHls(url, 0);
       } else {
         clockBase = streamOffset;
         windowStart = streamOffset;
@@ -1689,6 +1728,14 @@ export const renderPlayer = async (root, { id }) => {
     }
     closeMenu();
     showControls();
+    // on a TV: the TV is sent the same film with the other track (js/airplay.js)
+    if (onAir()) {
+      const t = (item.audioTracks || []).find((x, i) => (x.index != null ? x.index : i) === idx);
+      toast(`Audio: ${audioTrackName(t || {}, idx)}`, "🔈");
+      track("feat", { f: "audio_track" });
+      air.reload();
+      return;
+    }
     if (!item.transcodeBase) item.transcodeBase = isTorrent ? item.transcodeBase : `/stream/transcode/${item.id}`;
     const at = effTime();
     let v = usingTranscode && !jitMode ? currentV : "copy";
@@ -1730,6 +1777,11 @@ export const renderPlayer = async (root, { id }) => {
   // up (`auto`). No message box either way: a small chip in the corner names
   // the quality for a moment, and that is all.
   const applyQuality = (h, { auto = false } = {}) => {
+    // on a TV the picture is the TV's stream: the file's own (or the full encode)
+    if (onAir()) {
+      if (!auto) toast("On AirPlay the TV gets the full picture — quality is back here when AirPlay ends", "📺");
+      return;
+    }
     // A file this device plays as it is: "Original" is plain direct play,
     // ladder or no ladder (further down).
     const directOk = !!item.videoUrl && audioIdx === 0 && !videoNeedsTranscode() && !audioNeedsRemux();
@@ -1848,6 +1900,7 @@ export const renderPlayer = async (root, { id }) => {
     v,
     { fallbackToZero = false, quiet = false, live = false } = {},
   ) => {
+    if (onAir()) return false; // the TV plays its own stream (see `air`)
     // LIVE (a quality change onto an encode — an exact, 0-based timeline): the
     // film keeps playing what it has while the new stream is made. The new one
     // is asked to begin three seconds AHEAD of the playhead, and takes over
@@ -1934,6 +1987,7 @@ export const renderPlayer = async (root, { id }) => {
   const ladderEligible = () => canCap && !!item.id && (!nativeHlsOnly || ladderNative);
   let jitAsked = false; // the start has been through tryJitSwitch once
   const tryJitSwitch = async (fromSec, lad = null) => {
+    if (onAir()) return true; // nothing to switch while the TV plays (and nothing to fall back to)
     // What was asked ahead (prestart) is for the start. Any later switch — a
     // step down, a quality pick, another audio track — asks the server anew.
     const atStart = !jitAsked;
@@ -2215,7 +2269,7 @@ export const renderPlayer = async (root, { id }) => {
   let stallTimer = null;
   let switchedToTranscode = false;
   const fallbackToTranscode = () => {
-    if (switchedToTranscode || !canFallback) return;
+    if (switchedToTranscode || !canFallback || onAir()) return;
     switchedToTranscode = true;
     if (stallTimer) {
       clearInterval(stallTimer);
@@ -2253,7 +2307,7 @@ export const renderPlayer = async (root, { id }) => {
     let lastCT = -1,
       stalls = 0;
     stallTimer = setInterval(() => {
-      if (exited || switchedToTranscode) return;
+      if (exited || switchedToTranscode || onAir()) return; // (the TV's clock is not this device's decoder)
       const ct = video.currentTime;
       const ahead =
         video.buffered.length &&
@@ -2306,6 +2360,8 @@ export const renderPlayer = async (root, { id }) => {
       // its first bytes if it ever will — the old 6s threshold just meant 6
       // silent seconds before the inevitable switch (S0 measured 6.8s).
       if (video.paused || video.currentTime < 3) return;
+      // on a TV nothing is decoded here: zero bytes says nothing (asked again after)
+      if (onAir() || video.webkitCurrentPlaybackTargetIsWireless) return;
       clearInterval(audioProbe); // one-shot: decide once real playback ran
       const dec = video.webkitAudioDecodedByteCount;
       if (typeof dec === "number" && dec === 0) {
@@ -2559,37 +2615,90 @@ export const renderPlayer = async (root, { id }) => {
   try {
     if ("autoPictureInPicture" in video) video.autoPictureInPicture = true;
   } catch {}
-  // AirPlay (Safari only): hand the film to an Apple TV. Offered only when
-  // Safari says a target is in reach AND the element plays a source AirPlay
-  // can fetch for itself — the file, or native HLS (iPhone). A stream built
-  // by hls.js lives in this page's memory (MSE, a blob: URL) and a saved copy
-  // lives in this device's cache; neither can be handed to another device.
-  let airAvailable = false;
-  const airOk = () =>
-    airAvailable &&
-    !hls &&
-    !item._offline &&
-    typeof video.webkitShowPlaybackTargetPicker === "function" &&
-    !!(video.currentSrc || video.src) &&
-    !/^blob:/i.test(video.currentSrc || video.src || "");
-  const airBtn = btn("AirPlay", icons.airplay, () => {
-    try {
-      video.webkitShowPlaybackTargetPicker();
-      track("feat", { f: "airplay" });
-    } catch {}
-  }, "airplay-btn hidden");
-  const offerAir = () => { try { airBtn.classList.toggle("hidden", !airOk()); } catch {} };
-  if (window.WebKitPlaybackTargetAvailabilityEvent) {
-    video.addEventListener("webkitplaybacktargetavailabilitychanged", (e) => {
-      airAvailable = !!e && e.availability === "available";
-      offerAir();
-    });
-    // the source can change under the button (direct → hls.js and back)
-    video.addEventListener("loadedmetadata", offerAir);
-    video.addEventListener("webkitcurrentplaybacktargetiswirelesschanged", () => {
-      try { airBtn.classList.toggle("active", !!video.webkitCurrentPlaybackTargetIsWireless); } catch {}
-    });
-  }
+  // AirPlay (Safari): hand the film to an Apple TV. The button shows when
+  // Safari says a TV is in reach; the TV is given an address of its own (a
+  // signed link to this title's stream — the TV has no sign-in) and plays
+  // from there; when AirPlay ends this player picks the film up where the TV
+  // left it. The why and the how: js/airplay.js.
+  // What was playing here, taken off the element while the TV plays.
+  const airLeave = () => {
+    const snap = {
+      hls: !!hls,
+      url: stall.url,
+      lad: stall.lad ? (hls ? ladderNow() : stall.lad) : null,
+      usingTranscode, jitMode, currentV,
+      src: hls ? null : video.getAttribute("src"),
+    };
+    ++hlsGen; // every callback of the stream being left stands down
+    clearTimeout(hlsRecoverTimer);
+    if (hls) {
+      try { hls.destroy(); } catch {}
+      hls = null;
+    }
+    usingTranscode = false;
+    jitMode = false;
+    ladderAsked = false;
+    ladderOn = false;
+    streamOffset = 0;
+    clockBase = 0;
+    windowStart = 0;
+    stall.url = null;
+    stall.lad = null;
+    stall.hold = null;
+    try { spinner.classList.add("hidden"); stopTorrentOverlay(); } catch {}
+    return snap;
+  };
+  // …and put back, at the position the TV reached.
+  const airBack = (snap, pos, playing) => {
+    if (exited) return;
+    excuseUntil = Date.now() + 15000;
+    watchFrom = Date.now() + 6000;
+    // a paused TV comes back paused
+    // (the stream's own start plays it: that first play only — a press on
+    // Play a little later is the viewer's)
+    if (!playing) {
+      const stop = () => { try { video.pause(); } catch {} };
+      video.addEventListener("playing", stop, { once: true });
+      setTimeout(() => video.removeEventListener("playing", stop), 8000);
+    }
+    if (snap && snap.url && snap.jitMode) {
+      usingTranscode = true;
+      jitMode = true;
+      currentV = snap.currentV;
+      startHls(snap.url, pos, snap.lad);
+    } else if (snap && snap.usingTranscode) {
+      // an offset job: a new one at this position
+      startTranscodeAt(pos, snap.currentV, { fallbackToZero: true });
+    } else if (snap && snap.url) {
+      startHls(snap.url, pos); // the compat remux: one playlist from the start
+    } else {
+      const src = (snap && snap.src) || item.videoUrl;
+      video.addEventListener("loadedmetadata", () => {
+        try { video.currentTime = pos; } catch {}
+        if (playing) tryPlay();
+      }, { once: true });
+      video.src = src;
+    }
+  };
+  const airBtn = btn("AirPlay", icons.airplay, () => { if (air) air.pick(); }, "airplay-btn hidden");
+  air = createAirplay({
+    video,
+    item,
+    link: (p) => api.airplayLink(p, state.profile && state.profile.id),
+    hooks: {
+      pos: () => effTime(),
+      audioIdx: () => audioIdx,
+      // (declared with the subtitle menu further down)
+      subIdx: () => { try { return activeTrack; } catch { return -1; } },
+      plainSrc: () => !hls && !!video.currentSrc && !/^blob:/i.test(video.currentSrc),
+      leave: airLeave,
+      back: airBack,
+      toast: (text, icon) => toast(text, icon),
+      track: (f) => track("feat", { f }),
+      onAvailable: (on) => { try { airBtn.classList.toggle("hidden", !on); } catch {} },
+      onActive: (on) => { try { airBtn.classList.toggle("active", on); } catch {} },
+    },
+  });
   if ((item.subtitles || []).length === 0) ccBtn.classList.add("hidden");
 
   const muteBtn = btn("Mute", icons.volume, () => toggleMute());
@@ -2943,29 +3052,52 @@ export const renderPlayer = async (root, { id }) => {
   // subtitle file positioned itself (a sign translated at the top of the
   // frame) are never touched. Native iOS fullscreen draws its own captions
   // around its own controls, so it's left alone too.
+  //
+  // CHROME HAS NO lineAlign (measured 2026-10-17 through the cue boxes in the
+  // user-agent shadow DOM, tools/subs-rig): `cue.lineAlign = "end"` is simply
+  // ignored there, so a cue aimed to END at the line STARTED at it and hung
+  // down under the scrubber — the report "subs appear behind the timeline".
+  // Where lineAlign is missing (Chrome, Edge, Android Chrome) the cue's TOP is
+  // aimed instead: the line, less the cue's own height, from its line count and
+  // the size Chrome lays one line out at (max(1.53 × font, 6 % of the video's
+  // height) — fitted on 1280/844/390-wide windows at every cue size, a little
+  // generous on purpose). Safari and Firefox keep lineAlign "end", exact.
   let cuesLifted = false;
-  const liftedCues = new WeakSet();
+  const liftedCues = new WeakMap(); // cue -> the line it was given
+  const LINE_ALIGN = typeof VTTCue !== "undefined" && "lineAlign" in VTTCue.prototype;
   const liftLine = () => {
     const v = video.getBoundingClientRect();
     const d = dockEl && dockEl.getBoundingClientRect();
     if (!v.height || !d || !d.height) return null;
     const bottom = Math.min(v.bottom, d.top - 12);
-    return Math.max(8, Math.min(96, ((bottom - v.top) / v.height) * 100));
+    return { pct: Math.max(8, Math.min(96, ((bottom - v.top) / v.height) * 100)), w: v.width, h: v.height };
+  };
+  // Where a cue's top goes so its bottom sits on `at.pct` (no lineAlign).
+  const cueTopFor = (cue, at) => {
+    const fontPx = cueFontPx();
+    const linePx = Math.max(1.53 * fontPx, 0.06 * at.h);
+    const perLine = Math.max(8, Math.floor((at.w * 0.9) / (fontPx * 0.55))); // characters before a wrap
+    const lines = String(cue.text || "")
+      .replace(/<[^>]*>/g, "")
+      .split("\n")
+      .reduce((n, l) => n + Math.max(1, Math.ceil(l.length / perLine)), 0);
+    return Math.max(0, at.pct - ((lines * linePx) / at.h) * 100);
   };
   // true when the cue actually moved
-  const placeCue = (cue, line) => {
-    if (line != null) {
+  const placeCue = (cue, at) => {
+    if (at != null) {
       if (!liftedCues.has(cue) && cue.line !== "auto") return false; // the file placed it — leave it
+      const line = LINE_ALIGN ? at.pct : cueTopFor(cue, at);
       if (liftedCues.has(cue) && cue.line === line) return false;
       cue.snapToLines = false;
-      cue.lineAlign = "end";
+      if (LINE_ALIGN) cue.lineAlign = "end";
       cue.line = line;
-      liftedCues.add(cue);
+      liftedCues.set(cue, line);
       return true;
     }
     if (!liftedCues.has(cue)) return false;
     cue.snapToLines = true;
-    cue.lineAlign = "start";
+    if (LINE_ALIGN) cue.lineAlign = "start";
     cue.line = "auto";
     liftedCues.delete(cue);
     return true;
@@ -3007,6 +3139,10 @@ export const renderPlayer = async (root, { id }) => {
   };
   for (const tt of video.textTracks) tt.addEventListener("cuechange", onCueChange);
   video.textTracks.addEventListener("addtrack", (e) => e.track && e.track.addEventListener("cuechange", onCueChange));
+  // iPhone native fullscreen: the system player draws the captions around its
+  // own controls and cannot be styled — a cue still aimed at OUR dock would
+  // float mid-picture there, so everything goes back to its own placement.
+  video.addEventListener("webkitbeginfullscreen", () => liftCues(false));
   // a resize / fullscreen flip moves the dock — re-aim while lifted
   const onLiftResize = () => cuesLifted && placeAllCues();
   window.addEventListener("resize", onLiftResize);
@@ -3234,12 +3370,11 @@ export const renderPlayer = async (root, { id }) => {
     }
     if (!prefs.get("subsDefault", true)) return -1;
     const want = prefs.get("subLang", "any");
-    const test = SUB_LANG_TEST[want];
-    if (test) {
-      const subs = item.subtitles || [];
-      const i = subs.findIndex(
-        (t) => test.code.test(t.lang || "") || test.label.test(t.label || ""),
-      );
+    if (SUB_LANG_TEST[want]) {
+      // the same rule as a remembered pick: the best track in that language
+      // (a full one before SDH before forced — the server now names and flags
+      // embedded tracks, so a file's "Forced" track is no longer taken for it)
+      const i = bestTrackIndex(item.subtitles || [], want);
       if (i >= 0) return i;
     }
     return from;
@@ -3267,6 +3402,11 @@ export const renderPlayer = async (root, { id }) => {
         } else {
           applyOffsetToTrack(tracks[idx]);
         }
+        const o = offsetFor(idx);
+        if (o && !delayAnnounced.has(idx)) {
+          delayAnnounced.add(idx);
+          toast(`Subtitle delay ${o > 0 ? "+" : ""}${o.toFixed(1)}s, as you left it — Subtitles › Reset to undo`, "💬", null, { quiet: true });
+        }
       }, 250);
   };
 
@@ -3289,6 +3429,8 @@ export const renderPlayer = async (root, { id }) => {
     enforcingTracks = false;
   };
   video.textTracks.addEventListener("change", enforceSingleSub);
+  // AirPlay sends the subtitle that is on here (js/airplay.js): ask for it now
+  video.textTracks.addEventListener("change", () => { if (air) air.changed(); });
 
   // ---------- subtitle sync ----------
   // Cue times in the subtitle files are CONTENT-absolute, but a transcoded
@@ -3304,8 +3446,30 @@ export const renderPlayer = async (root, { id }) => {
   // film, the first cue landed anywhere from 0.0s to 357.0s — so a delay that
   // fixes one track is wrong for the next. A single shared value silently
   // followed you from track to track.
+  // …and it is REMEMBERED, per title and track, on this device (subdelay.js):
+  // the report "the subs sync button does not work" was, for a good part, a
+  // delay that was gone again after the next reload or the next evening —
+  // nothing was ever saved.
   const trackOffsets = new Map(); // textTracks index -> seconds
-  const offsetFor = (idx) => trackOffsets.get(idx) || 0;
+  const trackUrlAt = (idx) => {
+    const t = (item.subtitles || [])[idx];
+    if (t && t.url) return t.url;
+    const el = [...video.querySelectorAll("track")][idx];
+    return el ? el.getAttribute("src") : null;
+  };
+  let delayStore = null;
+  try { delayStore = window.localStorage; } catch {}
+  const offsetFor = (idx) => {
+    if (idx < 0) return 0;
+    if (!trackOffsets.has(idx)) trackOffsets.set(idx, savedDelay(delayStore, item.id, trackUrlAt(idx)));
+    return trackOffsets.get(idx) || 0;
+  };
+  const setOffset = (idx, seconds) => {
+    trackOffsets.set(idx, seconds);
+    saveDelay(delayStore, item.id, trackUrlAt(idx), seconds);
+  };
+  // said once per track, when one comes back with a remembered delay
+  const delayAnnounced = new Set();
   const appliedOffset = new WeakMap();
   const applyOffsetToTrack = (tt) => {
     if (!tt || !tt.cues || !tt.cues.length) return;
@@ -3342,9 +3506,11 @@ export const renderPlayer = async (root, { id }) => {
   const nudgeSubs = (delta) => {
     if (activeTrack < 0) return toast("Turn a subtitle track on first", "💬");
     const next = Math.round((offsetFor(activeTrack) + delta) * 10) / 10;
-    trackOffsets.set(activeTrack, next);
+    setOffset(activeTrack, next);
     applyOffsetToTrack(video.textTracks[activeTrack]); // only this track moves
-    toast(`Subtitle delay ${next >= 0 ? "+" : ""}${next.toFixed(1)}s`, "💬");
+    // With the menu open its own row shows the value — a toast there landed
+    // right on top of the timing buttons on a phone (seen 2026-10-17).
+    if (menuKind !== "cc") toast(`Subtitle delay ${next >= 0 ? "+" : ""}${next.toFixed(1)}s`, "💬");
   };
   // A track that finished "loading" with ZERO cues hit a transient fetch
   // failure (server restart mid-load, flaky subtitle upstream) — browsers
@@ -3391,7 +3557,7 @@ export const renderPlayer = async (root, { id }) => {
     if (activeTrack < 0) return toast("Turn a subtitle track on first", "💬");
     const label =
       [...video.querySelectorAll("track")][activeTrack]?.label || "Subtitles";
-    trackOffsets.delete(activeTrack); // back to the file's own timing
+    setOffset(activeTrack, 0); // back to the file's own timing (and forgotten)
     for (const tt of video.textTracks) appliedOffset.delete(tt);
     // Reload the ACTIVE track from scratch (cache-busted). Its 'load' event
     // re-applies the anchor via armTrackOffset.
@@ -5494,6 +5660,10 @@ export const renderPlayer = async (root, { id }) => {
   }
 
   video.addEventListener("error", () => {
+    // On AirPlay the error is the TV's: a fresh link, or a word on why
+    // (js/airplay.js) — never this device's fallbacks below
+    if (air && air.onError()) return;
+    if (onAir()) return;
     // A decode/format error on a direct torrent stream → try the transcode
     // before giving up.
     if (canFallback && !switchedToTranscode) {
@@ -5770,7 +5940,7 @@ export const renderPlayer = async (root, { id }) => {
       if (exited || (item.subtitles && item.subtitles.length)) return;
       const subType = item.season && item.episode ? "series" : "movie";
       api
-        .torrentSubtitles(subType, item.imdbId, item.season, item.episode)
+        .torrentSubtitles(subType, item.imdbId, item.season, item.episode, item.release || null)
         .then(({ subtitles }) => {
           if (subtitles && subtitles.length) addTracks(subtitles);
         })
@@ -5786,7 +5956,8 @@ export const renderPlayer = async (root, { id }) => {
   if (!isTorrent && !item._offline && prefs.get("subsDefault", true)) {
     const want = prefs.get("subLang", "any");
     const test = SUB_LANG_TEST[want];
-    const matches = (t) => test && (test.code.test(t.lang || "") || test.label.test(t.label || ""));
+    // (lang.js: a "he" / "heb" / "iw" tag, or a label in any of its spellings)
+    const matches = (t) => !!test && langOf(t) === want;
     if (test && !(item.subtitles || []).some(matches)) {
       api.subtitlesFetch(item.id, want)
         .then((r) => {
@@ -5935,6 +6106,7 @@ export const renderPlayer = async (root, { id }) => {
     if (stallTimer) clearInterval(stallTimer);
     if (audioProbe) clearInterval(audioProbe);
     if (keepAlive) clearInterval(keepAlive);
+    if (air) air.destroy();
     clearInterval(stallWatch); // (stall.hold is left as it is: the save below must still respect it)
     if (msRelease) msRelease(); // now — before the next player claims the media session
     clearTimeout(rebufferTimer);

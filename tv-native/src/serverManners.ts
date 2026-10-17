@@ -142,6 +142,26 @@ export type BusyOutcome =
   /** the viewer left, or asked for something else, while waiting */
   | {kind: 'gone'; waited: number};
 
+/** PURE: must a start hear the server's answer BEFORE the player is handed
+ *  the source? For an ENCODE that has not played yet: yes. ExoPlayer reads a
+ *  refused playlist again by itself (react-native-video's load-error policy,
+ *  minLoadRetryCount 50, a second or so apart) and reports only "Source
+ *  error", so with both asking at once it was a race whether the app's wait
+ *  (whenRoom) or ExoPlayer's own retries met the refusal — the busy path was
+ *  never seen working on a TV. The claim going first makes it one answer,
+ *  read here, every time. A COPY is never refused (the budget counts only
+ *  encoders), so it keeps the quicker start: both at once. Once something has
+ *  played, a source change keeps the old rule too (nothing to hold back: the
+ *  picture that was playing stays until the new one is up). */
+export const claimFirst = (v: string, everPlayed: boolean): boolean => v !== 'copy' && !everPlayed;
+/** PURE: what a start that asked first does with the answer — hand the
+ *  player its source ('play': room, or an answer that is not "busy", or a
+ *  claim that failed on the line, where the player's own read is the next
+ *  best judge), say so ('busy': no room after every try), or nothing ('gone':
+ *  the viewer left or asked for something else meanwhile). */
+export const afterClaim = (o: BusyOutcome): 'play' | 'busy' | 'none' =>
+  o.kind === 'gone' ? 'none' : o.kind === 'busy' ? 'busy' : 'play';
+
 /** Ask; while the answer is 503, wait what the server says (5 s at most) and
  *  ask again — BUSY_TRIES more times, then stop. Never loops: at most
  *  1 + BUSY_TRIES requests and BUSY_TRIES waits. `waited` counts the waits

@@ -217,6 +217,9 @@ module.exports = {
   // The TV player's start-up tuning, handed to the app as it is asked for
   // (lib/tvtuning.js — checked there). Nothing set: the app's own values.
   TV_PLAYER: userConfig.tvPlayer || null,
+  // The TV's rendering switches (native components, render fixes), per TV
+  // model if wanted (lib/tvtuning.js — checked there). Nothing set: all off.
+  TV_RENDER: userConfig.tvRender || null,
   FFMPEG,
   FFPROBE,
   TESSERACT,

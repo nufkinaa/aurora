@@ -3188,6 +3188,14 @@ html[data-look="glass"]:root .card.wide .card-progress {
     width: 114px;
     border-radius: 12px;
   }
+  /* ...on a shelf. In a grid (Search, Movies, Shows, My List) a poster fills
+     its cell, as it does everywhere else: the fixed 114px above outranked
+     `.grid .card.poster` and left each card stuck to the left of a wider
+     cell (two columns with a ragged gutter at 360px) or spilling 3px into
+     the gap of a narrower one (390px). */
+  html[data-look="glass"]:root .grid .card.poster {
+    width: 100%;
+  }
   /* Continue Watching: a taller frame for a landscape picture (components.js
      gives a wide card the title's backdrop), with the words on a deep fade */
   html[data-look="glass"]:root .card.wide {
@@ -4270,11 +4278,11 @@ html[data-fx="lite"] .img-blurup.img-in { animation: none; }
 
 .pbtn.next-btn.hidden { display: none; }
 
-/* ---- AirPlay button (2026-10-08) ----
-   Only ever shown by Safari, when a target is in reach and the film plays
-   from a source AirPlay can fetch (js/screens/player.js, airBtn). Hidden it
-   takes no room in the tools row. */
+/* ---- AirPlay button (2026-10-08, 2026-10-17) ----
+   Only ever shown by Safari, when a TV is in reach (js/airplay.js). Hidden
+   it takes no room in the tools row; lit while the film plays on a TV. */
 .pbtn.airplay-btn.hidden { display: none; }
+.pbtn.airplay-btn.active { color: var(--accent, #4ea1ff); }
 
 /* ---------- the person sheet (js/personSheet.js) ----------
    Press an actor or a director — in X-Ray or in a title page's cast line —
@@ -4544,7 +4552,11 @@ button.xr-person:focus-visible {
   display: flex;
   flex-direction: column;
 }
-.person-grid .card.poster.pt-card {
+/* .person-wrap in front: the glass look's phone rule for every poster
+   (html[data-look="glass"]:root .card.poster { width: 114px }) outranked a
+   plain .person-grid one, and on a phone a poster stayed 114px wide in a
+   ~100px column — the posters ran into each other (elia, 2026-10-17). */
+.person-wrap .person-grid .card.poster.pt-card {
   width: 100%;
   border: 0;
   padding: 0;
@@ -4613,6 +4625,28 @@ button.xr-person:focus-visible {
 .pt-flag.hidden {
   display: none;
 }
+/* a title part-watched carries the watch bar along the poster's foot: the
+   flag stands above it, never across it */
+.pt-card.pt-progress .pt-flag {
+  bottom: 20px;
+}
+/* no poster: the titled tile. A long title (or one long word) at the tile's
+   usual 1rem ran out of a 100px card, across its neighbours and the marks:
+   smaller here, wrapped anywhere, and at most four lines — in the middle of
+   the tile, between the + mark and the flag */
+.pt-card .card-fallback {
+  padding: 0 8px;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.pt-card .card-fallback > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
 .pt-card .card-progress {
   position: absolute;
   left: 8px;
@@ -4632,6 +4666,7 @@ button.xr-person:focus-visible {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
+  overflow-wrap: anywhere; /* one long word wraps instead of running out of the card */
 }
 .pt-sub {
   margin-top: 2px;
@@ -4642,6 +4677,7 @@ button.xr-person:focus-visible {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
+  overflow-wrap: anywhere; /* one long word wraps instead of running out of the card */
 }
 /* the other thing to do with a title: its page */
 .pt-more {
@@ -4835,7 +4871,8 @@ button.xr-person:focus-visible {
   .person-photo { height: 100px; }
   .person-bio { display: none; } /* the titles are what there is room for */
   .person-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
-  .person-viewer-slide { padding-top: 12px; padding-bottom: 28px; }
+  /* (the foot keeps room for the "1 / 3" under the photo) */
+  .person-viewer-slide { padding-top: 12px; padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (hover: none) {
   /* nothing hovers on a touch screen: a tapped card must not stay lifted */

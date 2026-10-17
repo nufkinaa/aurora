@@ -145,6 +145,7 @@ route("/discover/:type/:id", (root, p) => {
 route("/preferences", (root, p) => import("./screens/preferences.js").then((m) => m.renderPreferences(root, p)));
 route("/wrapped", lazy("./screens/wrapped.js", "renderWrapped"));
 route("/taste", lazy("./screens/taste.js", "renderTaste"));
+route("/taste/list", lazy("./screens/taste.js", "renderTasteList"));
 route("/pick", lazy("./screens/pickforme.js", "renderPickForMe"));
 route("/new", lazy("./screens/whatsnew.js", "renderWhatsNew"));
 route("/pair/:code", (root, p) => import("./screens/pair.js").then((m) => m.renderPair(root, p)));

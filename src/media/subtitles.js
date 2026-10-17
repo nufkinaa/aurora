@@ -39,6 +39,35 @@ const decodeSubtitle = (buf) => {
   return text;
 };
 
+// An external subtitle file as it should be PLAYED: lined up against the
+// video's own track when the background check found it off (media/sublang.js
+// syncFor — the file on disk is never rewritten), and with the punctuation of
+// a Hebrew/Arabic file authored for renderers without bidi put back
+// (media/subsync.js). -> { text (WebVTT), how: [what was done] }
+const playable = (subPath, content) => {
+  const subsync = require("./subsync");
+  const ext = path.extname(subPath).toLowerCase();
+  const how = [];
+  let text = content;
+  let srt = ext === ".srt";
+  let sync = null;
+  try { sync = require("./sublang").syncFor(subPath); } catch {}
+  if (sync && (ext === ".srt" || ext === ".vtt")) {
+    const cues = subsync.parse(text);
+    if (cues.length) {
+      text = subsync.toSrt(subsync.retime(cues, sync.scale, sync.offset));
+      srt = true;
+      how.push(`${sync.how}: x${sync.scale.toFixed(4)} ${sync.offset >= 0 ? "+" : ""}${sync.offset.toFixed(2)}s`);
+    }
+  }
+  const rtl = subsync.fixRtlPunctuation(text);
+  if (rtl.changed) {
+    text = rtl.text;
+    how.push(`rtl punctuation x${rtl.changed}`);
+  }
+  return { text: srt ? srtToVtt(text) : text, how };
+};
+
 // Serve an external subtitle file as WebVTT
 const serveExternal = (subPath, res) => {
   let content;
@@ -48,10 +77,67 @@ const serveExternal = (subPath, res) => {
     return res.status(404).send("Subtitle not found");
   }
   res.setHeader("Content-Type", "text/vtt; charset=utf-8");
-  res.setHeader("Cache-Control", "public, max-age=3600");
-  const ext = path.extname(subPath).toLowerCase();
-  res.send(ext === ".srt" ? srtToVtt(content) : content);
+  // revalidated (a cheap 304 by ETag) rather than kept for an hour: a timing
+  // repair can land while somebody is watching, and the next load must get it
+  res.setHeader("Cache-Control", "no-cache");
+  const out = playable(subPath, content);
+  if (out.how.length) res.setHeader("X-Aurora-Subtitle-Repair", out.how.join("; ").slice(0, 200));
+  res.send(out.text);
 };
+
+// Where an extracted track is kept (one file per video, mtime and track).
+const cacheFileFor = (videoPath, mtime, trackIndex) =>
+  path.join(VTT_CACHE_DIR, `${crypto.createHash("md5").update(`${videoPath}|${mtime}|${trackIndex}`).digest("hex")}.vtt`);
+
+// Every listed embedded text track of a video in ONE pass over the file (a
+// subtitle stream is spread through the whole file, so each extraction is a
+// full read — forty tracks one at a time would be forty reads). Written to the
+// same cache the player's requests are answered from, so a track this has
+// seen is instant to play. Tracks already cached are read, not extracted.
+//   -> Promise<{ [trackIndex]: vttText }>   (a track that failed is missing)
+// opts.spawned(child): handed the ffmpeg process (the background budget
+// lowers and pauses it — media/cpuwork.js).
+const extractAll = (videoPath, indices, opts = {}) =>
+  new Promise((resolve) => {
+    let mtime = 0;
+    try { mtime = fs.statSync(videoPath).mtimeMs; } catch { return resolve({}); }
+    const out = {};
+    const todo = [];
+    for (const i of indices) {
+      const f = cacheFileFor(videoPath, mtime, i);
+      try { out[i] = fs.readFileSync(f, "utf-8"); } catch { todo.push(i); }
+    }
+    if (!todo.length || !config.ffmpegAvailable) return resolve(out);
+    fs.mkdirSync(VTT_CACHE_DIR, { recursive: true });
+    const args = ["-v", "error", "-nostdin", "-i", videoPath];
+    for (const i of todo) args.push("-map", `0:s:${i}`, "-f", "webvtt", "-y", `${cacheFileFor(videoPath, mtime, i)}.part`);
+    let proc;
+    try {
+      proc = spawn(config.FFMPEG, args, { stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
+    } catch {
+      return resolve(out);
+    }
+    if (opts.spawned) { try { opts.spawned(proc); } catch {} }
+    let stderr = "";
+    proc.stderr.on("data", (d) => { if (stderr.length < 4000) stderr += d; });
+    const killer = setTimeout(() => { try { proc.kill("SIGKILL"); } catch {} }, opts.timeoutMs || 30 * 60 * 1000);
+    const finish = (code) => {
+      clearTimeout(killer);
+      for (const i of todo) {
+        const f = cacheFileFor(videoPath, mtime, i);
+        try {
+          if (code === 0) {
+            fs.renameSync(`${f}.part`, f);
+            out[i] = fs.readFileSync(f, "utf-8");
+          } else fs.unlinkSync(`${f}.part`);
+        } catch {}
+      }
+      if (code !== 0) console.error(`[subs] extracting ${todo.length} track(s) from ${path.basename(videoPath)} failed:`, stderr.trim().slice(-200) || code);
+      resolve(out);
+    };
+    proc.on("error", () => finish(-1));
+    proc.on("close", finish);
+  });
 
 // Extract an embedded text subtitle track as WebVTT, streaming to the
 // response while also caching to disk for instant repeats.
@@ -66,11 +152,7 @@ const serveEmbedded = (videoPath, trackIndex, res) => {
     return res.status(404).send("Video not found");
   }
 
-  const key = crypto
-    .createHash("md5")
-    .update(`${videoPath}|${mtime}|${trackIndex}`)
-    .digest("hex");
-  const cacheFile = path.join(VTT_CACHE_DIR, `${key}.vtt`);
+  const cacheFile = cacheFileFor(videoPath, mtime, trackIndex);
 
   res.setHeader("Content-Type", "text/vtt; charset=utf-8");
   res.setHeader("Cache-Control", "public, max-age=86400");
@@ -160,10 +242,42 @@ const serveEmbedded = (videoPath, trackIndex, res) => {
   res.on("close", () => ffmpeg.stdout.unpipe(res));
 };
 
+// A subtitle's WebVTT as TEXT (null when it can't be had), for a caller that
+// has to change it before it goes out — the AirPlay subtitle playlist adds
+// the timestamp map Apple's players want (routes/stream.js). The same
+// conversion and the same extraction cache as the two routes above.
+const vttText = async ({ subPath = null, videoPath = null, trackIndex = 0 } = {}) => {
+  if (subPath) {
+    try {
+      // as the player gets it (serveExternal): lined up and with the
+      // punctuation repaired, so the Apple TV shows the same timing
+      return playable(subPath, decodeSubtitle(fs.readFileSync(subPath))).text;
+    } catch {
+      return null;
+    }
+  }
+  if (!videoPath || !config.ffmpegAvailable) return null;
+  let mtime = 0;
+  try { mtime = fs.statSync(videoPath).mtimeMs; } catch { return null; }
+  const cacheFile = cacheFileFor(videoPath, mtime, trackIndex);
+  const read = () => { try { return fs.readFileSync(cacheFile, "utf-8"); } catch { return null; } };
+  if (fs.existsSync(cacheFile)) return read();
+  // run the extraction into a sink that keeps nothing: what is wanted is
+  // the cache file it leaves behind
+  const { Writable } = require("stream");
+  const sink = new Writable({ write(_c, _e, cb) { cb(); } });
+  Object.assign(sink, { headersSent: false, setHeader() {}, status() { return sink; }, send() { sink.end(); }, sendFile() { sink.end(); } });
+  serveEmbedded(videoPath, trackIndex, sink);
+  if (fs.existsSync(cacheFile)) return read();
+  const job = inflight.get(cacheFile);
+  if (!job) return null;
+  return (await job) ? read() : null;
+};
+
 const clearCache = () => {
   try {
     fs.rmSync(VTT_CACHE_DIR, { recursive: true, force: true });
   } catch {}
 };
 
-module.exports = { serveExternal, serveEmbedded, clearCache };
+module.exports = { serveExternal, serveEmbedded, vttText, clearCache, extractAll, cacheFileFor, decodeSubtitle, srtToVtt, playable };

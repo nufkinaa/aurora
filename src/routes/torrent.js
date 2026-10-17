@@ -4,6 +4,7 @@ const path = require("path");
 const express = require("express");
 const torrent = require("../media/torrent");
 const transcode = require("../media/torrent-transcode");
+const { viewerOf } = require("../lib/viewer");
 const config = require("../config");
 const perf = require("../lib/perf");
 
@@ -102,11 +103,14 @@ router.get("/api/torrents/sources", async (req, res) => {
 router.get("/api/torrents/subtitles/:type/:id", async (req, res) => {
   try {
     const { season, episode } = req.query;
+    // ?release=<the torrent's file name>: candidates timed for that release first
+    const release = typeof req.query.release === "string" ? req.query.release.slice(0, 200) : null;
     const subs = await torrent.getSubtitles(
       req.params.type,
       req.params.id,
       season ? parseInt(season, 10) : null,
-      episode ? parseInt(episode, 10) : null
+      episode ? parseInt(episode, 10) : null,
+      { release }
     );
     res.json({ subtitles: subs });
   } catch (err) {
@@ -143,6 +147,9 @@ router.get("/stream/websub", async (req, res) => {
       }
     }
     track = { provider: p, ref: r };
+    // the frame rate the provider says the file was timed for (websubs)
+    const fps = parseFloat(req.query.fps);
+    if (fps > 10 && fps < 200) track.fps = fps;
   } else if (u) {
     if (!/^https?:\/\//.test(u)) return res.status(400).send("bad url");
     try {
@@ -181,11 +188,15 @@ router.get("/stream/torrent/sub/:infoHash/:fileIdx", async (req, res) => {
       return res.status(400).send("Not a subtitle file");
     }
     const buf = await file.getBuffer();
-    let content = buf.toString("utf-8");
+    // The library's rules, not raw UTF-8: Hebrew files are Windows-1255 as
+    // often as not (a screen of "?" before), .ass/.ssa become SRT, and a
+    // Hebrew file authored for a player without bidi gets its punctuation
+    // back at the end of the line (media/subsync.js).
+    const websubs = require("../media/websubs");
+    let content = websubs._internals.decode(buf);
     if (!content.startsWith("WEBVTT")) {
-      content = "WEBVTT\n\n" + content
-        .replace(/\r\n/g, "\n")
-        .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, "$1.$2");
+      const srt = websubs._internals.toSrt(content) || content;
+      content = websubs.toVtt(require("../media/subsync").repair(srt).srt);
     }
     res.setHeader("Content-Type", "text/vtt; charset=utf-8");
     res.send(content);
@@ -207,6 +218,7 @@ router.get("/stream/torrent/sub/:infoHash/:fileIdx", async (req, res) => {
 // a seek fetches segment N instead of restarting a transcode.
 // Registered BEFORE the /:ss routes so "jit" can't parse as an offset.
 const jit = require("../media/jit");
+const { clockBase } = require("../media/streamprobe");
 
 // readRange over the torrent: collect a recovering read stream into a buffer.
 // createReadStream is what marks those exact pieces critical in webtorrent,
@@ -402,6 +414,7 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
     const audio = Math.max(0, Math.min(31, parseInt(req.query.a, 10) || 0)); // which audio stream (multi-dub)
     const t0 = Date.now();
     const dir = await transcode.ensure(file, absPath, req.params.infoHash, fileIdx, vcodec, ss, seek, fmt, vtag, audio);
+    transcode.noteViewer(dir, viewerOf(req)); // whose goodbye may stop it (the bye route below)
     // Timing for deliberate viewer seeks only — playlist refreshes are noise.
     // readyMs isolates readyTorrent (metadata/re-add wait) from ensure; the
     // matching seek_ensure_detail event breaks ensure down further.
@@ -433,9 +446,13 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
       // TS only: hls.js needs the clock; the fMP4/native path keeps raw PTS
       // (copyts) so its clock is already honest and ffprobe can't read a
       // bare .m4s fragment anyway.
-      const s = await require("../media/streamprobe").segmentStart(path.join(dir, "seg00000.ts"));
+      const sp = require("../media/streamprobe");
+      const s = await sp.segmentStart(path.join(dir, "seg00000.ts"));
       if (s) {
-        res.setHeader("X-Aurora-Base", String(s.base));
+        // in the FILM's time, which begins at the file's start time (what the
+        // subtitles and every other path count from): see routes/stream.js
+        const head = sp.cached(req.params.infoHash, fileIdx);
+        res.setHeader("X-Aurora-Base", String(clockBase(s.base, head && head.start)));
         res.setHeader("X-Aurora-Offset", String(s.offset));
         text = text.replace("#EXTM3U", `#EXTM3U\n#EXT-X-START:TIME-OFFSET=${s.offset},PRECISE=YES`);
       }
@@ -451,11 +468,22 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
   }
 });
 
+// The player closed (the TV app's goodbye, on leaving a torrent it was
+// playing through a transcode): that viewer's offset transcodes of this file
+// that nobody else is in stop now, instead of holding an encoder until the
+// idle sweep — media/goodbye.js has whose goodbye it is (a stranger's, or one
+// for a file the asker is not reading, stops nothing). A beacon: nothing is
+// answered.
+router.post("/stream/torrent/hls/:infoHash/:fileIdx/bye", (req, res) => {
+  try { transcode.release(req.params.infoHash, req.params.fileIdx, viewerOf(req)); } catch {}
+  res.status(204).end();
+});
+
 // HLS segments (and the playlist on refresh) for the transcode above.
 router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/:file", (req, res) => {
   const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
   const audio = Math.max(0, Math.min(31, parseInt(req.query.a, 10) || 0));
-  transcode.touch(req.params.infoHash, req.params.fileIdx, req.params.ss, fmt, audio); // keep the transcode alive
+  transcode.touch(req.params.infoHash, req.params.fileIdx, req.params.ss, fmt, audio, viewerOf(req)); // keep the transcode alive (and whose it is)
   torrent.touchTorrent(req.params.infoHash); // and its torrent (so it isn't idle-evicted)
   const abs = transcode.filePath(req.params.infoHash, req.params.fileIdx, req.params.ss, req.params.file, fmt, audio);
   if (!abs) return res.status(404).send("Not found");

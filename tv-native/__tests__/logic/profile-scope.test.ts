@@ -56,6 +56,9 @@ const DEVICE: Record<string, Record<string, string>> = {
     serverBlurs: 'what the server said about itself',
     PROXY_ART_HOSTS: 'a fixed list',
   },
+  'rowWindow.ts': {
+    heldCache: 'fixed margin objects per run length (a held key), the same for everyone',
+  },
   'artPrefetch.ts': {
     native: 'the native module',
     busy: 'pictures in flight, by address',
@@ -68,7 +71,15 @@ const DEVICE: Record<string, Record<string, string>> = {
     map: 'placeholders keyed by picture address; the server gates the pictures themselves',
     drawn: 'which pictures this run has drawn, by address',
   },
-  'components/Focusable.tsx': {nextId: 'an id counter', ringRegistry: 'mounted focus rings', litRing: 'which ring is lit'},
+  'components/Focusable.tsx': {
+    nextId: 'an id counter',
+    ringRegistry: 'mounted focus rings',
+    litRing: 'which ring is lit',
+    nativeEverLit: 'a native focus ring has lit in this process',
+  },
+  'components/NavRail.tsx': {railLinks: 'an id counter (the native rail’s link)'},
+  'screens/Home.tsx': {columnLinks: 'an id counter (the native column’s link)'},
+  'qa.ts': {qaBuild: 'what this build is', listeners: 'the QA flags’ subscribers (a QA build only)'},
   'errors.ts': {ring: 'the last errors of this run, for a report', playing: 'set and cleared by the player while it is mounted'},
   'focus.ts': {
     held: 'focus engine',
@@ -96,6 +107,7 @@ const DEVICE: Record<string, Record<string, string>> = {
   'navSection.ts': {newSeen: 'which release this TV has seen', newSubs: 'listeners'},
   'overlay.ts': {current: 'the open sheet (unmounts with the navigator)', subs: 'listeners'},
   'playback/Player.tsx': {tunedBuffers: 'buffer settings by the server’s tuning — one object per setting, the same for everybody'},
+  'playback/subDelay.ts': {chain: 'the queue of writes to this box’s subtitle delays (per title and track, not per person)'},
   'playback/tuning.ts': {current: 'what the server said about how a film starts (the admin’s, not a person’s)', asked: 'a debounce stamp'},
   'perfTier.ts': {
     lite: 'what this box can do',

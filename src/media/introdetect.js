@@ -23,6 +23,12 @@
 // always — recaps and previews, which repeat nowhere and so can't be found
 // by comparison. Those answers ride in the same record under `db`, and get()
 // merges them UNDER the file's own: measured-on-this-file beats crowd data.
+//
+// And the picture (creditscv.js): every library episode — a season of one
+// too — has its tail looked at for the credits themselves (text on a flat
+// background, cards or a roll, no camera cuts). That answer rides under
+// `cv` with a confidence, and chooseCredits() below fuses it with the
+// chapters, the audio and the databases.
 const fs = require("fs");
 const path = require("path");
 const { execFile, execFileSync } = require("child_process");
@@ -32,6 +38,7 @@ const metadata = require("./metadata");
 const { JsonStore } = require("../lib/jsonstore");
 
 const cpuwork = require("./cpuwork");
+const creditscv = require("./creditscv");
 const store = new JsonStore(path.join(config.DATA_DIR, "intro-auto.json"), {});
 
 const SR = 8000; // Hz — speech/music structure survives, decode is ~free
@@ -318,7 +325,7 @@ const analysisDue = (have, mtime, now = Date.now()) => {
 const noneRecord = (have, mtime, now = Date.now()) => {
   const same = have && have.mtime === mtime ? have : null;
   if (same && (same.intro || same.credits)) return null;
-  return { mtime, at: now, v: ANALYSIS_V, intro: null, credits: null, source: null, none: true, ...(same && same.db ? { db: same.db } : {}) };
+  return { mtime, at: now, v: ANALYSIS_V, intro: null, credits: null, source: null, none: true, ...(same && same.db ? { db: same.db } : {}), ...(same && same.cv ? { cv: same.cv } : {}) };
 };
 
 // Median of agreeing detections: at least two comparisons must land within
@@ -472,7 +479,8 @@ const pass = async () => {
         // the analysis ran — its answer rides along, never overwritten
         const now = store.data[ep.id];
         const db = now && now.mtime === mtime && now.db ? { db: now.db } : {};
-        store.data[ep.id] = { mtime, at: Date.now(), v: ANALYSIS_V, ...res, ...db };
+        const cv = now && now.mtime === mtime && now.cv ? { cv: now.cv } : {};
+        store.data[ep.id] = { mtime, at: Date.now(), v: ANALYSIS_V, ...res, ...db, ...cv };
         store.save();
         done++;
       } catch (e) {
@@ -496,6 +504,131 @@ const pass = async () => {
   if (pruned) store.save();
   if (done) console.log(`[intro] analyzed ${done} episode(s) for intros and credits`);
 };
+// ---------- the picture's pass (creditscv.js) ----------
+// Every library episode, a season of one included, gets its tail looked at
+// once per file (and again when CV_V changes). Background work like the
+// audio pass: a place from cpuwork.js (no viewer encode running, none for
+// the quiet period), the decode at the lowest priority — and should a
+// viewer encode start while the decode runs, it is STOPPED (on every OS:
+// Windows cannot pause another process) and the episode tried again on a
+// later pass. A result is only stored when the decode ran to the end.
+//   1: names on nothing / a steady roll / a still card with a portrait / the
+//      picture boxed beside the names; the max-credit segment; the black
+//      (or empty background) that opens it.
+const CV_V = 1;
+const cvDue = (have, mtime, now = Date.now()) => {
+  if (!have || have.mtime !== mtime || !have.cv || have.cv.v !== CV_V) return true;
+  return !!have.cv.failed && now - (have.cv.at || 0) > NONE_RETRY_MS;
+};
+let cvAborts = 0;
+const pictureOf = async (file, duration, label) => {
+  const ref = { child: null, aborted: false };
+  const stop = () => { ref.aborted = true; try { if (ref.child) ref.child.kill("SIGKILL"); } catch {} };
+  held = true;
+  const place = await cpuwork.background.gate("credits", { label, onShed: stop });
+  held = false;
+  const watch = setInterval(() => { if (cpuwork.viewer.busy()) stop(); }, 1000);
+  watch.unref?.();
+  try {
+    if (cpuwork.viewer.busy()) return { aborted: true };
+    const res = await creditscv.detect(file, duration, {
+      ffmpeg: config.FFMPEG,
+      threads: Math.min(2, cpuwork.background.threads()),
+      onChild: (c) => { ref.child = c; place.attach(c); if (ref.aborted) stop(); },
+    });
+    if (ref.aborted) return { aborted: true };
+    // a decode that did not run to the end by itself (an unreadable tail, a
+    // time-out): no answer — noted, and tried again after NONE_RETRY_MS
+    if (res && res.incomplete) return { failed: true };
+    return { res };
+  } finally {
+    clearInterval(watch);
+    place.release();
+  }
+};
+const cvRecord = (res, now = Date.now(), failed = false) => res
+  ? { v: CV_V, at: now, start: res.start, confidence: res.confidence, length: res.length }
+  : { v: CV_V, at: now, start: null, confidence: 0, ...(failed ? { failed: true } : {}) };
+const cvPass = async () => {
+  const todo = [];
+  for (const show of scanner.index.shows) {
+    for (const season of show.seasons || []) {
+      for (const ep of season.episodes || []) {
+        const entry = scanner.resolve(ep.id);
+        if (!entry) continue;
+        const mtime = mtimeOf(entry.path);
+        const have = store.data[ep.id];
+        if (!cvDue(have, mtime)) continue;
+        // a chapter titled "Credits" is the answer already (chooseCredits)
+        if (have && have.mtime === mtime && have.source === "chapters" && have.credits) continue;
+        const meta = metadata.getCached(entry.path);
+        if (!meta || !meta.duration) continue;
+        // episodes nobody has a credits time for go first
+        const known = have && have.mtime === mtime && (have.credits || (have.db && have.db.credits));
+        todo.push({ show, season, ep, entry, mtime, duration: meta.duration, known: !!known });
+      }
+    }
+  }
+  todo.sort((a, b) => (a.known ? 1 : 0) - (b.known ? 1 : 0));
+  let done = 0;
+  for (const t of todo) {
+    const label = `${t.show.title} S${t.season.number}E${t.ep.episode} (credits picture)`;
+    let out;
+    try {
+      out = await pictureOf(t.entry.path, t.duration, label);
+    } catch (e) {
+      console.warn(`[intro] ${t.show.title} S${t.season.number}E${t.ep.episode}: ${e && e.message ? e.message : e}`);
+      continue;
+    }
+    if (out.aborted) { cvAborts++; continue; } // a viewer came: next pass
+    // re-read: the audio pass or the database fill may have written meanwhile
+    const now = store.data[t.ep.id];
+    const base = now && now.mtime === t.mtime ? now : { mtime: t.mtime, at: Date.now(), intro: null, credits: null, source: null };
+    // (a failed read never replaces an answer this file already has)
+    if (out.failed && base.cv && base.cv.v === CV_V && base.cv.start != null) continue;
+    store.data[t.ep.id] = { ...base, cv: cvRecord(out.res || null, Date.now(), !!out.failed) };
+    store.save();
+    done++;
+    await new Promise((r) => setImmediate(r));
+  }
+  if (done) console.log(`[intro] looked at the credits picture of ${done} episode(s)`);
+};
+
+// ---------- which credits time the player gets ----------
+// Every source, with how far it is trusted:
+//   chapters  a chapter the release titled "Credits" — the author's own
+//             answer, always first;
+//   picture   creditscv.js on this very file, with a confidence;
+//   audio     the end theme this episode shares with its season;
+//   database  SkipDB / TheIntroDB, crowd-sourced, for this runtime.
+// The picture is measured to the half second on THIS file, so when it agrees
+// with another source (within AGREE_S) its time is the one used; when it is
+// sure (CV_SURE) it beats an audio or database time that disagrees — those
+// are the cases it exists for: an end theme that starts under the last
+// scene, a crowd timestamp from another cut. A picture answer nothing
+// confirms and nothing contradicts is used from CV_ALONE.
+const CV_SURE = 0.6;
+const CV_ALONE = 0.5;
+const CV_AGREE_MIN = 0.3;
+const AGREE_S = 8;
+const chooseCredits = (r) => {
+  if (!r) return null;
+  const dbc = r.db && r.db.credits && Number.isFinite(r.db.credits.start)
+    ? { start: r.db.credits.start, end: Number.isFinite(r.db.credits.end) ? r.db.credits.end : null, source: r.db.source || "database" }
+    : null;
+  const own = r.credits && Number.isFinite(r.credits.start) ? { start: r.credits.start, end: null, source: r.source || "audio" } : null;
+  if (own && r.source === "chapters") return own;
+  const cv = r.cv && Number.isFinite(r.cv.start) ? r.cv : null;
+  const others = [own, dbc].filter(Boolean);
+  if (cv) {
+    const near = others.find((o) => Math.abs(o.start - cv.start) <= AGREE_S);
+    if (near && cv.confidence >= CV_AGREE_MIN) return { start: cv.start, end: near.end, source: `picture+${near.source}` };
+    if (cv.confidence >= CV_SURE) return { start: cv.start, end: null, source: "picture" };
+    if (!others.length && cv.confidence >= CV_ALONE) return { start: cv.start, end: null, source: "picture" };
+  }
+  return own || dbc || null;
+};
+
 // ---------- the databases' turn ----------
 // Two cadences:
 //   * after every scan, episodes the databases have NEVER been asked about
@@ -649,6 +782,9 @@ const run = async () => {
       // the audio pass needs ffmpeg; the databases need only the internet
       if (config.ffmpegAvailable) await pass();
       await fillFromDatabases();
+      // the picture last: the heaviest of the three, and the databases'
+      // answers decide which episodes it looks at first
+      if (config.ffmpegAvailable) await cvPass();
     } while (again);
   } catch (e) {
     console.warn("[intro] pass failed:", e && e.message ? e.message : e);
@@ -667,16 +803,17 @@ const get = (episodeId) => {
   if (!r) return { intro: null, credits: null, recap: null, preview: null, source: null };
   const db = r.db || {};
   const intro = r.intro || db.intro || null;
-  const credits = r.credits || (db.credits ? { start: db.credits.start, end: db.credits.end || null } : null);
+  const pick = chooseCredits(r);
+  const credits = pick ? { start: pick.start, end: pick.end || null } : null;
   return {
     intro,
     credits,
     recap: db.recap || null,
     preview: db.preview || null,
-    source: r.intro || r.credits ? r.source || null : db.source || r.source || null,
+    source: r.intro || r.credits ? r.source || null : db.source || r.source || (pick ? pick.source : null),
     sources: {
       intro: r.intro ? r.source : db.intro ? db.source : null,
-      credits: r.credits ? r.source : db.credits ? db.source : null,
+      credits: pick ? pick.source : null,
     },
   };
 };
@@ -707,18 +844,19 @@ const coverage = () => {
       for (const ep of season.episodes) { episodes++; ids.add(ep.id); }
     }
   }
-  let analyzed = 0, intro = 0, credits = 0, chapters = 0, fromDb = 0, recaps = 0;
+  let analyzed = 0, intro = 0, credits = 0, chapters = 0, fromDb = 0, recaps = 0, picture = 0;
   for (const [id, r] of Object.entries(store.data)) {
     if (!ids.has(id)) continue;
     analyzed++;
     const db = r.db || {};
     if (r.intro || db.intro) intro++;
-    if (r.credits || db.credits) credits++;
+    if (chooseCredits(r)) credits++;
+    if (r.cv && r.cv.start != null) picture++;
     if (r.source === "chapters") chapters++;
     if ((!r.intro && db.intro) || (!r.credits && db.credits)) fromDb++;
     if (db.recap) recaps++;
   }
-  return { episodes, analyzed, intro, credits, chapters, fromDb, recaps };
+  return { episodes, analyzed, intro, credits, chapters, fromDb, recaps, picture };
 };
 
-module.exports = { run, get, coverage, busy, fillEpisode, refreshFromDatabases, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, tightenStart, parseBlackdetect, snapToBlack, INVALID, FRAME, HOP, SR, ANALYSIS_V, analysisDue, noneRecord, NONE_RETRY_MS, mtimeOf, mtimeMemoFor: (fn) => { mtimeMemo = new Map(); try { return fn(); } finally { mtimeMemo = null; } } } };
+module.exports = { run, get, coverage, busy, fillEpisode, refreshFromDatabases, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, tightenStart, parseBlackdetect, snapToBlack, INVALID, FRAME, HOP, SR, ANALYSIS_V, analysisDue, noneRecord, NONE_RETRY_MS, mtimeOf, chooseCredits, cvDue, cvRecord, CV_V, CV_SURE, CV_ALONE, AGREE_S, cvAborts: () => cvAborts, mtimeMemoFor: (fn) => { mtimeMemo = new Map(); try { return fn(); } finally { mtimeMemo = null; } } } };

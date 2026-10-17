@@ -56,6 +56,8 @@ import {
 } from '../focus';
 import {defer, useScreenIn} from '../motion';
 import {useApp} from '../AppContext';
+import {useMe} from '../navSection';
+import {emptyGridLine} from '../browseCopy';
 import {useRouteShown} from '../useRouteShown';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
@@ -147,6 +149,8 @@ export default function Browse({
   const {kind} = route.params;
   const title = kind === 'show' ? 'Shows' : 'Movies';
   const {profileId} = useApp();
+  // a kids profile's age limit: what an empty grid says (browseCopy.ts)
+  const kidsAge = useMe(profileId)?.kids?.maxAge ?? null;
   const {width, safeBottom} = useTvMetrics();
   const screenIn = useScreenIn();
   // P17 — a FIXED 124dp cell at a 13dp gap in the content box, not a fluid
@@ -826,12 +830,7 @@ export default function Browse({
         ) : items.length === 0 ? (
           <Empty
             glyph="🍿"
-            message={
-              genre
-                ? `Nothing in ${genre} here. Try another genre?`
-                : 'Nothing matches. Try fewer filters?'
-            }
-            actionLabel="Change filters"
+            {...emptyGridLine({kind, category, genre, unwatched, kidsAge})}
             onAction={openPanel}
           />
         ) : (

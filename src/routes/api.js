@@ -47,8 +47,18 @@ const kidsDeps = {
 };
 // Who is asking, as far as kids mode cares: { profile, maxAge, source } | null.
 // A household with no kids profile pays one array scan per request and no more.
+// An AirPlay link (lib/airtoken.js) is its asker: the receiver carries no
+// credential of its own (they are all taken off the request), so the kids
+// rules are the ones the link was made with — or the asker's rules NOW, when
+// those are stricter (made a kids profile since, its age lowered).
+const airKids = (air) => {
+  const nowK = air.profile ? profiles.kidsOf(air.profile) : null;
+  const ages = [air.maxAge, nowK && nowK.maxAge].filter((a) => typeof a === "number");
+  return ages.length ? { profile: air.profile, maxAge: Math.min(...ages), source: "air" } : null;
+};
 const kidsFor = (req) =>
-  profiles.list().some((p) => p.kids) ? kids.resolveKids(req, kidsDeps) : null;
+  req && req.air ? airKids(req.air)
+    : profiles.list().some((p) => p.kids) ? kids.resolveKids(req, kidsDeps) : null;
 const kidsCertOf = kids.makeCertOf({
   findById: (id) => scanner.findById(id),
   imdbIdFor: (item) => identity.imdbIdFor(item), // the cached id — never a lookup
@@ -83,7 +93,7 @@ const itemsByArt = (p) => {
   try { key = decodeURIComponent(p); } catch {}
   return artMap.get(key) || artMap.get(p) || null;
 };
-router.use(kids.createGate({
+const kidsGate = kids.createGate({
   kidsFor,
   certOf: kidsCertOf,
   itemsByArt,
@@ -102,7 +112,8 @@ router.use(kids.createGate({
     const imdbId = t.imdbId || identity.imdbIdFor(t);
     if (imdbId) discover.warmCertificate(t.type === "show" || t.type === "series" ? "series" : "movie", imdbId);
   },
-}));
+});
+router.use(kidsGate);
 
 // ---------- skip intro ----------
 // One intro range per SHOW, marked once by anyone in the household from the
@@ -141,10 +152,12 @@ router.post("/api/play-mark/:id", (req, res) => {
 });
 
 // The TV player's start-up tuning (lib/tvtuning.js): config.json's
-// "tvPlayer", checked. {} unless the admin set something.
+// "tvPlayer", checked. {} unless the admin set something. Plus `tvRender`
+// (config.json's "tvRender", for this TV's model — ?model=, Build.MODEL)
+// when the admin switched any rendering switch.
 router.get("/api/tv/tuning", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json(require("../lib/tvtuning").current());
+  res.json(require("../lib/tvtuning").current(req.query.model));
 });
 
 // ---------- trailers for the TV (media/trailers.js) ----------
@@ -1272,6 +1285,6 @@ const tvStrip = (i) => {
 
 // Test-only: the home-row composer's merge rules are contracts (never drop
 // unknown rows, never hero "upcoming") — pinned in test/roworder.test.js.
-router._internals = { homeStamp, libraryStamp, orderRows, kidsFor, kidsCertOf, kidsSession: kidsDeps.session, tvStrip, cardStrip, personCredit, personOverBudget };
+router._internals = { homeStamp, libraryStamp, orderRows, kidsFor, kidsGate, kidsCertOf, kidsSession: kidsDeps.session, tvStrip, cardStrip, personCredit, personOverBudget };
 
 module.exports = router;

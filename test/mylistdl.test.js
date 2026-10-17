@@ -46,6 +46,7 @@ const world = (over = {}) => {
     jobs: [],
     rows: {},                           // title key → [{ name, position, finished, at }]
     playing: new Set(),
+    streamed: new Set(),                // paths whose bytes are being read right now (lib/fileinuse.js)
     gate: { ok: true },
     torrents: true,
     logs: [], warns: [], canceled: [], deleted: [], scans: 0,
@@ -91,6 +92,7 @@ const world = (over = {}) => {
     listsWith: (title) => Object.keys(w.lists).filter((p) => w.lists[p].includes(title.imdbId)),
     watchRows: (key) => w.rows[key] || [],
     playing: (title) => w.playing.has(title),
+    fileInUse: (p) => w.streamed.has(p),
     fileExists: (p) => w.files.has(p) && !w.away.has(p),
     fileSize: (p) => w.files.get(p) || 0,
     away: (p) => w.away.has(p),
@@ -642,6 +644,24 @@ test("never a manual download: a file someone asked for by hand is kept, whateve
   assert.equal(w.m.status().records.length, 0);
 });
 
+test("a copy whose bytes are being read right now (any device, no profile row) is held, and deleted on a later pass", async () => {
+  const w = world();
+  const file = await w.landed();
+  w.now += 21 * DAY;
+  w.streamed.add(file);
+  const first = await w.m.daily();
+  assert.equal(w.deleted.length, 0, "never from under a viewer");
+  assert.equal(w.rec(FILM.imdbId).state, "done", "still ours, still due");
+  assert.ok(said(w, /^\[mylist\] not deleting Some Film yet: .*someone is playing it right now/));
+  assert.equal(first, "1 held");
+  // they stopped: the next pass deletes it
+  w.streamed.clear();
+  w.now += DAY;
+  await w.m.daily();
+  assert.deepEqual(w.deleted, [file]);
+  assert.equal(w.rec(FILM.imdbId).state, "deleted");
+});
+
 test("never while it is being played, was just opened, or is being written; never when its drive is away", async () => {
   // on screen right now
   let w = world();
@@ -775,6 +795,8 @@ test("the pure verdict: every state, and the lines are exactly the settings", ()
   assert.equal(at(21, { file: "away" }), "hold");
   assert.equal(at(21, { inUse: true }), "hold");
   assert.equal(at(21, { writing: true }), "hold");
+  assert.equal(at(21, { playing: true }), "hold");
+  assert.match(I.judge({ rec, now: t0 + 21 * DAY, settings: s, playing: true }).why, /someone is playing it right now$/);
   assert.equal(at(15, { inUse: true }), "stale", "holding only matters once it would be deleted");
   // other numbers
   const s2 = I.readSettings({ myListStaleDays: 3, myListDeleteDays: 5 });

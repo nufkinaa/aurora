@@ -31,4 +31,8 @@ module.exports = {
   },
   useWindowDimensions: () => ({width: 960, height: 540}),
   useTVEventHandler: () => {},
+  // the Fabric specs (src/specs): a host component is its name; commands do nothing
+  codegenNativeComponent: name => name,
+  codegenNativeCommands: ({supportedCommands}) => Object.fromEntries((supportedCommands || []).map(c => [c, () => {}])),
+  DeviceEventEmitter: {addListener: () => ({remove: () => {}})},
 };

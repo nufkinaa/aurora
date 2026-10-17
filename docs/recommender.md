@@ -66,11 +66,33 @@ have at least one theme) and the most common keywords no theme claims yet.
 ## A person (`person.js`)
 
 Signals and weights are the table at the top of `person.js`. In short: ratings
-(±3 … ±2), titles picked as loved (+2.5), a finished film (+1.6, +0.8 more for
+(±3 … ±2), titles picked as loved (+2.5), "Not for me" in the swipe picker
+(−1.0, see below), a finished film (+1.6, +0.8 more for
 a rewatch), a series by how far they went (6+ episodes +2.0 … dropped after the
 pilot −0.4), a binge (+0.5), a follow (+1.5), My List (+1.0), marked watched
 (+0.6), gave up early (−0.8), removed from Continue Watching (−1.0), and the
 genres picked in Settings (a prior on genre only).
+
+**"Not for me"** (the swipe picker, `#/taste`; `dislikedTitles` in the profile
+state) is a title judged by its poster and a line, never watched — so it is
+the lightest negative there is, and aimed. A title known only by it pushes the
+taste vector on what it is ABOUT (the genre, theme and keyword blocks — not
+language, decade, cast) at half weight, and as a dislike anchor it only repels
+titles more than 0.2 similar to it (`NOPE_BLOCKS`, `NOPE_TASTE`, `NOPE_FLOOR`
+in `person.js`; the floor is applied in `rank.js`). It also keeps the title
+out of recommendations. Why those three, measured on the personas:
+
+```
+node tools/recs-eval/negatives.js [--examples]
+```
+
+says "Not for me" to the three best-placed titles of a persona's stray genre
+and checks that they leave the row, that the genre's share falls, that their
+ten nearest titles sink, that what is not like them stays (>= 70%), and that
+three "no"s at the far end of the order leave the row alone (>= 85%). With the
+full weight on every block a far-away "no" reshuffled up to 45% of a row.
+"Haven't seen" is stored (`tasteSkipped`) only so the picker does not ask
+again; it is not a signal.
 
 Time works on two scales at once: weight × (0.65 · half-life 180 days + 0.35 ·
 half-life 14 days). Undated signals count 0.7.
@@ -142,7 +164,8 @@ library; ranking and "More like this" run on those.
 ## The ALGO rule
 
 `ALGO` in `recs/index.js` is part of every cache key. Bump it whenever ranking
-changes — weights, signals, features, row rules, the meaning of a theme. The
+changes — weights, signals, features, row rules, the meaning of a theme (now
+2: the picker's "Not for me" joined the signals, 2026-10-17). The
 "More like this" rows on disk have their own `ALGO` in `similar.js` (now 5),
 same rule.
 

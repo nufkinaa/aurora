@@ -523,7 +523,8 @@ const createGate = (deps) => {
     // ----- library files: playing, transcoding, downloading, saving offline -----
     const fileM =
       // (embedded: a subtitle track read out of the film's own file — its dialogue)
-      /^\/stream\/(?:video|download|hls|transcode|embedded)\/([^/]+)/.exec(p) ||
+      // (airplay: the AirPlay master and subtitle playlists of a title — routes/stream.js)
+      /^\/stream\/(?:video|download|hls|transcode|embedded|airplay)\/([^/]+)/.exec(p) ||
       /^\/offline\/file\/([^/]+)/.exec(p) ||
       /^\/img\/(?:still|frame)\/([^/]+)/.exec(p) ||
       /^\/api\/offline\/(?:options|prepare|status)\/([^/]+)/.exec(p);

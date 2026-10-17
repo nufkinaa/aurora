@@ -255,6 +255,9 @@ const post = (url, body) =>
 const homeInFlight = new Map(); // profile id -> the request on its way
 
 export const api = {
+  // An AirPlay link for the stream an Apple TV should play (public/js/airplay.js,
+  // src/routes/airplay.js) -> { url, expiresAt, needed }
+  airplayLink: (path, profileId) => post("/api/airplay/link", { path, ...(profileId ? { profile: profileId } : {}) }),
   // `profileId` rides in the address so the offline copy the service worker
   // keeps (it caches by URL) is one per profile: a kids profile offline must
   // never be handed the list a grown-up loaded on the same device. The server
@@ -388,10 +391,12 @@ export const api = {
       (year ? `&year=${encodeURIComponent(year)}` : "")),
   discover: () => json("/api/discover"),
   discoverSearch: (q) => json(`/api/discover/search?q=${encodeURIComponent(q)}`),
-  torrentSubtitles: (type, id, season, episode) => {
+  // release: the stream's file name — the subtitles timed for it come first
+  torrentSubtitles: (type, id, season, episode, release = null) => {
     const p = new URLSearchParams();
     if (season) p.set("season", season);
     if (episode) p.set("episode", episode);
+    if (release) p.set("release", String(release).slice(0, 200));
     const qs = p.toString();
     return json(`/api/torrents/subtitles/${type}/${id}${qs ? "?" + qs : ""}`);
   },
@@ -466,6 +471,10 @@ export const api = {
   // tell the tab that asked that it was signed out
   signOutEverywhere: (id, clientId) => post(`/api/profiles/${id}/signout-everywhere`, clientId ? { clientId } : {}),
   setTaste: (id, liked) => post(`/api/profiles/${id}/taste`, { liked }),
+  // the swipe picker: the next cards, and one answer (verdict null = take it back)
+  tasteDeck: (id, { n = 6, queued = [] } = {}) =>
+    json(`/api/profiles/${id}/taste/deck?n=${n}${queued.length ? `&queued=${queued.map(encodeURIComponent).join(",")}` : ""}`),
+  tasteAnswer: (id, body) => post(`/api/profiles/${id}/taste/answer`, body),
   updateProfile: (id, fields) =>
     json(`/api/profiles/${id}`, {
       method: "PUT",

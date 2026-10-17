@@ -8,6 +8,9 @@
 //   ------------------------------------ -------  ------
 //   rated 5★ / 4★ / 3★ / 2★ / 1★          +3 / +2 / +0.3 / −2 / −3   no
 //   picked in "titles you love"           +2.5    no
+//   "Not for me" in the taste picker      −1.0    no    (said, never watched:
+//                                                        weaker than giving up
+//                                                        on it, ALGO 2)
 //   finished a film                       +1.6    yes
 //     …and came back to it (a rewatch)    +0.8    yes
 //   watched most of a film (≥70%)         +1.0    yes
@@ -48,13 +51,28 @@ const features = require("./features");
 
 const W = {
   rate5: 3, rate4: 2, rate3: 0.3, rate2: -2, rate1: -3,
-  loved: 2.5,
+  loved: 2.5, notForMe: -1.0,
   finished: 1.6, rewatch: 0.8, mostly: 1.0, watching: 0.3, stalled: -0.3, abandoned: -0.8,
   showDevoted: 2.0, showRegular: 1.4, showStarted: 0.6, showDropped: -0.4, showAbandoned: -0.6, binge: 0.5,
   follow: 1.5, listed: 1.0, marked: 0.6, dismissed: -1.0, upNextHidden: -0.3,
   likedGenre: 1.5,
 };
 const CLAMP = [-3, 4];
+// The taste blocks a "Not for me" alone may push down. Measured on the
+// personas (tools/recs-eval/negatives.js): over every block, three "no"s on
+// titles far down the order still reshuffled up to 45% of a top-20 row — the
+// shared, generic parts of a title (English, the 2010s, a film, a household
+// name in the cast) are in most candidates, and a minus on them moves all of
+// them. On what the title is ABOUT the same answers move its neighbours and
+// leave the rest of the row where it was.
+const NOPE_BLOCKS = new Set(["genre", "theme", "kw"]);
+// Unrelated titles sit at a similarity of ~0.14 (median; 0.25 at the 90th
+// percentile) to a person's best candidates; real neighbours at 0.3–0.6.
+const NOPE_FLOOR = 0.2;
+// …and on the taste vector it counts half: at full weight three "no"s to
+// serial-killer thrillers also sank a true-crime fan's documentaries (the
+// theme they share), a quarter of the row that was not like them at all.
+const NOPE_TASTE = 0.5;
 const HALF_LONG = 180;
 const HALF_SHORT = 14;
 const SHORT_SHARE = 0.35;
@@ -133,8 +151,8 @@ const showEvents = (rows, total, now) => {
 
 // Everything one profile has done, as per-title evidence.
 //   state    the stored profile state (profiles.json → state[id]): titles,
-//            ratings, watchlist, likedTitles, likedGenres, dismissed,
-//            upNextDismissed
+//            ratings, watchlist, likedTitles, dislikedTitles, likedGenres,
+//            dismissed, upNextDismissed
 //   opts     { follows: [{imdbId, at, title}], now,
 //              episodesOf(imdbId) -> total episodes | null,
 //              imdbOf(key) -> imdbId | null   (a library id -> its IMDb id) }
@@ -179,6 +197,13 @@ const collectEvents = (state, opts = {}) => {
   for (const t of (state && state.likedTitles) || []) {
     const id = resolve(t.imdbId || t.id);
     if (id) add(id, { w: W.loved, kind: "loved", at: null });
+  }
+  // the picker's "Not for me": a title one has NOT watched, judged by its
+  // poster and a line — so it pushes away lightly, and never outweighs what
+  // the person actually did with the title (it is a separate event, summed)
+  for (const t of (state && state.dislikedTitles) || []) {
+    const id = tt(t && t.imdbId);
+    if (id) add(id, { w: W.notForMe, kind: "notforme", at: null });
   }
   for (const e of (state && state.watchlist) || []) {
     const id = resolve(typeof e === "string" ? e : e && e.imdbId);
@@ -266,14 +291,23 @@ const buildModel = (events, { vectorFor, titleFor = () => null, now = Date.now()
     if (Math.abs(eff) < 0.02) continue;
     mass += Math.abs(eff);
     if (eff > 0 && r.short > 0.25) recent += eff;
+    // a title known ONLY by a "Not for me" pushes on what it is about, not on
+    // what most titles share (its language, its decade, a famous cast): see
+    // NOPE_BLOCKS
+    const only = t.kinds && t.kinds.size === 1 && t.kinds.has("notforme") ? NOPE_BLOCKS : null;
     for (const b of BLOCKS) {
+      if (only && !only.has(b)) continue;
       const blk = v[b];
       if (!blk) continue;
       const m = taste[b];
-      for (let i = 0; i < blk.k.length; i++) m.set(blk.k[i], (m.get(blk.k[i]) || 0) + eff * blk.w[i]);
+      const e2 = only ? eff * NOPE_TASTE : eff;
+      for (let i = 0; i < blk.k.length; i++) m.set(blk.k[i], (m.get(blk.k[i]) || 0) + e2 * blk.w[i]);
     }
     const title = titleFor(t.id) || "it";
     const a = { id: t.id, v, eff, w: t.w, at: t.at, short: r.short, kinds: t.kinds, title, why: phraseFor(t, title) };
+    // …and as something to keep away from, it only repels its NEIGHBOURS:
+    // below NOPE_FLOOR similarity a title is unrelated, not "a bit like it"
+    if (only) a.simFloor = NOPE_FLOOR;
     if (eff > 0) {
       pos.push(a);
       // the calibration target: this title's weight, spread over its genres
@@ -322,5 +356,5 @@ const buildModel = (events, { vectorFor, titleFor = () => null, now = Date.now()
 
 module.exports = {
   collectEvents, buildModel, recency, phraseFor, W,
-  _internals: { filmEvents, showEvents, HALF_LONG, HALF_SHORT, SHORT_SHARE, UNDATED, CLAMP },
+  _internals: { filmEvents, showEvents, HALF_LONG, HALF_SHORT, SHORT_SHARE, UNDATED, CLAMP, NOPE_BLOCKS, NOPE_FLOOR, NOPE_TASTE },
 };

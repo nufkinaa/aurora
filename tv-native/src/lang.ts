@@ -14,7 +14,15 @@
 export type Lang = 'he' | 'en' | 'ru';
 export type SubPick = Lang | 'off';
 type TrackLike =
-  | { lang?: string | null; language?: string | null; label?: string | null }
+  | {
+      lang?: string | null;
+      language?: string | null;
+      label?: string | null;
+      // set by a server that knows (2026-10-17): the track only carries the
+      // foreign / signs lines, or it is for the deaf and hard of hearing
+      forced?: boolean | null;
+      sdh?: boolean | null;
+    }
   | null
   | undefined;
 
@@ -102,12 +110,15 @@ export const pickOf = (track: TrackLike): SubPick | null =>
 
 // How good a default a track is, within its language: 0 a full track,
 // 1 SDH / closed captions (sound descriptions nobody asked for), 2 forced /
-// signs / commentary (only part of the dialogue).
+// signs / commentary (only part of the dialogue). The server's own `forced`
+// / `sdh` flags count first (`forced: true` ranks 2, `sdh: true` ranks 1);
+// the label is read as before, so a flag only ever ADDS what the label did
+// not say, and a track with no flags ranks exactly as it always did.
 export const trackRank = (track: TrackLike): number => {
   const l = String((track && track.label) || '');
-  if (/forced|(?:^|[^a-z])signs?(?:[^a-z]|$)|songs|commentary/i.test(l))
+  if ((track && track.forced === true) || /forced|(?:^|[^a-z])signs?(?:[^a-z]|$)|songs|commentary/i.test(l))
     return 2;
-  if (/(?:^|[^a-z])(?:sdh|cc)(?:[^a-z]|$)|hearing|closed.?caption/i.test(l))
+  if ((track && track.sdh === true) || /(?:^|[^a-z])(?:sdh|cc)(?:[^a-z]|$)|hearing|closed.?caption/i.test(l))
     return 1;
   return 0;
 };

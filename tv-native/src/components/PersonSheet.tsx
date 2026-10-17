@@ -25,14 +25,15 @@
 // FlatLists with a small window, and at most MAX_TITLES cards in all.
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, Animated, BackHandler, Easing, FlatList, Image, ScrollView, StyleSheet, TVFocusGuideView, Text, View} from 'react-native';
-import Card, {COMPACT_W} from './Card';
+import Card, {COMPACT_H, COMPACT_W} from './Card';
 import Focusable from './Focusable';
 import {api, artSrc, HeroItem, listAddedLine, PersonCredit, PersonData, StreamRef, XrayPerson} from '../api';
 import {useKeyTrap} from '../focus';
 import {rootNav} from '../rootNav';
 import {showToast} from '../toast';
 import {track} from '../usage';
-import theme from '../theme';
+import theme, {useTvMetrics} from '../theme';
+import {bottomSheetMaxHeight} from '../popupFit';
 
 const {colors, fontSize, radius, spacing} = theme;
 
@@ -139,6 +140,8 @@ export default function PersonSheet({
   type?: 'movie' | 'series' | null;
   onClose: () => void;
 }) {
+  // never past the top's safe area, whatever the panel (popupFit.ts)
+  const {height: winH} = useTvMetrics();
   const [data, setData] = useState<PersonData | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   // key -> on the list / a download was started for it. Seeded from the
@@ -260,7 +263,7 @@ export default function PersonSheet({
   return (
     <View style={styles.backdrop}>
       <Animated.View style={[styles.wash, washStyle]} />
-      <Animated.View style={[styles.panel, panelStyle]}>
+      <Animated.View style={[styles.panel, panelStyle, {maxHeight: bottomSheetMaxHeight(winH, 500)}]}>
         <TVFocusGuideView autoFocus trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.guide}>
           <View style={styles.head}>
             <View style={styles.face}>
@@ -370,7 +373,9 @@ const styles = StyleSheet.create({
   body: {color: colors.text, fontSize: fontSize.body, lineHeight: 24},
   ghost: {backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', paddingVertical: 12, paddingHorizontal: 20, alignItems: 'center'},
   ghostText: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
-  scroll: {marginTop: 6, maxHeight: 352},
+  // flexShrink: with large system text the head grows, and the shelves give up
+  // the height (the panel's maxHeight holds) instead of running off its foot
+  scroll: {marginTop: 6, maxHeight: 352, flexShrink: 1},
   section: {color: colors.textFaint, fontSize: 11, fontWeight: '800', letterSpacing: 1.2, marginTop: spacing.sm + 2, marginBottom: 2},
   // room for a focused card's lift and ring inside the list
   row: {gap: GAP, paddingVertical: 8, paddingHorizontal: 6},
@@ -379,6 +384,7 @@ const styles = StyleSheet.create({
   titleSub: {color: colors.textDim, fontSize: 11, marginTop: 1},
   check: {position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: '#35c47a', alignItems: 'center', justifyContent: 'center'},
   checkGlyph: {color: '#04130b', fontSize: 14, fontWeight: '900', lineHeight: 18},
-  flag: {position: 'absolute', left: 6, top: 146, maxWidth: COMPACT_W - 12, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: 'rgba(8,9,16,0.85)'},
+  // on the poster's foot, whatever the compact poster's height (174 → 146)
+  flag: {position: 'absolute', left: 6, top: COMPACT_H - 28, maxWidth: COMPACT_W - 12, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: 'rgba(8,9,16,0.85)'},
   flagText: {color: colors.text, fontSize: 9, fontWeight: '800', letterSpacing: 0.6},
 });

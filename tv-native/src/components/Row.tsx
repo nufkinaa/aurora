@@ -35,15 +35,26 @@
 //    the right-most cards on screen did not exist until the block moved, and
 //    then three mounted at once in view.) A press now re-renders this Row —
 //    eleven memoised cards that bail out — and mounts one card, off screen.
+//
+// THE RENDER SWITCHES (render.ts; docs/qa/native-lab/), all off by default:
+//   `row`   the track is the Fabric view AuroraRow (AuroraRowView.kt) instead of
+//           the Animated.View: it starts the slide itself, on the UI thread, in
+//           the call that moved focus (the same spring, the same target), so
+//           focusCard below does everything but `tx.to`. Same tree otherwise.
+//   `pool`  (with `row` and `card`) the cards sit in recycled SLOTS
+//           (shelfPool.ts) instead of being keyed by title.
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {View, Text, Image, StyleSheet, Animated, TVFocusGuideView, useWindowDimensions} from 'react-native';
 import Card, {CARD_W, CARD_H, FRAME_W, FRAME_H} from './Card';
 import {HeroItem} from '../api';
 import {defer, useSlide} from '../motion';
-import {aheadOf, heldWindow, restWindow, rowWindow, slideFor, visibleRange, Dir, Margins, MARGINS, MARGINS_LOW, RowGeom, SETTLE_MS} from '../rowWindow';
+import {aheadOf, heldWindow, nextRun, restWindow, rowWindow, runMargins, slideFor, visibleRange, Dir, Margins, MARGINS, MARGINS_LOW, Run, RowGeom, SETTLE_MS} from '../rowWindow';
 import {prefetchable} from '../cardArt';
 import {artIdle, limits} from '../artPrefetch';
 import {isLowRam} from '../perfTier';
+import {fixOn, nativeOn} from '../render';
+import {assignSlots, outside} from '../shelfPool';
+import AuroraRow from '../specs/AuroraRowNativeComponent';
 import theme from '../theme';
 
 // The page colour melting to clear over the row's left margin, so a card that
@@ -60,6 +71,15 @@ const {colors, fontSize, spacing, CLEARANCE, CANCEL} = theme;
 // left so the row reads as a strip you are moving along. Apple TV sits at about
 // the same place.
 const LEAD = 1;
+
+// The render switches (read once at startup, never flip while mounted).
+const NATIVE_ROW = nativeOn.row;
+const POOL = NATIVE_ROW && nativeOn.card && fixOn.pool;
+// The track: AuroraRow takes the geometry as props and slides itself; the
+// Animated.View is moved by `tx`.
+const Track = (NATIVE_ROW ? AuroraRow : Animated.View) as React.ComponentType<Record<string, unknown>>;
+// What identifies a card on the shelf (the keyed shelf's React key).
+const keyOf = (item: HeroItem, index: number) => item.id || item.imdbId || `${item.title}-${index}`;
 
 // A shelf's geometry, for rowWindow.ts. A wide shelf is Continue Watching,
 // which draws the frame card.
@@ -171,6 +191,8 @@ function Row({
   itemsRef.current = items;
   const lastIdx = useRef(back ? backF : 0);
   const dirRef = useRef<Dir>(back ? back.dir : 1);
+  // the run of presses this one belongs to (rowWindow.ts runMargins)
+  const runRef = useRef<Run | null>(null);
   // The focus guide, and the card it is pointed at until focus has come in
   // once. `destinations` outranks the guide's own memory (ReactViewGroup
   // .requestFocus), so it is taken away again on the first focus inside:
@@ -194,7 +216,8 @@ function Row({
       }
 
       // Moves the TARGET of the spring that is already running (motion.ts).
-      tx.to(-slideFor(index, geom));
+      // (The native track has already started it, inside the focus change.)
+      if (!NATIVE_ROW) tx.to(-slideFor(index, geom));
 
       if (index !== lastIdx.current) dirRef.current = index > lastIdx.current ? 1 : -1;
       lastIdx.current = index;
@@ -206,7 +229,9 @@ function Row({
           mem.dir = dir;
         } else store.set(storeKey, {f: index, dir});
       }
-      const m = isLowRam() ? MARGINS_LOW : MARGINS;
+      // a held key leads further, either way (rowWindow.ts runMargins)
+      runRef.current = nextRun(runRef.current, dir, Date.now());
+      const m = runMargins(isLowRam() ? MARGINS_LOW : MARGINS, runRef.current.n);
       const list = itemsRef.current || [];
       const count = list.length;
 
@@ -233,7 +258,9 @@ function Row({
       if (settle.current) clearTimeout(settle.current);
       settle.current = setTimeout(() => {
         settle.current = null;
-        defer(() => setAt(p => (p.keep ? {...p, keep: null} : p)));
+        // at rest the plain margins again: the held lead was for the run
+        const plain = isLowRam() ? MARGINS_LOW : MARGINS;
+        defer(() => setAt(p => (p.keep || (p.m && p.m !== plain) ? {...p, keep: null, m: plain} : p)));
       }, SETTLE_MS);
 
       // And when the remote rests: the pictures of the cards beyond the
@@ -247,6 +274,27 @@ function Row({
   );
 
   const window = useMemo(() => items.slice(from, to), [items, from, to]);
+  // (`pool`) the slots: which title each one shows, and where on the shelf.
+  const slotKeys = useRef<(string | null)[]>([]);
+  const slotted = useMemo(() => {
+    if (!POOL) return null;
+    const list = items || [];
+    const at = new Map<string, number>();
+    list.forEach((it, i) => at.set(keyOf(it, i), i));
+    const focusedItem = list[lastIdx.current];
+    const next = assignSlots(
+      slotKeys.current,
+      window.map((it, i) => keyOf(it, from + i)),
+      k => {
+        const i = at.get(k);
+        return i == null ? Infinity : outside(i, from, to);
+      },
+      focusedItem ? keyOf(focusedItem, lastIdx.current) : null,
+    );
+    slotKeys.current = next;
+    const index = next.map(k => (k == null ? -1 : at.get(k) ?? -1));
+    return {items: index.map(i => (i < 0 ? null : list[i])), index};
+  }, [items, window, from, to]);
 
   if (!items || items.length === 0) return null;
   return (
@@ -267,10 +315,14 @@ function Row({
         trapFocusUp={false}
         trapFocusDown={false}
         style={styles.viewport}>
-        <Animated.View
-          style={[styles.track, {height: cardH, transform: [{translateX: tx.value}]}]}>
-          {window.map((item, i) => {
-            const index = from + i;
+        <Track
+          style={[styles.track, {height: cardH}, NATIVE_ROW ? null : {transform: [{translateX: tx.value}]}]}
+          {...(NATIVE_ROW
+            ? {step: geom.step, lead: geom.lead, contentLeft: geom.contentLeft, count: n, initialIndex: backF > 0 ? backF : 0}
+            : null)}>
+          {(slotted ? slotted.items : window).map((item, i) => {
+            if (!item) return null;
+            const index = slotted ? slotted.index[i] : from + i;
             return (
               <View
                 // Keyed by IDENTITY, not position. Home refetches on focus
@@ -280,7 +332,7 @@ function Row({
                 // including the focused one, whose loss threw focus to the
                 // hero. With identity keys React moves the mounted subtree;
                 // the slot's `left` updates in place and focus stays put.
-                key={item.id || item.imdbId || `${item.title}-${index}`}
+                key={slotted ? `slot-${i}` : keyOf(item, index)}
                 // Absolute, so a card entering or leaving the window can never
                 // reflow the ones already on screen — with a flex row, mounting
                 // a card at the front would shove every other card sideways
@@ -304,7 +356,7 @@ function Row({
               </View>
             );
           })}
-        </Animated.View>
+        </Track>
         <View style={styles.fade} pointerEvents="none">
           <Image source={ROW_FADE} style={styles.fadeImg} resizeMode="stretch" fadeDuration={0} />
         </View>

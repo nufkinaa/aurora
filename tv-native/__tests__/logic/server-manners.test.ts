@@ -2,7 +2,9 @@
 // (src/serverManners.ts), and the places that apply them: api.ts (429, the
 // kept library list, one Home read at a time, the goodbye).
 import {
+  afterClaim,
   BUSY_TRIES,
+  claimFirst,
   createRefresher,
   libraryRefreshDelay,
   nextReconnectStep,
@@ -226,6 +228,65 @@ describe('503 on a stream', () => {
     );
     expect(out).toEqual({kind: 'gone', waited: 1});
     expect(asks).toBe(1);
+  });
+});
+
+// THE START OF AN ENCODE ASKS FIRST (claimFirst / afterClaim): the busy path
+// had never been seen working on a TV because ExoPlayer read the refused
+// playlist again by itself before the app's wait saw the 503.
+describe('a start that asks first', () => {
+  test('an encode that has not played asks first; a copy, or a change after something played, does not', () => {
+    expect(claimFirst('h264', false)).toBe(true);
+    expect(claimFirst('h264-480', false)).toBe(true);
+    expect(claimFirst('copy', false)).toBe(false); // never refused: the quicker start stays
+    expect(claimFirst('h264', true)).toBe(false);
+  });
+
+  test('what the answer means for the player', () => {
+    expect(afterClaim({kind: 'answered', status: 200, waited: 0})).toBe('play');
+    expect(afterClaim({kind: 'answered', status: 504, waited: 1})).toBe('play'); // not "busy": the player's own read judges
+    expect(afterClaim({kind: 'failed', waited: 0})).toBe('play');
+    expect(afterClaim({kind: 'busy', waited: BUSY_TRIES})).toBe('busy');
+    expect(afterClaim({kind: 'gone', waited: 1})).toBe('none');
+  });
+
+  // The start, end to end, as the player runs it (Player.tsx startTranscode
+  // → claimStream): a server that is busy twice and then has room. The
+  // player — which would retry a 503 by itself — is handed the source only
+  // after the claim heard "room", so it never meets the refusal.
+  const start = async (answers: number[]) => {
+    const log: string[] = [];
+    let asks = 0;
+    const server = () => answers[Math.min(asks++, answers.length - 1)];
+    const v = 'h264';
+    const first = claimFirst(v, false);
+    let handedAt = -1;
+    const hand = () => {
+      handedAt = asks;
+      log.push(`player: source (the server would answer ${server()})`);
+    };
+    if (!first) hand();
+    const out = await whenRoom(async () => {
+      const status = server();
+      log.push(`claim: ${status}`);
+      return {status, retryAfter: '1'};
+    }, {sleep: async () => void log.push('wait'), alive: () => true});
+    const next = afterClaim(out);
+    if (first && next === 'play') hand();
+    return {log, next, handedAt};
+  };
+
+  test('busy, busy, room: two waits, then the player gets the source — and its first read finds room', async () => {
+    const r = await start([503, 503, 200]);
+    expect(r.next).toBe('play');
+    expect(r.log).toEqual(['claim: 503', 'wait', 'claim: 503', 'wait', 'claim: 200', 'player: source (the server would answer 200)']);
+  });
+
+  test('busy for good: the player is never handed a source the server refuses; the viewer gets the one message', async () => {
+    const r = await start([503]);
+    expect(r.next).toBe('busy');
+    expect(r.handedAt).toBe(-1);
+    expect(r.log.filter(l => l.startsWith('claim'))).toHaveLength(1 + BUSY_TRIES);
   });
 });
 

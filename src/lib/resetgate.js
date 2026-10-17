@@ -194,6 +194,11 @@ const refusal = (profileId) => ({
 
 const middleware = (req, res, next) => {
   if (!GATED(req.path)) return next();
+  // An AirPlay link (lib/airtoken.js) carries no credential — they were all
+  // taken off — but it was asked for AS a profile: it opens nothing while
+  // that profile owes a new password (airtoken refuses it first; this is the
+  // same rule said where every other credential meets it).
+  if (req.air) return req.air.profile && profiles.resetDue(req.air.profile) ? res.status(401).json(refusal(req.air.profile)) : next();
   const rid = restrictedProfile(req, res);
   const out = rid ? false : signedOut(req);
   if (!rid && !out) return next();

@@ -19,6 +19,27 @@
 // Anything else in the object is dropped; a value out of range is dropped
 // (not clamped to an edge nobody chose). docs/qa/ttff/REPORT.md has the
 // measurement plan these exist for.
+//
+// THE RENDERING SWITCHES ride on the same answer, as `tvRender` — config.json's
+// "tvRender" (docs/qa/native-port/DEVICE-PLAN.md). The native lab rebuilt five
+// drawing components natively and found a few render fixes; the TV runs each
+// one only when told to, so they can be turned on per TV without a new APK.
+// Every key is true / false; anything not named is off. A TV keeps what it was
+// told for its NEXT launch (they are read once at startup).
+//
+//   "tvRender": {
+//     "recommended": true,        // the set the lab measured best (below)
+//     "pool": false,              // …minus one switch
+//     "models": {                 // per TV model (the app's Build.MODEL):
+//       "MiTV-AFMU0": { "recommended": true }   // these keys win over the ones above
+//     }
+//   }
+//
+// The switches: focusable, card, row, hero, rail (native components);
+// cardlayer, cull, shadowcache, unstuff, unstuffq, pool (render fixes).
+// "recommended" = the five components + cardlayer, cull, shadowcache, unstuff,
+// pool. Unknown keys and non-boolean values are dropped; no "tvRender", or one
+// that names nothing, adds nothing to the answer.
 "use strict";
 
 const RANGES = {
@@ -41,6 +62,39 @@ const sanitize = (raw) => {
   return out;
 };
 
-const current = () => sanitize(require("../config").TV_PLAYER);
+const RENDER_KEYS = [
+  "recommended",
+  "focusable", "card", "row", "hero", "rail",
+  "cardlayer", "cull", "shadowcache", "unstuff", "unstuffq", "pool",
+];
 
-module.exports = { sanitize, current, RANGES, FLAGS };
+const switchesOf = (raw) => {
+  const out = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const key of RENDER_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(raw, key) && typeof raw[key] === "boolean") out[key] = raw[key];
+  }
+  return out;
+};
+
+// PURE: config.json's "tvRender" + the asking TV's model -> the switches it is
+// told ({} = none). The model's own entry wins key by key over the shared ones.
+const renderFor = (raw, model) => {
+  const out = switchesOf(raw);
+  const models = raw && typeof raw === "object" && !Array.isArray(raw) ? raw.models : null;
+  const m = typeof model === "string" ? model.trim().slice(0, 40) : "";
+  if (m && models && typeof models === "object" && !Array.isArray(models) && Object.prototype.hasOwnProperty.call(models, m)) {
+    Object.assign(out, switchesOf(models[m]));
+  }
+  return out;
+};
+
+const current = (model) => {
+  const cfg = require("../config");
+  const out = sanitize(cfg.TV_PLAYER);
+  const render = renderFor(cfg.TV_RENDER, model);
+  if (Object.keys(render).length) out.tvRender = render;
+  return out;
+};
+
+module.exports = { sanitize, current, renderFor, RANGES, FLAGS, RENDER_KEYS };
