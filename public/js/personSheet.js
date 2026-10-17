@@ -147,10 +147,10 @@ export const openPerson = (who, { inPlayer = false } = {}) => {
     const item = { imdbId: c.imdbId, type: c.type, title: c.title, year: c.year };
     const mark = el("span", { class: "pt-mark", "aria-hidden": "true" });
     const flag = el("span", { class: "pt-flag", "aria-hidden": "true" });
-    const btn = el("button", { class: "card poster focusable pt-card", onclick: () => toggle(c) },
+    const btn = el("button", { class: "card poster focusable pt-card" + (c.progress ? " pt-progress" : ""), onclick: () => toggle(c) },
       c.poster || backupPosterUrl(item)
         ? posterImg(c.poster || backupPosterUrl(item), c.title, "card-poster", "card-fallback", { w: 150, backup: backupPosterUrl(item) })
-        : el("div", { class: "card-fallback" }, c.title),
+        : el("div", { class: "card-fallback" }, el("span", {}, c.title)),
       mark,
       flag,
       c.progress && el("div", { class: "card-progress" }, el("div", { style: { width: `${Math.round(c.progress * 100)}%` } })));
