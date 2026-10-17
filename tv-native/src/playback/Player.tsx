@@ -107,20 +107,27 @@ import {
   sendPartyState,
   setPartyItem,
 } from '../party';
-import {holdLibraryRefresh, isOpen as socketOpen, reportActivity} from '../realtime';
+import {holdLibraryRefresh, isOpen as socketOpen, onLibraryNews, reportActivity} from '../realtime';
 import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
 import {PERSON_KEYS, PersonKey} from '../personPrefs';
 import {resumePoint, SKIP_STEPS} from '../episodeRules';
 import {
   nextAutoRun,
   NextEp,
+  nextAnswerChanged,
   nextFile,
+  NEXT_REASK_BEFORE_END_S,
   planUpNext,
   Range,
   rangeOf,
   readNext,
   skippableAt,
   stallStep,
+  STALL_MARK_MS,
+  stallClockFirstFrame,
+  stallClockNew,
+  stallClockOff,
+  stallClockOn,
   upNextState,
 } from '../playerRules';
 import {openReport, overlayOpen} from '../overlay';
@@ -2297,26 +2304,25 @@ export default function Player({
   }, [mark]);
   // A stall is buffering that lasts: over three seconds, after the first
   // frame, and not one the viewer caused by seeking a moment ago.
-  const bufferingSince = useRef(0);
+  // (playerRules.ts stallClock*: the wait before the first frame is the start,
+  // never a stall — noteFirstFrame starts the clock's life.)
+  const stallClock = useRef(stallClockNew());
   const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noteBuffering = useCallback(
     (on: boolean) => {
       if (stallTimer.current) clearTimeout(stallTimer.current);
       stallTimer.current = null;
       if (!on) {
-        if (bufferingSince.current && playTracked.current) {
-          const ms = Date.now() - bufferingSince.current;
-          if (ms >= 3000) mark('stall-end', {lasted: ms, at: Math.round(curRef.current || 0), app: 'tv'});
-        }
-        bufferingSince.current = 0;
+        const ms = stallClockOff(stallClock.current, Date.now());
+        if (ms) mark('stall-end', {lasted: ms, at: Math.round(curRef.current || 0), app: 'tv'});
         return;
       }
-      if (!bufferingSince.current) bufferingSince.current = Date.now();
+      if (!stallClockOn(stallClock.current, Date.now())) return;
       stallTimer.current = setTimeout(() => {
         if (!playTracked.current || pausedRef.current || probing.current) return;
         mark('stall', {at: Math.round(curRef.current || 0), transcode: usingTranscodeRef.current, app: 'tv'});
         track('feat', {f: 'stall_tv'});
-      }, 3000);
+      }, STALL_MARK_MS);
     },
     [mark],
   );
@@ -2611,46 +2617,82 @@ export default function Player({
   const [nextEp, setNextEp] = useState<NextEp | null>(null);
   const nextEpRef = useRef<NextEp | null>(null);
   const showIdOfItem = meta?.item?.showId || null;
+  // ASKED AGAIN when the answer may have changed while this player is open
+  // (an episode added to the library while the one before it plays — the
+  // device pass found Up next still offering to stream it): on the library's
+  // news (realtime.ts onLibraryNews, at once even while the screens' refresh
+  // is held, then a random 1–6 s wait so a house of TVs does not ask together)
+  // and once near the end (playerRules.ts NEXT_REASK_BEFORE_END_S). A changed
+  // answer replaces the card if it is already up.
+  const askNextRef = useRef<((why: 'open' | 'news' | 'end') => void) | null>(null);
+  const showUpNextRef = useRef<(() => void) | null>(null);
+  const retractUpNextRef = useRef<(() => void) | null>(null);
+  const nextReaskedNearEnd = useRef(false);
   useEffect(() => {
     nextEpRef.current = null;
     setNextEp(null);
+    askNextRef.current = null;
+    nextReaskedNearEnd.current = false;
     if (!meta) return;
     const lib = !stream && !!showIdOfItem;
     const streamed = !!(stream && stream.imdbId && stream.season && stream.episode);
     if (!lib && !streamed) return;
     let live = true;
-    const set = (n: NextEp | null) => {
+    const set = (n: NextEp | null, why: string) => {
       if (!live) return;
+      const was = nextEpRef.current;
       nextEpRef.current = n;
       setNextEp(n);
+      if (why !== 'open' && nextAnswerChanged(was, n)) {
+        console.log(`[player] next episode now ${n ? `${n.kind} ${n.label}` : 'none'} (was ${was ? `${was.kind} ${was.label}` : 'none'}, ${why})`);
+        // the card on screen named the old answer: put the new one up instead
+        if (upNextShown.current) {
+          retractUpNextRef.current?.();
+          if (n) showUpNextRef.current?.();
+        }
+      }
     };
-    const ask = lib
-      ? api.nextEpisode({id})
-      : api.nextEpisode({
-          imdbId: stream!.imdbId as string,
-          season: stream!.season as number,
-          episode: stream!.episode as number,
-          title: meta.item.showTitle || meta.item.title || title,
-          year: stream!.year ?? null,
-        });
-    ask
-      .then(r => {
+    const ask = (why: 'open' | 'news' | 'end') => {
+      const q = lib
+        ? api.nextEpisode({id})
+        : api.nextEpisode({
+            imdbId: stream!.imdbId as string,
+            season: stream!.season as number,
+            episode: stream!.episode as number,
+            title: meta.item.showTitle || meta.item.title || title,
+            year: stream!.year ?? null,
+          });
+      q.then(r => {
         const n = readNext(r);
         if (n === undefined) throw new Error('not an answer');
-        set(n);
-      })
-      .catch(() => {
+        set(n, why);
+      }).catch(() => {
         // A server from before the route (404), or no answer: a library
         // episode falls back to the next file on disk, as this player always
-        // did; a streamed one has nothing to fall back to.
+        // did; a streamed one has nothing to fall back to. A re-ask that
+        // fails keeps the answer it had.
         if (!lib || !live) return;
         api
           .item(showIdOfItem as string, profileId)
-          .then(show => set(nextFile(show.seasons, id)))
+          .then(show => set(nextFile(show.seasons, id), why))
           .catch(() => {});
       });
+    };
+    askNextRef.current = ask;
+    ask('open');
+    let newsTimer: ReturnType<typeof setTimeout> | null = null;
+    const offNews = onLibraryNews(() => {
+      if (newsTimer) return; // one ask for a burst of news
+      newsTimer = setTimeout(() => {
+        newsTimer = null;
+        if (live) ask('news');
+      }, 1000 + Math.random() * 5000);
+    });
     return () => {
       live = false;
+      askNextRef.current = null;
+      offNews();
+      if (newsTimer) clearTimeout(newsTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, showIdOfItem, id, profileId]);
@@ -2687,6 +2729,7 @@ export default function Player({
       }, 1000);
     }
   }, []);
+  showUpNextRef.current = showUpNext;
   // The viewer went back out of the credits: the card goes (and any countdown
   // with it) and is armed again for when the credits return — the site's rule.
   const retractUpNext = useCallback(() => {
@@ -2696,6 +2739,7 @@ export default function Player({
     countdownTimer.current = null;
     setUpNext(prev => (prev ? null : prev));
   }, []);
+  retractUpNextRef.current = retractUpNext;
 
   // On to the next episode. `byCountdown`: it started by itself (the card ran
   // out) — everything else is a person's press (Play now, Keep watching, the
@@ -2780,6 +2824,11 @@ export default function Player({
   const noteFirstFrame = () => {
     if (playTracked.current) return;
     playTracked.current = true;
+    // Whatever buffering came before this was the start, not a stall
+    // (noteBuffering): no stall clock or pending stall mark carries over.
+    stallClockFirstFrame(stallClock.current);
+    if (stallTimer.current) clearTimeout(stallTimer.current);
+    stallTimer.current = null;
     // ONE moment, one number: the play mark, the usage statistic and the
     // analytics timing (usage.track('play') hands `ms` to telemetry's
     // play_first_frame) all carry this same reading.
@@ -2901,6 +2950,10 @@ export default function Player({
     // (playerRules.ts upNextState). Only while playing: pausing on the last
     // minute must not pop a countdown over the frame. Going back out of the
     // credits takes the card away again.
+    if (!nextReaskedNearEnd.current && askNextRef.current && durRef.current > 0 && durRef.current - content <= Math.max(NEXT_REASK_BEFORE_END_S, creditsStart.current ? durRef.current - creditsStart.current + 30 : 0) && content > 0) {
+      nextReaskedNearEnd.current = true;
+      askNextRef.current('end');
+    }
     if (nextEpRef.current || upNextShown.current) {
       const s = upNextState(content, durRef.current, creditsStart.current);
       if (s === 'show' && !pausedRef.current) showUpNext();
