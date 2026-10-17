@@ -157,6 +157,21 @@ both("bestTrackIndex: full before SDH before forced, whatever the order", ({ bes
   );
 });
 
+both("bestTrackIndex: the ★ track wins among equals, never over a better kind", ({ bestTrackIndex }) => {
+  // the server's ★ (src/media/scanner.js starBest): "Matches this release"
+  const tracks = [
+    { label: "Hebrew", lang: "he" },
+    { label: "Hebrew 2", lang: "he", star: true },
+    { label: "Hebrew 3", lang: "he" },
+    { label: "English (SDH)", lang: "en", sdh: true, star: true },
+    { label: "English", lang: "en" },
+  ];
+  assert.equal(bestTrackIndex(tracks, "he"), 1, "the ★ one, not the first listed");
+  assert.equal(bestTrackIndex(tracks, "en"), 4, "a full track still beats a ★ SDH one");
+  assert.equal(bestTrackIndex(tracks.map((t) => ({ ...t, star: undefined })), "he"), 0, "no ★: the first, as before");
+  assert.equal(bestTrackIndex([{ label: "Hebrew", star: true }, { label: "Hebrew 2", star: true }], "he"), 0, "two ★ (should not happen): the first");
+});
+
 both("audio: the three languages are stored normalised, other dubs as their tag", ({ audioPick, sameAudio }) => {
   assert.equal(audioPick("heb"), "he");
   assert.equal(audioPick("eng"), "en");

@@ -435,6 +435,13 @@ export const api = {
     ),
   intro: (key) => json(`/api/intro/${encodeURIComponent(key)}`),
   subtitlesFetch: (id, lang) => post("/api/subtitles/fetch", { id, lang }),
+  // The subtitle Resync button: the track on screen lined up with what is
+  // SAID in the film (src/media/subaudio.js). body: { id, track (its url as
+  // listed), audio (the playing audio track, 0-based) } -> the job:
+  // { state: "listening"|"matching"|"done"|"failed"|"none", progress, verdict, applied, words, parts, ms, timing }
+  subtitleResync: (body) => post("/api/subtitles/resync", body),
+  subtitleResyncStatus: (body) => post("/api/subtitles/resync/status", body),
+  subtitleResyncUndo: (body) => post("/api/subtitles/resync/undo", body),
   report: (text, context, profile) => post("/api/reports", { text, context, profile }),
   setIntro: (key, start, end) => {
     let by = null;
