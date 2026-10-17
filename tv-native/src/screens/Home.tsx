@@ -397,16 +397,38 @@ export default function Home({
   useHomeScreenLinks(openFromLauncher);
   const heroPlay = useCallback(
     (item: HeroItem) => {
-      // Library movie → straight to the player; shows and stream titles need the
-      // detail page first (episode / source choice).
-      if (item.source !== 'stream' && item.type === 'movie' && item.id) {
+      if (!canNavigate(navigation)) return;
+      // Library movie (or a stream card the server matched to a copy on
+      // disk) → straight to the player.
+      const copy = item.type === 'movie' ? (item.source !== 'stream' ? item.id : item.inLibrary) : null;
+      if (copy) {
+        navigation.push('Player', {id: copy, title: item.title});
+        return;
+      }
+      // Everything else is ONE press too (Dor, 2026-10-17): the title page
+      // opens and presses its own Play — the best source saved and streamed
+      // while it downloads, a show's next episode, a download already on its
+      // way played as it comes (Detail `play`, playBest.ts). Back from the
+      // film lands on the title page, where the download shows.
+      navigation.push('Detail', {item, play: true});
+    },
+    [navigation],
+  );
+  // A Continue Watching card: what you were watching, resumed at once. A
+  // library film used to open its title page first, so resuming it took a
+  // second press there (the TV's own home-screen row already went straight
+  // in); episodes and streams always did.
+  const playContinue = useCallback(
+    (item: HeroItem) => {
+      const libraryFilm = item.type === 'movie' && item.source !== 'stream' && !!item.id && !String(item.id).startsWith('torrent|');
+      if (libraryFilm) {
         if (!canNavigate(navigation)) return;
         navigation.push('Player', {id: item.id, title: item.title});
-      } else {
-        openDetail(item);
+        return;
       }
+      openItem(navigation, item);
     },
-    [navigation, openDetail],
+    [navigation],
   );
 
   // ---- the sliding column --------------------------------------------------
@@ -1134,7 +1156,7 @@ export default function Home({
             <Row
               title={r.title}
               items={r.items}
-              onSelect={openDetail}
+              onSelect={r.id === 'continue' ? playContinue : openDetail}
               onItemFocus={onRowItemFocus}
               rowIndex={i}
               showKind
@@ -1147,7 +1169,7 @@ export default function Home({
         </View>
       );
     },
-    [openDetail, onRowItemFocus, removeFromContinue, win, rowH, shelfStore],
+    [openDetail, playContinue, onRowItemFocus, removeFromContinue, win, rowH, shelfStore],
   );
 
   if (!data && !error) {
