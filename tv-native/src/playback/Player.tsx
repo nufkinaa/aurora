@@ -131,7 +131,7 @@ import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 import {menuMaxHeight} from '../popupFit';
 import {refreshTuning, tuning, TUNING_DEFAULTS} from './tuning';
-import {SERVER_BUSY, whenRoom} from '../serverManners';
+import {afterClaim, claimFirst, SERVER_BUSY, whenRoom} from '../serverManners';
 import {playerError, seekResumed, seekStarted, seeking} from '../telemetry'; // [analytics]
 
 const {colors, radius, fontSize, spacing} = theme;
@@ -1124,7 +1124,10 @@ export default function Player({
   // with room is not a round trip slower for any of this.
   const claimGen = useRef(0); // the source generation whose claim is pending (0 = none)
   const claimSwallowed = useRef(0); // …and the generation a player error was held back for
-  const claimStream = useCallback((url: string, g: number) => {
+  // `handOver`: the claim goes FIRST (serverManners.ts claimFirst — an encode
+  // that has not played yet): the player is handed its source only once the
+  // server has said there is room, so ExoPlayer never meets the refusal.
+  const claimStream = useCallback((url: string, g: number, handOver = false) => {
     claimGen.current = g;
     const alive = () => !exited.current && gen.current === g;
     whenRoom(
@@ -1156,6 +1159,17 @@ export default function Player({
     ).then(out => {
       if (claimGen.current === g) claimGen.current = 0;
       if (out.kind === 'gone' || !alive()) return;
+      if (handOver) {
+        const next = afterClaim(out);
+        if (next === 'busy') {
+          console.log('[player] the server is still busy: giving up on this start');
+          setBuffering(false);
+          setError(SERVER_BUSY);
+        } else if (next === 'play') {
+          setUri(`${url}&g=${g}`);
+        }
+        return;
+      }
       const swallowed = claimSwallowed.current === g;
       if (out.kind === 'busy') {
         if (everPlayed.current) return; // the player got in by itself meanwhile
@@ -1195,8 +1209,11 @@ export default function Player({
       setBuffering(true);
       const url = transcodeUrl(base, ss, v);
       const g = ++gen.current;
-      if (claim) claimStream(url, g);
-      setUri(`${url}&g=${g}`);
+      // an encode that has not played yet asks first and is handed over by
+      // the claim (claimFirst); anything else goes to the player at once
+      const first = claim && claimFirst(v, everPlayed.current);
+      if (claim) claimStream(url, g, first);
+      if (!first) setUri(`${url}&g=${g}`);
     },
     [transcodeUrl, claimStream],
   );
