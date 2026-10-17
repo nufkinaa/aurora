@@ -388,10 +388,12 @@ export const api = {
       (year ? `&year=${encodeURIComponent(year)}` : "")),
   discover: () => json("/api/discover"),
   discoverSearch: (q) => json(`/api/discover/search?q=${encodeURIComponent(q)}`),
-  torrentSubtitles: (type, id, season, episode) => {
+  // release: the stream's file name — the subtitles timed for it come first
+  torrentSubtitles: (type, id, season, episode, release = null) => {
     const p = new URLSearchParams();
     if (season) p.set("season", season);
     if (episode) p.set("episode", episode);
+    if (release) p.set("release", String(release).slice(0, 200));
     const qs = p.toString();
     return json(`/api/torrents/subtitles/${type}/${id}${qs ? "?" + qs : ""}`);
   },

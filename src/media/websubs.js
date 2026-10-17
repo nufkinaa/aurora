@@ -65,12 +65,19 @@ const fromOpenSubtitles = async (ttType, imdbId, season, episode) => {
   for (const s of data.subtitles || []) {
     const lang = langOf(s.lang);
     if (!lang || !s.url) continue;
+    // The addon says which release each file was timed for, and at what
+    // frame rate — everything the ranking below needs, and all of it ignored
+    // until 2026-10-17 (the addon's own order put a Telesync first).
+    const release = String(s.movieReleaseName || s.subtitleFileName || "").replace(/\.(srt|sub|ass|ssa|vtt)$/i, "");
+    const fps = Number(s.fpsMilli) > 0 ? Number(s.fpsMilli) / 1000 : null;
     out.push({
       provider: "os",
       ref: s.url,
       lang: lang.key,
       langName: lang.name,
-      note: s.id ? `#${s.id}` : "",
+      note: release ? release.slice(0, 60) : s.id ? `#${s.id}` : "",
+      ...(release ? { release } : {}),
+      ...(fps ? { fps } : {}),
     });
   }
   return out;
@@ -103,16 +110,79 @@ const fromWizdom = async (ttType, imdbId, season, episode) => {
       // The release name is genuinely useful for Hebrew: it's how you tell a
       // WEB-DL-timed track from a BluRay-timed one.
       note: String(s.versioname || s.version || "").slice(0, 60),
+      release: String(s.versioname || s.version || ""),
       score: Number(s.score) || 0,
     }));
+};
+
+// ---------- which release a file was timed for ----------
+//
+// A subtitle is in time for the release it was made on and, usually, for the
+// releases cut from the same master: the same group, the same source (a
+// BluRay and every BDRip of it; one streaming service's WEB-DL and the WEBRips
+// of it), the same edition. Wizdom lists every Hebrew file it has under the
+// release name it was made for, in no useful order (every "score" is 0), and
+// OpenSubtitles' own order put CAM/Telesync files first (Inception: both of
+// its Hebrew files are Telesyncs at 25 fps) — taking the first two of each is
+// what made "subs are almost always out of sync, especially in Hebrew". So the
+// candidates are RANKED against the release being watched.
+
+const tokens = (name) =>
+  String(name || "").toLowerCase().replace(/\.(mkv|mp4|avi|m4v|srt)$/i, "").split(/[\s._\-[\]()+,]+/).filter(Boolean);
+const SOURCES = [
+  ["cam", /^(?:cam|camrip|hdcam|ts|hdts|telesync|tc|telecine|scr|screener|dvdscr|r5|pdvd|hqcam)$/],
+  ["bluray", /^(?:bluray|blu|bdrip|brrip|bdremux|remux|bd|bdr|bd25|bd50|uhd)$/],
+  ["web", /^(?:web|webdl|webrip|webhd|amzn|nf|dsnp|hmax|max|atvp|hulu|pcok|pmtp|itunes|cr|stan)$/],
+  ["hdtv", /^(?:hdtv|pdtv|dsr|tvrip|dvb|hdtvrip|satrip)$/],
+  ["dvd", /^(?:dvd|dvdrip|dvd5|dvd9|ntsc|pal)$/],
+];
+const SERVICES = new Set(["amzn", "nf", "dsnp", "hmax", "max", "atvp", "hulu", "pcok", "pmtp", "itunes", "cr", "stan"]);
+const EDITIONS = /^(?:extended|uncut|unrated|directors|dc|imax|theatrical|remastered|criterion|special)$/;
+
+const parseRelease = (name) => {
+  const t = tokens(name);
+  const raw = String(name || "").replace(/\.(mkv|mp4|avi|m4v|srt)$/i, "").trim();
+  const g = /-([A-Za-z0-9]{2,20})(?:\[[^\]]*\])?$/.exec(raw);
+  let source = null;
+  for (const [k, re] of SOURCES) if (t.some((x) => re.test(x))) { source = k; break; }
+  return {
+    group: g ? g[1].toLowerCase() : null,
+    source,
+    res: t.find((x) => /^(?:2160|1080|720|576|480)p$/.test(x)) || null,
+    service: t.find((x) => SERVICES.has(x)) || null,
+    editions: t.filter((x) => EDITIONS.test(x)).sort().join(","),
+    tokens: new Set(t),
+  };
+};
+
+// How well a subtitle made for release `cand` should fit `target` (higher is better).
+const releaseScore = (target, cand, { targetFps = null, candFps = null } = {}) => {
+  const a = parseRelease(target);
+  const b = parseRelease(cand);
+  let score = 0;
+  if (b.source === "cam" && a.source !== "cam") score -= 8;
+  if (a.group && b.group && a.group === b.group) score += 6;
+  if (a.source && b.source) score += a.source === b.source ? 4 : -1;
+  if (a.service && b.service) score += a.service === b.service ? 3 : -1;
+  if (a.res && b.res && a.res === b.res) score += 1;
+  if (a.editions !== b.editions) score -= 4;
+  else if (a.editions) score += 2;
+  if (targetFps && candFps && Math.abs(targetFps / candFps - 1) > 0.01) score -= 3;
+  // a little for every other word in common ("repack", "hdr", "atmos")
+  let common = 0;
+  for (const x of b.tokens) if (x.length > 2 && a.tokens.has(x) && !/^\d+$/.test(x)) common++;
+  return score + Math.min(3, common * 0.25);
 };
 
 // ---------- the merged list ----------
 
 // Hebrew, English and Russian tracks for a title, best-first, capped per language.
-// Providers are interleaved so the top of the Hebrew list isn't eight variants
-// from the same source.
-const list = async (type, imdbId, season, episode) => {
+// `opts.release`: the name of the release being watched (the file name the
+// torrent had); `opts.fps`: its frame rate. With a release, each language's
+// candidates are ranked by how well their own release fits it; without one,
+// CAM/Telesync files still go to the back. Ties keep the providers'
+// interleaved order (Wizdom first for Hebrew — the better catalogue).
+const list = async (type, imdbId, season, episode, opts = {}) => {
   if (!/^tt\d+$/i.test(imdbId || "")) return [];
   const ttType = type === "series" || type === "show" ? "series" : "movie";
 
@@ -120,10 +190,12 @@ const list = async (type, imdbId, season, episode) => {
     fromOpenSubtitles(ttType, imdbId, season, episode),
     fromWizdom(ttType, imdbId, season, episode).catch(() => []),
   ]);
+  return rank(os, wz, opts);
+};
 
+const rank = (os, wz, { release = null, fps = null } = {}) => {
   const out = [];
   for (const lang of LANGS) {
-    // Wizdom first for Hebrew (it's the better catalogue), then alternate.
     const wzL = wz.filter((t) => t.lang === lang.key).sort((a, b) => b.score - a.score);
     const osL = os.filter((t) => t.lang === lang.key);
     const merged = [];
@@ -131,15 +203,23 @@ const list = async (type, imdbId, season, episode) => {
       if (wzL[i]) merged.push(wzL[i]);
       if (osL[i]) merged.push(osL[i]);
     }
+    const scored = merged.map((t, i) => {
+      const name = t.release || t.note;
+      const fit = release
+        ? releaseScore(release, name, { targetFps: fps, candFps: t.fps })
+        : parseRelease(name).source === "cam" ? -8 : 0;
+      return { t, i, fit };
+    });
+    scored.sort((x, y) => y.fit - x.fit || x.i - y.i);
 
     const seen = new Set();
     let n = 0;
-    for (const t of merged) {
+    for (const { t, fit } of scored) {
       const key = `${t.provider}:${t.ref}`;
       if (seen.has(key)) continue;
       seen.add(key);
       n++;
-      out.push({ ...t, label: lang.name + (n > 1 ? ` ${n}` : "") });
+      out.push({ ...t, fit: Math.round(fit * 100) / 100, label: lang.name + (n > 1 ? ` ${n}` : "") });
       if (n >= PER_LANG) break;
     }
   }
@@ -373,8 +453,18 @@ const writeSidecars = async (tracks, videoPath, opts = {}) => {
       if (!raw || raw.length > 5 * 1024 * 1024) return null;
       // Convert MicroDVD/SubStation to SRT, then refuse anything that isn't a
       // usable subtitle in the language it claims (see rejectReason).
-      const text = toSrt(raw);
+      let text = toSrt(raw);
       if (rejectReason(text, t.lang)) return null;
+      // The timing repairs that can be made from evidence (media/subsync.js):
+      // a frame rate the provider declared, a track that runs past the film's
+      // end, and the punctuation of Hebrew/Arabic files authored for renderers
+      // without bidi. (Lining a track up against one the video itself carries
+      // happens later, in the background — media/sublang.js — because that
+      // track has to be extracted first.)  opts.facts: { fps, duration }.
+      const facts = opts.facts || {};
+      const fixed = require("./subsync").repair(text, { fps: facts.fps, duration: facts.duration, subFps: t.fps });
+      if (fixed.how.length) console.log(`[subs] ${t.langName} (${t.release || t.ref}): ${fixed.how.join("; ")}`);
+      text = fixed.srt;
       return { track: t, text, sha: crypto.createHash("sha1").update(text).digest("hex") };
     } catch {
       return null;
@@ -421,7 +511,7 @@ const toVtt = (text) => {
 };
 
 module.exports = {
-  list, fetchSrt, toVtt, writeSidecars, LANGS, PER_LANG,
+  list, rank, fetchSrt, toVtt, writeSidecars, LANGS, PER_LANG, parseRelease, releaseScore,
   // Test-only: the parts worth pinning — a wrong language filter or a broken
   // zip reader is invisible until someone opens a subtitle menu.
   _internals: { langOf, decode, firstSubtitleInZip, toSrt, rejectReason, microDvdToSrt, subStationToSrt },

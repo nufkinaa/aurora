@@ -560,6 +560,8 @@ const playStream = (stream, base, label, season, episode) => {
     season,
     episode,
     quality: stream.quality,
+    // the release's own name: subtitles timed for it are asked for first
+    release: stream.filename || null,
     _isTorrent: true,
     // Picked by hand from the sources list: the player must honour it even
     // when a copy of this title is on disk ("Other versions" means that).
@@ -584,6 +586,7 @@ const playStream = (stream, base, label, season, episode) => {
       base.imdbId,
       season,
       episode,
+      stream.filename || stream.title || null,
     )
     .then(({ subtitles }) => {
       if (subtitles && subtitles.length) {

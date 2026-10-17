@@ -287,18 +287,24 @@ const diskGate = (type, sizeBytes, excludeId) => {
 // "Hebrew" / "Hebrew 2" / "English".
 const saveExternalSubtitles = async (job, destPath) => {
   if (!job.imdbId) return 0;
+  // the release that was downloaded (its torrent's file name): the providers'
+  // files timed for it are ranked first; its frame rate and length drive the
+  // timing repairs (media/websubs.js, media/subsync.js)
+  const facts = (await require("./metadata").probeAsync(destPath).catch(() => null)) || {};
+  const fps = facts.video && facts.video.fps;
   let tracks = [];
   try {
     tracks = await torrent.getSubtitleSources(
       job.type === "show" ? "series" : "movie",
       job.imdbId,
       job.season,
-      job.episode
+      job.episode,
+      { release: job.release || null, fps }
     );
   } catch {
     return 0;
   }
-  const { written, duplicates } = await websubs.writeSidecars(tracks, destPath);
+  const { written, duplicates } = await websubs.writeSidecars(tracks, destPath, { facts: { fps, duration: facts.duration } });
   if (written.length) {
     console.log(
       `[download] ${job.id.slice(0, 6)} saved ${written.length} subtitle track(s) for "${job.title}"` +
@@ -1312,6 +1318,9 @@ const claimWin = (job, rec, att, file, engineStatus) => {
 const completeJob = async (job, rec, file, engineStatus) => {
   const ext = path.extname(file.path) || ".mkv";
   const destPath = path.join(rec.dir, `${rec.base}${ext}`);
+  // The library file takes the title's name; the release's own name is kept
+  // on the job — it is what tells which providers' subtitles fit it.
+  job.release = path.basename(file.path);
 
   job.phase = "copying";
   job.progress = 1;

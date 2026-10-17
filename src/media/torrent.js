@@ -842,20 +842,27 @@ const getSources = async (type, title, year, season, episode) => {
 // or guess Windows-1255).
 const websubs = require("./websubs");
 
-const getSubtitleSources = (type, imdbId, season, episode) =>
-  websubs.list(type, imdbId, season, episode);
+// opts: { release, fps } — the release being watched, so the subtitles timed
+// for it come first (websubs.rank)
+const getSubtitleSources = (type, imdbId, season, episode, opts = {}) =>
+  websubs.list(type, imdbId, season, episode, opts);
 
-const getSubtitles = async (type, imdbId, season, episode) =>
-  (await websubs.list(type, imdbId, season, episode)).map((s) => ({
+const getSubtitles = async (type, imdbId, season, episode, opts = {}) =>
+  (await websubs.list(type, imdbId, season, episode, opts)).map((s) => ({
     lang: s.lang,
     label: s.label,
     note: s.note || "",
-    url: `/stream/websub?p=${s.provider}&r=${encodeURIComponent(s.ref)}`,
+    url: `/stream/websub?p=${s.provider}&r=${encodeURIComponent(s.ref)}${s.fps ? `&fps=${s.fps}` : ""}`,
   }));
 
 // One track as WebVTT, for the player.
-const fetchSubtitleAsVtt = async (track) =>
-  websubs.toVtt(await websubs.fetchSrt(track));
+// (the punctuation of Hebrew files authored for players without bidi is put
+// right on the way — media/subsync.js; their timing can only be judged against
+// a file we hold, which a stream is not)
+const fetchSubtitleAsVtt = async (track) => {
+  const srt = websubs._internals.toSrt(await websubs.fetchSrt(track)) || "";
+  return websubs.toVtt(require("./subsync").repair(srt, { subFps: track.fps }).srt);
+};
 
 // ---------- streaming ----------
 
@@ -1373,19 +1380,49 @@ const pickVideoFile = (torrent, fileIdx) => {
   );
 };
 
+// A subtitle file's language, read from its name, and its flags:
+// a language NAME anywhere in the path ("Subs/3_Hebrew.srt"), or a code as
+// one of the last two words of the file name ("Movie.2019.1080p.heb.srt",
+// "Movie.en.forced.srt") — never a code found mid-title ("It.Follows").
+const subtitleFileName = (name) => {
+  const subnames = require("./subnames");
+  const base = path.basename(name, path.extname(name));
+  const words = String(name).split(/[\/._\-\s()[\]]+/).filter(Boolean);
+  const own = base.split(/[._\-\s()[\]]+/).filter(Boolean);
+  let lang = null;
+  for (let i = words.length - 1; i >= 0 && !lang; i--) {
+    if (words[i].length > 3 && !/^\d+$/.test(words[i])) lang = subnames.normLang(words[i]);
+  }
+  for (const w of own.slice(-2).reverse()) {
+    if (lang) break;
+    if (/^[a-z]{2,3}$/i.test(w)) lang = subnames.normLang(w);
+  }
+  const sdh = /(?:^|[^a-z])(?:sdh|cc|hi)(?:[^a-z]|$)/i.test(base) && !(lang && lang.code === "hi");
+  const forced = /(?:^|[^a-z])forced(?:[^a-z]|$)/i.test(base);
+  if (!lang) return { label: base.slice(0, 40), lang: null, sdh, forced };
+  const n = subnames.subtitleName({ language: lang.code, sdh, forced }, null);
+  return { label: n.label, lang: n.lang, sdh, forced };
+};
+
 // Subtitle files inside the torrent, as playable tracks.
 const torrentSubtitles = (torrent, infoHash) => {
   const subs = [];
   torrent.files.forEach((f, i) => {
     const ext = path.extname(f.name).toLowerCase();
-    if (ext === ".srt" || ext === ".vtt") {
+    if (ext === ".srt" || ext === ".vtt" || ext === ".ass" || ext === ".ssa") {
+      // named by the language its file name says ("2_English.srt",
+      // "Movie.heb.srt", "Subs/Hebrew.srt"), as the library's sidecars are
+      const named = subtitleFileName(f.name);
       subs.push({
-        label: path.basename(f.name, ext).slice(0, 40),
+        label: named.label,
+        ...(named.lang ? { lang: named.lang } : {}),
+        ...(named.sdh ? { sdh: true } : {}),
+        ...(named.forced ? { forced: true } : {}),
         url: `/stream/torrent/sub/${infoHash}/${i}`,
       });
     }
   });
-  return subs;
+  return require("./subnames").uniqueLabels(subs);
 };
 
 const clearCache = () => {

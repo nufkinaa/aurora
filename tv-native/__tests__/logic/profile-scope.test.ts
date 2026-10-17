@@ -96,6 +96,7 @@ const DEVICE: Record<string, Record<string, string>> = {
   'navSection.ts': {newSeen: 'which release this TV has seen', newSubs: 'listeners'},
   'overlay.ts': {current: 'the open sheet (unmounts with the navigator)', subs: 'listeners'},
   'playback/Player.tsx': {tunedBuffers: 'buffer settings by the server’s tuning — one object per setting, the same for everybody'},
+  'playback/subDelay.ts': {chain: 'the queue of writes to this box’s subtitle delays (per title and track, not per person)'},
   'playback/tuning.ts': {current: 'what the server said about how a film starts (the admin’s, not a person’s)', asked: 'a debounce stamp'},
   'perfTier.ts': {
     lite: 'what this box can do',

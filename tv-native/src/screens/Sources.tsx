@@ -389,6 +389,7 @@ export function SourcesPanel({
       imdbId,
       season: season || undefined,
       episode: episode || undefined,
+      release: s.filename || s.release || undefined,
       // The same three decisions the browser client makes when it builds a play
       // item: whether the remux is needed, which flavour, and the true runtime.
       needsTranscode: needsVideo || needsAudio,
