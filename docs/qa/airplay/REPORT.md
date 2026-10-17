@@ -167,6 +167,7 @@ The UI test checks this for a direct file and for an hls.js stream: `disableRemo
 - **Subtitles on the Apple TV:** the timing through `X-TIMESTAMP-MAP`, and whether a master without `CODECS` is accepted. `BANDWIDTH` is the file's rate × 1.25 + 192k, or 12 Mbit/s for the encode.
 - **iPhone in native fullscreen:** setting `src` when AirPlay starts may drop the phone out of fullscreen. This only happens when sign-in is required or the stream is not a plain address.
 - **The next episode while on AirPlay:** it opens a new player and element, so AirPlay most likely ends and the episode plays on the device.
+- **The reverse proxy in front of nufurora.com** must pass `/air/` to Aurora, as it passes `/stream/` and `/api/`. The repo has no proxy config to check. If it only forwards a fixed list of paths, add `/air/` to it.
 - **The home-network address** is a guess from the network adapters: 192.168.x first, virtual adapters skipped. On this PC it picked 192.168.50.108; the server's own startup line printed 172.16.0.6, a virtual adapter.
 
 ## Test it for real (owner)
