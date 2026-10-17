@@ -107,7 +107,7 @@ import {
   sendPartyState,
   setPartyItem,
 } from '../party';
-import {holdLibraryRefresh, isOpen as socketOpen, onLibraryNews, reportActivity} from '../realtime';
+import {holdLibraryRefresh, isOpen as socketOpen, onLibraryNews, onMessage, reportActivity} from '../realtime';
 import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
 import {PERSON_KEYS, PersonKey} from '../personPrefs';
 import {resumePoint, SKIP_STEPS} from '../episodeRules';
@@ -142,6 +142,18 @@ import {Clock, clockBaseFor, clockFromHeaders, toContent, toMedia} from './clock
 import {Cue, cueBottom, cueTextAt, parseVtt} from './cues';
 import {delaysForItem, loadDelays, roundDelay, saveDelay} from './subDelay';
 import {audioName, autoPick, buildTracks, followPick, hasLang, langName, Track as SubTrack} from './subTracks';
+import {
+  mergeSubInfo,
+  reloadAfterSync,
+  reloadDue,
+  resyncBody,
+  resyncMode,
+  runResync,
+  switchedToast,
+  syncPlan,
+  takesServerTiming,
+  toastFor,
+} from './resync';
 import {afterClaim, claimFirst, SERVER_BUSY, whenRoom} from '../serverManners';
 import {playerError, seekResumed, seekStarted, seeking} from '../telemetry'; // [analytics]
 
@@ -408,13 +420,23 @@ const MenuItem = React.forwardRef<
     label: string;
     tag?: string;
     on?: boolean;
+    // the server's ★ on a subtitle track: a small gold star after the label
+    // and `sub` ("Matches this release") on a second, smaller line
+    star?: boolean;
+    sub?: string;
     icon?: IconName; // a glyph before the label, for the rows that are actions rather than choices
     hasTVPreferredFocus?: boolean;
     onPress: () => void;
     onFocusChange?: (f: boolean) => void;
     uiId?: string; // [analytics] which control this is (Focusable.uiId)
   }
->(function PlayerMenuItem({label, tag, on, icon, hasTVPreferredFocus, onPress, onFocusChange, uiId}, ref) {
+>(function PlayerMenuItem({label, tag, on, star, sub, icon, hasTVPreferredFocus, onPress, onFocusChange, uiId}, ref) {
+  const name = (
+    <Text style={[styles.menuItemText, on && styles.menuItemTextOn]} numberOfLines={1}>
+      {label}
+      {star ? <Text style={styles.menuStar}>{'  ★'}</Text> : null}
+    </Text>
+  );
   return (
     <Focusable
       ref={ref}
@@ -429,9 +451,16 @@ const MenuItem = React.forwardRef<
       style={styles.menuItem}>
       <Text style={[styles.menuCheck, !on && styles.menuCheckOff]}>✓</Text>
       {icon ? <Icon name={icon} size={14} color={on ? colors.text : colors.textDim} /> : null}
-      <Text style={[styles.menuItemText, on && styles.menuItemTextOn]} numberOfLines={1}>
-        {label}
-      </Text>
+      {sub ? (
+        <View style={styles.menuItemCol}>
+          {name}
+          <Text style={styles.menuSub} numberOfLines={1}>
+            {sub}
+          </Text>
+        </View>
+      ) : (
+        name
+      )}
       {tag ? <Text style={styles.menuTag}>{tag}</Text> : null}
     </Focusable>
   );
@@ -1808,7 +1837,17 @@ export default function Player({
     if (!first) console.log(`[player] subtitles: ${cur || 'off'} → ${step.key || 'off'} (${p.why})`);
     subKeyRef.current = step.key; // (the mirror effect runs after this render)
     setSubKey(step.key);
-    if (step.announce && p.index >= 0) {
+    // The ★ moved to another track of the language on screen (a Resync, the
+    // server's own check — `subtitle_sync` below): the pick follows it, and
+    // says why. (resync.ts switchedToast)
+    const fromT = cur ? tracks.find(t => t.key === cur) : null;
+    const toT = p.index >= 0 ? usable[p.index] : null;
+    const fromLang = fromT ? langOf(fromT) : null;
+    const moved = step.announce ? switchedToast(fromT, toT, !!fromLang && !!toT && fromLang === langOf(toT)) : null;
+    if (moved) {
+      console.log(`[player] subtitles: the ★ is on ${toT?.key} now — switched`);
+      toast(moved);
+    } else if (step.announce && p.index >= 0) {
       const name = langName(usable[p.index].lang) || langName(langOf(usable[p.index]));
       toast(name ? `${name} subtitles found — switched on` : 'Subtitles found — switched on');
     }
@@ -1848,6 +1887,24 @@ export default function Player({
     () => tracks.find(t => t.key === subKey)?.url || null,
     [tracks, subKey],
   );
+  const subUrlRef = useRef<string | null>(null);
+  subUrlRef.current = subUrl;
+  // Which track the cues on screen came from: a reload of the SAME track (a
+  // Resync, `subtitle_sync`) keeps them up until the new file is in, instead
+  // of blanking the subtitles for a round trip.
+  const cuesFor = useRef<string | null>(null);
+  // One reload of the track on screen for one change (resync.ts reloadDue):
+  // the Resync's own end and the server's `subtitle_sync` come about a second
+  // apart, in either order. `force`: the viewer asked (the old reload).
+  const lastReload = useRef<{url: string; at: number} | null>(null);
+  const reloadCues = useCallback((url: string, force = false) => {
+    if (url !== subUrlRef.current) return false; // another track is on: it loads fresh when picked
+    const now = Date.now();
+    if (!force && !reloadDue(lastReload.current, url, now)) return false;
+    lastReload.current = {url, at: now};
+    setReload(n => n + 1);
+    return true;
+  }, []);
   // Load the chosen track's cues. A file that comes back empty is worth saying
   // out loud: on the web an empty track was a silent dead end (browsers never
   // retry one), and "I turned subtitles on and nothing happened" is exactly the
@@ -1862,12 +1919,25 @@ export default function Player({
       return;
     }
     let live = true;
-    setCues(null);
+    // the same track again (a reload): what is on screen stays until the new
+    // file is in, and a reload that fails leaves it there
+    const again = cuesFor.current === subUrl;
+    if (!again) {
+      cuesFor.current = null;
+      setCues(null);
+    }
     // `reload` is what Resync bumps, and it goes on the URL as well: a track that
-    // came back short or empty once would otherwise be served from cache forever.
+    // came back short or empty once would otherwise be served from cache forever
+    // — and after a Resync the server serves the corrected cues at this same
+    // address. (A global counter: a track picked again after a bump is asked
+    // with a query it was never asked with before.)
     const url = `${assetUrl(subUrl)}${reload ? `${subUrl.includes('?') ? '&' : '?'}retry=${reload}` : ''}`;
-    const slow = setTimeout(() => live && toast('Preparing subtitles…'), 4000);
+    const slow = again ? null : setTimeout(() => live && toast('Preparing subtitles…'), 4000);
     const failed = (msg: string) => {
+      if (again) {
+        toast("Couldn't load the subtitles again — kept the ones on screen");
+        return;
+      }
       if (!subHand.current && !badSubs.current.has(subUrl)) {
         badSubs.current.add(subUrl);
         setBadTick(n => n + 1); // the auto pick moves on to the next track
@@ -1879,20 +1949,25 @@ export default function Player({
       .then(txt => {
         if (!live) return;
         const parsed = parseVtt(txt);
-        console.log(`[player] cues loaded: ${parsed.length} from ${subUrl}`);
-        setCues(parsed.length ? parsed : null);
-        if (!parsed.length) failed('That subtitle file has no cues');
+        console.log(`[player] cues loaded: ${parsed.length} from ${subUrl}${again ? ' (again)' : ''}`);
+        if (!parsed.length) {
+          if (!again) setCues(null);
+          failed('That subtitle file has no cues');
+          return;
+        }
+        cuesFor.current = subUrl;
+        setCues(parsed);
       })
       .catch(e => {
         if (!live) return;
         console.log(`[player] cues failed: ${subUrl} (${(e as Error).message})`);
-        setCues(null);
+        if (!again) setCues(null);
         failed("That subtitle track couldn't be loaded");
       })
-      .finally(() => clearTimeout(slow));
+      .finally(() => slow && clearTimeout(slow));
     return () => {
       live = false;
-      clearTimeout(slow);
+      if (slow) clearTimeout(slow);
     };
   }, [subUrl, reload, toast]);
 
@@ -1943,16 +2018,100 @@ export default function Player({
     setSubDelay(subUrl, 0);
     showControls();
   }, [subUrl, setSubDelay, showControls]);
-  // The site's resyncSubs, and deliberately the nuclear option there too: throw
-  // the loaded cues away, re-download the file, and drop the manual delay. It
-  // exists for "the subs look off and I don't want to fiddle with ±0.5s" — one
-  // press, and it says what it did rather than leaving you guessing.
+  // RESYNC (owner, 2026-10-17: "it needs to really sync the subs"). For a
+  // library title's own track the SERVER listens to the playing audio track,
+  // matches what is said to the track's lines and, when it finds a match,
+  // serves the corrected cues at the same address from then on, for every
+  // device (src/media/subaudio.js). Here: start it, show how far it is
+  // without stopping the film, then say what happened in the server's words
+  // ("Moved 1.8 s later", "Matched to this release in 3 parts", "Couldn't
+  // match — kept as it was"). When the server's timing applies, the track is
+  // loaded again at once and its own ± delay goes back to 0 (the correction
+  // replaces it; the nudges stay for fine tuning on top). When nothing
+  // matched, everything stays as it was, the delay too. Leaving the player
+  // stops the asking, not the server's job. (Flow: resync.ts runResync.)
+  //
+  // A torrent stream's track has no file of its audio on the server to
+  // listen to: the row says "Reload" there and does what it always did —
+  // re-download the track and drop the delay. A server from before the route
+  // (404) gets the same, and the toast says so.
+  const [resyncLine, setResyncLine] = useState<string | null>(null);
+  const resyncRun = useRef<{url: string} | null>(null);
+  const subMode = resyncMode({isTorrent, url: subUrl});
+  const reloadOnly = useCallback(
+    (url: string, label: string, msg?: string) => {
+      setSubDelay(url, 0);
+      reloadCues(url, true);
+      toast(msg || `“${label}” re-downloaded, delay reset to 0.0s`);
+    },
+    [setSubDelay, reloadCues, toast],
+  );
   const resyncSubs = useCallback(() => {
     if (!subKey || !subUrl) return;
-    setSubDelay(subUrl, 0);
-    setReload(n => n + 1);
-    toast(`“${subKey}” re-downloaded, delay reset to 0.0s`);
-  }, [subKey, subUrl, setSubDelay, toast]);
+    if (subMode !== 'audio') return reloadOnly(subUrl, subKey);
+    if (resyncRun.current) {
+      toast(resyncRun.current.url === subUrl ? 'Already matching this track…' : 'Another track is being matched — one at a time');
+      return;
+    }
+    const url = subUrl;
+    const it = itemRef.current;
+    const body = resyncBody(it?.id || id, url, it?.audioTracks, audioIdxRef.current);
+    const delayWas = subOffsetsRef.current[url] || 0;
+    resyncRun.current = {url};
+    setResyncLine('Listening to the film… 0 %');
+    showControls();
+    console.log(`[player] resync: ${body.track} against audio ${body.audio}`);
+    runResync(
+      {
+        start: api.subtitleResync,
+        status: api.subtitleResyncStatus,
+        sleep: ms => new Promise<void>(r => setTimeout(r, ms)),
+        now: Date.now,
+        live: () => !exited.current,
+        onProgress: line => !exited.current && setResyncLine(line),
+      },
+      body,
+    ).then(o => {
+      resyncRun.current = null;
+      if (exited.current) return;
+      setResyncLine(null);
+      console.log(`[player] resync: ${body.track} → ${o.kind}${'words' in o ? ` (${o.words})` : ''}`);
+      if (o.kind === 'cancelled') return;
+      if (o.kind === 'old-server') return reloadOnly(url, subKey, toastFor(o));
+      if (takesServerTiming(o)) {
+        setSubDelay(url, 0);
+        reloadCues(url);
+      }
+      toast(toastFor(o, takesServerTiming(o) ? delayWas : 0));
+    });
+  }, [subKey, subUrl, subMode, id, reloadOnly, reloadCues, setSubDelay, showControls, toast]);
+
+  // `subtitle_sync` (server): a subtitle of THIS title was lined up with the
+  // audio — by a Resync here or on another device, by the server's own
+  // background check, or put back by an undo. The title is read again (past
+  // the read cache) for the new ★ and timing; the track on screen is loaded
+  // again when the title still lists it; and the auto pick — when the viewer
+  // has not picked by hand — follows the ★ to another track of the same
+  // language (the pick effect above, with its own toast). Nothing for a
+  // torrent stream (resync.ts syncPlan).
+  useEffect(() => {
+    if (isTorrent) return;
+    return onMessage('subtitle_sync', msg => {
+      if (exited.current) return;
+      if (!syncPlan({msgId: msg.id, playingId: itemRef.current?.id || id, isTorrent}).refetch) return;
+      console.log(`[player] subtitle_sync (${String(msg.source || '?')}): reading the title again`);
+      api
+        .item(id, profileId, true)
+        .then(it => {
+          if (exited.current || !it) return;
+          const fresh = it.subtitles || [];
+          setSubs(prev => mergeSubInfo(prev, fresh));
+          const cur = subUrlRef.current;
+          if (cur && reloadAfterSync(cur, fresh) && reloadCues(cur)) console.log(`[player] subtitle_sync: reloading ${cur}`);
+        })
+        .catch(e => console.log('[player] subtitle_sync: the title could not be read again:', (e as Error).message));
+    });
+  }, [id, profileId, isTorrent, reloadCues]);
 
   // uri + bufferConfig + minLoadRetryCount in ONE memo, because that is exactly
   // what react-native-video folds into one native source (rule 1). Anything
@@ -3727,7 +3886,8 @@ export default function Player({
                 and I don't want to fiddle with ±0.5s". */}
             {subKey ? (
               <MenuItem uiId="player.subtitles.resync"
-                label="⟲  Resync subtitles"
+                label={subMode === 'audio' ? (resyncLine ? '⟲  Resyncing…' : '⟲  Resync subtitles') : '⟲  Reload subtitles'}
+                tag={resyncLine ? resyncLine.replace(/^Listening to the film… /, '') : undefined}
                 onFocusChange={markZone('menu')}
                 onPress={resyncSubs}
               />
@@ -3760,6 +3920,8 @@ export default function Player({
                 <MenuItem uiId="player.subtitles.pick"
                   label={t.label}
                   tag={t.embedded ? 'Embedded' : undefined}
+                  star={t.star === true}
+                  sub={t.star === true ? t.starWhy || 'Matches this release' : undefined}
                   on={subKey === t.key}
                   hasTVPreferredFocus={subKey === t.key}
                   onFocusChange={markZone('menu')}
@@ -4147,9 +4309,11 @@ export default function Player({
 
       {/* The web's toast(), which is how it narrates everything that happens
           while the film keeps playing. */}
-      {toastMsg ? (
+      {/* A running Resync's progress sits in the same place between toasts
+          ("Listening to the film… 40 %", "Matching…"): the film plays on. */}
+      {toastMsg || resyncLine ? (
         <View style={styles.toast} pointerEvents="none">
-          <Text style={styles.toastText}>{toastMsg}</Text>
+          <Text style={styles.toastText}>{toastMsg || resyncLine}</Text>
         </View>
       ) : null}
     </View>
@@ -4507,6 +4671,13 @@ const styles = StyleSheet.create({
   // "Resync sub…" inside a menu with room to spare.
   menuItemText: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '700', flexShrink: 1},
   menuItemTextOn: {color: colors.text},
+  // the ★ track (resync.ts / the server's starBest): the star in the score
+  // gold, and "Matches this release" under the label, small and dim — a
+  // second line rather than a tag, so it never squeezes the label or the
+  // "Embedded" tag beside it
+  menuStar: {color: colors.star, fontSize: 12, fontWeight: '900'},
+  menuItemCol: {flexShrink: 1},
+  menuSub: {color: colors.textDim, fontSize: 12, fontWeight: '600', marginTop: 2},
   upNext: {
     position: 'absolute',
     right: spacing.pageX,

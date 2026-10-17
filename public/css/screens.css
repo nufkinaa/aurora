@@ -2953,6 +2953,47 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
   bottom: 110px;
 }
 
+/* The subtitle Resync at work, and what it found ("Listening to the film…
+   40%", "Moved 1.8 s later"): a quiet pill under the title, over the
+   picture whether or not the controls show — it is the answer to a press. */
+.player .sub-resync {
+  position: absolute;
+  top: calc(112px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  max-width: calc(100% - 32px);
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(12, 13, 22, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.player .sub-resync.hidden {
+  display: none;
+}
+/* The ★ track of a language in the subtitle menu: "Matches this release"
+   under its name, the star in the score gold. */
+.menu-item .sub-star {
+  margin-left: -4px;
+  color: #f5c518;
+  font-size: 0.85em;
+}
+.menu-item .sub-note {
+  min-width: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Up Next card */
 /* "Skip intro" — floats above the control bar and OUTSIDE .player-bottom, so
    it stays pressable while the controls are auto-hidden (that's the point:

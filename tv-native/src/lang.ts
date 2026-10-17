@@ -22,6 +22,9 @@ type TrackLike =
       // foreign / signs lines, or it is for the deaf and hard of hearing
       forced?: boolean | null;
       sdh?: boolean | null;
+      // the server's ★ (2026-10-17): the one track per language that matches
+      // this release by its audio (src/media/scanner.js starBest)
+      star?: boolean | null;
     }
   | null
   | undefined;
@@ -124,10 +127,12 @@ export const trackRank = (track: TrackLike): number => {
 };
 
 // The index of the best track in `lang`, -1 when the title has none.
-// Best = lowest rank; among equals the FIRST in the list, which is what the
-// players always did (findIndex) and what the server's ordering means:
-// sidecar / fetched files before the file's embedded streams, "Hebrew" before
-// "Hebrew 2".
+// Best = lowest rank; among equals the one the server starred (`star: true`,
+// "Matches this release" — it checked that track against this file's audio);
+// among those still equal the FIRST in the list, which is what the players
+// always did (findIndex) and what the server's ordering means: sidecar /
+// fetched files before the file's embedded streams, "Hebrew" before
+// "Hebrew 2". (public/js/lang.js: the same rule, test/subpick.test.js.)
 export const bestTrackIndex = (
   tracks: TrackLike[] | null | undefined,
   lang: string | null | undefined,
@@ -136,12 +141,15 @@ export const bestTrackIndex = (
   let rank = 9;
   const list = tracks || [];
   if (!lang || lang === 'off') return -1;
+  let starred = false;
   for (let i = 0; i < list.length; i++) {
     if (langOf(list[i]) !== lang) continue;
     const r = trackRank(list[i]);
-    if (r < rank) {
+    const s = !!(list[i] && list[i]!.star === true);
+    if (r < rank || (r === rank && s && !starred)) {
       rank = r;
       best = i;
+      starred = s;
     }
   }
   return best;

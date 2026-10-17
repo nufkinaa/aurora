@@ -2716,6 +2716,8 @@ export const renderPlayer = async (root, { id }) => {
   if (prefs.get("muted", false)) video.muted = true;
 
   const menuHost = el("div");
+  // what the subtitle Resync is doing, and what it found (resyncSubs below)
+  const resyncPill = el("div", { class: "sub-resync hidden", role: "status", "aria-live": "polite" });
 
   // ---------- watch party: pill + panel ----------
   // The pill (top-right) says you're in a party and how many are in; the
@@ -2775,6 +2777,7 @@ export const renderPlayer = async (root, { id }) => {
     ),
     menuHost,
     partyPanel,
+    resyncPill,
   );
 
   root.append(overlay);
@@ -2809,6 +2812,9 @@ export const renderPlayer = async (root, { id }) => {
   // It must run once per title, not on every media (re)load, or a viewer who
   // turned subtitles off would have them switched back on by the next seek.
   let autoSubsApplied = false;
+  // A track chosen in the menu in this session: from then on nothing switches
+  // tracks by itself (not even to a newly ★ one — subtitle_sync below).
+  let subsPickedByHand = false;
   let controlsTimer = null;
   let saveTimer = null;
   let upNextShown = false;
@@ -3553,12 +3559,10 @@ export const renderPlayer = async (root, { id }) => {
     return n;
   };
 
-  // Full reset: refetch any empty track, drop the manual nudge, and force-
-  // reapply the absolute anchor on every track (appliedOffset cleared so even
-  // a "same shift" state re-runs, rebuilding the active-cue index).
-  // Nuclear option, on purpose: throw away the loaded subtitle data entirely,
-  // re-download the file fresh, and re-anchor it to the current stream clock.
-  const resyncSubs = () => {
+  // The OLD Resync, still what a torrent stream or an offline copy gets (the
+  // server has no film to listen to there): refetch the showing track, drop
+  // the manual nudge and re-anchor every track to the stream clock.
+  const reloadSubs = () => {
     if (activeTrack < 0) return toast("Turn a subtitle track on first", "💬");
     const label =
       [...video.querySelectorAll("track")][activeTrack]?.label || "Subtitles";
@@ -3574,8 +3578,6 @@ export const renderPlayer = async (root, { id }) => {
       }
     }
     applyOffsetAll(); // re-anchor the non-reloaded (disabled) tracks' state
-    // Say exactly what happened — "re-syncing…" left people guessing whether
-    // anything had actually been done.
     toast(
       reloaded
         ? `“${label}” re-downloaded, delay reset to 0s and re-aligned to the video`
@@ -3583,6 +3585,117 @@ export const renderPlayer = async (root, { id }) => {
       "💬",
     );
   };
+
+  // ---------- Resync: the subtitle lined up with what is SAID ----------
+  // "Subs resync btn: this btn was broken because it did not use a real
+  // method of trying to match what was said to a text in the subs track… it
+  // needs to really sync the subs." (the owner, 2026-10-17)
+  // The server listens to the audio track that is playing, finds where people
+  // talk, and lines the subtitle's lines up with it — one offset, a frame
+  // rate, or in parts for another cut of the film (src/media/subaudio.js,
+  // audiosync.js). It answers at once and works in the background; this
+  // asks how far it is about once a second and says so in a small pill. The
+  // corrected timing is served at the same address from then on, for every
+  // device — so the track is fetched again, and this track's own ±delay goes
+  // back to 0 (it stays there for fine tuning on top). When nothing matches
+  // well enough, nothing changes, the delay included.
+  let resyncHideTimer = null;
+  const showResyncPill = (text, done = false) => {
+    clearTimeout(resyncHideTimer);
+    resyncPill.textContent = text;
+    resyncPill.classList.remove("hidden");
+    resyncPill.classList.toggle("done", done);
+    if (done) resyncHideTimer = setTimeout(() => resyncPill.classList.add("hidden"), 4500);
+  };
+  const trackPath = (t) => String((t && t.url) || "").replace(/[?#].*$/, "");
+  // only a library file's own subtitles: there is a film on the server to listen to
+  const resyncable = (t) =>
+    !isTorrent && !item._offline && !!item.id && /^\/stream\/(subtitle|embedded)\//.test(trackPath(t));
+  let resyncing = null; // the track url being matched
+  const resyncBody = (t) => ({ id: item.id, track: trackPath(t), audio: audioIdx });
+  const trackElAt = (idx) => [...video.querySelectorAll("track")][idx];
+  // A track's corrected cues: fetched again (cache-busted), the per-track
+  // nudge back to 0.
+  const refetchTrack = (idx) => {
+    const trackEl = trackElAt(idx);
+    if (!trackEl) return;
+    setOffset(idx, 0);
+    appliedOffset.delete(trackEl.track);
+    reloadTrackEl(trackEl);
+  };
+  // what the server now knows about a track (its ★ and timing), by url
+  const learnTiming = (url, timing) => {
+    const t = (item.subtitles || []).find((x) => trackPath(x) === url);
+    if (t && timing !== undefined) t.timing = timing || undefined;
+  };
+  const resyncSubs = async () => {
+    if (activeTrack < 0) return toast("Turn a subtitle track on first", "💬");
+    const idx = activeTrack;
+    const t = (item.subtitles || [])[idx];
+    if (!resyncable(t)) return reloadSubs();
+    const url = trackPath(t);
+    if (resyncing) return showResyncPill("Still listening to the film…");
+    resyncing = url;
+    const body = resyncBody(t);
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    let job = null;
+    try {
+      showResyncPill("Listening to the film…");
+      job = await api.subtitleResync(body);
+      const until = Date.now() + 5 * 60 * 1000;
+      while (job && (job.state === "listening" || job.state === "matching") && !exited && Date.now() < until) {
+        showResyncPill(
+          job.state === "matching"
+            ? "Matching the lines to what is said…"
+            : `Listening to the film… ${Math.round((job.progress || 0) * 100)}%`,
+        );
+        await sleep(1000);
+        job = await api.subtitleResyncStatus(body);
+      }
+    } catch (e) {
+      resyncing = null;
+      // an older server without the route: the old reload, said honestly
+      // (Express's own 404 carries no `error`: the message is "404 <url>")
+      if (e && e.status === 404 && /^404 \//.test(e.message || "")) {
+        resyncPill.classList.add("hidden");
+        return reloadSubs();
+      }
+      return showResyncPill("Couldn't reach the server — kept as it was", true);
+    }
+    resyncing = null;
+    if (exited) return;
+    if (!job || (job.state !== "done" && job.state !== "failed")) {
+      return showResyncPill("Still working on it — try again in a minute", true);
+    }
+    if (job.timing !== undefined) learnTiming(url, job.timing);
+    const words = job.words || "Couldn't match — kept as it was";
+    const now = (item.subtitles || []).findIndex((x) => trackPath(x) === url);
+    if (job.state === "done" && (job.applied || job.verdict === "in-time")) {
+      // the server's correction replaces the nudge (fine tuning stays)
+      justSynced.set(url, Date.now());
+      if (now >= 0) refetchTrack(now);
+    }
+    showResyncPill(words, true);
+    if (menuKind === "cc") closeMenu();
+  };
+  // Back to the file's own timing, for everyone (after a Resync).
+  const undoResync = async () => {
+    const t = (item.subtitles || [])[activeTrack];
+    if (!resyncable(t)) return;
+    const url = trackPath(t);
+    try {
+      await api.subtitleResyncUndo(resyncBody(t));
+      learnTiming(url, { verdict: "original", by: "audio", words: "The file's own timing" });
+      justSynced.set(url, Date.now());
+      refetchTrack(activeTrack);
+      showResyncPill("Back to the file's own timing", true);
+    } catch {
+      showResyncPill("Couldn't reach the server — nothing changed", true);
+    }
+  };
+  // tracks this player just re-fetched itself (the server's own "synced"
+  // message that follows is not a reason to fetch them again)
+  const justSynced = new Map();
   // Late-loading cues (external fetch, OCR) get the current offset on load.
   // Function declaration (hoisted): the subtitle-track loop near the top of
   // renderPlayer calls this before this line runs — a `const` here crashed
@@ -3633,13 +3746,15 @@ export const renderPlayer = async (root, { id }) => {
 
     if (kind === "cc") {
       menu.append(menuTitle("cc", "Subtitles"));
-      // One-press escape hatch: drops any manual nudge and force re-anchors
-      // every track's cues to the current stream clock. Cheap insurance for
-      // "subs look off and I don't want to fiddle with ±0.5s".
+      // Resync: the shown track lined up with what is said in the film, by
+      // the server (resyncSubs above) — or, for a torrent stream, the old
+      // refetch-and-re-anchor.
+      const shown = activeTrack >= 0 ? (item.subtitles || [])[activeTrack] : null;
       menu.append(
         el(
           "button",
           {
+            "data-ui": "player.subtitles.resync",
             class: "menu-item focusable",
             onclick: () => {
               resyncSubs();
@@ -3647,18 +3762,38 @@ export const renderPlayer = async (root, { id }) => {
               showControls();
             },
           },
-          "⟲ Resync subtitles",
+          resyncing ? "⟲ Listening to the film…" : "⟲ Resync subtitles",
         ),
       );
-      const entry = (label, idx, tag) =>
+      // after a Resync moved it (for everyone): the way back
+      if (resyncable(shown) && shown.timing && shown.timing.resync && shown.timing.verdict !== "in-time") {
+        menu.append(
+          el(
+            "button",
+            {
+              "data-ui": "player.subtitles.undo",
+              class: "menu-item focusable",
+              onclick: () => {
+                undoResync();
+                closeMenu();
+                showControls();
+              },
+            },
+            "↺ Use the file's own timing",
+          ),
+        );
+      }
+      const entry = (label, idx, tag, t = null) =>
         el(
           "button",
           { "data-ui": "player.subtitles.pick",
-            class: `menu-item focusable ${activeTrack === idx ? "active" : ""}`,
+            class: `menu-item focusable ${activeTrack === idx ? "active" : ""}${t && t.star ? " starred" : ""}`,
+            ...(t && t.star ? { title: t.starWhy || "Matches this release" } : {}),
             // An explicit pick (including "Off") is final — never overridden by
             // the auto-pick on a later reload.
             onclick: () => {
               autoSubsApplied = true;
+              subsPickedByHand = true;
               selectTrack(idx);
               {
                 const t = idx >= 0 ? (item.subtitles || [])[idx] : null;
@@ -3672,13 +3807,17 @@ export const renderPlayer = async (root, { id }) => {
               showControls();
             },
           },
+          // the ★: the one track of its language that matches this release
+          // (the server's src/media/scanner.js starBest) — and what it means
           label,
+          t && t.star && el("span", { class: "sub-star", "aria-hidden": "true" }, "★"),
+          t && t.star && el("span", { class: "sub-note" }, t.starWhy || "Matches this release"),
           tag && el("span", { class: "tag" }, tag),
         );
       menu.append(entry("Off", -1));
       (item.subtitles || []).forEach((t, i) =>
         menu.append(
-          entry(t.label || `Track ${i + 1}`, i, t.embedded ? "Embedded" : null),
+          entry(t.label || `Track ${i + 1}`, i, t.embedded ? "Embedded" : null, t),
         ),
       );
       // Subtitle timing nudge — fixes subs that drift ahead/behind the video.
@@ -6007,6 +6146,43 @@ export const renderPlayer = async (root, { id }) => {
     } catch {}
   });
 
+  // A subtitle of THIS title was lined up with the film's audio — here, on
+  // another device, or by the server in the background (src/media/subaudio.js
+  // → server.js "subtitle_sync"). Learn the new ★ and timing (by url: the
+  // menu's order is the <track> order and must not move), fetch the showing
+  // track again if its timing changed, and — only when the track on screen
+  // was the player's own pick and nobody chose one by hand in this session —
+  // move to the language's ★ track when that is now another one.
+  const unsubSync = onMessage("subtitle_sync", async (msg) => {
+    if (!msg || msg.id !== item.id || exited) return;
+    let fresh;
+    try { fresh = await api.item(item.id); } catch { return; }
+    if (exited || !fresh) return;
+    const byUrl = new Map((fresh.subtitles || []).map((t) => [trackPath(t), t]));
+    const changed = new Set();
+    for (const t of item.subtitles || []) {
+      const f = byUrl.get(trackPath(t));
+      if (!f) continue;
+      if (JSON.stringify(f.timing || null) !== JSON.stringify(t.timing || null)) changed.add(trackPath(t));
+      t.timing = f.timing;
+      t.star = f.star;
+      t.starWhy = f.starWhy;
+    }
+    const shown = activeTrack >= 0 ? (item.subtitles || [])[activeTrack] : null;
+    if (shown && changed.has(trackPath(shown))) {
+      const mine = justSynced.get(trackPath(shown));
+      if (!mine || Date.now() - mine > 15000) refetchTrack(activeTrack);
+    }
+    if (shown && !shown.star && !subsPickedByHand && autoSubsApplied) {
+      const lang = langOf(shown);
+      const i = lang ? bestTrackIndex(item.subtitles || [], lang) : -1;
+      if (i >= 0 && i !== activeTrack && item.subtitles[i].star) {
+        selectTrack(i);
+        toast(`Switched to “${item.subtitles[i].label}” — matches this release`, "💬", null, { quiet: true });
+      }
+    }
+  });
+
   // ---------- exit ----------
   let exitConfirmed = false;
   const exit = () => {
@@ -6161,6 +6337,7 @@ export const renderPlayer = async (root, { id }) => {
     else window.removeEventListener("resize", paintDockH);
     window.removeEventListener("resize", onLiftResize);
     unsubOcr();
+    unsubSync();
     popScope(overlay);
   };
 };

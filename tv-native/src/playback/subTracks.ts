@@ -116,6 +116,8 @@ export type SubLike = {
   embedded?: boolean;
   forced?: boolean;
   sdh?: boolean;
+  // the server's ★ — "Matches this release" (lang.ts bestTrackIndex prefers it)
+  star?: boolean;
 };
 export type Track<T extends SubLike = SubLike> = T & {key: string};
 

@@ -13,6 +13,9 @@ const config = require("../config");
 const metadata = require("./metadata");
 const subnames = require("./subnames");
 const sublang = require("./sublang");
+// (loaded with the scanner, as sublang is: its store is read once, at start —
+// not in the middle of a scan)
+const subaudio = require("./subaudio");
 const online = require("./online");
 
 const events = new EventEmitter();
@@ -391,6 +394,8 @@ const buildSubtitleTracks = (videoAbs, videoRel, videoFile, dir, extraDirs) => {
       ...(forced ? { forced: true } : {}),
     });
     sidecarPaths.set(tracks[tracks.length - 1], subAbs);
+    const timing = timingOfSidecar(subAbs);
+    if (timing) tracks[tracks.length - 1].timing = timing;
   }
   // A sidecar the background check could NOT line up with the video's own
   // track (a different cut, a wrong file: media/sublang.js) goes after the
@@ -406,10 +411,12 @@ const buildSubtitleTracks = (videoAbs, videoRel, videoFile, dir, extraDirs) => {
     for (const s of meta.subtitleStreams) {
       if (!s.text) continue;
       const named = embeddedSubtitleTrack(s, detected && detected[s.index]);
+      const timing = timingOfEmbedded(videoAbs, s.index);
       tracks.push({
         label: named.label,
         url: `/stream/embedded/${videoId}/${s.index}`,
         embedded: true,
+        ...(timing ? { timing } : {}),
         ...(named.lang ? { lang: named.lang } : {}),
         ...(named.forced ? { forced: true } : {}),
         ...(named.sdh ? { sdh: true } : {}),
@@ -418,7 +425,135 @@ const buildSubtitleTracks = (videoAbs, videoRel, videoFile, dir, extraDirs) => {
     }
   }
 
-  return uniqueLabels(tracks);
+  return starBest(uniqueLabels(tracks));
+};
+
+// ---------- which track matches THIS release (the menu's ★) ----------
+// What is known about a track's timing against this file: from its audio
+// (media/subaudio.js — the Resync button or the background) or, for a
+// sidecar, from the file's own text track (media/sublang.js).
+//   -> { verdict: "in-time"|"moved"|"parts"|"unmatched"|"original", by, words, r? } | undefined
+const timingOfSidecar = (subAbs) => {
+  let t = null;
+  try { t = subaudio.timingOf({ kind: "file", path: subAbs }); } catch {}
+  const v = sublang.syncVerdict(subAbs);
+  const byTrack = v === "in-time" || v === "moved" || v === "unmatched" ? { verdict: v, by: "track" } : undefined;
+  if (!t || t.verdict === "error") return byTrack;
+  // the audio could not tell, but the video's own text track could: that
+  // evidence stands (it is what the file is served with)
+  if (t.verdict === "unmatched" && byTrack && byTrack.verdict !== "unmatched") return byTrack;
+  return { verdict: t.verdict, by: "audio", words: t.words, ...(t.r != null ? { r: t.r } : {}), ...(t.source === "resync" ? { resync: true } : {}) };
+};
+const timingOfEmbedded = (videoAbs, index) => {
+  let t = null;
+  try { t = subaudio.timingOf({ kind: "emb", video: videoAbs, index }); } catch {}
+  if (!t || t.verdict === "error") return undefined;
+  return { verdict: t.verdict, by: "audio", words: t.words, ...(t.r != null ? { r: t.r } : {}), ...(t.cues != null ? { cues: t.cues } : {}), ...(t.source === "resync" ? { resync: true } : {}) };
+};
+
+// Within its language, how good a default a track is (the players' own rule,
+// public/js/lang.js trackRank): 0 full, 1 SDH, 2 forced / signs / commentary.
+const trackRankOf = (t) => {
+  const l = String(t.label || "");
+  if (t.forced === true || t.commentary === true || /forced|(?:^|[^a-z])signs?(?:[^a-z]|$)|songs|commentary/i.test(l)) return 2;
+  if (t.sdh === true || /(?:^|[^a-z])(?:sdh|cc)(?:[^a-z]|$)|hearing|closed.?caption/i.test(l)) return 1;
+  return 0;
+};
+
+// How well a track is known to match THIS release, as it is SERVED (lower
+// is better; null: it may not have the star).
+//   0  a track inside the file, nothing found against it: it was made for
+//      this release (empty, broken or matching nothing loses that)
+//   1  in time as it is (a sidecar the audio or the video's own track found
+//      in time)
+//   2  in time after one offset / frame-rate correction
+//   3  in time after a correction in parts (another cut, adapted)
+// A sidecar nothing has checked yet, one that matched nothing, and a track
+// served with the file's own timing after the audio found it off never get
+// it. (An embedded track the background found off is served as the file has
+// it — only a Resync moves it — so it is not "matching" until then.)
+const matchClass = (t) => {
+  const tm = t.timing;
+  if (t.embedded) {
+    if (!tm || tm.verdict === "original") return 0;
+    if (tm.cues != null && tm.cues < 20) return null;
+    if (tm.verdict === "in-time") return 0;
+    if (tm.resync && tm.verdict === "moved") return 2;
+    if (tm.resync && tm.verdict === "parts") return 3;
+    return null;
+  }
+  if (!tm) return null;
+  return { "in-time": 1, moved: 2, parts: 3 }[tm.verdict] ?? null;
+};
+
+// ONE ★ per language, on the track that matches this release, only where
+// the evidence says so (matchClass): a track inside the file wins its
+// language unless something was found wrong with it; else the sidecar that
+// needed the least correction, the better match (r, after correction)
+// first. Only the language's best KIND of track competes — a forced / signs
+// track never wins the star for full subtitles (and a language that has only
+// those gets none). The players switch the ★ track on for the viewer's
+// language (lang.js bestTrackIndex) — after a pick by hand they leave it
+// alone.
+const STAR_WHY = "Matches this release";
+const starBest = (tracks) => {
+  const byLang = new Map();
+  tracks.forEach((t, i) => {
+    if (!t.lang) return;
+    if (!byLang.has(t.lang)) byLang.set(t.lang, []);
+    byLang.get(t.lang).push(i);
+  });
+  for (const idx of byLang.values()) {
+    const rank = Math.min(...idx.map((i) => trackRankOf(tracks[i])));
+    if (rank >= 2) continue;
+    let best = null;
+    for (const i of idx) {
+      if (trackRankOf(tracks[i]) !== rank) continue;
+      const k = matchClass(tracks[i]);
+      if (k == null) continue;
+      const r = (tracks[i].timing && tracks[i].timing.r) || 0;
+      if (!best || k < best.k || (k === best.k && r > best.r)) best = { i, k, r };
+    }
+    if (best) Object.assign(tracks[best.i], { star: true, starWhy: STAR_WHY });
+  }
+  return tracks;
+};
+
+// Library files whose subtitles have not been checked against the audio yet
+// (media/subaudio.js background): every sidecar, and the embedded text
+// tracks in the household's languages (scored only, never moved without a
+// Resync). Files with a Hebrew sidecar first. -> jobs for subaudio.enqueue
+const AUDIO_SCORE_LANGS = new Set(["he", "en", "ru"]);
+const audioSyncWork = () => {
+  const jobs = [];
+  const check = (item) => {
+    const entry = registry.get(item.id);
+    if (!entry || !entry.path) return;
+    const subs = [];
+    let hebrew = false;
+    for (const t of item.subtitles || []) {
+      if (!t.url) continue;
+      if (t.embedded) {
+        if (!AUDIO_SCORE_LANGS.has(t.lang) || trackRankOf(t) >= 2) continue;
+        const m = /\/(\d+)$/.exec(t.url);
+        if (m) subs.push({ kind: "emb", video: entry.path, index: Number(m[1]) });
+        continue;
+      }
+      const sub = registry.get(t.url.split("/").pop());
+      if (!sub || !sub.path) continue;
+      subs.push({ kind: "file", path: sub.path });
+      if (t.lang === "he") hebrew = true;
+    }
+    // (a file whose sidecars are all settled is not listened to for its
+    // embedded tracks alone: those are only scored beside a sidecar)
+    const todo = subs.filter((s) => subaudio._internals.needsWork(s, entry.path));
+    if (todo.some((s) => s.kind === "file")) jobs.push({ video: entry.path, subs: todo, hebrew });
+  };
+  index.movies.forEach(check);
+  for (const s of index.shows) {
+    for (const season of s.seasons) season.episodes.forEach(check);
+  }
+  return jobs;
 };
 
 // ---------- scan ----------
@@ -930,6 +1065,8 @@ module.exports = {
   bitmapOnlyVideos,
   unnamedSubtitleWork,
   subtitleSyncWork,
+  audioSyncWork,
+  starBest,
   makeId,
   subtitleDownloadName,
   // Test-only: folding "<Title>" and "<Title> (<Year>)" folders into one entry

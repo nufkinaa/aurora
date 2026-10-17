@@ -97,20 +97,25 @@ export const trackRank = (track) => {
 };
 
 // The index of the best track in `lang`, -1 when the title has none.
-// Best = lowest rank; among equals the FIRST in the list, which is what the
-// players always did (findIndex) and what the server's ordering means:
+// Best = lowest rank; among equals the one the server marked ★ ("Matches
+// this release": lined up with this file's audio, or the file's own track —
+// src/media/scanner.js starBest), then the FIRST in the list, which is what
+// the players always did (findIndex) and what the server's ordering means:
 // sidecar / fetched files before the file's embedded streams, "Hebrew" before
-// "Hebrew 2".
+// "Hebrew 2". The same rule on the TV (tv-native/src/lang.ts).
 export const bestTrackIndex = (tracks, lang) => {
   let best = -1;
   let rank = 9;
+  let star = false;
   if (!lang || lang === "off") return -1;
   for (let i = 0; i < (tracks || []).length; i++) {
     if (langOf(tracks[i]) !== lang) continue;
     const r = trackRank(tracks[i]);
-    if (r < rank) {
+    const s = tracks[i].star === true;
+    if (r < rank || (r === rank && s && !star)) {
       rank = r;
       best = i;
+      star = s;
     }
   }
   return best;
