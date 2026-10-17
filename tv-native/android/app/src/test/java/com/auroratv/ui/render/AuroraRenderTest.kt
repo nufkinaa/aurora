@@ -28,7 +28,7 @@ class AuroraRenderTest {
     assertEquals(AuroraRender.RECOMMENDED, rec)
     assertFalse("unstuffq" in rec)
     assertEquals("FCRHN", AuroraRender.letters(rec))
-    assertEquals("cardlayer+cull+shadowcache+unstuff+pool", AuroraRender.fixTag(rec))
+    assertEquals("cardlayer+cull+shadowcache+unstuff+pool+ringshare+herotext", AuroraRender.fixTag(rec))
   }
 
   @Test fun qaImplGrammar() {

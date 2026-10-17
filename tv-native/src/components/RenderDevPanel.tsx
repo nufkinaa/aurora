@@ -7,7 +7,7 @@
 import React, {useState} from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import Focusable from './Focusable';
-import {activeRender, localRender, nextRender, renderSource, serverRender, setLocalRender} from '../render';
+import {activeRender, baseRender, localRender, nextRender, renderSource, serverRender, setLocalRender} from '../render';
 import {cycleTri, inertBecause, KEYS, RenderKey, RenderSay, resolveRender, triOf} from '../renderRules';
 import theme from '../theme';
 
@@ -42,7 +42,7 @@ export default function RenderDevPanel() {
   const server = serverRender();
   const next = nextRender();
   const now = activeRender();
-  const nextOn = next.qa ? next.on : resolveRender(server, local);
+  const nextOn = next.qa ? next.on : resolveRender(server, local, baseRender());
   const change = (k: RenderKey | 'recommended') => {
     const n = cycleTri(local, k);
     setLocal(n);

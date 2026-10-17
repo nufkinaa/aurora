@@ -35,21 +35,27 @@ test('this launch: what the constants say, and nothing more', () => {
   expect(mod.renderSource).toBe('saved');
 });
 
+const PRESET = 'focusable,card,row,hero,rail,cardlayer,cull,shadowcache,unstuff,pool,ringshare,herotext';
 test('the server’s say is stored for the next launch, once; the same answer writes nothing', () => {
   const {mod, saved} = load({on: {}, server: '', local: ''});
+  // at startup: the release default, stored for the next launch (nothing said = the preset)
+  expect(saved).toEqual([[PRESET, '{}', '{}']]);
   mod.applyServerRender({recommended: true, pool: false, nonsense: 1});
-  expect(saved).toEqual([['focusable,card,row,hero,rail,cardlayer,cull,shadowcache,unstuff', '{"recommended":true,"pool":false}', '{}']]);
+  expect(saved[1]).toEqual(['focusable,card,row,hero,rail,cardlayer,cull,shadowcache,unstuff,ringshare,herotext', '{"recommended":true,"pool":false}', '{}']);
   mod.applyServerRender({pool: false, recommended: true});
-  expect(saved.length).toBe(1);
-  // an answer without the section: nothing said, everything off again
+  expect(saved.length).toBe(2);
+  // an answer without the section: nothing said, the release default again
   mod.applyServerRender(undefined);
-  expect(saved[1]).toEqual(['', '{}', '{}']);
+  expect(saved[2]).toEqual([PRESET, '{}', '{}']);
+  // the emergency lever
+  mod.applyServerRender({recommended: false});
+  expect(saved[3]).toEqual(['', '{"recommended":false}', '{}']);
   expect(mod.activeRender()).toEqual(new Set()); // this launch is untouched
 });
 
 test('the developer setting wins, and is kept beside the server’s', () => {
   const {mod, saved} = load({on: {}, server: '{"recommended":true}', local: ''});
-  expect(mod.nextRender()).toEqual({on: new Set(['focusable', 'card', 'row', 'hero', 'rail', 'cardlayer', 'cull', 'shadowcache', 'unstuff', 'pool']), qa: false});
+  expect(mod.nextRender()).toEqual({on: new Set(PRESET.split(',')), qa: false});
   mod.setLocalRender({recommended: false, card: true});
   expect(saved.pop()).toEqual(['card', '{"recommended":true}', '{"recommended":false,"card":true}']);
   expect(mod.localRender()).toEqual({recommended: false, card: true});

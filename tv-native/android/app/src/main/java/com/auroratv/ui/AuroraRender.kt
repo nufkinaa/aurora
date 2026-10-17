@@ -16,7 +16,8 @@ import com.facebook.react.bridge.UiThreadUtil
  *
  *   components  focusable, card, row, hero (billboard art + the sliding column), rail
  *   fixes       cardlayer, cull, shadowcache, unstuff, unstuffq, pool
- *   deeper      keyrate, cardtext, ringshare, herotext (docs/qa/native-deep/DEVICE-PLAN.md; not in the preset)
+ *   deeper      keyrate, cardtext, ringshare, herotext (docs/qa/native-deep/DEVICE-PLAN.md; ringshare and
+ *               herotext are in the preset since the 2026-10-17 Mi TV pass, keyrate and cardtext are not)
  *
  * Read ONCE per process (a component swapped while mounted would move focus; the fixes are
  * plain fields read on hot paths), so a change takes effect on the NEXT launch, never live.
@@ -47,13 +48,16 @@ object AuroraRender {
   val KEYS: List<String> = COMPONENTS + FIXES
 
   /**
-   * The set the lab measured best on the Mi TV (docs/qa/native-lab/6-…md "ccsu" + 7-…md pool):
-   * all five components, cardlayer + cull + shadowcache + unstuff, and the shelf pool.
+   * The set the Mi TV measured best (docs/qa/native-lab/6-…md "ccsu" + 7-…md pool, and the
+   * 2026-10-17 device pass, docs/qa/release-next/PASS-REPORT.md): all five components, cardlayer +
+   * cull + shadowcache + unstuff, the shelf pool, ringshare and herotext. JS resolves it as the
+   * release default when the server says nothing (renderRules.ts releaseDefault) and stores it for
+   * the next launch.
    * `unstuffq` is NOT in it (a trade of one repeated frame for latency — a call for an eye on
    * the TV). Kept in step with src/renderRules.ts RECOMMENDED (AuroraRenderTest checks it).
    */
   val RECOMMENDED: Set<String> =
-    linkedSetOf("focusable", "card", "row", "hero", "rail", "cardlayer", "cull", "shadowcache", "unstuff", "pool")
+    linkedSetOf("focusable", "card", "row", "hero", "rail", "cardlayer", "cull", "shadowcache", "unstuff", "pool", "ringshare", "herotext")
 
   @Volatile private var on: Set<String> = emptySet()
   @Volatile private var source = "build"

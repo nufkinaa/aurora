@@ -7,7 +7,7 @@
 // answer, the developer setting, the QA harness — is stored for the NEXT launch.
 // Without the module (an older APK running this bundle, the logic tests) everything is
 // off: the JS reference.
-import {NativeModules} from 'react-native';
+import {Dimensions, NativeModules} from 'react-native';
 import {
   COMPONENTS,
   decodeRender,
@@ -17,6 +17,7 @@ import {
   RenderFix,
   RenderKey,
   RenderSay,
+  releaseDefault,
   resolveRender,
   sameSay,
   sanitizeSay,
@@ -100,15 +101,33 @@ const parse = (s: string | undefined): RenderSay => {
 };
 const stored = {server: parse(c.server), local: parse(c.local)};
 
+/** The release default for THIS panel (renderRules.ts releaseDefault): the canvas is 1:1 when
+ *  the window is 960 dp wide (src/canvas.tsx BASE_W). */
+export const baseRender = (): RenderSay => {
+  let oneToOne = true;
+  try {
+    const w = Dimensions.get('window').width;
+    if (w > 0) oneToOne = Math.abs(w / 960 - 1) < 0.01;
+  } catch {}
+  return releaseDefault(oneToOne);
+};
+
 const persist = () => {
   try {
-    native?.save(encodeRender(resolveRender(stored.server, stored.local)), JSON.stringify(stored.server), JSON.stringify(stored.local));
+    native?.save(encodeRender(resolveRender(stored.server, stored.local, baseRender())), JSON.stringify(stored.server), JSON.stringify(stored.local));
   } catch {}
 };
 
+// The release default can only reach the NEXT launch through what is stored, and a box
+// whose server never says anything new would never store it (persist runs on a change):
+// stored once at startup, so the next launch runs with today's rule (a build with a
+// different default, an update, a panel that changed size).
+persist();
+
 /** The server's `tvRender` (GET /api/tv/tuning, playback/tuning.ts hands it here). An
  *  answer without the section — an older server, or an admin who set nothing — means
- *  "nothing said": every switch it does not name is off. Stored for the next launch. */
+ *  "nothing said": every switch it does not name follows the release default
+ *  (renderRules.ts releaseDefault). Stored for the next launch. */
 export function applyServerRender(raw: unknown) {
   const next = sanitizeSay(raw);
   if (sameSay(next, stored.server)) return;
@@ -127,7 +146,7 @@ export const serverRender = (): RenderSay => ({...stored.server});
 /** What the next launch will run with, and whether the QA harness's override decides it. */
 export function nextRender(): {on: Set<RenderKey>; qa: boolean} {
   if (c.nextQa) return {on: decodeRender(c.nextQaSet), qa: true};
-  return {on: resolveRender(stored.server, stored.local), qa: false};
+  return {on: resolveRender(stored.server, stored.local, baseRender()), qa: false};
 }
 /** What this launch runs with. */
 export const activeRender = (): Set<RenderKey> => new Set([...COMPONENTS, ...FIXES].filter(k => c.on?.[k] === true));

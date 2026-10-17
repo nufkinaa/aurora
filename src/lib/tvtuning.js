@@ -34,7 +34,7 @@
 // told for its NEXT launch (they are read once at startup).
 //
 //   "tvRender": {
-//     "recommended": true,        // the set the lab measured best (below)
+//     "recommended": true,        // the set the Mi TV measured best (below; the TV's own default)
 //     "pool": false,              // …minus one switch
 //     "models": {                 // per TV model (the app's Build.MODEL):
 //       "MiTV-AFMU0": { "recommended": true }   // these keys win over the ones above
@@ -43,11 +43,14 @@
 //
 // The switches: focusable, card, row, hero, rail (native components);
 // cardlayer, cull, shadowcache, unstuff, unstuffq, pool (render fixes);
-// keyrate, cardtext, ringshare, herotext (the deeper options, docs/qa/native-deep/DEVICE-PLAN.md —
-// not in the preset).
+// keyrate, cardtext, ringshare, herotext (the deeper options, docs/qa/native-deep/DEVICE-PLAN.md).
 // "recommended" = the five components + cardlayer, cull, shadowcache, unstuff,
-// pool. Unknown keys and non-boolean values are dropped; no "tvRender", or one
-// that names nothing, adds nothing to the answer.
+// pool, ringshare, herotext (the 2026-10-17 Mi TV pass). Unknown keys and
+// non-boolean values are dropped; no "tvRender", or one that names nothing, adds
+// nothing to the answer — and a TV told nothing runs "recommended" (its release
+// default, tv-native/src/renderRules.ts releaseDefault). So this section is the
+// EMERGENCY LEVER: {"recommended": false} turns every switch off on every TV
+// (or one model's), {"pool": false} one switch.
 "use strict";
 
 const RANGES = {

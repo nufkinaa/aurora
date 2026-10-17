@@ -1,9 +1,9 @@
 // The rendering switches' rules — pure, no React Native (render.ts is the glue).
 //
 // The native lab (docs/qa/native-lab/) rebuilt five of the TV's drawing components
-// natively and found a handful of render fixes; each one is a switch here, and
-// EVERY ONE IS OFF unless something turns it on, so a box that never hears of
-// them draws exactly what the JS reference draws.
+// natively and found a handful of render fixes; each one is a switch here. Since the
+// 2026-10-17 Mi TV pass the measured set (RECOMMENDED) is the release default; a box with
+// no AuroraRender module (an older APK) still draws exactly what the JS reference draws.
 //
 //   components  focusable  the focus ring + spring (AuroraFocusableView.kt)
 //               card       a card's pictures, shades and blur-up (AuroraCardView.kt)
@@ -33,14 +33,21 @@
 //                          view, their text shadow recorded once (AuroraHeroTextView.kt)
 //
 // The "deeper" switches (docs/qa/native-deep/DEVICE-PLAN.md) were built offline after the
-// lab and are NOT in the preset: none of them has run on a TV yet.
+// lab. The Mi TV pass (2026-10-17, docs/qa/release-next/PASS-REPORT.md) put `ringshare`
+// (0 px against the preset; RT and long frames down everywhere) and `herotext` (max 2/255,
+// the layer's offset; RT down on S2/S3/S4) in the preset; `cardtext` (Movies grid G1 janky
+// +0.6 pt, p90 +1.5 ms in two benches) and `keyrate` (G1 p90 +2..2.5 ms, more frames over
+// 32 ms) stay off — each can still be turned on by the server or the developer setting.
+//
+// THE PRESET IS THE RELEASE DEFAULT (releaseDefault below): a box the server says nothing to
+// runs it; the server's `tvRender` is the emergency lever to turn it, or one switch, off.
 //
 // Two places can say what a box runs with: the server (GET /api/tv/tuning → `tvRender`,
 // from config.json — see src/lib/tvtuning.js) and the hidden developer setting
 // (Settings → the version line, seven presses). Both are partial: a key either names a
 // switch (true / false) or `recommended` (the preset). For each switch the developer
 // setting wins over the server, an explicit switch wins over a preset, and anything
-// nobody named is off. Native reads the result ONCE at startup (AuroraRender.kt), so a
+// nobody named follows the release default. Native reads the result ONCE at startup (AuroraRender.kt), so a
 // change applies at the next launch.
 
 export const COMPONENTS = ['focusable', 'card', 'row', 'hero', 'rail'] as const;
@@ -50,8 +57,9 @@ export type RenderFix = (typeof FIXES)[number];
 export type RenderKey = RenderComponent | RenderFix;
 export const KEYS: readonly RenderKey[] = [...COMPONENTS, ...FIXES];
 
-/** What the lab measured best on the Mi TV: all five components, cardlayer + cull +
- *  shadowcache + unstuff ("ccsu", 6-followup) and the shelf pool (7-card-recycling).
+/** What the Mi TV measured best: all five components, cardlayer + cull + shadowcache +
+ *  unstuff ("ccsu", lab 6-followup), the shelf pool (lab 7-card-recycling), and — from the
+ *  2026-10-17 device pass — ringshare and herotext.
  *  In step with AuroraRender.kt RECOMMENDED (render-rules.test.ts reads that file). */
 export const RECOMMENDED: readonly RenderKey[] = [
   'focusable',
@@ -64,6 +72,8 @@ export const RECOMMENDED: readonly RenderKey[] = [
   'shadowcache',
   'unstuff',
   'pool',
+  'ringshare',
+  'herotext',
 ];
 
 /** One source's say: any subset of the switches, and/or the preset. */
@@ -83,12 +93,25 @@ export function sanitizeSay(raw: unknown): RenderSay {
   return out;
 }
 
-/** PURE: the switches that are on, given the server's say and the developer's. */
-export function resolveRender(server: RenderSay, local: RenderSay): Set<RenderKey> {
-  const preset = local.recommended ?? server.recommended ?? false;
+/** THE RELEASE DEFAULT (the Mi TV device pass, 2026-10-17: docs/qa/release-next/PASS-REPORT.md):
+ *  what a box runs when neither the server nor the developer setting names a switch — the
+ *  preset. The server stays the emergency lever: `"tvRender": {"recommended": false}` turns
+ *  every switch off, `{"pool": false}` one of them (per model too).
+ *  On a panel whose logical canvas is SCALED (src/canvas.tsx: not 960 dp wide) the two
+ *  layer fixes are left out: a hardware layer there is drawn at the logical size and
+ *  stretched (soft text on a resting card) and no such TV has been looked at yet
+ *  (docs/qa/native-port/DEVICE-PLAN.md §5). A server that names them for a model wins. */
+export function releaseDefault(canvasOneToOne: boolean): RenderSay {
+  return canvasOneToOne ? {recommended: true} : {recommended: true, cardlayer: false, shadowcache: false};
+}
+
+/** PURE: the switches that are on, given the server's say and the developer's, over the
+ *  release default (`base`, lowest precedence; {} = everything off, as before). */
+export function resolveRender(server: RenderSay, local: RenderSay, base: RenderSay = {}): Set<RenderKey> {
+  const preset = local.recommended ?? server.recommended ?? base.recommended ?? false;
   const on = new Set<RenderKey>();
   for (const k of KEYS) {
-    const v = local[k] ?? server[k] ?? (preset && RECOMMENDED.includes(k));
+    const v = local[k] ?? server[k] ?? base[k] ?? (preset && RECOMMENDED.includes(k));
     if (v) on.add(k);
   }
   return on;
