@@ -155,6 +155,12 @@ router.delete("/api/admin/library/file/:id", (req, res) => {
   if (!entry || entry.kind !== "video" || !fs.existsSync(entry.path)) {
     return res.status(404).json({ error: "File not found" });
   }
+  // Never from under a viewer (lib/fileinuse.js): refused, the page says why.
+  const inUse = require("../lib/fileinuse");
+  if (inUse.fileInUse(entry.path)) {
+    console.warn(`[admin] file delete refused (someone is playing it): ${entry.path}`);
+    return res.status(409).json({ error: inUse.MESSAGE, code: "streaming" });
+  }
   const roots = [...config.LIBRARIES.movies, ...config.LIBRARIES.shows];
   let result;
   try {
@@ -201,6 +207,12 @@ router.delete("/api/admin/library/:type/:id", (req, res) => {
   } else {
     return res.status(400).json({ error: "type must be movie or show" });
   }
+  // Not while anybody is playing a file in it (lib/fileinuse.js).
+  const inUse = require("../lib/fileinuse");
+  if (inUse.folderInUse(folder)) {
+    console.warn(`[admin] ${type} delete refused (someone is playing a file in it): ${folder}`);
+    return res.status(409).json({ error: inUse.FOLDER_MESSAGE, code: "streaming" });
+  }
 
   try {
     fs.rmSync(folder, { recursive: true, force: true });
@@ -241,6 +253,7 @@ router.get("/api/admin/library/tree", (req, res) => {
   // mylist: a copy My List downloads fetched that nobody has watched yet —
   // { state: "fresh" | "stale", why, by, addedAt, staleAt, deleteAt }. A stale
   // one is a free pick for "free up space" (media/mylistdl.js).
+  const inuse = require("../lib/inuse");
   let marks = new Map();
   try { marks = require("../media/mylistdl").libraryMarks(); } catch (e) {
     console.warn("[mylist] pass failed:", e && e.message ? e.message : e);
@@ -254,6 +267,7 @@ router.get("/api/admin/library/tree", (req, res) => {
     mylist: marks.get(m.id) || null,
     watched: watchedBy.get(m.id) || 0,
     midway: midway.get(m.id) || 0,
+    streaming: inuse.streamingNow(m.id), // someone is playing it right now: not a delete suggestion
     lastWatched: lastWatched.get(m.id) || 0,
     sizeBytes: m.sizeBytes || 0,
   }));
@@ -271,6 +285,7 @@ router.get("/api/admin/library/tree", (req, res) => {
         mylist: marks.get(e.id) || null,
         watched: watchedBy.get(e.id) || 0,
         midway: midway.get(e.id) || 0,
+        streaming: inuse.streamingNow(e.id),
         lastWatched: lastWatched.get(e.id) || 0,
         sizeBytes: e.sizeBytes || 0,
       })),

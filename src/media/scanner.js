@@ -423,6 +423,19 @@ const buildSubtitleTracks = (videoAbs, videoRel, videoFile, dir, extraDirs) => {
 
 // ---------- scan ----------
 
+// A second download of a title already on disk is kept beside it as
+// "<name> (2).mkv", "(3)"… (media/downloads.js never writes over a file).
+// Such a copy sorts AFTER the files without that mark, so it never takes the
+// original's place: in a film's folder the first video is the film (its
+// library id, and everyone's progress, come from that file's path), and of
+// two files of one episode the original is listed first.
+const COPY_MARK = / \((\d{1,2})\)$/;
+const isCopyName = (fileName) => {
+  const m = COPY_MARK.exec(path.basename(fileName, path.extname(fileName)));
+  return !!m && Number(m[1]) >= 2;
+};
+const copyLastCompare = (a, b) => (isCopyName(a) ? 1 : 0) - (isCopyName(b) ? 1 : 0) || naturalCompare(a, b);
+
 const scanMovies = () => {
   const movies = [];
   for (const root of config.LIBRARIES.movies) {
@@ -433,7 +446,7 @@ const scanMovies = () => {
       const videos = listDir(dir)
         .filter((e) => e.isFile() && hasExt(e.name, config.VIDEO_EXTENSIONS))
         .map((e) => e.name)
-        .sort(naturalCompare);
+        .sort(copyLastCompare);
       if (videos.length === 0) continue;
 
       const videoFile = videos[0];
@@ -576,7 +589,7 @@ const scanShows = () => {
         (a, b) =>
           a.season - b.season ||
           (a.episode || 0) - (b.episode || 0) ||
-          naturalCompare(a.fileName, b.fileName),
+          copyLastCompare(a.fileName, b.fileName),
       );
       // Number unnumbered episodes by their position within the season
       const counters = {};
@@ -921,5 +934,5 @@ module.exports = {
   subtitleDownloadName,
   // Test-only: folding "<Title>" and "<Title> (<Year>)" folders into one entry
   // must never drop an episode or renumber a season.
-  _internals: { mergeDuplicateShows, uniqueLabels, naturalCompare },
+  _internals: { mergeDuplicateShows, uniqueLabels, naturalCompare, isCopyName, copyLastCompare },
 };
