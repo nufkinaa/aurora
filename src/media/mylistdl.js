@@ -174,10 +174,11 @@ const firstEpisode = (meta, now) => {
 //   manual     somebody asked for this file by hand
 //   watched    { at, by } | null — real progress since it was asked for
 //   inUse      touched in the last few hours (someone may be on it now)
+//   playing    its bytes are being read right now (lib/fileinuse.js)
 //   writing    a download is writing this file
 // → { state, staleAt, deleteAt, why }
 //   state: fresh | stale | delete | hold | watched | claimed | gone
-const judge = ({ rec, now, settings, file = "present", manual = false, watched = null, inUse = false, writing = false }) => {
+const judge = ({ rec, now, settings, file = "present", manual = false, watched = null, inUse = false, writing = false, playing = false }) => {
   const clock = Math.max(rec.doneAt || 0, rec.addedAt || 0);
   const deleteAt = clock + settings.myListDeleteDays * DAY_MS;
   const staleAt = Math.min(deleteAt, rec.orphanedAt ? Math.min(rec.orphanedAt, clock + settings.myListStaleDays * DAY_MS) : clock + settings.myListStaleDays * DAY_MS);
@@ -192,6 +193,7 @@ const judge = ({ rec, now, settings, file = "present", manual = false, watched =
   if (now >= deleteAt && settings.myListAutoDelete) {
     if (file === "away") return { ...base, state: "hold", why: `${why} — its drive is not reachable` };
     if (writing) return { ...base, state: "hold", why: `${why} — a download is writing it` };
+    if (playing) return { ...base, state: "hold", why: `${why} — someone is playing it right now` };
     if (inUse) return { ...base, state: "hold", why: `${why} — someone opened it in the last few hours` };
     return { ...base, state: "delete", why };
   }
@@ -514,8 +516,10 @@ const make = (deps) => {
       .filter((r) => (r.finished || (r.position || 0) >= WATCHED_S) && (r.at || 0) >= since)
       .sort((a, b) => (a.at || 0) - (b.at || 0))[0];
     const inUse = rows.some((r) => (r.at || 0) > now - IN_USE_MS) || !!d.playing(rec.title);
+    // Being read right now (any device, signed in or not): the next pass asks again.
+    const playing = !!where.path && !!(d.fileInUse && d.fileInUse(where.path));
     const verdict = judge({
-      rec, now, settings: settings(), file: where.file, manual, writing, inUse,
+      rec, now, settings: settings(), file: where.file, manual, writing, inUse, playing,
       watched: hit ? { at: hit.at, by: hit.name || null } : null,
     });
     return { ...verdict, path: where.path, libraryId };
@@ -809,6 +813,7 @@ const realDeps = () => {
       return false;
     },
     fileExists: (p) => fs.existsSync(p),
+    fileInUse: (p) => require("../lib/fileinuse").fileInUse(p),
     fileSize: (p) => { try { return fs.statSync(p).size; } catch { return 0; } },
     away: (p) => { try { return require("../lib/libroots").under(p); } catch { return false; } },
     deleteFile: (p) => libfiles.deleteVideoFile(p, roots(), config.SUBTITLE_EXTENSIONS),
