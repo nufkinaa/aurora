@@ -4270,11 +4270,11 @@ html[data-fx="lite"] .img-blurup.img-in { animation: none; }
 
 .pbtn.next-btn.hidden { display: none; }
 
-/* ---- AirPlay button (2026-10-08) ----
-   Only ever shown by Safari, when a target is in reach and the film plays
-   from a source AirPlay can fetch (js/screens/player.js, airBtn). Hidden it
-   takes no room in the tools row. */
+/* ---- AirPlay button (2026-10-08, 2026-10-17) ----
+   Only ever shown by Safari, when a TV is in reach (js/airplay.js). Hidden
+   it takes no room in the tools row; lit while the film plays on a TV. */
 .pbtn.airplay-btn.hidden { display: none; }
+.pbtn.airplay-btn.active { color: var(--accent, #4ea1ff); }
 
 /* ---------- the person sheet (js/personSheet.js) ----------
    Press an actor or a director — in X-Ray or in a title page's cast line —
