@@ -1161,8 +1161,15 @@ function ownHeaders(): Record<string, string> | undefined {
 // The same, for the video element: react-native-video forwards source.headers
 // to ExoPlayer's data source, which is what lets /stream/* through the wall.
 // X-Profile is what makes /stream/* refuse an over-age title to a kids profile.
-export function mediaHeaders(): Record<string, string> | undefined {
-  return ownHeaders();
+// X-Aurora-Viewer: one random value per run of the app, on the player's reads
+// AND on its goodbye (playBye / torrentBye). They go out through two HTTP
+// stacks with two user agents (ExoPlayer, fetch); without a shared tag the
+// server's "whose goodbye is it" (src/lib/viewer.js) saw two viewers on an
+// open server, and the goodbye stopped nothing. It names this run of this
+// app to this server and nothing else.
+const VIEWER_TAG = `tv${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+export function mediaHeaders(): Record<string, string> {
+  return {...(ownHeaders() || {}), 'X-Aurora-Viewer': VIEWER_TAG};
 }
 
 export const api = {
@@ -1605,6 +1612,15 @@ export const api = {
   playBye: (itemId: string): Promise<void> => {
     if (!baseUrl) return Promise.resolve();
     return fetch(`${baseUrl}/stream/transcode/${encodeURIComponent(itemId)}/jit/bye`, {method: 'POST', headers: mediaHeaders()})
+      .then(() => undefined)
+      .catch(() => undefined);
+  },
+  // The same goodbye for a TORRENT played through the server's transcode
+  // (server: POST /stream/torrent/hls/:infoHash/:fileIdx/bye): its offset
+  // jobs that nobody else reads stop now, not at the 2.5-minute idle sweep.
+  torrentBye: (infoHash: string, fileIdx: number): Promise<void> => {
+    if (!baseUrl) return Promise.resolve();
+    return fetch(`${baseUrl}/stream/torrent/hls/${encodeURIComponent(infoHash)}/${Math.max(0, Math.floor(fileIdx || 0))}/bye`, {method: 'POST', headers: mediaHeaders()})
       .then(() => undefined)
       .catch(() => undefined);
   },

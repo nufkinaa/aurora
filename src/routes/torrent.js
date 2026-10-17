@@ -4,6 +4,7 @@ const path = require("path");
 const express = require("express");
 const torrent = require("../media/torrent");
 const transcode = require("../media/torrent-transcode");
+const { viewerOf } = require("../lib/viewer");
 const config = require("../config");
 const perf = require("../lib/perf");
 
@@ -402,6 +403,7 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
     const audio = Math.max(0, Math.min(31, parseInt(req.query.a, 10) || 0)); // which audio stream (multi-dub)
     const t0 = Date.now();
     const dir = await transcode.ensure(file, absPath, req.params.infoHash, fileIdx, vcodec, ss, seek, fmt, vtag, audio);
+    transcode.noteViewer(dir, viewerOf(req)); // whose goodbye may stop it (the bye route below)
     // Timing for deliberate viewer seeks only — playlist refreshes are noise.
     // readyMs isolates readyTorrent (metadata/re-add wait) from ensure; the
     // matching seek_ensure_detail event breaks ensure down further.
@@ -451,11 +453,22 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/index.m3u8", async (req, 
   }
 });
 
+// The player closed (the TV app's goodbye, on leaving a torrent it was
+// playing through a transcode): that viewer's offset transcodes of this file
+// that nobody else is in stop now, instead of holding an encoder until the
+// idle sweep — media/goodbye.js has whose goodbye it is (a stranger's, or one
+// for a file the asker is not reading, stops nothing). A beacon: nothing is
+// answered.
+router.post("/stream/torrent/hls/:infoHash/:fileIdx/bye", (req, res) => {
+  try { transcode.release(req.params.infoHash, req.params.fileIdx, viewerOf(req)); } catch {}
+  res.status(204).end();
+});
+
 // HLS segments (and the playlist on refresh) for the transcode above.
 router.get("/stream/torrent/hls/:infoHash/:fileIdx/:ss/:file", (req, res) => {
   const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
   const audio = Math.max(0, Math.min(31, parseInt(req.query.a, 10) || 0));
-  transcode.touch(req.params.infoHash, req.params.fileIdx, req.params.ss, fmt, audio); // keep the transcode alive
+  transcode.touch(req.params.infoHash, req.params.fileIdx, req.params.ss, fmt, audio, viewerOf(req)); // keep the transcode alive (and whose it is)
   torrent.touchTorrent(req.params.infoHash); // and its torrent (so it isn't idle-evicted)
   const abs = transcode.filePath(req.params.infoHash, req.params.fileIdx, req.params.ss, req.params.file, fmt, audio);
   if (!abs) return res.status(404).send("Not found");

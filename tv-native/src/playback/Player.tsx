@@ -1714,15 +1714,18 @@ export default function Player({
   // message): realtime.ts holds the news and tells the screens once, after
   // the player is left. And on leaving — or going on to the next episode,
   // which is a new player — the server is told it may stop what it was
-  // preparing for this viewer (api.playBye; library titles only: a torrent
-  // stream has no such route).
+  // preparing for this viewer (api.playBye — the jit producers and the
+  // offset transcode of a library title; api.torrentBye for a torrent).
   useEffect(() => {
     const why = `player:${mountedAt.current}`;
     holdLibraryRefresh(why, true);
     return () => {
       holdLibraryRefresh(why, false);
+      // (a torrent: its own goodbye, for the transcode it may be playing)
       if (!isTorrent) api.playBye(id).catch(() => {});
+      else if (stream?.infoHash) api.torrentBye(stream.infoHash, stream.fileIdx).catch(() => {});
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isTorrent]);
   const partySnapshot = useCallback((): PartyItem => {
     const it = itemRef.current;
