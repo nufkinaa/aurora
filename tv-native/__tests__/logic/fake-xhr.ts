@@ -1,7 +1,7 @@
 // A scripted XMLHttpRequest for api.ts's fetchBounded: answers are queued in
 // order, and every request made is recorded.
 export type Answer = {status: number; body?: string; etag?: string | null; fail?: boolean; retryAfter?: string | null};
-export const sent: {url: string; method: string; headers: Record<string, string>}[] = [];
+export const sent: {url: string; method: string; headers: Record<string, string>; body?: unknown}[] = [];
 let answers: Answer[] = [];
 export const queue = (...a: Answer[]) => {
   answers.push(...a);
@@ -38,8 +38,8 @@ class FakeXHR {
     return 'Content-Type: application/json\r\n' + (this.etag ? `ETag: ${this.etag}\r\n` : '') + (this.retryAfter != null ? `Retry-After: ${this.retryAfter}\r\n` : '');
   }
   abort() {}
-  send() {
-    sent.push({url: this.url, method: this.method, headers: this.headers});
+  send(body?: unknown) {
+    sent.push({url: this.url, method: this.method, headers: this.headers, body});
     const a = answers.shift();
     if (!a) throw new Error(`no answer queued for ${this.url}`);
     setTimeout(() => {
