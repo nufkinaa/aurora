@@ -3389,6 +3389,10 @@ export const renderPlayer = async (root, { id }) => {
     // Cues load when a track is activated — apply any offset once they're in.
     // If the track already settled EMPTY (one flaky fetch poisons it forever
     // — browsers never retry), force a refetch instead.
+    // The delay this track had when it was CHOSEN is what "as you left it"
+    // announces — read now, not when the timer fires: a nudge made in the
+    // meantime is the viewer's own change, not something left from before.
+    const restoredDelay = idx >= 0 ? offsetFor(idx) : 0;
     if (idx >= 0)
       setTimeout(() => {
         const trackEl = [...video.querySelectorAll("track")][idx];
@@ -3402,7 +3406,7 @@ export const renderPlayer = async (root, { id }) => {
         } else {
           applyOffsetToTrack(tracks[idx]);
         }
-        const o = offsetFor(idx);
+        const o = restoredDelay;
         if (o && !delayAnnounced.has(idx)) {
           delayAnnounced.add(idx);
           toast(`Subtitle delay ${o > 0 ? "+" : ""}${o.toFixed(1)}s, as you left it — Subtitles › Reset to undo`, "💬", null, { quiet: true });
@@ -3506,6 +3510,7 @@ export const renderPlayer = async (root, { id }) => {
   const nudgeSubs = (delta) => {
     if (activeTrack < 0) return toast("Turn a subtitle track on first", "💬");
     const next = Math.round((offsetFor(activeTrack) + delta) * 10) / 10;
+    delayAnnounced.add(activeTrack); // (a delay set now is not "as you left it")
     setOffset(activeTrack, next);
     applyOffsetToTrack(video.textTracks[activeTrack]); // only this track moves
     // With the menu open its own row shows the value — a toast there landed

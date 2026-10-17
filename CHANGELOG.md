@@ -3,6 +3,22 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.7.0 — 2026-10-17
+
+- **Subtitles are named by language.** Many films and episodes carry subtitle tracks with no language tag, which showed as "Track 1", "Track 2". Aurora now works out the language from the subtitles themselves (75 languages) and names them "Hebrew", "English (SDH)", "English (Forced)" and so on; the audio menu gets proper names too. The first time the server starts it re-reads every file in the library once, quietly in the background.
+- **Subtitles in sync, especially in Hebrew.** Most out-of-sync subtitles were downloaded files made for a different release of the film, taken in whatever order the provider returned them — some measured nearly a minute off. Aurora now ranks them by how well they match your copy, corrects frame-rate drift, and lines them up against the film's own subtitle track when there is one. Your files are never changed; the corrected version is what plays. Films whose clock starts late, and resuming on the TV and on an iPhone, no longer put subtitles seconds ahead.
+- **The subtitle timing buttons are remembered** per title and track, on the website and the TV, and Reset clears them. On a phone the confirmation no longer covers the buttons.
+- **Subtitles sit above the timeline** when the controls are showing, instead of hiding under it (Chrome ignored the setting the player relied on). They are also a little bigger on phones.
+- **AirPlay.** An AirPlay button appears in the player when an Apple TV is nearby; the Apple TV gets a stream it can play, with subtitles in its own menu, and the film carries on from the same moment. It works on servers that require sign-in through a link that opens that one film's stream only and stops when you sign out. (Not yet tried on Apple hardware — tell us how it goes.)
+- **Swipe your taste.** "Pick titles you love" is now one card at a time: Love, Not for me, or Haven't seen — swipe, drag, arrow keys, or the remote on the TV — with Undo. The cards adapt to your answers. "Not for me" gently steers recommendations away from titles really like it. Your old list is under "Edit list".
+- **Up next arrives at the end credits**, now read from the picture itself (scrolling names, credit cards, the picture shrinking to one side). On some shows Up next used to appear about a minute early; it now lands within a second. The reading runs once per episode in the background and never while someone is being transcoded for.
+- **The actor and director sheet** no longer piles posters, labels and long titles on top of each other on phones.
+- **Search, Movies and Shows grids** fill the width with three columns on any phone (some phones showed two widely spaced columns).
+- A second press on an episode whose sources are already showing keeps the list instead of reloading it.
+- **Admin: "More than one copy".** Titles that exist more than once on disk — two qualities, two folders, an episode downloaded twice — are listed together with quality, size, release and who started each, and a specific copy can be deleted (the last copy needs DELETE typed; a copy someone is playing cannot be deleted). Deleting one copy no longer takes the other copy's subtitles with it.
+- **Downloads never overwrite.** A second download of something already on disk lands next to it as "Name (2)" instead of replacing it — before, it could even replace a file someone was watching. Files appear in the library only once complete. Every delete, manual or automatic, now waits for a file nobody is playing.
+- For the TV app (from its next update): settings and other popups fit the screen and scroll; one press on Play plays the best source straight away with your subtitle; Downloads say who started them; leaving a film frees the server at once; a busy server is waited out; and new smoothness work that can be switched on per TV from the server.
+
 ## 1.6.100 — 2026-10-11
 
 - **The Home hero is sharp on a phone.** Held upright, a phone's hero (and a title page's header) is the poster, and it was painted from the catalogue's card-sized poster, 300 pixels wide, stretched over the whole screen whatever the connection. The small one still appears first; the large one (780 pixels wide, the biggest the catalogue has) replaces it at once, without waiting for you to be still. On a slow line or with data saver on, the small one stays, as before.
