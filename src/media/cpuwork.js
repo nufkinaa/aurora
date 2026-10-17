@@ -4,7 +4,8 @@
 // right now: a ladder rendition (jit.js), a single-rendition transcode
 // (remux.js), a torrent transcode. BACKGROUND work is everything nobody is
 // waiting on this second: the play-ready copy made after a download and the
-// phone copies (offline.js), intro and credits detection, subtitle OCR, the
+// phone copies (offline.js), intro and credits detection (the audio pass and
+// the credits picture, creditscv.js), subtitle OCR, the
 // encode-speed calibrations. (The blur-up placeholders a page load asks for
 // are not: a few milliseconds each, and somebody is looking at the page.)
 //
@@ -66,7 +67,9 @@ const { execFile } = require("child_process");
 
 const QUIET_MS = 20 * 1000; // no viewer encode for this long = the coast is clear
 const BUDGET = 2; // background units that may run together
-const WEIGHTS = { encode: 2, ocr: 1, intro: 1, light: 0 };
+// (sublang: the subtitle language / alignment passes, media/sublang.js — one
+// ffmpeg read each; credits: the credits picture, creditscv.js / introdetect.js)
+const WEIGHTS = { encode: 2, ocr: 1, intro: 1, credits: 1, sublang: 1, light: 0 };
 
 const deps = {
   setPriority: (pid, prio) => os.setPriority(pid, prio),
