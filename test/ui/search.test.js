@@ -316,4 +316,52 @@ ui.test("phone: the same search in one column of suggestions, nothing wider than
   assert.ok(m.sw <= m.iw + 1, `the page overflows sideways: ${m.sw} > ${m.iw}`);
 });
 
+// The results grid is the Movies grid (2026-10-17): the same columns, gaps and
+// card size, and a card fills its column. In the glass look on a phone the
+// shelves' fixed 114px poster outranked the grid's own width, so the results
+// sat two to a row at 360px stuck to the left of their cells, and spilled
+// into the gap at 390px (114px cards in 111px columns); and below ~368px any
+// grid dropped to two columns.
+const gridShape = (page, sel) => page.evaluate((s) => {
+  const g = document.querySelector(s);
+  const cs = getComputedStyle(g);
+  const tracks = cs.gridTemplateColumns.split(" ").map(parseFloat);
+  const cards = [...g.querySelectorAll(".card")].map((c) => c.getBoundingClientRect());
+  const row = cards.filter((b) => Math.abs(b.top - cards[0].top) < 2);
+  return {
+    cols: tracks.length,
+    track: Math.round(tracks[0]),
+    gap: `${cs.rowGap} ${cs.columnGap}`,
+    card: Math.round(cards[0].width),
+    // the space between neighbours on the first row is the column gap, nothing more
+    between: [...new Set(row.slice(1).map((b, i) => Math.round(b.left - row[i].right)))],
+  };
+}, sel);
+for (const viewport of [{ width: 360, height: 780 }, { width: 390, height: 844 }, { width: 1280, height: 720 }]) {
+  for (const look of ["glass", "legacy"]) {
+    ui.test(`the results grid is the Movies grid at ${viewport.width}px (${look}): same columns, gaps and card size, each card filling its column`, { viewport }, async ({ page, goto, signIn, freshProfile, api }) => {
+      const me = { ...(await freshProfile()), pin: PIN };
+      if (look === "legacy") await api.ok("PUT", `/api/profiles/${me.id}`, { look: "legacy" }, await api.as(me));
+      await signIn(me);
+      await goto("#/movies");
+      await page.waitForSelector("#app .screen .grid .card");
+      assert.equal(await page.evaluate(() => document.documentElement.dataset.look || "legacy"), look);
+      const movies = await gridShape(page, "#app .screen .grid");
+
+      await goto("#/search");
+      await page.locator(BOX).fill("test");
+      await page.locator(BOX).press("Enter");
+      await resultsAre(page, ["Test Show", "Test Film Two", "Test Film One"]);
+      const search = await gridShape(page, "#app .screen > .grid");
+
+      const colGap = parseFloat(search.gap.split(" ")[1]);
+      assert.deepEqual({ ...search, between: undefined }, { ...movies, between: undefined }, "the search grid differs from the Movies grid");
+      assert.equal(search.card, search.track, "a card does not fill its column");
+      assert.deepEqual(search.between, [colGap], "cards are spaced by more (or less) than the column gap");
+      if (viewport.width < 600) assert.equal(search.cols, 3, "a phone's grid is three across");
+      else assert.ok(search.cols >= 6, `${search.cols} columns at ${viewport.width}px`);
+    });
+  }
+}
+
 ui.run();
