@@ -396,7 +396,7 @@ const listFor = (viewer) => {
 const create = (fields) => {
   const {
     infoHash, fileIdx, type, imdbId, title, label, year, poster,
-    quality, sizeBytes, season, episode, provider, seeders, profile, smart,
+    quality, sizeBytes, season, episode, provider, seeders, profile, smart, release,
   } = fields || {};
   // Which automatic feature queued it, when it was not "the next episode":
   // "mylist" = My List downloads (media/mylistdl.js). Null for a person's own.
@@ -475,6 +475,9 @@ const create = (fields) => {
     season: season || null,
     episode: episode || null,
     provider: provider || null,
+    // The release name the source was listed under (the admin's "copies of
+    // one title" tells two downloads of a film apart by it — media/copies.js).
+    release: release ? String(release).slice(0, 200) : null,
     seeders: seeders || 0,
     profile: profile ? String(profile).slice(0, 24) : null,
     // The person, for the admin's notification (profile is an id).
@@ -961,6 +964,7 @@ const adopt = (job, src) => {
   job.quality = src.quality || job.quality;
   job.sizeBytes = src.sizeBytes || job.sizeBytes;
   job.provider = src.provider || null;
+  job.release = src.release ? String(src.release).slice(0, 200) : job.release || null;
   job.seeders = src.seeders || 0;
   clearStalled(job); // another source: it is a download that needs the queue again
 };

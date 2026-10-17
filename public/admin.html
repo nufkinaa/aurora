@@ -1072,6 +1072,29 @@
           .lib-ep-check, .lib-season-check { width: 20px; height: 20px; }
         }
       </style>
+      <style>
+        #cp-groups .cp-group { border: 1px solid var(--line); border-radius: 10px; margin: 8px 0; }
+        #cp-groups .cp-group > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
+        #cp-groups .cp-group > summary::-webkit-details-marker { display: none; }
+        #cp-groups .cp-group > summary:hover { background: rgba(255,255,255,0.04); }
+        #cp-groups .cp-group.cp-hot { border-color: #7c5cff; box-shadow: 0 0 0 2px rgba(124,92,255,0.35); }
+        #cp-groups .cp-head { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+        #cp-groups .cp-head b { overflow-wrap: anywhere; }
+        #cp-groups .cp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 9px 10px; border-top: 1px solid rgba(255,255,255,0.06); }
+        #cp-groups .cp-file { flex: 1 1 240px; min-width: 0; }
+        #cp-groups .cp-file b { overflow-wrap: anywhere; font-weight: 700; }
+        #cp-groups .cp-meta { font-size: 0.8rem; color: var(--text-dim); overflow-wrap: anywhere; margin-top: 2px; }
+        #cp-groups .cp-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+        @media (max-width: 640px) { #cp-groups .cp-acts { width: 100%; } #cp-groups .cp-acts .mini { flex: 1; } }
+      </style>
+      <details class="acard hidden" data-key="d-copies" id="cp-card" open>
+        <summary><span class="chev">▶</span><h2>More than one copy <span class="pill warn" id="cp-count">0</span>
+          <span class="note">the same film or episode on disk — or downloading — more than once; keep the copy you want and delete the others</span></h2></summary>
+        <div class="acard-body">
+          <div class="empty-note" id="cp-summary" style="font-size:0.88rem;padding:6px 4px 0"></div>
+          <div id="cp-groups"></div>
+        </div>
+      </details>
       <details class="acard" data-key="d-disk" open>
         <summary><span class="chev">▶</span><h2>On disk <span class="note">find it, see who watched it, delete it — files are removed permanently</span></h2></summary>
         <div class="acard-body tall">
@@ -1217,7 +1240,7 @@
     // saying what it does ("Yes, delete") instead of "OK".
     const ASK_VERBS = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Kick|Close|Send|Pull|Start|Reset|Suspend)\b/;
     const ASK_DANGER = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Kick|Close|Suspend)\b/;
-    const askBox = (message, withInput) => new Promise((resolve) => {
+    const askBox = (message, withInput, yesLabel = null) => new Promise((resolve) => {
       const paras = String(message).split("\n\n");
       const cut = paras[0].indexOf("? ");
       const title = cut > 0 ? paras[0].slice(0, cut + 1) : paras[0];
@@ -1228,7 +1251,7 @@
       d.innerHTML = `<form method="dialog"><h3>${esc(title)}</h3>${body ? `<p>${esc(body)}</p>` : ""}` +
         (withInput ? `<input type="text" autocomplete="off" autocapitalize="off" spellcheck="false" />` : "") +
         `<div class="ask-row"><button type="button" class="ask-no">Never mind</button>` +
-        `<button type="submit" class="ask-yes${ASK_DANGER.test(title) ? " danger" : ""}">${withInput ? "Save" : verb ? "Yes, " + verb.toLowerCase() : "Confirm"}</button></div></form>`;
+        `<button type="submit" class="ask-yes${ASK_DANGER.test(title) ? " danger" : ""}">${esc(yesLabel || (withInput ? "Save" : verb ? "Yes, " + verb.toLowerCase() : "Confirm"))}</button></div></form>`;
       document.body.append(d);
       const input = d.querySelector("input");
       let answer = withInput ? null : false;
@@ -1240,6 +1263,15 @@
     });
     const ask = (message) => askBox(message, false);
     const askText = (message) => askBox(message, true);
+    // The stronger question, for what cannot be got back at all: the answer
+    // counts only when `word` was typed.
+    const askTyped = async (message, word, yesLabel) => {
+      const typed = await askBox(message, true, yesLabel);
+      if (typed == null) return false;
+      if (typed.trim().toUpperCase() === word.toUpperCase()) return true;
+      toast(`Nothing was deleted — type ${word} to confirm`);
+      return false;
+    };
 
     const fmtUptime = (sec) => {
       const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
@@ -3550,6 +3582,17 @@
     };
     let libTreeData = null;
     let libFilter = "all";
+    // MORE THAN ONE COPY (GET /api/admin/library/copies, media/copies.js):
+    // the groups, and library id -> its group, so the ON DISK rows can say
+    // "2 copies" and jump to them.
+    let copiesData = null;
+    let copiesByLib = new Map();
+    const copyPill = (id) => {
+      const g = copiesByLib.get(id);
+      if (!g) return "";
+      const n = g.files + g.downloads.length;
+      return `<button class="mini" data-cp-jump="${esc(g.key)}" title="This title is on the server more than once — see the copies" style="flex:none;color:#f0b132">${n} copies</button>`;
+    };
     async function loadLibraryTree() {
       libTreeData = await json("/api/admin/library/tree");
       renderLibTree();
@@ -3592,7 +3635,7 @@
         `<input type="checkbox" class="lib-ep-check" data-id="${esc(e.id)}" data-size="${e.sizeBytes}" data-name="${esc(e.fileName)}" data-watched="${e.watched ? 1 : 0}" style="margin:0" />` +
         `<span class="muted num" style="min-width:52px">S${String(e.season).padStart(2, "0")}E${String(e.episode || 0).padStart(2, "0")}</span>` +
         `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.fileName)}">${esc(e.title)}</span>` +
-        watchedBadge(e.watched) + myListBadge(e.mylist) +
+        watchedBadge(e.watched) + myListBadge(e.mylist) + copyPill(e.id) +
         `<span class="num muted">${fmtBytes(e.sizeBytes)}</span>` +
         `<button class="mini danger" data-file-id="${esc(e.id)}" data-file-name="${esc(e.fileName)}" data-file-size="${e.sizeBytes}">Delete</button>`, 26);
       $("#lib-tree").innerHTML = items.length ? items.map((it) => {
@@ -3600,7 +3643,7 @@
           return libRow(
             libThumb(it.cover, "🎬") +
             `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)}${it.year ? ` <span class="muted">(${it.year})</span>` : ""}</span>` +
-            watchedBadge(it.watched) + myListBadge(it.mylist) +
+            watchedBadge(it.watched) + myListBadge(it.mylist) + copyPill(it.id) +
             `<span class="num muted">${fmtBytes(it.sizeBytes)}</span>` +
             `<button class="mini danger" data-del-type="movie" data-del-id="${esc(it.id)}" data-del-title="${esc(it.title)}">Delete</button>`);
         }
@@ -3653,7 +3696,128 @@
       updateBatchBar();
     });
 
-    const libRefresh = () => { loadDisk(); loadLibraryTree(); loadOverview(); };
+    const libRefresh = () => { loadDisk(); loadLibraryTree(); loadCopies(); loadOverview(); };
+
+    // ---------- more than one copy ----------
+    // How many of a movie's copies sit in the folder its row's Delete removes.
+    const copiesInFolder = (movieId) => {
+      const g = copiesByLib.get(movieId);
+      const own = g && g.copies.find((x) => x.libraryId === movieId);
+      if (!own) return 1;
+      const dir = own.display.split("/").slice(0, -1).join("/");
+      return g.copies.filter((c) => c.display.split("/").slice(0, -1).join("/") === dir).length;
+    };
+    const cpWhen = (t) => (t ? ago(typeof t === "number" ? new Date(t).toISOString() : t) : "—");
+    const cpTitle = (g) => g.kind === "episode"
+      ? `${g.title} · S${g.season} E${g.episode}${g.episodeTitle && !/^Episode \d+$/.test(g.episodeTitle) ? ` — ${g.episodeTitle}` : ""}`
+      : `${g.title}${g.year ? ` (${g.year})` : ""}`;
+    const cpBadge = (g) => {
+      const parts = [];
+      if (g.files > 1) parts.push(`${g.files} copies on disk`);
+      else if (g.files === 1) parts.push("1 on disk");
+      if (g.downloads.length) parts.push(`${g.downloads.length} downloading`);
+      if (g.copies.some((c) => c.jobs.length > 1)) parts.push("downloaded twice");
+      return `<span class="pill warn" style="flex:none">${esc(parts.join(" + "))}</span>`;
+    };
+    const cpJobLine = (j) => [
+      j.by ? `by ${esc(j.by)}` : j.smart ? "by the server" : "",
+      j.release ? esc(j.release) : j.provider ? esc(j.provider) : "",
+      j.doneAt ? `downloaded ${cpWhen(j.doneAt)}` : `started ${cpWhen(j.at)}`,
+    ].filter(Boolean).join(" · ");
+    const cpCopyRow = (g, c) => {
+      const who = c.jobs.length ? c.jobs.map(cpJobLine).join("<br>") : "no download record — put there by hand";
+      const state = [
+        c.streaming ? `<span class="pill live">▶ playing now</span>` : "",
+        c.midway ? `<span class="pill">${c.midway} part-way</span>` : "",
+        c.watched ? `<span class="pill live">✓ watched by ${c.watched}</span>` : "",
+        g.kind === "movie" ? (c.indexed ? `<span class="pill" title="The app opens this copy">the one the app plays</span>` : `<span class="pill bad" title="The app only opens the first video in a movie's folder — this one only takes space">not shown in the app</span>`) : "",
+      ].filter(Boolean).join(" ");
+      const forget = c.jobs.length > 1
+        ? c.jobs.slice(1).map((j) => `<button class="mini" data-cp-forget="${esc(j.id)}" title="Drop this download's entry from the list — the file stays">Forget download${j.by ? ` by ${esc(j.by)}` : ""}</button>`).join("")
+        : "";
+      return `<div class="cp-row" data-cp-ref="${esc(c.ref)}">
+        <div class="cp-file">
+          <b>${esc(c.fileName)}</b>
+          <div class="cp-meta">${esc(c.quality || "quality unknown")} · ${fmtBytes(c.sizeBytes)} · added ${cpWhen(c.addedAt)} · ${esc(c.display)}</div>
+          <div class="cp-meta">${who}</div>
+          ${state ? `<div class="cp-meta" style="margin-top:4px">${state}</div>` : ""}
+        </div>
+        <div class="cp-acts">${forget}<button class="mini danger" data-cp-del="${esc(c.ref)}" data-cp-key="${esc(g.key)}"${c.streaming ? ' disabled title="Someone is playing this copy right now"' : ""}>Delete this copy</button></div>
+      </div>`;
+    };
+    const cpDownloadRow = (j) => `<div class="cp-row" data-cp-job="${esc(j.id)}">
+        <div class="cp-file">
+          <b>${esc(j.label || j.title)}</b>
+          <div class="cp-meta">${j.status === "downloading" ? `downloading ${Math.round((j.progress || 0) * 100)}%` : j.status === "pending" ? "waiting for your approval" : "queued"} · ${esc(j.quality || "?")} · ${fmtBytes(j.sizeBytes)}</div>
+          <div class="cp-meta">${cpJobLine(j)}</div>
+        </div>
+        <div class="cp-acts"><button class="mini danger" onclick="cancelDownload('${esc(j.id)}')">Cancel download</button></div>
+      </div>`;
+    function renderCopies() {
+      const groups = (copiesData && copiesData.groups) || [];
+      $("#cp-card").classList.toggle("hidden", groups.length === 0);
+      $("#cp-count").textContent = groups.length;
+      const spare = groups.reduce((n, g) => n + (g.spareBytes || 0), 0);
+      $("#cp-summary").innerHTML = groups.length
+        ? `${groups.length} title${groups.length > 1 ? "s are" : " is"} here more than once${spare ? ` · keeping only the biggest copy of each would free <b>${fmtBytes(spare)}</b>` : ""}. Deleting a copy removes that file only; watch history stays (it is kept per title).`
+        : "";
+      const open = new Set([...document.querySelectorAll("#cp-groups .cp-group[open]")].map((d) => d.dataset.cpGroup));
+      $("#cp-groups").innerHTML = groups.map((g) => `<details class="cp-group" data-cp-group="${esc(g.key)}"${open.has(g.key) ? " open" : ""}>
+          <summary>${libThumb(g.cover, g.kind === "episode" ? "📺" : "🎬")}
+            <span class="cp-head"><b>${esc(cpTitle(g))}</b>${cpBadge(g)}<span class="muted num" style="font-size:0.82rem">${fmtBytes(g.sizeBytes)}</span></span></summary>
+          ${g.copies.map((c) => cpCopyRow(g, c)).join("")}${g.downloads.map(cpDownloadRow).join("")}
+        </details>`).join("");
+    }
+    async function loadCopies() {
+      try { copiesData = await json("/api/admin/library/copies"); } catch { return; }
+      if (!copiesData || !Array.isArray(copiesData.groups)) return;
+      copiesByLib = new Map();
+      for (const g of copiesData.groups) for (const c of g.copies) if (c.libraryId) copiesByLib.set(c.libraryId, g);
+      renderCopies();
+      if (libTreeData) renderLibTree();
+    }
+    function jumpToCopies(key) {
+      $("#cp-card").open = true;
+      const g = [...document.querySelectorAll("#cp-groups .cp-group")].find((d) => d.dataset.cpGroup === key);
+      if (!g) return;
+      g.open = true;
+      document.querySelectorAll("#cp-groups .cp-hot").forEach((x) => x.classList.remove("cp-hot"));
+      g.classList.add("cp-hot");
+      g.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    $("#cp-groups").addEventListener("click", async (e) => {
+      const forget = e.target.closest("[data-cp-forget]");
+      if (forget) {
+        if (!await ask("Remove this download entry from the list?\n\nOnly the entry goes — the file on disk stays.")) return;
+        await adminFetch(`/api/admin/downloads/${forget.dataset.cpForget}`, { method: "DELETE" });
+        toast("Download entry removed");
+        loadCopies(); loadDownloads();
+        return;
+      }
+      const del = e.target.closest("[data-cp-del]");
+      if (!del || !copiesData) return;
+      const g = (copiesData.groups || []).find((x) => x.key === del.dataset.cpKey);
+      const c = g && g.copies.find((x) => x.ref === del.dataset.cpDel);
+      if (!g || !c) return;
+      const what = `${c.fileName}\n${c.quality || "quality unknown"} · ${fmtBytes(c.sizeBytes)}`;
+      const last = g.files <= 1;
+      const others = g.files - 1;
+      const yes = last
+        ? await askTyped(`Delete the LAST copy of "${cpTitle(g)}"?\n\n${what}\n\nThis is the only copy on disk — the title leaves the library${g.downloads.length ? " until the download in flight lands" : ""}. It cannot be undone. Watch history is kept.\n\nType DELETE to confirm.`, "DELETE", "Yes, delete the last copy")
+        : await ask(`Delete this copy of "${cpTitle(g)}"?\n\n${what}\n\nThe other ${others === 1 ? "copy stays" : `${others} copies stay`}${g.kind === "movie" && c.indexed ? " — the app plays it from now on" : ""}. The file is removed for good; watch history is kept (it is per title).`);
+      if (!yes) return;
+      del.disabled = true;
+      del.textContent = "Deleting…";
+      try {
+        const r = await adminFetch("/api/admin/library/copies/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref: c.ref, confirmLast: last }) });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || data.error) throw new Error(data.error || "Delete failed");
+        toast(`Deleted ${c.fileName} — ${fmtBytes(data.freedBytes)} freed`);
+      } catch (err) {
+        toast(err.message);
+      }
+      libRefresh(); loadDownloads();
+    });
     const deleteFileById = async (id) => {
       const r = await adminFetch(`/api/admin/library/file/${id}`, { method: "DELETE" });
       const data = await r.json().catch(() => ({}));
@@ -3681,6 +3845,8 @@
     $("#lib-tree").addEventListener("click", async (e) => {
       // A checkbox inside a <summary> must not toggle the fold it sits in.
       if (e.target.classList.contains("lib-season-check")) { e.stopPropagation(); return; }
+      const jump = e.target.closest("[data-cp-jump]");
+      if (jump) { e.preventDefault(); e.stopPropagation(); jumpToCopies(jump.dataset.cpJump); return; }
       const fileBtn = e.target.closest("[data-file-id]");
       const titleBtn = e.target.closest("[data-del-id]");
       if (!fileBtn && !titleBtn) return;
@@ -3704,7 +3870,8 @@
         return;
       }
       const { delType, delId, delTitle } = titleBtn.dataset;
-      if (!await ask(`Delete "${delTitle}" from disk?\n\nThis permanently removes the ${delType === "show" ? "whole show folder (all episodes)" : "movie folder"}. It cannot be undone.`)) return;
+      const inFolder = delType === "movie" ? copiesInFolder(delId) : 1;
+      if (!await ask(`Delete "${delTitle}" from disk?\n\nThis permanently removes the ${delType === "show" ? "whole show folder (all episodes)" : inFolder > 1 ? `movie folder — all ${inFolder} copies in it (to delete just one, use “More than one copy” above)` : "movie folder"}. It cannot be undone.`)) return;
       titleBtn.disabled = true;
       titleBtn.textContent = "Deleting…";
       const r = await adminFetch(`/api/admin/library/${delType}/${delId}`, { method: "DELETE" });
@@ -3885,7 +4052,7 @@
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
       profiles: () => loadPeople(),
       server: () => { loadServer(); loadHealth(); loadEncoding(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
-      downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadLimits(); loadMyList(); },
+      downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadCopies(); loadLimits(); loadMyList(); },
       moderation: () => { loadReports(); loadRequests(); loadIntros(); },
       logs: () => loadLogs(),
       actions: () => { loadActions(); loadDataSafety(); loadBackups(); loadAlerts(); },
@@ -4037,13 +4204,13 @@
             if (activeTab === "moderation") loadReports();
           } else if (data.type === "download_new" || data.type === "download_update") {
             if (activeTab === "downloads") loadDownloads();
-            if (data.type === "download_new") { toast("New download request: " + (data.job?.title || "")); loadBadges(); }
+            if (data.type === "download_new") { toast("New download request: " + (data.job?.title || "")); loadBadges(); if (activeTab === "downloads") loadCopies(); }
           } else if (data.type === "healer_update") {
             if (data.report) { noteHealer(data.report); if (activeTab === "server") paintHealer(data.report); }
           } else if (data.type === "library_updated") {
             // A delete (possibly from another admin tab) changed the disk —
             // keep the ON DISK zone honest.
-            if (activeTab === "downloads") { loadLibraryTree(); loadDisk(); }
+            if (activeTab === "downloads") { loadLibraryTree(); loadDisk(); loadCopies(); }
           }
         };
         ws.onclose = () => { conn(false); setTimeout(connectWs, 5000); };

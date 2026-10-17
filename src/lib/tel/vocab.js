@@ -98,6 +98,7 @@ const SEGMENTS = new Set((
   "web-start websub wrapped xray errors alert-rules " +
   "bye tuning tv " + // the player's goodbye beacon (/stream/transcode/:id/jit/bye), /api/tv/tuning
   "stores accept ack drill encoding calibrate " +
+  "copies delete " + // /api/admin/library/copies, …/copies/delete (media/copies.js)
   "js screens vendor ws " +
   ".m3u8 .ts .m4s .mp4 .mkv .webm .vtt .srt .jpg .jpeg .png .webp .avif .svg .gif .ico .js .css .json .html .txt .apk .woff2 .webmanifest " +
   "?a ?blur ?category ?code ?days ?duration ?episode ?error ?fmt ?force ?genre ?head ?hevc ?imdbid ?intent ?itemid ?k ?kb ?keys ?limit ?page ?profile ?pw " +

@@ -14,6 +14,15 @@ const configLib = lazy(require, "../config");
 const admissionLib = lazy(require, "../lib/admission");
 const stillsLib = lazy(require, "../media/stills");
 
+// Every request for a library file's bytes says "someone is on this file
+// right now" (lib/inuse.js) — what the admin's "delete this copy" asks
+// before it deletes anything.
+const inuse = require("../lib/inuse");
+router.use(["/stream/video/:id", "/stream/hls/:id", "/stream/transcode/:id", "/stream/download/:id"], (req, res, next) => {
+  inuse.touch(req.params.id);
+  next();
+});
+
 const MIME = {
   ".mp4": "video/mp4",
   ".m4v": "video/mp4",

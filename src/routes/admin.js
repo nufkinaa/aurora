@@ -295,6 +295,60 @@ router.get("/api/admin/library/tree", (req, res) => {
   res.json({ movies, shows, totalBytes, disk: free });
 });
 
+// ---------- more than one copy of a title (media/copies.js) ----------
+// Every title on the server more than once — as files (a 720p beside a
+// 1080p, two folders of one film, an episode twice) or as download jobs —
+// with each copy's quality, size, release, who downloaded it, when, and
+// whether anybody is on it.
+router.get("/api/admin/library/copies", (req, res) => {
+  res.json({ groups: require("../media/copies").view() });
+});
+
+// Delete ONE copy: { ref, confirmLast }. The ref is what the listing above
+// gave; it is turned back into a path only if that path is a video strictly
+// inside a library folder (links followed), and only if the file is still
+// one of a title's copies right now. A copy someone is playing is refused;
+// the last copy on disk needs confirmLast. The download jobs that wrote it
+// go with it; watch history stays (it is per title).
+router.post("/api/admin/library/copies/delete", (req, res) => {
+  const copies = require("../media/copies");
+  const { ref, confirmLast } = req.body || {};
+  const where = copies.resolveRef(ref, config.LIBRARIES, config.VIDEO_EXTENSIONS);
+  if (where.error) {
+    console.warn(`[admin] copy delete refused (${where.error}): ${String(ref || "").slice(0, 200)}`);
+    return res.status(where.notFound ? 404 : 400).json({ error: where.error });
+  }
+  const hit = copies.findCopy(where.abs);
+  if (!hit) {
+    console.warn(`[admin] copy delete refused (not a copy of a title with more than one): ${where.abs}`);
+    return res.status(409).json({ error: "This file is not one of several copies of a title any more — reload the list.", code: "not-a-copy" });
+  }
+  const may = copies.deletable(hit.grp, hit.copy, { confirmLast: confirmLast === true });
+  if (!may.ok) {
+    console.warn(`[admin] copy delete refused (${may.code}): ${where.abs}`);
+    return res.status(409).json({ error: may.error, code: may.code });
+  }
+  const roots = [...config.LIBRARIES.movies, ...config.LIBRARIES.shows];
+  let result;
+  try {
+    result = libfiles.deleteVideoFile(where.abs, roots, config.SUBTITLE_EXTENSIONS, config.VIDEO_EXTENSIONS);
+  } catch (err) {
+    const refusal = /outside the library/.test(err.message);
+    console.warn(`[admin] copy delete failed: ${where.abs}: ${err.message}`);
+    return res.status(refusal ? 400 : 500).json({ error: refusal ? err.message : `Delete failed: ${err.message}` });
+  }
+  // The jobs that wrote this file are history about a file that is gone.
+  const downloads = require("../media/downloads");
+  const jobsRemoved = [];
+  for (const j of hit.copy.jobs) {
+    if (!downloads.remove(j.id).error) jobsRemoved.push(j.id);
+  }
+  scanner.scan();
+  realtime.libraryUpdated();
+  console.log(`[admin] deleted copy of "${hit.grp.title}"${hit.grp.kind === "episode" ? ` S${hit.grp.season}E${hit.grp.episode}` : ""} → ${result.deleted.join(", ")} (${result.freedBytes} bytes)${hit.grp.files <= 1 ? " — it was the last copy" : ""}${jobsRemoved.length ? `; removed download ${jobsRemoved.join(", ")}` : ""}`);
+  res.json({ ok: true, ...result, jobsRemoved, wasLast: hit.grp.files <= 1 });
+});
+
 // ---------- My List downloads (media/mylistdl.js) ----------
 // The settings, and every copy the feature asked for with where it stands
 // (waiting, downloading, fresh, stale, deleted, watched…).
