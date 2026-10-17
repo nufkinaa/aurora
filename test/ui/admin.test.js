@@ -830,6 +830,26 @@ ui.test("Server → Health says who restarts the server; an unsupervised one say
   assert.equal((await fetch(`${srv.url}/healthz`)).status, 200);
 });
 
+// (elia 2026-10-17: npm install next to Restart, so an update is two presses)
+ui.test("Server → Updates: Install dependencies runs the npm-install action, shows its output, and says to restart", async ({ page, srv }) => {
+  // the action itself is stubbed: a real npm install has no place in a browser test
+  let started = 0, polls = 0;
+  await page.route("**/api/admin/actions/npm-install/run", (route) => { started++; route.fulfill({ json: { run: { id: "r1", status: "running" } } }); });
+  await page.route("**/api/admin/actions/runs/r1", (route) => { polls++; route.fulfill({ json: polls < 2 ? { id: "r1", status: "running", output: "$ npm install --omit=dev" } : { id: "r1", status: "ok", output: "$ npm install --omit=dev\nadded 3 packages" } }); });
+  await enter(page, srv);
+  await page.click('.tab[data-tab="server"]');
+  await page.waitForSelector("#update-npm-btn");
+  // it sits right before Restart
+  assert.equal(await page.evaluate(() => document.getElementById("update-npm-btn").nextElementSibling.id), "update-restart-btn");
+  await page.click("#update-npm-btn");
+  await page.click("dialog.ask .ask-yes");
+  await page.waitForFunction(() => /dependencies installed/.test(document.getElementById("sv-update").textContent), null, { timeout: 15000 });
+  assert.equal(started, 1);
+  assert.match(await page.textContent("#sv-update-log"), /added 3 packages/);
+  assert.match(await page.textContent("#sv-update"), /press Restart Aurora/);
+  assert.equal(await page.isDisabled("#update-npm-btn"), false);
+});
+
 ui.test("Server → Encoding: 'Automatic: N now, because …' with the numbers; a fixed number sticks; Automatic comes back", async ({ page, srv }) => {
   await enter(page, srv);
   await page.click('.tab[data-tab="server"]');
