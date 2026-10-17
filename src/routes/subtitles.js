@@ -83,6 +83,12 @@ const fetchFor = async (id, lang) => {
     const sublang = require("../media/sublang");
     for (const job of scanner.subtitleSyncWork()) if (job.path === entry.path) sublang.enqueue(job);
   } catch {}
+  // …and with what is SAID in the film (media/subaudio.js), first in line:
+  // somebody is about to watch it
+  try {
+    const subaudio = require("../media/subaudio");
+    for (const job of scanner.audioSyncWork()) if (job.video === entry.path) subaudio.enqueue({ ...job, front: true });
+  } catch {}
   const fresh = scanner.findById(id);
   const added = ((fresh && fresh.subtitles) || []).filter((t) => !before.has(t.url) && !t.embedded);
   return { tracks: added.map((t) => ({ ...t, lang })) };
@@ -107,6 +113,61 @@ router.post("/api/subtitles/fetch", async (req, res) => {
   } catch (e) {
     res.status(502).json({ error: e.message || "subtitle providers unreachable" });
   }
+});
+
+// ---------- Resync: the subtitle on screen against what is said ----------
+// media/subaudio.js. The player sends the title, the track's address (as the
+// title lists it) and the audio track it is playing (0-based among the
+// file's audio streams); this starts the alignment (or joins the one running
+// for that subtitle) and answers at once. The player then asks
+// /api/subtitles/resync/status with the same body until it is done, and
+// reloads the track: the corrected timing is served from then on, to every
+// device. /undo puts the file's own timing back, for everyone.
+const subOf = (id, track) => {
+  const item = scanner.findById(id);
+  const entry = scanner.resolve(id);
+  if (!item || !entry || !entry.path) return { error: "not in the library", status: 404 };
+  const want = String(track || "").replace(/[?#].*$/, "");
+  const listed = (item.subtitles || []).find((t) => t.url === want);
+  if (!listed) return { error: "that subtitle is not one of this title's", status: 404 };
+  const emb = /^\/stream\/embedded\/[^/]+\/(\d+)$/.exec(want);
+  if (emb) return { videoPath: entry.path, sub: { kind: "emb", video: entry.path, index: Number(emb[1]) }, item, track: listed };
+  const ext = /^\/stream\/subtitle\/([^/]+)$/.exec(want);
+  const file = ext && scanner.resolve(ext[1]);
+  if (!file || file.kind !== "subtitle" || !file.path) return { error: "that subtitle is not one of this title's", status: 404 };
+  return { videoPath: entry.path, sub: { kind: "file", path: file.path }, item, track: listed };
+};
+const audioOf = (item, audio) => {
+  const n = Number(audio);
+  const count = (item.audioTracks || []).length || 1;
+  return Number.isInteger(n) && n >= 0 && n < Math.max(1, count) ? n : 0;
+};
+
+router.post("/api/subtitles/resync", (req, res) => {
+  const body = req.body || {};
+  const r = subOf(String(body.id || ""), body.track);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  const subaudio = require("../media/subaudio");
+  const job = subaudio.resync({ videoPath: r.videoPath, sub: r.sub, audio: audioOf(r.item, body.audio) });
+  res.status(202).json(subaudio.publicJob(job));
+});
+
+router.post("/api/subtitles/resync/status", (req, res) => {
+  const body = req.body || {};
+  const r = subOf(String(body.id || ""), body.track);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  const subaudio = require("../media/subaudio");
+  const job = subaudio.jobFor(r.sub);
+  if (!job) return res.json({ state: "none", timing: subaudio.timingOf(r.sub) });
+  res.json({ ...subaudio.publicJob(job), timing: subaudio.timingOf(r.sub) });
+});
+
+router.post("/api/subtitles/resync/undo", (req, res) => {
+  const body = req.body || {};
+  const r = subOf(String(body.id || ""), body.track);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  require("../media/subaudio").undo({ videoPath: r.videoPath, sub: r.sub });
+  res.json({ ok: true });
 });
 
 module.exports = router;

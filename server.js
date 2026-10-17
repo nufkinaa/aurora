@@ -438,7 +438,39 @@ scanner.events.on("enriched", (info) => {
   // …and line sidecars up against the video's own text track, where it has
   // one (a provider's file timed for another release — media/subsync.js)
   for (const job of scanner.subtitleSyncWork()) require("./src/media/sublang").enqueue(job);
+  // …and line every sidecar up with what is SAID in the film (Hebrew first;
+  // media/subaudio.js — applied only when confident, embedded tracks scored only)
+  for (const job of scanner.audioSyncWork()) require("./src/media/subaudio").enqueue(job);
 });
+// A subtitle was lined up with the audio (the Resync button or the
+// background): the library learns the new timing verdicts and ★ (one rescan
+// for a burst), and the players watching that title hear about it at once —
+// they reload the track, and may switch to the ★ one (see the players).
+{
+  let syncTimer = null;
+  const touched = new Set();
+  require("./src/media/subaudio").events.on("synced", ({ video, source }) => {
+    touched.add(video);
+    const flush = () => {
+      syncTimer = null;
+      scanner.scan();
+      for (const v of touched) {
+        const id = scanner.idForPath(v);
+        if (id) realtime.broadcastAll({ type: "subtitle_sync", id, source });
+      }
+      touched.clear();
+      realtime.libraryUpdated();
+    };
+    if (source === "resync" || source === "undo") {
+      if (syncTimer) clearTimeout(syncTimer);
+      flush();
+      return;
+    }
+    if (syncTimer) return;
+    syncTimer = setTimeout(flush, 3000);
+    syncTimer.unref?.();
+  });
+}
 // A file's tracks were just named from their text: the library learns the
 // names (one rescan for a burst of files, never one per file).
 {

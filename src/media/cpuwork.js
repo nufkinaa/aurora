@@ -69,7 +69,9 @@ const QUIET_MS = 20 * 1000; // no viewer encode for this long = the coast is cle
 const BUDGET = 2; // background units that may run together
 // (sublang: the subtitle language / alignment passes, media/sublang.js — one
 // ffmpeg read each; credits: the credits picture, creditscv.js / introdetect.js)
-const WEIGHTS = { encode: 2, ocr: 1, intro: 1, credits: 1, sublang: 1, light: 0 };
+// (speech: the speech timeline of a film for the audio subtitle sync,
+// media/speech.js — one ffmpeg decode of one audio track)
+const WEIGHTS = { encode: 2, ocr: 1, intro: 1, credits: 1, sublang: 1, speech: 1, light: 0 };
 
 const deps = {
   setPriority: (pid, prio) => os.setPriority(pid, prio),
