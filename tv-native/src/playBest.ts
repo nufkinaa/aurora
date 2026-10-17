@@ -29,7 +29,7 @@ export type JobLike = {
   season?: number | null;
   episode?: number | null;
   quality?: string;
-  release?: string | null; // the torrent's file name (server 1.6.101+, fix-subs)
+  release?: string | null; // the release's name (the server's job.release: the name its source was listed under)
 };
 
 // The tags that mean "this device will not play it as-is" (the browser
