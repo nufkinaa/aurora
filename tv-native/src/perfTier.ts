@@ -38,6 +38,7 @@
 // makes it faster is noticed.
 import {AppState, NativeEventEmitter, NativeModules, Platform} from 'react-native';
 import {track} from './usage';
+import {renderFixCode, renderLetters, versionCode} from './render';
 
 export type DeviceInfo = {
   isLowRamDevice: boolean;
@@ -194,7 +195,10 @@ const report = async () => {
     delete all[screen];
     if (quotaSpent()) continue;
     perfSent++;
-    track('perf', {screen, p50: s.p50, p90: s.p90, jank: s.jank, frames: s.frames, low: isLowRam(), lite});
+    // `v` (versionCode) and `impl` (the native components, "-" when none) split the
+    // admin's TV-frames table, so a box with the rendering switches on reads
+    // beside one without (render.ts); `exp` names the render fixes (one letter each).
+    track('perf', {screen, p50: s.p50, p90: s.p90, jank: s.jank, frames: s.frames, low: isLowRam(), lite, v: versionCode, impl: renderLetters, exp: renderFixCode});
   }
   if (quotaSpent()) stopReporting();
 };

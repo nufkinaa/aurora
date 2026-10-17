@@ -11,5 +11,7 @@ module.exports = {
     '^react-native$': '<rootDir>/__tests__/logic/rn-stub.js',
     '^@react-native-async-storage/async-storage$': '<rootDir>/__tests__/logic/async-storage-stub.js',
     '\.png$': '<rootDir>/__tests__/logic/asset-stub.js',
+    // the native components' codegen specs (render.ts switches them; off in these tests)
+    '/specs/Aurora[A-Za-z]+NativeComponent$':'<rootDir>/__tests__/logic/spec-stub.js',
   },
 };

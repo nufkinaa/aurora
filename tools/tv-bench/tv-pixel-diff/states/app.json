@@ -1,0 +1,274 @@
+{
+ "component": "app",
+ "impl": "FCRHN",
+ "notes": [
+  "Step 4 of the P3-P5 device pass (2026-10-10): whole-app behaviour by remote, everything native (FCRHN) against all JS. Each state is a key path a viewer makes; the capture at its end and the [focus] gain table must agree.",
+  "Bursts are adb loops (~130 ms a press), not a real held key.",
+  "Never OK on a Continue Watching card or on a Detail page here (that would play or download)."
+ ],
+ "defaults": {
+  "launch": {
+   "data": null,
+   "extras": {}
+  },
+  "nav": "home",
+  "freeze": {
+   "freeze": "on",
+   "trace": false,
+   "focuslog": true
+  },
+  "idle": {
+   "quietMs": 600,
+   "gfxStableMs": 500,
+   "pollMs": 100,
+   "timeoutMs": 12000
+  },
+  "settleMs": 1200,
+  "keyGapMs": 150,
+  "tolerance": {
+   "threshold": 0.1,
+   "maxDiffFraction": 0.0005,
+   "edgeDilate": 1
+  },
+  "masks": [],
+  "dither": [],
+  "crop": null,
+  "trace": [],
+  "server": {}
+ },
+ "states": [
+  {
+   "name": "home-down-6",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN"
+   ],
+   "note": "six shelves down, one press at a time: the column, the mounted shelves, focus on card 0 of row 5",
+   "focusCheck": true
+  },
+  {
+   "name": "home-down-4-up-2",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_UP",
+    "wait:700",
+    "DPAD_UP"
+   ],
+   "note": "down four, up two: back on row 1, the page where it was for row 1",
+   "focusCheck": true
+  },
+  {
+   "name": "home-down-hold-8",
+   "keys": [
+    "DPAD_DOWN*8@50"
+   ],
+   "settleMs": 2000,
+   "note": "eight DOWNs in one burst (hold approximation). The rest offset can differ by the JS clamp quirk (hero.json down-burst-4); the focus table must still agree",
+   "focusCheck": true
+  },
+  {
+   "name": "home-row-hold",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_RIGHT*15@50",
+    "wait:1200",
+    "DPAD_LEFT*6@50"
+   ],
+   "settleMs": 1500,
+   "note": "row 1: out 15, back 6 in two bursts: card 9",
+   "focusCheck": true
+  },
+  {
+   "name": "home-row-then-down",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_RIGHT",
+    "DPAD_RIGHT",
+    "DPAD_RIGHT",
+    "DPAD_RIGHT",
+    "wait:700",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN"
+   ],
+   "note": "row 1 to card 4, then two shelves down: focus lands by the platform's own search in both; the page follows",
+   "focusCheck": true
+  },
+  {
+   "name": "home-open-title",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_RIGHT",
+    "wait:700",
+    "DPAD_CENTER"
+   ],
+   "settleMs": 3500,
+   "note": "OK on a poster card of row 1 opens its Detail page",
+   "focusCheck": true
+  },
+  {
+   "name": "home-title-back",
+   "keys": [
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_RIGHT",
+    "wait:700",
+    "DPAD_CENTER",
+    "wait:3500",
+    "BACK"
+   ],
+   "settleMs": 2000,
+   "note": "... and BACK returns to Home: the column still at row 1, focus on the card it was opened from",
+   "focusCheck": true
+  },
+  {
+   "name": "rail-to-shows",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:800",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "wait:400",
+    "DPAD_CENTER"
+   ],
+   "settleMs": 3000,
+   "note": "rail -> Shows: the Shows grid",
+   "focusCheck": true
+  },
+  {
+   "name": "rail-to-settings",
+   "keys": [
+    "DPAD_LEFT",
+    "wait:800",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "DPAD_DOWN",
+    "wait:400",
+    "DPAD_CENTER"
+   ],
+   "settleMs": 3000,
+   "note": "rail -> Settings",
+   "focusCheck": true
+  },
+  {
+   "name": "movies-grid-walk",
+   "nav": "browse:movie",
+   "keys": [
+    "wait:1200",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_RIGHT",
+    "wait:700",
+    "DPAD_RIGHT"
+   ],
+   "note": "Movies grid: two rows down, two right",
+   "focusCheck": true
+  },
+  {
+   "name": "movies-grid-hold",
+   "nav": "browse:movie",
+   "keys": [
+    "wait:1200",
+    "DPAD_DOWN*10@50",
+    "wait:1500",
+    "DPAD_UP*4@50"
+   ],
+   "settleMs": 2000,
+   "note": "Movies grid: ten rows down, four up, in bursts",
+   "focusCheck": true
+  },
+  {
+   "name": "movies-open-title",
+   "nav": "browse:movie",
+   "keys": [
+    "wait:1200",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_RIGHT",
+    "wait:700",
+    "DPAD_CENTER"
+   ],
+   "settleMs": 3500,
+   "note": "OK on a grid card opens Detail",
+   "focusCheck": true
+  },
+  {
+   "name": "movies-title-back",
+   "nav": "browse:movie",
+   "keys": [
+    "wait:1200",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_RIGHT",
+    "wait:700",
+    "DPAD_CENTER",
+    "wait:3500",
+    "BACK"
+   ],
+   "settleMs": 2000,
+   "note": "... and BACK returns to the grid, focus on the same card",
+   "focusCheck": true
+  },
+  {
+   "name": "movies-rail-open",
+   "nav": "browse:movie",
+   "keys": [
+    "wait:1200",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_LEFT"
+   ],
+   "settleMs": 1200,
+   "note": "LEFT at column 0 of the grid opens the rail (Movies lit)",
+   "focusCheck": true
+  },
+  {
+   "name": "movies-rail-home",
+   "nav": "browse:movie",
+   "keys": [
+    "wait:1200",
+    "DPAD_DOWN",
+    "wait:700",
+    "DPAD_LEFT",
+    "wait:800",
+    "DPAD_UP",
+    "wait:400",
+    "DPAD_CENTER"
+   ],
+   "settleMs": 3500,
+   "note": "rail -> Home from Movies: Home at rest",
+   "focusCheck": true
+  }
+ ]
+}

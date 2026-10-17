@@ -152,10 +152,12 @@ router.post("/api/play-mark/:id", (req, res) => {
 });
 
 // The TV player's start-up tuning (lib/tvtuning.js): config.json's
-// "tvPlayer", checked. {} unless the admin set something.
+// "tvPlayer", checked. {} unless the admin set something. Plus `tvRender`
+// (config.json's "tvRender", for this TV's model — ?model=, Build.MODEL)
+// when the admin switched any rendering switch.
 router.get("/api/tv/tuning", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json(require("../lib/tvtuning").current());
+  res.json(require("../lib/tvtuning").current(req.query.model));
 });
 
 // ---------- trailers for the TV (media/trailers.js) ----------

@@ -20,7 +20,13 @@
 //                    film's first seconds, saved on every resume.
 //
 // docs/qa/ttff/REPORT.md (in the repo) has the device measurement plan.
+//
+// The same answer carries the RENDERING switches (`tvRender`, config.json's
+// "tvRender", chosen per TV model by the server — src/lib/tvtuning.js), handed to
+// render.ts, which keeps them for the next launch (docs/qa/native-port/DEVICE-PLAN.md).
 import {api} from '../api';
+import {applyServerRender} from '../render';
+import {deviceInfo} from '../perfTier';
 
 export type Tuning = {
   startBufferMs: number;
@@ -64,9 +70,11 @@ export const refreshTuning = (): void => {
   if (Date.now() - asked < 60000) return;
   asked = Date.now();
   api
-    .tvTuning()
+    .tvTuning(deviceInfo()?.model)
     .then(raw => {
       current = applyTuning(raw);
+      // (an answer without the section switches every rendering switch off again)
+      applyServerRender(raw && typeof raw === 'object' ? (raw as Record<string, unknown>).tvRender : null);
     })
     .catch(() => {
       // an older server (404), or no line: what we have stands

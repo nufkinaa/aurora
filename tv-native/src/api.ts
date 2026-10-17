@@ -1378,7 +1378,11 @@ export const api = {
   // The player's start-up tuning, as this server's admin set it (the
   // server's lib/tvtuning.js). {} — or no answer at all, from a server that
   // predates it — keeps the app's own values. See playback/tuning.ts.
-  tvTuning: () => request<Record<string, unknown>>('/api/tv/tuning'),
+  // `model` (Build.MODEL) lets the admin turn the rendering switches on for one
+  // kind of TV (`tvRender.models`, lib/tvtuning.js); a server that predates it
+  // ignores the query.
+  tvTuning: (model?: string | null) =>
+    request<Record<string, unknown>>(`/api/tv/tuning${model ? `?model=${encodeURIComponent(String(model).slice(0, 40))}` : ''}`),
   // Hide a show's synthesized "up next" card. clearProgress can't (the card's
   // id is the NEXT episode's; the progress row lives under the previous one).
   dismissUpNext: (profileId: string, showId: string, episodeId: string) =>

@@ -16,6 +16,19 @@
 // The LEFT gesture is bound HERE, once, at screen level — not per row. Screens
 // only mark their leftmost focusables with `edgeLeft`; focus.ts turns that into
 // the one fact this handler reads.
+//
+// TWO IMPLEMENTATIONS OF THE DRAWING (render.ts `nativeOn.rail`, off by default;
+// docs/qa/native-lab/). Read once at startup, it picks either today's JS — the
+// two Animated.Views below with their SVG scrim / feather, the gradient bodies
+// and RailHues, untouched but for the QA hooks (inert outside a QA variant) —
+// or the Fabric component AuroraRailPanel mounted in the
+// same two places (src/specs/AuroraRailPanelNativeComponent.ts →
+// AuroraRailPanelView.kt): it draws the scrim, the body, the hues and the
+// feather itself and runs the 280 ms slide and the hue loops on the UI thread,
+// from this component's own `open` / `closing` state. EVERYTHING ELSE IS THIS
+// FILE IN BOTH: the key logic (LEFT-at-edge, RIGHT, the wrap, focusJustMoved),
+// the traps, focus capture / restore, arm-to-switch, and the items — the same
+// `NavItem`s inside the same focus guide, the same mark and dots.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   View,
@@ -36,6 +49,10 @@ import {imgSrc} from '../api';
 import {atLeftEdge, captureFocus, clearRailOpener, focusJustMoved, noteOwnFocusMove, noteRail, pressMovedFocus, setRailOpener, useTVKeys} from '../focus';
 import {goSection, useMe, useNewUnseen, NAV_SECTIONS, NavSection} from '../navSection';
 import {isLite} from '../perfTier';
+import {isMid, runLoop, traceValue} from '../qa';
+import {traceDerived, useTraces} from '../qaExtra';
+import {nativeOn} from '../render';
+import AuroraRailPanel, {SlideEndEvent} from '../specs/AuroraRailPanelNativeComponent';
 import theme from '../theme';
 
 const {colors, focus, motion, nav, radius, spacing} = theme;
@@ -77,6 +94,9 @@ const FOOT_FROM = NAV_SECTIONS.findIndex(s => s.foot);
 
 type NodeRef = {requestTVFocus?: () => void} | null;
 
+// nativeOn.rail: one link per mounted rail, shared by its strip and its panel.
+let railLinks = 0;
+
 // The rail's hue, moving (elia, 2026-10-07: "make them move a bit and be
 // dynamic"). Two soft glows — the violet high on the left, the green low —
 // each one baked disc tinted and drifted by transforms on the native driver:
@@ -96,13 +116,12 @@ function RailHues() {
           Animated.timing(v, {toValue: 0, duration: ms, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false}),
         ]),
       );
-    const la = run(a, 8000);
-    const lb = run(b, 10500);
-    la.start();
-    lb.start();
+    // (`freeze on` from the QA receiver holds both at phase 0.37 — qa.ts)
+    const sa = runLoop(a, run(a, 8000));
+    const sb = runLoop(b, run(b, 10500));
     return () => {
-      la.stop();
-      lb.stop();
+      sa();
+      sb();
     };
   }, [a, b]);
   return (
@@ -170,6 +189,13 @@ export default function NavRail({
   const [closing, setClosing] = useState(false);
   const closingRef = useRef(false);
   const slide = useRef(new Animated.Value(0)).current;
+  // QA traces (tools/tv-bench/tv-pixel-diff/PROTOCOL.md §4): `[anim] … rail.slide / rail.strip`
+  // while the receiver has tracing on. With nativeOn.rail the native strip writes them.
+  useTraces(
+    () => (nativeOn.rail ? [] : [traceValue('rail.slide', slide), traceDerived('rail.strip', slide, v => 1 - v)]),
+    [slide],
+  );
+  const link = useRef(`rail-${++railLinks}`).current;
   // Who had focus before the rail took it, so closing can give it straight back.
   const restore = useRef<(() => void) | null>(null);
   // The panel's focusables, for the wrap at either end.
@@ -199,6 +225,8 @@ export default function NavRail({
     // Focus goes home FIRST: the page owns the remote for the whole exit.
     restore.current?.();
     restore.current = null;
+    // (nativeOn.rail: the native strip runs the slide out from `closing`, then onSlideEnd)
+    if (nativeOn.rail) return;
     Animated.timing(slide, {
       toValue: 0,
       duration: motion.med,
@@ -211,6 +239,14 @@ export default function NavRail({
       setOpen(false);
     });
   }, [slide, disarmSwitch]);
+
+  // nativeOn.rail: what the timing's callback above does, when the native slide has run out.
+  const onSlideEnd = useCallback((e: {nativeEvent: SlideEndEvent}) => {
+    if (e.nativeEvent.open || !closingRef.current) return;
+    closingRef.current = false;
+    setClosing(false);
+    setOpen(false);
+  }, []);
 
   // The no-animation exits (navigating away, losing the screen): the panel
   // must not linger over a screen that is changing under it.
@@ -232,7 +268,14 @@ export default function NavRail({
 
   useEffect(() => {
     if (!open || closing) return;
+    // (nativeOn.rail: the native strip runs the slide in from `open`)
+    if (nativeOn.rail) return;
     // Slides in over --t-med; close() runs the mirror image out.
+    // (QA `freeze on,mid`: the slide in stops half way, to be captured still)
+    if (isMid()) {
+      Animated.timing(slide, {toValue: 0.5, duration: motion.med, easing: EASE, useNativeDriver: true, isInteraction: false}).start();
+      return;
+    }
     Animated.timing(slide, {
       toValue: 1,
       duration: motion.med,
@@ -353,6 +396,105 @@ export default function NavRail({
     else goSection(navigation as never, active, key);
   };
 
+  // The strip's mark and dots, and the panel's focus guide with the items: the
+  // same elements in both implementations; only the views that hold them differ.
+  const marks = (
+    <>
+      <Image source={LOGO} style={styles.mark} />
+      <View style={styles.dots}>
+        {NAV_SECTIONS.map(s => (
+          <View key={s.key} style={[styles.dot, s.key === active && styles.dotOn]} />
+        ))}
+      </View>
+    </>
+  );
+  // autoFocus alone is NOT enough — a focus guide only redirects focus
+  // that is already entering it, it does not claim focus on mount. The
+  // claim below lands on the active section, which is both the site's
+  // "you are here" and the most useful place to start.
+  const guide = (
+    <TVFocusGuideView
+      autoFocus
+      trapFocusLeft
+      trapFocusRight
+      trapFocusUp
+      trapFocusDown
+      style={styles.panelInner}>
+      {/* `.nav-logo` — not focusable (index.html:52). */}
+      <View style={styles.logo}>
+        <Image source={LOGO_OPEN} style={[styles.mark, styles.markOpen]} />
+        <Text style={styles.wordmark}>Aurora</Text>
+      </View>
+      {ITEMS.map((it, i) => {
+        const row = (
+          <NavItem
+            key={it.key}
+            uiId={NAV_UI[it.key]}
+            label={it.label}
+            icon={it.icon}
+            iconSize={it.iconSize}
+            withLabel={it.withLabel}
+            dot={it.key === 'new' && newUnseen}
+            // ...and not focusable while the panel is shut either: at a cold
+            // start Android's first focus search ran before Home's hero had
+            // mounted, found these rows (off-screen but focusable), and the
+            // rail came up open on its own (lab build, 2026-10-09 - a race
+            // the real app can lose too). LEFT-at-edge and the hero's UP open
+            // the panel by state, then `claimFocus` lands on a row.
+            focusDisabled={closing || !open}
+            profile={it.key === 'profile' ? me?.avatar || '🍿' : undefined}
+            profileImage={it.key === 'profile' ? me?.avatarImage || null : undefined}
+            profileColor={it.key === 'profile' ? me?.color : undefined}
+            name={
+              it.key === 'profile'
+                ? confirmSwitch
+                  ? 'Press again'
+                  : me?.name || 'Profile'
+                : undefined
+            }
+            on={it.key === active}
+            claimFocus={it.key === active}
+            ref={(n: NodeRef) => {
+              items.current[i] = n;
+            }}
+            onFocused={f => {
+              if (!f) return;
+              at.current = i;
+              // Focus moved to ANOTHER item: an armed switch disarms.
+              if (it.key !== 'profile' && confirmTimer.current) disarmSwitch();
+            }}
+            onPress={() => go(it.key)}
+          />
+        );
+        // `.nav-spacer { flex: 1 }` — on a rail it pushes the gear and the
+        // profile pill to the bottom.
+        return i === FOOT_FROM ? (
+          <React.Fragment key={`${it.key}-foot`}>
+            <View style={styles.spacer} />
+            {row}
+          </React.Fragment>
+        ) : (
+          row
+        );
+      })}
+    </TVFocusGuideView>
+  );
+
+  if (nativeOn.rail) {
+    return (
+      <>
+        <AuroraRailPanel part="strip" link={link} open={open} closing={closing} onSlideEnd={onSlideEnd} pointerEvents="none" style={[styles.strip]}>
+          {marks}
+        </AuroraRailPanel>
+        {open ? (
+          <AuroraRailPanel part="panel" link={link} lite={isLite()} style={styles.panel}>
+            {guide}
+          </AuroraRailPanel>
+        ) : null}
+      </>
+    );
+  }
+
   return (
     <>
       {/* Collapsed: passive artwork, no focus targets, fading out as the panel
@@ -361,12 +503,7 @@ export default function NavRail({
         pointerEvents="none"
         style={[styles.strip, {opacity: slide.interpolate({inputRange: [0, 1], outputRange: [1, 0]})}]}>
         <Scrim width={nav.rail} />
-        <Image source={LOGO} style={styles.mark} />
-        <View style={styles.dots}>
-          {NAV_SECTIONS.map(s => (
-            <View key={s.key} style={[styles.dot, s.key === active && styles.dotOn]} />
-          ))}
-        </View>
+        {marks}
       </Animated.View>
 
       {open ? (
@@ -393,75 +530,7 @@ export default function NavRail({
             </Defs>
             <Rect x="0" y="0" width={FEATHER} height="100%" fill="url(#railFeather)" />
           </Svg>
-          {/* autoFocus alone is NOT enough — a focus guide only redirects focus
-              that is already entering it, it does not claim focus on mount. The
-              claim below lands on the active section, which is both the site's
-              "you are here" and the most useful place to start. */}
-          <TVFocusGuideView
-            autoFocus
-            trapFocusLeft
-            trapFocusRight
-            trapFocusUp
-            trapFocusDown
-            style={styles.panelInner}>
-            {/* `.nav-logo` — not focusable (index.html:52). */}
-            <View style={styles.logo}>
-              <Image source={LOGO_OPEN} style={[styles.mark, styles.markOpen]} />
-              <Text style={styles.wordmark}>Aurora</Text>
-            </View>
-            {ITEMS.map((it, i) => {
-              const row = (
-                <NavItem
-                  key={it.key}
-                  uiId={NAV_UI[it.key]}
-                  label={it.label}
-                  icon={it.icon}
-                  iconSize={it.iconSize}
-                  withLabel={it.withLabel}
-                  dot={it.key === 'new' && newUnseen}
-                  // ...and not focusable while the panel is shut either: at a cold
-                  // start Android's first focus search ran before Home's hero had
-                  // mounted, found these rows (off-screen but focusable), and the
-                  // rail came up open on its own (seen on the Mi TV, 2026-10-09).
-                  // LEFT-at-edge and the hero's UP open the panel by state, then
-                  // `claimFocus` lands on a row.
-                  focusDisabled={closing || !open}
-                  profile={it.key === 'profile' ? me?.avatar || '🍿' : undefined}
-                  profileImage={it.key === 'profile' ? me?.avatarImage || null : undefined}
-                  profileColor={it.key === 'profile' ? me?.color : undefined}
-                  name={
-                    it.key === 'profile'
-                      ? confirmSwitch
-                        ? 'Press again'
-                        : me?.name || 'Profile'
-                      : undefined
-                  }
-                  on={it.key === active}
-                  claimFocus={it.key === active}
-                  ref={(n: NodeRef) => {
-                    items.current[i] = n;
-                  }}
-                  onFocused={f => {
-                    if (!f) return;
-                    at.current = i;
-                    // Focus moved to ANOTHER item: an armed switch disarms.
-                    if (it.key !== 'profile' && confirmTimer.current) disarmSwitch();
-                  }}
-                  onPress={() => go(it.key)}
-                />
-              );
-              // `.nav-spacer { flex: 1 }` — on a rail it pushes the gear and the
-              // profile pill to the bottom.
-              return i === FOOT_FROM ? (
-                <React.Fragment key={`${it.key}-foot`}>
-                  <View style={styles.spacer} />
-                  {row}
-                </React.Fragment>
-              ) : (
-                row
-              );
-            })}
-          </TVFocusGuideView>
+          {guide}
         </Animated.View>
       ) : null}
     </>

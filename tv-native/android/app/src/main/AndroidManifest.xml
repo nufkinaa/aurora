@@ -84,6 +84,22 @@
            as a content:// URI — a file:// path is refused since Android 7. -->
       <!-- Hears the result of a quiet update (UpdateResultReceiver.kt). -->
       <receiver android:name=".UpdateResultReceiver" android:exported="false" />
+      <!-- The device harness's door (ui/qa/QaReceiver.kt, tools/tv-bench/tv-pixel-diff/PROTOCOL.md).
+           DISABLED in every normal build: `enabled` is the build's -PqaReceiver (false unless a QA
+           variant was asked for), and a disabled receiver is never delivered to. In a QA variant
+           it is exported so an explicit `am broadcast -n` reaches it with the process cold, and
+           still acts only when adb is on AND the intent carries the build's token. -->
+      <receiver
+        android:name=".ui.qa.QaReceiver"
+        android:enabled="${qaReceiver}"
+        android:exported="${qaReceiver}">
+        <intent-filter>
+          <action android:name="com.auroratv.QA" />
+        </intent-filter>
+      </receiver>
+      <!-- A QA variant only (-PqaReceiver=true): simpleperf / the RenderThread bench may attach
+           from the adb shell (docs/qa/native-port/DEVICE-PLAN.md). False in a normal build. -->
+      <profileable android:shell="${qaReceiver}" />
       <!-- Opens Aurora again after a "Restart now" update (RelaunchReceiver.kt). -->
       <receiver android:name=".RelaunchReceiver" android:exported="false">
         <intent-filter>
