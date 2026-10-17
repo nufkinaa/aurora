@@ -1,6 +1,6 @@
 // The TV taste picker's bookkeeping (src/tasteSession.ts): the queue, the
 // answers, Undo, the round — the same rules as the website's taste.js.
-import {KEEP, TasteCard, TasteSession, verdictForKey} from '../../src/tasteSession';
+import {KEEP, leavingAfter, TasteCard, TasteSession, verdictForKey} from '../../src/tasteSession';
 
 const card = (n: number): TasteCard => ({imdbId: `tt${String(n).padStart(7, '0')}`, type: n % 3 ? 'movie' : 'show', title: `Title ${n}`});
 const cards = (from: number, count: number) => Array.from({length: count}, (_, i) => card(from + i));
@@ -97,5 +97,21 @@ describe('TasteSession', () => {
     expect(s.roundOver).toBe(false); // one still on show
     s.answer('skip');
     expect(s.roundOver).toBe(true);
+  });
+});
+
+describe('the flying card', () => {
+  // Mi TV 2026-10-18: the answer that ends a round unmounted the band mid-flight,
+  // the animation ended with finished=false, and the card stayed set — Keep going
+  // drew it frozen half way over the next card.
+  test('a flight that ends, finished or cut short, takes its own card away', () => {
+    expect(leavingAfter({n: 24}, 24)).toBeNull();
+  });
+  test('the end of an older flight leaves a newer card flying', () => {
+    const newer = {n: 25};
+    expect(leavingAfter(newer, 24)).toBe(newer);
+  });
+  test('nothing flying stays nothing', () => {
+    expect(leavingAfter(null, 3)).toBeNull();
   });
 });

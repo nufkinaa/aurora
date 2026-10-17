@@ -34,7 +34,7 @@ import {artForget, artIdle} from '../artPrefetch';
 import {isLite} from '../perfTier';
 import {showToast} from '../toast';
 import {uiHit} from '../telemetry'; // [analytics]
-import {KEEP, TasteCard, TasteSession, Verdict, verdictForKey} from '../tasteSession';
+import {KEEP, leavingAfter, TasteCard, TasteSession, Verdict, verdictForKey} from '../tasteSession';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 
@@ -100,19 +100,27 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
 
   // ---------- motion ----------
   const out = useRef(new Animated.Value(0)).current; // the leaving card: 0 → 1
+  const flights = useRef(0); // numbers each flight (Leaving.n)
   const pop = useRef(new Animated.Value(1)).current; // the arriving card: 0 → 1
   const fly = useCallback(
     (verdict: Verdict, card: TasteCard) => {
       out.stopAnimation();
       out.setValue(0);
-      setLeaving({card, verdict, n: Date.now()});
+      const n = ++flights.current;
+      setLeaving({card, verdict, n});
       Animated.timing(out, {
         toValue: 1,
         duration: calm.current ? 140 : 280,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
-      }).start(({finished}) => {
-        if (finished) setLeaving(null);
+      }).start(() => {
+        // Finished OR cut short: this flight's card goes either way. The answer
+        // that ends a round swaps the band for the round's end before the
+        // flight is over, the native animation stops with finished=false, and
+        // the card used to stay set — "Keep going" then drew it frozen half
+        // way over the next card (Mi TV, 2026-10-18). A newer flight has its
+        // own n and is left alone (leavingAfter, tasteSession.ts).
+        setLeaving(l => leavingAfter(l, n));
       });
       pop.stopAnimation();
       pop.setValue(0);
@@ -171,6 +179,7 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
   }, [session, pop, repaint, profileId]);
 
   const keepGoing = useCallback(() => {
+    setLeaving(null); // nothing of the last round is still on its way out
     session.keepGoing();
     repaint();
     if (session.queue.length < 2) {
