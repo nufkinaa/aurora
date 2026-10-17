@@ -212,6 +212,7 @@ ui.test("the admin page at 390 px: nothing runs off the side on any tab, with th
   }
   // the copies card itself: every row inside the card
   await page.click('.tab[data-tab="downloads"]');
+  await page.waitForSelector("#cp-groups .cp-group > summary", { state: "visible" });
   const card = await page.locator("#cp-card").boundingBox();
   const boxes = await page.locator("#cp-groups .cp-row, #cp-groups summary").evaluateAll((els) => els.filter((e) => e.offsetParent).map((e) => { const b = e.getBoundingClientRect(); return [b.left, b.right]; }));
   assert.ok(boxes.length > 0);
