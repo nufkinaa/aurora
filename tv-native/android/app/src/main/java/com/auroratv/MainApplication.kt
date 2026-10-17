@@ -2,6 +2,9 @@ package com.auroratv
 
 import android.app.Application
 import android.content.ComponentCallbacks2
+import com.auroratv.ui.AuroraRender
+import com.auroratv.ui.AuroraUiPackage
+import com.auroratv.ui.qa.AuroraQa
 import com.facebook.common.logging.FLog
 import com.facebook.common.memory.MemoryTrimType
 import com.facebook.common.memory.MemoryTrimmable
@@ -79,12 +82,21 @@ class MainApplication : Application(), ReactApplication {
           add(UpdaterPackage())
           add(DevicePackage())
           add(TrailersPackage())
+          // The native rendering layer (docs/qa/native-lab/): Fabric components and render
+          // fixes behind the AuroraRender switches — all off unless switched on — plus the QA
+          // module of the device harness (inert outside a -PqaReceiver build).
+          add(AuroraUiPackage())
         },
     )
   }
 
   override fun onCreate() {
     super.onCreate()
+    // Before any view exists, so the first frame already honours them: the rendering switches
+    // (read once per process — a change applies at the next launch) and, in a QA build only,
+    // the harness's freeze / trace flags.
+    AuroraRender.ensureLoaded(this)
+    AuroraQa.load(this)
     loadReactNative(this)
   }
 

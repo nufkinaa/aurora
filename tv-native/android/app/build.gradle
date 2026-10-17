@@ -171,6 +171,21 @@ android {
         // QA builds: Fresco's RequestLoggingListener + verbose FLog (MainApplication.kt), for
         // `adb logcat -s RequestLoggingListener`. On in debug, or `assembleRelease -PfrescoLog`.
         buildConfigField "boolean", "FRESCO_LOGGING", project.hasProperty('frescoLog') ? 'true' : 'false'
+        // The rendering switches' build default (ui/AuroraRender.kt): which native components and
+        // render fixes a box runs with before the server or the developer setting has said
+        // anything. EMPTY — every one off, the JS reference picture. `-PrenderDefaults=recommended`
+        // or `-PrenderDefaults=card,row,cull` for a test build only.
+        def renderDefaults = String.valueOf(project.findProperty('renderDefaults') ?: '').replaceAll('[^a-z0-9,=]', '')
+        buildConfigField "String", "RENDER_DEFAULTS", "\"${renderDefaults}\""
+        // The device harness's door (ui/qa/QaReceiver.kt, tools/tv-bench/): NOT in a normal
+        // build. `-PqaReceiver=true` (a QA variant for the device pass) enables the receiver in
+        // the manifest, lets it act, and makes the app profileable from the adb shell;
+        // `-PqaToken=<word>` is a token it accepts besides the one derived from the signing key.
+        def qaReceiver = project.hasProperty('qaReceiver') && String.valueOf(project.property('qaReceiver')) != 'false'
+        def qaToken = qaReceiver ? String.valueOf(project.findProperty('qaToken') ?: '').replaceAll('[^A-Za-z0-9_-]', '') : ''
+        buildConfigField "boolean", "QA_RECEIVER", qaReceiver ? 'true' : 'false'
+        buildConfigField "String", "QA_TOKEN", "\"${qaToken}\""
+        manifestPlaceholders += [qaReceiver: qaReceiver ? 'true' : 'false']
     }
     buildFeatures {
         buildConfig true
@@ -229,6 +244,12 @@ dependencies {
     // Licence: GPL-3.0-or-later (the APK that carries it is a combined work under the GPL).
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
+    // JVM tests of the native rendering layer's arithmetic (ui/anim, ui/row, ui/home, ui/rail,
+    // ui/pool, ui/card, AuroraRender) against fixtures generated from React Native's own JS:
+    // `./gradlew.bat :app:testReleaseUnitTest`.
+    testImplementation("junit:junit:4.13.2")
+    // the real org.json for the fixture files (the android.jar on the unit-test classpath is a stub)
+    testImplementation("org.json:json:20240303")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
