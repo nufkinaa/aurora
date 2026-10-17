@@ -1,0 +1,42 @@
+{
+  "component": "browse",
+  "impl": "G",
+  "notes": [
+    "P6: the Browse grid (10e-spec). 6 columns @960 (cols = max(3, floor((width - 84 - 44 - 8 + 13) / 137))), GRID_GAP 13, poster cards.",
+    "nav browse:movie opens Movies/All with the first page; focus lands in the grid (row 0 col 0) once it has loaded.",
+    "'focus-r2c3' = row 2, column 3 (0-based): DOWN x2, RIGHT x3. The grid scrolls its FlatList so row 2 sits at the focus line.",
+    "The header count string depends on the fixture ('16 downloaded · N to stream'); it is deterministic on the private instance.",
+    "The skeleton state needs the instance started with --art-delay (the catalogue page itself is local, so skeletons only show for the art): kept out; blur-up is covered in card.json."
+  ],
+  "defaults": {
+    "launch": {"data": null, "extras": {}},
+    "nav": "browse:movie",
+    "freeze": {"freeze": "on", "trace": false, "focuslog": true},
+    "idle": {"quietMs": 600, "gfxStableMs": 500, "pollMs": 100, "timeoutMs": 12000},
+    "settleMs": 900,
+    "keyGapMs": 150,
+    "tolerance": {"threshold": 0.1, "maxDiffFraction": 0.0005, "edgeDilate": 1},
+    "masks": [],
+    "dither": [],
+    "crop": null,
+    "trace": [],
+    "server": {}
+  },
+  "states": [
+    {"name": "first-page", "keys": ["wait:800"],
+     "note": "Movies / All, first page; header (h1, count, active), grid rows 0-2 visible, card 0 lit, the edge strip at the right"},
+    {"name": "focus-r2c3", "keys": ["wait:800", "DPAD_DOWN", "DPAD_DOWN", "DPAD_RIGHT", "DPAD_RIGHT", "wait:800", "DPAD_RIGHT"],
+     "trace": ["focus.ring", "focus.spring"],
+     "note": "row 2 col 3 lit; the list scrolled two rows; the ring is on one card only"},
+    {"name": "panel-open", "keys": ["wait:800", "DPAD_RIGHT"],
+     "note": "RIGHT at the grid's right edge opens the filter panel (300 dp, 280 ms); 'All' chip on + lit (same frame as focusable chip-on-lit, listed here for the grid's own edge strip and dimming)"},
+    {"name": "grid-down-12", "keys": ["wait:800", "DPAD_DOWN*12@900"], "settleMs": 2000,
+     "note": "(grid pool) row 12 col 0 lit after six window moves; the lit card's shadow over the row above and under the row below = the paint order across a row-slot boundary. One press every 900 ms: at 300 ms the FlatList loses every third press (its next row is not mounted yet) and the two rest on different rows"},
+    {"name": "grid-down-up", "keys": ["wait:800", "DPAD_DOWN*12@900", "wait:1200", "DPAD_UP*12@900"], "settleMs": 2000,
+     "note": "(grid pool) down 12 rows and back to the top: must equal first-page"},
+    {"name": "grid-down-right", "keys": ["wait:800", "DPAD_DOWN*7@900", "DPAD_RIGHT*5@300"], "settleMs": 1500,
+     "note": "(grid pool) row 7 last column lit: the right-edge card of a rebound row (the edge strip beside it)"},
+    {"name": "grid-rail-return", "keys": ["wait:800", "DPAD_DOWN*5@900", "wait:800", "DPAD_LEFT", "wait:1200", "DPAD_RIGHT"], "settleMs": 1500,
+     "note": "(grid pool) LEFT on column 0 of row 5 opens the rail, RIGHT returns onto the same card"}
+  ]
+}
