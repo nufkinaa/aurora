@@ -26,6 +26,7 @@ const WHAT: Record<RenderKey | 'recommended', string> = {
   unstuff: 'Holds one vsync back when the pipeline runs a frame behind.',
   unstuffq: 'The same for one queued buffer (latency over a repeated frame).',
   pool: 'Shelf cards are handed on instead of unmounted.',
+  keyrate: 'A held arrow key moves focus at a steady 15 a second, once per frame at most, and stops the moment it is let go.',
 };
 
 const label = (say: RenderSay, k: RenderKey | 'recommended') => {

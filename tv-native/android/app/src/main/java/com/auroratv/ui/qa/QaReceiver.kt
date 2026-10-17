@@ -64,6 +64,7 @@ class QaReceiver : BroadcastReceiver() {
         "framestats" -> cmdFrameStats(rid)
         "layout" -> cmdLayout(app, arg, rid)
         "nav" -> cmdNav(app, arg, rid)
+        "keyrate" -> cmdKeyRate(app, arg, rid)
         "ping" -> {
           // what the NEXT launch runs with (the harness force-stops and relaunches after a change)
           val (set, src) = AuroraRender.next(app)
@@ -120,6 +121,26 @@ class QaReceiver : BroadcastReceiver() {
     }
     AuroraRender.writeQa(app, set)
     ok("render", rid, AuroraRender.encode(set).ifEmpty { "-" })
+  }
+
+  /**
+   * `keyrate 66` / `keyrate clear` — the held-key interval of the `keyrate` switch
+   * (KeyRepeatGate.kt), for tuning it on the device. Next launch; the switch itself is set
+   * with `exp keyrate=1`.
+   */
+  private fun cmdKeyRate(app: Context, arg: String, rid: String?) {
+    if (arg == "clear") {
+      AuroraRender.writeKeyRateMs(app, null)
+      ok("keyrate", rid, "ms=${com.auroratv.ui.input.KeyRepeatGate.INTERVAL_MS} (built in)")
+      return
+    }
+    val ms = arg.toLongOrNull()
+    if (ms == null || ms < com.auroratv.ui.input.KeyRepeatGate.MIN_INTERVAL_MS || ms > com.auroratv.ui.input.KeyRepeatGate.MAX_INTERVAL_MS) {
+      err("keyrate", rid, "arg must be clear or ${com.auroratv.ui.input.KeyRepeatGate.MIN_INTERVAL_MS}..${com.auroratv.ui.input.KeyRepeatGate.MAX_INTERVAL_MS} (ms)")
+      return
+    }
+    AuroraRender.writeKeyRateMs(app, ms)
+    ok("keyrate", rid, "ms=$ms")
   }
 
   private fun cmdFreeze(app: Context, arg: String, rid: String?) {

@@ -21,6 +21,12 @@
 //               pool       a shelf hands the card views of cards that left its window to
 //                          the cards that came in, instead of unmounting and mounting
 //                          (needs row and card)
+//   deeper      keyrate    a held D-pad key moves focus at a steady rate, at most once per
+//   (native-deep)          frame, and never after the key is let go (MainActivity.kt,
+//                          KeyRepeatGate.kt; works with every implementation)
+//
+// The "deeper" switches (docs/qa/native-deep/DEVICE-PLAN.md) were built offline after the
+// lab and are NOT in the preset: none of them has run on a TV yet.
 //
 // Two places can say what a box runs with: the server (GET /api/tv/tuning → `tvRender`,
 // from config.json — see src/lib/tvtuning.js) and the hidden developer setting
@@ -31,7 +37,7 @@
 // change applies at the next launch.
 
 export const COMPONENTS = ['focusable', 'card', 'row', 'hero', 'rail'] as const;
-export const FIXES = ['cardlayer', 'cull', 'shadowcache', 'unstuff', 'unstuffq', 'pool'] as const;
+export const FIXES = ['cardlayer', 'cull', 'shadowcache', 'unstuff', 'unstuffq', 'pool', 'keyrate'] as const;
 export type RenderComponent = (typeof COMPONENTS)[number];
 export type RenderFix = (typeof FIXES)[number];
 export type RenderKey = RenderComponent | RenderFix;

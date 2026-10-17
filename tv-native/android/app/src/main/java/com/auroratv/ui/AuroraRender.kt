@@ -16,6 +16,7 @@ import com.facebook.react.bridge.UiThreadUtil
  *
  *   components  focusable, card, row, hero (billboard art + the sliding column), rail
  *   fixes       cardlayer, cull, shadowcache, unstuff, unstuffq, pool
+ *   deeper      keyrate (docs/qa/native-deep/DEVICE-PLAN.md; not in the preset)
  *
  * Read ONCE per process (a component swapped while mounted would move focus; the fixes are
  * plain fields read on hot paths), so a change takes effect on the NEXT launch, never live.
@@ -41,7 +42,7 @@ object AuroraRender {
   private val LETTERS = mapOf("focusable" to "F", "card" to "C", "row" to "R", "hero" to "H", "rail" to "N")
 
   /** The render fixes (the lab's `exp` switch). */
-  val FIXES = listOf("cardlayer", "cull", "shadowcache", "unstuff", "unstuffq", "pool")
+  val FIXES = listOf("cardlayer", "cull", "shadowcache", "unstuff", "unstuffq", "pool", "keyrate")
 
   val KEYS: List<String> = COMPONENTS + FIXES
 
@@ -193,6 +194,20 @@ object AuroraRender {
 
   internal const val KEY_SERVER = SERVER
   internal const val KEY_LOCAL = LOCAL
+
+  // ---- `keyrate`'s interval, QA builds only (QaReceiver `keyrate <ms>|clear`) ----------------
+  private const val KEYRATE_MS = "keyrate_ms"
+
+  /** The held-key interval a QA override asked for (ms), or null for the built-in one. Read at launch. */
+  fun keyRateMs(ctx: Context): Long? =
+    if (!BuildConfig.QA_RECEIVER) null
+    else prefs(ctx).getLong(KEYRATE_MS, -1L).takeIf { it > 0L }
+
+  fun writeKeyRateMs(ctx: Context, ms: Long?) {
+    val ed = prefs(ctx).edit()
+    if (ms == null) ed.remove(KEYRATE_MS) else ed.putLong(KEYRATE_MS, ms)
+    ed.commit()
+  }
 }
 
 /**

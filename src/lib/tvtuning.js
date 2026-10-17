@@ -36,7 +36,8 @@
 //   }
 //
 // The switches: focusable, card, row, hero, rail (native components);
-// cardlayer, cull, shadowcache, unstuff, unstuffq, pool (render fixes).
+// cardlayer, cull, shadowcache, unstuff, unstuffq, pool (render fixes);
+// keyrate (the deeper options, docs/qa/native-deep/DEVICE-PLAN.md — not in the preset).
 // "recommended" = the five components + cardlayer, cull, shadowcache, unstuff,
 // pool. Unknown keys and non-boolean values are dropped; no "tvRender", or one
 // that names nothing, adds nothing to the answer.
@@ -66,6 +67,7 @@ const RENDER_KEYS = [
   "recommended",
   "focusable", "card", "row", "hero", "rail",
   "cardlayer", "cull", "shadowcache", "unstuff", "unstuffq", "pool",
+  "keyrate",
 ];
 
 const switchesOf = (raw) => {
