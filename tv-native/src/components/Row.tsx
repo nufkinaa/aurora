@@ -54,6 +54,8 @@ import {artIdle, limits} from '../artPrefetch';
 import {isLowRam} from '../perfTier';
 import {fixOn, nativeOn} from '../render';
 import {assignSlots, outside} from '../shelfPool';
+import {pinFocused, Pin} from '../shelfPin';
+import {isFocusLogging} from '../qa';
 import AuroraRow from '../specs/AuroraRowNativeComponent';
 import theme from '../theme';
 
@@ -80,6 +82,15 @@ const POOL = NATIVE_ROW && nativeOn.card && fixOn.pool;
 const Track = (NATIVE_ROW ? AuroraRow : Animated.View) as React.ComponentType<Record<string, unknown>>;
 // What identifies a card on the shelf (the keyed shelf's React key).
 const keyOf = (item: HeroItem, index: number) => item.id || item.imdbId || `${item.title}-${index}`;
+// The same identity without the index, for shelfPin.ts (a title that moved
+// must still be found).
+const pinKey = (item: HeroItem) => item.id || item.imdbId || item.title;
+// After a removal: past the sheet's close and its hand-back of focus, inside
+// focus.ts's 120 ms rescue (which then finds focus taken and does nothing).
+const REFOCUS_MS = 60;
+// The shelf that last had a card focused (Row is Home's alone): the one whose
+// focused title is held in place when its items are re-read (shelfPin.ts).
+let pinShelf: object | null = null;
 
 // A shelf's geometry, for rowWindow.ts. A wide shelf is Continue Watching,
 // which draws the frame card.
@@ -185,11 +196,73 @@ function Row({
   useEffect(() => {
     shown.current = {from, to};
   }, [from, to]);
+  const lastIdx = useRef(back ? backF : 0);
+  // RE-READ UNDER FOCUS (shelfPin.ts): the title focus was on stays at the
+  // index focus was on, so the window, the slide and the pool — all derived
+  // from that index — still hold it, and the card is not unmounted under the
+  // focus Android gives back on BACK. Only on the shelf that last held focus.
+  const me = useRef({}).current;
+  const focusKey = useRef<string | null>(null);
+  const focusItem = useRef<HeroItem | undefined>(undefined);
+  const pinned = useMemo(() => {
+    const pin: Pin<HeroItem> | null = pinShelf === me && focusKey.current != null ? {key: focusKey.current, index: lastIdx.current, item: focusItem.current} : null;
+    return {list: pinFocused(items || [], pinKey, pin), pin};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
+  const list = pinned.list;
+  useEffect(() => {
+    const p = pinned.pin;
+    if (!p) return;
+    const server = (items || []).findIndex(it => pinKey(it) === p.key);
+    // (adb logcat -s ReactNativeJS | grep "\[row\] reread") kept=held: the re-read no longer
+    // had the title, it is held where focus is (shelfPin.ts)
+    console.log(`[row] reread row=${rowIndex ?? 0} card=${p.key} at=${p.index} server=${server} kept=${server >= 0 ? 'yes' : 'held'}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinned]);
+  useEffect(
+    () => () => {
+      if (pinShelf === me) pinShelf = null;
+    },
+    [me],
+  );
+  // Remove from Continue Watching (the peek sheet's button): the title is
+  // meant to go, so it is no longer held in place (shelfPin.ts) by the re-read
+  // that follows — and focus goes to the card that takes its place. The device
+  // pass (Mi TV, 2026-10-18) found it nowhere useful: the removed card unmounted
+  // under the sheet's hand-back, and Android sent focus to the billboard (JS
+  // row) or to a card past the right edge that the native track never slid to.
+  const cardEls = useRef(new Map<number, {requestTVFocus?: () => void}>()).current;
+  // One ref function per index, made once: `ref` is a prop to the memoised
+  // Card, and a new function each render would re-render every card.
+  const refFns = useRef(new Map<number, (el: View | null) => void>()).current;
+  const refFor = (index: number) => {
+    let fn = refFns.get(index);
+    if (!fn) {
+      fn = (el: View | null) => {
+        if (index === backF) backCard.current = el;
+        if (el) cardEls.set(index, el as unknown as {requestTVFocus?: () => void});
+        else cardEls.delete(index);
+      };
+      refFns.set(index, fn);
+    }
+    return fn;
+  };
+  const refocusAt = useRef<number | null>(null);
+  const removeCard = useCallback(
+    (item: HeroItem) => {
+      if (focusKey.current === pinKey(item)) {
+        focusKey.current = null;
+        focusItem.current = undefined;
+        refocusAt.current = lastIdx.current;
+      }
+      onRemove?.(item);
+    },
+    [onRemove],
+  );
   // Read through a ref: `items` in focusCard's deps would hand every card a
   // new onFocus (and a re-render) each time Home's data is replaced.
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
-  const lastIdx = useRef(back ? backF : 0);
+  const itemsRef = useRef(list);
+  itemsRef.current = list;
   const dirRef = useRef<Dir>(back ? back.dir : 1);
   // the run of presses this one belongs to (rowWindow.ts runMargins)
   const runRef = useRef<Run | null>(null);
@@ -210,6 +283,10 @@ function Row({
   const focusCard = useCallback(
     (item: HeroItem, index: number) => {
       onItemFocus?.(item, rowIndex ?? 0);
+      pinShelf = me;
+      focusKey.current = pinKey(item);
+      focusItem.current = item;
+      if (isFocusLogging()) console.log(`[row] focus row=${rowIndex ?? 0} idx=${index} card=${pinKey(item)}`);
       if (aimed.current) {
         aimed.current = false;
         guide.current?.setDestinations?.([]);
@@ -270,15 +347,30 @@ function Row({
         return aheadOf(w, dir, count, limits().row).map(i => prefetchable(list[i], {wide, frame: wide}));
       });
     },
-    [onItemFocus, rowIndex, geom, tx, wide, store, storeKey],
+    [onItemFocus, rowIndex, geom, tx, wide, store, storeKey, me],
   );
 
-  const window = useMemo(() => items.slice(from, to), [items, from, to]);
+  const window = useMemo(() => list.slice(from, to), [list, from, to]);
+  // (removeCard) after the removal's commit, and after the sheet's own
+  // hand-back of focus to the card that is gone: the card now at that index
+  useEffect(() => {
+    const i = refocusAt.current;
+    if (i == null) return;
+    refocusAt.current = null;
+    const at = Math.min(i, list.length - 1);
+    if (at < 0) return;
+    const t = setTimeout(() => {
+      const el = cardEls.get(at);
+      if (!el?.requestTVFocus) return;
+      el.requestTVFocus();
+      console.log(`[row] removed: focus to idx=${at} row=${rowIndex ?? 0}`);
+    }, REFOCUS_MS);
+    return () => clearTimeout(t);
+  }, [list, cardEls, rowIndex]);
   // (`pool`) the slots: which title each one shows, and where on the shelf.
   const slotKeys = useRef<(string | null)[]>([]);
   const slotted = useMemo(() => {
     if (!POOL) return null;
-    const list = items || [];
     const at = new Map<string, number>();
     list.forEach((it, i) => at.set(keyOf(it, i), i));
     const focusedItem = list[lastIdx.current];
@@ -294,7 +386,7 @@ function Row({
     slotKeys.current = next;
     const index = next.map(k => (k == null ? -1 : at.get(k) ?? -1));
     return {items: index.map(i => (i < 0 ? null : list[i])), index};
-  }, [items, window, from, to]);
+  }, [list, window, from, to]);
 
   if (!items || items.length === 0) return null;
   return (
@@ -341,13 +433,13 @@ function Row({
                 <Card
                   item={item}
                   index={index}
-                  ref={index === backF ? backCard : undefined}
+                  ref={refFor(index)}
                   onPress={onSelect}
                   onFocus={focusCard}
                   wide={wide}
                   frame={wide}
                   showKind={showKind}
-                  onRemove={onRemove}
+                  onRemove={onRemove ? removeCard : undefined}
                   // Nothing sits to the left of card 0, so LEFT from it belongs
                   // to the nav rail. trapFocusLeft below stops the platform
                   // moving focus; NavRail's own handler answers the press.

@@ -15,10 +15,12 @@ const mockSeen = {
 jest.mock('../../src/components/Card', () => {
   const R = require('react');
   const Card = R.memo(
-    (p: {item: HeroItem; index: number; onFocus: (item: HeroItem, index: number) => void; ref?: {current: unknown}}) => {
+    (p: {item: HeroItem; index: number; onFocus: (item: HeroItem, index: number) => void; ref?: {current: unknown} | ((el: unknown) => void)}) => {
       mockSeen.focus[p.index] = p.onFocus;
-      // the host node a real Card forwards its ref to
-      if (p.ref) p.ref.current = {card: p.index};
+      // the host node a real Card forwards its ref to (Row hands every card a
+      // ref function, the shelf's own record of its cards)
+      if (typeof p.ref === 'function') p.ref({card: p.index});
+      else if (p.ref) p.ref.current = {card: p.index};
       R.useEffect(() => {
         mockSeen.mounted.add(p.index);
         return () => {
