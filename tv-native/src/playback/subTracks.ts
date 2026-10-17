@@ -231,7 +231,12 @@ export const autoPick = (
     upgradeTo = upgradeTo || want;
   }
   if (!tracks.length) return {index: -1, upgradeTo, why: 'none'};
-  return {index: 0, upgradeTo, why: 'first'};
+  // the first track's language, its best track: the server's ★ ("Matches this
+  // release") or a full one over a forced / SDH one listed first (device pass:
+  // with no language set, "English (SDH)" was shown over the ★ "English 4")
+  const firstLang = langOf(tracks[0]);
+  const best = firstLang ? bestTrackIndex(tracks, firstLang) : -1;
+  return {index: best >= 0 ? best : 0, upgradeTo, why: 'first'};
 };
 
 /** What the player does with a fresh autoPick, given what is on now
