@@ -957,6 +957,7 @@
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="mini" id="update-check-btn">Check now</button>
           <button class="mini" id="update-pull-btn" disabled>Pull from GitHub</button>
+          <button class="mini" id="update-npm-btn" title="Runs npm install (developer-only packages skipped) — needed after an update that changed package.json; then Restart">Install dependencies</button>
           <button class="mini" id="update-restart-btn">Restart Aurora</button>
         </div>
         <div id="sv-update-log" class="empty-note hidden" style="margin-top:8px;white-space:pre-wrap;font-size:0.8rem"></div>
@@ -2718,6 +2719,37 @@
       }
       btn.textContent = "Pull from GitHub";
       await loadUpdateCheck(true);
+    };
+
+    // Install dependencies, next to Restart (elia 2026-10-17: "so it's simpler
+    // next time"): the Actions tab's own "npm-install" action, its output shown
+    // here as it runs. Nothing restarts by itself — Restart is the next press.
+    $("#update-npm-btn").onclick = async () => {
+      if (!await ask("Install dependencies now (npm install)? It takes a minute; nothing restarts by itself — press Restart afterwards.")) return;
+      const btn = $("#update-npm-btn");
+      const log = $("#sv-update-log");
+      const host = $("#sv-update");
+      btn.disabled = true;
+      btn.textContent = "Installing…";
+      log.classList.remove("hidden");
+      log.textContent = "Starting npm install…";
+      const done = (pill, text) => { host.innerHTML = `<span class="pill ${pill}">${esc(text)}</span>`; btn.disabled = false; btn.textContent = "Install dependencies"; };
+      let r;
+      try {
+        r = await adminFetch("/api/admin/actions/npm-install/run", { method: "POST" });
+      } catch { return done("bad", "could not reach the server"); }
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.run) return done("warn", d.error || "not started");
+      const id = d.run.id;
+      const poll = async () => {
+        let run = null;
+        try { const x = await adminFetch("/api/admin/actions/runs/" + encodeURIComponent(id), { cache: "no-store" }); if (x.ok) { const j = await x.json(); run = j && j.status ? j : (j && j.run) || null; } } catch {}
+        if (run) log.textContent = run.output || "…";
+        if (!run || run.status === "running") return setTimeout(poll, 1000);
+        if (run.status === "ok") done("live", "dependencies installed — press Restart Aurora to use them");
+        else done("bad", "npm install failed — see the output below");
+      };
+      setTimeout(poll, 800);
     };
 
     $("#update-restart-btn").onclick = async () => {
