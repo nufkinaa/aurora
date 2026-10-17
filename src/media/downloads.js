@@ -838,7 +838,9 @@ const destinationFor = (job) => {
 
 // Copy the finished file out of staging and into the library. A copy, not a
 // move: aria2 may still be writing sibling files in that directory for another
-// job, and on Windows renaming a file it holds open fails.
+// job, and on Windows renaming a file it holds open fails. `to` is the TEMP
+// name (see "landing in the library" below); it settles once the file is
+// closed, so the link/rename that follows never races our own write handle.
 const copyIntoLibrary = (from, to, onBytes) =>
   new Promise((resolve, reject) => {
     fs.mkdirSync(path.dirname(to), { recursive: true });
@@ -862,9 +864,85 @@ const copyIntoLibrary = (from, to, onBytes) =>
     });
     rs.on("error", settle);
     ws.on("error", settle);
-    ws.on("finish", () => settle());
+    ws.on("close", () => settle());
     rs.pipe(ws);
   });
+
+// ---------- landing in the library: never over another file ----------
+// Two downloads of one title (two sources of one episode, a film fetched
+// again, two requests racing) used to be written to the SAME name: the
+// second truncated and rewrote the first, even while somebody was playing
+// it. Now nothing in this module ever writes over a file:
+//
+//   * the name is chosen when the bytes are ready (landingName): the usual
+//     "<base><ext>" when it is free, else "<base> (2)<ext>", "(3)"… — both
+//     copies stay, and the admin's copies list decides which one goes. A
+//     name is taken when a video of that name exists in ANY container (a
+//     "Show S01E02.mp4" already there is the same episode). A film's folder
+//     holds one film: a new download into a folder that already has a video
+//     is always a copy. Choosing the name and putting the file there are one
+//     synchronous step, so two jobs finishing together cannot pick the same
+//     one. (The scanner keeps indexing the original: scanner.js sorts a
+//     "(N)" copy after the files it copies.)
+//   * the bytes are written to a hidden temp file in the same folder
+//     (".aurora-dl-<job>.part" — not a video extension, so no scan sees it)
+//     and only a complete file is put in place: placeNoClobber links it
+//     under its final name, which fails if that name exists, instead of a
+//     rename that would replace it. A reader never sees half a file.
+const COPY_LIMIT = 99;
+const tempNameFor = (jobId) => `.aurora-dl-${jobId}.part`;
+const TEMP_RE = /^\.aurora-dl-([0-9a-f]{6,24})\.part$/i;
+
+const videoExts = () => (config.VIDEO_EXTENSIONS && config.VIDEO_EXTENSIONS.length ? config.VIDEO_EXTENSIONS : [".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v"]);
+const hasVideo = (dir) => {
+  try {
+    return fs.readdirSync(dir).some((f) => videoExts().includes(path.extname(f).toLowerCase()));
+  } catch { return false; }
+};
+// Is there a "<dir>/<name>.<any video ext>"? (existsSync is case-blind
+// where the file system is.)
+const nameTaken = (dir, name, ext) =>
+  [...new Set([String(ext).toLowerCase(), ...videoExts()])].some((e) => fs.existsSync(path.join(dir, `${name}${e}`)));
+// → { path, copyOf } — the first free name, and (for the log) the name it is a copy of.
+const landingName = (dir, base, ext, { movie = false } = {}) => {
+  if (!nameTaken(dir, base, ext) && !(movie && hasVideo(dir))) {
+    return { path: path.join(dir, `${base}${ext}`), copyOf: null };
+  }
+  for (let n = 2; n <= COPY_LIMIT; n++) {
+    const name = `${base} (${n})`;
+    if (!nameTaken(dir, name, ext)) return { path: path.join(dir, `${name}${ext}`), copyOf: base };
+  }
+  throw new Error(`more than ${COPY_LIMIT} copies of "${base}" in ${dir}`);
+};
+
+// Put the finished temp file at `dest` only if nothing is there. A hard link
+// fails on an existing name (EEXIST) — no window between the check and the
+// write; a drive without hard links (FAT, some shares) gets the check and a
+// rename. → true when placed, false when the name was taken after all.
+const placeNoClobber = (tmp, dest) => {
+  try {
+    fs.linkSync(tmp, dest);
+  } catch (e) {
+    if (e && e.code === "EEXIST") return false;
+    if (fs.existsSync(dest)) return false;
+    fs.renameSync(tmp, dest);
+    return true;
+  }
+  try { fs.unlinkSync(tmp); } catch {}
+  return true;
+};
+
+// A temp file left by a crash in the middle of a copy (its job is not
+// running any more): removed the next time a download lands in that folder.
+const sweepTemps = (dir, exceptJobId) => {
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch { return; }
+  for (const f of names) {
+    const m = TEMP_RE.exec(f);
+    if (!m || m[1] === exceptJobId || active.has(m[1])) continue;
+    try { fs.unlinkSync(path.join(dir, f)); console.log(`[download] removed a left-over partial copy ${f}`); } catch {}
+  }
+};
 
 // ---------- attempts ----------
 // A job downloads from ONE source — except during a second-source race, when
@@ -1311,7 +1389,6 @@ const claimWin = (job, rec, att, file, engineStatus) => {
 // and poster along, and let the scanner see it.
 const completeJob = async (job, rec, file, engineStatus) => {
   const ext = path.extname(file.path) || ".mkv";
-  const destPath = path.join(rec.dir, `${rec.base}${ext}`);
 
   job.phase = "copying";
   job.progress = 1;
@@ -1319,21 +1396,52 @@ const completeJob = async (job, rec, file, engineStatus) => {
   job.copyProgress = 0;
   broadcast(job);
 
-  const startedAt = Date.now();
-  await copyIntoLibrary(file.path, destPath, (bytes) => {
-    job.copyProgress = file.length ? Math.min(1, bytes / file.length) : 0;
-    broadcast(job);
-  });
+  fs.mkdirSync(rec.dir, { recursive: true });
+  sweepTemps(rec.dir, job.id);
+  // The bytes go to a hidden temp name in the destination folder; only a
+  // complete file is put in place, under a name nothing else has (see
+  // "landing in the library" above).
+  const tmp = path.join(rec.dir, tempNameFor(job.id));
+  let destPath = null;
+  try {
+    const startedAt = Date.now();
+    await copyIntoLibrary(file.path, tmp, (bytes) => {
+      job.copyProgress = file.length ? Math.min(1, bytes / file.length) : 0;
+      broadcast(job);
+    });
 
-  // Never let a short file into the library — the scanner would index it as a
-  // playable title.
-  const copied = fs.statSync(destPath).size;
-  if (copied < file.length) {
-    try { fs.unlinkSync(destPath); } catch {}
-    throw new Error(`copied only ${copied} of ${file.length} bytes`);
+    // Never let a short file into the library — the scanner would index it as a
+    // playable title.
+    const copied = fs.statSync(tmp).size;
+    if (copied < file.length) throw new Error(`copied only ${copied} of ${file.length} bytes`);
+    // Canceled or removed while it was copying: nothing lands.
+    if (active.get(job.id) !== rec) throw Object.assign(new Error("stopped while copying"), { quiet: true });
+    const secs = (Date.now() - startedAt) / 1000;
+    console.log(`[download] ${job.id.slice(0, 6)} copied ${(copied / 1e6).toFixed(0)} MB in ${secs.toFixed(0)}s`);
+
+    // The name is chosen now, with the complete file in hand, and the file
+    // put there in the same synchronous step. The loop is for a name that
+    // something outside this process created between the two.
+    for (let tries = 0; ; tries++) {
+      const pick = landingName(rec.dir, rec.base, ext, { movie: job.type !== "show" });
+      if (placeNoClobber(tmp, pick.path)) {
+        destPath = pick.path;
+        if (pick.copyOf) {
+          job.copyOf = pick.copyOf;
+          console.log(`[download] ${job.id.slice(0, 6)} "${job.label || job.title}" is already in the library as "${pick.copyOf}" — kept beside it as "${path.basename(destPath)}" (the admin's copies list decides which stays)`);
+        }
+        break;
+      }
+      if (tries >= COPY_LIMIT) throw new Error(`could not find a free name for "${rec.base}"`);
+    }
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch {}
+    if (e && e.quiet) {
+      console.log(`[download] ${job.id.slice(0, 6)} ${e.message} — nothing was put in the library`);
+      return;
+    }
+    throw e;
   }
-  const secs = (Date.now() - startedAt) / 1000;
-  console.log(`[download] ${job.id.slice(0, 6)} copied ${(copied / 1e6).toFixed(0)} MB in ${secs.toFixed(0)}s`);
 
   copyBundledSubtitles(engineStatus && engineStatus.files, destPath);
   await finish(job, destPath);
@@ -1888,6 +1996,7 @@ module.exports = {
   // engine (never in a running server).
   _internals: {
     safeName, folderKey, chooseFolder, diskGate, destinationFor, store,
+    landingName, placeNoClobber, tempNameFor,
     active, seams, line, quietState, resume: () => resume(), poll: () => poll(), raceTick: () => raceTick(seams.clock(), raceCfg()),
     setEngine: (engine) => { aria2 = engine; },
   },
