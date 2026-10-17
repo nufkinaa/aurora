@@ -7,6 +7,7 @@ import com.auroratv.ui.view.AuroraHeroArtManager
 import com.auroratv.ui.view.AuroraRailPanelManager
 import com.auroratv.ui.view.AuroraRowManager
 import com.auroratv.ui.view.AuroraSlideColumnManager
+import com.auroratv.ui.view.AuroraTextLayerManager
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
@@ -31,5 +32,6 @@ class AuroraUiPackage : ReactPackage {
       AuroraSlideColumnManager(),
       AuroraHeroArtManager(),
       AuroraRailPanelManager(),
+      AuroraTextLayerManager(),
     )
 }

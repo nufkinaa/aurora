@@ -100,6 +100,21 @@ describe('the developer setting’s three positions', () => {
     expect(inertBecause(set('unstuff'), 'unstuff')).toMatch(/native/);
     expect(inertBecause(set(), 'pool')).toBeNull();
     expect(inertBecause(new Set(RECOMMENDED), 'pool')).toBeNull();
+    // the deeper switches (docs/qa/native-deep/DEVICE-PLAN.md)
+    expect(inertBecause(set('cardtext'), 'cardtext')).toMatch(/card/);
+    expect(inertBecause(set('cardtext', 'card'), 'cardtext')).toBeNull();
+    expect(inertBecause(set('ringshare'), 'ringshare')).toMatch(/focusable/);
+    expect(inertBecause(set('ringshare', 'focusable'), 'ringshare')).toBeNull();
+    expect(inertBecause(set('keyrate'), 'keyrate')).toBeNull();
+    expect(inertBecause(set('herotext'), 'herotext')).toBeNull();
+  });
+
+  test('the deeper switches are not in the preset: none has run on a TV', () => {
+    for (const k of ['keyrate', 'cardtext', 'ringshare', 'herotext'] as const) {
+      expect(RECOMMENDED).not.toContain(k);
+      expect(resolveRender({}, {recommended: true}).has(k)).toBe(false);
+      expect(resolveRender({[k]: true}, {}).has(k)).toBe(true);
+    }
   });
 });
 

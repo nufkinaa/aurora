@@ -120,6 +120,8 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
       AuroraClock.trace(frameTimeNanos, traceId("ring"), ringValue)
       if (d.finished) {
         timing = null
+        // `ringshare`: faded out — the ring goes back to the screen's pool
+        if (ringValue == 0.0 && !headingLit) detachSharedRing()
         syncLayer()
       }
       return d.finished
@@ -196,6 +198,7 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     }
 
     if (light) {
+      detachSharedRing()
       ring?.let { super.removeView(it) }
       ring = null
       val g = gap ?: newDecoration().also {
@@ -221,9 +224,14 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
       lightRing?.let { super.removeView(it) }
       lightRing = null
       if (ringKind == "none") {
+        detachSharedRing()
         ring?.let { super.removeView(it) }
         ring = null
         syncRingShadow(null, null, null)
+      } else if (RING_SHARE) {
+        // `ringshare`: no ring of our own; one is taken from the screen's pool while lit
+        // (attachSharedRing) and restyled here if the props change meanwhile
+        ringUnit?.let { styleSharedRing(it) }
       } else {
         val r = ring ?: newDecoration().also {
           ring = it
@@ -467,8 +475,55 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
 
   private var headingLit = false
 
+  // ---- render switch `ringshare` (SharedRing.kt; docs/qa/native-deep/DEVICE-PLAN.md) --------
+  private var ringUnit: SharedRing.Unit? = null
+
+  /** Take a ring from the screen's pool: the LAST child, where the per-instance ring sat. */
+  private fun attachSharedRing() {
+    if (!RING_SHARE || light || ringKind == "none" || ringUnit != null) return
+    val u = SharedRing.acquire(context) { SharedRing.Unit(newDecoration(), if (SHADOW_CACHE) ShadowLayer(context) else null) }
+    ringUnit = u
+    u.shadow?.let {
+      (it.parent as? android.view.ViewGroup)?.removeView(it)
+      super.addView(it)
+    }
+    (u.ring.parent as? android.view.ViewGroup)?.removeView(u.ring)
+    super.addView(u.ring)
+    ring = u.ring
+    ringShadow = u.shadow
+    styleSharedRing(u)
+    layoutDecorations()
+    applyRing()
+  }
+
+  /** Give it back (faded out, dropped, recycled, or the props no longer want a plain ring). */
+  private fun detachSharedRing() {
+    val u = ringUnit ?: return
+    ringUnit = null
+    u.shadow?.let { s -> (s.parent as? android.view.ViewGroup)?.let { p -> if (p === this) super.removeView(s) else p.removeView(s) } }
+    (u.ring.parent as? android.view.ViewGroup)?.let { p -> if (p === this) super.removeView(u.ring) else p.removeView(u.ring) }
+    ring = null
+    ringShadow = null
+    SharedRing.release(context, u)
+  }
+
+  /** The per-instance ring's styling (applyProps above), skipped when the ring already has it. */
+  private fun styleSharedRing(u: SharedRing.Unit) {
+    val sig = "$ringWidth|$ringColor|$ringRadius|$shadowOffsetX|$shadowOffsetY|$shadowBlur|$shadowSpread|$shadowColor"
+    if (u.signature == sig) return
+    u.signature = sig
+    val r = u.ring
+    BackgroundStyleApplicator.setBorderWidth(r, LogicalEdge.ALL, ringWidth.toFloat())
+    BackgroundStyleApplicator.setBorderColor(r, LogicalEdge.ALL, ringColor ?: FOCUS_RING_COLOR)
+    BackgroundStyleApplicator.setBorderRadius(r, BorderRadiusProp.BORDER_RADIUS, dp(ringRadius))
+    val arr = shadowArray(shadowOffsetX, shadowOffsetY, shadowBlur, shadowSpread, shadowColor ?: TOKEN_SHADOW_COLOR)
+    val s = u.shadow
+    if (s != null) s.set(arr, dp(ringRadius)) else BackgroundStyleApplicator.setBoxShadow(r, arr)
+  }
+
   private fun toLit() {
     headingLit = true
+    attachSharedRing()
     startRing(1.0)
     startSpring(1.0)
     syncLayer()
@@ -600,6 +655,7 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
 
   /** Fabric view recycling: nothing of the old node may survive. */
   fun resetForRecycle() {
+    detachSharedRing()
     stopAnimations()
     cancelPress()
     main.removeCallbacks(disarmRunnable)
@@ -636,6 +692,7 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
   }
 
   fun onDropped() {
+    detachSharedRing()
     stopAnimations()
     cancelPress()
     main.removeCallbacks(disarmRunnable)
@@ -666,6 +723,7 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     const val OVERLAY_ID = "aurora:overlay"
     private val CARD_LAYER = com.auroratv.ui.AuroraRender.on("cardlayer")
     val SHADOW_CACHE = com.auroratv.ui.AuroraRender.on("shadowcache")
+    private val RING_SHARE = com.auroratv.ui.AuroraRender.on("ringshare")
     // Focusable.tsx:48-49 — LIGHT_GAP 3, LIGHT_RING = focus.borderWidth + 1 = 4
     const val LIGHT_GAP = 3.0
     const val LIGHT_RING = 4.0

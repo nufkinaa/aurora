@@ -85,6 +85,11 @@ class MainActivity : ReactActivity() {
     if (AuroraQa.trace && event.action == KeyEvent.ACTION_DOWN) {
       Log.d(AuroraQa.TAG_ANIM, "[key] ${event.eventTime} ${KeyEvent.keyCodeToString(code)}")
     }
+    // the release, for the held-key bench (docs/qa/native-deep/DEVICE-PLAN.md §keyrate: a focus
+    // gain later than this line is a move the viewer did not make — "overshoot")
+    if (AuroraQa.trace && event.action == KeyEvent.ACTION_UP && isDpad(code)) {
+      Log.d(AuroraQa.TAG_ANIM, "[keyup] ${event.eventTime} ${KeyEvent.keyCodeToString(code)} repeats=${event.repeatCount}")
+    }
     val dpad = code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN ||
       code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT
     if (dpad) {

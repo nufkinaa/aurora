@@ -16,7 +16,7 @@ import com.facebook.react.bridge.UiThreadUtil
  *
  *   components  focusable, card, row, hero (billboard art + the sliding column), rail
  *   fixes       cardlayer, cull, shadowcache, unstuff, unstuffq, pool
- *   deeper      keyrate (docs/qa/native-deep/DEVICE-PLAN.md; not in the preset)
+ *   deeper      keyrate, cardtext, ringshare, herotext (docs/qa/native-deep/DEVICE-PLAN.md; not in the preset)
  *
  * Read ONCE per process (a component swapped while mounted would move focus; the fixes are
  * plain fields read on hot paths), so a change takes effect on the NEXT launch, never live.
@@ -42,7 +42,7 @@ object AuroraRender {
   private val LETTERS = mapOf("focusable" to "F", "card" to "C", "row" to "R", "hero" to "H", "rail" to "N")
 
   /** The render fixes (the lab's `exp` switch). */
-  val FIXES = listOf("cardlayer", "cull", "shadowcache", "unstuff", "unstuffq", "pool", "keyrate")
+  val FIXES = listOf("cardlayer", "cull", "shadowcache", "unstuff", "unstuffq", "pool", "keyrate", "cardtext", "ringshare", "herotext")
 
   val KEYS: List<String> = COMPONENTS + FIXES
 

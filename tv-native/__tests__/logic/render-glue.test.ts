@@ -29,7 +29,7 @@ test('no native module (an older APK): everything off, nothing stored', () => {
 test('this launch: what the constants say, and nothing more', () => {
   const {mod} = load({on: {card: true, row: true, cull: true, pool: true}, letters: 'CR', fixTag: 'cull+pool', source: 'saved'});
   expect(mod.nativeOn).toEqual({focusable: false, card: true, row: true, hero: false, rail: false});
-  expect(mod.fixOn).toEqual({cardlayer: false, cull: true, shadowcache: false, unstuff: false, unstuffq: false, pool: true, keyrate: false});
+  expect(mod.fixOn).toEqual({cardlayer: false, cull: true, shadowcache: false, unstuff: false, unstuffq: false, pool: true, keyrate: false, cardtext: false, ringshare: false, herotext: false});
   expect(mod.renderLetters).toBe('CR');
   expect(mod.renderFixCode).toBe('cp');
   expect(mod.renderSource).toBe('saved');

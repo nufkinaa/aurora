@@ -65,6 +65,7 @@ class QaReceiver : BroadcastReceiver() {
         "layout" -> cmdLayout(app, arg, rid)
         "nav" -> cmdNav(app, arg, rid)
         "keyrate" -> cmdKeyRate(app, arg, rid)
+        "views" -> cmdViews(app, rid)
         "ping" -> {
           // what the NEXT launch runs with (the harness force-stops and relaunches after a change)
           val (set, src) = AuroraRender.next(app)
@@ -141,6 +142,30 @@ class QaReceiver : BroadcastReceiver() {
     }
     AuroraRender.writeKeyRateMs(app, ms)
     ok("keyrate", rid, "ms=$ms")
+  }
+
+  /**
+   * `views` — the deeper switches' offline-provable claim, read on the device: how many Views
+   * the window holds now (every one is a RenderNode prepareTree walks), how many of them are
+   * TextViews, the shared rings (`ringshare`: in use / most at once / made) and the recorded
+   * card decors (`cardtext`).
+   */
+  private fun cmdViews(app: Context, rid: String?) {
+    val root = currentActivity(app)?.window?.decorView
+    if (root == null) {
+      err("views", rid, "no window")
+      return
+    }
+    var views = 0
+    var texts = 0
+    fun walk(v: android.view.View) {
+      views++
+      if (v is android.widget.TextView) texts++
+      if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+    }
+    walk(root)
+    val p = com.auroratv.ui.view.SharedRingStats.read()
+    ok("views", rid, "views=$views texts=$texts rings=${p[0]}/${p[1]}/${p[2]} decor=${com.auroratv.ui.view.AuroraCardView.decorNodes()}")
   }
 
   private fun cmdFreeze(app: Context, arg: String, rid: String?) {
