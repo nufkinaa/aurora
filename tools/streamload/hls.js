@@ -28,6 +28,7 @@ const hw = arg("hw", "off");
 const codec = arg("codec", "");
 const label = arg("label", "run");
 const rounds = parseInt(arg("rounds", "1"), 10);
+const extraConfig = JSON.parse(arg("config", "{}")); // e.g. {"hwEncodeSessions":2}
 const BUFFER_SEC = 30;
 
 const get = (url, agent) => new Promise((resolve) => {
@@ -111,7 +112,7 @@ const viewer = async ({ base, film, startAt, agent, until }) => {
 (async () => {
   const insts = [];
   for (const t of trees) {
-    const srv = await startInstance({ movies, tree: t.dir, config: { hwEncode: hw } });
+    const srv = await startInstance({ movies, tree: t.dir, config: { hwEncode: hw, ...extraConfig } });
     insts.push({ ...t, srv });
     console.log(`[${t.name}] up at ${srv.url}, ${srv.films.length} films, hw ${hw}`);
   }
@@ -149,6 +150,14 @@ const viewer = async ({ base, film, startAt, agent, until }) => {
               await sleep(2000);
             }
           })();
+          // halfway: which encoder each running encode uses, and why (the admin page's own answer)
+          let encoders = null;
+          setTimeout(async () => {
+            try {
+              const e = await (await fetch(`${inst.srv.url}/api/admin/encoding`, { headers: { "X-Admin-Password": inst.srv.adminPassword } })).json();
+              encoders = (e.cpu && e.cpu.viewers || []).map((x) => `${x.encoder || "?"}${x.why ? ` — ${x.why}` : ""}`);
+            } catch {}
+          }, (secs * 1000) / 2).unref?.();
           const out = await Promise.all(films.map((film) => viewer({ base: inst.srv.url, film, startAt: 600 + Math.floor(rand() * (film.duration - 1500)), agent, until })));
           const t1 = Date.now();
           sampling = false;
@@ -172,6 +181,7 @@ const viewer = async ({ base, film, startAt, agent, until }) => {
             ffmpegCpuPerFilmSec: filmSec ? round(ff.reduce((a, x) => a + x.cpu, 0) / filmSec, 3) : null,
             ffmpegRssMaxMb: round(Math.max(0, ...ff.map((x) => x.rssMb)), 0),
             ...st,
+            encoders,
           };
           results.push(row);
           console.log(JSON.stringify(row));

@@ -26,7 +26,7 @@ test("automatic by default: a proven family is used; off and on as set; why is s
   deps.setting = () => undefined;
   assert.equal(hw.mode(), "auto");
   assert.equal(hw.canUse(f1080), true);
-  assert.match(hw.decide(f1080).why, /NVIDIA NVENC, decoded on the card too/);
+  assert.match(hw.decide(f1080).why, /decoded and encoded on the card/);
   assert.match(hw.sentence(), /In use \(NVIDIA NVENC\)/);
   deps.setting = () => "off";
   assert.equal(hw.canUse(f1080), false);

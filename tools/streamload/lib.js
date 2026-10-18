@@ -33,7 +33,8 @@ const startInstance = async ({ movies, shows = null, config = {}, env = {}, verb
     waitForLibrary: false,
     verbose,
     preload: [path.join(__dirname, "stats-preload.js")],
-    env: { STREAMLOAD_STATS: statsFile, ...env },
+    // (STREAMLOAD_NODE_OPTIONS: e.g. --max-old-space-size=128 for a low-memory run)
+    env: { STREAMLOAD_STATS: statsFile, ...(process.env.STREAMLOAD_NODE_OPTIONS ? { NODE_OPTIONS: process.env.STREAMLOAD_NODE_OPTIONS } : {}), ...env },
     config: { libraries: { movies: [movies], shows: [emptyShows] }, ...config },
   });
   // the library is real films on a real disk: wait for every probe

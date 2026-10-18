@@ -350,7 +350,7 @@ const decide = (f) => {
   if (deps.now() < state.refusedUntil) return { ok: false, why: `the graphics card refused an encode a moment ago (${state.refusedWhy || "?"})` };
   if (busy() >= capacity()) return { ok: false, why: `all ${capacity()} of the graphics card's sessions are in use` };
   if (!(f && f.width > 0 && f.height > 0)) return { ok: false, why: "the source's picture size is not known" };
-  return { ok: true, why: `${LABEL[fam]}${gpuDecodes(f, fam) ? ", decoded on the card too" : ", decoded by the CPU (the card cannot decode this source)"} — measured as good as the CPU's encode, for a sliver of the CPU` };
+  return { ok: true, why: `${gpuDecodes(f, fam) ? "decoded and encoded on the card" : "decoded by the CPU (the card cannot decode this source), encoded on the card"} — measured as good as the CPU's encode, for a sliver of the CPU` };
 };
 const canUse = (f) => decide(f).ok;
 
