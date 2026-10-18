@@ -12,6 +12,8 @@ const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
 const config = require("../config");
+// A job folder is never deleted on the event loop (lib/rmqueue.js).
+const { removeDir, isLeftover } = require("../lib/rmqueue");
 const perf = require("../lib/perf");
 const tonemap = require("./tonemap");
 
@@ -89,7 +91,7 @@ const retire = (d, j, why = "superseded") => {
   const old = j.proc;
   if (!old) return;
   old.once("close", () => {
-    setTimeout(() => { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} }, 150);
+    setTimeout(() => removeDir(d), 150);
   });
   try { old.kill("SIGKILL"); } catch {}
   console.log(`[torrent-transcode] ${why} ${path.basename(d)}`);
@@ -106,10 +108,12 @@ const bootSweep = () => {
     for (const e of fs.readdirSync(HLS_ROOT, { withFileTypes: true })) {
       if (!e.isDirectory()) continue;
       const abs = path.join(HLS_ROOT, e.name);
+      if (isLeftover(e.name)) { removeDir(abs); continue; }
       let done = false;
       try { done = fs.readFileSync(path.join(abs, "index.m3u8"), "utf-8").includes("#EXT-X-ENDLIST"); } catch {}
       if (!done) {
-        try { fs.rmSync(abs, { recursive: true, force: true }); console.log(`[torrent-transcode] boot-swept stump ${e.name}`); } catch {}
+        removeDir(abs);
+        console.log(`[torrent-transcode] boot-swept stump ${e.name}`);
       }
     }
   } catch {}
@@ -180,7 +184,7 @@ const pruneOld = (keepDir) => {
   try {
     const dirs = fs
       .readdirSync(HLS_ROOT, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
+      .filter((e) => e.isDirectory() && !isLeftover(e.name))
       .map((e) => {
         const abs = path.join(HLS_ROOT, e.name);
         return { abs, mtime: fs.statSync(abs).mtimeMs };
@@ -196,7 +200,7 @@ const pruneOld = (keepDir) => {
       // next poll re-created the job, superseding the seek in flight.
       const j = jobs.get(d.abs);
       if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
-      fs.rmSync(d.abs, { recursive: true, force: true });
+      removeDir(d.abs);
       jobs.delete(d.abs); // drop the finished-job Map entry along with its dir
     }
   } catch {}
@@ -590,7 +594,7 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
         if (!fs.existsSync(playlist)) {
           reject(new Error("Transcode failed"));
         } else {
-          try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+          removeDir(dir);
         }
         return;
       }
@@ -603,7 +607,7 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
         console.error(`[torrent-transcode] input starved: ${inputBytes}/${file.length} bytes reached ffmpeg — evicting truncated output (${infoHash.slice(0, 8)}…)`);
         clearInterval(check);
         if (jobs.get(dir) === job) jobs.delete(dir);
-        try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+        removeDir(dir);
       }
     });
   });
@@ -614,7 +618,7 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
     if (jobs.get(dir) === job) jobs.delete(dir);
     try { rs && rs.destroy(); } catch {}
     try { proc.kill("SIGKILL"); } catch {}
-    try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+    if (proc.exitCode === null) proc.once("close", () => removeDir(dir)); else removeDir(dir);
   });
 
   // Retire the job(s) this one replaced, but only now that this playlist exists
@@ -670,9 +674,10 @@ setInterval(() => {
   const now = Date.now();
   for (const [dir, job] of jobs) {
     if (job.proc && now - job.lastAccess > IDLE_MS) {
-      try { job.proc.kill("SIGKILL"); } catch {}
+      const p = job.proc;
+      try { p.kill("SIGKILL"); } catch {}
       jobs.delete(dir);
-      try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+      if (p.exitCode === null) p.once("close", () => removeDir(dir)); else removeDir(dir);
       console.log(`[torrent-transcode] idle-killed ${path.basename(dir)}`);
     }
   }
@@ -691,31 +696,35 @@ const filePath = (infoHash, fileIdx, ss, file, fmt = null, audio = 0) => {
 // were still holding 1.6 GB in October (found 2026-10-06). A stream nobody
 // has touched for a day is not coming back to it; the healer calls this
 // every round. Never a folder with a live job. Returns bytes freed, roughly.
-const sweepStale = (maxAgeMs = 24 * 3600 * 1000) => {
+// (async: sizes asked off the event loop, folders removed in the background)
+const sweepStale = async (maxAgeMs = 24 * 3600 * 1000) => {
   let freed = 0;
-  try {
-    for (const e of fs.readdirSync(HLS_ROOT, { withFileTypes: true })) {
-      if (!e.isDirectory()) continue;
-      const abs = path.join(HLS_ROOT, e.name);
-      const j = jobs.get(abs);
-      if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
+  let list = [];
+  try { list = await fs.promises.readdir(HLS_ROOT, { withFileTypes: true }); } catch { return 0; }
+  for (const e of list) {
+    if (!e.isDirectory()) continue;
+    const abs = path.join(HLS_ROOT, e.name);
+    const j = jobs.get(abs);
+    if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
+    let newest = 0;
+    let size = 0;
+    try { newest = (await fs.promises.stat(abs)).mtimeMs; } catch { continue; }
+    let files = [];
+    try { files = await fs.promises.readdir(abs); } catch {}
+    for (const f of files) {
       try {
-        let newest = fs.statSync(abs).mtimeMs;
-        let size = 0;
-        for (const f of fs.readdirSync(abs)) {
-          try {
-            const st = fs.statSync(path.join(abs, f));
-            size += st.size;
-            if (st.mtimeMs > newest) newest = st.mtimeMs;
-          } catch {}
-        }
-        if (Date.now() - newest < maxAgeMs) continue;
-        fs.rmSync(abs, { recursive: true, force: true });
-        jobs.delete(abs);
-        freed += size;
+        const st = await fs.promises.stat(path.join(abs, f));
+        size += st.size;
+        if (st.mtimeMs > newest) newest = st.mtimeMs;
       } catch {}
     }
-  } catch {}
+    if (Date.now() - newest < maxAgeMs) continue;
+    const again = jobs.get(abs);
+    if (again && (again.proc || Date.now() - (again.lastAccess || 0) < IDLE_MS)) continue;
+    removeDir(abs);
+    jobs.delete(abs);
+    freed += size;
+  }
   return freed;
 };
 module.exports = { ensure, touch, noteViewer, release, filePath, bootSweep, sweepStale, HLS_ROOT, _internals: { jobKey, jobDir, videoArgsFor, SCALE, activeCount, jobs } };

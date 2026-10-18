@@ -12,6 +12,10 @@ const path = require("path");
 const { spawn } = require("child_process");
 const config = require("../config");
 const tonemap = require("./tonemap");
+// A job folder is never deleted on the event loop (lib/rmqueue.js: renamed
+// away at once, deleted in the background — one rmSync of a finished job
+// held the whole server for 12.8 s, measured by the load test 2026-10-18).
+const { removeDir, isLeftover } = require("../lib/rmqueue");
 
 const HLS_ROOT = path.join(config.CACHE_DIR, "hls");
 const MAX_CACHED_JOBS = 3;
@@ -58,7 +62,7 @@ const retire = (d, j, why = "superseded") => {
   const old = j.proc;
   if (!old) return;
   old.once("close", () => {
-    setTimeout(() => { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} }, 150);
+    setTimeout(() => removeDir(d), 150);
   });
   try { old.kill("SIGKILL"); } catch {}
   console.log(`[remux] ${why} ${path.basename(d)}`);
@@ -75,10 +79,12 @@ const bootSweep = () => {
     for (const e of fs.readdirSync(HLS_ROOT, { withFileTypes: true })) {
       if (!e.isDirectory()) continue;
       const abs = path.join(HLS_ROOT, e.name);
+      if (isLeftover(e.name)) { removeDir(abs); continue; } // a removal a previous run did not finish
       let done = false;
       try { done = fs.readFileSync(path.join(abs, "index.m3u8"), "utf-8").includes("#EXT-X-ENDLIST"); } catch {}
       if (!done) {
-        try { fs.rmSync(abs, { recursive: true, force: true }); console.log(`[remux] boot-swept stump ${e.name}`); } catch {}
+        removeDir(abs);
+        console.log(`[remux] boot-swept stump ${e.name}`);
       }
     }
   } catch {}
@@ -255,7 +261,9 @@ setInterval(() => {
     if (job.proc && now - (job.lastAccess || 0) > IDLE_MS) {
       try { job.proc.kill("SIGKILL"); } catch {}
       jobs.delete(dir);
-      try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+      // (after the process has let go of its files)
+      const p = job.proc;
+      if (p && p.exitCode === null) p.once("close", () => removeDir(dir)); else removeDir(dir);
       console.log(`[remux] idle-killed ${path.basename(dir)}`);
     }
   }
@@ -265,7 +273,7 @@ const pruneOld = (keepDir) => {
   try {
     const dirs = fs
       .readdirSync(HLS_ROOT, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
+      .filter((e) => e.isDirectory() && !isLeftover(e.name))
       .map((e) => {
         const abs = path.join(HLS_ROOT, e.name);
         return { abs, mtime: fs.statSync(abs).mtimeMs };
@@ -279,7 +287,7 @@ const pruneOld = (keepDir) => {
       // two more seeks were enough to prune that dir out from under them.
       const j = jobs.get(d.abs);
       if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
-      fs.rmSync(d.abs, { recursive: true, force: true });
+      removeDir(d.abs);
       jobs.delete(d.abs); // drop the finished-job Map entry along with its dir
     }
   } catch {}
@@ -562,7 +570,7 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
         if (!fs.existsSync(playlist)) {
           reject(new Error("Remux failed"));
         } else {
-          try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+          removeDir(dir);
         }
       } else if (code === 0) {
         console.log(`Remux complete: ${path.basename(videoPath)}`);
@@ -614,24 +622,40 @@ const helpers = (now = Date.now()) => {
 // number the admin page shows); `load` / `capacity`: the same in the
 // budget's own units, for whoever wants the detail.
 const encodeLoad = () => ({ active: activeTranscodes() + ladderEncodes(), own: activeTranscodes(), max: budget.slots(), load: Math.round(viewerLoad() * 100) / 100, capacity: budget.capacity() });
+// A folder's size, asked of the OS off the event loop (the sweeps below).
+const dirBytes = async (abs) => {
+  let n = 0;
+  let newest = 0;
+  let list = [];
+  try { list = await fs.promises.readdir(abs); } catch { return { size: 0, newest: 0 }; }
+  for (const f of list) {
+    try {
+      const st = await fs.promises.stat(path.join(abs, f));
+      n += st.size;
+      if (st.mtimeMs > newest) newest = st.mtimeMs;
+    } catch {}
+  }
+  return { size: n, newest };
+};
 // Finished streams nobody is watching any more, removed (the healer calls
 // this when the disk is tight; in normal times the newest few are kept so a
-// re-open is instant). Returns bytes freed, roughly.
-const sweepIdle = () => {
+// re-open is instant). Resolves with the bytes freed, roughly. Async: the
+// sizes are asked off the event loop, the folders removed in the background.
+const sweepIdle = async () => {
   let freed = 0;
-  try {
-    for (const e of fs.readdirSync(HLS_ROOT, { withFileTypes: true })) {
-      if (!e.isDirectory()) continue;
-      const abs = path.join(HLS_ROOT, e.name);
-      const j = jobs.get(abs);
-      if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
-      try {
-        for (const f of fs.readdirSync(abs)) { try { freed += fs.statSync(path.join(abs, f)).size; } catch {} }
-        fs.rmSync(abs, { recursive: true, force: true });
-        jobs.delete(abs);
-      } catch {}
-    }
-  } catch {}
+  let list = [];
+  try { list = await fs.promises.readdir(HLS_ROOT, { withFileTypes: true }); } catch { return 0; }
+  for (const e of list) {
+    if (!e.isDirectory()) continue;
+    const abs = path.join(HLS_ROOT, e.name);
+    const j = jobs.get(abs);
+    if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
+    freed += (await dirBytes(abs)).size;
+    const again = jobs.get(abs); // (taken again while we looked?)
+    if (again && (again.proc || Date.now() - (again.lastAccess || 0) < IDLE_MS)) continue;
+    removeDir(abs);
+    jobs.delete(abs);
+  }
   return freed;
 };
 // A finished stream is kept so that re-opening the title is instant — but
@@ -639,31 +663,25 @@ const sweepIdle = () => {
 // were still holding 1.6 GB in October (found 2026-10-06). A stream nobody
 // has touched for a day is not coming back to it; the healer calls this
 // every round. Never a folder with a live job. Returns bytes freed, roughly.
-const sweepStale = (maxAgeMs = 24 * 3600 * 1000) => {
+const sweepStale = async (maxAgeMs = 24 * 3600 * 1000) => {
   let freed = 0;
-  try {
-    for (const e of fs.readdirSync(HLS_ROOT, { withFileTypes: true })) {
-      if (!e.isDirectory()) continue;
-      const abs = path.join(HLS_ROOT, e.name);
-      const j = jobs.get(abs);
-      if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
-      try {
-        let newest = fs.statSync(abs).mtimeMs;
-        let size = 0;
-        for (const f of fs.readdirSync(abs)) {
-          try {
-            const st = fs.statSync(path.join(abs, f));
-            size += st.size;
-            if (st.mtimeMs > newest) newest = st.mtimeMs;
-          } catch {}
-        }
-        if (Date.now() - newest < maxAgeMs) continue;
-        fs.rmSync(abs, { recursive: true, force: true });
-        jobs.delete(abs);
-        freed += size;
-      } catch {}
-    }
-  } catch {}
+  let list = [];
+  try { list = await fs.promises.readdir(HLS_ROOT, { withFileTypes: true }); } catch { return 0; }
+  for (const e of list) {
+    if (!e.isDirectory()) continue;
+    const abs = path.join(HLS_ROOT, e.name);
+    const j = jobs.get(abs);
+    if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
+    let dirM = 0;
+    try { dirM = (await fs.promises.stat(abs)).mtimeMs; } catch { continue; }
+    const { size, newest } = await dirBytes(abs);
+    if (Date.now() - Math.max(dirM, newest) < maxAgeMs) continue;
+    const again = jobs.get(abs);
+    if (again && (again.proc || Date.now() - (again.lastAccess || 0) < IDLE_MS)) continue;
+    removeDir(abs);
+    jobs.delete(abs);
+    freed += size;
+  }
   return freed;
 };
 module.exports = { ensure, touch, noteViewer, release, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr, jobs } };
