@@ -99,7 +99,7 @@ const SCHEMA = {
     return null;
   }, "headers 20 s, request 120 s, keep-alive 75 s"],
   trustProxy: [(v) => (Array.isArray(v) && v.every((x) => typeof x === "string" && (/^[0-9a-f:.]+$/i.test(x) || /^\d+\.\d+\.\d+\.\d+\/\d{1,2}$/.test(x))) ? null : 'must be a list of addresses or IPv4 ranges: ["172.17.0.1", "10.0.0.0/8"]'), "only this machine (a proxy on the same box)"],
-  ws: [(v) => (isObj(v) && (v.mode == null || ["log", "enforce", "off"].includes(v.mode)) ? null : 'must be { "maxPerAddress", "maxMessageKb", "mode" }'), "64 kB messages, 32 sockets per address (log mode)"],
+  ws: [(v) => (isObj(v) && (v.mode == null || ["log", "enforce", "off"].includes(v.mode)) ? null : 'must be { "maxPerAddress", "maxMessageKb", "mode" }'), "64 kB messages, 64 sockets per address (LAN 4x), the rate-limit mode"],
 };
 
 // Edit distance, for "did you mean".

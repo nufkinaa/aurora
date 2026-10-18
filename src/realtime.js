@@ -47,7 +47,7 @@ let wss = null;
 //   A CHATTY CLIENT IS SLOWED: MSG_RATE messages a second (MSG_BURST at once)
 //     are read; past that they are dropped, and a socket that keeps on is
 //     closed (1008).
-// Plus at most maxPerAddress sockets from one address (LAN addresses four
+// Plus at most maxPerAddress (64) sockets from one address (LAN addresses four
 // times that) — counted and logged in "log" mode, refused in "enforce"
 // (config "ws": { "mode" }, else "rateLimits"'s mode), like the HTTP limits.
 const wsCfg = () => (config.WS && typeof config.WS === "object" ? config.WS : {});
@@ -59,13 +59,13 @@ const MSG_BURST = 200;
 const MSG_DROP_CLOSE = 1000; // dropped within MSG_DROP_WINDOW_MS before the socket is closed
 const MSG_DROP_WINDOW_MS = 10 * 1000;
 const maxMessageBytes = () => Math.max(1, Number(wsCfg().maxMessageKb) || 64) * 1024;
-const maxPerAddress = () => Math.max(1, Number(wsCfg().maxPerAddress) || 32);
+const maxPerAddress = () => Math.max(1, Number(wsCfg().maxPerAddress) || 64);
 const wsMode = () => {
   const m = wsCfg().mode;
   if (["log", "enforce", "off"].includes(m)) return m;
   const r = config.RATE_LIMITS;
   const rm = typeof r === "string" ? r : r && typeof r === "object" ? r.mode : null;
-  return ["log", "enforce", "off"].includes(rm) ? rm : "log";
+  return ["log", "enforce", "off"].includes(rm) ? rm : "enforce"; // (the rate limits' own default)
 };
 const hygiene = { deadPeers: 0, skippedSends: 0, closedSlow: 0, oversize: 0, droppedMessages: 0, closedChatty: 0, overAddressLimit: 0, refusedAddressLimit: 0 };
 const isPrivateIp = (a) => a === "127.0.0.1" || a === "::1" || a.startsWith("10.") || a.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(a);

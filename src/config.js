@@ -243,7 +243,7 @@ module.exports = {
   // The reverse proxies whose X-Forwarded-For is believed (lib/ratelimit.js),
   // beyond this machine itself: ["172.17.0.1", "10.0.0.0/8"].
   TRUST_PROXY: Array.isArray(userConfig.trustProxy) ? userConfig.trustProxy : [],
-  // WebSocket limits (realtime.js): { "maxPerAddress": 32, "maxMessageKb": 64 }.
+  // WebSocket limits (realtime.js): { "maxPerAddress": 64, "maxMessageKb": 64, "mode" } (64 sockets an address, LAN addresses 4x; the mode follows "rateLimits").
   WS: userConfig.ws && typeof userConfig.ws === "object" ? userConfig.ws : {},
   FFMPEG,
   FFPROBE,
