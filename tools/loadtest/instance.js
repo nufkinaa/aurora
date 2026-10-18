@@ -349,7 +349,9 @@ const start = async (opts = {}) => {
       if (e === ".ready" || e === "tools" || e === "package-lock.json") continue;
       fs.cpSync(path.join(code.dir, e), path.join(root, e === "server.js" ? "ui-instance.js" : e), { recursive: true, filter: (s) => !/\.apk$/i.test(s) });
     }
-    fs.copyFileSync(FENCE, path.join(root, "lt-fence.js"));
+    // the network fence; `network: true` (torrent viewers) replaces it with the orphan guard alone
+    if (opts.network) fs.writeFileSync(path.join(root, "lt-fence.js"), fs.readFileSync(FENCE, "utf8").replace(/const realConnect[\s\S]*?(?=const parent = )/, "// (network fence lifted for torrent viewers: tools/loadtest --torrent)" + String.fromCharCode(10)));
+    else fs.copyFileSync(FENCE, path.join(root, "lt-fence.js"));
     fs.copyFileSync(path.join(HERE, "probe.js"), path.join(root, "lt-probe.js"));
 
     const media = opts.media || "real";

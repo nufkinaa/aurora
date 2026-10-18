@@ -153,12 +153,13 @@ class Load {
         device.start({ boot: false });
       }
       device.reserved = true;
-      const pool = this.ctx.pools[kind];
+      const pool = this.ctx.pools[kind] || [];
       const n = (this.streamIdx[kind] = (this.streamIdx[kind] || 0) + 1);
-      const item = pool[(n - 1 + k * 7) % pool.length];
+      let item = pool.length ? pool[(n - 1 + k * 7) % pool.length] : null;
       const play = async () => {
         await sleep(2000 + Math.random() * 3000);
         while (!device.stopped) {
+          if (mode === "torrent") { item = await device.torrentItem(); if (!item) { this.ctx.counters.deviceErrors++; await sleep(30000); continue; } }
           const p = await device.play(item, mode === "transcode" ? "transcode" : mode, { minutes: this.opts.playMinutes || Infinity, seekEveryMin: this.opts.seekEveryMin || 12 });
           this.viewers.push({ kind, title: item.title, id: item.id, report: p.report, refused: p.refused, segFails: p.segFails, bytes: p.bytes, error: p.error });
           if (device.stopped) break;
@@ -270,7 +271,10 @@ const notable = (srv) => srv.log().filter((l) => /\[(jit|encode|remux|ladder|wat
 // ---------- commands ----------
 const boot = async (a, ref, profiles) => {
   say(`starting ${ref} (${profiles} profiles, media ${a.media || "real"})`);
-  const srv = await start({ ref, profiles, media: a.media, machine: a.machine, nodeBin: a.node, verbose: !!a.verbose, config: a.config ? JSON.parse(a.config) : undefined, torrents: false });
+  // --torrent: the instance gets the internet (no network fence) and its torrent engine, so a
+  // "web-torrent" viewer in --mix can play a real swarm. Off by default; never on the household's server.
+  const torrents = !!a.torrent;
+  const srv = await start({ ref, profiles, media: a.media, machine: a.machine, nodeBin: a.node, verbose: !!a.verbose, config: { ...(torrents ? { prewarmStreams: false } : {}), ...(a.config ? JSON.parse(a.config) : {}) }, torrents, network: torrents });
   say(`up: ${srv.ref} at ${srv.url} in ${srv.upMs} ms; machine ${srv.machine.name} ${JSON.stringify(srv.machine.applied)}`);
   if (srv.machine.applied && srv.machine.applied.error) throw new Error(`machine profile not applied: ${srv.machine.applied.error}`);
   const tree = treeSampler(srv.pid, 2000);

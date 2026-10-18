@@ -413,6 +413,7 @@ class Device {
     this.timers.push(seekTimer);
     try {
       if (mode === "direct") await this.directPlay(p, until, ac);
+      else if (mode === "torrent") await this.directPlay(p, until, ac, `/stream/torrent/${item.infoHash}/${item.fileIdx || 0}`);
       else if (mode === "offset") await this.offsetPlay(p, until, ac);
       else await this.jitPlay(p, until, ac, mode === "transcode" ? "h264-720" : "copy");
     } catch (e) { ctx.counters.deviceErrors++; p.error = String(e && e.message || e); }
@@ -420,7 +421,7 @@ class Device {
     // exit: one last save, "Browsing", the goodbye for streams (player.js:6188-6222)
     await this.hit("progress", "POST", `/api/profiles/${this.profileId}/progress`, { body: { itemId: item.id, position: Math.floor(buf.pos), duration: Math.floor(duration) } });
     if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify({ type: "activity", action: "Browsing", details: null }));
-    if (mode !== "direct") await this.hit("stream-other", "POST", `/stream/transcode/${item.id}/jit/bye`, { headers: { "X-Aurora-Viewer": this.viewerId } });
+    if (mode !== "direct" && mode !== "torrent") await this.hit("stream-other", "POST", `/stream/transcode/${item.id}/jit/bye`, { headers: { "X-Aurora-Viewer": this.viewerId } });
     this.playing = null;
     p.endedAt = Date.now();
     p.report = buf.report();
@@ -430,7 +431,7 @@ class Device {
   // `high` seconds ahead and starts again under `low` (Chrome's media cache /
   // ExoPlayer's LoadControl: TV 50-120 s, Player.tsx:205-208), which is TCP
   // backpressure on the server, exactly as a paused media element causes.
-  async directPlay(p, until, ac) {
+  async directPlay(p, until, ac, url = null) {
     const { item, buf } = p;
     const size = item.sizeBytes, dur = item.duration;
     const bps = size / dur;
@@ -441,7 +442,7 @@ class Device {
       const offset = Math.floor(from * bps);
       const t0 = Date.now();
       let first = true;
-      const r = await this.c.request("GET", `/stream/video/${item.id}`, {
+      const r = await this.c.request("GET", url || `/stream/video/${item.id}`, {
         compressed: false, timeoutMs: 0, headers: { Range: `bytes=${offset}-`, ...mediaHeaders },
         onChunk: (chunk, res) => {
           if (first) { first = false; this.stats.add("direct-first-byte", { status: res.statusCode, ms: Date.now() - t0, bytes: 0 }); }
@@ -570,6 +571,26 @@ class Device {
     await sleep(5000);
     if (this.stopped || ac.stop || Date.now() >= until) return;
     return again();
+  }
+
+  // A torrent title, as the title page and the player ask for it: the sources
+  // (Torrentio through the server), the recommended one probed, then played
+  // as a file (/stream/torrent/<hash>/<file>, by ranges). NEEDS THE INTERNET
+  // and a real swarm: only with --torrent (README). -> an item for play(), or null
+  async torrentItem() {
+    const c = this.ctx.lib.catalog.filter((x) => x.type === "movie");
+    for (let k = 0; k < 5 && c.length; k++) {
+      const t = c[Math.floor(Math.random() * c.length)];
+      const src = await this.getJson("title", `/api/torrents/sources?type=movie&title=${t.imdbId}`);
+      const best = src.json && (src.json.streams || []).find((x) => x.recommended) || (src.json && (src.json.streams || [])[0]);
+      if (!best || !best.infoHash) continue;
+      const pr = await this.getJson("title", `/api/torrents/probe/${best.infoHash}/${best.fileIdx || 0}`, { timeoutMs: 120000 });
+      const dur = pr.json && (pr.json.duration || (pr.json.format && pr.json.format.duration));
+      const size = best.sizeBytes || (pr.json && pr.json.size);
+      if (!dur || !size) continue;
+      return { id: `torrent|${best.infoHash}|${best.fileIdx || 0}`, title: best.filename || t.imdbId, infoHash: best.infoHash, fileIdx: best.fileIdx || 0, duration: Number(dur), sizeBytes: Number(size) };
+    }
+    return null;
   }
 
   start({ boot = true, browse = null } = {}) {

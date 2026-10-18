@@ -84,3 +84,24 @@ test("args: flags, values and key=value", () => {
   const a = parseArgs(["run", "--profile", "evening", "--n=4", "--fast"]);
   assert.deepStrictEqual(a, { _: ["run"], profile: "evening", n: "4", fast: true });
 });
+
+test("machine profiles: affinity masks and limits combine", () => {
+  const { machineProfile } = require("../tools/loadtest/instance");
+  const m = machineProfile("2core,lowmem");
+  assert.strictEqual(m.mask, 5);
+  assert.strictEqual(m.cpuList, "0,2");
+  assert.strictEqual(m.heapMb, 256);
+  assert.ok(m.wsMb > 0);
+  assert.strictEqual(machineProfile("4core").mask, 0x55);
+  assert.throws(() => machineProfile("8core"), /unknown machine profile/);
+});
+
+test("devices: pictures are asked for the way the clients rewrite them", () => {
+  const { artUrl, parseMedia } = require("../tools/loadtest/devices");
+  assert.strictEqual(artUrl("/img/abc", 360), "/img/abc?w=360");
+  assert.strictEqual(artUrl("/img/still/abc", 360), "/img/still/abc");
+  assert.strictEqual(artUrl("https://images.metahub.space/poster/small/tt1/img", 256), `/img/ext?u=${encodeURIComponent("https://images.metahub.space/poster/small/tt1/img")}&w=256`);
+  assert.strictEqual(artUrl("https://example.com/x.jpg", 256), null);
+  const segs = parseMedia("#EXTM3U\n#EXTINF:6.0,\nseg00000.ts?v=copy\n#EXTINF:4.5,\nseg00001.ts?v=copy\n#EXT-X-ENDLIST\n", "/stream/transcode/x/jit/index.m3u8?v=copy");
+  assert.deepStrictEqual(segs.map((s) => [s.uri, s.start]), [["/stream/transcode/x/jit/seg00000.ts?v=copy", 0], ["/stream/transcode/x/jit/seg00001.ts?v=copy", 6]]);
+});
