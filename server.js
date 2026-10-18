@@ -709,6 +709,11 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   try { require("./src/lib/updatecheck").captureBoot(); } catch {}
   // Tell the keeper (when there is one) that the port is ours: from here on
   // it probes /healthz, and a server that stops answering is restarted.
+  // This process now owns data/: no other process (a test, a tool, a second
+  // copy) may write the household's files while it runs (lib/jsonstore.js).
+  try { require("./src/lib/jsonstore").claimOwnership(config.DATA_DIR); } catch (e) { console.error("[store]", e.message); }
+  // one-time tidy-ups of the stores, done by the server only
+  try { require("./src/profiles").bootMaintenance(); } catch (e) { console.error("[profiles] boot maintenance:", e.message); }
   require("./src/lib/supervisor").tell({ type: "listening", port: config.PORT, pid: process.pid });
 
   // The website's modules re-printed now, off the event loop, instead of

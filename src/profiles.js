@@ -83,7 +83,10 @@ const moveGhostStates = (data, file = ORPHANS_FILE, now = Date.now()) => {
   console.log(`[profiles] moved the watch state of ${ghosts.length} profile(s) that no longer exist out of profiles.json, into ${path.basename(file)} (kept there)`);
   return ghosts.length;
 };
-if (!store.safeMode && moveGhostStates(store.data)) store.save();
+// (moving ghost states aside is the SERVER's job at boot — bootMaintenance —
+// never a side effect of loading this module: a test or a tool that loads it
+// must not arm a write of the household's file; incident 2026-10-18)
+const bootMaintenance = () => { if (!store.safeMode && moveGhostStates(store.data)) store.save(); };
 
 {
   const { WatchJournal } = require("./lib/watchjournal");
@@ -1700,6 +1703,7 @@ const dismissUpNext = (profileId, showId, episodeId) => {
 };
 
 module.exports = {
+  bootMaintenance,
   PREF_SWITCHES,
   shapeStamp,
   followsOf,

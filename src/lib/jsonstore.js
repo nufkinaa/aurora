@@ -356,6 +356,60 @@ let backupLookup = (filePath) => {
   try { return require("./backup").newestGoodCopySync(filePath); } catch { return null; }
 };
 
+// ------------------------------------------------- one writer per data folder
+// THE RUNNING SERVER OWNS ITS DATA FOLDER (incident 2026-10-18: the test
+// suite, run inside the live server's folder, loaded profiles.js — which armed
+// a save at load — swapped the store's data for test fixtures, and the exit
+// flush wrote those fixtures over the household's profiles.json). The server
+// claims its folder once it holds its port (claimOwnership, server.js); from
+// then on any OTHER process — a test, a tool, a second copy that lost the
+// port — that has a store in that folder (or below it) writes nothing there,
+// and says so once. With no live owner (nothing running, or the owner has
+// died), writes go ahead as before.
+const OWNER_FILE = ".aurora-owner.json";
+let ownedDir = null;
+const ownerCache = new Map(); // dir -> { at, foreign: bool, pid }
+const pidAlive = (pid) => {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try { process.kill(pid, 0); return true; } catch (e) { return e && e.code === "EPERM"; }
+};
+const foreignOwnerOf = (filePath) => {
+  let dir = path.dirname(path.resolve(filePath));
+  for (let i = 0; i < 4; i++) {
+    const hit = ownerCache.get(dir);
+    let rec = hit && Date.now() - hit.at < 2000 ? hit : null;
+    if (!rec) {
+      let owner = null;
+      try { owner = JSON.parse(fs.readFileSync(path.join(dir, OWNER_FILE), "utf8")); } catch {}
+      const pid = owner && Number(owner.pid);
+      rec = { at: Date.now(), foreign: !!(owner && pid !== process.pid && pidAlive(pid)), pid, exists: !!owner };
+      ownerCache.set(dir, rec);
+    }
+    if (rec.exists) return rec.foreign ? rec.pid : null;
+    const up = path.dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  return null;
+};
+const claimOwnership = (dir) => {
+  const abs = path.resolve(dir);
+  const file = path.join(abs, OWNER_FILE);
+  const other = foreignOwnerOf(path.join(abs, "x"));
+  if (other) throw new Error(`another Aurora (pid ${other}) owns ${abs}`);
+  fs.writeFileSync(file, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
+  ownedDir = abs;
+  ownerCache.delete(abs);
+  return file;
+};
+const releaseOwnership = () => {
+  if (!ownedDir) return;
+  const file = path.join(ownedDir, OWNER_FILE);
+  try { const o = JSON.parse(fs.readFileSync(file, "utf8")); if (Number(o.pid) === process.pid) fs.unlinkSync(file); } catch {}
+  ownedDir = null;
+};
+const refusedOnce = new Set();
+
 class JsonStore {
   // opts: { kind: "critical" | "state" | "cache", shape: (data) => null | "what is wrong",
   //         backupLookup,
@@ -554,6 +608,15 @@ class JsonStore {
   // mode; nothing serialisable).
   _snapshot() {
     if (this.safeMode) return null; // never: see the note at the top
+    const other = foreignOwnerOf(this.filePath);
+    if (other) {
+      if (!refusedOnce.has(this.filePath)) {
+        refusedOnce.add(this.filePath);
+        console.warn(`[store] ${this.name}: not written — the running server (pid ${other}) owns this data folder`);
+      }
+      this.dirty = false;
+      return null;
+    }
     let token;
     if (this._prepare) {
       try { token = this._prepare(); } catch (err) { console.error(`Failed to prepare ${this.filePath}:`, err.message); }
@@ -873,6 +936,7 @@ const onExit = () => {
   if (flushed) return;
   flushed = true;
   flushAll();
+  releaseOwnership();
 };
 // A process that only requires a store (a tool, a test) still flushes on a
 // signal. The server replaces this with its own, fuller shutdown
@@ -882,9 +946,11 @@ const ownSignals = (on) => { own = !!on; };
 process.on("SIGINT", () => { if (!own) return; onExit(); process.exit(0); });
 process.on("SIGTERM", () => { if (!own) return; onExit(); process.exit(0); });
 process.on("beforeExit", onExit);
+process.on("exit", releaseOwnership);
 
 module.exports = {
   JsonStore, FileWriter, flushAll, idleAll, beforeFlushAll, ownSignals, atomicWriteSync, readChecked, md5,
+  claimOwnership, releaseOwnership, foreignOwnerOf, OWNER_FILE,
   status, inSafeMode, leaveSafeMode, announceRecoveries, acknowledgeRecoveries, recoverySentence,
   CRITICAL, REBUILDABLE, SHAPES,
   _internals: { instances, io, aio, kindFor, renameRetry, sameKind, readRecoveries, fmtSpan, digest, setBackupLookup: (fn) => { backupLookup = fn; }, DEBOUNCE_MS, GOOD_EVERY_MS, RETRY_LATER_MS },
