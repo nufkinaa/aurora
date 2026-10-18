@@ -23,6 +23,8 @@ const key = (w) => {
     streams: w.spec ? w.spec.streams : v.length,
     browseRps: round(w.client.browse.n / w.secs, 1),
     browseP50: w.client.browse.p50, browseP95: w.client.browse.p95, browseP99: w.client.browse.p99, browseMax: w.client.browse.max,
+    apiP95: w.client.api ? w.client.api.p95 : null, apiP99: w.client.api ? w.client.api.p99 : null,
+    imageP95: w.client.images ? w.client.images.p95 : g.image ? g.image.p95 : null, imageP99: w.client.images ? w.client.images.p99 : g.image ? g.image.p99 : null,
     homeP95: g.home ? g.home.p95 : null, homeP99: g.home ? g.home.p99 : null,
     homeServerP99: sr.home ? sr.home.p99 : null,
     segP95: g.segment ? g.segment.p95 : null, segP99: g.segment ? g.segment.p99 : null,
@@ -55,6 +57,7 @@ const key = (w) => {
 const capacityTable = (windows) => table(windows.map((w) => ({ ...key(w), label: w.label, verdict: w.verdict ? (w.verdict.degraded ? `**degraded**: ${w.verdict.why.join("; ")}` : "ok") : "" })), [
   ["window", "label"], ["hh", "households"], ["streams", "streams"], ["browse req/s", "browseRps"],
   ["browse p50/p95/p99 ms", (r) => `${r.browseP50}/${r.browseP95}/${r.browseP99}`],
+  ["API p95/p99", (r) => `${r.apiP95 ?? ""}/${r.apiP99 ?? ""}`], ["pictures p95/p99", (r) => `${r.imageP95 ?? ""}/${r.imageP99 ?? ""}`],
   ["Home p99 client/server", (r) => `${r.homeP99 ?? ""}/${r.homeServerP99 ?? ""}`],
   ["segment p95", "segP95"], ["1st seg p50", "firstSegP50"], ["TTFF p50/max", (r) => `${r.ttffP50 ?? ""}/${r.ttffMax ?? ""}`],
   ["stalls (s)", (r) => `${r.stalls} (${r.stallSec})`],
@@ -84,7 +87,7 @@ const renderAb = (res) => {
   out.push(`# A/B: ${refs.A} (A) vs ${refs.B} (B) — ${res.meta.scenario} n=${res.meta.n}, ${res.runs.length} runs interleaved ${res.meta.order.join(" ")}`);
   out.push("");
   const metrics = [
-    ["browse p50 ms", "browseP50", -1], ["browse p95 ms", "browseP95", -1], ["browse p99 ms", "browseP99", -1], ["Home p99 ms (client)", "homeP99", -1], ["Home p99 ms (server)", "homeServerP99", -1],
+    ["browse p50 ms", "browseP50", -1], ["browse p95 ms", "browseP95", -1], ["browse p99 ms", "browseP99", -1], ["API p95 ms (browse minus pictures)", "apiP95", -1], ["API p99 ms", "apiP99", -1], ["pictures p95 ms", "imageP95", -1], ["pictures p99 ms", "imageP99", -1], ["Home p99 ms (client)", "homeP99", -1], ["Home p99 ms (server)", "homeServerP99", -1],
     ["segment p95 ms", "segP95", -1], ["first segment p50 ms", "firstSegP50", -1], ["TTFF p50 ms", "ttffP50", -1], ["stalls", "stalls", -1],
     ["loop stalls > 50 ms", "stall50", -1], ["loop stalls > 100 ms", "stall100", -1], ["loop stall ms/min", "stallMsPerMin", -1], ["longest stall ms", "stallMax", -1], ["healthz p99 ms", "lagP99", -1], ["ELU", "elu", -1],
     ["server CPU s/min", "serverCpuSecPerMin", -1], ["ffmpeg cores", "kidsCores", -1], ["RSS MB", "rssMb", -1], ["heap MB", "heapMb", -1], ["handles", "handles", -1],

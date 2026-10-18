@@ -229,7 +229,7 @@ const measure = async ({ srv, ctx, tree, machine, secs, label }) => {
   const wsecs = (t1 - t0) / 1000;
   return {
     label, secs: round(wsecs, 1),
-    client: { groups: ctx.stats.rows(wsecs), browse: ctx.stats.total((g) => BROWSE.has(g)), all: ctx.stats.total(() => true), lagProbe: { n: sorted.length, p50: q(50), p95: q(95), p99: q(99), max: q(100) } },
+    client: { groups: ctx.stats.rows(wsecs), browse: ctx.stats.total((g) => BROWSE.has(g)), api: ctx.stats.total((g) => BROWSE.has(g) && g !== "image"), images: ctx.stats.total((g) => g === "image"), all: ctx.stats.total(() => true), lagProbe: { n: sorted.length, p50: q(50), p95: q(95), p99: q(99), max: q(100) } },
     viewers: vw,
     server: {
       loop: server.loop, stalls: server.stalls, elu: server.elu, cpuMs: server.cpu.userMs + server.cpu.systemMs, gc: server.gc, mem: server.mem, handles: server.handles,
