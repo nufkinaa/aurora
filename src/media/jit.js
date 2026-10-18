@@ -358,13 +358,54 @@ const nextSegment = (table, run) => {
   // been opened (every file before it is closed by then) or the film ended.
   if (!closer && !run.ended) return { wait: true };
   const at = (t) => `${t.toFixed(3)}s`;
-  if (!members.length) return { fail: `segment ${k}: no keyframe at its declared start ${at(lo)}` };
+  // (backoff: the keyframe this run should have started on is missing — a
+  // damaged stretch the demuxer skipped; a run started one segment earlier
+  // meets it from before, where the rule below applies)
+  if (!members.length) return { fail: `segment ${k}: no keyframe at its declared start ${at(lo)}`, backoff: k };
   const first = run.gops[members[0]].start;
   if (Math.abs(first - lo) > BOUNDARY_TOL_SEC) {
-    return { fail: `segment ${k}: first keyframe at ${at(first)}, playlist says ${at(lo)}` };
+    return { fail: `segment ${k}: first keyframe at ${at(first)}, playlist says ${at(lo)}`, backoff: k };
   }
   if (closer && closer.start - hi > BOUNDARY_TOL_SEC) {
-    return { fail: `segment ${k + 1}: next keyframe at ${at(closer.start)}, playlist says ${at(hi)}` };
+    // A DAMAGED STRETCH. The index names a keyframe the demuxer never
+    // delivered (seen live: Inception (2010).mkv, a corrupt cluster at 19.6 s
+    // — "0x00 invalid as first byte of an EBML number" — and the next
+    // keyframe it reads is at 30.072 s). When the next keyframe it DOES
+    // deliver is itself a declared boundary, segment k simply runs on to it
+    // (it holds everything the file has for that stretch), and the declared
+    // segments in between get the same bytes: a player that asks for them
+    // finds media it already has. The file used to be declined for every
+    // viewer, mid-film.
+    // When that keyframe is not a declared boundary either, segment k takes
+    // every GOP up to the first one that is (or to the end of the film).
+    const isBoundary = (t) => {
+      let lo2 = k + 1;
+      let hi2 = table.length - 1;
+      while (lo2 < hi2) { const mid = (lo2 + hi2 + 1) >> 1; if (table[mid].start <= t + BOUNDARY_TOL_SEC) lo2 = mid; else hi2 = mid - 1; }
+      return Math.abs(table[lo2].start - t) <= BOUNDARY_TOL_SEC ? lo2 : -1;
+    };
+    const ext = members.slice();
+    let j = -1;
+    let i = run.gops.indexOf(closer);
+    for (; i < run.gops.length; i++) {
+      const g = run.gops[i];
+      if (!g || g.start == null) break;
+      j = isBoundary(g.start);
+      if (j > k) break;
+      ext.push(i);
+      j = -1;
+    }
+    if (j < 0 && !(run.ended && i >= run.gops.length)) {
+      if (i < run.gops.length || !run.ended) return { wait: true }; // the next true boundary is still to come
+    }
+    const end = j > k ? j : table.length;
+    // (to the end of the film only for the last segment or two — a whole
+    // tail with no true boundary is an index that does not describe the file)
+    if (j <= k && end - k - 1 > 1) return { fail: `segment ${k + 1}: next keyframe at ${at(closer.start)}, playlist says ${at(hi)}, and no later boundary is true` };
+    const alias = [];
+    for (let m = k + 1; m < end; m++) alias.push(m);
+    if (alias.length > MAX_BRIDGE) return { fail: `segment ${k + 1}: next keyframe at ${at(closer.start)}, playlist says ${at(hi)} (and none of the next ${MAX_BRIDGE} boundaries either)` };
+    return { seg: k, members: ext, drop, alias, damaged: `no keyframe at ${at(hi)}; the next one the file gives is ${at(closer.start)}${j > k ? `, the next declared one ${at(table[j].start)}` : ", none before the end"}` };
   }
   if (!closer && k + 1 < table.length) {
     return { fail: `the video ends inside segment ${k}; the playlist promised ${table.length}`, short: true, seg: k };
@@ -734,6 +775,9 @@ const encodeLoad = () => {
 };
 
 const BROKEN_RETRY_MS = 10 * 1000;
+const BACKOFF_MAX = 3; // segments a run may start before the one asked for
+const MAX_BRIDGE = 10; // declared segments one damaged stretch may share (about a minute)
+const MAX_BRIDGES_PER_JOB = 5; // damaged stretches one rendition may bridge before the file is declined
 const failJob = (dir, job, why, declineFile) => {
   if (job.broken) return;
   job.broken = why;
@@ -881,6 +925,18 @@ const advance = (dir, job, run) => {
   for (;;) {
     const step = nextSegment(job.table, run);
     if (step.wait) return;
+    if (step.fail && step.backoff != null && run.fromSeg === step.backoff && step.backoff > 0) {
+      // the run began where the file has no keyframe: begin one segment
+      // earlier (at most BACKOFF_MAX), where the damaged-stretch rule applies
+      const k = step.backoff;
+      const from = (job.startFrom.get(k) ?? k) - 1;
+      if (k - from <= BACKOFF_MAX && from >= 0) {
+        job.startFrom.set(k, from);
+        console.warn(`[jit] ${path.basename(dir)}: ${step.fail} — a damaged stretch? starting from segment ${from} instead`);
+        stopRun(job, run);
+        return wake(job);
+      }
+    }
     if (step.fail) {
       // A producer that reached its end inside a segment the table promised
       // more of was cut short — a read error, a busy disk, a file still being
@@ -899,8 +955,13 @@ const advance = (dir, job, run) => {
       return failJob(dir, job, step.fail, true);
     }
     const { seg, members, drop } = step;
+    const alias = step.alias || [];
+    // bridged too often: this is not one damaged stretch, the index does not
+    // describe the file — declined as before
+    if (alias.length && ++job.bridges > MAX_BRIDGES_PER_JOB) return failJob(dir, job, `the index disagrees with the file at more than ${MAX_BRIDGES_PER_JOB} places (last: ${step.damaged})`, true);
+    if (alias.length) console.warn(`[jit] ${path.basename(dir)}: ${step.damaged} — segment${alias.length > 1 ? "s" : ""} ${alias.join(", ")} share segment ${seg}'s bytes`);
     run.cursor = members[members.length - 1] + 1;
-    run.nextSeg = seg + 1;
+    run.nextSeg = (alias.length ? alias[alias.length - 1] : seg) + 1;
     // the segment an encoder was started for is decided: from here it yields
     if (job.enc) yieldCpu(run);
     // how much film this encoder has made since it started, and whether
@@ -913,6 +974,14 @@ const advance = (dir, job, run) => {
       .then(async () => {
         await Promise.all(drop.map((i) => unlinkQuiet(gopPath(run, i))));
         await publish(dir, job, run, seg, members);
+        for (const m of alias) {
+          const to = segPath(dir, m, run.fmt);
+          if (fs.existsSync(to)) continue;
+          const part = `${to}.${run.gen}.part`;
+          await fs.promises.copyFile(segPath(dir, seg, run.fmt), part);
+          await moveInto(part, to);
+        }
+        if (alias.length) wake(job);
       })
       .catch((err) => {
         if (!run.stopped) failJob(dir, job, `could not publish segment ${seg}: ${err.message}`, false);
@@ -1030,6 +1099,8 @@ const settle = (job, run) => {
 const startProducer = (dir, job, input, fromSeg, { quiet = false } = {}) => {
   checkKept(dir, job, input);
   job.leadParked = false;
+  // (a segment whose own keyframe is missing is made by a run from earlier)
+  if (job.startFrom && job.startFrom.has(fromSeg)) fromSeg = job.startFrom.get(fromSeg);
   const gen = ++job.gen;
   const run = {
     gen, fromSeg, fmt: input.fmt,
@@ -1468,6 +1539,8 @@ const jobFor = (dir, entry, { enc = false, hw = false } = {}) => {
       enc: !!enc, title: entry.key || dir, encArgs: null, refusedAt: 0,
       keptSig, made: null, // what the dir held from an earlier job, and how this one makes (checkKept)
       shortAt: new Map(), // segment -> runs that ended inside it (see advance)
+      startFrom: new Map(), // segment -> the segment a run for it starts at (a damaged stretch)
+      bridges: 0, // damaged stretches bridged (see nextSegment)
     };
     jobs.set(dir, job);
   }
