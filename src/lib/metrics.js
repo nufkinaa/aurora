@@ -161,7 +161,7 @@ const snapshot = () => {
   const heavy = safe(() => require("./admission").heavy.status(), {});
   const up = safe(() => require("./upstream").status(), { hosts: [], cache: {} });
   const imgQueue = safe(() => require("./imgvariant")._internals.queue.length, null);
-  const loop = safe(() => require("./looplag").read(), {});
+  const loop = safe(() => require("./looplag").detail(), {});
   const watch = safe(() => require("./watchdog").status(), {});
   const total = list.reduce((a, r) => ({ n: a.n + r.n, s5: a.s5 + r.s5, slow: a.slow + r.slow, inflight: a.inflight + r.inflight }), { n: 0, s5: 0, slow: 0, inflight: 0 });
   return {

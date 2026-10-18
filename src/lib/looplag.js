@@ -53,7 +53,10 @@ const stop = () => {
 const read = () => {
   let now = 0;
   try { if (h && h.max > 0) now = above(h.max, h.min > 0 && h.min < 1e15 ? h.min : 0); } catch {}
-  return { maxMs: Math.max(last.maxMs, now), p99Ms: last.p99Ms, p50Ms: last.p50Ms, meanMs: last.meanMs, windowMs: WINDOW_MS };
+  return { maxMs: Math.max(last.maxMs, now), p99Ms: last.p99Ms, meanMs: last.meanMs, windowMs: WINDOW_MS };
 };
+// …plus the median, for the admin's metrics (/healthz keeps its four numbers:
+// the keeper and outside monitors read exactly those).
+const detail = () => ({ ...read(), p50Ms: last.p50Ms });
 
-module.exports = { start, stop, read, _roll: roll };
+module.exports = { start, stop, read, detail, _roll: roll };
