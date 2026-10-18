@@ -396,6 +396,13 @@ router.get("/api/admin/health", (req, res) => {
   // who the CPU is working for: viewer encodes, and the background work
   // standing behind them (media/cpuwork.js)
   try { load.cpu = require("../media/cpuwork").status(); } catch {}
+  // direct play: each library disk, what kind the OS says it is and how its
+  // reads are taken (lib/disktype.js, lib/diskread.js); streams let go for
+  // not reading; job folders being removed in the background
+  try {
+    const dr = require("../lib/diskread");
+    load.streams = { disks: require("../lib/disktype").status().map((d) => ({ ...d, readsAtOnce: dr.limitFor(d.kind) || "free", readBytes: (dr.policyFor(d.kind) || { read: 65536 }).read, ...(dr.stats()[d.dev] || {}) })), direct: require("../lib/rangeserve").counters(), removals: require("../lib/rmqueue").stats() };
+  } catch {}
   res.json({ ...require("../lib/watchdog").status(), load });
 });
 router.post("/api/admin/heal", (req, res) => {

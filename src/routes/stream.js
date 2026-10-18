@@ -48,6 +48,7 @@ const resolveKind = (id, kind) => {
 // its head jump between them on every 64 KB (measured: STREAMING.md).
 const rangeserve = require("../lib/rangeserve");
 const diskread = require("../lib/diskread");
+const disktype = require("../lib/disktype");
 router.get("/stream/video/:id", (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   const stat = entry && rangeserve.statOf(entry.path);
@@ -98,7 +99,13 @@ router.get("/stream/video/:id", (req, res) => {
   // HEAD: the headers are the answer — the file is not read
   if (req.method === "HEAD" || total === 0) return res.end();
   rangeserve.watch(res); // a client that stopped reading for good is let go
-  const open = (file, o) => diskread.createReadStream(file, { ...o, dev: stat.dev });
+  // big reads in turns on a spinning disk; on an SSD the plain reader, as
+  // before (lib/diskread.js policyFor; lib/disktype.js asks the OS once per disk)
+  const policy = diskread.policyFor(disktype.kindFor(entry.path, stat.dev));
+  const disk = disktype.diskKey(entry.path, stat.dev);
+  const open = policy
+    ? (file, o) => diskread.createReadStream(file, { ...o, dev: disk, limit: policy.limit, highWaterMark: policy.read })
+    : (file, o) => fs.createReadStream(file, o);
   if (plan) return faststart.pipe(entry.path, plan, start, end, res, onErr, open);
   const s = open(entry.path, { start, end });
   s.on("error", onErr);

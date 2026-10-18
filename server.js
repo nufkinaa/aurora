@@ -634,6 +634,14 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // can't delete this live instance's in-progress transcodes. Synchronous, so
   // it finishes before any HTTP request handler runs.
   try { require("./src/media/remux").bootSweep(); } catch {}
+  // what kind of disk each library root is (lib/disktype.js — asked once, in
+  // the background, so the first viewer already gets the right read pattern)
+  try {
+    const dt = require("./src/lib/disktype");
+    for (const root of [...(config.LIBRARIES.movies || []), ...(config.LIBRARIES.shows || [])]) {
+      try { dt.kindFor(root, require("fs").statSync(root).dev); } catch {}
+    }
+  } catch {}
   // the jit cache: what idle jobs kept, bounded (media/jit.js sweepDisk)
   try { require("./src/media/jit").bootSweep(); } catch {}
   try { require("./src/media/torrent-transcode").bootSweep(); } catch {}

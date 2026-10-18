@@ -7,13 +7,14 @@
 // server's 7,200 rpm disk, cold regions, 12 films read at once: 78–80 MB/s
 // in all with 64 KB reads; docs/qa/server-round/STREAMING.md has the table).
 //
-// Here every read is bigger (READ_BYTES), and reads from ONE disk take
-// turns: at most PER_DISK at once, the rest wait in order of arrival — each
+// Here every read is bigger (READ_BYTES), and reads from ONE spinning disk
+// take turns (limitFor: an SSD's are left free, see lib/disktype.js): at most
+// PER_DISK at once, the rest wait in order of arrival — each
 // stream has at most one read outstanding, so the queue is round robin
 // between the viewers, and a slow reader is never starved by a fast one.
-// A disk is told apart by the file's device number (stat.dev: the volume on
-// Windows, the device on Linux). An SSD loses nothing by the turns (its reads
-// are short) and the cap only applies per disk.
+// A disk is told apart by lib/disktype.js diskKey (the device number on
+// Linux; the drive on Windows, where Node reports st.dev 0 for NTFS volumes);
+// without one, by the file's device number.
 //
 //   createReadStream(file, { start, end, highWaterMark, limit, dev })
 //
@@ -102,6 +103,24 @@ class DiskReadStream extends Readable {
 
 const createReadStream = (file, opts) => new DiskReadStream(file, opts);
 
+// How a disk is read, by its kind (lib/disktype.js) — chosen by measurement
+// on this PC's two disks (docs/qa/server-round/STREAMING.md):
+//   hdd      1 MB reads, 2 at once per disk, in turns: 13 → 45 viewers at
+//            12 Mbit/s on the house server's 7,200 rpm disk
+//   ssd      as before: fs.createReadStream, 64 KB, no turns (null). On the
+//            NVMe disk turns cost throughput (flat out, 12 readers: 2 at once
+//            1.5–2.2 GB/s against 3.1–3.4 free) and 1 MB reads made 40–80
+//            viewers start slower (p50 1.2–1.7 s against 0.45–0.73 s)
+//   network, unknown   the middle: 512 KB reads, 4 at once per disk
+const POLICY = {
+  hdd: { read: READ_BYTES, limit: PER_DISK },
+  ssd: null,
+  network: { read: 512 * 1024, limit: 4 },
+  unknown: { read: 512 * 1024, limit: 4 },
+};
+const policyFor = (kind) => (kind in POLICY ? POLICY[kind] : POLICY.unknown);
+const limitFor = (kind) => { const p = policyFor(kind); return p ? p.limit : null; };
+
 // For the admin page / tests: per disk, reads in flight, waiting, and totals.
 const stats = () => {
   const out = {};
@@ -109,4 +128,4 @@ const stats = () => {
   return out;
 };
 
-module.exports = { createReadStream, DiskReadStream, stats, READ_BYTES, PER_DISK };
+module.exports = { createReadStream, DiskReadStream, stats, policyFor, limitFor, POLICY, READ_BYTES, PER_DISK };

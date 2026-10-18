@@ -18,7 +18,8 @@ const { REPO, arg, sleep, pct, round, startInstance, readStats, regionState, rng
 const throttle = require(path.join(REPO, "tools", "throttle-proxy.js"));
 
 const movies = arg("movies");
-const trees = arg("trees", `after=${REPO}`).split(",").map((s) => { const [name, dir] = s.split("="); return { name, dir }; });
+// name=dir[@{config json}] — e.g. after=…@{"diskTypes":{"C:":"unknown"}}
+const trees = arg("trees", `after=${REPO}`).split(",").map((s) => { const [name, rest] = s.split(/=(.*)/s); const [dir, cfg] = rest.split("@"); return { name, dir, config: cfg ? JSON.parse(cfg) : {} }; });
 const counts = arg("viewers", "10,20").split(",").map(Number);
 const mbit = parseFloat(arg("mbit", "12"));
 const secs = parseFloat(arg("secs", "45"));
@@ -31,11 +32,14 @@ const bytesPerSec = (mbit * 1e6) / 8;
 (async () => {
   const insts = [];
   for (const t of trees) {
-    const srv = await startInstance({ movies, tree: t.dir });
+    const srv = await startInstance({ movies, tree: t.dir, config: t.config });
     insts.push({ ...t, srv });
     console.log(`[${t.name}] up at ${srv.url}, ${srv.films.length} films`);
   }
-  const regions = regionState();
+  // --cold 0: any region (an SSD library small enough to sit in the OS cache)
+  const regions = arg("cold", "1") === "0"
+    ? { pick: (films, bytes, rand) => { const f = films[Math.floor(rand() * films.length)]; return { film: f, start: Math.floor((rand() * Math.max(0, f.size - bytes)) / 1048576) * 1048576 }; }, note() {}, save() {} }
+    : regionState();
   const rand = rng(Date.now() & 0xffff);
   const results = [];
   try {

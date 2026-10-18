@@ -214,6 +214,9 @@ module.exports = {
   // (media/faststart.js — nothing on disk changes). "serveFaststart": false
   // serves every file byte for byte as it is.
   SERVE_FASTSTART: userConfig.serveFaststart !== false,
+  // What kind of disk a library root is, when the OS's answer is wrong or
+  // missing (lib/disktype.js): { "<path prefix>": "hdd" | "ssd" | "network" }.
+  DISK_TYPES: userConfig.diskTypes && typeof userConfig.diskTypes === "object" ? userConfig.diskTypes : null,
   // How much the jit cache (segments idle streams made, kept for a pause, a
   // second viewer, a restart) may hold on disk, in GB. Unset: 20. Kept
   // segments also go while the disk has under 5 GB free (media/jit.js).
