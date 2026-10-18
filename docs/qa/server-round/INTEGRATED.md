@@ -85,8 +85,8 @@ After the merges came `bc75e0d` (admin CSS), `6eb89b1` (leaks UI test), `ba98c04
 - The two real-ffmpeg jit tests that are known to fail under load did not fail in these runs.
 
 **Linux (WSL Ubuntu, a full clone from a git bundle of `srv-integrate`, `tv-native/` and `.git` included):**
-- Node 22.13.1: 1,780 pass / 1,838, **0 fail**, 58 skipped (no ffmpeg there, as in CI);
-- Node 20.18.1: the same.
+- on `fab1f5f`: Node 22.13.1 gave 1,780 pass / 1,838, **0 fail**, 58 skipped (no ffmpeg there, as in CI); Node 20.18.1 gave the same;
+- on `71404c3` (final): Node 22.13.1 gave 1,782 pass / 1,840, **0 fail**, 58 skipped; Node 20.18.1 gave the same.
 
 **Whole `npm run test:ui` (Windows, real Chrome), 291 tests. Every failing file was rerun alone:**
 
