@@ -167,20 +167,38 @@ const sourceRate = (index, table) => {
 // `mp4`: an MP4's index may be read too (mp4index.js) — asked for by the
 // library's routes; a torrent's are MKV-only as before (an MP4's index is
 // megabytes, often at the far end of a file that is still downloading).
+// Kept: the MAX_TABLES used most recently (a hit moves a table to the back
+// of the Map). The cache used to be CLEARED whole at 100 — and by every soft
+// heal — so under load every viewer's next segment found no table and the
+// segment route answered 409 "Playlist first" (torrents) or re-read the
+// file's index on the event loop, all of them at once (the load test: 103 ×
+// 409 at 48 viewers). Now one in-flight read per file serves every asker.
+const MAX_TABLES = 200;
+const building = new Map(); // indexKey -> Promise<entry|null>
 const tableFor = async (indexKey, readRange, fileSize, { mp4 = false } = {}) => {
   if (declinedReason(indexKey)) return null;
   const hit = tables.get(indexKey);
-  if (hit) return hit;
+  if (hit) {
+    tables.delete(indexKey);
+    tables.set(indexKey, hit);
+    return hit;
+  }
   if (!readRange) return null;
-  let index = await parseMkvIndex(readRange, fileSize);
-  if (!index && mp4) index = await parseMp4Index(readRange, fileSize);
-  if (!index) return null;
-  const table = buildTable(index);
-  if (!table || table.length < 2) return null;
-  const entry = { key: indexKey, table, durationSec: index.durationSec, rate: sourceRate(index, table) };
-  if (tables.size >= 100) tables.clear();
-  tables.set(indexKey, entry);
-  return entry;
+  const pending = building.get(indexKey);
+  if (pending) return pending;
+  const p = (async () => {
+    let index = await parseMkvIndex(readRange, fileSize);
+    if (!index && mp4) index = await parseMp4Index(readRange, fileSize);
+    if (!index) return null;
+    const table = buildTable(index);
+    if (!table || table.length < 2) return null;
+    const entry = { key: indexKey, table, durationSec: index.durationSec, rate: sourceRate(index, table) };
+    while (tables.size >= MAX_TABLES) tables.delete(tables.keys().next().value);
+    tables.set(indexKey, entry);
+    return entry;
+  })().finally(() => building.delete(indexKey));
+  building.set(indexKey, p);
+  return p;
 };
 
 // fmt: null → MPEG-TS (hls.js); "fmp4" → fragmented MP4 (Apple native HLS —
@@ -346,7 +364,7 @@ const nextSegment = (table, run) => {
     return { fail: `segment ${k + 1}: next keyframe at ${at(closer.start)}, playlist says ${at(hi)}` };
   }
   if (!closer && k + 1 < table.length) {
-    return { fail: `the video ends inside segment ${k}; the playlist promised ${table.length}` };
+    return { fail: `the video ends inside segment ${k}; the playlist promised ${table.length}`, short: true, seg: k };
   }
   return { seg: k, members, drop };
 };
@@ -457,7 +475,7 @@ const usage = (job, run, now) => {
   let seg = null;
   for (const r of job.readers) {
     if (now - r.at >= READER_TTL_MS) continue;
-    if (r.seg < run.fromSeg - ENC_LEAD_MIN - 1 || r.seg - run.nextSeg >= COVER_AHEAD) continue;
+    if (r.seg < run.fromSeg - leadMin(job) - 1 || r.seg - run.nextSeg >= COVER_AHEAD) continue;
     at = Math.max(at, r.at);
     seg = seg == null ? r.seg : Math.max(seg, r.seg);
   }
@@ -539,6 +557,15 @@ const budget = require("./encbudget");
 const costOfJob = (j) => (j && j.cost > 0 ? j.cost : budget.unit());
 const ENC_LEAD_MAX = 20; // ~2 minutes of film
 const ENC_LEAD_MIN = 5;
+// A COPY used to run to the end of the film once started: cheap for the CPU,
+// but it wrote the whole film into the cache at 20x real time (the load
+// test: ~140 MB a minute per copy stream onto the system disk, which also
+// slowed every store's fsync). It is parked the same way, further ahead (a
+// copy restarts in about a second), and resumed in time.
+const COPY_LEAD_MAX = 40; // ~4 minutes of film
+const COPY_LEAD_MIN = 10;
+const leadMax = (job) => (job.enc ? ENC_LEAD_MAX : COPY_LEAD_MAX);
+const leadMin = (job) => (job.enc ? ENC_LEAD_MIN : COPY_LEAD_MIN);
 const encodeCount = (except = null) => {
   let n = 0;
   for (const j of jobs.values()) if (j.enc && j !== except) n += j.producers.length;
@@ -696,9 +723,11 @@ const encodeLoad = () => {
   return { count, cost: Math.round(cost * 100) / 100 };
 };
 
+const BROKEN_RETRY_MS = 10 * 1000;
 const failJob = (dir, job, why, declineFile) => {
   if (job.broken) return;
   job.broken = why;
+  job.brokenAt = Date.now();
   console.error(`[jit] ${path.basename(dir)}: ${why}${declineFile ? " — declining this file" : ""}`);
   if (declineFile) decline(job.key, why);
   stopProducers(job);
@@ -842,7 +871,23 @@ const advance = (dir, job, run) => {
   for (;;) {
     const step = nextSegment(job.table, run);
     if (step.wait) return;
-    if (step.fail) return failJob(dir, job, step.fail, true);
+    if (step.fail) {
+      // A producer that reached its end inside a segment the table promised
+      // more of was cut short — a read error, a busy disk, a file still being
+      // written — more often than the index lied: the run stops, and only the
+      // SECOND time at the same place is the file declined. A keyframe where
+      // the table says there is none is a lie at once.
+      if (step.short) {
+        const n = (job.shortAt.get(step.seg) || 0) + 1;
+        job.shortAt.set(step.seg, n);
+        if (n < 2) {
+          console.warn(`[jit] ${path.basename(dir)}: ${step.fail} — once; trying again before declining the file`);
+          stopRun(job, run);
+          return wake(job);
+        }
+      }
+      return failJob(dir, job, step.fail, true);
+    }
     const { seg, members, drop } = step;
     run.cursor = members[members.length - 1] + 1;
     run.nextSeg = seg + 1;
@@ -880,8 +925,11 @@ const advance = (dir, job, run) => {
       return wake(job);
     }
     // An encoder far ahead of anything its reader asked for stops here.
-    if (job.enc && !waitedOn(job, run) && usage(job, run, Date.now()).lead >= ENC_LEAD_MAX) {
-      console.log(`[jit] parked ${path.basename(dir)} (${ENC_LEAD_MAX} segments ahead of its reader)`);
+    // (a warm-up has its own bound, above; a copy with no reader at all yet
+    // — its playlist asked for, no segment — is not "ahead" of anyone)
+    if (run.warm == null && !waitedOn(job, run) && (job.enc || job.readers.length) && usage(job, run, Date.now()).lead >= leadMax(job)) {
+      console.log(`[jit] parked ${path.basename(dir)} (${leadMax(job)} segments ahead of its reader)`);
+      job.leadParked = true; // (resumeAhead starts one again in time)
       stopRun(job, run);
       return wake(job);
     }
@@ -971,6 +1019,7 @@ const settle = (job, run) => {
 // `quiet`: nobody is waiting on it (a warm-up): an encoder yields from the start.
 const startProducer = (dir, job, input, fromSeg, { quiet = false } = {}) => {
   checkKept(dir, job, input);
+  job.leadParked = false;
   const gen = ++job.gen;
   const run = {
     gen, fromSeg, fmt: input.fmt,
@@ -1132,7 +1181,7 @@ const ensureSegment = async (dir, job, input, k, { gone = null } = {}) => {
   job.wanted.push(k);
   try {
     const file = await ensureSegmentInner(dir, job, input, k, gone);
-    if (file && job.enc && !(gone && gone())) resumeAhead(dir, job, input, k);
+    if (file && !(gone && gone())) resumeAhead(dir, job, input, k);
     return file;
   } finally {
     job.waiting--;
@@ -1145,7 +1194,10 @@ const ensureSegment = async (dir, job, input, k, { gone = null } = {}) => {
 // is asked for — if that takes nothing from anybody (plan, polite).
 const resumeAhead = (dir, job, input, k) => {
   if (job.broken) return;
-  const last = Math.min(k + ENC_LEAD_MIN, job.table.length - 1);
+  // a copy: only one this rule parked (a copy never parked runs on by itself,
+  // and one a warm-up made is started when it is asked for, as always)
+  if (!job.enc && !job.leadParked) return;
+  const last = Math.min(k + leadMin(job), job.table.length - 1);
   for (let m = k + 1; m <= last; m++) {
     if (fs.existsSync(segPath(dir, m, input.fmt))) continue;
     if (covering(job, m)) return;
@@ -1349,6 +1401,15 @@ const ensureInit = async (dir, job, input) => {
 // copy, whose index was not the one that lied.
 const jobFor = (dir, entry, { enc = false } = {}) => {
   let job = jobs.get(dir);
+  // A job that failed for a reason that is not the file's (a segment that
+  // could not be renamed into place, ffmpeg's log and list disagreeing), with
+  // nothing left running: after BROKEN_RETRY_MS
+  // the next one to ask starts it afresh. It used to stay broken for as long
+  // as anybody kept asking — its viewers got nothing but 504s.
+  if (job && job.broken && !job.producers.length && !job.runs.size && !declinedReason(job.key) && Date.now() - (job.brokenAt || 0) >= BROKEN_RETRY_MS) {
+    jobs.delete(dir);
+    job = null;
+  }
   let keptSig = null;
   if (!job) {
     // Whatever is in the dir was left by a job that is gone. Its PUBLISHED
@@ -1380,6 +1441,7 @@ const jobFor = (dir, entry, { enc = false } = {}) => {
       readers: [], lastReader: null, returns: [], contendedAt: 0,
       enc: !!enc, title: entry.key || dir, encArgs: null, refusedAt: 0,
       keptSig, made: null, // what the dir held from an earlier job, and how this one makes (checkKept)
+      shortAt: new Map(), // segment -> runs that ended inside it (see advance)
     };
     jobs.set(dir, job);
   }
@@ -1502,8 +1564,14 @@ const bootSweep = () => {
 // re-read from the file in a few ms) and kill every idle producer now.
 try {
   require("../lib/watchdog").onSoftHeal(() => {
-    const n = tables.size;
-    tables.clear();
+    // the tables nobody is using go (they are re-read in a few ms); those of
+    // jobs asked something of in the last two minutes stay — dropping them
+    // made every viewer's next segment re-read the file's index at once
+    const now0 = Date.now();
+    const used = new Set();
+    for (const j of jobs.values()) if (now0 - (j.lastAccess || 0) <= 120000 && j.key) used.add(String(j.key).replace(/\|enc$/, ""));
+    let n = 0;
+    for (const k of [...tables.keys()]) if (!used.has(k)) { tables.delete(k); n++; }
     let killed = 0;
     const now = Date.now();
     for (const job of jobs.values()) {
@@ -1569,7 +1637,7 @@ module.exports = {
     dropJob, decline,
     setDeclinedFile: (f) => { declinedFile = f; declined = null; },
     TARGET_SEG_SEC, TS_OFFSET_SEC, BOUNDARY_TOL_SEC,
-    sourceRate, admitEncode, park, get MAX_ENCODES() { return budget.slots(); }, ENC_LEAD_MAX, ENC_LEAD_MIN,
+    sourceRate, admitEncode, park, tables, building, MAX_TABLES, get MAX_ENCODES() { return budget.slots(); }, ENC_LEAD_MAX, ENC_LEAD_MIN, COPY_LEAD_MAX, COPY_LEAD_MIN,
     // producers and readers
     plan, noteReader, usage, reapable, contended, coversRun, extraCount, stopRun,
     MAX_PRODUCERS_PER_JOB, MAX_EXTRA_PRODUCERS, CLAIM_MS, READER_TTL_MS, STEAL_LEAD, BUSY_WAIT_MS, COVER_AHEAD,

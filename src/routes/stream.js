@@ -378,7 +378,7 @@ router.get("/stream/hls/:id/:file", (req, res) => {
   } catch {
     return res.status(404).send("Not found");
   }
-  remux.touch(req.params.id, mtime); // keep an actively-watched remux alive
+  remux.touch(req.params.id, mtime, "copy", 0, null, 0, null, req.params.file); // keep an actively-watched remux alive (and how far it is read)
   const abs = remux.filePath(`${req.params.id}-${mtime}`, req.params.file);
   if (!abs) return res.status(404).send("Not found");
   res.setHeader("Content-Type", "video/mp2t");
@@ -406,18 +406,20 @@ const { viewerOf } = require("../lib/viewer");
 const segVersion = (st) => Math.floor(st.mtimeMs).toString(36);
 
 // The file's segment table (cached by jit; read from the file when it is not).
+// (the index is read with async reads: on a sleeping hard disk a read of
+// the cues at the far end of a film is a seek, and it used to be a
+// synchronous one on the event loop)
 const libraryTable = async (entry, key, size) => {
   const cached = await jit.tableFor(key, null, 0).catch(() => null);
   if (cached) return cached;
-  const fd = fs.openSync(entry.path, "r");
+  const fh = await fs.promises.open(entry.path, "r");
   const readRange = async (start, len) => {
     const b = Buffer.alloc(len);
-    fs.readSync(fd, b, 0, len, start);
+    const { bytesRead } = await fh.read(b, 0, len, start);
+    void bytesRead; // (a short read leaves zeros, as the synchronous read did)
     return b;
   };
-  return jit.tableFor(key, readRange, size, { mp4: true }).finally(() => {
-    try { fs.closeSync(fd); } catch {}
-  });
+  return jit.tableFor(key, readRange, size, { mp4: true }).finally(() => fh.close().catch(() => {}));
 };
 
 // THE START HINT. A player that is about to start says so on its first
@@ -583,19 +585,12 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
     // server restart mid-watch the player still holds the full playlist and
     // just asks for the next segment. Rebuild the table from the file
     // rather than 409ing a perfectly resumable stream.
-    let table = await jit.tableFor(key, null, 0).catch(() => null);
-    if (!table) {
-      const fd = fs.openSync(entry.path, "r");
-      const readRange = async (start, len) => {
-        const b = Buffer.alloc(len);
-        fs.readSync(fd, b, 0, len, start);
-        return b;
-      };
-      table = await jit.tableFor(key, readRange, st.size, { mp4: true })
-        .catch(() => null)
-        .finally(() => { try { fs.closeSync(fd); } catch {} });
-    }
-    if (!table) return res.status(409).send("Playlist first");
+    // (declined: the file's index lied once — 404, as the playlist says, so
+    // the player falls back; it used to be 409 "Playlist first", which a
+    // player can only retry)
+    if (jit.declinedReason(key)) return res.status(404).send("No usable index in this file");
+    const table = await libraryTable(entry, key, st.size).catch(() => null);
+    if (!table) return res.status(404).send("No usable index in this file");
     // fMP4 producers get their own dir — same table, different segment
     // files; so does every rendition of the ladder, and every audio track.
     const v = ladder.renditionFromQuery(req.query.v);
@@ -739,7 +734,7 @@ router.get("/stream/transcode/:id/:ss/:file", (req, res) => {
   const v = remux.effectiveVcodec(remux.vcodecFromQuery(req.query.v), ss);
   const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
   const audio = Math.max(0, Math.min(31, parseInt(req.query.a, 10) || 0));
-  remux.touch(req.params.id, mtime, v, ss, fmt, audio, viewerOf(req)); // keep an actively-watched job alive (and whose it is)
+  remux.touch(req.params.id, mtime, v, ss, fmt, audio, viewerOf(req), req.params.file); // keep an actively-watched job alive (whose it is, and how far they have read)
   const abs = remux.filePath(remux.dirName(req.params.id, mtime, v, ss, fmt, audio), req.params.file);
   if (!abs) return res.status(404).send("Not found");
   res.setHeader("Content-Type", /\.(m4s|mp4)$/.test(req.params.file) ? "video/mp4" : "video/mp2t");

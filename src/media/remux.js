@@ -222,13 +222,68 @@ const jobDir = (id, mtime, vcodec, ss, fmt, audio = 0) => path.join(HLS_ROOT, di
 // Keep an actively-watched job alive (called on segment/playlist requests),
 // and remember who is reading it (`viewer`, the routes' viewerOf): whose
 // goodbye may stop it (release, below).
-const touch = (id, mtime, vcodec, ss, fmt, audio = 0, viewer = null) => {
+// `file`: the segment asked for (segNNNNN) — how far the readers have got,
+// for the ahead-of-the-reader rule below.
+const touch = (id, mtime, vcodec, ss, fmt, audio = 0, viewer = null, file = null) => {
   const job = jobs.get(jobDir(id, mtime, vcodec, ss, fmt, audio));
   if (job) {
     job.lastAccess = Date.now();
     goodbye.note(job, viewer);
+    const m = file && /^seg(\d{5})\./.exec(file);
+    if (m) {
+      const k = parseInt(m[1], 10);
+      if (!(job.readSeg >= k)) job.readSeg = k;
+      if (job.paused) pace(job); // (a reader catching up: resumed at once if it must be)
+    }
   }
 };
+
+// ---------- not further ahead of the reader than needed ----------
+// A job ran to the end of the film once started: a copy at ~20x real time
+// wrote the whole film into data/cache/hls (the load test: 1.4 GB in ten
+// minutes for two viewers, on the system disk, slowing every store's fsync),
+// and an encode spent the CPU on the whole film for a viewer who may stop
+// after ten minutes. Now a job AHEAD_MAX segments ahead of the furthest
+// segment any of its readers has asked for is PAUSED (lib/procpause.js: the
+// OS suspends the process — SIGSTOP, or NtSuspendProcess on Windows — so the
+// playlist, the files and ffmpeg's state are exactly where they were) and
+// resumed when the reader is AHEAD_MIN segments from the end of what is
+// made. If the OS will not pause it, it runs on, as before.
+const AHEAD_MAX = 50; // 6 s segments: 5 minutes of film
+const AHEAD_MIN = 20; // 2 minutes
+const procpause = require("../lib/procpause");
+const madeCount = async (dir) => {
+  try {
+    const text = await fs.promises.readFile(path.join(dir, "index.m3u8"), "utf8");
+    let n = 0;
+    for (let i = text.indexOf("#EXTINF"); i >= 0; i = text.indexOf("#EXTINF", i + 7)) n++;
+    return n;
+  } catch { return 0; }
+};
+const pace = async (job) => {
+  if (!job.proc || job.done || job.pacing) return;
+  job.pacing = true;
+  try {
+    const made = await madeCount(job.dir);
+    const read = job.readSeg >= 0 ? job.readSeg : 0;
+    const ahead = made - 1 - read;
+    if (!job.paused && ahead >= AHEAD_MAX) {
+      if (await procpause.suspend(job.proc && job.proc.pid)) {
+        job.paused = true;
+        console.log(`[remux] paused ${path.basename(job.dir)} (${ahead} segments ahead of its reader)`);
+      }
+    } else if (job.paused && ahead < AHEAD_MIN) {
+      if (job.proc) await procpause.resume(job.proc.pid);
+      job.paused = false;
+      console.log(`[remux] resumed ${path.basename(job.dir)} (its reader is ${ahead} segments from the end)`);
+    }
+  } finally {
+    job.pacing = false;
+  }
+};
+setInterval(() => {
+  for (const job of jobs.values()) if (job.proc && !job.done) pace(job).catch(() => {});
+}, 5000).unref?.();
 // The same for the playlist route, which knows the job by the dir ensure()
 // answered with.
 const noteViewer = (dir, viewer) => goodbye.note(jobs.get(dir), viewer);
@@ -539,7 +594,7 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   let stderr = "";
   proc.stderr.on("data", (d) => (stderr += d.toString()));
 
-  const job = { proc, done: false, heavy, cost, lastAccess: Date.now(), startedAt: Date.now() };
+  const job = { proc, done: false, heavy, cost, lastAccess: Date.now(), startedAt: Date.now(), dir, readSeg: -1, paused: false };
   job.ready = new Promise((resolve, reject) => {
     // resolve as soon as the playlist appears so playback starts immediately
     const started = Date.now();
@@ -687,4 +742,4 @@ const sweepStale = async (maxAgeMs = 24 * 3600 * 1000) => {
   }
   return freed;
 };
-module.exports = { ensure, touch, noteViewer, release, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr, jobs } };
+module.exports = { AHEAD_MAX, AHEAD_MIN, pace, ensure, touch, noteViewer, release, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr, jobs } };
