@@ -24,19 +24,27 @@ const req = (path, { ip = "203.0.113.9", xff, method = "GET", headers = {} } = {
 test("which requests are limited: costly public endpoints only", () => {
   assert.equal(ratelimit.groupOf("GET", "/api/search"), "search");
   assert.equal(ratelimit.groupOf("GET", "/api/search/suggest"), "suggest");
-  assert.equal(ratelimit.groupOf("GET", "/api/discover/meta/movie/tt1"), "title");
+  assert.equal(ratelimit.groupOf("GET", "/api/discover/meta/movie/tt1"), null, "a title page is never limited");
   assert.equal(ratelimit.groupOf("GET", "/api/catalog"), "catalogue");
   assert.equal(ratelimit.groupOf("GET", "/api/person/tmdb:1"), "person");
   assert.equal(ratelimit.groupOf("POST", "/api/subtitles/resync"), "resync");
   assert.equal(ratelimit.groupOf("POST", "/api/subtitles/resync/status"), null, "the status poll is never limited");
-  for (const p of ["/api/home", "/api/library", "/stream/abc", "/api/auth/login", "/api/admin/metrics", "/img/abc"]) {
+  for (const p of ["/api/home", "/api/library", "/api/item/abc", "/api/watchlist", "/stream/abc", "/api/auth/login", "/api/admin/metrics", "/img/abc", "/img/meta/x.jpg", "/api/profiles/abc/progress"]) {
     assert.equal(ratelimit.groupOf("GET", p), null, p);
     assert.equal(ratelimit.groupOf("POST", p), null, p);
   }
 });
 
-test("log mode (the default): nothing is refused, what would be is counted", () => {
+test("enforce is the default (owner, 2026-10-18)", () => {
   config.RATE_LIMITS = undefined;
+  assert.equal(ratelimit.status().mode, "enforce");
+  const { burst } = ratelimit.GROUPS.person;
+  for (let i = 0; i < burst; i++) assert.equal(ratelimit.take("person", req("/api/person/x")).ok, true);
+  assert.equal(ratelimit.take("person", req("/api/person/x")).ok, false);
+});
+
+test("log mode (the off-switch): nothing is refused, what would be is counted", () => {
+  config.RATE_LIMITS = "log";
   const burst = ratelimit.GROUPS.person.burst;
   for (let i = 0; i < burst + 10; i++) assert.equal(ratelimit.take("person", req("/api/person/x")).ok, true);
   const g = ratelimit.status().groups.find((x) => x.group === "person");

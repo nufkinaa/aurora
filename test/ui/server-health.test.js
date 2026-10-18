@@ -28,7 +28,7 @@ ui.test("metrics: admin only; JSON with requests, event loop, memory, work, outs
   assert.equal((await api.call("GET", "/api/admin/metrics")).status, 403);
   const m = await api.adminGet("/api/admin/metrics");
   for (const k of ["eventLoop", "memory", "work", "requests", "upstream", "rateLimits", "ws", "checks", "http"]) assert.ok(k in m, k);
-  assert.equal(m.rateLimits.mode, "log");
+  assert.equal(m.rateLimits.mode, "enforce");
   assert.equal(m.http.headersTimeout, 20000);
   const cfg = m.checks.checks.find((c) => c.id === "config");
   const keys = cfg.problems.map((p) => `${p.key}:${p.level}`).sort();
@@ -53,23 +53,73 @@ ui.test("request bodies: too large is 413, not JSON is 400 — as JSON, without 
   assert.doesNotMatch(log, /PayloadTooLargeError: request entity too large\n\s+at /, "no stack trace");
 });
 
-ui.test("rate limits in log mode: a burst over the limit is answered, and counted as would-refuse", async ({ srv, api }) => {
-  // X-Ray: burst 20 a client — a LAN/loopback client gets 4x, so 100 asks
-  // (People has its own older per-address budget, routes/api.js, enforced)
-  const codes = new Set();
-  for (let i = 0; i < 100; i++) codes.add((await fetch(`${srv.url}/api/xray?type=movie&imdbId=bad${i}`)).status);
-  assert.ok(!codes.has(429), `nothing refused in log mode (${[...codes]})`);
+ui.test("rate limits (enforced by default): a normal visit is never refused, a hammering client is — 429 with Retry-After", async ({ srv, api, freshProfile }) => {
+  // a first visit: Home, the library, the catalogue rows, a search typed at 10 letters a second
+  const p = await freshProfile();
+  const h = await api.as(p);
+  const visit = [`/api/home?profile=${p.id}`, "/api/library", "/api/catalog?type=movie&category=trending&page=0", "/api/catalog/genres?type=movie"];
+  const codes = [];
+  for (const u of visit) codes.push((await fetch(srv.url + u, { headers: h })).status);
+  for (let k = 1; k <= 10; k++) {
+    const q = encodeURIComponent("interstell".slice(0, k));
+    codes.push(...(await Promise.all([`/api/search?v=2&q=${q}`, `/api/search/suggest?v=2&q=${q}`].map(async (u) => (await fetch(srv.url + u, { headers: h })).status))));
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  assert.ok(!codes.includes(429), `normal use was refused: ${codes}`);
+  // a script: 400 X-Ray asks at once from one address (a LAN address: 4 x 60 allowed at once)
+  const many = await Promise.all(Array.from({ length: 400 }, (_, i) => fetch(`${srv.url}/api/xray?type=movie&imdbId=bad${i}`)));
+  const refused = many.filter((r) => r.status === 429);
+  assert.ok(refused.length > 0, "the hammer was refused");
+  assert.ok(Number(refused[0].headers.get("retry-after")) >= 1);
   const m = await api.adminGet("/api/admin/metrics");
+  assert.equal(m.rateLimits.mode, "enforce");
   const g = m.rateLimits.groups.find((x) => x.group === "xray");
-  assert.ok(g.wouldRefuse > 0, JSON.stringify(g));
-  assert.equal(g.refused, 0);
+  assert.ok(g.refused >= refused.length, JSON.stringify(g));
+});
+
+ui.test("two signed-in devices behind one address, at a power user's pace for 15 s (screens every second, searches at 10 letters a second, a grid flung, title pages and people in a row): never refused", async ({ srv, api }) => {
+  const device = async (name) => {
+    const p = await api.createProfile(name);
+    await api.post("/api/auth/claim", { profileId: p.id, username: name.toLowerCase() }, await api.as(p));
+    const r = await api.post("/api/auth/login", { username: name.toLowerCase(), password: p.password });
+    return { "X-Session": r.session };
+  };
+  const devs = [await device(`Nat${Date.now().toString(36).slice(-4)}a`), await device(`Nat${Date.now().toString(36).slice(-4)}b`)];
+  const codes = {};
+  const ask = async (u, h) => { const st = (await fetch(srv.url + u, { headers: h })).status; codes[st] = (codes[st] || 0) + 1; return st; };
+  const tt = () => `tt${7000000 + Math.floor(Math.random() * 900000)}`;
+  const stopAt = Date.now() + 15000;
+  const run = async (h, tag) => {
+    const jobs = [];
+    let i = 0;
+    while (Date.now() < stopAt) {
+      // a screen
+      const id = tt();
+      jobs.push(ask("/api/home", h), ask("/api/library", h), ask("/api/catalog?type=movie&category=trending&page=0", h),
+        ask(`/api/discover/meta/movie/${id}`, h), ask(`/api/discover/similar/movie/${id}`, h), ask(`/api/xray?type=movie&imdbId=${id}`, h), ask(`/api/trailer?type=movie&imdbId=${id}`, h),
+        ask(`/api/person/${encodeURIComponent(`Some One ${tag}${i}`)}?of=${id}&type=movie`, h));
+      // a word typed, a letter every 100 ms
+      for (let k = 1; k <= 10; k++) {
+        const q = encodeURIComponent(`q${tag}${i}abcdefgh`.slice(0, k));
+        jobs.push(ask(`/api/search?v=2&q=${q}`, h), ask(`/api/search?v=2&q=${q}&wait=1`, h), ask(`/api/search/suggest?v=2&q=${q}`, h), ask(`/api/discover/search?q=${q}`, h));
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      // the grid flung: 80 pictures nobody asked for before
+      for (let k = 0; k < 80; k++) jobs.push(ask(`/img/ext?u=${encodeURIComponent(`https://images.metahub.space/poster/medium/${tt()}/img`)}&w=240`, h));
+      i++;
+      await new Promise((r) => setTimeout(r, 1000)); // (looks at what came up)
+    }
+    await Promise.all(jobs);
+  };
+  await Promise.all(devs.map((h, n) => run(h, `d${n}`)));
+  assert.ok(!codes[429], `refused: ${JSON.stringify(codes)}`);
 });
 
 for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
   ui.test(`the Server → Health card (${name}): the top numbers, the checks, and a page no wider than the screen`, { viewport }, async ({ page, srv }) => {
     await enter(page, srv);
     const text = await page.textContent("#mx-card");
-    for (const s of ["event loop p99", "CPU (this process)", "requests in hand", "outside services", "Rate limits", "log only", "Live sockets"]) assert.ok(text.includes(s), s);
+    for (const s of ["event loop p99", "CPU (this process)", "requests in hand", "outside services", "Rate limits", "enforced", "Live sockets"]) assert.ok(text.includes(s), s);
     assert.match(text, /prewarmStream/, "the config warning is shown");
     assert.match(text, /scanIntervalMinutes/, "the refused setting is shown");
     // the watchdog card is still there, under its own name

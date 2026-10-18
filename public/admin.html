@@ -3270,14 +3270,14 @@
         [String(w.requestsInFlight || 0), "requests in hand", `${w.streamsInFlight || 0} video streams · ${w.encoders || 0} encoding · ${w.torrents || 0} torrents`],
         [String(t.n || 0), "requests answered", `${t.slow || 0} over 1 s · ${t.s5 || 0} server errors`, t.s5 ? "warn" : null],
         [String((w.heavyLane && w.heavyLane.waiting) || 0), "heavy requests waiting", `${(w.heavyLane && w.heavyLane.refused) || 0} turned away · pictures queued ${w.imgVariantQueue || 0}`],
-        [open.length ? `${open.length} down` : "all answering", "outside services", open.length ? open.map((h) => h.host).join(", ") : `${hosts.length} asked since start`, open.length ? "bad" : null],
+        [open.length ? `${open.length} down` : "all answering", "outside services", open.length ? open.slice(0, 3).map((h) => h.host).join(", ") + (open.length > 3 ? ` +${open.length - 3} more` : "") : `${hosts.length} asked since start`, open.length ? "bad" : null],
       ].map(tile).join("");
       const checks = (m.checks && m.checks.checks) || [];
       const lv = (l) => (l === "critical" ? "bad" : l === "warn" ? "warn" : l === "ok" ? "live" : "");
       $("#mx-checks").innerHTML = checks.map((c) => `<div style="font-size:0.86rem;overflow-wrap:anywhere"><span class="pill ${lv(c.level)}">${esc(c.level)}</span> ${esc(c.text)}${(c.problems || []).length ? `<div class="muted" style="font-size:0.8rem;margin:2px 0 0 8px">${c.problems.map((p) => esc(p.message)).join("<br>")}</div>` : ""}</div>`).join("");
       $("#mx-up-empty").classList.toggle("hidden", hosts.length > 0);
       const state = (h) => h.breaker === "closed" ? `<span class="pill live">answering</span>` : h.breaker === "open" ? `<span class="pill bad">down — not asked for ${Math.ceil((h.reopensInMs || 0) / 1000)} s</span>` : `<span class="pill warn">trying again</span>`;
-      $("#mx-up").innerHTML = hosts.slice(0, 20).map((h) => `<tr><td class="wide">${esc(h.host)}</td><td>${state(h)}</td><td>${h.calls}</td><td>${h.failed}${h.timeouts ? ` (${h.timeouts} timed out)` : ""}${h.refusedOpen ? ` · ${h.refusedOpen} not asked` : ""}</td><td>${fmtMs(h.p50Ms)}</td><td>${h.cacheFresh + h.cacheStale + h.cacheNegative + h.staleOnError}${h.lateFills ? ` · ${h.lateFills} late` : ""}</td><td class="wide">${h.lastError ? `${esc(h.lastError)} · ${esc(fmtMs(h.lastErrorAgoMs))} ago` : "–"}</td></tr>`).join("");
+      $("#mx-up").innerHTML = hosts.slice(0, 6).map((h) => `<tr><td class="wide">${esc(h.host)}</td><td>${state(h)}</td><td>${h.calls}</td><td>${h.failed}${h.timeouts ? ` (${h.timeouts} timed out)` : ""}${h.refusedOpen ? ` · ${h.refusedOpen} not asked` : ""}</td><td>${fmtMs(h.p50Ms)}</td><td>${h.cacheFresh + h.cacheStale + h.cacheNegative + h.staleOnError}${h.lateFills ? ` · ${h.lateFills} late` : ""}</td><td class="wide">${h.lastError ? `${esc(h.lastError)} · ${esc(fmtMs(h.lastErrorAgoMs))} ago` : "–"}</td></tr>`).join("");
       const routes = (m.requests || []).filter((r) => r.n >= 3 && r.group !== "static").sort((a, b) => (b.p95Ms || 0) - (a.p95Ms || 0)).slice(0, 5);
       $("#mx-slow-empty").classList.toggle("hidden", routes.length > 0);
       $("#mx-slow").innerHTML = routes.map((r) => `<tr><td class="wide">${esc(r.group)}</td><td>${r.n}</td><td>${fmtMs(r.p50Ms)}</td><td>${fmtMs(r.p95Ms)}</td><td>${fmtMs(r.maxMs)}</td><td>${r.slow}</td><td>${r.s5 ? `<span class="pill bad">${r.s5}</span>` : 0}${r.aborted ? ` · ${r.aborted} left early` : ""}</td></tr>`).join("");
@@ -3290,8 +3290,8 @@
       if (ws.closedSlow || ws.closedChatty || ws.oversize) wsBits.push(`${(ws.closedSlow || 0) + (ws.closedChatty || 0) + (ws.oversize || 0)} closed for misbehaving`);
       if (ws.overAddressLimit) wsBits.push(`${ws.overAddressLimit} over the per-address limit`);
       $("#mx-limits").innerHTML =
-        `<div><b>Rate limits</b> — ${rl.mode === "enforce" ? "enforced" : rl.mode === "off" ? "off" : "log only (nothing is refused; this counts what would be)"}: ` +
-        (over.length ? over.map((g) => `${esc(g.label)} ${g.mode === "enforce" ? `${g.refused} refused` : `${g.wouldRefuse} would be refused`} (${g.clientsOver} client${g.clientsOver === 1 ? "" : "s"})`).join(" · ") : "nobody has come near them") + `</div>` +
+        `<div><b>Rate limits</b> — ${rl.mode === "enforce" ? "enforced (only the endpoints that ask an outside provider or burn CPU, set far above heavy normal use)" : rl.mode === "off" ? "off" : "log only (nothing is refused; this counts what would be)"}: ` +
+        (over.length ? over.map((g) => `${esc(g.label)} ${g.mode === "enforce" ? `${g.refused} refused` : `${g.wouldRefuse} would be refused`} (${g.clientsOver} client${g.clientsOver === 1 ? "" : "s"})`).join(" · ") : "nobody has been refused") + `</div>` +
         `<div style="margin-top:4px"><b>Live sockets</b> — ${esc(wsBits.join(" · "))}</div>` +
         `<div style="margin-top:4px" class="muted">Up ${esc(fmtUptime(m.uptimeSec))} · ${esc(m.node)} · the raw numbers: /api/admin/metrics (?fmt=prom for Prometheus)</div>`;
     }

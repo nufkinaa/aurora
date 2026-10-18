@@ -296,7 +296,14 @@ router.get("/img/ext", async (req, res) => {
 // it); 404 when no source anywhere has one — remembered for a week.
 router.get("/img/poster/:imdbId", async (req, res) => {
   try {
-    const name = await require("../media/posterfallback").resolve({
+    // a backup poster not found yet costs provider calls: it counts against
+    // the client's picture allowance (lib/ratelimit.js); one already found never does
+    const pf = require("../media/posterfallback");
+    if (typeof pf.known === "function" && !pf.known(req.params.imdbId)) {
+      const rl = require("../lib/ratelimit").take("img-fetch", req);
+      if (!rl.ok) return require("../lib/ratelimit").refuse(res, "img-fetch", rl.retryAfterSec);
+    }
+    const name = await pf.resolve({
       imdbId: req.params.imdbId,
       type: req.query.type === "show" ? "show" : "movie",
       title: req.query.t ? String(req.query.t).slice(0, 80) : "",

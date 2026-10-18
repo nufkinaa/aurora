@@ -15,10 +15,11 @@
 // by sending the header). Loopback / private-LAN addresses get LAN_FACTOR
 // times the allowance (a household on its own network).
 //
-// MODES (config.json "rateLimits"): "log" (the default — nothing is refused;
-// what WOULD have been is counted per group, shown on the admin Health card
-// and said in the log, rate-limited), "enforce" (429 with Retry-After, which
-// the clients already handle for the admission lane), "off". Per group:
+// MODES (config.json "rateLimits"): "enforce" (the default, owner's decision
+// 2026-10-18 — 429 with Retry-After; the website and the TV wait and ask
+// again by themselves), "log" (the off-switch: nothing is refused, what WOULD
+// have been is counted, shown on the admin Health card and said in the log,
+// rate-limited), "off". Per group:
 //   "rateLimits": { "mode": "enforce", "groups": { "search": { "rate": 8, "burst": 40, "mode": "log" } } }
 //
 // The admission lane (lib/admission.js) is a different thing: it orders the
@@ -26,17 +27,25 @@
 // This decides whether a client gets to make that many in the first place.
 "use strict";
 
+// What is limited, and how much. ONLY the endpoints whose every call costs
+// the server outside-provider work or heavy CPU; never Home, the library,
+// Movies/Shows/My List, title pages, playback, progress, downloads, settings
+// or a picture already kept (owner, 2026-10-18: "anything that is normal use
+// should not be ever refused"). The numbers sit at least three times above a
+// measured "power user" (tools/resilience/poweruser.js: screens every second,
+// searches typed at 10 letters a second, ten title pages and person sheets in
+// a row, the Movies grid flung) on both the website's and the TV's request
+// patterns — docs/qa/server-round/RESILIENCE.md has the measured peaks.
 const GROUPS = {
-  // per second, at once
-  search: { rate: 10, burst: 30, label: "Search" },
-  suggest: { rate: 20, burst: 60, label: "Search suggestions" },
-  catalogue: { rate: 10, burst: 60, label: "Catalogue and discover" },
-  title: { rate: 10, burst: 40, label: "Title pages (catalogue)" },
-  person: { rate: 4, burst: 20, label: "People" },
-  xray: { rate: 4, burst: 20, label: "X-Ray and trailers" },
-  "img-fetch": { rate: 30, burst: 400, label: "Pictures fetched from a picture host" },
-  resync: { rate: 0.2, burst: 6, label: "Subtitle Resync" },
-  proxy: { rate: 5, burst: 30, label: "Web proxy" },
+  // per second sustained, at once
+  search: { rate: 40, burst: 120, label: "Search" },
+  suggest: { rate: 30, burst: 120, label: "Search suggestions" },
+  catalogue: { rate: 30, burst: 90, label: "Catalogue and discover" },
+  person: { rate: 10, burst: 40, label: "People" },
+  xray: { rate: 20, burst: 60, label: "X-Ray and trailers" },
+  "img-fetch": { rate: 150, burst: 300, label: "Pictures fetched from a picture host (misses only)" },
+  resync: { rate: 10, burst: 30, label: "Subtitle Resync" },
+  proxy: { rate: 50, burst: 300, label: "Web proxy (the TV's built-in browser: a page is many requests)" },
 };
 const LAN_FACTOR = 4;
 const MAX_KEYS = 20000;
@@ -47,7 +56,7 @@ const groupOf = (method, p) => {
   if (method === "GET") {
     if (p === "/api/search/suggest") return "suggest";
     if (p === "/api/search" || p === "/api/discover/search") return "search";
-    if (p.startsWith("/api/discover/meta/")) return "title";
+    if (p.startsWith("/api/discover/meta/")) return null; // a title page: never limited
     if (p === "/api/catalog" || p === "/api/catalog/genres" || p === "/api/discover" || p.startsWith("/api/discover/")) return "catalogue";
     if (p.startsWith("/api/person/")) return "person";
     if (p === "/api/xray" || p === "/api/trailer") return "xray";
@@ -65,7 +74,7 @@ const readSettings = () => {
   if (settingsCache && now - settingsAt < 5000) return settingsCache;
   let raw;
   try { raw = require("../config").RATE_LIMITS; } catch { raw = undefined; }
-  const mode = typeof raw === "string" ? raw : raw && typeof raw === "object" && raw.mode ? raw.mode : "log";
+  const mode = typeof raw === "string" ? raw : raw && typeof raw === "object" && raw.mode ? raw.mode : "enforce";
   const over = (raw && typeof raw === "object" && raw.groups && typeof raw.groups === "object") ? raw.groups : {};
   const groups = {};
   for (const [name, g] of Object.entries(GROUPS)) {
@@ -74,10 +83,10 @@ const readSettings = () => {
       ...g,
       rate: Number(o.rate) > 0 ? Number(o.rate) : g.rate,
       burst: Number(o.burst) > 0 ? Number(o.burst) : g.burst,
-      mode: ["log", "enforce", "off"].includes(o.mode) ? o.mode : ["log", "enforce", "off"].includes(mode) ? mode : "log",
+      mode: ["log", "enforce", "off"].includes(o.mode) ? o.mode : ["log", "enforce", "off"].includes(mode) ? mode : "enforce",
     };
   }
-  settingsCache = { mode: ["log", "enforce", "off"].includes(mode) ? mode : "log", groups };
+  settingsCache = { mode: ["log", "enforce", "off"].includes(mode) ? mode : "enforce", groups };
   settingsAt = now;
   return settingsCache;
 };
@@ -166,7 +175,8 @@ const take = (group, req) => {
     c.allowed++;
     return { ok: true, mode: g.mode };
   }
-  const retryAfterSec = Math.max(1, Math.ceil((1 - b.tokens) / rate));
+  // (at most 5 s: the website waits up to 5, the TV up to 10, before asking again)
+  const retryAfterSec = Math.min(5, Math.max(1, Math.ceil((1 - b.tokens) / rate)));
   c.lastRefusedAt = now;
   if (c.clients.size < 1000) c.clients.add(who.key);
   if (g.mode === "enforce") c.refused++;

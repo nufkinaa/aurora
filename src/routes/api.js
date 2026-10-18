@@ -450,8 +450,10 @@ const personCredit = (c, { findLibrary, list = [], row = () => null, kid = null,
   };
 };
 router.get("/api/person/:id", async (req, res) => {
-  const ip = (req.ip || "").replace("::ffff:", "");
-  if (personOverBudget(ip)) return res.status(429).json({ error: "Easy — give it a minute before looking up more people." });
+  // (the per-device limit on people is lib/ratelimit.js's "person" group; the
+  // per-address budget that stood here keyed on req.ip, which behind the
+  // site's reverse proxy is the proxy itself — every visitor of nufurora.com
+  // shared one 40-a-minute budget. personOverBudget is kept for its test.)
   try {
     const maps = identity._internals.libraryMaps();
     const findLibrary = (ref) => identity.findLibraryFor(ref, maps);
