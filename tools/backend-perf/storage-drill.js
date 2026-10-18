@@ -96,7 +96,8 @@ const check = (name, ok, detail) => { checks.push({ name, ok: !!ok, detail }); c
     }
     await ticks(srv, { op: "start", pid: PID, item: "drill|film", from: 100 + r * 10000, everyMs: 200, seekEvery: 25 });
     await sleep(4000 + Math.random() * 8000);
-    const st = await ticks(srv, { op: "status" });
+    // the ticks stop (nothing is written by that) and the kill follows at once
+    const st = await ticks(srv, { op: "stop" });
     const killedAt = Date.now();
     await killHard(srv);
     out.rounds.push({ ...st, killedAt });

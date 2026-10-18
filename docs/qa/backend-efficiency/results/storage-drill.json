@@ -1,0 +1,351 @@
+{
+  "at": "2026-10-18T09:27:50.556Z",
+  "source": "a copy of the live data folder (read only)",
+  "old": "4862136",
+  "rounds": [
+    {
+      "n": 58,
+      "last": 1356,
+      "lastUrgent": 1348,
+      "lastUrgentAt": 1792315691777,
+      "now": 1792315693465,
+      "killedAt": 1792315693466
+    },
+    {
+      "n": 53,
+      "last": 11351,
+      "lastUrgent": 11348,
+      "lastUrgentAt": 1792315765998,
+      "now": 1792315766672,
+      "killedAt": 1792315766674
+    },
+    {
+      "n": 48,
+      "last": 20747,
+      "lastUrgent": 20724,
+      "lastUrgentAt": 1792315779213,
+      "now": 1792315809207,
+      "killedAt": 1792315809211
+    },
+    {
+      "n": 37,
+      "last": 30736,
+      "lastUrgent": 30724,
+      "lastUrgentAt": 1792315821340,
+      "now": 1792315823841,
+      "killedAt": 1792315823842
+    },
+    {
+      "n": 30,
+      "last": 40729,
+      "lastUrgent": 40724,
+      "lastUrgentAt": 1792315836643,
+      "now": 1792315837849,
+      "killedAt": 1792315837851
+    },
+    {
+      "n": 28,
+      "last": 50727,
+      "lastUrgent": 50724,
+      "lastUrgentAt": 1792315851279,
+      "now": 1792315851891,
+      "killedAt": 1792315851892
+    }
+  ],
+  "downgradeHard": {
+    "newBuildLast": 321,
+    "oldBuildSees": null,
+    "afterUpgrade": {
+      "journalOnly": 308,
+      "oldBuild": 5014,
+      "journal": {
+        "boot": {
+          "mode": "merge",
+          "rows": 2,
+          "taken": 2,
+          "skippedProfiles": 0
+        },
+        "pending": 0
+      }
+    }
+  },
+  "downgradeGraceful": {
+    "last": 719,
+    "oldBuildSees": 719
+  },
+  "checks": [
+    {
+      "name": "round 1: boots clean after the kill",
+      "ok": true,
+      "detail": {
+        "recoveries": 0,
+        "safeMode": [],
+        "journal": {
+          "boot": {
+            "mode": "exact",
+            "rows": 1,
+            "taken": 1,
+            "skippedProfiles": 0
+          },
+          "pending": 1
+        }
+      }
+    },
+    {
+      "name": "round 1: the household is whole",
+      "ok": true,
+      "detail": {
+        "profiles": 5,
+        "rows": 168
+      }
+    },
+    {
+      "name": "round 1: resume point 1355 within [0, 1356]",
+      "ok": true,
+      "detail": {
+        "pos": 1355,
+        "floor": 0,
+        "last": 1356,
+        "lostSec": 1
+      }
+    },
+    {
+      "name": "round 2: boots clean after the kill",
+      "ok": true,
+      "detail": {
+        "recoveries": 0,
+        "safeMode": [],
+        "journal": {
+          "boot": {
+            "mode": "exact",
+            "rows": 1,
+            "taken": 1,
+            "skippedProfiles": 0
+          },
+          "pending": 1
+        }
+      }
+    },
+    {
+      "name": "round 2: the household is whole",
+      "ok": true,
+      "detail": {
+        "profiles": 5,
+        "rows": 168
+      }
+    },
+    {
+      "name": "round 2: resume point 10731 within [0, 11351]",
+      "ok": true,
+      "detail": {
+        "pos": 10731,
+        "floor": 0,
+        "last": 11351,
+        "lostSec": 620
+      }
+    },
+    {
+      "name": "round 3: boots clean after the kill",
+      "ok": true,
+      "detail": {
+        "recoveries": 0,
+        "safeMode": [],
+        "journal": {
+          "boot": {
+            "mode": "exact",
+            "rows": 1,
+            "taken": 1,
+            "skippedProfiles": 0
+          },
+          "pending": 1
+        }
+      }
+    },
+    {
+      "name": "round 3: the household is whole",
+      "ok": true,
+      "detail": {
+        "profiles": 5,
+        "rows": 168
+      }
+    },
+    {
+      "name": "round 3: resume point 20731 within [20724, 20747]",
+      "ok": true,
+      "detail": {
+        "pos": 20731,
+        "floor": 20724,
+        "last": 20747,
+        "lostSec": 16
+      }
+    },
+    {
+      "name": "round 4: boots clean after the kill",
+      "ok": true,
+      "detail": {
+        "recoveries": 0,
+        "safeMode": [],
+        "journal": {
+          "boot": {
+            "mode": "exact",
+            "rows": 1,
+            "taken": 1,
+            "skippedProfiles": 0
+          },
+          "pending": 1
+        }
+      }
+    },
+    {
+      "name": "round 4: the household is whole",
+      "ok": true,
+      "detail": {
+        "profiles": 5,
+        "rows": 168
+      }
+    },
+    {
+      "name": "round 4: resume point 30731 within [30724, 30736]",
+      "ok": true,
+      "detail": {
+        "pos": 30731,
+        "floor": 30724,
+        "last": 30736,
+        "lostSec": 5
+      }
+    },
+    {
+      "name": "round 5: boots clean after the kill",
+      "ok": true,
+      "detail": {
+        "recoveries": 0,
+        "safeMode": [],
+        "journal": {
+          "boot": {
+            "mode": "exact",
+            "rows": 1,
+            "taken": 1,
+            "skippedProfiles": 0
+          },
+          "pending": 1
+        }
+      }
+    },
+    {
+      "name": "round 5: the household is whole",
+      "ok": true,
+      "detail": {
+        "profiles": 5,
+        "rows": 168
+      }
+    },
+    {
+      "name": "round 5: resume point 40729 within [0, 40729]",
+      "ok": true,
+      "detail": {
+        "pos": 40729,
+        "floor": 0,
+        "last": 40729,
+        "lostSec": 0
+      }
+    },
+    {
+      "name": "after the last round: boots clean",
+      "ok": true,
+      "detail": {
+        "recoveries": 0,
+        "journal": {
+          "boot": {
+            "mode": "exact",
+            "rows": 1,
+            "taken": 1,
+            "skippedProfiles": 0
+          },
+          "pending": 1
+        }
+      }
+    },
+    {
+      "name": "after the last round: resume point within [0, 50727]",
+      "ok": true,
+      "detail": {
+        "pos": 50108
+      }
+    },
+    {
+      "name": "old build after a hard kill: boots clean",
+      "ok": true,
+      "detail": {
+        "recoveries": 0,
+        "safeMode": []
+      }
+    },
+    {
+      "name": "old build after a hard kill: the household is whole",
+      "ok": true,
+      "detail": {
+        "profiles": 5,
+        "rows": 167
+      }
+    },
+    {
+      "name": "upgrade again: boots clean, the journal merged",
+      "ok": true,
+      "detail": {
+        "boot": {
+          "mode": "merge",
+          "rows": 2,
+          "taken": 2,
+          "skippedProfiles": 0
+        },
+        "pending": 0
+      }
+    },
+    {
+      "name": "upgrade again: the row only the journal had is back",
+      "ok": true,
+      "detail": {
+        "pos": 308,
+        "last": 321
+      }
+    },
+    {
+      "name": "upgrade again: the row the old build wrote is there",
+      "ok": true,
+      "detail": {
+        "pos": 5014,
+        "last": 5014
+      }
+    },
+    {
+      "name": "upgrade again: the household is whole",
+      "ok": true,
+      "detail": {
+        "profiles": 5,
+        "rows": 170
+      }
+    },
+    {
+      "name": "old build after a graceful stop: sees the very last save",
+      "ok": true,
+      "detail": {
+        "pos": 719,
+        "last": 719
+      }
+    },
+    {
+      "name": "old build after a graceful stop: the household is whole",
+      "ok": true,
+      "detail": {
+        "profiles": 5,
+        "rows": 171
+      }
+    }
+  ],
+  "base": {
+    "profiles": 5,
+    "rows": 167
+  },
+  "passed": 25,
+  "failed": 0
+}
