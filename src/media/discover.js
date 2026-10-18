@@ -26,7 +26,9 @@ const SEARCH_CACHE_MAX = 300; // ~2 KB a query; typing one title is 5-10 of them
 
 const UA = { "User-Agent": "Aurora/1.0 (personal media server)" };
 
+let fetchJsonImpl = null; // (tests stand in for the network here)
 const fetchJson = async (url) => {
+  if (fetchJsonImpl) return fetchJsonImpl(url);
   const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(12000) });
   try { require("../lib/signals").provider(url, res.status); } catch {}
   if (!res.ok) throw new Error(`${res.status} ${url}`);
@@ -561,9 +563,72 @@ const searchLive = async (q) => {
 // series) from Cinemeta. Cached per id — in memory for speed, and on disk so
 // a restart doesn't turn every detail page back into a 5-10s Cinemeta wait
 // (the library warmer in librarywarm.js fills this ahead of time for what
-// is on disk). Stale entries are pruned on load, so the file stays bounded.
+// is on disk).
+//
+// STALE WHILE REVALIDATE (server round, 2026-10-18). An entry is FRESH for
+// META_TTL; after that it is still the answer — at once — while ONE refresh
+// for it runs in the background, until META_STALE_MAX, when it is dropped.
+// Before, an entry older than 12 hours was no answer at all (the page waited
+// for Cinemeta again), every stale entry was thrown away at start-up, the
+// library warmer re-asked every title on disk twice a day, two pages asking
+// at once made two requests, and a title Cinemeta would not answer was asked
+// again on every visit and after every ten-minute rescan.
+//   - one request in flight per title (metaInflight); a caller that comes
+//     while it runs waits for the same answer;
+//   - a failed request is remembered (metaFails): no new request for that
+//     title for 15 minutes, doubling up to a day; meanwhile a title with an
+//     old answer gets the old answer, one with none gets the failure at once;
+//   - meta.json is written at most once a minute (META_SAVE_MS), and at stop.
 const metaCache = new Map();
 const META_TTL = 12 * 3600 * 1000;
+const META_STALE_MAX = 60 * 24 * 3600 * 1000;
+const META_FAIL_MS = 15 * 60 * 1000;
+const META_FAIL_MAX_MS = 24 * 3600 * 1000;
+const META_SAVE_MS = 60 * 1000;
+const metaInflight = new Map(); // key -> Promise<data>
+const metaFails = new Map(); // key -> { at, n, error }
+const metaStats = { fresh: 0, stale: 0, fetched: 0, joined: 0, failed: 0, refused: 0 };
+let metaRev = 0; // moves on every change of the cache (stamp()), saved or not yet
+let metaSaveTimer = null;
+const metaSaveSoon = () => {
+  metaRev++;
+  if (metaSaveTimer) return;
+  metaSaveTimer = setTimeout(() => {
+    metaSaveTimer = null;
+    pruneMeta();
+    metaStore.save();
+  }, META_SAVE_MS);
+  metaSaveTimer.unref?.();
+};
+try {
+  require("../lib/shutdown").register("title metadata", () => {
+    if (metaSaveTimer) { clearTimeout(metaSaveTimer); metaSaveTimer = null; metaStore.save(); }
+  });
+} catch {}
+// Bounded: past META_STALE_MAX an entry is no answer and goes; beyond
+// META_MAX titles the oldest go (a library of 1,300 titles and the pages
+// people open fit many times over).
+const META_MAX = 6000;
+const pruneMeta = (now = Date.now()) => {
+  let n = 0;
+  for (const [key, hit] of metaCache) {
+    if (!hit || now - (hit.at || 0) >= META_STALE_MAX) { metaCache.delete(key); delete metaStore.data[key]; n++; }
+  }
+  if (metaCache.size > META_MAX) {
+    const oldest = [...metaCache].sort((a, b) => (a[1].at || 0) - (b[1].at || 0)).slice(0, metaCache.size - META_MAX);
+    for (const [key] of oldest) { metaCache.delete(key); delete metaStore.data[key]; n++; }
+  }
+  return n;
+};
+try {
+  require("../lib/caches").register("title metadata", () => ({ entries: metaCache.size, max: META_MAX }));
+  require("../lib/caches").register("title metadata: failures remembered", () => ({ entries: metaFails.size, max: 5000 }));
+} catch {}
+const failWait = (f) => Math.min(META_FAIL_MAX_MS, META_FAIL_MS * 2 ** Math.max(0, f.n - 1));
+const recentlyFailed = (key, now = Date.now()) => {
+  const f = metaFails.get(key);
+  return !!f && now - f.at < failWait(f);
+};
 const META_V = 4; // bump when the shape of `data` changes, so stale entries refetch (3: originalLanguage, 4: kidsAge)
 const metaStore = new JsonStore(path.join(config.CACHE_DIR, "meta.json"), {});
 
@@ -650,7 +715,9 @@ const pumpCertificates = () => {
   while (certRunning < 2 && certQueue.length) {
     const { type, imdbId } = certQueue.shift();
     certRunning++;
-    meta(type, imdbId)
+    // (a FRESH meta-cache hit never passes through the fetch path, hence the
+    // note here; a stale one is asked again — it is a rating we are after)
+    ((metaAge(type, imdbId) ?? Infinity) < META_TTL ? meta(type, imdbId) : fetchMetaOnce(type, imdbId))
       // (a meta-cache hit never passes through the fetch path, hence the note here)
       .then((data) => noteCertificate(data))
       .catch(() => {
@@ -697,8 +764,9 @@ const refreshCertificates = () => {
   return n;
 };
 
+// (kept across a restart while it may still serve as a stale answer)
 for (const [key, hit] of Object.entries(metaStore.data)) {
-  if (hit && hit.data && hit.v === META_V && Date.now() - (hit.at || 0) < META_TTL) {
+  if (hit && hit.data && hit.v === META_V && Date.now() - (hit.at || 0) < META_STALE_MAX) {
     metaCache.set(key, hit);
     // what the meta cache already knows seeds the ratings (first boot with
     // kids profiles) — in memory; it reaches the disk with the next real save
@@ -706,11 +774,55 @@ for (const [key, hit] of Object.entries(metaStore.data)) {
   } else delete metaStore.data[key];
 }
 
-const meta = async (type, id) => {
+const metaKey = (type, id) => `${type === "series" || type === "show" ? "series" : "movie"}|${id}`;
+// The answer for a title: fresh from memory; stale from memory (and one
+// refresh started); or the one request in flight for it.
+const meta = async (type, id, now = Date.now()) => {
+  const key = metaKey(type, id);
+  const hit = metaCache.get(key);
+  if (hit && now - hit.at < META_TTL) { metaStats.fresh++; return hit.data; }
+  if (hit && now - hit.at < META_STALE_MAX) {
+    metaStats.stale++;
+    refreshMeta(type, id);
+    return hit.data;
+  }
+  if (recentlyFailed(key, now)) {
+    metaStats.refused++;
+    const f = metaFails.get(key);
+    throw new Error(`not available (asked ${Math.round((now - f.at) / 1000)} s ago: ${f.error})`);
+  }
+  return fetchMetaOnce(type, id);
+};
+// Start (or join) the request for a title. -> Promise<data>
+const fetchMetaOnce = (type, id) => {
+  const key = metaKey(type, id);
+  const running = metaInflight.get(key);
+  if (running) { metaStats.joined++; return running; }
+  const p = fetchMeta(type, id).then(
+    (data) => { metaFails.delete(key); metaStats.fetched++; return data; },
+    (e) => {
+      const f = metaFails.get(key);
+      metaFails.set(key, { at: Date.now(), n: f ? f.n + 1 : 1, error: String((e && e.message) || e).slice(0, 120) });
+      if (metaFails.size > 5000) metaFails.delete(metaFails.keys().next().value);
+      metaStats.failed++;
+      throw e;
+    },
+  );
+  metaInflight.set(key, p);
+  const done = () => { if (metaInflight.get(key) === p) metaInflight.delete(key); };
+  p.then(done, done);
+  return p;
+};
+// A stale entry's background refresh: one per title, none while a failure is remembered.
+const refreshMeta = (type, id) => {
+  const key = metaKey(type, id);
+  if (metaInflight.has(key) || recentlyFailed(key)) return;
+  fetchMetaOnce(type, id).catch(() => {});
+};
+
+const fetchMeta = async (type, id) => {
   const cinemetaType = type === "series" || type === "show" ? "series" : "movie";
   const key = `${cinemetaType}|${id}`;
-  const hit = metaCache.get(key);
-  if (hit && Date.now() - hit.at < META_TTL) return hit.data;
 
   const raw = await fetchJson(`https://v3-cinemeta.strem.io/meta/${cinemetaType}/${id}.json`);
   const m = raw.meta || {};
@@ -791,7 +903,7 @@ const meta = async (type, id) => {
   const entry = { at: Date.now(), v: META_V, data };
   metaCache.set(key, entry);
   metaStore.data[key] = entry;
-  metaStore.save();
+  metaSaveSoon();
   noteCertificate(data); // the kids gate's long-lived copy of the rating
   return data;
 };
@@ -800,11 +912,24 @@ const meta = async (type, id) => {
 // counts to answer "has this profile finished the show?", and it must answer that
 // without a single blocking fetch — so it asks this and treats a miss as "don't
 // know", which fails open and leaves the title in.
-const metaCached = (type, id) => {
-  const ct = type === "series" || type === "show" ? "series" : "movie";
-  const hit = metaCache.get(`${ct}|${id}`);
-  return hit && Date.now() - hit.at < META_TTL ? hit.data : null;
+// A stale entry is answered too (it is what the title page shows) and its
+// refresh is started in the background, so the next look has today's list.
+const metaCached = (type, id, now = Date.now()) => {
+  const key = metaKey(type, id);
+  const hit = metaCache.get(key);
+  if (!hit) return null;
+  const age = now - hit.at;
+  if (age >= META_STALE_MAX) return null;
+  if (age >= META_TTL) refreshMeta(type, id);
+  return hit.data;
 };
+// How old the cached answer for a title is (ms), or null when there is none
+// (the library warmer: a title on disk is asked again once a week).
+const metaAge = (type, id, now = Date.now()) => {
+  const hit = metaCache.get(metaKey(type, id));
+  return hit ? now - hit.at : null;
+};
+const metaRecentlyFailed = (type, id) => recentlyFailed(metaKey(type, id));
 
 // Every title page's metadata still on disk (cast, director, the catalogue's
 // own spelling of the title), whatever its age — the search index reads
@@ -823,12 +948,12 @@ const trendingCached = () => {
 
 // Moves whenever the catalogue cache, the title details or the age ratings
 // are written — for whoever keeps something built from them (lib/answermemo.js).
-const stamp = () => `${cache.rev}.${metaStore.rev}.${certStore.rev}`;
+const stamp = () => `${cache.rev}.${metaRev}.${metaStore.rev}.${certStore.rev}`;
 
 module.exports = {
   stamp,
-  trending, trendingCached, search, meta, metaCached, catalog, catalogCachedItems, genres, CATALOGS, normalize,
+  trending, trendingCached, search, meta, metaCached, metaAge, metaRecentlyFailed, catalog, catalogCachedItems, genres, CATALOGS, normalize,
   certificateCached, certificateAge, certificateByTitle, warmCertificate, refreshCertificates, noteCertificate,
   searchCached, metaAll,
-  _internals: { cacheKey, isNewRelease, isFullPage, PAGE_SIZE, NEW_SPAN, certStore, noteCertificate, certFresh, CERT_V },
+  _internals: { metaCache, metaInflight, metaFails, metaStats, metaStore, fetchMetaOnce, META_TTL, META_STALE_MAX, META_FAIL_MS, setFetchJson: (fn) => { fetchJsonImpl = fn; }, cacheKey, isNewRelease, isFullPage, PAGE_SIZE, NEW_SPAN, certStore, noteCertificate, certFresh, CERT_V },
 };
