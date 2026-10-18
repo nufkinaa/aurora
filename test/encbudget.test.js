@@ -263,10 +263,17 @@ test("falling behind real time: new encodes are refused and background work is s
     assert.equal(budget.overloaded(), false);
     assert.equal(budget.admit({ cost: 1.23, running: 1.23 }).ok, true);
   });
-  // behind (0.7×), watched, CPUs 95% busy: overloaded
+  // behind (0.7×), watched, CPUs 95% busy — and busy with OUR encoders
+  // (eight of them, 1.23 thread-s each at 0.7× on a 0.86× machine: 8 of its
+  // 12 threads): overloaded
+  const feedAll = (keys, sp, waited, m, secs = 20) => {
+    for (let t = 0; t <= secs; t += 2) { for (const k of keys) budget.progress(k, t * sp, waited); m.tick(2000); }
+  };
   await machine({ logical: 12, speed: 0.86 }, async (m) => {
     B.sampleCpu(); busyCpu(m, 0.95);
-    feed("a", 0.7, true, m);
+    const ours = Array.from({ length: 8 }, () => ({ cost: 1.23 }));
+    feedAll(ours, 0.7, true, m);
+    assert.ok(budget.ownShare() > 0.6, `own share ${budget.ownShare()}`);
     assert.equal(budget.overloaded(), true);
     assert.equal(m.shed.length, 1, "the newest background job is shed, once");
     assert.deepEqual(budget.admit({ cost: 1.23, running: 1.23 }), { ok: false, why: "falling-behind" });
@@ -276,6 +283,16 @@ test("falling behind real time: new encodes are refused and background work is s
     // it catches up: the refusals end by themselves
     m.tick(B.OVERLOAD_HOLD_MS + 1);
     assert.equal(budget.overloaded(), false);
+    assert.equal(budget.admit({ cost: 1.23, running: 1.23 }).ok, true);
+  });
+  // behind on a machine kept busy by OTHER programs (one encoder of ours, a
+  // twelfth of it): said, and nobody is refused for it
+  await machine({ logical: 12, speed: 0.86 }, async (m) => {
+    B.sampleCpu(); busyCpu(m, 0.95);
+    feed({ cost: 1.23 }, 0.7, true, m);
+    assert.ok(budget.ownShare() < 0.2);
+    assert.equal(budget.overloaded(), false);
+    assert.equal(m.shed.length, 0);
     assert.equal(budget.admit({ cost: 1.23, running: 1.23 }).ok, true);
   });
   // slow, but the CPUs are idle: the source is slow (a torrent), not the machine
