@@ -20,6 +20,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { spawn } = require("child_process");
 const config = require("../config");
+const lazy = require("./lazy");
 
 const DIR = path.join(config.CACHE_DIR, "blur");
 try {
@@ -109,14 +110,34 @@ const pump = () => {
   }
 };
 
+// A film's still (/img/still/<id>) is a frame cut out of its video, made
+// when a screen asks for it. Its placeholder is made only once it exists:
+// asking for the placeholder must not be what makes the still.
+const stillLib = lazy(require, "../media/stills");
+const scannerLib = lazy(require, "../media/scanner");
+const STILL = /^\/img\/still\/([A-Za-z0-9]+)$/;
+const stillMade = (u) => {
+  const m = STILL.exec(u);
+  if (!m) return true; // not a still: nothing to wait for
+  try {
+    const entry = scannerLib().resolve(m[1]);
+    return !!(entry && entry.kind === "video" && stillLib().hasStill(entry.path));
+  } catch {
+    return false;
+  }
+};
+
 // The placeholder if it is known; otherwise null — and it is on its way.
-const get = (u) => {
+// `make: false`: only what is in memory (nothing is read or made).
+const get = (u, { make = true } = {}) => {
   if (typeof u !== "string" || u.length > 600) return null;
   const hit = mem.get(u);
   if (hit) return hit;
+  if (!make) return null;
   if (queued.has(u)) return null;
   if (Date.now() - (failed.get(u) || 0) < FAIL_TTL) return null;
   if (!localUrl(u)) return null;
+  if (!stillMade(u)) return null;
   queued.add(u);
   // a restart finds yesterday's on disk — cheap, async, never blocks a request
   fs.readFile(fileFor(u), "utf8", (err, text) => {
@@ -153,6 +174,14 @@ const collect = (node, out, depth = 0, wide = null) => {
 // What a page draws first decides the order: the first few backdrops (the
 // hero's slides), then every poster — a card is a poster — then the rest of
 // the backdrops while there is room.
+//
+// Only what a screen draws first is MADE: the first MAX_PER_RESPONSE
+// addresses in that order are read from disk or queued; the rest of an
+// answer is looked up in memory only. Before, every picture an answer named
+// was queued — the library list names 2,523 (a cover and a backdrop per
+// title), 1,262 ffmpeg starts in the first minute after a first visit
+// (docs/qa/backend-efficiency) for placeholders no answer could carry: an
+// answer carries at most MAX_PER_RESPONSE of them.
 const HERO_BACKDROPS = 8;
 const annotate = (body) => {
   const posters = new Set();
@@ -163,8 +192,10 @@ const annotate = (body) => {
   const order = [...wide.slice(0, HERO_BACKDROPS), ...posters, ...wide.slice(HERO_BACKDROPS)];
   const map = {};
   let n = 0;
+  let asked = 0;
   for (const u of order) {
-    const uri = get(u); // asked for all of them, so the next answer has more
+    // the first MAX_PER_RESPONSE are asked for (read or made), so the next answer has them
+    const uri = get(u, { make: asked++ < MAX_PER_RESPONSE });
     if (uri && n < MAX_PER_RESPONSE && !(u in map)) {
       map[u] = uri;
       n++;
@@ -189,4 +220,4 @@ const middleware = (req, res, next) => {
   next();
 };
 
-module.exports = { middleware, get, annotate, generation: () => generation, _internals: { collect, localUrl, mem, shrink, make, learn } };
+module.exports = { middleware, get, annotate, generation: () => generation, _internals: { collect, localUrl, mem, shrink, make, learn, queued, queue, stillMade, MAX_PER_RESPONSE } };

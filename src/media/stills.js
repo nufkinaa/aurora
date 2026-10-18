@@ -118,6 +118,7 @@ const getStill = (videoPath) => {
         .catch(() => null)
         .then((r) => {
           inflight.delete(outFile);
+          if (r) notYet.delete(videoPath); // its placeholder may be made now (hasStill)
           resolve(r);
           return r;
         })
@@ -128,4 +129,38 @@ const getStill = (videoPath) => {
   return promise;
 };
 
-module.exports = { getStill, getFrame };
+// Is this film's still already made? (Without making it.) The blur-up
+// placeholders (lib/blurup.js) ask before they fetch /img/still/: a list of
+// 1,261 films used to have every film's frame cut out of its video just so a
+// 150-byte placeholder could be made of it — about a thousand ffmpeg runs for
+// pictures nobody had opened. A still is made when a screen asks for it; its
+// placeholder after that. "Made" is remembered (a still is never deleted
+// while its file is unchanged); "not made" is asked again after a minute.
+const MADE_MAX = 20000;
+const made = new Map(); // `${videoPath}|${mtime}` -> true
+const notYet = new Map(); // videoPath -> checkedAt
+const NOT_YET_MS = 60 * 1000;
+const hasStill = (videoPath, now = Date.now()) => {
+  const checked = notYet.get(videoPath);
+  if (checked && now - checked < NOT_YET_MS) return false;
+  let mtime = 0;
+  try {
+    mtime = Math.floor(fs.statSync(videoPath).mtimeMs);
+  } catch {
+    return false;
+  }
+  const key = `${videoPath}|${mtime}`;
+  if (made.has(key)) return true;
+  const name = require("crypto").createHash("md5").update(`${videoPath}|${mtime}`).digest("hex") + ".jpg";
+  if (fs.existsSync(path.join(STILL_DIR, name))) {
+    if (made.size >= MADE_MAX) made.clear();
+    made.set(key, true);
+    notYet.delete(videoPath);
+    return true;
+  }
+  if (notYet.size >= MADE_MAX) notYet.clear();
+  notYet.set(videoPath, now);
+  return false;
+};
+
+module.exports = { getStill, getFrame, hasStill, _internals: { made, notYet } };
