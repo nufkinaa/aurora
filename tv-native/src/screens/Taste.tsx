@@ -180,6 +180,12 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
 
   const keepGoing = useCallback(() => {
     setLeaving(null); // nothing of the last round is still on its way out
+    // The round's last answer started the next card's arrival, then the round's
+    // end unmounted it half way: on the native driver the value stayed there and
+    // Keep going showed that card dim and small (Mi TV, 2026-10-18). It arrives now.
+    pop.stopAnimation();
+    pop.setValue(0);
+    Animated.timing(pop, {toValue: 1, duration: calm.current ? 120 : 240, easing: Easing.out(Easing.cubic), useNativeDriver: true}).start();
     session.keepGoing();
     repaint();
     if (session.queue.length < 2) {
@@ -191,7 +197,7 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
         })
         .catch(() => showToast("Couldn't load more titles", '⚠️'));
     }
-  }, [session, repaint, profileId]);
+  }, [session, repaint, profileId, pop]);
 
   const done = useCallback(() => navigation.goBack(), [navigation]);
 
