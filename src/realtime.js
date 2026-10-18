@@ -237,6 +237,14 @@ const clientsOfProfile = (p) => {
   return out;
 };
 
+// A player on this client paused or stopped: the profile's watch journal is
+// written now (lib/watchjournal.js), not at its 30 s cadence.
+const stoppedOn = (client) => {
+  const pid = client.profileId || (client.ws && client.ws.profileId) || null;
+  if (!pid) return;
+  try { profilesLib().noteStop(pid); } catch {}
+};
+
 const handleMessage = (client, data, ws) => {
   // A socket of a profile that owes a new password says nothing that counts
   // (presence, activity, watch parties) — in every sign-in mode.
@@ -285,6 +293,12 @@ const handleMessage = (client, data, ws) => {
       client.streamDuration = typeof data.streamDuration === "number" ? data.streamDuration : null;
       client.streamReady = typeof data.streamReady === "number" ? data.streamReady : null;
       client.lastSeen = new Date().toISOString();
+      // Paused: the players go on reporting "Watching" every 5 s, paused or
+      // not, with the position standing still — the progress journal is
+      // written at once rather than at its 30 s cadence.
+      if (client.activity === "Watching" && wasWatching && typeof client.position === "number" && typeof client.prevPosition === "number" &&
+          Math.abs(client.position - client.prevPosition) < 0.5) stoppedOn(client);
+      client.prevPosition = client.activity === "Watching" ? client.position : null;
       if (client.activity === "Watching" && client.details) {
         // Sessions carry the full record (start/end/progress); the collapsed
         // watch-history entry is only bumped when a new session begins, so
@@ -293,6 +307,7 @@ const handleMessage = (client, data, ws) => {
         if (started) recordWatch(client, client.details);
       } else if (wasWatching) {
         telemetry.onStopWatching(client.id);
+        stoppedOn(client);
       }
       broadcastAdmins({ type: "client_update", client: publicClient(client) });
       break;
@@ -406,6 +421,7 @@ const attach = (server) => {
     });
 
     ws.on("close", () => {
+      if (client.activity === "Watching") stoppedOn(client);
       telemetry.onStopWatching(client.id);
       // a dropped socket leaves its party (the host's drop ends it)
       if (party.leave(client, sendTo)) broadcastAll({ type: "party_list", parties: party.list() });

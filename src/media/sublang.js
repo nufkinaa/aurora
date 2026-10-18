@@ -121,7 +121,9 @@ const enqueue = (job) => {
 
 const save = (p, entry) => {
   store.data[p] = { v: V, mtime: mtimeOf(p), at: new Date().toISOString(), ...entry };
-  store.save();
+  // a background job's result: a burst of them is one write (at most 30 s
+  // late; a hard kill loses at most that much, and it is worked out again)
+  store.save({ within: 30 * 1000 });
 };
 
 const runFile = async (job) => {
@@ -177,7 +179,9 @@ const runSync = async (job) => {
       console.log(`[subs] ${path.basename(sub)}: ${result.why} — x${result.scale.toFixed(4)} ${result.offset >= 0 ? "+" : ""}${result.offset.toFixed(2)} s (${result.matched}/${result.total} lines match the video's own track, ${result.identity} as it was)`);
     }
   }
-  store.save();
+  // a background job's result: a burst of them is one write (at most 30 s
+  // late; a hard kill loses at most that much, and it is worked out again)
+  store.save({ within: 30 * 1000 });
 };
 
 const pump = () => {

@@ -36,8 +36,13 @@ healer lists an unsupervised server as a finding.
   only every 15 minutes. When a retry holds for two minutes it says
   "recovered".
 - **keeps the log** where it has always been: `data/server-stdout.log` and
-  `data/server-stderr.log`, appended. A file over 50 MB is set aside as
-  `.log.1` at the next start of the server (one older copy is kept).
+  `data/server-stderr.log`, appended. A file that passes 50 MB is set aside
+  as `.log.r1` (the one before becomes `.log.r2`) — at a start and while the
+  server runs. Two set-aside copies are kept, and a log with its copies never
+  passes 150 MB: the oldest copies are removed first. Only those `.rN`
+  copies are ever removed: an older `server-stdout.log.1` (from before this
+  version) is left alone; the admin page (Server → Data growth) names it and
+  gives the command to delete it.
 - **writes down what happened** in `data/keeper-state.json`; the admin page
   reads it: supervised by what, uptime, restarts in the last day, why the last
   exit.

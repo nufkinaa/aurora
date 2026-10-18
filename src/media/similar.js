@@ -18,6 +18,10 @@ const config = require("../config");
 const discover = require("./discover");
 const { JsonStore } = require("../lib/jsonstore");
 
+// A cache of ~640 KB, rewritten whole for every title page it learns a row
+// for: written at most once a minute instead (memory answers meanwhile; a
+// hard kill loses at most a minute of rows, which are fetched again).
+const SAVE_WITHIN_MS = 60 * 1000;
 const store = new JsonStore(path.join(config.CACHE_DIR, "similar.json"), {
   v: 1,
   ids: {}, // imdbId -> {tmdbId, at} — permanent, an id can't change
@@ -53,7 +57,7 @@ const tmdbIdFor = async (imdbId, type) => {
   const tmdbId = found ? found.id : null;
   if (tmdbId) {
     store.data.ids[imdbId] = { tmdbId, at: Date.now() };
-    store.save();
+    store.save({ within: SAVE_WITHIN_MS });
   }
   return tmdbId;
 };
@@ -214,7 +218,7 @@ const similar = async (type, imdbId, tmdbHint) => {
     algo: ALGO,
     ...(failed ? { failed: true } : {}),
   };
-  store.save();
+  store.save({ within: SAVE_WITHIN_MS });
   return result;
 };
 
@@ -258,7 +262,7 @@ const collection = async (type, imdbId, tmdbHint) => {
     }
   } catch {}
   store.data.rows[key] = { ...out, at: Date.now() };
-  store.save();
+  store.save({ within: SAVE_WITHIN_MS });
   return out;
 };
 
@@ -302,7 +306,7 @@ const seriesShelves = async (imdbId, tmdbHint) => {
     }
   } catch {}
   store.data.rows[key] = { creator: out.creator, network: out.network, at: Date.now() };
-  store.save();
+  store.save({ within: SAVE_WITHIN_MS });
   return out;
 };
 

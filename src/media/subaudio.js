@@ -112,7 +112,9 @@ const save = (sub, videoPath, audio, source, result, ms) => {
     ms,
     result: result ? { ...result, byScale: undefined, words: audiosync.describe(result) } : null,
   };
-  store.save();
+  // a background job's result: a burst of them is one write (at most 30 s
+  // late; a hard kill loses at most that much, and it is worked out again)
+  store.save({ within: 30 * 1000 });
 };
 
 // ---------- the Resync button ----------
