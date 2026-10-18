@@ -104,9 +104,11 @@ const bump = (map, key, ms, extra) => {
   if (extra) for (const k in extra) r[k] = (r[k] || 0) + extra[k];
 };
 const writes = new Map(); // file -> { n, bytes }
+const asyncFs = new Map(); // "fsync" | "writeFile" | "write" -> { n } (off the loop)
 const fdPaths = new Map(); // fd opened for writing -> its path
 const fileKey = (p) => {
-  let r = rel(typeof p === "number" ? `fd:${p}` : p).replace(/\.tmp$/, "");
+  // (a store's temp file: <name>.<pid>[.<n>|.a<n>].tmp -> <name>)
+  let r = rel(typeof p === "number" ? `fd:${p}` : p).replace(/\.\d+(\.a?\d+)?\.tmp$/, "").replace(/\.tmp$/, "");
   r = r.replace(/^(data\/cache\/(?:img-variants|posters-web|posters|blur|stills|vtt|jit|hls|torrent-hls|offline|torrents))\/.*/, "$1/*");
   return r;
 };
@@ -137,6 +139,22 @@ if (FULL) {
     fs.promises[name] = function (...a) { noteWrite(a[0], a[1]); return p.apply(this, a); };
   }
   const cws = fs.createWriteStream;
+  // writes made off the loop (lib/jsonstore.js FileWriter): fs.promises.open
+  // handles — bytes per file, and how many fsyncs reached the disk that way
+  const pOpen = fs.promises.open;
+  fs.promises.open = async function (p, flags, ...rest) {
+    const fh = await pOpen.call(this, p, flags, ...rest);
+    if (/[wa]/.test(String(flags || "r"))) {
+      const key = fileKey(p);
+      for (const m of ["writeFile", "write"]) {
+        const orig = fh[m];
+        if (typeof orig === "function") fh[m] = function (data, ...r) { bump(writes, key, 0, { bytes: sizeOf(data) }); bump(asyncFs, m, 0); return orig.call(this, data, ...r); };
+      }
+      const sync = fh.sync;
+      fh.sync = function (...r) { bump(asyncFs, "fsync", 0); return sync.apply(this, r); };
+    }
+    return fh;
+  };
   fs.createWriteStream = function (p, ...rest) {
     const s = cws.call(this, p, ...rest);
     const key = fileKey(p);
@@ -263,13 +281,13 @@ const snap = () => {
     handles: process._getActiveHandles ? process._getActiveHandles().length : null,
     resource: process.resourceUsage ? (({ fsRead, fsWrite, voluntaryContextSwitches, involuntaryContextSwitches, maxRSS }) => ({ fsRead, fsWrite, voluntaryContextSwitches, involuntaryContextSwitches, maxRSS }))(process.resourceUsage()) : null,
     modules: mods.map((m) => ({ id: m.id, ms: ms(m.ms), self: ms(m.ms - m.kids), parent: m.parent, order: m.order, at: ms(m.at) })),
-    syncFs: obj(syncFs).map((r) => ({ ...r, ms: ms(r.ms) })), writes: obj(writes, "bytes"),
+    syncFs: obj(syncFs).map((r) => ({ ...r, ms: ms(r.ms) })), writes: obj(writes, "bytes"), asyncFs: obj(asyncFs, "n"),
     timers: obj(timers, "fires").map((r) => ({ ...r, ms: ms(r.ms), maxMs: ms(r.maxMs) })),
     spawns: obj(spawns, "n").map((r) => ({ ...r, ms: ms(r.ms) })), outbound: obj(outbound, "n"), blocked, bootProfiles,
   };
 };
 const reset = () => {
-  syncFs.clear(); writes.clear(); spawns.clear(); outbound.clear();
+  syncFs.clear(); asyncFs.clear(); writes.clear(); spawns.clear(); outbound.clear();
   for (const r of timers.values()) { r.fires = 0; r.ms = 0; r.maxMs = 0; r.created = 0; }
   for (const k of Object.keys(gc)) delete gc[k];
   if (loop) loop.reset();

@@ -54,11 +54,12 @@ const open = (dir, { now } = {}) => {
   const close = () => { forget(main); forget(journal.store); };
   return { main, journal, stateOf, tick, close, boot: boot.value, bootLines: boot.lines };
 };
+const settle = async (h) => { await h.journal.store.idle(); await h.main.idle(); await h.journal.store.idle(); };
 const seed = (dir, house = HOUSE()) => fs.writeFileSync(path.join(dir, "profiles.json"), JSON.stringify(house));
 const pfile = (dir) => path.join(dir, "profiles.json");
 const jfile = (dir) => path.join(dir, wj.FILE);
 
-test("a playback tick does not rewrite profiles.json: it waits in the journal (a minute at most; at once when it matters)", (t) => {
+test("a playback tick does not rewrite profiles.json: it waits in the journal (a minute at most; at once when it matters)", async (t) => {
   const dir = tmp();
   seed(dir);
   const before = fs.readFileSync(pfile(dir), "utf8");
@@ -67,8 +68,10 @@ test("a playback tick does not rewrite profiles.json: it waits in the journal (a
   try {
     for (let i = 0; i < 12; i++) h.tick("ann", "film", 100 + i * 5, { title: "tt1" });
     t.mock.timers.tick(I.DEBOUNCE_MS + 10);
+    await settle(h);
     assert.ok(!fs.existsSync(jfile(dir)), "routine ticks wait");
     t.mock.timers.tick(wj.ROUTINE_MS);
+    await settle(h);
     const j = read(jfile(dir));
     assert.equal(j.rows.ann.progress.film.position, 155, "the latest position, within the minute");
     assert.equal(j.rows.ann.titles.tt1.position, 155);
@@ -77,14 +80,17 @@ test("a playback tick does not rewrite profiles.json: it waits in the journal (a
 
     h.tick("ann", "film", 2000, { urgent: true }); // a seek
     t.mock.timers.tick(I.DEBOUNCE_MS);
+    await settle(h);
     assert.equal(read(jfile(dir)).rows.ann.progress.film.position, 2000, "an urgent one within the debounce");
 
     h.tick("ann", "film", 2005);
     h.journal.noteStop("ann");
     t.mock.timers.tick(I.DEBOUNCE_MS);
+    await settle(h);
     assert.equal(read(jfile(dir)).rows.ann.progress.film.position, 2005, "a stop writes what is waiting");
     h.tick("ann", "film", 2007); // the player's last save, straight after the stop
     t.mock.timers.tick(I.DEBOUNCE_MS);
+    await settle(h);
     assert.equal(read(jfile(dir)).rows.ann.progress.film.position, 2007, "and the save that follows it");
     assert.equal(h.journal.stats.urgent >= 2, true);
   } finally {
@@ -122,7 +128,7 @@ test("boot: the journal is laid over the profiles.json it was built on — rows 
   }
 });
 
-test("a full write of profiles.json (any other change, a checkpoint) carries every row; the journal is emptied and re-based at once", () => {
+test("a full write of profiles.json (any other change, a checkpoint) carries every row; the journal is emptied and re-based at once", async () => {
   const dir = tmp();
   seed(dir);
   const h = open(dir);
@@ -133,6 +139,7 @@ test("a full write of profiles.json (any other change, a checkpoint) carries eve
     h.main.data.state.ann.watchlist.push("y"); // any change that is not a tick
     h.main.save();
     h.main.flush();
+    await settle(h);
     const p = read(pfile(dir));
     assert.equal(p.state.ann.progress.film.position, 500, "the row is in profiles.json now");
     assert.deepEqual(p.state.ann.watchlist, ["x", "y"]);
@@ -146,7 +153,7 @@ test("a full write of profiles.json (any other change, a checkpoint) carries eve
   }
 });
 
-test("a checkpoint: with rows waiting for CHECKPOINT_MS, the next tick has profiles.json written whole", (t) => {
+test("a checkpoint: with rows waiting for CHECKPOINT_MS, the next tick has profiles.json written whole", async (t) => {
   const dir = tmp();
   seed(dir);
   let clock = 1_000_000;
@@ -157,14 +164,17 @@ test("a checkpoint: with rows waiting for CHECKPOINT_MS, the next tick has profi
     clock += wj.CHECKPOINT_MS - 1000;
     h.tick("ann", "film", 105);
     t.mock.timers.tick(I.DEBOUNCE_MS);
+    await settle(h);
     assert.equal(read(pfile(dir)).state.ann.progress.film, undefined, "not yet");
     clock += 2000;
     h.tick("ann", "film", 110);
     t.mock.timers.tick(I.DEBOUNCE_MS);
+    await settle(h);
     assert.equal(read(pfile(dir)).state.ann.progress.film.position, 110, "profiles.json caught up");
     assert.equal(h.journal.stats.checkpoints, 1);
     assert.equal(h.journal.pending(), 0);
     t.mock.timers.tick(wj.ROUTINE_MS);
+    await settle(h);
     assert.ok(!fs.existsSync(jfile(dir)) || Object.keys(read(jfile(dir)).rows).length === 0, "and the journal holds nothing (it never had to be written)");
   } finally {
     h.close();
@@ -192,7 +202,7 @@ test("shutdown: what the journal holds goes into profiles.json, so an older buil
   }
 });
 
-test("an older build ran in between (or profiles.json was restored): the journal is MERGED newest-wins, nothing removed, then written whole", () => {
+test("an older build ran in between (or profiles.json was restored): the journal is MERGED newest-wins, nothing removed, then written whole", async () => {
   const dir = tmp();
   seed(dir);
   let h = open(dir);
@@ -212,6 +222,7 @@ test("an older build ran in between (or profiles.json was restored): the journal
 
   h = open(dir);
   try {
+    await settle(h);
     assert.equal(h.boot.mode, "merge");
     assert.ok(h.bootLines.some((l) => /merged/.test(l)), "said out loud");
     const ann = h.main.data.state.ann;

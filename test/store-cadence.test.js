@@ -19,16 +19,18 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "aurora-cadence-"));
 const rm = (dir) => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} };
 const forget = (s) => { if (s.saveTimer) clearTimeout(s.saveTimer); if (s.retryTimer) clearTimeout(s.retryTimer); I.instances.delete(s); };
 
-test("save({ within }) waits up to that long; a plain save() brings it forward; nothing is lost", (t) => {
+test("save({ within }) waits up to that long; a plain save() brings it forward; nothing is lost", async (t) => {
   const dir = tmp();
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const s = new JsonStore(path.join(dir, "ticks.json"), {});
   try {
     for (let i = 0; i < 50; i++) { s.data.n = i; s.save({ within: 60000 }); }
     t.mock.timers.tick(I.DEBOUNCE_MS + 10);
+    await s.idle();
     assert.equal(s.writes, 0, "a routine change does not wait only the debounce");
     assert.equal(s.dirty, true, "it is marked unwritten all the same");
     t.mock.timers.tick(60000);
+    await s.idle();
     assert.equal(s.writes, 1, "written once within the minute");
     assert.equal(JSON.parse(fs.readFileSync(s.filePath, "utf8")).n, 49, "with the latest value");
 
@@ -36,11 +38,13 @@ test("save({ within }) waits up to that long; a plain save() brings it forward; 
     t.mock.timers.tick(1000);
     s.data.n = 51; s.save(); // something that matters: the debounce, not the minute
     t.mock.timers.tick(I.DEBOUNCE_MS);
+    await s.idle();
     assert.equal(s.writes, 2, "a plain save brings the pending write forward");
     assert.equal(JSON.parse(fs.readFileSync(s.filePath, "utf8")).n, 51);
 
     s.data.n = 52; s.save(); s.save({ within: 60000 }); // a later 'within' never delays a sooner write
     t.mock.timers.tick(I.DEBOUNCE_MS);
+    await s.idle();
     assert.equal(s.writes, 3);
 
     s.data.n = 53; s.save({ within: 60000 });

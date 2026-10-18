@@ -70,7 +70,7 @@ test("what kind of store a file is follows its name and place", () => {
   for (const n of js.REBUILDABLE) assert.ok(backup._internals.EXCLUDE_FILES.has(n), n);
 });
 
-test("a burst of saves is ONE write, and a save that changes nothing is none", (t) => {
+test("a burst of saves is ONE write, and a save that changes nothing is none (the write itself off the loop)", async (t) => {
   const dir = tmp();
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const s = new JsonStore(path.join(dir, "progress.json"), {});
@@ -78,17 +78,20 @@ test("a burst of saves is ONE write, and a save that changes nothing is none", (
     for (let i = 0; i < 200; i++) { s.data.pos = i; s.save(); }
     assert.equal(s.writes, 0, "nothing is written during the burst");
     t.mock.timers.tick(I.DEBOUNCE_MS);
+    await s.idle();
     assert.equal(s.writes, 1, "200 saves, one write");
     assert.equal(JSON.parse(fs.readFileSync(s.filePath, "utf8")).pos, 199);
     // the same content again: no write at all
     s.save();
     t.mock.timers.tick(I.DEBOUNCE_MS);
+    await s.idle();
     assert.equal(s.writes, 1);
     assert.equal(s.skipped, 1);
     // a real change writes again
     s.data.pos = 500;
     s.save();
     t.mock.timers.tick(I.DEBOUNCE_MS);
+    await s.idle();
     assert.equal(s.writes, 2);
   } finally {
     t.mock.timers.reset();
@@ -132,6 +135,11 @@ test("a file that stays locked: the save is NOT forgotten — marked unsaved, tr
     return real.renameSync(a, b);
   };
   I.io.sleepSync = () => {};
+  const realAio = { ...I.aio };
+  I.aio.rename = (a, b) => {
+    if (locked && path.basename(b) === "downloads.json") return Promise.reject(Object.assign(new Error("EBUSY: resource busy or locked, rename"), { code: "EBUSY" }));
+    return realAio.rename(a, b);
+  };
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const s = new JsonStore(file, []);
   try {
@@ -145,16 +153,18 @@ test("a file that stays locked: the save is NOT forgotten — marked unsaved, tr
     assert.ok(!files(dir).some((n) => n.endsWith(".tmp")), "the temp file does not pile up");
     assert.deepEqual(js.status().unsaved.filter((n) => n === "downloads.json"), ["downloads.json"]);
     // still locked at the first retry, free at the second
-    await quiet(async () => { t.mock.timers.tick(I.RETRY_LATER_MS); });
+    await quiet(async () => { t.mock.timers.tick(I.RETRY_LATER_MS); await s.idle(); });
     assert.ok(s.dirty);
     locked = false;
-    await quiet(async () => { t.mock.timers.tick(I.RETRY_LATER_MS); });
+    await quiet(async () => { t.mock.timers.tick(I.RETRY_LATER_MS); await s.idle(); });
     assert.equal(s.dirty, false);
     assert.equal(s.unsavedSince, 0);
     assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), [{ id: "old" }, { id: "new" }]);
+    assert.ok(!files(dir).some((n) => n.endsWith(".tmp")), "no temp file of the writes off the loop either");
   } finally {
     t.mock.timers.reset();
     Object.assign(I.io, real);
+    Object.assign(I.aio, realAio);
     forget(s);
     rm(dir);
   }

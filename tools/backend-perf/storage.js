@@ -77,11 +77,17 @@ const summarise = (s, minutes) => {
   const saveFires = saves.reduce((a, t) => a + t.fires, 0);
   const saveMax = saves.reduce((a, t) => Math.max(a, t.maxMs), 0);
   const fsync = s.syncFs.find((r) => r.key === "fsyncSync") || { n: 0 };
+  const fsyncOff = ((s.asyncFs || []).find((r) => r.key === "fsync") || { n: 0 }).n;
+  // blocking file calls of the stores' writes, on the loop: count, total and longest ms
+  const blocking = s.syncFs.filter((r) => / @ .*(jsonstore|hotstore|watchjournal|tel[\/])/.test(r.key) && /^(openSync|writeSync|fsyncSync|closeSync|renameSync|writeFileSync)/.test(r.key));
   const cpuS = (s.cpuSinceReset.user + s.cpuSinceReset.system) / 1e6;
   return {
     mbPerHour: round(s.writes.reduce((a, w) => a + w.bytes, 0) / 1048576 / h, 2),
     rewritesPerHour: round(s.writes.reduce((a, w) => a + w.n, 0) / h, 0),
-    fsyncsPerHour: round(fsync.n / h, 0),
+    fsyncsPerHour: round((fsync.n + fsyncOff) / h, 0),
+    fsyncsOnLoopPerHour: round(fsync.n / h, 0),
+    storeSyncCallsPerHour: round(blocking.reduce((a, r) => a + r.n, 0) / h, 0),
+    storeSyncMsPerHour: round(blocking.reduce((a, r) => a + r.ms, 0) / h, 1),
     saveFiresPerHour: round(saveFires / h, 0),
     saveLoopSecPerHour: round(saveMs / 1000 / h, 3),
     saveMsEach: saveFires ? round(saveMs / saveFires, 2) : 0,
@@ -95,7 +101,7 @@ const summarise = (s, minutes) => {
   };
 };
 
-const COLS = [["MB / h", "mbPerHour"], ["rewrites / h", "rewritesPerHour"], ["fsyncs / h", "fsyncsPerHour"], ["saves / h", "saveFiresPerHour"], ["save loop s / h", "saveLoopSecPerHour"], ["ms / save", "saveMsEach"], ["longest save ms", "longestSaveMs"], ["loop p99 ms", "loopP99Ms"], ["loop max ms", "loopMaxMs"], ["CPU s / h", "cpuSecPerHour"]];
+const COLS = [["MB / h", "mbPerHour"], ["rewrites / h", "rewritesPerHour"], ["fsyncs / h", "fsyncsPerHour"], ["of them on the loop", "fsyncsOnLoopPerHour"], ["store fs ms on loop / h", "storeSyncMsPerHour"], ["saves / h", "saveFiresPerHour"], ["save loop s / h", "saveLoopSecPerHour"], ["ms / save", "saveMsEach"], ["longest save ms", "longestSaveMs"], ["loop p99 ms", "loopP99Ms"], ["loop max ms", "loopMaxMs"], ["CPU s / h", "cpuSecPerHour"]];
 
 (async () => {
   const weak = !!arg("weak");

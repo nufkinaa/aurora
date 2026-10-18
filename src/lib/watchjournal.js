@@ -105,7 +105,8 @@ class WatchJournal {
     this.main = main;
     this.stateOf = stateOf;
     this.now = now;
-    this.dirty = new Map(); // pid -> { progress: Set, titles: Set, streamItems: Set }
+    this.dirty = new Map(); // pid -> { progress: Map(key -> gen), titles: …, streamItems: … }
+    this.gen = 0; // moves with every row noted: what a write of profiles.json covered is "up to gen N"
     this.stopping = new Map(); // pid -> until
     this.base = main.loadedMd5 || null;
     this.lastCheckpointAt = now();
@@ -155,8 +156,8 @@ class WatchJournal {
 
   _mark(pid, kind, key) {
     let d = this.dirty.get(pid);
-    if (!d) this.dirty.set(pid, (d = { progress: new Set(), titles: new Set(), streamItems: new Set() }));
-    d[kind].add(key);
+    if (!d) this.dirty.set(pid, (d = { progress: new Map(), titles: new Map(), streamItems: new Map() }));
+    d[kind].set(key, ++this.gen);
   }
 
   // A playback tick changed these rows of `pid` (in memory already).
@@ -197,7 +198,7 @@ class WatchJournal {
         if (!d[kind].size) continue;
         const src = isObject(st[kind]) ? st[kind] : {};
         const o = (r[kind] = {});
-        for (const key of d[kind]) o[key] = Object.prototype.hasOwnProperty.call(src, key) ? src[key] : null;
+        for (const key of d[kind].keys()) o[key] = Object.prototype.hasOwnProperty.call(src, key) ? src[key] : null;
       }
       rows[pid] = r;
     }
@@ -205,17 +206,21 @@ class WatchJournal {
   }
 
   // profiles.json was just written whole (or found already holding `text`):
-  // everything is in it.
-  mainWritten(text) {
+  // every row noted up to `upTo` (the gen when its text was taken — the
+  // write itself happened off the loop, and ticks went on meanwhile) is in it.
+  mainWritten(text, upTo) {
     if (this.disabled) return;
     this.base = md5(text);
     this.lastCheckpointAt = this.now();
     this.stats.checkpoints++;
-    this.dirty.clear();
+    const limit = Number.isFinite(upTo) ? upTo : Infinity;
+    for (const [pid, d] of this.dirty) {
+      for (const kind of KINDS) for (const [key, g] of d[kind]) if (g <= limit) d[kind].delete(key);
+      if (!d.progress.size && !d.titles.size && !d.streamItems.size) this.dirty.delete(pid);
+    }
     if (this.diskRows > 0) {
-      this.store.save();
-      this.store.flush();
-    } else if (this.store.saveTimer) {
+      this.store.persist(); // rows on disk that profiles.json now holds: re-based (and emptied) at once
+    } else if (!this.dirty.size && this.store.saveTimer) {
       // nothing on disk to take back, and nothing left to say
       clearTimeout(this.store.saveTimer);
       this.store.saveTimer = null;
@@ -232,6 +237,9 @@ class WatchJournal {
   }
 
   pending() { let n = 0; for (const d of this.dirty.values()) for (const k of KINDS) n += d[k].size; return n; }
+
+  // For profiles.json's prepare: how far the rows noted so far go.
+  upTo() { return this.gen; }
 }
 
 module.exports = { WatchJournal, FILE, KINDS, ROUTINE_MS, CHECKPOINT_MS, STOP_WINDOW_MS, _internals: { applyRows, shape, blank, countRows } };

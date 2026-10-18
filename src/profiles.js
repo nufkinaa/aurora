@@ -23,7 +23,11 @@ const store = new JsonStore(path.join(config.DATA_DIR, "profiles.json"), () => (
     { id: "default", name: "Watcher", color: "#e05f2c", avatar: "🍿" },
   ],
   state: {},
-}), { digestOnLoad: true, afterWrite: (text) => { if (journal) journal.mainWritten(text); } });
+}), {
+  digestOnLoad: true,
+  prepare: () => (journal ? journal.upTo() : 0),
+  afterWrite: (text, upTo) => { if (journal) journal.mainWritten(text, upTo); },
+});
 
 // Backfill for stores written before profile approval / access logging existed.
 if (!Array.isArray(store.data.pending)) store.data.pending = [];
