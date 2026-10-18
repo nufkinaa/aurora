@@ -487,12 +487,15 @@ const googleOutcomeFor = (info, req) => {
 // check can run the same call and report the REAL failure (the #1 setup trap:
 // an OAuth client of the wrong TYPE — Google only allows this flow for
 // clients created as "TVs and Limited Input devices").
+// Google's endpoints through lib/upstream.js (timeout, a fair share, a
+// breaker: a Google that is down fails the sign-in at once, not after 8 s).
+const upstreamFetch = (url, init) => require("../lib/upstream").fetch(url, init);
 const googleDeviceStart = async () => {
-  const r = await fetch("https://oauth2.googleapis.com/device/code", {
+  const r = await upstreamFetch("https://oauth2.googleapis.com/device/code", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: G_ID, scope: "openid email profile" }),
-    signal: AbortSignal.timeout(8000),
+    timeoutMs: 8000,
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) {
@@ -572,7 +575,7 @@ router.post("/api/auth/google/poll", async (req, res) => {
   if (Date.now() - p.lastPoll >= p.interval) {
     p.lastPoll = Date.now();
     try {
-      const r = await fetch("https://oauth2.googleapis.com/token", {
+      const r = await upstreamFetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -581,7 +584,7 @@ router.post("/api/auth/google/poll", async (req, res) => {
           device_code: p.deviceCode,
           grant_type: "urn:ietf:params:oauth:grant-type:device_code",
         }),
-        signal: AbortSignal.timeout(8000),
+        timeoutMs: 8000,
       });
       const d = await r.json();
       if (d.error === "authorization_pending" || d.error === "slow_down") {
@@ -592,9 +595,9 @@ router.post("/api/auth/google/poll", async (req, res) => {
       } else if (d.id_token) {
         // let Google validate its own token over HTTPS (household scale —
         // no local JWKS machinery to rot)
-        const info = await fetch(
+        const info = await upstreamFetch(
           "https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(d.id_token),
-          { signal: AbortSignal.timeout(8000) },
+          { timeoutMs: 8000 },
         ).then((x) => x.json());
         if (info.aud !== G_ID || !info.sub) {
           p.done = true;
@@ -666,7 +669,7 @@ router.get("/api/auth/google/web-callback", async (req, res) => {
   if (!st) return page("This sign-in attempt expired — close this window and try again.");
   try {
     if (req.query.error) throw new Error(String(req.query.error));
-    const tr = await fetch("https://oauth2.googleapis.com/token", {
+    const tr = await upstreamFetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -676,13 +679,13 @@ router.get("/api/auth/google/web-callback", async (req, res) => {
         grant_type: "authorization_code",
         redirect_uri: st.redirectUri,
       }),
-      signal: AbortSignal.timeout(8000),
+      timeoutMs: 8000,
     });
     const td = await tr.json();
     if (!td.id_token) throw new Error(td.error_description || td.error || "token exchange failed");
-    const info = await fetch(
+    const info = await upstreamFetch(
       "https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(td.id_token),
-      { signal: AbortSignal.timeout(8000) },
+      { timeoutMs: 8000 },
     ).then((x) => x.json());
     if (info.aud !== G_WEB_ID || !info.sub) throw new Error("token verification failed");
     if (st.linkProfileId) {

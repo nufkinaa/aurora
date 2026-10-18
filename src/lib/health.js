@@ -500,7 +500,7 @@ const pingOnce = async () => {
   const url = config.HEALTH_PING_URL;
   if (!url) return;
   try {
-    const res = await fetch(url, { method: "GET", signal: AbortSignal.timeout(10000), headers: { "User-Agent": "Aurora health ping" } });
+    const res = await require("./upstream").fetch(url, { method: "GET", timeoutMs: 10000, retries: 0, breaker: false, headers: { "User-Agent": "Aurora health ping" } });
     live.ping.lastAt = Date.now();
     if (!res.ok && live.ping.lastOk !== false) console.warn(`[health] the health ping URL answered ${res.status}`);
     live.ping.lastOk = res.ok;

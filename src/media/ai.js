@@ -232,13 +232,11 @@ const callModel = async (messages, tag = "") => {
     return MOCK_ANSWER;
   }
   const t0 = Date.now();
-  // AbortSignal.timeout isn't available everywhere this runs; do it by hand.
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(ENDPOINT, {
+  // (lib/upstream.js: the timeout, two calls at once at most, a breaker)
+  {
+    const res = await require("../lib/upstream").fetch(ENDPOINT, {
       method: "POST",
-      signal: ctrl.signal,
+      timeoutMs: TIMEOUT_MS,
       headers: {
         Authorization: `Bearer ${config.OPENROUTER_KEY}`,
         "Content-Type": "application/json",
@@ -256,7 +254,6 @@ const callModel = async (messages, tag = "") => {
         max_tokens: 2000,
       }),
     });
-    try { require("../lib/signals").provider(ENDPOINT, res.status); } catch {}
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new Error(`OpenRouter ${res.status} after ${((Date.now() - t0) / 1000).toFixed(1)}s: ${body.slice(0, 200)}`);
@@ -264,8 +261,6 @@ const callModel = async (messages, tag = "") => {
     const data = await res.json();
     console.log(`[ai] ${config.AI_MODEL}${tag} answered in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     return data?.choices?.[0]?.message?.content || "";
-  } finally {
-    clearTimeout(timer);
   }
 };
 

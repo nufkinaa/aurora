@@ -31,7 +31,7 @@ const MISS_TTL = 7 * 24 * 3600 * 1000;
 const inflight = new Map();
 
 const getJson = async (url) => {
-  const res = await fetch(url, { headers: { "User-Agent": "Aurora (personal media server)" }, signal: AbortSignal.timeout(8000) });
+  const res = await require("../lib/upstream").fetch(url, { headers: { "User-Agent": "Aurora (personal media server)" }, timeoutMs: 8000 });
   if (!res.ok) return null;
   return res.json();
 };

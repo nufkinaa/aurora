@@ -22,8 +22,11 @@ const slot = async () => {
 };
 
 // `fetchImpl` is injectable so tests never touch the network.
-let fetchImpl = (...a) => fetch(...a);
-const setFetch = (fn) => { fetchImpl = fn || ((...a) => fetch(...a)); };
+// The default goes through lib/upstream.js (timeout, TMDB's fair share and
+// breaker); this module's own one retry below stays the only retry.
+const defaultFetch = (url, init) => require("../../lib/upstream").fetch(url, { ...init, retries: 0 });
+let fetchImpl = defaultFetch;
+const setFetch = (fn) => { fetchImpl = fn || defaultFetch; };
 
 const get = async (pathname, params = "", attempt = 0) => {
   if (!config.TMDB_KEY) throw new Error("tmdb: no key");
@@ -33,15 +36,14 @@ const get = async (pathname, params = "", attempt = 0) => {
   counters.byDay[day] = (counters.byDay[day] || 0) + 1;
   let res;
   try {
-    res = await fetchImpl(`${TMDB}/${pathname}?api_key=${config.TMDB_KEY}${params}`, {
-      signal: AbortSignal.timeout(9000),
-    });
+    res = await fetchImpl(`${TMDB}/${pathname}?api_key=${config.TMDB_KEY}${params}`,
+      fetchImpl === defaultFetch ? { timeoutMs: 9000 } : { signal: AbortSignal.timeout(9000) });
   } catch (err) {
     if (attempt < 1) return get(pathname, params, attempt + 1);
     counters.failed++;
     throw err;
   }
-  try { require("../../lib/signals").provider(TMDB, res.status); } catch {}
+  if (fetchImpl !== defaultFetch) { try { require("../../lib/signals").provider(TMDB, res.status); } catch {} }
   if ((res.status === 429 || res.status >= 500) && attempt < 1) {
     await new Promise((r) => setTimeout(r, 600));
     return get(pathname, params, attempt + 1);

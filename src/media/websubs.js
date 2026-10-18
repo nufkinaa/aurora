@@ -37,14 +37,18 @@ const langOf = (code) => {
   return LANGS.find((l) => l.codes.includes(c)) || null;
 };
 
+// (lib/upstream.js: timeout, fair share, breaker. The player's subtitle menu
+// waits SEARCH_WAIT_MS at most; a slower answer is still fetched and kept
+// for half an hour, so the next open of the menu has it at once.)
+const SEARCH_WAIT_MS = 4000;
 const fetchJson = async (url, ms = 12000) => {
-  const res = await fetch(url, {
-    headers: { "User-Agent": "Aurora/1.0" },
-    signal: AbortSignal.timeout(ms),
-  });
-  try { require("../lib/signals").provider(url, res.status); } catch {}
-  if (!res.ok) throw new Error(`${res.status}`);
-  return res.json();
+  try {
+    return await require("../lib/upstream").json(url, {
+      headers: { "User-Agent": "Aurora/1.0" }, timeoutMs: ms, deadlineMs: SEARCH_WAIT_MS, ttlMs: 30 * 60 * 1000,
+    });
+  } catch (e) {
+    throw new Error(`${(e && e.status) || (e && e.code) || "error"}`);
+  }
 };
 
 // ---------- providers ----------
@@ -293,9 +297,10 @@ const fetchSrt = async (track) => {
   if (!track || !track.provider) throw new Error("bad track");
 
   if (track.provider === "wz") {
-    const res = await fetch(`${WIZDOM_FILE}/${encodeURIComponent(track.ref)}`, {
+    const res = await require("../lib/upstream").fetch(`${WIZDOM_FILE}/${encodeURIComponent(track.ref)}`, {
       headers: { "User-Agent": "Aurora/1.0" },
-      signal: AbortSignal.timeout(20000),
+      timeoutMs: 20000,
+      maxBytes: 8 * 1024 * 1024,
     });
     if (!res.ok) throw new Error(`wizdom ${res.status}`);
     const zip = Buffer.from(await res.arrayBuffer());
@@ -304,9 +309,10 @@ const fetchSrt = async (track) => {
 
   // OpenSubtitles hands back the file directly (sometimes gzipped by the CDN,
   // which fetch() already transparently undoes).
-  const res = await fetch(track.ref, {
+  const res = await require("../lib/upstream").fetch(track.ref, {
     headers: { "User-Agent": "Aurora/1.0" },
-    signal: AbortSignal.timeout(20000),
+    timeoutMs: 20000,
+    maxBytes: 8 * 1024 * 1024,
   });
   if (!res.ok) throw new Error(`opensubtitles ${res.status}`);
   return decode(Buffer.from(await res.arrayBuffer()));

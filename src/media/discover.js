@@ -26,12 +26,14 @@ const SEARCH_CACHE_MAX = 300; // ~2 KB a query; typing one title is 5-10 of them
 
 const UA = { "User-Agent": "Aurora/1.0 (personal media server)" };
 
-const fetchJson = async (url) => {
-  const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(12000) });
-  try { require("../lib/signals").provider(url, res.status); } catch {}
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
-  return res.json();
-};
+// Every provider call goes through lib/upstream.js (timeout, a fair share
+// per host, a breaker for a host that is down, a 404 remembered). `page`:
+// a person is waiting for this answer — they wait at most PAGE_WAIT_MS; a
+// slower answer is still fetched and kept for the next ask (late fill).
+const upstream = require("../lib/upstream");
+const PAGE_WAIT_MS = 2500;
+const PAGE_ASK = { deadlineMs: PAGE_WAIT_MS, ttlMs: 10 * 60 * 1000 };
+const fetchJson = (url, opts) => upstream.json(url, { headers: UA, timeoutMs: 12000, ...(opts || {}) });
 
 const normalize = (s) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
@@ -271,7 +273,7 @@ const genres = async (type) => {
   const ct = cinemetaType(type);
   if (Date.now() - genreCache.at < GENRE_TTL && genreCache[ct].length) return genreCache[ct];
   try {
-    const manifest = await fetchJson("https://v3-cinemeta.strem.io/manifest.json");
+    const manifest = await fetchJson("https://v3-cinemeta.strem.io/manifest.json", PAGE_ASK);
     for (const t of ["movie", "series"]) {
       const cat = (manifest.catalogs || []).find((c) => c.type === t && c.id === "top");
       const extra = ((cat && cat.extra) || []).find((e) => e.name === "genre");
@@ -304,7 +306,7 @@ const sourcePage = async (ct, catalogId, extra, skip) => {
 
   let metas = [];
   try {
-    const data = await fetchJson(`https://v3-cinemeta.strem.io/catalog/${ct}/${catalogId}${suffix}.json`);
+    const data = await fetchJson(`https://v3-cinemeta.strem.io/catalog/${ct}/${catalogId}${suffix}.json`, PAGE_ASK);
     metas = data.metas || [];
   } catch {
     return { at: 0, items: [], rawCount: 0, failed: true };
@@ -411,7 +413,7 @@ const catalog = async ({ type, category = "trending", genre = null, page = 0 }) 
 
 const searchShows = async (q) => {
   const results = await fetchJson(
-    `https://api.tvmaze.com/search/shows?q=${encodeURIComponent(q)}`
+    `https://api.tvmaze.com/search/shows?q=${encodeURIComponent(q)}`, PAGE_ASK
   );
   const seen = new Set();
   return results
@@ -475,7 +477,7 @@ const searchMoviesWiki = async (q) => {
 // Wikipedia, with posters and IMDb ids baked in.
 const searchCinemeta = async (q, type) => {
   const data = await fetchJson(
-    `https://v3-cinemeta.strem.io/catalog/${type}/top/search=${encodeURIComponent(q)}.json`
+    `https://v3-cinemeta.strem.io/catalog/${type}/top/search=${encodeURIComponent(q)}.json`, PAGE_ASK
   );
   return (data.metas || []).slice(0, 14).map((m) => ({
     type: type === "series" ? "show" : "movie",
@@ -491,7 +493,7 @@ const searchCinemeta = async (q, type) => {
 
 const searchMoviesTmdb = async (q) => {
   const data = await fetchJson(
-    `https://api.themoviedb.org/3/search/movie?api_key=${config.TMDB_KEY}&query=${encodeURIComponent(q)}`
+    `https://api.themoviedb.org/3/search/movie?api_key=${config.TMDB_KEY}&query=${encodeURIComponent(q)}`, PAGE_ASK
   );
   return (data.results || []).slice(0, 12).map((r) => ({
     type: "movie",
@@ -530,9 +532,13 @@ const searchLive = async (q) => {
 
   // Cinemeta is the primary source for both (accurate + posters + IMDb ids);
   // fall back to TVMaze / TMDB / Wikipedia only if it returns nothing.
+  // (an answer made while Cinemeta failed or was slow is not kept for the
+  // hour: the next ask tries again — and finds the late answer kept)
+  let degraded = false;
+  const soft = (e) => { degraded = true; return []; };
   let [shows, movies] = await Promise.all([
-    searchCinemeta(q, "series").catch(() => []),
-    searchCinemeta(q, "movie").catch(() => []),
+    searchCinemeta(q, "series").catch(soft),
+    searchCinemeta(q, "movie").catch(soft),
   ]);
   // The fallbacks side by side, not one after the other: a query that finds
   // nothing anywhere (a typo, a title nobody indexed) used to wait through
@@ -550,7 +556,7 @@ const searchLive = async (q) => {
   ]);
 
   const result = { movies, shows };
-  searchCache.set(key, { at: Date.now(), result });
+  if (!degraded) searchCache.set(key, { at: Date.now(), result });
   if (searchCache.size > SEARCH_CACHE_MAX) {
     searchCache.delete(searchCache.keys().next().value);
   }
@@ -712,7 +718,7 @@ const meta = async (type, id) => {
   const hit = metaCache.get(key);
   if (hit && Date.now() - hit.at < META_TTL) return hit.data;
 
-  const raw = await fetchJson(`https://v3-cinemeta.strem.io/meta/${cinemetaType}/${id}.json`);
+  const raw = await fetchJson(`https://v3-cinemeta.strem.io/meta/${cinemetaType}/${id}.json`, PAGE_ASK);
   const m = raw.meta || {};
 
   let seasons = null;

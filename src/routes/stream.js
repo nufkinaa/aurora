@@ -213,7 +213,9 @@ const fetchExtImage = (url, file) => {
     let res = null;
     for (let hop = 0; hop < 3; hop++) {
       // (Wikimedia refuses requests with no descriptive User-Agent)
-      res = await fetch(target, { signal: AbortSignal.timeout(15000), redirect: "manual", headers: { "User-Agent": "Aurora/1.6 (personal media server)" } });
+      // (lib/upstream.js: timeout over the whole picture, a fair share per
+      // picture host, its breaker, the size cap while reading)
+      res = await require("../lib/upstream").fetch(target, { timeoutMs: 15000, maxBytes: MAX_EXT_IMAGE_BYTES, redirect: "manual", headers: { "User-Agent": "Aurora/1.6 (personal media server)" } });
       if (res.status < 300 || res.status >= 400) break;
       const loc = new URL(res.headers.get("location") || "", target).href;
       if (!extAllowed(loc)) throw new Error("redirect off allow-list");
@@ -237,7 +239,10 @@ const fetchExtImage = (url, file) => {
   p.then(done, done);
   p.then(
     () => extImgFails.delete(url),
-    () => {
+    (e) => {
+      // (a picture host that was only BUSY — every slot taken by a cold Home —
+      // has not said no: that picture is asked again at once next time)
+      if (e && e.code === "busy") return;
       if (extImgFails.size > 2000) extImgFails.clear();
       extImgFails.set(url, Date.now());
     },

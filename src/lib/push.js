@@ -167,7 +167,7 @@ const takePending = (key) => {
 const tickle = async (sub) => {
   try {
     if (!okEndpoint(sub.endpoint)) return void unsubscribe(sub.endpoint); // never POST anywhere else
-    const r = await fetch(sub.endpoint, {
+    const r = await require("./upstream").fetch(sub.endpoint, { // timeout, a fair share per push service, its breaker
       method: "POST",
       redirect: "manual", // a push service has no business sending us elsewhere
       headers: {
@@ -176,7 +176,7 @@ const tickle = async (sub) => {
         "Content-Length": "0",
         Authorization: `vapid t=${jwtFor(sub.endpoint, sub.origin)}, k=${vapid().publicKey}`,
       },
-      signal: AbortSignal.timeout(10000),
+      timeoutMs: 10000,
     });
     // one tally per outcome, for the healer ("subscriptions failing in bulk")
     try { require("./signals").hit("push", r.status === 404 || r.status === 410 ? "gone" : r.ok ? "ok" : `fail:${r.status}`); } catch {}

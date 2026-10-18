@@ -501,12 +501,13 @@ const trackersFromSources = (sources = []) =>
     .filter((s) => typeof s === "string" && s.startsWith("tracker:"))
     .map((s) => s.slice("tracker:".length));
 
+// (lib/upstream.js: timeout, the host's fair share and breaker — a source
+// list does not wait on a provider that is down — and it tells lib/signals)
 const fetchJson = async (url, ms = 12000) => {
-  const res = await fetch(url, {
+  const res = await require("../lib/upstream").fetch(url, {
     headers: { "User-Agent": "Aurora/1.0" },
-    signal: AbortSignal.timeout(ms),
+    timeoutMs: ms,
   });
-  try { require("../lib/signals").provider(url, res.status); } catch {}
   if (!res.ok) throw new Error(`${res.status} ${url}`);
   return res.json();
 };

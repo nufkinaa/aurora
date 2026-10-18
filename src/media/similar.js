@@ -30,15 +30,22 @@ const MISS_TTL = 24 * 3600 * 1000; // an empty answer is retried the next day
 const FAIL_TTL = 30 * 60 * 1000;
 
 const TMDB = "https://api.themoviedb.org/3";
+// (lib/upstream.js: timeout, fair share, breaker; a person is waiting on the
+// "More like this" row — 2.5 s per call at most, a slower answer kept for
+// the next ask; a build that failed is kept FAIL_TTL only, below)
 const tmdb = async (pathname, params = "") => {
-  const res = await fetch(
-    `${TMDB}/${pathname}?api_key=${config.TMDB_KEY}${params}`,
-    { signal: AbortSignal.timeout(8000) },
-  );
-  try { require("../lib/signals").provider(TMDB, res.status); } catch {}
-  if (!res.ok) throw new Error(`tmdb ${res.status}`);
-  return res.json();
+  try {
+    return await require("../lib/upstream").json(`${TMDB}/${pathname}?api_key=${config.TMDB_KEY}${params}`, {
+      timeoutMs: 8000, deadlineMs: 2500, ttlMs: 10 * 60 * 1000,
+    });
+  } catch (e) {
+    if (!(e && e.status === 404)) tmdbFailures++;
+    throw new Error(`tmdb ${(e && e.status) || (e && e.code) || "error"}`);
+  }
 };
+// TMDB calls that failed (not "not found"): a row built while one did — an
+// id lookup dropped, say — is kept FAIL_TTL only, so it is built again soon.
+let tmdbFailures = 0;
 
 // imdbId -> TMDB id via /find, movie AND tv aware (availability.js's own
 // resolver is movie-only). Cached forever.
@@ -178,6 +185,7 @@ const similar = async (type, imdbId, tmdbHint) => {
   }
 
   let result = { items: [], source: "tmdb" };
+  const f0 = tmdbFailures;
   let failed = false;
   if (config.TMDB_KEY) {
     try {
@@ -212,7 +220,7 @@ const similar = async (type, imdbId, tmdbHint) => {
     source: result.source,
     at: Date.now(),
     algo: ALGO,
-    ...(failed ? { failed: true } : {}),
+    ...(failed || tmdbFailures !== f0 ? { failed: true } : {}),
   };
   store.save();
   return result;
