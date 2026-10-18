@@ -147,7 +147,7 @@ const build = () => {
     out.push(entryFor(item, false));
   }
   entries = out;
-  builtScanStamp = scanner.index.scannedAt;
+  builtScanStamp = scanner.index.version;
   builtAt = Date.now();
 };
 
@@ -156,7 +156,7 @@ const ensureFresh = () => {
   // trending-cache refresh shows up — the check itself is two comparisons.
   if (
     !entries.length ||
-    scanner.index.scannedAt !== builtScanStamp ||
+    scanner.index.version !== builtScanStamp ||
     Date.now() - builtAt > REBUILD_MS
   ) {
     build();
@@ -283,7 +283,7 @@ const searchCatalog = (q, limit = 24) => {
 // doesn't rebuild over it mid-test)
 const _setEntries = (list) => {
   entries = list;
-  builtScanStamp = scanner.index.scannedAt;
+  builtScanStamp = scanner.index.version;
   builtAt = Date.now();
 };
 

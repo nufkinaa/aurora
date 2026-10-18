@@ -10,6 +10,11 @@ const imdb = require("./imdb");
 const discover = require("./discover");
 
 const SPACING_MS = 400;
+// How old a title on disk's metadata may get before the warmer asks again.
+// (It was every 12 hours — the meta cache's freshness — after every rescan:
+// each title on disk asked about twice a day, and a title Cinemeta did not
+// answer, six times an hour.)
+const WARM_EVERY_MS = 7 * 24 * 3600 * 1000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let running = false;
@@ -32,7 +37,11 @@ const pass = async () => {
       await sleep(SPACING_MS);
     }
     if (!imdbId) continue;
-    if (!discover.metaCached(type, imdbId)) {
+    // once a week per title on disk (a title page that is opened refreshes
+    // its own answer after 12 hours: discover.js, stale while revalidate);
+    // one Cinemeta would not answer waits out its back-off
+    const age = discover.metaAge ? discover.metaAge(type, imdbId) : null;
+    if ((age == null || age > WARM_EVERY_MS) && !(discover.metaRecentlyFailed && discover.metaRecentlyFailed(type, imdbId))) {
       await discover.meta(type, imdbId).catch(() => null);
       metas++;
       await sleep(SPACING_MS);
@@ -62,4 +71,4 @@ const warm = async () => {
 // Deferred a little so boot (and the scan itself) finishes first.
 scanner.events.on("scanned", () => setTimeout(warm, 3000));
 
-module.exports = { warm, _internals: { pass } };
+module.exports = { warm, _internals: { pass, WARM_EVERY_MS } };

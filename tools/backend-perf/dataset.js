@@ -123,7 +123,7 @@ const build = (opts = {}) => {
   const rows = +(opts.rows ?? 1500);
   const usageMb = +(opts.usageMb ?? 0.5);
   const lib = buildLibrary({ films, shows, episodes });
-  const key = `seed2-${films}-${shows}x${episodes}-p${nProfiles}-r${rows}-u${usageMb}`;
+  const key = `seed3-${films}-${shows}x${episodes}-p${nProfiles}-r${rows}-u${usageMb}`;
   const seedDir = path.join(WORK, key);
   const infoFile = path.join(seedDir, ".dataset.json");
   const blurReady = path.join(WORK, `blur2-${films}-${shows}x${episodes}`);
@@ -281,18 +281,18 @@ const build = (opts = {}) => {
   }
   write("cache/search-known.json", known);
 
-  // --- probe results for every file (metadata-cache.json, PROBE_VERSION 5): a
+  // --- probe results for every file (metadata-cache.json, PROBE_VERSION 6): a
   // WARM library. The cold-scan run starts without this file so the server probes.
   const probes = {};
   const first = lf.length ? lf[0].abs : ls[0].eps[0].abs;
   const mtime = fs.statSync(first).mtimeMs; // hard links share one mtime
-  const probe = () => ({ v: 5, mtime, duration: 6, width: 320, height: 180, video: { codec: "h264", bitDepth: 8, hdr: null },
+  const probe = () => ({ v: 6, mtime, duration: 6, width: 320, height: 180, video: { codec: "h264", bitDepth: 8, hdr: null },
     audioStreams: [{ index: 0, language: "eng", title: null, codec: "aac", channels: 1, layout: "mono", profile: "LC", atmos: false, dtsx: false, compatible: true }],
     subtitleStreams: [{ index: 0, codec: "subrip", text: true, language: "eng", title: null }] });
   for (const f of lf) probes[f.abs] = probe();
   const jitAbs = path.join(lib.movies, JIT_NAME, `${JIT_NAME}.mkv`);
   const jitId = makeId("video", path.join(JIT_NAME, `${JIT_NAME}.mkv`));
-  probes[jitAbs] = { v: 5, mtime: fs.statSync(jitAbs).mtimeMs, duration: 60.032, width: 640, height: 360, video: { codec: "h264", bitDepth: 8, hdr: null },
+  probes[jitAbs] = { v: 6, mtime: fs.statSync(jitAbs).mtimeMs, duration: 60.032, width: 640, height: 360, video: { codec: "h264", bitDepth: 8, hdr: null },
     audioStreams: [{ index: 0, language: "eng", title: null, codec: "ac3", channels: 2, layout: "stereo", profile: null, atmos: false, dtsx: false, compatible: false }], subtitleStreams: [] };
   for (const s of ls) for (const e of s.eps) probes[e.abs] = probe();
   write("metadata-cache.json", probes);

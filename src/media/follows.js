@@ -20,7 +20,7 @@ const CHECK_MS = 3 * 3600 * 1000;
 const FRESH_MS = 10 * 24 * 3600 * 1000;
 const RETRY_MS = 6 * 3600 * 1000;
 const DAY_MS = 24 * 3600 * 1000;
-const tried = new Map(); // "profile|imdb|s|e" -> last attempt
+const tried = new (require("../lib/caches").BoundedMap)({ max: 5000, name: "follows: tried" }); // "profile|imdb|s|e" -> last attempt (bounded)
 
 // The episodes of `meta` that aired since the follow began (a day of slack for
 // time zones) and within the fresh window.

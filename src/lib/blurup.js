@@ -18,8 +18,8 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { spawn } = require("child_process");
 const config = require("../config");
+const lazy = require("./lazy");
 
 const DIR = path.join(config.CACHE_DIR, "blur");
 try {
@@ -32,14 +32,17 @@ const MAX_CONCURRENT = 2;
 const FAIL_TTL = 6 * 3600 * 1000;
 const KEYS = ["cover", "poster", "backdrop"];
 
-const mem = new Map(); // picture address -> data URI
+// (bounded: one entry per picture address ever asked for otherwise — about
+// 200 bytes each; the least recently used go first, and come back from disk)
+const { BoundedMap } = require("./caches");
+const mem = new BoundedMap({ max: 20000, name: "blur-up placeholders", bytesOf: (k, v) => k.length + v.length });
 // Counts every placeholder that arrives in `mem`. annotate() of one body
 // changes only when this does, so what keeps a finished answer
 // (lib/answermemo.js, through the stamps in routes/api.js) knows when the
 // kept bytes are no longer what a fresh answer would be.
 let generation = 0;
 const learn = (u, uri) => { mem.set(u, uri); generation++; };
-const failed = new Map(); // picture address -> failedAt
+const failed = new BoundedMap({ max: 5000, ttlMs: FAIL_TTL, name: "blur-up failures" }); // picture address -> failedAt
 const queued = new Set();
 const queue = [];
 let running = 0;
@@ -55,27 +58,18 @@ const localUrl = (u) => {
   return `/img/ext?u=${encodeURIComponent(u)}&w=240`;
 };
 
-const shrink = (buf) =>
-  new Promise((resolve, reject) => {
-    if (!config.FFMPEG) return reject(new Error("no ffmpeg"));
-    const ff = spawn(
-      config.FFMPEG,
-      ["-v", "error", "-i", "pipe:0", "-vf", `scale=${WIDTH}:-2`, "-frames:v", "1", "-c:v", "libwebp", "-quality", "40", "-f", "webp", "pipe:1"],
-      { windowsHide: true },
-    );
-    const out = [];
-    const timer = setTimeout(() => ff.kill(), 15000);
-    ff.stdout.on("data", (d) => out.push(d));
-    ff.on("error", (e) => { clearTimeout(timer); reject(e); });
-    ff.on("close", (code) => {
-      clearTimeout(timer);
-      const b = Buffer.concat(out);
-      if (code !== 0 || b.length < 30 || b.length > 4000) return reject(new Error(`ffmpeg ${code}, ${b.length} bytes`));
-      resolve(b);
+// (started from a worker thread: lib/spawner.js — a process start held the
+// event loop 50-90 ms on a loaded Windows box)
+const shrink = (buf) => {
+  if (!config.FFMPEG) return Promise.reject(new Error("no ffmpeg"));
+  return spawnerLib()
+    .run(config.FFMPEG, ["-v", "error", "-i", "pipe:0", "-vf", `scale=${WIDTH}:-2`, "-frames:v", "1", "-c:v", "libwebp", "-quality", "40", "-f", "webp", "pipe:1"], { input: buf, timeoutMs: 15000, maxBuffer: 64 * 1024, name: "blur-up" })
+    .then((r) => {
+      const b = r.stdout || Buffer.alloc(0);
+      if (r.code !== 0 || b.length < 30 || b.length > 4000) throw new Error(`ffmpeg ${r.code}, ${b.length} bytes`);
+      return b;
     });
-    ff.stdin.on("error", () => {});
-    ff.stdin.end(buf);
-  });
+};
 
 const make = async (u) => {
   const local = localUrl(u);
@@ -109,14 +103,35 @@ const pump = () => {
   }
 };
 
+// A film's still (/img/still/<id>) is a frame cut out of its video, made
+// when a screen asks for it. Its placeholder is made only once it exists:
+// asking for the placeholder must not be what makes the still.
+const stillLib = lazy(require, "../media/stills");
+const spawnerLib = lazy(require, "./spawner");
+const scannerLib = lazy(require, "../media/scanner");
+const STILL = /^\/img\/still\/([A-Za-z0-9]+)$/;
+const stillMade = (u) => {
+  const m = STILL.exec(u);
+  if (!m) return true; // not a still: nothing to wait for
+  try {
+    const entry = scannerLib().resolve(m[1]);
+    return !!(entry && entry.kind === "video" && stillLib().hasStill(entry.path));
+  } catch {
+    return false;
+  }
+};
+
 // The placeholder if it is known; otherwise null — and it is on its way.
-const get = (u) => {
+// `make: false`: only what is in memory (nothing is read or made).
+const get = (u, { make = true } = {}) => {
   if (typeof u !== "string" || u.length > 600) return null;
   const hit = mem.get(u);
   if (hit) return hit;
+  if (!make) return null;
   if (queued.has(u)) return null;
   if (Date.now() - (failed.get(u) || 0) < FAIL_TTL) return null;
   if (!localUrl(u)) return null;
+  if (!stillMade(u)) return null;
   queued.add(u);
   // a restart finds yesterday's on disk — cheap, async, never blocks a request
   fs.readFile(fileFor(u), "utf8", (err, text) => {
@@ -153,6 +168,14 @@ const collect = (node, out, depth = 0, wide = null) => {
 // What a page draws first decides the order: the first few backdrops (the
 // hero's slides), then every poster — a card is a poster — then the rest of
 // the backdrops while there is room.
+//
+// Only what a screen draws first is MADE: the first MAX_PER_RESPONSE
+// addresses in that order are read from disk or queued; the rest of an
+// answer is looked up in memory only. Before, every picture an answer named
+// was queued — the library list names 2,523 (a cover and a backdrop per
+// title), 1,262 ffmpeg starts in the first minute after a first visit
+// (docs/qa/backend-efficiency) for placeholders no answer could carry: an
+// answer carries at most MAX_PER_RESPONSE of them.
 const HERO_BACKDROPS = 8;
 const annotate = (body) => {
   const posters = new Set();
@@ -163,8 +186,10 @@ const annotate = (body) => {
   const order = [...wide.slice(0, HERO_BACKDROPS), ...posters, ...wide.slice(HERO_BACKDROPS)];
   const map = {};
   let n = 0;
+  let asked = 0;
   for (const u of order) {
-    const uri = get(u); // asked for all of them, so the next answer has more
+    // the first MAX_PER_RESPONSE are asked for (read or made), so the next answer has them
+    const uri = get(u, { make: asked++ < MAX_PER_RESPONSE });
     if (uri && n < MAX_PER_RESPONSE && !(u in map)) {
       map[u] = uri;
       n++;
@@ -189,4 +214,4 @@ const middleware = (req, res, next) => {
   next();
 };
 
-module.exports = { middleware, get, annotate, generation: () => generation, _internals: { collect, localUrl, mem, shrink, make, learn } };
+module.exports = { middleware, get, annotate, generation: () => generation, _internals: { collect, localUrl, mem, shrink, make, learn, queued, queue, stillMade, MAX_PER_RESPONSE } };

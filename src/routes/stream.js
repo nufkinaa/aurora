@@ -187,17 +187,9 @@ try { fs.mkdirSync(EXT_IMG_DIR, { recursive: true }); } catch {}
 // serves video ranges — and at the cap it would run on EVERY write forever.
 // Trimming down to cap-400 means a full dir walk at most once per 400 writes.
 let extImgWrites = 0;
-const extImgSweep = () => {
-  try {
-    const entries = fs.readdirSync(EXT_IMG_DIR);
-    if (entries.length <= MAX_EXT_IMAGES) return;
-    entries
-      .map((f) => ({ f, m: fs.statSync(path.join(EXT_IMG_DIR, f)).mtimeMs }))
-      .sort((a, b) => a.m - b.m)
-      .slice(0, entries.length - (MAX_EXT_IMAGES - 400))
-      .forEach(({ f }) => { try { fs.unlinkSync(path.join(EXT_IMG_DIR, f)); } catch {} });
-  } catch {}
-};
+// (asynchronous since the server round of 2026-10-18: lib/dirsweep.js)
+const extImgSweep = () =>
+  require("../lib/dirsweep").trim(EXT_IMG_DIR, { max: MAX_EXT_IMAGES, down: MAX_EXT_IMAGES - 400, onRemoved: (f) => require("../lib/imgcheck").forget(f) }).catch(() => 0);
 const extImgInflight = new Map(); // url -> promise (a row of 20 cards must fetch once)
 // Negative cache: without it a CDN hiccup turns one home load (~300 distinct
 // posters, each with a client-side retry) into waves of 15s upstream fetches.
@@ -227,8 +219,10 @@ const fetchExtImage = (url, file) => {
     if (buf.length > MAX_EXT_IMAGE_BYTES) throw new Error("image too large");
     if (buf.length < MIN_IMAGE_BYTES || !magicOk(buf)) throw new Error("not an image");
     const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, buf);
-    fs.renameSync(tmp, file);
+    // (not blocking: this is on the way to answering the request)
+    await fs.promises.writeFile(tmp, buf);
+    await fs.promises.rename(tmp, file);
+    try { require("../lib/imgcheck").forget(file); } catch {}
     if (++extImgWrites % 100 === 0) extImgSweep();
     return file;
   })();
@@ -317,7 +311,10 @@ router.get("/img/meta/:name", async (req, res) => {
 // scans, drawn 150–260px wide)
 router.get("/img/:id", async (req, res) => {
   const entry = resolveKind(req.params.id, "image");
-  if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
+  // (no existsSync first: a cover the library walk listed is there, and one
+  // removed since is a 404 all the same — sendFile's ENOENT, server.js — so a
+  // blocking call per picture was paid for nothing; server round 2026-10-18)
+  if (!entry) return res.status(404).send("Not found");
   try {
     const opts = { blur: req.query.blur, fmt: req.query.fmt, client: artClient(res) };
     const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, opts) : null;

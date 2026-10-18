@@ -414,3 +414,28 @@ test("the stylesheet bundle has ONE compressed copy: quality 6 at once, replaced
   assert.equal(zlib.brotliDecompressSync(better).toString("utf8"), css, "the same stylesheet");
   assert.equal(cssbundle.compressed(dir, "br"), better, "and it is the one that is kept");
 });
+
+// warm() (server round, 2026-10-18): the modules re-printed off the event
+// loop at start-up, filed exactly as asset() would have made them.
+require("node:test").test("warm(): every module made ahead, the same bytes and hash asset() makes", async () => {
+  const assertx = require("node:assert");
+  const pathx = require("path");
+  const js = require("../src/lib/jsassets");
+  const PUB = pathx.join(__dirname, "..", "public");
+  js._internals.assets.clear();
+  const made = await js.warm(PUB);
+  assertx.ok(made > 20, `${made} modules made`);
+  const urls = js.list(PUB);
+  assertx.equal(js._internals.assets.size, urls.length);
+  // what a request would have made by itself, for comparison
+  for (const url of urls.slice(0, 12)) {
+    const warmed = js._internals.assets.get(url);
+    js._internals.assets.delete(url);
+    const fresh = js.asset(PUB, url);
+    assertx.equal(fresh.hash, warmed.hash, url);
+    assertx.ok(fresh.body.equals(warmed.body), url);
+    assertx.deepEqual(fresh.imports, warmed.imports, url);
+  }
+  // a second warm finds them all made
+  assertx.equal(await js.warm(PUB), 0);
+});

@@ -66,6 +66,21 @@ const state = {
 };
 const ready = () => state.gen > 0;
 
+// What the recommender scores. Every title it knows — or, on a low-power
+// machine (lib/power.js), the LOW_POWER_TITLES most-voted plus every title
+// the household itself has (the keep set: watched, listed, in the library):
+// each scored title holds a feature vector in memory.
+const LOW_POWER_TITLES = 2000;
+const scored = (all) => {
+  let low = false;
+  try { low = require("../../lib/power").low(); } catch {}
+  if (!low || all.length <= LOW_POWER_TITLES) return all;
+  const keep = titleindex.keepSet ? titleindex.keepSet() : new Set();
+  const own = all.filter((r) => keep.has(r.id));
+  const rest = all.filter((r) => !keep.has(r.id)).sort((a, b) => (b.vc || 0) - (a.vc || 0)).slice(0, Math.max(0, LOW_POWER_TITLES - own.length));
+  return [...own, ...rest];
+};
+
 const yieldLoop = () => new Promise((r) => setImmediate(r));
 
 const prepare = async ({ force = false } = {}) => {
@@ -74,7 +89,7 @@ const prepare = async ({ force = false } = {}) => {
   if (!force && stamp === state.stamp && state.gen > 0) return state;
   state.building = (async () => {
     try {
-      const all = titleindex.all();
+      const all = scored(titleindex.all());
       // document frequencies drift slowly: recount when the index grew 5%
       if (!state.stats || force || Math.abs(all.length - state.statsN) > state.statsN * 0.05) {
         state.stats = features.buildStats(all);
@@ -118,7 +133,7 @@ const prepareSoon = () => {
 let libMap = { at: null, byImdb: new Map() };
 const libraryByImdb = () => {
   const scanner = dep.scanner();
-  if (libMap.at === scanner.index.scannedAt && libMap.byImdb.size) return libMap.byImdb;
+  if (libMap.at === scanner.index.version && libMap.byImdb.size) return libMap.byImdb;
   const byImdb = new Map();
   try {
     const identity = dep.identity();
@@ -127,7 +142,7 @@ const libraryByImdb = () => {
       if (id && !byImdb.has(id)) byImdb.set(id, item);
     }
   } catch {}
-  libMap = { at: scanner.index.scannedAt, byImdb };
+  libMap = { at: scanner.index.version, byImdb };
   return byImdb;
 };
 
@@ -271,7 +286,7 @@ const householdFor = (profileId, now = Date.now()) => {
 
 const candidatesFor = (now, allow) => {
   const lib = libraryByImdb();
-  const base = cached(`cands|${dep.scanner().index.scannedAt}|${dayOf(now)}`, () =>
+  const base = cached(`cands|${dep.scanner().index.version}|${dayOf(now)}`, () =>
     state.list.filter((e) => recommendable(e.rec, now, lib)));
   if (!allow) return base;
   return base.filter((e) => allow(cardOf(e.rec, lib)));

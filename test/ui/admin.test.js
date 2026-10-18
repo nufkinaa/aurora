@@ -900,4 +900,25 @@ ui.test("Actions → Data safety and Backups: all saved; the second location and
   assert.match(drill.output, /restores: \d+ profiles?.*Live data was not touched/s);
 });
 
+
+// Server → Health (server round, 2026-10-18): what is kept in memory and
+// how big, and what this machine was tuned to, with the reason for each.
+for (const [label, viewport] of [["desktop", require("./helpers").DESKTOP], ["phone", require("./helpers").PHONE]]) {
+  ui.test(`Server → Health shows what is kept in memory and the power profile with its reasons (${label})`, { viewport }, async ({ page, srv }) => {
+    await enter(page, srv);
+    await page.click('.tab[data-tab="server"]');
+    await page.waitForFunction(() => /kept in memory/.test(document.getElementById("sv-health").textContent));
+    const text = await page.textContent("#sv-health");
+    assert.match(text, /kept in memory/);
+    assert.match(text, /caches · /);
+    assert.match(text, /power profile/);
+    assert.match(text, /background decodes at once: [12] \(/);
+    assert.match(text, /library rescan: every \d+ min/);
+    // nothing wider than the screen
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(overflow <= 1, `the page scrolls sideways by ${overflow}px`);
+    await page.locator("#sv-health").screenshot({ path: require("path").join(require("./helpers").ARTIFACTS, `admin-health-${label}.png`) });
+  });
+}
+
 ui.run({ concurrency: 1 });

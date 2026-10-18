@@ -301,6 +301,10 @@ const fromChapters = (chapters, duration) => {
 let mtimeMemo = null;
 const mtimeOf = (p) => {
   if (mtimeMemo && mtimeMemo.has(p)) return mtimeMemo.get(p);
+  // the scanner's last walk dated every library video (at most one rescan
+  // old): no stat at all for a pass over a settled library
+  const walked = scanner.walkedStat ? scanner.walkedStat(p) : null;
+  if (walked) return Math.floor(walked.mtimeMs);
   let m = 0;
   try { m = Math.floor(fs.statSync(p).mtimeMs); } catch { m = 0; }
   if (mtimeMemo) mtimeMemo.set(p, m);

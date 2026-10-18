@@ -384,6 +384,38 @@ router.post("/api/admin/mylist/keep", (req, res) => {
 });
 
 // ---------- health (watchdog) ----------
+// The values the server chose from what it detected, each with its reason.
+const tuning = () => {
+  const out = [];
+  const add = (name, value, why) => out.push({ name, value, why });
+  try { const p = require("../lib/power").status(); add("power profile", p.profile, p.why); } catch {}
+  try { const c = require("../media/cpuwork"); add("background decodes at once", c.budget(), c.budgetWhy()); add("background threads", c.background.threads(), "half the CPU threads"); } catch {}
+  try { add("library rescan", `every ${Math.round(config.SCAN_INTERVAL_MS / 60000)} min`, config.SCAN_INTERVAL_WHY || ""); } catch {}
+  try { add("library walk", "in a worker thread", "unchanged folders keep their files' dates; every file re-dated each 6th walk"); } catch {}
+  try { const h = require("../lib/power").pick(60, 180); add("healer round", `every ${h} s`, require("../lib/power").low() ? "the low-power profile" : "the default"); } catch {}
+  return out;
+};
+// Sizes of what is kept in memory: every bounded cache (lib/caches.js) plus a
+// few stores that are bounded elsewhere, and the profile states left behind
+// for ids that are no profile (an old version created those; they are
+// skipped, not deleted — removing them is a change to profiles.json).
+const memorySizes = () => {
+  const caches = require("../lib/caches");
+  const out = caches.report();
+  const add = (name, entries, max = null) => { if (entries != null) out.push({ name, entries, max, bytes: null, full: max != null && entries >= max }); };
+  try { add("library registry (files)", scanner._internals.registrySize()); } catch {}
+  try { add("library ids remembered", scanner._internals.idMemoSize(), 200000); } catch {}
+  try { add("probe cache (files)", Object.keys(require("../media/metadata")._store.data).length); } catch {}
+  try { add("kept answers", require("../lib/answermemo")._internals.entries.size, 64); } catch {}
+  try { add("picture checks", require("../lib/imgcheck")._internals.known.size, 12000); } catch {}
+  try { add("picture variants (fast path)", require("../lib/imgvariant")._internals.fast.size, 8000); } catch {}
+  try {
+    const st = profiles._internals.store.data;
+    const ids = new Set((st.profiles || []).map((p) => p.id));
+    add("profile states without a profile", Object.keys(st.state || {}).filter((k) => !ids.has(k)).length);
+  } catch {}
+  return out.sort((a, b) => b.entries - a.entries);
+};
 router.get("/api/admin/health", (req, res) => {
   // …plus the counters of the three things that keep a rush from becoming a
   // freeze: answers kept and served from memory (lib/answermemo.js), heavy
@@ -396,6 +428,13 @@ router.get("/api/admin/health", (req, res) => {
   // who the CPU is working for: viewer encodes, and the background work
   // standing behind them (media/cpuwork.js)
   try { load.cpu = require("../media/cpuwork").status(); } catch {}
+  // what the server keeps in memory, and how big each is (lib/caches.js);
+  // the library scans (media/scanner.js); the machine's power profile
+  try { load.caches = memorySizes(); } catch {}
+  try { load.scan = scanner.scanStats(); } catch {}
+  try { load.power = require("../lib/power").status(); } catch {}
+  // what was chosen from this machine, and why (the owner: "show why this value")
+  try { load.tuning = tuning(); } catch {}
   res.json({ ...require("../lib/watchdog").status(), load });
 });
 router.post("/api/admin/heal", (req, res) => {

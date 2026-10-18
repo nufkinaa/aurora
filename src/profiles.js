@@ -1196,10 +1196,13 @@ const ensureTitles = () => {
   const identity = identityLib();
   const keys = identity.ensureStamped();
   const imdb = imdbLib();
-  const stamp = `${scanner.index.scannedAt}|${imdb.version()}`;
+  const stamp = `${scanner.index.version}|${imdb.version()}`;
   if (stamp === titlesFor) return keys;
   let changed = false;
+  // (only the profiles there are: a state left behind by an old version for
+  // an id that is no profile is not folded again on every library change)
   for (const profileId of Object.keys(store.data.state || {})) {
+    if (!exists(profileId)) continue;
     if (foldTitles(stateFor(profileId), identity.titleKeyFor)) changed = true;
   }
   titlesFor = stamp;

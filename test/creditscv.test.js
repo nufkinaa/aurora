@@ -315,3 +315,27 @@ test("a decode that does not run to the end is no answer (unreadable file, or st
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// The analysis runs in a worker thread (server round, 2026-10-18): the same
+// answer as on the calling thread, and the event loop keeps turning meanwhile.
+require("node:test").test("estimateOffLoop: the same answer as features + estimate, without holding the loop", async () => {
+  const assertx = require("node:assert");
+  const cv = require("../src/media/creditscv");
+  const { W, H, FPS, estimateOffLoop } = cv._internals;
+  const samples = [];
+  const frame = Buffer.alloc(W * H);
+  for (let i = 0; i < 600 * FPS; i++) {
+    // a picture for the first 400 s, then white names on black
+    for (let j = 0; j < frame.length; j++) frame[j] = i < 800 ? (i * 7 + j) & 255 : (j % W > W * 0.4 && j % W < W * 0.6 && (j / W | 0) % 12 < 3 ? 230 : 8);
+    const st = cv.rowStats(frame);
+    st.t = 3000 + i / FPS;
+    samples.push(st);
+  }
+  const want = cv.estimate(cv.features(samples), 3600);
+  let ticks = 0;
+  const t = setInterval(() => ticks++, 5);
+  const got = await estimateOffLoop(samples, 3600);
+  clearInterval(t);
+  assertx.deepEqual(got, want);
+  assertx.ok(ticks >= 1, "the loop turned while the worker worked");
+});

@@ -41,12 +41,31 @@ test("a file that changes is looked at again: replaced, repaired, removed", () =
   fs.writeFileSync(f, Buffer.concat([Buffer.from(PNG), Buffer.alloc(5000, 1)])); // fetched again, properly
   assert.equal(validImageFile(f), true);
   assert.equal(mimeOfFile(f), "image/png");
-  // same size, another picture: the date tells
+  // same size, another picture: the date tells — at the first look after
+  // the trust window (a good picture is not re-checked on every request)
+  require("../src/lib/imgcheck")._internals.known.get(f).at -= require("../src/lib/imgcheck").TRUST_MS;
   const later = new Date(Date.now() + 5000);
   fs.writeFileSync(f, Buffer.concat([Buffer.from(JPEG), Buffer.alloc(5000, 2)]));
   fs.utimesSync(f, later, later);
   assert.equal(mimeOfFile(f), "image/jpeg");
   fs.rmSync(f);
+  require("../src/lib/imgcheck").forget(f);
   assert.equal(validImageFile(f), false);
   assert.equal(mimeOfFile(f), null);
+});
+
+test("a good picture looked at within the trust window is not even stat'ed; a bad one always is", () => {
+  const good = file("trusted.jpg", JPEG);
+  const bad = file("broken.img", [0x3c, 0x68, 0x74, 0x6d]);
+  validImageFile(good);
+  validImageFile(bad);
+  const real = fs.statSync;
+  let n = 0;
+  fs.statSync = function (...a) { n++; return real.apply(this, a); };
+  try {
+    for (let i = 0; i < 10; i++) { validImageFile(good); mimeOfFile(good); }
+    assert.equal(n, 0);
+    for (let i = 0; i < 3; i++) validImageFile(bad);
+    assert.equal(n, 3, "a bad file is looked at every time: a repaired download is seen at once");
+  } finally { fs.statSync = real; }
 });

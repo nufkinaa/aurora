@@ -63,6 +63,13 @@ const fresh = () => ({
 let agg = fresh();
 
 const bump = (obj, key) => { obj[key] = (obj[key] || 0) + 1; };
+// Every key below comes from what a CLIENT says (a route pattern, a feature
+// name, a device class…): bounded, so a buggy or hostile client cannot grow
+// the month's aggregate without end (server round, 2026-10-18). A key the
+// table already has is always counted; a new one only while there is room.
+const MAX_KEYS = 500;
+const MAX_PER_DAY = 5000; // distinct profiles / sessions counted per day
+const room = (obj, key) => key in obj || Object.keys(obj).length < MAX_KEYS;
 const sample = (arr, v) => {
   if (arr.length < SAMPLE) arr.push(v);
   else arr[Math.floor(Math.random() * arr.length)] = v; // reservoir-ish: bounded, unbiased enough
@@ -80,25 +87,28 @@ const apply = (batch) => {
     agg.events++;
     if (!agg.since || ev.t < agg.since) agg.since = ev.t;
     if (!agg.last || ev.t > agg.last) agg.last = ev.t;
-    bump(agg.devices, device);
-    bump(agg.looks, look);
+    if (room(agg.devices, device)) bump(agg.devices, device);
+    if (room(agg.looks, look)) bump(agg.looks, look);
     const day = dayOf(ev.t);
-    (agg.profilesByDay[day] = agg.profilesByDay[day] || new Set()).add(profile);
-    (agg.sessionsByDay[day] = agg.sessionsByDay[day] || new Set()).add(sid);
+    const pd = (agg.profilesByDay[day] = agg.profilesByDay[day] || new Set());
+    if (pd.size < MAX_PER_DAY) pd.add(profile);
+    const sd = (agg.sessionsByDay[day] = agg.sessionsByDay[day] || new Set());
+    if (sd.size < MAX_PER_DAY) sd.add(sid);
     const p = ev.p || {};
-    if (ev.n === "route" && typeof p.r === "string") {
+    if (ev.n === "route" && typeof p.r === "string" && room(agg.routes, p.r)) {
       const r = (agg.routes[p.r] = agg.routes[p.r] || { n: 0, ms: [], byDevice: {} });
       r.n++;
       bump(r.byDevice, device);
       if (typeof p.ms === "number" && p.ms >= 0 && p.ms < 120000) sample(r.ms, p.ms);
-    } else if (ev.n === "feat" && typeof p.f === "string") {
+    } else if (ev.n === "feat" && typeof p.f === "string" && room(agg.features, p.f)) {
       const f = (agg.features[p.f] = agg.features[p.f] || { n: 0, byDevice: {} });
       f.n++;
       bump(f.byDevice, device);
     } else if (ev.n === "nav" && typeof p.to === "string") {
-      bump(agg.nav, p.to);
+      if (room(agg.nav, p.to)) bump(agg.nav, p.to);
     } else if (ev.n === "play") {
       const key = `${p.kind || "?"}/${p.path || "?"}`;
+      if (!room(agg.plays, key)) continue;
       const pl = (agg.plays[key] = agg.plays[key] || { n: 0, ms: [], byDevice: {} });
       pl.n++;
       bump(pl.byDevice, device);
@@ -378,4 +388,4 @@ const text = () => {
 // Test hooks: a fresh aggregate, and where the files live.
 const _reset = () => { agg = fresh(); pending = []; };
 
-module.exports = { record, validate, boot, summary, text, prune, DIR, KEEP_MONTHS, _reset };
+module.exports = { record, validate, boot, summary, text, prune, DIR, KEEP_MONTHS, MAX_KEYS, _reset, _internals: { agg: () => agg, apply: (b) => apply(b) } };

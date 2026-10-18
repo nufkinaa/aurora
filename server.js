@@ -234,6 +234,10 @@ app.use(require("./src/lib/resetgate").middleware);
 
 // [analytics] how long the heavy endpoints take to answer (lib/tel/timings.js)
 app.use(require("./src/lib/tel/timings").middleware);
+// Until the library has been read once (a first start: nothing saved from
+// the last run — media/scanner.js boot()), what needs it waits for that
+// first walk, 20 s at most, instead of answering from an empty library.
+app.use(scanner.libraryReady);
 // Blur-up placeholders ride along on JSON answers for clients that ask (lib/blurup.js).
 app.use(require("./src/lib/blurup").middleware);
 app.use(require("./src/routes/auth"));
@@ -442,49 +446,62 @@ scanner.events.on("enriched", (info) => {
   // media/subaudio.js — applied only when confident, embedded tracks scored only)
   for (const job of scanner.audioSyncWork()) require("./src/media/subaudio").enqueue(job);
 });
-// A subtitle was lined up with the audio (the Resync button or the
-// background): the library learns the new timing verdicts and ★ (one rescan
-// for a burst), and the players watching that title hear about it at once —
-// they reload the track, and may switch to the ★ one (see the players).
-{
-  let syncTimer = null;
-  const touched = new Set();
-  require("./src/media/subaudio").events.on("synced", ({ video, source }) => {
-    touched.add(video);
-    const flush = () => {
-      syncTimer = null;
-      scanner.scan();
-      for (const v of touched) {
-        const id = scanner.idForPath(v);
-        if (id) realtime.broadcastAll({ type: "subtitle_sync", id, source });
-      }
-      touched.clear();
+// What the background passes learn (a subtitle's language, its timing
+// against the audio, an OCR'd track) reaches the library through ONE rescan
+// for a burst — and, from the background, at most one every
+// BG_RESCAN_GAP_MS: a pass over two hundred files finishes one every few
+// seconds, and each of those used to set off a whole rescan (and every
+// connected app asking for the library again) three seconds later. Somebody
+// waiting (the Resync button, Undo) gets theirs at once.
+const BG_RESCAN_GAP_MS = 30 * 1000;
+const bgRescan = (() => {
+  let timer = null;
+  let lastAt = 0;
+  let waiters = [];
+  const run = () => {
+    timer = null;
+    lastAt = Date.now();
+    const these = waiters;
+    waiters = [];
+    scanner.scanAsync().catch(() => scanner.scan()).then(() => {
       realtime.libraryUpdated();
-    };
-    if (source === "resync" || source === "undo") {
-      if (syncTimer) clearTimeout(syncTimer);
-      flush();
-      return;
+      for (const fn of these) { try { fn(); } catch {} }
+    });
+  };
+  // after(fn): called once the rescan that includes this news is done
+  return ({ now = false, after = null } = {}) => {
+    if (after && !waiters.includes(after)) waiters.push(after);
+    if (now) {
+      if (timer) { clearTimeout(timer); timer = null; }
+      return run();
     }
-    if (syncTimer) return;
-    syncTimer = setTimeout(flush, 3000);
-    syncTimer.unref?.();
-  });
-}
-// A file's tracks were just named from their text: the library learns the
-// names (one rescan for a burst of files, never one per file).
+    if (timer) return;
+    const wait = Math.max(3000, lastAt + BG_RESCAN_GAP_MS - Date.now());
+    timer = setTimeout(run, wait);
+    timer.unref?.();
+  };
+})();
+// A subtitle was lined up with the audio (the Resync button or the
+// background): the library learns the new timing verdicts and ★, and the
+// players watching that title hear about it — they reload the track, and may
+// switch to the ★ one (see the players).
 {
-  let renameTimer = null;
-  require("./src/media/sublang").events.on("detected", () => {
-    if (renameTimer) return;
-    renameTimer = setTimeout(() => {
-      renameTimer = null;
-      scanner.scan();
-      realtime.libraryUpdated();
-    }, 3000);
-    renameTimer.unref?.();
+  const touched = new Map(); // video -> source
+  const tell = () => {
+    const these = [...touched];
+    touched.clear();
+    for (const [v, source] of these) {
+      const id = scanner.idForPath(v);
+      if (id) realtime.broadcastAll({ type: "subtitle_sync", id, source });
+    }
+  };
+  require("./src/media/subaudio").events.on("synced", ({ video, source }) => {
+    touched.set(video, source);
+    bgRescan({ now: source === "resync" || source === "undo", after: tell });
   });
 }
+// A file's tracks were just named from their text: the library learns the names.
+require("./src/media/sublang").events.on("detected", () => bgRescan());
 
 // Online metadata (genres, synopsis, art) fills in after each scan
 scanner.events.on("scanned", () => online.enrich(scanner.allItems()));
@@ -555,15 +572,11 @@ require("./src/lib/health").start();
   });
 }
 online.events.on("updated", () => {
-  scanner.scan();
-  realtime.libraryUpdated();
+  scanner.scanAsync().catch(() => scanner.scan()).then(() => realtime.libraryUpdated());
 });
 
 ocr.events.on("job", (job) => {
-  if (job.status === "done") {
-    scanner.scan(); // pick up the new .srt
-    realtime.libraryUpdated();
-  }
+  if (job.status === "done") bgRescan(); // pick up the new .srt
   realtime.broadcastAll({ type: "subtitle_ocr", ...job });
 });
 
@@ -587,12 +600,15 @@ setTimeout(() => {
   } catch {}
 }, 20000).unref();
 
-// Initial scan + periodic rescan
-scanner.scan();
-scanner.enrich();
+// The library: what the last run saw, at once — the index built from the
+// walk it saved (media/scanner.js boot(): no folder is read before the port
+// is listening). Then, once listening, the folders are read in a worker
+// thread and the index follows what is on disk now. With nothing saved (a
+// first start) library requests wait for that first walk (libraryReady below).
+scanner.boot();
+// Periodic rescan: the walk off the event loop (media/scanworker.js)
 setInterval(() => {
-  scanner.scan();
-  scanner.enrich();
+  scanner.scanAsync().catch((e) => { console.warn(`[scan] rescan failed: ${(e && e.message) || e}`); }).then(() => scanner.enrich());
 }, config.SCAN_INTERVAL_MS);
 
 const lanAddress = () => {
@@ -645,6 +661,17 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // it probes /healthz, and a server that stops answering is restarted.
   require("./src/lib/supervisor").tell({ type: "listening", port: config.PORT, pid: process.pid });
 
+  // The website's modules re-printed now, off the event loop, instead of
+  // on the first page load (lib/jsassets.js warm).
+  try { require("./src/lib/jsassets").warm(path.join(__dirname, "public")).catch(() => {}); } catch {}
+  // The first walk of the folders, now that the port is ours.
+  const fromSaved = !!scanner.index.scannedAt;
+  scanner.scanAsync({ force: true })
+    .catch((e) => { console.warn(`[scan] first walk failed (${(e && e.message) || e}); reading the folders here`); scanner.scan(); })
+    .then(() => {
+      scanner.enrich();
+      if (!fromSaved) console.log(`[scan] library: ${scanner.index.movies.length} movies, ${scanner.index.shows.length} shows`);
+    });
   const { movies, shows } = scanner.index;
   const network = lanAddress();
   console.log("");
@@ -654,7 +681,7 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   console.log(`    Network  http://${network}:${config.PORT}`);
   console.log(`    Admin    http://localhost:${config.PORT}/admin`);
   console.log("");
-  console.log(`    Library  ${movies.length} movies, ${shows.length} shows`);
+  console.log(fromSaved ? `    Library  ${movies.length} movies, ${shows.length} shows` : "    Library  being read");
   console.log(`    ffmpeg   ${config.ffmpegAvailable ? "ok" : "MISSING - no embedded subtitles"}`);
   console.log(`    auto-OCR ${config.ocrAvailable ? "ok" : "unavailable (needs python + tesseract)"}`);
   console.log("");

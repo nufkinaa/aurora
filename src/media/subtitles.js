@@ -5,6 +5,8 @@ const path = require("path");
 const crypto = require("crypto");
 const { spawn } = require("child_process");
 const config = require("../config");
+const scannerLib = require("../lib/lazy")(require, "./scanner");
+const childrenLib = require("../lib/lazy")(require, "../lib/children");
 
 const VTT_CACHE_DIR = path.join(config.CACHE_DIR, "vtt");
 const inflight = new Map(); // cacheFile -> Promise<boolean>
@@ -86,10 +88,12 @@ const playable = (subPath, content) => {
 };
 
 // Serve an external subtitle file as WebVTT
-const serveExternal = (subPath, res) => {
+// (read without blocking; the dates the timing checks compare come from the
+// library walk where it dated the file — media/scanner.js withLastWalk)
+const serveExternal = async (subPath, res) => {
   let content;
   try {
-    content = decodeSubtitle(fs.readFileSync(subPath));
+    content = decodeSubtitle(await fs.promises.readFile(subPath));
   } catch {
     return res.status(404).send("Subtitle not found");
   }
@@ -97,7 +101,8 @@ const serveExternal = (subPath, res) => {
   // revalidated (a cheap 304 by ETag) rather than kept for an hour: a timing
   // repair can land while somebody is watching, and the next load must get it
   res.setHeader("Cache-Control", "no-cache");
-  const out = playable(subPath, content);
+  let out;
+  try { out = scannerLib().withLastWalk(() => playable(subPath, content), { knownOnly: true }); } catch { out = playable(subPath, content); }
   if (out.how.length) res.setHeader("X-Aurora-Subtitle-Repair", out.how.join("; ").slice(0, 200));
   res.send(out.text);
 };
@@ -233,8 +238,15 @@ const extractEmbedded = (videoPath, trackIndex, res) => {
   ffmpeg.stdout.pipe(res);
   ffmpeg.stdout.pipe(fileStream);
 
+  try { childrenLib().track(ffmpeg, "subtitle"); } catch {}
+  // (bounded: the end of what it said is what is logged; and a time limit —
+  // a hung read kept this subtitle's "in flight" entry, and every later
+  // request for it waiting, for ever)
   let stderr = "";
-  ffmpeg.stderr.on("data", (d) => (stderr += d.toString()));
+  ffmpeg.stderr.on("data", (d) => { stderr = (stderr + d.toString()).slice(-4000); });
+  const hung = setTimeout(() => { try { ffmpeg.kill("SIGKILL"); } catch {} }, 10 * 60 * 1000);
+  hung.unref?.();
+  ffmpeg.on("close", () => clearTimeout(hung));
 
   let resolveJob;
   inflight.set(cacheFile, new Promise((r) => (resolveJob = r)));

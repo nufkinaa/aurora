@@ -72,6 +72,7 @@ const { JsonStore } = require("../lib/jsonstore");
 const lazy = require("../lib/lazy");
 const identityLib = lazy(require, "./identity");
 const wellknownLib = lazy(require, "./wellknown");
+const powerLib = lazy(require, "../lib/power");
 const similarLib = lazy(require, "./similar");
 const { norm: baseNorm } = require("./searchindex")._internals;
 
@@ -483,8 +484,18 @@ const seen = () =>
   (seenStore = new JsonStore(path.join(config.CACHE_DIR, "search-seen.json"), { v: 1, titles: {}, people: {} }));
 const SEEN_MAX = 3000;
 
+// The well-known list is in popularity order per type (k: its place): the
+// first 1,200 films and the first 800 series.
+let lowKnown = { from: null, list: [] };
+const lowPowerKnown = (all) => {
+  if (lowKnown.from === all) return lowKnown.list;
+  const films = all.filter((t) => t.type === "movie").sort((a, b) => (a.k || 0) - (b.k || 0)).slice(0, 1200);
+  const series = all.filter((t) => t.type !== "movie").sort((a, b) => (a.k || 0) - (b.k || 0)).slice(0, 800);
+  lowKnown = { from: all, list: [...films, ...series] };
+  return lowKnown.list;
+};
 let src = {
-  stamp: () => scanner.index.scannedAt,
+  stamp: () => scanner.index.version,
   libraryItems: () => scanner.allItems(),
   imdbIdFor: (item) => {
     try { return identityLib().imdbIdFor(item); } catch { return null; }
@@ -527,7 +538,14 @@ let src = {
     return out;
   },
   // the catalogue's most popular titles, kept on disk (media/wellknown.js)
-  knownTitles: () => wellknownLib().all(),
+  // (on a low-power machine the 2,000 best known of them: lib/power.js —
+  // films and series in the proportion the list has; the file is untouched)
+  knownTitles: () => {
+    const all = wellknownLib().all();
+    let low = false;
+    try { low = powerLib().low(); } catch {}
+    return low && all.length > 2000 ? lowPowerKnown(all) : all;
+  },
   knownStamp: () => wellknownLib().stamp(),
   // the recommender's title index (media/recs/titleindex.js): full records only
   recTitles: () => {

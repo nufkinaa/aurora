@@ -22,7 +22,7 @@ const profiles = require("../profiles");
 
 const THRESHOLD = 0.65;
 const RETRY_MS = 6 * 3600 * 1000;
-const tried = new Map(); // "profile|imdbId|s|e" -> last attempt
+const tried = new (require("../lib/caches").BoundedMap)({ max: 5000, name: "smart downloads: tried" }); // "profile|imdbId|s|e" -> last attempt (bounded)
 
 const QUALITY_BY_HEIGHT = (h) => (h >= 2000 ? "2160p" : h >= 1000 ? "1080p" : h >= 700 ? "720p" : h >= 400 ? "480p" : null);
 

@@ -64,6 +64,8 @@ test("the real sheets bundle with only the six file markers left as comments", (
       fsx.writeFileSync(first, ".changed { color: blue; }\n".repeat(60));
       const later = new Date(Date.now() + 5000);
       fsx.utimesSync(first, later, later);
+      // (the next look: the bundle checks its sheets at most every RECHECK_MS)
+      bundle._internals.lookAgain();
       const next = bundle.get(dir);
       require("node:assert").notEqual(next.hash, hash);
       require("node:assert").equal(zlib.brotliDecompressSync(bundle.compressed(dir, "br")).toString("utf8"), next.css);

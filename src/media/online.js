@@ -81,10 +81,11 @@ const cachePoster = async (url) => {
     if (type && !/^image\//i.test(type)) return null;
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length < MIN_IMAGE_BYTES || !magicOk(buf)) return null;
-    fs.mkdirSync(POSTER_DIR, { recursive: true });
+    await fs.promises.mkdir(POSTER_DIR, { recursive: true });
     const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, buf);
-    fs.renameSync(tmp, file); // atomic — never a half-written poster
+    await fs.promises.writeFile(tmp, buf);
+    await fs.promises.rename(tmp, file); // atomic — never a half-written poster
+    try { require("../lib/imgcheck").forget(file); } catch {}
     return name;
   } catch {
     return null;
@@ -379,4 +380,4 @@ const posterFile = (name) => {
   return fs.existsSync(file) ? file : null;
 };
 
-module.exports = { get, enrich, refresh, posterFile, cachePoster, events, _internals: { refreshDue } };
+module.exports = { rev: () => store.rev, get, enrich, refresh, posterFile, cachePoster, events, _internals: { refreshDue } };

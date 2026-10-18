@@ -17,8 +17,24 @@ const sublang = require("./sublang");
 // not in the middle of a scan)
 const subaudio = require("./subaudio");
 const online = require("./online");
+const scanwalk = require("./scanwalk");
+const scanworkerLib = require("../lib/lazy")(require, "./scanworker");
+const statsnap = require("../lib/statsnap");
 
 const events = new EventEmitter();
+
+// The files whose size and date a walk keeps: what the index shows (videos,
+// extras) and what the subtitle passes date (subtitles).
+let statExts = null;
+let statExtsOf = null;
+const STAT_EXTS = () => {
+  const key = `${config.VIDEO_EXTENSIONS}|${config.EXTRA_EXTENSIONS}|${config.SUBTITLE_EXTENSIONS}`;
+  if (statExtsOf !== key) {
+    statExts = new Set([...config.VIDEO_EXTENSIONS, ...config.EXTRA_EXTENSIONS, ...config.SUBTITLE_EXTENSIONS].map((e) => e.toLowerCase()));
+    statExtsOf = key;
+  }
+  return statExts;
+};
 
 // id -> { path, kind } used by streaming/image endpoints
 const registry = new Map();
@@ -26,7 +42,13 @@ const registry = new Map();
 const index = {
   movies: [],
   shows: [],
+  // when the library folders were last looked at (every scan moves it)
   scannedAt: null,
+  // what the library HOLDS, as a number: moves only when a scan found
+  // something different. Everything that keeps work built from the library
+  // keys it on this, so a rescan that found nothing new rebuilds nothing.
+  version: 0,
+  changedAt: null, // when the version last moved
   enriched: false,
 };
 
@@ -44,6 +66,26 @@ const makeId = (kind, relPath) => {
     idMemo.set(key, id);
   }
   return id;
+};
+
+// path.relative() normalises both sides on every call: 40 ms of a rebuild on
+// a library of 1,800 files. A path made by path.join(root, …) begins with the
+// root itself, and what is relative to it is the rest — the same string.
+// Anything else (a root written with other separators, another drive, the
+// app folder) goes through path.relative as before, remembered.
+const relMemo = new Map();
+const relTo = (from, to) => {
+  if (to.length > from.length + 1 && to.startsWith(from) && to[from.length] === path.sep && !from.endsWith(path.sep)) {
+    return to.slice(from.length + 1);
+  }
+  const k = `${from}\u0000${to}`;
+  let r = relMemo.get(k);
+  if (r === undefined) {
+    r = path.relative(from, to);
+    if (relMemo.size >= 200000) relMemo.clear();
+    relMemo.set(k, r);
+  }
+  return r;
 };
 
 const byPath = new Map(); // absPath -> id (the downloads queue asks "what did my file become?")
@@ -183,7 +225,13 @@ const seasonFromFolder = (relDir) => {
 // exist (measured, docs/qa/backend-efficiency). While scan() runs, the first
 // listing of a folder is kept and handed out again; nobody changes the array
 // they are given. Outside a scan nothing is remembered.
-let scanListings = null;
+//
+// Since the server round of 2026-10-18 a scan does not read the disk at all
+// while it builds: media/scanwalk.js reads every listing and the size and
+// date of every video, extra and subtitle first (in a worker thread for the
+// ten-minute rescan, media/scanworker.js), and the build below takes them
+// from that snapshot. `building` is the snapshot being built from.
+let building = null; // { snap, lists: Map<dir, entries> }
 const readDir = (dir) => {
   try {
     return fs.readdirSync(dir, { withFileTypes: true });
@@ -191,17 +239,45 @@ const readDir = (dir) => {
     return [];
   }
 };
+// An entry of a snapshot listing, shaped like the fs.Dirent the code below reads.
+class SnapEntry {
+  constructor(name, kind) { this.name = name; this.kind = kind; }
+  isFile() { return this.kind === scanwalk.FILE; }
+  isDirectory() { return this.kind === scanwalk.DIR; }
+}
 const listDir = (dir) => {
-  if (!scanListings) return readDir(dir);
-  let hit = scanListings.get(dir);
+  if (!building) return readDir(dir);
+  let hit = building.lists.get(dir);
   if (!hit) {
-    hit = readDir(dir);
-    scanListings.set(dir, hit);
+    const raw = building.snap.dirs[dir];
+    hit = raw ? raw.map(([name, kind]) => new SnapEntry(name, kind)) : readDir(dir);
+    building.lists.set(dir, hit);
   }
   return hit;
 };
 
+// What a snapshot knows of a path: { size, mtimeMs }, null (its folder was
+// read and it is not there, or it could not be looked at), or undefined (the
+// walk did not look: ask the disk).
+const snapLookup = (snap) => (p) => {
+  const f = snap.files[p];
+  if (f) return { size: f[0], mtimeMs: f[1] };
+  const list = snap.dirs[path.dirname(p)];
+  if (!list) return undefined;
+  const name = path.basename(p);
+  const entry = list.find((e) => e[0] === name);
+  if (!entry) return null;
+  // listed, but of a kind the walk does not date (a cover, a folder — or,
+  // for a walk on the main thread, a subtitle: those are dated when asked)
+  const dated = snap.exts ? snap.exts.includes(path.extname(name).toLowerCase()) : STAT_EXTS().has(path.extname(name).toLowerCase());
+  return entry[1] === scanwalk.FILE && dated ? null : undefined;
+};
+
 const statSafe = (p) => {
+  if (building) {
+    const hit = building.lookup(p);
+    if (hit !== undefined) return hit;
+  }
   try {
     return fs.statSync(p);
   } catch {
@@ -231,14 +307,13 @@ const subtitleBelongsTo = (subBase, videoBase) => {
   );
 };
 
+const KNOWN_LANGUAGE_WORDS = new Set(Object.values(LANGUAGE_NAMES).map((n) => n.toLowerCase()));
 const externalSubtitleLabel = (subFile, videoFile) => {
   const base = path.basename(subFile, path.extname(subFile));
   const videoBase = path.basename(videoFile, path.extname(videoFile));
   if (base === videoBase) return "Subtitles";
 
-  const known = new Set(
-    Object.values(LANGUAGE_NAMES).map((n) => n.toLowerCase()),
-  );
+  const known = KNOWN_LANGUAGE_WORDS;
 
   // "<video>.Hebrew 2.srt" — a numbered track of one language. Several
   // alternatives per language are normal (a downloaded title keeps every track
@@ -365,7 +440,7 @@ const buildSubtitleTracks = (videoAbs, videoRel, videoFile, dir, extraDirs) => {
     const subId = register(
       "subtitle",
       subAbs,
-      path.relative(config.ROOT, subAbs),
+      relTo(config.ROOT, subAbs),
     );
     let label = externalSubtitleLabel(sub.file, videoFile);
     let lang = labelLang(label);
@@ -586,7 +661,7 @@ const scanMovies = () => {
 
       const videoFile = videos[0];
       const videoAbs = path.join(dir, videoFile);
-      const videoRel = path.relative(root, videoAbs);
+      const videoRel = relTo(root, videoAbs);
       const id = register("video", videoAbs, videoRel);
       // A second video in a movie's folder (a 720p beside the 1080p, two
       // releases) is not indexed — the first one is the film — but the admin
@@ -598,7 +673,7 @@ const scanMovies = () => {
         ? register(
             "image",
             path.join(dir, cover),
-            path.relative(root, path.join(dir, cover)),
+            relTo(root, path.join(dir, cover)),
           )
         : null;
       const meta = metadata.getCached(videoAbs);
@@ -668,11 +743,11 @@ const scanShows = () => {
           if (e.isDirectory()) {
             walk(abs);
           } else if (hasExt(e.name, config.VIDEO_EXTENSIONS)) {
-            const rel = path.relative(root, abs);
+            const rel = relTo(root, abs);
             const id = register("video", abs, rel);
             const stat = statSafe(abs);
             const parsed = parseEpisode(e.name);
-            const relDir = path.relative(showDir, dir);
+            const relDir = relTo(showDir, dir);
             const season =
               parsed.season !== null
                 ? parsed.season
@@ -705,7 +780,7 @@ const scanShows = () => {
               subtitles: buildSubtitleTracks(abs, rel, e.name, dir, extraDirs),
             });
           } else if (hasExt(e.name, config.EXTRA_EXTENSIONS)) {
-            const rel = path.relative(root, abs);
+            const rel = relTo(root, abs);
             const id = register("extra", abs, rel);
             const stat = statSafe(abs);
             extras.push({
@@ -754,10 +829,10 @@ const scanShows = () => {
         ? register(
             "image",
             path.join(showDir, cover),
-            path.relative(root, path.join(showDir, cover)),
+            relTo(root, path.join(showDir, cover)),
           )
         : null;
-      const showId = makeId("show", path.relative(root, showDir));
+      const showId = makeId("show", relTo(root, showDir));
       const title = cleanTitle(entry.name);
       const web = online.get("show", title);
 
@@ -852,20 +927,273 @@ const mergeDuplicateShows = (shows) => {
   return merged.sort((a, b) => naturalCompare(a.title, b.title));
 };
 
-const scan = () => {
+// ---------- scan: walk, then build ----------
+//
+// scan()       walks on THIS thread and builds: for a caller that needs the
+//              index to show a change right now (a download landed, a file
+//              was deleted, the admin's Rescan, the tests).
+// scanAsync()  walks in a worker thread (media/scanworker.js) and builds
+//              when the walk is back: the ten-minute rescan and the
+//              background passes' "the library learned something". The
+//              event loop is never held for the disk. Concurrent calls share
+//              one run (and ask for one more after it when they came late).
+//
+// An UNCHANGED rescan keeps the index: when nothing the index is built from
+// moved — the walk's digest, the probe cache, the subtitle-language and
+// subtitle-timing stores, the online metadata — the build is skipped (a
+// scanAsync; at least once an hour it builds anyway); and a build whose
+// result is identical to the last one is thrown away. Either way the index
+// arrays and `index.version` stay the same, and everything keyed on the
+// version (identity stamps, the search index, title history, the kept
+// library answer…) keeps its work. `scannedAt` moves on every scan, as it
+// always did. "scanned" carries { changed }.
+const FULL_WALK_EVERY = 6; // every sixth worker walk re-reads every file's date (scanwalk.js)
+const REBUILD_MS = 60 * 60 * 1000;
+let lastSnap = null;
+let built = { inputs: null, hash: null, at: 0 };
+const storeRevs = () => {
+  let s = `${metadata._store.rev}`;
+  try { s += `|${sublang.rev()}`; } catch {}
+  try { s += `|${subaudio.rev()}`; } catch {}
+  try { s += `|${online.rev()}`; } catch {}
+  return s;
+};
+const walkOpts = (skipUnchanged) => ({
+  movies: config.LIBRARIES.movies,
+  shows: config.LIBRARIES.shows,
+  statExts: [...STAT_EXTS()],
+  skipUnchanged,
+});
+// A scan on the main thread (somebody is waiting for it) reads no more than
+// scans always read: the listings and the size and date of every video and
+// extra — not the folders' dates, nor the subtitles' (the subtitle passes
+// date the few they look at when they look).
+const syncWalkOpts = () => ({
+  movies: config.LIBRARIES.movies,
+  shows: config.LIBRARIES.shows,
+  statExts: [...config.VIDEO_EXTENSIONS, ...config.EXTRA_EXTENSIONS].map((e) => e.toLowerCase()),
+  dateFolders: false,
+});
+
+// The build: the index from a snapshot, no filesystem call (statsnap: the
+// subtitle passes' dates come from it too). -> { movies, shows }
+const build = (snap) => {
   registry.clear();
   byPath.clear();
   siblingVideos.clear();
-  scanListings = new Map();
+  const lookup = snapLookup(snap);
+  building = { snap, lists: new Map(), lookup };
   try {
-    index.movies = scanMovies();
-    index.shows = scanShows();
+    return statsnap.within(lookup, () => {
+      const movies = scanMovies();
+      const shows = scanShows();
+      return { movies, shows };
+    });
   } finally {
-    scanListings = null;
+    building = null;
   }
-  index.scannedAt = Date.now();
-  events.emit("scanned");
+};
+const hashOf = (next) => crypto.createHash("sha1").update(JSON.stringify(next)).digest("base64");
+
+let syncScans = 0; // a sync scan that lands while a worker walk is out makes that walk stale
+const apply = (snap, { force = true } = {}) => {
+  const now = Date.now();
+  const inputs = `${snap.hash}|${storeRevs()}`;
+  let changed = false;
+  if (force || inputs !== built.inputs || now - built.at > REBUILD_MS || !index.scannedAt) {
+    const next = build(snap);
+    const hash = hashOf(next);
+    if (hash !== built.hash || !index.scannedAt) {
+      index.movies = next.movies;
+      index.shows = next.shows;
+      index.version++;
+      index.changedAt = now;
+      built.hash = hash;
+      changed = true;
+    }
+    built.inputs = inputs;
+    built.at = now;
+    scanStats.builds++;
+  } else scanStats.skipped++;
+  lastSnap = snap;
+  index.scannedAt = now;
+  scanStats.last = { at: now, changed, calls: snap.calls, reused: snap.reused, hash: snap.hash };
+  if (!snap.saved) {
+    saveWalk(snap);
+    if (changed) { try { pruneProbes(snap); } catch {} }
+  }
+  firstResolve();
+  events.emit("scanned", { changed, version: index.version });
   return index;
+};
+const scanStats = { builds: 0, skipped: 0, async: 0, last: null, probesPruned: 0 };
+
+// The probe cache (metadata-cache.json) keeps an entry for every file ever
+// probed — a film deleted a year ago included. After a scan that changed
+// the library, entries for files inside a library folder that the library no
+// longer holds are dropped (never while a library folder cannot be read: an
+// unplugged drive is not a deleted film; files outside the library folders
+// are left alone).
+const pruneProbes = (snap) => {
+  let libroots;
+  try { libroots = require("../lib/libroots"); } catch { return 0; }
+  const dirs = [...config.LIBRARIES.movies, ...config.LIBRARIES.shows];
+  if (!dirs.length) return 0;
+  // a library folder the walk found empty may be an unplugged drive: nothing goes
+  if (!snap || dirs.some((d) => !(snap.dirs[d] && snap.dirs[d].length))) return 0;
+  const keep = new Set(byPath.keys());
+  for (const list of siblingVideos.values()) for (const p of list) keep.add(p);
+  const data = metadata._store.data;
+  let n = 0;
+  for (const p of Object.keys(data)) {
+    if (keep.has(p) || !libroots.isUnder(p, dirs)) continue;
+    delete data[p];
+    n++;
+  }
+  if (n) { metadata._store.save(); scanStats.probesPruned += n; }
+  return n;
+};
+
+const scan = () => {
+  syncScans++;
+  return apply(scanwalk.walk(syncWalkOpts()));
+};
+
+let asyncRun = null;
+let asyncAgain = false;
+let asyncForce = false;
+let workerWalks = 0;
+// force: build even if nothing it is built from moved; full: re-date every
+// file (no folder-date skipping — scanwalk.js)
+let asyncFull = false;
+const scanAsync = ({ force = false, full = false } = {}) => {
+  if (asyncRun) {
+    asyncAgain = true;
+    asyncForce = asyncForce || force;
+    asyncFull = asyncFull || full;
+    return asyncRun;
+  }
+  asyncForce = force;
+  asyncFull = full;
+  asyncRun = (async () => {
+    try {
+      do {
+        asyncAgain = false;
+        const f = asyncForce;
+        asyncForce = false;
+        const syncBefore = syncScans;
+        const full = workerWalks++ % FULL_WALK_EVERY === 0 || asyncFull;
+        asyncFull = false;
+        const snap = await scanworkerLib().walk(walkOpts(!full));
+        scanStats.async++;
+        // a scan on the main thread landed while this walk was out: it saw
+        // the disk later than this walk did, so this one is not applied
+        if (syncScans !== syncBefore) continue;
+        apply(snap, { force: f });
+      } while (asyncAgain);
+    } finally {
+      asyncRun = null;
+    }
+    return index;
+  })();
+  return asyncRun;
+};
+
+// ---------- start-up: the last run's walk, at once ----------
+// The walk that built the index is kept on disk (data/cache/library-walk.json,
+// rewritten only when what is on disk changed — a cache: missing or damaged
+// is a first start). At start-up the index is built from it before the port
+// is listening — no folder is read, a restart serves the library it had at
+// once — and the first worker walk (server.js, after listen) brings it up to
+// date. With nothing saved, library requests wait for that walk (libraryReady).
+const SAVED_V = 1;
+const savedFile = () => path.join(config.CACHE_DIR, "library-walk.json");
+let savedHash = null;
+let saving = false;
+let saveNext = null; // a newer walk that arrived while one was being written
+const saveWalk = (snap) => {
+  if (!snap) return;
+  if (saving) { saveNext = snap; return; }
+  if (snap.hash === savedHash) return;
+  saving = true;
+  const done = () => {
+    saving = false;
+    const next = saveNext;
+    saveNext = null;
+    if (next) saveWalk(next);
+  };
+  const file = savedFile();
+  const roots = { movies: config.LIBRARIES.movies, shows: config.LIBRARIES.shows };
+  let text;
+  try {
+    text = JSON.stringify({ v: SAVED_V, roots, dirs: snap.dirs, dirAt: snap.dirAt, files: snap.files, hash: snap.hash });
+  } catch { done(); return; }
+  const tmp = `${file}.tmp`;
+  fs.writeFile(tmp, text, (err) => {
+    if (err) return done();
+    fs.rename(tmp, file, (err2) => {
+      if (!err2) savedHash = snap.hash;
+      done();
+    });
+  });
+};
+const readSavedWalk = () => {
+  try {
+    const d = JSON.parse(fs.readFileSync(savedFile(), "utf8"));
+    if (!d || d.v !== SAVED_V || !d.dirs || !d.files || !d.dirAt) return null;
+    const same = (a, b) => JSON.stringify(a || []) === JSON.stringify(b || []);
+    if (!same(d.roots && d.roots.movies, config.LIBRARIES.movies) || !same(d.roots && d.roots.shows, config.LIBRARIES.shows)) return null;
+    savedHash = d.hash;
+    return { dirs: d.dirs, dirAt: d.dirAt, files: d.files, hash: d.hash, calls: { readdir: 0, stat: 0 }, reused: 0, saved: true };
+  } catch {
+    return null;
+  }
+};
+let firstResolve;
+const firstScan = new Promise((r) => { firstResolve = r; });
+// -> true when the index came from the saved walk
+const boot = () => {
+  const snap = readSavedWalk();
+  if (!snap) return false;
+  try {
+    apply(snap);
+    console.log(`[scan] library from the last run: ${index.movies.length} movies, ${index.shows.length} shows (the folders are read again in the background)`);
+    return true;
+  } catch (e) {
+    console.warn(`[scan] the saved walk could not be used (${(e && e.message) || e}); reading the folders`);
+    return false;
+  }
+};
+
+// Express middleware: until the library has been read once, a request that
+// needs it waits for that (20 s at most). What does not need the library —
+// the health check, who-am-I, sign-in, the app shell — never waits.
+const READY_WAIT_MS = 20 * 1000;
+const NEEDS_LIBRARY = /^\/(api|stream|img|offline)\//;
+const NEVER_WAITS = /^\/api\/(ping|me|server-info|usage)$|^\/api\/auth\//;
+const libraryReady = (req, res, next) => {
+  if (index.scannedAt || !NEEDS_LIBRARY.test(req.path) || NEVER_WAITS.test(req.path)) return next();
+  let done = false;
+  const go = () => { if (!done) { done = true; clearTimeout(t); next(); } };
+  const t = setTimeout(go, READY_WAIT_MS);
+  firstScan.then(go);
+};
+
+// A library file's { size, mtimeMs } as the last walk saw it, or null when
+// the walk did not date it (not a video / extra / subtitle, not in the library).
+const walkedStat = (absPath) => {
+  const f = lastSnap && lastSnap.files[absPath];
+  return f ? { size: f[0], mtimeMs: f[1] } : null;
+};
+
+// Run fn with the last walk's dates standing in for the disk (the background
+// work lists right after a scan: audioSyncWork etc. — see statsnap.js).
+// knownOnly: answer only for files the walk dated (anything else: the disk) —
+// for a request, where a file may have arrived since the walk.
+const withLastWalk = (fn, { knownOnly = false } = {}) => {
+  if (!lastSnap) return fn();
+  const snap = lastSnap;
+  return statsnap.within(knownOnly ? (p) => { const f = snap.files[p]; return f ? { size: f[0], mtimeMs: f[1] } : undefined; } : snapLookup(snap), fn);
 };
 
 // ---------- background enrichment (ffprobe queue) ----------
@@ -893,24 +1221,32 @@ const enrich = () => {
   if (enriching || !config.ffmpegAvailable) return;
   enriching = true;
 
-  const paths = allVideoPaths().filter((p) => metadata.needsProbe(p));
+  // (with the date the walk saw: a file replaced under its old name is probed again)
+  const paths = allVideoPaths().filter((p) => { const w = walkedStat(p); return metadata.needsProbe(p, w ? w.mtimeMs : null); });
   let i = 0;
 
   const step = () => {
     if (i >= paths.length) {
-      enriching = false;
-      if (paths.length > 0) {
-        scan(); // rebuild index with the new metadata
-        events.emit("updated");
-      }
       // "enriched" says what this pass found: how many files it probed, and
       // whether this is the first pass to finish since the server started.
       // A pass with neither changed nothing anybody is looking at — and one
       // runs every ten minutes (server.js): listeners that make every device
       // ask again (enrichedChanged below) must not do so for it.
-      const first = !index.enriched;
-      index.enriched = true;
-      events.emit("enriched", { probed: paths.length, first });
+      const finish = () => {
+        enriching = false;
+        const first = !index.enriched;
+        index.enriched = true;
+        events.emit("enriched", { probed: paths.length, first });
+      };
+      if (paths.length > 0) {
+        // rebuild the index with the new metadata (the walk off the event loop)
+        scanAsync()
+          .catch((e) => { console.warn(`[scan] rescan after probing failed: ${(e && e.message) || e}`); scan(); })
+          .then(() => events.emit("updated"))
+          .finally(finish);
+        return;
+      }
+      finish();
       return;
     }
     const p = paths[i++];
@@ -1054,6 +1390,12 @@ module.exports = {
   index,
   events,
   scan,
+  scanAsync,
+  boot,
+  libraryReady,
+  walkedStat,
+  withLastWalk,
+  scanStats: () => ({ ...scanStats, version: index.version, worker: (() => { try { return require("./scanworker").stats(); } catch { return null; } })() }),
   enrich,
   isEnriching: () => enriching,
   enrichedChanged,
@@ -1063,13 +1405,14 @@ module.exports = {
   findById,
   allItems,
   bitmapOnlyVideos,
-  unnamedSubtitleWork,
-  subtitleSyncWork,
-  audioSyncWork,
+  // (the dates these compare come from the last walk, not the disk: statsnap.js)
+  unnamedSubtitleWork: () => withLastWalk(unnamedSubtitleWork),
+  subtitleSyncWork: () => withLastWalk(subtitleSyncWork),
+  audioSyncWork: () => withLastWalk(audioSyncWork),
   starBest,
   makeId,
   subtitleDownloadName,
   // Test-only: folding "<Title>" and "<Title> (<Year>)" folders into one entry
   // must never drop an episode or renumber a season.
-  _internals: { mergeDuplicateShows, uniqueLabels, naturalCompare, isCopyName, copyLastCompare },
+  _internals: { relTo, registrySize: () => registry.size, idMemoSize: () => idMemo.size, pruneProbes, mergeDuplicateShows, uniqueLabels, naturalCompare, isCopyName, copyLastCompare },
 };

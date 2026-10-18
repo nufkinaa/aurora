@@ -61,7 +61,7 @@ const locate = (names) => {
     if (isWindows) {
       let text = "";
       try {
-        text = cp.execSync(`where ${list.map((n) => `${n}.exe`).join(" ")}`, { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] });
+        text = cp.execSync(`where ${list.map((n) => `${n}.exe`).join(" ")}`, { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"], timeout: 15000, windowsHide: true });
       } catch (err) {
         // `where` exits 1 when a pattern had no match; what it did find is still on stdout
         text = String((err && err.stdout) || "");
@@ -70,7 +70,7 @@ const locate = (names) => {
     }
     // command -v is a shell builtin: one shell, one line per name
     const script = `for n in ${list.join(" ")}; do printf '%s=%s\\n' "$n" "$(command -v "$n")"; done`;
-    const text = cp.execSync(script, { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"], shell: "/bin/sh" });
+    const text = cp.execSync(script, { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"], shell: "/bin/sh", timeout: 15000 });
     return { ...none, ...parsePosix(text, list) };
   } catch {
     return none;

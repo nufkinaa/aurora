@@ -23,7 +23,6 @@
 // costs on the wire, the playlist, the encoder's arguments. The producing,
 // the grouping and the checking are jit.js.
 const os = require("os");
-const { execFile } = require("child_process");
 const config = require("../config");
 const tonemap = require("./tonemap");
 
@@ -274,13 +273,7 @@ const encVideoArgs = (rung, { vf = null, fmt = null } = {}) => {
 // One ffprobe of the first video stream: size, frame rate, profile and level
 // (for CODECS), and the colour facts tone mapping decides from. Cached — a
 // file's video does not change (the key carries its mtime).
-const PROBE_ARGS = [
-  "-v", "error",
-  "-select_streams", "v:0",
-  "-show_entries",
-  "stream=codec_type,codec_name,profile,level,width,height,pix_fmt,color_range,color_space,color_transfer,color_primaries,avg_frame_rate,r_frame_rate:stream_side_data=side_data_type,dv_profile,dv_bl_signal_compatibility_id",
-  "-of", "json",
-];
+// (asked through tonemap.probeJson — the one colour probe of the server)
 const parseFacts = (json) => {
   let j;
   try { j = typeof json === "string" ? JSON.parse(json) : json; } catch { return null; }
@@ -300,14 +293,9 @@ const probe = (key, input, { http = false } = {}) => {
   if (!config.FFPROBE || Date.now() - (failed.get(key) || 0) < FAIL_TTL) return Promise.resolve(null);
   let p = inflight.get(key);
   if (p) return p;
-  p = new Promise((resolve) => {
-    execFile(
-      config.FFPROBE,
-      [...PROBE_ARGS, ...(http ? ["-probesize", "16M", "-analyzeduration", "10M"] : []), input],
-      { windowsHide: true, timeout: http ? 8000 : 5000, maxBuffer: 1024 * 1024 },
-      (err, out) => resolve(err ? null : parseFacts(String(out || ""))),
-    );
-  }).then((f) => {
+  // (the server's one colour probe — tonemap.probeJson: the tone mapping asks
+  // the same question about the same source, and is answered by this one)
+  p = tonemap.probeJson(input, { http }).then((j) => (j ? parseFacts(j) : null)).then((f) => {
     inflight.delete(key);
     if (f) {
       if (facts.size > 500) facts.clear();
