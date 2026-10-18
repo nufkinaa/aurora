@@ -126,7 +126,7 @@ const COLS = [["MB / h", "mbPerHour"], ["rewrites / h", "rewritesPerHour"], ["fs
   const out = { at: new Date().toISOString(), ref: ref || "working tree", weak, minutes, hog, household: today ? "today (5 profiles, about 40 rows each)" : "grown (8 profiles, up to 1,500 rows)", runs: [], idle: null };
   const srv = await start({ weak, ref, ds, config: { scanIntervalMinutes: 24 * 60 } });
   try {
-    await srv.waitWarm();
+    await srv.waitWarm(15 * 60 * 1000); // (a machine busy with other work warms slowly)
     await srv.waitQuiet();
     // the subtitle background jobs (audio resync, language detection) finish first
     for (let i = 0; i < 240; i++) {
