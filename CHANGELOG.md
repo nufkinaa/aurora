@@ -3,6 +3,21 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.8.0 — 2026-10-18
+
+**A faster, steadier server on the same hardware.** Measured with simulated households browsing and watching on the real library, against 1.7.2: the server no longer freezes while it saves (time spent frozen went from about 0.4 s a minute to none), writes about 500 times less to its data folder (6.3 MB a minute → 12 KB), uses less than a quarter of the processor for conversions and 40 % less overall, answers its slowest page requests about a third faster and its health checks three times faster — and no request from normal use was refused.
+
+- **Saving no longer stops the server.** Watching no longer rewrites the whole profiles file every few seconds: progress goes to a small journal (written at once on start, pause, seek and stop, otherwise every 30 seconds), and every save happens in the background. After a power cut you may lose up to 30 seconds of where you were in a film; a normal restart loses nothing. Leftover data of deleted profiles is moved to a file of its own (nothing is lost).
+- **The library check runs in the background** and a restart shows your library at once; a check that finds nothing new rebuilds nothing. Title information from the catalogue is answered from memory while it refreshes, and blurred previews are only made for what a screen shows.
+- **More people can watch at once.** On a spinning disk, films played as they are now take turns reading in larger pieces — about 45 people at once instead of about 13 before anything stalls; SSDs keep reading the old way. TV streams no longer copy the whole film ahead of the viewer, finished stream folders are removed in the background, a pause and resume reuses what was already made, and damaged stretches of a file are bridged instead of stopping playback.
+- **The graphics card is used when it helps**: with a working NVIDIA card, conversions run on it (15–90 times less processor work; under load all viewers started where the processor turned some away), falling back to the processor for HDR or on any failure. Admin → Server → Encoding shows which is used and why.
+- **Conversion limits count only the processor cores the server may use** (containers, virtual servers, process limits), and a small machine picks lighter settings by itself.
+- **Outside services can't slow pages any more.** Every call to a catalogue, subtitle or picture site has a time limit, and a site that keeps failing is skipped for a while; a page waits at most about 2.5 seconds (the answer still arrives for next time). Pictures from a site that hangs no longer hold Home up for a minute.
+- **Protection against floods**: expensive searches and lookups are limited per device, far above heavy normal use (a simulated heavy user made 129,682 requests in 10 minutes and was never refused); stuck and idle connections are closed in time; one device can no longer grow the server's memory.
+- **Admin → Server → Health** shows request times per area, freezes, memory, active work and failing outside sites, and the server checks its settings at start-up.
+- Logs are capped (150 MB); an old large log is never deleted by Aurora — admin shows it with the command to remove it.
+- Torrents: no new caps of any kind.
+
 ## 1.7.2 — 2026-10-18
 
 - **Play a file from this device.** On the website, "On this device" (in the profile menu and under My downloads) lets you pick or drop a video from your computer or phone, with subtitle files if you have them (.srt, .vtt, .ass — Hebrew in any common encoding, right to left), and watch it in Aurora's player: subtitles above the timeline, the timing buttons, fullscreen, and it remembers where you stopped. Nothing is uploaded — the file never leaves the device. It works offline too, even when the server can't be reached at all. If the browser can't play a file (for example HEVC video, or AC-3 sound in some browsers), it says why instead of breaking.
