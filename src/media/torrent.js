@@ -146,7 +146,7 @@ if (!STORE.data.ids) STORE.data.ids = {};
 const TORRENTIO_BASE = "https://torrentio.strem.fun";
 const CINEMETA_BASE = "https://v3-cinemeta.strem.io";
 const STREAMS_TTL = 6 * 3600 * 1000;
-const STREAMS_V = 4; // parser/ranking version — older cached lists must recompute
+const STREAMS_V = 5; // parser/ranking version (5: packs no longer penalised) — older cached lists must recompute
 // A cached source list is only ever answered from while it is under six hours
 // old and of today's shape (getSources below); after that it is dead weight —
 // and nothing removed it. Every title ever opened stayed in the file, the
@@ -678,9 +678,10 @@ const valueScore = (s, sizeCapGb = 4.5) => {
   const seedBonus = Math.min(s.seeders || 0, 3000) / 100; // 0..30
   const gb = (s.sizeBytes || 0) / GB;
   const sizePenalty = gb > sizeCapGb ? (gb - sizeCapGb) * 8 : 0;
-  // Sink packs below every same-quality single release, but above CAMs.
-  const packPenalty = s.pack ? 55 : 0;
-  return qBase + seedBonus - sizePenalty - packPenalty;
+  // Packs are ranked like any other source (elia 2026-10-18: "we are
+  // penalizing good pack sources when we shouldn't"): a well-seeded pack wins
+  // on quality, seeders and size like everyone else. `pack` stays a label.
+  return qBase + seedBonus - sizePenalty;
 };
 
 const LANG_FLAGS = {
@@ -732,7 +733,7 @@ const withHistory = (streamId, streams, ttType) => {
   });
   const out = sorted.map((s) => ({ ...s, recommended: undefined }));
   for (const s of out) delete s.recommended;
-  const best = out.find((s) => !s.cam && !s.dubbed && !s.pack) || out.find((s) => !s.cam && !s.dubbed);
+  const best = out.find((s) => !s.cam && !s.dubbed);
   if (best) best.recommended = true;
   return out;
 };
@@ -820,11 +821,9 @@ const getSources = async (type, title, year, season, episode) => {
   }
   streams = streams.filter((s) => kept.has(s));
 
-  // Flag the top non-CAM, non-dubbed, non-pack pick so the UI can recommend
-  // it (packs only become eligible when nothing else exists).
-  const best =
-    streams.find((s) => !s.cam && !s.dubbed && !s.pack) ||
-    streams.find((s) => !s.cam && !s.dubbed);
+  // Flag the top non-CAM, non-dubbed pick so the UI can recommend it (a pack
+  // competes like any other source).
+  const best = streams.find((s) => !s.cam && !s.dubbed);
   if (best) best.recommended = true;
 
   STORE.data.streams[cacheKey] = { at: Date.now(), streams, v: STREAMS_V };

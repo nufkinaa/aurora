@@ -330,9 +330,9 @@ const chooseChallenger = ({ job, streams, history, live, cfg, now }) => {
     const hash = lc(s.infoHash);
     if (!/^[a-z0-9]{32,40}$/.test(hash) || hash === own) continue;   // a different torrent
     if (resolutionOf(s.quality) !== want) continue;                  // same resolution only
-    // Never a cinema recording; never a dub unless the original was one;
-    // never a film buried in a collection (see isPack in media/torrent.js).
-    if (s.cam || (s.dubbed && !(me && me.dubbed)) || (job.type !== "show" && s.pack)) { skipped.other++; continue; }
+    // Never a cinema recording; never a dub unless the original was one.
+    // (A pack is a source like any other — elia 2026-10-18.)
+    if (s.cam || (s.dubbed && !(me && me.dubbed))) { skipped.other++; continue; }
     if (bad.has(hash)) { skipped.history++; continue; }              // failed / stalled / lost here before
     if (!(s.sizeBytes > 0)) { skipped.size++; continue; }            // unknown size: the disk gate could not count it
     if (size > 0 && (s.sizeBytes < size * cfg.sizeBandLow || s.sizeBytes > size * cfg.sizeBandHigh)) { skipped.size++; continue; }

@@ -301,7 +301,6 @@ const startEstimate = (s) => {
   let secs = seeds >= 100 ? 4 : seeds >= 30 ? 6 : seeds >= 10 ? 10 : seeds >= 5 ? 15 : 30;
   if (gb > 15) secs += 8;
   else if (gb > 6) secs += 3;
-  if (s.pack) secs += 10;
   if (needsConvert(s)) secs += 6;
   return secs;
 };
@@ -320,7 +319,6 @@ const whyNotBest = (s, best) => {
   if (!best || s === best) return null;
   const r = [];
   if (s.cam) r.push("a camera recording");
-  if (s.pack) r.push("inside a collection pack (weak swarm, slow start)");
   if (s.dubbed) r.push("dubbed audio");
   if ((QUALITY_RANK[s.quality] ?? 0) < (QUALITY_RANK[best.quality] ?? 0))
     r.push(`lower resolution than ${best.quality}`);
@@ -401,7 +399,7 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
         stream.recommended && el("span", { class: "src-badge best" }, "Best"),
         stream.lastChosen && el("span", { class: "src-badge" }, "Last played"),
         stream.cam && el("span", { class: "src-badge warn" }, "Cam"),
-        stream.pack && el("span", { class: "src-badge warn", title: "Part of a multi-film collection — slower to start" }, "Pack"),
+        stream.pack && el("span", { class: "src-badge", title: "Part of a pack (several titles in one download)" }, "Pack"),
       ),
       el(
         "div",

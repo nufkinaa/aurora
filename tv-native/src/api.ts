@@ -535,6 +535,8 @@ export type DiscoverMeta = HeroItem & {
 
 // A download job as /api/downloads lists it for the asker (publicJob + mine).
 export type MyDownload = DownloadJob & {
+  /** waiting only because this account already has this many downloads running (server 1.7.2) */
+  accountLimit?: number | null;
   title?: string;
   label?: string;
   season?: number | null;

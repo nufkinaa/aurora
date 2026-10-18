@@ -91,6 +91,8 @@ const describeBase = (job) => {
           ].join(" · "),
         };
       }
+      // …one waiting because its account already has its share running
+      if (job.accountLimit) return { tone: "wait", head: "Queued", line: `Starts when one of ${job.mine ? "your" : "their"} ${job.accountLimit} running downloads finishes` };
       // …and one that has not started: every other download goes first.
       if (job.auto === "mylist") return { tone: "wait", head: "Queued", line: "Starts after the other downloads" };
       return { tone: "wait", head: "Queued", line: "Starts when a download slot frees up" };

@@ -68,6 +68,7 @@ const statusLine = (j: MyDownload) => {
     case 'approved':
       // a My List download that gave way to a person's own (downloadsLogic.ts)
       if (isHeld(j)) return heldLine(j);
+      if (j.accountLimit) return `Queued — starts when one of ${j.mine ? 'your' : 'their'} ${j.accountLimit} running downloads finishes`;
       if (j.auto === 'mylist') return 'Queued — starts after the other downloads';
       return 'Queued — starts when a slot frees up';
     case 'pending':

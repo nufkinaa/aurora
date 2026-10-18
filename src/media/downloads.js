@@ -162,6 +162,8 @@ const publicJob = (j) => ({
   // under — the thing "Play" on the downloads page needs. WHO requested it
   // stays server-side (publicJobFor answers "mine" per viewer instead).
   seenAt: j.seenAt || null, smart: !!j.smart, resolvedAt: j.resolvedAt || null,
+  // waiting only because this account already has its downloads running
+  accountLimit: j.status === "approved" && overLimit.has(j.id) ? perAccount() : null,
   // Who started it, by NAME only (elia 2026-10-11: "downloads should say who
   // started them"); the profile id stays server-side.
   by: whoAsked(j),
@@ -661,15 +663,27 @@ const queueView = () => {
   for (const [id, rec] of active) {
     const j = findJob(id);
     running.push({
-      id, yields: dlslots.yields(j), locked: !!rec.copying, stalled: !!(j && j.stalledRestarts),
+      id, yields: dlslots.yields(j), locked: !!rec.copying, stalled: !!(j && j.stalledRestarts), owner: ownerOf(j),
       progress: (j && j.progress) || 0, startedAt: rec.main.startedAt,
     });
   }
   const waiting = waitingJobs().map((j) => ({
     id: j.id, tier: j.startNow ? -1 : dlslots.tierOf(j), yields: dlslots.yields(j), held: !!j.held, progress: j.progress || 0,
+    // (the admin's "Start now" is not counted against the account)
+    owner: j.startNow ? null : ownerOf(j),
   }));
-  return { cap, holding, mode: yieldCfg(), running, waiting };
+  return { cap, holding, mode: yieldCfg(), running, waiting, perOwner: perAccount() };
 };
+// Whose download it is, for the per-account limit: the profile that asked.
+const ownerOf = (j) => (j && j.profile ? String(j.profile) : null);
+// How many downloads one account may have running at once (dlslots.plan).
+// Settings key `maxDownloadsPerAccount` (0 = no limit); 3 by default.
+const perAccount = () => {
+  const v = Number(settings.data.maxDownloadsPerAccount);
+  return Number.isFinite(v) && v >= 0 ? Math.floor(v) : dlslots.PER_OWNER;
+};
+// Jobs waiting only because their account already has its share running.
+const overLimit = new Set();
 // The quiet clock: when the others last needed the queue. A My List job
 // starts (or carries on) only once that is RESUME_QUIET_MS in the past.
 const quietState = { blocked: false, clearedAt: 0 };
@@ -719,6 +733,11 @@ const pump = () => {
   if (p.blocked || p.hold.length) quietState.blocked = true;
   else if (quietState.blocked) { quietState.blocked = false; quietState.clearedAt = t; }
 
+  // jobs that wait only for their account's turn: say so on the job
+  const was = new Set(overLimit);
+  overLimit.clear();
+  for (const id of p.overLimit || []) overLimit.add(id);
+  for (const id of new Set([...was, ...overLimit])) { if (was.has(id) !== overLimit.has(id)) { const j = findJob(id); if (j) broadcast(j); } }
   for (const h of p.hold) holdJob(findJob(h.id), h.why);
   let demoted = false;
   for (const id of p.start) {
