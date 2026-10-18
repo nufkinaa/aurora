@@ -1,0 +1,24 @@
+[
+  {
+    "tree": "after",
+    "round": 0,
+    "viewers": 30,
+    "mbit": 12,
+    "secs": 30,
+    "startupP50": 1525,
+    "startupMax": 2236,
+    "stalled": 0,
+    "stalls": 0,
+    "stallSec": 0,
+    "slowStalled": 0,
+    "errors": 0,
+    "MBread": 2548,
+    "cpuCores": 0.329,
+    "rssMaxMb": 139,
+    "abMaxMb": 43,
+    "lagP50": 11.8,
+    "lagP99": 22.8,
+    "lagMax": 203.9,
+    "handlesMax": 41
+  }
+]
