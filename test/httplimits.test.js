@@ -77,6 +77,27 @@ test("an idle keep-alive connection outlives the header limit and is reused", as
   } finally { server.close(); }
 });
 
+test("a connection that never sends a byte gets its 408 at the header limit; one that was used stays", async () => {
+  const { server, port } = await start(echo, { headersTimeoutSec: 2, requestTimeoutSec: 5, keepAliveTimeoutSec: 20 });
+  try {
+    const t0 = Date.now();
+    const silent = net.connect(port, "127.0.0.1");
+    let got = "";
+    silent.on("data", (d) => (got += d)); // (a socket that does not read never hears its close)
+    silent.on("error", () => {});
+    const used = net.connect(port, "127.0.0.1");
+    let usedClosed = false;
+    used.on("data", () => {});
+    used.on("close", () => (usedClosed = true));
+    used.once("connect", () => used.write("GET /x HTTP/1.1\r\nHost: x\r\n\r\n"));
+    const at = await new Promise((r) => silent.on("close", () => r(Date.now() - t0)));
+    assert.ok(at >= 1900 && at < 5500, `closed after ${at} ms`);
+    assert.match(got, /^HTTP\/1\.1 408/);
+    assert.equal(usedClosed, false, "a connection that was used stays (keep-alive)");
+    used.destroy();
+  } finally { server.close(); }
+});
+
 test("a long answer is never cut by the request limits", async () => {
   const { server, port } = await start((req, res) => {
     let n = 0;

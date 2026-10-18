@@ -224,6 +224,34 @@ test("the deadline is a PAGE's: background work (no request being answered) wait
   }));
 });
 
+test("a host that does not answer at all: enough calls past the page deadline at once open the breaker, long before the timeout", async () => {
+  HOSTS[host] = { ...HOSTS[host], timeoutMs: 3000, concurrency: 8, queue: 16 };
+  const t0 = Date.now();
+  const calls = [];
+  for (let i = 0; i < 3; i++) calls.push(upstream.asPage(() => upstream.json(`${base}/hang?i=${i}`, { deadlineMs: 60, ttlMs: 1000 })).catch((e) => e.code));
+  assert.deepEqual(await Promise.all(calls), ["deadline", "deadline", "deadline"]);
+  assert.equal(state().breaker, "open", "opened by three calls past the deadline (failThreshold 3), not by timeouts");
+  assert.ok(Date.now() - t0 < 1000);
+  const f0 = performance.now();
+  await assert.rejects(upstream.asPage(() => upstream.json(`${base}/hang?i=9`, { deadlineMs: 60 })), (e) => e.code === "open");
+  assert.ok(performance.now() - f0 < 20, "the next page fails fast");
+});
+
+test("a host that is only slow, and answers other calls meanwhile, is not opened by deadlines", async () => {
+  HOSTS[host] = { ...HOSTS[host], timeoutMs: 3000, concurrency: 8, queue: 16 };
+  await upstream.fetch(`${base}/ok`); // it answers
+  // (an answer AFTER the slow calls began also counts: here one lands first)
+  const slow = [];
+  for (let i = 0; i < 2; i++) slow.push(upstream.asPage(() => upstream.json(`${base}/slow?ms=300&i=${i}`, { deadlineMs: 50, ttlMs: 1000 })).catch((e) => e.code));
+  await new Promise((r) => setTimeout(r, 10));
+  await upstream.fetch(`${base}/ok?again=1`);
+  slow.push(upstream.asPage(() => upstream.json(`${base}/slow?ms=300&i=3`, { deadlineMs: 50, ttlMs: 1000 })).catch((e) => e.code));
+  await Promise.all(slow);
+  assert.equal(state().breaker, "closed");
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(state().lateFills, 3, "and what came late was kept");
+});
+
 test("a caller's own abort is not a failure of the host", async () => {
   const ctrl = new AbortController();
   const p = upstream.fetch(`${base}/hang`, { signal: ctrl.signal });

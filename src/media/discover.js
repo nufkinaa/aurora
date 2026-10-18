@@ -529,6 +529,7 @@ const search = (q) => {
 
 const searchLive = async (q) => {
   const key = normalize(q);
+  const t0 = Date.now();
 
   // Cinemeta is the primary source for both (accurate + posters + IMDb ids);
   // fall back to TVMaze / TMDB / Wikipedia only if it returns nothing.
@@ -547,11 +548,14 @@ const searchLive = async (q) => {
   // say "no results". Half that now, and the same answers.
   // ...and on a budget: a fallback that hasn't answered in 4s answers
   // nothing. The person is looking at "Searching…" the whole time.
+  // (when Cinemeta itself failed or was slow, the fallbacks get what is left
+  // of a ~3 s page budget, not 4 s more on top of it)
   const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r([]), ms))]);
+  const fallbackMs = degraded ? Math.max(500, 3000 - (Date.now() - t0)) : 4000;
   [shows, movies] = await Promise.all([
-    shows.length === 0 ? within(searchShows(q).catch(() => []), 4000) : shows,
+    shows.length === 0 ? within(searchShows(q).catch(() => []), fallbackMs) : shows,
     movies.length === 0
-      ? within((config.TMDB_KEY ? searchMoviesTmdb(q) : searchMoviesWiki(q)).catch(() => []), 4000)
+      ? within((config.TMDB_KEY ? searchMoviesTmdb(q) : searchMoviesWiki(q)).catch(() => []), fallbackMs)
       : movies,
   ]);
 

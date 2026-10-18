@@ -20,6 +20,8 @@
 //                           How often Node looks for connections over those
 //                           two limits. Node's default is 30 s, which made a
 //                           20 s limit a 20–50 s one.
+//   silent connections      One that never sends a byte is closed at the
+//                           header limit too (Node does it; proved in tests).
 //   maxConnections          Set at listen from the file-handle limit on Linux
 //                           (lib/resources.js): past it a new connection is
 //                           refused at once, instead of the process running
@@ -47,13 +49,34 @@ const settings = (cfg) => {
   };
 };
 
+// A connection that never sends a single byte is closed by Node itself at
+// the header limit (proved on Node 20.18 and 22.13, Windows and Linux: a
+// silent socket gets its 408 at headersTimeout + up to one check interval).
+const idle = { timedOut: 0 };
+
+// A request the parser gave up on (over a time limit, malformed, headers too
+// big): answered with its status and the socket ENDED, not destroyed — Node's
+// own default writes the answer and destroys at once, and on Windows the
+// answer was often lost to the reset (the client saw a bare close). The
+// socket is destroyed a second later whatever the client does.
+const STATUS = { ERR_HTTP_REQUEST_TIMEOUT: [408, "Request Timeout"], HPE_HEADER_OVERFLOW: [431, "Request Header Fields Too Large"] };
+const onClientError = (err, socket) => {
+  if (!err || err.code === "ECONNRESET" || !socket.writable) { try { socket.destroy(); } catch {} return; }
+  if (err.code === "ERR_HTTP_REQUEST_TIMEOUT") idle.timedOut++;
+  const [code, text] = STATUS[err.code] || [400, "Bad Request"];
+  try { socket.end(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`); } catch {}
+  const t = setTimeout(() => { try { socket.destroy(); } catch {} }, 1000);
+  t.unref?.();
+};
+
 const createServer = (app, cfg) => {
   const s = settings(cfg);
   const server = http.createServer({ connectionsCheckingInterval: s.checkEveryMs }, app);
   server.keepAliveTimeout = s.keepAliveTimeout;
   server.headersTimeout = s.headersTimeout;
   server.requestTimeout = s.requestTimeout;
+  server.on("clientError", onClientError);
   return server;
 };
 
-module.exports = { createServer, settings, DEFAULTS };
+module.exports = { createServer, settings, DEFAULTS, idle };

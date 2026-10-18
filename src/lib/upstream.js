@@ -23,7 +23,11 @@
 //
 //   A CIRCUIT BREAKER PER HOST: after `failThreshold` failures in a row
 //   (network error, timeout, 5xx, 429) the host is not called for a
-//   cooldown (30 s, doubling to 5 min while it stays down). Callers fail in
+//   cooldown (30 s, doubling to 5 min while it stays down). A host that does
+//   not answer at all would only fail at its timeout (12 s) — so `failThreshold`
+//   calls that are ALL past a page's deadline at once, with nothing answered
+//   meanwhile, open it too: a dead host stops costing pages 2.5 s each within
+//   a few seconds, not after the first timeouts. Callers fail in
 //   microseconds instead of waiting, or get the cached answer. After the
 //   cooldown ONE call is let through to try; its result closes the breaker
 //   or opens it again.
@@ -142,7 +146,7 @@ const stateOf = (host) => {
     // forget the quietest closed one (push endpoints come and go)
     let victim = null;
     for (const [k, v] of hosts) if (v.breaker === "closed" && !v.active && !v.waiting.length && (!victim || v.lastAt < hosts.get(victim).lastAt)) victim = k;
-    if (victim) hosts.delete(victim);
+    if (victim) { const v = hosts.get(victim).n; forgottenFailures += v.failed + v.refusedOpen + v.busy + v.deadlines; hosts.delete(victim); }
   }
   h = {
     host,
@@ -156,6 +160,9 @@ const stateOf = (host) => {
     openedAt: 0,
     lastAt: 0,
     lastError: null,
+    pastDeadline: 0, // calls in flight right now that a page gave up waiting for
+    lastOkAt: 0,
+    pastDeadlineSince: 0,
     lastErrorAt: 0,
     n: { calls: 0, ok: 0, failed: 0, timeouts: 0, refusedOpen: 0, busy: 0, retries: 0, notFound: 0, deadlines: 0, lateFills: 0, cacheFresh: 0, cacheStale: 0, cacheNegative: 0, staleOnError: 0, opened: 0 },
     lat: LAT_BOUNDS.map(() => 0),
@@ -182,6 +189,7 @@ const admitBreaker = (h, s) => {
 };
 const noteSuccess = (h, probe) => {
   if (probe) h.probing = false;
+  h.lastOkAt = clock.now();
   if (h.breaker !== "closed") say(`${h.host} answers again — breaker closed after ${Math.round((clock.now() - h.openedAt) / 1000)} s`);
   h.breaker = "closed";
   h.fails = 0;
@@ -199,6 +207,22 @@ const noteFailure = (h, s, why, probe, noBreaker) => {
     h.level++;
     h.breaker = "open";
     h.openUntil = clock.now() + cooldown;
+  }
+};
+
+// A call a page stopped waiting for: one strike while it stays in flight.
+// Enough of them at once, and nothing answered since they started, is a
+// host that is not answering: the breaker opens now, not at the timeouts.
+const strike = (h, p, startedAt) => {
+  const s = settingsFor(h.host);
+  // since when nothing must have answered: the oldest struck call's start
+  if (h.pastDeadline === 0 || startedAt < h.pastDeadlineSince) h.pastDeadlineSince = startedAt;
+  h.pastDeadline++;
+  const done = () => { h.pastDeadline = Math.max(0, h.pastDeadline - 1); };
+  p.then(done, done);
+  if (h.breaker === "closed" && h.pastDeadline >= s.failThreshold && h.lastOkAt < h.pastDeadlineSince) {
+    h.fails = Math.max(h.fails, s.failThreshold - 1);
+    noteFailure(h, s, `${h.pastDeadline} calls past the page deadline, none answered`, false);
   }
 };
 
@@ -416,11 +440,13 @@ const upFetch = (url, opts = {}) => {
 const withDeadline = (p, ms, host, onLate) =>
   new Promise((resolve, reject) => {
     let settled = false;
+    const startedAt = clock.now();
     const t = clock.setTimeout(() => {
       if (settled) return;
       settled = true;
       stateOf(host).n.deadlines++;
       if (onLate) onLate();
+      else strike(stateOf(host), p, startedAt);
       reject(new UpstreamError("deadline", host, `${host}: no answer within ${ms} ms (still being fetched)`, 504));
     }, ms);
     p.then(
@@ -495,7 +521,7 @@ const json = (url, opts = {}) => {
   // own copy, so no caller can change what another one (or the cache) holds.
   let rec = inflight.get(key);
   if (!rec) {
-    rec = { late: false, q: null };
+    rec = { late: false, q: null, at: clock.now() };
     const r = rec;
     r.q = (async () => {
       const { ttlMs: _a, staleMs: _b, negativeMs: _c, cacheKey: _k, deadlineMs: _d, ...fo } = opts;
@@ -533,7 +559,11 @@ const json = (url, opts = {}) => {
   if (!opts.deadlineMs || !inPage()) return covered;
   p.catch(() => {}); // a late failure is nobody's to hear
   covered.catch(() => {});
-  return withDeadline(covered, opts.deadlineMs, host, () => { rec.late = true; });
+  return withDeadline(covered, opts.deadlineMs, host, () => {
+    // (one strike per CALL, however many callers were waiting on it)
+    if (!rec.late) strike(h, p, rec.at);
+    rec.late = true;
+  });
 };
 
 // ---------- reading ----------
@@ -563,12 +593,22 @@ const status = () => {
   out.sort((a, b) => (b.breaker !== "closed") - (a.breaker !== "closed") || b.calls - a.calls);
   return { hosts: out, cache: { entries: cache.size, bytes: cacheBytes, maxBytes: CACHE_MAX_BYTES, inflight: inflight.size } };
 };
+// Every outside call that did not get an answer, since boot (failed, refused
+// by a breaker, no slot, past a page's deadline): a caller that keeps a
+// conclusion ("no poster anywhere") compares it before and after, and keeps
+// a conclusion reached while providers were failing only briefly.
+const failureCount = () => {
+  let n = 0;
+  for (const h of hosts.values()) n += h.n.failed + h.n.refusedOpen + h.n.busy + h.n.deadlines;
+  return n + forgottenFailures;
+};
+let forgottenFailures = 0;
 const openBreakers = () => [...hosts.values()].filter((h) => h.breaker !== "closed").map((h) => h.host);
 
 const _reset = () => { hosts.clear(); cache.clear(); cacheBytes = 0; inflight.clear(); };
 
 module.exports = {
-  fetch: upFetch, json, status, openBreakers, UpstreamError, hostOf, asPage, pageMiddleware, inPage,
+  fetch: upFetch, json, status, openBreakers, failureCount, UpstreamError, hostOf, asPage, pageMiddleware, inPage,
   DEFAULTS, HOSTS,
   _internals: { clock, hosts, cache, inflight, settingsFor, stateOf, _reset },
 };
