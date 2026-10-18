@@ -196,11 +196,11 @@ test("json: a 404 is remembered (negative cache)", async () => {
 
 test("json: past the deadline the caller is told at once, the call finishes and is kept (late fill)", async () => {
   const t0 = Date.now();
-  await assert.rejects(upstream.json(`${base}/slow?ms=200`, { ttlMs: 60000, deadlineMs: 50 }), (e) => e.code === "deadline");
+  await assert.rejects(upstream.asPage(() => upstream.json(`${base}/slow?ms=200`, { ttlMs: 60000, deadlineMs: 50 })), (e) => e.code === "deadline");
   assert.ok(Date.now() - t0 < 150, "the caller did not wait for the host");
   await new Promise((r) => setTimeout(r, 250));
   const t1 = performance.now();
-  const v = await upstream.json(`${base}/slow?ms=200`, { ttlMs: 60000, deadlineMs: 50 });
+  const v = await upstream.asPage(() => upstream.json(`${base}/slow?ms=200`, { ttlMs: 60000, deadlineMs: 50 }));
   assert.ok(performance.now() - t1 < 20, "the next ask is answered from memory");
   assert.deepEqual(v, { v: 1 });
   assert.equal(hits["/slow"], 1);
@@ -210,8 +210,18 @@ test("json: past the deadline the caller is told at once, the call finishes and 
 
 test("fetch with a deadline: the caller waits no longer than it", async () => {
   const t0 = Date.now();
-  await assert.rejects(upstream.fetch(`${base}/hang`, { deadlineMs: 60 }), (e) => e.code === "deadline");
+  await assert.rejects(upstream.asPage(() => upstream.fetch(`${base}/hang`, { deadlineMs: 60 })), (e) => e.code === "deadline");
   assert.ok(Date.now() - t0 < 200);
+});
+
+test("the deadline is a PAGE's: background work (no request being answered) waits for the full answer", async () => {
+  const v = await upstream.json(`${base}/slow?ms=150`, { deadlineMs: 50 });
+  assert.deepEqual(v, { v: 1 });
+  assert.equal(state().deadlines, 0);
+  // …and inside a request (the middleware), the same call is held to it
+  await new Promise((resolve, reject) => upstream.pageMiddleware({}, {}, () => {
+    upstream.json(`${base}/slow?ms=150&x=2`, { deadlineMs: 50 }).then(() => reject(new Error("waited")), (e) => (e.code === "deadline" ? resolve() : reject(e)));
+  }));
 });
 
 test("a caller's own abort is not a failure of the host", async () => {

@@ -28,12 +28,12 @@ test("a slow provider: the title page waits ~2.5 s, and the late answer is there
     return jsonRes(meta(id));
   };
   const t0 = Date.now();
-  await assert.rejects(discover.meta("movie", id), (e) => e.code === "deadline");
+  await assert.rejects(upstream.asPage(() => discover.meta("movie", id)), (e) => e.code === "deadline");
   const waited = Date.now() - t0;
   assert.ok(waited >= 2400 && waited < 3000, `the page waited ${waited} ms`);
   await new Promise((r) => setTimeout(r, 1000)); // the late answer lands
   const t1 = Date.now();
-  const data = await discover.meta("movie", id);
+  const data = await upstream.asPage(() => discover.meta("movie", id));
   assert.ok(Date.now() - t1 < 100, "answered from what came late");
   assert.equal(data.title, `Title ${id}`);
   assert.equal(calls, 1, "the provider was asked once");
@@ -51,6 +51,22 @@ test("a provider that is down: after a few failures the page fails in millisecon
   assert.ok(performance.now() - t0 < 20, "failed fast");
   assert.equal(calls, asked, "the dead provider was not asked");
   assert.equal(upstream.status().hosts.find((x) => x.host === "v3-cinemeta.strem.io").breaker, "open");
+});
+
+test("IMDb id matching does not file \"no match\" for a search made while Cinemeta failed", async () => {
+  let calls = 0;
+  global.fetch = async () => { calls++; throw new TypeError("fetch failed", { cause: { code: "ECONNREFUSED" } }); };
+  const r = await discover.search(`zzunknown${Date.now()}`);
+  assert.equal(r.degraded, true);
+  assert.deepEqual(Object.keys(r).sort(), ["movies", "shows"], "the flag is not sent to clients");
+  upstream._internals._reset(); // (breakers closed again, so the next ask reaches the stub)
+  const imdb = require("../src/media/imdb");
+  const title = `Some Film ${Date.now()}`;
+  assert.equal(await imdb.resolve(title, "movie", 2001), null);
+  const before = calls;
+  upstream._internals._reset();
+  assert.equal(await imdb.resolve(title, "movie", 2001), null);
+  assert.ok(calls > before, "asked again: nothing was filed as \"no match\"");
 });
 
 test("no module talks to the outside world with a bare fetch()", () => {

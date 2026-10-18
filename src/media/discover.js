@@ -557,6 +557,13 @@ const searchLive = async (q) => {
 
   const result = { movies, shows };
   if (!degraded) searchCache.set(key, { at: Date.now(), result });
+  // (said to callers that keep what they conclude — IMDb id matching must
+  // not file "no match" for an answer made while Cinemeta was failing)
+  if (degraded) {
+    const out = { movies: markLibrary(movies), shows: markLibrary(shows) };
+    Object.defineProperty(out, "degraded", { value: true, enumerable: false });
+    return out;
+  }
   if (searchCache.size > SEARCH_CACHE_MAX) {
     searchCache.delete(searchCache.keys().next().value);
   }
