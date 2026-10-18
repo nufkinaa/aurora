@@ -38,6 +38,7 @@ Branch `srv-eventloop`, from master 4862136 (server 1.7.1). The goal was that no
 | profiler | Modules re-printed at start-up, off the loop | first visitor after a restart: shell 7.5 → 2.2 s, shell + 63 modules 16.7 → 3.9 s, loop busy 12.2 → 3.6 s |
 | profiler | Helper processes started from a worker thread | loop busy per process start 12.7–45 → 0.2–2.6 ms |
 | profiler | No existsSync before every cover | 682 calls / 1.3 s per loaded 3 min → 0 |
+| follow-up | Picture variants: waiting bounded by time (2.5 s): the nearest size made or the original at once, shed; the variant still made once | first-sight picture browse p95 8,381 → 5,191 ms, p99 12,456 → 5,727 ms, worst 14.9 → 6.3 s, pictures/min 629 → 806 |
 | profiler | Shell render looks at each module once | 312 → 64 stats per render, 25 → 6 ms |
 
 ### A household under load, start to finish
@@ -193,5 +194,7 @@ Their "the library learned something" rescans are now one per burst, at most one
 | 7f5d649 | No blocking existsSync before every library cover |
 | cbd0624 | Writing the app shell looks at each module once |
 | 50471ce | tools/backend-perf: the load, profile and A/B rigs of the event-loop round |
+
+| 937bdc4 | Picture variants: waiting is bounded by time, not only by queue length |
 
 Each commit message carries its own before/after numbers and the tests it adds.
