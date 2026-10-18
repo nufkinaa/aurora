@@ -106,7 +106,7 @@ const DEVICE: Record<string, Record<string, string>> = {
     traps: 'focus engine',
     lastDown: 'key timing',
   },
-  'homeScreen.ts': {noticesOn: 'a device-level setting (this TV’s notifications)', initialTaken: 'the launch link, read once a run'},
+  'homeScreen.ts': {noticesOn: 'a device-level setting (this TV’s notifications)', appRun: 'the runs of the app root (a new Activity), for the launch link'},
   'navLock.ts': {lastNav: 'a debounce stamp'},
   'navSection.ts': {newSeen: 'which release this TV has seen', newSubs: 'listeners'},
   'overlay.ts': {current: 'the open sheet (unmounts with the navigator)', subs: 'listeners'},

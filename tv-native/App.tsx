@@ -26,7 +26,7 @@
 // nufurora.com first, and the house server only when nufurora.com does not
 // answer — for this run; the next launch, and every Retry, starts at the first
 // address again. The setup screen that used to ask is deleted.
-import {clearHomeScreen} from './src/homeScreen';
+import {clearHomeScreen, noteAppRun} from './src/homeScreen';
 import React, {useEffect, useRef, useState} from 'react';
 import {View, StatusBar, ActivityIndicator, StyleSheet} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
@@ -73,6 +73,10 @@ type Stage = 'loading' | 'offline' | 'gate' | 'login' | 'home' | 'reset' | 'bann
 export type SignInExtra = {mustReset?: boolean; typed?: string | null};
 
 export default function App() {
+  // A new run of the root (a new Activity — Back from Home ends one but keeps
+  // the process): the launcher link it was opened with is opened (homeScreen.ts).
+  const run = useRef(0);
+  if (!run.current) run.current = noteAppRun();
   const [stage, setStage] = useState<Stage>('loading');
   // Bumped by the offline state's Retry, so boot runs again.
   const [boot, setBoot] = useState(0);

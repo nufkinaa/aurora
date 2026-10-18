@@ -326,17 +326,34 @@ const parse = (url: string | null): {action: 'play' | 'detail'; item: HeroItem} 
   }
 };
 
-let initialTaken = false;
+// The link the app was opened with is opened once — not again when Home is
+// mounted again in the same run (a profile switch). It used to be a flag for
+// the whole PROCESS: Back from Home ends the Activity but keeps the process,
+// so the next title picked in the launcher's Aurora row opened a new Activity
+// with its link and Home ignored it — the app came up on Home, not on the
+// title (Mi TV, 2026-10-18). Now once per RUN of the app's root (App.tsx
+// noteAppRun: a new Activity mounts it again; a profile switch does not).
+let appRun = 0;
+/** App.tsx, once per mount of the root (before any screen mounts). */
+export const noteAppRun = () => ++appRun;
+const launch = {last: null as string | null, run: 0};
+
+/** PURE: is the link the app was opened with one to open now? Not the one
+ *  this run already opened; any link in a new run. */
+export const shouldOpenInitial = (url: string | null, st: {last: string | null; run: number}, run: number): boolean =>
+  !!url && (url !== st.last || run !== st.run);
 
 /** Home listens for the launcher's links: the one the app was opened with
- *  (once per run), and any that arrive while it is already open. */
+ *  (shouldOpenInitial), and any that arrive while it is already open. */
 export function useHomeScreenLinks(open: (action: 'play' | 'detail', item: HeroItem) => void) {
   useEffect(() => {
     let on = true;
-    if (!initialTaken) {
-      initialTaken = true;
+    {
       Linking.getInitialURL()
         .then(u => {
+          if (!shouldOpenInitial(u, launch, appRun)) return;
+          launch.last = u;
+          launch.run = appRun;
           const p = parse(u);
           // a breath, so the navigator under Home is ready to take a push
           if (on && p) setTimeout(() => on && open(p.action, p.item), 600);
