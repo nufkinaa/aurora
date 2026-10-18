@@ -22,12 +22,13 @@ const fs = require("fs");
 const path = require("path");
 
 const MP4_LIKE = new Set([".mp4", ".m4v", ".mov"]);
+const scannerLib = require("./lazy")(require, "../media/scanner");
 
 // A library file's size and date: from the scanner's last walk when it has
 // them (no blocking stat on the way to answering a title page), else the disk.
 const statOf = (filePath) => {
   try {
-    const w = require("../media/scanner").walkedStat(filePath);
+    const w = scannerLib().walkedStat(filePath);
     if (w) return w;
   } catch {}
   return fs.statSync(filePath);

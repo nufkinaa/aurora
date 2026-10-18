@@ -3,15 +3,16 @@
 // instead of a blurred poster.
 const fs = require("fs");
 const path = require("path");
-const { execFile } = require("child_process");
 const config = require("../config");
 const metadata = require("./metadata");
 
 const STILL_DIR = path.join(config.CACHE_DIR, "stills");
+const scannerLib = require("../lib/lazy")(require, "./scanner");
+const spawnerLib = require("../lib/lazy")(require, "../lib/spawner");
 // A library video's date as the scanner's last walk saw it (no stat), or null.
 const walkedMtime = (videoPath) => {
   try {
-    const st = require("./scanner").walkedStat(videoPath);
+    const st = scannerLib().walkedStat(videoPath);
     return st ? Math.floor(st.mtimeMs) : null;
   } catch {
     return null;
@@ -38,20 +39,11 @@ const generate = (videoPath, outFile) =>
     const duration = meta ? meta.duration : 0;
     const seekTo = duration > 120 ? Math.floor(duration * 0.22) : Math.floor(duration / 2) || 10;
 
-    execFile(
-      config.FFMPEG,
-      [
-        "-v", "error",
-        "-ss", String(seekTo),
-        "-i", videoPath,
-        "-frames:v", "1",
-        "-vf", "scale=1280:-2",
-        "-q:v", "3",
-        "-y", outFile,
-      ],
-      { windowsHide: true, timeout: 30000 },
-      (err) => resolve(!err && fs.existsSync(outFile) ? outFile : null)
-    );
+    // (started from a worker thread: lib/spawner.js)
+    spawnerLib()
+      .run(config.FFMPEG, ["-v", "error", "-ss", String(seekTo), "-i", videoPath, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", "-y", outFile], { timeoutMs: 30000, maxBuffer: 64 * 1024, name: "still" })
+      .then((r) => (r.code === 0 ? fs.promises.access(outFile).then(() => outFile, () => null) : null))
+      .then(resolve);
   });
 
 // A frame at (roughly) a given second — the resume prompt's "this is where
@@ -59,20 +51,10 @@ const generate = (videoPath, outFile) =>
 // mint a new file every save; small (640px) because it's a thumbnail.
 const generateAt = (videoPath, seconds, outFile) =>
   new Promise((resolve) => {
-    execFile(
-      config.FFMPEG,
-      [
-        "-v", "error",
-        "-ss", String(Math.max(0, Math.floor(seconds))),
-        "-i", videoPath,
-        "-frames:v", "1",
-        "-vf", "scale=640:-2",
-        "-q:v", "4",
-        "-y", outFile,
-      ],
-      { windowsHide: true, timeout: 30000 },
-      (err) => resolve(!err && fs.existsSync(outFile) ? outFile : null)
-    );
+    spawnerLib()
+      .run(config.FFMPEG, ["-v", "error", "-ss", String(Math.max(0, Math.floor(seconds))), "-i", videoPath, "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", "-y", outFile], { timeoutMs: 30000, maxBuffer: 64 * 1024, name: "frame" })
+      .then((r) => (r.code === 0 ? fs.promises.access(outFile).then(() => outFile, () => null) : null))
+      .then(resolve);
   });
 
 const getFrame = (videoPath, seconds) => {

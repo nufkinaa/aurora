@@ -5,6 +5,8 @@ const path = require("path");
 const crypto = require("crypto");
 const { spawn } = require("child_process");
 const config = require("../config");
+const scannerLib = require("../lib/lazy")(require, "./scanner");
+const childrenLib = require("../lib/lazy")(require, "../lib/children");
 
 const VTT_CACHE_DIR = path.join(config.CACHE_DIR, "vtt");
 const inflight = new Map(); // cacheFile -> Promise<boolean>
@@ -100,7 +102,7 @@ const serveExternal = async (subPath, res) => {
   // repair can land while somebody is watching, and the next load must get it
   res.setHeader("Cache-Control", "no-cache");
   let out;
-  try { out = require("./scanner").withLastWalk(() => playable(subPath, content), { knownOnly: true }); } catch { out = playable(subPath, content); }
+  try { out = scannerLib().withLastWalk(() => playable(subPath, content), { knownOnly: true }); } catch { out = playable(subPath, content); }
   if (out.how.length) res.setHeader("X-Aurora-Subtitle-Repair", out.how.join("; ").slice(0, 200));
   res.send(out.text);
 };
@@ -236,7 +238,7 @@ const extractEmbedded = (videoPath, trackIndex, res) => {
   ffmpeg.stdout.pipe(res);
   ffmpeg.stdout.pipe(fileStream);
 
-  try { require("../lib/children").track(ffmpeg, "subtitle"); } catch {}
+  try { childrenLib().track(ffmpeg, "subtitle"); } catch {}
   // (bounded: the end of what it said is what is logged; and a time limit —
   // a hung read kept this subtitle's "in flight" entry, and every later
   // request for it waiting, for ever)

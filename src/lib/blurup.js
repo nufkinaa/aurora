@@ -18,7 +18,6 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { spawn } = require("child_process");
 const config = require("../config");
 const lazy = require("./lazy");
 
@@ -59,28 +58,18 @@ const localUrl = (u) => {
   return `/img/ext?u=${encodeURIComponent(u)}&w=240`;
 };
 
-const shrink = (buf) =>
-  new Promise((resolve, reject) => {
-    if (!config.FFMPEG) return reject(new Error("no ffmpeg"));
-    const ff = spawn(
-      config.FFMPEG,
-      ["-v", "error", "-i", "pipe:0", "-vf", `scale=${WIDTH}:-2`, "-frames:v", "1", "-c:v", "libwebp", "-quality", "40", "-f", "webp", "pipe:1"],
-      { windowsHide: true },
-    );
-    try { require("./children").track(ff, "blur-up"); } catch {}
-    const out = [];
-    const timer = setTimeout(() => ff.kill(), 15000);
-    ff.stdout.on("data", (d) => out.push(d));
-    ff.on("error", (e) => { clearTimeout(timer); reject(e); });
-    ff.on("close", (code) => {
-      clearTimeout(timer);
-      const b = Buffer.concat(out);
-      if (code !== 0 || b.length < 30 || b.length > 4000) return reject(new Error(`ffmpeg ${code}, ${b.length} bytes`));
-      resolve(b);
+// (started from a worker thread: lib/spawner.js — a process start held the
+// event loop 50-90 ms on a loaded Windows box)
+const shrink = (buf) => {
+  if (!config.FFMPEG) return Promise.reject(new Error("no ffmpeg"));
+  return spawnerLib()
+    .run(config.FFMPEG, ["-v", "error", "-i", "pipe:0", "-vf", `scale=${WIDTH}:-2`, "-frames:v", "1", "-c:v", "libwebp", "-quality", "40", "-f", "webp", "pipe:1"], { input: buf, timeoutMs: 15000, maxBuffer: 64 * 1024, name: "blur-up" })
+    .then((r) => {
+      const b = r.stdout || Buffer.alloc(0);
+      if (r.code !== 0 || b.length < 30 || b.length > 4000) throw new Error(`ffmpeg ${r.code}, ${b.length} bytes`);
+      return b;
     });
-    ff.stdin.on("error", () => {});
-    ff.stdin.end(buf);
-  });
+};
 
 const make = async (u) => {
   const local = localUrl(u);
@@ -118,6 +107,7 @@ const pump = () => {
 // when a screen asks for it. Its placeholder is made only once it exists:
 // asking for the placeholder must not be what makes the still.
 const stillLib = lazy(require, "../media/stills");
+const spawnerLib = lazy(require, "./spawner");
 const scannerLib = lazy(require, "../media/scanner");
 const STILL = /^\/img\/still\/([A-Za-z0-9]+)$/;
 const stillMade = (u) => {

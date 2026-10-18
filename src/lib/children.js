@@ -19,8 +19,17 @@ const track = (child, name = "child") => {
   return child;
 };
 
+// Helpers started by another thread (lib/spawner.js) are known by pid only.
+const pids = new Map(); // pid -> { name, since }
+const trackPid = (pid, name = "child") => { if (pid) pids.set(pid, { name, since: Date.now() }); };
+const untrackPid = (pid) => { pids.delete(pid); };
+
 const killAll = (signal = "SIGKILL") => {
   let n = 0;
+  for (const pid of [...pids.keys()]) {
+    try { process.kill(pid, signal); n++; } catch {}
+    pids.delete(pid);
+  }
   for (const child of [...live.keys()]) {
     try {
       if (child.exitCode == null && child.signalCode == null) { child.kill(signal); n++; }
@@ -30,7 +39,7 @@ const killAll = (signal = "SIGKILL") => {
   return n;
 };
 
-const list = () => [...live.entries()].map(([c, m]) => ({ pid: c.pid, name: m.name, since: m.since }));
+const list = () => [...live.entries()].map(([c, m]) => ({ pid: c.pid, name: m.name, since: m.since })).concat([...pids.entries()].map(([pid, m]) => ({ pid, name: m.name, since: m.since })));
 
 // However the process ends — a crash past every handler, process.exit() from
 // anywhere, the keeper's kill — the helpers it started go with it. On Windows
@@ -44,6 +53,6 @@ const hookExit = () => {
   process.on("exit", () => { try { killAll("SIGKILL"); } catch {} });
 };
 hookExit();
-const count = () => live.size;
+const count = () => live.size + pids.size;
 
-module.exports = { track, killAll, list, count };
+module.exports = { track, trackPid, untrackPid, killAll, list, count };

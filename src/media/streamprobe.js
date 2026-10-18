@@ -13,6 +13,7 @@
 // head pieces yet, legitimately fails now and succeeds later.
 const { spawn } = require("child_process");
 const config = require("../config");
+const childrenLib = require("../lib/lazy")(require, "../lib/children");
 
 const results = new (require("../lib/caches").BoundedMap)({ max: 2000, name: "stream probes" }); // "hash:idx" -> result object (bounded: lib/caches.js)
 const failures = new Map(); // "hash:idx" -> failedAt ms
@@ -91,7 +92,7 @@ const probe = (infoHash, fileIdx) => {
       ],
       { stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
     );
-    try { require("../lib/children").track(proc, "stream probe"); } catch {}
+    try { childrenLib().track(proc, "stream probe"); } catch {}
     // (bounded: a probe's JSON is a few KB; a stream that makes ffprobe talk
     // for ever must not grow these without end)
     let out = "";

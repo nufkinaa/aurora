@@ -35,6 +35,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { execFile } = require("child_process");
 const config = require("../config");
+const spawnerLib = require("./lazy")(require, "./spawner");
 
 const DIR = path.join(config.CACHE_DIR, "img-variants");
 try {
@@ -179,23 +180,21 @@ const encode = (src, out, width, blur = 0) =>
     // visually transparent for artwork at these sizes.
     const codec = codecFor(out, width, blur);
     const fmt = blur && out.endsWith(".webp") ? "webp" : "";
-    const child = execFile(
-      config.FFMPEG,
-      ["-v", "error", "-y", "-i", src, "-vf", filterFor(width, blur, fmt), "-frames:v", "1", ...codec, tmp],
-      { timeout: 20000, windowsHide: true },
-      (err) => {
-        if (err) {
+    // (started from a worker thread: lib/spawner.js — starting a process
+    // blocked the event loop 50-90 ms each on a loaded Windows box)
+    spawnerLib()
+      .run(config.FFMPEG, ["-v", "error", "-y", "-i", src, "-vf", filterFor(width, blur, fmt), "-frames:v", "1", ...codec, tmp], { timeoutMs: 20000, name: "picture variant", maxBuffer: 64 * 1024 })
+      .then((r) => {
+        if (r.code !== 0) {
           fs.unlink(tmp, () => {});
-          return reject(err);
+          return reject(new Error(r.timedOut ? "ffmpeg timed out" : `ffmpeg ${r.code}: ${String(r.stderr || r.error || "").trim().slice(-200)}`));
         }
         fs.rename(tmp, out, (e) => {
           if (e) return reject(e);
           if (++writes % 100 === 0) sweep();
           resolve(out);
         });
-      },
-    );
-    try { require("./children").track(child, "picture variant"); } catch {}
+      });
   });
 
 // The path of a variant of `src` at `width` (ladder-snapped), made if it
