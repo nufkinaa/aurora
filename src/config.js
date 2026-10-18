@@ -214,6 +214,10 @@ module.exports = {
   // (media/faststart.js — nothing on disk changes). "serveFaststart": false
   // serves every file byte for byte as it is.
   SERVE_FASTSTART: userConfig.serveFaststart !== false,
+  // How much the jit cache (segments idle streams made, kept for a pause, a
+  // second viewer, a restart) may hold on disk, in GB. Unset: 20. Kept
+  // segments also go while the disk has under 5 GB free (media/jit.js).
+  JIT_CACHE_GB: Number(userConfig.jitCacheGB) > 0 ? Number(userConfig.jitCacheGB) : 0,
   // The TV player's start-up tuning, handed to the app as it is asked for
   // (lib/tvtuning.js — checked there). Nothing set: the app's own values.
   TV_PLAYER: userConfig.tvPlayer || null,

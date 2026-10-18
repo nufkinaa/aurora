@@ -634,6 +634,8 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // can't delete this live instance's in-progress transcodes. Synchronous, so
   // it finishes before any HTTP request handler runs.
   try { require("./src/media/remux").bootSweep(); } catch {}
+  // the jit cache: what idle jobs kept, bounded (media/jit.js sweepDisk)
+  try { require("./src/media/jit").bootSweep(); } catch {}
   try { require("./src/media/torrent-transcode").bootSweep(); } catch {}
   // How many viewers this machine may encode for at once: worked out from
   // its CPU and its measured encode speed (media/encbudget.js), from here on.

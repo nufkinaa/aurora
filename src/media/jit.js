@@ -45,6 +45,8 @@ const { spawn } = require("child_process");
 const config = require("../config");
 const { parseMkvIndex } = require("./mkvindex");
 const { parseMp4Index } = require("./mp4index");
+// a dir is never deleted on the event loop (renamed away, removed in the background)
+const { removeDir, isLeftover } = require("../lib/rmqueue");
 
 const TARGET_SEG_SEC = 6;
 const IDLE_MS = 150000;
@@ -728,6 +730,70 @@ const moveInto = async (from, final) => {
   }
 };
 
+// ---------- what a rendition dir already holds ----------
+// A job that nobody asked anything of for IDLE_MS used to be deleted with
+// everything it had made, and so was every dir the next time it was used
+// after a restart: a viewer who paused for three minutes, the second person
+// to watch a film that evening, and every restart paid for every segment
+// again (for an encode, 0.4-4 thread-seconds per second of film - capacity
+// report E5). Now an idle job's producers stop and its PUBLISHED segments
+// stay, under a manifest (MADE) saying what made them: the table rule
+// (ALGO), ffmpeg itself, and for an encode the exact encoder arguments
+// (sigOf). A later job for the same dir keeps them only when its own
+// arguments are the same - checked before its first segment is served
+// (checkKept) - and starts the dir afresh otherwise (tone mapping is
+// decided per job and can differ). Producer scratch (p*/,
+// *.part) is never kept. What is kept is bounded: KEEP_MS since last use,
+// and a byte budget over the whole jit cache, least recently used first
+// (sweepDisk).
+const MADE = ".made";
+const crypto = require("crypto");
+let ffmpegStamp = null;
+const ffmpegId = () => {
+  if (ffmpegStamp == null) {
+    try { const st = fs.statSync(config.FFMPEG); ffmpegStamp = `${st.size}-${Math.floor(st.mtimeMs)}`; } catch { ffmpegStamp = ""; }
+  }
+  return ffmpegStamp;
+};
+const sigOf = (input) => {
+  const what = input && input.enc
+    ? ["enc", input.enc.inputArgs || null, input.enc.videoArgs, input.enc.audioRate]
+    : ["copy", !!(input && input.vtagHvc1)];
+  return crypto.createHash("sha1").update(JSON.stringify([ALGO, ffmpegId(), input && input.audio > 0 ? input.audio : 0, ...what])).digest("hex").slice(0, 16);
+};
+const readMade = (dir) => {
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(dir, MADE), "utf8"));
+    return m && m.algo === ALGO && typeof m.sig === "string" ? m : null;
+  } catch { return null; }
+};
+const writeMade = (dir, sig) => {
+  try { fs.writeFileSync(path.join(dir, MADE), JSON.stringify({ algo: ALGO, sig, at: Date.now() })); } catch {}
+};
+const touchMade = (dir) => {
+  const now = new Date();
+  try { fs.utimesSync(path.join(dir, MADE), now, now); } catch {}
+};
+// Move a dir's contents out of the way (a rename: instant) and delete them
+// in the background; the dir itself is there again, empty, at once.
+const emptyDir = (dir) => {
+  removeDir(dir);
+  fs.mkdirSync(dir, { recursive: true });
+};
+// Before a job serves or makes anything: the segments a previous job left
+// here are this job's only if they were made the same way.
+const checkKept = (dir, job, input) => {
+  if (job.made) return;
+  const sig = sigOf(input);
+  if (job.keptSig != null && job.keptSig !== sig) {
+    console.log(`[jit] ${path.basename(dir)}: what was kept was made differently - starting it afresh`);
+    emptyDir(dir);
+  }
+  job.keptSig = null;
+  job.made = sig;
+  writeMade(dir, sig);
+};
+
 // Publish segment k from its GOP files: the public name appears only when
 // the bytes are complete (rename), so "exists" always means "servable".
 const publish = async (dir, job, run, k, members) => {
@@ -904,6 +970,7 @@ const settle = (job, run) => {
 // (who is stopped for it, if anyone, is acquire's decision).
 // `quiet`: nobody is waiting on it (a warm-up): an encoder yields from the start.
 const startProducer = (dir, job, input, fromSeg, { quiet = false } = {}) => {
+  checkKept(dir, job, input);
   const gen = ++job.gen;
   const run = {
     gen, fromSeg, fmt: input.fmt,
@@ -1057,6 +1124,7 @@ const ensureSegment = async (dir, job, input, k, { gone = null } = {}) => {
     if (job.encArgs && input.enc && input.enc.essential && !job.encArgs.essential) job.encArgs = { ...job.encArgs, essential: true };
     input = { ...input, enc: job.encArgs || (job.encArgs = input.enc) };
   }
+  checkKept(dir, job, input);
   noteReader(job, k, now);
   // a viewer is here: no warm-up bound applies, and what was speculative is theirs
   for (const run of job.producers) promote(dir, job, run);
@@ -1157,6 +1225,8 @@ const warmStarts = [];
 const warmSegment = (dir, job, input, k, now = Date.now()) => {
   if (job.broken || !(k >= 0 && k < job.table.length)) return "no";
   job.lastAccess = now;
+  // (what a job kept is vouched for by the arguments that would make it)
+  checkKept(dir, job, job.enc ? { ...input, enc: job.encArgs || input.enc } : input);
   if (fs.existsSync(segPath(dir, k, input.fmt))) return "ready";
   if (covering(job, k)) return "coming";
   for (const run of job.runs) if (k >= run.fromSeg && k < run.nextSeg) return "coming"; // on its way to disk
@@ -1253,6 +1323,7 @@ const segmentAt = (table, sec) => {
 const ensureInit = async (dir, job, input) => {
   job.lastAccess = Date.now();
   if (job.enc) input = { ...input, enc: job.encArgs || (job.encArgs = input.enc) };
+  checkKept(dir, job, input);
   const file = path.join(dir, "init.mp4");
   let spawns = 0;
   const deadline = Date.now() + SEGMENT_WAIT_MS;
@@ -1278,10 +1349,26 @@ const ensureInit = async (dir, job, input) => {
 // copy, whose index was not the one that lied.
 const jobFor = (dir, entry, { enc = false } = {}) => {
   let job = jobs.get(dir);
+  let keptSig = null;
   if (!job) {
-    // Whatever is in the dir was left by a process that is gone — possibly
-    // half-written, possibly cut by other rules. Never serve it.
-    try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+    // Whatever is in the dir was left by a job that is gone. Its PUBLISHED
+    // segments are whole (a segment gets its name only when complete) and
+    // were cut by the table rule its manifest names: kept when that is
+    // today's rule, for checkKept to vouch for. Scratch, and anything
+    // without a manifest, is never served.
+    const made = readMade(dir);
+    if (made) {
+      keptSig = made.sig;
+      try {
+        for (const f of fs.readdirSync(dir)) {
+          if (/^p\d+$/.test(f)) fs.promises.rm(path.join(dir, f), { recursive: true, force: true }).catch(() => {});
+          else if (f.endsWith(".part")) unlinkQuiet(path.join(dir, f));
+        }
+      } catch {}
+      touchMade(dir);
+    } else {
+      removeDir(dir);
+    }
     fs.mkdirSync(dir, { recursive: true });
     job = {
       producers: [], // live producers (runs), see "producers" above
@@ -1292,6 +1379,7 @@ const jobFor = (dir, entry, { enc = false } = {}) => {
       wanted: [], // the segments being waited on right now
       readers: [], lastReader: null, returns: [], contendedAt: 0,
       enc: !!enc, title: entry.key || dir, encArgs: null, refusedAt: 0,
+      keptSig, made: null, // what the dir held from an earlier job, and how this one makes (checkKept)
     };
     jobs.set(dir, job);
   }
@@ -1307,8 +1395,15 @@ setInterval(() => {
     if (now - job.lastAccess > IDLE_MS) {
       stopProducers(job);
       jobs.delete(dir);
-      try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
-      console.log(`[jit] idle-killed ${path.basename(dir)}`);
+      // what it made stays (a broken job's never does), bounded by sweepDisk
+      const keep = !job.broken && !!job.made;
+      if (keep) {
+        touchMade(dir);
+        for (const run of job.runs) fs.promises.rm(run.pdir, { recursive: true, force: true }).catch(() => {});
+      } else {
+        removeDir(dir);
+      }
+      console.log(`[jit] idle-killed ${path.basename(dir)}${keep ? " (its segments are kept)" : ""}`);
       continue;
     }
     for (const run of reapable(job, now)) {
@@ -1317,6 +1412,91 @@ setInterval(() => {
     }
   }
 }, 30000).unref?.();
+
+// ---------- the jit cache on disk, bounded ----------
+// Every dir under <cache>/jit that no job in memory holds is either KEPT
+// (a manifest of today's rule, used within KEEP_MS) or garbage (no manifest,
+// an old rule, left by a crash or by older code - those used to stay for
+// ever unless the same rendition was asked for again). Garbage goes; kept
+// dirs go oldest first while the cache is over its byte budget (config
+// "jitCacheGB", default 20) or the disk is short of MIN_FREE. A dir a job
+// holds is never touched. Async throughout (a cache of thousands of segment
+// files is not stat-ed on the event loop in one go), and each removal is a
+// rename first, re-checked against the jobs at that moment.
+const KEEP_MS = 6 * 3600 * 1000;
+const MIN_FREE = 5 * 1024 * 1024 * 1024;
+const jitRoot = () => path.join(config.CACHE_DIR, "jit");
+const budgetBytes = () => (config.JIT_CACHE_GB > 0 ? config.JIT_CACHE_GB : 20) * 1024 * 1024 * 1024;
+const dirSize = async (d) => {
+  let n = 0;
+  let list = [];
+  try { list = await fs.promises.readdir(d, { withFileTypes: true }); } catch { return 0; }
+  for (const e of list) {
+    const f = path.join(d, e.name);
+    if (e.isDirectory()) n += await dirSize(f);
+    else { try { n += (await fs.promises.stat(f)).size; } catch {} }
+  }
+  return n;
+};
+const freeBytes = () => {
+  try { const sfs = fs.statfsSync(jitRoot()); return sfs.bavail * sfs.bsize; } catch { return Infinity; }
+};
+let sweeping = null;
+const sweepDisk = ({ now = Date.now(), budget = budgetBytes(), minFree = MIN_FREE, free = freeBytes } = {}) => {
+  if (sweeping) return sweeping;
+  sweeping = (async () => {
+    const root = jitRoot();
+    let list = [];
+    try { list = await fs.promises.readdir(root, { withFileTypes: true }); } catch { return { removed: 0, freed: 0, total: 0, kept: 0 }; }
+    const rows = [];
+    let total = 0;
+    let removed = 0;
+    let freed = 0;
+    const drop = async (abs, size) => {
+      if (jobs.has(abs)) return false; // taken again since we looked
+      removeDir(abs);
+      removed++;
+      freed += size;
+      total -= size;
+      return true;
+    };
+    for (const e of list) {
+      if (!e.isDirectory()) continue;
+      const abs = path.join(root, e.name);
+      if (isLeftover(e.name)) { removeDir(abs); continue; } // a removal a previous run did not finish
+      const size = await dirSize(abs);
+      total += size;
+      if (jobs.has(abs)) continue;
+      let made = null;
+      let last = 0;
+      try {
+        made = JSON.parse(await fs.promises.readFile(path.join(abs, MADE), "utf8"));
+        last = (await fs.promises.stat(path.join(abs, MADE))).mtimeMs;
+      } catch {}
+      if (!made || made.algo !== ALGO || now - last > KEEP_MS) { await drop(abs, size); continue; }
+      rows.push({ abs, size, last });
+    }
+    rows.sort((a, b) => a.last - b.last);
+    for (const r of rows) {
+      if (total <= budget && free() >= minFree) break;
+      await drop(r.abs, r.size);
+    }
+    if (removed) console.log(`[jit] cache: ${removed} dir(s) removed, ${Math.round(freed / 1048576)} MB freed, ${Math.round(Math.max(0, total) / 1048576)} MB kept`);
+    return { removed, freed, total: Math.max(0, total), kept: rows.length };
+  })().finally(() => { sweeping = null; });
+  return sweeping;
+};
+// Called once this process owns the port (server.js), never at module load:
+// a second instance that is about to fail to bind must not touch the live
+// one's cache. First look 30 s in, then every 10 minutes.
+let sweepTimer = null;
+const bootSweep = () => {
+  if (sweepTimer) return;
+  const first = setTimeout(() => { sweepDisk().catch(() => {}); }, 30 * 1000);
+  first.unref?.();
+  sweepTimer = setInterval(() => { sweepDisk().catch(() => {}); }, 10 * 60 * 1000);
+  sweepTimer.unref?.();
+};
 
 // Under memory pressure the watchdog asks: drop the segment tables (they are
 // re-read from the file in a few ms) and kill every idle producer now.
@@ -1357,6 +1537,8 @@ const dropJob = (dir) => {
 };
 
 module.exports = {
+  bootSweep,
+  sweepDisk,
   liveCount,
   helpers,
   declinedList,
@@ -1392,6 +1574,7 @@ module.exports = {
     plan, noteReader, usage, reapable, contended, coversRun, extraCount, stopRun,
     MAX_PRODUCERS_PER_JOB, MAX_EXTRA_PRODUCERS, CLAIM_MS, READER_TTL_MS, STEAL_LEAD, BUSY_WAIT_MS, COVER_AHEAD,
     setOutsideEncodes: (fn) => { outsideEncodes = fn; },
+    sigOf, checkKept, readMade, MADE, KEEP_MS, jitRoot,
     jobs, encodeCensus, abandoned, ABANDONED_MS, speculative, promote, WARM_AHEAD, WARM_MAX_PER_MIN, warmStarts, advance, yieldCpu,
   },
 };
