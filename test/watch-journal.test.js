@@ -383,3 +383,48 @@ test("a backup snapshot of the pair, restored into an empty folder, boots with t
     rm(dir); rm(bdir); rm(path.dirname(into));
   }
 });
+
+test("ghost states (no profile, no pending request) are moved out of profiles.json into a kept file — written first, never lost; a journal row for one is ignored", () => {
+  const { moveGhostStates } = require("../src/profiles")._internals;
+  const dir = tmp();
+  const file = path.join(dir, "profile-states-orphaned.json");
+  try {
+    const data = {
+      profiles: [{ id: "ann" }], pending: [{ id: "req1" }],
+      state: { ann: { progress: { a: 1 } }, req1: { progress: {} }, gone1: { progress: { x: { position: 5 } } }, gone2: { watchlist: ["y"] } },
+      access: { gone1: [{ ip: "1.2.3.4" }], ann: [] },
+    };
+    const saved = console.log; console.log = () => {};
+    let n;
+    try { n = moveGhostStates(data, file, 1000); } finally { console.log = saved; }
+    assert.equal(n, 2);
+    assert.deepEqual(Object.keys(data.state).sort(), ["ann", "req1"], "a profile's and a pending request's state stay");
+    assert.equal(data.access.gone1, undefined);
+    const kept = read(file);
+    assert.deepEqual(kept.states.gone1[0], { movedAt: 1000, state: { progress: { x: { position: 5 } } }, access: [{ ip: "1.2.3.4" }] });
+    assert.deepEqual(kept.states.gone2[0].state, { watchlist: ["y"] });
+    // a second move appends, never replaces
+    data.state.gone1 = { progress: {} };
+    console.log = () => {};
+    try { moveGhostStates(data, file, 2000); } finally { console.log = saved; }
+    assert.equal(read(file).states.gone1.length, 2);
+    assert.equal(moveGhostStates({ profiles: [{ id: "a" }], state: { a: {} } }, file), 0, "nothing to move: nothing written");
+
+    // the file cannot be written: nothing leaves profiles.json
+    const stuck = { profiles: [], state: { g: { progress: {} } } };
+    const warn = console.warn; console.warn = () => {};
+    try { assert.equal(moveGhostStates(stuck, path.join(dir, "no-such-dir", "\u0000bad"), 1), 0); } finally { console.warn = warn; }
+    assert.ok(stuck.state.g, "kept where it was");
+
+    // the journal: a row for a profile that does not exist is not taken
+    seed(dir);
+    fs.writeFileSync(jfile(dir), JSON.stringify({ v: 1, base: js.md5(fs.readFileSync(pfile(dir), "utf8")), at: 1, rows: { gone1: { progress: { z: { position: 1, updatedAt: 1 } } } } }));
+    const h = open(dir);
+    try {
+      assert.equal(h.boot.skippedProfiles, 1);
+      assert.equal(h.main.data.state.gone1, undefined);
+    } finally { h.close(); }
+  } finally {
+    rm(dir);
+  }
+});

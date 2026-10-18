@@ -46,6 +46,45 @@ const stateFor = (profileId) => {
   return s;
 };
 
+// ---------- ghost states ----------
+// Watch state kept under an id that is no profile (and no pending request):
+// left by profiles deleted by older builds. Nothing reads it, but every full
+// write of profiles.json carried it. At load it is MOVED — first written to
+// data/profile-states-orphaned.json (kept, never deleted by Aurora; the
+// backups take it like every other store), only then taken out of
+// profiles.json — and said once. Returns how many were moved. Pure but for
+// the file it writes (tests hand in their own).
+const ORPHANS_FILE = path.join(config.DATA_DIR, "profile-states-orphaned.json");
+const moveGhostStates = (data, file = ORPHANS_FILE, now = Date.now()) => {
+  if (!data || !data.state || typeof data.state !== "object") return 0;
+  const known = new Set([...(data.profiles || []).map((p) => p && p.id), ...(data.pending || []).map((r) => r && r.id)].filter(Boolean));
+  const ghosts = Object.keys(data.state).filter((id) => !known.has(id));
+  if (!ghosts.length) return 0;
+  const { atomicWriteSync } = require("./lib/jsonstore");
+  let kept = { v: 1, note: "Watch state of profiles that no longer exist, moved out of profiles.json. Aurora never reads or deletes this file.", states: {} };
+  try {
+    const old = JSON.parse(require("fs").readFileSync(file, "utf8"));
+    if (old && old.v === 1 && old.states && typeof old.states === "object") kept = old;
+  } catch {}
+  for (const id of ghosts) {
+    const list = Array.isArray(kept.states[id]) ? kept.states[id] : (kept.states[id] = []);
+    list.push({ movedAt: now, state: data.state[id], ...(data.access && data.access[id] ? { access: data.access[id] } : {}) });
+  }
+  try {
+    atomicWriteSync(file, JSON.stringify(kept, null, 1));
+  } catch (e) {
+    console.warn(`[profiles] ${ghosts.length} watch state(s) of deleted profiles stay in profiles.json: ${path.basename(file)} could not be written (${e.message})`);
+    return 0;
+  }
+  for (const id of ghosts) {
+    delete data.state[id];
+    if (data.access) delete data.access[id];
+  }
+  console.log(`[profiles] moved the watch state of ${ghosts.length} profile(s) that no longer exist out of profiles.json, into ${path.basename(file)} (kept there)`);
+  return ghosts.length;
+};
+if (!store.safeMode && moveGhostStates(store.data)) store.save();
+
 {
   const { WatchJournal } = require("./lib/watchjournal");
   journal = new WatchJournal({
@@ -1750,5 +1789,5 @@ module.exports = {
   issueToken,
   // Test-only: the pure halves of the watchlist identity work, plus the
   // store handle + norms so auth tests can run on a stubbed store.
-  _internals: { journal: () => journal, isPlaybackTick, entryKey, sameIdentity, materializeWatchlist, foldTitles, materializeProgress, clearTitle, markTitle, restoreTitle, rewatchCount, noteDismissed, store, normUsername, normEmail, validEmail, hashPassword, verifyHash, noteSearch, dropSearch },
+  _internals: { journal: () => journal, isPlaybackTick, moveGhostStates, entryKey, sameIdentity, materializeWatchlist, foldTitles, materializeProgress, clearTitle, markTitle, restoreTitle, rewatchCount, noteDismissed, store, normUsername, normEmail, validEmail, hashPassword, verifyHash, noteSearch, dropSearch },
 };

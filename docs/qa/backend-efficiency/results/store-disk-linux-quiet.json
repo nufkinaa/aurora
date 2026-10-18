@@ -1,0 +1,89 @@
+{
+  "at": "2026-10-18T10:03:46.739Z",
+  "node": "v22.13.1",
+  "platform": "linux",
+  "rounds": 60,
+  "hog": false,
+  "dirs": [
+    {
+      "dir": "/home/elia/srv-disk",
+      "fs": {
+        "renameOver": true,
+        "readBack": true,
+        "dirFsync": true
+      },
+      "sizes": {
+        "64KB": {
+          "sync": {
+            "loopBlockedMsP50": 14.71,
+            "loopBlockedMsP99": 42.61,
+            "loopBlockedMsMax": 42.61,
+            "loopBlockedMsTotal": 1042.3
+          },
+          "async": {
+            "writeMsP50": 12.7,
+            "writeMsP99": 53.3,
+            "loopHeldMaxMs": 8.19,
+            "loopHeldOver5ms": 4,
+            "whole": true
+          }
+        },
+        "4MB": {
+          "sync": {
+            "loopBlockedMsP50": 15.42,
+            "loopBlockedMsP99": 41.53,
+            "loopBlockedMsMax": 41.53,
+            "loopBlockedMsTotal": 309
+          },
+          "async": {
+            "writeMsP50": 23,
+            "writeMsP99": 33.3,
+            "loopHeldMaxMs": 9.66,
+            "loopHeldOver5ms": 3,
+            "whole": true
+          }
+        }
+      }
+    },
+    {
+      "dir": "/mnt/c/Users/netan/AppData/Local/Temp/aurora-agents/srv-storage/disk-wsl9p",
+      "fs": {
+        "renameOver": true,
+        "readBack": true,
+        "dirFsync": true
+      },
+      "sizes": {
+        "64KB": {
+          "sync": {
+            "loopBlockedMsP50": 13.26,
+            "loopBlockedMsP99": 18.97,
+            "loopBlockedMsMax": 18.97,
+            "loopBlockedMsTotal": 815.3
+          },
+          "async": {
+            "writeMsP50": 18.2,
+            "writeMsP99": 39.3,
+            "loopHeldMaxMs": 8.73,
+            "loopHeldOver5ms": 8,
+            "whole": true
+          }
+        },
+        "4MB": {
+          "sync": {
+            "loopBlockedMsP50": 45.23,
+            "loopBlockedMsP99": 56.25,
+            "loopBlockedMsMax": 56.25,
+            "loopBlockedMsTotal": 700.3
+          },
+          "async": {
+            "writeMsP50": 56.5,
+            "writeMsP99": 84.4,
+            "loopHeldMaxMs": 8.59,
+            "loopHeldOver5ms": 13,
+            "whole": true
+          }
+        }
+      }
+    }
+  ]
+}

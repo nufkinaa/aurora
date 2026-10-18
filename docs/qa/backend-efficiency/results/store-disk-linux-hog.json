@@ -1,0 +1,49 @@
+{
+  "at": "2026-10-18T10:03:53.266Z",
+  "node": "v22.13.1",
+  "platform": "linux",
+  "rounds": 60,
+  "hog": true,
+  "dirs": [
+    {
+      "dir": "/home/elia/srv-disk",
+      "fs": {
+        "renameOver": true,
+        "readBack": true,
+        "dirFsync": true
+      },
+      "sizes": {
+        "64KB": {
+          "sync": {
+            "loopBlockedMsP50": 8.39,
+            "loopBlockedMsP99": 44.97,
+            "loopBlockedMsMax": 44.97,
+            "loopBlockedMsTotal": 649.4
+          },
+          "async": {
+            "writeMsP50": 13.8,
+            "writeMsP99": 71.2,
+            "loopHeldMaxMs": 9.32,
+            "loopHeldOver5ms": 7,
+            "whole": true
+          }
+        },
+        "4MB": {
+          "sync": {
+            "loopBlockedMsP50": 22.21,
+            "loopBlockedMsP99": 33.37,
+            "loopBlockedMsMax": 33.37,
+            "loopBlockedMsTotal": 321.9
+          },
+          "async": {
+            "writeMsP50": 27.5,
+            "writeMsP99": 59.6,
+            "loopHeldMaxMs": 10.02,
+            "loopHeldOver5ms": 6,
+            "whole": true
+          }
+        }
+      }
+    }
+  ]
+}

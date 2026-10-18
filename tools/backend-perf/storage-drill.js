@@ -82,6 +82,27 @@ const check = (name, ok, detail) => { checks.push({ name, ok: !!ok, detail }); c
   await killHard(srv);
   seed = handOver(srv);
 
+  // 0. ghost states (watch state under an id that is no profile and no
+  //    request) move out of profiles.json into profile-states-orphaned.json
+  {
+    const src = JSON.parse(fs.readFileSync(path.join(seed, "profiles.json"), "utf8"));
+    const known = new Set([...src.profiles.map((p) => p.id), ...(src.pending || []).map((r) => r.id)]);
+    const ghosts = Object.keys(src.state || {}).filter((id) => !known.has(id));
+    srv = await boot(seed);
+    const h = await household(srv);
+    await sleep(3000); // the shrunk profiles.json is written (debounced, off the loop)
+    await killHard(srv);
+    seed = handOver(srv);
+    const after = JSON.parse(fs.readFileSync(path.join(seed, "profiles.json"), "utf8"));
+    let kept = { states: {} };
+    try { kept = JSON.parse(fs.readFileSync(path.join(seed, "profile-states-orphaned.json"), "utf8")); } catch {}
+    const left = Object.keys(after.state || {}).filter((id) => !known.has(id));
+    out.ghosts = { before: ghosts.length, left: left.length, kept: Object.keys(kept.states || {}).length, bytesBefore: JSON.stringify(src).length, bytesAfter: JSON.stringify(after).length };
+    check("ghost states moved out of profiles.json", left.length === 0, out.ghosts);
+    check("every ghost state is kept in profile-states-orphaned.json", ghosts.every((id) => kept.states && kept.states[id]), { kept: Object.keys(kept.states || {}).length });
+    check("the household is untouched by the move", h.profiles === base.profiles && h.rows === base.rows, { profiles: h.profiles, rows: h.rows });
+  }
+
   // 1. kill -9 rounds
   for (let r = 0; r < ROUNDS; r++) {
     srv = await boot(seed);

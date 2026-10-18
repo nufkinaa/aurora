@@ -1,59 +1,51 @@
 {
-  "at": "2026-10-18T09:27:50.556Z",
+  "at": "2026-10-18T12:40:06.815Z",
   "source": "a copy of the live data folder (read only)",
   "old": "4862136",
   "rounds": [
     {
-      "n": 58,
-      "last": 1356,
-      "lastUrgent": 1348,
-      "lastUrgentAt": 1792315691777,
-      "now": 1792315693465,
-      "killedAt": 1792315693466
+      "n": 41,
+      "last": 740,
+      "lastUrgent": 724,
+      "lastUrgentAt": 1792327234911,
+      "now": 1792327238425,
+      "killedAt": 1792327238427
     },
     {
-      "n": 53,
-      "last": 11351,
-      "lastUrgent": 11348,
-      "lastUrgentAt": 1792315765998,
-      "now": 1792315766672,
-      "killedAt": 1792315766674
+      "n": 40,
+      "last": 10739,
+      "lastUrgent": 10724,
+      "lastUrgentAt": 1792327250834,
+      "now": 1792327254206,
+      "killedAt": 1792327254207
     },
     {
-      "n": 48,
-      "last": 20747,
+      "n": 25,
+      "last": 20724,
       "lastUrgent": 20724,
-      "lastUrgentAt": 1792315779213,
-      "now": 1792315809207,
-      "killedAt": 1792315809211
+      "lastUrgentAt": 1792327265708,
+      "now": 1792327265712,
+      "killedAt": 1792327265713
     },
     {
-      "n": 37,
-      "last": 30736,
+      "n": 45,
+      "last": 30744,
       "lastUrgent": 30724,
-      "lastUrgentAt": 1792315821340,
-      "now": 1792315823841,
-      "killedAt": 1792315823842
+      "lastUrgentAt": 1792327279189,
+      "now": 1792327283472,
+      "killedAt": 1792327283473
     },
     {
       "n": 30,
       "last": 40729,
       "lastUrgent": 40724,
-      "lastUrgentAt": 1792315836643,
-      "now": 1792315837849,
-      "killedAt": 1792315837851
-    },
-    {
-      "n": 28,
-      "last": 50727,
-      "lastUrgent": 50724,
-      "lastUrgentAt": 1792315851279,
-      "now": 1792315851891,
-      "killedAt": 1792315851892
+      "lastUrgentAt": 1792327294486,
+      "now": 1792327295723,
+      "killedAt": 1792327295725
     }
   ],
   "downgradeHard": {
-    "newBuildLast": 321,
+    "newBuildLast": 323,
     "oldBuildSees": null,
     "afterUpgrade": {
       "journalOnly": 308,
@@ -70,10 +62,36 @@
     }
   },
   "downgradeGraceful": {
-    "last": 719,
-    "oldBuildSees": 719
+    "last": 718,
+    "oldBuildSees": 718
   },
   "checks": [
+    {
+      "name": "ghost states moved out of profiles.json",
+      "ok": true,
+      "detail": {
+        "before": 20,
+        "left": 0,
+        "kept": 20,
+        "bytesBefore": 64441,
+        "bytesAfter": 61929
+      }
+    },
+    {
+      "name": "every ghost state is kept in profile-states-orphaned.json",
+      "ok": true,
+      "detail": {
+        "kept": 20
+      }
+    },
+    {
+      "name": "the household is untouched by the move",
+      "ok": true,
+      "detail": {
+        "profiles": 5,
+        "rows": 167
+      }
+    },
     {
       "name": "round 1: boots clean after the kill",
       "ok": true,
@@ -100,13 +118,13 @@
       }
     },
     {
-      "name": "round 1: resume point 1355 within [0, 1356]",
+      "name": "round 1: resume point 731 within [724, 740]",
       "ok": true,
       "detail": {
-        "pos": 1355,
-        "floor": 0,
-        "last": 1356,
-        "lostSec": 1
+        "pos": 731,
+        "floor": 724,
+        "last": 740,
+        "lostSec": 9
       }
     },
     {
@@ -135,13 +153,13 @@
       }
     },
     {
-      "name": "round 2: resume point 10731 within [0, 11351]",
+      "name": "round 2: resume point 10730 within [10724, 10739]",
       "ok": true,
       "detail": {
-        "pos": 10731,
-        "floor": 0,
-        "last": 11351,
-        "lostSec": 620
+        "pos": 10730,
+        "floor": 10724,
+        "last": 10739,
+        "lostSec": 9
       }
     },
     {
@@ -170,13 +188,13 @@
       }
     },
     {
-      "name": "round 3: resume point 20731 within [20724, 20747]",
+      "name": "round 3: resume point 20108 within [0, 20724]",
       "ok": true,
       "detail": {
-        "pos": 20731,
-        "floor": 20724,
-        "last": 20747,
-        "lostSec": 16
+        "pos": 20108,
+        "floor": 0,
+        "last": 20724,
+        "lostSec": 616
       }
     },
     {
@@ -205,48 +223,13 @@
       }
     },
     {
-      "name": "round 4: resume point 30731 within [30724, 30736]",
+      "name": "round 4: resume point 30731 within [30724, 30744]",
       "ok": true,
       "detail": {
         "pos": 30731,
         "floor": 30724,
-        "last": 30736,
-        "lostSec": 5
-      }
-    },
-    {
-      "name": "round 5: boots clean after the kill",
-      "ok": true,
-      "detail": {
-        "recoveries": 0,
-        "safeMode": [],
-        "journal": {
-          "boot": {
-            "mode": "exact",
-            "rows": 1,
-            "taken": 1,
-            "skippedProfiles": 0
-          },
-          "pending": 1
-        }
-      }
-    },
-    {
-      "name": "round 5: the household is whole",
-      "ok": true,
-      "detail": {
-        "profiles": 5,
-        "rows": 168
-      }
-    },
-    {
-      "name": "round 5: resume point 40729 within [0, 40729]",
-      "ok": true,
-      "detail": {
-        "pos": 40729,
-        "floor": 0,
-        "last": 40729,
-        "lostSec": 0
+        "last": 30744,
+        "lostSec": 13
       }
     },
     {
@@ -266,10 +249,10 @@
       }
     },
     {
-      "name": "after the last round: resume point within [0, 50727]",
+      "name": "after the last round: resume point within [0, 40729]",
       "ok": true,
       "detail": {
-        "pos": 50108
+        "pos": 40729
       }
     },
     {
@@ -306,7 +289,7 @@
       "ok": true,
       "detail": {
         "pos": 308,
-        "last": 321
+        "last": 323
       }
     },
     {
@@ -329,8 +312,8 @@
       "name": "old build after a graceful stop: sees the very last save",
       "ok": true,
       "detail": {
-        "pos": 719,
-        "last": 719
+        "pos": 718,
+        "last": 718
       }
     },
     {
@@ -345,6 +328,13 @@
   "base": {
     "profiles": 5,
     "rows": 167
+  },
+  "ghosts": {
+    "before": 20,
+    "left": 0,
+    "kept": 20,
+    "bytesBefore": 64441,
+    "bytesAfter": 61929
   },
   "passed": 25,
   "failed": 0
