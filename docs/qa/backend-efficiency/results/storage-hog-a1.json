@@ -1,0 +1,95 @@
+{
+  "at": "2026-10-18T15:06:13.901Z",
+  "ref": "35f9788",
+  "weak": false,
+  "minutes": 3,
+  "hog": true,
+  "household": "grown (8 profiles, up to 1,500 rows)",
+  "runs": [
+    {
+      "viewers": 5,
+      "progressOk": 180,
+      "progressFailed": 0,
+      "mbPerHour": 107.02,
+      "rewritesPerHour": 2300,
+      "fsyncsPerHour": 480,
+      "fsyncsOnLoopPerHour": 0,
+      "storeSyncCallsPerHour": 0,
+      "storeSyncMsPerHour": 0,
+      "saveFiresPerHour": 460,
+      "saveLoopSecPerHour": 0.714,
+      "saveMsEach": 1.55,
+      "longestSaveMs": 5.1,
+      "loopBlockedBySavesPct": 0.02,
+      "loopP50Ms": 15.4,
+      "loopP99Ms": 16.4,
+      "loopMaxMs": 32.7,
+      "cpuSecPerHour": 29.4,
+      "files": [
+        {
+          "file": "data/watch-sessions.json",
+          "rewritesPerHour": 140,
+          "mbPerHour": 103.171,
+          "bytesEach": 772735
+        },
+        {
+          "file": "data/watch-history.json",
+          "rewritesPerHour": 40,
+          "mbPerHour": 2.752,
+          "bytesEach": 72153
+        },
+        {
+          "file": "data/sessions.json",
+          "rewritesPerHour": 20,
+          "mbPerHour": 0.371,
+          "bytesEach": 19457
+        },
+        {
+          "file": "data/usage/events-2026-10.jsonl",
+          "rewritesPerHour": 1800,
+          "mbPerHour": 0.352,
+          "bytesEach": 205
+        },
+        {
+          "file": "data/watch-journal.json",
+          "rewritesPerHour": 200,
+          "mbPerHour": 0.246,
+          "bytesEach": 1289
+        },
+        {
+          "file": "data/healer.json",
+          "rewritesPerHour": 60,
+          "mbPerHour": 0.108,
+          "bytesEach": 1891
+        },
+        {
+          "file": "data/watch-journal.json.good1",
+          "rewritesPerHour": 20,
+          "mbPerHour": 0.016,
+          "bytesEach": 829
+        },
+        {
+          "file": "data/cache/tonemap-speed.json",
+          "rewritesPerHour": 20,
+          "mbPerHour": 0.004,
+          "bytesEach": 213
+        }
+      ],
+      "resumeSeenByAnotherDevice": [
+        {
+          "sent": 1082,
+          "seen": 1082
+        },
+        {
+          "sent": 1122,
+          "seen": 1122
+        },
+        {
+          "sent": 1162,
+          "seen": 1162
+        }
+      ]
+    }
+  ],
+  "idle": null
+}

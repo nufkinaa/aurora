@@ -1,0 +1,291 @@
+{
+  "at": "2026-10-18T14:04:00.952Z",
+  "ref": "4862136",
+  "weak": false,
+  "minutes": 3,
+  "hog": false,
+  "household": "grown (8 profiles, up to 1,500 rows)",
+  "runs": [
+    {
+      "viewers": 1,
+      "progressOk": 36,
+      "progressFailed": 0,
+      "mbPerHour": 3362.04,
+      "rewritesPerHour": 2240,
+      "fsyncsPerHour": 1820,
+      "fsyncsOnLoopPerHour": 1820,
+      "storeSyncCallsPerHour": 9440,
+      "storeSyncMsPerHour": 31906,
+      "saveFiresPerHour": 1780,
+      "saveLoopSecPerHour": 103.459,
+      "saveMsEach": 58.12,
+      "longestSaveMs": 247.9,
+      "loopBlockedBySavesPct": 2.874,
+      "loopP50Ms": 15.3,
+      "loopP99Ms": 51.8,
+      "loopMaxMs": 949,
+      "cpuSecPerHour": 91.2,
+      "files": [
+        {
+          "file": "data/profiles.json",
+          "rewritesPerHour": 740,
+          "mbPerHour": 2694.336,
+          "bytesEach": 3817859
+        },
+        {
+          "file": "data/watch-sessions.json",
+          "rewritesPerHour": 740,
+          "mbPerHour": 544.458,
+          "bytesEach": 771494
+        },
+        {
+          "file": "data/profiles.json.good1",
+          "rewritesPerHour": 20,
+          "mbPerHour": 72.82,
+          "bytesEach": 3817859
+        },
+        {
+          "file": "data/telemetry-hours.json",
+          "rewritesPerHour": 120,
+          "mbPerHour": 27.374,
+          "bytesEach": 239199
+        },
+        {
+          "file": "data/watch-sessions.json.good1",
+          "rewritesPerHour": 20,
+          "mbPerHour": 14.715,
+          "bytesEach": 771492
+        },
+        {
+          "file": "data/telemetry-hours.json.good1",
+          "rewritesPerHour": 20,
+          "mbPerHour": 4.562,
+          "bytesEach": 239199
+        },
+        {
+          "file": "data/watch-history.json",
+          "rewritesPerHour": 20,
+          "mbPerHour": 1.363,
+          "bytesEach": 71439
+        },
+        {
+          "file": "data/watch-history.json.good1",
+          "rewritesPerHour": 20,
+          "mbPerHour": 1.363,
+          "bytesEach": 71439
+        },
+        {
+          "file": "data/sessions.json",
+          "rewritesPerHour": 20,
+          "mbPerHour": 0.371,
+          "bytesEach": 19457
+        },
+        {
+          "file": "data/sessions.json.good1",
+          "rewritesPerHour": 20,
+          "mbPerHour": 0.371,
+          "bytesEach": 19457
+        },
+        {
+          "file": "data/healer.json",
+          "rewritesPerHour": 80,
+          "mbPerHour": 0.155,
+          "bytesEach": 2029
+        },
+        {
+          "file": "data/health.json",
+          "rewritesPerHour": 60,
+          "mbPerHour": 0.08,
+          "bytesEach": 1405
+        },
+        {
+          "file": "data/usage/events-2026-10.jsonl",
+          "rewritesPerHour": 360,
+          "mbPerHour": 0.07,
+          "bytesEach": 205
+        }
+      ],
+      "resumeSeenByAnotherDevice": [
+        {
+          "sent": 1082,
+          "seen": 1082
+        }
+      ]
+    },
+    {
+      "viewers": 5,
+      "progressOk": 180,
+      "progressFailed": 0,
+      "mbPerHour": 6424.45,
+      "rewritesPerHour": 5060,
+      "fsyncsPerHour": 3200,
+      "fsyncsOnLoopPerHour": 3200,
+      "storeSyncCallsPerHour": 16260,
+      "storeSyncMsPerHour": 58403.4,
+      "saveFiresPerHour": 3240,
+      "saveLoopSecPerHour": 189.58,
+      "saveMsEach": 58.51,
+      "longestSaveMs": 306.8,
+      "loopBlockedBySavesPct": 5.266,
+      "loopP50Ms": 15.3,
+      "loopP99Ms": 37.7,
+      "loopMaxMs": 385.9,
+      "cpuSecPerHour": 202.2,
+      "files": [
+        {
+          "file": "data/profiles.json",
+          "rewritesPerHour": 1460,
+          "mbPerHour": 5316.469,
+          "bytesEach": 3818302
+        },
+        {
+          "file": "data/watch-sessions.json",
+          "rewritesPerHour": 1460,
+          "mbPerHour": 1076.517,
+          "bytesEach": 773158
+        },
+        {
+          "file": "data/telemetry-hours.json",
+          "rewritesPerHour": 120,
+          "mbPerHour": 27.374,
+          "bytesEach": 239201
+        },
+        {
+          "file": "data/watch-history.json",
+          "rewritesPerHour": 40,
+          "mbPerHour": 2.752,
+          "bytesEach": 72153
+        },
+        {
+          "file": "data/sessions.json",
+          "rewritesPerHour": 40,
+          "mbPerHour": 0.742,
+          "bytesEach": 19457
+        },
+        {
+          "file": "data/usage/events-2026-10.jsonl",
+          "rewritesPerHour": 1800,
+          "mbPerHour": 0.352,
+          "bytesEach": 205
+        },
+        {
+          "file": "data/healer.json",
+          "rewritesPerHour": 60,
+          "mbPerHour": 0.121,
+          "bytesEach": 2114
+        },
+        {
+          "file": "data/health.json",
+          "rewritesPerHour": 60,
+          "mbPerHour": 0.08,
+          "bytesEach": 1405
+        },
+        {
+          "file": "data/healer.json.good1",
+          "rewritesPerHour": 20,
+          "mbPerHour": 0.04,
+          "bytesEach": 2114
+        }
+      ],
+      "resumeSeenByAnotherDevice": [
+        {
+          "sent": 1082,
+          "seen": 1082
+        },
+        {
+          "sent": 1122,
+          "seen": 1122
+        },
+        {
+          "sent": 1162,
+          "seen": 1162
+        }
+      ]
+    },
+    {
+      "viewers": 20,
+      "progressOk": 720,
+      "progressFailed": 0,
+      "mbPerHour": 9599.55,
+      "rewritesPerHour": 7580,
+      "fsyncsPerHour": 4680,
+      "fsyncsOnLoopPerHour": 4680,
+      "storeSyncCallsPerHour": 23640,
+      "storeSyncMsPerHour": 72832.4,
+      "saveFiresPerHour": 4740,
+      "saveLoopSecPerHour": 244.641,
+      "saveMsEach": 51.61,
+      "longestSaveMs": 282.5,
+      "loopBlockedBySavesPct": 6.796,
+      "loopP50Ms": 15.3,
+      "loopP99Ms": 51,
+      "loopMaxMs": 335.3,
+      "cpuSecPerHour": 230.3,
+      "files": [
+        {
+          "file": "data/profiles.json",
+          "rewritesPerHour": 2180,
+          "mbPerHour": 7943.52,
+          "bytesEach": 3820819
+        },
+        {
+          "file": "data/watch-sessions.json",
+          "rewritesPerHour": 2180,
+          "mbPerHour": 1621.307,
+          "bytesEach": 779846
+        },
+        {
+          "file": "data/telemetry-hours.json",
+          "rewritesPerHour": 120,
+          "mbPerHour": 27.375,
+          "bytesEach": 239204
+        },
+        {
+          "file": "data/watch-history.json",
+          "rewritesPerHour": 60,
+          "mbPerHour": 4.27,
+          "bytesEach": 74625
+        },
+        {
+          "file": "data/sessions.json",
+          "rewritesPerHour": 80,
+          "mbPerHour": 1.484,
+          "bytesEach": 19457
+        },
+        {
+          "file": "data/usage/events-2026-10.jsonl",
+          "rewritesPerHour": 2840,
+          "mbPerHour": 1.388,
+          "bytesEach": 512
+        },
+        {
+          "file": "data/healer.json",
+          "rewritesPerHour": 60,
+          "mbPerHour": 0.121,
+          "bytesEach": 2115
+        },
+        {
+          "file": "data/health.json",
+          "rewritesPerHour": 60,
+          "mbPerHour": 0.08,
+          "bytesEach": 1405
+        }
+      ],
+      "resumeSeenByAnotherDevice": [
+        {
+          "sent": 1082,
+          "seen": 1082
+        },
+        {
+          "sent": 1122,
+          "seen": 1122
+        },
+        {
+          "sent": 1162,
+          "seen": 1162
+        }
+      ]
+    }
+  ],
+  "idle": null
+}
