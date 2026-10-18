@@ -14,7 +14,7 @@
 const { spawn } = require("child_process");
 const config = require("../config");
 
-const results = new Map(); // "hash:idx" -> result object
+const results = new (require("../lib/caches").BoundedMap)({ max: 2000, name: "stream probes" }); // "hash:idx" -> result object (bounded: lib/caches.js)
 const failures = new Map(); // "hash:idx" -> failedAt ms
 const inflight = new Map(); // "hash:idx" -> promise
 const FAIL_TTL = 60 * 1000;
@@ -91,10 +91,13 @@ const probe = (infoHash, fileIdx) => {
       ],
       { stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
     );
+    try { require("../lib/children").track(proc, "stream probe"); } catch {}
+    // (bounded: a probe's JSON is a few KB; a stream that makes ffprobe talk
+    // for ever must not grow these without end)
     let out = "";
     let err = "";
-    proc.stdout.on("data", (d) => (out += d));
-    proc.stderr.on("data", (d) => (err += d));
+    proc.stdout.on("data", (d) => { if (out.length < 4 * 1024 * 1024) out += d; });
+    proc.stderr.on("data", (d) => { err = (err + d).slice(-4000); });
     const timer = setTimeout(() => {
       try { proc.kill("SIGKILL"); } catch {}
     }, PROBE_TIMEOUT_MS);

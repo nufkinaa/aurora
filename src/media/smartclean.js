@@ -36,7 +36,7 @@ const OTHERS_MIDWAY_S = 30;
 // Progress saves arrive every few seconds; the check only needs to run now
 // and then per (profile, show).
 const THROTTLE_MS = 60 * 1000;
-const lastRun = new Map(); // "profile|imdbId" -> ts
+const lastRun = new (require("../lib/caches").BoundedMap)({ max: 5000, name: "smart clean: last run" }); // "profile|imdbId" -> ts (bounded)
 
 const before = (a, b) => a.season < b.season || (a.season === b.season && a.episode < b.episode);
 

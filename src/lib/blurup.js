@@ -33,14 +33,17 @@ const MAX_CONCURRENT = 2;
 const FAIL_TTL = 6 * 3600 * 1000;
 const KEYS = ["cover", "poster", "backdrop"];
 
-const mem = new Map(); // picture address -> data URI
+// (bounded: one entry per picture address ever asked for otherwise — about
+// 200 bytes each; the least recently used go first, and come back from disk)
+const { BoundedMap } = require("./caches");
+const mem = new BoundedMap({ max: 20000, name: "blur-up placeholders", bytesOf: (k, v) => k.length + v.length });
 // Counts every placeholder that arrives in `mem`. annotate() of one body
 // changes only when this does, so what keeps a finished answer
 // (lib/answermemo.js, through the stamps in routes/api.js) knows when the
 // kept bytes are no longer what a fresh answer would be.
 let generation = 0;
 const learn = (u, uri) => { mem.set(u, uri); generation++; };
-const failed = new Map(); // picture address -> failedAt
+const failed = new BoundedMap({ max: 5000, ttlMs: FAIL_TTL, name: "blur-up failures" }); // picture address -> failedAt
 const queued = new Set();
 const queue = [];
 let running = 0;
@@ -64,6 +67,7 @@ const shrink = (buf) =>
       ["-v", "error", "-i", "pipe:0", "-vf", `scale=${WIDTH}:-2`, "-frames:v", "1", "-c:v", "libwebp", "-quality", "40", "-f", "webp", "pipe:1"],
       { windowsHide: true },
     );
+    try { require("./children").track(ff, "blur-up"); } catch {}
     const out = [];
     const timer = setTimeout(() => ff.kill(), 15000);
     ff.stdout.on("data", (d) => out.push(d));

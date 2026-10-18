@@ -443,7 +443,8 @@ const servedContentComplete = (t) =>
   !!t && (t.done === true || !!(t._auroraFile && t._auroraFile.done));
 
 // infoHash -> announce (tracker) list from Torrentio, for faster peer discovery
-const sourcesByHash = new Map();
+// (bounded: one entry per torrent ever offered otherwise — lib/caches.js)
+const sourcesByHash = new (require("../lib/caches").BoundedMap)({ max: 2000, name: "torrent trackers by hash" });
 
 // Public trackers to always include. HTTP/HTTPS/WSS (TCP-based) come FIRST and
 // are the backbone: many networks — VPNs especially (NordVPN etc.) — block
