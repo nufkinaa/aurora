@@ -249,3 +249,36 @@ test("blur + fmt=webp: a WebP of its own beside the untouched JPEG; a bad fmt is
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+// The fast path (server round, 2026-10-18): a variant found once is sent
+// straight away for TRUST_MS — no stat of the source, no hash, no stat of the
+// variant — and a sweep forgets it.
+test("a variant found once is answered without a filesystem call for the trust window", { skip: !config.FFMPEG }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-ivfast-"));
+  try {
+    const src = path.join(dir, "poster.jpg");
+    execFileSync(config.FFMPEG, ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=600x900:rate=1:duration=1", "-frames:v", "1", src]);
+    const first = await iv.variant(src, 256);
+    assert.ok(first && fs.existsSync(first));
+    const real = fs.statSync;
+    let stats = 0;
+    fs.statSync = (...a) => { stats++; return real(...a); };
+    let again;
+    try { again = await iv.variant(src, 256); } finally { fs.statSync = real; }
+    assert.equal(again, first);
+    assert.equal(stats, 0, "no stat inside the window");
+    // another width is its own entry
+    const other = await iv.variant(src, 480);
+    assert.notEqual(other, first);
+    // after the window: looked at again (the same file, found on disk)
+    for (const e of iv._internals.fast.values()) e.at -= iv.TRUST_MS + 1;
+    stats = 0;
+    fs.statSync = (...a) => { stats++; return real(...a); };
+    try { assert.equal(await iv.variant(src, 256), first); } finally { fs.statSync = real; }
+    assert.ok(stats >= 2);
+    iv.forget();
+    assert.equal(iv._internals.fast.size, 0);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -8,6 +8,15 @@ const config = require("../config");
 const metadata = require("./metadata");
 
 const STILL_DIR = path.join(config.CACHE_DIR, "stills");
+// A library video's date as the scanner's last walk saw it (no stat), or null.
+const walkedMtime = (videoPath) => {
+  try {
+    const st = require("./scanner").walkedStat(videoPath);
+    return st ? Math.floor(st.mtimeMs) : null;
+  } catch {
+    return null;
+  }
+};
 const inflight = new Map(); // file -> Promise<string|null>
 let active = 0;
 const queue = [];
@@ -95,16 +104,22 @@ const getStill = (videoPath) => {
   if (!config.ffmpegAvailable) return Promise.resolve(null);
 
   let mtime = 0;
-  try {
-    mtime = Math.floor(fs.statSync(videoPath).mtimeMs);
-  } catch {
-    return Promise.resolve(null);
+  // (the date from the library walk when it has one — no stat — and a still
+  // already known to be made is not looked for on disk again: hasStill below)
+  const walked = walkedMtime(videoPath);
+  if (walked != null) mtime = walked;
+  else {
+    try {
+      mtime = Math.floor(fs.statSync(videoPath).mtimeMs);
+    } catch {
+      return Promise.resolve(null);
+    }
   }
 
   const name =
     require("crypto").createHash("md5").update(`${videoPath}|${mtime}`).digest("hex") + ".jpg";
   const outFile = path.join(STILL_DIR, name);
-  if (fs.existsSync(outFile)) return Promise.resolve(outFile);
+  if (made.has(`${videoPath}|${mtime}`) || fs.existsSync(outFile)) return Promise.resolve(outFile);
 
   if (inflight.has(outFile)) return inflight.get(outFile);
 
@@ -143,11 +158,13 @@ const NOT_YET_MS = 60 * 1000;
 const hasStill = (videoPath, now = Date.now()) => {
   const checked = notYet.get(videoPath);
   if (checked && now - checked < NOT_YET_MS) return false;
-  let mtime = 0;
-  try {
-    mtime = Math.floor(fs.statSync(videoPath).mtimeMs);
-  } catch {
-    return false;
+  let mtime = walkedMtime(videoPath);
+  if (mtime == null) {
+    try {
+      mtime = Math.floor(fs.statSync(videoPath).mtimeMs);
+    } catch {
+      return false;
+    }
   }
   const key = `${videoPath}|${mtime}`;
   if (made.has(key)) return true;

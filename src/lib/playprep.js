@@ -23,12 +23,22 @@ const path = require("path");
 
 const MP4_LIKE = new Set([".mp4", ".m4v", ".mov"]);
 
+// A library file's size and date: from the scanner's last walk when it has
+// them (no blocking stat on the way to answering a title page), else the disk.
+const statOf = (filePath) => {
+  try {
+    const w = require("../media/scanner").walkedStat(filePath);
+    if (w) return w;
+  } catch {}
+  return fs.statSync(filePath);
+};
+
 // ---------- where an MP4's index is ----------
 const places = new Map(); // `${path}:${mtimeMs}` -> { bytes, front } | null
 const indexInfo = (filePath) => {
   try {
     if (!MP4_LIKE.has(path.extname(filePath).toLowerCase())) return null;
-    const st = fs.statSync(filePath);
+    const st = statOf(filePath);
     const key = `${filePath}:${Math.floor(st.mtimeMs)}`;
     if (places.has(key)) return places.get(key);
     let out = null;
@@ -88,7 +98,7 @@ const warm = (id, done = null) => {
     if (!entry || entry.kind !== "video") return skip("not a video");
     // an MP4's own index is megabytes: it is read when a player asks for the stream, not on a hunch
     if (MP4_LIKE.has(path.extname(entry.path).toLowerCase())) return skip("mp4");
-    const st = fs.statSync(entry.path);
+    const st = statOf(entry.path);
     const key = `${id}-${Math.floor(st.mtimeMs)}`;
     const now = Date.now();
     if (now - (warmedAt.get(key) || 0) < WARM_AGAIN_MS) return skip("fresh");
@@ -97,18 +107,21 @@ const warm = (id, done = null) => {
     warming = true;
     (async () => {
       const jit = deps.jit();
-      const fd = fs.openSync(entry.path, "r");
+      // (asynchronous reads: the index of an MKV sits at the far end of the
+      // file — on a spinning disk each read is a seek, and these were
+      // readSync calls on the event loop, on the way to a title page)
+      const fh = await fs.promises.open(entry.path, "r");
       try {
         const readRange = async (start, len) => {
           const b = Buffer.alloc(len);
-          fs.readSync(fd, b, 0, len, start);
+          await fh.read(b, 0, len, start);
           return b;
         };
         const table = await jit.tableFor(key, readRange, st.size);
         // (no table: jit will not serve this file — nothing more to make ready)
         if (table) await deps.ladder().probe(key, entry.path);
       } finally {
-        try { fs.closeSync(fd); } catch {}
+        await fh.close().catch(() => {});
       }
     })()
       .catch(() => {})

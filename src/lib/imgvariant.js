@@ -94,21 +94,22 @@ const blurOf = (b) => {
 // ?fmt= → "webp" or "" (anything else: not asked for).
 const fmtOf = (f) => (typeof f === "string" && f.trim().toLowerCase() === "webp" ? "webp" : "");
 
-const sweep = () => {
-  try {
-    const entries = fs.readdirSync(DIR);
-    if (entries.length <= MAX_FILES) return;
-    entries
-      .map((f) => ({ f, m: fs.statSync(path.join(DIR, f)).mtimeMs }))
-      .sort((a, b) => a.m - b.m)
-      .slice(0, entries.length - (MAX_FILES - 500))
-      .forEach(({ f }) => {
-        try {
-          fs.unlinkSync(path.join(DIR, f));
-        } catch {}
-      });
-  } catch {}
-};
+// THE FAST PATH (server round, 2026-10-18). A variant that was found or
+// made is remembered for TRUST_MS by what was asked (source, width, blur,
+// format): the next request for it goes straight to sending the file — no
+// stat of the source, no hash, no stat of the variant (two blocking calls
+// and an md5 per picture, 300 pictures a Home page). The source changing in
+// that window is seen at the next look after it, as an edited stylesheet is
+// seen at the next reload; a sweep forgets everything it may have removed.
+const TRUST_MS = 30 * 1000;
+const FAST_MAX = 8000;
+const fast = new Map(); // `${src}|${w}|${blur}|${fmt}` -> { out, at }
+const fastStats = { hits: 0, misses: 0 };
+
+// (asynchronous, a few files at a time: lib/dirsweep.js — the blocking
+// version held the event loop for the length of 6,000 stats)
+const sweep = () =>
+  require("./dirsweep").trim(DIR, { max: MAX_FILES, down: MAX_FILES - 500, onRemoved: () => fast.clear() }).catch(() => 0);
 
 const pump = () => {
   while (running < MAX_CONCURRENT && queue.length) {
@@ -178,26 +179,23 @@ const encode = (src, out, width, blur = 0) =>
     // visually transparent for artwork at these sizes.
     const codec = codecFor(out, width, blur);
     const fmt = blur && out.endsWith(".webp") ? "webp" : "";
-    execFile(
+    const child = execFile(
       config.FFMPEG,
       ["-v", "error", "-y", "-i", src, "-vf", filterFor(width, blur, fmt), "-frames:v", "1", ...codec, tmp],
       { timeout: 20000, windowsHide: true },
       (err) => {
         if (err) {
-          try {
-            fs.unlinkSync(tmp);
-          } catch {}
+          fs.unlink(tmp, () => {});
           return reject(err);
         }
-        try {
-          fs.renameSync(tmp, out);
-        } catch (e) {
-          return reject(e);
-        }
-        if (++writes % 100 === 0) sweep();
-        resolve(out);
+        fs.rename(tmp, out, (e) => {
+          if (e) return reject(e);
+          if (++writes % 100 === 0) sweep();
+          resolve(out);
+        });
       },
     );
+    try { require("./children").track(child, "picture variant"); } catch {}
   });
 
 // The path of a variant of `src` at `width` (ladder-snapped), made if it
@@ -213,6 +211,11 @@ const variant = async (src, width, opts = {}) => {
   const blur = blurOf(opts && opts.blur);
   const fmt = blur && hasWebp() ? fmtOf(opts && opts.fmt) : "";
   if ((!w && !blur) || !config.FFMPEG) return null;
+  const fastKey = `${src}|${w || 0}|${blur}|${fmt}`;
+  const known = fast.get(fastKey);
+  const now = Date.now();
+  if (known && now - known.at < TRUST_MS) { fastStats.hits++; return known.out; }
+  fastStats.misses++;
   let st;
   try {
     st = fs.statSync(src);
@@ -233,8 +236,13 @@ const variant = async (src, width, opts = {}) => {
   const out = blur
     ? path.join(DIR, `${key}-w${w || "full"}-b${blur}.${fmt || "jpg"}`)
     : path.join(DIR, `${key}-w${w}.${hasWebp() ? "webp" : "jpg"}`);
+  const remember = (file) => {
+    if (fast.size >= FAST_MAX) fast.delete(fast.keys().next().value);
+    fast.set(fastKey, { out: file, at: Date.now() });
+    return file;
+  };
   try {
-    if (fs.statSync(out).size > 512) return out;
+    if (fs.statSync(out).size > 512) return remember(out);
   } catch {}
   if (Date.now() - (failed.get(out) || 0) < FAIL_TTL) return null;
   let p = inflight.get(out);
@@ -259,10 +267,11 @@ const variant = async (src, width, opts = {}) => {
     });
   }
   try {
-    return await p;
+    const made = await p;
+    return made ? remember(made) : made;
   } catch {
     return null;
   }
 };
 
-module.exports = { variant, snap, blurOf, fmtOf, filterFor, blurChain, codecFor, hasWebp, LADDER, MAX_BLUR, DIR, MAX_QUEUE, MAX_QUEUE_CLIENT, _internals: { queue, waitingOf, shedStats, roomFor, inflight } };
+module.exports = { variant, snap, blurOf, fmtOf, filterFor, blurChain, codecFor, hasWebp, LADDER, MAX_BLUR, DIR, MAX_QUEUE, MAX_QUEUE_CLIENT, TRUST_MS, forget: () => fast.clear(), _internals: { queue, waitingOf, shedStats, roomFor, inflight, fast, fastStats, sweep } };

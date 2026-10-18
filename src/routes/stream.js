@@ -187,17 +187,9 @@ try { fs.mkdirSync(EXT_IMG_DIR, { recursive: true }); } catch {}
 // serves video ranges — and at the cap it would run on EVERY write forever.
 // Trimming down to cap-400 means a full dir walk at most once per 400 writes.
 let extImgWrites = 0;
-const extImgSweep = () => {
-  try {
-    const entries = fs.readdirSync(EXT_IMG_DIR);
-    if (entries.length <= MAX_EXT_IMAGES) return;
-    entries
-      .map((f) => ({ f, m: fs.statSync(path.join(EXT_IMG_DIR, f)).mtimeMs }))
-      .sort((a, b) => a.m - b.m)
-      .slice(0, entries.length - (MAX_EXT_IMAGES - 400))
-      .forEach(({ f }) => { try { fs.unlinkSync(path.join(EXT_IMG_DIR, f)); } catch {} });
-  } catch {}
-};
+// (asynchronous since the server round of 2026-10-18: lib/dirsweep.js)
+const extImgSweep = () =>
+  require("../lib/dirsweep").trim(EXT_IMG_DIR, { max: MAX_EXT_IMAGES, down: MAX_EXT_IMAGES - 400, onRemoved: (f) => require("../lib/imgcheck").forget(f) }).catch(() => 0);
 const extImgInflight = new Map(); // url -> promise (a row of 20 cards must fetch once)
 // Negative cache: without it a CDN hiccup turns one home load (~300 distinct
 // posters, each with a client-side retry) into waves of 15s upstream fetches.
@@ -227,8 +219,10 @@ const fetchExtImage = (url, file) => {
     if (buf.length > MAX_EXT_IMAGE_BYTES) throw new Error("image too large");
     if (buf.length < MIN_IMAGE_BYTES || !magicOk(buf)) throw new Error("not an image");
     const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, buf);
-    fs.renameSync(tmp, file);
+    // (not blocking: this is on the way to answering the request)
+    await fs.promises.writeFile(tmp, buf);
+    await fs.promises.rename(tmp, file);
+    try { require("../lib/imgcheck").forget(file); } catch {}
     if (++extImgWrites % 100 === 0) extImgSweep();
     return file;
   })();
