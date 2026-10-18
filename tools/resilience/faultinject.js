@@ -48,9 +48,13 @@ const HEAP_MB = Number(arg("heap", 0)) || 0;
 const pin = (pid) => {
   if (!CORES) return;
   const { execFileSync } = require("child_process");
+  // the LAST cores of the machine (core 0 takes the OS's interrupts and
+  // everyone else's work first)
+  const n = require("os").cpus().length;
+  const mask = ((2 ** CORES) - 1) * 2 ** Math.max(0, n - CORES);
   try {
-    if (process.platform === "win32") execFileSync("powershell", ["-NoProfile", "-Command", `(Get-Process -Id ${pid}).ProcessorAffinity = ${(1 << CORES) - 1}`], { stdio: "ignore" });
-    else execFileSync("taskset", ["-a", "-p", `0x${((1 << CORES) - 1).toString(16)}`, String(pid)], { stdio: "ignore" });
+    if (process.platform === "win32") execFileSync("powershell", ["-NoProfile", "-Command", `(Get-Process -Id ${pid}).ProcessorAffinity = ${mask}`], { stdio: "ignore" });
+    else execFileSync("taskset", ["-a", "-p", `0x${mask.toString(16)}`, String(pid)], { stdio: "ignore" });
   } catch (e) { console.error(`[faultinject] could not pin to ${CORES} cores: ${e.message}`); }
 };
 const WebSocket = require(path.join(REPO, "node_modules", "ws"));

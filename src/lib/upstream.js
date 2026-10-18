@@ -525,7 +525,9 @@ const json = (url, opts = {}) => {
       }
       if (!res.ok) throw statusError(host, res.status, url);
       const text = await res.text();
-      try { JSON.parse(text); } catch { throw new UpstreamError("status", host, `${host}: answer is not JSON`, 502); }
+      // parsed once here; the FIRST caller gets this object, any other one
+      // parses its own copy from the text (nobody can change another's)
+      try { r.first = JSON.parse(text); } catch { throw new UpstreamError("status", host, `${host}: answer is not JSON`, 502); }
       if (ttl) cachePut(key, { at: clock.now(), ttl, stale, neg: false, status: res.status, text, bytes: text.length + 64 });
       if (r.late) h.n.lateFills++;
       return text;
@@ -541,7 +543,11 @@ const json = (url, opts = {}) => {
     p.catch(() => {});
     return Promise.resolve(JSON.parse(cached.text));
   }
-  const covered = p.then((text) => JSON.parse(text), (e) => {
+  const own = (text) => {
+    if (rec.first !== undefined && !rec.given) { rec.given = true; const v = rec.first; rec.first = undefined; return v; }
+    return JSON.parse(text);
+  };
+  const covered = p.then(own, (e) => {
     // the host failed: an answer kept from before covers it
     if (e && e.status !== 404 && e.status !== 410) {
       const old = ttl ? cache.get(key) : null;
