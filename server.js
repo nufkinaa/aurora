@@ -661,6 +661,9 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // it probes /healthz, and a server that stops answering is restarted.
   require("./src/lib/supervisor").tell({ type: "listening", port: config.PORT, pid: process.pid });
 
+  // The website's modules re-printed now, off the event loop, instead of
+  // on the first page load (lib/jsassets.js warm).
+  try { require("./src/lib/jsassets").warm(path.join(__dirname, "public")).catch(() => {}); } catch {}
   // The first walk of the folders, now that the port is ours.
   const fromSaved = !!scanner.index.scannedAt;
   scanner.scanAsync({ force: true })
