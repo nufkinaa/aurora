@@ -217,6 +217,15 @@ module.exports = {
   // What kind of disk a library root is, when the OS's answer is wrong or
   // missing (lib/disktype.js): { "<path prefix>": "hdd" | "ssd" | "network" }.
   DISK_TYPES: userConfig.diskTypes && typeof userConfig.diskTypes === "object" ? userConfig.diskTypes : null,
+  // Hardware video encoding for the quality ladder (media/hwenc.js): "auto"
+  // (the default: a graphics card whose boot check passed and whose picture
+  // was measured as good as the CPU's — NVENC — while a session is free),
+  // "on" (any card whose check passed) or "off". AURORA_HWENC overrides; the
+  // admin's setting outranks both.
+  HW_ENCODE: process.env.AURORA_HWENC || userConfig.hwEncode || "auto",
+  // How many hardware encodes at once (the card's driver has its own limit;
+  // other programs may use some). Unset: what the boot check opened at once.
+  HW_ENCODE_SESSIONS: userConfig.hwEncodeSessions || null,
   // How much the jit cache (segments idle streams made, kept for a pause, a
   // second viewer, a restart) may hold on disk, in GB. Unset: 20. Kept
   // segments also go while the disk has under 5 GB free (media/jit.js).

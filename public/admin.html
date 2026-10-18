@@ -939,6 +939,12 @@
           <button class="mini" id="en-apply">Apply</button>
           <button class="mini" id="en-measure">Measure this machine again</button>
         </div>
+        <div id="en-hw" class="muted" style="font-size:0.85rem;margin-top:10px"></div>
+        <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <label style="display:flex;gap:6px;align-items:center;font-size:0.88rem">Graphics card
+            <select id="en-hwmode" aria-label="Hardware encoding" style="max-width:150px" title="Automatic: where it was measured as good as the CPU. Always: whenever the card's check passed."><option value="auto">Automatic</option><option value="on">Always</option><option value="off">Off</option></select></label>
+          <button class="mini" id="en-hwapply">Apply</button>
+        </div>
       </div>
       <div class="card">
         <h2>Healer <span class="note">every minute, about thirty checks: what the log really says, how playback, downloads and transcoding are going by the numbers, the library folders, backups, updates, alerts — it fixes what it safely can, and for the rest names the button to press</span></h2>
@@ -3279,7 +3285,7 @@
       $("#en-stats").innerHTML = [
         [String(e.limit), "at once", e.mode === "auto" ? "standard 1080p transcodes that fit" : e.mode === "fixed" ? "fixed by you: every encode counts as one" : "the default until the server has started"],
         [`${run.load == null ? 0 : run.load} / ${e.capacity}`, "in use", e.mode === "auto" ? "thread-seconds per second of film" : "encodes"],
-        [String(e.logical), "CPU threads", esc(e.cpu || "")],
+        [String(e.logical), "CPU threads", esc(e.cpuModel || "")],
         [e.speed == null ? "—" : `${e.speed}×`, "measured speed", cal ? `${cal.cpuSecPerFilmSec} CPU-s per film-s of 1080p, ${ago(new Date(cal.at).toISOString())}` : e.mode === "auto" ? "not measured yet — a cautious guess" : "not used with a fixed number"],
         [fmtBytes((e.memory.freeMb || 0) * 1048576), "memory free", `${fmtBytes((e.memory.budgetMb || 0) * 1048576)} for encoders (an encoder holds 0.3–1.1 GB)`],
       ].map(([v, k, note]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div>${note ? `<div class="note">${note}</div>` : ""}</div>`).join("");
@@ -3288,12 +3294,15 @@
       const bg = cpu.background || [];
       $("#en-running").innerHTML =
         (ex ? `<div class="muted" style="font-size:0.85rem">What fits at once: ${Object.entries(ex).map(([k, n]) => `${esc(k)} × ${n}`).join(" · ")}. A request that does not fit is offered a lower quality that does, waits a few seconds, then is told "busy".</div>` : "") +
-        `<div style="margin-top:6px">${viewers.length ? viewers.map((v) => `<div><span class="pill live">viewer</span> ${esc(v.kind)} · ${esc(v.label || "")} <span class="muted">cost ${esc(String(v.cost))}</span></div>`).join("") : '<span class="muted">Nobody is being encoded for right now.</span>'}</div>` +
+        `<div style="margin-top:6px">${viewers.length ? viewers.map((v) => `<div><span class="pill live">viewer</span> ${esc(v.kind)} · ${esc(v.label || "")} <span class="muted">cost ${esc(String(v.cost))}</span>${v.encoder ? ` · <b>${esc(v.encoder)}</b>${v.why ? ` <span class="muted">— ${esc(v.why)}</span>` : ""}` : ""}</div>`).join("") : '<span class="muted">Nobody is being encoded for right now.</span>'}</div>` +
         (bg.length || (cpu.waiting || []).length ? `<div style="margin-top:6px">${bg.map((j) => `<div><span class="pill ${j.paused ? "warn" : ""}">${j.paused ? "paused" : "background"}</span> ${esc(j.kind)} · ${esc(j.label || "")}</div>`).join("")}${(cpu.waiting || []).length ? `<div class="muted">${cpu.waiting.length} background job${cpu.waiting.length === 1 ? "" : "s"} waiting${cpu.quiet ? "" : " for viewers' encodes to finish"}</div>` : ""}</div>` : "");
       const sel = $("#en-limit");
       const want = e.setting === "auto" ? "auto" : String(e.setting);
       sel.innerHTML = `<option value="auto">Automatic</option>` + Array.from({ length: e.maxFixed || 16 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("");
       sel.value = want;
+      const hw = e.hardware || null;
+      $("#en-hw").textContent = hw ? hw.sentence + (hw.sessions && hw.sessions.running ? ` ${hw.sessions.running} running now.` : "") + (hw.refused ? ` The card refused an encode just now (${hw.refused.why || "no session"}) — software meanwhile.` : "") : "";
+      $("#en-hwmode").value = hw && ["auto", "on", "off"].includes(hw.mode) ? hw.mode : "auto";
     }
     async function loadEncoding() {
       try { paintEncoding(await json("/api/admin/encoding")); } catch {}
@@ -3306,6 +3315,16 @@
         if (!r.ok) return toast(d.error || "That was not saved");
         paintEncoding(d);
         toast(v === "auto" ? "Automatic" : `Fixed at ${v} at once`);
+      } catch { toast("That was not saved"); }
+    };
+    $("#en-hwapply").onclick = async () => {
+      const v = ["auto", "on", "off"].includes($("#en-hwmode").value) ? $("#en-hwmode").value : "auto";
+      try {
+        const r = await adminFetch("/api/admin/encoding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ hwEncode: v }) });
+        const d = await r.json();
+        if (!r.ok) return toast(d.error || "That was not saved");
+        paintEncoding(d);
+        toast(v === "auto" ? "Graphics card: automatic" : v === "on" ? "Graphics card: always when it works" : "Graphics card: off");
       } catch { toast("That was not saved"); }
     };
     $("#en-measure").onclick = async () => {

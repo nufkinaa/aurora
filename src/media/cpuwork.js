@@ -112,6 +112,8 @@ const viewer = {
     const id = ++viewerSeq;
     const entry = {
       id, kind: meta.kind || "encode", label: meta.label || "", cost: meta.cost || 1, memMb: meta.memMb || 0, since: deps.now(), pid: child && child.pid, release: null,
+      // which encoder, and why that one (the admin page says so beside it)
+      encoder: meta.encoder || null, why: meta.why || null,
       // `idle()`: its viewer has gone (it is still running); `reclaim()`: stop it
       idle: typeof meta.idle === "function" ? meta.idle : null,
       reclaim: typeof meta.reclaim === "function" ? meta.reclaim : null,

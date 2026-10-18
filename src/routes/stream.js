@@ -446,14 +446,18 @@ const warmStart = async (req, { entry, key, table, fmt, rungs = null, name = nul
     const audio = ladder.audioFromQuery(req.query.a);
     const k = jit.segmentAt(table.table, hint.at);
     if (k < 0) return;
-    const dir = path.join(require("../config").CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
+    let dir = path.join(require("../config").CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
     let input = { url: entry.path, extra: [], fmt, vtagHvc1: req.query.vtag === "hvc1", audio };
+    let hw = false;
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return;
-      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path) });
+      const use = await ladder.useHw({ key, dir, input: entry.path, jit });
+      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path), hw: use.hw, why: use.why });
       if (!input) return;
+      hw = !!input.enc.hw;
+      if (hw) dir += "-hw";
     }
-    jit.warmSegment(dir, jit.jobFor(dir, table, { enc: v !== "copy" }), input, k);
+    jit.warmSegment(dir, jit.jobFor(dir, table, { enc: v !== "copy", hw }), input, k);
   } catch {}
 };
 
@@ -530,7 +534,9 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
       // no encoder free: say so now, before the player commits to the rendition
       // (&need=1: the master playlist offered this rung because the full
       // encode did not fit — it is this viewer's only way to play)
-      if (!jit.encodeRoom(key, v === "h264" || req.query.need === "1")) {
+      // (a rendition the graphics card would make costs the CPU a sliver)
+      const onCard = (await ladder.useHw({ key, dir: path.join(configLib().CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio)), input: entry.path, jit })).hw;
+      if (!jit.encodeRoom(key, v === "h264" || req.query.need === "1", onCard ? ladder.HW_COST : 0)) {
         try { require("../lib/signals").hit("no-encoder", "rendition"); } catch {}
         res.setHeader("Retry-After", "5");
         return res.status(503).send("Server is busy — that rendition isn't available right now");
@@ -595,14 +601,19 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
     // files; so does every rendition of the ladder, and every audio track.
     const v = ladder.renditionFromQuery(req.query.v);
     const audio = ladder.audioFromQuery(req.query.a);
-    const dir = path.join(configLib().CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
+    let dir = path.join(configLib().CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
     let input = { url: entry.path, extra: [], fmt, vtagHvc1: req.query.vtag === "hvc1", audio };
+    let hw = false;
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
-      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path), need: req.query.need === "1" });
+      // made on the graphics card, or not (ladder.useHw — sticky per rendition)
+      const use = await ladder.useHw({ key, dir, input: entry.path, jit });
+      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path), need: req.query.need === "1", hw: use.hw, why: use.why });
       if (!input) return res.status(404).send("No such rendition of this file");
+      hw = !!input.enc.hw;
+      if (hw) dir += "-hw";
     }
-    const job = jit.jobFor(dir, table, { enc: v !== "copy" });
+    const job = jit.jobFor(dir, table, { enc: v !== "copy", hw });
     // &warm=1: a start is coming (the pointer is on Play, or the player is
     // still loading its playlists) — begin making this segment now, send
     // nothing. Bounded in jit.warmSegment; the answer says what was done.

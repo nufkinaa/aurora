@@ -348,7 +348,33 @@ const costFor = (name, f, tonemapped = false) => require("./encbudget").costFor(
 // CPU seconds the same in every case.
 const decodeThreads = (f) => (f && f.width * f.height > 1920 * 1088 ? 6 : 4);
 
-const encFor = async (rung, f, { fmt = null, busy = false, label = "", need = false } = {}) => {
+// `hw`: encode this rendition on the graphics card (media/hwenc.js — the
+// route decided, see useHw): the same contract, NVENC arguments instead of
+// libx264's, a cost of a sliver of CPU (sound and packaging; the picture is
+// the card's work), and the card's refusal noted when it says no.
+const HW_COST = 0.15;
+const HW_MEM_MB = 400;
+const encFor = async (rung, f, { fmt = null, busy = false, label = "", need = false, hw = false } = {}) => {
+  const hwArgs = hw ? (() => {
+    const d = dimsFor(rung.name, f.width, f.height);
+    return d ? require("./hwenc").argsFor(f, { dims: d, rate: rateFor(rung.name, d.h), level: rung.level, fmt }) : null;
+  })() : null;
+  if (hwArgs) {
+    const hwenc = require("./hwenc");
+    const a = hwArgs;
+    return {
+      name: rung.name,
+      hw: true,
+      cost: HW_COST,
+      memMb: HW_MEM_MB,
+      essential: rung.name === "h264" || !!need,
+      inputArgs: a.inputArgs,
+      videoArgs: a.videoArgs,
+      audioRate: `${rateFor(rung.name, rung.h).audio}k`,
+      encoder: `${hwenc.LABEL[a.family] || a.family}${a.onCard ? "" : " (decoded by the CPU)"}`,
+      onExit: (code, stderr) => { hwenc.noteExit(code, stderr); },
+    };
+  }
   let vf = null;
   if (f && tonemap.enabled() && tonemap.isHdr(f)) {
     await tonemap.probeSupport();
@@ -361,6 +387,7 @@ const encFor = async (rung, f, { fmt = null, busy = false, label = "", need = fa
     // 0.9 GB. 4 (6 above 1080p) decode just as fast here and hold 20–40%
     // less (measured: decodeThreads)
     inputArgs: ["-threads", String(decodeThreads(f))],
+    encoder: vf ? "x264 on the CPU, tone-mapped" : "x264 on the CPU",
     cost: costFor(rung.name, f, !!vf),
     memMb: require("./encbudget").memOf(specFor(rung.name, f, !!vf)),
     // the top rung of a device that cannot play the file any other way; the
@@ -401,7 +428,10 @@ const master = async (entry, { key, input, http = false, query = {}, jit }) => {
   const f = await probe(key, input, { http });
   const encodable = !!config.FFMPEG && !jit.encodeDeclined(key);
   const hdr = !!(f && tonemap.enabled() && tonemap.isHdr(f)); // (the dearer case, for the asking)
-  const fits = (name, essential) => jit.encodeRoom(key, essential, costFor(name, f, hdr));
+  // (on the graphics card an encode costs the CPU a sliver — media/hwenc.js;
+  // a new rendition goes there when it is switched on and has a session free)
+  const onCard = (() => { try { const hwenc = require("./hwenc"); return hwenc.mode() === "auto" && hwSource(f) && hwenc.canUse(f) && !(jit.hwDeclined && jit.hwDeclined(key)); } catch { return false; } })();
+  const fits = (name, essential) => jit.encodeRoom(key, essential, onCard ? HW_COST : costFor(name, f, hdr));
   let need = null; // a lower rung offered because the full encode does not fit
   if (top === "h264") {
     if (!encodable) return { status: 404, message: "This file cannot be re-encoded on the full timeline" };
@@ -432,11 +462,12 @@ const master = async (entry, { key, input, http = false, query = {}, jit }) => {
 // request): `base` is the copy's input ({ url, extra }), the rest is added.
 // Resolves null when the rendition cannot be described (the probe failed) —
 // the caller answers 404.
-const encInput = async (base, { key, name, top, fmt, audio, http = false, jit, label = "", need = false }) => {
+const encInput = async (base, { key, name, top, fmt, audio, http = false, jit, label = "", need = false, hw = false, why = "" }) => {
   const f = await probe(key, base.url, { http });
   const rung = describe({ facts: f, top: name === "h264" ? "h264" : top || "copy", lower: true, anyRate: true }).find((r) => r.name === name);
   if (!rung) return null;
-  const enc = await encFor(rung, f, { fmt, busy: jit.encodeCount() > 0, label, need });
+  const enc = await encFor(rung, f, { fmt, busy: jit.encodeCount() > 0, label, need, hw: hw && hwSource(f) });
+  enc.why = enc.hw ? why : why || "on the CPU, as always";
   return { ...base, fmt, audio, vtagHvc1: false, enc };
 };
 
@@ -470,6 +501,34 @@ const parseStartHint = (header) => {
   return out.at != null && out.at >= 0 && out.at < 1e6 ? out : null;
 };
 
+// ---------- on the graphics card, or not ----------
+// A source the card path may take: its size is known and it is not HDR
+// (tone mapping is a CPU filter here — those stay in software).
+const hwSource = (f) => !!(f && f.width > 0 && f.height > 0 && !(tonemap.enabled() && tonemap.isHdr(f)));
+// Which job dir an ENCODED rendition is made in: the software one (as
+// always) or its hardware twin ("-hw", media/hwenc.js). Sticky: whichever of
+// the two already has a job (somebody is watching it, or was moments ago)
+// keeps it, so a viewer never has the encoder changed under them. Only a
+// rendition nobody is making goes to the card — when hardware encoding is
+// on (hwenc.decide: the boot check passed, the family's picture is proven,
+// a session is free), the source is not HDR, and the card has not failed on
+// this file. Resolves { hw, why } — `why` is shown on the admin page beside
+// the running encode. (The copy never asks.)
+const useHw = async ({ key, dir, input, http = false, jit }) => {
+  const hwenc = require("./hwenc");
+  if (hwenc.mode() === "off") return { hw: false, why: "hardware encoding is switched off" };
+  const live = (d) => jit.jobState ? jit.jobState(d) : null;
+  const sw = live(dir);
+  const hw = live(`${dir}-hw`);
+  if (hw && !hw.broken && (!sw || hw.lastAccess >= sw.lastAccess)) return { hw: true, why: "this rendition is being made on the graphics card (kept there for its viewers)" };
+  if (sw && !sw.broken) return { hw: false, why: "this rendition is being made on the CPU (kept there for its viewers)" };
+  if (jit.hwDeclined && jit.hwDeclined(key)) return { hw: false, why: "the graphics card's encode of this file failed before" };
+  const f = await probe(key, input, { http });
+  if (f && tonemap.enabled() && tonemap.isHdr(f)) return { hw: false, why: "HDR: tone mapping is a CPU filter" };
+  const d = hwenc.decide(f);
+  return { hw: !!(d.ok && hwSource(f)), why: d.why };
+};
+
 // The jit cache dir of one rendition of one source. The copy with the first
 // audio track keeps the names it always had (`key`, `key-f4`).
 const dirName = (key, name, fmt, audio) =>
@@ -487,6 +546,9 @@ module.exports = {
   probe,
   encFor,
   costFor,
+  useHw,
+  hwSource,
+  HW_COST,
   dirName,
   renditionFromQuery,
   audioFromQuery,

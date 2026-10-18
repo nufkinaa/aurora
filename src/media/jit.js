@@ -105,6 +105,9 @@ const forgetDeclined = (key) => {
 };
 // The key an ENCODED rendition of a source is declined under (see jobFor).
 const encKey = (key) => `${key}|enc`;
+// …and one made on the graphics card (hwenc.js): a boundary the card's
+// encoder misses is held against the card's encodes of that file only.
+const hwKey = (key) => `${key}|hw`;
 
 // ---------- the segment table ----------
 // `index.cues` are the VIDEO track's cue points (mkvindex). A segment starts
@@ -245,7 +248,7 @@ const producerArgs = (run, input, startSec) => [
   // — more than any reorder delay — so the wanted segment gets exactly the
   // audio a producer running through from the top would have put in it.
   ...(startSec != null ? ["-ss", (startSec - SEEK_BACK_SEC).toFixed(3)] : []),
-  // an encode's input-side arguments (ladder.encFor: the decoder's threads)
+  // a rendition made on the graphics card decodes there too (hwenc.js)
   ...(input.enc && input.enc.inputArgs ? input.enc.inputArgs : []),
   ...input.extra,
   "-i", input.url,
@@ -615,6 +618,7 @@ const asViewer = (dir, job, run, proc) => {
   try {
     run.viewer = require("./cpuwork").viewer.track(proc, {
       kind: "ladder", label: path.basename(dir), cost: run.cost, memMb: run.memMb,
+      encoder: run.encoder || null, why: run.encWhy || null,
       idle: () => abandoned(job, Date.now()),
       reclaim: () => park(dir, job, "nobody has asked for it lately, and another viewer needs the encoder"),
     });
@@ -670,6 +674,12 @@ const encodeAdmission = (job, essential, replacing = null) => {
   const cost = costOfJob(job);
   const memMb = job.memMb || 0;
   const own = (job.producers.length - (replacing ? 1 : 0)) * cost;
+  // on the graphics card: a session of the card's must be free as well
+  if (job.hw) {
+    let hwenc = null;
+    try { hwenc = require("./hwenc"); } catch {}
+    if (hwenc && hwenc.busy() - (replacing ? 1 : 0) >= hwenc.capacity()) return { ok: false, idle: c.idle, left: c.left, why: "no session of the graphics card is free" };
+  }
   let a;
   if (own > 0) {
     a = budget.admit({ cost, memMb, running: c.others + c.waited + own, essential, replacing: !!replacing });
@@ -770,8 +780,8 @@ const moveInto = async (from, final) => {
 // (ALGO), ffmpeg itself, and for an encode the exact encoder arguments
 // (sigOf). A later job for the same dir keeps them only when its own
 // arguments are the same - checked before its first segment is served
-// (checkKept) - and starts the dir afresh otherwise (tone mapping is
-// decided per job and can differ). Producer scratch (p*/,
+// (checkKept) - and starts the dir afresh otherwise (tone mapping and the
+// graphics card are decided per job and can differ). Producer scratch (p*/,
 // *.part) is never kept. What is kept is bounded: KEEP_MS since last use,
 // and a byte budget over the whole jit cache, least recently used first
 // (sweepDisk).
@@ -1057,6 +1067,9 @@ const startProducer = (dir, job, input, fromSeg, { quiet = false } = {}) => {
   if (input.enc) {
     run.cost = input.enc.cost;
     run.memMb = input.enc.memMb;
+    run.encoder = input.enc.encoder || null;
+    run.encWhy = input.enc.why || null;
+    if (input.enc.hw) { try { require("./hwenc").track(run, proc); } catch {} }
     if (quiet) {
       yieldCpu(run, proc);
       try {
@@ -1098,6 +1111,18 @@ const startProducer = (dir, job, input, fromSeg, { quiet = false } = {}) => {
     } else if (code !== 0 && code !== null) {
       console.error(`[jit] producer exited ${code} (${path.basename(dir)} @seg${fromSeg}):`, errTail.trim());
       if (input.enc && input.enc.onExit) { try { input.enc.onExit(code, errTail); } catch {} }
+      // The graphics card said no (no session, no memory): this hardware
+      // rendition stops here — its viewers get "busy" at once, and the next
+      // request for it is made in software (ladder.useHw; hwenc holds the card
+      // back for a while). Nothing is declined: the file is fine.
+      if (job.hw && !run.stopped) {
+        let refused = false;
+        try { refused = require("./hwenc")._internals.REFUSAL_RE.test(errTail); } catch {}
+        if (refused) {
+          job.refusedAt = Date.now();
+          failJob(dir, job, "the graphics card refused the encode", false);
+        }
+      }
     }
     settle(job, run);
     wake(job);
@@ -1399,14 +1424,14 @@ const ensureInit = async (dir, job, input) => {
 // counts against the encoder cap, and a boundary its encoder misses is held
 // against the encodes of this file only (key "…|enc"), never against the
 // copy, whose index was not the one that lied.
-const jobFor = (dir, entry, { enc = false } = {}) => {
+const jobFor = (dir, entry, { enc = false, hw = false } = {}) => {
   let job = jobs.get(dir);
   // A job that failed for a reason that is not the file's (a segment that
-  // could not be renamed into place, ffmpeg's log and list disagreeing), with
-  // nothing left running: after BROKEN_RETRY_MS
+  // could not be renamed into place, ffmpeg's log and list disagreeing, the
+  // graphics card refusing), with nothing left running: after BROKEN_RETRY_MS
   // the next one to ask starts it afresh. It used to stay broken for as long
   // as anybody kept asking — its viewers got nothing but 504s.
-  if (job && job.broken && !job.producers.length && !job.runs.size && !declinedReason(job.key) && Date.now() - (job.brokenAt || 0) >= BROKEN_RETRY_MS) {
+  if (job && job.broken && !job.producers.length && !job.runs.size && !declinedReason(job.key) && Date.now() - (job.brokenAt || 0) >= (job.hw ? 0 : BROKEN_RETRY_MS)) {
     jobs.delete(dir);
     job = null;
   }
@@ -1435,7 +1460,8 @@ const jobFor = (dir, entry, { enc = false } = {}) => {
       producers: [], // live producers (runs), see "producers" above
       runs: new Set(), // every run whose publishes are not all on disk yet
       gen: 0, lastAccess: Date.now(),
-      table: entry.table, key: entry.key ? (enc ? encKey(entry.key) : entry.key) : null,
+      table: entry.table, key: entry.key ? (hw ? hwKey(entry.key) : enc ? encKey(entry.key) : entry.key) : null,
+      hw: !!(enc && hw),
       broken: null, waiters: new Set(), waiting: 0,
       wanted: [], // the segments being waited on right now
       readers: [], lastReader: null, returns: [], contendedAt: 0,
@@ -1569,7 +1595,7 @@ try {
     // made every viewer's next segment re-read the file's index at once
     const now0 = Date.now();
     const used = new Set();
-    for (const j of jobs.values()) if (now0 - (j.lastAccess || 0) <= 120000 && j.key) used.add(String(j.key).replace(/\|enc$/, ""));
+    for (const j of jobs.values()) if (now0 - (j.lastAccess || 0) <= 120000 && j.key) used.add(String(j.key).replace(/\|(enc|hw)$/, ""));
     let n = 0;
     for (const k of [...tables.keys()]) if (!used.has(k)) { tables.delete(k); n++; }
     let killed = 0;
@@ -1630,6 +1656,12 @@ module.exports = {
   encodeRoomSoon,
   encodeLoad,
   encodeDeclined: (key) => declinedReason(encKey(key)),
+  hwDeclined: (key) => declinedReason(hwKey(key)),
+  // What is known of a rendition's job (ladder.useHw): null when there is none.
+  jobState: (dir) => {
+    const j = jobs.get(dir);
+    return j ? { producers: j.producers.length, lastAccess: j.lastAccess || 0, broken: j.broken || null, hw: !!j.hw } : null;
+  },
   refusedJustNow: (job) => Date.now() - (job.refusedAt || 0) < 2000,
   // Test-only.
   _internals: {

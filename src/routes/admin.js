@@ -1131,13 +1131,30 @@ const encodingView = () => {
   try { load = require("../media/remux").encodeLoad(); } catch {}
   let cpu = null;
   try { cpu = require("../media/cpuwork").status(); } catch {}
-  return { ...budget.explain(), running: load, cpu, maxFixed: budget.MAX_FIXED };
+  let hardware = null;
+  try { hardware = require("../media/hwenc").status(); } catch {}
+  const ex = budget.explain();
+  // (cpuModel: explain()'s `cpu` is the processor's name, and `cpu` below is
+  // what is running — the card showed "[object Object]" for the model)
+  return { ...ex, cpuModel: ex.cpu, running: load, cpu, maxFixed: budget.MAX_FIXED, hardware };
 };
 router.get("/api/admin/encoding", (req, res) => res.json(encodingView()));
 // { maxEncodes: "auto" | 1…16 } — anything else is refused.
 router.post("/api/admin/encoding", (req, res) => {
   const budget = require("../media/encbudget");
   const settings = require("../lib/settings");
+  // { hwEncode: "auto" | "on" | "off" } — the graphics card for the ladder's
+  // encodes (media/hwenc.js); may come alone or with maxEncodes
+  const hwv = (req.body || {}).hwEncode;
+  if (hwv !== undefined) {
+    if (!["auto", "on", "off"].includes(hwv)) return res.status(400).json({ error: 'Choose "auto", "on" or "off" for the graphics card.' });
+    settings.data.hwEncode = hwv;
+    if ((req.body || {}).maxEncodes === undefined) {
+      settings.save();
+      console.log(`[encode] graphics card set from the admin page: ${require("../media/hwenc").sentence()}`);
+      return res.json({ ok: true, ...encodingView() });
+    }
+  }
   const v = (req.body || {}).maxEncodes;
   const n = Number(v);
   if (v === "auto") delete settings.data.maxEncodes;

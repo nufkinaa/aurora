@@ -648,6 +648,10 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // How many viewers this machine may encode for at once: worked out from
   // its CPU and its measured encode speed (media/encbudget.js), from here on.
   try { require("./src/media/encbudget").start(); } catch {}
+  // What the graphics card can encode, found out once (media/hwenc.js —
+  // a few seconds below normal priority, 40 s in; used where it is measured
+  // better — hwEncode "auto", the default).
+  try { require("./src/media/hwenc").start(); } catch {}
   // Remember which commit this process actually runs — the admin's update
   // card compares it against HEAD on disk to say "restart to apply".
   try { require("./src/lib/updatecheck").captureBoot(); } catch {}
