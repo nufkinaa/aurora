@@ -484,7 +484,7 @@ const seen = () =>
 const SEEN_MAX = 3000;
 
 let src = {
-  stamp: () => scanner.index.scannedAt,
+  stamp: () => scanner.index.version,
   libraryItems: () => scanner.allItems(),
   imdbIdFor: (item) => {
     try { return identityLib().imdbIdFor(item); } catch { return null; }

@@ -32,6 +32,7 @@ const { EventEmitter } = require("events");
 const config = require("../config");
 const { JsonStore } = require("../lib/jsonstore");
 const audiosync = require("./audiosync");
+const statsnap = require("../lib/statsnap");
 
 const V = 1; // bump when the alignment changes: background results are made again
 const store = new JsonStore(path.join(config.DATA_DIR, "sub-audiosync.json"), {});
@@ -44,7 +45,8 @@ const deps = {
   now: () => Date.now(),
 };
 
-const mtimeOf = (p) => { try { return fs.statSync(p).mtimeMs; } catch { return null; } };
+// (during a library scan, from the walk instead of the disk: lib/statsnap.js)
+const mtimeOf = (p) => statsnap.mtimeMs(p);
 
 // ---------- keys ----------
 const fileKey = (subPath) => `file:${subPath}`;
@@ -269,6 +271,7 @@ const pump = () => {
 const idle = () => !running && !queue.length;
 
 module.exports = {
+  rev: () => store.rev,
   V, keyOf, fileKey, embKey, entryFor, planFor, trackSyncAllowed, timingOf, resync, jobFor, publicJob, undo, enqueue, idle, events,
   _internals: { store, deps, jobs, queue, needsWork, cuesOf },
 };

@@ -19,12 +19,14 @@ const { EventEmitter } = require("events");
 const config = require("../config");
 const { JsonStore } = require("../lib/jsonstore");
 const subnames = require("./subnames");
+const statsnap = require("../lib/statsnap");
 
 const V = 1; // bump when detection changes: everything is read again
 const store = new JsonStore(path.join(config.DATA_DIR, "sub-langs.json"), {});
 const events = new EventEmitter();
 
-const mtimeOf = (p) => { try { return fs.statSync(p).mtimeMs; } catch { return null; } };
+// (during a library scan, from the walk instead of the disk: lib/statsnap.js)
+const mtimeOf = (p) => statsnap.mtimeMs(p);
 const fresh = (e, mtime) => e && e.v === V && e.mtime === mtime;
 
 // Cue texts of a WebVTT / SRT body.
@@ -196,4 +198,4 @@ const pump = () => {
 
 const idle = () => !running && !queue.length;
 
-module.exports = { forVideo, forFile, known, syncFor, syncKnown, syncVerdict, unnamedTracks, enqueue, events, idle, _internals: { cueTexts, readTrack, markForced, store } };
+module.exports = { rev: () => store.rev, forVideo, forFile, known, syncFor, syncKnown, syncVerdict, unnamedTracks, enqueue, events, idle, _internals: { cueTexts, readTrack, markForced, store } };

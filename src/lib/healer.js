@@ -494,7 +494,8 @@ const checkScanner = async () => {
   const age = Date.now() - at;
   const every = config.SCAN_INTERVAL_MS || 10 * 60 * 1000;
   if (age > every * 2 + 60 * 1000) {
-    try { scanner.scan(); } catch {}
+    // (in the background: the walk off the event loop, every file re-dated)
+    try { scanner.scanAsync({ full: true }).catch(() => {}); } catch {}
     note("scan run", `last scan was ${fmtAge(age)} ago (every ${fmtAge(every)})`);
     return { status: "warn", summary: `library scan was ${fmtAge(age)} overdue`, healed: "ran a scan" };
   }

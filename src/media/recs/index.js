@@ -118,7 +118,7 @@ const prepareSoon = () => {
 let libMap = { at: null, byImdb: new Map() };
 const libraryByImdb = () => {
   const scanner = dep.scanner();
-  if (libMap.at === scanner.index.scannedAt && libMap.byImdb.size) return libMap.byImdb;
+  if (libMap.at === scanner.index.version && libMap.byImdb.size) return libMap.byImdb;
   const byImdb = new Map();
   try {
     const identity = dep.identity();
@@ -127,7 +127,7 @@ const libraryByImdb = () => {
       if (id && !byImdb.has(id)) byImdb.set(id, item);
     }
   } catch {}
-  libMap = { at: scanner.index.scannedAt, byImdb };
+  libMap = { at: scanner.index.version, byImdb };
   return byImdb;
 };
 
@@ -271,7 +271,7 @@ const householdFor = (profileId, now = Date.now()) => {
 
 const candidatesFor = (now, allow) => {
   const lib = libraryByImdb();
-  const base = cached(`cands|${dep.scanner().index.scannedAt}|${dayOf(now)}`, () =>
+  const base = cached(`cands|${dep.scanner().index.version}|${dayOf(now)}`, () =>
     state.list.filter((e) => recommendable(e.rec, now, lib)));
   if (!allow) return base;
   return base.filter((e) => allow(cardOf(e.rec, lib)));

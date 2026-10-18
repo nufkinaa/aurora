@@ -1113,7 +1113,7 @@ const ensureTitles = () => {
   const identity = identityLib();
   const keys = identity.ensureStamped();
   const imdb = imdbLib();
-  const stamp = `${scanner.index.scannedAt}|${imdb.version()}`;
+  const stamp = `${scanner.index.version}|${imdb.version()}`;
   if (stamp === titlesFor) return keys;
   let changed = false;
   for (const profileId of Object.keys(store.data.state || {})) {

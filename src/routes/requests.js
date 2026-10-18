@@ -227,7 +227,8 @@ router.delete("/api/admin/requests/:id", (req, res) => {
 });
 
 // After every scan, auto-resolve pending requests that now exist
-scanner.events.on("scanned", () => {
+scanner.events.on("scanned", (info) => {
+  if (info && info.changed === false) return; // the library holds what it held
   let changed = false;
   for (const r of store.data) {
     if (r.status !== "pending") continue;
