@@ -3,6 +3,14 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.8.2 — 2026-10-19
+
+- **"On this device", redesigned.** Drop (or pick) many films, episodes and subtitle files at once — or a whole folder — and they become a small library of your own files: one card per title with a picture taken from the video, a clean title (release tags removed, year kept), length, size, subtitle languages and a progress bar. Episodes are grouped by show and season, and Next episode / Up next in the player goes to the next file.
+- **Subtitles find their video by themselves**, by name ("Film.he.srt", "Film.Hebrew.srt", "Film.en.forced.srt"), by episode code (S01E02, 1x02, עונה 2 פרק 5) or by being the only subtitle next to a video; any left over can be attached to a video by hand. Languages are read from the file name or from the text itself.
+- Files a browser can't play are marked on the card before you press Play, and say why.
+- The list stays after a reload: in Chrome and Edge the files reopen (after one press to allow it, if the browser asks); in other browsers you pick the file again and it carries on where you were.
+- The page now looks like the rest of Aurora, in both looks, with a large drop zone and the same card grid as Movies and Shows. Nothing is ever uploaded.
+
 ## 1.8.1 — 2026-10-18
 
 - **Fix (use this instead of 1.8.0):** in 1.8.0, a program other than the server that loaded Aurora's code next to a running server — a test run, a tool — could write its own copy of the profiles over the household's file when it finished. It happened once on the house server tonight and was restored from the automatic last-good copy with nothing lost. Now the running server owns its data folder: no other process writes there while it runs, and loading Aurora's code no longer prepares a write by itself (the one-time tidy-up of leftover profile data is done by the server at start-up).
