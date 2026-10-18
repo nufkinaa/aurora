@@ -106,11 +106,49 @@ const TRUST_MS = 30 * 1000;
 const FAST_MAX = 8000;
 const fast = new Map(); // `${src}|${w}|${blur}|${fmt}` -> { out, at }
 const fastStats = { hits: 0, misses: 0 };
+// Every variant of a source known to exist, by its kind (blur, format) and
+// width — what a request that cannot wait is handed instead (nearest()).
+const bySrc = new Map(); // src -> Map<`${blur}|${fmt}`, Map<width, out>>
+const noteSize = (src, w, blur, fmt, out) => {
+  if (!w) return;
+  let kinds = bySrc.get(src);
+  if (!kinds) {
+    if (bySrc.size >= FAST_MAX) bySrc.clear();
+    bySrc.set(src, (kinds = new Map()));
+  }
+  const k = `${blur}|${fmt}`;
+  if (!kinds.has(k)) kinds.set(k, new Map());
+  kinds.get(k).set(w, out);
+};
+// The nearest size of this picture already made: the smallest that still
+// covers the box, else the biggest there is. null when none is known.
+const nearest = (src, w, blur, fmt) => {
+  const sizes = bySrc.get(src) && bySrc.get(src).get(`${blur}|${fmt}`);
+  if (!sizes || !sizes.size) return null;
+  let up = null;
+  let down = null;
+  for (const [width, out] of sizes) {
+    if (width === w) continue;
+    if (width >= w) { if (!up || width < up.width) up = { width, out }; }
+    else if (!down || width > down.width) down = { width, out };
+  }
+  return (up || down || {}).out || null;
+};
+
+// WAITING IS BOUNDED BY TIME TOO (server round, 2026-10-18). Two encoders
+// and a queue of up to 200 can mean most of a minute behind other people's
+// pictures on a busy machine: a request whose variant is not made within
+// MAX_WAIT_MS gets, at once, the nearest size already made — or the original
+// (null) — marked `opts.shed` so the route caches that answer for a minute
+// only. The variant goes on being made (one encode, however many asked) and
+// is the answer next time.
+const MAX_WAIT_MS = 2500;
+const waitStats = { waited: 0, gaveNearest: 0, gaveOriginal: 0 };
 
 // (asynchronous, a few files at a time: lib/dirsweep.js — the blocking
 // version held the event loop for the length of 6,000 stats)
 const sweep = () =>
-  require("./dirsweep").trim(DIR, { max: MAX_FILES, down: MAX_FILES - 500, onRemoved: () => fast.clear() }).catch(() => 0);
+  require("./dirsweep").trim(DIR, { max: MAX_FILES, down: MAX_FILES - 500, onRemoved: () => { fast.clear(); bySrc.clear(); } }).catch(() => 0);
 
 const pump = () => {
   while (running < MAX_CONCURRENT && queue.length) {
@@ -238,6 +276,7 @@ const variant = async (src, width, opts = {}) => {
   const remember = (file) => {
     if (fast.size >= FAST_MAX) fast.delete(fast.keys().next().value);
     fast.set(fastKey, { out: file, at: Date.now() });
+    noteSize(src, w, blur, fmt, file);
     return file;
   };
   try {
@@ -260,17 +299,33 @@ const variant = async (src, width, opts = {}) => {
     inflight.set(out, p);
     const done = () => inflight.delete(out);
     p.then(done, done);
+    // remembered when it is made, whoever is still waiting for it by then
+    p.then((made) => { if (made) remember(made); }, () => {});
     p.catch(() => {
       if (failed.size > 2000) failed.clear();
       failed.set(out, Date.now());
     });
   }
+  const maxWait = opts && opts.maxWaitMs != null ? opts.maxWaitMs : MAX_WAIT_MS;
+  let timer = null;
+  const late = new Promise((resolve) => { timer = setTimeout(() => resolve(LATE), maxWait); });
   try {
-    const made = await p;
+    const made = await Promise.race([p, late]);
+    if (made === LATE) {
+      waitStats.waited++;
+      if (opts && typeof opts === "object") opts.shed = true;
+      const near = nearest(src, w, blur, fmt);
+      if (near) waitStats.gaveNearest++;
+      else waitStats.gaveOriginal++;
+      return near;
+    }
     return made ? remember(made) : made;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 };
+const LATE = Symbol("late");
 
-module.exports = { variant, snap, blurOf, fmtOf, filterFor, blurChain, codecFor, hasWebp, LADDER, MAX_BLUR, DIR, MAX_QUEUE, MAX_QUEUE_CLIENT, TRUST_MS, forget: () => fast.clear(), _internals: { queue, waitingOf, shedStats, roomFor, inflight, fast, fastStats, sweep } };
+module.exports = { variant, snap, blurOf, fmtOf, filterFor, blurChain, codecFor, hasWebp, LADDER, MAX_BLUR, DIR, MAX_QUEUE, MAX_QUEUE_CLIENT, TRUST_MS, MAX_WAIT_MS, forget: () => { fast.clear(); bySrc.clear(); }, _internals: { queue, waitingOf, shedStats, waitStats, roomFor, inflight, fast, fastStats, sweep, nearest, bySrc } };
