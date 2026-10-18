@@ -3,7 +3,8 @@
 // STORAGE workstream; docs/qa/server-round/STORAGE.md).
 //
 //   node tools/backend-perf/storage.js [--viewers 1,5,20] [--minutes 4] [--rows 1500|today]
-//                                      [--ref <commit>] [--label before] [--idle 10] [--weak]
+//                                      [--ref <commit>] [--label before] [--idle 10] [--weak] [--hog]
+// (--hog: a second process writes 16 MB + fsync flat out on the same disk meanwhile)
 //   -> docs/qa/backend-efficiency/results/storage[-today][-label].json and tables
 //
 // Each simulated viewer does what the players do (public/js/screens/player.js,
@@ -69,6 +70,14 @@ const viewer = (srv, i, stopAt) => new Promise((resolve) => {
   }, 250);
 });
 
+const fs = require("fs");
+const { spawn } = require("child_process");
+const HOG = `
+const fs = require("fs"), path = require("path");
+const dir = process.argv[1]; const buf = Buffer.alloc(16 * 1024 * 1024, 7);
+let i = 0;
+for (;;) { const f = path.join(dir, "hog-" + (i++ % 4)); const fd = fs.openSync(f, "w"); fs.writeSync(fd, buf); fs.fsyncSync(fd); fs.closeSync(fd); }
+`;
 const SAVE_SITE = /(jsonstore|hotstore)\.js/;
 const summarise = (s, minutes) => {
   const h = minutes / 60;
@@ -111,12 +120,29 @@ const COLS = [["MB / h", "mbPerHour"], ["rewrites / h", "rewritesPerHour"], ["fs
   const ref = arg("ref") === true ? undefined : arg("ref");
   const label = arg("label") === true ? undefined : arg("label");
   const today = arg("rows") === "today";
+  const hog = !!arg("hog");
+  let hogProc = null, hogDir = null;
   const ds = today ? dataset.build({ rows: 40, profiles: 5 }) : dataset.build();
-  const out = { at: new Date().toISOString(), ref: ref || "working tree", weak, minutes, household: today ? "today (5 profiles, about 40 rows each)" : "grown (8 profiles, up to 1,500 rows)", runs: [], idle: null };
+  const out = { at: new Date().toISOString(), ref: ref || "working tree", weak, minutes, hog, household: today ? "today (5 profiles, about 40 rows each)" : "grown (8 profiles, up to 1,500 rows)", runs: [], idle: null };
   const srv = await start({ weak, ref, ds, config: { scanIntervalMinutes: 24 * 60 } });
   try {
     await srv.waitWarm();
     await srv.waitQuiet();
+    // the subtitle background jobs (audio resync, language detection) finish first
+    for (let i = 0; i < 240; i++) {
+      const r = await srv.exec(path.join(__dirname, "inproc", "subs-idle.js"));
+      if (r.idle) break;
+      await sleep(5000);
+    }
+    await srv.waitQuiet();
+    // --hog: a second process writes 16 MB + fsync flat out on the same disk (a download landing, a backup)
+    if (hog) {
+      const dir = path.join(require("./lib").WORK, `hog-${process.pid}`);
+      fs.mkdirSync(dir, { recursive: true });
+      hogProc = spawn(process.execPath, ["-e", HOG, dir], { stdio: "ignore", windowsHide: true });
+      hogDir = dir;
+      await sleep(2000);
+    }
     if (idle) {
       await srv.reset();
       await sleep(idle * 60000);
@@ -149,8 +175,11 @@ const COLS = [["MB / h", "mbPerHour"], ["rewrites / h", "rewritesPerHour"], ["fs
       console.log(table(run.files, [["file", "file"], ["rewrites / h", "rewritesPerHour"], ["MB / h", "mbPerHour"], ["bytes each", "bytesEach"]]));
       console.log("resume seen by another device:", JSON.stringify(seen));
     }
-  } finally { await srv.stop(); }
-  const f = saveJson(`storage${weak ? "-weak" : ""}${today ? "-today" : ""}${label ? `-${label}` : ""}.json`, out);
+  } finally {
+    await srv.stop();
+    if (hogProc) { try { hogProc.kill("SIGKILL"); } catch {} await sleep(500); try { fs.rmSync(hogDir, { recursive: true, force: true }); } catch {} }
+  }
+  const f = saveJson(`storage${weak ? "-weak" : ""}${today ? "-today" : ""}${hog ? "-hog" : ""}${label ? `-${label}` : ""}.json`, out);
   console.log(`\n${path.relative(process.cwd(), f)}`);
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });
