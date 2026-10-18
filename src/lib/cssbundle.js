@@ -82,9 +82,19 @@ const stampOf = (dir) =>
 
 let cache = null; // { stamp, css, hash }
 
-// The current bundle: { css, hash }. Cheap when nothing changed (six stats).
+// The current bundle: { css, hash }. Cheap when nothing changed: six stats,
+// and not even those within RECHECK_MS of the last look (a page load asked
+// twice, 12 blocking calls a request — server round 2026-10-18). An edited
+// sheet still shows on the next reload.
+const RECHECK_MS = 2000;
+let lookedAt = 0;
+let lookedDir = null;
 const get = (cssDir) => {
+  const now = Date.now();
+  if (cache && lookedDir === cssDir && now - lookedAt < RECHECK_MS) return cache;
   const stamp = stampOf(cssDir);
+  lookedAt = now;
+  lookedDir = cssDir;
   if (cache && cache.stamp === stamp) return cache;
   const parts = [];
   for (const f of ORDER) {
@@ -131,4 +141,4 @@ const compressed = (cssDir, encoding) => {
   return null;
 };
 
-module.exports = { ORDER, minify, get, compressed };
+module.exports = { ORDER, minify, get, compressed, RECHECK_MS, _internals: { lookAgain: () => { lookedAt = 0; } } };
