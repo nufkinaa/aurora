@@ -36,5 +36,12 @@ class RingPool<K : Any, T : Any>(private val keep: Int = 4) {
     if (q.size < keep) q.addFirst(t)
   }
 
+  /** A ring that cannot be reused (still held by a view in an exit transition: its parent
+   *  lets go only when the transition ends): out of the count, never handed out again. */
+  fun discard(t: T) {
+    if (!out.remove(t)) return
+    inUse = out.size
+  }
+
   fun freeCount(key: K): Int = free[key]?.size ?: 0
 }

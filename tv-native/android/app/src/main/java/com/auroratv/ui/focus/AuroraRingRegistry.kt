@@ -1,5 +1,7 @@
 package com.auroratv.ui.focus
 
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import com.auroratv.ui.qa.AuroraQa
@@ -23,7 +25,9 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
  */
 object AuroraRingRegistry {
   private const val TAG = "AuroraAnim"
-  private var lit: AuroraFocusableView? = null
+  /** Who is lit, whom a claim fades, the blip rule (RingClaims.kt, tested). */
+  private val claims = RingClaims<AuroraFocusableView>()
+  private val main = Handler(Looper.getMainLooper())
   /** JS said one of its rings is lit (and has not been cleared by us since). */
   private var jsLit = false
   /** A native ring has been lit at least once: JS is told, and starts reporting its claims. */
@@ -31,9 +35,7 @@ object AuroraRingRegistry {
 
   fun claim(v: AuroraFocusableView, ctx: ReactContext?) {
     UiThreadUtil.assertOnUiThread()
-    val prev = lit
-    if (prev != null && prev !== v) prev.ringLostToClaim()
-    lit = v
+    claims.claim(v)?.ringLostToClaim()
     if (AuroraQa.focuslog) Log.d(TAG, "[ring] ${SystemClock.uptimeMillis()} claim ${v.qaTag()}")
     if (!nativeEverLit) {
       nativeEverLit = true
@@ -46,26 +48,34 @@ object AuroraRingRegistry {
   }
 
   fun release(v: AuroraFocusableView) {
-    if (lit === v) {
-      lit = null
+    if (claims.release(v)) {
       if (AuroraQa.focuslog) Log.d(TAG, "[ring] ${SystemClock.uptimeMillis()} release ${v.qaTag()}")
+      // after this focus change has run its course: a blip leaves the focused one dark
+      val ctx = v.context as? ReactContext
+      main.post { relightFocused(ctx) }
     }
+  }
+
+  /** The blip rule (RingClaims.relightTarget): the Focusable holding focus now, dark, is lit. */
+  private fun relightFocused(ctx: ReactContext?) {
+    val root = ctx?.currentActivity?.window?.decorView ?: return
+    val focused = root.findFocus() as? AuroraFocusableView
+    val t = claims.relightTarget(focused) { it.isLitNow() } ?: return
+    if (!t.isAttachedToWindow || !t.isFocused) return
+    Log.i("AuroraRender", "[ring] relit ${t.qaTag()} after a focus blip")
+    t.relight()
   }
 
   /** A JS Focusable claimed its ring: ours fades. */
   fun jsRingClaimed() {
     UiThreadUtil.assertOnUiThread()
     jsLit = true
-    val prev = lit ?: return
-    lit = null
-    prev.ringLostToClaim()
+    claims.clear()?.ringLostToClaim()
   }
 
   /** The `clearRing` command / QA: fade whatever is lit. */
   fun releaseAll() {
-    val prev = lit ?: return
-    lit = null
-    prev.ringLostToClaim()
+    claims.clear()?.ringLostToClaim()
   }
 
   private fun emit(ctx: ReactContext?, name: String, body: Any?) {

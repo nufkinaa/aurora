@@ -35,6 +35,8 @@ internal object SharedRing {
   fun acquire(context: Context, make: () -> Unit): Unit = pool.acquire(context, make)
 
   fun release(context: Context, u: Unit) = pool.release(context, u)
+
+  fun discard(u: Unit) = pool.discard(u)
 }
 
 /** The pool's counters for the QA `views` command (SharedRing is internal to this package). */

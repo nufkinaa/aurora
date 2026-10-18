@@ -481,13 +481,17 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
   /** Take a ring from the screen's pool: the LAST child, where the per-instance ring sat. */
   private fun attachSharedRing() {
     if (!RING_SHARE || light || ringKind == "none" || ringUnit != null) return
-    val u = SharedRing.acquire(context) { SharedRing.Unit(newDecoration(), if (SHADOW_CACHE) ShadowLayer(context) else null) }
-    ringUnit = u
-    u.shadow?.let {
-      (it.parent as? android.view.ViewGroup)?.removeView(it)
-      super.addView(it)
+    val make = { SharedRing.Unit(newDecoration(), if (SHADOW_CACHE) ShadowLayer(context) else null) }
+    var u = SharedRing.acquire(context, make)
+    // A unit whose views another parent still holds is never re-parented (addView would throw
+    // "The specified child already has a parent" — the Mi TV crashed so, 2026-10-18): it is
+    // set aside and the next one (or a new one) taken.
+    while (!letGo(u)) {
+      SharedRing.discard(u)
+      u = SharedRing.acquire(context, make)
     }
-    (u.ring.parent as? android.view.ViewGroup)?.removeView(u.ring)
+    ringUnit = u
+    u.shadow?.let { super.addView(it) }
     super.addView(u.ring)
     ring = u.ring
     ringShadow = u.shadow
@@ -500,11 +504,22 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
   private fun detachSharedRing() {
     val u = ringUnit ?: return
     ringUnit = null
-    u.shadow?.let { s -> (s.parent as? android.view.ViewGroup)?.let { p -> if (p === this) super.removeView(s) else p.removeView(s) } }
-    (u.ring.parent as? android.view.ViewGroup)?.let { p -> if (p === this) super.removeView(u.ring) else p.removeView(u.ring) }
+    val free = letGo(u)
     ring = null
     ringShadow = null
-    SharedRing.release(context, u)
+    // A view in an exit transition keeps its removed children until the transition ends
+    // (react-native-screens marks a leaving screen's whole tree; ReactViewGroup.onViewRemoved:
+    // "the parent might not be null in case the child is transitioning"): such a unit goes
+    // out of the pool instead of back into it.
+    if (free) SharedRing.release(context, u) else SharedRing.discard(u)
+  }
+
+  /** Take the unit's views off whatever holds them; true when both are free to be added. */
+  private fun letGo(u: SharedRing.Unit): Boolean {
+    for (v in listOfNotNull(u.shadow, u.ring)) {
+      (v.parent as? android.view.ViewGroup)?.let { p -> if (p === this) super.removeView(v) else p.removeView(v) }
+    }
+    return u.ring.parent == null && (u.shadow?.parent == null)
   }
 
   /** The per-instance ring's styling (applyProps above), skipped when the ring already has it. */
@@ -538,6 +553,15 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
 
   /** Another ring was claimed: fade out (Focusable.tsx:240-254). Fades, never snaps. */
   fun ringLostToClaim() = toDark()
+
+  /** Heading to lit (the registry's blip rule asks). */
+  fun isLitNow() = headingLit
+
+  /** Still focused but faded by a focus blip's claim (AuroraRingRegistry.relightFocused). */
+  fun relight() {
+    AuroraRingRegistry.claim(this, context as? ReactContext)
+    toLit()
+  }
 
   /** The `clearRing` command. */
   fun clearRingFromJS() {
