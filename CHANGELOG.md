@@ -3,6 +3,23 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.7.1 — 2026-10-18
+
+- **Resync really syncs.** The Resync button in the subtitle menu now listens to the film and lines the subtitles up with what is actually said — one shift, a frame-rate correction, or, for subtitles made for another release, a correction in parts so they fit the cut you downloaded. It takes 5–25 seconds while the film keeps playing, says what it did ("Moved 0.5 s later", "Matched to this release in 3 parts", "Couldn't match — kept as it was"), and every device gets the corrected version. Your files are never changed. The ±0.5 s buttons still fine-tune on top, and the website can go back to the file's own timing.
+- **Downloaded subtitles are synced automatically** in the background (Hebrew first), whenever the match is clear.
+- **★ Matches this release.** Each language's best subtitle for the copy you are watching gets a gold star — the one inside the file when it is good, otherwise the downloaded one that fits best — and it is the one that comes on by itself.
+- Deleting a profile in admin now signs all its devices out at once.
+- Admin → Server → Updates has an **Install dependencies** button next to Restart Aurora, so an update is Pull, Install dependencies, Restart.
+- The TV's faster start-up (measured on a TV: up to 5 seconds sooner on slow lines) is now the default.
+- **Aurora TV 5.3.0** (checked on the Mi TV, also with sign-in required):
+  - **Smoother.** Rows, Home and the side menu are drawn by new native code, and cards are recycled as you scroll: on the Mi TV janky frames while scrolling Home fell from 4.6 % to 1.6 % (and from 10.5 % to 3.6 % in a heavier test), and long frames while holding a key from 543 to 43, using less memory.
+  - **One press to play**: Play on a title or on Home's billboard starts the best source straight away — streaming while it downloads if it isn't on disk yet — with your subtitle on.
+  - **Subtitles**: named by language, matched to your copy with the ★, Resync that listens to the film, timing remembered per title, shown above the progress bar, no longer drifting ahead after a resume. One profile turning subtitles off no longer turns them off for everyone on the TV.
+  - The settings menu in the player and every other popup fit the screen and scroll.
+  - **Swipe your taste** on the TV: ← Not for me, → or OK Love, ↓ Haven't seen.
+  - Downloads say who started them; leaving a film frees the server at once; a busy server is waited out instead of showing an error; Up next knows about an episode that arrived while you were watching; Back from a title page returns to the card you pressed.
+  - Fixed: a crash in the side menu on kids profiles, Back doing nothing with one player opened over another, and a title picked from the Android TV home screen opening Home instead.
+
 ## 1.7.0 — 2026-10-17
 
 - **Subtitles are named by language.** Many films and episodes carry subtitle tracks with no language tag, which showed as "Track 1", "Track 2". Aurora now works out the language from the subtitles themselves (75 languages) and names them "Hebrew", "English (SDH)", "English (Forced)" and so on; the audio menu gets proper names too. The first time the server starts it re-reads every file in the library once, quietly in the background.

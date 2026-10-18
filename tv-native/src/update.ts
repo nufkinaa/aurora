@@ -8,7 +8,7 @@ import {getBaseUrl, getSession} from './api';
 import {cleanExit, reportError, tmValue, updateOffered} from './telemetry'; // [analytics]
 
 // Keep in lockstep with android/app/build.gradle versionName on each release.
-export const APP_VERSION = '5.2.0';
+export const APP_VERSION = '5.3.0';
 
 const cmp = (a: string, b: string) => {
   const pa = a.split('.').map(n => parseInt(n, 10) || 0);
