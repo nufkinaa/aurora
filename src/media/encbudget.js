@@ -141,15 +141,9 @@ const memOf = (j = {}) => {
 
 // The CPUs this process may use: all of them, unless it was started with
 // fewer (an affinity mask, `taskset`, `start /affinity`, a container's
-// cpuset) — then those (os.availableParallelism honours the mask on Windows
-// and Linux). A 2-core slice of a 16-thread box is sized as 2 cores.
-const restricted = () => {
-  try {
-    const ap = typeof os.availableParallelism === "function" ? os.availableParallelism() : 0;
-    const all = os.cpus().length;
-    return ap > 0 && ap < all ? ap : 0;
-  } catch { return 0; }
-};
+// cpuset, a cgroup CPU quota — lib/cpucount.js). A 2-core slice of a
+// 16-thread box is sized as 2 cores.
+const restricted = () => { try { return require("../lib/cpucount").restricted(); } catch { return 0; } };
 const logicalCpus = () => restricted() || Math.max(1, deps.cpus().length);
 
 const cpuKey = () => {

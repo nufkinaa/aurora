@@ -29,7 +29,7 @@ const MAX_ACTIVE = 2; // live ffmpeg jobs of any kind here (copies too), at the 
 const budget = require("./encbudget");
 const goodbye = require("./goodbye");
 const busyError = (message) => Object.assign(new Error(message), { busy: true, retryAfter: 5 });
-const FFMPEG_THREADS = Math.max(1, (typeof os.availableParallelism === "function" ? os.availableParallelism() : os.cpus().length) - 2); // (the CPUs this process may use) // leave cores for node
+const FFMPEG_THREADS = Math.max(1, require("../lib/cpucount").count() - 2); // (the CPUs this process may use) // leave cores for node
 const activeCount = () => {
   let n = 0;
   for (const j of jobs.values()) if (j.proc) n++;
