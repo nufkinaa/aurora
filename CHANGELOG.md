@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.7.2 — 2026-10-18
+
+- **Play a file from this device.** On the website, "On this device" (in the profile menu and under My downloads) lets you pick or drop a video from your computer or phone, with subtitle files if you have them (.srt, .vtt, .ass — Hebrew in any common encoding, right to left), and watch it in Aurora's player: subtitles above the timeline, the timing buttons, fullscreen, and it remembers where you stopped. Nothing is uploaded — the file never leaves the device. It works offline too, even when the server can't be reached at all. If the browser can't play a file (for example HEVC video, or AC-3 sound in some browsers), it says why instead of breaking.
+- **"On this device" shows what you saved for offline viewing** while you're online too, with sizes, Remove, and playback from the saved copy — and saves in progress show queued, preparing, the percentage and speed, failed with Retry, or interrupted with Resume, even after you leave the page or reload.
+- **Packs are no longer held back.** A season or collection pack is now ranked like any other source on quality, seeders and size, can be the ★ BEST pick, and is used by smart downloads and when a second source is tried.
+- **At most 3 downloads running per account at once.** More can be queued — they start as the account's earlier ones finish, and say so ("Queued — starts when one of your 3 running downloads finishes"). The admin's "Start now" is not counted. The number is the setting `maxDownloadsPerAccount` (0 = no limit).
+
 ## 1.7.1 — 2026-10-18
 
 - **Resync really syncs.** The Resync button in the subtitle menu now listens to the film and lines the subtitles up with what is actually said — one shift, a frame-rate correction, or, for subtitles made for another release, a correction in parts so they fit the cut you downloaded. It takes 5–25 seconds while the film keeps playing, says what it did ("Moved 0.5 s later", "Matched to this release in 3 parts", "Couldn't match — kept as it was"), and every device gets the corrected version. Your files are never changed. The ±0.5 s buttons still fine-tune on top, and the website can go back to the file's own timing.
