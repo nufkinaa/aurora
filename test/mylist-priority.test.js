@@ -282,6 +282,8 @@ const reset = async (mode) => {
   said = [];
   settings.data.maxActiveDownloads = 4;
   delete settings.data.myListYield;
+  // every job here is one account's: the per-account limit (3) has its own tests
+  settings.data.maxDownloadsPerAccount = 0;
   if (mode) settings.data.myListYield = mode;
   const recs = mylist._internals.records();
   for (const k of Object.keys(recs)) delete recs[k];

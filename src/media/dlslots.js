@@ -131,44 +131,61 @@ const RESUME_QUIET_MS = 60 * 1000;
 // until no more than the viewing cap run — they are the only downloads the
 // queue ever stops for viewers; and only when nothing else needs the queue
 // does a My List job start.
-const plan = ({ cap, holding = false, mode = DEFAULT_YIELD, running = [], waiting = [], quiet = true }) => {
+// AT MOST `perOwner` running downloads per account (elia 2026-10-18: "3
+// concurrent downloads from the same account at the same time, so one user
+// can't download 30 movies at the same time"). Every kind counts — a person's
+// own request, smart downloads, My List. A job over the limit simply waits its
+// turn (it is never refused); the free slot goes to the next job that fits. A
+// job without an owner (`owner` null — an admin's "Start now", or one no
+// profile asked for) is not counted against anyone. perOwner 0 = no limit.
+const PER_OWNER = 3;
+const plan = ({ cap, holding = false, mode = DEFAULT_YIELD, running = [], waiting = [], quiet = true, perOwner = PER_OWNER }) => {
   const start = [];
   const hold = [];
   let n = running.length;
+  const owned = new Map();
+  const own = (o, d) => { if (o) owned.set(o, (owned.get(o) || 0) + d); };
+  for (const r of running) own(r.owner, 1);
+  const fits = (w) => !w.owner || !(perOwner > 0) || (owned.get(w.owner) || 0) < perOwner;
+  const take = (w) => { start.push(w.id); n++; own(w.owner, 1); };
   const others = waiting.filter((w) => !w.yields).map((w, i) => ({ w, i })).sort((a, b) => a.w.tier - b.w.tier || a.i - b.i).map((x) => x.w);
+  const queue = others.slice();
+  const nextFit = () => queue.findIndex(fits);
   const holdable = running.filter((r) => r.yields && !r.locked)
     .sort((a, b) => (a.progress || 0) - (b.progress || 0) || (b.startedAt || 0) - (a.startedAt || 0));
-  let oi = 0;
   let hi = 0;
-  while (oi < others.length && n < cap) { start.push(others[oi++].id); n++; }
-  while (oi < others.length && hi < holdable.length) {
-    hold.push({ id: holdable[hi++].id, why: "downloads" });
-    n--;
-    if (n < cap) { start.push(others[oi++].id); n++; }
+  const holdOne = (why) => { const r = holdable[hi++]; hold.push({ id: r.id, why }); n--; own(r.owner, -1); };
+  while (n < cap) { const i = nextFit(); if (i < 0) break; take(queue.splice(i, 1)[0]); }
+  while (hi < holdable.length && nextFit() >= 0) {
+    holdOne("downloads");
+    const i = nextFit();
+    if (n < cap && i >= 0) take(queue.splice(i, 1)[0]);
   }
-  const othersLive = others.length > 0 || running.some((r) => !r.yields && !r.stalled);
+  const othersLive = start.length > 0 || nextFit() >= 0 || running.some((r) => !r.yields && !r.stalled);
   if (yieldMode(mode) === "always" && othersLive) {
-    while (hi < holdable.length) { hold.push({ id: holdable[hi++].id, why: "downloads" }); n--; }
+    while (hi < holdable.length) holdOne("downloads");
   }
   if (holding) {
-    while (n > cap && hi < holdable.length) { hold.push({ id: holdable[hi++].id, why: "watching" }); n--; }
+    while (n > cap && hi < holdable.length) holdOne("watching");
   }
-  const blocked = oi < others.length || (yieldMode(mode) === "always" && othersLive);
+  const blocked = nextFit() >= 0 || (yieldMode(mode) === "always" && othersLive);
   if (!blocked && quiet && !hold.length) {
     const mine = waiting.filter((w) => w.yields).map((w, i) => ({ w, i }))
       .sort((a, b) => (b.w.held ? 1 : 0) - (a.w.held ? 1 : 0) || (a.w.held ? (b.w.progress || 0) - (a.w.progress || 0) : 0) || a.i - b.i);
     for (const { w } of mine) {
       if (n >= cap) break;
-      start.push(w.id);
-      n++;
+      if (!fits(w)) continue;
+      take(w);
     }
   }
-  return { start, hold, blocked };
+  // which waiting jobs are waiting only because their account is at its limit
+  const overLimit = waiting.filter((w) => !start.includes(w.id) && !fits(w)).map((w) => w.id);
+  return { start, hold, blocked, overLimit };
 };
 
 module.exports = {
   MIN_ACTIVE, MAX_ACTIVE, DEFAULT_ACTIVE, WATCH_HOLD,
   parseMaxActive, effectiveMaxActive, startCap, enginePlan,
   TIER_PERSON, TIER_AUTO, TIER_MYLIST, tierOf, yields,
-  YIELD_MODES, DEFAULT_YIELD, yieldMode, RESUME_QUIET_MS, plan,
+  YIELD_MODES, DEFAULT_YIELD, yieldMode, RESUME_QUIET_MS, plan, PER_OWNER,
 };
