@@ -1,10 +1,15 @@
 // Saved on this device: titles kept in the browser's own storage, playable
 // with no server in reach. Play opens the player in offline mode; Remove
 // frees the space. Only ever shows THIS device's copies.
+// On top, "Play a file from this device" (js/localplay.js): a video from the
+// computer or phone, in Aurora's player, with nothing uploaded — the one
+// thing besides the saved copies that works with no server at all.
 import { el, icons, fmtBytes, fmtClock, toast } from "../ui.js";
-import { navigate } from "../router.js";
+import { navigate, untilLeave } from "../router.js";
 import { state, progressFor } from "../state.js";
 import * as offline from "../offline.js";
+import { localPlayCard } from "../localplay.js";
+import { deviceJobsSection } from "../devicejobs.js";
 
 const label = (it) =>
   it.showTitle ? `${it.showTitle} · S${it.season} E${it.episode}${it.title ? ` · ${it.title}` : ""}` : it.title;
@@ -14,37 +19,55 @@ export const renderSaved = async (root) => {
   root.append(screen);
   const body = el("div", { class: "page-pad" });
   const usage = el("span", { class: "count" });
-  screen.append(el("div", { class: "browse-head" }, el("h1", {}, "Saved on this device"), usage), body);
+  // The app came up with no server to talk to (main.js boot): say so, with
+  // the way to try again — what is below still works.
+  const down = state.noServer
+    ? el("div", { class: "page-pad" },
+      el("div", { class: "local-noserver", role: "status" },
+        el("span", {}, "📡 Can't reach the Aurora server — saved titles and files from this device still play."),
+        el("button", { class: "btn small focusable", onclick: () => location.reload() }, "Try again")))
+    : null;
+  // ONE place for what is on this device, online or not (elia, 2026-10-18:
+  // "a user can't see, while he's connected, his offline library … and also
+  // download status and progress"): saves under way, the saved titles, and
+  // a video from the computer or phone.
+  const jobsHost = el("div", { class: "page-pad" });
+  // (nothing saved yet: the file picker comes first, the saved list's
+  // one-line note under it — see paint)
+  const cardHost = el("div", { class: "page-pad" }, localPlayCard());
+  screen.append(...[
+    el("div", { class: "browse-head" }, el("h1", {}, "On this device"), usage),
+    down,
+    jobsHost,
+    body,
+    cardHost,
+  ].filter(Boolean));
+  if (offline.available()) jobsHost.append(deviceJobsSection());
 
   if (!offline.available()) {
-    body.append(
-      el(
-        "div",
-        { class: "empty" },
-        el("div", { class: "glyph" }, "🔒"),
-        "Offline copies need a secure address (https, or localhost). Open Aurora over https and the Save-offline buttons appear on every title you own.",
-      ),
-    );
+    body.append(el("p", { class: "dl-note" }, "🔒 Saving titles for offline needs a secure address (https, or localhost). Open Aurora over https and the Save-offline buttons appear on every title you own."));
+    body.before(cardHost);
     return;
   }
 
+  let gen = 0;
   const paint = async () => {
-    body.innerHTML = "";
+    const mine = ++gen;
     const items = await offline.listSaved();
     const est = await offline.storageEstimate();
+    if (mine !== gen) return; // a newer paint is on its way
+    body.innerHTML = "";
     usage.textContent = est && est.usage ? `${fmtBytes(est.usage)} used${est.quota ? ` of ${fmtBytes(est.quota)}` : ""}` : "";
     if (!items.length) {
-      body.append(
-        el(
-          "div",
-          { class: "empty" },
-          el("div", { class: "glyph" }, "📱"),
-          "Nothing saved yet. On any title you own, press “Save offline” and it lands here — playable with no server in reach.",
-        ),
-      );
+      body.append(el("p", { class: "dl-note saved-empty" }, "No titles saved on this device yet. On any title you own, press “Save offline” and it lands here — playable with no server in reach."));
+      body.before(cardHost);
       return;
     }
+    body.after(cardHost);
+    const total = items.reduce((n, it) => n + (it.sizeBytes || 0), 0);
     body.append(
+      el("h2", { class: "row-title saved-head" }, "Saved titles", el("span", { class: "count" }, String(items.length)),
+        total ? el("span", { class: "saved-total" }, fmtBytes(total)) : null),
       el(
         "div",
         { class: "dl-list" },
@@ -96,4 +119,10 @@ export const renderSaved = async (root) => {
     );
   };
   await paint();
+  // a save that finishes (its job goes) lands in the list at once
+  let running = offline.listJobs().length;
+  untilLeave(offline.onJobs((jobs) => {
+    if (jobs.length < running) paint();
+    running = jobs.length;
+  }));
 };

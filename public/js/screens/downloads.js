@@ -10,10 +10,12 @@
 // the nav's "✓ ready" nudge for it everywhere you're signed in. A dead
 // request can be retried (same source, one press) or cleared off the page.
 import { el, icons, posterImg, fmtBytes, toast, confirmSheet } from "../ui.js";
-import { navigate } from "../router.js";
+import { navigate, untilLeave } from "../router.js";
 import { api } from "../api.js";
 import { state, downloads, myDownloads } from "../state.js";
 import { onMessage } from "../ws.js";
+import * as offline from "../offline.js";
+import { deviceJobsSection } from "../devicejobs.js";
 
 const ACTIVE = ["approved", "downloading"];
 const DEAD = ["error", "declined", "canceled"];
@@ -324,6 +326,7 @@ export const renderDownloads = async (root) => {
   root.append(screen);
   const summary = el("p", { class: "dl-summary" });
   const body = el("div", { class: "page-pad" });
+  const deviceBox = el("div", { class: "page-pad device-box" });
   screen.append(
     el(
       "div",
@@ -332,8 +335,34 @@ export const renderDownloads = async (root) => {
       el("span", { class: "count" }, state.profile ? `for ${state.profile.name}` : ""),
     ),
     el("div", { class: "page-pad" }, summary),
+    // saves to THIS device under way, with their progress (hidden when none)
+    el("div", { class: "page-pad" }, offline.available() ? deviceJobsSection({ title: "Saving to this device", withLink: true }) : ""),
     body,
+    deviceBox,
   );
+  // What is on THIS device (the saved titles, a video from the computer or
+  // phone) — the "On this device" screen, summed up below the server's own
+  // downloads.
+  const paintDevice = async () => {
+    let items = [];
+    if (offline.available()) items = await offline.listSaved().catch(() => []);
+    const total = items.reduce((n, it) => n + (it.sizeBytes || 0), 0);
+    deviceBox.innerHTML = "";
+    deviceBox.append(
+      el("section", { class: "dl-section device-summary" },
+        el("h2", { class: "row-title" }, "On this device"),
+        el("p", { class: "dl-note" }, items.length
+          ? `${items.length} title${items.length > 1 ? "s" : ""} saved here${total ? ` · ${fmtBytes(total)}` : ""} — they play with no server in reach.`
+          : "Nothing saved here yet. You can also play a video from this computer or phone — nothing is uploaded."),
+        el("div", { class: "local-play-link" },
+          el("button", { class: "btn small focusable", onclick: () => navigate("#/saved") }, "📱 Open On this device"))),
+    );
+  };
+  paintDevice();
+  {
+    let n = offline.listJobs().length;
+    untilLeave(offline.onJobs((jobs) => { if (jobs.length < n) paintDevice(); n = jobs.length; }));
+  }
 
   const byNewest = (a, b) => Date.parse(b.at || 0) - Date.parse(a.at || 0);
 

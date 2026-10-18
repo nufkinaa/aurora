@@ -88,6 +88,107 @@ const workerControls = async () => {
 
 const fmtGb = (b) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1)} GB` : `${Math.max(1, Math.round(b / 1024 ** 2))} MB`);
 
+// ---------- saves in progress ----------
+// Every save to this device, wherever it was started (a title page's button,
+// "Save the next 3"), is a JOB here: queued, preparing (the server converts),
+// saving (bytes landing, with the speed), failed (with the reason, and Retry)
+// — so the "On this device" screen and My downloads can show it, and it is
+// still there after the screen is left. Kept in localStorage: a save cut off
+// by a reload or a closed tab comes back as "interrupted", with Resume (which
+// starts the download again — a half-saved copy is never kept).
+//   listJobs() / jobFor(id) / onJobs(fn) -> unsubscribe
+//   cancelJob(id) · dismissJob(id) · retryJob(id, choose) · queueJob(item)
+const JOBS_KEY = "aurora-offline-jobs";
+const jobs = new Map(); // id -> { id, title, cover, item, quality, state, pct, note, speed, error, at }
+const jobCtl = new Map(); // id -> the AbortController of a save running in THIS tab
+const jobSubs = new Set();
+export const ACTIVE_JOB = new Set(["queued", "preparing", "saving"]);
+try {
+  for (const j of JSON.parse(localStorage.getItem(JOBS_KEY) || "[]")) {
+    if (!j || !j.id || !j.item) continue;
+    // nothing runs across a page load: what was under way was cut off
+    if (ACTIVE_JOB.has(j.state)) j.state = "interrupted";
+    j.speed = 0;
+    jobs.set(j.id, j);
+  }
+} catch {}
+const jobItem = (item) => ({
+  id: item.id, title: item.title, showId: item.showId || null, showTitle: item.showTitle || null,
+  season: item.season ?? null, episode: item.episode ?? null, year: item.year || null, cover: item.cover || null,
+  duration: item.duration || 0, imdbId: item.imdbId || null,
+  subtitles: (item.subtitles || []).filter((t) => t && t.url).slice(0, 6).map((t) => ({ label: t.label, lang: t.lang, url: t.url })),
+});
+const emitJobs = () => {
+  try { localStorage.setItem(JOBS_KEY, JSON.stringify([...jobs.values()])); } catch {}
+  const list = listJobs();
+  for (const fn of [...jobSubs]) { try { fn(list); } catch {} }
+};
+const setJob = (id, fields) => {
+  jobs.set(id, { ...(jobs.get(id) || { at: Date.now() }), ...fields, id });
+  emitJobs();
+};
+export const listJobs = () => [...jobs.values()].sort((a, b) => a.at - b.at);
+export const jobFor = (id) => jobs.get(id) || null;
+export const onJobs = (fn) => { jobSubs.add(fn); return () => jobSubs.delete(fn); };
+export const dismissJob = (id) => { if (jobs.delete(id)) emitJobs(); };
+// A save running here stops (and its job goes); one that was cut off, failed
+// or only queued is simply taken off the list.
+export const cancelJob = (id) => {
+  const c = jobCtl.get(id);
+  if (c) c.abort();
+  else dismissJob(id);
+};
+// "Waiting for its turn" — the episodes of "Save the next 3" after the first.
+export const queueJob = (item) => {
+  const j = jobs.get(item.id);
+  if (j && ACTIVE_JOB.has(j.state)) return;
+  setJob(item.id, { item: jobItem(item), title: item.title, cover: item.cover || null, state: "queued", pct: 0, error: null, speed: 0, at: Date.now() });
+};
+// Again, at the size picked the first time (asked again only when the server
+// can no longer make that one).
+export const retryJob = (id, choose = null) => {
+  const j = jobs.get(id);
+  if (!j) return Promise.resolve(null);
+  return saveItem(j.item, () => {}, async (options) =>
+    options.some((o) => o.quality === j.quality) ? j.quality : choose ? choose(options) : (options[0] || {}).quality);
+};
+
+// Save one library item — and keep its job (above) up to date.
+export const saveItem = async (item, onProgress = () => {}, choose = null, signal = null) => {
+  const ctl = new AbortController();
+  if (signal) {
+    if (signal.aborted) ctl.abort();
+    else signal.addEventListener("abort", () => ctl.abort(), { once: true });
+  }
+  let started = false;
+  const pick = async (options) => {
+    const q = choose ? await choose(options) : (options.find((o) => o.quality === "720") || options[0]).quality;
+    if (q) {
+      started = true;
+      jobCtl.set(item.id, ctl);
+      setJob(item.id, { item: jobItem(item), title: item.title, cover: item.cover || null, quality: q, state: "preparing", pct: 0, note: "", error: null, speed: 0, at: (jobs.get(item.id) || {}).at || Date.now() });
+    }
+    return q;
+  };
+  const progress = (p) => {
+    onProgress(p);
+    if (started && (p.phase === "preparing" || p.phase === "saving")) setJob(item.id, { state: p.phase, pct: p.pct || 0, note: p.note || "", speed: p.speed || 0 });
+  };
+  try {
+    const saved = await saveOne(item, progress, pick, ctl.signal);
+    if (started) dismissJob(item.id); // done: it is on the Saved list now
+    return saved;
+  } catch (e) {
+    if (started) {
+      if (e && e.name === "AbortError") dismissJob(item.id);
+      else setJob(item.id, { state: "failed", error: (e && e.message) || String(e), speed: 0 });
+    }
+    throw e;
+  } finally {
+    if (jobCtl.get(item.id) === ctl) jobCtl.delete(item.id);
+  }
+};
+
 // Save one library item. `onProgress({phase, pct, note})` keeps the button
 // honest: "preparing" (the server converts, with its own percentage), then
 // "saving" (bytes landing in the cache). `choose(options)` picks the quality
@@ -95,8 +196,8 @@ const fmtGb = (b) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1)} GB` : `${M
 // sizes included (original as is / repackaged in seconds, or a 1080p / 720p
 // / 480p re-encode); resolve null to stop. `signal` (an AbortController's)
 // cancels at any point: the poll, the choice, or the download itself — a
-// half-saved copy is thrown away.
-export const saveItem = async (item, onProgress = () => {}, choose = null, signal = null) => {
+// half-saved copy is thrown away. (Called through saveItem above.)
+const saveOne = async (item, onProgress, choose, signal) => {
   if (!available()) throw new Error("offline copies need a secure (https) address");
   const aborted = () => !!(signal && signal.aborted);
   const bail = () => { const e = new Error("cancelled"); e.name = "AbortError"; throw e; };
@@ -146,6 +247,7 @@ export const saveItem = async (item, onProgress = () => {}, choose = null, signa
     if (len) headers.set("Content-Length", String(len));
     let got = 0;
     let lastTick = 0;
+    const tStart = Date.now();
     const counted = res.body.pipeThrough(
       new TransformStream({
         transform(chunk, controller) {
@@ -153,7 +255,8 @@ export const saveItem = async (item, onProgress = () => {}, choose = null, signa
           const now = Date.now();
           if (now - lastTick > 500) {
             lastTick = now;
-            onProgress({ phase: "saving", pct: len ? Math.min(0.99, got / len) : 0, note: "downloading to this device" });
+            const secs = (now - tStart) / 1000;
+            onProgress({ phase: "saving", pct: len ? Math.min(0.99, got / len) : 0, note: "downloading to this device", speed: secs > 0.5 ? got / secs : 0 });
           }
           controller.enqueue(chunk);
         },

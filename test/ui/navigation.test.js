@@ -33,7 +33,7 @@ const ROUTES = (lib) => ({
   "/play/:id": { hash: `#/play/${lib.film1.id}`, selector: ".player video" },
   "/requests": { hash: "#/requests" },
   "/downloads": { hash: "#/downloads", text: "My downloads" },
-  "/saved": { hash: "#/saved", text: "Saved on this device" },
+  "/saved": { hash: "#/saved", text: "On this device" },
   // no such party: a toast, and Home
   "/party/:code": { hash: "#/party/ZZZZ", lands: "#/", toast: "No party with that code" },
   // A catalogue title needs the outside world for everything it shows. With

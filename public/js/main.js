@@ -457,12 +457,15 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     const nav = $("#nav-saved");
     const paint = async () => {
       let any = false;
-      try { any = (await offline.listSaved()).length > 0; } catch {}
+      try { any = (await offline.listSaved()).length > 0 || offline.listJobs().length > 0; } catch {}
       // Only where offline copies can exist at all (https / localhost) —
       // over plain http the entry would lead to a screen that says no.
       nav.classList.toggle("hidden", !offline.available() || !(any || !navigator.onLine || !state.ws));
     };
     paint();
+    // (a save that starts or ends shows or hides the entry)
+    let jobsN = offline.listJobs().length;
+    offline.onJobs((list) => { if (list.length !== jobsN) { jobsN = list.length; paint(); } });
     window.addEventListener("hashchange", () => setTimeout(paint, 0));
     window.addEventListener("offline", paint);
     window.addEventListener("online", () => { paint(); offline.flushProgress().catch(() => {}); });
@@ -665,6 +668,8 @@ const showProfileMenu = () => {
       item("Switch profile", () => { close(); openGate(); }),
     item("Settings", () => { close(); navigate("#/preferences"); }),
     item("My downloads", () => { close(); navigate("#/downloads"); }),
+    // saved titles, saves under way, a video from this device (screens/saved.js)
+    item("On this device", () => { close(); navigate("#/saved"); }),
     item("What's new", () => { close(); navigate("#/new"); }),
     item("Report a problem", () => { close(); showReportSheet(); }),
     item("Join a watch party", () => { close(); showJoinParty(); }),
@@ -781,22 +786,15 @@ const boot = async () => {
     // the moment they exist for: open Saved (it and the player work from the
     // device's own store) instead of a dead end — the old screen said "can't
     // reach the server" and stopped, with the films right there.
+    // Even with nothing saved, Saved is not a dead end now: a video from
+    // this device plays there (js/localplay.js), and the screen says the
+    // server is out of reach, with Try again.
     let saved = [];
     try { saved = await (await import("./offline.js")).listSaved(); } catch {}
-    if (saved.length) {
-      location.hash = "#/saved";
-      startRouter(document.getElementById("app"));
-      toast("No server in reach — here is what's saved on this device", "📱");
-      return;
-    }
-    document.getElementById("app").append(
-      el("div", { class: "empty", style: { paddingTop: "30vh" } },
-        el("div", { class: "glyph" }, "📡"),
-        "Can't reach the Aurora server.",
-        el("div", { style: { marginTop: "14px" } },
-          el("button", { class: "btn small focusable", onclick: () => location.reload() }, "Try again"))
-      )
-    );
+    state.noServer = true;
+    location.hash = "#/saved";
+    startRouter(document.getElementById("app"));
+    toast(saved.length ? "No server in reach — here is what's saved on this device" : "No server in reach — you can still play a file from this device", "📱");
     return;
   }
 
@@ -809,9 +807,10 @@ const boot = async () => {
     if (!navigator.onLine) {
       import("./offline.js").then(async (o) => {
         const list = await o.listSaved().catch(() => []);
-        if (list.length && (location.hash || "#/") === "#/") {
+        // (nothing saved: Saved still plays a file from this device)
+        if ((location.hash || "#/") === "#/") {
           navigate("#/saved");
-          toast("You're offline — these are saved on this device", "📱");
+          toast(list.length ? "You're offline — these are saved on this device" : "You're offline — you can still play a file from this device", "📱");
         }
       }).catch(() => {});
     }

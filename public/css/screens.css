@@ -4688,3 +4688,74 @@ html[data-look="glass"] .kids-field { background: rgba(255, 255, 255, 0.05); bor
 .kids-pin-input { letter-spacing: 0.35em; font-variant-numeric: tabular-nums; }
 .kids-pin-input + .kids-pin-input { margin-top: 8px; }
 .pref-profile-sub .kids-badge { margin-right: 4px; }
+
+/* ---------- Play a file from this device (js/localplay.js) ---------- */
+.local-play {
+  position: relative;
+  margin: 4px 0 22px;
+  padding: 18px 20px;
+  border-radius: var(--radius-l, 18px);
+  background: var(--surface);
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  transition: border-color var(--t-fast, 160ms), background var(--t-fast, 160ms);
+}
+.local-play.drag {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb, 139, 123, 255), 0.14);
+}
+.local-play-head { display: flex; gap: 14px; align-items: flex-start; }
+.local-play-glyph { font-size: 1.9rem; line-height: 1; margin-top: 2px; }
+.local-play h2 { margin: 0 0 4px; font-size: 1.12rem; font-weight: 800; }
+.local-play-text { margin: 0; color: var(--text-dim); font-size: var(--fs-small, 0.85rem); line-height: 1.45; max-width: 60ch; }
+.local-play-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.local-play-actions .hidden { display: none; }
+.local-play-chosen { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.local-play-chosen.hidden { display: none; }
+.local-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 5px 6px 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+.local-chip.video { background: rgba(var(--accent-rgb, 139, 123, 255), 0.18); }
+.local-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 46ch; }
+.local-chip-sub { color: var(--text-dim); font-size: 0.78rem; white-space: nowrap; }
+.local-chip-x {
+  width: 24px; height: 24px; flex: none;
+  border: 0; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1); color: var(--text);
+  font-size: 1rem; line-height: 1; cursor: pointer;
+}
+.local-chip-x:hover { background: rgba(255, 255, 255, 0.2); }
+.local-play-drop { margin: 12px 0 0; color: var(--text-faint); font-size: 0.8rem; }
+/* no dragging on a touch screen: no line about it */
+@media (hover: none) { .local-play-drop { display: none; } }
+@media (max-width: 600px) {
+  .local-play { padding: 16px; }
+  .local-play-actions .btn { flex: 1 1 auto; justify-content: center; }
+  .local-chip-name { max-width: 24ch; }
+}
+.local-noserver {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  margin-bottom: 14px; padding: 10px 14px;
+  border-radius: var(--radius, 12px);
+  background: rgba(245, 197, 66, 0.1);
+  border: 1px solid rgba(245, 197, 66, 0.3);
+  color: var(--text-dim); font-size: 0.9rem;
+}
+.local-play-link { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 28px 0 8px; color: var(--text-faint); font-size: 0.8rem; }
+.torrent-badge.local-badge { color: #4ade80; background: rgba(74, 222, 128, 0.12); border-color: rgba(74, 222, 128, 0.3); }/* "On this device": the saved titles' heading, the saves under way */
+.saved-head { display: flex; align-items: center; gap: 10px; padding: 0; margin: 4px 0 12px; }
+.saved-head .count, .device-jobs .row-title .count {
+  display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 7px;
+  border-radius: 999px; font-size: 0.74rem; font-weight: 800; color: var(--text-dim); background: rgba(255, 255, 255, 0.1);
+}
+.saved-total { color: var(--text-faint); font-size: 0.85rem; font-weight: 600; }
+.device-jobs { margin: 6px 0 22px; }
+.device-jobs .device-jobs-open { margin-left: auto; }
+.device-summary .local-play-link { margin: 6px 0 0; }
