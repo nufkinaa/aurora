@@ -471,6 +471,7 @@ const fmtSkew = (sec) => (sec >= 120 ? `${Math.round(sec / 60)} minutes` : `${se
 
 // What is "big" for each kind of thing Aurora keeps.
 const SANE = { store: 25 * 1024 ** 2, usage: 120 * 1024 ** 2, log: 200 * 1024 ** 2, perf: 20 * 1024 ** 2 };
+const OLD_LOG_SAY_BYTES = 50 * 1024 ** 2; // an old set-aside log this big is named, with how to delete it
 
 // samples: [{ at, bytes }] oldest first. Fast = grew by half AND by 5 MB in a day.
 const growthOf = (samples, now) => {
@@ -519,7 +520,9 @@ const checkGrowth = async (ctx = {}) => {
     if (!ctx.items) {
       const names = await fs.promises.readdir(config.DATA_DIR).catch(() => []);
       for (const f of names) {
-        const kind = /\.json$/.test(f) ? "store" : /\.log$/.test(f) ? "log" : null;
+        // (an old set-aside log — server-stdout.log.1 from before the keeper
+        // rotated its own as .r1/.r2 — is named below, never touched)
+        const kind = /\.json$/.test(f) ? "store" : /\.log$/.test(f) ? "log" : /\.log\.\d+$/.test(f) ? "old-log" : null;
         if (!kind) continue;
         const s = await fs.promises.stat(path.join(config.DATA_DIR, f)).catch(() => null);
         if (s && s.isFile()) items.push({ name: f, kind, bytes: s.size });
@@ -540,7 +543,19 @@ const checkGrowth = async (ctx = {}) => {
     return { items, ...j, trimmed };
   }, 30 * MIN);
   const findings = [];
+  // An old log nobody rotates any more: said, with how to delete it, and
+  // left alone (deleting what the owner has not looked at cannot be undone).
+  for (const it of r.items.filter((i) => i.kind === "old-log" && i.bytes >= OLD_LOG_SAY_BYTES)) {
+    const where = path.join(config.DATA_DIR || "data", it.name);
+    findings.push({
+      level: "warn", title: `An old log of ${fmtBytes(it.bytes)} in data/ — you can delete it`,
+      text: `${it.name} (${fmtBytes(it.bytes)}) is an old log set aside before this version, which rotates its own as .r1/.r2 and caps them. Aurora does not need it and will not delete it.`,
+      evidence: fmtBytes(it.bytes),
+      setting: `Delete it by hand when you have looked at it: ${process.platform === "win32" ? `del "${where}"` : `rm '${where}'`}`,
+    });
+  }
   for (const it of r.big) {
+    if (it.kind === "old-log") continue;
     findings.push({
       level: "warn", title: `${it.name} is large`, text: it.kind === "log"
         ? `${it.name} has grown to ${fmtBytes(it.bytes)}. It is written by whatever starts Aurora (pm2 or a start script), not by Aurora — the healer does not touch it.`
@@ -658,5 +673,5 @@ const checkSupervisor = async (ctx = {}) => {
 
 module.exports = {
   checkLibrary, checkBackups, checkUpdates, checkDelivery, checkClock, checkGrowth, checkSupervisor, checkStores,
-  _internals: { judgeSupervisor, judgeStores, judgeDrill, judgeRoots, judgeFiles, judgeBackups, lockDrift, judgeUpdates, judgeDelivery, judgeClock, growthOf, judgeGrowth, patchApplied, gatherDrift, SANE },
+  _internals: { judgeSupervisor, judgeStores, judgeDrill, judgeRoots, judgeFiles, judgeBackups, lockDrift, judgeUpdates, judgeDelivery, judgeClock, growthOf, judgeGrowth, patchApplied, gatherDrift, SANE, OLD_LOG_SAY_BYTES },
 };
