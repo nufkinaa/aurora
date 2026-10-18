@@ -18,6 +18,7 @@ const sublang = require("./sublang");
 const subaudio = require("./subaudio");
 const online = require("./online");
 const scanwalk = require("./scanwalk");
+const scanworkerLib = require("../lib/lazy")(require, "./scanworker");
 const statsnap = require("../lib/statsnap");
 
 const events = new EventEmitter();
@@ -65,6 +66,26 @@ const makeId = (kind, relPath) => {
     idMemo.set(key, id);
   }
   return id;
+};
+
+// path.relative() normalises both sides on every call: 40 ms of a rebuild on
+// a library of 1,800 files. A path made by path.join(root, …) begins with the
+// root itself, and what is relative to it is the rest — the same string.
+// Anything else (a root written with other separators, another drive, the
+// app folder) goes through path.relative as before, remembered.
+const relMemo = new Map();
+const relTo = (from, to) => {
+  if (to.length > from.length + 1 && to.startsWith(from) && to[from.length] === path.sep && !from.endsWith(path.sep)) {
+    return to.slice(from.length + 1);
+  }
+  const k = `${from}\u0000${to}`;
+  let r = relMemo.get(k);
+  if (r === undefined) {
+    r = path.relative(from, to);
+    if (relMemo.size >= 200000) relMemo.clear();
+    relMemo.set(k, r);
+  }
+  return r;
 };
 
 const byPath = new Map(); // absPath -> id (the downloads queue asks "what did my file become?")
@@ -246,8 +267,10 @@ const snapLookup = (snap) => (p) => {
   const name = path.basename(p);
   const entry = list.find((e) => e[0] === name);
   if (!entry) return null;
-  // listed, but of a kind the walk does not date (a cover, a folder)
-  return entry[1] === scanwalk.FILE && STAT_EXTS().has(path.extname(name).toLowerCase()) ? null : undefined;
+  // listed, but of a kind the walk does not date (a cover, a folder — or,
+  // for a walk on the main thread, a subtitle: those are dated when asked)
+  const dated = snap.exts ? snap.exts.includes(path.extname(name).toLowerCase()) : STAT_EXTS().has(path.extname(name).toLowerCase());
+  return entry[1] === scanwalk.FILE && dated ? null : undefined;
 };
 
 const statSafe = (p) => {
@@ -284,14 +307,13 @@ const subtitleBelongsTo = (subBase, videoBase) => {
   );
 };
 
+const KNOWN_LANGUAGE_WORDS = new Set(Object.values(LANGUAGE_NAMES).map((n) => n.toLowerCase()));
 const externalSubtitleLabel = (subFile, videoFile) => {
   const base = path.basename(subFile, path.extname(subFile));
   const videoBase = path.basename(videoFile, path.extname(videoFile));
   if (base === videoBase) return "Subtitles";
 
-  const known = new Set(
-    Object.values(LANGUAGE_NAMES).map((n) => n.toLowerCase()),
-  );
+  const known = KNOWN_LANGUAGE_WORDS;
 
   // "<video>.Hebrew 2.srt" — a numbered track of one language. Several
   // alternatives per language are normal (a downloaded title keeps every track
@@ -418,7 +440,7 @@ const buildSubtitleTracks = (videoAbs, videoRel, videoFile, dir, extraDirs) => {
     const subId = register(
       "subtitle",
       subAbs,
-      path.relative(config.ROOT, subAbs),
+      relTo(config.ROOT, subAbs),
     );
     let label = externalSubtitleLabel(sub.file, videoFile);
     let lang = labelLang(label);
@@ -639,7 +661,7 @@ const scanMovies = () => {
 
       const videoFile = videos[0];
       const videoAbs = path.join(dir, videoFile);
-      const videoRel = path.relative(root, videoAbs);
+      const videoRel = relTo(root, videoAbs);
       const id = register("video", videoAbs, videoRel);
       // A second video in a movie's folder (a 720p beside the 1080p, two
       // releases) is not indexed — the first one is the film — but the admin
@@ -651,7 +673,7 @@ const scanMovies = () => {
         ? register(
             "image",
             path.join(dir, cover),
-            path.relative(root, path.join(dir, cover)),
+            relTo(root, path.join(dir, cover)),
           )
         : null;
       const meta = metadata.getCached(videoAbs);
@@ -721,11 +743,11 @@ const scanShows = () => {
           if (e.isDirectory()) {
             walk(abs);
           } else if (hasExt(e.name, config.VIDEO_EXTENSIONS)) {
-            const rel = path.relative(root, abs);
+            const rel = relTo(root, abs);
             const id = register("video", abs, rel);
             const stat = statSafe(abs);
             const parsed = parseEpisode(e.name);
-            const relDir = path.relative(showDir, dir);
+            const relDir = relTo(showDir, dir);
             const season =
               parsed.season !== null
                 ? parsed.season
@@ -758,7 +780,7 @@ const scanShows = () => {
               subtitles: buildSubtitleTracks(abs, rel, e.name, dir, extraDirs),
             });
           } else if (hasExt(e.name, config.EXTRA_EXTENSIONS)) {
-            const rel = path.relative(root, abs);
+            const rel = relTo(root, abs);
             const id = register("extra", abs, rel);
             const stat = statSafe(abs);
             extras.push({
@@ -807,10 +829,10 @@ const scanShows = () => {
         ? register(
             "image",
             path.join(showDir, cover),
-            path.relative(root, path.join(showDir, cover)),
+            relTo(root, path.join(showDir, cover)),
           )
         : null;
-      const showId = makeId("show", path.relative(root, showDir));
+      const showId = makeId("show", relTo(root, showDir));
       const title = cleanTitle(entry.name);
       const web = online.get("show", title);
 
@@ -942,6 +964,16 @@ const walkOpts = (skipUnchanged) => ({
   statExts: [...STAT_EXTS()],
   skipUnchanged,
 });
+// A scan on the main thread (somebody is waiting for it) reads no more than
+// scans always read: the listings and the size and date of every video and
+// extra — not the folders' dates, nor the subtitles' (the subtitle passes
+// date the few they look at when they look).
+const syncWalkOpts = () => ({
+  movies: config.LIBRARIES.movies,
+  shows: config.LIBRARIES.shows,
+  statExts: [...config.VIDEO_EXTENSIONS, ...config.EXTRA_EXTENSIONS].map((e) => e.toLowerCase()),
+  dateFolders: false,
+});
 
 // The build: the index from a snapshot, no filesystem call (statsnap: the
 // subtitle passes' dates come from it too). -> { movies, shows }
@@ -1024,7 +1056,7 @@ const pruneProbes = (snap) => {
 
 const scan = () => {
   syncScans++;
-  return apply(scanwalk.walk(walkOpts(false)));
+  return apply(scanwalk.walk(syncWalkOpts()));
 };
 
 let asyncRun = null;
@@ -1052,7 +1084,7 @@ const scanAsync = ({ force = false, full = false } = {}) => {
         const syncBefore = syncScans;
         const full = workerWalks++ % FULL_WALK_EVERY === 0 || asyncFull;
         asyncFull = false;
-        const snap = await require("./scanworker").walk(walkOpts(!full));
+        const snap = await scanworkerLib().walk(walkOpts(!full));
         scanStats.async++;
         // a scan on the main thread landed while this walk was out: it saw
         // the disk later than this walk did, so this one is not applied
@@ -1382,5 +1414,5 @@ module.exports = {
   subtitleDownloadName,
   // Test-only: folding "<Title>" and "<Title> (<Year>)" folders into one entry
   // must never drop an episode or renumber a season.
-  _internals: { registrySize: () => registry.size, idMemoSize: () => idMemo.size, pruneProbes, mergeDuplicateShows, uniqueLabels, naturalCompare, isCopyName, copyLastCompare },
+  _internals: { relTo, registrySize: () => registry.size, idMemoSize: () => idMemo.size, pruneProbes, mergeDuplicateShows, uniqueLabels, naturalCompare, isCopyName, copyLastCompare },
 };

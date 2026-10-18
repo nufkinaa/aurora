@@ -207,3 +207,31 @@ test("a changed scan drops probe-cache entries of files the library no longer ho
     scanner.scan();
   }
 });
+
+test("relTo answers what path.relative answers (ids depend on it)", () => {
+  const { relTo } = scanner._internals;
+  const cases = [
+    [movies, path.join(movies, "Alpha (2001)", "Alpha (2001).mkv")],
+    [movies, path.join(movies, "Alpha (2001)")],
+    [shows, path.join(shows, "Gamma", "Season 1", "Gamma S01E01.mkv")],
+    [path.join(shows, "Gamma"), path.join(shows, "Gamma", "Season 1")],
+    [path.join(shows, "Gamma"), path.join(shows, "Gamma")],
+    [movies + path.sep, path.join(movies, "x.mkv")],
+    [movies.split(path.sep).join("/"), path.join(movies, "x.mkv")],
+    [config.ROOT, path.join(movies, "a.srt")],
+    [movies, path.join(root, "elsewhere", "b.mkv")],
+  ];
+  for (const [from, to] of cases) assert.equal(relTo(from, to), path.relative(from, to), `${from} -> ${to}`);
+});
+
+test("a scan on the main thread reads no more than before: no folder dates, no subtitle dates", () => {
+  const real = { statSync: fs.statSync, readdirSync: fs.readdirSync };
+  let stats = 0, reads = 0;
+  fs.statSync = (...a) => { stats++; return real.statSync(...a); };
+  fs.readdirSync = (...a) => { reads++; return real.readdirSync(...a); };
+  try { scanner.scan(); } finally { Object.assign(fs, real); }
+  const videos = scanner.index.movies.length + scanner.index.shows.reduce((n, s) => n + s.episodeCount, 0);
+  assert.ok(reads <= 8, `${reads} listings`);
+  // every video once, plus the extra episode the show index does not count
+  assert.ok(stats <= videos + 2, `${stats} stats for ${videos} videos`);
+});

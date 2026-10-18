@@ -48,7 +48,9 @@ const crypto = require("crypto");
 const DIR = 1;
 const FILE = 2;
 
-const walk = ({ movies = [], shows = [], statExts = [], prev = null, skipUnchanged = false } = {}) => {
+// dateFolders: false — no stat of the folders themselves (a walk on the
+// main thread, which keeps no previous walk to compare dates with)
+const walk = ({ movies = [], shows = [], statExts = [], prev = null, skipUnchanged = false, dateFolders = true } = {}) => {
   const exts = new Set(statExts.map((e) => String(e).toLowerCase()));
   const dirs = Object.create(null);
   const dirAt = Object.create(null);
@@ -81,8 +83,10 @@ const walk = ({ movies = [], shows = [], statExts = [], prev = null, skipUnchang
     const list = entries.map((e) => [e.name, e.isDirectory() ? DIR : e.isFile() ? FILE : 0]);
     dirs[dir] = list;
     let at = null;
-    calls.stat++;
-    try { at = fs.statSync(dir).mtimeMs; } catch { at = null; }
+    if (dateFolders || usable) {
+      calls.stat++;
+      try { at = fs.statSync(dir).mtimeMs; } catch { at = null; }
+    }
     if (at != null) dirAt[dir] = at;
     const before = usable && at != null && prev.dirAt[dir] === at ? prev.dirs[dir] : null;
     const same = !!before && sameList(before, list);
@@ -112,7 +116,7 @@ const walk = ({ movies = [], shows = [], statExts = [], prev = null, skipUnchang
       deep(path.join(root, name));
     }
   }
-  return { dirs, dirAt, files, hash: digest(dirs, files), calls, reused };
+  return { dirs, dirAt, files, exts: [...exts], hash: digest(dirs, files), calls, reused };
 };
 
 const sameList = (a, b) => {
