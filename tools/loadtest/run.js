@@ -74,7 +74,7 @@ const loadLibrary = async (ctx, srv) => {
   let lib = null;
   for (const end = Date.now() + 15 * 60000; ;) {
     lib = await d.getJson("setup", `/api/library?profile=${srv.sessions[0].profileId}`, { timeoutMs: 120000 });
-    if (lib.json && lib.json.enriched && (lib.json.movies || []).every((m) => m.duration > 0)) break;
+    if (lib.json && (lib.json.movies || []).length && (lib.json.movies || []).every((m) => m.duration > 0)) break;
     if (Date.now() > end) break;
     await sleep(5000);
   }
