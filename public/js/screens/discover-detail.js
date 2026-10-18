@@ -2854,16 +2854,29 @@ const offlineButton = (item, { compact = false, rail = false } = {}) => {
     btn.append(el("span", { class: compact ? "btn-label" : "" }, text));
     btn.title = compact ? text : btn.title;
   };
+  // A save of this title already under way (started here before the page
+  // was left, or by "Save the next 3"): its progress, and a press cancels.
+  const running = () => { const j = offline.jobFor(item.id); return j && offline.ACTIVE_JOB.has(j.state) ? j : null; };
   const paint = async () => {
+    const j = running();
+    if (j && !busy) {
+      btn.classList.add("busy");
+      const p = Math.round((j.pct || 0) * 100);
+      face(j.state === "queued" ? "Queued" : j.state === "preparing" ? `Preparing ${p}%` : `Saving ${p}%`, "⏳");
+      return;
+    }
+    if (!busy) btn.classList.remove("busy");
     saved = await offline.isSaved(item.id).catch(() => false);
     btn.classList.toggle("saved", saved);
     face(saved ? "Saved ✓" : "Save offline", saved ? "✅" : "📱");
   };
+  untilLeave(offline.onJobs(() => { if (!busy) paint(); }));
   btn.onclick = async () => {
     if (busy) {
       if (aborter) aborter.abort(); // a press while saving cancels
       return;
     }
+    if (running()) return void offline.cancelJob(item.id);
     if (saved) {
       await offline.removeSaved(item.id);
       toast("Removed from this device", "🗑");
@@ -2933,8 +2946,13 @@ const seasonOfflineButton = (nextEpisodes, showTitle) => {
     btn.classList.add("busy");
     let quality = null; // asked once, on the first episode, then reused
     let done = 0;
+    // the ones after the first wait their turn — and say so on "On this device"
+    const asItem = (e) => ({ ...e.local, title: `${showTitle} S${e.season}E${e.episode}` });
+    for (const e of rows.slice(1)) offline.queueJob(asItem(e));
     try {
       for (const [i, e] of rows.entries()) {
+        // (taken off the queue on "On this device" meanwhile: skipped)
+        if (i > 0 && !offline.jobFor(e.local.id)) continue;
         const tag = `${i + 1} of ${rows.length}`;
         const saved = await offline.saveItem(
           { ...e.local, title: `${showTitle} S${e.season}E${e.episode}` },
@@ -2958,6 +2976,8 @@ const seasonOfflineButton = (nextEpisodes, showTitle) => {
       if (e && e.name === "AbortError") toast(done ? `Stopped — ${done} saved` : "Save cancelled", "📱");
       else toast(`Saved ${done} — then: ${e.message}`, "⚠️");
     }
+    // still queued after a stop, an error or a dismissed size sheet: not coming
+    for (const e of rows) { const j = offline.jobFor(e.local.id); if (j && j.state === "queued") offline.dismissJob(e.local.id); }
     aborter = null;
     busy = false;
     btn.classList.remove("busy");

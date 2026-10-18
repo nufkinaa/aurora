@@ -9,6 +9,8 @@ import { reportActivity, onMessage } from "../ws.js";
 import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem } from "../party.js";
 import { showReportSheet, setPlayingContext } from "../report.js";
 import * as offline from "../offline.js";
+import { localItem, localPosition, saveLocalPosition, sniffLocal } from "../localplay.js";
+import { failureSentence } from "../localsubs.js";
 import { track } from "../usage.js";
 import { uiHit, reportError, playMounted, playFirstFrame, playGone } from "../telemetry.js"; // [analytics]
 import { playCap, capFor, netTier, measured, probe, dataMode } from "../net.js";
@@ -576,9 +578,21 @@ export const renderPlayer = async (root, { id }) => {
   // comes from this device's store and the bytes from the service worker's
   // media cache — no server involved, no probe, no transcode decisions.
   const offlineMode = location.hash.includes("offline=1");
+  // A file from this device (#/play/local-…?local=1, js/localplay.js): the
+  // video and its subtitles are object URLs in this tab — no server at all,
+  // and nothing about the file is sent to one. It counts as `_offline` too,
+  // so every rule for a saved copy (no probe, no transcode, no server marks)
+  // holds; `_local` hides what needs the server even when it is there.
+  const localMode = location.hash.includes("local=1");
   // Torrent sources are handed over directly by the Discover page (no server
   // round-trip); fall back to the API for library items or a page refresh.
-  if (offlineMode) {
+  if (localMode) {
+    item = localItem(itemId);
+    if (!item) {
+      toast("That file is no longer open here — pick it again", "📂");
+      return navigate("#/saved");
+    }
+  } else if (offlineMode) {
     const saved = await offline.getSaved(itemId).catch(() => null);
     if (!saved) {
       toast("That title isn't saved on this device", "📱");
@@ -635,7 +649,7 @@ export const renderPlayer = async (root, { id }) => {
       : Promise.resolve(null);
   // The stream's first asks go out NOW, beside the progress read — they do
   // not depend on it (see prestart).
-  if (!isTorrent && !offlineMode) prestart(item, { restart });
+  if (!isTorrent && !offlineMode && !localMode) prestart(item, { restart });
   // The title page this player was opened from read the profile's progress
   // moments ago, to draw its Play / Resume button: that answer is the one the
   // viewer just acted on, and asking again only put a round trip between the
@@ -645,8 +659,15 @@ export const renderPlayer = async (root, { id }) => {
   // start's read. A read that failed never looks fresh, so the rule below —
   // no saving over a history that could not be read — is not got round.
   const historyFresh = progressAge() < PROGRESS_FRESH_MS;
-  const [owned, historyRead0] = await Promise.all([ownedP, historyFresh ? true : refreshProgress()]);
+  const [owned, historyRead0] = await Promise.all([ownedP, historyFresh || localMode ? true : refreshProgress()]);
   if (location.hash !== entryHash) return;
+  // A file from this device resumes where it was left ON this device (by
+  // its name and size — localplay.js); nothing about it is on the server.
+  if (localMode) {
+    const p = localPosition(item.localKey);
+    if (p) state.progress[item.id] = { position: p.position, duration: p.duration, finished: !!p.finished, updatedAt: p.at };
+    else delete state.progress[item.id];
+  }
   // The saved position is read here, and the save loop below WRITES over it.
   // A read that fails leaves "no progress": the film would start at 0:00 and
   // a few seconds later the real resume point (an hour in) would be replaced
@@ -763,7 +784,8 @@ export const renderPlayer = async (root, { id }) => {
   };
   mark("mount", { container: item.container || null, video: item.video && item.video.codec, audio: item.audio && item.audio.codec });
   playMounted(); // [analytics] a play is starting: nothing is sent until its first frame
-  setPlayingContext({ id: item.id, title: isEpisode ? `${item.showTitle} S${item.season}E${item.episode}` : item.title, marks: () => playMarks.slice() });
+  // (a file from this device: its name stays here — not in a report either)
+  if (!item._local) setPlayingContext({ id: item.id, title: isEpisode ? `${item.showTitle} S${item.season}E${item.episode}` : item.title, marks: () => playMarks.slice() });
 
   // ---------- element tree ----------
   const video = el("video", {
@@ -1728,6 +1750,17 @@ export const renderPlayer = async (root, { id }) => {
     }
     closeMenu();
     showControls();
+    // A file from this device: the browser's own audio tracks (where it
+    // offers them — Safari; Chrome behind a flag) — one on, the rest off.
+    if (item._local) {
+      try {
+        const at = video.audioTracks;
+        for (let i = 0; i < at.length; i++) at[i].enabled = i === idx;
+      } catch {}
+      const t = (item.audioTracks || [])[idx];
+      toast(`Audio: ${audioTrackName(t || {}, idx)}`, "🔈");
+      return;
+    }
     // on a TV: the TV is sent the same film with the other track (js/airplay.js)
     if (onAir()) {
       const t = (item.audioTracks || []).find((x, i) => (x.index != null ? x.index : i) === idx);
@@ -2681,7 +2714,7 @@ export const renderPlayer = async (root, { id }) => {
     }
   };
   const airBtn = btn("AirPlay", icons.airplay, () => { if (air) air.pick(); }, "airplay-btn hidden");
-  air = createAirplay({
+  air = item._local ? null : createAirplay({
     video,
     item,
     link: (p) => api.airplayLink(p, state.profile && state.profile.id),
@@ -2745,6 +2778,7 @@ export const renderPlayer = async (root, { id }) => {
         el("div", { class: "player-title" }, title),
         subtitleText && el("div", { class: "player-subtitle" }, subtitleText),
         isTorrent && el("span", { class: "torrent-badge" }, "TORRENT"),
+        item._local && el("span", { class: "torrent-badge local-badge", title: "Playing from this device — nothing is uploaded" }, "ON THIS DEVICE"),
         // the pill up top says what matters while watching: resolution,
         // HDR flavour, sound — not the codec or that there are subtitles
         formatRow(item, { max: 3, codec: false, subs: false }),
@@ -2772,7 +2806,9 @@ export const renderPlayer = async (root, { id }) => {
           nextBtn),
         el("div", { class: "vol-group" }, muteBtn, volSlider),
         el("div", { class: "player-spacer" }),
-        el("div", { class: "pc-tools" }, ccBtn, speedBtn, item._offline && !item.xray ? null : xrayBtn, partyBtn, gearBtn, pipBtn, airBtn, fsBtn),
+        // (a file from this device: no Watch together, X-Ray or AirPlay — each
+        // needs the server to have the film)
+        el("div", { class: "pc-tools" }, ccBtn, speedBtn, item._offline && !item.xray ? null : xrayBtn, item._local ? null : partyBtn, gearBtn, pipBtn, item._local ? null : airBtn, fsBtn),
       ),
     ),
     menuHost,
@@ -2804,7 +2840,8 @@ export const renderPlayer = async (root, { id }) => {
   const activityLabel = isEpisode
     ? `${item.showTitle} S${item.season}E${item.episode}`
     : item.title;
-  reportActivity("Watching", activityLabel);
+  // (a file from this device is nobody's business on the server's live view)
+  if (!item._local) reportActivity("Watching", activityLabel);
 
   // ---------- playback state ----------
   let activeTrack = -1;
@@ -3369,6 +3406,14 @@ export const renderPlayer = async (root, { id }) => {
     // "eng", "English - SDH") are read as their language by normPick; anything
     // it cannot place counts as nothing remembered.
     const last = normPick(profilePick("subPick"));
+    // A file from this device whose subtitles were picked WITH it: they were
+    // asked for just now, so one goes on — the remembered or the Settings
+    // language when it is among them, else the first one picked.
+    if (item._local && (item.subtitles || []).some((t) => t.local)) {
+      const want = last && last !== "off" ? last : prefs.get("subLang", "any");
+      const i = bestTrackIndex(item.subtitles || [], want);
+      return i >= 0 ? i : Math.max(0, (item.subtitles || []).findIndex((t) => t.local));
+    }
     if (last === "off") return -1;
     if (last) {
       const i = bestTrackIndex(item.subtitles || [], last);
@@ -3529,7 +3574,8 @@ export const renderPlayer = async (root, { id }) => {
   // forever. Recreate the <track> element with a cache-buster to refetch.
   const reloadTrackEl = (trackEl) => {
     const src = trackEl.getAttribute("src") || "";
-    const bust = `${src}${src.includes("?") ? "&" : "?"}retry=${Date.now()}`;
+    // (an object URL takes no query — and is never stale: the same one again)
+    const bust = /^(blob|data):/i.test(src) ? src : `${src}${src.includes("?") ? "&" : "?"}retry=${Date.now()}`;
     const fresh = el("track", {
       kind: "subtitles",
       label: trackEl.label || "",
@@ -3750,7 +3796,9 @@ export const renderPlayer = async (root, { id }) => {
       // the server (resyncSubs above) — or, for a torrent stream, the old
       // refetch-and-re-anchor.
       const shown = activeTrack >= 0 ? (item.subtitles || [])[activeTrack] : null;
-      menu.append(
+      // (a file from this device: there is no film on the server to listen
+      // to — the timing buttons below are the way to line its subtitles up)
+      if (!item._local) menu.append(
         el(
           "button",
           {
@@ -3968,8 +4016,8 @@ export const renderPlayer = async (root, { id }) => {
             );
           }
         }
-        menu.append(menuTitle("play", "Playback"));
-        menu.append(
+        if (!item._local) menu.append(menuTitle("play", "Playback"));
+        if (!item._local) menu.append(
           entry(
             "Autoplay next episode",
             prefs.get("autoplayNext", true) ? "On" : "Off",
@@ -4008,8 +4056,10 @@ export const renderPlayer = async (root, { id }) => {
         // from the menu (elia). Detection and the public timestamp databases
         // do that job now; a wrong mark can still be removed in the admin,
         // under Inbox → Skip-intro marks.)
-        menu.append(menuTitle("info", "Help"));
-        menu.append(entry("Report a problem", "with this title", () => { closeMenu(); showReportSheet({ hint: "from the player" }); }));
+        if (!item._local) {
+          menu.append(menuTitle("info", "Help"));
+          menu.append(entry("Report a problem", "with this title", () => { closeMenu(); showReportSheet({ hint: "from the player" }); }));
+        }
       };
       rebuild();
     }
@@ -4687,6 +4737,15 @@ export const renderPlayer = async (root, { id }) => {
   };
 
   const saveProgress = () => {
+    // A file from this device: where it was left, kept on this device only.
+    if (item._local) {
+      const d = totalDuration();
+      if (!d) return;
+      const pos = effTime();
+      saveLocalPosition(item.localKey, pos, d);
+      state.progress[item.id] = { position: Math.floor(pos), duration: Math.floor(d), finished: pos / d > 0.95, updatedAt: Date.now() };
+      return;
+    }
     // Never write over a history we could not read (see where it is read).
     if (progressReadFailed) return;
     const d = totalDuration();
@@ -5491,12 +5550,14 @@ export const renderPlayer = async (root, { id }) => {
   // try again from this second, or go back.
   let errorCard = null;
   const hideErrorCard = () => { if (errorCard) errorCard.remove(); errorCard = null; };
-  const showErrorCard = (message, retry) => {
+  // (`retry` null: nothing to try again — a file this browser cannot play;
+  // `title` replaces "Playback stopped", `back` the label of the way out)
+  const showErrorCard = (message, retry, { title = "Playback stopped", back = "Back" } = {}) => {
     if (exited) return;
     reportError("media", "the player showed its error card"); // [analytics] that it happened, never the words on it
     hideErrorCard();
     spinner.classList.add("hidden");
-    const again = el("button", { "data-ui": "player.retry",
+    const again = retry ? el("button", { "data-ui": "player.retry",
       class: "btn btn-primary focusable",
       onclick: () => {
         hideErrorCard();
@@ -5504,18 +5565,90 @@ export const renderPlayer = async (root, { id }) => {
         track("feat", { f: "player_retry" });
         try { retry(); } catch {}
       },
-    }, "Try again");
+    }, "Try again") : null;
+    const backBtn = el("button", { class: `btn focusable${again ? "" : " btn-primary"}`, onclick: () => exit() }, back);
     errorCard = el("div", { class: "player-error", role: "alert" },
       el("div", { class: "player-error-glyph" }, "⚠️"),
-      el("h3", {}, "Playback stopped"),
+      el("h3", {}, title),
       el("p", {}, message),
       el("div", { class: "player-error-actions" },
         again,
-        el("button", { class: "btn focusable", onclick: () => exit() }, "Back")));
+        backBtn));
     overlay.append(errorCard);
-    setTimeout(() => { try { again.focus(); } catch {} }, 0);
+    setTimeout(() => { try { (again || backBtn).focus(); } catch {} }, 0);
   };
-  video.addEventListener("playing", hideErrorCard);
+  video.addEventListener("playing", () => { if (!localRefusedShown) hideErrorCard(); });
+
+  // ---- a file from this device that this browser will not play ----
+  // The browser decides what plays: H.264 / AAC in an MP4 everywhere, WebM,
+  // MKV with H.264 in Chrome and Edge, HEVC only where the device decodes it,
+  // AC-3 / DTS sound mostly nowhere. There is no server to convert it, so the
+  // player says WHICH part was refused (sniffed from the file's own bytes,
+  // localplay.js) and what would play — never a black screen with a spinner.
+  let localRefusedShown = false;
+  const localRefused = async (what) => {
+    if (localRefusedShown || exited) return;
+    localRefusedShown = true;
+    const info = await sniffLocal(item.id);
+    if (exited) return;
+    try { video.pause(); } catch {}
+    showErrorCard(failureSentence(what, info), null, { title: "Can't play this file here", back: "Choose another file" });
+  };
+  let localNoSoundSaid = false;
+  if (item._local) {
+    // the sound plays but there is no picture: the video codec was refused
+    // (an audio-only file names no video codec and is left alone)
+    video.addEventListener("loadedmetadata", async () => {
+      if (video.videoWidth || video.videoHeight) return;
+      const info = await sniffLocal(item.id);
+      if (info.video && !exited) localRefused("video");
+    });
+    // the picture plays in silence: the audio codec was refused. Chromium
+    // counts decoded audio bytes; nothing decoded a few seconds into playing
+    // a file that names an audio codec is that. Said once, as a note — the
+    // film goes on.
+    video.addEventListener("playing", () => {
+      setTimeout(async () => {
+        if (exited || localNoSoundSaid || localRefusedShown || video.paused) return;
+        if (typeof video.webkitAudioDecodedByteCount !== "number" || video.webkitAudioDecodedByteCount > 0) return;
+        const info = await sniffLocal(item.id);
+        if (!info.audio || exited) return;
+        localNoSoundSaid = true;
+        toast(failureSentence("audio", info), "🔇");
+      }, 2500);
+    });
+    // the browser's own audio tracks (Safari; Chrome behind a flag), for the
+    // Settings menu's Audio section
+    video.addEventListener("loadedmetadata", () => {
+      try {
+        const at = video.audioTracks;
+        if (!at || at.length < 2) return;
+        item.audioTracks = [...at].map((t, i) => ({ index: i, language: t.language || "", title: t.label || "" }));
+        const on = [...at].findIndex((t) => t.enabled);
+        audioIdx = on >= 0 ? on : 0;
+      } catch {}
+    });
+    // Subtitle tracks INSIDE the file (an MKV's, an MP4's), where the
+    // browser exposes them as text tracks (Safari does for MP4; Chromium does
+    // not): they join the menu after the files that were picked with it.
+    // Nothing here reads the file itself.
+    video.addEventListener("loadedmetadata", () => {
+      try {
+        // (the menu's entries are the text tracks in order: the <track>
+        // elements first, then the file's own — kept in step, index by index)
+        const own = video.querySelectorAll("track").length;
+        const tt = video.textTracks;
+        let added = 0;
+        for (let i = own; i < tt.length; i++) {
+          if ((item.subtitles || []).some((s) => s.inband === tt[i])) continue;
+          if (item.subtitles.length !== i || !/^(subtitles|captions)$/.test(tt[i].kind)) break;
+          item.subtitles.push({ label: tt[i].label || `${tt[i].language ? tt[i].language.toUpperCase() : "Track"} (in the file)`, lang: tt[i].language || "", embedded: true, inband: tt[i] });
+          added++;
+        }
+        if (added) ccBtn.classList.remove("hidden");
+      } catch {}
+    });
+  }
 
   // ---- a stream that silently stops (2026-10-08) ----
   // The picture freezes, nothing errors, and the viewer reaches for the
@@ -5808,6 +5941,8 @@ export const renderPlayer = async (root, { id }) => {
     // (js/airplay.js) — never this device's fallbacks below
     if (air && air.onError()) return;
     if (onAir()) return;
+    // a file from this device: no server to convert it — say why, once
+    if (item._local) return void localRefused("file");
     // A decode/format error on a direct torrent stream → try the transcode
     // before giving up.
     if (canFallback && !switchedToTranscode) {
@@ -5884,6 +6019,7 @@ export const renderPlayer = async (root, { id }) => {
 
   saveTimer = setInterval(() => {
     if (!video.paused) saveProgress();
+    if (item._local) return;
     // Keep the admin panel's live view honest: position/duration ride along,
     // paused or not (a paused player still holds the title open).
     reportActivity("Watching", activityLabel, {
@@ -6123,7 +6259,7 @@ export const renderPlayer = async (root, { id }) => {
     }
   }
   const unsubOcr = onMessage("subtitle_ocr", async (msg) => {
-    if (msg.status !== "done") return;
+    if (msg.status !== "done" || item._local) return;
     try {
       const fresh = await api.item(item.id);
       const have = new Set((item.subtitles || []).map((t) => t.url));
