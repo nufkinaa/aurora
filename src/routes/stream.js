@@ -41,66 +41,69 @@ const resolveKind = (id, kind) => {
   return entry && entry.kind === kind ? entry : null;
 };
 
-// Video streaming with HTTP range support
+// Video streaming with HTTP range support. What the RFC asks of a byte
+// server (validators, If-Range, 416, HEAD) is lib/rangeserve.js; how the
+// bytes leave the disk is lib/diskread.js — 1 MB reads that take turns per
+// disk, so many viewers on one hard disk share it fairly instead of making
+// its head jump between them on every 64 KB (measured: STREAMING.md).
+const rangeserve = require("../lib/rangeserve");
+const diskread = require("../lib/diskread");
 router.get("/stream/video/:id", (req, res) => {
   const entry = resolveKind(req.params.id, "video");
-  if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
+  const stat = entry && rangeserve.statOf(entry.path);
+  if (!stat) return res.status(404).send("Not found");
 
-  const stat = fs.statSync(entry.path);
   const total = stat.size;
   const mime = MIME[path.extname(entry.path).toLowerCase()] || "video/mp4";
-  const range = req.headers.range;
 
   // Tear the read stream down on client disconnect (seek/close) so we don't
   // leak file descriptors on the hottest route, and handle read errors instead
   // of letting them throw up to the global uncaughtException net.
-  const onErr = () => { if (!res.headersSent) res.status(500).end(); else res.end(); };
+  const onErr = () => {
+    rangeserve.forgetStat(entry.path); // (the file may have changed under us)
+    if (!res.headersSent) res.status(500).end(); else res.destroy();
+  };
   // An MP4 with its index at the end goes out with the index in front
   // (media/faststart.js): the same length, the same film, two round trips
   // fewer before a player can show a frame. null = as it is on disk.
-  const plan = require("../config").SERVE_FASTSTART ? faststart.planFor(entry.path, stat) : null;
+  const plan = configLib().SERVE_FASTSTART ? faststart.planFor(entry.path, stat) : null;
+  const etag = rangeserve.etagOf(stat, plan ? "fs" : "");
+  const lastModified = rangeserve.lastModifiedOf(stat);
+  const common = {
+    "Accept-Ranges": "bytes",
+    "Content-Type": mime,
+    ETag: etag,
+    "Last-Modified": lastModified,
+    // a signed-in viewer's film: never kept by a shared cache (a proxy)
+    "Cache-Control": "private, max-age=0",
+  };
 
-  if (range) {
-    const m = range.match(/bytes=(\d*)-(\d*)/);
-    let start, end;
-    if (m && !m[1] && m[2]) {
-      // Suffix range (bytes=-N): the last N bytes
-      const n = Math.min(parseInt(m[2], 10), total);
-      start = total - n;
-      end = total - 1;
-    } else {
-      start = m && m[1] ? parseInt(m[1], 10) : 0;
-      end = m && m[2] ? parseInt(m[2], 10) : total - 1;
-      if (end >= total) end = total - 1;
-    }
-    if (isNaN(start) || isNaN(end) || start > end || start >= total) {
-      res.writeHead(416, { "Content-Range": `bytes */${total}` });
-      return res.end();
-    }
-
-    res.writeHead(206, {
-      "Content-Range": `bytes ${start}-${end}/${total}`,
-      "Accept-Ranges": "bytes",
-      "Content-Length": end - start + 1,
-      "Content-Type": mime,
-    });
-    if (plan) return faststart.pipe(entry.path, plan, start, end, res, onErr);
-    const s = fs.createReadStream(entry.path, { start, end });
-    s.on("error", onErr);
-    s.pipe(res);
-    res.on("close", () => s.destroy());
-  } else {
-    res.writeHead(200, {
-      "Content-Length": total,
-      "Content-Type": mime,
-      "Accept-Ranges": "bytes",
-    });
-    if (plan) return faststart.pipe(entry.path, plan, 0, total - 1, res, onErr);
-    const s = fs.createReadStream(entry.path);
-    s.on("error", onErr);
-    s.pipe(res);
-    res.on("close", () => s.destroy());
+  let range = rangeserve.parseRange(req.headers.range, total);
+  if (!range.none && !rangeserve.ifRangeOk(req.headers, etag, lastModified)) range = { none: true }; // changed: all of it
+  if (range.none && rangeserve.notModified(req.headers, etag, stat)) {
+    res.writeHead(304, { ETag: etag, "Last-Modified": lastModified, "Cache-Control": common["Cache-Control"] });
+    return res.end();
   }
+  if (range.unsatisfiable) {
+    res.writeHead(416, { "Content-Range": `bytes */${total}`, "Accept-Ranges": "bytes" });
+    return res.end();
+  }
+  const start = range.none ? 0 : range.start;
+  const end = range.none ? total - 1 : range.end;
+  if (range.none) {
+    res.writeHead(200, { ...common, "Content-Length": total });
+  } else {
+    res.writeHead(206, { ...common, "Content-Range": `bytes ${start}-${end}/${total}`, "Content-Length": end - start + 1 });
+  }
+  // HEAD: the headers are the answer — the file is not read
+  if (req.method === "HEAD" || total === 0) return res.end();
+  rangeserve.watch(res); // a client that stopped reading for good is let go
+  const open = (file, o) => diskread.createReadStream(file, { ...o, dev: stat.dev });
+  if (plan) return faststart.pipe(entry.path, plan, start, end, res, onErr, open);
+  const s = open(entry.path, { start, end });
+  s.on("error", onErr);
+  s.pipe(res);
+  res.on("close", () => s.destroy());
 });
 
 // File download (videos and extras like APKs)
