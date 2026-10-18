@@ -70,6 +70,7 @@ const { execFile } = require("child_process");
 const lazy = require("../lib/lazy");
 const powerLib = lazy(require, "../lib/power");
 const childrenLib = lazy(require, "../lib/children");
+const cpucountLib = lazy(require, "../lib/cpucount");
 
 const QUIET_MS = 20 * 1000; // no viewer encode for this long = the coast is clear
 const BUDGET = 2; // background units that may run together (on a big machine — budget() below)
@@ -93,7 +94,9 @@ const deps = {
   setPriority: (pid, prio) => os.setPriority(pid, prio),
   kill: (child, sig) => child.kill(sig),
   platform: process.platform,
-  cpus: () => (typeof os.availableParallelism === "function" ? os.availableParallelism() : os.cpus().length),
+  // (the CPUs this process may use: affinity, cpuset, cgroup quota — lib/cpucount.js,
+  // the one count every budget takes: encbudget, the ladder, this)
+  cpus: () => cpucountLib().count(),
   low: () => { try { return powerLib().low(); } catch { return false; } },
   now: () => Date.now(),
   setTimeout: (fn, ms) => { const t = setTimeout(fn, ms); t.unref?.(); return t; },
@@ -129,6 +132,8 @@ const viewer = {
     const id = ++viewerSeq;
     const entry = {
       id, kind: meta.kind || "encode", label: meta.label || "", cost: meta.cost || 1, memMb: meta.memMb || 0, since: deps.now(), pid: child && child.pid, release: null,
+      // which encoder, and why that one (the admin page says so beside it)
+      encoder: meta.encoder || null, why: meta.why || null,
       // `idle()`: its viewer has gone (it is still running); `reclaim()`: stop it
       idle: typeof meta.idle === "function" ? meta.idle : null,
       reclaim: typeof meta.reclaim === "function" ? meta.reclaim : null,

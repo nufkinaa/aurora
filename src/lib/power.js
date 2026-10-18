@@ -44,7 +44,11 @@ const LOW_MAX_MEMORY = 6 * 1024 * 1024 * 1024;
 const LOW_MAX_HEAP = 1024 * 1024 * 1024;
 const GB = 1024 * 1024 * 1024;
 
+// (lib/cpucount.js: the one count of the CPUs this process may use — the
+// affinity mask / cpuset AND, on Linux, a cgroup CPU quota; the encoder
+// budget, the ladder and cpuwork take the same number)
 const threads = () => {
+  try { return require("./cpucount").count(); } catch {}
   try { return typeof os.availableParallelism === "function" ? os.availableParallelism() : os.cpus().length; } catch { return 1; }
 };
 // the machine's memory, or the container's limit when that is lower

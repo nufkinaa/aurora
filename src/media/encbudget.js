@@ -139,9 +139,16 @@ const memOf = (j = {}) => {
 
 // ------------------------------------------------------------- the machine
 
+// The CPUs this process may use: all of them, unless it was started with
+// fewer (an affinity mask, `taskset`, `start /affinity`, a container's
+// cpuset, a cgroup CPU quota — lib/cpucount.js). A 2-core slice of a
+// 16-thread box is sized as 2 cores.
+const restricted = () => { try { return require("../lib/cpucount").restricted(); } catch { return 0; } };
+const logicalCpus = () => restricted() || Math.max(1, deps.cpus().length);
+
 const cpuKey = () => {
   const c = deps.cpus();
-  return { cpu: (c[0] && c[0].model ? c[0].model : "unknown").trim(), logical: c.length };
+  return { cpu: (c[0] && c[0].model ? c[0].model : "unknown").trim(), logical: logicalCpus() };
 };
 
 // "auto" | n (1..MAX_FIXED) — what the admin chose; anything else is auto.
@@ -205,7 +212,7 @@ const sampleOther = (encoding) => {
 const capacity = () => {
   const m = mode();
   if (m.fixed) return m.fixed;
-  return Math.round(deps.cpus().length * (1 - otherShare()) * speed() * HEADROOM * 100) / 100;
+  return Math.round(logicalCpus() * (1 - otherShare()) * speed() * HEADROOM * 100) / 100;
 };
 // What one job counts as. A fixed limit is a plain count: every job is 1.
 const costFor = (spec) => (mode().fixed ? 1 : costOf(spec));
@@ -389,6 +396,22 @@ const judge = (key, p, now) => {
   // encoder slow, and refusing other viewers would not help it
   const busy = sampleCpu();
   if (busy != null && busy < BUSY_CPU) return;
+  // …and it is AURORA's encoders that keep them busy. Other programs on the
+  // machine (a build, a game, another server) used to be enough: their load
+  // slowed an encode, and every new viewer was refused for it — at 24
+  // streams beside foreign load, encoded starts took 62–83 s (load test,
+  // 2026-10-18). Refusing our own viewers does not give their CPU back. So
+  // the gate closes only when our encoders' own use is at least OWN_SHARE of
+  // what is busy: on a box that only serves, that is always so when it is
+  // behind; beside other work it is said, and nobody is refused for it.
+  const own = ownShare(now);
+  if (busy != null && own < OWN_SHARE * busy) {
+    if (now - (state.foreignSaidAt || 0) > 60 * 1000) {
+      state.foreignSaidAt = now;
+      console.warn(`[encode] an encode is behind real time (${s.toFixed(2)}×) while the CPUs are ${Math.round(busy * 100)}% busy, ${Math.round(own * 100)}% of the machine ours — other programs are the load; new viewers are not refused for it`);
+    }
+    return;
+  }
   if (now >= state.overloadedUntil) {
     state.overloadWhy = `an encode somebody is watching is making ${s.toFixed(2)} s of film per second`;
     console.warn(`[encode] falling behind real time (${state.overloadWhy}; CPUs ${busy == null ? "?" : Math.round(busy * 100)}% busy) — no new encodes for ${OVERLOAD_HOLD_MS / 1000} s, background work set aside`);
@@ -397,12 +420,29 @@ const judge = (key, p, now) => {
   state.overloadedUntil = now + OVERLOAD_HOLD_MS;
 };
 const overloaded = () => deps.now() < state.overloadedUntil;
+// What share of the whole machine Aurora's own encoders are using now: each
+// running encoder's cost (thread-seconds per film-second, on the reference
+// machine) × the film it is making per second ÷ this machine's speed per
+// thread, over all logical CPUs. An encoder too new to have a speed counts
+// as running at real time.
+const OWN_SHARE = 0.5;
+const ownShare = (now = deps.now()) => {
+  let threads = 0;
+  for (const [key, p] of state.progress) {
+    const last = p.samples[p.samples.length - 1];
+    if (!last || now - last.t > BEHIND_FOR_MS * 2) continue;
+    const cost = key && typeof key === "object" && key.cost > 0 ? key.cost : unit();
+    const sp = speedOf(p, now);
+    threads += (cost * (sp == null ? 1 : Math.max(0, sp))) / Math.max(0.05, speed());
+  }
+  return Math.min(1, threads / logicalCpus());
+};
 
 // ------------------------------------------------------------ for a person
 
 const explain = () => {
   const m = mode();
-  const logical = deps.cpus().length;
+  const logical = logicalCpus();
   const cap = capacity();
   const freeMb = Math.round(deps.freemem() / 1048576);
   const base = {
@@ -482,7 +522,7 @@ const _reset = () => {
 };
 
 module.exports = {
-  start, calibrate, refine, capacity, costFor, costOf, memOf, unit, reserve, slots, admit, progress, forget, overloaded, explain, override,
+  start, calibrate, refine, capacity, costFor, costOf, memOf, unit, reserve, slots, admit, progress, forget, overloaded, explain, override, ownShare,
   HEADROOM, COST_REF, REF_CAL, MAX_FIXED,
   _internals: { deps, state, measure, calArgs, outDims, memBudgetMb, speed, sampleCpu, sampleOther, otherShare, _reset, BEHIND_FOR_MS, OVERLOAD_HOLD_MS, UNKNOWN_SPEED, MEM_RESERVE_MB },
 };

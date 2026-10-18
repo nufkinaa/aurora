@@ -126,8 +126,9 @@ const simulate = (table, keyframes, fromSeg, { reportFirst = false } = {}) => {
       if (step.wait) return null;
       if (step.fail) return step.fail;
       published[step.seg] = step.members.map((i) => run.gops[i].start);
+      for (const m of step.alias || []) published[m] = { alias: step.seg };
       run.cursor = step.members[step.members.length - 1] + 1;
-      run.nextSeg = step.seg + 1;
+      run.nextSeg = (step.alias && step.alias.length ? step.alias[step.alias.length - 1] : step.seg) + 1;
     }
   };
   for (let i = first; i < keyframes.length; i++) {
@@ -226,19 +227,28 @@ test("grouping: keyframes the index never listed are just GOPs inside their segm
   }
 });
 
-test("grouping: a cue that is not a keyframe fails the job instead of publishing a lie", () => {
+test("grouping: a cue that is not a keyframe (a damaged stretch) is bridged to the next true boundary", () => {
   // the index claims a keyframe at 51.5 — there is none (damaged file / bad muxer)
   const cues = [...KF, 51.5].sort((a, b) => a - b);
   const table = tableOf(cues);
   const bad = table.findIndex((s) => Math.abs(s.start - 51.5) < 1e-9);
   assert.ok(bad > 0, "the bogus cue became a boundary");
   const top = simulate(table, KF, 0);
-  assert.match(top.fail, new RegExp(`segment ${bad}: next keyframe at 51\\.635s, playlist says 51\\.500s`));
-  assert.equal(top.published[bad - 1], undefined, "the segment that would have run long is not published");
-  assert.ok(top.published[bad - 2], "everything before the lie was fine and stays served");
+  assert.equal(top.fail, null, "nothing is declined");
+  assert.deepEqual(top.published[bad], { alias: bad - 1 }, "the segment with no keyframe of its own carries the one before it");
+  const before = top.published[bad - 1];
+  assert.ok(before[before.length - 1] > 51.5, "which runs on past the missing keyframe, to the next true boundary");
+  for (let k = bad + 1; k < table.length; k++) assert.ok(top.published[k], `segment ${k} after the stretch`);
+  // a run that STARTS where the keyframe is missing is told to start earlier
   const mid = simulate(table, KF, bad);
   assert.match(mid.fail, /first keyframe at 51\.635s, playlist says 51\.500s/);
   assert.deepEqual(mid.published, {});
+});
+
+test("grouping: an index whose boundaries are all off is not bridged — it fails", () => {
+  const table = tableOf(KF).map((s, i) => (i >= 2 ? { ...s, start: s.start + 0.5 } : s));
+  const top = simulate(table, KF, 0);
+  assert.match(String(top.fail), /no later boundary is true|none of the next/);
 });
 
 test("grouping: a video that ends before the playlist does is a failure, not a short film", () => {
@@ -252,7 +262,12 @@ test("grouping: tolerance is 2ms — the rounding between cue time and packet ti
   const off = (ms) => KF.map((t, i) => (i === 5 ? t + ms / 1000 : t)); // 13.889 = table[2].start
   assert.equal(simulate(table, off(1), 0).fail, null);
   assert.equal(simulate(table, off(-1), 0).fail, null);
-  assert.match(simulate(table, off(40), 0).fail, /segment 2/);
+  assert.ok(Array.isArray(simulate(table, off(1), 0).published[2]), "1 ms off: segment 2 is its own");
+  // 40 ms off: no keyframe where segment 2 is declared — bridged (it carries
+  // segment 1's bytes), never published as if it started there
+  const far = simulate(table, off(40), 0);
+  assert.equal(far.fail, null);
+  assert.deepEqual(far.published[2], { alias: 1 });
   assert.ok(BOUNDARY_TOL_SEC <= 0.002);
 });
 
@@ -390,6 +405,46 @@ for (const fmt of [null, "fmp4"]) {
   });
 }
 
+test("real ffmpeg: a declared keyframe the file never delivers, followed by a true one, is bridged — not declined", async (t) => {
+  if (!haveX264()) return t.skip("no ffmpeg with libx264 on this machine");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-jitx-"));
+  jit._internals.setDeclinedFile(path.join(dir, "declined.json"));
+  const d = path.join(dir, "job");
+  try {
+    const file = makeFixture(dir);
+    const buf = fs.readFileSync(file);
+    const key = `damaged-${Date.now()}`;
+    const real = await jit.tableFor(key, bufferRange(buf), buf.length);
+    // the 3rd boundary names a keyframe that is not delivered (as a corrupt
+    // cluster does); the 4th is true
+    const table = real.table.map((s) => ({ ...s }));
+    table[1].dur += 1; table[2].start += 1; table[2].dur -= 1;
+    const job = jit.jobFor(d, { key, table, durationSec: real.durationSec });
+    const input = { url: file, extra: [], fmt: null };
+    const s1 = await jit.ensureSegment(d, job, input, 1);
+    assert.ok(s1, "segment 1 is served");
+    const s2 = await jit.ensureSegment(d, job, input, 2);
+    assert.ok(s2, "and the segment with no keyframe of its own");
+    assert.ok(fs.readFileSync(s2).equals(fs.readFileSync(s1)), "it carries segment 1's bytes (media the player already has)");
+    assert.ok(await jit.ensureSegment(d, job, input, 3), "and the film goes on");
+    assert.equal(job.broken, null);
+    assert.equal(jit.declinedReason(key), null);
+    // a viewer who starts AT the bridged segment is served from a run that
+    // begins one segment earlier
+    jit._internals.dropJob(d);
+    const d2 = path.join(dir, "job2");
+    const job2 = jit.jobFor(d2, { key, table, durationSec: real.durationSec });
+    assert.ok(await jit.ensureSegment(d2, job2, input, 2), "a start at the bridged segment");
+    assert.equal(jit.declinedReason(key), null);
+    jit._internals.dropJob(d2);
+  } finally {
+    jit._internals.dropJob(d);
+    await new Promise((r) => setTimeout(r, 300));
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    jit._internals.setDeclinedFile(path.join(os.tmpdir(), "aurora-jit-declined-test.json"));
+  }
+});
+
 test("real ffmpeg: an index that lies is declined — fast, and remembered", async (t) => {
   if (!haveX264()) return t.skip("no ffmpeg with libx264 on this machine");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-jitx-"));
@@ -400,9 +455,10 @@ test("real ffmpeg: an index that lies is declined — fast, and remembered", asy
     const buf = fs.readFileSync(file);
     const key = `liar-${Date.now()}`;
     const real = await jit.tableFor(key, bufferRange(buf), buf.length);
-    // the same playlist, but its 3rd boundary moved to where no keyframe is
-    const table = real.table.map((s) => ({ ...s }));
-    table[1].dur += 1; table[2].start += 1; table[2].dur -= 1;
+    // the same playlist, but every boundary from the 3rd on moved to where no
+    // keyframe is (one missing keyframe followed by a TRUE boundary is a
+    // damaged stretch, bridged — the next test)
+    const table = real.table.map((s, i) => (i >= 2 ? { ...s, start: s.start + 1 } : { ...s }));
     const entry = { key, table, durationSec: real.durationSec };
     const job = jit.jobFor(d, entry);
     const input = { url: file, extra: [], fmt: null };

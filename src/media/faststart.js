@@ -174,7 +174,9 @@ const pieces = (plan, start, end) => {
 
 // Write served bytes [start, end] of a plan to `res`, in order; honours
 // back-pressure and a client that goes away. `onError`: a read failed.
-const pipe = (filePath, plan, start, end, res, onError) => {
+// `open`: how a stretch of the file is read (the stream route passes
+// lib/diskread.js; fs.createReadStream by default).
+const pipe = (filePath, plan, start, end, res, onError, open = fs.createReadStream) => {
   const list = pieces(plan, start, end);
   let current = null;
   let closed = false;
@@ -190,7 +192,7 @@ const pipe = (filePath, plan, start, end, res, onError) => {
       const ok = res.write(p.buf.subarray(p.from, p.to + 1));
       return ok ? next() : res.once("drain", next);
     }
-    current = fs.createReadStream(filePath, { start: p.from, end: p.to });
+    current = open(filePath, { start: p.from, end: p.to });
     current.on("error", (e) => { if (!closed) onError(e); });
     current.on("end", () => { current = null; next(); });
     current.pipe(res, { end: false });

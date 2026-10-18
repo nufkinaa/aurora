@@ -650,10 +650,24 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // can't delete this live instance's in-progress transcodes. Synchronous, so
   // it finishes before any HTTP request handler runs.
   try { require("./src/media/remux").bootSweep(); } catch {}
+  // what kind of disk each library root is (lib/disktype.js — asked once, in
+  // the background, so the first viewer already gets the right read pattern)
+  try {
+    const dt = require("./src/lib/disktype");
+    for (const root of [...(config.LIBRARIES.movies || []), ...(config.LIBRARIES.shows || [])]) {
+      try { dt.kindFor(root, require("fs").statSync(root).dev); } catch {}
+    }
+  } catch {}
+  // the jit cache: what idle jobs kept, bounded (media/jit.js sweepDisk)
+  try { require("./src/media/jit").bootSweep(); } catch {}
   try { require("./src/media/torrent-transcode").bootSweep(); } catch {}
   // How many viewers this machine may encode for at once: worked out from
   // its CPU and its measured encode speed (media/encbudget.js), from here on.
   try { require("./src/media/encbudget").start(); } catch {}
+  // What the graphics card can encode, found out once (media/hwenc.js —
+  // a few seconds below normal priority, 40 s in; used where it is measured
+  // better — hwEncode "auto", the default).
+  try { require("./src/media/hwenc").start(); } catch {}
   // Remember which commit this process actually runs — the admin's update
   // card compares it against HEAD on disk to say "restart to apply".
   try { require("./src/lib/updatecheck").captureBoot(); } catch {}

@@ -12,6 +12,10 @@ const path = require("path");
 const { spawn } = require("child_process");
 const config = require("../config");
 const tonemap = require("./tonemap");
+// A job folder is never deleted on the event loop (lib/rmqueue.js: renamed
+// away at once, deleted in the background — one rmSync of a finished job
+// held the whole server for 12.8 s, measured by the load test 2026-10-18).
+const { removeDir, isLeftover } = require("../lib/rmqueue");
 
 const HLS_ROOT = path.join(config.CACHE_DIR, "hls");
 const MAX_CACHED_JOBS = 3;
@@ -25,7 +29,7 @@ const IDLE_MS = 150000; // kill a remux whose player stopped requesting (>2.5 mi
 // torrent transcodes. Copy jobs are cheap and are not counted.
 const budget = require("./encbudget");
 const goodbye = require("./goodbye");
-const FFMPEG_THREADS = Math.max(1, os.cpus().length - 2);
+const FFMPEG_THREADS = Math.max(1, require("../lib/cpucount").count() - 2); // (the CPUs this process may use)
 // "The server is busy": a refusal the routes answer 503 + Retry-After, the
 // same on every route (the older single-rendition route used to say 500).
 const busyError = (message) => Object.assign(new Error(message), { busy: true, retryAfter: 5 });
@@ -58,7 +62,7 @@ const retire = (d, j, why = "superseded") => {
   const old = j.proc;
   if (!old) return;
   old.once("close", () => {
-    setTimeout(() => { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} }, 150);
+    setTimeout(() => removeDir(d), 150);
   });
   try { old.kill("SIGKILL"); } catch {}
   console.log(`[remux] ${why} ${path.basename(d)}`);
@@ -75,10 +79,12 @@ const bootSweep = () => {
     for (const e of fs.readdirSync(HLS_ROOT, { withFileTypes: true })) {
       if (!e.isDirectory()) continue;
       const abs = path.join(HLS_ROOT, e.name);
+      if (isLeftover(e.name)) { removeDir(abs); continue; } // a removal a previous run did not finish
       let done = false;
       try { done = fs.readFileSync(path.join(abs, "index.m3u8"), "utf-8").includes("#EXT-X-ENDLIST"); } catch {}
       if (!done) {
-        try { fs.rmSync(abs, { recursive: true, force: true }); console.log(`[remux] boot-swept stump ${e.name}`); } catch {}
+        removeDir(abs);
+        console.log(`[remux] boot-swept stump ${e.name}`);
       }
     }
   } catch {}
@@ -216,13 +222,81 @@ const jobDir = (id, mtime, vcodec, ss, fmt, audio = 0) => path.join(HLS_ROOT, di
 // Keep an actively-watched job alive (called on segment/playlist requests),
 // and remember who is reading it (`viewer`, the routes' viewerOf): whose
 // goodbye may stop it (release, below).
-const touch = (id, mtime, vcodec, ss, fmt, audio = 0, viewer = null) => {
+// `file`: the segment asked for (segNNNNN) — how far the readers have got,
+// for the ahead-of-the-reader rule below.
+const touch = (id, mtime, vcodec, ss, fmt, audio = 0, viewer = null, file = null) => {
   const job = jobs.get(jobDir(id, mtime, vcodec, ss, fmt, audio));
   if (job) {
     job.lastAccess = Date.now();
     goodbye.note(job, viewer);
+    const m = file && /^seg(\d{5})\./.exec(file);
+    if (m) {
+      const k = parseInt(m[1], 10);
+      if (!(job.readSeg >= k)) job.readSeg = k;
+      if (job.paused) pace(job); // (a reader catching up: resumed at once if it must be)
+    }
   }
 };
+
+// ---------- not further ahead of the reader than needed ----------
+// A job ran to the end of the film once started: a copy at ~20x real time
+// wrote the whole film into data/cache/hls (the load test: 1.4 GB in ten
+// minutes for two viewers, on the system disk, slowing every store's fsync),
+// and an encode spent the CPU on the whole film for a viewer who may stop
+// after ten minutes. Now a job AHEAD_MAX segments ahead of the furthest
+// segment any of its readers has asked for is PAUSED (lib/procpause.js: the
+// OS suspends the process — SIGSTOP, or NtSuspendProcess on Windows — so the
+// playlist, the files and ffmpeg's state are exactly where they were) and
+// resumed when the reader is AHEAD_MIN segments from the end of what is
+// made. If the OS will not pause it, it runs on, as before.
+const AHEAD_MAX = 50; // 6 s segments: 5 minutes of film
+const AHEAD_MIN = 20; // 2 minutes
+const PAUSE_RETRY_MS = 60 * 1000;
+const RESUME_RETRY_MS = 5 * 1000;
+const procpause = require("../lib/procpause");
+const madeCount = async (dir) => {
+  try {
+    const text = await fs.promises.readFile(path.join(dir, "index.m3u8"), "utf8");
+    let n = 0;
+    for (let i = text.indexOf("#EXTINF"); i >= 0; i = text.indexOf("#EXTINF", i + 7)) n++;
+    return n;
+  } catch { return 0; }
+};
+const pace = async (job) => {
+  if (!job.proc || job.done || job.pacing) return;
+  job.pacing = true;
+  try {
+    const made = await madeCount(job.dir);
+    const read = job.readSeg >= 0 ? job.readSeg : 0;
+    const ahead = made - 1 - read;
+    const now = Date.now();
+    if (!job.paused && ahead >= AHEAD_MAX) {
+      // (a pause the OS refused is not asked again for this job for a minute:
+      // on Windows every ask is a PowerShell — lib/procpause.js has the bounds)
+      if (now < (job.pauseRetryAt || 0)) return;
+      if (await procpause.suspend(job.proc && job.proc.pid)) {
+        job.paused = true;
+        console.log(`[remux] paused ${path.basename(job.dir)} (${ahead} segments ahead of its reader)`);
+      } else job.pauseRetryAt = now + PAUSE_RETRY_MS;
+    } else if (job.paused && ahead < AHEAD_MIN) {
+      // a resume that failed stays "paused" and is tried again — but not on
+      // every segment request (the reader's asks call pace() too)
+      if (now < (job.resumeRetryAt || 0)) return;
+      if (!job.proc || await procpause.resume(job.proc.pid)) {
+        job.paused = false;
+        console.log(`[remux] resumed ${path.basename(job.dir)} (its reader is ${ahead} segments from the end)`);
+      } else {
+        job.resumeRetryAt = now + RESUME_RETRY_MS;
+        console.warn(`[remux] resuming ${path.basename(job.dir)} failed — tried again in ${RESUME_RETRY_MS / 1000} s`);
+      }
+    }
+  } finally {
+    job.pacing = false;
+  }
+};
+setInterval(() => {
+  for (const job of jobs.values()) if (job.proc && !job.done) pace(job).catch(() => {});
+}, 5000).unref?.();
 // The same for the playlist route, which knows the job by the dir ensure()
 // answered with.
 const noteViewer = (dir, viewer) => goodbye.note(jobs.get(dir), viewer);
@@ -255,7 +329,9 @@ setInterval(() => {
     if (job.proc && now - (job.lastAccess || 0) > IDLE_MS) {
       try { job.proc.kill("SIGKILL"); } catch {}
       jobs.delete(dir);
-      try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+      // (after the process has let go of its files)
+      const p = job.proc;
+      if (p && p.exitCode === null) p.once("close", () => removeDir(dir)); else removeDir(dir);
       console.log(`[remux] idle-killed ${path.basename(dir)}`);
     }
   }
@@ -265,7 +341,7 @@ const pruneOld = (keepDir) => {
   try {
     const dirs = fs
       .readdirSync(HLS_ROOT, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
+      .filter((e) => e.isDirectory() && !isLeftover(e.name))
       .map((e) => {
         const abs = path.join(HLS_ROOT, e.name);
         return { abs, mtime: fs.statSync(abs).mtimeMs };
@@ -279,7 +355,7 @@ const pruneOld = (keepDir) => {
       // two more seeks were enough to prune that dir out from under them.
       const j = jobs.get(d.abs);
       if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
-      fs.rmSync(d.abs, { recursive: true, force: true });
+      removeDir(d.abs);
       jobs.delete(d.abs); // drop the finished-job Map entry along with its dir
     }
   } catch {}
@@ -471,6 +547,9 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
       // landing at most one GOP early — same direction as the player's own
       // target-2s bias, and the PTS-honest clock stays exact.
       ...(ss > 0 ? (heavy ? ["-ss", String(ss)] : ["-noaccurate_seek", "-ss", String(ss)]) : []),
+      // an encode's decoder: a few threads, not one per CPU (ladder.decodeThreads —
+      // the same speed, 20–40% less memory)
+      ...(heavy ? ["-threads", String(require("./ladder")._internals.decodeThreads({ width: srcMeta.width, height: srcMeta.height }))] : []),
       "-i", videoPath,
       "-map", "0:v:0", "-map", `0:a:${audio}`,
       ...videoArgs,
@@ -523,12 +602,12 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   require("../lib/children").track(proc, "remux");
   try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
   // a re-encode is somebody watching: background work stands back (cpuwork.js)
-  if (heavy) { try { require("./cpuwork").viewer.track(proc, { kind: "transcode", label: path.basename(videoPath), cost, memMb }); } catch {} }
+  if (heavy) { try { require("./cpuwork").viewer.track(proc, { kind: "transcode", label: path.basename(videoPath), cost, memMb, encoder: vf ? "x264 on the CPU, tone-mapped" : "x264 on the CPU", why: "the single-rendition route (the TV's offsets) encodes on the CPU" }); } catch {} }
 
   let stderr = "";
   proc.stderr.on("data", (d) => (stderr += d.toString()));
 
-  const job = { proc, done: false, heavy, cost, lastAccess: Date.now(), startedAt: Date.now() };
+  const job = { proc, done: false, heavy, cost, lastAccess: Date.now(), startedAt: Date.now(), dir, readSeg: -1, paused: false };
   job.ready = new Promise((resolve, reject) => {
     // resolve as soon as the playlist appears so playback starts immediately
     const started = Date.now();
@@ -562,7 +641,7 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
         if (!fs.existsSync(playlist)) {
           reject(new Error("Remux failed"));
         } else {
-          try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+          removeDir(dir);
         }
       } else if (code === 0) {
         console.log(`Remux complete: ${path.basename(videoPath)}`);
@@ -614,24 +693,40 @@ const helpers = (now = Date.now()) => {
 // number the admin page shows); `load` / `capacity`: the same in the
 // budget's own units, for whoever wants the detail.
 const encodeLoad = () => ({ active: activeTranscodes() + ladderEncodes(), own: activeTranscodes(), max: budget.slots(), load: Math.round(viewerLoad() * 100) / 100, capacity: budget.capacity() });
+// A folder's size, asked of the OS off the event loop (the sweeps below).
+const dirBytes = async (abs) => {
+  let n = 0;
+  let newest = 0;
+  let list = [];
+  try { list = await fs.promises.readdir(abs); } catch { return { size: 0, newest: 0 }; }
+  for (const f of list) {
+    try {
+      const st = await fs.promises.stat(path.join(abs, f));
+      n += st.size;
+      if (st.mtimeMs > newest) newest = st.mtimeMs;
+    } catch {}
+  }
+  return { size: n, newest };
+};
 // Finished streams nobody is watching any more, removed (the healer calls
 // this when the disk is tight; in normal times the newest few are kept so a
-// re-open is instant). Returns bytes freed, roughly.
-const sweepIdle = () => {
+// re-open is instant). Resolves with the bytes freed, roughly. Async: the
+// sizes are asked off the event loop, the folders removed in the background.
+const sweepIdle = async () => {
   let freed = 0;
-  try {
-    for (const e of fs.readdirSync(HLS_ROOT, { withFileTypes: true })) {
-      if (!e.isDirectory()) continue;
-      const abs = path.join(HLS_ROOT, e.name);
-      const j = jobs.get(abs);
-      if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
-      try {
-        for (const f of fs.readdirSync(abs)) { try { freed += fs.statSync(path.join(abs, f)).size; } catch {} }
-        fs.rmSync(abs, { recursive: true, force: true });
-        jobs.delete(abs);
-      } catch {}
-    }
-  } catch {}
+  let list = [];
+  try { list = await fs.promises.readdir(HLS_ROOT, { withFileTypes: true }); } catch { return 0; }
+  for (const e of list) {
+    if (!e.isDirectory()) continue;
+    const abs = path.join(HLS_ROOT, e.name);
+    const j = jobs.get(abs);
+    if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
+    freed += (await dirBytes(abs)).size;
+    const again = jobs.get(abs); // (taken again while we looked?)
+    if (again && (again.proc || Date.now() - (again.lastAccess || 0) < IDLE_MS)) continue;
+    removeDir(abs);
+    jobs.delete(abs);
+  }
   return freed;
 };
 // A finished stream is kept so that re-opening the title is instant — but
@@ -639,31 +734,25 @@ const sweepIdle = () => {
 // were still holding 1.6 GB in October (found 2026-10-06). A stream nobody
 // has touched for a day is not coming back to it; the healer calls this
 // every round. Never a folder with a live job. Returns bytes freed, roughly.
-const sweepStale = (maxAgeMs = 24 * 3600 * 1000) => {
+const sweepStale = async (maxAgeMs = 24 * 3600 * 1000) => {
   let freed = 0;
-  try {
-    for (const e of fs.readdirSync(HLS_ROOT, { withFileTypes: true })) {
-      if (!e.isDirectory()) continue;
-      const abs = path.join(HLS_ROOT, e.name);
-      const j = jobs.get(abs);
-      if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
-      try {
-        let newest = fs.statSync(abs).mtimeMs;
-        let size = 0;
-        for (const f of fs.readdirSync(abs)) {
-          try {
-            const st = fs.statSync(path.join(abs, f));
-            size += st.size;
-            if (st.mtimeMs > newest) newest = st.mtimeMs;
-          } catch {}
-        }
-        if (Date.now() - newest < maxAgeMs) continue;
-        fs.rmSync(abs, { recursive: true, force: true });
-        jobs.delete(abs);
-        freed += size;
-      } catch {}
-    }
-  } catch {}
+  let list = [];
+  try { list = await fs.promises.readdir(HLS_ROOT, { withFileTypes: true }); } catch { return 0; }
+  for (const e of list) {
+    if (!e.isDirectory()) continue;
+    const abs = path.join(HLS_ROOT, e.name);
+    const j = jobs.get(abs);
+    if (j && (j.proc || Date.now() - (j.lastAccess || 0) < IDLE_MS)) continue;
+    let dirM = 0;
+    try { dirM = (await fs.promises.stat(abs)).mtimeMs; } catch { continue; }
+    const { size, newest } = await dirBytes(abs);
+    if (Date.now() - Math.max(dirM, newest) < maxAgeMs) continue;
+    const again = jobs.get(abs);
+    if (again && (again.proc || Date.now() - (again.lastAccess || 0) < IDLE_MS)) continue;
+    removeDir(abs);
+    jobs.delete(abs);
+    freed += size;
+  }
   return freed;
 };
-module.exports = { ensure, touch, noteViewer, release, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr, jobs } };
+module.exports = { AHEAD_MAX, AHEAD_MIN, pace, ensure, touch, noteViewer, release, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr, jobs } };

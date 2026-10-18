@@ -1,0 +1,35 @@
+[
+  {
+    "tree": "after",
+    "round": 0,
+    "hw": "auto",
+    "v": "h264",
+    "viewers": 4,
+    "secs": 60,
+    "admitted": 4,
+    "busy503": 0,
+    "other": 4,
+    "ttfsP50": 4056,
+    "ttfsMax": 4899,
+    "stalled": 0,
+    "stallSec": 0,
+    "segs": 39,
+    "ffmpegProcs": 6,
+    "ffmpegCpuSec": 326.5,
+    "ffmpegCpuPerFilmSec": 1.395,
+    "ffmpegRssMaxMb": 443,
+    "cpuCores": 0.09,
+    "rssMaxMb": 108,
+    "abMaxMb": 23,
+    "lagP50": 9.1,
+    "lagP99": 18.6,
+    "lagMax": 112.5,
+    "handlesMax": 24,
+    "encoders": [
+      "NVIDIA NVENC — NVIDIA NVENC, decoded on the card too — measured as good as the CPU's encode, for a sliver of the CPU",
+      "NVIDIA NVENC — NVIDIA NVENC, decoded on the card too — measured as good as the CPU's encode, for a sliver of the CPU",
+      "x264 on the CPU — all 2 of the graphics card's sessions are in use",
+      "x264 on the CPU — all 2 of the graphics card's sessions are in use"
+    ]
+  }
+]

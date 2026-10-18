@@ -245,12 +245,12 @@ const checkTemp = () => slowly("temp", async () => {
   let freed = 0;
   try { freed += offline.sweep() || 0; } catch {}
   // finished streams nobody has touched for a day (kept before only by count)
-  try { freed += remux.sweepStale() || 0; } catch {}
-  try { freed += require("../media/torrent-transcode").sweepStale() || 0; } catch {}
+  try { freed += (await remux.sweepStale()) || 0; } catch {}
+  try { freed += (await require("../media/torrent-transcode").sweepStale()) || 0; } catch {}
   const sp = await disk.space(config.CACHE_DIR);
   const tight = !!sp && sp.free < TIGHT_FREE_BYTES;
   if (tight) {
-    try { freed += remux.sweepIdle() || 0; } catch {}
+    try { freed += (await remux.sweepIdle()) || 0; } catch {}
   }
   if (freed > 50 * 1024 ** 2) {
     healed.push(`cleared ${fmtBytes(freed)} of temporary files`);

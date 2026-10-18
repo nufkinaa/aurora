@@ -388,6 +388,7 @@ router.post("/api/admin/mylist/keep", (req, res) => {
 const tuning = () => {
   const out = [];
   const add = (name, value, why) => out.push({ name, value, why });
+  try { const d = require("../lib/cpucount").detail(); add("CPUs this server may use", d.count, d.why); } catch {}
   try { const p = require("../lib/power").status(); add("power profile", p.profile, p.why); } catch {}
   try { const c = require("../media/cpuwork"); add("background decodes at once", c.budget(), c.budgetWhy()); add("background threads", c.background.threads(), "half the CPU threads"); } catch {}
   try { add("library rescan", `every ${Math.round(config.SCAN_INTERVAL_MS / 60000)} min`, config.SCAN_INTERVAL_WHY || ""); } catch {}
@@ -397,8 +398,9 @@ const tuning = () => {
 };
 // Sizes of what is kept in memory: every bounded cache (lib/caches.js) plus a
 // few stores that are bounded elsewhere, and the profile states left behind
-// for ids that are no profile (an old version created those; they are
-// skipped, not deleted — removing them is a change to profiles.json).
+// for ids that are no profile (an old version created those; since the
+// server round they are moved to data/profile-states-orphaned.json at load,
+// so this reads 0 unless one appears while the server runs).
 const memorySizes = () => {
   const caches = require("../lib/caches");
   const out = caches.report();
@@ -435,6 +437,13 @@ router.get("/api/admin/health", (req, res) => {
   try { load.power = require("../lib/power").status(); } catch {}
   // what was chosen from this machine, and why (the owner: "show why this value")
   try { load.tuning = tuning(); } catch {}
+  // direct play: each library disk, what kind the OS says it is and how its
+  // reads are taken (lib/disktype.js, lib/diskread.js); streams let go for
+  // not reading; job folders being removed in the background
+  try {
+    const dr = require("../lib/diskread");
+    load.streams = { disks: require("../lib/disktype").status().map((d) => ({ ...d, readsAtOnce: dr.limitFor(d.kind) || "free", readBytes: (dr.policyFor(d.kind) || { read: 65536 }).read, ...(dr.stats()[d.dev] || {}) })), direct: require("../lib/rangeserve").counters(), removals: require("../lib/rmqueue").stats(), pauses: require("../lib/procpause").status() };
+  } catch {}
   res.json({ ...require("../lib/watchdog").status(), load });
 });
 router.post("/api/admin/heal", (req, res) => {
@@ -1163,13 +1172,30 @@ const encodingView = () => {
   try { load = require("../media/remux").encodeLoad(); } catch {}
   let cpu = null;
   try { cpu = require("../media/cpuwork").status(); } catch {}
-  return { ...budget.explain(), running: load, cpu, maxFixed: budget.MAX_FIXED };
+  let hardware = null;
+  try { hardware = require("../media/hwenc").status(); } catch {}
+  const ex = budget.explain();
+  // (cpuModel: explain()'s `cpu` is the processor's name, and `cpu` below is
+  // what is running — the card showed "[object Object]" for the model)
+  return { ...ex, cpuModel: ex.cpu, running: load, cpu, maxFixed: budget.MAX_FIXED, hardware };
 };
 router.get("/api/admin/encoding", (req, res) => res.json(encodingView()));
 // { maxEncodes: "auto" | 1…16 } — anything else is refused.
 router.post("/api/admin/encoding", (req, res) => {
   const budget = require("../media/encbudget");
   const settings = require("../lib/settings");
+  // { hwEncode: "auto" | "on" | "off" } — the graphics card for the ladder's
+  // encodes (media/hwenc.js); may come alone or with maxEncodes
+  const hwv = (req.body || {}).hwEncode;
+  if (hwv !== undefined) {
+    if (!["auto", "on", "off"].includes(hwv)) return res.status(400).json({ error: 'Choose "auto", "on" or "off" for the graphics card.' });
+    settings.data.hwEncode = hwv;
+    if ((req.body || {}).maxEncodes === undefined) {
+      settings.save();
+      console.log(`[encode] graphics card set from the admin page: ${require("../media/hwenc").sentence()}`);
+      return res.json({ ok: true, ...encodingView() });
+    }
+  }
   const v = (req.body || {}).maxEncodes;
   const n = Number(v);
   if (v === "auto") delete settings.data.maxEncodes;
