@@ -3,6 +3,10 @@
 // into an empty household.
 //
 // WRITING. save() schedules a write 1.5 s out; a burst of saves is one write.
+// save({ within: ms }) says "this may wait up to ms" (a store that changes on
+// every tick of something — a viewing session, an hourly chart — is written
+// at that cadence instead of after every change); an earlier save() still
+// brings the write forward, and a shutdown flush writes it at once.
 // The write goes to a temp file, is flushed to the disk (fsync), and is then
 // renamed over the store — so the live file is always either the old version
 // or the new one, never half of either, and after a power cut too (without
@@ -166,7 +170,7 @@ const atomicWriteSync = (file, text, { durable = true } = {}) => {
 // A good store must never be "recovered" from an older copy because
 // something else happened to be looking at it during the boot.
 const READ_TRIES = 20;
-const readChecked = (file, check) => {
+const readChecked = (file, check, { keepRaw = false } = {}) => {
   let raw;
   for (let i = 0; ; i++) {
     try {
@@ -182,9 +186,10 @@ const readChecked = (file, check) => {
   try { data = JSON.parse(raw); } catch { return { ok: false, problem: "not valid JSON" }; }
   const bad = check ? check(data) : null;
   if (bad) return { ok: false, problem: `the wrong shape (${bad})` };
-  return { ok: true, data, bytes: Buffer.byteLength(raw) };
+  return { ok: true, data, bytes: Buffer.byteLength(raw), ...(keepRaw ? { raw } : {}) };
 };
 
+const md5 = (text) => crypto.createHash("md5").update(text).digest("hex");
 const digest = (text) => (text.length < 262144 ? text : `${text.length}:${crypto.createHash("md5").update(text).digest("hex")}`);
 const mtimeOf = (file) => { try { return fs.statSync(file).mtimeMs; } catch { return 0; } };
 
@@ -219,12 +224,24 @@ let backupLookup = (filePath) => {
 
 class JsonStore {
   // opts: { kind: "critical" | "state" | "cache", shape: (data) => null | "what is wrong",
-  //         backupLookup } — all optional; the kind and the shape follow the file's name.
+  //         backupLookup,
+  //         prepare: () => void            called just before each write (a store
+  //                                        whose data is built from elsewhere fills it in)
+  //         afterWrite: (text) => void     called once the disk holds `text` (written,
+  //                                        or already there)
+  //         digestOnLoad: true             keep the md5 of the text this run started
+  //                                        from in `loadedMd5` }
+  // — all optional; the kind and the shape follow the file's name.
   constructor(filePath, fallback, opts = {}) {
     this.filePath = filePath;
     this.name = path.basename(filePath);
     this.kind = opts.kind || kindFor(filePath);
+    this._prepare = typeof opts.prepare === "function" ? opts.prepare : null;
+    this._afterWrite = typeof opts.afterWrite === "function" ? opts.afterWrite : null;
+    this._digestOnLoad = !!opts.digestOnLoad;
+    this.loadedMd5 = null; // (digestOnLoad) md5 of what this run started from
     this.saveTimer = null;
+    this.saveDueAt = 0; // when the scheduled write fires
     this.retryTimer = null;
     this.rev = 0; // how many times save() was asked for: a cheap "has this changed" for caches built from it
     this.dirty = false; // changed in memory since the last successful write
@@ -259,8 +276,9 @@ class JsonStore {
       this._startEmptyMarker = marker;
       return fallbackValue();
     }
-    const live = readChecked(file, this._check);
+    const live = readChecked(file, this._check, { keepRaw: this._digestOnLoad });
     if (live.ok) {
+      if (this._digestOnLoad) this.loadedMd5 = md5(live.raw);
       this._written = null;
       if (this.kind !== "cache") this._noteGoodAtLoad();
       return live.data;
@@ -298,9 +316,11 @@ class JsonStore {
       const rec = { at: Date.now(), store: this.name, problem: live.problem, from: c.from, source: c.source, sourceAt: c.at || null, damagedAt: damagedAt || null, lostMs, keptAs: keptAs ? path.basename(keptAs) : null, safeMode: false, announced: false, acknowledged: false };
       // the literal the healer's "store-corrupt" signature reads
       console.error(`Corrupt store ${file} — backed up to ${keptAs || "(nothing to keep: it was " + live.problem + ")"}, RESTORED from ${c.from}${lostMs != null ? `; changes from the ${fmtSpan(lostMs)} before the damage are lost` : ""}`);
+      const text = JSON.stringify(c.data);
+      if (this._digestOnLoad) this.loadedMd5 = md5(text);
       try {
-        atomicWriteSync(file, JSON.stringify(c.data));
-        this._written = digest(JSON.stringify(c.data));
+        atomicWriteSync(file, text);
+        this._written = digest(text);
       } catch (e) {
         console.error(`Failed to save ${this.filePath}: ${e.message} (the restored copy is in memory; it will be written again)`);
         this.dirty = true;
@@ -395,6 +415,9 @@ class JsonStore {
   // Returns true when the disk holds what memory holds.
   _writeNow() {
     if (this.safeMode) return false; // never: see the note at the top
+    if (this._prepare) {
+      try { this._prepare(); } catch (err) { console.error(`Failed to prepare ${this.filePath}:`, err.message); }
+    }
     let text;
     try {
       text = JSON.stringify(this.data);
@@ -407,6 +430,7 @@ class JsonStore {
     if (d === this._written && fs.existsSync(this.filePath)) {
       this.dirty = false;
       this.skipped++;
+      this._wrote(text);
       return true;
     }
     try {
@@ -433,7 +457,13 @@ class JsonStore {
       try { fine = !this._check(this.data); } catch {}
       if (fine) this._writeGood(text);
     }
+    this._wrote(text);
     return true;
+  }
+
+  _wrote(text) {
+    if (!this._afterWrite) return;
+    try { this._afterWrite(text); } catch (err) { console.error(`[store] ${this.name}: after-write step failed:`, err.message); }
   }
 
   _retryLater() {
@@ -445,14 +475,24 @@ class JsonStore {
     this.retryTimer.unref?.();
   }
 
-  save() {
+  // save(): written DEBOUNCE_MS from the first of a burst. save({ within }):
+  // written at the latest `within` ms from now — a write already due sooner
+  // stands, one due later is brought forward.
+  save(opts) {
     this.rev++;
     this.dirty = true;
-    if (this.saveTimer) return;
+    const within = opts && Number.isFinite(opts.within) && opts.within > DEBOUNCE_MS ? opts.within : DEBOUNCE_MS;
+    const due = Date.now() + within;
+    if (this.saveTimer) {
+      if (this.saveDueAt <= due) return;
+      clearTimeout(this.saveTimer);
+    }
+    this.saveDueAt = due;
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
+      this.saveDueAt = 0;
       this._writeNow();
-    }, DEBOUNCE_MS);
+    }, within);
   }
 
   // Write immediately (e.g. on shutdown)
@@ -460,6 +500,7 @@ class JsonStore {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
+      this.saveDueAt = 0;
     }
     return this._writeNow();
   }
@@ -487,7 +528,13 @@ const fmtSpan = (ms) => {
 };
 
 // Flush every store with something unwritten. Called on process shutdown.
+// Hooks registered with beforeFlushAll run first (profiles.js: the watch
+// journal is folded into profiles.json, so an older build started after this
+// one finds everything in the file it knows).
+const flushHooks = [];
+const beforeFlushAll = (fn) => { if (typeof fn === "function") flushHooks.push(fn); };
 const flushAll = () => {
+  for (const fn of flushHooks) { try { fn(); } catch (e) { console.error("[store] before-flush step failed:", e && e.message); } }
   for (const s of instances) if (s.saveTimer || s.dirty) s.flush();
 };
 
@@ -596,7 +643,7 @@ process.on("SIGTERM", () => { if (!own) return; onExit(); process.exit(0); });
 process.on("beforeExit", onExit);
 
 module.exports = {
-  JsonStore, flushAll, ownSignals, atomicWriteSync, readChecked,
+  JsonStore, flushAll, beforeFlushAll, ownSignals, atomicWriteSync, readChecked, md5,
   status, inSafeMode, leaveSafeMode, announceRecoveries, acknowledgeRecoveries, recoverySentence,
   CRITICAL, REBUILDABLE, SHAPES,
   _internals: { instances, io, kindFor, renameRetry, sameKind, readRecoveries, fmtSpan, digest, setBackupLookup: (fn) => { backupLookup = fn; }, DEBOUNCE_MS, GOOD_EVERY_MS, RETRY_LATER_MS },
