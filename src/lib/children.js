@@ -31,6 +31,19 @@ const killAll = (signal = "SIGKILL") => {
 };
 
 const list = () => [...live.entries()].map(([c, m]) => ({ pid: c.pid, name: m.name, since: m.since }));
+
+// However the process ends — a crash past every handler, process.exit() from
+// anywhere, the keeper's kill — the helpers it started go with it. On Windows
+// nothing else ends them: an ffmpeg left behind kept decoding a film for
+// nobody (server round, 2026-10-18). ("exit" handlers must be synchronous:
+// child.kill is.)
+let hooked = false;
+const hookExit = () => {
+  if (hooked) return;
+  hooked = true;
+  process.on("exit", () => { try { killAll("SIGKILL"); } catch {} });
+};
+hookExit();
 const count = () => live.size;
 
 module.exports = { track, killAll, list, count };

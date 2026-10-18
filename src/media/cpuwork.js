@@ -193,8 +193,9 @@ const stats = { started: 0, paused: 0, resumed: 0, shed: 0, heldBack: 0, specShe
 const used = () => { let u = 0; for (const j of jobs.values()) u += j.weight; return u; };
 const weightOf = (kind) => (WEIGHTS[kind] == null ? 1 : WEIGHTS[kind]);
 
-const lower = (child) => {
+const lower = (child, name = "helper") => {
   if (!child || !child.pid) return child;
+  try { require("../lib/children").track(child, name); } catch {}
   try { deps.setPriority(child.pid, PRIORITY.background); } catch {}
   if (deps.platform === "linux") deps.ionice(child.pid);
   return child;
@@ -226,9 +227,12 @@ const grant = (kind, meta = {}) => {
   return {
     id,
     release,
+    // paused on purpose right now (a viewer is being encoded for): a stall
+    // watchdog does not count this time (media/speech.js)
+    paused: () => j.paused,
     attach(child) {
       j.child = child;
-      lower(child);
+      lower(child, kind);
       whenGone(child, release);
       if (viewer.busy()) pause(j); // a viewer encode began between the grant and the start
       return child;

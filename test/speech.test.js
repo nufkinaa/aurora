@@ -283,3 +283,51 @@ test("alignInWorker runs the alignment off the event loop", async () => {
   assert.equal(res.verdict, "moved");
   assert.ok(Math.abs(res.offset + 3) < 0.05, `offset ${res.offset}`);
 });
+
+// Child-process hygiene (server round, 2026-10-18): a decode that sends
+// nothing for the stall limit is stopped — but not while it is paused on
+// purpose for a viewer's encode.
+{
+  const { EventEmitter } = require("events");
+  const speechMod = require("../src/media/speech");
+  const D = speechMod._internals.deps;
+  const fakeChild = () => {
+    const c = new EventEmitter();
+    c.stdout = new EventEmitter();
+    c.stderr = new EventEmitter();
+    c.pid = 0;
+    c.killed = [];
+    c.kill = (sig) => { c.killed.push(sig); setImmediate(() => c.emit("close", null, sig)); return true; };
+    return c;
+  };
+  require("node:test").test("a decode that sends nothing is stopped after the stall limit; a paused one is not", async () => {
+    const assertx = require("node:assert");
+    const saved = { spawn: D.spawn, stallMs: D.stallMs, ffmpeg: D.ffmpeg };
+    const children = [];
+    D.spawn = () => { const c = fakeChild(); children.push(c); return c; };
+    D.ffmpeg = () => "ffmpeg";
+    D.stallMs = () => 150;
+    try {
+      const t0 = Date.now();
+      await assertx.rejects(
+        speechMod._internals.decodePart({ videoPath: "x.mkv", audio: 0, stream: {}, from: 0, len: 10, last: true }),
+        /sent nothing for/,
+      );
+      assertx.ok(Date.now() - t0 < 3000);
+      assertx.deepEqual(children[0].killed, ["SIGKILL"]);
+      // paused: kept alive past the limit, then finishes normally
+      let paused = true;
+      const p = speechMod._internals.decodePart({ videoPath: "x.mkv", audio: 0, stream: {}, from: 0, len: 10, last: true, isPaused: () => paused });
+      await new Promise((r) => setTimeout(r, 500));
+      assertx.deepEqual(children[1].killed, [], "not stopped while paused");
+      paused = false;
+      children[1].stdout.emit("data", Buffer.alloc(32000));
+      await new Promise((r) => setTimeout(r, 50));
+      children[1].emit("close", 0, null);
+      const rows = await p;
+      assertx.ok(rows instanceof Float32Array);
+    } finally {
+      Object.assign(D, saved);
+    }
+  });
+}

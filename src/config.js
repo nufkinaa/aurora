@@ -92,7 +92,7 @@ const PYTHON = (() => {
   const p = resolveExe("python") || resolveExe("python3");
   if (!p) return null;
   try {
-    const v = execSync(`"${p}" --version 2>&1`, { encoding: "utf-8", shell: isWindows ? undefined : "/bin/sh" });
+    const v = execSync(`"${p}" --version 2>&1`, { encoding: "utf-8", shell: isWindows ? undefined : "/bin/sh", timeout: 10000, windowsHide: true });
     return /Python 3/.test(v) ? p : null;
   } catch {
     return null;
