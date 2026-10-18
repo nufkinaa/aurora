@@ -249,3 +249,73 @@ test("blur + fmt=webp: a WebP of its own beside the untouched JPEG; a bad fmt is
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+// The fast path (server round, 2026-10-18): a variant found once is sent
+// straight away for TRUST_MS — no stat of the source, no hash, no stat of the
+// variant — and a sweep forgets it.
+test("a variant found once is answered without a filesystem call for the trust window", { skip: !config.FFMPEG }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-ivfast-"));
+  try {
+    const src = path.join(dir, "poster.jpg");
+    execFileSync(config.FFMPEG, ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=600x900:rate=1:duration=1", "-frames:v", "1", src]);
+    const first = await iv.variant(src, 256);
+    assert.ok(first && fs.existsSync(first));
+    const real = fs.statSync;
+    let stats = 0;
+    fs.statSync = (...a) => { stats++; return real(...a); };
+    let again;
+    try { again = await iv.variant(src, 256); } finally { fs.statSync = real; }
+    assert.equal(again, first);
+    assert.equal(stats, 0, "no stat inside the window");
+    // another width is its own entry
+    const other = await iv.variant(src, 480);
+    assert.notEqual(other, first);
+    // after the window: looked at again (the same file, found on disk)
+    for (const e of iv._internals.fast.values()) e.at -= iv.TRUST_MS + 1;
+    stats = 0;
+    fs.statSync = (...a) => { stats++; return real(...a); };
+    try { assert.equal(await iv.variant(src, 256), first); } finally { fs.statSync = real; }
+    assert.ok(stats >= 2);
+    iv.forget();
+    assert.equal(iv._internals.fast.size, 0);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// Waiting is bounded by time too (server round, 2026-10-18): a request whose
+// variant is not made in time gets the nearest size already made, or the
+// original, at once — marked shed — and the variant is still made, once.
+test("a variant not made in time: the original (or the nearest size) at once, shed; made in the background for next time", { skip: !config.FFMPEG }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-ivwait-"));
+  try {
+    const src = path.join(dir, "poster.jpg");
+    execFileSync(config.FFMPEG, ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=600x900:rate=1:duration=1", "-frames:v", "1", src]);
+    iv.forget();
+    // no size of it made yet, and no time to wait: the original
+    const o1 = {};
+    const t0 = Date.now();
+    assert.equal(await iv.variant(src, 256, { ...o1, maxWaitMs: 0 }), null);
+    const o2 = { maxWaitMs: 0 };
+    assert.equal(await iv.variant(src, 256, o2), null);
+    assert.equal(o2.shed, true, "marked: the route caches it for a minute only");
+    assert.ok(Date.now() - t0 < 1000, "at once");
+    // the encode went on, once: the next ask (with time) finds it made
+    assert.ok(iv._internals.inflight.size <= 1);
+    const made = await iv.variant(src, 256);
+    assert.ok(made && fs.existsSync(made) && /-w256\./.test(made));
+    // another width, no time to wait: the nearest size already made
+    const o3 = { maxWaitMs: 0 };
+    assert.equal(await iv.variant(src, 480, o3), made, "the 256 stands in for the 480 meanwhile");
+    assert.equal(o3.shed, true);
+    const made480 = await iv.variant(src, 480);
+    assert.ok(/-w480\./.test(made480));
+    // and a smaller one prefers the size that still covers its box
+    assert.equal(iv._internals.nearest(src, 352, 0, ""), made480);
+    assert.equal(iv._internals.nearest(src, 1280, 0, ""), made480, "nothing bigger: the biggest there is");
+    assert.ok(iv._internals.waitStats.waited >= 3);
+  } finally {
+    iv.forget();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

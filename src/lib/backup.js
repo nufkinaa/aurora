@@ -35,6 +35,9 @@
 // that means:
 //   profiles.json         profiles, PINs/passwords, progress, watchlists,
 //                         follows, kids settings, language memory
+//   watch-journal.json    playback rows since profiles.json was last written
+//                         whole (lib/watchjournal.js) — read BEFORE
+//                         profiles.json, so the pair is always consistent
 //   sessions.json         who is signed in on which device
 //   settings.json         admin-panel settings (sign-in mode, speed caps…)
 //   push.json             Web Push keys and each device's subscription
@@ -337,6 +340,12 @@ const collect = async (dataDir, configFiles = []) => {
   let top = [];
   try { top = await fs.promises.readdir(dataDir, { withFileTypes: true }); } catch {}
   top.sort((a, b) => (a.name < b.name ? -1 : 1));
+  // A journal goes BEFORE the store it is laid over (lib/watchjournal.js): a
+  // full write of profiles.json landing between the two reads then gives an
+  // older journal over a newer profiles.json, which the boot merges right —
+  // the other order could pair an emptied journal with the older file.
+  const first = (n) => (/-journal\.json$/i.test(n) ? 0 : 1);
+  top.sort((a, b) => first(a.name) - first(b.name) || (a.name < b.name ? -1 : 1));
   for (const e of top) {
     if (!e.isFile() || !e.name.toLowerCase().endsWith(".json")) continue;
     if (EXCLUDE_FILES.has(e.name.toLowerCase())) continue;
@@ -362,6 +371,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const summarize = (entries, manifest = null) => {
   const { SHAPES } = require("./jsonstore");
   const out = { profiles: null, historyRows: null, sessions: null, stores: 0, newestChangeAt: null, problems: [] };
+  let profileState = null;
+  let journalRows = null;
   for (const [name, buf] of entries) {
     const m = /^data\/([^/]+\.json)$/.exec(name);
     if (!m) continue;
@@ -380,8 +391,21 @@ const summarize = (entries, manifest = null) => {
         rows += Object.keys(st.progress || {}).length + Object.keys(st.titles || {}).length;
       }
       out.historyRows = rows;
+      profileState = d.state || {};
+    } else if (m[1] === "watch-journal.json") {
+      journalRows = d.rows;
     } else if (m[1] === "sessions.json") {
       out.sessions = Object.keys(d).length;
+    }
+  }
+  // history rows the journal holds that profiles.json does not have yet
+  if (profileState && journalRows && typeof journalRows === "object") {
+    for (const [pid, r] of Object.entries(journalRows)) {
+      const st = profileState[pid];
+      if (!st || !r || typeof r !== "object") continue;
+      for (const kind of ["progress", "titles"]) {
+        for (const [key, row] of Object.entries(r[kind] || {})) if (row && !(st[kind] && Object.prototype.hasOwnProperty.call(st[kind], key))) out.historyRows++;
+      }
     }
   }
   if (manifest && Array.isArray(manifest.files)) {

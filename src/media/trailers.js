@@ -62,7 +62,10 @@ const getStore = () => {
   if (!store.data.clips) store.data.clips = {};
   return store;
 };
-let fetchImpl = (...a) => fetch(...a);
+// lib/upstream.js: timeout, a fair share per host, a breaker for a host that
+// is down (and it tells lib/signals about every answer).
+const defaultFetch = (url, init) => require("../lib/upstream").fetch(url, init);
+let fetchImpl = defaultFetch;
 const signals = () => require("../lib/signals");
 const count = (key) => { try { signals().hit("trailer-apple", key); } catch {} };
 const provider = (url, status) => { try { signals().provider(url, status); } catch {} };
@@ -72,14 +75,14 @@ const provider = (url, status) => { try { signals().provider(url, status); } cat
 const getJson = async (url) => {
   let res;
   try {
-    res = await fetchImpl(url, { headers: UA, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    res = await fetchImpl(url, { headers: UA, timeoutMs: TIMEOUT_MS, ...(fetchImpl === defaultFetch ? {} : { signal: AbortSignal.timeout(TIMEOUT_MS) }) });
   } catch (err) {
-    const timeout = !!err && (err.name === "TimeoutError" || err.name === "AbortError");
+    const timeout = !!err && (err.name === "TimeoutError" || err.name === "AbortError" || err.code === "timeout" || err.code === "deadline");
     const e = new Error(timeout ? "timeout" : `network: ${err && err.message}`);
     e.code = timeout ? "timeout" : "net";
     throw e;
   }
-  provider(url, res.status);
+  if (fetchImpl !== defaultFetch) provider(url, res.status); // (upstream already told signals)
   if (!res.ok) {
     const e = new Error(`HTTP ${res.status}`);
     e.code = "http";
@@ -270,6 +273,6 @@ module.exports = {
     setFetch: (f) => { fetchImpl = f; },
     setMeta: (f) => { metaImpl = f; },
     setStore: (s) => { store = s; },
-    reset: () => { store = null; fetchImpl = (...a) => fetch(...a); metaImpl = defaultMeta; inflight.clear(); },
+    reset: () => { store = null; fetchImpl = defaultFetch; metaImpl = defaultMeta; inflight.clear(); },
   },
 };

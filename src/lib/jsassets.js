@@ -157,7 +157,27 @@ const importsOf = (source, url) => {
 };
 
 // One module, current: null when there is no such file.
+// within(fn): while fn runs, a module already looked at is answered as it
+// was (one look per module per call — the shell asks about each module once
+// for the import map and again for every preload list it writes: 1.9 s of
+// stats in a loaded three minutes, measured). Outside it, every call looks.
+let scope = null;
+const within = (fn) => {
+  const before = scope;
+  scope = new Map();
+  try { return fn(); } finally { scope = before; }
+};
 const asset = (publicDir, url) => {
+  if (scope) {
+    const k = `${publicDir}|${url}`;
+    if (scope.has(k)) return scope.get(k);
+    const a = assetNow(publicDir, url);
+    scope.set(k, a);
+    return a;
+  }
+  return assetNow(publicDir, url);
+};
+const assetNow = (publicDir, url) => {
   if (!/^\/js\/[A-Za-z0-9._/-]+\.js$/.test(url) || url.includes("..")) return null;
   const abs = path.join(publicDir, url);
   let st;
@@ -184,6 +204,47 @@ const asset = (publicDir, url) => {
   };
   assets.set(url, a);
   return a;
+};
+
+// THE FIRST PAGE LOAD AFTER A START used to re-print every module there and
+// then, one esbuild transformSync after another, on the event loop: 14 s of
+// a two-core box under load in which nothing else was answered (server round
+// 2026-10-18 — docs/qa/server-round/EVENTLOOP.md). warm() does the same work
+// right after the server starts listening, with esbuild's asynchronous API
+// (its own process does the printing) and asynchronous reads, and files the
+// results exactly where asset() looks for them — so asset() finds them made.
+// A module asked for before warm() reached it is printed the old way.
+let warming = null;
+const warm = (publicDir) => {
+  if (warming) return warming;
+  warming = (async () => {
+    const es = minifier();
+    let made = 0;
+    for (const url of list(publicDir)) {
+      const abs = path.join(publicDir, url);
+      try {
+        const st = await fs.promises.stat(abs);
+        if (!st.isFile()) continue;
+        const stamp = `${st.mtimeMs}:${st.size}:${es ? 1 : 0}`;
+        const hit = assets.get(url);
+        if (hit && hit.stamp === stamp && hit.abs === abs) continue;
+        const source = await fs.promises.readFile(abs, "utf-8");
+        let printed = source;
+        if (es && !/\.min\.js$/.test(url)) {
+          try { printed = (await es.transform(source, { ...REPRINT, sourcefile: url })).code; } catch { printed = source; }
+        }
+        const again = assets.get(url);
+        if (again && again.stamp === stamp) continue; // a request made it meanwhile
+        const body = Buffer.from(printed, "utf-8");
+        assets.set(url, { abs, stamp, body, reprinted: printed !== source, hash: crypto.createHash("md5").update(body).digest("hex").slice(0, 10), imports: importsOf(source, url) });
+        pack(`js:${assets.get(url).hash}`, body);
+        made++;
+      } catch {}
+      await new Promise((r) => setImmediate(r));
+    }
+    return made;
+  })().finally(() => { warming = null; });
+  return warming;
 };
 
 // Everything `entries` import, statically, entries first then breadth-first —
@@ -269,4 +330,4 @@ const serve = (publicDir) => (req, res, next) => {
   send(req, res, `js:${a.hash}`, a.body);
 };
 
-module.exports = { serve, asset, list, closure, importMap, importsOf, versioned, minify, sourceMap, send, pack, accepts, _minifier: minifier };
+module.exports = { serve, asset, within, list, closure, importMap, importsOf, versioned, minify, sourceMap, send, pack, accepts, warm, _minifier: minifier, _internals: { assets } };

@@ -383,7 +383,53 @@ router.post("/api/admin/mylist/keep", (req, res) => {
   res.json(r);
 });
 
+// ---------- metrics (lib/metrics.js) ----------
+// Why is it slow: requests per route group with time-to-first-byte
+// histograms, event-loop delay, memory, work in flight, the outside
+// providers' breakers, rate-limit and WebSocket counters, boot checks.
+// JSON; ?fmt=prom for Prometheus text.
+router.get("/api/admin/metrics", (req, res) => {
+  const metrics = require("../lib/metrics");
+  res.setHeader("Cache-Control", "no-store");
+  if (req.query.fmt === "prom") return res.type("text/plain; version=0.0.4").send(metrics.prom());
+  res.json(metrics.snapshot());
+});
+
 // ---------- health (watchdog) ----------
+// The values the server chose from what it detected, each with its reason.
+const tuning = () => {
+  const out = [];
+  const add = (name, value, why) => out.push({ name, value, why });
+  try { const d = require("../lib/cpucount").detail(); add("CPUs this server may use", d.count, d.why); } catch {}
+  try { const p = require("../lib/power").status(); add("power profile", p.profile, p.why); } catch {}
+  try { const c = require("../media/cpuwork"); add("background decodes at once", c.budget(), c.budgetWhy()); add("background threads", c.background.threads(), "half the CPU threads"); } catch {}
+  try { add("library rescan", `every ${Math.round(config.SCAN_INTERVAL_MS / 60000)} min`, config.SCAN_INTERVAL_WHY || ""); } catch {}
+  try { add("library walk", "in a worker thread", "unchanged folders keep their files' dates; every file re-dated each 6th walk"); } catch {}
+  try { const h = require("../lib/power").pick(60, 180); add("healer round", `every ${h} s`, require("../lib/power").low() ? "the low-power profile" : "the default"); } catch {}
+  return out;
+};
+// Sizes of what is kept in memory: every bounded cache (lib/caches.js) plus a
+// few stores that are bounded elsewhere, and the profile states left behind
+// for ids that are no profile (an old version created those; since the
+// server round they are moved to data/profile-states-orphaned.json at load,
+// so this reads 0 unless one appears while the server runs).
+const memorySizes = () => {
+  const caches = require("../lib/caches");
+  const out = caches.report();
+  const add = (name, entries, max = null) => { if (entries != null) out.push({ name, entries, max, bytes: null, full: max != null && entries >= max }); };
+  try { add("library registry (files)", scanner._internals.registrySize()); } catch {}
+  try { add("library ids remembered", scanner._internals.idMemoSize(), 200000); } catch {}
+  try { add("probe cache (files)", Object.keys(require("../media/metadata")._store.data).length); } catch {}
+  try { add("kept answers", require("../lib/answermemo")._internals.entries.size, 64); } catch {}
+  try { add("picture checks", require("../lib/imgcheck")._internals.known.size, 12000); } catch {}
+  try { add("picture variants (fast path)", require("../lib/imgvariant")._internals.fast.size, 8000); } catch {}
+  try {
+    const st = profiles._internals.store.data;
+    const ids = new Set((st.profiles || []).map((p) => p.id));
+    add("profile states without a profile", Object.keys(st.state || {}).filter((k) => !ids.has(k)).length);
+  } catch {}
+  return out.sort((a, b) => b.entries - a.entries);
+};
 router.get("/api/admin/health", (req, res) => {
   // …plus the counters of the three things that keep a rush from becoming a
   // freeze: answers kept and served from memory (lib/answermemo.js), heavy
@@ -396,6 +442,20 @@ router.get("/api/admin/health", (req, res) => {
   // who the CPU is working for: viewer encodes, and the background work
   // standing behind them (media/cpuwork.js)
   try { load.cpu = require("../media/cpuwork").status(); } catch {}
+  // what the server keeps in memory, and how big each is (lib/caches.js);
+  // the library scans (media/scanner.js); the machine's power profile
+  try { load.caches = memorySizes(); } catch {}
+  try { load.scan = scanner.scanStats(); } catch {}
+  try { load.power = require("../lib/power").status(); } catch {}
+  // what was chosen from this machine, and why (the owner: "show why this value")
+  try { load.tuning = tuning(); } catch {}
+  // direct play: each library disk, what kind the OS says it is and how its
+  // reads are taken (lib/disktype.js, lib/diskread.js); streams let go for
+  // not reading; job folders being removed in the background
+  try {
+    const dr = require("../lib/diskread");
+    load.streams = { disks: require("../lib/disktype").status().map((d) => ({ ...d, readsAtOnce: dr.limitFor(d.kind) || "free", readBytes: (dr.policyFor(d.kind) || { read: 65536 }).read, ...(dr.stats()[d.dev] || {}) })), direct: require("../lib/rangeserve").counters(), removals: require("../lib/rmqueue").stats(), pauses: require("../lib/procpause").status() };
+  } catch {}
   res.json({ ...require("../lib/watchdog").status(), load });
 });
 router.post("/api/admin/heal", (req, res) => {
@@ -1124,13 +1184,30 @@ const encodingView = () => {
   try { load = require("../media/remux").encodeLoad(); } catch {}
   let cpu = null;
   try { cpu = require("../media/cpuwork").status(); } catch {}
-  return { ...budget.explain(), running: load, cpu, maxFixed: budget.MAX_FIXED };
+  let hardware = null;
+  try { hardware = require("../media/hwenc").status(); } catch {}
+  const ex = budget.explain();
+  // (cpuModel: explain()'s `cpu` is the processor's name, and `cpu` below is
+  // what is running — the card showed "[object Object]" for the model)
+  return { ...ex, cpuModel: ex.cpu, running: load, cpu, maxFixed: budget.MAX_FIXED, hardware };
 };
 router.get("/api/admin/encoding", (req, res) => res.json(encodingView()));
 // { maxEncodes: "auto" | 1…16 } — anything else is refused.
 router.post("/api/admin/encoding", (req, res) => {
   const budget = require("../media/encbudget");
   const settings = require("../lib/settings");
+  // { hwEncode: "auto" | "on" | "off" } — the graphics card for the ladder's
+  // encodes (media/hwenc.js); may come alone or with maxEncodes
+  const hwv = (req.body || {}).hwEncode;
+  if (hwv !== undefined) {
+    if (!["auto", "on", "off"].includes(hwv)) return res.status(400).json({ error: 'Choose "auto", "on" or "off" for the graphics card.' });
+    settings.data.hwEncode = hwv;
+    if ((req.body || {}).maxEncodes === undefined) {
+      settings.save();
+      console.log(`[encode] graphics card set from the admin page: ${require("../media/hwenc").sentence()}`);
+      return res.json({ ok: true, ...encodingView() });
+    }
+  }
   const v = (req.body || {}).maxEncodes;
   const n = Number(v);
   if (v === "auto") delete settings.data.maxEncodes;

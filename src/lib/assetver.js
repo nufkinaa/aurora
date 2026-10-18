@@ -166,21 +166,45 @@ const withModules = (html, publicDir) => {
 };
 
 // Serve an HTML shell from public/ with versioned stylesheet hrefs.
-const sendShell = (publicDir) => (res, name) => {
-  let html;
-  try {
-    html = withModules(readShell(path.join(publicDir, name)), publicDir).replace(
+//
+// The finished shell is kept for SHELL_RECHECK_MS. Writing it means asking
+// every module and stylesheet whether it changed (the import map, the
+// preload closure, the route table): 318 blocking file calls and 34 ms of a
+// two-core box's CPU for EVERY page load (server round, 2026-10-18 —
+// docs/qa/server-round/EVENTLOOP.md). Kept two seconds, an edit still shows
+// on the next reload, and a burst of page loads (a household opening the app
+// after a release) costs one.
+const SHELL_RECHECK_MS = 2000;
+const finished = new Map(); // abs path -> { at, html }
+const renderShell = (publicDir, name) => {
+  const run = () =>
+    withModules(readShell(path.join(publicDir, name)), publicDir).replace(
       /href="(\/css\/[^"?]+\.css)"/g,
       (whole, href) => {
         const v = versionFor(path.join(publicDir, href.replace(/^\//, "")));
         return v ? `href="${href}?v=${v}"` : whole;
       }
     );
-  } catch {
-    return res.status(404).type("text/plain").send("Not found");
+  // (each module looked at once for the whole shell: jsassets.within)
+  let js = null;
+  try { js = require("./jsassets"); } catch {}
+  return js && js.within ? js.within(run) : run();
+};
+const sendShell = (publicDir) => (res, name) => {
+  const abs = path.join(publicDir, name);
+  const now = Date.now();
+  let hit = finished.get(abs);
+  if (!hit || now - hit.at > SHELL_RECHECK_MS) {
+    try {
+      hit = { at: now, html: renderShell(publicDir, name) };
+    } catch {
+      finished.delete(abs);
+      return res.status(404).type("text/plain").send("Not found");
+    }
+    finished.set(abs, hit);
   }
   res.setHeader("Cache-Control", "no-cache");
-  res.type("html").send(html);
+  res.type("html").send(hit.html);
 };
 
-module.exports = { sendShell, versionFor, withModules, BOOT_ENTRIES, routeEntries };
+module.exports = { sendShell, versionFor, withModules, BOOT_ENTRIES, routeEntries, SHELL_RECHECK_MS, _internals: { finished } };

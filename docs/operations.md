@@ -36,8 +36,13 @@ healer lists an unsupervised server as a finding.
   only every 15 minutes. When a retry holds for two minutes it says
   "recovered".
 - **keeps the log** where it has always been: `data/server-stdout.log` and
-  `data/server-stderr.log`, appended. A file over 50 MB is set aside as
-  `.log.1` at the next start of the server (one older copy is kept).
+  `data/server-stderr.log`, appended. A file that passes 50 MB is set aside
+  as `.log.r1` (the one before becomes `.log.r2`) — at a start and while the
+  server runs. Two set-aside copies are kept, and a log with its copies never
+  passes 150 MB: the oldest copies are removed first. Only those `.rN`
+  copies are ever removed: an older `server-stdout.log.1` (from before this
+  version) is left alone; the admin page (Server → Data growth) names it and
+  gives the command to delete it.
 - **writes down what happened** in `data/keeper-state.json`; the admin page
   reads it: supervised by what, uptime, restarts in the last day, why the last
   exit.
@@ -425,3 +430,166 @@ from the reference machine by the capacity study's factors):
 
 Measured on the last line: six simultaneous 1080p HEVC → H.264 encodes made
 1.34× real time each; eight made 1.07×; nine 0.86× (below real time).
+
+# Behind a reverse proxy (nufurora.com)
+
+nufurora.com runs Aurora behind a reverse proxy that holds the certificate.
+What follows is configuration TEXT for Caddy and nginx — nothing here is
+applied by Aurora; copy what fits into the proxy's own file. The rules matter
+for streaming more than for anything else: a proxy with its defaults can
+read a whole film ahead into its own temp files, cut a segment that takes a
+while to be made, or close a viewer's WebSocket every minute.
+
+What Aurora expects of the proxy:
+
+- **No response buffering for streams.** `/stream/`, `/air/` (an Apple TV's
+  AirPlay links) and `/offline/file/` must flow through as they are made.
+  A buffering proxy reads ahead as fast as Aurora can send — on the house's
+  hard disk that is the disk working for nobody, and the viewer's own
+  back-pressure (what lets direct play share one disk between dozens of
+  viewers, `src/lib/diskread.js`) never reaches the server.
+- **Range and the validators passed both ways.** `Range`, `If-Range`,
+  `If-None-Match`, `If-Modified-Since` in; `Content-Range`, `Accept-Ranges`,
+  `ETag`, `Last-Modified` out. Both proxies do this by default unless a cache
+  or a body filter is put in the way.
+- **Timeouts longer than Aurora's waits.** A jit segment that has to be made
+  (an encode, a torrent that is still arriving) may take up to 90 s before
+  its first byte (`SEGMENT_WAIT_MS`). Give the upstream read 120 s. The
+  WebSocket (on `/`, the same address as the site) is quiet for minutes at a
+  time: give it an hour.
+- **Upstream keep-alive shorter than Aurora's.** Aurora keeps an idle
+  connection 75 s (`server.keepAliveTimeout`); the proxy's idle upstream
+  connections must be closed before that (60 s), or a request can be sent on
+  a connection Aurora is closing at that moment and fail.
+- **Compression: only what Aurora did not.** Aurora compresses JSON, scripts,
+  styles and HLS playlists itself (Brotli/gzip, marked `Content-Encoding`) and
+  never video. A proxy may compress the rest of the text; it must never
+  compress `video/*` or a `206`.
+- **Caching: the browser, not the proxy.** Everything a signed-in device
+  fetches is marked `private` (films, segments, pictures behind the sign-in
+  wall): a shared cache at the proxy would hand one person's answers to the
+  next. Aurora's own headers already let each browser keep what can be kept:
+  hashed scripts and styles (`?v=<hash>`, `public, max-age=31536000,
+  immutable`), posters and backdrops (a week), copied jit segments (named by
+  the file's version, `private, max-age=86400, immutable`), torrent copy
+  segments (the info hash names their bytes). The proxy runs on the same
+  machine as Aurora, so a proxy cache would save a local hop and nothing
+  more — leave it off.
+- **HTTP/2 (and 3) to the clients.** A player asks for a playlist and its
+  segments over one connection; HTTP/2 to the outside is a clear gain. The
+  hop from the proxy to Aurora stays HTTP/1.1 with keep-alive.
+- **The client's address and scheme.** `X-Forwarded-For` and
+  `X-Forwarded-Proto` (Aurora marks the session cookie `Secure` when the
+  request came over HTTPS).
+- **Body size.** An admin restore or a subtitle upload can be large: allow
+  200 MB.
+
+Aurora closes a streaming response whose client has taken no bytes for ten
+minutes (a dead connection, a device asleep with the player open); a proxy's
+own send timeout to the client may be shorter (nginx: `send_timeout`,
+default 60 s) — that is fine, a player asks again with a `Range` when it
+resumes.
+
+### Caddy (Caddyfile)
+
+```
+nufurora.com {
+	# text only — Aurora's own compressed answers carry Content-Encoding and
+	# are passed as they are; Caddy's default types never include video
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	request_body {
+		max_size 200MB
+	}
+
+	reverse_proxy 127.0.0.1:4000 {
+		# stream bytes the moment they arrive: direct play, segments, /air/
+		flush_interval -1
+		transport http {
+			# idle upstream connections close before Aurora's 75 s
+			keepalive 60s
+			keepalive_idle_conns 32
+			dial_timeout 5s
+			# a jit segment may take up to 90 s to its first byte
+			response_header_timeout 120s
+		}
+	}
+}
+```
+
+Caddy forwards WebSocket upgrades, `X-Forwarded-For` and
+`X-Forwarded-Proto` by itself, speaks HTTP/2 and HTTP/3 to clients by
+default, and does not buffer responses with `flush_interval -1`.
+
+### nginx
+
+```
+upstream aurora {
+    server 127.0.0.1:4000;
+    keepalive 32;
+    keepalive_timeout 60s;      # under Aurora's 75 s
+}
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      '';                 # keep-alive to the upstream when not upgrading
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name nufurora.com;
+    # ssl_certificate / ssl_certificate_key ...
+
+    client_max_body_size 200m;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options nosniff always;
+
+    # text only, and never twice: Aurora's own compressed answers are left alone
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+    gzip_proxied any;
+
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # streams: no buffering, no temp files, Aurora's back-pressure reaches it
+    location ~ ^/(stream|air|offline/file)/ {
+        proxy_pass http://aurora;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_max_temp_file_size 0;
+        proxy_read_timeout 120s;     # a jit segment may take up to 90 s
+        gzip off;
+    }
+
+    # everything else, the WebSocket included (it lives on "/")
+    location / {
+        proxy_pass http://aurora;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 3600s;    # an idle WebSocket
+    }
+}
+```
+
+Checking it from outside (any title id from `/api/library`):
+
+```
+curl -sI -H "Range: bytes=0-1023" https://nufurora.com/stream/video/<id>   # 206, Content-Range, ETag
+curl -s -o /dev/null -w "%{http_code} %{size_download}\n" -H "Range: bytes=0-1023" https://nufurora.com/stream/video/<id>   # 206 1024
+curl -sI -H "Accept-Encoding: br, gzip" https://nufurora.com/stream/transcode/<id>/jit/index.m3u8   # Content-Encoding on the playlist
+```
+
+(`/stream/` answers 401 without a session cookie when the sign-in wall is
+closed; sign in in a browser and copy its cookie into `-H "Cookie: …"`.)

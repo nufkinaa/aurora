@@ -78,7 +78,7 @@ const kidsCertOf = kids.makeCertOf({
 let artMap = null;
 let artMapAt = null;
 const itemsByArt = (p) => {
-  if (!artMap || artMapAt !== scanner.index.scannedAt) {
+  if (!artMap || artMapAt !== scanner.index.version) {
     const next = new Map();
     for (const item of scanner.allItems()) {
       const cover = typeof item.cover === "string" ? item.cover.split("?")[0] : "";
@@ -87,7 +87,7 @@ const itemsByArt = (p) => {
       next.get(cover).push(item);
     }
     artMap = next;
-    artMapAt = scanner.index.scannedAt;
+    artMapAt = scanner.index.version;
   }
   let key = p;
   try { key = decodeURIComponent(p); } catch {}
@@ -450,8 +450,10 @@ const personCredit = (c, { findLibrary, list = [], row = () => null, kid = null,
   };
 };
 router.get("/api/person/:id", async (req, res) => {
-  const ip = (req.ip || "").replace("::ffff:", "");
-  if (personOverBudget(ip)) return res.status(429).json({ error: "Easy — give it a minute before looking up more people." });
+  // (the per-device limit on people is lib/ratelimit.js's "person" group; the
+  // per-address budget that stood here keyed on req.ip, which behind the
+  // site's reverse proxy is the proxy itself — every visitor of nufurora.com
+  // shared one 40-a-minute budget. personOverBudget is kept for its test.)
   try {
     const maps = identity._internals.libraryMaps();
     const findLibrary = (ref) => identity.findLibraryFor(ref, maps);
@@ -573,7 +575,9 @@ const heavy = require("../lib/admission").heavy;
 // The library, as a number that moves whenever it changes: a scan, the
 // probes finishing, online metadata arriving (which ends in a scan).
 let libRev = 0;
-for (const ev of ["updated", "scanned"]) scanner.events.on(ev, () => { libRev++; });
+// (a rescan that found nothing different is not one: scanner.js "scanned" { changed })
+scanner.events.on("updated", () => { libRev++; });
+scanner.events.on("scanned", (info) => { if (!info || info.changed !== false) libRev++; });
 // (a probe pass that found nothing new is not a change)
 scanner.events.on("enriched", (info) => { if (scanner.enrichedChanged(info)) libRev++; });
 const dayNumber = () => Math.floor(Date.now() / 86400000);
@@ -586,7 +590,7 @@ const kidKey = (req) => (req.kids ? `${req.kids.profile}:${req.kids.maxAge}` : "
 const blurKey = (req) => (req.get("X-Blur") === "1" ? "blur" : "");
 // Built from: the library, the IMDb ids stamped on it, the age ratings (the
 // kids filter reads them), the placeholders known so far.
-const libraryStamp = () => `${libRev}.${scanner.index.scannedAt}.${scanner.index.enriched ? 1 : 0}.${imdbLib().version()}.${discover.stamp()}.${blurRev()}`;
+const libraryStamp = () => `${libRev}.${scanner.index.version}.${scanner.index.enriched ? 1 : 0}.${imdbLib().version()}.${discover.stamp()}.${blurRev()}`;
 // Home is built from all of that plus: the billboard pool, release verdicts,
 // the recommender's index, the settings, who the profiles are and their
 // limits — and, for a profile, ITS OWN writes (progress, list, ratings,
@@ -614,7 +618,9 @@ router.get("/api/library", libraryKept, heavy.middleware(), keptMeanwhile, (req,
   res.json({
     movies: scanner.index.movies,
     shows: scanner.index.shows.map(listEntry),
-    scannedAt: scanner.index.scannedAt,
+    // (when what the library holds last changed: a rescan that found nothing
+    // new leaves this answer — and its validator — as it was)
+    scannedAt: scanner.index.changedAt || scanner.index.scannedAt,
     enriched: scanner.index.enriched,
   });
 });

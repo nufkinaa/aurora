@@ -1,0 +1,35 @@
+[
+  {
+    "tree": "after",
+    "film": "Knives Out",
+    "v": "h264-720",
+    "pauseSec": 200,
+    "firstMs": 123335,
+    "againMs": 307,
+    "againFirstSegMs": 29,
+    "againStatuses": [
+      200
+    ],
+    "sameBytes": true,
+    "keptLog": [
+      "[watchdog] soft heal — loop lag 3999 ms · 1 kept answers dropped, jit: 1 tables dropped, 0 idle producers stopped · rss now 84 MB",
+      "[jit] idle-killed afead2936229-1766348900885-h264-720 (its segments are kept)"
+    ]
+  },
+  {
+    "tree": "before",
+    "film": "Knives Out",
+    "v": "h264-720",
+    "pauseSec": 200,
+    "firstMs": 135034,
+    "againMs": 12566,
+    "againFirstSegMs": 1502,
+    "againStatuses": [
+      200
+    ],
+    "sameBytes": false,
+    "keptLog": [
+      "[jit] idle-killed afead2936229-1766348900885-h264-720"
+    ]
+  }
+]

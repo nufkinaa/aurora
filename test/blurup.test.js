@@ -45,3 +45,37 @@ test("the middleware leaves a client that did not ask, arrays, and non-GETs alon
   assert.equal(run({ path: "/api/admin/people", get: () => "1" }, body)._blur, undefined);
   assert.ok(Array.isArray(run({ get: () => "1" }, [{ cover: "/img/known2" }])));
 });
+
+// Only what a screen draws first is made (2026-10-18, server round): an
+// answer naming thousands of pictures queued every one of them, and a film's
+// backdrop (its still, cut from the video) was made just for a placeholder.
+test("annotate asks for the first MAX_PER_RESPONSE pictures only; the rest are looked up in memory", () => {
+  const { queued, MAX_PER_RESPONSE } = blur._internals;
+  queued.clear();
+  mem.set("/img/late-known", "data:image/webp;base64,CCCC");
+  const items = Array.from({ length: MAX_PER_RESPONSE * 3 }, (_, i) => ({ cover: `/img/lazy${i}` }));
+  items.push({ cover: "/img/late-known" });
+  const map = blur.annotate({ items });
+  // asked for: the first MAX_PER_RESPONSE, in order; none past them
+  assert.equal(queued.size, MAX_PER_RESPONSE);
+  assert.ok(queued.has("/img/lazy0") && queued.has(`/img/lazy${MAX_PER_RESPONSE - 1}`));
+  assert.ok(!queued.has(`/img/lazy${MAX_PER_RESPONSE}`));
+  // …but a placeholder already in memory still rides along, wherever it is
+  assert.deepEqual(map, { "/img/late-known": "data:image/webp;base64,CCCC" });
+  queued.clear();
+});
+
+test("a film's still is not made for its placeholder: no /img/still/ is queued until the still exists", () => {
+  const { queued, stillMade } = blur._internals;
+  queued.clear();
+  assert.equal(stillMade("/img/still/0123456789ab"), false, "an id the library does not know");
+  assert.equal(blur.get("/img/still/0123456789ab"), null);
+  assert.equal(queued.has("/img/still/0123456789ab"), false);
+  // other pictures are not held back by this
+  assert.equal(stillMade("/img/abc"), true);
+  assert.equal(stillMade("https://images.metahub.space/poster/small/tt1/img"), true);
+  // known placeholders are answered as before
+  mem.set("/img/still/feedfacecafe", "data:image/webp;base64,DDDD");
+  assert.equal(blur.get("/img/still/feedfacecafe"), "data:image/webp;base64,DDDD");
+  queued.clear();
+});

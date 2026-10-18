@@ -387,25 +387,52 @@ const parseProbe = (json) => {
   };
 };
 
+// ONE colour probe for the whole server (server round, 2026-10-18): the
+// quality ladder (ladder.js — size, frame rate, profile, level) and the tone
+// mapping here (the colours) asked ffprobe the same question about the same
+// source, each with its own process. probeJson() asks once — the union of
+// both questions — and a second caller for the same source while the first
+// is out, or within SHARED_MS after, gets that answer.
 const PROBE_ARGS = [
   "-v", "error",
   "-select_streams", "v:0",
   "-show_entries",
-  "stream=codec_type,codec_name,width,height,pix_fmt,color_range,color_space,color_transfer,color_primaries,avg_frame_rate,r_frame_rate:stream_side_data=side_data_type,dv_profile,dv_bl_signal_compatibility_id",
+  "stream=codec_type,codec_name,profile,level,width,height,pix_fmt,color_range,color_space,color_transfer,color_primaries,avg_frame_rate,r_frame_rate:stream_side_data=side_data_type,dv_profile,dv_bl_signal_compatibility_id",
   "-of", "json",
 ];
-const probeVideo = (input, { http = false } = {}) =>
-  new Promise((resolve) => {
+const SHARED_MS = 60 * 1000;
+const shared = new Map(); // `${http}|${input}` -> { at, p: Promise<json|null> }
+// -> Promise<the parsed ffprobe JSON, or null>. Never rejects.
+const probeJson = (input, { http = false, timeoutMs = null } = {}) => {
+  const key = `${http ? 1 : 0}|${input}`;
+  const now = Date.now();
+  const hit = shared.get(key);
+  if (hit && (hit.pending || now - hit.at < SHARED_MS)) return hit.p;
+  const rec = { at: now, pending: true, p: null };
+  rec.p = new Promise((resolve) => {
     if (!config.FFPROBE) return resolve(null);
     execFile(
       config.FFPROBE,
       // Over our own blocking torrent route: the same bounds streamprobe.js
       // uses, so a slow swarm cannot hold a stream's start for long.
       [...PROBE_ARGS, ...(http ? ["-probesize", "16M", "-analyzeduration", "10M"] : []), input],
-      { windowsHide: true, timeout: http ? 6000 : 5000, maxBuffer: 1024 * 1024 },
-      (err, out) => resolve(err ? null : parseProbe(String(out || ""))),
+      { windowsHide: true, timeout: timeoutMs || (http ? 8000 : 5000), maxBuffer: 1024 * 1024 },
+      (err, out) => {
+        if (err) return resolve(null);
+        try { resolve(JSON.parse(String(out || ""))); } catch { resolve(null); }
+      },
     );
+  }).then((j) => {
+    rec.pending = false;
+    rec.at = Date.now();
+    if (!j) shared.delete(key); // a failure is not shared: each caller keeps its own failure memory
+    return j;
   });
+  if (shared.size > 200) for (const [k, v] of shared) if (!v.pending && Date.now() - v.at > SHARED_MS) shared.delete(k);
+  shared.set(key, rec);
+  return rec.p;
+};
+const probeVideo = (input, { http = false } = {}) => probeJson(input, { http }).then((j) => (j ? parseProbe(j) : null));
 
 const facts = new Map(); // key -> facts (a source's colours do not change)
 const failed = new Map(); // key -> failedAt
@@ -486,6 +513,7 @@ module.exports = {
   warmUp,
   parseProbe,
   probeVideo,
+  probeJson,
   sourceFacts,
   vfFor,
   enabled,

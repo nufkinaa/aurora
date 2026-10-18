@@ -106,7 +106,7 @@ const explain = async (message, o = {}) => {
     const actions = o.actions || require("../adminactions").list().actions.map((a) => ({ id: a.id, title: a.title }));
     const sent = redact(message);
     if (!sent) return null;
-    const doFetch = o.fetch || fetch;
+    const doFetch = o.fetch || ((url, init) => require("../upstream").fetch(url, { ...init, timeoutMs: TIMEOUT_MS }));
     const res = await doFetch(ENDPOINT, {
       method: "POST",
       signal: AbortSignal.timeout(TIMEOUT_MS),

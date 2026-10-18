@@ -1,0 +1,6112 @@
+{
+  "meta": {
+    "at": "2026-10-18T18:23:22.149Z",
+    "refs": {
+      "A": "f465c383edd1fe6e5052d4d78a0f386c2c9405f0",
+      "B": "6eb89b13c39fe3d1919d37d287a64ed388279577"
+    },
+    "names": {
+      "A": "f465c38",
+      "B": "6eb89b1"
+    },
+    "rounds": 3,
+    "order": [
+      "A",
+      "B",
+      "B",
+      "A",
+      "A",
+      "B"
+    ],
+    "scenario": "evening",
+    "n": 8,
+    "args": {
+      "_": [
+        "ab"
+      ],
+      "a": "f465c38",
+      "b": "6eb89b1",
+      "scenario": "evening",
+      "n": "8",
+      "minutes": "4",
+      "rounds": "3",
+      "machine": "small",
+      "out": "ab-evening8-small-integrated"
+    },
+    "host": {
+      "cpus": 16,
+      "cpu": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz"
+    }
+  },
+  "runs": [
+    {
+      "side": "A",
+      "ref": "f465c383edd1fe6e5052d4d78a0f386c2c9405f0",
+      "meta": {
+        "at": "2026-10-18T17:55:07.461Z",
+        "host": {
+          "cpus": 16,
+          "cpu": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+          "memGb": 32,
+          "platform": "win32",
+          "node": "v22.13.1"
+        },
+        "ref": "f465c383edd1fe6e5052d4d78a0f386c2c9405f0@f465c383",
+        "head": "f465c383edd1fe6e5052d4d78a0f386c2c9405f0",
+        "dirty": false,
+        "media": "real",
+        "machine": {
+          "name": "small",
+          "cpus": [
+            0,
+            2
+          ],
+          "heapMb": 256,
+          "wsMb": 320,
+          "env": {},
+          "mask": 5,
+          "cpuList": "0,2",
+          "applied": {
+            "affinity": "mask 5 (CPUs 0,2)",
+            "workingSetMaxMb": 320
+          }
+        },
+        "args": {
+          "_": [
+            "ab"
+          ],
+          "a": "f465c38",
+          "b": "6eb89b1",
+          "scenario": "evening",
+          "n": "8",
+          "minutes": "4",
+          "rounds": "3",
+          "machine": "small",
+          "out": "ab-evening8-small-integrated"
+        },
+        "scenario": "evening",
+        "n": 8,
+        "minutes": 4,
+        "lib": {
+          "movies": 29,
+          "shows": 8,
+          "playable": 29,
+          "pools": {
+            "web-direct": 17,
+            "web-jit": 12,
+            "web-transcode": 17,
+            "tv-direct": 23,
+            "tv-offset": 6
+          }
+        },
+        "note": "evening peak: n households (browser + TV each), 60 % of browsers and 40 % of TVs browsing, max(3, n/2) streams (direct, TV direct, jit copy, TV offset copy, one encode in six)"
+      },
+      "window": {
+        "label": "evening n=8",
+        "secs": 240,
+        "client": {
+          "groups": [
+            {
+              "group": "progress",
+              "n": 192,
+              "rps": 0.8,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 3,
+              "p50": 1.1,
+              "p95": 3.8,
+              "p99": 31.9,
+              "max": 193.2,
+              "codes": {
+                "200": 192
+              }
+            },
+            {
+              "group": "image-offline",
+              "n": 190,
+              "rps": 0.79,
+              "err": 190,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 190,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 18.8,
+              "p50": 7.8,
+              "p95": 82.7,
+              "p99": 172.6,
+              "max": 175.9,
+              "codes": {
+                "502": 190
+              }
+            },
+            {
+              "group": "image",
+              "n": 166,
+              "rps": 0.69,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 37.4,
+              "mean": 159.2,
+              "p50": 140.8,
+              "p95": 402.7,
+              "p99": 635.1,
+              "max": 789.1,
+              "codes": {
+                "200": 166
+              }
+            },
+            {
+              "group": "title",
+              "n": 79,
+              "rps": 0.33,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 1.7,
+              "mean": 11,
+              "p50": 7.8,
+              "p95": 35.2,
+              "p99": 83.7,
+              "max": 83.7,
+              "codes": {
+                "200": 79
+              }
+            },
+            {
+              "group": "suggest",
+              "n": 75,
+              "rps": 0.31,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.9,
+              "mean": 24.9,
+              "p50": 13.5,
+              "p95": 89.3,
+              "p99": 235.4,
+              "max": 235.4,
+              "codes": {
+                "200": 75
+              }
+            },
+            {
+              "group": "search",
+              "n": 75,
+              "rps": 0.31,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 7,
+              "mean": 32.7,
+              "p50": 18.5,
+              "p95": 100.7,
+              "p99": 269.1,
+              "max": 269.1,
+              "codes": {
+                "200": 75
+              }
+            },
+            {
+              "group": "segment",
+              "n": 70,
+              "rps": 0.29,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 1753.3,
+              "mean": 25.6,
+              "p50": 6.6,
+              "p95": 73.3,
+              "p99": 792.3,
+              "max": 792.3,
+              "codes": {
+                "200": 70
+              }
+            },
+            {
+              "group": "telemetry",
+              "n": 51,
+              "rps": 0.21,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 3.1,
+              "p50": 1.2,
+              "p95": 7.7,
+              "p99": 53,
+              "max": 53,
+              "codes": {
+                "204": 51
+              }
+            },
+            {
+              "group": "api-other",
+              "n": 43,
+              "rps": 0.18,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 5.6,
+              "p50": 2.3,
+              "p95": 12.8,
+              "p99": 15.4,
+              "max": 15.4,
+              "codes": {
+                "200": 43
+              }
+            },
+            {
+              "group": "state",
+              "n": 18,
+              "rps": 0.07,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1.2,
+              "p50": 0.9,
+              "p95": 5.3,
+              "p99": 5.3,
+              "max": 5.3,
+              "codes": {
+                "200": 18
+              }
+            },
+            {
+              "group": "boot",
+              "n": 18,
+              "rps": 0.07,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 2.1,
+              "p50": 1.7,
+              "p95": 6.9,
+              "p99": 6.9,
+              "max": 6.9,
+              "codes": {
+                "200": 18
+              }
+            },
+            {
+              "group": "grid",
+              "n": 18,
+              "rps": 0.07,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 6.8,
+              "p50": 7.3,
+              "p95": 15.6,
+              "p99": 15.6,
+              "max": 15.6,
+              "codes": {
+                "200": 18
+              }
+            },
+            {
+              "group": "home",
+              "n": 15,
+              "rps": 0.06,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 23.5,
+              "mean": 32,
+              "p50": 12.4,
+              "p95": 295.8,
+              "p99": 295.8,
+              "max": 295.8,
+              "codes": {
+                "200": 12,
+                "304": 3
+              }
+            },
+            {
+              "group": "person-offline",
+              "n": 9,
+              "rps": 0.04,
+              "err": 9,
+              "s429": 0,
+              "s503": 9,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1.3,
+              "p50": 1.4,
+              "p95": 1.6,
+              "p99": 1.6,
+              "max": 1.6,
+              "codes": {
+                "503": 9
+              }
+            },
+            {
+              "group": "title-offline",
+              "n": 8,
+              "rps": 0.03,
+              "err": 8,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 8,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 10.6,
+              "p50": 2,
+              "p95": 70.7,
+              "p99": 70.7,
+              "max": 70.7,
+              "codes": {
+                "502": 8
+              }
+            },
+            {
+              "group": "library",
+              "n": 6,
+              "rps": 0.02,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 25.1,
+              "mean": 6.4,
+              "p50": 5.9,
+              "p95": 7.8,
+              "p99": 7.8,
+              "max": 7.8,
+              "codes": {
+                "200": 6
+              }
+            },
+            {
+              "group": "tv",
+              "n": 5,
+              "rps": 0.02,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 2.7,
+              "p50": 1,
+              "p95": 10,
+              "p99": 10,
+              "max": 10,
+              "codes": {
+                "200": 5
+              }
+            },
+            {
+              "group": "playlist",
+              "n": 3,
+              "rps": 0.01,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 32,
+              "mean": 2.6,
+              "p50": 2.7,
+              "p95": 2.7,
+              "p99": 2.7,
+              "max": 2.7,
+              "codes": {
+                "200": 3
+              }
+            }
+          ],
+          "browse": {
+            "n": 518,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 12.7,
+            "p95": 305,
+            "p99": 444.3,
+            "max": 789.1
+          },
+          "api": {
+            "n": 352,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 9.4,
+            "p95": 69.4,
+            "p99": 235.4,
+            "max": 295.8
+          },
+          "images": {
+            "n": 166,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 140.8,
+            "p95": 402.7,
+            "p99": 635.1,
+            "max": 789.1
+          },
+          "all": {
+            "n": 1041,
+            "err": 207,
+            "s429": 0,
+            "s503": 9,
+            "s5xx": 198,
+            "net": 0,
+            "p50": 6.3,
+            "p95": 217.5,
+            "p99": 402.3,
+            "max": 792.3
+          },
+          "lagProbe": {
+            "n": 1122,
+            "p50": 0.9,
+            "p95": 3.8,
+            "p99": 29.2,
+            "max": 378.8
+          }
+        },
+        "viewers": [
+          {
+            "kind": "web-direct",
+            "title": "Arrival",
+            "startedInWindow": false,
+            "ttffMs": 100,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.11,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Inception",
+            "startedInWindow": false,
+            "ttffMs": 463,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 1.66,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "tv-direct",
+            "title": "Greenland",
+            "startedInWindow": false,
+            "ttffMs": 108,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.32,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "web-jit",
+            "title": "Caught Stealing",
+            "startedInWindow": false,
+            "ttffMs": 2240,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.53,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          }
+        ],
+        "server": {
+          "loop": {
+            "n": 28448,
+            "mean": 8.44,
+            "p50": 8.63,
+            "p90": 15.49,
+            "p99": 17.25,
+            "p999": 59.41,
+            "max": 422.84,
+            "percentiles": {
+              "0": 0,
+              "50": 8.62,
+              "75": 15.32,
+              "100": 422.58,
+              "87.5": 15.44,
+              "93.75": 15.55,
+              "96.88": 15.7,
+              "98.44": 16.31,
+              "99.22": 18.84,
+              "99.61": 25.05,
+              "99.8": 36.93,
+              "99.9": 59.9,
+              "99.95": 80.94,
+              "99.98": 112.98,
+              "99.99": 300.15
+            }
+          },
+          "stalls": {
+            "n50": 23,
+            "n100": 6,
+            "n250": 2,
+            "n1000": 0,
+            "totalMs": 2407.77,
+            "busyMs": 1653.63,
+            "waitMs": 754.13,
+            "cpuMs": 1374.51,
+            "max": 421.47,
+            "ticks": 8160,
+            "list": [
+              {
+                "at": 298975.7,
+                "ms": 421.47,
+                "cpuMs": 219,
+                "slow": []
+              },
+              {
+                "at": 299290.51,
+                "ms": 294.81,
+                "cpuMs": 156,
+                "slow": []
+              }
+            ]
+          },
+          "elu": 0.08911,
+          "cpuMs": 27375,
+          "gc": {
+            "other": {
+              "n": 118,
+              "ms": 144.54,
+              "maxMs": 45.15
+            },
+            "major": {
+              "n": 118,
+              "ms": 1012.55,
+              "maxMs": 92.42
+            },
+            "minor": {
+              "n": 75,
+              "ms": 200.61,
+              "maxMs": 25.36
+            }
+          },
+          "mem": {
+            "rss": 147357696,
+            "heapUsed": 71130480,
+            "heapTotal": 74338304,
+            "external": 8316740,
+            "arrayBuffers": 4863685
+          },
+          "handles": 70,
+          "http": {
+            "inFlight": 2,
+            "maxInFlight": 9,
+            "upgrades": 0,
+            "routes": {
+              "health": {
+                "n": 1122,
+                "p50": 0.53,
+                "p95": 1.52,
+                "p99": 2.47,
+                "max": 9.37,
+                "codes": {
+                  "200": 1122
+                },
+                "aborted": 0
+              },
+              "progress": {
+                "n": 192,
+                "p50": 0.66,
+                "p95": 1.51,
+                "p99": 3.37,
+                "max": 4.08,
+                "codes": {
+                  "200": 192
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 88,
+                "p50": 2.27,
+                "p95": 25.04,
+                "p99": 81.42,
+                "max": 81.42,
+                "codes": {
+                  "200": 71,
+                  "502": 8,
+                  "503": 9
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 18,
+                "p50": 0.56,
+                "p95": 4.99,
+                "p99": 4.99,
+                "max": 4.99,
+                "codes": {
+                  "200": 18
+                },
+                "aborted": 0
+              },
+              "api-other": {
+                "n": 87,
+                "p50": 0.86,
+                "p95": 2.32,
+                "p99": 5.68,
+                "max": 5.68,
+                "codes": {
+                  "200": 87
+                },
+                "aborted": 0
+              },
+              "image": {
+                "n": 1249,
+                "p50": 1.32,
+                "p95": 186.92,
+                "p99": 387.53,
+                "max": 673.04,
+                "codes": {
+                  "200": 202,
+                  "403": 3,
+                  "502": 1044
+                },
+                "aborted": 0
+              },
+              "segment": {
+                "n": 70,
+                "p50": 6.33,
+                "p95": 62.89,
+                "p99": 790.7,
+                "max": 790.7,
+                "codes": {
+                  "200": 70
+                },
+                "aborted": 0
+              },
+              "suggest": {
+                "n": 75,
+                "p50": 12.46,
+                "p95": 88.72,
+                "p99": 235.28,
+                "max": 235.28,
+                "codes": {
+                  "200": 75
+                },
+                "aborted": 0
+              },
+              "search": {
+                "n": 75,
+                "p50": 14.3,
+                "p95": 82.97,
+                "p99": 249,
+                "max": 249,
+                "codes": {
+                  "200": 75
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 6,
+                "p50": 5.25,
+                "p95": 6.94,
+                "p99": 6.94,
+                "max": 6.94,
+                "codes": {
+                  "200": 6
+                },
+                "aborted": 0
+              },
+              "telemetry": {
+                "n": 51,
+                "p50": 0.72,
+                "p95": 1.76,
+                "p99": 6.78,
+                "max": 6.78,
+                "codes": {
+                  "204": 51
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 15,
+                "p50": 10.76,
+                "p95": 308.28,
+                "p99": 308.28,
+                "max": 308.28,
+                "codes": {
+                  "200": 12,
+                  "304": 3
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 5,
+                "p50": 0.7,
+                "p95": 0.94,
+                "p99": 0.94,
+                "max": 0.94,
+                "codes": {
+                  "200": 5
+                },
+                "aborted": 0
+              },
+              "playlist": {
+                "n": 3,
+                "p50": 2.31,
+                "p95": 2.31,
+                "p99": 2.31,
+                "max": 2.31,
+                "codes": {
+                  "200": 3
+                },
+                "aborted": 0
+              }
+            }
+          },
+          "syncMs": {
+            "renameSync": 476.5,
+            "fsyncSync": 211.07,
+            "readSync": 136.67,
+            "openSync": 128.23,
+            "existsSync": 117.9,
+            "mkdirSync": 112.05,
+            "statSync": 90.73,
+            "closeSync": 65.83,
+            "writeSync": 51.29,
+            "readdirSync": 2.97
+          },
+          "slowSync": [
+            {
+              "fn": "fsyncSync",
+              "arg": "number",
+              "ms": 40.61,
+              "at": 215816.52
+            },
+            {
+              "fn": "readSync",
+              "arg": "number",
+              "ms": 37.24,
+              "at": 111479.91
+            },
+            {
+              "fn": "mkdirSync",
+              "arg": "a\\Local\\Temp\\aurora-agents\\srv-integrate\\lt\\deps-a5ec7b5a07e1\\i-f465c383-53216-fdd952\\data",
+              "ms": 32.03,
+              "at": 110721.07
+            },
+            {
+              "fn": "readSync",
+              "arg": "number",
+              "ms": 30.35,
+              "at": 232464.83
+            },
+            {
+              "fn": "closeSync",
+              "arg": "number",
+              "ms": 22.56,
+              "at": 232487.4
+            },
+            {
+              "fn": "readSync",
+              "arg": "number",
+              "ms": 20.03,
+              "at": 232376.07
+            }
+          ],
+          "fsCalls": 15046,
+          "fsTop": [
+            [
+              "read",
+              4228
+            ],
+            [
+              "statSync",
+              1989
+            ],
+            [
+              "existsSync",
+              1263
+            ],
+            [
+              "readFile",
+              1260
+            ],
+            [
+              "promises.readFile",
+              978
+            ],
+            [
+              "promises.unlink",
+              978
+            ],
+            [
+              "promises.rename",
+              550
+            ],
+            [
+              "closeSync",
+              469
+            ],
+            [
+              "openSync",
+              469
+            ],
+            [
+              "renameSync",
+              380
+            ],
+            [
+              "promises.open",
+              365
+            ],
+            [
+              "close",
+              341
+            ]
+          ],
+          "readStreams": 272,
+          "writes": [
+            {
+              "file": "data/cache/similar.json",
+              "n": 16,
+              "bytes": 12304338
+            },
+            {
+              "file": "data/profiles.json",
+              "n": 97,
+              "bytes": 486570
+            },
+            {
+              "file": "data/healer.json",
+              "n": 4,
+              "bytes": 192325
+            },
+            {
+              "file": "data/watch-sessions.json",
+              "n": 96,
+              "bytes": 125319
+            },
+            {
+              "file": "data/cache/trailers.json",
+              "n": 4,
+              "bytes": 39105
+            },
+            {
+              "file": "data/usage/*",
+              "n": 70,
+              "bytes": 22737
+            },
+            {
+              "file": "data/sessions.json",
+              "n": 5,
+              "bytes": 20485
+            },
+            {
+              "file": "data/cache/blur/*",
+              "n": 36,
+              "bytes": 9112
+            },
+            {
+              "file": "data/telemetry-hours.json",
+              "n": 8,
+              "bytes": 860
+            }
+          ],
+          "writtenBytes": 13200851,
+          "writesOutsideData": []
+        },
+        "tree": {
+          "wallSec": 239.7,
+          "serverCpuSec": 27.34,
+          "kidsCpuSec": 307.94,
+          "serverCores": 0.114,
+          "kidsCores": 1.285,
+          "rssMb": 184,
+          "handles": 365,
+          "threads": 15,
+          "kidsAlive": 3,
+          "kidsRssMb": 67
+        },
+        "dataDir": {
+          "bytes": 5915726791,
+          "files": 15174,
+          "grewBytes": 4274540450,
+          "grewFiles": 2302,
+          "by": {
+            "cache/hls": 2298285224,
+            "cache/jit": 1971253696,
+            "cache/img-variants": 4695564,
+            "cache/similar.json": 237569,
+            "healer.json": 50505,
+            "cache/blur": 9112,
+            "usage": 8523,
+            "profiles.json": 355,
+            "cache/trailers.json": -107,
+            "watch-sessions.json": 6
+          }
+        },
+        "driverCores": 0.018,
+        "counters": {
+          "wsDrops": 0,
+          "wsFails": 0,
+          "libraryUpdated": 0,
+          "deviceErrors": 0
+        },
+        "machine": {
+          "n": 119,
+          "cpuPctMean": 39.3,
+          "cpuPctP95": 75.7,
+          "freeMbMin": 9225,
+          "cores": 16
+        },
+        "disk": {
+          "drive": "E",
+          "n": 48,
+          "busyPctMean": 4.7,
+          "readMBsMean": 9.72
+        },
+        "intervals": [
+          {
+            "t": 60008,
+            "rss": 195014656
+          },
+          {
+            "t": 120008,
+            "rss": 196169728
+          },
+          {
+            "t": 180016,
+            "rss": 195178496
+          }
+        ],
+        "verdict": {
+          "degraded": false,
+          "why": []
+        },
+        "spec": {
+          "households": 8,
+          "webBrowse": 0.6,
+          "webThink": 20,
+          "tvBrowse": 0.4,
+          "tvThink": 35,
+          "streams": 4,
+          "mix": [
+            "web-direct",
+            "tv-direct",
+            "web-jit",
+            "tv-offset",
+            "web-direct",
+            "web-transcode"
+          ]
+        }
+      }
+    },
+    {
+      "side": "B",
+      "ref": "6eb89b13c39fe3d1919d37d287a64ed388279577",
+      "meta": {
+        "at": "2026-10-18T18:00:45.511Z",
+        "host": {
+          "cpus": 16,
+          "cpu": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+          "memGb": 32,
+          "platform": "win32",
+          "node": "v22.13.1"
+        },
+        "ref": "6eb89b13c39fe3d1919d37d287a64ed388279577@6eb89b13",
+        "head": "6eb89b13c39fe3d1919d37d287a64ed388279577",
+        "dirty": false,
+        "media": "real",
+        "machine": {
+          "name": "small",
+          "cpus": [
+            0,
+            2
+          ],
+          "heapMb": 256,
+          "wsMb": 320,
+          "env": {},
+          "mask": 5,
+          "cpuList": "0,2",
+          "applied": {
+            "affinity": "mask 5 (CPUs 0,2)",
+            "workingSetMaxMb": 320
+          }
+        },
+        "args": {
+          "_": [
+            "ab"
+          ],
+          "a": "f465c38",
+          "b": "6eb89b1",
+          "scenario": "evening",
+          "n": "8",
+          "minutes": "4",
+          "rounds": "3",
+          "machine": "small",
+          "out": "ab-evening8-small-integrated"
+        },
+        "scenario": "evening",
+        "n": 8,
+        "minutes": 4,
+        "lib": {
+          "movies": 29,
+          "shows": 8,
+          "playable": 29,
+          "pools": {
+            "web-direct": 17,
+            "web-jit": 12,
+            "web-transcode": 17,
+            "tv-direct": 23,
+            "tv-offset": 6
+          }
+        },
+        "note": "evening peak: n households (browser + TV each), 60 % of browsers and 40 % of TVs browsing, max(3, n/2) streams (direct, TV direct, jit copy, TV offset copy, one encode in six)"
+      },
+      "window": {
+        "label": "evening n=8",
+        "secs": 240,
+        "client": {
+          "groups": [
+            {
+              "group": "progress",
+              "n": 192,
+              "rps": 0.8,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 2,
+              "p50": 1.1,
+              "p95": 5.5,
+              "p99": 38,
+              "max": 41.4,
+              "codes": {
+                "200": 192
+              }
+            },
+            {
+              "group": "image-offline",
+              "n": 134,
+              "rps": 0.56,
+              "err": 134,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 134,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 8.1,
+              "p50": 3.8,
+              "p95": 34.5,
+              "p99": 72.9,
+              "max": 103.1,
+              "codes": {
+                "502": 134
+              }
+            },
+            {
+              "group": "image",
+              "n": 117,
+              "rps": 0.49,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 38.1,
+              "mean": 150.1,
+              "p50": 100.9,
+              "p95": 483.3,
+              "p99": 843.9,
+              "max": 927.3,
+              "codes": {
+                "200": 117
+              }
+            },
+            {
+              "group": "segment",
+              "n": 71,
+              "rps": 0.3,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 1791.6,
+              "mean": 28.1,
+              "p50": 6.9,
+              "p95": 59,
+              "p99": 1152.3,
+              "max": 1152.3,
+              "codes": {
+                "200": 71
+              }
+            },
+            {
+              "group": "title",
+              "n": 68,
+              "rps": 0.28,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 1.6,
+              "mean": 31.3,
+              "p50": 6.1,
+              "p95": 227.9,
+              "p99": 317,
+              "max": 317,
+              "codes": {
+                "200": 68
+              }
+            },
+            {
+              "group": "search",
+              "n": 53,
+              "rps": 0.22,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 7.8,
+              "mean": 27.1,
+              "p50": 10.8,
+              "p95": 79.5,
+              "p99": 216.3,
+              "max": 216.3,
+              "codes": {
+                "200": 53
+              }
+            },
+            {
+              "group": "suggest",
+              "n": 50,
+              "rps": 0.21,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 1,
+              "mean": 23,
+              "p50": 7.3,
+              "p95": 77,
+              "p99": 211.9,
+              "max": 211.9,
+              "codes": {
+                "200": 50
+              }
+            },
+            {
+              "group": "telemetry",
+              "n": 48,
+              "rps": 0.2,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 1.9,
+              "p50": 1.1,
+              "p95": 2,
+              "p99": 29,
+              "max": 29,
+              "codes": {
+                "204": 48
+              }
+            },
+            {
+              "group": "api-other",
+              "n": 33,
+              "rps": 0.14,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 1.9,
+              "p50": 1.3,
+              "p95": 4.5,
+              "p99": 6.3,
+              "max": 6.3,
+              "codes": {
+                "200": 33
+              }
+            },
+            {
+              "group": "grid",
+              "n": 27,
+              "rps": 0.11,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 5.9,
+              "p50": 3.7,
+              "p95": 25.4,
+              "p99": 26,
+              "max": 26,
+              "codes": {
+                "200": 27
+              }
+            },
+            {
+              "group": "home",
+              "n": 17,
+              "rps": 0.07,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 34.4,
+              "mean": 21.5,
+              "p50": 15.3,
+              "p95": 135.6,
+              "p99": 135.6,
+              "max": 135.6,
+              "codes": {
+                "200": 17
+              }
+            },
+            {
+              "group": "state",
+              "n": 14,
+              "rps": 0.06,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.2,
+              "mean": 5.7,
+              "p50": 1.5,
+              "p95": 47.6,
+              "p99": 47.6,
+              "max": 47.6,
+              "codes": {
+                "200": 14
+              }
+            },
+            {
+              "group": "boot",
+              "n": 14,
+              "rps": 0.06,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 7.4,
+              "p50": 2,
+              "p95": 48.5,
+              "p99": 48.5,
+              "max": 48.5,
+              "codes": {
+                "200": 14
+              }
+            },
+            {
+              "group": "library",
+              "n": 9,
+              "rps": 0.04,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 25.1,
+              "mean": 6.8,
+              "p50": 5.6,
+              "p95": 24.5,
+              "p99": 24.5,
+              "max": 24.5,
+              "codes": {
+                "200": 9
+              }
+            },
+            {
+              "group": "title-offline",
+              "n": 8,
+              "rps": 0.03,
+              "err": 8,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 8,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1.9,
+              "p50": 1.6,
+              "p95": 3.8,
+              "p99": 3.8,
+              "max": 3.8,
+              "codes": {
+                "502": 8
+              }
+            },
+            {
+              "group": "tv",
+              "n": 4,
+              "rps": 0.02,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1.1,
+              "p50": 0.8,
+              "p95": 1.4,
+              "p99": 1.4,
+              "max": 1.4,
+              "codes": {
+                "200": 4
+              }
+            },
+            {
+              "group": "playlist",
+              "n": 3,
+              "rps": 0.01,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 3.1,
+              "mean": 2.8,
+              "p50": 2.4,
+              "p95": 3.7,
+              "p99": 3.7,
+              "max": 3.7,
+              "codes": {
+                "200": 3
+              }
+            },
+            {
+              "group": "person-offline",
+              "n": 1,
+              "rps": 0,
+              "err": 1,
+              "s429": 0,
+              "s503": 1,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1.4,
+              "p50": 1.4,
+              "p95": 1.4,
+              "p99": 1.4,
+              "max": 1.4,
+              "codes": {
+                "503": 1
+              }
+            }
+          ],
+          "browse": {
+            "n": 406,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 9.5,
+            "p95": 227.9,
+            "p99": 502.1,
+            "max": 927.3
+          },
+          "api": {
+            "n": 289,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 6.1,
+            "p95": 77,
+            "p99": 259.3,
+            "max": 317
+          },
+          "images": {
+            "n": 117,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 100.9,
+            "p95": 483.3,
+            "p99": 843.9,
+            "max": 927.3
+          },
+          "all": {
+            "n": 863,
+            "err": 143,
+            "s429": 0,
+            "s503": 1,
+            "s5xx": 142,
+            "net": 0,
+            "p50": 3.7,
+            "p95": 172,
+            "p99": 454.3,
+            "max": 1152.3
+          },
+          "lagProbe": {
+            "n": 1125,
+            "p50": 0.9,
+            "p95": 3.3,
+            "p99": 12.5,
+            "max": 143
+          }
+        },
+        "viewers": [
+          {
+            "kind": "web-direct",
+            "title": "Arrival",
+            "startedInWindow": false,
+            "ttffMs": 104,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.11,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "web-jit",
+            "title": "Caught Stealing",
+            "startedInWindow": false,
+            "ttffMs": 640,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.68,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Inception",
+            "startedInWindow": false,
+            "ttffMs": 754,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 1.66,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "tv-direct",
+            "title": "Greenland",
+            "startedInWindow": false,
+            "ttffMs": 108,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 3.09,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          }
+        ],
+        "server": {
+          "loop": {
+            "n": 21077,
+            "mean": 11.39,
+            "p50": 15.05,
+            "p90": 15.56,
+            "p99": 17.01,
+            "p999": 40.27,
+            "max": 162.92,
+            "percentiles": {
+              "0": 0,
+              "50": 15.04,
+              "75": 15.4,
+              "100": 162.79,
+              "87.5": 15.52,
+              "93.75": 15.62,
+              "96.88": 15.9,
+              "98.44": 16.42,
+              "99.22": 17.81,
+              "99.61": 22.17,
+              "99.8": 28.23,
+              "99.9": 40.96,
+              "99.95": 57.87,
+              "99.98": 104.01,
+              "99.99": 142.34
+            }
+          },
+          "stalls": {
+            "n50": 9,
+            "n100": 3,
+            "n250": 0,
+            "n1000": 0,
+            "totalMs": 841.47,
+            "busyMs": 666.39,
+            "waitMs": 175.07,
+            "cpuMs": 641.87,
+            "max": 142.87,
+            "ticks": 7982,
+            "list": []
+          },
+          "elu": 0.046,
+          "cpuMs": 13109,
+          "gc": {
+            "other": {
+              "n": 29,
+              "ms": 9.7,
+              "maxMs": 0.53
+            },
+            "major": {
+              "n": 29,
+              "ms": 193.76,
+              "maxMs": 80.8
+            },
+            "minor": {
+              "n": 160,
+              "ms": 202.71,
+              "maxMs": 10.69
+            }
+          },
+          "mem": {
+            "rss": 211738624,
+            "heapUsed": 66447576,
+            "heapTotal": 104243200,
+            "external": 17404046,
+            "arrayBuffers": 13931247
+          },
+          "handles": 71,
+          "http": {
+            "inFlight": 2,
+            "maxInFlight": 8,
+            "upgrades": 0,
+            "routes": {
+              "health": {
+                "n": 1125,
+                "p50": 0.55,
+                "p95": 1.85,
+                "p99": 4.45,
+                "max": 26.56,
+                "codes": {
+                  "200": 1125
+                },
+                "aborted": 0
+              },
+              "segment": {
+                "n": 71,
+                "p50": 6.83,
+                "p95": 50.34,
+                "p99": 1120.68,
+                "max": 1120.68,
+                "codes": {
+                  "200": 71
+                },
+                "aborted": 0
+              },
+              "progress": {
+                "n": 192,
+                "p50": 0.67,
+                "p95": 2.53,
+                "p99": 7.31,
+                "max": 7.88,
+                "codes": {
+                  "200": 192
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 71,
+                "p50": 2.52,
+                "p95": 38.51,
+                "p99": 192.59,
+                "max": 192.59,
+                "codes": {
+                  "200": 62,
+                  "502": 8,
+                  "503": 1
+                },
+                "aborted": 0
+              },
+              "image": {
+                "n": 954,
+                "p50": 1.02,
+                "p95": 172.55,
+                "p99": 462.15,
+                "max": 925.17,
+                "codes": {
+                  "200": 154,
+                  "403": 7,
+                  "502": 793
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 17,
+                "p50": 14.76,
+                "p95": 121.26,
+                "p99": 121.26,
+                "max": 121.26,
+                "codes": {
+                  "200": 17
+                },
+                "aborted": 0
+              },
+              "api-other": {
+                "n": 80,
+                "p50": 0.75,
+                "p95": 12.41,
+                "p99": 262.86,
+                "max": 262.86,
+                "codes": {
+                  "200": 80
+                },
+                "aborted": 0
+              },
+              "telemetry": {
+                "n": 48,
+                "p50": 0.7,
+                "p95": 1.31,
+                "p99": 2.78,
+                "max": 2.78,
+                "codes": {
+                  "204": 48
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 14,
+                "p50": 0.52,
+                "p95": 3.44,
+                "p99": 3.44,
+                "max": 3.44,
+                "codes": {
+                  "200": 14
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 9,
+                "p50": 4.98,
+                "p95": 24.09,
+                "p99": 24.09,
+                "max": 24.09,
+                "codes": {
+                  "200": 9
+                },
+                "aborted": 0
+              },
+              "suggest": {
+                "n": 50,
+                "p50": 6.95,
+                "p95": 78.02,
+                "p99": 211.94,
+                "max": 211.94,
+                "codes": {
+                  "200": 50
+                },
+                "aborted": 0
+              },
+              "search": {
+                "n": 53,
+                "p50": 9.23,
+                "p95": 70.56,
+                "p99": 209.11,
+                "max": 209.11,
+                "codes": {
+                  "200": 53
+                },
+                "aborted": 0
+              },
+              "playlist": {
+                "n": 3,
+                "p50": 2.02,
+                "p95": 2.9,
+                "p99": 2.9,
+                "max": 2.9,
+                "codes": {
+                  "200": 3
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 4,
+                "p50": 0.55,
+                "p95": 1.05,
+                "p99": 1.05,
+                "max": 1.05,
+                "codes": {
+                  "200": 4
+                },
+                "aborted": 0
+              }
+            }
+          },
+          "syncMs": {
+            "openSync": 239.66,
+            "statSync": 87.76,
+            "existsSync": 53.53,
+            "readSync": 46.53,
+            "closeSync": 28.57,
+            "readFileSync": 26.86,
+            "mkdirSync": 11.77
+          },
+          "slowSync": [
+            {
+              "fn": "openSync",
+              "arg": "i-6eb89b13-53216-eeeb00\\data\\cache\\img-variants\\b83d92b5c5462aaad97776175f440f17-w240.webp",
+              "ms": 22.04,
+              "at": 234069.08
+            },
+            {
+              "fn": "readFileSync",
+              "arg": "ra-agents\\srv-integrate\\lt\\deps-a5ec7b5a07e1\\i-6eb89b13-53216-eeeb00\\src\\media\\trailers.js",
+              "ms": 21.84,
+              "at": 100208.41
+            }
+          ],
+          "fsCalls": 7377,
+          "fsTop": [
+            [
+              "read",
+              2357
+            ],
+            [
+              "statSync",
+              1454
+            ],
+            [
+              "readFile",
+              1081
+            ],
+            [
+              "existsSync",
+              410
+            ],
+            [
+              "close",
+              296
+            ],
+            [
+              "open",
+              296
+            ],
+            [
+              "stat",
+              225
+            ],
+            [
+              "closeSync",
+              221
+            ],
+            [
+              "openSync",
+              221
+            ],
+            [
+              "readSync",
+              221
+            ],
+            [
+              "rename",
+              129
+            ],
+            [
+              "promises.readFile",
+              101
+            ]
+          ],
+          "readStreams": 225,
+          "writes": [
+            {
+              "file": "data/usage/*",
+              "n": 68,
+              "bytes": 14578
+            },
+            {
+              "file": "data/cache/blur/*",
+              "n": 37,
+              "bytes": 9803
+            }
+          ],
+          "writtenBytes": 24381,
+          "writesOutsideData": []
+        },
+        "tree": {
+          "wallSec": 240.1,
+          "serverCpuSec": 12.52,
+          "kidsCpuSec": 8.22,
+          "serverCores": 0.052,
+          "kidsCores": 0.034,
+          "rssMb": 198,
+          "handles": 376,
+          "threads": 18,
+          "kidsAlive": 4,
+          "kidsRssMb": 56
+        },
+        "dataDir": {
+          "bytes": 1210429901,
+          "files": 12866,
+          "grewBytes": 111594735,
+          "grewFiles": 257,
+          "by": {
+            "cache/hls": 90649016,
+            "cache/jit": 16438720,
+            "cache/img-variants": 4156192,
+            "cache/similar.json": 328619,
+            "cache/blur": 9803,
+            "usage": 8035,
+            "healer.json": 3093,
+            "cache/xray.json": 645,
+            "profiles.json": 215,
+            "telemetry-hours.json": 214
+          }
+        },
+        "driverCores": 0.014,
+        "counters": {
+          "wsDrops": 0,
+          "wsFails": 0,
+          "libraryUpdated": 0,
+          "deviceErrors": 0
+        },
+        "machine": {
+          "n": 119,
+          "cpuPctMean": 30.9,
+          "cpuPctP95": 73.9,
+          "freeMbMin": 9718,
+          "cores": 16
+        },
+        "disk": {
+          "drive": "E",
+          "n": 48,
+          "busyPctMean": 0.9,
+          "readMBsMean": 0.59
+        },
+        "intervals": [
+          {
+            "t": 60002,
+            "rss": 171347968
+          },
+          {
+            "t": 120012,
+            "rss": 179838976
+          },
+          {
+            "t": 180023,
+            "rss": 203231232
+          }
+        ],
+        "verdict": {
+          "degraded": false,
+          "why": []
+        },
+        "spec": {
+          "households": 8,
+          "webBrowse": 0.6,
+          "webThink": 20,
+          "tvBrowse": 0.4,
+          "tvThink": 35,
+          "streams": 4,
+          "mix": [
+            "web-direct",
+            "tv-direct",
+            "web-jit",
+            "tv-offset",
+            "web-direct",
+            "web-transcode"
+          ]
+        }
+      }
+    },
+    {
+      "side": "B",
+      "ref": "6eb89b13c39fe3d1919d37d287a64ed388279577",
+      "meta": {
+        "at": "2026-10-18T18:06:23.405Z",
+        "host": {
+          "cpus": 16,
+          "cpu": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+          "memGb": 32,
+          "platform": "win32",
+          "node": "v22.13.1"
+        },
+        "ref": "6eb89b13c39fe3d1919d37d287a64ed388279577@6eb89b13",
+        "head": "6eb89b13c39fe3d1919d37d287a64ed388279577",
+        "dirty": false,
+        "media": "real",
+        "machine": {
+          "name": "small",
+          "cpus": [
+            0,
+            2
+          ],
+          "heapMb": 256,
+          "wsMb": 320,
+          "env": {},
+          "mask": 5,
+          "cpuList": "0,2",
+          "applied": {
+            "affinity": "mask 5 (CPUs 0,2)",
+            "workingSetMaxMb": 320
+          }
+        },
+        "args": {
+          "_": [
+            "ab"
+          ],
+          "a": "f465c38",
+          "b": "6eb89b1",
+          "scenario": "evening",
+          "n": "8",
+          "minutes": "4",
+          "rounds": "3",
+          "machine": "small",
+          "out": "ab-evening8-small-integrated"
+        },
+        "scenario": "evening",
+        "n": 8,
+        "minutes": 4,
+        "lib": {
+          "movies": 29,
+          "shows": 8,
+          "playable": 29,
+          "pools": {
+            "web-direct": 17,
+            "web-jit": 12,
+            "web-transcode": 17,
+            "tv-direct": 23,
+            "tv-offset": 6
+          }
+        },
+        "note": "evening peak: n households (browser + TV each), 60 % of browsers and 40 % of TVs browsing, max(3, n/2) streams (direct, TV direct, jit copy, TV offset copy, one encode in six)"
+      },
+      "window": {
+        "label": "evening n=8",
+        "secs": 240,
+        "client": {
+          "groups": [
+            {
+              "group": "progress",
+              "n": 192,
+              "rps": 0.8,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 1.7,
+              "p50": 1,
+              "p95": 3.5,
+              "p99": 17.8,
+              "max": 31.9,
+              "codes": {
+                "200": 192
+              }
+            },
+            {
+              "group": "image",
+              "n": 188,
+              "rps": 0.78,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 39,
+              "mean": 114,
+              "p50": 87.6,
+              "p95": 295.4,
+              "p99": 737.8,
+              "max": 810.8,
+              "codes": {
+                "200": 188
+              }
+            },
+            {
+              "group": "image-offline",
+              "n": 171,
+              "rps": 0.71,
+              "err": 171,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 171,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 5.1,
+              "p50": 3.2,
+              "p95": 16.3,
+              "p99": 43.5,
+              "max": 68.8,
+              "codes": {
+                "502": 171
+              }
+            },
+            {
+              "group": "search",
+              "n": 125,
+              "rps": 0.52,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 6.6,
+              "mean": 22.1,
+              "p50": 10.3,
+              "p95": 83.3,
+              "p99": 122.4,
+              "max": 341.8,
+              "codes": {
+                "200": 125
+              }
+            },
+            {
+              "group": "suggest",
+              "n": 109,
+              "rps": 0.45,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.9,
+              "mean": 15.3,
+              "p50": 8.8,
+              "p95": 54.4,
+              "p99": 77.3,
+              "max": 227.5,
+              "codes": {
+                "200": 109
+              }
+            },
+            {
+              "group": "title",
+              "n": 74,
+              "rps": 0.31,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 1.7,
+              "mean": 21.8,
+              "p50": 7.3,
+              "p95": 157.9,
+              "p99": 261.7,
+              "max": 261.7,
+              "codes": {
+                "200": 74
+              }
+            },
+            {
+              "group": "segment",
+              "n": 71,
+              "rps": 0.3,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 2312.7,
+              "mean": 17.6,
+              "p50": 11.2,
+              "p95": 57,
+              "p99": 144.4,
+              "max": 144.4,
+              "codes": {
+                "200": 71
+              }
+            },
+            {
+              "group": "telemetry",
+              "n": 54,
+              "rps": 0.22,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 1.5,
+              "p50": 1.1,
+              "p95": 2.6,
+              "p99": 6.5,
+              "max": 6.5,
+              "codes": {
+                "204": 54
+              }
+            },
+            {
+              "group": "api-other",
+              "n": 46,
+              "rps": 0.19,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 1.4,
+              "p50": 1.1,
+              "p95": 2.8,
+              "p99": 4.6,
+              "max": 4.6,
+              "codes": {
+                "200": 46
+              }
+            },
+            {
+              "group": "grid",
+              "n": 25,
+              "rps": 0.1,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 5.2,
+              "p50": 5.1,
+              "p95": 14.1,
+              "p99": 15.6,
+              "max": 15.6,
+              "codes": {
+                "200": 25
+              }
+            },
+            {
+              "group": "state",
+              "n": 16,
+              "rps": 0.07,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 3.4,
+              "p50": 1,
+              "p95": 17.3,
+              "p99": 17.3,
+              "max": 17.3,
+              "codes": {
+                "200": 16
+              }
+            },
+            {
+              "group": "boot",
+              "n": 16,
+              "rps": 0.07,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 4.5,
+              "p50": 2,
+              "p95": 17.9,
+              "p99": 17.9,
+              "max": 17.9,
+              "codes": {
+                "200": 16
+              }
+            },
+            {
+              "group": "home",
+              "n": 13,
+              "rps": 0.05,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 34.2,
+              "mean": 18.7,
+              "p50": 16.4,
+              "p95": 76.1,
+              "p99": 76.1,
+              "max": 76.1,
+              "codes": {
+                "200": 13
+              }
+            },
+            {
+              "group": "library",
+              "n": 9,
+              "rps": 0.04,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 25.1,
+              "mean": 5.3,
+              "p50": 5.6,
+              "p95": 12.9,
+              "p99": 12.9,
+              "max": 12.9,
+              "codes": {
+                "200": 9
+              }
+            },
+            {
+              "group": "title-offline",
+              "n": 6,
+              "rps": 0.02,
+              "err": 6,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 6,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1.5,
+              "p50": 1.3,
+              "p95": 2.2,
+              "p99": 2.2,
+              "max": 2.2,
+              "codes": {
+                "502": 6
+              }
+            },
+            {
+              "group": "tv",
+              "n": 4,
+              "rps": 0.02,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 2.1,
+              "p50": 1.2,
+              "p95": 3.8,
+              "p99": 3.8,
+              "max": 3.8,
+              "codes": {
+                "200": 4
+              }
+            },
+            {
+              "group": "playlist",
+              "n": 3,
+              "rps": 0.01,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 3.7,
+              "mean": 3.5,
+              "p50": 2.3,
+              "p95": 6.2,
+              "p99": 6.2,
+              "max": 6.2,
+              "codes": {
+                "200": 3
+              }
+            },
+            {
+              "group": "person-offline",
+              "n": 2,
+              "rps": 0.01,
+              "err": 2,
+              "s429": 0,
+              "s503": 2,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 12.8,
+              "p50": 1.2,
+              "p95": 24.3,
+              "p99": 24.3,
+              "max": 24.3,
+              "codes": {
+                "503": 2
+              }
+            }
+          ],
+          "browse": {
+            "n": 625,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 9.4,
+            "p95": 204,
+            "p99": 353.9,
+            "max": 810.8
+          },
+          "api": {
+            "n": 437,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 7.6,
+            "p95": 58.3,
+            "p99": 168.8,
+            "max": 341.8
+          },
+          "images": {
+            "n": 188,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 87.6,
+            "p95": 295.4,
+            "p99": 737.8,
+            "max": 810.8
+          },
+          "all": {
+            "n": 1124,
+            "err": 179,
+            "s429": 0,
+            "s503": 2,
+            "s5xx": 177,
+            "net": 0,
+            "p50": 5.1,
+            "p95": 144.4,
+            "p99": 291.7,
+            "max": 810.8
+          },
+          "lagProbe": {
+            "n": 1125,
+            "p50": 0.9,
+            "p95": 3,
+            "p99": 22.9,
+            "max": 309
+          }
+        },
+        "viewers": [
+          {
+            "kind": "tv-direct",
+            "title": "Greenland",
+            "startedInWindow": false,
+            "ttffMs": 110,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 3.09,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "web-jit",
+            "title": "Caught Stealing",
+            "startedInWindow": false,
+            "ttffMs": 1944,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 3.94,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Inception",
+            "startedInWindow": false,
+            "ttffMs": 1571,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 1.66,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "web-direct",
+            "title": "Arrival",
+            "startedInWindow": false,
+            "ttffMs": 107,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.1,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          }
+        ],
+        "server": {
+          "loop": {
+            "n": 22691,
+            "mean": 10.58,
+            "p50": 14.94,
+            "p90": 15.55,
+            "p99": 16.64,
+            "p999": 32.21,
+            "max": 410.52,
+            "percentiles": {
+              "0": 0,
+              "50": 14.93,
+              "75": 15.39,
+              "100": 410.26,
+              "87.5": 15.51,
+              "93.75": 15.62,
+              "96.88": 15.88,
+              "98.44": 16.33,
+              "99.22": 16.94,
+              "99.61": 19.74,
+              "99.8": 25.28,
+              "99.9": 32.31,
+              "99.95": 55.67,
+              "99.98": 84.02,
+              "99.99": 288.1
+            }
+          },
+          "stalls": {
+            "n50": 9,
+            "n100": 3,
+            "n250": 2,
+            "n1000": 0,
+            "totalMs": 1235.09,
+            "busyMs": 647.41,
+            "waitMs": 587.68,
+            "cpuMs": 555.77,
+            "max": 398.63,
+            "ticks": 8007,
+            "list": [
+              {
+                "at": 294288.59,
+                "ms": 398.63,
+                "cpuMs": 265,
+                "slow": []
+              },
+              {
+                "at": 294650.46,
+                "ms": 268.14,
+                "cpuMs": 47,
+                "slow": []
+              }
+            ]
+          },
+          "elu": 0.05126,
+          "cpuMs": 15703,
+          "gc": {
+            "minor": {
+              "n": 159,
+              "ms": 303.02,
+              "maxMs": 98.72
+            },
+            "other": {
+              "n": 41,
+              "ms": 16.68,
+              "maxMs": 3.41
+            },
+            "major": {
+              "n": 41,
+              "ms": 181.13,
+              "maxMs": 28.88
+            }
+          },
+          "mem": {
+            "rss": 209616896,
+            "heapUsed": 67469368,
+            "heapTotal": 104767488,
+            "external": 15307311,
+            "arrayBuffers": 11834742
+          },
+          "handles": 72,
+          "http": {
+            "inFlight": 2,
+            "maxInFlight": 11,
+            "upgrades": 0,
+            "routes": {
+              "health": {
+                "n": 1125,
+                "p50": 0.56,
+                "p95": 1.27,
+                "p99": 3.35,
+                "max": 26.94,
+                "codes": {
+                  "200": 1125
+                },
+                "aborted": 0
+              },
+              "api-other": {
+                "n": 91,
+                "p50": 0.75,
+                "p95": 3.44,
+                "p99": 230.76,
+                "max": 230.76,
+                "codes": {
+                  "200": 91
+                },
+                "aborted": 0
+              },
+              "suggest": {
+                "n": 112,
+                "p50": 8.22,
+                "p95": 61.91,
+                "p99": 277.38,
+                "max": 415.66,
+                "codes": {
+                  "200": 112
+                },
+                "aborted": 2
+              },
+              "image": {
+                "n": 1313,
+                "p50": 0.9,
+                "p95": 141.9,
+                "p99": 283.01,
+                "max": 742.01,
+                "codes": {
+                  "200": 253,
+                  "403": 18,
+                  "502": 1042
+                },
+                "aborted": 0
+              },
+              "search": {
+                "n": 127,
+                "p50": 8.28,
+                "p95": 66.39,
+                "p99": 122.38,
+                "max": 134.48,
+                "codes": {
+                  "200": 127
+                },
+                "aborted": 1
+              },
+              "progress": {
+                "n": 192,
+                "p50": 0.71,
+                "p95": 2.01,
+                "p99": 3.64,
+                "max": 4.82,
+                "codes": {
+                  "200": 192
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 78,
+                "p50": 2.71,
+                "p95": 33.12,
+                "p99": 157.63,
+                "max": 157.63,
+                "codes": {
+                  "200": 70,
+                  "502": 6,
+                  "503": 2
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 16,
+                "p50": 0.58,
+                "p95": 1.75,
+                "p99": 1.75,
+                "max": 1.75,
+                "codes": {
+                  "200": 16
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 13,
+                "p50": 13.93,
+                "p95": 80.39,
+                "p99": 80.39,
+                "max": 80.39,
+                "codes": {
+                  "200": 13
+                },
+                "aborted": 0
+              },
+              "segment": {
+                "n": 71,
+                "p50": 10.94,
+                "p95": 55.77,
+                "p99": 144.16,
+                "max": 144.16,
+                "codes": {
+                  "200": 71
+                },
+                "aborted": 0
+              },
+              "telemetry": {
+                "n": 54,
+                "p50": 0.71,
+                "p95": 1.62,
+                "p99": 5.32,
+                "max": 5.32,
+                "codes": {
+                  "204": 54
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 9,
+                "p50": 5.29,
+                "p95": 12.16,
+                "p99": 12.16,
+                "max": 12.16,
+                "codes": {
+                  "200": 9
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 4,
+                "p50": 0.67,
+                "p95": 2.19,
+                "p99": 2.19,
+                "max": 2.19,
+                "codes": {
+                  "200": 4
+                },
+                "aborted": 0
+              },
+              "playlist": {
+                "n": 3,
+                "p50": 1.96,
+                "p95": 5.14,
+                "p99": 5.14,
+                "max": 5.14,
+                "codes": {
+                  "200": 3
+                },
+                "aborted": 0
+              }
+            }
+          },
+          "syncMs": {
+            "openSync": 167.13,
+            "closeSync": 148.18,
+            "statSync": 102.28,
+            "readSync": 96.84,
+            "existsSync": 54.19,
+            "readFileSync": 39.6,
+            "mkdirSync": 14.46
+          },
+          "slowSync": [
+            {
+              "fn": "closeSync",
+              "arg": "number",
+              "ms": 97.12,
+              "at": 182653.9
+            },
+            {
+              "fn": "readSync",
+              "arg": "number",
+              "ms": 63.56,
+              "at": 182556.77
+            },
+            {
+              "fn": "closeSync",
+              "arg": "number",
+              "ms": 20.32,
+              "at": 182704.49
+            }
+          ],
+          "fsCalls": 10106,
+          "fsTop": [
+            [
+              "read",
+              3044
+            ],
+            [
+              "statSync",
+              2021
+            ],
+            [
+              "readFile",
+              1458
+            ],
+            [
+              "existsSync",
+              462
+            ],
+            [
+              "close",
+              429
+            ],
+            [
+              "open",
+              429
+            ],
+            [
+              "closeSync",
+              340
+            ],
+            [
+              "openSync",
+              340
+            ],
+            [
+              "readSync",
+              340
+            ],
+            [
+              "stat",
+              324
+            ],
+            [
+              "rename",
+              199
+            ],
+            [
+              "promises.readFile",
+              153
+            ]
+          ],
+          "readStreams": 324,
+          "writes": [
+            {
+              "file": "data/cache/blur/*",
+              "n": 65,
+              "bytes": 17159
+            },
+            {
+              "file": "data/usage/*",
+              "n": 80,
+              "bytes": 16674
+            }
+          ],
+          "writtenBytes": 33833,
+          "writesOutsideData": []
+        },
+        "tree": {
+          "wallSec": 241.6,
+          "serverCpuSec": 15.67,
+          "kidsCpuSec": 6.13,
+          "serverCores": 0.065,
+          "kidsCores": 0.025,
+          "rssMb": 200,
+          "handles": 380,
+          "threads": 18,
+          "kidsAlive": 4,
+          "kidsRssMb": 56
+        },
+        "dataDir": {
+          "bytes": 1250769574,
+          "files": 12899,
+          "grewBytes": 126888816,
+          "grewFiles": 295,
+          "by": {
+            "cache/jit": 119921440,
+            "cache/img-variants": 6739934,
+            "cache/similar.json": 196582,
+            "cache/blur": 17159,
+            "usage": 9099,
+            "healer.json": 3199,
+            "profiles.json": 1298,
+            "watch-journal.json": -975,
+            "cache/xray.json": 857,
+            "cache/trailers.json": 211
+          }
+        },
+        "driverCores": 0.016,
+        "counters": {
+          "wsDrops": 0,
+          "wsFails": 0,
+          "libraryUpdated": 0,
+          "deviceErrors": 0
+        },
+        "machine": {
+          "n": 120,
+          "cpuPctMean": 30.3,
+          "cpuPctP95": 63.2,
+          "freeMbMin": 10181,
+          "cores": 16
+        },
+        "disk": {
+          "drive": "E",
+          "n": 48,
+          "busyPctMean": 0.6,
+          "readMBsMean": 0.37
+        },
+        "intervals": [
+          {
+            "t": 60005,
+            "rss": 169992192
+          },
+          {
+            "t": 120005,
+            "rss": 204783616
+          },
+          {
+            "t": 180010,
+            "rss": 206979072
+          }
+        ],
+        "verdict": {
+          "degraded": false,
+          "why": []
+        },
+        "spec": {
+          "households": 8,
+          "webBrowse": 0.6,
+          "webThink": 20,
+          "tvBrowse": 0.4,
+          "tvThink": 35,
+          "streams": 4,
+          "mix": [
+            "web-direct",
+            "tv-direct",
+            "web-jit",
+            "tv-offset",
+            "web-direct",
+            "web-transcode"
+          ]
+        }
+      }
+    },
+    {
+      "side": "A",
+      "ref": "f465c383edd1fe6e5052d4d78a0f386c2c9405f0",
+      "meta": {
+        "at": "2026-10-18T18:12:01.673Z",
+        "host": {
+          "cpus": 16,
+          "cpu": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+          "memGb": 32,
+          "platform": "win32",
+          "node": "v22.13.1"
+        },
+        "ref": "f465c383edd1fe6e5052d4d78a0f386c2c9405f0@f465c383",
+        "head": "f465c383edd1fe6e5052d4d78a0f386c2c9405f0",
+        "dirty": false,
+        "media": "real",
+        "machine": {
+          "name": "small",
+          "cpus": [
+            0,
+            2
+          ],
+          "heapMb": 256,
+          "wsMb": 320,
+          "env": {},
+          "mask": 5,
+          "cpuList": "0,2",
+          "applied": {
+            "affinity": "mask 5 (CPUs 0,2)",
+            "workingSetMaxMb": 320
+          }
+        },
+        "args": {
+          "_": [
+            "ab"
+          ],
+          "a": "f465c38",
+          "b": "6eb89b1",
+          "scenario": "evening",
+          "n": "8",
+          "minutes": "4",
+          "rounds": "3",
+          "machine": "small",
+          "out": "ab-evening8-small-integrated"
+        },
+        "scenario": "evening",
+        "n": 8,
+        "minutes": 4,
+        "lib": {
+          "movies": 29,
+          "shows": 8,
+          "playable": 29,
+          "pools": {
+            "web-direct": 17,
+            "web-jit": 12,
+            "web-transcode": 17,
+            "tv-direct": 23,
+            "tv-offset": 6
+          }
+        },
+        "note": "evening peak: n households (browser + TV each), 60 % of browsers and 40 % of TVs browsing, max(3, n/2) streams (direct, TV direct, jit copy, TV offset copy, one encode in six)"
+      },
+      "window": {
+        "label": "evening n=8",
+        "secs": 240,
+        "client": {
+          "groups": [
+            {
+              "group": "progress",
+              "n": 192,
+              "rps": 0.8,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 2.9,
+              "p50": 1,
+              "p95": 8,
+              "p99": 90.9,
+              "max": 93.5,
+              "codes": {
+                "200": 192
+              }
+            },
+            {
+              "group": "image-offline",
+              "n": 178,
+              "rps": 0.74,
+              "err": 178,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 178,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 16.2,
+              "p50": 6,
+              "p95": 62.9,
+              "p99": 101,
+              "max": 127.5,
+              "codes": {
+                "502": 178
+              }
+            },
+            {
+              "group": "image",
+              "n": 130,
+              "rps": 0.54,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 29,
+              "mean": 187.8,
+              "p50": 144,
+              "p95": 552.3,
+              "p99": 1013.6,
+              "max": 1124,
+              "codes": {
+                "200": 130
+              }
+            },
+            {
+              "group": "segment",
+              "n": 70,
+              "rps": 0.29,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 1758,
+              "mean": 18.7,
+              "p50": 6.2,
+              "p95": 77.1,
+              "p99": 335.5,
+              "max": 335.5,
+              "codes": {
+                "200": 70
+              }
+            },
+            {
+              "group": "title",
+              "n": 57,
+              "rps": 0.24,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 2,
+              "mean": 16.1,
+              "p50": 9.4,
+              "p95": 55.6,
+              "p99": 98.9,
+              "max": 98.9,
+              "codes": {
+                "200": 57
+              }
+            },
+            {
+              "group": "telemetry",
+              "n": 57,
+              "rps": 0.24,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 2.4,
+              "p50": 1.2,
+              "p95": 3.7,
+              "p99": 55.5,
+              "max": 55.5,
+              "codes": {
+                "204": 57
+              }
+            },
+            {
+              "group": "suggest",
+              "n": 53,
+              "rps": 0.22,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 1,
+              "mean": 29.7,
+              "p50": 16.3,
+              "p95": 71.4,
+              "p99": 490.3,
+              "max": 490.3,
+              "codes": {
+                "200": 53
+              }
+            },
+            {
+              "group": "search",
+              "n": 48,
+              "rps": 0.2,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 7.5,
+              "mean": 43.5,
+              "p50": 22.2,
+              "p95": 107.1,
+              "p99": 492.9,
+              "max": 492.9,
+              "codes": {
+                "200": 48
+              }
+            },
+            {
+              "group": "grid",
+              "n": 34,
+              "rps": 0.14,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 7.8,
+              "p50": 7.7,
+              "p95": 20.8,
+              "p99": 22.9,
+              "max": 22.9,
+              "codes": {
+                "200": 34
+              }
+            },
+            {
+              "group": "api-other",
+              "n": 29,
+              "rps": 0.12,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 5,
+              "p50": 2.1,
+              "p95": 14.8,
+              "p99": 16,
+              "max": 16,
+              "codes": {
+                "200": 29
+              }
+            },
+            {
+              "group": "title-offline",
+              "n": 14,
+              "rps": 0.06,
+              "err": 14,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 14,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 2.7,
+              "p50": 2.4,
+              "p95": 7.4,
+              "p99": 7.4,
+              "max": 7.4,
+              "codes": {
+                "502": 14
+              }
+            },
+            {
+              "group": "library",
+              "n": 13,
+              "rps": 0.05,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 25.1,
+              "mean": 5.2,
+              "p50": 5.8,
+              "p95": 8.7,
+              "p99": 8.7,
+              "max": 8.7,
+              "codes": {
+                "200": 13
+              }
+            },
+            {
+              "group": "home",
+              "n": 13,
+              "rps": 0.05,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 24.8,
+              "mean": 19.1,
+              "p50": 17.8,
+              "p95": 39.7,
+              "p99": 39.7,
+              "max": 39.7,
+              "codes": {
+                "200": 9,
+                "304": 4
+              }
+            },
+            {
+              "group": "state",
+              "n": 10,
+              "rps": 0.04,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1.3,
+              "p50": 0.9,
+              "p95": 3,
+              "p99": 3,
+              "max": 3,
+              "codes": {
+                "200": 10
+              }
+            },
+            {
+              "group": "boot",
+              "n": 10,
+              "rps": 0.04,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 2.2,
+              "p50": 1.9,
+              "p95": 3.5,
+              "p99": 3.5,
+              "max": 3.5,
+              "codes": {
+                "200": 10
+              }
+            },
+            {
+              "group": "tv",
+              "n": 5,
+              "rps": 0.02,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1.2,
+              "p50": 1.1,
+              "p95": 1.9,
+              "p99": 1.9,
+              "max": 1.9,
+              "codes": {
+                "200": 5
+              }
+            },
+            {
+              "group": "playlist",
+              "n": 3,
+              "rps": 0.01,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 30.1,
+              "mean": 3.1,
+              "p50": 3.1,
+              "p95": 3.2,
+              "p99": 3.2,
+              "max": 3.2,
+              "codes": {
+                "200": 3
+              }
+            },
+            {
+              "group": "person-offline",
+              "n": 3,
+              "rps": 0.01,
+              "err": 3,
+              "s429": 0,
+              "s503": 3,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1.2,
+              "p50": 1.2,
+              "p95": 1.3,
+              "p99": 1.3,
+              "max": 1.3,
+              "codes": {
+                "503": 3
+              }
+            }
+          ],
+          "browse": {
+            "n": 402,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 15.8,
+            "p95": 396.8,
+            "p99": 558.3,
+            "max": 1124
+          },
+          "api": {
+            "n": 272,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 8.9,
+            "p95": 56.7,
+            "p99": 327.5,
+            "max": 492.9
+          },
+          "images": {
+            "n": 130,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 144,
+            "p95": 552.3,
+            "p99": 1013.6,
+            "max": 1124
+          },
+          "all": {
+            "n": 919,
+            "err": 195,
+            "s429": 0,
+            "s503": 3,
+            "s5xx": 192,
+            "net": 0,
+            "p50": 5.4,
+            "p95": 203.3,
+            "p99": 492.9,
+            "max": 1124
+          },
+          "lagProbe": {
+            "n": 1122,
+            "p50": 0.9,
+            "p95": 4.2,
+            "p99": 27.5,
+            "max": 282.3
+          }
+        },
+        "viewers": [
+          {
+            "kind": "tv-offset",
+            "title": "Inception",
+            "startedInWindow": false,
+            "ttffMs": 471,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 1.67,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "web-direct",
+            "title": "Arrival",
+            "startedInWindow": false,
+            "ttffMs": 100,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.11,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "web-jit",
+            "title": "Caught Stealing",
+            "startedInWindow": false,
+            "ttffMs": 750,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.53,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "tv-direct",
+            "title": "Greenland",
+            "startedInWindow": false,
+            "ttffMs": 106,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.32,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          }
+        ],
+        "server": {
+          "loop": {
+            "n": 28398,
+            "mean": 8.45,
+            "p50": 8.88,
+            "p90": 15.5,
+            "p99": 17.84,
+            "p999": 45.25,
+            "max": 337.9,
+            "percentiles": {
+              "0": 0,
+              "50": 8.87,
+              "75": 15.33,
+              "100": 337.64,
+              "87.5": 15.45,
+              "93.75": 15.56,
+              "96.88": 15.76,
+              "98.44": 16.47,
+              "99.22": 19.04,
+              "99.61": 25.56,
+              "99.8": 34.14,
+              "99.9": 46.73,
+              "99.95": 57.31,
+              "99.98": 97.06,
+              "99.99": 294.39
+            }
+          },
+          "stalls": {
+            "n50": 13,
+            "n100": 4,
+            "n250": 2,
+            "n1000": 0,
+            "totalMs": 1527.25,
+            "busyMs": 919.94,
+            "waitMs": 607.31,
+            "cpuMs": 892.93,
+            "max": 332.76,
+            "ticks": 8175,
+            "list": [
+              {
+                "at": 156655.23,
+                "ms": 274.55,
+                "cpuMs": 125,
+                "slow": []
+              },
+              {
+                "at": 214600.81,
+                "ms": 332.76,
+                "cpuMs": 0,
+                "slow": [
+                  "openSync 330.83ms -integrate\\lt\\deps-a5ec7b5a07e1\\i-f465c383-53216-d05e3b\\data\\watch-sessions.json.43152.tmp"
+                ]
+              }
+            ]
+          },
+          "elu": 0.08687,
+          "cpuMs": 27063,
+          "gc": {
+            "other": {
+              "n": 115,
+              "ms": 145.09,
+              "maxMs": 74.25
+            },
+            "major": {
+              "n": 115,
+              "ms": 664.6,
+              "maxMs": 36.34
+            },
+            "minor": {
+              "n": 91,
+              "ms": 155.18,
+              "maxMs": 19.21
+            }
+          },
+          "mem": {
+            "rss": 194154496,
+            "heapUsed": 90659232,
+            "heapTotal": 116006912,
+            "external": 10870578,
+            "arrayBuffers": 7417523
+          },
+          "handles": 70,
+          "http": {
+            "inFlight": 2,
+            "maxInFlight": 10,
+            "upgrades": 0,
+            "routes": {
+              "api-other": {
+                "n": 78,
+                "p50": 1.13,
+                "p95": 6.47,
+                "p99": 23,
+                "max": 23,
+                "codes": {
+                  "200": 78
+                },
+                "aborted": 0
+              },
+              "health": {
+                "n": 1122,
+                "p50": 0.54,
+                "p95": 1.48,
+                "p99": 3.49,
+                "max": 39.14,
+                "codes": {
+                  "200": 1122
+                },
+                "aborted": 0
+              },
+              "progress": {
+                "n": 192,
+                "p50": 0.65,
+                "p95": 1.62,
+                "p99": 6.72,
+                "max": 9.78,
+                "codes": {
+                  "200": 192
+                },
+                "aborted": 0
+              },
+              "segment": {
+                "n": 70,
+                "p50": 6.07,
+                "p95": 76.57,
+                "p99": 335.1,
+                "max": 335.1,
+                "codes": {
+                  "200": 70
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 69,
+                "p50": 3.58,
+                "p95": 42.58,
+                "p99": 94.32,
+                "max": 94.32,
+                "codes": {
+                  "200": 52,
+                  "502": 14,
+                  "503": 3
+                },
+                "aborted": 0
+              },
+              "image": {
+                "n": 1163,
+                "p50": 1.44,
+                "p95": 172.54,
+                "p99": 450.34,
+                "max": 1100.77,
+                "codes": {
+                  "200": 178,
+                  "403": 1,
+                  "502": 984
+                },
+                "aborted": 0
+              },
+              "telemetry": {
+                "n": 57,
+                "p50": 0.72,
+                "p95": 1.73,
+                "p99": 3.33,
+                "max": 3.33,
+                "codes": {
+                  "204": 57
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 13,
+                "p50": 5.38,
+                "p95": 7.68,
+                "p99": 7.68,
+                "max": 7.68,
+                "codes": {
+                  "200": 13
+                },
+                "aborted": 0
+              },
+              "suggest": {
+                "n": 53,
+                "p50": 16.12,
+                "p95": 71.28,
+                "p99": 488.84,
+                "max": 488.84,
+                "codes": {
+                  "200": 53
+                },
+                "aborted": 0
+              },
+              "search": {
+                "n": 48,
+                "p50": 16.1,
+                "p95": 94.82,
+                "p99": 478.68,
+                "max": 478.68,
+                "codes": {
+                  "200": 48
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 13,
+                "p50": 17.58,
+                "p95": 39.08,
+                "p99": 39.08,
+                "max": 39.08,
+                "codes": {
+                  "200": 9,
+                  "304": 4
+                },
+                "aborted": 0
+              },
+              "playlist": {
+                "n": 3,
+                "p50": 2.48,
+                "p95": 2.73,
+                "p99": 2.73,
+                "max": 2.73,
+                "codes": {
+                  "200": 3
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 10,
+                "p50": 0.59,
+                "p95": 1.48,
+                "p99": 1.48,
+                "max": 1.48,
+                "codes": {
+                  "200": 10
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 5,
+                "p50": 0.7,
+                "p95": 0.84,
+                "p99": 0.84,
+                "max": 0.84,
+                "codes": {
+                  "200": 5
+                },
+                "aborted": 0
+              }
+            }
+          },
+          "syncMs": {
+            "openSync": 493.93,
+            "renameSync": 456.96,
+            "fsyncSync": 203.59,
+            "existsSync": 115.64,
+            "statSync": 88.89,
+            "mkdirSync": 84.07,
+            "readSync": 69.46,
+            "closeSync": 45.91,
+            "writeSync": 44.61,
+            "readdirSync": 3.65
+          },
+          "slowSync": [
+            {
+              "fn": "openSync",
+              "arg": "-integrate\\lt\\deps-a5ec7b5a07e1\\i-f465c383-53216-d05e3b\\data\\watch-sessions.json.43152.tmp",
+              "ms": 330.83,
+              "at": 214594.58
+            }
+          ],
+          "fsCalls": 14695,
+          "fsTop": [
+            [
+              "read",
+              4182
+            ],
+            [
+              "statSync",
+              1854
+            ],
+            [
+              "existsSync",
+              1229
+            ],
+            [
+              "readFile",
+              1153
+            ],
+            [
+              "promises.readFile",
+              956
+            ],
+            [
+              "promises.unlink",
+              956
+            ],
+            [
+              "promises.rename",
+              538
+            ],
+            [
+              "closeSync",
+              471
+            ],
+            [
+              "openSync",
+              471
+            ],
+            [
+              "renameSync",
+              373
+            ],
+            [
+              "promises.open",
+              355
+            ],
+            [
+              "close",
+              340
+            ]
+          ],
+          "readStreams": 248,
+          "writes": [
+            {
+              "file": "data/cache/similar.json",
+              "n": 19,
+              "bytes": 14420564
+            },
+            {
+              "file": "data/profiles.json",
+              "n": 98,
+              "bytes": 488762
+            },
+            {
+              "file": "data/healer.json",
+              "n": 4,
+              "bytes": 181326
+            },
+            {
+              "file": "data/cache/xray.json",
+              "n": 1,
+              "bytes": 155527
+            },
+            {
+              "file": "data/watch-sessions.json",
+              "n": 95,
+              "bytes": 123936
+            },
+            {
+              "file": "data/usage/*",
+              "n": 92,
+              "bytes": 24499
+            },
+            {
+              "file": "data/cache/trailers.json",
+              "n": 2,
+              "bytes": 19399
+            },
+            {
+              "file": "data/sessions.json",
+              "n": 4,
+              "bytes": 16388
+            },
+            {
+              "file": "data/cache/blur/*",
+              "n": 48,
+              "bytes": 12240
+            },
+            {
+              "file": "data/telemetry-hours.json",
+              "n": 8,
+              "bytes": 860
+            }
+          ],
+          "writtenBytes": 15443501,
+          "writesOutsideData": []
+        },
+        "tree": {
+          "wallSec": 240.6,
+          "serverCpuSec": 27.08,
+          "kidsCpuSec": 304.22,
+          "serverCores": 0.113,
+          "kidsCores": 1.264,
+          "rssMb": 185,
+          "handles": 365,
+          "threads": 15,
+          "kidsAlive": 3,
+          "kidsRssMb": 64
+        },
+        "dataDir": {
+          "bytes": 5923157390,
+          "files": 15176,
+          "grewBytes": 4231440638,
+          "grewFiles": 2278,
+          "by": {
+            "cache/hls": 2283498131,
+            "cache/jit": 1944139080,
+            "cache/img-variants": 3463312,
+            "cache/similar.json": 261690,
+            "healer.json": 56527,
+            "cache/blur": 12240,
+            "usage": 9461,
+            "cache/trailers.json": -330,
+            "profiles.json": 317,
+            "cache/xray.json": 200
+          }
+        },
+        "driverCores": 0.015,
+        "counters": {
+          "wsDrops": 0,
+          "wsFails": 0,
+          "libraryUpdated": 0,
+          "deviceErrors": 0
+        },
+        "machine": {
+          "n": 120,
+          "cpuPctMean": 40.6,
+          "cpuPctP95": 77.4,
+          "freeMbMin": 9578,
+          "cores": 16
+        },
+        "disk": {
+          "drive": "E",
+          "n": 48,
+          "busyPctMean": 1.2,
+          "readMBsMean": 1.94
+        },
+        "intervals": [
+          {
+            "t": 60009,
+            "rss": 197046272
+          },
+          {
+            "t": 120015,
+            "rss": 198668288
+          },
+          {
+            "t": 180018,
+            "rss": 193937408
+          }
+        ],
+        "verdict": {
+          "degraded": false,
+          "why": []
+        },
+        "spec": {
+          "households": 8,
+          "webBrowse": 0.6,
+          "webThink": 20,
+          "tvBrowse": 0.4,
+          "tvThink": 35,
+          "streams": 4,
+          "mix": [
+            "web-direct",
+            "tv-direct",
+            "web-jit",
+            "tv-offset",
+            "web-direct",
+            "web-transcode"
+          ]
+        }
+      }
+    },
+    {
+      "side": "A",
+      "ref": "f465c383edd1fe6e5052d4d78a0f386c2c9405f0",
+      "meta": {
+        "at": "2026-10-18T18:17:39.962Z",
+        "host": {
+          "cpus": 16,
+          "cpu": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+          "memGb": 32,
+          "platform": "win32",
+          "node": "v22.13.1"
+        },
+        "ref": "f465c383edd1fe6e5052d4d78a0f386c2c9405f0@f465c383",
+        "head": "f465c383edd1fe6e5052d4d78a0f386c2c9405f0",
+        "dirty": false,
+        "media": "real",
+        "machine": {
+          "name": "small",
+          "cpus": [
+            0,
+            2
+          ],
+          "heapMb": 256,
+          "wsMb": 320,
+          "env": {},
+          "mask": 5,
+          "cpuList": "0,2",
+          "applied": {
+            "affinity": "mask 5 (CPUs 0,2)",
+            "workingSetMaxMb": 320
+          }
+        },
+        "args": {
+          "_": [
+            "ab"
+          ],
+          "a": "f465c38",
+          "b": "6eb89b1",
+          "scenario": "evening",
+          "n": "8",
+          "minutes": "4",
+          "rounds": "3",
+          "machine": "small",
+          "out": "ab-evening8-small-integrated"
+        },
+        "scenario": "evening",
+        "n": 8,
+        "minutes": 4,
+        "lib": {
+          "movies": 29,
+          "shows": 8,
+          "playable": 29,
+          "pools": {
+            "web-direct": 17,
+            "web-jit": 12,
+            "web-transcode": 17,
+            "tv-direct": 23,
+            "tv-offset": 6
+          }
+        },
+        "note": "evening peak: n households (browser + TV each), 60 % of browsers and 40 % of TVs browsing, max(3, n/2) streams (direct, TV direct, jit copy, TV offset copy, one encode in six)"
+      },
+      "window": {
+        "label": "evening n=8",
+        "secs": 240,
+        "client": {
+          "groups": [
+            {
+              "group": "progress",
+              "n": 192,
+              "rps": 0.8,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 6.9,
+              "p50": 1.1,
+              "p95": 9.9,
+              "p99": 332.8,
+              "max": 393.6,
+              "codes": {
+                "200": 192
+              }
+            },
+            {
+              "group": "image-offline",
+              "n": 156,
+              "rps": 0.65,
+              "err": 156,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 156,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 24,
+              "p50": 11.8,
+              "p95": 79.9,
+              "p99": 400.9,
+              "max": 402.1,
+              "codes": {
+                "502": 156
+              }
+            },
+            {
+              "group": "image",
+              "n": 151,
+              "rps": 0.63,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 44.8,
+              "mean": 145.3,
+              "p50": 115.7,
+              "p95": 414.7,
+              "p99": 681.4,
+              "max": 761.3,
+              "codes": {
+                "200": 151
+              }
+            },
+            {
+              "group": "suggest",
+              "n": 87,
+              "rps": 0.36,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.9,
+              "mean": 25.4,
+              "p50": 12.3,
+              "p95": 96,
+              "p99": 438.3,
+              "max": 438.3,
+              "codes": {
+                "200": 87
+              }
+            },
+            {
+              "group": "title",
+              "n": 81,
+              "rps": 0.34,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 1.7,
+              "mean": 19.2,
+              "p50": 7.6,
+              "p95": 50.8,
+              "p99": 412.5,
+              "max": 412.5,
+              "codes": {
+                "200": 81
+              }
+            },
+            {
+              "group": "search",
+              "n": 78,
+              "rps": 0.32,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 5.3,
+              "mean": 26.9,
+              "p50": 19.3,
+              "p95": 77.3,
+              "p99": 235.7,
+              "max": 235.7,
+              "codes": {
+                "200": 78
+              }
+            },
+            {
+              "group": "segment",
+              "n": 71,
+              "rps": 0.3,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 1671.2,
+              "mean": 20.3,
+              "p50": 5.8,
+              "p95": 129.6,
+              "p99": 151.2,
+              "max": 151.2,
+              "codes": {
+                "200": 71
+              }
+            },
+            {
+              "group": "telemetry",
+              "n": 56,
+              "rps": 0.23,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 1.4,
+              "p50": 1.2,
+              "p95": 3.2,
+              "p99": 4.6,
+              "max": 4.6,
+              "codes": {
+                "204": 56
+              }
+            },
+            {
+              "group": "api-other",
+              "n": 42,
+              "rps": 0.17,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 5.9,
+              "p50": 3.7,
+              "p95": 14,
+              "p99": 14.7,
+              "max": 14.7,
+              "codes": {
+                "200": 42
+              }
+            },
+            {
+              "group": "grid",
+              "n": 38,
+              "rps": 0.16,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 6.9,
+              "p50": 6.6,
+              "p95": 14.2,
+              "p99": 16.8,
+              "max": 16.8,
+              "codes": {
+                "200": 38
+              }
+            },
+            {
+              "group": "state",
+              "n": 19,
+              "rps": 0.08,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1.3,
+              "p50": 1,
+              "p95": 5.6,
+              "p99": 5.6,
+              "max": 5.6,
+              "codes": {
+                "200": 19
+              }
+            },
+            {
+              "group": "boot",
+              "n": 19,
+              "rps": 0.08,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 2.3,
+              "p50": 1.7,
+              "p95": 8.2,
+              "p99": 8.2,
+              "max": 8.2,
+              "codes": {
+                "200": 19
+              }
+            },
+            {
+              "group": "library",
+              "n": 14,
+              "rps": 0.06,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 25.1,
+              "mean": 5.4,
+              "p50": 5.4,
+              "p95": 10.7,
+              "p99": 10.7,
+              "max": 10.7,
+              "codes": {
+                "200": 14
+              }
+            },
+            {
+              "group": "home",
+              "n": 12,
+              "rps": 0.05,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 27.1,
+              "mean": 27.6,
+              "p50": 10.7,
+              "p95": 198.7,
+              "p99": 198.7,
+              "max": 198.7,
+              "codes": {
+                "200": 11,
+                "304": 1
+              }
+            },
+            {
+              "group": "tv",
+              "n": 8,
+              "rps": 0.03,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1.4,
+              "p50": 1.1,
+              "p95": 2.8,
+              "p99": 2.8,
+              "max": 2.8,
+              "codes": {
+                "200": 8
+              }
+            },
+            {
+              "group": "person-offline",
+              "n": 6,
+              "rps": 0.02,
+              "err": 6,
+              "s429": 0,
+              "s503": 6,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 4.7,
+              "p50": 1.4,
+              "p95": 20.5,
+              "p99": 20.5,
+              "max": 20.5,
+              "codes": {
+                "503": 6
+              }
+            },
+            {
+              "group": "playlist",
+              "n": 3,
+              "rps": 0.01,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 30.5,
+              "mean": 11.6,
+              "p50": 9.5,
+              "p95": 22.2,
+              "p99": 22.2,
+              "max": 22.2,
+              "codes": {
+                "200": 3
+              }
+            },
+            {
+              "group": "title-offline",
+              "n": 3,
+              "rps": 0.01,
+              "err": 3,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 3,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 2.2,
+              "p50": 2,
+              "p95": 2.7,
+              "p99": 2.7,
+              "max": 2.7,
+              "codes": {
+                "502": 3
+              }
+            }
+          ],
+          "browse": {
+            "n": 549,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 11.9,
+            "p95": 243.5,
+            "p99": 438.3,
+            "max": 761.3
+          },
+          "api": {
+            "n": 398,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 8.8,
+            "p95": 50.7,
+            "p99": 215.1,
+            "max": 438.3
+          },
+          "images": {
+            "n": 151,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 115.7,
+            "p95": 414.7,
+            "p99": 681.4,
+            "max": 761.3
+          },
+          "all": {
+            "n": 1036,
+            "err": 165,
+            "s429": 0,
+            "s503": 6,
+            "s5xx": 159,
+            "net": 0,
+            "p50": 6.4,
+            "p95": 183.3,
+            "p99": 412.5,
+            "max": 761.3
+          },
+          "lagProbe": {
+            "n": 1109,
+            "p50": 0.9,
+            "p95": 4.4,
+            "p99": 108.9,
+            "max": 1430
+          }
+        },
+        "viewers": [
+          {
+            "kind": "web-direct",
+            "title": "Arrival",
+            "startedInWindow": false,
+            "ttffMs": 101,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.11,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "tv-direct",
+            "title": "Greenland",
+            "startedInWindow": false,
+            "ttffMs": 105,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 3.1,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Inception",
+            "startedInWindow": false,
+            "ttffMs": 644,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 1.7,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "web-jit",
+            "title": "Caught Stealing",
+            "startedInWindow": false,
+            "ttffMs": 965,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.35,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          }
+        ],
+        "server": {
+          "loop": {
+            "n": 26806,
+            "mean": 8.95,
+            "p50": 11.98,
+            "p90": 15.5,
+            "p99": 17.37,
+            "p999": 61.44,
+            "max": 1538.26,
+            "percentiles": {
+              "0": 0,
+              "50": 11.98,
+              "75": 15.34,
+              "100": 1537.21,
+              "87.5": 15.46,
+              "93.75": 15.57,
+              "96.88": 15.84,
+              "98.44": 16.4,
+              "99.22": 18.55,
+              "99.61": 25.2,
+              "99.8": 39.39,
+              "99.9": 62.32,
+              "99.95": 143.79,
+              "99.98": 308.54,
+              "99.99": 464.52
+            }
+          },
+          "stalls": {
+            "n50": 27,
+            "n100": 17,
+            "n250": 8,
+            "n1000": 1,
+            "totalMs": 6155.05,
+            "busyMs": 1347.73,
+            "waitMs": 4807.32,
+            "cpuMs": 1468.85,
+            "max": 1532.67,
+            "ticks": 7960,
+            "list": [
+              {
+                "at": 123931.57,
+                "ms": 289.92,
+                "cpuMs": 0,
+                "slow": [
+                  "fsyncSync 300.87ms number"
+                ]
+              },
+              {
+                "at": 129636.86,
+                "ms": 1532.67,
+                "cpuMs": 0,
+                "slow": [
+                  "fsyncSync 865.28ms number",
+                  "fsyncSync 666.47ms number"
+                ]
+              },
+              {
+                "at": 133602.09,
+                "ms": 454.53,
+                "cpuMs": 16,
+                "slow": [
+                  "fsyncSync 427.92ms number"
+                ]
+              },
+              {
+                "at": 137937.84,
+                "ms": 418.89,
+                "cpuMs": 0,
+                "slow": [
+                  "fsyncSync 406.41ms number"
+                ]
+              },
+              {
+                "at": 138512,
+                "ms": 384.92,
+                "cpuMs": 31,
+                "slow": [
+                  "fsyncSync 257.79ms number",
+                  "renameSync 94.27ms -integrate\\lt\\deps-a5ec7b5a07e1\\i-f465c383-53216-66a140\\data\\watch-sessions.json.53952.tmp"
+                ]
+              },
+              {
+                "at": 138927.32,
+                "ms": 395.32,
+                "cpuMs": 32,
+                "slow": [
+                  "readSync 123.3ms number",
+                  "readSync 94.29ms number"
+                ]
+              },
+              {
+                "at": 139726.82,
+                "ms": 266.09,
+                "cpuMs": 0,
+                "slow": [
+                  "fsyncSync 240.88ms number",
+                  "openSync 42.55ms ts\\srv-integrate\\lt\\deps-a5ec7b5a07e1\\i-f465c383-53216-66a140\\data\\profiles.json.53952.tmp"
+                ]
+              },
+              {
+                "at": 170785.72,
+                "ms": 407.43,
+                "cpuMs": 406,
+                "slow": []
+              }
+            ]
+          },
+          "elu": 0.10256,
+          "cpuMs": 25000,
+          "gc": {
+            "other": {
+              "n": 100,
+              "ms": 101.11,
+              "maxMs": 18.33
+            },
+            "major": {
+              "n": 100,
+              "ms": 575.89,
+              "maxMs": 86.78
+            },
+            "minor": {
+              "n": 118,
+              "ms": 230.95,
+              "maxMs": 13.92
+            }
+          },
+          "mem": {
+            "rss": 201953280,
+            "heapUsed": 74601584,
+            "heapTotal": 96415744,
+            "external": 10065528,
+            "arrayBuffers": 6612473
+          },
+          "handles": 67,
+          "http": {
+            "inFlight": 2,
+            "maxInFlight": 9,
+            "upgrades": 0,
+            "routes": {
+              "health": {
+                "n": 1109,
+                "p50": 0.55,
+                "p95": 1.6,
+                "p99": 3.86,
+                "max": 97.42,
+                "codes": {
+                  "200": 1109
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 12,
+                "p50": 10.52,
+                "p95": 173,
+                "p99": 173,
+                "max": 173,
+                "codes": {
+                  "200": 11,
+                  "304": 1
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 14,
+                "p50": 5.02,
+                "p95": 10.36,
+                "p99": 10.36,
+                "max": 10.36,
+                "codes": {
+                  "200": 14
+                },
+                "aborted": 0
+              },
+              "api-other": {
+                "n": 106,
+                "p50": 0.98,
+                "p95": 3.24,
+                "p99": 4.92,
+                "max": 77.05,
+                "codes": {
+                  "200": 106
+                },
+                "aborted": 0
+              },
+              "progress": {
+                "n": 192,
+                "p50": 0.68,
+                "p95": 1.87,
+                "p99": 9.65,
+                "max": 20.04,
+                "codes": {
+                  "200": 192
+                },
+                "aborted": 0
+              },
+              "suggest": {
+                "n": 87,
+                "p50": 11.15,
+                "p95": 47.44,
+                "p99": 436.66,
+                "max": 436.66,
+                "codes": {
+                  "200": 87
+                },
+                "aborted": 0
+              },
+              "image": {
+                "n": 1354,
+                "p50": 1.37,
+                "p95": 154.05,
+                "p99": 341.85,
+                "max": 760.62,
+                "codes": {
+                  "200": 195,
+                  "403": 5,
+                  "502": 1154
+                },
+                "aborted": 0
+              },
+              "search": {
+                "n": 79,
+                "p50": 14.78,
+                "p95": 51.84,
+                "p99": 267.35,
+                "max": 267.35,
+                "codes": {
+                  "200": 79
+                },
+                "aborted": 0
+              },
+              "segment": {
+                "n": 71,
+                "p50": 5.5,
+                "p95": 71.58,
+                "p99": 152.06,
+                "max": 152.06,
+                "codes": {
+                  "200": 71
+                },
+                "aborted": 0
+              },
+              "telemetry": {
+                "n": 56,
+                "p50": 0.77,
+                "p95": 2.66,
+                "p99": 4.5,
+                "max": 4.5,
+                "codes": {
+                  "204": 56
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 83,
+                "p50": 3.01,
+                "p95": 44.48,
+                "p99": 410.36,
+                "max": 410.36,
+                "codes": {
+                  "200": 74,
+                  "502": 3,
+                  "503": 6
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 19,
+                "p50": 0.62,
+                "p95": 3.82,
+                "p99": 3.82,
+                "max": 3.82,
+                "codes": {
+                  "200": 19
+                },
+                "aborted": 0
+              },
+              "playlist": {
+                "n": 3,
+                "p50": 3.57,
+                "p95": 9.11,
+                "p99": 9.11,
+                "max": 9.11,
+                "codes": {
+                  "200": 3
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 8,
+                "p50": 0.68,
+                "p95": 1.73,
+                "p99": 1.73,
+                "max": 1.73,
+                "codes": {
+                  "200": 8
+                },
+                "aborted": 0
+              }
+            }
+          },
+          "syncMs": {
+            "fsyncSync": 3756.63,
+            "renameSync": 524.81,
+            "closeSync": 408.39,
+            "openSync": 336.67,
+            "readSync": 304.98,
+            "existsSync": 93.23,
+            "statSync": 81.44,
+            "readFileSync": 75.52,
+            "mkdirSync": 58.66,
+            "writeSync": 35.84,
+            "statfsSync": 7.19,
+            "readdirSync": 5.69
+          },
+          "slowSync": [
+            {
+              "fn": "fsyncSync",
+              "arg": "number",
+              "ms": 865.28,
+              "at": 128966.08
+            },
+            {
+              "fn": "fsyncSync",
+              "arg": "number",
+              "ms": 666.47,
+              "at": 129634.57
+            },
+            {
+              "fn": "fsyncSync",
+              "arg": "number",
+              "ms": 427.92,
+              "at": 133556.19
+            },
+            {
+              "fn": "fsyncSync",
+              "arg": "number",
+              "ms": 406.41,
+              "at": 137936.79
+            },
+            {
+              "fn": "fsyncSync",
+              "arg": "number",
+              "ms": 300.87,
+              "at": 123929.3
+            },
+            {
+              "fn": "fsyncSync",
+              "arg": "number",
+              "ms": 257.79,
+              "at": 138417.6
+            },
+            {
+              "fn": "fsyncSync",
+              "arg": "number",
+              "ms": 240.88,
+              "at": 139724.76
+            },
+            {
+              "fn": "fsyncSync",
+              "arg": "number",
+              "ms": 225.64,
+              "at": 124158.07
+            },
+            {
+              "fn": "fsyncSync",
+              "arg": "number",
+              "ms": 142.93,
+              "at": 93192.71
+            },
+            {
+              "fn": "readSync",
+              "arg": "number",
+              "ms": 123.3,
+              "at": 138646.86
+            },
+            {
+              "fn": "closeSync",
+              "arg": "number",
+              "ms": 119.71,
+              "at": 130588.27
+            },
+            {
+              "fn": "openSync",
+              "arg": "tegrate\\lt\\deps-a5ec7b5a07e1\\i-f465c383-53216-66a140\\data\\usage\\tel-timings.json.53952.tmp",
+              "ms": 110.95,
+              "at": 129748.44
+            },
+            {
+              "fn": "closeSync",
+              "arg": "number",
+              "ms": 97.25,
+              "at": 212862.36
+            },
+            {
+              "fn": "readSync",
+              "arg": "number",
+              "ms": 94.29,
+              "at": 138840.48
+            },
+            {
+              "fn": "renameSync",
+              "arg": "-integrate\\lt\\deps-a5ec7b5a07e1\\i-f465c383-53216-66a140\\data\\watch-sessions.json.53952.tmp",
+              "ms": 94.27,
+              "at": 138511.97
+            }
+          ],
+          "fsCalls": 14156,
+          "fsTop": [
+            [
+              "read",
+              4521
+            ],
+            [
+              "statSync",
+              2069
+            ],
+            [
+              "readFile",
+              1454
+            ],
+            [
+              "existsSync",
+              989
+            ],
+            [
+              "promises.readFile",
+              739
+            ],
+            [
+              "promises.unlink",
+              739
+            ],
+            [
+              "promises.rename",
+              411
+            ],
+            [
+              "closeSync",
+              386
+            ],
+            [
+              "openSync",
+              386
+            ],
+            [
+              "close",
+              347
+            ],
+            [
+              "open",
+              347
+            ],
+            [
+              "renameSync",
+              292
+            ]
+          ],
+          "readStreams": 266,
+          "writes": [
+            {
+              "file": "data/cache/similar.json",
+              "n": 15,
+              "bytes": 11293919
+            },
+            {
+              "file": "data/cache/xray.json",
+              "n": 3,
+              "bytes": 466578
+            },
+            {
+              "file": "data/profiles.json",
+              "n": 54,
+              "bytes": 271281
+            },
+            {
+              "file": "data/healer.json",
+              "n": 4,
+              "bytes": 214197
+            },
+            {
+              "file": "data/watch-sessions.json",
+              "n": 48,
+              "bytes": 62615
+            },
+            {
+              "file": "data/cache/trailers.json",
+              "n": 4,
+              "bytes": 39106
+            },
+            {
+              "file": "data/sessions.json",
+              "n": 6,
+              "bytes": 24582
+            },
+            {
+              "file": "data/usage/*",
+              "n": 78,
+              "bytes": 24119
+            },
+            {
+              "file": "data/cache/blur/*",
+              "n": 44,
+              "bytes": 11236
+            },
+            {
+              "file": "data/telemetry-hours.json",
+              "n": 8,
+              "bytes": 860
+            }
+          ],
+          "writtenBytes": 12408493,
+          "writesOutsideData": []
+        },
+        "tree": {
+          "wallSec": 240.6,
+          "serverCpuSec": 25,
+          "kidsCpuSec": 279.8,
+          "serverCores": 0.104,
+          "kidsCores": 1.163,
+          "rssMb": 193,
+          "handles": 360,
+          "threads": 16,
+          "kidsAlive": 3,
+          "kidsRssMb": 64
+        },
+        "dataDir": {
+          "bytes": 5383495903,
+          "files": 15019,
+          "grewBytes": 3861697444,
+          "grewFiles": 2179,
+          "by": {
+            "cache/hls": 2305185688,
+            "cache/jit": 1550209084,
+            "cache/img-variants": 6021070,
+            "cache/similar.json": 209725,
+            "healer.json": 50763,
+            "cache/blur": 11236,
+            "usage": 9142,
+            "cache/xray.json": 598,
+            "profiles.json": 397,
+            "cache/trailers.json": -269
+          }
+        },
+        "driverCores": 0.016,
+        "counters": {
+          "wsDrops": 0,
+          "wsFails": 0,
+          "libraryUpdated": 0,
+          "deviceErrors": 0
+        },
+        "machine": {
+          "n": 119,
+          "cpuPctMean": 37.8,
+          "cpuPctP95": 79.1,
+          "freeMbMin": 9860,
+          "cores": 16
+        },
+        "disk": {
+          "drive": "E",
+          "n": 48,
+          "busyPctMean": 0.8,
+          "readMBsMean": 0.63
+        },
+        "intervals": [
+          {
+            "t": 60012,
+            "rss": 192454656
+          },
+          {
+            "t": 120013,
+            "rss": 192544768
+          },
+          {
+            "t": 180020,
+            "rss": 191660032
+          }
+        ],
+        "verdict": {
+          "degraded": true,
+          "why": [
+            "1 event-loop stall(s) > 1 s",
+            "loop stalled 6155 ms (> 2 % of the window)"
+          ]
+        },
+        "spec": {
+          "households": 8,
+          "webBrowse": 0.6,
+          "webThink": 20,
+          "tvBrowse": 0.4,
+          "tvThink": 35,
+          "streams": 4,
+          "mix": [
+            "web-direct",
+            "tv-direct",
+            "web-jit",
+            "tv-offset",
+            "web-direct",
+            "web-transcode"
+          ]
+        }
+      }
+    },
+    {
+      "side": "B",
+      "ref": "6eb89b13c39fe3d1919d37d287a64ed388279577",
+      "meta": {
+        "at": "2026-10-18T18:23:18.423Z",
+        "host": {
+          "cpus": 16,
+          "cpu": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+          "memGb": 32,
+          "platform": "win32",
+          "node": "v22.13.1"
+        },
+        "ref": "6eb89b13c39fe3d1919d37d287a64ed388279577@6eb89b13",
+        "head": "6eb89b13c39fe3d1919d37d287a64ed388279577",
+        "dirty": false,
+        "media": "real",
+        "machine": {
+          "name": "small",
+          "cpus": [
+            0,
+            2
+          ],
+          "heapMb": 256,
+          "wsMb": 320,
+          "env": {},
+          "mask": 5,
+          "cpuList": "0,2",
+          "applied": {
+            "affinity": "mask 5 (CPUs 0,2)",
+            "workingSetMaxMb": 320
+          }
+        },
+        "args": {
+          "_": [
+            "ab"
+          ],
+          "a": "f465c38",
+          "b": "6eb89b1",
+          "scenario": "evening",
+          "n": "8",
+          "minutes": "4",
+          "rounds": "3",
+          "machine": "small",
+          "out": "ab-evening8-small-integrated"
+        },
+        "scenario": "evening",
+        "n": 8,
+        "minutes": 4,
+        "lib": {
+          "movies": 29,
+          "shows": 8,
+          "playable": 29,
+          "pools": {
+            "web-direct": 17,
+            "web-jit": 12,
+            "web-transcode": 17,
+            "tv-direct": 23,
+            "tv-offset": 6
+          }
+        },
+        "note": "evening peak: n households (browser + TV each), 60 % of browsers and 40 % of TVs browsing, max(3, n/2) streams (direct, TV direct, jit copy, TV offset copy, one encode in six)"
+      },
+      "window": {
+        "label": "evening n=8",
+        "secs": 240,
+        "client": {
+          "groups": [
+            {
+              "group": "progress",
+              "n": 192,
+              "rps": 0.8,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 1.2,
+              "p50": 0.9,
+              "p95": 2.7,
+              "p99": 8.5,
+              "max": 10,
+              "codes": {
+                "200": 192
+              }
+            },
+            {
+              "group": "image-offline",
+              "n": 187,
+              "rps": 0.78,
+              "err": 187,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 187,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 3.7,
+              "p50": 2.9,
+              "p95": 9.9,
+              "p99": 12.1,
+              "max": 14.1,
+              "codes": {
+                "502": 187
+              }
+            },
+            {
+              "group": "image",
+              "n": 178,
+              "rps": 0.74,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 37.6,
+              "mean": 123.2,
+              "p50": 91.5,
+              "p95": 352.9,
+              "p99": 532.7,
+              "max": 548,
+              "codes": {
+                "200": 178
+              }
+            },
+            {
+              "group": "search",
+              "n": 115,
+              "rps": 0.48,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 6.7,
+              "mean": 12.4,
+              "p50": 7.9,
+              "p95": 43.1,
+              "p99": 61.8,
+              "max": 63.1,
+              "codes": {
+                "200": 115
+              }
+            },
+            {
+              "group": "suggest",
+              "n": 108,
+              "rps": 0.45,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.9,
+              "mean": 9,
+              "p50": 5.7,
+              "p95": 30.7,
+              "p99": 57.4,
+              "max": 61.3,
+              "codes": {
+                "200": 108
+              }
+            },
+            {
+              "group": "segment",
+              "n": 71,
+              "rps": 0.3,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 1746.2,
+              "mean": 7,
+              "p50": 4.6,
+              "p95": 12.3,
+              "p99": 65.7,
+              "max": 65.7,
+              "codes": {
+                "200": 71
+              }
+            },
+            {
+              "group": "title",
+              "n": 64,
+              "rps": 0.27,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 1.9,
+              "mean": 19.5,
+              "p50": 6.9,
+              "p95": 106.3,
+              "p99": 255.6,
+              "max": 255.6,
+              "codes": {
+                "200": 64
+              }
+            },
+            {
+              "group": "telemetry",
+              "n": 55,
+              "rps": 0.23,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 1.1,
+              "p50": 1,
+              "p95": 1.9,
+              "p99": 3.1,
+              "max": 3.1,
+              "codes": {
+                "204": 55
+              }
+            },
+            {
+              "group": "api-other",
+              "n": 44,
+              "rps": 0.18,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 1.5,
+              "p50": 1.1,
+              "p95": 3,
+              "p99": 8.8,
+              "max": 8.8,
+              "codes": {
+                "200": 44
+              }
+            },
+            {
+              "group": "grid",
+              "n": 21,
+              "rps": 0.09,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0,
+              "mean": 4.8,
+              "p50": 6,
+              "p95": 7,
+              "p99": 8.1,
+              "max": 8.1,
+              "codes": {
+                "200": 21
+              }
+            },
+            {
+              "group": "state",
+              "n": 12,
+              "rps": 0.05,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.2,
+              "mean": 0.9,
+              "p50": 0.8,
+              "p95": 1.4,
+              "p99": 1.4,
+              "max": 1.4,
+              "codes": {
+                "200": 12
+              }
+            },
+            {
+              "group": "boot",
+              "n": 12,
+              "rps": 0.05,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1.6,
+              "p50": 1.5,
+              "p95": 2.6,
+              "p99": 2.6,
+              "max": 2.6,
+              "codes": {
+                "200": 12
+              }
+            },
+            {
+              "group": "title-offline",
+              "n": 11,
+              "rps": 0.05,
+              "err": 11,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 11,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1.4,
+              "p50": 1.1,
+              "p95": 3.3,
+              "p99": 3.3,
+              "max": 3.3,
+              "codes": {
+                "502": 11
+              }
+            },
+            {
+              "group": "home",
+              "n": 11,
+              "rps": 0.05,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 34,
+              "mean": 16.3,
+              "p50": 12.2,
+              "p95": 36.6,
+              "p99": 36.6,
+              "max": 36.6,
+              "codes": {
+                "200": 11
+              }
+            },
+            {
+              "group": "library",
+              "n": 8,
+              "rps": 0.03,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 25.1,
+              "mean": 4.9,
+              "p50": 5.3,
+              "p95": 6,
+              "p99": 6,
+              "max": 6,
+              "codes": {
+                "200": 8
+              }
+            },
+            {
+              "group": "person-offline",
+              "n": 6,
+              "rps": 0.02,
+              "err": 6,
+              "s429": 0,
+              "s503": 6,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 4.6,
+              "p50": 1.2,
+              "p95": 21.5,
+              "p99": 21.5,
+              "max": 21.5,
+              "codes": {
+                "503": 6
+              }
+            },
+            {
+              "group": "tv",
+              "n": 4,
+              "rps": 0.02,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 0.1,
+              "mean": 1,
+              "p50": 0.7,
+              "p95": 1.8,
+              "p99": 1.8,
+              "max": 1.8,
+              "codes": {
+                "200": 4
+              }
+            },
+            {
+              "group": "playlist",
+              "n": 3,
+              "rps": 0.01,
+              "err": 0,
+              "s429": 0,
+              "s503": 0,
+              "s5xx": 0,
+              "s4xx": 0,
+              "net": 0,
+              "kbAvg": 3.5,
+              "mean": 2.2,
+              "p50": 2.2,
+              "p95": 2.3,
+              "p99": 2.3,
+              "max": 2.3,
+              "codes": {
+                "200": 3
+              }
+            }
+          ],
+          "browse": {
+            "n": 577,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 7.8,
+            "p95": 228.5,
+            "p99": 415.5,
+            "max": 548
+          },
+          "api": {
+            "n": 399,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 6,
+            "p95": 32,
+            "p99": 106.3,
+            "max": 255.6
+          },
+          "images": {
+            "n": 178,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "net": 0,
+            "p50": 91.5,
+            "p95": 352.9,
+            "p99": 532.7,
+            "max": 548
+          },
+          "all": {
+            "n": 1102,
+            "err": 204,
+            "s429": 0,
+            "s503": 6,
+            "s5xx": 198,
+            "net": 0,
+            "p50": 3.8,
+            "p95": 140.3,
+            "p99": 300.9,
+            "max": 548
+          },
+          "lagProbe": {
+            "n": 1127,
+            "p50": 0.8,
+            "p95": 1.7,
+            "p99": 5.9,
+            "max": 31.5
+          }
+        },
+        "viewers": [
+          {
+            "kind": "tv-offset",
+            "title": "Inception",
+            "startedInWindow": false,
+            "ttffMs": 549,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 1.7,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "web-direct",
+            "title": "Arrival",
+            "startedInWindow": false,
+            "ttffMs": 104,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.11,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "web-jit",
+            "title": "Caught Stealing",
+            "startedInWindow": false,
+            "ttffMs": 1055,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.53,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          },
+          {
+            "kind": "tv-direct",
+            "title": "Greenland",
+            "startedInWindow": false,
+            "ttffMs": 143,
+            "neverStarted": false,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "mbit": 2.32,
+            "segFails": 0,
+            "refused": 0,
+            "state": "playing"
+          }
+        ],
+        "server": {
+          "loop": {
+            "n": 21588,
+            "mean": 11.12,
+            "p50": 15.06,
+            "p90": 15.54,
+            "p99": 16.49,
+            "p999": 22.59,
+            "max": 85.13,
+            "percentiles": {
+              "0": 0,
+              "50": 15.05,
+              "75": 15.41,
+              "100": 85.07,
+              "87.5": 15.51,
+              "93.75": 15.59,
+              "96.88": 15.74,
+              "98.44": 16.21,
+              "99.22": 16.57,
+              "99.61": 17.25,
+              "99.8": 18.96,
+              "99.9": 23.13,
+              "99.95": 29.87,
+              "99.98": 38.86,
+              "99.99": 52.89
+            }
+          },
+          "stalls": {
+            "n50": 2,
+            "n100": 0,
+            "n250": 0,
+            "n1000": 0,
+            "totalMs": 115.9,
+            "busyMs": 65.12,
+            "waitMs": 50.78,
+            "cpuMs": 65.12,
+            "max": 65.12,
+            "ticks": 8022,
+            "list": []
+          },
+          "elu": 0.03312,
+          "cpuMs": 13845,
+          "gc": {
+            "minor": {
+              "n": 173,
+              "ms": 158.4,
+              "maxMs": 5.91
+            },
+            "other": {
+              "n": 29,
+              "ms": 9.94,
+              "maxMs": 1.39
+            },
+            "major": {
+              "n": 29,
+              "ms": 107.3,
+              "maxMs": 14.46
+            }
+          },
+          "mem": {
+            "rss": 210067456,
+            "heapUsed": 66659240,
+            "heapTotal": 78286848,
+            "external": 15564536,
+            "arrayBuffers": 12056323
+          },
+          "handles": 67,
+          "http": {
+            "inFlight": 2,
+            "maxInFlight": 9,
+            "upgrades": 0,
+            "routes": {
+              "health": {
+                "n": 1127,
+                "p50": 0.5,
+                "p95": 0.92,
+                "p99": 1.97,
+                "max": 6.31,
+                "codes": {
+                  "200": 1127
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 75,
+                "p50": 1.85,
+                "p95": 31.26,
+                "p99": 255.42,
+                "max": 255.42,
+                "codes": {
+                  "200": 58,
+                  "502": 11,
+                  "503": 6
+                },
+                "aborted": 0
+              },
+              "image": {
+                "n": 1312,
+                "p50": 0.79,
+                "p95": 144.79,
+                "p99": 301.14,
+                "max": 532.25,
+                "codes": {
+                  "200": 245,
+                  "403": 20,
+                  "502": 1047
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 12,
+                "p50": 0.49,
+                "p95": 0.96,
+                "p99": 0.96,
+                "max": 0.96,
+                "codes": {
+                  "200": 12
+                },
+                "aborted": 0
+              },
+              "api-other": {
+                "n": 83,
+                "p50": 0.67,
+                "p95": 2.59,
+                "p99": 167.05,
+                "max": 167.05,
+                "codes": {
+                  "200": 83
+                },
+                "aborted": 0
+              },
+              "progress": {
+                "n": 192,
+                "p50": 0.6,
+                "p95": 1.33,
+                "p99": 2.87,
+                "max": 3.39,
+                "codes": {
+                  "200": 192
+                },
+                "aborted": 0
+              },
+              "segment": {
+                "n": 71,
+                "p50": 4.37,
+                "p95": 12.12,
+                "p99": 54.49,
+                "max": 54.49,
+                "codes": {
+                  "200": 71
+                },
+                "aborted": 0
+              },
+              "telemetry": {
+                "n": 55,
+                "p50": 0.65,
+                "p95": 1.38,
+                "p99": 2.25,
+                "max": 2.25,
+                "codes": {
+                  "204": 55
+                },
+                "aborted": 0
+              },
+              "suggest": {
+                "n": 108,
+                "p50": 5.34,
+                "p95": 26.72,
+                "p99": 57.32,
+                "max": 61.19,
+                "codes": {
+                  "200": 108
+                },
+                "aborted": 0
+              },
+              "search": {
+                "n": 115,
+                "p50": 6.51,
+                "p95": 32.87,
+                "p99": 50.05,
+                "max": 62.02,
+                "codes": {
+                  "200": 115
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 11,
+                "p50": 11.85,
+                "p95": 36.33,
+                "p99": 36.33,
+                "max": 36.33,
+                "codes": {
+                  "200": 11
+                },
+                "aborted": 0
+              },
+              "playlist": {
+                "n": 3,
+                "p50": 1.92,
+                "p95": 1.93,
+                "p99": 1.93,
+                "max": 1.93,
+                "codes": {
+                  "200": 3
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 8,
+                "p50": 4.95,
+                "p95": 5.47,
+                "p99": 5.47,
+                "max": 5.47,
+                "codes": {
+                  "200": 8
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 4,
+                "p50": 0.5,
+                "p95": 0.69,
+                "p99": 0.69,
+                "max": 0.69,
+                "codes": {
+                  "200": 4
+                },
+                "aborted": 0
+              }
+            }
+          },
+          "syncMs": {
+            "openSync": 188.95,
+            "statSync": 80.15,
+            "closeSync": 41.37,
+            "readFileSync": 39.46,
+            "existsSync": 38.06,
+            "readSync": 33.51,
+            "mkdirSync": 10.01
+          },
+          "slowSync": [
+            {
+              "fn": "openSync",
+              "arg": "-6eb89b13-53216-383149\\data\\cache\\img-variants\\82e89ccdaf1e27f5fea6b3d80393f5ce-w1280.webp",
+              "ms": 51.45,
+              "at": 250325.91
+            },
+            {
+              "fn": "readFileSync",
+              "arg": "ra-agents\\srv-integrate\\lt\\deps-a5ec7b5a07e1\\i-6eb89b13-53216-383149\\src\\media\\trailers.js",
+              "ms": 21.14,
+              "at": 87561.84
+            }
+          ],
+          "fsCalls": 9178,
+          "fsTop": [
+            [
+              "read",
+              2390
+            ],
+            [
+              "statSync",
+              2032
+            ],
+            [
+              "readFile",
+              1433
+            ],
+            [
+              "close",
+              419
+            ],
+            [
+              "open",
+              419
+            ],
+            [
+              "existsSync",
+              390
+            ],
+            [
+              "closeSync",
+              349
+            ],
+            [
+              "openSync",
+              349
+            ],
+            [
+              "readSync",
+              349
+            ],
+            [
+              "stat",
+              316
+            ],
+            [
+              "rename",
+              208
+            ],
+            [
+              "writeFile",
+              103
+            ]
+          ],
+          "readStreams": 316,
+          "writes": [
+            {
+              "file": "data/cache/blur/*",
+              "n": 67,
+              "bytes": 17737
+            },
+            {
+              "file": "data/usage/*",
+              "n": 72,
+              "bytes": 15280
+            }
+          ],
+          "writtenBytes": 33017,
+          "writesOutsideData": []
+        },
+        "tree": {
+          "wallSec": 238.8,
+          "serverCpuSec": 13.86,
+          "kidsCpuSec": 0.53,
+          "serverCores": 0.058,
+          "kidsCores": 0.002,
+          "rssMb": 200,
+          "handles": 375,
+          "threads": 18,
+          "kidsAlive": 4,
+          "kidsRssMb": 56
+        },
+        "dataDir": {
+          "bytes": 1119193971,
+          "files": 12886,
+          "grewBytes": 6947458,
+          "grewFiles": 275,
+          "by": {
+            "cache/img-variants": 6611220,
+            "cache/similar.json": 305730,
+            "cache/blur": 17737,
+            "usage": 8674,
+            "healer.json": 2843,
+            "profiles.json": 504,
+            "cache/xray.json": 430,
+            "cache/trailers.json": 304,
+            "watch-sessions.json": 16
+          }
+        },
+        "driverCores": 0.012,
+        "counters": {
+          "wsDrops": 0,
+          "wsFails": 0,
+          "libraryUpdated": 0,
+          "deviceErrors": 0
+        },
+        "machine": {
+          "n": 119,
+          "cpuPctMean": 16,
+          "cpuPctP95": 52.4,
+          "freeMbMin": 10219,
+          "cores": 16
+        },
+        "disk": {
+          "drive": "E",
+          "n": 48,
+          "busyPctMean": 0.5,
+          "readMBsMean": 0.07
+        },
+        "intervals": [
+          {
+            "t": 60014,
+            "rss": 172670976
+          },
+          {
+            "t": 120027,
+            "rss": 208809984
+          },
+          {
+            "t": 180027,
+            "rss": 212512768
+          }
+        ],
+        "verdict": {
+          "degraded": false,
+          "why": []
+        },
+        "spec": {
+          "households": 8,
+          "webBrowse": 0.6,
+          "webThink": 20,
+          "tvBrowse": 0.4,
+          "tvThink": 35,
+          "streams": 4,
+          "mix": [
+            "web-direct",
+            "tv-direct",
+            "web-jit",
+            "tv-offset",
+            "web-direct",
+            "web-transcode"
+          ]
+        }
+      }
+    }
+  ],
+  "kind": "ab"
+}

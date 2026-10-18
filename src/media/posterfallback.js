@@ -31,7 +31,9 @@ const MISS_TTL = 7 * 24 * 3600 * 1000;
 const inflight = new Map();
 
 const getJson = async (url) => {
-  const res = await fetch(url, { headers: { "User-Agent": "Aurora (personal media server)" }, signal: AbortSignal.timeout(8000) });
+  // (a card is waiting: 3 s per provider at most — a provider that keeps
+  // missing that opens its breaker, lib/upstream.js, and the search moves on)
+  const res = await require("../lib/upstream").fetch(url, { headers: { "User-Agent": "Aurora (personal media server)" }, timeoutMs: 8000, deadlineMs: 3000 });
   if (!res.ok) return null;
   return res.json();
 };
@@ -78,6 +80,21 @@ const candidates = async function* ({ imdbId, type, title, year }, fetchJson = g
   }
 };
 
+// A search that ended while an outside provider was failing (down, its
+// breaker open, too slow) is not "no poster anywhere": it is remembered for
+// FAILED_TTL only, not the week a real miss is.
+const FAILED_TTL = 10 * 60 * 1000;
+const missTtl = (hit) => (hit && hit.failed ? FAILED_TTL : MISS_TTL);
+
+// Answered from what is kept, with no provider asked? (lib/ratelimit.js
+// counts only the asks that are not.)
+const known = (imdbId) => {
+  const hit = store.data[String(imdbId || "")];
+  if (!hit) return false;
+  if (hit.name) return !!require("./online").posterFile(hit.name);
+  return Date.now() - (hit.at || 0) < missTtl(hit);
+};
+
 // The cached poster's file name (served by /img/meta/<name>), or null.
 const resolve = (q) => {
   const imdbId = String((q && q.imdbId) || "");
@@ -86,24 +103,31 @@ const resolve = (q) => {
   if (hit && hit.name) {
     // still on disk? (the poster cache can be cleared independently)
     if (require("./online").posterFile(hit.name)) return Promise.resolve(hit.name);
-  } else if (hit && Date.now() - (hit.at || 0) < MISS_TTL) {
+  } else if (hit && Date.now() - (hit.at || 0) < missTtl(hit)) {
     return Promise.resolve(null);
   }
   if (inflight.has(imdbId)) return inflight.get(imdbId);
   const p = (async () => {
     const online = require("./online");
+    const upstream = require("../lib/upstream");
+    const f0 = upstream.failureCount();
     let name = null;
+    let failed = false;
     try {
       for await (const url of candidates({ ...q, imdbId })) {
         name = await online.cachePoster(url);
         if (name) break;
       }
-    } catch {}
-    store.data[imdbId] = name ? { name, at: Date.now() } : { name: null, at: Date.now() };
+    } catch {
+      failed = true;
+    }
+    if (!name && upstream.failureCount() !== f0) failed = true;
+    store.data[imdbId] = name ? { name, at: Date.now() } : { name: null, at: Date.now(), ...(failed ? { failed: true } : {}) };
     store.save();
     if (name) console.log(`[poster] backup source found a cover for ${imdbId}${q.title ? ` (${q.title})` : ""}`);
     return name;
   })().finally(() => inflight.delete(imdbId));
+  p.startedAt = Date.now();
   inflight.set(imdbId, p);
   return p;
 };
@@ -115,4 +139,4 @@ const urlFor = ({ imdbId, type, title, year }) =>
   (title ? `&t=${encodeURIComponent(String(title).slice(0, 80))}` : "") +
   (year ? `&y=${encodeURIComponent(year)}` : "");
 
-module.exports = { resolve, urlFor, _internals: { candidates } };
+module.exports = { resolve, urlFor, known, _internals: { candidates, FAILED_TTL } };

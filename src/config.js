@@ -30,6 +30,15 @@ try {
 } catch (err) {
   console.warn("config.json missing or invalid, using defaults:", err.message);
 }
+// Every key checked (lib/configcheck.js): an unknown one is a warning, a bad
+// value is refused — taken out here, so its default applies — with a line
+// that says which, why and what the default is. Never a crash.
+try {
+  const configcheck = require("./lib/configcheck");
+  configcheck.remember(configcheck.check(userConfig, { apply: true }));
+} catch (e) {
+  console.warn("[config] the settings could not be checked:", e && e.message);
+}
 
 // Resolve a binary to a full path. spawn() does not use a shell, so PATH shims
 // that satisfy execSync can fail there — always use full paths. Cross-platform:
@@ -92,7 +101,7 @@ const PYTHON = (() => {
   const p = resolveExe("python") || resolveExe("python3");
   if (!p) return null;
   try {
-    const v = execSync(`"${p}" --version 2>&1`, { encoding: "utf-8", shell: isWindows ? undefined : "/bin/sh" });
+    const v = execSync(`"${p}" --version 2>&1`, { encoding: "utf-8", shell: isWindows ? undefined : "/bin/sh", timeout: 10000, windowsHide: true });
     return /Python 3/.test(v) ? p : null;
   } catch {
     return null;
@@ -108,7 +117,12 @@ module.exports = {
     movies: (userConfig.libraries && userConfig.libraries.movies) || [],
     shows: (userConfig.libraries && userConfig.libraries.shows) || [],
   },
-  SCAN_INTERVAL_MS: (userConfig.scanIntervalMinutes || 10) * 60 * 1000,
+  // (20 minutes by default on a low-power machine — lib/power.js; a value
+  // set here is always kept)
+  SCAN_INTERVAL_MS: (userConfig.scanIntervalMinutes || (require("./lib/power").decide(userConfig.powerProfile).profile === "low" ? 20 : 10)) * 60 * 1000,
+  // "auto" (default) | "low" | "normal": what lib/power.js may trim on a small machine
+  POWER_PROFILE: userConfig.powerProfile || "auto",
+  SCAN_INTERVAL_WHY: userConfig.scanIntervalMinutes ? "set in config.json" : require("./lib/power").decide(userConfig.powerProfile).profile === "low" ? "the low-power profile" : "the default",
   AUTO_OCR: userConfig.autoOcrSubtitles !== false,
   ONLINE_METADATA: userConfig.onlineMetadata !== false,
   // Intro / recap / credits timestamps from the public databases (SkipDB,
@@ -214,12 +228,47 @@ module.exports = {
   // (media/faststart.js — nothing on disk changes). "serveFaststart": false
   // serves every file byte for byte as it is.
   SERVE_FASTSTART: userConfig.serveFaststart !== false,
+  // What kind of disk a library root is, when the OS's answer is wrong or
+  // missing (lib/disktype.js): { "<path prefix>": "hdd" | "ssd" | "network" }.
+  DISK_TYPES: userConfig.diskTypes && typeof userConfig.diskTypes === "object" ? userConfig.diskTypes : null,
+  // Hardware video encoding for the quality ladder (media/hwenc.js): "auto"
+  // (the default: a graphics card whose boot check passed and whose picture
+  // was measured as good as the CPU's — NVENC — while a session is free),
+  // "on" (any card whose check passed) or "off". AURORA_HWENC overrides; the
+  // admin's setting outranks both.
+  HW_ENCODE: process.env.AURORA_HWENC || userConfig.hwEncode || "auto",
+  // How many hardware encodes at once (the card's driver has its own limit;
+  // other programs may use some). Unset: what the boot check opened at once.
+  HW_ENCODE_SESSIONS: userConfig.hwEncodeSessions || null,
+  // How much the jit cache (segments idle streams made, kept for a pause, a
+  // second viewer, a restart) may hold on disk, in GB. Unset: 20. Kept
+  // segments also go while the disk has under 5 GB free (media/jit.js).
+  // Torrent streaming's upload cap, KB/s (media/torrent.js: the uplink is
+  // what remote viewers' streams go out on). Unset: 512. -1: no cap.
+  TORRENT_UPLOAD_KBPS: userConfig.torrentUploadKBps != null && Number.isFinite(Number(userConfig.torrentUploadKBps)) ? Number(userConfig.torrentUploadKBps) : -1, // (default OFF = no cap, as before; owner 2026-10-18: "No cap on downloads at all" — a cap applies only when the admin sets one here)
+  JIT_CACHE_GB: Number(userConfig.jitCacheGB) > 0 ? Number(userConfig.jitCacheGB) : 0,
   // The TV player's start-up tuning, handed to the app as it is asked for
   // (lib/tvtuning.js — checked there). Nothing set: the app's own values.
   TV_PLAYER: userConfig.tvPlayer || null,
   // The TV's rendering switches (native components, render fixes), per TV
   // model if wanted (lib/tvtuning.js — checked there). Nothing set: all off.
   TV_RENDER: userConfig.tvRender || null,
+  // ---- staying healthy (srv-resilience) ----
+  // Per-client rate limits on the public endpoints that cost something
+  // (lib/ratelimit.js): "log" (default: count what would be refused, refuse
+  // nothing), "enforce", "off", or { "mode", "groups": { name: { rate, burst, mode } } }.
+  RATE_LIMITS: userConfig.rateLimits,
+  // Outside providers (lib/upstream.js): per-host overrides,
+  // { "hosts": { "api.themoviedb.org": { "concurrency": 4, "timeoutMs": 8000 } } }.
+  UPSTREAM: userConfig.upstream && typeof userConfig.upstream === "object" ? userConfig.upstream : {},
+  // The HTTP server's own limits (lib/httplimits.js):
+  // { "headersTimeoutSec": 20, "requestTimeoutSec": 120, "keepAliveTimeoutSec": 75 }.
+  HTTP: userConfig.http && typeof userConfig.http === "object" ? userConfig.http : {},
+  // The reverse proxies whose X-Forwarded-For is believed (lib/ratelimit.js),
+  // beyond this machine itself: ["172.17.0.1", "10.0.0.0/8"].
+  TRUST_PROXY: Array.isArray(userConfig.trustProxy) ? userConfig.trustProxy : [],
+  // WebSocket limits (realtime.js): { "maxPerAddress": 64, "maxMessageKb": 64, "mode" } (64 sockets an address, LAN addresses 4x; the mode follows "rateLimits").
+  WS: userConfig.ws && typeof userConfig.ws === "object" ? userConfig.ws : {},
   FFMPEG,
   FFPROBE,
   TESSERACT,

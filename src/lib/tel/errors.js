@@ -308,16 +308,29 @@ const setState = (fp, st, note = "", now = Date.now()) => {
 const touch = (soon = false) => {
   dirty = true;
   if (!file || saveTimer) return;
-  saveTimer = setTimeout(saveNow, soon ? 1000 : SAVE_EVERY_MS);
+  saveTimer = setTimeout(saveSoon, soon ? 1000 : SAVE_EVERY_MS);
   saveTimer.unref?.();
+};
+// The timer's write goes off the loop (lib/jsonstore.js FileWriter: temp
+// file + rename, tried again while a scanner holds the file, one at a time);
+// saveNow — shutdown — writes at once, overtaking one under way.
+let writer = null;
+const writerFor = () => (writer && writer.file === file ? writer : (writer = new (require("../jsonstore").FileWriter)(file, { durable: false })));
+const saveSoon = () => {
+  saveTimer = null;
+  if (!file || !dirty) return;
+  dirty = false;
+  writerFor().write(JSON.stringify(state)).catch((e) => {
+    dirty = true;
+    console.warn("[telemetry] could not save the error book:", e && e.message);
+  });
 };
 const saveNow = () => {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-  if (!file || !dirty) return;
+  if (!file || (!dirty && !(writer && writer.inflight))) return;
   dirty = false;
   try {
-    // temp file + rename, tried again while a scanner holds the file (lib/jsonstore.js)
-    require("../jsonstore").atomicWriteSync(file, JSON.stringify(state), { durable: false });
+    writerFor().writeSync(JSON.stringify(state));
   } catch (e) {
     console.warn("[telemetry] could not save the error book:", e && e.message);
   }

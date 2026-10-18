@@ -1,0 +1,101 @@
+{
+  "at": "2026-10-18T14:59:16.577Z",
+  "ref": "4862136",
+  "weak": false,
+  "minutes": 3,
+  "hog": true,
+  "household": "grown (8 profiles, up to 1,500 rows)",
+  "runs": [
+    {
+      "viewers": 5,
+      "progressOk": 180,
+      "progressFailed": 0,
+      "mbPerHour": 6423.48,
+      "rewritesPerHour": 5000,
+      "fsyncsPerHour": 3160,
+      "fsyncsOnLoopPerHour": 3160,
+      "storeSyncCallsPerHour": 15880,
+      "storeSyncMsPerHour": 233476.6,
+      "saveFiresPerHour": 3180,
+      "saveLoopSecPerHour": 287.598,
+      "saveMsEach": 90.44,
+      "longestSaveMs": 1105,
+      "loopBlockedBySavesPct": 7.989,
+      "loopP50Ms": 15.4,
+      "loopP99Ms": 22.9,
+      "loopMaxMs": 1137.7,
+      "cpuSecPerHour": 97.2,
+      "files": [
+        {
+          "file": "data/profiles.json",
+          "rewritesPerHour": 1460,
+          "mbPerHour": 5316.469,
+          "bytesEach": 3818302
+        },
+        {
+          "file": "data/watch-sessions.json",
+          "rewritesPerHour": 1460,
+          "mbPerHour": 1076.024,
+          "bytesEach": 772804
+        },
+        {
+          "file": "data/telemetry-hours.json",
+          "rewritesPerHour": 120,
+          "mbPerHour": 27.373,
+          "bytesEach": 239192
+        },
+        {
+          "file": "data/watch-history.json",
+          "rewritesPerHour": 40,
+          "mbPerHour": 2.752,
+          "bytesEach": 72153
+        },
+        {
+          "file": "data/sessions.json",
+          "rewritesPerHour": 20,
+          "mbPerHour": 0.371,
+          "bytesEach": 19457
+        },
+        {
+          "file": "data/usage/events-2026-10.jsonl",
+          "rewritesPerHour": 1800,
+          "mbPerHour": 0.352,
+          "bytesEach": 205
+        },
+        {
+          "file": "data/healer.json",
+          "rewritesPerHour": 60,
+          "mbPerHour": 0.109,
+          "bytesEach": 1909
+        },
+        {
+          "file": "data/health.json",
+          "rewritesPerHour": 20,
+          "mbPerHour": 0.027,
+          "bytesEach": 1404
+        },
+        {
+          "file": "data/cache/tonemap-speed.json",
+          "rewritesPerHour": 20,
+          "mbPerHour": 0.004,
+          "bytesEach": 213
+        }
+      ],
+      "resumeSeenByAnotherDevice": [
+        {
+          "sent": 1082,
+          "seen": 1082
+        },
+        {
+          "sent": 1122,
+          "seen": 1122
+        },
+        {
+          "sent": 1162,
+          "seen": 1162
+        }
+      ]
+    }
+  ],
+  "idle": null
+}

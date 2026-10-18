@@ -343,9 +343,10 @@ const copyBundledSubtitles = (engineFiles, destPath) => {
 const saveCover = async (posterUrl, destDir) => {
   if (!posterUrl) return;
   try {
-    const res = await fetch(posterUrl, {
+    const res = await require("../lib/upstream").fetch(posterUrl, {
       headers: { "User-Agent": "Aurora/1.0" },
-      signal: AbortSignal.timeout(15000),
+      timeoutMs: 15000,
+      maxBytes: 12 * 1024 * 1024,
     });
     if (!res.ok) return;
     const buf = Buffer.from(await res.arrayBuffer());

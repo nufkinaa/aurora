@@ -375,6 +375,8 @@
     .grid-2 > *, .stats > *, .now-grid > *, .kv > * { min-width: 0; }
     .kv { grid-template-columns: auto minmax(0, 1fr); }
     .card, section, .now-card, .stat, td, .meta, .kv dd, .hl-check, .hl-rep, .log-row, .ac-row { overflow-wrap: anywhere; }
+    /* (the Health card's column heads are single words: never split one — "CALL S") */
+    #mx-card th { overflow-wrap: normal; white-space: nowrap; }
     .table-scroll { max-width: 100%; }
     #hl-history { overflow: hidden; }
     #hl-history i { min-width: 0 !important; flex: 1 1 0 !important; }
@@ -920,8 +922,26 @@
         </table></div>
         <div class="empty-note hidden" id="sv-torrents-empty">No active torrents.</div>
       </div>
+      <div class="card" id="mx-card">
+        <h2>Health <span class="note">why it is slow, if it is: how long requests wait for their first byte, the event loop, the work in hand, the outside services and their breakers, the limits — since the server started</span></h2>
+        <div class="stats" id="mx-stats" style="margin:0 0 10px"></div>
+        <div id="mx-checks" style="display:grid;gap:4px;margin-bottom:10px"></div>
+        <div class="muted" style="font-weight:800;margin:6px 0">Outside services</div>
+        <div class="empty-note hidden" id="mx-up-empty">No outside service asked yet.</div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Service</th><th>State</th><th>Calls</th><th>Failed</th><th>Typical</th><th>Cache</th><th>Last problem</th></tr></thead>
+          <tbody id="mx-up"></tbody>
+        </table></div>
+        <div class="muted" style="font-weight:800;margin:12px 0 6px">Slowest requests <span class="note">by time to the first byte, p95</span></div>
+        <div class="empty-note hidden" id="mx-slow-empty">Nothing measured yet.</div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Route</th><th>Count</th><th>p50</th><th>p95</th><th>Max</th><th>Over 1 s</th><th>Errors</th></tr></thead>
+          <tbody id="mx-slow"></tbody>
+        </table></div>
+        <div id="mx-limits" class="empty-note" style="margin-top:10px"></div>
+      </div>
       <div class="card">
-        <h2>Health <span class="note">the watchdog: memory, event-loop lag, ffmpeg children — and what it did about them</span></h2>
+        <h2>Watchdog <span class="note">memory, event-loop lag, ffmpeg children — and what it did about them</span></h2>
         <div class="stats" id="sv-health" style="margin:0 0 10px"></div>
         <div id="sv-health-events" class="empty-note">No watchdog events yet.</div>
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
@@ -938,6 +958,12 @@
             <select id="en-limit" aria-label="Encodes at once" style="max-width:150px"></select></label>
           <button class="mini" id="en-apply">Apply</button>
           <button class="mini" id="en-measure">Measure this machine again</button>
+        </div>
+        <div id="en-hw" class="muted" style="font-size:0.85rem;margin-top:10px"></div>
+        <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <label style="display:flex;gap:6px;align-items:center;font-size:0.88rem">Graphics card
+            <select id="en-hwmode" aria-label="Hardware encoding" style="max-width:150px" title="Automatic: where it was measured as good as the CPU. Always: whenever the card's check passed."><option value="auto">Automatic</option><option value="on">Always</option><option value="off">Off</option></select></label>
+          <button class="mini" id="en-hwapply">Apply</button>
         </div>
       </div>
       <div class="card">
@@ -3235,6 +3261,49 @@
       toast("Report copied — paste it anywhere");
     };
 
+    // ---------- health: metrics (lib/metrics.js — /api/admin/metrics) ----------
+    const fmtMs = (v) => (v == null ? "–" : v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} s` : `${Math.round(v)} ms`);
+    async function loadMetrics() {
+      let m;
+      try { m = await json("/api/admin/metrics"); } catch { return; }
+      const w = m.work || {};
+      const t = m.totals || {};
+      const loop = m.eventLoop || {};
+      const tile = ([v, k, note, level]) => `<div class="stat"><div class="v">${level ? `<span class="pill ${level}">${esc(v)}</span>` : esc(v)}</div><div class="k">${esc(k)}</div>${note ? `<div class="note">${esc(note)}</div>` : ""}</div>`;
+      const hosts = (m.upstream && m.upstream.hosts) || [];
+      const open = hosts.filter((h) => h.breaker !== "closed");
+      $("#mx-stats").innerHTML = [
+        [fmtMs(loop.p99Ms), "event loop p99", `p50 ${fmtMs(loop.p50Ms)} · worst ${fmtMs(loop.maxMs)} in the last 10 s`, loop.p99Ms > 100 ? "bad" : loop.p99Ms > 40 ? "warn" : null],
+        [`${m.cpuPercent} %`, "CPU (this process)", `${fmtBytes(m.memory.rss)} memory · heap ${fmtBytes(m.memory.heapUsed)}`],
+        [String(w.requestsInFlight || 0), "requests in hand", `${w.streamsInFlight || 0} video streams · ${w.encoders || 0} encoding · ${w.torrents || 0} torrents`],
+        [String(t.n || 0), "requests answered", `${t.slow || 0} over 1 s · ${t.s5 || 0} server errors`, t.s5 ? "warn" : null],
+        [String((w.heavyLane && w.heavyLane.waiting) || 0), "heavy requests waiting", `${(w.heavyLane && w.heavyLane.refused) || 0} turned away · pictures queued ${w.imgVariantQueue || 0}`],
+        [open.length ? `${open.length} down` : "all answering", "outside services", open.length ? open.slice(0, 3).map((h) => h.host).join(", ") + (open.length > 3 ? ` +${open.length - 3} more` : "") : `${hosts.length} asked since start`, open.length ? "bad" : null],
+      ].map(tile).join("");
+      const checks = (m.checks && m.checks.checks) || [];
+      const lv = (l) => (l === "critical" ? "bad" : l === "warn" ? "warn" : l === "ok" ? "live" : "");
+      $("#mx-checks").innerHTML = checks.map((c) => `<div style="font-size:0.86rem;overflow-wrap:anywhere"><span class="pill ${lv(c.level)}">${esc(c.level)}</span> ${esc(c.text)}${(c.problems || []).length ? `<div class="muted" style="font-size:0.8rem;margin:2px 0 0 8px">${c.problems.map((p) => esc(p.message)).join("<br>")}</div>` : ""}</div>`).join("");
+      $("#mx-up-empty").classList.toggle("hidden", hosts.length > 0);
+      const state = (h) => h.breaker === "closed" ? `<span class="pill live">answering</span>` : h.breaker === "open" ? `<span class="pill bad">down — not asked for ${Math.ceil((h.reopensInMs || 0) / 1000)} s</span>` : `<span class="pill warn">trying again</span>`;
+      $("#mx-up").innerHTML = hosts.slice(0, 6).map((h) => `<tr><td class="wide">${esc(h.host)}</td><td>${state(h)}</td><td>${h.calls}</td><td>${h.failed}${h.timeouts ? ` (${h.timeouts} timed out)` : ""}${h.refusedOpen ? ` · ${h.refusedOpen} not asked` : ""}</td><td>${fmtMs(h.p50Ms)}</td><td>${h.cacheFresh + h.cacheStale + h.cacheNegative + h.staleOnError}${h.lateFills ? ` · ${h.lateFills} late` : ""}</td><td class="wide">${h.lastError ? `${esc(h.lastError)} · ${esc(fmtMs(h.lastErrorAgoMs))} ago` : "–"}</td></tr>`).join("");
+      const routes = (m.requests || []).filter((r) => r.n >= 3 && r.group !== "static").sort((a, b) => (b.p95Ms || 0) - (a.p95Ms || 0)).slice(0, 5);
+      $("#mx-slow-empty").classList.toggle("hidden", routes.length > 0);
+      $("#mx-slow").innerHTML = routes.map((r) => `<tr><td class="wide">${esc(r.group)}</td><td>${r.n}</td><td>${fmtMs(r.p50Ms)}</td><td>${fmtMs(r.p95Ms)}</td><td>${fmtMs(r.maxMs)}</td><td>${r.slow}</td><td>${r.s5 ? `<span class="pill bad">${r.s5}</span>` : 0}${r.aborted ? ` · ${r.aborted} left early` : ""}</td></tr>`).join("");
+      const rl = m.rateLimits || { groups: [] };
+      const over = rl.groups.filter((g) => g.refused || g.wouldRefuse);
+      const ws = m.ws || {};
+      const wsBits = [`${ws.open || 0} live sockets`];
+      if (ws.deadPeers) wsBits.push(`${ws.deadPeers} dead peers ended`);
+      if (ws.skippedSends) wsBits.push(`${ws.skippedSends} messages skipped for slow readers`);
+      if (ws.closedSlow || ws.closedChatty || ws.oversize) wsBits.push(`${(ws.closedSlow || 0) + (ws.closedChatty || 0) + (ws.oversize || 0)} closed for misbehaving`);
+      if (ws.overAddressLimit) wsBits.push(`${ws.overAddressLimit} over the per-address limit`);
+      $("#mx-limits").innerHTML =
+        `<div><b>Rate limits</b> — ${rl.mode === "enforce" ? "enforced (only the endpoints that ask an outside provider or burn CPU, set far above heavy normal use)" : rl.mode === "off" ? "off" : "log only (nothing is refused; this counts what would be)"}: ` +
+        (over.length ? over.map((g) => `${esc(g.label)} ${g.mode === "enforce" ? `${g.refused} refused` : `${g.wouldRefuse} would be refused`} (${g.clientsOver} client${g.clientsOver === 1 ? "" : "s"})`).join(" · ") : "nobody has been refused") + `</div>` +
+        `<div style="margin-top:4px"><b>Live sockets</b> — ${esc(wsBits.join(" · "))}</div>` +
+        `<div style="margin-top:4px" class="muted">Up ${esc(fmtUptime(m.uptimeSec))} · ${esc(m.node)} · the raw numbers: /api/admin/metrics (?fmt=prom for Prometheus)</div>`;
+    }
+
     // ---------- health (watchdog) ----------
     async function loadHealth() {
       let h;
@@ -3256,6 +3325,22 @@
           if (sv.state === "parked") bits.push("the keeper gave up on quick restarts");
           if (sv.survivesReboot === false) bits.push("started by hand: will not come back after a reboot");
           return [`up ${fmtUptime(sv.uptimeSec)}`, "supervised", bits.join(" · ")];
+        })(),
+        ...(() => {
+          // what the server keeps in memory, by size (lib/caches.js): the three biggest, and any at its bound
+          const cs = (h.load && h.load.caches) || [];
+          if (!cs.length) return [];
+          const total = cs.reduce((a, c) => a + (c.entries || 0), 0);
+          const top = cs.slice(0, 3).map((c) => `${c.name} ${c.entries.toLocaleString()}${c.max ? ` of ${c.max.toLocaleString()}` : ""}`);
+          const full = cs.filter((c) => c.full).map((c) => c.name);
+          return [[total.toLocaleString(), "kept in memory", `${cs.length} caches · ${top.join(" · ")}${full.length ? ` · at their bound: ${full.join(", ")}` : ""}`]];
+        })(),
+        ...(() => {
+          // what the server chose from this machine, and why (server.js / lib/power.js)
+          const t = (h.load && h.load.tuning) || [];
+          const p = t.find((x) => x.name === "power profile");
+          if (!p) return [];
+          return [[String(p.value), "power profile", `${p.why} · ` + t.filter((x) => x !== p).map((x) => `${x.name}: ${x.value}${x.why ? ` (${x.why})` : ""}`).join(" · ")]];
         })(),
       ].map(([v, k, note]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div>${note ? `<div class="note">${esc(note)}</div>` : ""}</div>`).join("");
       const ev = h.events || [];
@@ -3279,7 +3364,7 @@
       $("#en-stats").innerHTML = [
         [String(e.limit), "at once", e.mode === "auto" ? "standard 1080p transcodes that fit" : e.mode === "fixed" ? "fixed by you: every encode counts as one" : "the default until the server has started"],
         [`${run.load == null ? 0 : run.load} / ${e.capacity}`, "in use", e.mode === "auto" ? "thread-seconds per second of film" : "encodes"],
-        [String(e.logical), "CPU threads", esc(e.cpu || "")],
+        [String(e.logical), "CPU threads", esc(e.cpuModel || "")],
         [e.speed == null ? "—" : `${e.speed}×`, "measured speed", cal ? `${cal.cpuSecPerFilmSec} CPU-s per film-s of 1080p, ${ago(new Date(cal.at).toISOString())}` : e.mode === "auto" ? "not measured yet — a cautious guess" : "not used with a fixed number"],
         [fmtBytes((e.memory.freeMb || 0) * 1048576), "memory free", `${fmtBytes((e.memory.budgetMb || 0) * 1048576)} for encoders (an encoder holds 0.3–1.1 GB)`],
       ].map(([v, k, note]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div>${note ? `<div class="note">${note}</div>` : ""}</div>`).join("");
@@ -3288,12 +3373,15 @@
       const bg = cpu.background || [];
       $("#en-running").innerHTML =
         (ex ? `<div class="muted" style="font-size:0.85rem">What fits at once: ${Object.entries(ex).map(([k, n]) => `${esc(k)} × ${n}`).join(" · ")}. A request that does not fit is offered a lower quality that does, waits a few seconds, then is told "busy".</div>` : "") +
-        `<div style="margin-top:6px">${viewers.length ? viewers.map((v) => `<div><span class="pill live">viewer</span> ${esc(v.kind)} · ${esc(v.label || "")} <span class="muted">cost ${esc(String(v.cost))}</span></div>`).join("") : '<span class="muted">Nobody is being encoded for right now.</span>'}</div>` +
+        `<div style="margin-top:6px">${viewers.length ? viewers.map((v) => `<div><span class="pill live">viewer</span> ${esc(v.kind)} · ${esc(v.label || "")} <span class="muted">cost ${esc(String(v.cost))}</span>${v.encoder ? ` · <b>${esc(v.encoder)}</b>${v.why ? ` <span class="muted">— ${esc(v.why)}</span>` : ""}` : ""}</div>`).join("") : '<span class="muted">Nobody is being encoded for right now.</span>'}</div>` +
         (bg.length || (cpu.waiting || []).length ? `<div style="margin-top:6px">${bg.map((j) => `<div><span class="pill ${j.paused ? "warn" : ""}">${j.paused ? "paused" : "background"}</span> ${esc(j.kind)} · ${esc(j.label || "")}</div>`).join("")}${(cpu.waiting || []).length ? `<div class="muted">${cpu.waiting.length} background job${cpu.waiting.length === 1 ? "" : "s"} waiting${cpu.quiet ? "" : " for viewers' encodes to finish"}</div>` : ""}</div>` : "");
       const sel = $("#en-limit");
       const want = e.setting === "auto" ? "auto" : String(e.setting);
       sel.innerHTML = `<option value="auto">Automatic</option>` + Array.from({ length: e.maxFixed || 16 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("");
       sel.value = want;
+      const hw = e.hardware || null;
+      $("#en-hw").textContent = hw ? hw.sentence + (hw.sessions && hw.sessions.running ? ` ${hw.sessions.running} running now.` : "") + (hw.refused ? ` The card refused an encode just now (${hw.refused.why || "no session"}) — software meanwhile.` : "") : "";
+      $("#en-hwmode").value = hw && ["auto", "on", "off"].includes(hw.mode) ? hw.mode : "auto";
     }
     async function loadEncoding() {
       try { paintEncoding(await json("/api/admin/encoding")); } catch {}
@@ -3306,6 +3394,16 @@
         if (!r.ok) return toast(d.error || "That was not saved");
         paintEncoding(d);
         toast(v === "auto" ? "Automatic" : `Fixed at ${v} at once`);
+      } catch { toast("That was not saved"); }
+    };
+    $("#en-hwapply").onclick = async () => {
+      const v = ["auto", "on", "off"].includes($("#en-hwmode").value) ? $("#en-hwmode").value : "auto";
+      try {
+        const r = await adminFetch("/api/admin/encoding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ hwEncode: v }) });
+        const d = await r.json();
+        if (!r.ok) return toast(d.error || "That was not saved");
+        paintEncoding(d);
+        toast(v === "auto" ? "Graphics card: automatic" : v === "on" ? "Graphics card: always when it works" : "Graphics card: off");
       } catch { toast("That was not saved"); }
     };
     $("#en-measure").onclick = async () => {
@@ -4092,7 +4190,7 @@
       telemetry: () => loadTelemetry(),
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
       profiles: () => loadPeople(),
-      server: () => { loadServer(); loadHealth(); loadEncoding(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
+      server: () => { loadServer(); loadMetrics(); loadHealth(); loadEncoding(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
       downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadCopies(); loadLimits(); loadMyList(); },
       moderation: () => { loadReports(); loadRequests(); loadIntros(); },
       logs: () => loadLogs(),
@@ -4263,7 +4361,7 @@
       if (!ADMIN_PW || document.hidden) return;
       loadBadges(); // pending-work counts stay honest on every tab
       if (activeTab === "overview") { loadOverview(); loadTimeseries(); }
-      if (activeTab === "server") { loadServer(); loadTimeseries(); }
+      if (activeTab === "server") { loadServer(); loadMetrics(); loadTimeseries(); }
       if (activeTab === "history") loadLog();
     }, 30000);
     setInterval(() => {

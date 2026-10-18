@@ -347,7 +347,10 @@ test("the middleware: 429 with Retry-After when refused; the place is held until
   assert.equal(nexts, 3);
   // no session: the address (the proxy's X-Forwarded-For first)
   assert.equal(lane.clientKey({ headers: {}, socket: { remoteAddress: "::ffff:192.168.1.20" } }), "a:192.168.1.20");
-  assert.equal(lane.clientKey({ headers: { "x-forwarded-for": "203.0.113.7, 10.0.0.1" }, socket: { remoteAddress: "127.0.0.1" } }), "a:203.0.113.7");
+  // (behind the proxy on this machine: the hop the proxy itself saw — the right-most; what is left of it the client wrote, lib/ratelimit.js)
+  assert.equal(lane.clientKey({ headers: { "x-forwarded-for": "203.0.113.7, 10.0.0.1" }, socket: { remoteAddress: "127.0.0.1" } }), "a:10.0.0.1");
+  assert.equal(lane.clientKey({ headers: { "x-forwarded-for": "203.0.113.7" }, socket: { remoteAddress: "127.0.0.1" } }), "a:203.0.113.7");
+  assert.equal(lane.clientKey({ headers: { "x-forwarded-for": "203.0.113.7" }, socket: { remoteAddress: "192.168.1.20" } }), "a:192.168.1.20", "a LAN device cannot name itself");
 });
 
 test("normal clients never notice: a page load's two heavy requests, and a household of twenty arriving together", () => {

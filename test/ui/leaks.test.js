@@ -40,6 +40,10 @@ ui.test("title pages, Search and the grids: after five visits each, none of the 
   await goto("#/downloads");
   // (and the screens the app warms in the background once it is idle — the player brings the watch party's handlers)
   await page.evaluate(() => Promise.all(["player", "discover-detail", "search", "browse", "preferences"].map((s) => import(`/js/screens/${s}.js`))));
+  // (the same settle as before the count below: sampled at once, the screens
+  // just left were sometimes still letting go — untilLeave 5 → 2 — and the
+  // count AFTER came out lower than this one, a failure with nothing leaked)
+  await page.waitForTimeout(500);
   const before = await hung(page);
   for (let round = 0; round < 5; round++) {
     for (const hash of routes) {
@@ -58,7 +62,15 @@ ui.test("title pages, Search and the grids: after five visits each, none of the 
   assert.equal(await page.evaluate(() => window.__left.length), 25);
   assert.deepEqual(await alive(page), [], "screens that were left are still alive");
   // and what they had hung on the socket and on the page is gone with them
-  assert.deepEqual(await hung(page), before);
+  // (nothing GREW: a count lower than the first one is a listener of the
+  // first count that has since let go — the downloads screen's own
+  // subscription ends at the next download event once its screen is gone —
+  // which on a fresh server's first minutes, a library walk landing mid-test,
+  // was sometimes still waiting when the first count was taken)
+  const after = await hung(page);
+  const grew = Object.entries(after.socket).filter(([type, n]) => n > (before.socket[type] || 0)).map(([type, n]) => `${type} ${before.socket[type] || 0} → ${n}`);
+  if (after.untilLeave > before.untilLeave) grew.push(`untilLeave ${before.untilLeave} → ${after.untilLeave}`);
+  assert.deepEqual(grew, [], `left behind on the socket / the router: ${JSON.stringify({ before, after })}`);
 });
 
 ui.test("the player: after four films, none of the players that were left is still in memory", async ({ page, context, srv, goto, signIn, freshProfile, lib }) => {

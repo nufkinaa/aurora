@@ -36,12 +36,16 @@ const similarity = (a, b) => {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Background enrichment: no deadline (nobody waits on a page for it), but the
+// timeout, the host's fair share and its breaker (lib/upstream.js). This
+// module's own back-off below is the retry; upstream does not add another.
+const upstream = require("../lib/upstream");
 const fetchJson = async (url, attempt = 0) => {
-  const res = await fetch(url, {
+  const res = await upstream.fetch(url, {
     headers: { "User-Agent": "Aurora/1.0 (personal media server)" },
-    signal: AbortSignal.timeout(12000),
+    timeoutMs: 12000,
+    retries: 0,
   });
-  try { require("../lib/signals").provider(url, res.status); } catch {}
   if (res.status === 429 || res.status === 403) {
     if (attempt < 2) {
       await sleep(4000 * (attempt + 1)); // back off and retry
@@ -75,16 +79,17 @@ const cachePoster = async (url) => {
     } catch {}
   }
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const res = await upstream.fetch(url, { timeoutMs: 15000, maxBytes: 12 * 1024 * 1024 });
     if (!res.ok) return null;
     const type = String(res.headers.get("content-type") || "");
     if (type && !/^image\//i.test(type)) return null;
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length < MIN_IMAGE_BYTES || !magicOk(buf)) return null;
-    fs.mkdirSync(POSTER_DIR, { recursive: true });
+    await fs.promises.mkdir(POSTER_DIR, { recursive: true });
     const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, buf);
-    fs.renameSync(tmp, file); // atomic — never a half-written poster
+    await fs.promises.writeFile(tmp, buf);
+    await fs.promises.rename(tmp, file); // atomic — never a half-written poster
+    try { require("../lib/imgcheck").forget(file); } catch {}
     return name;
   } catch {
     return null;
@@ -379,4 +384,4 @@ const posterFile = (name) => {
   return fs.existsSync(file) ? file : null;
 };
 
-module.exports = { get, enrich, refresh, posterFile, cachePoster, events, _internals: { refreshDue } };
+module.exports = { rev: () => store.rev, get, enrich, refresh, posterFile, cachePoster, events, _internals: { refreshDue } };

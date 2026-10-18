@@ -50,7 +50,7 @@ router.post("/api/reports", (req, res) => {
         .map((m) => ({ name: clean(m && m.name, 32), ms: Math.max(0, parseInt(m && m.ms, 10) || 0), path: clean(m && m.path, 24) || undefined }))
         .filter((m) => m.name),
     },
-    ip: req.ip,
+    ip: realtime.clientIp(req), // (req.ip is the reverse proxy itself behind one)
   };
   store.data.reports.unshift(report);
   if (store.data.reports.length > MAX) store.data.reports.length = MAX;

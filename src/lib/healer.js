@@ -245,12 +245,12 @@ const checkTemp = () => slowly("temp", async () => {
   let freed = 0;
   try { freed += offline.sweep() || 0; } catch {}
   // finished streams nobody has touched for a day (kept before only by count)
-  try { freed += remux.sweepStale() || 0; } catch {}
-  try { freed += require("../media/torrent-transcode").sweepStale() || 0; } catch {}
+  try { freed += (await remux.sweepStale()) || 0; } catch {}
+  try { freed += (await require("../media/torrent-transcode").sweepStale()) || 0; } catch {}
   const sp = await disk.space(config.CACHE_DIR);
   const tight = !!sp && sp.free < TIGHT_FREE_BYTES;
   if (tight) {
-    try { freed += remux.sweepIdle() || 0; } catch {}
+    try { freed += (await remux.sweepIdle()) || 0; } catch {}
   }
   if (freed > 50 * 1024 ** 2) {
     healed.push(`cleared ${fmtBytes(freed)} of temporary files`);
@@ -494,7 +494,8 @@ const checkScanner = async () => {
   const age = Date.now() - at;
   const every = config.SCAN_INTERVAL_MS || 10 * 60 * 1000;
   if (age > every * 2 + 60 * 1000) {
-    try { scanner.scan(); } catch {}
+    // (in the background: the walk off the event loop, every file re-dated)
+    try { scanner.scanAsync({ full: true }).catch(() => {}); } catch {}
     note("scan run", `last scan was ${fmtAge(age)} ago (every ${fmtAge(every)})`);
     return { status: "warn", summary: `library scan was ${fmtAge(age)} overdue`, healed: "ran a scan" };
   }
@@ -667,7 +668,10 @@ const status = () => {
 const start = () => {
   if (state.timer) return;
   repairs._setDeps({ note }); // an automatic repair is written into the event list like every other action
-  state.timer = setInterval(() => { run().catch((e) => console.error("[healer] round failed:", e && e.message)); }, CHECK_MS);
+  // (every 3 minutes on a low-power machine — lib/power.js)
+  let every = CHECK_MS;
+  try { every = require("./power").pick(CHECK_MS, 3 * CHECK_MS); } catch {}
+  state.timer = setInterval(() => { run().catch((e) => console.error("[healer] round failed:", e && e.message)); }, every);
   state.timer.unref?.();
   // first round once boot has settled and the queue has resumed
   setTimeout(() => { run().catch(() => {}); }, 15000).unref?.();

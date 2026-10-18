@@ -1,0 +1,129 @@
+{
+  "at": "2026-10-18T10:01:16.103Z",
+  "node": "v22.13.1",
+  "platform": "win32",
+  "rounds": 60,
+  "hog": false,
+  "dirs": [
+    {
+      "dir": "C:\\Users\\netan\\AppData\\Local\\Temp/aurora-agents/srv-storage/disk-c",
+      "fs": {
+        "renameOver": true,
+        "readBack": true,
+        "dirFsync": "n/a on Windows"
+      },
+      "sizes": {
+        "64KB": {
+          "sync": {
+            "loopBlockedMsP50": 2.51,
+            "loopBlockedMsP99": 4.04,
+            "loopBlockedMsMax": 4.04,
+            "loopBlockedMsTotal": 154
+          },
+          "async": {
+            "writeMsP50": 2.7,
+            "writeMsP99": 6.3,
+            "loopHeldMaxMs": 2.16,
+            "loopHeldOver5ms": 0,
+            "whole": true
+          }
+        },
+        "4MB": {
+          "sync": {
+            "loopBlockedMsP50": 8.95,
+            "loopBlockedMsP99": 11.06,
+            "loopBlockedMsMax": 11.06,
+            "loopBlockedMsTotal": 138.5
+          },
+          "async": {
+            "writeMsP50": 11.4,
+            "writeMsP99": 13.1,
+            "loopHeldMaxMs": 3.5,
+            "loopHeldOver5ms": 0,
+            "whole": true
+          }
+        }
+      }
+    },
+    {
+      "dir": "E:/aurora-agents/srv-storage",
+      "fs": {
+        "renameOver": true,
+        "readBack": true,
+        "dirFsync": "n/a on Windows"
+      },
+      "sizes": {
+        "64KB": {
+          "sync": {
+            "loopBlockedMsP50": 27.37,
+            "loopBlockedMsP99": 99.06,
+            "loopBlockedMsMax": 99.06,
+            "loopBlockedMsTotal": 1847.1
+          },
+          "async": {
+            "writeMsP50": 26,
+            "writeMsP99": 109.3,
+            "loopHeldMaxMs": 10.73,
+            "loopHeldOver5ms": 1,
+            "whole": true
+          }
+        },
+        "4MB": {
+          "sync": {
+            "loopBlockedMsP50": 91.13,
+            "loopBlockedMsP99": 164.58,
+            "loopBlockedMsMax": 164.58,
+            "loopBlockedMsTotal": 1479.2
+          },
+          "async": {
+            "writeMsP50": 83.4,
+            "writeMsP99": 102.6,
+            "loopHeldMaxMs": 5.54,
+            "loopHeldOver5ms": 5,
+            "whole": true
+          }
+        }
+      }
+    },
+    {
+      "dir": "\\localhost\\C$\\Users\\netan\\AppData\\Local\\Temp\\aurora-agents\\srv-storage\\disk-smb",
+      "fs": {
+        "renameOver": true,
+        "readBack": true,
+        "dirFsync": "n/a on Windows"
+      },
+      "sizes": {
+        "64KB": {
+          "sync": {
+            "loopBlockedMsP50": 3.53,
+            "loopBlockedMsP99": 9.64,
+            "loopBlockedMsMax": 9.64,
+            "loopBlockedMsTotal": 228.3
+          },
+          "async": {
+            "writeMsP50": 3.6,
+            "writeMsP99": 14.1,
+            "loopHeldMaxMs": 6,
+            "loopHeldOver5ms": 1,
+            "whole": true
+          }
+        },
+        "4MB": {
+          "sync": {
+            "loopBlockedMsP50": 12.36,
+            "loopBlockedMsP99": 30.24,
+            "loopBlockedMsMax": 30.24,
+            "loopBlockedMsTotal": 207.6
+          },
+          "async": {
+            "writeMsP50": 18.2,
+            "writeMsP99": 32.2,
+            "loopHeldMaxMs": 13.39,
+            "loopHeldOver5ms": 8,
+            "whole": true
+          }
+        }
+      }
+    }
+  ]
+}

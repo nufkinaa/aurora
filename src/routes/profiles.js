@@ -695,7 +695,7 @@ const discoverLib = lazy(require, "../media/discover");
 const kidsLib = lazy(require, "../lib/kids");
 let deckPool = { key: null, pool: [] };
 const tastePool = () => {
-  const key = `${wellknownLib().stamp()}|${scanner.index.scannedAt}`;
+  const key = `${wellknownLib().stamp()}|${scanner.index.version}`;
   if (deckPool.key === key) return deckPool.pool;
   const identity = identityLib();
   const library = [];

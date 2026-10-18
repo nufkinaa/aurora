@@ -1,0 +1,39 @@
+[
+  {
+    "tree": "before",
+    "film": "Greenland",
+    "mins": 5,
+    "offsetViewer": {
+      "segments": 78,
+      "filmSec": 361
+    },
+    "jitViewer": {
+      "segments": 36,
+      "filmSec": 361
+    },
+    "hlsMB": 436,
+    "jitMB": 1681,
+    "ffmpegCpuSec": 272.5,
+    "log": []
+  },
+  {
+    "tree": "after",
+    "film": "Greenland",
+    "mins": 5,
+    "offsetViewer": {
+      "segments": 78,
+      "filmSec": 361
+    },
+    "jitViewer": {
+      "segments": 36,
+      "filmSec": 361
+    },
+    "hlsMB": 185,
+    "jitMB": 140,
+    "ffmpegCpuSec": 71.1,
+    "log": [
+      "[jit] parked f37cc155485d-1766349781189 (40 segments ahead of its reader)",
+      "[remux] paused f37cc155485d-1766349781189-copy-600 (57 segments ahead of its reader)"
+    ]
+  }
+]

@@ -70,6 +70,7 @@ const flush = () => {
 // have watched, the library, the catalogue being browsed. Set by the engine.
 let keepIds = new Set();
 const setKeep = (ids) => { keepIds = new Set(ids || []); };
+const keepSet = () => keepIds;
 
 // tests and the evaluation harness: an in-memory store, never the disk
 const useMemory = (data = null) => {
@@ -353,6 +354,6 @@ const listCached = (key) => {
 };
 
 module.exports = {
-  get, byTmdb, all, size, stamp, put, noteCards, ensure, fetchOne, cachedList, listCached, stale, flush, prune, setKeep,
+  get, byTmdb, all, size, stamp, put, noteCards, ensure, fetchOne, cachedList, listCached, stale, flush, prune, setKeep, keepSet,
   _internals: { fromTmdb, fromCard, useMemory, open, V, REFRESH_MS, MAX_TITLES, APPEND },
 };

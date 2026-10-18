@@ -64,9 +64,26 @@
 "use strict";
 const os = require("os");
 const { execFile } = require("child_process");
+// (asked for once, not per call: lib/lazy.js — budget() runs on every
+// drain, and a require() inside a function cost 1.6 s of a loaded box's
+// three minutes, measured)
+const lazy = require("../lib/lazy");
+const powerLib = lazy(require, "../lib/power");
+const childrenLib = lazy(require, "../lib/children");
+const cpucountLib = lazy(require, "../lib/cpucount");
 
 const QUIET_MS = 20 * 1000; // no viewer encode for this long = the coast is clear
-const BUDGET = 2; // background units that may run together
+const BUDGET = 2; // background units that may run together (on a big machine — budget() below)
+// On a machine of SMALL_THREADS CPU threads or fewer, or one the low-power
+// profile is on for (lib/power.js), the budget is ONE unit: one heavy decode
+// at a time — the speech timeline, the intro fingerprints, the credits
+// picture and the subtitle reads never run side by side there (server round,
+// 2026-10-18: on a four-core box two of them at once took both free cores
+// from whatever a viewer's request needed).
+const SMALL_THREADS = 8;
+const budget = () => (deps.low() || deps.cpus() <= SMALL_THREADS ? 1 : BUDGET);
+// why the budget is what it is (the admin's health page)
+const budgetWhy = () => (deps.low() ? "the low-power profile" : deps.cpus() <= SMALL_THREADS ? `${deps.cpus()} CPU threads (${SMALL_THREADS} or fewer: one heavy decode at a time)` : `${deps.cpus()} CPU threads`);
 // (sublang: the subtitle language / alignment passes, media/sublang.js — one
 // ffmpeg read each; credits: the credits picture, creditscv.js / introdetect.js)
 // (speech: the speech timeline of a film for the audio subtitle sync,
@@ -77,7 +94,10 @@ const deps = {
   setPriority: (pid, prio) => os.setPriority(pid, prio),
   kill: (child, sig) => child.kill(sig),
   platform: process.platform,
-  cpus: () => os.cpus().length,
+  // (the CPUs this process may use: affinity, cpuset, cgroup quota — lib/cpucount.js,
+  // the one count every budget takes: encbudget, the ladder, this)
+  cpus: () => cpucountLib().count(),
+  low: () => { try { return powerLib().low(); } catch { return false; } },
   now: () => Date.now(),
   setTimeout: (fn, ms) => { const t = setTimeout(fn, ms); t.unref?.(); return t; },
   clearTimeout: (t) => clearTimeout(t),
@@ -112,6 +132,8 @@ const viewer = {
     const id = ++viewerSeq;
     const entry = {
       id, kind: meta.kind || "encode", label: meta.label || "", cost: meta.cost || 1, memMb: meta.memMb || 0, since: deps.now(), pid: child && child.pid, release: null,
+      // which encoder, and why that one (the admin page says so beside it)
+      encoder: meta.encoder || null, why: meta.why || null,
       // `idle()`: its viewer has gone (it is still running); `reclaim()`: stop it
       idle: typeof meta.idle === "function" ? meta.idle : null,
       reclaim: typeof meta.reclaim === "function" ? meta.reclaim : null,
@@ -193,8 +215,9 @@ const stats = { started: 0, paused: 0, resumed: 0, shed: 0, heldBack: 0, specShe
 const used = () => { let u = 0; for (const j of jobs.values()) u += j.weight; return u; };
 const weightOf = (kind) => (WEIGHTS[kind] == null ? 1 : WEIGHTS[kind]);
 
-const lower = (child) => {
+const lower = (child, name = "helper") => {
   if (!child || !child.pid) return child;
+  try { childrenLib().track(child, name); } catch {}
   try { deps.setPriority(child.pid, PRIORITY.background); } catch {}
   if (deps.platform === "linux") deps.ionice(child.pid);
   return child;
@@ -226,9 +249,12 @@ const grant = (kind, meta = {}) => {
   return {
     id,
     release,
+    // paused on purpose right now (a viewer is being encoded for): a stall
+    // watchdog does not count this time (media/speech.js)
+    paused: () => j.paused,
     attach(child) {
       j.child = child;
-      lower(child);
+      lower(child, kind);
       whenGone(child, release);
       if (viewer.busy()) pause(j); // a viewer encode began between the grant and the start
       return child;
@@ -242,21 +268,21 @@ const drain = () => {
   // hand the budget to whoever is waiting, in order
   while (waiters.length) {
     const w = waiters[0];
-    if (used() > 0 && used() + w.weight > BUDGET) break;
+    if (used() > 0 && used() + w.weight > budget()) break;
     waiters.shift();
     w.resolve(grant(w.kind, w.meta));
   }
 };
 
 const background = {
-  BUDGET, QUIET_MS,
+  BUDGET, QUIET_MS, budget,
   threads: () => Math.max(1, Math.floor(deps.cpus() / 2)),
   used,
   // May a background job of this kind start right now?
   mayStart(kind = "encode") {
     const w = weightOf(kind);
     if (!viewer.quiet()) return false;
-    return used() === 0 || used() + w <= BUDGET;
+    return used() === 0 || used() + w <= budget();
   },
   // Resolves with a place in the budget (see grant) when one may start: no
   // viewer encode running, none for the quiet period, room in the budget —
@@ -312,7 +338,7 @@ const status = () => ({
   viewers: viewer.list(),
   background: background.list(),
   speculative: speculative.list(),
-  backgroundBudget: BUDGET,
+  backgroundBudget: budget(),
   backgroundUsed: used(),
   waiting: waiters.map((w) => w.kind),
   quiet: viewer.quiet(),
@@ -332,4 +358,4 @@ const _reset = () => {
   for (const k of Object.keys(stats)) stats[k] = 0;
 };
 
-module.exports = { viewer, background, speculative, status, PRIORITY, QUIET_MS, BUDGET, WEIGHTS, _internals: { deps, jobs, viewers, waiters, stats, drain, _reset } };
+module.exports = { viewer, background, speculative, status, PRIORITY, QUIET_MS, BUDGET, SMALL_THREADS, budget, budgetWhy, WEIGHTS, _internals: { deps, jobs, viewers, waiters, stats, drain, _reset } };

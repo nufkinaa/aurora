@@ -201,12 +201,29 @@ const getClient = () => {
       // numwant:200 — webtorrent's default asks a tracker for only 50
       // addresses, once per ~30min; ask for more up front (trackers clamp
       // as they see fit).
+      // uploadLimit: webtorrent does no choking — every connected peer that
+      // asks is sent pieces as fast as the line takes them. On a home line
+      // the UPLINK is what a remote viewer's stream goes out on, and a
+      // saturated uplink also delays the ACKs of everything coming in, the
+      // torrent's own download included. So uploads are capped (config
+      // "torrentUploadKBps", KB/s; -1 or 0 = no cap). The DEFAULT is -1, no
+      // cap, exactly as before — the owner's decision (2026-10-18: "No cap on
+      // downloads at all"): nothing here limits a torrent's speed or its
+      // connections unless the admin sets this. (512 KB/s, 4 Mbit/s, would
+      // keep a 20 Mbit/s uplink free for a remote viewer's stream.)
       clientInstance = new W({
         maxConns: 40,
         seedOutgoingConnections: false,
         utp: false,
         tracker: { getAnnounceOpts: () => ({ numwant: 200 }) },
+        ...(config.TORRENT_UPLOAD_KBPS > 0 ? { uploadLimit: config.TORRENT_UPLOAD_KBPS * 1024 } : {}),
       });
+      // Pieces of several MB pass through Buffers at tens of MB a second
+      // while the JavaScript heap stays small, so V8 may not collect for a
+      // long time and the process grows past a GB of garbage (measured:
+      // lib/memnudge.js). While the client exists, a look every 2 s.
+      const nudge = setInterval(() => { try { require("../lib/memnudge").check(); } catch {} }, 2000);
+      nudge.unref?.();
       // A client-level error with no listener throws out of the event loop;
       // the process guard catches it but the client can be left wedged. Log it.
       clientInstance.on("error", (err) =>
@@ -443,7 +460,8 @@ const servedContentComplete = (t) =>
   !!t && (t.done === true || !!(t._auroraFile && t._auroraFile.done));
 
 // infoHash -> announce (tracker) list from Torrentio, for faster peer discovery
-const sourcesByHash = new Map();
+// (bounded: one entry per torrent ever offered otherwise — lib/caches.js)
+const sourcesByHash = new (require("../lib/caches").BoundedMap)({ max: 2000, name: "torrent trackers by hash" });
 
 // Public trackers to always include. HTTP/HTTPS/WSS (TCP-based) come FIRST and
 // are the backbone: many networks — VPNs especially (NordVPN etc.) — block
@@ -501,12 +519,13 @@ const trackersFromSources = (sources = []) =>
     .filter((s) => typeof s === "string" && s.startsWith("tracker:"))
     .map((s) => s.slice("tracker:".length));
 
+// (lib/upstream.js: timeout, the host's fair share and breaker — a source
+// list does not wait on a provider that is down — and it tells lib/signals)
 const fetchJson = async (url, ms = 12000) => {
-  const res = await fetch(url, {
+  const res = await require("../lib/upstream").fetch(url, {
     headers: { "User-Agent": "Aurora/1.0" },
-    signal: AbortSignal.timeout(ms),
+    timeoutMs: ms,
   });
-  try { require("../lib/signals").provider(url, res.status); } catch {}
   if (!res.ok) throw new Error(`${res.status} ${url}`);
   return res.json();
 };

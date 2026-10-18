@@ -385,7 +385,10 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/:file", async (req, res) 
     if (!seg && jit.refusedJustNow(job)) return res.status(503).send("Server is busy — that rendition isn't available right now");
     if (!seg) return res.status(504).send("Segment not ready");
     res.setHeader("Content-Type", fmt ? "video/mp4" : "video/mp2t");
-    res.setHeader("Cache-Control", "no-cache");
+    // a torrent's file never changes (the info hash names its bytes) and a
+    // published jit segment never does either: the player may keep it
+    // (the copy only — an encoded rendition depends on how it was encoded)
+    res.setHeader("Cache-Control", v === "copy" ? "private, max-age=86400, immutable" : "no-cache");
     res.sendFile(seg);
   } catch (err) {
     res.status(500).send(err.message);

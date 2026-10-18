@@ -18,6 +18,10 @@ const config = require("../config");
 const discover = require("./discover");
 const { JsonStore } = require("../lib/jsonstore");
 
+// A cache of ~640 KB, rewritten whole for every title page it learns a row
+// for: written at most once a minute instead (memory answers meanwhile; a
+// hard kill loses at most a minute of rows, which are fetched again).
+const SAVE_WITHIN_MS = 60 * 1000;
 const store = new JsonStore(path.join(config.CACHE_DIR, "similar.json"), {
   v: 1,
   ids: {}, // imdbId -> {tmdbId, at} — permanent, an id can't change
@@ -30,15 +34,22 @@ const MISS_TTL = 24 * 3600 * 1000; // an empty answer is retried the next day
 const FAIL_TTL = 30 * 60 * 1000;
 
 const TMDB = "https://api.themoviedb.org/3";
+// (lib/upstream.js: timeout, fair share, breaker; a person is waiting on the
+// "More like this" row — 2.5 s per call at most, a slower answer kept for
+// the next ask; a build that failed is kept FAIL_TTL only, below)
 const tmdb = async (pathname, params = "") => {
-  const res = await fetch(
-    `${TMDB}/${pathname}?api_key=${config.TMDB_KEY}${params}`,
-    { signal: AbortSignal.timeout(8000) },
-  );
-  try { require("../lib/signals").provider(TMDB, res.status); } catch {}
-  if (!res.ok) throw new Error(`tmdb ${res.status}`);
-  return res.json();
+  try {
+    return await require("../lib/upstream").json(`${TMDB}/${pathname}?api_key=${config.TMDB_KEY}${params}`, {
+      timeoutMs: 8000, deadlineMs: 2500, ttlMs: 10 * 60 * 1000,
+    });
+  } catch (e) {
+    if (!(e && e.status === 404)) tmdbFailures++;
+    throw new Error(`tmdb ${(e && e.status) || (e && e.code) || "error"}`);
+  }
 };
+// TMDB calls that failed (not "not found"): a row built while one did — an
+// id lookup dropped, say — is kept FAIL_TTL only, so it is built again soon.
+let tmdbFailures = 0;
 
 // imdbId -> TMDB id via /find, movie AND tv aware (availability.js's own
 // resolver is movie-only). Cached forever.
@@ -53,7 +64,7 @@ const tmdbIdFor = async (imdbId, type) => {
   const tmdbId = found ? found.id : null;
   if (tmdbId) {
     store.data.ids[imdbId] = { tmdbId, at: Date.now() };
-    store.save();
+    store.save({ within: SAVE_WITHIN_MS });
   }
   return tmdbId;
 };
@@ -178,6 +189,7 @@ const similar = async (type, imdbId, tmdbHint) => {
   }
 
   let result = { items: [], source: "tmdb" };
+  const f0 = tmdbFailures;
   let failed = false;
   if (config.TMDB_KEY) {
     try {
@@ -212,9 +224,9 @@ const similar = async (type, imdbId, tmdbHint) => {
     source: result.source,
     at: Date.now(),
     algo: ALGO,
-    ...(failed ? { failed: true } : {}),
+    ...(failed || tmdbFailures !== f0 ? { failed: true } : {}),
   };
-  store.save();
+  store.save({ within: SAVE_WITHIN_MS });
   return result;
 };
 
@@ -258,7 +270,7 @@ const collection = async (type, imdbId, tmdbHint) => {
     }
   } catch {}
   store.data.rows[key] = { ...out, at: Date.now() };
-  store.save();
+  store.save({ within: SAVE_WITHIN_MS });
   return out;
 };
 
@@ -302,7 +314,7 @@ const seriesShelves = async (imdbId, tmdbHint) => {
     }
   } catch {}
   store.data.rows[key] = { creator: out.creator, network: out.network, at: Date.now() };
-  store.save();
+  store.save({ within: SAVE_WITHIN_MS });
   return out;
 };
 

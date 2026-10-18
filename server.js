@@ -96,14 +96,11 @@ process.on("unhandledRejection", (reason) => {
 }
 
 const app = express();
-const server = http.createServer(app);
-// A connection idle for 5 s (Node's default) was closed just as a TV on a
-// laggy Wi-Fi reused it for its next picture — the request arrived after the
-// close and the picture ended "unexpected end of stream" (reproduced on a
-// throttled line, 2026-10-08). Idle connections now live long enough for any
-// client's pool to reuse them; headersTimeout stays above it, as Node requires.
-server.keepAliveTimeout = 75 * 1000;
-server.headersTimeout = 80 * 1000;
+// Keep-alive 75 s (a TV on laggy Wi-Fi reuses its connections late —
+// 2026-10-08), headers within 20 s and the whole request within 120 s (a
+// client dripping its request a byte at a time no longer holds a socket for
+// minutes), checked every 2 s: lib/httplimits.js has the numbers and why.
+const server = require("./src/lib/httplimits").createServer(app, config.HTTP);
 
 // Failing to bind must kill the process LOUDLY, and this listener must be
 // registered FIRST: realtime.attach's WebSocketServer also listens for server
@@ -123,12 +120,23 @@ server.on("error", (err) => {
 // connection, so a keep-alive client's next request reaches the new process.
 app.use(require("./src/lib/shutdown").middleware);
 
+// Requests per route group, time to first byte, the slow-request line
+// (lib/metrics.js — read at /api/admin/metrics and on Server → Health).
+app.use(require("./src/lib/metrics").middleware);
+
 // How long the server itself took over each data and stream answer, as the
 // standard Server-Timing header (lib/servertiming.js) — so a slow start can
 // be put down to the server, the line or the player.
 app.use(["/api", "/stream"], require("./src/lib/servertiming").middleware);
 
-app.use(express.json());
+// JSON bodies: 100 kB everywhere (the biggest real one, a usage batch, is a
+// few kB), 16 kB for sign-in (a name, a password, a code). A body too big
+// or not JSON is answered 413 / 400 in one quiet line, not a stack trace.
+{
+  const jsonDefault = express.json({ limit: "100kb" });
+  const jsonSmall = express.json({ limit: "16kb" });
+  app.use((req, res, next) => (req.path.startsWith("/api/auth/") ? jsonSmall : jsonDefault)(req, res, next));
+}
 
 // Gzip/deflate for text payloads. Measured on this library (35 titles):
 // /api/home 1,060,613 B -> 174,613 B, /api/library 249,107 -> 39,875, the five
@@ -232,8 +240,17 @@ app.use(require("./src/lib/airtoken").middleware);
 // in src/lib/resetgate.js. After the wall above, ahead of every router.
 app.use(require("./src/lib/resetgate").middleware);
 
+// Per-client rate limits on the public endpoints that ask an outside
+// provider or burn CPU (lib/ratelimit.js; "log" mode unless config says
+// "enforce"). After the wall and the reset gate: a signed-in device is
+// counted by its session, anyone else by address.
+app.use(require("./src/lib/ratelimit").middleware);
 // [analytics] how long the heavy endpoints take to answer (lib/tel/timings.js)
 app.use(require("./src/lib/tel/timings").middleware);
+// Until the library has been read once (a first start: nothing saved from
+// the last run — media/scanner.js boot()), what needs it waits for that
+// first walk, 20 s at most, instead of answering from an empty library.
+app.use(scanner.libraryReady);
 // Blur-up placeholders ride along on JSON answers for clients that ask (lib/blurup.js).
 app.use(require("./src/lib/blurup").middleware);
 app.use(require("./src/routes/auth"));
@@ -396,7 +413,19 @@ app.get("*", (req, res) => {
 // stack, by Express's default handler): a client that hung up while sending
 // its request, and a cached picture swept between being chosen and being sent.
 // Everything else goes on to the default handler unchanged.
+const badBodySaid = { at: 0, n: 0 };
 app.use((err, req, res, next) => {
+  // a body over its limit, or one that is not the JSON it says it is: the
+  // client's mistake — answered plainly, logged once a minute at most
+  if (err && (err.type === "entity.too.large" || err.type === "entity.parse.failed" || err.type === "encoding.unsupported" || err.type === "charset.unsupported")) {
+    badBodySaid.n++;
+    if (Date.now() - badBodySaid.at > 60 * 1000) {
+      badBodySaid.at = Date.now();
+      console.warn(`[http] refused a request body (${err.type}) on ${req.method} ${req.path.split("/").slice(0, 3).join("/")} — ${badBodySaid.n} so far`);
+    }
+    if (!res.headersSent) res.status(err.type === "entity.too.large" ? 413 : 400).json({ error: err.type === "entity.too.large" ? "request body too large" : "request body is not valid JSON" });
+    return;
+  }
   if (err && (err.type === "request.aborted" || err.code === "ECONNABORTED" || err.code === "ECONNRESET")) {
     if (!res.headersSent) { try { res.status(400).end(); } catch {} }
     return;
@@ -442,49 +471,62 @@ scanner.events.on("enriched", (info) => {
   // media/subaudio.js — applied only when confident, embedded tracks scored only)
   for (const job of scanner.audioSyncWork()) require("./src/media/subaudio").enqueue(job);
 });
-// A subtitle was lined up with the audio (the Resync button or the
-// background): the library learns the new timing verdicts and ★ (one rescan
-// for a burst), and the players watching that title hear about it at once —
-// they reload the track, and may switch to the ★ one (see the players).
-{
-  let syncTimer = null;
-  const touched = new Set();
-  require("./src/media/subaudio").events.on("synced", ({ video, source }) => {
-    touched.add(video);
-    const flush = () => {
-      syncTimer = null;
-      scanner.scan();
-      for (const v of touched) {
-        const id = scanner.idForPath(v);
-        if (id) realtime.broadcastAll({ type: "subtitle_sync", id, source });
-      }
-      touched.clear();
+// What the background passes learn (a subtitle's language, its timing
+// against the audio, an OCR'd track) reaches the library through ONE rescan
+// for a burst — and, from the background, at most one every
+// BG_RESCAN_GAP_MS: a pass over two hundred files finishes one every few
+// seconds, and each of those used to set off a whole rescan (and every
+// connected app asking for the library again) three seconds later. Somebody
+// waiting (the Resync button, Undo) gets theirs at once.
+const BG_RESCAN_GAP_MS = 30 * 1000;
+const bgRescan = (() => {
+  let timer = null;
+  let lastAt = 0;
+  let waiters = [];
+  const run = () => {
+    timer = null;
+    lastAt = Date.now();
+    const these = waiters;
+    waiters = [];
+    scanner.scanAsync().catch(() => scanner.scan()).then(() => {
       realtime.libraryUpdated();
-    };
-    if (source === "resync" || source === "undo") {
-      if (syncTimer) clearTimeout(syncTimer);
-      flush();
-      return;
+      for (const fn of these) { try { fn(); } catch {} }
+    });
+  };
+  // after(fn): called once the rescan that includes this news is done
+  return ({ now = false, after = null } = {}) => {
+    if (after && !waiters.includes(after)) waiters.push(after);
+    if (now) {
+      if (timer) { clearTimeout(timer); timer = null; }
+      return run();
     }
-    if (syncTimer) return;
-    syncTimer = setTimeout(flush, 3000);
-    syncTimer.unref?.();
-  });
-}
-// A file's tracks were just named from their text: the library learns the
-// names (one rescan for a burst of files, never one per file).
+    if (timer) return;
+    const wait = Math.max(3000, lastAt + BG_RESCAN_GAP_MS - Date.now());
+    timer = setTimeout(run, wait);
+    timer.unref?.();
+  };
+})();
+// A subtitle was lined up with the audio (the Resync button or the
+// background): the library learns the new timing verdicts and ★, and the
+// players watching that title hear about it — they reload the track, and may
+// switch to the ★ one (see the players).
 {
-  let renameTimer = null;
-  require("./src/media/sublang").events.on("detected", () => {
-    if (renameTimer) return;
-    renameTimer = setTimeout(() => {
-      renameTimer = null;
-      scanner.scan();
-      realtime.libraryUpdated();
-    }, 3000);
-    renameTimer.unref?.();
+  const touched = new Map(); // video -> source
+  const tell = () => {
+    const these = [...touched];
+    touched.clear();
+    for (const [v, source] of these) {
+      const id = scanner.idForPath(v);
+      if (id) realtime.broadcastAll({ type: "subtitle_sync", id, source });
+    }
+  };
+  require("./src/media/subaudio").events.on("synced", ({ video, source }) => {
+    touched.set(video, source);
+    bgRescan({ now: source === "resync" || source === "undo", after: tell });
   });
 }
+// A file's tracks were just named from their text: the library learns the names.
+require("./src/media/sublang").events.on("detected", () => bgRescan());
 
 // Online metadata (genres, synopsis, art) fills in after each scan
 scanner.events.on("scanned", () => online.enrich(scanner.allItems()));
@@ -555,15 +597,11 @@ require("./src/lib/health").start();
   });
 }
 online.events.on("updated", () => {
-  scanner.scan();
-  realtime.libraryUpdated();
+  scanner.scanAsync().catch(() => scanner.scan()).then(() => realtime.libraryUpdated());
 });
 
 ocr.events.on("job", (job) => {
-  if (job.status === "done") {
-    scanner.scan(); // pick up the new .srt
-    realtime.libraryUpdated();
-  }
+  if (job.status === "done") bgRescan(); // pick up the new .srt
   realtime.broadcastAll({ type: "subtitle_ocr", ...job });
 });
 
@@ -587,12 +625,15 @@ setTimeout(() => {
   } catch {}
 }, 20000).unref();
 
-// Initial scan + periodic rescan
-scanner.scan();
-scanner.enrich();
+// The library: what the last run saw, at once — the index built from the
+// walk it saved (media/scanner.js boot(): no folder is read before the port
+// is listening). Then, once listening, the folders are read in a worker
+// thread and the index follows what is on disk now. With nothing saved (a
+// first start) library requests wait for that first walk (libraryReady below).
+scanner.boot();
+// Periodic rescan: the walk off the event loop (media/scanworker.js)
 setInterval(() => {
-  scanner.scan();
-  scanner.enrich();
+  scanner.scanAsync().catch((e) => { console.warn(`[scan] rescan failed: ${(e && e.message) || e}`); }).then(() => scanner.enrich());
 }, config.SCAN_INTERVAL_MS);
 
 const lanAddress = () => {
@@ -634,10 +675,35 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // can't delete this live instance's in-progress transcodes. Synchronous, so
   // it finishes before any HTTP request handler runs.
   try { require("./src/media/remux").bootSweep(); } catch {}
+  // what kind of disk each library root is (lib/disktype.js — asked once, in
+  // the background, so the first viewer already gets the right read pattern)
+  try {
+    const dt = require("./src/lib/disktype");
+    for (const root of [...(config.LIBRARIES.movies || []), ...(config.LIBRARIES.shows || [])]) {
+      try { dt.kindFor(root, require("fs").statSync(root).dev); } catch {}
+    }
+  } catch {}
+  // the jit cache: what idle jobs kept, bounded (media/jit.js sweepDisk)
+  try { require("./src/media/jit").bootSweep(); } catch {}
   try { require("./src/media/torrent-transcode").bootSweep(); } catch {}
   // How many viewers this machine may encode for at once: worked out from
   // its CPU and its measured encode speed (media/encbudget.js), from here on.
   try { require("./src/media/encbudget").start(); } catch {}
+  // What the graphics card can encode, found out once (media/hwenc.js —
+  // a few seconds below normal priority, 40 s in; used where it is measured
+  // better — hwEncode "auto", the default).
+  try { require("./src/media/hwenc").start(); } catch {}
+  // What this machine gives the server (lib/resources.js): on Linux, the
+  // open-file limit sets how many connections are accepted (past it a new
+  // one is refused, and the process keeps handles for its own files); and
+  // whatever is not right — an old Node, a low limit, a refused setting — is
+  // said once here and stays on the admin's Health card.
+  try {
+    const resources = require("./src/lib/resources");
+    const maxConn = resources.applyToServer(server);
+    if (maxConn) console.log(`[resources] accepting up to ${maxConn} connections (open-file limit ${resources.fdLimit().soft})`);
+    resources.announce();
+  } catch {}
   // Remember which commit this process actually runs — the admin's update
   // card compares it against HEAD on disk to say "restart to apply".
   try { require("./src/lib/updatecheck").captureBoot(); } catch {}
@@ -645,6 +711,17 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // it probes /healthz, and a server that stops answering is restarted.
   require("./src/lib/supervisor").tell({ type: "listening", port: config.PORT, pid: process.pid });
 
+  // The website's modules re-printed now, off the event loop, instead of
+  // on the first page load (lib/jsassets.js warm).
+  try { require("./src/lib/jsassets").warm(path.join(__dirname, "public")).catch(() => {}); } catch {}
+  // The first walk of the folders, now that the port is ours.
+  const fromSaved = !!scanner.index.scannedAt;
+  scanner.scanAsync({ force: true })
+    .catch((e) => { console.warn(`[scan] first walk failed (${(e && e.message) || e}); reading the folders here`); scanner.scan(); })
+    .then(() => {
+      scanner.enrich();
+      if (!fromSaved) console.log(`[scan] library: ${scanner.index.movies.length} movies, ${scanner.index.shows.length} shows`);
+    });
   const { movies, shows } = scanner.index;
   const network = lanAddress();
   console.log("");
@@ -654,7 +731,7 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   console.log(`    Network  http://${network}:${config.PORT}`);
   console.log(`    Admin    http://localhost:${config.PORT}/admin`);
   console.log("");
-  console.log(`    Library  ${movies.length} movies, ${shows.length} shows`);
+  console.log(fromSaved ? `    Library  ${movies.length} movies, ${shows.length} shows` : "    Library  being read");
   console.log(`    ffmpeg   ${config.ffmpegAvailable ? "ok" : "MISSING - no embedded subtitles"}`);
   console.log(`    auto-OCR ${config.ocrAvailable ? "ok" : "unavailable (needs python + tesseract)"}`);
   console.log("");

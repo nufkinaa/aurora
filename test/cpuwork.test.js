@@ -31,6 +31,7 @@ const world = async (platform, fn) => {
   Object.assign(C.deps, {
     platform,
     cpus: () => 12,
+    low: () => false,
     now: () => w.now,
     setTimeout: (f, ms) => { const t = { at: w.now + ms, f, live: true }; w.timers.push(t); return t; },
     clearTimeout: (t) => { if (t) t.live = false; },

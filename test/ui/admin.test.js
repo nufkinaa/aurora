@@ -857,6 +857,7 @@ ui.test("Server → Encoding: 'Automatic: N now, because …' with the numbers; 
   const stats = await page.textContent("#en-stats");
   assert.match(stats, /at once/);
   assert.match(stats, /CPU threads/);
+  assert.doesNotMatch(stats, /object Object/, "the processor's name, not an object");
   assert.match(stats, /memory free/);
   assert.match(await page.textContent("#en-running"), /What fits at once: 1080p → 1080p × \d+ · 1080p → 720p × \d+ · 4K → 1080p × \d+/);
   assert.equal(await page.inputValue("#en-limit"), "auto");
@@ -875,6 +876,27 @@ ui.test("Server → Encoding: 'Automatic: N now, because …' with the numbers; 
   await page.selectOption("#en-limit", "auto");
   await page.click("#en-apply");
   await page.waitForFunction(() => /^Automatic: /.test(document.getElementById("en-sentence").textContent));
+});
+
+ui.test("Server → Encoding: the graphics card is said, and its switch is kept (automatic by default)", async ({ page, srv }) => {
+  await enter(page, srv);
+  await page.click('.tab[data-tab="server"]');
+  await page.waitForFunction(() => /^Hardware encoding: /.test(document.getElementById("en-hw").textContent));
+  assert.equal(await page.inputValue("#en-hwmode"), "auto");
+  await page.selectOption("#en-hwmode", "off");
+  await page.click("#en-hwapply");
+  await toastSays(page, /Graphics card: off/);
+  assert.equal((await srv.api.adminGet("/api/admin/encoding")).hardware.mode, "off");
+  await page.reload();
+  await page.fill('.gate input[aria-label="Admin password"]', srv.adminPassword);
+  await page.click(".gate button");
+  await page.waitForSelector(".gate", { state: "detached" });
+  await page.click('.tab[data-tab="server"]');
+  await page.waitForFunction(() => /^Hardware encoding: /.test(document.getElementById("en-hw").textContent));
+  assert.equal(await page.inputValue("#en-hwmode"), "off");
+  await page.selectOption("#en-hwmode", "auto");
+  await page.click("#en-hwapply");
+  await toastSays(page, /Graphics card: automatic/);
 });
 
 ui.test("Actions → Data safety and Backups: all saved; the second location and the restore test are shown; 'Test a restore now' passes", async ({ page, srv }) => {
@@ -899,5 +921,26 @@ ui.test("Actions → Data safety and Backups: all saved; the second location and
   assert.match(drill.state, /done/, drill.output);
   assert.match(drill.output, /restores: \d+ profiles?.*Live data was not touched/s);
 });
+
+
+// Server → Health (server round, 2026-10-18): what is kept in memory and
+// how big, and what this machine was tuned to, with the reason for each.
+for (const [label, viewport] of [["desktop", require("./helpers").DESKTOP], ["phone", require("./helpers").PHONE]]) {
+  ui.test(`Server → Health shows what is kept in memory and the power profile with its reasons (${label})`, { viewport }, async ({ page, srv }) => {
+    await enter(page, srv);
+    await page.click('.tab[data-tab="server"]');
+    await page.waitForFunction(() => /kept in memory/.test(document.getElementById("sv-health").textContent));
+    const text = await page.textContent("#sv-health");
+    assert.match(text, /kept in memory/);
+    assert.match(text, /caches · /);
+    assert.match(text, /power profile/);
+    assert.match(text, /background decodes at once: [12] \(/);
+    assert.match(text, /library rescan: every \d+ min/);
+    // nothing wider than the screen
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(overflow <= 1, `the page scrolls sideways by ${overflow}px`);
+    await page.locator("#sv-health").screenshot({ path: require("path").join(require("./helpers").ARTIFACTS, `admin-health-${label}.png`) });
+  });
+}
 
 ui.run({ concurrency: 1 });

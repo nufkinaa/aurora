@@ -8,7 +8,7 @@ const { execFileSync } = require("child_process");
 
 const REPO = path.join(__dirname, "..", "..");
 const WORK = process.env.EFF_WORK || path.join(os.tmpdir(), "aurora-eff-work");
-const RESULTS = path.join(REPO, "docs", "qa", "backend-efficiency", "results");
+const RESULTS = process.env.EFF_RESULTS || path.join(REPO, "docs", "qa", "backend-efficiency", "results");
 for (const d of [WORK, RESULTS]) fs.mkdirSync(d, { recursive: true });
 
 const which = (name) => {

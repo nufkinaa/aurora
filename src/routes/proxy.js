@@ -46,6 +46,9 @@ const guardedLookup = (hostname, options, callback) => {
   });
 };
 
+const MAX_PAGE_BYTES = 25 * 1024 * 1024;
+const WHOLE_MS = 30 * 1000;
+
 router.options("/proxy", (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -121,8 +124,20 @@ router.get("/proxy", (req, res) => {
         else if (contentEncoding === "deflate") stream = proxyRes.pipe(zlib.createInflate());
 
         const body = [];
-        stream.on("data", (chunk) => body.push(chunk));
+        let size = 0;
+        stream.on("data", (chunk) => {
+          // a page bigger than any page (or a compressed one that unpacks
+          // into gigabytes) is cut off, not held in memory
+          size += chunk.length;
+          if (size > MAX_PAGE_BYTES) {
+            proxyReq.destroy();
+            sendError(502, "Too large", "That page is too large to show here");
+            return;
+          }
+          body.push(chunk);
+        });
         stream.on("end", () => {
+          clearTimeout(whole);
           if (responseSent) return;
           responseSent = true;
 
@@ -265,6 +280,14 @@ router.get("/proxy", (req, res) => {
       }
     );
 
+    // `timeout` above is the socket's idle time; a site that drips a byte now
+    // and then would never trip it. The whole answer gets WHOLE_MS.
+    const whole = setTimeout(() => {
+      proxyReq.destroy();
+      sendError(504, "Timeout", "The page took too long to load");
+    }, WHOLE_MS);
+    whole.unref?.();
+    proxyReq.on("close", () => clearTimeout(whole));
     proxyReq.on("error", (err) => sendError(502, "Connection Error", err.message));
     proxyReq.on("timeout", () => {
       proxyReq.destroy();

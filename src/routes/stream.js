@@ -41,66 +41,76 @@ const resolveKind = (id, kind) => {
   return entry && entry.kind === kind ? entry : null;
 };
 
-// Video streaming with HTTP range support
+// Video streaming with HTTP range support. What the RFC asks of a byte
+// server (validators, If-Range, 416, HEAD) is lib/rangeserve.js; how the
+// bytes leave the disk is lib/diskread.js — 1 MB reads that take turns per
+// disk, so many viewers on one hard disk share it fairly instead of making
+// its head jump between them on every 64 KB (measured: STREAMING.md).
+const rangeserve = require("../lib/rangeserve");
+const diskread = require("../lib/diskread");
+const disktype = require("../lib/disktype");
 router.get("/stream/video/:id", (req, res) => {
   const entry = resolveKind(req.params.id, "video");
-  if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
+  const stat = entry && rangeserve.statOf(entry.path);
+  if (!stat) return res.status(404).send("Not found");
 
-  const stat = fs.statSync(entry.path);
   const total = stat.size;
   const mime = MIME[path.extname(entry.path).toLowerCase()] || "video/mp4";
-  const range = req.headers.range;
 
   // Tear the read stream down on client disconnect (seek/close) so we don't
   // leak file descriptors on the hottest route, and handle read errors instead
   // of letting them throw up to the global uncaughtException net.
-  const onErr = () => { if (!res.headersSent) res.status(500).end(); else res.end(); };
+  const onErr = () => {
+    rangeserve.forgetStat(entry.path); // (the file may have changed under us)
+    if (!res.headersSent) res.status(500).end(); else res.destroy();
+  };
   // An MP4 with its index at the end goes out with the index in front
   // (media/faststart.js): the same length, the same film, two round trips
   // fewer before a player can show a frame. null = as it is on disk.
-  const plan = require("../config").SERVE_FASTSTART ? faststart.planFor(entry.path, stat) : null;
+  const plan = configLib().SERVE_FASTSTART ? faststart.planFor(entry.path, stat) : null;
+  const etag = rangeserve.etagOf(stat, plan ? "fs" : "");
+  const lastModified = rangeserve.lastModifiedOf(stat);
+  const common = {
+    "Accept-Ranges": "bytes",
+    "Content-Type": mime,
+    ETag: etag,
+    "Last-Modified": lastModified,
+    // a signed-in viewer's film: never kept by a shared cache (a proxy)
+    "Cache-Control": "private, max-age=0",
+  };
 
-  if (range) {
-    const m = range.match(/bytes=(\d*)-(\d*)/);
-    let start, end;
-    if (m && !m[1] && m[2]) {
-      // Suffix range (bytes=-N): the last N bytes
-      const n = Math.min(parseInt(m[2], 10), total);
-      start = total - n;
-      end = total - 1;
-    } else {
-      start = m && m[1] ? parseInt(m[1], 10) : 0;
-      end = m && m[2] ? parseInt(m[2], 10) : total - 1;
-      if (end >= total) end = total - 1;
-    }
-    if (isNaN(start) || isNaN(end) || start > end || start >= total) {
-      res.writeHead(416, { "Content-Range": `bytes */${total}` });
-      return res.end();
-    }
-
-    res.writeHead(206, {
-      "Content-Range": `bytes ${start}-${end}/${total}`,
-      "Accept-Ranges": "bytes",
-      "Content-Length": end - start + 1,
-      "Content-Type": mime,
-    });
-    if (plan) return faststart.pipe(entry.path, plan, start, end, res, onErr);
-    const s = fs.createReadStream(entry.path, { start, end });
-    s.on("error", onErr);
-    s.pipe(res);
-    res.on("close", () => s.destroy());
-  } else {
-    res.writeHead(200, {
-      "Content-Length": total,
-      "Content-Type": mime,
-      "Accept-Ranges": "bytes",
-    });
-    if (plan) return faststart.pipe(entry.path, plan, 0, total - 1, res, onErr);
-    const s = fs.createReadStream(entry.path);
-    s.on("error", onErr);
-    s.pipe(res);
-    res.on("close", () => s.destroy());
+  let range = rangeserve.parseRange(req.headers.range, total);
+  if (!range.none && !rangeserve.ifRangeOk(req.headers, etag, lastModified)) range = { none: true }; // changed: all of it
+  if (range.none && rangeserve.notModified(req.headers, etag, stat)) {
+    res.writeHead(304, { ETag: etag, "Last-Modified": lastModified, "Cache-Control": common["Cache-Control"] });
+    return res.end();
   }
+  if (range.unsatisfiable) {
+    res.writeHead(416, { "Content-Range": `bytes */${total}`, "Accept-Ranges": "bytes" });
+    return res.end();
+  }
+  const start = range.none ? 0 : range.start;
+  const end = range.none ? total - 1 : range.end;
+  if (range.none) {
+    res.writeHead(200, { ...common, "Content-Length": total });
+  } else {
+    res.writeHead(206, { ...common, "Content-Range": `bytes ${start}-${end}/${total}`, "Content-Length": end - start + 1 });
+  }
+  // HEAD: the headers are the answer — the file is not read
+  if (req.method === "HEAD" || total === 0) return res.end();
+  rangeserve.watch(res); // a client that stopped reading for good is let go
+  // big reads in turns on a spinning disk; on an SSD the plain reader, as
+  // before (lib/diskread.js policyFor; lib/disktype.js asks the OS once per disk)
+  const policy = diskread.policyFor(disktype.kindFor(entry.path, stat.dev));
+  const disk = disktype.diskKey(entry.path, stat.dev);
+  const open = policy
+    ? (file, o) => diskread.createReadStream(file, { ...o, dev: disk, limit: policy.limit, highWaterMark: policy.read })
+    : (file, o) => fs.createReadStream(file, o);
+  if (plan) return faststart.pipe(entry.path, plan, start, end, res, onErr, open);
+  const s = open(entry.path, { start, end });
+  s.on("error", onErr);
+  s.pipe(res);
+  res.on("close", () => s.destroy());
 });
 
 // File download (videos and extras like APKs)
@@ -187,22 +197,15 @@ try { fs.mkdirSync(EXT_IMG_DIR, { recursive: true }); } catch {}
 // serves video ranges — and at the cap it would run on EVERY write forever.
 // Trimming down to cap-400 means a full dir walk at most once per 400 writes.
 let extImgWrites = 0;
-const extImgSweep = () => {
-  try {
-    const entries = fs.readdirSync(EXT_IMG_DIR);
-    if (entries.length <= MAX_EXT_IMAGES) return;
-    entries
-      .map((f) => ({ f, m: fs.statSync(path.join(EXT_IMG_DIR, f)).mtimeMs }))
-      .sort((a, b) => a.m - b.m)
-      .slice(0, entries.length - (MAX_EXT_IMAGES - 400))
-      .forEach(({ f }) => { try { fs.unlinkSync(path.join(EXT_IMG_DIR, f)); } catch {} });
-  } catch {}
-};
+// (asynchronous since the server round of 2026-10-18: lib/dirsweep.js)
+const extImgSweep = () =>
+  require("../lib/dirsweep").trim(EXT_IMG_DIR, { max: MAX_EXT_IMAGES, down: MAX_EXT_IMAGES - 400, onRemoved: (f) => require("../lib/imgcheck").forget(f) }).catch(() => 0);
 const extImgInflight = new Map(); // url -> promise (a row of 20 cards must fetch once)
 // Negative cache: without it a CDN hiccup turns one home load (~300 distinct
 // posters, each with a client-side retry) into waves of 15s upstream fetches.
 const extImgFails = new Map(); // url -> failedAt
 const EXT_FAIL_TTL = 5 * 60 * 1000;
+const EXT_WAIT_MS = 4000;
 const fetchExtImage = (url, file) => {
   let p = extImgInflight.get(url);
   if (p) return p;
@@ -213,7 +216,9 @@ const fetchExtImage = (url, file) => {
     let res = null;
     for (let hop = 0; hop < 3; hop++) {
       // (Wikimedia refuses requests with no descriptive User-Agent)
-      res = await fetch(target, { signal: AbortSignal.timeout(15000), redirect: "manual", headers: { "User-Agent": "Aurora/1.6 (personal media server)" } });
+      // (lib/upstream.js: timeout over the whole picture, a fair share per
+      // picture host, its breaker, the size cap while reading)
+      res = await require("../lib/upstream").fetch(target, { timeoutMs: 15000, maxBytes: MAX_EXT_IMAGE_BYTES, redirect: "manual", headers: { "User-Agent": "Aurora/1.6 (personal media server)" } });
       if (res.status < 300 || res.status >= 400) break;
       const loc = new URL(res.headers.get("location") || "", target).href;
       if (!extAllowed(loc)) throw new Error("redirect off allow-list");
@@ -227,17 +232,23 @@ const fetchExtImage = (url, file) => {
     if (buf.length > MAX_EXT_IMAGE_BYTES) throw new Error("image too large");
     if (buf.length < MIN_IMAGE_BYTES || !magicOk(buf)) throw new Error("not an image");
     const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, buf);
-    fs.renameSync(tmp, file);
+    // (not blocking: this is on the way to answering the request)
+    await fs.promises.writeFile(tmp, buf);
+    await fs.promises.rename(tmp, file);
+    try { require("../lib/imgcheck").forget(file); } catch {}
     if (++extImgWrites % 100 === 0) extImgSweep();
     return file;
   })();
+  p.startedAt = Date.now();
   extImgInflight.set(url, p);
   const done = () => extImgInflight.delete(url);
   p.then(done, done);
   p.then(
     () => extImgFails.delete(url),
-    () => {
+    (e) => {
+      // (a picture host that was only BUSY — every slot taken by a cold Home —
+      // has not said no: that picture is asked again at once next time)
+      if (e && e.code === "busy") return;
       if (extImgFails.size > 2000) extImgFails.clear();
       extImgFails.set(url, Date.now());
     },
@@ -270,13 +281,32 @@ router.get("/img/ext", async (req, res) => {
     if (!validImageFile(file)) {
       const failedAt = extImgFails.get(url) || 0;
       if (Date.now() - failedAt < EXT_FAIL_TTL) throw new Error("recently failed");
-      await fetchExtImage(url, file);
+      // a picture that has to be FETCHED counts against the client's
+      // allowance (lib/ratelimit.js); one already kept never does
+      const rl = require("../lib/ratelimit").take("img-fetch", req);
+      if (!rl.ok) return require("../lib/ratelimit").refuse(res, "img-fetch", rl.retryAfterSec);
+      // A card waits EXT_WAIT_MS for a picture it does not have: past that it
+      // gets its placeholder now, and the fetch goes on — the picture lands on
+      // disk for the next ask. A host that keeps not answering in time opens
+      // its breaker (lib/upstream.js), and then misses fail in microseconds.
+      // (a fetch already in flight for this picture counts from when IT
+      // began: a card asking again for a picture that is still coming does
+      // not wait a second EXT_WAIT_MS — it gets its placeholder at once)
+      const p = fetchExtImage(url, file);
+      const left = Math.max(0, EXT_WAIT_MS - (Date.now() - (p.startedAt || Date.now())));
+      let timer = null;
+      const late = left === 0 || await Promise.race([p.then(() => false), new Promise((r) => { timer = setTimeout(() => r(true), left); })]).finally(() => clearTimeout(timer));
+      if (late) {
+        p.catch(() => {});
+        if (!p.struck) { p.struck = true; require("../lib/upstream").tooSlow(url, p, p.startedAt || Date.now()); }
+        throw new Error("still being fetched");
+      }
     }
     await sendArt(res, file, req.query.w, req.query.blur, req.query.fmt);
   } catch (e) {
     // said out loud: a TV with no pictures is otherwise a silent 502 (2026-10-09)
     // (a picture the catalogue does not have is one line, not one per screen that asks again)
-    if (!e || e.message !== "recently failed") console.warn(`[img] ext ${url.slice(0, 80)} w=${req.query.w || "-"} failed: ${(e && e.message) || e}`);
+    if (!e || (e.message !== "recently failed" && e.message !== "still being fetched" && e.code !== "open" && e.code !== "busy")) console.warn(`[img] ext ${url.slice(0, 80)} w=${req.query.w || "-"} failed: ${(e && e.message) || e}`);
     if (!res.headersSent) res.status(502).send("artwork unavailable");
   }
 });
@@ -287,12 +317,30 @@ router.get("/img/ext", async (req, res) => {
 // it); 404 when no source anywhere has one — remembered for a week.
 router.get("/img/poster/:imdbId", async (req, res) => {
   try {
-    const name = await require("../media/posterfallback").resolve({
+    // a backup poster not found yet costs provider calls: it counts against
+    // the client's picture allowance (lib/ratelimit.js); one already found never does
+    const pf = require("../media/posterfallback");
+    if (typeof pf.known === "function" && !pf.known(req.params.imdbId)) {
+      const rl = require("../lib/ratelimit").take("img-fetch", req);
+      if (!rl.ok) return require("../lib/ratelimit").refuse(res, "img-fetch", rl.retryAfterSec);
+    }
+    // (the card waits EXT_WAIT_MS at most, as for /img/ext: past it, "none
+    // yet" — not kept by the client — and the search goes on and is kept)
+    const looking = pf.resolve({
       imdbId: req.params.imdbId,
       type: req.query.type === "show" ? "show" : "movie",
       title: req.query.t ? String(req.query.t).slice(0, 80) : "",
       year: parseInt(req.query.y, 10) || null,
     });
+    let timer = null;
+    const LATE = Symbol("late");
+    const left = Math.max(0, EXT_WAIT_MS - (Date.now() - (looking.startedAt || Date.now())));
+    const name = left === 0 ? LATE : await Promise.race([looking, new Promise((r) => { timer = setTimeout(() => r(LATE), left); })]).finally(() => clearTimeout(timer));
+    if (name === LATE) {
+      looking.catch(() => {});
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(404).send("No poster yet");
+    }
     const file = name && require("../media/online").posterFile(name);
     if (!file) return res.status(404).send("No poster");
     await sendArt(res, file, req.query.w, req.query.blur, req.query.fmt);
@@ -317,7 +365,10 @@ router.get("/img/meta/:name", async (req, res) => {
 // scans, drawn 150–260px wide)
 router.get("/img/:id", async (req, res) => {
   const entry = resolveKind(req.params.id, "image");
-  if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
+  // (no existsSync first: a cover the library walk listed is there, and one
+  // removed since is a 404 all the same — sendFile's ENOENT, server.js — so a
+  // blocking call per picture was paid for nothing; server round 2026-10-18)
+  if (!entry) return res.status(404).send("Not found");
   try {
     const opts = { blur: req.query.blur, fmt: req.query.fmt, client: artClient(res) };
     const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, opts) : null;
@@ -368,7 +419,7 @@ router.get("/stream/hls/:id/:file", (req, res) => {
   } catch {
     return res.status(404).send("Not found");
   }
-  remux.touch(req.params.id, mtime); // keep an actively-watched remux alive
+  remux.touch(req.params.id, mtime, "copy", 0, null, 0, null, req.params.file); // keep an actively-watched remux alive (and how far it is read)
   const abs = remux.filePath(`${req.params.id}-${mtime}`, req.params.file);
   if (!abs) return res.status(404).send("Not found");
   res.setHeader("Content-Type", "video/mp2t");
@@ -392,19 +443,24 @@ const { timed } = require("../lib/servertiming");
 // tag, else the device's address and browser — lib/viewer.js.
 const { viewerOf } = require("../lib/viewer");
 
+// The version of a file a jit segment URL names (&m=): its mtime, base 36.
+const segVersion = (st) => Math.floor(st.mtimeMs).toString(36);
+
 // The file's segment table (cached by jit; read from the file when it is not).
+// (the index is read with async reads: on a sleeping hard disk a read of
+// the cues at the far end of a film is a seek, and it used to be a
+// synchronous one on the event loop)
 const libraryTable = async (entry, key, size) => {
   const cached = await jit.tableFor(key, null, 0).catch(() => null);
   if (cached) return cached;
-  const fd = fs.openSync(entry.path, "r");
+  const fh = await fs.promises.open(entry.path, "r");
   const readRange = async (start, len) => {
     const b = Buffer.alloc(len);
-    fs.readSync(fd, b, 0, len, start);
+    const { bytesRead } = await fh.read(b, 0, len, start);
+    void bytesRead; // (a short read leaves zeros, as the synchronous read did)
     return b;
   };
-  return jit.tableFor(key, readRange, size, { mp4: true }).finally(() => {
-    try { fs.closeSync(fd); } catch {}
-  });
+  return jit.tableFor(key, readRange, size, { mp4: true }).finally(() => fh.close().catch(() => {}));
 };
 
 // THE START HINT. A player that is about to start says so on its first
@@ -431,14 +487,18 @@ const warmStart = async (req, { entry, key, table, fmt, rungs = null, name = nul
     const audio = ladder.audioFromQuery(req.query.a);
     const k = jit.segmentAt(table.table, hint.at);
     if (k < 0) return;
-    const dir = path.join(require("../config").CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
+    let dir = path.join(require("../config").CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
     let input = { url: entry.path, extra: [], fmt, vtagHvc1: req.query.vtag === "hvc1", audio };
+    let hw = false;
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return;
-      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path) });
+      const use = await ladder.useHw({ key, dir, input: entry.path, jit });
+      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path), hw: use.hw, why: use.why });
       if (!input) return;
+      hw = !!input.enc.hw;
+      if (hw) dir += "-hw";
     }
-    jit.warmSegment(dir, jit.jobFor(dir, table, { enc: v !== "copy" }), input, k);
+    jit.warmSegment(dir, jit.jobFor(dir, table, { enc: v !== "copy", hw }), input, k);
   } catch {}
 };
 
@@ -515,13 +575,18 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
       // no encoder free: say so now, before the player commits to the rendition
       // (&need=1: the master playlist offered this rung because the full
       // encode did not fit — it is this viewer's only way to play)
-      if (!jit.encodeRoom(key, v === "h264" || req.query.need === "1")) {
+      // (a rendition the graphics card would make costs the CPU a sliver)
+      const onCard = (await ladder.useHw({ key, dir: path.join(configLib().CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio)), input: entry.path, jit })).hw;
+      if (!jit.encodeRoom(key, v === "h264" || req.query.need === "1", onCard ? ladder.HW_COST : 0)) {
         try { require("../lib/signals").hit("no-encoder", "rendition"); } catch {}
         res.setHeader("Retry-After", "5");
         return res.status(503).send("Server is busy — that rendition isn't available right now");
       }
     }
-    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}${v !== "copy" && req.query.need === "1" ? "&need=1" : ""}`;
+    // &m=: which version of the file the segments were cut from (its mtime) —
+    // so a segment URL names bytes that never change, and may be kept by the
+    // player's own cache (see the segment route); the routes ignore it otherwise
+    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}${v !== "copy" && req.query.need === "1" ? "&need=1" : ""}&m=${segVersion(st)}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
     res.send(jit.playlistText(table, suffix, fmt));
@@ -567,31 +632,29 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
     // server restart mid-watch the player still holds the full playlist and
     // just asks for the next segment. Rebuild the table from the file
     // rather than 409ing a perfectly resumable stream.
-    let table = await jit.tableFor(key, null, 0).catch(() => null);
-    if (!table) {
-      const fd = fs.openSync(entry.path, "r");
-      const readRange = async (start, len) => {
-        const b = Buffer.alloc(len);
-        fs.readSync(fd, b, 0, len, start);
-        return b;
-      };
-      table = await jit.tableFor(key, readRange, st.size, { mp4: true })
-        .catch(() => null)
-        .finally(() => { try { fs.closeSync(fd); } catch {} });
-    }
-    if (!table) return res.status(409).send("Playlist first");
+    // (declined: the file's index lied once — 404, as the playlist says, so
+    // the player falls back; it used to be 409 "Playlist first", which a
+    // player can only retry)
+    if (jit.declinedReason(key)) return res.status(404).send("No usable index in this file");
+    const table = await libraryTable(entry, key, st.size).catch(() => null);
+    if (!table) return res.status(404).send("No usable index in this file");
     // fMP4 producers get their own dir — same table, different segment
     // files; so does every rendition of the ladder, and every audio track.
     const v = ladder.renditionFromQuery(req.query.v);
     const audio = ladder.audioFromQuery(req.query.a);
-    const dir = path.join(configLib().CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
+    let dir = path.join(configLib().CACHE_DIR, "jit", ladder.dirName(key, v, fmt, audio));
     let input = { url: entry.path, extra: [], fmt, vtagHvc1: req.query.vtag === "hvc1", audio };
+    let hw = false;
     if (v !== "copy") {
       if (jit.encodeDeclined(key)) return res.status(404).send("This file cannot be re-encoded on the full timeline");
-      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path), need: req.query.need === "1" });
+      // made on the graphics card, or not (ladder.useHw — sticky per rendition)
+      const use = await ladder.useHw({ key, dir, input: entry.path, jit });
+      input = await ladder.encInput(input, { key, name: v, fmt, audio, jit, label: path.basename(entry.path), need: req.query.need === "1", hw: use.hw, why: use.why });
       if (!input) return res.status(404).send("No such rendition of this file");
+      hw = !!input.enc.hw;
+      if (hw) dir += "-hw";
     }
-    const job = jit.jobFor(dir, table, { enc: v !== "copy" });
+    const job = jit.jobFor(dir, table, { enc: v !== "copy", hw });
     // &warm=1: a start is coming (the pointer is on Play, or the player is
     // still loading its playlists) — begin making this segment now, send
     // nothing. Bounded in jit.warmSegment; the answer says what was done.
@@ -622,7 +685,15 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
     }
     if (!file) return res.status(504).send("Segment not ready");
     res.setHeader("Content-Type", fmt ? "video/mp4" : "video/mp2t");
-    res.setHeader("Cache-Control", "no-cache");
+    // A published copy segment never changes (jit.js: its bytes depend only on
+    // the file), so one named for THIS version of the file (&m=) is kept by the
+    // player's cache for a day: a seek back, a second look, a replay is not
+    // asked for again. Private: a signed-in viewer's film is never kept by a
+    // shared cache. Without &m= (an older playlist): revalidated, as before.
+    // (the COPY only: an encoded rendition's bytes also depend on how it was
+    // encoded — tone mapped or not, on the CPU or the card — which can differ
+    // from one job to the next; those are revalidated, as before)
+    res.setHeader("Cache-Control", v === "copy" && req.query.m && req.query.m === segVersion(st) ? "private, max-age=86400, immutable" : "no-cache");
     res.sendFile(file);
   } catch (err) {
     res.status(500).send(err.message);
@@ -715,7 +786,7 @@ router.get("/stream/transcode/:id/:ss/:file", (req, res) => {
   const v = remux.effectiveVcodec(remux.vcodecFromQuery(req.query.v), ss);
   const fmt = req.query.seg === "fmp4" ? "fmp4" : null;
   const audio = Math.max(0, Math.min(31, parseInt(req.query.a, 10) || 0));
-  remux.touch(req.params.id, mtime, v, ss, fmt, audio, viewerOf(req)); // keep an actively-watched job alive (and whose it is)
+  remux.touch(req.params.id, mtime, v, ss, fmt, audio, viewerOf(req), req.params.file); // keep an actively-watched job alive (whose it is, and how far they have read)
   const abs = remux.filePath(remux.dirName(req.params.id, mtime, v, ss, fmt, audio), req.params.file);
   if (!abs) return res.status(404).send("Not found");
   res.setHeader("Content-Type", /\.(m4s|mp4)$/.test(req.params.file) ? "video/mp4" : "video/mp2t");

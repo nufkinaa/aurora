@@ -1,0 +1,165 @@
+{
+  "at": "2026-10-18T15:22:57.281Z",
+  "ref": "35f9788",
+  "weak": true,
+  "minutes": 3,
+  "hog": false,
+  "household": "grown (8 profiles, up to 1,500 rows)",
+  "runs": [
+    {
+      "viewers": 1,
+      "progressOk": 36,
+      "progressFailed": 0,
+      "mbPerHour": 75.55,
+      "rewritesPerHour": 760,
+      "fsyncsPerHour": 380,
+      "fsyncsOnLoopPerHour": 0,
+      "storeSyncCallsPerHour": 0,
+      "storeSyncMsPerHour": 0,
+      "saveFiresPerHour": 360,
+      "saveLoopSecPerHour": 0.485,
+      "saveMsEach": 1.35,
+      "longestSaveMs": 4.5,
+      "loopBlockedBySavesPct": 0.013,
+      "loopP50Ms": 15.4,
+      "loopP99Ms": 16.3,
+      "loopMaxMs": 34.5,
+      "cpuSecPerHour": 20.3,
+      "files": [
+        {
+          "file": "data/watch-sessions.json",
+          "rewritesPerHour": 100,
+          "mbPerHour": 73.576,
+          "bytesEach": 771498
+        },
+        {
+          "file": "data/watch-history.json",
+          "rewritesPerHour": 20,
+          "mbPerHour": 1.363,
+          "bytesEach": 71439
+        },
+        {
+          "file": "data/sessions.json",
+          "rewritesPerHour": 20,
+          "mbPerHour": 0.371,
+          "bytesEach": 19457
+        },
+        {
+          "file": "data/healer.json",
+          "rewritesPerHour": 60,
+          "mbPerHour": 0.108,
+          "bytesEach": 1896
+        },
+        {
+          "file": "data/usage/events-2026-10.jsonl",
+          "rewritesPerHour": 360,
+          "mbPerHour": 0.07,
+          "bytesEach": 205
+        },
+        {
+          "file": "data/watch-journal.json",
+          "rewritesPerHour": 160,
+          "mbPerHour": 0.049,
+          "bytesEach": 322
+        },
+        {
+          "file": "data/watch-journal.json.good1",
+          "rewritesPerHour": 20,
+          "mbPerHour": 0.006,
+          "bytesEach": 321
+        },
+        {
+          "file": "data/cache/tonemap-speed.json",
+          "rewritesPerHour": 20,
+          "mbPerHour": 0.004,
+          "bytesEach": 213
+        }
+      ],
+      "resumeSeenByAnotherDevice": [
+        {
+          "sent": 1082,
+          "seen": 1082
+        }
+      ]
+    },
+    {
+      "viewers": 5,
+      "progressOk": 180,
+      "progressFailed": 0,
+      "mbPerHour": 122.19,
+      "rewritesPerHour": 2320,
+      "fsyncsPerHour": 520,
+      "fsyncsOnLoopPerHour": 0,
+      "storeSyncCallsPerHour": 0,
+      "storeSyncMsPerHour": 0,
+      "saveFiresPerHour": 500,
+      "saveLoopSecPerHour": 0.669,
+      "saveMsEach": 1.34,
+      "longestSaveMs": 4.9,
+      "loopBlockedBySavesPct": 0.019,
+      "loopP50Ms": 15.4,
+      "loopP99Ms": 16.5,
+      "loopMaxMs": 56.8,
+      "cpuSecPerHour": 25,
+      "files": [
+        {
+          "file": "data/watch-sessions.json",
+          "rewritesPerHour": 140,
+          "mbPerHour": 103.219,
+          "bytesEach": 773089
+        },
+        {
+          "file": "data/watch-sessions.json.good1",
+          "rewritesPerHour": 20,
+          "mbPerHour": 14.747,
+          "bytesEach": 773171
+        },
+        {
+          "file": "data/watch-history.json",
+          "rewritesPerHour": 40,
+          "mbPerHour": 2.752,
+          "bytesEach": 72153
+        },
+        {
+          "file": "data/sessions.json",
+          "rewritesPerHour": 40,
+          "mbPerHour": 0.742,
+          "bytesEach": 19457
+        },
+        {
+          "file": "data/usage/events-2026-10.jsonl",
+          "rewritesPerHour": 1800,
+          "mbPerHour": 0.352,
+          "bytesEach": 205
+        },
+        {
+          "file": "data/watch-journal.json",
+          "rewritesPerHour": 220,
+          "mbPerHour": 0.271,
+          "bytesEach": 1293
+        },
+        {
+          "file": "data/healer.json",
+          "rewritesPerHour": 60,
+          "mbPerHour": 0.109,
+          "bytesEach": 1896
+        }
+      ],
+      "resumeSeenByAnotherDevice": [
+        {
+          "sent": 1082,
+          "seen": 1082
+        },
+        {
+          "sent": 1122,
+          "seen": 1122
+        },
+        {
+          "sent": 1162,
+          "seen": 1162
+        }
+      ]
+    }
+  ],
+  "idle": null
+}

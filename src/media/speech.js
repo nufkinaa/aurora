@@ -46,6 +46,7 @@ const deps = {
   cpuwork: () => require("./cpuwork"),
   dir: () => DIR, // where timelines are kept (tests point it elsewhere)
   segmentSeconds: () => SEGMENT_S, // decodeStaged's pieces (tests make them short)
+  stallMs: () => STALL_MS, // (tests make it short)
   // a media file's own start time (s)
   startOf: (file) => new Promise((resolve) => {
     execFile(config.FFPROBE, ["-v", "error", "-show_entries", "format=start_time", "-of", "csv=p=0", file], { encoding: "utf-8", timeout: 15000, windowsHide: true }, (err, out) => resolve(err ? 0 : +String(out).trim() || 0));
@@ -86,12 +87,9 @@ const store = (key, speech) => {
     const f = fileOf(key);
     fs.writeFileSync(`${f}.part`, speech);
     fs.renameSync(`${f}.part`, f);
-    // keep the folder bounded: the oldest go
-    const all = fs.readdirSync(dir).filter((x) => x.endsWith(".u8"));
-    if (all.length > MAX_FILES) {
-      const aged = all.map((x) => ({ x, t: mtimeOf(path.join(dir, x)) || 0 })).sort((a, b) => a.t - b.t);
-      for (const { x } of aged.slice(0, all.length - MAX_FILES)) { try { fs.unlinkSync(path.join(dir, x)); } catch {} }
-    }
+    // keep the folder bounded: the oldest go (in the background, a few
+    // files at a time — lib/dirsweep.js)
+    require("../lib/dirsweep").trim(dir, { max: MAX_FILES, filter: (x) => x.endsWith(".u8") }).catch(() => 0);
   } catch {}
   remember(key, speech);
 };
@@ -111,9 +109,17 @@ const once = (w) => new Promise((resolve, reject) => {
   w.once("exit", (code) => { if (code) reject(new Error(`worker exited ${code}`)); });
 });
 
+// A decode that has sent nothing for this long is stuck (a damaged file, a
+// drive that stopped answering): it is stopped and fails, instead of holding
+// its place in the background budget — and everything queued behind it —
+// for ever. Time a background decode spends PAUSED for a viewer's encode
+// (media/cpuwork.js, SIGSTOP where the OS has it) is not counted.
+const STALL_MS = 3 * 60 * 1000;
+
 // ffmpeg (args) -> its s16le PCM on stdout -> a VAD worker -> raw rows.
 // skip: samples to leave out at the start (to begin on the 10 ms grid).
-const runToRows = ({ args, skip = 0, priority, onSpawn, onBytes, signal }) =>
+// isPaused: () => true while the decode is paused on purpose (cpuwork).
+const runToRows = ({ args, skip = 0, priority, onSpawn, onBytes, signal, isPaused = null, stallMs = deps.stallMs() }) =>
   new Promise((resolve, reject) => {
     let child;
     try {
@@ -125,6 +131,9 @@ const runToRows = ({ args, skip = 0, priority, onSpawn, onBytes, signal }) =>
     if (onSpawn) { try { onSpawn(child); } catch {} }
     const w = runWorker({ task: "rows" });
     const done = once(w);
+    // (a decode that fails ends its worker with terminate(), whose exit then
+    // rejects this — handled, or every failed decode was an unhandled rejection)
+    done.catch(() => {});
     let stderr = "";
     let toSkip = skip * 2; // bytes
     child.stderr.on("data", (d) => { if (stderr.length < 2000) stderr += d; });
@@ -144,9 +153,22 @@ const runToRows = ({ args, skip = 0, priority, onSpawn, onBytes, signal }) =>
       if (signal.aborted) abort();
       else signal.addEventListener("abort", abort, { once: true });
     }
-    child.on("error", (e) => { w.terminate(); reject(e); });
+    let lastData = Date.now();
+    let stalled = false;
+    child.stdout.on("data", () => { lastData = Date.now(); });
+    const watch = setInterval(() => {
+      if (isPaused && isPaused()) { lastData = Date.now(); return; }
+      if (Date.now() - lastData > stallMs) { stalled = true; abort(); }
+    }, Math.min(10000, Math.max(50, Math.floor(stallMs / 4))));
+    watch.unref?.();
+    child.on("error", (e) => { clearInterval(watch); w.terminate(); reject(e); });
     child.on("close", (code) => {
+      clearInterval(watch);
       if (signal) signal.removeEventListener("abort", abort);
+      if (stalled) {
+        w.terminate();
+        return reject(new Error(`ffmpeg sent nothing for ${Math.round(stallMs / 1000)} s and was stopped`));
+      }
       if (code !== 0 || (signal && signal.aborted)) {
         w.terminate();
         return reject(new Error(signal && signal.aborted ? "stopped" : `ffmpeg: ${stderr.trim().slice(-200) || code}`));
@@ -168,12 +190,12 @@ const fitRows = (rows, frames) => {
 
 // Decode [from, from+len) of the track straight from the file into raw VAD
 // rows (exactly len*100 frames; the last part as long as the audio is).
-const decodePart = ({ videoPath, audio, stream, from, len, last, priority, onSpawn, onBytes, signal }) => {
+const decodePart = ({ videoPath, audio, stream, from, len, last, priority, onSpawn, onBytes, signal, isPaused }) => {
   const args = ["-v", "error", "-nostdin"];
   if (from > 0) args.push("-ss", from.toFixed(3));
   if (!last) args.push("-t", len.toFixed(3));
   args.push("-i", videoPath, "-map", `0:a:${audio}`, "-vn", "-sn", "-dn", "-af", filterFor(stream), "-ac", "1", "-f", "s16le", "pipe:1");
-  return runToRows({ args, priority, onSpawn, onBytes, signal }).then((rows) => (last ? rows : fitRows(rows, Math.round(len * 100))));
+  return runToRows({ args, priority, onSpawn, onBytes, signal, isPaused }).then((rows) => (last ? rows : fitRows(rows, Math.round(len * 100))));
 };
 
 // The URGENT way, measured on the household's disk (a 2-hour EAC-3 film:
@@ -187,15 +209,17 @@ const decodePart = ({ videoPath, audio, stream, from, len, last, priority, onSpa
 // by its own start, and the folder is removed at the end.
 const SEGMENT_S = 300;
 // folders a stopped run could not remove (a file still open on Windows)
+// (asynchronous: nothing waits for it)
 const sweepTmp = () => {
-  try {
-    const dir = deps.dir();
-    for (const x of fs.readdirSync(dir)) {
+  const dir = deps.dir();
+  fs.promises.readdir(dir).then(async (names) => {
+    for (const x of names) {
       if (!x.startsWith("tmp-")) continue;
       const p = path.join(dir, x);
-      if (Date.now() - (mtimeOf(p) || 0) > 3600 * 1000) { try { fs.rmSync(p, { recursive: true, force: true }); } catch {} }
+      const st = await fs.promises.stat(p).catch(() => null);
+      if (st && Date.now() - st.mtimeMs > 3600 * 1000) await fs.promises.rm(p, { recursive: true, force: true }).catch(() => {});
     }
-  } catch {}
+  }, () => {});
 };
 const decodeStaged = async ({ key, videoPath, audio, stream, dur, priority, concurrency, onProgress, signal }) => {
   sweepTmp();
@@ -270,9 +294,17 @@ const decodeStaged = async ({ key, videoPath, audio, stream, dur, priority, conc
     };
     let readerCode = null;
     readerDone.then((code) => { readerCode = code; kick(); });
+    // (the reader too is stopped when nothing moves for STALL_MS)
+    let moved = Date.now();
+    let mark = -1;
     for (;;) {
       poll();
       if (failed) throw failed;
+      if (read + decoded !== mark) { mark = read + decoded; moved = Date.now(); }
+      else if (Date.now() - moved > deps.stallMs()) {
+        stop.abort();
+        throw new Error(`the read of the track stopped moving for ${Math.round(deps.stallMs() / 1000)} s`);
+      }
       if (readerCode != null) {
         poll();
         if (readerCode !== 0) throw new Error(stop.signal.aborted ? "stopped" : `ffmpeg: ${readerErr.trim().slice(-200) || readerCode}`);
@@ -428,6 +460,7 @@ const startJob = (key, videoPath, audio, urgent, signal, partsWanted) => {
       const rowsParts = await Promise.all(ranges.map((r) => decodePart({
         videoPath, audio: a, stream, ...r, priority, signal: stop.signal, onBytes,
         onSpawn: place ? (child) => place.attach(child) : null,
+        isPaused: place && place.paused ? () => place.paused() : null,
       })));
       let size = 0;
       for (const r of rowsParts) size += r.length;

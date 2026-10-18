@@ -3,6 +3,14 @@
 // into an empty household.
 //
 // WRITING. save() schedules a write 1.5 s out; a burst of saves is one write.
+// That write happens OFF the event loop (FileWriter, below: the threadpool
+// does the open, write, fsync and rename — a slow or busy disk no longer
+// stalls every request), one at a time per store; only flush() — shutdown,
+// exit, an admin action — writes synchronously.
+// save({ within: ms }) says "this may wait up to ms" (a store that changes on
+// every tick of something — a viewing session, an hourly chart — is written
+// at that cadence instead of after every change); an earlier save() still
+// brings the write forward, and a shutdown flush writes it at once.
 // The write goes to a temp file, is flushed to the disk (fsync), and is then
 // renamed over the store — so the live file is always either the old version
 // or the new one, never half of either, and after a power cut too (without
@@ -75,6 +83,15 @@ const SHAPES = {
   },
   "sessions.json": (d) => (isObject(d) ? (Object.values(d).every((r) => isObject(r)) ? null : "a session row is not an object") : "not an object"),
   "settings.json": (d) => (isObject(d) ? null : "not an object"),
+  // lib/watchjournal.js: playback rows between full writes of profiles.json
+  "watch-journal.json": (d) => {
+    if (!isObject(d)) return "not an object";
+    if (d.v !== 1) return "an unknown version";
+    if (!(d.base === null || typeof d.base === "string")) return "no base";
+    if (!isObject(d.rows)) return "no rows";
+    if (!Object.values(d.rows).every((r) => isObject(r))) return "a profile's rows are not an object";
+    return null;
+  },
 };
 
 // The generic check: the same kind of thing as the store's defaults (a list
@@ -157,6 +174,127 @@ const atomicWriteSync = (file, text, { durable = true } = {}) => {
   if (durable) fsyncDir(dir);
 };
 
+// ------------------------------------------------- writing OFF the loop
+// Under disk pressure every synchronous step of a write (open, write, fsync,
+// rename) was measured holding the event loop for seconds — every viewer,
+// every request waiting on one store. So writes made from a timer go through
+// the libuv threadpool instead, with the same crash-safety: a temp file of
+// their own, fsync, rename (tried again while locked), fsync of the folder.
+// Only flush() — shutdown, exit, an admin action, a test — writes
+// synchronously, and it first lets a rename already under way land, so an
+// older write can never be renamed over a newer one.
+const realSetTimeout = setTimeout; // (the backoff below must not be a test's fake timer)
+const pause = (ms) => new Promise((r) => realSetTimeout(r, ms));
+let tmpSeq = 0;
+
+// Test seam for the asynchronous path.
+const aio = {
+  open: (...a) => fs.promises.open(...a),
+  rename: (...a) => fs.promises.rename(...a),
+  unlink: (...a) => fs.promises.unlink(...a),
+  mkdir: (...a) => fs.promises.mkdir(...a),
+  readFile: (...a) => fs.promises.readFile(...a),
+};
+
+const fsyncDirAsync = async (dir) => {
+  if (process.platform === "win32") return;
+  let fh = null;
+  try { fh = await fs.promises.open(dir, "r"); await fh.sync(); } catch {} finally { if (fh) { try { await fh.close(); } catch {} } }
+};
+
+// One file, written atomically and asynchronously, one write in flight, the
+// latest text waiting behind it (a burst is at most two writes), a
+// synchronous write that supersedes whatever is under way.
+class FileWriter {
+  constructor(file, { durable = true } = {}) {
+    this.file = file;
+    this.durable = durable;
+    this.seq = 0; // every write, either kind, takes the next number
+    this.syncSeq = 0; // the number of the last synchronous write
+    this.inflight = null;
+    this.next = null; // { text, waiters: [{ res, rej }] }
+    this.renaming = null; // the temp file of an asynchronous rename under way
+  }
+
+  // Resolves true once `text` (or a newer text) is on disk, "superseded" when
+  // a synchronous write overtook it; rejects when the write failed.
+  write(text) {
+    if (this.inflight) {
+      if (this.next) this.next.text = text;
+      else this.next = { text, waiters: [] };
+      const n = this.next;
+      return new Promise((res, rej) => n.waiters.push({ res, rej }));
+    }
+    return this._run(text);
+  }
+
+  _run(text) {
+    const seq = ++this.seq;
+    const p = this._writeAsync(text, seq);
+    this.inflight = p;
+    const after = () => {
+      this.inflight = null;
+      const n = this.next;
+      this.next = null;
+      if (n) this._run(n.text).then((v) => n.waiters.forEach((w) => w.res(v)), (e) => n.waiters.forEach((w) => w.rej(e)));
+    };
+    p.then(after, after);
+    return p;
+  }
+
+  async _writeAsync(text, seq) {
+    const file = this.file;
+    const tmp = `${file}.${process.pid}.${++tmpSeq}.tmp`;
+    const overtaken = () => this.syncSeq > seq;
+    let fh = null;
+    try {
+      await aio.mkdir(path.dirname(file), { recursive: true });
+      fh = await aio.open(tmp, "w");
+      await fh.writeFile(text);
+      if (this.durable) await fh.sync();
+      await fh.close();
+      fh = null;
+      for (let i = 0; ; i++) {
+        if (overtaken()) { try { await aio.unlink(tmp); } catch {} return "superseded"; }
+        this.renaming = tmp;
+        try {
+          await aio.rename(tmp, file);
+          break;
+        } catch (e) {
+          if (!e || !LOCKED.test(e.code || "") || i >= RENAME_TRIES - 1) throw e;
+        } finally {
+          this.renaming = null;
+        }
+        await pause(10 * 2 ** i);
+      }
+    } catch (e) {
+      if (fh) { try { await fh.close(); } catch {} }
+      try { await aio.unlink(tmp); } catch {}
+      throw e;
+    }
+    if (this.durable) await fsyncDirAsync(path.dirname(file));
+    return true;
+  }
+
+  // Written now, on the loop. A rename under way is let land first (it is
+  // older); whatever was waiting is superseded by this.
+  writeSync(text) {
+    if (this.renaming) {
+      const t0 = Date.now();
+      while (this.renaming && fs.existsSync(this.renaming) && Date.now() - t0 < 3000) io.sleepSync(5);
+    }
+    if (this.next) {
+      const n = this.next;
+      this.next = null;
+      for (const w of n.waiters) w.res("superseded");
+    }
+    this.syncSeq = ++this.seq;
+    atomicWriteSync(this.file, text, { durable: this.durable });
+  }
+
+  idle() { return this.inflight ? this.inflight.then(() => this.idle(), () => this.idle()) : Promise.resolve(); }
+}
+
 // Read one file as a store would: { ok, data } or { ok: false, problem }.
 // `problem` is "missing", "empty", "not valid JSON" or the shape's words.
 //
@@ -166,7 +304,7 @@ const atomicWriteSync = (file, text, { durable = true } = {}) => {
 // A good store must never be "recovered" from an older copy because
 // something else happened to be looking at it during the boot.
 const READ_TRIES = 20;
-const readChecked = (file, check) => {
+const readChecked = (file, check, { keepRaw = false } = {}) => {
   let raw;
   for (let i = 0; ; i++) {
     try {
@@ -182,9 +320,10 @@ const readChecked = (file, check) => {
   try { data = JSON.parse(raw); } catch { return { ok: false, problem: "not valid JSON" }; }
   const bad = check ? check(data) : null;
   if (bad) return { ok: false, problem: `the wrong shape (${bad})` };
-  return { ok: true, data, bytes: Buffer.byteLength(raw) };
+  return { ok: true, data, bytes: Buffer.byteLength(raw), ...(keepRaw ? { raw } : {}) };
 };
 
+const md5 = (text) => crypto.createHash("md5").update(text).digest("hex");
 const digest = (text) => (text.length < 262144 ? text : `${text.length}:${crypto.createHash("md5").update(text).digest("hex")}`);
 const mtimeOf = (file) => { try { return fs.statSync(file).mtimeMs; } catch { return 0; } };
 
@@ -219,12 +358,28 @@ let backupLookup = (filePath) => {
 
 class JsonStore {
   // opts: { kind: "critical" | "state" | "cache", shape: (data) => null | "what is wrong",
-  //         backupLookup } — all optional; the kind and the shape follow the file's name.
+  //         backupLookup,
+  //         prepare: () => void            called just before each write (a store
+  //                                        whose data is built from elsewhere fills it in)
+  //         afterWrite: (text) => void     called once the disk holds `text` (written,
+  //                                        or already there)
+  //         digestOnLoad: true             keep the md5 of the text this run started
+  //                                        from in `loadedMd5` }
+  // — all optional; the kind and the shape follow the file's name.
   constructor(filePath, fallback, opts = {}) {
     this.filePath = filePath;
     this.name = path.basename(filePath);
     this.kind = opts.kind || kindFor(filePath);
+    this._prepare = typeof opts.prepare === "function" ? opts.prepare : null;
+    this._afterWrite = typeof opts.afterWrite === "function" ? opts.afterWrite : null;
+    this._digestOnLoad = !!opts.digestOnLoad;
+    this.loadedMd5 = null; // (digestOnLoad) md5 of what this run started from
     this.saveTimer = null;
+    this.saveDueAt = 0; // when the scheduled write fires
+    this._writer = new FileWriter(filePath, { durable: this.kind !== "cache" });
+    this._busy = null; // the asynchronous write under way (a promise)
+    this._again = false; // asked for again while it was under way
+    this._goodBusy = false;
     this.retryTimer = null;
     this.rev = 0; // how many times save() was asked for: a cheap "has this changed" for caches built from it
     this.dirty = false; // changed in memory since the last successful write
@@ -259,8 +414,9 @@ class JsonStore {
       this._startEmptyMarker = marker;
       return fallbackValue();
     }
-    const live = readChecked(file, this._check);
+    const live = readChecked(file, this._check, { keepRaw: this._digestOnLoad });
     if (live.ok) {
+      if (this._digestOnLoad) this.loadedMd5 = md5(live.raw);
       this._written = null;
       if (this.kind !== "cache") this._noteGoodAtLoad();
       return live.data;
@@ -298,9 +454,11 @@ class JsonStore {
       const rec = { at: Date.now(), store: this.name, problem: live.problem, from: c.from, source: c.source, sourceAt: c.at || null, damagedAt: damagedAt || null, lostMs, keptAs: keptAs ? path.basename(keptAs) : null, safeMode: false, announced: false, acknowledged: false };
       // the literal the healer's "store-corrupt" signature reads
       console.error(`Corrupt store ${file} — backed up to ${keptAs || "(nothing to keep: it was " + live.problem + ")"}, RESTORED from ${c.from}${lostMs != null ? `; changes from the ${fmtSpan(lostMs)} before the damage are lost` : ""}`);
+      const text = JSON.stringify(c.data);
+      if (this._digestOnLoad) this.loadedMd5 = md5(text);
       try {
-        atomicWriteSync(file, JSON.stringify(c.data));
-        this._written = digest(JSON.stringify(c.data));
+        atomicWriteSync(file, text);
+        this._written = digest(text);
       } catch (e) {
         console.error(`Failed to save ${this.filePath}: ${e.message} (the restored copy is in memory; it will be written again)`);
         this.dirty = true;
@@ -392,37 +550,48 @@ class JsonStore {
     }
   }
 
-  // Returns true when the disk holds what memory holds.
-  _writeNow() {
-    if (this.safeMode) return false; // never: see the note at the top
+  // What is to be written, now: { text, digest, token, rev } — or null (safe
+  // mode; nothing serialisable).
+  _snapshot() {
+    if (this.safeMode) return null; // never: see the note at the top
+    let token;
+    if (this._prepare) {
+      try { token = this._prepare(); } catch (err) { console.error(`Failed to prepare ${this.filePath}:`, err.message); }
+    }
     let text;
     try {
       text = JSON.stringify(this.data);
     } catch (err) {
       console.error(`Failed to save ${this.filePath}:`, err.message);
-      return false;
+      return null;
     }
-    if (typeof text !== "string") return false;
-    const d = digest(text);
-    if (d === this._written && fs.existsSync(this.filePath)) {
-      this.dirty = false;
-      this.skipped++;
-      return true;
-    }
-    try {
-      atomicWriteSync(this.filePath, text, { durable: this.kind !== "cache" });
-    } catch (err) {
-      // not forgotten: marked unsaved, and tried again shortly
-      this.failures++;
-      if (!this.unsavedSince) this.unsavedSince = Date.now();
-      if (this.failures === 1 || this.failures % 30 === 0) console.error(`Failed to save ${this.filePath}:`, `${err.message}${this.failures > 1 ? ` (attempt ${this.failures}; still trying)` : " (will be tried again)"}`);
-      this.dirty = true;
-      this._retryLater();
-      return false;
-    }
+    if (typeof text !== "string") return null;
+    return { text, digest: digest(text), token, rev: this.rev };
+  }
+
+  _unchanged(snap) {
+    if (snap.digest !== this._written || !fs.existsSync(this.filePath)) return false;
+    if (this.rev === snap.rev) this.dirty = false;
+    this.skipped++;
+    this._wrote(snap.text, snap.token);
+    return true;
+  }
+
+  _failed(err) {
+    // not forgotten: marked unsaved, and tried again shortly
+    this.failures++;
+    if (!this.unsavedSince) this.unsavedSince = Date.now();
+    if (this.failures === 1 || this.failures % 30 === 0) console.error(`Failed to save ${this.filePath}:`, `${err.message}${this.failures > 1 ? ` (attempt ${this.failures}; still trying)` : " (will be tried again)"}`);
+    this.dirty = true;
+    this._retryLater();
+  }
+
+  // The disk holds snap.text now. good: "sync" | "async" — how a due
+  // last-good copy is taken.
+  _succeeded(snap, good) {
     if (this.unsavedSince) console.log(`[store] ${this.name} saved again after ${this.failures} failed attempt${this.failures === 1 ? "" : "s"}`);
-    this._written = d;
-    this.dirty = false;
+    this._written = snap.digest;
+    if (this.rev === snap.rev) this.dirty = false;
     this.unsavedSince = 0;
     this.failures = 0;
     this.lastSavedAt = Date.now();
@@ -431,28 +600,138 @@ class JsonStore {
     if (this.kind !== "cache" && Date.now() - this.lastGoodAt >= GOOD_EVERY_MS) {
       let fine = false;
       try { fine = !this._check(this.data); } catch {}
-      if (fine) this._writeGood(text);
+      if (fine) {
+        if (good === "sync") this._writeGood(snap.text);
+        else this._writeGoodAsync(snap.text);
+      }
     }
+    this._wrote(snap.text, snap.token);
+  }
+
+  // Synchronous: returns true when the disk holds what memory holds.
+  _writeNow() {
+    const snap = this._snapshot();
+    if (!snap) return false;
+    if (this._unchanged(snap)) return true;
+    try {
+      this._writer.writeSync(snap.text);
+    } catch (err) {
+      this._failed(err);
+      return false;
+    }
+    this._succeeded(snap, "sync");
     return true;
+  }
+
+  // Asynchronous (what the timers use): the snapshot is taken now, the
+  // writing happens off the loop. One at a time; asked again meanwhile, it
+  // runs once more when this one is done. Returns a promise of "disk holds it".
+  _writeAsync() {
+    if (this._busy) { this._again = true; return this._busy; }
+    const snap = this._snapshot();
+    if (!snap) return Promise.resolve(false);
+    if (this._unchanged(snap)) return Promise.resolve(true);
+    const p = this._writer.write(snap.text).then(
+      (r) => { if (r !== "superseded") this._succeeded(snap, "async"); return true; },
+      (err) => { this._failed(err); return false; },
+    );
+    this._busy = p;
+    p.then(() => {
+      this._busy = null;
+      if (this._again) {
+        this._again = false;
+        if (this.dirty && !this.saveTimer) this._writeAsync();
+      }
+    });
+    return p;
+  }
+
+  // Write now, off the loop (no debounce). Returns the promise.
+  persist() {
+    if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; this.saveDueAt = 0; }
+    this.rev++;
+    this.dirty = true;
+    return this._writeAsync();
+  }
+
+  // Resolves when no write of this store is under way.
+  async idle() {
+    for (let i = 0; i < 1000 && (this._busy || this._writer.inflight || this._goodBusy); i++) {
+      if (this._busy) await this._busy;
+      else if (this._writer.inflight) await this._writer.idle();
+      else await pause(5);
+    }
+  }
+
+  // The last-good copy, off the loop (a temp file of its own; the same
+  // read-back check before it is given its name).
+  async _writeGoodAsync(text) {
+    if (this._goodBusy) return false;
+    this._goodBusy = true;
+    const g1 = this._goodPath(1);
+    const g2 = this._goodPath(2);
+    const tmp = `${g1}.${process.pid}.a${++tmpSeq}.tmp`;
+    let fh = null;
+    try {
+      fh = await aio.open(tmp, "w");
+      await fh.writeFile(text);
+      await fh.sync();
+      await fh.close();
+      fh = null;
+      const back = await aio.readFile(tmp, "utf-8");
+      if (back.length !== text.length || this._check(JSON.parse(back))) throw new Error("the copy did not read back as written");
+      if (fs.existsSync(g1)) { try { await aio.rename(g1, g2); } catch {} }
+      await aio.rename(tmp, g1);
+      this.lastGoodAt = Date.now();
+      return true;
+    } catch {
+      if (fh) { try { await fh.close(); } catch {} }
+      try { await aio.unlink(tmp); } catch {}
+      return false;
+    } finally {
+      this._goodBusy = false;
+    }
+  }
+
+  _wrote(text, token) {
+    if (!this._afterWrite) return;
+    try { this._afterWrite(text, token); } catch (err) { console.error(`[store] ${this.name}: after-write step failed:`, err.message); }
   }
 
   _retryLater() {
     if (this.retryTimer) return;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
-      if (this.dirty && !this.saveTimer) this._writeNow();
+      if (this.dirty && !this.saveTimer) this._writeAsync();
     }, RETRY_LATER_MS);
     this.retryTimer.unref?.();
   }
 
-  save() {
+  // save(): written DEBOUNCE_MS from the first of a burst. save({ within }):
+  // written at the latest `within` ms from now — a write already due sooner
+  // stands, one due later is brought forward.
+  save(opts) {
     this.rev++;
     this.dirty = true;
-    if (this.saveTimer) return;
+    const within = opts && Number.isFinite(opts.within) && opts.within > DEBOUNCE_MS ? opts.within : DEBOUNCE_MS;
+    const due = Date.now() + within;
+    if (this.saveTimer) {
+      if (this.saveDueAt <= due) return;
+      clearTimeout(this.saveTimer);
+    }
+    this.saveDueAt = due;
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
-      this._writeNow();
-    }, DEBOUNCE_MS);
+      this.saveDueAt = 0;
+      this._writeAsync();
+    }, within);
+    // A write on a long cadence (the hourly chart: up to an hour away) does
+    // not keep a process alive by itself — the server is kept up by its
+    // port; a tool or a test that is done exits, and "beforeExit" below
+    // writes what is pending (flushAll). Found at the integration: a test
+    // that loaded telemetry waited an hour for this timer. The short
+    // debounce (DEBOUNCE_MS) stays as it was.
+    if (within > DEBOUNCE_MS) this.saveTimer.unref?.();
   }
 
   // Write immediately (e.g. on shutdown)
@@ -460,6 +739,7 @@ class JsonStore {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
+      this.saveDueAt = 0;
     }
     return this._writeNow();
   }
@@ -487,9 +767,17 @@ const fmtSpan = (ms) => {
 };
 
 // Flush every store with something unwritten. Called on process shutdown.
+// Hooks registered with beforeFlushAll run first (profiles.js: the watch
+// journal is folded into profiles.json, so an older build started after this
+// one finds everything in the file it knows).
+const flushHooks = [];
+const beforeFlushAll = (fn) => { if (typeof fn === "function") flushHooks.push(fn); };
 const flushAll = () => {
-  for (const s of instances) if (s.saveTimer || s.dirty) s.flush();
+  for (const fn of flushHooks) { try { fn(); } catch (e) { console.error("[store] before-flush step failed:", e && e.message); } }
+  for (const s of instances) if (s.saveTimer || s.dirty || s._busy) s.flush();
 };
+// Every store's writes under way, landed (tests; a tool before it exits).
+const idleAll = async () => { for (const s of [...instances]) await s.idle(); };
 
 // ----------------------------------------------------- for the admin page
 
@@ -596,8 +884,8 @@ process.on("SIGTERM", () => { if (!own) return; onExit(); process.exit(0); });
 process.on("beforeExit", onExit);
 
 module.exports = {
-  JsonStore, flushAll, ownSignals, atomicWriteSync, readChecked,
+  JsonStore, FileWriter, flushAll, idleAll, beforeFlushAll, ownSignals, atomicWriteSync, readChecked, md5,
   status, inSafeMode, leaveSafeMode, announceRecoveries, acknowledgeRecoveries, recoverySentence,
   CRITICAL, REBUILDABLE, SHAPES,
-  _internals: { instances, io, kindFor, renameRetry, sameKind, readRecoveries, fmtSpan, digest, setBackupLookup: (fn) => { backupLookup = fn; }, DEBOUNCE_MS, GOOD_EVERY_MS, RETRY_LATER_MS },
+  _internals: { instances, io, aio, kindFor, renameRetry, sameKind, readRecoveries, fmtSpan, digest, setBackupLookup: (fn) => { backupLookup = fn; }, DEBOUNCE_MS, GOOD_EVERY_MS, RETRY_LATER_MS },
 };

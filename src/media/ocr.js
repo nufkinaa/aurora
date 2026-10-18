@@ -57,9 +57,13 @@ const runJob = (job, place) => {
   require("../lib/children").track(proc, "ocr");
   place.attach(proc);
 
+  // (only its end is ever read — the last 300 characters go in the log and
+  // the failure record — so only the end is kept: twenty minutes of an OCR
+  // run's progress lines used to pile up here)
   let output = "";
-  proc.stdout.on("data", (d) => (output += d.toString()));
-  proc.stderr.on("data", (d) => (output += d.toString()));
+  const keep = (d) => { output = (output + d.toString()).slice(-8000); };
+  proc.stdout.on("data", keep);
+  proc.stderr.on("data", keep);
 
   const killTimer = setTimeout(() => proc.kill(), 20 * 60 * 1000);
 

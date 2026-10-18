@@ -161,7 +161,7 @@ const findLibraryPlayable = (identity = {}, maps = null) => {
 let stampKey = null;
 let titleKeys = new Map();
 const ensureStamped = () => {
-  const key = `${scanner.index.scannedAt}|${imdb.version()}`;
+  const key = `${scanner.index.version}|${imdb.version()}`;
   if (key === stampKey) return titleKeys;
   const next = new Map();
   // A title with no cover of its own (no cover file in its folder, and the

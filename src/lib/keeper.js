@@ -28,9 +28,16 @@
 //   KEEPS THE LOG. The child's output goes on being appended to
 //   data/server-stdout.log and data/server-stderr.log (where a redirected
 //   `node server.js` has always put it), and is echoed to the keeper's own
-//   output for journald or a console. A log over 50 MB is set aside (one
-//   older copy kept) when the server is next started.
-//
+//   output for journald or a console. A log that passes `logMaxBytes`
+//   (50 MB) is set aside as <name>.r1 — at a start, and also WHILE the server
+//   runs (a server up for weeks used to grow it without bound) — older ones
+//   moving to .r2 …; `logKeep` set-aside copies are kept, and they and the
+//   live file together never pass `logTotalMaxBytes` (the oldest copies go
+//   first). ONLY the .rN copies this rotation made itself are ever removed:
+//   any other old log (a <name>.1 from before this version, 891 MB on the
+//   live server) is left where it is — the healer's data-growth check names
+//   it on the admin page and says how to delete it.
+
 // What it knows is written to data/keeper-state.json after every event; the
 // server reads that file for the admin page (lib/supervisor.js info()).
 //
@@ -59,6 +66,8 @@ const DEFAULTS = {
   stopTimeoutMs: 12 * 1000, // a child asked to stop gets this long
   exitsKept: 50,
   logMaxBytes: 50 * 1024 * 1024,
+  logKeep: 2, // set-aside copies per log: <name>.r1 (newest) … <name>.r<logKeep>
+  logTotalMaxBytes: 150 * 1024 * 1024, // one log, live file + its copies
 };
 
 // What an exit means. { code, signal, killedFor } -> reason:
@@ -236,29 +245,88 @@ class Keeper {
   }
 
   // ---- log files (real runs only)
+  _logPath(key) { return path.join(this.dataDir, key === "out" ? "server-stdout.log" : "server-stderr.log"); }
+
+  // Set the live log aside as .r1 (older copies move up one), then keep the
+  // copies within logKeep and logTotalMaxBytes. Never throws. Only names
+  // ending .r<N> are ever moved or removed — those are this rotation's own.
+  _rotate(key) {
+    const file = this._logPath(key);
+    if (this[key]) { try { this[key].end(); } catch {} this[key] = null; }
+    const keep = Math.max(1, this.cfg.logKeep | 0);
+    try { fs.rmSync(`${file}.r${keep}`, { force: true }); } catch {}
+    for (let i = keep - 1; i >= 1; i--) {
+      try { if (fs.existsSync(`${file}.r${i}`)) fs.renameSync(`${file}.r${i}`, `${file}.r${i + 1}`); } catch {}
+    }
+    try { fs.renameSync(file, `${file}.r1`); } catch {}
+    this._capCopies(key);
+  }
+
+  // This rotation's copies beyond logKeep, and its oldest copies while the
+  // live file and its copies are over logTotalMaxBytes, are removed. Nothing
+  // else is (an older <name>.1 included). Returns the names removed.
+  _capCopies(key) {
+    const file = this._logPath(key);
+    const keep = Math.max(1, this.cfg.logKeep | 0);
+    const removed = [];
+    const sizeOf = (f) => { try { return fs.statSync(f).size; } catch { return -1; } };
+    for (let i = keep + 1; i <= keep + 20; i++) {
+      if (sizeOf(`${file}.r${i}`) < 0) continue;
+      try { fs.rmSync(`${file}.r${i}`, { force: true }); removed.push(`${path.basename(file)}.r${i}`); } catch {}
+    }
+    let total = Math.max(0, sizeOf(file));
+    for (let i = 1; i <= keep; i++) {
+      const n = sizeOf(`${file}.r${i}`);
+      if (n < 0) continue;
+      if (total + n > this.cfg.logTotalMaxBytes) {
+        try { fs.rmSync(`${file}.r${i}`, { force: true }); removed.push(`${path.basename(file)}.r${i}`); } catch {}
+      } else total += n;
+    }
+    return removed;
+  }
+
+  // Opened at once (not lazily by path): a log set aside right after must
+  // not have its stream open a new file under the old name.
+  _openStream(key) {
+    try {
+      const fd = fs.openSync(this._logPath(key), "a");
+      const st = fs.createWriteStream(null, { fd });
+      st.on("error", () => {});
+      return st;
+    } catch { return null; }
+  }
+
   _openLogs() {
     try { fs.mkdirSync(this.dataDir, { recursive: true }); } catch {}
-    for (const [key, name] of [["out", "server-stdout.log"], ["err", "server-stderr.log"]]) {
-      const file = path.join(this.dataDir, name);
-      try {
-        const st = fs.statSync(file);
-        if (st.size > this.cfg.logMaxBytes) {
-          if (this[key]) { try { this[key].end(); } catch {} this[key] = null; }
-          try { fs.rmSync(`${file}.1`, { force: true }); } catch {}
-          fs.renameSync(file, `${file}.1`);
-        }
-      } catch {}
-      if (!this[key]) {
-        try {
-          this[key] = fs.createWriteStream(file, { flags: "a" });
-          this[key].on("error", () => {});
-        } catch {}
-      }
+    for (const key of ["out", "err"]) {
+      const file = this._logPath(key);
+      let size = 0;
+      try { size = fs.statSync(file).size; } catch {}
+      if (size > this.cfg.logMaxBytes) { this._rotate(key); size = 0; }
+      else this._capCopies(key);
+      if (!this[key]) this[key] = this._openStream(key);
+      this.logBytes = this.logBytes || {};
+      this.logBytes[key] = size;
     }
+  }
+
+  // One chunk of the server's output (or the keeper's own line) into a log,
+  // set aside first when it would pass logMaxBytes.
+  _writeLog(key, chunk) {
+    if (!this[key]) return;
+    this.logBytes = this.logBytes || {};
+    const n = typeof chunk === "string" ? Buffer.byteLength(chunk) : (chunk && chunk.length) || 0;
+    if ((this.logBytes[key] || 0) + n > this.cfg.logMaxBytes && (this.logBytes[key] || 0) > 0) {
+      this._rotate(key);
+      this[key] = this._openStream(key);
+      this.logBytes[key] = 0;
+    }
+    try { if (this[key]) this[key].write(chunk); } catch {}
+    this.logBytes[key] = (this.logBytes[key] || 0) + n;
   }
   _logReal(line) {
     const text = `[keeper] ${line}\n`;
-    try { if (this.out) this.out.write(text); } catch {}
+    this._writeLog("out", text);
     if (!this.quiet) { try { process.stdout.write(text); } catch {} }
   }
   log(line) { try { this.d.log(line); } catch {} }
@@ -280,15 +348,15 @@ class Keeper {
       windowsHide: true,
       detached: process.platform !== "win32", // its own process group, so the whole tree can be ended
     });
-    const pipe = (stream, file, echo) => {
+    const pipe = (stream, key, echo) => {
       if (!stream) return;
       stream.on("data", (chunk) => {
-        try { if (file) file.write(chunk); } catch {}
+        this._writeLog(key, chunk);
         if (!this.quiet) { try { echo.write(chunk); } catch {} }
       });
     };
-    pipe(proc.stdout, this.out, process.stdout);
-    pipe(proc.stderr, this.err, process.stderr);
+    pipe(proc.stdout, "out", process.stdout);
+    pipe(proc.stderr, "err", process.stderr);
     return proc;
   }
 

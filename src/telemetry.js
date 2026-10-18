@@ -17,6 +17,13 @@ const sessions = new JsonStore(path.join(config.DATA_DIR, "watch-sessions.json")
 const hourly = new JsonStore(path.join(config.DATA_DIR, "telemetry-hours.json"), {});
 
 const MAX_SESSIONS = 8000;
+// A live session is written when it starts, when it ends, on a seek, and
+// otherwise at most this often (the players report every 5 s: writing the
+// whole viewing history at every report was ~730 rewrites per viewer-hour).
+// Memory always holds the latest; a graceful shutdown writes it; a hard kill
+// loses at most this much of a live session's end time and position.
+const LIVE_WRITE_MS = 60 * 1000;
+const SEEK_SEC = 30; // a position this far off where playback would be is a seek
 const HOURLY_KEEP_DAYS = 90;
 const SAMPLE_MS = 30 * 1000;
 const RING_HOURS = 24;
@@ -68,6 +75,15 @@ const closeSession = (clientId) => {
   sessions.save();
 };
 
+// A jump of the position away from where steady playback (or a pause) would
+// have it. Pure.
+const isSeek = (prevPos, prevAtMs, pos, nowMs) => {
+  if (typeof prevPos !== "number" || typeof pos !== "number") return false;
+  const elapsed = Math.max(0, (nowMs - prevAtMs) / 1000);
+  const moved = pos - prevPos;
+  return moved < -SEEK_SEC || moved > elapsed + SEEK_SEC;
+};
+
 // Called on every "Watching" activity ping. Starts a session on first sight,
 // rolls to a new one when the content changes, refreshes progress otherwise.
 // Returns { session, started } so callers can react to new plays only.
@@ -98,14 +114,17 @@ const onWatch = (client, content, position, duration) => {
     liveByClient.set(client.id, s);
     sessions.data.unshift(s);
     if (sessions.data.length > MAX_SESSIONS) sessions.data.length = MAX_SESSIONS;
+    sessions.save();
   } else {
+    const prevAt = new Date(s.updatedAt).getTime();
+    const prevPos = s.position;
     s.updatedAt = now();
     s.watchedSec = secondsBetween(s.startedAt, s.updatedAt);
     if (!s.profile && client.profile) s.profile = client.profile;
     if (typeof position === "number") s.position = Math.round(position);
     if (typeof duration === "number") s.duration = Math.round(duration);
+    sessions.save(isSeek(prevPos, prevAt, s.position, Date.now()) ? undefined : { within: LIVE_WRITE_MS });
   }
-  sessions.save();
   return { session: s, started };
 };
 
@@ -125,6 +144,10 @@ const pruneHourly = () => {
     if (k < cutoff) delete hourly.data[k];
   }
 };
+
+let lastHour = null;
+const HOUR_GRACE_MS = 5 * 1000;
+const msToNextHour = (now = Date.now()) => 3600 * 1000 - (now % (3600 * 1000));
 
 const start = (getGauges) => {
   if (sampleTimer) return;
@@ -157,10 +180,17 @@ const start = (getGauges) => {
     h.sumWatching += point.watching;
     h.downKB += Math.round((point.downKBs * SAMPLE_MS) / 1000);
     pruneHourly();
-    hourly.save();
+    // Written when an hour closes (the first sample of the next one) and at
+    // a graceful shutdown — not every 30 s: that kept the data disk awake
+    // (27.5 MB an hour on an idle server). The open hour lives in memory,
+    // where the admin page reads it; a hard kill loses at most that hour.
+    if (lastHour !== null && k !== lastHour) hourly.save();
+    else hourly.save({ within: msToNextHour() + HOUR_GRACE_MS });
+    lastHour = k;
   };
   sample();
   sampleTimer = setInterval(sample, SAMPLE_MS);
+  sampleTimer.unref?.(); // the server is kept up by its port, not by this
 };
 
 // ---------- analytics (computed from sessions) ----------
@@ -388,4 +418,6 @@ module.exports = {
   todayWatchSec,
   wrappedFor,
   SAMPLE_MS,
+  LIVE_WRITE_MS,
+  _internals: { isSeek, msToNextHour },
 };
