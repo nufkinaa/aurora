@@ -24,9 +24,10 @@
 //
 // WHEN IT IS WRITTEN. Within the store debounce (1.5 s) when something
 // happened that matters if the power went now — a title started or resumed
-// after a pause, a seek, a title finished, the player stopped (realtime.js
-// tells noteStop) — and otherwise at most every ROUTINE_MS (60 s). A hard
-// kill loses at most that much of a resume position; a graceful stop nothing.
+// after a pause, a seek, a title finished, the player paused or stopped
+// (realtime.js sees both in the activity reports and tells noteStop) — and
+// otherwise at most every ROUTINE_MS (30 s, the owner's figure). A hard kill
+// loses at most that much of a resume position; a graceful stop nothing.
 //
 // AT BOOT the journal is laid over profiles.json:
 //   - its `base` is the md5 of the profiles.json just read: profiles.json is
@@ -54,7 +55,7 @@ const { JsonStore, md5, SHAPES } = require("./jsonstore");
 
 const FILE = "watch-journal.json";
 const KINDS = ["progress", "titles", "streamItems"];
-const ROUTINE_MS = 60 * 1000;
+const ROUTINE_MS = 30 * 1000; // an ordinary playback tick waits at most this long (owner, 2026-10-18)
 const CHECKPOINT_MS = 15 * 60 * 1000;
 const STOP_WINDOW_MS = 15 * 1000; // a save this soon after a stop is the player's last word
 const BAD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -179,8 +180,8 @@ class WatchJournal {
     else this.store.save({ within: ROUTINE_MS });
   }
 
-  // The player of a device on this profile stopped (or went away): what is
-  // waiting is written now, and so is a last save that follows straight on.
+  // The player of a device on this profile paused, stopped or went away: what
+  // is waiting is written now, and so is a last save that follows straight on.
   noteStop(pid) {
     if (this.disabled || !pid) return;
     this.stopping.set(String(pid), this.now() + STOP_WINDOW_MS);
