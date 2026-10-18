@@ -205,3 +205,23 @@ describe('which episode is next, asked again while the player is open', () => {
     expect(NEXT_REASK_BEFORE_END_S).toBeGreaterThanOrEqual(120);
   });
 });
+
+describe('Back in the player (backAction)', () => {
+  const {backAction} = require('../../src/playerRules');
+  const base = {onTop: true, menuOpen: false, upNext: false, chrome: false, playing: true};
+  test('the web order: menu, Up next, the chrome, then leave', () => {
+    expect(backAction({...base, menuOpen: true, upNext: true, chrome: true})).toBe('closeMenu');
+    expect(backAction({...base, upNext: true, chrome: true})).toBe('dismissUpNext');
+    expect(backAction({...base, chrome: true})).toBe('hideChrome');
+    expect(backAction(base)).toBe('leave');
+  });
+  test('on a loading or error screen the first Back leaves', () => {
+    expect(backAction({...base, chrome: true, playing: false})).toBe('leave');
+  });
+  // Mi TV 2026-10-18: a player under a second one (pushed from the home-screen row,
+  // or X-Ray → a title → Play) had its chrome woken by every key and ate every Back
+  test('a player that is not on top never takes Back', () => {
+    expect(backAction({...base, onTop: false, chrome: true})).toBe('pass');
+    expect(backAction({...base, onTop: false, menuOpen: true})).toBe('pass');
+  });
+});
