@@ -48,7 +48,7 @@ test("source: same quality as what is playing when available", () => {
   assert.equal(pickSource(STREAMS, "2160p").infoHash, "a");
 });
 
-test("source: otherwise the ★ BEST pick, never CAM/dubbed/pack", () => {
+test("source: otherwise the ★ BEST pick, never CAM/dubbed (a pack competes like any source)", () => {
   assert.equal(pickSource(STREAMS, "480p").infoHash, "b");
   assert.equal(pickSource(STREAMS, null).infoHash, "b");
   assert.equal(pickSource([{ infoHash: "x", cam: true }], null), null);

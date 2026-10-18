@@ -278,7 +278,7 @@ test("challenger: packs are allowed, and one already downloading for a sibling e
   assert.equal(queued.source.infoHash, H("b"), "a pack that is only queued is not 'already downloading'");
   const same = choose([src("a"), pack], { live: [{ infoHash: H("p"), fileIdx: 4, running: true }] });
   assert.equal(same.source, null, "the very file another download is fetching is not a second source");
-  assert.equal(choose([src("a"), src("b", { pack: true, fileIdx: 3 })], { job: { type: "movie", season: null, episode: null } }).source, null, "a film inside a collection is not used");
+  assert.equal(choose([src("a"), src("b", { pack: true, fileIdx: 3 })], { job: { type: "movie", season: null, episode: null } }).source.infoHash, H("b"), "a film inside a pack is a source like any other");
 });
 
 test("challenger: never a cinema recording, never a dub unless the original was one", () => {
