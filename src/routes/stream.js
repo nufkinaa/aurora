@@ -311,7 +311,10 @@ router.get("/img/meta/:name", async (req, res) => {
 // scans, drawn 150–260px wide)
 router.get("/img/:id", async (req, res) => {
   const entry = resolveKind(req.params.id, "image");
-  if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
+  // (no existsSync first: a cover the library walk listed is there, and one
+  // removed since is a 404 all the same — sendFile's ENOENT, server.js — so a
+  // blocking call per picture was paid for nothing; server round 2026-10-18)
+  if (!entry) return res.status(404).send("Not found");
   try {
     const opts = { blur: req.query.blur, fmt: req.query.fmt, client: artClient(res) };
     const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, opts) : null;
