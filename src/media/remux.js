@@ -479,6 +479,9 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
       // landing at most one GOP early — same direction as the player's own
       // target-2s bias, and the PTS-honest clock stays exact.
       ...(ss > 0 ? (heavy ? ["-ss", String(ss)] : ["-noaccurate_seek", "-ss", String(ss)]) : []),
+      // an encode's decoder: a few threads, not one per CPU (ladder.decodeThreads —
+      // the same speed, 20–40% less memory)
+      ...(heavy ? ["-threads", String(require("./ladder")._internals.decodeThreads({ width: srcMeta.width, height: srcMeta.height }))] : []),
       "-i", videoPath,
       "-map", "0:v:0", "-map", `0:a:${audio}`,
       ...videoArgs,

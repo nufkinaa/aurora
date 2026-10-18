@@ -337,6 +337,15 @@ const costFor = (name, f, tonemapped = false) => require("./encbudget").costFor(
 // `need`: this rung is the only way its viewer can play the file even
 // though it is not the full one — the master playlist offered it BECAUSE the
 // full encode did not fit (see master). It is then admitted like the top rung.
+// Decoder threads for a software encode. Measured 2026-10-18 on this PC (16
+// threads), 30 s of each source → the full 1080p rung, ffmpeg -benchmark:
+//   4K HEVC 10-bit: default 914 MB, 9.1–10.6 s · 6 threads 602 MB, 9.9 s ·
+//                   4 threads 539 MB, 14.2 s (too few for 4K)
+//   1080p HEVC:     default 480 MB, 6.2 s · 4 threads 383 MB, 6.3 s
+//   1080p H.264:    default 369 MB, 7.8 s · 4 threads 299 MB, 7.5 s
+// CPU seconds the same in every case.
+const decodeThreads = (f) => (f && f.width * f.height > 1920 * 1088 ? 6 : 4);
+
 const encFor = async (rung, f, { fmt = null, busy = false, label = "", need = false } = {}) => {
   let vf = null;
   if (f && tonemap.enabled() && tonemap.isHdr(f)) {
@@ -345,6 +354,11 @@ const encFor = async (rung, f, { fmt = null, busy = false, label = "", need = fa
   }
   return {
     name: rung.name,
+    // the decoder's threads (input side): ffmpeg's default is one per CPU,
+    // each holding its own frames — on 16 threads a 4K HEVC decode held
+    // 0.9 GB. 4 (6 above 1080p) decode just as fast here and hold 20–40%
+    // less (measured: decodeThreads)
+    inputArgs: ["-threads", String(decodeThreads(f))],
     cost: costFor(rung.name, f, !!vf),
     memMb: require("./encbudget").memOf(specFor(rung.name, f, !!vf)),
     // the top rung of a device that cannot play the file any other way; the
@@ -481,6 +495,6 @@ module.exports = {
     CAPS, dimsFor, scaleFor, rateFor, rungNames, h264Level, encCodecs, copyCodecs,
     encBandwidth, copyBandwidth, encVideoArgs, parseFacts, topCeiling, specFor,
     seedFacts: (key, f) => facts.set(key, f), // (tests: a source whose probe is already known)
-    SEG_MIN_SEC, MUX_OVERHEAD, ENC_OVERHEAD, ENC_THREADS,
+    SEG_MIN_SEC, MUX_OVERHEAD, ENC_OVERHEAD, ENC_THREADS, decodeThreads,
   },
 };

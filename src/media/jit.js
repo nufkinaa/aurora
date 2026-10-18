@@ -225,6 +225,8 @@ const producerArgs = (run, input, startSec) => [
   // — more than any reorder delay — so the wanted segment gets exactly the
   // audio a producer running through from the top would have put in it.
   ...(startSec != null ? ["-ss", (startSec - SEEK_BACK_SEC).toFixed(3)] : []),
+  // an encode's input-side arguments (ladder.encFor: the decoder's threads)
+  ...(input.enc && input.enc.inputArgs ? input.enc.inputArgs : []),
   ...input.extra,
   "-i", input.url,
   // `audio`: which of the file's audio tracks (0 = the first, as always)
