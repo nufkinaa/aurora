@@ -117,3 +117,16 @@ test("what a video file carries, sniffed from its bytes, and the sentence a refu
   assert.match(failureSentence("audio", {}), /or the file has none/);
   assert.match(failureSentence("file", sniffCodecs(mkv("V_MPEG4/ISO/AVC A_DTS"))), /can't play this file's sound \(DTS\), so it won't open the file/);
 });
+
+test("the language of a subtitle's words: other scripts, and Latin by its little words", async () => {
+  const { textLang } = await load();
+  assert.equal(textLang("مرحبا بكم جميعا، كيف حالكم اليوم"), "ar");
+  assert.equal(textLang("Γεια σας, τι κάνετε σήμερα φίλοι"), "el");
+  assert.equal(textLang("こんにちは、元気ですか。今日はいい天気ですね"), "ja");
+  assert.equal(textLang("안녕하세요 오늘 기분이 어떠세요 친구"), "ko");
+  assert.equal(textLang("Je ne sais pas, c'est la vie et le monde est grand"), "fr");
+  assert.equal(textLang("No sé qué es esto, pero está bien para mí"), "es");
+  assert.equal(textLang("Ich weiß nicht, was das ist und wer du bist"), "de");
+  assert.equal(textLang("Xyzzy plugh frobozz quux"), null, "Latin letters that say no language");
+  assert.equal(textLang("12345"), null);
+});
