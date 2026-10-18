@@ -663,6 +663,17 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // How many viewers this machine may encode for at once: worked out from
   // its CPU and its measured encode speed (media/encbudget.js), from here on.
   try { require("./src/media/encbudget").start(); } catch {}
+  // What this machine gives the server (lib/resources.js): on Linux, the
+  // open-file limit sets how many connections are accepted (past it a new
+  // one is refused, and the process keeps handles for its own files); and
+  // whatever is not right — an old Node, a low limit, a refused setting — is
+  // said once here and stays on the admin's Health card.
+  try {
+    const resources = require("./src/lib/resources");
+    const maxConn = resources.applyToServer(server);
+    if (maxConn) console.log(`[resources] accepting up to ${maxConn} connections (open-file limit ${resources.fdLimit().soft})`);
+    resources.announce();
+  } catch {}
   // Remember which commit this process actually runs — the admin's update
   // card compares it against HEAD on disk to say "restart to apply".
   try { require("./src/lib/updatecheck").captureBoot(); } catch {}

@@ -30,6 +30,15 @@ try {
 } catch (err) {
   console.warn("config.json missing or invalid, using defaults:", err.message);
 }
+// Every key checked (lib/configcheck.js): an unknown one is a warning, a bad
+// value is refused — taken out here, so its default applies — with a line
+// that says which, why and what the default is. Never a crash.
+try {
+  const configcheck = require("./lib/configcheck");
+  configcheck.remember(configcheck.check(userConfig, { apply: true }));
+} catch (e) {
+  console.warn("[config] the settings could not be checked:", e && e.message);
+}
 
 // Resolve a binary to a full path. spawn() does not use a shell, so PATH shims
 // that satisfy execSync can fail there — always use full paths. Cross-platform:
