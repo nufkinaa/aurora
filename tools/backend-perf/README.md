@@ -30,6 +30,8 @@ node tools/backend-perf/endpoints.js --weak [--profile] # every request a client
 node tools/backend-perf/requires.js  --weak        # require() calls inside request handlers, and what one costs
 node tools/backend-perf/viewers.js   --weak        # 1 and 5 people watching: bytes written per viewer-hour, loop blocked by saves
 node tools/backend-perf/viewers.js   --weak --rows today   # the same for a household the size of the live one today
+node tools/backend-perf/storage.js   [--ref <commit>] [--viewers 1,5,20] [--idle 6]   # store writes: bytes, fsyncs, save time, loop delay (server round 2026-10-18)
+node tools/backend-perf/storage-drill.js --data <a COPY-able data folder>        # watch-journal migration drill: kill -9 rounds, downgrade, upgrade
 node tools/backend-perf/scan.js      --weak [--aftermath] [--cold 300]   # one library rescan; a first scan of 300 new files
 node tools/backend-perf/memory.js    [--snapshot]  # heap by owner; a heap snapshot of the warm server, summarised
 node tools/backend-perf/soak.js      --weak --minutes 150   # memory over hours of ordinary use
