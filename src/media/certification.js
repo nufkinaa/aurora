@@ -176,9 +176,9 @@ const fetchCertificates = async (kind, tmdbId) => {
       ? `tv/${tmdbId}/content_ratings`
       : `movie/${tmdbId}/release_dates`;
   try {
-    const res = await fetch(
+    const res = await require("../lib/upstream").fetch(
       `https://api.themoviedb.org/3/${endpoint}?api_key=${config.TMDB_KEY}`,
-      { signal: AbortSignal.timeout(6000) },
+      { timeoutMs: 6000 },
     );
     if (!res.ok) return NOTHING;
     const results = (await res.json()).results;
@@ -195,9 +195,9 @@ const fetchCertificate = async (kind, tmdbId) => (await fetchCertificates(kind, 
 const fetchOriginalLanguage = async (kind, tmdbId) => {
   if (!config.TMDB_KEY || !tmdbId) return null;
   try {
-    const res = await fetch(
+    const res = await require("../lib/upstream").fetch(
       `https://api.themoviedb.org/3/${kind === "show" ? "tv" : "movie"}/${tmdbId}?api_key=${config.TMDB_KEY}`,
-      { signal: AbortSignal.timeout(6000) },
+      { timeoutMs: 6000 },
     );
     if (!res.ok) return null;
     const lang = (await res.json()).original_language;

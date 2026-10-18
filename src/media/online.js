@@ -36,12 +36,16 @@ const similarity = (a, b) => {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Background enrichment: no deadline (nobody waits on a page for it), but the
+// timeout, the host's fair share and its breaker (lib/upstream.js). This
+// module's own back-off below is the retry; upstream does not add another.
+const upstream = require("../lib/upstream");
 const fetchJson = async (url, attempt = 0) => {
-  const res = await fetch(url, {
+  const res = await upstream.fetch(url, {
     headers: { "User-Agent": "Aurora/1.0 (personal media server)" },
-    signal: AbortSignal.timeout(12000),
+    timeoutMs: 12000,
+    retries: 0,
   });
-  try { require("../lib/signals").provider(url, res.status); } catch {}
   if (res.status === 429 || res.status === 403) {
     if (attempt < 2) {
       await sleep(4000 * (attempt + 1)); // back off and retry
@@ -75,7 +79,7 @@ const cachePoster = async (url) => {
     } catch {}
   }
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const res = await upstream.fetch(url, { timeoutMs: 15000, maxBytes: 12 * 1024 * 1024 });
     if (!res.ok) return null;
     const type = String(res.headers.get("content-type") || "");
     if (type && !/^image\//i.test(type)) return null;

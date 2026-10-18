@@ -11,8 +11,12 @@ router.get("/api/ai/status", (req, res) => {
   res.json({ enabled: ai.enabled() });
 });
 
-// A crude per-IP budget. This spends real money, so an accidental loop (or a
-// bored household member holding Enter) must not run up a bill.
+// A budget per DEVICE. This spends real money, so an accidental loop (or a
+// bored household member holding Enter) must not run up a bill. Keyed the
+// way lib/ratelimit.js keys a client — the device's session, else its
+// address with X-Forwarded-For believed only from a trusted proxy. It was
+// req.ip: behind the site's reverse proxy that is the proxy itself, so every
+// visitor of nufurora.com shared ONE budget of ten a minute.
 const WINDOW_MS = 60 * 1000;
 const MAX_PER_WINDOW = 10;
 const hits = new Map(); // ip -> number[] timestamps
@@ -31,8 +35,9 @@ const overBudget = (ip) => {
 
 router.post("/api/ai/recommend", async (req, res) => {
   if (!ai.enabled()) return res.status(503).json({ error: "The recommender isn't set up on this server." });
-  const ip = (req.ip || "").replace("::ffff:", "");
-  if (overBudget(ip)) {
+  let who;
+  try { who = require("../lib/ratelimit")._internals.clientOf(req).key; } catch { who = String((req.socket && req.socket.remoteAddress) || "?"); }
+  if (overBudget(who)) {
     return res.status(429).json({ error: "Easy. Give it a minute before asking again." });
   }
   const { vibe, mix, era, length, fresh } = req.body || {};

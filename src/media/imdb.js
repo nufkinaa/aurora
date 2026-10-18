@@ -42,6 +42,7 @@ const resolve = async (title, type, year) => {
   let imdbId = null;
   try {
     const results = await discover.search(clean);
+    if (results && results.degraded) return null; // Cinemeta failed or was slow: not "no match"
     const pool = (kind === "show" ? results.shows : results.movies).filter((m) => m.imdbId);
     const want = norm(clean);
     const exact = pool.filter((m) => norm(m.title) === want);

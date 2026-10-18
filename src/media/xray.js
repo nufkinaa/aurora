@@ -34,11 +34,22 @@ const MAX_ENTRIES = 600; // a long series is ~100 kB on its own: this keeps the 
 
 const store = new JsonStore(path.join(config.CACHE_DIR, "xray.json"), {});
 
+// (lib/upstream.js: the panel waits 2.5 s per provider at most; a slower
+// answer is kept for the next open, a 404 is remembered)
 const getJson = async (url, headers = {}) => {
-  const res = await fetch(url, { headers: { ...UA, ...headers }, signal: AbortSignal.timeout(7000) });
-  if (!res.ok) throw new Error(`${res.status}`);
-  return res.json();
+  try {
+    return await require("../lib/upstream").json(url, { headers: { ...UA, ...headers }, timeoutMs: 7000, deadlineMs: 2500, ttlMs: 10 * 60 * 1000 });
+  } catch (e) {
+    if (!(e && e.status === 404)) failures++; // a provider that did not answer, not one that said "nobody"
+    throw new Error(`${(e && e.status) || "error"}`);
+  }
 };
+// Providers that failed (not "not found") while answers were being built:
+// an answer made then is kept for PARTIAL_TTL only, so the next open asks
+// again — and finds what came late. (A shared count: two builds at once can
+// only make each other's answer kept for less long, never longer.)
+let failures = 0;
+const PARTIAL_TTL = 10 * 60 * 1000;
 const quiet = (p) => p.catch(() => null);
 const stripHtml = (s) => String(s || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
 const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -286,14 +297,14 @@ const buildEpisode = async (title, season, episode) => {
   };
 };
 
-const fresh = (hit, ttl) => hit && hit.v === V && Date.now() - hit.at < ttl;
-const remember = (key, data, empty) => {
+const fresh = (hit, ttl) => hit && hit.v === V && Date.now() - hit.at < (hit.partial ? Math.min(ttl, PARTIAL_TTL) : ttl);
+const remember = (key, data, empty, partial) => {
   const keys = Object.keys(store.data);
   if (keys.length > MAX_ENTRIES) {
     // the oldest fifth goes: the file stays bounded on a small disk
     keys.sort((a, b) => (store.data[a].at || 0) - (store.data[b].at || 0)).slice(0, Math.ceil(MAX_ENTRIES / 5)).forEach((k) => delete store.data[k]);
   }
-  store.data[key] = { at: Date.now(), v: V, empty: !!empty, data };
+  store.data[key] = { at: Date.now(), v: V, empty: !!empty, data, ...(partial ? { partial: true } : {}) };
   store.save();
 };
 
@@ -312,9 +323,10 @@ const get = async ({ type, imdbId, season = null, episode = null, rateKeys = [] 
   const tKey = `t|${type}|${imdbId}`;
   let hit = store.data[tKey];
   if (!fresh(hit, hit && hit.empty ? EMPTY_TTL : TITLE_TTL)) {
+    const f0 = failures;
     const data = await once(tKey, () => buildTitle(type, imdbId));
     const empty = !data.cast.length && !data.ratings.length;
-    remember(tKey, data, empty);
+    remember(tKey, data, empty, failures !== f0);
     hit = store.data[tKey];
   }
   const title = hit.data;
@@ -325,8 +337,9 @@ const get = async ({ type, imdbId, season = null, episode = null, rateKeys = [] 
     const eKey = `e|${imdbId}|${season}|${episode}`;
     let eHit = store.data[eKey];
     if (!fresh(eHit, eHit && eHit.empty ? EMPTY_TTL : EPISODE_TTL)) {
+      const f1 = failures;
       const data = await once(eKey, () => buildEpisode(title, season, episode));
-      remember(eKey, data, !data.guests.length && !data.overview);
+      remember(eKey, data, !data.guests.length && !data.overview, failures !== f1);
       eHit = store.data[eKey];
     }
     ep = eHit.data;

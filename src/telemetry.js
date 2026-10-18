@@ -190,6 +190,7 @@ const start = (getGauges) => {
   };
   sample();
   sampleTimer = setInterval(sample, SAMPLE_MS);
+  sampleTimer.unref?.(); // the server is kept up by its port, not by this
 };
 
 // ---------- analytics (computed from sessions) ----------

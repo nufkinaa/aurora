@@ -725,6 +725,13 @@ class JsonStore {
       this.saveDueAt = 0;
       this._writeAsync();
     }, within);
+    // A write on a long cadence (the hourly chart: up to an hour away) does
+    // not keep a process alive by itself — the server is kept up by its
+    // port; a tool or a test that is done exits, and "beforeExit" below
+    // writes what is pending (flushAll). Found at the integration: a test
+    // that loaded telemetry waited an hour for this timer. The short
+    // debounce (DEBOUNCE_MS) stays as it was.
+    if (within > DEBOUNCE_MS) this.saveTimer.unref?.();
   }
 
   // Write immediately (e.g. on shutdown)

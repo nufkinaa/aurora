@@ -49,9 +49,9 @@ const fromMeta = (m, type, k) => {
 };
 
 const fetchPage = async (type, skip) => {
-  const res = await fetch(`https://v3-cinemeta.strem.io/catalog/${type}/top${skip ? `/skip=${skip}` : ""}.json`, {
+  const res = await require("../lib/upstream").fetch(`https://v3-cinemeta.strem.io/catalog/${type}/top${skip ? `/skip=${skip}` : ""}.json`, {
     headers: UA,
-    signal: AbortSignal.timeout(15000),
+    timeoutMs: 15000,
   });
   if (!res.ok) throw new Error(`cinemeta ${res.status}`);
   return (await res.json()).metas || [];

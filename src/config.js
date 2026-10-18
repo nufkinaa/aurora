@@ -30,6 +30,15 @@ try {
 } catch (err) {
   console.warn("config.json missing or invalid, using defaults:", err.message);
 }
+// Every key checked (lib/configcheck.js): an unknown one is a warning, a bad
+// value is refused — taken out here, so its default applies — with a line
+// that says which, why and what the default is. Never a crash.
+try {
+  const configcheck = require("./lib/configcheck");
+  configcheck.remember(configcheck.check(userConfig, { apply: true }));
+} catch (e) {
+  console.warn("[config] the settings could not be checked:", e && e.message);
+}
 
 // Resolve a binary to a full path. spawn() does not use a shell, so PATH shims
 // that satisfy execSync can fail there — always use full paths. Cross-platform:
@@ -244,6 +253,22 @@ module.exports = {
   // The TV's rendering switches (native components, render fixes), per TV
   // model if wanted (lib/tvtuning.js — checked there). Nothing set: all off.
   TV_RENDER: userConfig.tvRender || null,
+  // ---- staying healthy (srv-resilience) ----
+  // Per-client rate limits on the public endpoints that cost something
+  // (lib/ratelimit.js): "log" (default: count what would be refused, refuse
+  // nothing), "enforce", "off", or { "mode", "groups": { name: { rate, burst, mode } } }.
+  RATE_LIMITS: userConfig.rateLimits,
+  // Outside providers (lib/upstream.js): per-host overrides,
+  // { "hosts": { "api.themoviedb.org": { "concurrency": 4, "timeoutMs": 8000 } } }.
+  UPSTREAM: userConfig.upstream && typeof userConfig.upstream === "object" ? userConfig.upstream : {},
+  // The HTTP server's own limits (lib/httplimits.js):
+  // { "headersTimeoutSec": 20, "requestTimeoutSec": 120, "keepAliveTimeoutSec": 75 }.
+  HTTP: userConfig.http && typeof userConfig.http === "object" ? userConfig.http : {},
+  // The reverse proxies whose X-Forwarded-For is believed (lib/ratelimit.js),
+  // beyond this machine itself: ["172.17.0.1", "10.0.0.0/8"].
+  TRUST_PROXY: Array.isArray(userConfig.trustProxy) ? userConfig.trustProxy : [],
+  // WebSocket limits (realtime.js): { "maxPerAddress": 64, "maxMessageKb": 64, "mode" } (64 sockets an address, LAN addresses 4x; the mode follows "rateLimits").
+  WS: userConfig.ws && typeof userConfig.ws === "object" ? userConfig.ws : {},
   FFMPEG,
   FFPROBE,
   TESSERACT,

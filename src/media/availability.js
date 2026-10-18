@@ -47,7 +47,7 @@ const MAX_LOOKUPS_PER_PASS = 80;
 const CONCURRENCY = 6;
 
 const tmdbJson = async (url) => {
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  const res = await require("../lib/upstream").fetch(url, { timeoutMs: 8000 });
   if (!res.ok) throw new Error(`tmdb ${res.status}`);
   return res.json();
 };

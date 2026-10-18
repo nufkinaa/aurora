@@ -96,14 +96,11 @@ process.on("unhandledRejection", (reason) => {
 }
 
 const app = express();
-const server = http.createServer(app);
-// A connection idle for 5 s (Node's default) was closed just as a TV on a
-// laggy Wi-Fi reused it for its next picture — the request arrived after the
-// close and the picture ended "unexpected end of stream" (reproduced on a
-// throttled line, 2026-10-08). Idle connections now live long enough for any
-// client's pool to reuse them; headersTimeout stays above it, as Node requires.
-server.keepAliveTimeout = 75 * 1000;
-server.headersTimeout = 80 * 1000;
+// Keep-alive 75 s (a TV on laggy Wi-Fi reuses its connections late —
+// 2026-10-08), headers within 20 s and the whole request within 120 s (a
+// client dripping its request a byte at a time no longer holds a socket for
+// minutes), checked every 2 s: lib/httplimits.js has the numbers and why.
+const server = require("./src/lib/httplimits").createServer(app, config.HTTP);
 
 // Failing to bind must kill the process LOUDLY, and this listener must be
 // registered FIRST: realtime.attach's WebSocketServer also listens for server
@@ -123,12 +120,23 @@ server.on("error", (err) => {
 // connection, so a keep-alive client's next request reaches the new process.
 app.use(require("./src/lib/shutdown").middleware);
 
+// Requests per route group, time to first byte, the slow-request line
+// (lib/metrics.js — read at /api/admin/metrics and on Server → Health).
+app.use(require("./src/lib/metrics").middleware);
+
 // How long the server itself took over each data and stream answer, as the
 // standard Server-Timing header (lib/servertiming.js) — so a slow start can
 // be put down to the server, the line or the player.
 app.use(["/api", "/stream"], require("./src/lib/servertiming").middleware);
 
-app.use(express.json());
+// JSON bodies: 100 kB everywhere (the biggest real one, a usage batch, is a
+// few kB), 16 kB for sign-in (a name, a password, a code). A body too big
+// or not JSON is answered 413 / 400 in one quiet line, not a stack trace.
+{
+  const jsonDefault = express.json({ limit: "100kb" });
+  const jsonSmall = express.json({ limit: "16kb" });
+  app.use((req, res, next) => (req.path.startsWith("/api/auth/") ? jsonSmall : jsonDefault)(req, res, next));
+}
 
 // Gzip/deflate for text payloads. Measured on this library (35 titles):
 // /api/home 1,060,613 B -> 174,613 B, /api/library 249,107 -> 39,875, the five
@@ -232,6 +240,11 @@ app.use(require("./src/lib/airtoken").middleware);
 // in src/lib/resetgate.js. After the wall above, ahead of every router.
 app.use(require("./src/lib/resetgate").middleware);
 
+// Per-client rate limits on the public endpoints that ask an outside
+// provider or burn CPU (lib/ratelimit.js; "log" mode unless config says
+// "enforce"). After the wall and the reset gate: a signed-in device is
+// counted by its session, anyone else by address.
+app.use(require("./src/lib/ratelimit").middleware);
 // [analytics] how long the heavy endpoints take to answer (lib/tel/timings.js)
 app.use(require("./src/lib/tel/timings").middleware);
 // Until the library has been read once (a first start: nothing saved from
@@ -400,7 +413,19 @@ app.get("*", (req, res) => {
 // stack, by Express's default handler): a client that hung up while sending
 // its request, and a cached picture swept between being chosen and being sent.
 // Everything else goes on to the default handler unchanged.
+const badBodySaid = { at: 0, n: 0 };
 app.use((err, req, res, next) => {
+  // a body over its limit, or one that is not the JSON it says it is: the
+  // client's mistake — answered plainly, logged once a minute at most
+  if (err && (err.type === "entity.too.large" || err.type === "entity.parse.failed" || err.type === "encoding.unsupported" || err.type === "charset.unsupported")) {
+    badBodySaid.n++;
+    if (Date.now() - badBodySaid.at > 60 * 1000) {
+      badBodySaid.at = Date.now();
+      console.warn(`[http] refused a request body (${err.type}) on ${req.method} ${req.path.split("/").slice(0, 3).join("/")} — ${badBodySaid.n} so far`);
+    }
+    if (!res.headersSent) res.status(err.type === "entity.too.large" ? 413 : 400).json({ error: err.type === "entity.too.large" ? "request body too large" : "request body is not valid JSON" });
+    return;
+  }
   if (err && (err.type === "request.aborted" || err.code === "ECONNABORTED" || err.code === "ECONNRESET")) {
     if (!res.headersSent) { try { res.status(400).end(); } catch {} }
     return;
@@ -668,6 +693,17 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // a few seconds below normal priority, 40 s in; used where it is measured
   // better — hwEncode "auto", the default).
   try { require("./src/media/hwenc").start(); } catch {}
+  // What this machine gives the server (lib/resources.js): on Linux, the
+  // open-file limit sets how many connections are accepted (past it a new
+  // one is refused, and the process keeps handles for its own files); and
+  // whatever is not right — an old Node, a low limit, a refused setting — is
+  // said once here and stays on the admin's Health card.
+  try {
+    const resources = require("./src/lib/resources");
+    const maxConn = resources.applyToServer(server);
+    if (maxConn) console.log(`[resources] accepting up to ${maxConn} connections (open-file limit ${resources.fdLimit().soft})`);
+    resources.announce();
+  } catch {}
   // Remember which commit this process actually runs — the admin's update
   // card compares it against HEAD on disk to say "restart to apply".
   try { require("./src/lib/updatecheck").captureBoot(); } catch {}

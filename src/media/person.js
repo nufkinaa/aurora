@@ -283,15 +283,12 @@ const create = (deps = {}) => {
   };
   const people = () => store("store", "person.json");
   const titles = () => store("titleStore", "person-titles.json");
-  const getJson = deps.getJson || (async (p) => {
-    const res = await fetch(`https://api.themoviedb.org/3${p}${p.includes("?") ? "&" : "?"}api_key=${key()}`, { headers: UA, signal: AbortSignal.timeout(7000) });
-    if (!res.ok) {
-      const e = new Error(`tmdb ${res.status}`);
-      e.status = res.status;
-      throw e;
-    }
-    return res.json();
-  });
+  // (lib/upstream.js: a person is waiting — 2.5 s each at most, a slower
+  // answer is kept for the next ask; a 404 is remembered; errors carry .status)
+  const getJson = deps.getJson || ((p) =>
+    require("../lib/upstream").json(`https://api.themoviedb.org/3${p}${p.includes("?") ? "&" : "?"}api_key=${key()}`, {
+      headers: UA, timeoutMs: 7000, deadlineMs: 2500, ttlMs: 10 * 60 * 1000,
+    }));
   const certs = deps.certs || (() => require("./certification"));
 
   const fresh = (hit, ttl) => !!hit && hit.v === V && now() - hit.at < ttl;

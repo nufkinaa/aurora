@@ -65,9 +65,9 @@ const politely = (host, fn) => {
 };
 
 const getJson = async (url) => {
-  const res = await fetch(url, {
+  const res = await require("../lib/upstream").fetch(url, {
     headers: { "User-Agent": "Aurora (personal media server)", Accept: "application/json" },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    timeoutMs: TIMEOUT_MS,
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`${res.status}`);

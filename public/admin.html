@@ -920,8 +920,26 @@
         </table></div>
         <div class="empty-note hidden" id="sv-torrents-empty">No active torrents.</div>
       </div>
+      <div class="card" id="mx-card">
+        <h2>Health <span class="note">why it is slow, if it is: how long requests wait for their first byte, the event loop, the work in hand, the outside services and their breakers, the limits — since the server started</span></h2>
+        <div class="stats" id="mx-stats" style="margin:0 0 10px"></div>
+        <div id="mx-checks" style="display:grid;gap:4px;margin-bottom:10px"></div>
+        <div class="muted" style="font-weight:800;margin:6px 0">Outside services</div>
+        <div class="empty-note hidden" id="mx-up-empty">No outside service asked yet.</div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Service</th><th>State</th><th>Calls</th><th>Failed</th><th>Typical</th><th>Cache</th><th>Last problem</th></tr></thead>
+          <tbody id="mx-up"></tbody>
+        </table></div>
+        <div class="muted" style="font-weight:800;margin:12px 0 6px">Slowest requests <span class="note">by time to the first byte, p95</span></div>
+        <div class="empty-note hidden" id="mx-slow-empty">Nothing measured yet.</div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Route</th><th>Count</th><th>p50</th><th>p95</th><th>Max</th><th>Over 1 s</th><th>Errors</th></tr></thead>
+          <tbody id="mx-slow"></tbody>
+        </table></div>
+        <div id="mx-limits" class="empty-note" style="margin-top:10px"></div>
+      </div>
       <div class="card">
-        <h2>Health <span class="note">the watchdog: memory, event-loop lag, ffmpeg children — and what it did about them</span></h2>
+        <h2>Watchdog <span class="note">memory, event-loop lag, ffmpeg children — and what it did about them</span></h2>
         <div class="stats" id="sv-health" style="margin:0 0 10px"></div>
         <div id="sv-health-events" class="empty-note">No watchdog events yet.</div>
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
@@ -3241,6 +3259,49 @@
       toast("Report copied — paste it anywhere");
     };
 
+    // ---------- health: metrics (lib/metrics.js — /api/admin/metrics) ----------
+    const fmtMs = (v) => (v == null ? "–" : v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} s` : `${Math.round(v)} ms`);
+    async function loadMetrics() {
+      let m;
+      try { m = await json("/api/admin/metrics"); } catch { return; }
+      const w = m.work || {};
+      const t = m.totals || {};
+      const loop = m.eventLoop || {};
+      const tile = ([v, k, note, level]) => `<div class="stat"><div class="v">${level ? `<span class="pill ${level}">${esc(v)}</span>` : esc(v)}</div><div class="k">${esc(k)}</div>${note ? `<div class="note">${esc(note)}</div>` : ""}</div>`;
+      const hosts = (m.upstream && m.upstream.hosts) || [];
+      const open = hosts.filter((h) => h.breaker !== "closed");
+      $("#mx-stats").innerHTML = [
+        [fmtMs(loop.p99Ms), "event loop p99", `p50 ${fmtMs(loop.p50Ms)} · worst ${fmtMs(loop.maxMs)} in the last 10 s`, loop.p99Ms > 100 ? "bad" : loop.p99Ms > 40 ? "warn" : null],
+        [`${m.cpuPercent} %`, "CPU (this process)", `${fmtBytes(m.memory.rss)} memory · heap ${fmtBytes(m.memory.heapUsed)}`],
+        [String(w.requestsInFlight || 0), "requests in hand", `${w.streamsInFlight || 0} video streams · ${w.encoders || 0} encoding · ${w.torrents || 0} torrents`],
+        [String(t.n || 0), "requests answered", `${t.slow || 0} over 1 s · ${t.s5 || 0} server errors`, t.s5 ? "warn" : null],
+        [String((w.heavyLane && w.heavyLane.waiting) || 0), "heavy requests waiting", `${(w.heavyLane && w.heavyLane.refused) || 0} turned away · pictures queued ${w.imgVariantQueue || 0}`],
+        [open.length ? `${open.length} down` : "all answering", "outside services", open.length ? open.slice(0, 3).map((h) => h.host).join(", ") + (open.length > 3 ? ` +${open.length - 3} more` : "") : `${hosts.length} asked since start`, open.length ? "bad" : null],
+      ].map(tile).join("");
+      const checks = (m.checks && m.checks.checks) || [];
+      const lv = (l) => (l === "critical" ? "bad" : l === "warn" ? "warn" : l === "ok" ? "live" : "");
+      $("#mx-checks").innerHTML = checks.map((c) => `<div style="font-size:0.86rem;overflow-wrap:anywhere"><span class="pill ${lv(c.level)}">${esc(c.level)}</span> ${esc(c.text)}${(c.problems || []).length ? `<div class="muted" style="font-size:0.8rem;margin:2px 0 0 8px">${c.problems.map((p) => esc(p.message)).join("<br>")}</div>` : ""}</div>`).join("");
+      $("#mx-up-empty").classList.toggle("hidden", hosts.length > 0);
+      const state = (h) => h.breaker === "closed" ? `<span class="pill live">answering</span>` : h.breaker === "open" ? `<span class="pill bad">down — not asked for ${Math.ceil((h.reopensInMs || 0) / 1000)} s</span>` : `<span class="pill warn">trying again</span>`;
+      $("#mx-up").innerHTML = hosts.slice(0, 6).map((h) => `<tr><td class="wide">${esc(h.host)}</td><td>${state(h)}</td><td>${h.calls}</td><td>${h.failed}${h.timeouts ? ` (${h.timeouts} timed out)` : ""}${h.refusedOpen ? ` · ${h.refusedOpen} not asked` : ""}</td><td>${fmtMs(h.p50Ms)}</td><td>${h.cacheFresh + h.cacheStale + h.cacheNegative + h.staleOnError}${h.lateFills ? ` · ${h.lateFills} late` : ""}</td><td class="wide">${h.lastError ? `${esc(h.lastError)} · ${esc(fmtMs(h.lastErrorAgoMs))} ago` : "–"}</td></tr>`).join("");
+      const routes = (m.requests || []).filter((r) => r.n >= 3 && r.group !== "static").sort((a, b) => (b.p95Ms || 0) - (a.p95Ms || 0)).slice(0, 5);
+      $("#mx-slow-empty").classList.toggle("hidden", routes.length > 0);
+      $("#mx-slow").innerHTML = routes.map((r) => `<tr><td class="wide">${esc(r.group)}</td><td>${r.n}</td><td>${fmtMs(r.p50Ms)}</td><td>${fmtMs(r.p95Ms)}</td><td>${fmtMs(r.maxMs)}</td><td>${r.slow}</td><td>${r.s5 ? `<span class="pill bad">${r.s5}</span>` : 0}${r.aborted ? ` · ${r.aborted} left early` : ""}</td></tr>`).join("");
+      const rl = m.rateLimits || { groups: [] };
+      const over = rl.groups.filter((g) => g.refused || g.wouldRefuse);
+      const ws = m.ws || {};
+      const wsBits = [`${ws.open || 0} live sockets`];
+      if (ws.deadPeers) wsBits.push(`${ws.deadPeers} dead peers ended`);
+      if (ws.skippedSends) wsBits.push(`${ws.skippedSends} messages skipped for slow readers`);
+      if (ws.closedSlow || ws.closedChatty || ws.oversize) wsBits.push(`${(ws.closedSlow || 0) + (ws.closedChatty || 0) + (ws.oversize || 0)} closed for misbehaving`);
+      if (ws.overAddressLimit) wsBits.push(`${ws.overAddressLimit} over the per-address limit`);
+      $("#mx-limits").innerHTML =
+        `<div><b>Rate limits</b> — ${rl.mode === "enforce" ? "enforced (only the endpoints that ask an outside provider or burn CPU, set far above heavy normal use)" : rl.mode === "off" ? "off" : "log only (nothing is refused; this counts what would be)"}: ` +
+        (over.length ? over.map((g) => `${esc(g.label)} ${g.mode === "enforce" ? `${g.refused} refused` : `${g.wouldRefuse} would be refused`} (${g.clientsOver} client${g.clientsOver === 1 ? "" : "s"})`).join(" · ") : "nobody has been refused") + `</div>` +
+        `<div style="margin-top:4px"><b>Live sockets</b> — ${esc(wsBits.join(" · "))}</div>` +
+        `<div style="margin-top:4px" class="muted">Up ${esc(fmtUptime(m.uptimeSec))} · ${esc(m.node)} · the raw numbers: /api/admin/metrics (?fmt=prom for Prometheus)</div>`;
+    }
+
     // ---------- health (watchdog) ----------
     async function loadHealth() {
       let h;
@@ -4127,7 +4188,7 @@
       telemetry: () => loadTelemetry(),
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
       profiles: () => loadPeople(),
-      server: () => { loadServer(); loadHealth(); loadEncoding(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
+      server: () => { loadServer(); loadMetrics(); loadHealth(); loadEncoding(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
       downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadCopies(); loadLimits(); loadMyList(); },
       moderation: () => { loadReports(); loadRequests(); loadIntros(); },
       logs: () => loadLogs(),
@@ -4298,7 +4359,7 @@
       if (!ADMIN_PW || document.hidden) return;
       loadBadges(); // pending-work counts stay honest on every tab
       if (activeTab === "overview") { loadOverview(); loadTimeseries(); }
-      if (activeTab === "server") { loadServer(); loadTimeseries(); }
+      if (activeTab === "server") { loadServer(); loadMetrics(); loadTimeseries(); }
       if (activeTab === "history") loadLog();
     }, 30000);
     setInterval(() => {

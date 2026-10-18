@@ -37,11 +37,13 @@ const send = (title, message, opts = {}) => {
   const n = config.NOTIFICATIONS || {};
   // Keep HTTP headers ASCII-safe (titles can be Hebrew) — details go in the body.
   if (n.ntfy && n.ntfy.topic) {
-    fetch(`https://ntfy.sh/${encodeURIComponent(n.ntfy.topic)}`, {
+    // (lib/upstream.js: timeout and a fair share; never refused by a breaker)
+    require("./upstream").fetch(`https://ntfy.sh/${encodeURIComponent(n.ntfy.topic)}`, {
       method: "POST",
       headers: { Title: title, Tags: opts.tags || "clapper", ...(opts.priority ? { Priority: opts.priority } : {}) },
       body: message,
-      signal: AbortSignal.timeout(10000),
+      timeoutMs: 10000,
+      breaker: false,
     })
       .then((r) => {
         // ntfy answers 4xx/5xx without throwing (a topic that is reserved, a rate limit)
@@ -51,11 +53,12 @@ const send = (title, message, opts = {}) => {
       .catch((e) => { noteOutcome("ntfy", false, e && e.message); console.warn("[notify] ntfy failed:", e && e.message); });
   }
   if (n.telegram && n.telegram.botToken && n.telegram.chatId) {
-    fetch(`https://api.telegram.org/bot${n.telegram.botToken}/sendMessage`, {
+    require("./upstream").fetch(`https://api.telegram.org/bot${n.telegram.botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: n.telegram.chatId, text: `${title}\n${message}` }),
-      signal: AbortSignal.timeout(10000),
+      timeoutMs: 10000,
+      breaker: false,
     })
       .then(async (r) => {
         if (!r.ok) {

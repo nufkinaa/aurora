@@ -52,23 +52,14 @@ const config = require("../config");
 const taxonomy = require("./recs/taxonomy");
 
 const TMDB = "https://api.themoviedb.org/3";
-// One retry on a timeout, a dropped connection, a 429 or a 5xx: a row is
+// One retry on a dropped connection, a 429 or a 5xx (lib/upstream.js does
+// it, after a random wait, and not while TMDB's breaker is open): a row is
 // ~45 calls, and one slow answer used to sink the whole thing.
-const tmdb = async (pathname, params = "", attempt = 0) => {
-  let res;
-  try {
-    res = await fetch(`${TMDB}/${pathname}?api_key=${config.TMDB_KEY}${params}`, {
-      signal: AbortSignal.timeout(8000),
-    });
-  } catch (err) {
-    if (attempt < 1) return tmdb(pathname, params, attempt + 1);
-    throw err;
-  }
-  try { require("../lib/signals").provider(TMDB, res.status); } catch {}
-  if ((res.status === 429 || res.status >= 500) && attempt < 1) {
-    await new Promise((r) => setTimeout(r, 400));
-    return tmdb(pathname, params, attempt + 1);
-  }
+const tmdb = async (pathname, params = "") => {
+  const res = await require("../lib/upstream").fetch(`${TMDB}/${pathname}?api_key=${config.TMDB_KEY}${params}`, {
+    timeoutMs: 8000,
+    retries: 1,
+  });
   if (!res.ok) throw new Error(`tmdb ${res.status}`);
   return res.json();
 };

@@ -184,13 +184,16 @@ test("signals: bounded, windowed, and a URL is filed under its provider's name",
 
 test("the places that count are wired: providers, refused sign-ins, connections, encoders, push", () => {
   const wired = [
-    ["src/media/online.js", 'signals").provider(url, res.status)'],
-    ["src/media/discover.js", 'signals").provider(url, res.status)'],
-    ["src/media/websubs.js", 'signals").provider(url, res.status)'],
-    ["src/media/torrent.js", 'signals").provider(url, res.status)'],
-    ["src/media/vibe.js", 'signals").provider(TMDB, res.status)'],
-    ["src/media/similar.js", 'signals").provider(TMDB, res.status)'],
-    ["src/media/ai.js", 'signals").provider(ENDPOINT, res.status)'],
+    // every provider answer is counted in ONE place: lib/upstream.js, which
+    // every outside call goes through
+    ["src/lib/upstream.js", "signalsLib.provider(url, status)"],
+    ["src/media/online.js", 'lib/upstream")'],
+    ["src/media/discover.js", 'lib/upstream")'],
+    ["src/media/websubs.js", 'lib/upstream")'],
+    ["src/media/torrent.js", 'lib/upstream")'],
+    ["src/media/vibe.js", 'lib/upstream")'],
+    ["src/media/similar.js", 'lib/upstream")'],
+    ["src/media/ai.js", 'lib/upstream")'],
     ["src/routes/auth.js", 'signals").hit("auth-fail"'],
     ["src/routes/admin.js", 'signals").hit("auth-fail"'],
     ["src/realtime.js", 'signals").hit("ws", ip)'],
