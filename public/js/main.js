@@ -792,7 +792,9 @@ const boot = async () => {
     let saved = [];
     try { saved = await (await import("./offline.js")).listSaved(); } catch {}
     state.noServer = true;
-    location.hash = "#/saved";
+    // (replaceState: no hashchange — setting location.hash here fired one
+    // AFTER startRouter's own first render, and the screen was built twice)
+    try { history.replaceState(history.state, "", "#/saved"); } catch { location.hash = "#/saved"; }
     startRouter(document.getElementById("app"));
     toast(saved.length ? "No server in reach — here is what's saved on this device" : "No server in reach — you can still play a file from this device", "📱");
     return;

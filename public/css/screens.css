@@ -4689,57 +4689,209 @@ html[data-look="glass"] .kids-field { background: rgba(255, 255, 255, 0.05); bor
 .kids-pin-input + .kids-pin-input { margin-top: 8px; }
 .pref-profile-sub .kids-badge { margin-right: 4px; }
 
-/* ---------- Play a file from this device (js/localplay.js) ---------- */
-.local-play {
-  position: relative;
-  margin: 4px 0 22px;
-  padding: 18px 20px;
-  border-radius: var(--radius-l, 18px);
-  background: var(--surface);
-  border: 1px dashed rgba(255, 255, 255, 0.22);
-  transition: border-color var(--t-fast, 160ms), background var(--t-fast, 160ms);
+/* ---------- On this device: Your files (js/localview.js) ---------- */
+.saved-top .count { color: var(--text-faint); font-weight: 600; font-size: 0.95rem; }
+.lf { position: relative; margin-top: 10px; }
+.lf-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px; margin: 8px 0 14px; }
+.lf-head .row-title { display: flex; align-items: center; gap: 10px; padding: 0; margin: 0; }
+.lf-head .row-title .lf-count:empty { display: none; }
+.lf-head .row-title .count, .saved-section .row-title .count {
+  display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 7px;
+  border-radius: 999px; font-size: 0.74rem; font-weight: 800; color: var(--text-dim); background: rgba(255, 255, 255, 0.1);
 }
-.local-play.drag {
-  border-color: var(--accent);
-  background: rgba(var(--accent-rgb, 139, 123, 255), 0.14);
-}
-.local-play-head { display: flex; gap: 14px; align-items: flex-start; }
-.local-play-glyph { font-size: 1.9rem; line-height: 1; margin-top: 2px; }
-.local-play h2 { margin: 0 0 4px; font-size: 1.12rem; font-weight: 800; }
-.local-play-text { margin: 0; color: var(--text-dim); font-size: var(--fs-small, 0.85rem); line-height: 1.45; max-width: 60ch; }
-.local-play-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
-.local-play-actions .hidden { display: none; }
-.local-play-chosen { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.local-play-chosen.hidden { display: none; }
-.local-chip {
-  display: inline-flex;
+.saved-section .row-title .count:empty { display: none; }
+.saved-section .saved-head { flex-wrap: wrap; row-gap: 2px; }
+@media (max-width: 600px) { .saved-section .saved-total { flex-basis: 100%; } }
+.lf-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lf-tools .btn svg { width: 18px; height: 18px; }
+.lf-busy { color: var(--text-dim); font-size: 0.85rem; font-weight: 600; }
+.lf .hidden, .lf-loose.hidden { display: none; }
+
+/* the drop zone: a big inviting one while the list is empty, a slim "add more" strip after */
+.lf-drop {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  max-width: 100%;
-  padding: 5px 6px 5px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--line);
-  font-size: 0.85rem;
+  gap: 6px 18px;
+  padding: 14px 20px;
+  text-align: start;
+  color: var(--text);
+  background: var(--surface);
+  border: 1.5px dashed rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-l);
+  cursor: pointer;
+  transition: border-color var(--t-fast), background var(--t-fast), box-shadow var(--t-fast);
 }
-.local-chip.video { background: rgba(var(--accent-rgb, 139, 123, 255), 0.18); }
-.local-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 46ch; }
-.local-chip-sub { color: var(--text-dim); font-size: 0.78rem; white-space: nowrap; }
-.local-chip-x {
-  width: 24px; height: 24px; flex: none;
-  border: 0; border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1); color: var(--text);
-  font-size: 1rem; line-height: 1; cursor: pointer;
+.lf-drop:hover { border-color: rgba(255, 255, 255, 0.38); background: var(--surface-hover); }
+.lf-drop:focus { box-shadow: var(--focus-ring); border-color: transparent; }
+.lf.dragging .lf-drop { border-color: var(--accent); background: rgba(var(--accent-rgb), 0.14); }
+.lf.adding .lf-drop { cursor: progress; }
+.lf-drop-icon {
+  display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
+  color: var(--accent); background: rgba(var(--accent-rgb), 0.14);
 }
-.local-chip-x:hover { background: rgba(255, 255, 255, 0.2); }
-.local-play-drop { margin: 12px 0 0; color: var(--text-faint); font-size: 0.8rem; }
-/* no dragging on a touch screen: no line about it */
-@media (hover: none) { .local-play-drop { display: none; } }
+.lf-drop-icon svg { width: 24px; height: 24px; }
+.lf-drop-words { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lf-drop-title { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.01em; }
+.lf-drop-text { color: var(--text-dim); font-size: 0.92rem; line-height: 1.45; }
+.lf-drop-more { font-weight: 700; font-size: 0.95rem; }
+.lf-drop-safe { grid-column: 2 / -1; color: var(--text-faint); font-size: 0.8rem; }
+.lf-drop-btn { pointer-events: none; }
+.lf:not(.lf-empty) .lf-drop-title, .lf:not(.lf-empty) .lf-drop-text, .lf:not(.lf-empty) .lf-drop-btn { display: none; }
+.lf.lf-empty .lf-drop-more { display: none; }
+.lf.lf-empty .lf-drop {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  text-align: center;
+  gap: 14px;
+  min-height: 300px;
+  padding: 44px 24px 36px;
+  border-width: 2px;
+}
+.lf.lf-empty .lf-drop-words { align-items: center; max-width: 52ch; }
+.lf.lf-empty .lf-drop-icon { width: 84px; height: 84px; }
+.lf.lf-empty .lf-drop-icon svg { width: 42px; height: 42px; }
+.lf.lf-empty .lf-drop-safe { grid-column: auto; }
+.lf-on-touch { display: none; }
+@media (hover: none), (pointer: coarse) {
+  .lf-on-pointer { display: none; }
+  .lf-on-touch { display: inline; }
+}
+
+/* with titles saved for offline below, the empty drop zone is a strip that leaves them in view */
+.saved-screen.has-saved .lf.lf-empty .lf-drop {
+  min-height: 0; grid-template-columns: auto minmax(0, 1fr) auto; justify-items: stretch; text-align: start;
+  gap: 6px 18px; padding: 18px 22px; border-width: 1.5px;
+}
+.saved-screen.has-saved .lf.lf-empty .lf-drop-words { align-items: flex-start; max-width: none; }
+.saved-screen.has-saved .lf.lf-empty .lf-drop-icon { width: 52px; height: 52px; }
+.saved-screen.has-saved .lf.lf-empty .lf-drop-icon svg { width: 26px; height: 26px; }
+.saved-screen.has-saved .lf.lf-empty .lf-drop-title { font-size: 1.1rem; }
+.saved-screen.has-saved .lf.lf-empty .lf-drop-safe { grid-column: 2 / -1; }
+@media (max-width: 600px) { .saved-screen.has-saved .lf.lf-empty .lf-drop-btn { display: none; } }
+
+/* one grid per film list / show season, the same as Movies and Shows */
+.lf-group-title { display: flex; align-items: baseline; gap: 10px; margin: 18px 0 0; font-size: 1.05rem; font-weight: 800; }
+.lf-group-sub { color: var(--text-faint); font-size: 0.82rem; font-weight: 600; }
+.lf .grid.lf-grid { padding-top: 14px; padding-bottom: 20px; content-visibility: visible; }
+.lf-card { position: relative; min-width: 0; }
+.lf-card .card.poster { display: block; width: 100%; }
+.lf-card .lf-img { position: absolute; inset: 0; }
+.lf-ph { flex-direction: column; color: rgba(255, 255, 255, 0.28); background: linear-gradient(160deg, #1d2036, #0f1120); padding-bottom: 30%; }
+.lf-ph-title { display: none; }
+.lf-card .card-label { inset-inline: 12px; text-align: start; }
+.lf-name { display: block; overflow: hidden; text-overflow: ellipsis; unicode-bidi: plaintext; text-align: start; }
+.lf-card .card-sub { overflow: hidden; text-overflow: ellipsis; unicode-bidi: plaintext; }
+.lf-playglyph {
+  position: absolute; left: 50%; top: 40%;
+  display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92); color: #0b0c14; box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45);
+  opacity: 0; transform: translate(-50%, -50%) scale(0.86);
+  transition: opacity var(--t-fast), transform var(--t-fast) var(--ease);
+  pointer-events: none;
+}
+.lf-playglyph svg { width: 22px; height: 22px; margin-left: 3px; }
+.lf-play:hover .lf-playglyph, .lf-play:focus .lf-playglyph { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.lf-card:not([data-state="ok"]):not([data-state="new"]):not([data-state="noaudio"]) .lf-playglyph { display: none; }
+.lf-tag { left: 10px; display: inline-flex; align-items: center; gap: 6px; }
+.lf-tag .mini-spinner { width: 10px; height: 10px; border-width: 1.5px; }
+.lf-tag.bad, .lf-tag.warn { color: #fcd34d; border-color: rgba(252, 211, 77, 0.42); }
+.lf-tag.wait { color: #e2e6f3; border-color: rgba(255, 255, 255, 0.3); }
+.lf-card[data-state="missing"] .card-poster, .lf-card[data-state="locked"] .card-poster { filter: grayscale(0.7) brightness(0.5); }
+.lf-card.tone-bad .card-poster { filter: saturate(0.45) brightness(0.6); }
+.lf-more {
+  position: absolute; top: 7px; right: 7px; z-index: 6;
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  color: #fff; background: rgba(6, 8, 16, 0.74); border: 1px solid rgba(255, 255, 255, 0.14);
+  opacity: 0; transition: opacity var(--t-fast), background var(--t-fast);
+}
+.lf-card:hover .lf-more, .lf-card:focus-within .lf-more, .lf-more[aria-expanded="true"] { opacity: 1; }
+.lf-more:hover { background: rgba(28, 30, 44, 0.95); }
+.lf-more:focus { opacity: 1; box-shadow: var(--focus-ring); }
+@media (hover: none), (pointer: coarse) { .lf-more { opacity: 1; width: 30px; height: 30px; top: 5px; right: 5px; } }
+.lf-info { padding: 9px 2px 0; height: 46px; }
+.lf-meta { font-size: 0.8rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.lf-subs { display: flex; gap: 5px; height: 20px; margin-top: 5px; overflow: hidden; }
+.lf-lang {
+  flex: none; padding: 0 7px; border-radius: 6px; line-height: 20px; white-space: nowrap;
+  font-size: 0.66rem; font-weight: 800; letter-spacing: 0.06em;
+  color: #ddd8ff; background: rgba(var(--accent-rgb), 0.2);
+}
+.lf-lang.flag, .lf-lang.more { color: var(--text-dim); background: rgba(255, 255, 255, 0.09); }
+.lf-nosubs { font-size: 0.75rem; line-height: 20px; color: var(--text-faint); }
+
+/* the subtitles no video claimed */
+.lf-loose { margin: 4px 0 10px; }
+.lf-loose .lf-group-title { margin-top: 8px; }
+.lf-note { margin: 4px 0 12px; color: var(--text-faint); font-size: 0.85rem; }
+.lf-loose-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lf-loose-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px 12px;
+  padding: 10px 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line);
+}
+.lf-loose-name { display: flex; flex-direction: column; min-width: 0; }
+.lf-loose-name bdi { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: 0.9rem; }
+.lf-loose-name small { color: var(--text-faint); font-size: 0.75rem; }
+.lf-attach {
+  -webkit-appearance: none; appearance: none; max-width: 40vw;
+  padding: 8px 34px 8px 14px; border-radius: 999px; border: 1px solid var(--line);
+  font: inherit; font-size: 0.85rem; font-weight: 700; color: var(--text); cursor: pointer;
+  background: var(--surface-hover) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%23c9cede'%3E%3Cpath d='M7 9l5 6 5-6z'/%3E%3C/svg%3E") no-repeat right 12px center;
+}
+.lf-attach:focus { outline: none; box-shadow: var(--focus-ring); }
+.lf-attach:disabled { opacity: 0.55; cursor: default; }
+.lf-attach option { color: var(--text); background: #151726; }
+.lf-x { width: 30px; height: 30px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); color: var(--text); font-size: 1rem; line-height: 1; }
+.lf-x:hover { background: rgba(255, 255, 255, 0.18); }
+.lf-x:focus { box-shadow: var(--focus-ring); }
+
+/* the card's ⋯ menu */
+.lf-menu { z-index: 500; min-width: 220px; max-width: min(340px, calc(100vw - 16px)); }
+.lf-menu .menu-item { white-space: normal; line-height: 1.3; }
+.lf-menu-head { margin: 0 0 4px; padding: 8px 12px 9px; border-bottom: 1px solid var(--line); color: var(--text-faint); font-size: 0.78rem; line-height: 1.4; overflow-wrap: anywhere; }
+.lf-menu .lf-danger { color: #fca5a5; }
+
+/* a drag of files anywhere on the page */
+.lf-veil { position: fixed; inset: 0; z-index: 450; display: none; place-items: center; padding: 24px; background: rgba(6, 7, 14, 0.86); pointer-events: none; }
+.lf.dragging .lf-veil { display: grid; }
+.lf-veil-box {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 460px; padding: 40px 48px;
+  border: 2px dashed var(--accent); border-radius: 28px; background: rgba(24, 22, 48, 0.96); box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5); text-align: center;
+}
+.lf-veil-box > span:first-child { color: var(--accent); }
+.lf-veil-box b { font-size: 1.3rem; }
+.lf-veil-box b + span { color: var(--text-dim); font-size: 0.9rem; }
+
 @media (max-width: 600px) {
-  .local-play { padding: 16px; }
-  .local-play-actions .btn { flex: 1 1 auto; justify-content: center; }
-  .local-chip-name { max-width: 24ch; }
+  .lf-head { margin-bottom: 10px; }
+  .lf-tools .lf-add-folder { display: none; }
+  .lf-drop { padding: 12px 14px; gap: 4px 12px; }
+  .lf.lf-empty .lf-drop { min-height: 260px; padding: 34px 18px 28px; }
+  .lf-drop-title { font-size: 1.15rem; }
+  .lf-info { height: 42px; padding-top: 7px; }
+  .lf-meta { font-size: 0.72rem; }
+  .lf-lang { padding: 0 5px; font-size: 0.6rem; letter-spacing: 0.03em; }
+  .lf-card .card-label { inset-inline: 8px; bottom: 8px; font-size: 0.78rem; }
+  .lf-card .card-progress ~ .card-label { bottom: 18px; }
+  .lf-card .card-sub { font-size: 0.66rem; }
+  .lf-playglyph { width: 40px; height: 40px; }
+  .lf-loose-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .lf-attach { grid-column: 1 / -1; grid-row: 2; max-width: none; width: 100%; }
+  .lf-x { grid-column: 3; grid-row: 1; }
 }
+
+/* the glass look: the same material as every other raised surface */
+html[data-look="glass"] .lf-drop { background: var(--g-fill); box-shadow: var(--g-edge); border-color: rgba(255, 255, 255, 0.26); border-radius: var(--g-radius); }
+html[data-look="glass"] .lf.lf-empty .lf-drop { border-radius: var(--g-radius-l); }
+html[data-look="glass"] .lf-drop:focus { box-shadow: var(--g-edge), var(--focus-ring); }
+html[data-look="glass"] .lf.dragging .lf-drop { background: rgba(var(--accent-rgb), 0.16); border-color: var(--accent); }
+html[data-look="glass"] .lf-loose-row { background: var(--g-fill); box-shadow: var(--g-edge); border: 0; border-radius: var(--g-radius); }
+html[data-look="glass"] .lf-lang { border-radius: 999px; }
+html[data-look="glass"] .lf-group-title { font-size: 1.1rem; }
+html[data-look="glass"] .lf-veil-box { backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+html[data-look="glass"] .saved-section .dl-row { border-radius: var(--g-radius); }
+
 .local-noserver {
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
   margin-bottom: 14px; padding: 10px 14px;
@@ -4749,7 +4901,8 @@ html[data-look="glass"] .kids-field { background: rgba(255, 255, 255, 0.05); bor
   color: var(--text-dim); font-size: 0.9rem;
 }
 .local-play-link { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 28px 0 8px; color: var(--text-faint); font-size: 0.8rem; }
-.torrent-badge.local-badge { color: #4ade80; background: rgba(74, 222, 128, 0.12); border-color: rgba(74, 222, 128, 0.3); }/* "On this device": the saved titles' heading, the saves under way */
+.torrent-badge.local-badge { color: #4ade80; background: rgba(74, 222, 128, 0.12); border-color: rgba(74, 222, 128, 0.3); }
+/* "On this device": the saved titles' heading, the saves under way */
 .saved-head { display: flex; align-items: center; gap: 10px; padding: 0; margin: 4px 0 12px; }
 .saved-head .count, .device-jobs .row-title .count {
   display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 7px;

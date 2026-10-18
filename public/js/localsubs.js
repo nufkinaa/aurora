@@ -24,6 +24,7 @@ export const decodeSubtitle = (buf, name = "") => {
     return strip(new TextDecoder("utf-8", { fatal: true }).decode(b));
   } catch {}
   const hint = nameLang(name);
+  if (hint === "ar") return new TextDecoder("windows-1256").decode(b);
   const heb = new TextDecoder("windows-1255").decode(b);
   if (hint === "he") return heb;
   const rus = new TextDecoder("windows-1251").decode(b);
@@ -35,24 +36,55 @@ export const decodeSubtitle = (buf, name = "") => {
 };
 
 // ---------- the language of a subtitle file ----------
-const CODES = { he: "he", heb: "he", iw: "he", hebrew: "he", en: "en", eng: "en", english: "en", ru: "ru", rus: "ru", russian: "ru" };
-export const LANG_NAME = { he: "Hebrew", en: "English", ru: "Russian" };
+const CODES = { he: "he", heb: "he", iw: "he", hebrew: "he", en: "en", eng: "en", english: "en", ru: "ru", rus: "ru", russian: "ru", ar: "ar", ara: "ar", arabic: "ar" };
+export const LANG_NAME = { he: "Hebrew", en: "English", ru: "Russian", ar: "Arabic" };
 // "Film.2020.heb.srt", "film_Hebrew.srt", "film.en.forced.srt" → "he" / "en"
 export const nameLang = (name) => {
   const words = String(name || "").replace(/\.[^.]+$/, "").toLowerCase().split(/[^a-zא-ת]+/).filter(Boolean);
   for (let i = words.length - 1; i >= 0; i--) if (CODES[words[i]]) return CODES[words[i]];
   return /עברית/.test(String(name || "")) ? "he" : null;
 };
-// From the words themselves when the name does not say: mostly Hebrew
-// letters → he, mostly Cyrillic → ru, mostly Latin → en.
+// From the words themselves when the name does not say: the script first
+// (Hebrew, Arabic, Cyrillic, Greek, Thai, Japanese kana, Korean, Chinese),
+// and for Latin letters the little words every sentence is made of ("the",
+// "and" / "le", "et" / "der", "und"…). Cheap: a count of characters and a
+// few dozen words. null when it is not clear.
+const SCRIPTS = [
+  ["he", HEB],
+  ["ar", /[؀-ۿ]/g],
+  ["ru", CYR],
+  ["el", /[Ͱ-Ͽ]/g],
+  ["th", /[฀-๿]/g],
+  ["ja", /[぀-ヿ]/g],
+  ["ko", /[가-힯]/g],
+  ["zh", /[一-鿿]/g],
+];
+const STOP = {
+  en: "the you and is it to of that what how this are we was i'm don't not have with",
+  fr: "le la les et est vous je pas une des que qui c'est mais pour avec",
+  es: "el los las que es y no una por qué está pero como para con",
+  de: "der die das und ist ich nicht sie du ein eine mit was auf",
+  it: "il che non è di un per sono questo come ma mi ti",
+  pt: "não que o é você um uma eu está com para isso",
+  nl: "het een en is niet ik je dat wat met zijn",
+};
+const STOP_SETS = Object.entries(STOP).map(([code, words]) => [code, new Set(words.split(" "))]);
 export const textLang = (text) => {
   const s = String(text || "").replace(/<[^>]*>|\{[^}]*\}|-->|\d/g, "");
-  const h = (s.match(HEB) || []).length;
-  const r = (s.match(CYR) || []).length;
-  const l = (s.match(/[A-Za-z]/g) || []).length;
-  const top = Math.max(h, r, l);
-  if (top < 10) return null;
-  return top === h ? "he" : top === r ? "ru" : "en";
+  const l = (s.match(/[A-Za-zÀ-ÿ]/g) || []).length;
+  let best = null;
+  let top = 0;
+  for (const [code, re] of SCRIPTS) {
+    const n = (s.match(re) || []).length;
+    // kana with the Chinese characters is Japanese
+    if (n > top) { top = n; best = code; }
+  }
+  if (best === "zh" && (s.match(SCRIPTS[5][1]) || []).length > 5) best = "ja";
+  if (Math.max(top, l) < 10) return null;
+  if (top >= l) return best;
+  const words = s.toLowerCase().split(/[^a-zà-ÿ']+/).filter(Boolean).slice(0, 4000);
+  const score = STOP_SETS.map(([code, set]) => [code, words.reduce((n, w) => n + (set.has(w) ? 1 : 0), 0)]).sort((a, b) => b[1] - a[1]);
+  return score[0][1] >= 2 && score[0][1] > score[1][1] ? score[0][0] : null;
 };
 
 // ---------- SRT → WebVTT ----------

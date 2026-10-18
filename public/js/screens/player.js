@@ -9,7 +9,7 @@ import { reportActivity, onMessage } from "../ws.js";
 import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem } from "../party.js";
 import { showReportSheet, setPlayingContext } from "../report.js";
 import * as offline from "../offline.js";
-import { localItem, localPosition, saveLocalPosition, sniffLocal } from "../localplay.js";
+import { localItem, localNext, localPosition, saveLocalPosition, sniffLocal } from "../localplay.js";
 import { failureSentence } from "../localsubs.js";
 import { track } from "../usage.js";
 import { uiHit, reportError, playMounted, playFirstFrame, playGone } from "../telemetry.js"; // [analytics]
@@ -587,7 +587,8 @@ export const renderPlayer = async (root, { id }) => {
   // Torrent sources are handed over directly by the Discover page (no server
   // round-trip); fall back to the API for library items or a page refresh.
   if (localMode) {
-    item = localItem(itemId);
+    item = await localItem(itemId);
+    if (location.hash !== entryHash) return;
     if (!item) {
       toast("That file is no longer open here — pick it again", "📂");
       return navigate("#/saved");
@@ -743,10 +744,16 @@ export const renderPlayer = async (root, { id }) => {
   }
 
   const isEpisode = !!item.showId;
-  const title = isEpisode ? item.showTitle : item.title;
+  // an episode among the files from this device (js/localplay.js): no show
+  // on the server, but a show, a season and an episode all the same — its
+  // title, Up next and the Next episode button go to the next file of it
+  const localEpisode = !!item._localEpisode;
+  const title = isEpisode || localEpisode ? item.showTitle : item.title;
   const subtitleText = isEpisode
     ? `S${item.season} E${item.episode} · ${item.title}`
-    : item.year || "";
+    : localEpisode
+      ? `${item.epCode} · ${item.title}`
+      : item.year || "";
 
   // Client-side forensics: path switches and far-seek outcomes land in the
   // same per-torrent perf record as the server's marks (routes/torrent.js
@@ -4781,6 +4788,8 @@ export const renderPlayer = async (root, { id }) => {
   const isStreamEpisode = !!(isTorrent && item.imdbId && item.season && item.episode);
 
   const findNextEpisode = async () => {
+    // A file from this device: the next file of the same show, open here
+    if (item._local) return localNext(item);
     // A saved copy: the next SAVED episode, played from this device like this
     // one — with or without a server. (None saved: fall through and ask the
     // server, which offers the next library episode when it is in reach.)
@@ -4918,7 +4927,7 @@ export const renderPlayer = async (root, { id }) => {
         "div",
         { class: "upnext still-watching" },
         el("div", { class: "k" }, "Still watching?"),
-        el("div", { class: "t" }, `Up next · S${next.season} E${next.episode} · ${next.title}`),
+        el("div", { class: "t" }, `Up next · ${next.epCode || `S${next.season} E${next.episode}`} · ${next.title}`),
         el(
           "div",
           { class: "upnext-actions" },
@@ -4959,7 +4968,7 @@ export const renderPlayer = async (root, { id }) => {
       el(
         "div",
         { class: "t" },
-        `S${next.season} E${next.episode} · ${next.title}`,
+        `${next.epCode || `S${next.season} E${next.episode}`} · ${next.title}`,
       ),
       el(
         "div",
@@ -5034,18 +5043,18 @@ export const renderPlayer = async (root, { id }) => {
       return;
     }
     if (inParty()) keepParty = false;
-    goPlay(`#/play/${next.id}${next._savedCopy ? "?offline=1" : ""}`);
+    goPlay(`#/play/${next.id}${next._savedCopy ? "?offline=1" : next._localFile ? "?local=1" : ""}`);
   };
 
   // the Next episode button learns what is next once, a moment after start
-  if (isEpisode) {
+  if (isEpisode || localEpisode) {
     setTimeout(async () => {
       if (exited) return;
       try {
         const n = await findNextEpisode();
         if (!n || exited) return;
         nextKnown = n;
-        nextBtn.title = `Next episode — S${n.season} E${n.episode}${n.title ? ` · ${n.title}` : ""}`;
+        nextBtn.title = `Next episode — ${n.epCode || `S${n.season} E${n.episode}`}${n.title ? ` · ${n.title}` : ""}`;
         nextBtn.classList.remove("hidden");
         // the pointer (or the focus) on the button is the hint, as on a title page's Play
         for (const ev of ["pointerenter", "focus", "touchstart"]) nextBtn.addEventListener(ev, () => warmNext(n), { passive: true });
@@ -5249,7 +5258,7 @@ export const renderPlayer = async (root, { id }) => {
   // credits of hour-long episodes and fired mid-scene on very short ones.
   const upNextWindow = (d) => Math.max(30, Math.min(90, d * 0.05));
   const maybeUpNext = () => {
-    if (!isEpisode && !isStreamEpisode) return;
+    if (!isEpisode && !isStreamEpisode && !localEpisode) return;
     const d = totalDuration();
     if (!d) return;
     const t = effTime();
@@ -5542,7 +5551,7 @@ export const renderPlayer = async (root, { id }) => {
       return;
     }
     saveProgress();
-    if (!isEpisode) exit();
+    if (!isEpisode && !localEpisode) exit();
   });
   // ---- the error card (2026-10-07) ----
   // A stream that stopped for good used to leave a toast and a dead picture.
@@ -5892,8 +5901,8 @@ export const renderPlayer = async (root, { id }) => {
     const abs = (u) => { try { return new URL(u, location.origin).href; } catch { return null; } };
     try {
       ms.metadata = new MediaMetadata({
-        title: isEpisode ? `S${item.season} E${item.episode}${item.title && !/^Episode \d+$/.test(item.title) ? ` · ${item.title}` : ""}` : item.title || "Aurora",
-        artist: isEpisode ? item.showTitle || "" : item.year ? String(item.year) : "",
+        title: isEpisode ? `S${item.season} E${item.episode}${item.title && !/^Episode \d+$/.test(item.title) ? ` · ${item.title}` : ""}` : localEpisode ? `${item.epCode} · ${item.title}` : item.title || "Aurora",
+        artist: isEpisode || localEpisode ? item.showTitle || "" : item.year ? String(item.year) : "",
         album: "Aurora",
         artwork: art && abs(art) ? [{ src: abs(art), sizes: "512x512" }] : [],
       });
