@@ -9,8 +9,8 @@
 // WHAT. profiles.json is unchanged: the same file, the same format, every
 // profile's whole state in it — so an older build reads it as it always did.
 // It is just written less: on every change that is not a playback tick
-// (exactly as before), at a CHECKPOINT at most every CHECKPOINT_MS while
-// ticks are waiting, and at a graceful shutdown. A playback tick changes the
+// (exactly as before), at a CHECKPOINT once a row has waited CHECKPOINT_MS
+// (15 min) for it, and at a graceful shutdown. A playback tick changes the
 // profile's rows of three kinds — progress (what was played), titles (the
 // shared history row) and streamItems (a torrent's play-item) — in MEMORY at
 // once (every device reads memory, so nothing anyone sees changes or waits)
@@ -111,6 +111,7 @@ class WatchJournal {
     this.stopping = new Map(); // pid -> until
     this.base = main.loadedMd5 || null;
     this.lastCheckpointAt = now();
+    this.waitingSince = 0; // when the oldest row profiles.json does not have yet was noted (0: none)
     this.disabled = !!main.safeMode;
     this.diskRows = 0;
     this.stats = { notes: 0, urgent: 0, checkpoints: 0, boot: null };
@@ -156,6 +157,7 @@ class WatchJournal {
   }
 
   _mark(pid, kind, key) {
+    if (!this.dirty.size) this.waitingSince = this.now();
     let d = this.dirty.get(pid);
     if (!d) this.dirty.set(pid, (d = { progress: new Map(), titles: new Map(), streamItems: new Map() }));
     d[kind].set(key, ++this.gen);
@@ -175,7 +177,9 @@ class WatchJournal {
     if (urgent) this.stats.urgent++;
     // time for profiles.json to catch up (its afterWrite empties the journal);
     // the journal is written all the same, in case that write cannot be done
-    if (this.now() - this.lastCheckpointAt >= CHECKPOINT_MS) this.main.save();
+    // (counted from the oldest row waiting, not from the last full write: the
+    // first tick after a quiet evening is not a reason to rewrite the file)
+    if (this.waitingSince && this.now() - this.waitingSince >= CHECKPOINT_MS) this.main.save();
     if (urgent) this.store.save();
     else this.store.save({ within: ROUTINE_MS });
   }
@@ -219,6 +223,7 @@ class WatchJournal {
       for (const kind of KINDS) for (const [key, g] of d[kind]) if (g <= limit) d[kind].delete(key);
       if (!d.progress.size && !d.titles.size && !d.streamItems.size) this.dirty.delete(pid);
     }
+    this.waitingSince = this.dirty.size ? this.now() : 0; // (what is left was noted after that text was taken)
     if (this.diskRows > 0) {
       this.store.persist(); // rows on disk that profiles.json now holds: re-based (and emptied) at once
     } else if (!this.dirty.size && this.store.saveTimer) {

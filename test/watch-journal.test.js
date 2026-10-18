@@ -428,3 +428,29 @@ test("ghost states (no profile, no pending request) are moved out of profiles.js
     rm(dir);
   }
 });
+
+test("the checkpoint counts from the oldest row waiting: the first tick after a long quiet is not a full write", async (t) => {
+  const dir = tmp();
+  seed(dir);
+  let clock = 5_000_000;
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const h = open(dir, { now: () => clock });
+  try {
+    const before = fs.readFileSync(pfile(dir), "utf8");
+    clock += 3 * wj.CHECKPOINT_MS; // an evening with nobody watching
+    h.tick("ann", "film", 100);
+    t.mock.timers.tick(I.DEBOUNCE_MS);
+    await settle(h);
+    assert.equal(fs.readFileSync(pfile(dir), "utf8"), before, "no full write for the first tick");
+    assert.equal(h.journal.stats.checkpoints, 0);
+    clock += wj.CHECKPOINT_MS;
+    h.tick("ann", "film", 105);
+    t.mock.timers.tick(I.DEBOUNCE_MS);
+    await settle(h);
+    assert.equal(h.journal.stats.checkpoints, 1, "a row waiting CHECKPOINT_MS is");
+  } finally {
+    t.mock.timers.reset();
+    h.close();
+    rm(dir);
+  }
+});
