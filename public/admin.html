@@ -375,6 +375,8 @@
     .grid-2 > *, .stats > *, .now-grid > *, .kv > * { min-width: 0; }
     .kv { grid-template-columns: auto minmax(0, 1fr); }
     .card, section, .now-card, .stat, td, .meta, .kv dd, .hl-check, .hl-rep, .log-row, .ac-row { overflow-wrap: anywhere; }
+    /* (the Health card's column heads are single words: never split one — "CALL S") */
+    #mx-card th { overflow-wrap: normal; white-space: nowrap; }
     .table-scroll { max-width: 100%; }
     #hl-history { overflow: hidden; }
     #hl-history i { min-width: 0 !important; flex: 1 1 0 !important; }
