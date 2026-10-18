@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.8.1 — 2026-10-18
+
+- **Fix (use this instead of 1.8.0):** in 1.8.0, a program other than the server that loaded Aurora's code next to a running server — a test run, a tool — could write its own copy of the profiles over the household's file when it finished. It happened once on the house server tonight and was restored from the automatic last-good copy with nothing lost. Now the running server owns its data folder: no other process writes there while it runs, and loading Aurora's code no longer prepares a write by itself (the one-time tidy-up of leftover profile data is done by the server at start-up).
+
 ## 1.8.0 — 2026-10-18
 
 **A faster, steadier server on the same hardware.** Measured with simulated households browsing and watching on the real library, against 1.7.2: the server no longer freezes while it saves (time spent frozen went from about 0.4 s a minute to none), writes about 500 times less to its data folder (6.3 MB a minute → 12 KB), uses less than a quarter of the processor for conversions and 40 % less overall, answers its slowest page requests about a third faster and its health checks three times faster — and no request from normal use was refused.
