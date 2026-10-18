@@ -58,7 +58,9 @@ const ENC_OVERHEAD = 1.16;
 
 // libx264 threads for a ladder encode: half the machine. Two may run at once
 // (jit's cap), and the server still has to serve everyone else.
-const ENC_THREADS = Math.max(2, Math.floor(os.cpus().length / 2));
+// (the CPUs this process may use — os.availableParallelism honours an
+// affinity mask or a container's cpuset; os.cpus() lists the whole machine)
+const ENC_THREADS = Math.max(2, Math.floor((typeof os.availableParallelism === "function" ? os.availableParallelism() : os.cpus().length) / 2));
 
 const even = (n) => Math.max(2, Math.round(n / 2) * 2);
 

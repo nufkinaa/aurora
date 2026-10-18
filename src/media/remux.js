@@ -29,7 +29,7 @@ const IDLE_MS = 150000; // kill a remux whose player stopped requesting (>2.5 mi
 // torrent transcodes. Copy jobs are cheap and are not counted.
 const budget = require("./encbudget");
 const goodbye = require("./goodbye");
-const FFMPEG_THREADS = Math.max(1, os.cpus().length - 2);
+const FFMPEG_THREADS = Math.max(1, (typeof os.availableParallelism === "function" ? os.availableParallelism() : os.cpus().length) - 2); // (the CPUs this process may use)
 // "The server is busy": a refusal the routes answer 503 + Retry-After, the
 // same on every route (the older single-rendition route used to say 500).
 const busyError = (message) => Object.assign(new Error(message), { busy: true, retryAfter: 5 });

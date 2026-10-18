@@ -77,7 +77,7 @@ const deps = {
   setPriority: (pid, prio) => os.setPriority(pid, prio),
   kill: (child, sig) => child.kill(sig),
   platform: process.platform,
-  cpus: () => os.cpus().length,
+  cpus: () => (typeof os.availableParallelism === "function" ? os.availableParallelism() : os.cpus().length), // (the CPUs this process may use)
   now: () => Date.now(),
   setTimeout: (fn, ms) => { const t = setTimeout(fn, ms); t.unref?.(); return t; },
   clearTimeout: (t) => clearTimeout(t),

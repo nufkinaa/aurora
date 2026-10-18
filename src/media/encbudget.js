@@ -139,9 +139,22 @@ const memOf = (j = {}) => {
 
 // ------------------------------------------------------------- the machine
 
+// The CPUs this process may use: all of them, unless it was started with
+// fewer (an affinity mask, `taskset`, `start /affinity`, a container's
+// cpuset) — then those (os.availableParallelism honours the mask on Windows
+// and Linux). A 2-core slice of a 16-thread box is sized as 2 cores.
+const restricted = () => {
+  try {
+    const ap = typeof os.availableParallelism === "function" ? os.availableParallelism() : 0;
+    const all = os.cpus().length;
+    return ap > 0 && ap < all ? ap : 0;
+  } catch { return 0; }
+};
+const logicalCpus = () => restricted() || Math.max(1, deps.cpus().length);
+
 const cpuKey = () => {
   const c = deps.cpus();
-  return { cpu: (c[0] && c[0].model ? c[0].model : "unknown").trim(), logical: c.length };
+  return { cpu: (c[0] && c[0].model ? c[0].model : "unknown").trim(), logical: logicalCpus() };
 };
 
 // "auto" | n (1..MAX_FIXED) — what the admin chose; anything else is auto.
@@ -205,7 +218,7 @@ const sampleOther = (encoding) => {
 const capacity = () => {
   const m = mode();
   if (m.fixed) return m.fixed;
-  return Math.round(deps.cpus().length * (1 - otherShare()) * speed() * HEADROOM * 100) / 100;
+  return Math.round(logicalCpus() * (1 - otherShare()) * speed() * HEADROOM * 100) / 100;
 };
 // What one job counts as. A fixed limit is a plain count: every job is 1.
 const costFor = (spec) => (mode().fixed ? 1 : costOf(spec));
@@ -428,15 +441,14 @@ const ownShare = (now = deps.now()) => {
     const sp = speedOf(p, now);
     threads += (cost * (sp == null ? 1 : Math.max(0, sp))) / Math.max(0.05, speed());
   }
-  const logical = Math.max(1, deps.cpus().length);
-  return Math.min(1, threads / logical);
+  return Math.min(1, threads / logicalCpus());
 };
 
 // ------------------------------------------------------------ for a person
 
 const explain = () => {
   const m = mode();
-  const logical = deps.cpus().length;
+  const logical = logicalCpus();
   const cap = capacity();
   const freeMb = Math.round(deps.freemem() / 1048576);
   const base = {
