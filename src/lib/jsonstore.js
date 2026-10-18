@@ -79,6 +79,15 @@ const SHAPES = {
   },
   "sessions.json": (d) => (isObject(d) ? (Object.values(d).every((r) => isObject(r)) ? null : "a session row is not an object") : "not an object"),
   "settings.json": (d) => (isObject(d) ? null : "not an object"),
+  // lib/watchjournal.js: playback rows between full writes of profiles.json
+  "watch-journal.json": (d) => {
+    if (!isObject(d)) return "not an object";
+    if (d.v !== 1) return "an unknown version";
+    if (!(d.base === null || typeof d.base === "string")) return "no base";
+    if (!isObject(d.rows)) return "no rows";
+    if (!Object.values(d.rows).every((r) => isObject(r))) return "a profile's rows are not an object";
+    return null;
+  },
 };
 
 // The generic check: the same kind of thing as the store's defaults (a list

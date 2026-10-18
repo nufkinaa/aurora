@@ -14,12 +14,16 @@ const identityLib = lazy(require, "./media/identity");
 const imdbLib = lazy(require, "./media/imdb");
 const discoverLib = lazy(require, "./media/discover");
 
+// profiles.json is written whole on every change except a playback tick;
+// ticks go to the watch journal between full writes (lib/watchjournal.js has
+// the whole story, and why).
+let journal = null;
 const store = new JsonStore(path.join(config.DATA_DIR, "profiles.json"), () => ({
   profiles: [
     { id: "default", name: "Watcher", color: "#e05f2c", avatar: "🍿" },
   ],
   state: {},
-}));
+}), { digestOnLoad: true, afterWrite: (text) => { if (journal) journal.mainWritten(text); } });
 
 // Backfill for stores written before profile approval / access logging existed.
 if (!Array.isArray(store.data.pending)) store.data.pending = [];
@@ -37,6 +41,18 @@ const stateFor = (profileId) => {
   if (!s.titles) s.titles = {};            // title key (imdbId[:s:e]) -> shared history row
   return s;
 };
+
+{
+  const { WatchJournal } = require("./lib/watchjournal");
+  journal = new WatchJournal({
+    main: store,
+    dir: config.DATA_DIR,
+    // a profile that is gone (or never was) gets nothing back from the journal
+    stateOf: (pid) => (store.data.profiles.some((p) => p.id === pid) || (store.data.state && Object.prototype.hasOwnProperty.call(store.data.state, pid)) ? stateFor(pid) : null),
+  });
+  journal.boot();
+  require("./lib/jsonstore").beforeFlushAll(() => journal.beforeShutdown());
+}
 
 // A watchlist entry is either a local library id (string) or a stream ref
 // object {stream:true, imdbId, type, title, poster, year}. This key identifies
@@ -999,6 +1015,7 @@ const setProgress = (profileId, itemId, position, duration, meta) => {
     finished,
     updatedAt: Date.now(),
   };
+  const urgent = !isPlaybackTick(state.progress[itemId], row);
   // A rewatch: this title was FINISHED by watching it (not by a mark), at
   // least six hours ago, and is now being played from the first half again.
   // Counted once per return and carried on the row from then on — the
@@ -1010,14 +1027,37 @@ const setProgress = (profileId, itemId, position, duration, meta) => {
   // marked watched by hand without ever playing it here (you saw it elsewhere).
   // Both need their meta kept, because that is what streamEpisodeProgress reads
   // to answer "have I seen this episode?" for a title that isn't in the library.
+  let metaKept = false;
   if (meta && typeof meta === "object" && /^(torrent|stream)\|/.test(itemId)) {
     state.streamItems[itemId] = meta;
+    metaKept = true;
   }
   // The shared history row for the TITLE, whatever was played (see titles).
   const key = titleKeyOf(itemId, state.streamItems[itemId]);
-  if (key) writeTitle(state, key, row, itemId);
-  store.save();
+  const titled = key ? writeTitle(state, key, row, itemId) : false;
+  // Not a rewrite of profiles.json: the journal (lib/watchjournal.js).
+  journal.note(profileId, { progress: [itemId], titles: titled ? [key] : [], streamItems: metaKept ? [itemId] : [] }, { urgent });
 };
+
+// Is this save one more tick of steady playback of the same title? Not when
+// it starts (no row, or the last one is older than a pause), seeks (the
+// position is not where playback would have it), or finishes. Pure.
+const TICK_GAP_MS = 90 * 1000;
+const TICK_SLACK_SEC = 30;
+const isPlaybackTick = (prev, next) => {
+  if (!prev || typeof prev.position !== "number") return false;
+  if (prev.marked) return false;
+  if (!!prev.finished !== !!next.finished) return false;
+  const gapMs = (next.updatedAt || 0) - (prev.updatedAt || 0);
+  if (!(gapMs >= 0 && gapMs <= TICK_GAP_MS)) return false;
+  const moved = next.position - prev.position;
+  return moved >= -5 && moved <= gapMs / 1000 + TICK_SLACK_SEC;
+};
+
+// The player of a device signed in to this profile stopped, or the device
+// went away (realtime.js): the journal is written now, and so is the
+// player's last save if it follows straight on.
+const noteStop = (profileId) => { if (journal) journal.noteStop(profileId); };
 
 // Pure: how many times the title under `prev` has been come back to, once
 // `next` replaces it.
@@ -1665,6 +1705,7 @@ module.exports = {
   signalsStamp,
   remove,
   setProgress,
+  noteStop,
   getProgress,
   stateOf,
   getProgressView,
@@ -1705,5 +1746,5 @@ module.exports = {
   issueToken,
   // Test-only: the pure halves of the watchlist identity work, plus the
   // store handle + norms so auth tests can run on a stubbed store.
-  _internals: { entryKey, sameIdentity, materializeWatchlist, foldTitles, materializeProgress, clearTitle, markTitle, restoreTitle, rewatchCount, noteDismissed, store, normUsername, normEmail, validEmail, hashPassword, verifyHash, noteSearch, dropSearch },
+  _internals: { journal: () => journal, isPlaybackTick, entryKey, sameIdentity, materializeWatchlist, foldTitles, materializeProgress, clearTitle, markTitle, restoreTitle, rewatchCount, noteDismissed, store, normUsername, normEmail, validEmail, hashPassword, verifyHash, noteSearch, dropSearch },
 };

@@ -237,6 +237,14 @@ const clientsOfProfile = (p) => {
   return out;
 };
 
+// A player on this client stopped: the profile's watch journal is written now
+// (lib/watchjournal.js), not at its once-a-minute cadence.
+const stoppedOn = (client) => {
+  const pid = client.profileId || (client.ws && client.ws.profileId) || null;
+  if (!pid) return;
+  try { profilesLib().noteStop(pid); } catch {}
+};
+
 const handleMessage = (client, data, ws) => {
   // A socket of a profile that owes a new password says nothing that counts
   // (presence, activity, watch parties) — in every sign-in mode.
@@ -293,6 +301,7 @@ const handleMessage = (client, data, ws) => {
         if (started) recordWatch(client, client.details);
       } else if (wasWatching) {
         telemetry.onStopWatching(client.id);
+        stoppedOn(client);
       }
       broadcastAdmins({ type: "client_update", client: publicClient(client) });
       break;
@@ -406,6 +415,7 @@ const attach = (server) => {
     });
 
     ws.on("close", () => {
+      if (client.activity === "Watching") stoppedOn(client);
       telemetry.onStopWatching(client.id);
       // a dropped socket leaves its party (the host's drop ends it)
       if (party.leave(client, sendTo)) broadcastAll({ type: "party_list", parties: party.list() });
