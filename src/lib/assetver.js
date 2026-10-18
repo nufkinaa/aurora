@@ -176,14 +176,20 @@ const withModules = (html, publicDir) => {
 // after a release) costs one.
 const SHELL_RECHECK_MS = 2000;
 const finished = new Map(); // abs path -> { at, html }
-const renderShell = (publicDir, name) =>
-  withModules(readShell(path.join(publicDir, name)), publicDir).replace(
-    /href="(\/css\/[^"?]+\.css)"/g,
-    (whole, href) => {
-      const v = versionFor(path.join(publicDir, href.replace(/^\//, "")));
-      return v ? `href="${href}?v=${v}"` : whole;
-    }
-  );
+const renderShell = (publicDir, name) => {
+  const run = () =>
+    withModules(readShell(path.join(publicDir, name)), publicDir).replace(
+      /href="(\/css\/[^"?]+\.css)"/g,
+      (whole, href) => {
+        const v = versionFor(path.join(publicDir, href.replace(/^\//, "")));
+        return v ? `href="${href}?v=${v}"` : whole;
+      }
+    );
+  // (each module looked at once for the whole shell: jsassets.within)
+  let js = null;
+  try { js = require("./jsassets"); } catch {}
+  return js && js.within ? js.within(run) : run();
+};
 const sendShell = (publicDir) => (res, name) => {
   const abs = path.join(publicDir, name);
   const now = Date.now();

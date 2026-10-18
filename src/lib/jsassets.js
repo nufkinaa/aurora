@@ -157,7 +157,27 @@ const importsOf = (source, url) => {
 };
 
 // One module, current: null when there is no such file.
+// within(fn): while fn runs, a module already looked at is answered as it
+// was (one look per module per call — the shell asks about each module once
+// for the import map and again for every preload list it writes: 1.9 s of
+// stats in a loaded three minutes, measured). Outside it, every call looks.
+let scope = null;
+const within = (fn) => {
+  const before = scope;
+  scope = new Map();
+  try { return fn(); } finally { scope = before; }
+};
 const asset = (publicDir, url) => {
+  if (scope) {
+    const k = `${publicDir}|${url}`;
+    if (scope.has(k)) return scope.get(k);
+    const a = assetNow(publicDir, url);
+    scope.set(k, a);
+    return a;
+  }
+  return assetNow(publicDir, url);
+};
+const assetNow = (publicDir, url) => {
   if (!/^\/js\/[A-Za-z0-9._/-]+\.js$/.test(url) || url.includes("..")) return null;
   const abs = path.join(publicDir, url);
   let st;
@@ -310,4 +330,4 @@ const serve = (publicDir) => (req, res, next) => {
   send(req, res, `js:${a.hash}`, a.body);
 };
 
-module.exports = { serve, asset, list, closure, importMap, importsOf, versioned, minify, sourceMap, send, pack, accepts, warm, _minifier: minifier, _internals: { assets } };
+module.exports = { serve, asset, within, list, closure, importMap, importsOf, versioned, minify, sourceMap, send, pack, accepts, warm, _minifier: minifier, _internals: { assets } };

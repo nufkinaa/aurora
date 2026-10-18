@@ -60,3 +60,14 @@ test("the stylesheet bundle: looked at once per window", () => {
   cssbundle._internals.lookAgain();
   assert.ok(countingFs(() => cssbundle.get(dir)) > 0);
 });
+
+test("writing the shell looks at each module once (jsassets.within), not once per list it is on", () => {
+  const jsassets = require("../src/lib/jsassets");
+  assetver._internals.finished.clear();
+  const modules = jsassets.list(PUBLIC).length;
+  const real = fs.statSync;
+  let stats = 0;
+  fs.statSync = function (...a) { stats++; return real.apply(this, a); };
+  try { assetver.sendShell(PUBLIC)(fakeRes(), "index.html"); } finally { fs.statSync = real; }
+  assert.ok(stats <= modules + 12, `${stats} stats for ${modules} modules`);
+});
