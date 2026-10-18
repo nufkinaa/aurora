@@ -357,3 +357,29 @@ test("backups: the journal is read before profiles.json, and its rows count in t
     rm(dir);
   }
 });
+
+test("a backup snapshot of the pair, restored into an empty folder, boots with the journal's rows (the restore drill)", async () => {
+  const backup = require("../src/lib/backup");
+  const dir = tmp();
+  const bdir = tmp();
+  const into = path.join(tmp(), "restored");
+  try {
+    seed(dir);
+    let h = open(dir);
+    h.tick("ann", "film", 4242, { title: "tt1" });
+    await h.journal.store.persist();
+    h.close();
+    const snap = await backup.createSnapshot({ dataDir: dir, backupDir: bdir });
+    assert.deepEqual(snap.warnings, [], snap.warnings.join("; "));
+    assert.ok(snap.manifest.files.some((f) => f.path === `data/${wj.FILE}`), "the journal is in the snapshot");
+    const r = await backup.restore(snap.path, { into });
+    h = open(path.join(r.into, "data"));
+    try {
+      assert.equal(h.boot.mode, "exact", "restored together, the pair matches");
+      assert.equal(h.main.data.state.ann.progress.film.position, 4242);
+      assert.equal(h.main.data.state.ann.titles.tt1.position, 4242);
+    } finally { h.close(); }
+  } finally {
+    rm(dir); rm(bdir); rm(path.dirname(into));
+  }
+});
