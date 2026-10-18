@@ -65,6 +65,10 @@ ui.test("rate limits (enforced by default): a normal visit is never refused, a h
     codes.push(...(await Promise.all([`/api/search?v=2&q=${q}`, `/api/search/suggest?v=2&q=${q}`].map(async (u) => (await fetch(srv.url + u, { headers: h })).status))));
     await new Promise((r) => setTimeout(r, 100));
   }
+  // person sheets, one after another: the old limit (40 a minute per address,
+  // routes/api.js before this round) refused the 41st — and behind the site's
+  // reverse proxy every visitor shared it
+  for (let i = 0; i < 45; i++) codes.push((await fetch(`${srv.url}/api/person/${encodeURIComponent(`Some Person ${i}`)}`, { headers: h })).status);
   assert.ok(!codes.includes(429), `normal use was refused: ${codes}`);
   // a script: 400 X-Ray asks at once from one address (a LAN address: 4 x 60 allowed at once)
   const many = await Promise.all(Array.from({ length: 400 }, (_, i) => fetch(`${srv.url}/api/xray?type=movie&imdbId=bad${i}`)));
