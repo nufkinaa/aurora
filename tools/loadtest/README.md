@@ -41,6 +41,12 @@ Common options:
 | `--seek-min <m>` | a viewer seeks about every m minutes, half the time (default 12) |
 | `--play-min <m>` | (soak) a viewer starts the next title after m minutes (default 30) |
 | `--stop-after <k>` | (ramp) stop after k degraded steps (default 2) |
+| `--machine <p>` | the server on a smaller box: `2core`, `4core` (CPU affinity on the server and every ffmpeg it starts), `lowmem` (256 MB heap + a 320 MB hard working-set cap on Windows), `starved` (192 MB heap, 140 MB working set: it pages), `small` (= 2core + lowmem), `nogpu`; comma-combinable (`2core,lowmem`) |
+| `--mix <kinds>` | the streams' kinds instead of the scenario's: `web-direct`, `tv-direct`, `web-jit`, `tv-offset`, `web-transcode`, `web-torrent` |
+| `--node <path>` | the Node binary for the SERVER (e.g. Node 20 beside a Node 22 driver) |
+| `--media <dir>` | a library folder of one's own (`<dir>/movies`, `<dir>/shows`), e.g. inside WSL |
+| `--torrent` | torrent viewers (`--mix web-torrent`): the instance gets the internet and its torrent engine (no network fence, `prewarmStreams` off). Plays real swarms — off by default, not part of any baseline, not run in this round |
+| `--no-settle` | measure from the boot on (default: wait until the boot's own background work is done) |
 | `--config '<json>'` | extra config.json keys for the instance |
 | `--out <name>` | result file name (default `<cmd>-<scenario>-<time>`) |
 | `--verbose` | echo the server's output |
@@ -50,6 +56,23 @@ Environment: `LT_WORK` (scratch, default `%TEMP%/aurora-agents/srv-loadtest`),
 `LT_LIVE_ROOT` (where the live tree is, default `C:\elia\aurora`; only its
 `config.json` `libraries`/`scanIntervalMinutes` and the safe caches in `data/`
 are read).
+
+## Linux (WSL)
+
+```
+# once: a clone of the repo and the generated media inside WSL, and a settled seed for them
+wsl -d Ubuntu -e bash -lc 'mkdir -p ~/aurora-lt && cd ~/aurora-lt && git clone /mnt/c/elia/aurora repo && cd repo && git checkout srv-loadtest && PATH=~/node22/bin:$PATH npm ci --omit=dev'
+wsl -d Ubuntu -e bash -lc 'cp -a /mnt/c/Users/<you>/AppData/Local/Temp/aurora-agents/srv-loadtest/media-gen-v1-300 ~/aurora-lt/media'
+wsl -d Ubuntu -e bash -lc 'cd ~/aurora-lt && LT_WORK=~/aurora-lt/work ~/node22/bin/node repo/tools/loadtest/wsl-seed.js --from /mnt/c/Users/<you>/AppData/Local/Temp/aurora-agents/srv-loadtest/seed-gen-v1 --win-media "C:\\Users\\<you>\\AppData\\Local\\Temp\\aurora-agents\\srv-loadtest\\media-gen-v1-300" --media ~/aurora-lt/media'
+# a ramp (keep the wsl command attached: WSL ends background processes with the session)
+wsl -d Ubuntu -e bash -lc 'cd ~/aurora-lt && PATH=~/node22/bin:$PATH LT_WORK=~/aurora-lt/work LT_OUT=/mnt/c/elia/aurora-srv-load/docs/qa/server-round/loadtest-results node repo/tools/loadtest/run.js ramp --ref master --scenario evening --steps 4,8,16,32,48 --media /home/elia/aurora-lt/media --mix web-direct,tv-direct'
+```
+
+The generated media and its seed come from one Windows run with `--media gen`.
+Ubuntu here has no ffmpeg (nor has CI): the library is known from the seed's
+probes, so only direct play is driven (`--mix web-direct,tv-direct`). Use
+`--node ~/node20/bin/node` for a Node 20 server. Refs in the clone are
+`master` or `origin/<branch>` (`git -C ~/aurora-lt/repo fetch` first).
 
 ## Scenarios
 
