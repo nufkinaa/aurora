@@ -40,7 +40,8 @@ const key = (w) => {
     rssMb: w.tree.rssMb, heapMb: mb(w.server.mem && w.server.mem.heapUsed), handles: w.tree.handles, kidsAlive: w.tree.kidsAlive,
     fsCallsPerSec: round(w.server.fsCalls / w.secs, 1),
     writtenKbPerMin: round(kb(w.server.writtenBytes) / (w.secs / 60), 1),
-    dataGrewKb: kb(w.dataDir.grewBytes),
+    dataGrewKb: kb(w.dataDir.grewBytes), dataGrewMb: mb(w.dataDir.grewBytes),
+    syncMsPerMin: w.server.syncMs ? round(Object.values(w.server.syncMs).reduce((a, b) => a + b, 0) / (w.secs / 60), 0) : null,
     stalls: sum(v, (x) => x.stalls), stallSec: round(sum(v, (x) => x.stallMs) / 1000, 1), neverStarted: v.filter((x) => x.neverStarted).length,
     ttffP50: p50of(v.map((x) => x.ttffMs)), ttffMax: maxOf(v.map((x) => x.ttffMs)),
     seekP50: p50of(v.flatMap((x) => x.seekMs || [])), seekMax: maxOf(v.flatMap((x) => x.seekMs || [])),
@@ -91,7 +92,7 @@ const renderAb = (res) => {
     ["segment p95 ms", "segP95", -1], ["first segment p50 ms", "firstSegP50", -1], ["TTFF p50 ms", "ttffP50", -1], ["stalls", "stalls", -1],
     ["loop stalls > 50 ms", "stall50", -1], ["loop stalls > 100 ms", "stall100", -1], ["loop stall ms/min", "stallMsPerMin", -1], ["longest stall ms", "stallMax", -1], ["healthz p99 ms", "lagP99", -1], ["ELU", "elu", -1],
     ["server CPU s/min", "serverCpuSecPerMin", -1], ["ffmpeg cores", "kidsCores", -1], ["RSS MB", "rssMb", -1], ["heap MB", "heapMb", -1], ["handles", "handles", -1],
-    ["fs calls/s", "fsCallsPerSec", -1], ["written KB/min (server, data/)", "writtenKbPerMin", -1], ["browse 5xx", "err5xx", -1], ["stream request errors", "streamErrors", -1], ["429", "err429", -1], ["503", "err503", -1], ["PC CPU % (noise)", "machineCpu", 0],
+    ["fs calls/s", "fsCallsPerSec", -1], ["written KB/min (server, data/)", "writtenKbPerMin", -1], ["data/ grew MB (incl. stream caches)", "dataGrewMb", -1], ["sync fs ms/min", "syncMsPerMin", -1], ["browse 5xx", "err5xx", -1], ["stream request errors", "streamErrors", -1], ["429", "err429", -1], ["503", "err503", -1], ["PC CPU % (noise)", "machineCpu", 0],
   ];
   const A = res.runs.filter((r) => r.side === "A").map((r) => key(r.window));
   const B = res.runs.filter((r) => r.side === "B").map((r) => key(r.window));
