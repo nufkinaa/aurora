@@ -1156,7 +1156,13 @@ const walkedStat = (absPath) => {
 
 // Run fn with the last walk's dates standing in for the disk (the background
 // work lists right after a scan: audioSyncWork etc. — see statsnap.js).
-const withLastWalk = (fn) => (lastSnap ? statsnap.within(snapLookup(lastSnap), fn) : fn());
+// knownOnly: answer only for files the walk dated (anything else: the disk) —
+// for a request, where a file may have arrived since the walk.
+const withLastWalk = (fn, { knownOnly = false } = {}) => {
+  if (!lastSnap) return fn();
+  const snap = lastSnap;
+  return statsnap.within(knownOnly ? (p) => { const f = snap.files[p]; return f ? { size: f[0], mtimeMs: f[1] } : undefined; } : snapLookup(snap), fn);
+};
 
 // ---------- background enrichment (ffprobe queue) ----------
 
@@ -1183,7 +1189,8 @@ const enrich = () => {
   if (enriching || !config.ffmpegAvailable) return;
   enriching = true;
 
-  const paths = allVideoPaths().filter((p) => metadata.needsProbe(p));
+  // (with the date the walk saw: a file replaced under its old name is probed again)
+  const paths = allVideoPaths().filter((p) => { const w = walkedStat(p); return metadata.needsProbe(p, w ? w.mtimeMs : null); });
   let i = 0;
 
   const step = () => {
@@ -1355,6 +1362,7 @@ module.exports = {
   boot,
   libraryReady,
   walkedStat,
+  withLastWalk,
   scanStats: () => ({ ...scanStats, version: index.version, worker: (() => { try { return require("./scanworker").stats(); } catch { return null; } })() }),
   enrich,
   isEnriching: () => enriching,

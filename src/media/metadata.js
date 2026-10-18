@@ -196,10 +196,15 @@ const probeAsync = async (videoPath) => {
 
 const getCached = (videoPath) => store.data[videoPath] || null;
 
-// True when the file has no up-to-date probe result (used by the enricher)
-const needsProbe = (videoPath) => {
+// True when the file has no up-to-date probe result (used by the enricher).
+// `mtime`: the file's date as the caller knows it (the library walk) — a file
+// REPLACED under the same name (a better copy downloaded over it) has a new
+// date, and its old probe (length, tracks, codecs) is no answer for it. It
+// used to be kept for ever: only the probe version was compared.
+const needsProbe = (videoPath, mtime = null) => {
   const entry = store.data[videoPath];
-  return !entry || entry.v !== PROBE_VERSION;
+  if (!entry || entry.v !== PROBE_VERSION) return true;
+  return mtime != null && entry.mtime !== mtime;
 };
 
 const clearCache = () => {
