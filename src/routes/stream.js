@@ -395,6 +395,9 @@ const { timed } = require("../lib/servertiming");
 // tag, else the device's address and browser — lib/viewer.js.
 const { viewerOf } = require("../lib/viewer");
 
+// The version of a file a jit segment URL names (&m=): its mtime, base 36.
+const segVersion = (st) => Math.floor(st.mtimeMs).toString(36);
+
 // The file's segment table (cached by jit; read from the file when it is not).
 const libraryTable = async (entry, key, size) => {
   const cached = await jit.tableFor(key, null, 0).catch(() => null);
@@ -524,7 +527,10 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
         return res.status(503).send("Server is busy — that rendition isn't available right now");
       }
     }
-    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}${v !== "copy" && req.query.need === "1" ? "&need=1" : ""}`;
+    // &m=: which version of the file the segments were cut from (its mtime) —
+    // so a segment URL names bytes that never change, and may be kept by the
+    // player's own cache (see the segment route); the routes ignore it otherwise
+    const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}${v !== "copy" && req.query.need === "1" ? "&need=1" : ""}&m=${segVersion(st)}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
     res.send(jit.playlistText(table, suffix, fmt));
@@ -625,7 +631,15 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
     }
     if (!file) return res.status(504).send("Segment not ready");
     res.setHeader("Content-Type", fmt ? "video/mp4" : "video/mp2t");
-    res.setHeader("Cache-Control", "no-cache");
+    // A published copy segment never changes (jit.js: its bytes depend only on
+    // the file), so one named for THIS version of the file (&m=) is kept by the
+    // player's cache for a day: a seek back, a second look, a replay is not
+    // asked for again. Private: a signed-in viewer's film is never kept by a
+    // shared cache. Without &m= (an older playlist): revalidated, as before.
+    // (the COPY only: an encoded rendition's bytes also depend on how it was
+    // encoded — tone mapped or not, on the CPU or the card — which can differ
+    // from one job to the next; those are revalidated, as before)
+    res.setHeader("Cache-Control", v === "copy" && req.query.m && req.query.m === segVersion(st) ? "private, max-age=86400, immutable" : "no-cache");
     res.sendFile(file);
   } catch (err) {
     res.status(500).send(err.message);
