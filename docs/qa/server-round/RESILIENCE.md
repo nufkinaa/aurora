@@ -286,7 +286,7 @@ On a small box the difference is largest exactly where a box is weakest: during 
 
 What it shows:
 - **Provider hanging or dripping.** Master made title pages wait 12–16 s and held 2,000+ sockets to the provider. After: pages answer in tens of ms (the first few wait ~2.5 s until 5 calls are past the deadline and the breaker opens), and the server holds about 16 sockets.
-- **Provider answering 500.** Master kept asking it about 9,000 times in 20 s; after, 28 times.
+- **Provider answering 500.** Master kept asking it about 9,000 times in 20 s; after, 28 times. Normal users' p99 rose from 57 to 102 ms in this scenario. The page users loop as fast as they are answered, and failing fast they made about twice as many page requests in the same 20 s (5,252 against 2,517 in the first pair). That is an artefact of the closed-loop harness: a person does not re-press instantly. Watch it in the load-test agent's open-loop runs.
 - **Slowloris.** The 300 header drippers are closed with 408 at ~22 s (master: none within the run; its limit was 80 s). The body drippers are held to 120 s. Normal users are flat.
 - **Baseline (nothing wrong).** Within the noise of a shared PC. After saw fewer page users' answers in one run and more in another. A microbenchmark of this round's middlewares (metrics, rate-limit group test) on a promise-heavy route measured ~3 % more CPU per request, within its own noise. The AsyncLocalStorage version had measured 15–20 % and was replaced (cc58c61).
 - **Idle sockets.** All 1,500 are closed at ~20 s (master: none).
