@@ -30,6 +30,79 @@ const stats = {
 
 let wss = null;
 
+// ---------- staying healthy (WebSocket hygiene) ----------
+// A socket is a promise of memory and a timer on this one thread, so each
+// one is held to four rules:
+//   MESSAGES ARE SMALL: at most maxMessageKb (64 kB; the biggest real one, a
+//     party's state, is under 1 kB). ws's own default was 100 MB.
+//   A DEAD PEER IS NOTICED: every HEARTBEAT_MS each socket is pinged; one
+//     that has not answered the previous ping (browsers and the TV's OkHttp
+//     answer by themselves) is ended. A phone that left the house without
+//     closing used to count as "connected" until the OS gave up, hours later.
+//   A SLOW READER DOES NOT GROW MEMORY: what is waiting to go out to a socket
+//     (bufferedAmount) is looked at before each send. Above SEND_SKIP_BYTES
+//     a broadcast is skipped for that socket (it is a "something changed"
+//     message; the next one, or the client's own reconnect, catches it up);
+//     above SEND_CLOSE_BYTES the socket is ended.
+//   A CHATTY CLIENT IS SLOWED: MSG_RATE messages a second (MSG_BURST at once)
+//     are read; past that they are dropped, and a socket that keeps on is
+//     closed (1008).
+// Plus at most maxPerAddress sockets from one address (LAN addresses four
+// times that) — counted and logged in "log" mode, refused in "enforce"
+// (config "ws": { "mode" }, else "rateLimits"'s mode), like the HTTP limits.
+const wsCfg = () => (config.WS && typeof config.WS === "object" ? config.WS : {});
+const HEARTBEAT_MS = 30 * 1000;
+const SEND_SKIP_BYTES = 1024 * 1024;
+const SEND_CLOSE_BYTES = 8 * 1024 * 1024;
+const MSG_RATE = 50;
+const MSG_BURST = 200;
+const MSG_DROP_CLOSE = 1000; // dropped within MSG_DROP_WINDOW_MS before the socket is closed
+const MSG_DROP_WINDOW_MS = 10 * 1000;
+const maxMessageBytes = () => Math.max(1, Number(wsCfg().maxMessageKb) || 64) * 1024;
+const maxPerAddress = () => Math.max(1, Number(wsCfg().maxPerAddress) || 32);
+const wsMode = () => {
+  const m = wsCfg().mode;
+  if (["log", "enforce", "off"].includes(m)) return m;
+  const r = config.RATE_LIMITS;
+  const rm = typeof r === "string" ? r : r && typeof r === "object" ? r.mode : null;
+  return ["log", "enforce", "off"].includes(rm) ? rm : "log";
+};
+const hygiene = { deadPeers: 0, skippedSends: 0, closedSlow: 0, oversize: 0, droppedMessages: 0, closedChatty: 0, overAddressLimit: 0, refusedAddressLimit: 0 };
+const isPrivateIp = (a) => a === "127.0.0.1" || a === "::1" || a.startsWith("10.") || a.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(a);
+let saidAddressAt = 0;
+
+// One beat: a socket that has not answered the last ping is ended, the
+// others are pinged.
+const heartbeat = () => {
+  if (!wss) return;
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) {
+      hygiene.deadPeers++;
+      try { ws.terminate(); } catch {}
+      return;
+    }
+    ws.isAlive = false;
+    try { ws.ping(); } catch {}
+  });
+};
+
+// Every send goes through here. `skippable`: a broadcast a slow reader can
+// miss. Returns whether it was sent.
+const send = (ws, msg, skippable = false) => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  const queued = ws.bufferedAmount || 0;
+  if (queued > SEND_CLOSE_BYTES) {
+    hygiene.closedSlow++;
+    try { ws.terminate(); } catch {}
+    return false;
+  }
+  if (skippable && queued > SEND_SKIP_BYTES) {
+    hygiene.skippedSends++;
+    return false;
+  }
+  try { ws.send(msg); return true; } catch { return false; }
+};
+
 const parseDevice = (ua = "") => {
   const browser = /edg/i.test(ua) ? "Edge"
     : /chrome/i.test(ua) ? "Chrome"
@@ -72,7 +145,7 @@ const broadcastAll = (data) => {
     // has title names), so unauthenticated sockets don't get them. ws.authed
     // is stamped at upgrade time in attach(). Open/transition: everyone.
     if (authmodeLib().get() === "closed" && !ws.authed && !ws.isAdmin) return;
-    if (ws.readyState === WebSocket.OPEN) ws.send(msg);
+    send(ws, msg, true);
   });
 };
 
@@ -124,7 +197,7 @@ const broadcastEach = (fn) => {
     if (closed && !ws.authed && !ws.isAdmin) continue;
     let data = null;
     try { data = fn(c, ws); } catch { data = null; }
-    if (data) ws.send(JSON.stringify(data));
+    if (data) send(ws, JSON.stringify(data), true);
   }
 };
 
@@ -132,8 +205,7 @@ const broadcastEach = (fn) => {
 const sendTo = (clientId, data) => {
   const c = clients.get(clientId);
   if (!c || !c.ws || c.ws.readyState !== WebSocket.OPEN) return false;
-  try { c.ws.send(JSON.stringify(data)); } catch { return false; }
-  return true;
+  return send(c.ws, JSON.stringify(data));
 };
 const party = require("./lib/party");
 
@@ -141,7 +213,7 @@ const broadcastAdmins = (data) => {
   if (!wss) return;
   const msg = JSON.stringify(data);
   wss.clients.forEach((ws) => {
-    if (ws.isAdmin && ws.readyState === WebSocket.OPEN) ws.send(msg);
+    if (ws.isAdmin) send(ws, msg, true);
   });
 };
 
@@ -301,13 +373,13 @@ const handleMessage = (client, data, ws) => {
     // ---------- watch parties (lib/party.js) ----------
     case "party_create": {
       const r = party.create(client, data.item, sendTo);
-      ws.send(JSON.stringify(r.error ? { type: "party_error", message: r.error } : { type: "party_created", party: r.party }));
+      send(ws, JSON.stringify(r.error ? { type: "party_error", message: r.error } : { type: "party_created", party: r.party }));
       if (!r.error) broadcastAll({ type: "party_list", parties: party.list() });
       break;
     }
     case "party_join": {
       const r = party.join(client, data.code, sendTo);
-      ws.send(JSON.stringify(r.error ? { type: "party_error", message: r.error } : { type: "party_joined", party: r.party }));
+      send(ws, JSON.stringify(r.error ? { type: "party_error", message: r.error } : { type: "party_joined", party: r.party }));
       if (!r.error) broadcastAll({ type: "party_list", parties: party.list() });
       break;
     }
@@ -316,7 +388,7 @@ const handleMessage = (client, data, ws) => {
       break;
     case "party_item": {
       const r = party.setItem(client, data.item, sendTo);
-      if (r.error) ws.send(JSON.stringify({ type: "party_error", message: r.error }));
+      if (r.error) send(ws, JSON.stringify({ type: "party_error", message: r.error }));
       else broadcastAll({ type: "party_list", parties: party.list() });
       break;
     }
@@ -335,14 +407,19 @@ const handleMessage = (client, data, ws) => {
       // dashboard proves admin. No localhost bypass.
       if (validAdminPassword(data.pw)) {
         ws.isAdmin = true;
-        ws.send(JSON.stringify({ type: "admin_ok" }));
+        send(ws, JSON.stringify({ type: "admin_ok" }));
       }
       break;
   }
 };
 
 const attach = (server) => {
-  wss = new WebSocket.Server({ server });
+  wss = new WebSocket.Server({ server, maxPayload: maxMessageBytes() });
+
+  // the heartbeat (see "staying healthy" above)
+  const beat = setInterval(heartbeat, HEARTBEAT_MS);
+  beat.unref?.();
+  wss.on("close", () => clearInterval(beat));
 
   // Feed the telemetry sampler live gauges. Torrent stats come lazily so we
   // never force WebTorrent to load just to record zeros.
@@ -367,13 +444,42 @@ const attach = (server) => {
   wss.on("connection", (ws, req) => {
     const ip = clientIp(req);
     try { require("./lib/signals").hit("ws", ip); } catch {}
+    ws.isAlive = true;
+    ws.on("pong", () => { ws.isAlive = true; });
+
+    // sockets from one address
+    {
+      const mode = wsMode();
+      // the address as lib/ratelimit.js reads it: X-Forwarded-For only from
+      // the proxy on this machine, so a LAN device cannot pick a fresh one
+      let addr = ip;
+      try { addr = require("./lib/ratelimit")._internals.addressOf(req); } catch {}
+      ws._addr = addr;
+      if (mode !== "off") {
+        let mine = 0;
+        wss.clients.forEach((o) => { if (o !== ws && o._addr === addr) mine++; });
+        const cap = maxPerAddress() * (isPrivateIp(addr) ? 4 : 1);
+        if (mine >= cap) {
+          hygiene.overAddressLimit++;
+          if (Date.now() - saidAddressAt > 60 * 1000) {
+            saidAddressAt = Date.now();
+            console.warn(`[ws] ${mode === "enforce" ? "refused" : "would refuse (log mode)"} a socket: ${mine} already open from one ${isPrivateIp(addr) ? "LAN " : ""}address (limit ${cap})`);
+          }
+          if (mode === "enforce") {
+            hygiene.refusedAddressLimit++;
+            try { ws.close(1013, "too many connections from this address"); } catch {}
+            return;
+          }
+        }
+      }
+    }
 
     // Session check at upgrade time (stampSocket). broadcastAll consults it
     // in authMode "closed" — see the note there.
     stampSocket(ws, req);
 
     if (bans.data[ip]) {
-      ws.send(JSON.stringify({ type: "banned", reason: bans.data[ip].reason || "" }));
+      send(ws, JSON.stringify({ type: "banned", reason: bans.data[ip].reason || "" }));
       ws.close(1008, "Banned");
       return;
     }
@@ -394,12 +500,31 @@ const attach = (server) => {
     stats.peakConcurrent = Math.max(stats.peakConcurrent, clients.size);
     logEvent({ event: "connected", ...publicClient(client) });
 
-    ws.send(JSON.stringify({ type: "welcome", clientId: client.id }));
+    send(ws, JSON.stringify({ type: "welcome", clientId: client.id }));
     // (a client that knows the message raises its "pick a new password" screen)
-    if (ws.restricted) ws.send(JSON.stringify({ type: "password_reset_required", profileId: ws.restricted }));
+    if (ws.restricted) send(ws, JSON.stringify({ type: "password_reset_required", profileId: ws.restricted }));
     broadcastAdmins({ type: "client_connected", client: publicClient(client) });
 
+    // messages: MSG_RATE a second, MSG_BURST at once (see above)
+    let tokens = MSG_BURST;
+    let refilled = Date.now();
+    let dropped = 0;
+    let dropWindowAt = 0;
     ws.on("message", (raw) => {
+      ws.isAlive = true;
+      const now = Date.now();
+      tokens = Math.min(MSG_BURST, tokens + ((now - refilled) / 1000) * MSG_RATE);
+      refilled = now;
+      if (tokens < 1) {
+        hygiene.droppedMessages++;
+        if (now - dropWindowAt > MSG_DROP_WINDOW_MS) { dropWindowAt = now; dropped = 0; }
+        if (++dropped === MSG_DROP_CLOSE) {
+          hygiene.closedChatty++;
+          try { ws.close(1008, "too many messages"); } catch {}
+        }
+        return;
+      }
+      tokens -= 1;
       try {
         handleMessage(client, JSON.parse(raw), ws);
       } catch {}
@@ -414,11 +539,27 @@ const attach = (server) => {
       broadcastAdmins({ type: "client_disconnected", clientId: client.id });
     });
 
-    ws.on("error", () => {});
+    // (ws closes a socket whose message is over maxPayload with 1009 and says so here)
+    ws.on("error", (e) => { if (e && /max payload/i.test(e.message || "")) hygiene.oversize++; });
   });
 };
 
 const clientCount = () => clients.size;
+// For the admin's metrics: sockets, what the hygiene rules did, and how much
+// is waiting to go out to the slowest socket.
+const wsStatus = () => {
+  let buffered = 0;
+  let maxBuffered = 0;
+  const perAddress = new Map();
+  if (wss) wss.clients.forEach((ws) => { const b = ws.bufferedAmount || 0; buffered += b; if (b > maxBuffered) maxBuffered = b; });
+  if (wss) wss.clients.forEach((ws) => perAddress.set(ws._addr, (perAddress.get(ws._addr) || 0) + 1));
+  return {
+    open: wss ? wss.clients.size : 0, clients: clients.size, buffered, maxBuffered,
+    maxPerAddressSeen: Math.max(0, ...perAddress.values()),
+    limits: { maxMessageBytes: maxMessageBytes(), maxPerAddress: maxPerAddress(), mode: wsMode(), heartbeatMs: HEARTBEAT_MS, sendSkipBytes: SEND_SKIP_BYTES, sendCloseBytes: SEND_CLOSE_BYTES, msgRate: MSG_RATE, msgBurst: MSG_BURST },
+    ...hygiene,
+  };
+};
 
 // The server is going away (lib/shutdown.js): say so to every socket, then
 // close it with a code that means "come back" (1012, service restart). The
@@ -430,7 +571,7 @@ const closeAll = (data, code = 1012) => {
   wss.clients.forEach((ws) => {
     try {
       if (ws.readyState === WebSocket.OPEN) {
-        if (msg) ws.send(msg);
+        if (msg) send(ws, msg);
         ws.close(code, "restarting");
         n++;
       }
@@ -443,6 +584,7 @@ const closeAll = (data, code = 1012) => {
 
 module.exports = {
   clientCount,
+  wsStatus,
   closeAll,
   attach,
   broadcastAll,
@@ -453,7 +595,7 @@ module.exports = {
   broadcastAdmins,
   clients,
   clientsOfProfile,
-  _internals: { stampSocket, handleMessage, soon, clock, coalesced, QUIET_MS, MAX_MS },
+  _internals: { stampSocket, handleMessage, soon, clock, coalesced, QUIET_MS, MAX_MS, send, hygiene, heartbeat },
   connectionLog,
   stats,
   bans,
