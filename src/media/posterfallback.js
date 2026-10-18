@@ -31,7 +31,9 @@ const MISS_TTL = 7 * 24 * 3600 * 1000;
 const inflight = new Map();
 
 const getJson = async (url) => {
-  const res = await require("../lib/upstream").fetch(url, { headers: { "User-Agent": "Aurora (personal media server)" }, timeoutMs: 8000 });
+  // (a card is waiting: 3 s per provider at most — a provider that keeps
+  // missing that opens its breaker, lib/upstream.js, and the search moves on)
+  const res = await require("../lib/upstream").fetch(url, { headers: { "User-Agent": "Aurora (personal media server)" }, timeoutMs: 8000, deadlineMs: 3000 });
   if (!res.ok) return null;
   return res.json();
 };
@@ -125,6 +127,7 @@ const resolve = (q) => {
     if (name) console.log(`[poster] backup source found a cover for ${imdbId}${q.title ? ` (${q.title})` : ""}`);
     return name;
   })().finally(() => inflight.delete(imdbId));
+  p.startedAt = Date.now();
   inflight.set(imdbId, p);
   return p;
 };

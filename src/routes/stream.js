@@ -203,6 +203,7 @@ const extImgInflight = new Map(); // url -> promise (a row of 20 cards must fetc
 // posters, each with a client-side retry) into waves of 15s upstream fetches.
 const extImgFails = new Map(); // url -> failedAt
 const EXT_FAIL_TTL = 5 * 60 * 1000;
+const EXT_WAIT_MS = 4000;
 const fetchExtImage = (url, file) => {
   let p = extImgInflight.get(url);
   if (p) return p;
@@ -234,6 +235,7 @@ const fetchExtImage = (url, file) => {
     if (++extImgWrites % 100 === 0) extImgSweep();
     return file;
   })();
+  p.startedAt = Date.now();
   extImgInflight.set(url, p);
   const done = () => extImgInflight.delete(url);
   p.then(done, done);
@@ -279,13 +281,28 @@ router.get("/img/ext", async (req, res) => {
       // allowance (lib/ratelimit.js); one already kept never does
       const rl = require("../lib/ratelimit").take("img-fetch", req);
       if (!rl.ok) return require("../lib/ratelimit").refuse(res, "img-fetch", rl.retryAfterSec);
-      await fetchExtImage(url, file);
+      // A card waits EXT_WAIT_MS for a picture it does not have: past that it
+      // gets its placeholder now, and the fetch goes on — the picture lands on
+      // disk for the next ask. A host that keeps not answering in time opens
+      // its breaker (lib/upstream.js), and then misses fail in microseconds.
+      // (a fetch already in flight for this picture counts from when IT
+      // began: a card asking again for a picture that is still coming does
+      // not wait a second EXT_WAIT_MS — it gets its placeholder at once)
+      const p = fetchExtImage(url, file);
+      const left = Math.max(0, EXT_WAIT_MS - (Date.now() - (p.startedAt || Date.now())));
+      let timer = null;
+      const late = left === 0 || await Promise.race([p.then(() => false), new Promise((r) => { timer = setTimeout(() => r(true), left); })]).finally(() => clearTimeout(timer));
+      if (late) {
+        p.catch(() => {});
+        if (!p.struck) { p.struck = true; require("../lib/upstream").tooSlow(url, p, p.startedAt || Date.now()); }
+        throw new Error("still being fetched");
+      }
     }
     await sendArt(res, file, req.query.w, req.query.blur, req.query.fmt);
   } catch (e) {
     // said out loud: a TV with no pictures is otherwise a silent 502 (2026-10-09)
     // (a picture the catalogue does not have is one line, not one per screen that asks again)
-    if (!e || e.message !== "recently failed") console.warn(`[img] ext ${url.slice(0, 80)} w=${req.query.w || "-"} failed: ${(e && e.message) || e}`);
+    if (!e || (e.message !== "recently failed" && e.message !== "still being fetched" && e.code !== "open" && e.code !== "busy")) console.warn(`[img] ext ${url.slice(0, 80)} w=${req.query.w || "-"} failed: ${(e && e.message) || e}`);
     if (!res.headersSent) res.status(502).send("artwork unavailable");
   }
 });
@@ -303,12 +320,23 @@ router.get("/img/poster/:imdbId", async (req, res) => {
       const rl = require("../lib/ratelimit").take("img-fetch", req);
       if (!rl.ok) return require("../lib/ratelimit").refuse(res, "img-fetch", rl.retryAfterSec);
     }
-    const name = await pf.resolve({
+    // (the card waits EXT_WAIT_MS at most, as for /img/ext: past it, "none
+    // yet" — not kept by the client — and the search goes on and is kept)
+    const looking = pf.resolve({
       imdbId: req.params.imdbId,
       type: req.query.type === "show" ? "show" : "movie",
       title: req.query.t ? String(req.query.t).slice(0, 80) : "",
       year: parseInt(req.query.y, 10) || null,
     });
+    let timer = null;
+    const LATE = Symbol("late");
+    const left = Math.max(0, EXT_WAIT_MS - (Date.now() - (looking.startedAt || Date.now())));
+    const name = left === 0 ? LATE : await Promise.race([looking, new Promise((r) => { timer = setTimeout(() => r(LATE), left); })]).finally(() => clearTimeout(timer));
+    if (name === LATE) {
+      looking.catch(() => {});
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(404).send("No poster yet");
+    }
     const file = name && require("../media/online").posterFile(name);
     if (!file) return res.status(404).send("No poster");
     await sendArt(res, file, req.query.w, req.query.blur, req.query.fmt);

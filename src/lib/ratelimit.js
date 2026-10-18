@@ -151,6 +151,8 @@ let clock = () => Date.now();
 
 // Take one token. { ok, retryAfterSec, mode }
 const take = (group, req) => {
+  // the server asking itself (blur-up placeholders read /img/*): never counted
+  try { if (require("./internalpass").ok(req)) return { ok: true, mode: "internal" }; } catch {}
   const st = readSettings();
   const g = st.groups[group];
   if (!g || g.mode === "off") return { ok: true, mode: "off" };

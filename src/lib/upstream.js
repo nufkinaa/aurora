@@ -78,18 +78,22 @@ const DEFAULTS = {
   retryMaxMs: 2000,
 };
 // Hosts with their own needs. Anything else gets DEFAULTS.
+const PICTURES = { concurrency: 64, queue: 2048, queueWaitMs: 2000, retries: 0 };
 const HOSTS = {
   // ~40 requests / s allowed; a "More like this" row is ~45 calls at once, so
   // the queue is deep (each waits its turn, none is refused)
   "api.themoviedb.org": { concurrency: 8, queue: 256 },
-  // picture hosts (/img/ext): a cold Home asks for ~300 posters at once —
-  // they wait their turn (deep queue), they are not refused
-  "image.tmdb.org": { concurrency: 12, queue: 1024, queueWaitMs: 15000, retries: 0 },
-  "images.metahub.space": { concurrency: 12, queue: 1024, queueWaitMs: 15000, retries: 0 },
-  "episodes.metahub.space": { concurrency: 8, queue: 1024, queueWaitMs: 15000, retries: 0 },
-  "live.metahub.space": { concurrency: 8, queue: 1024, queueWaitMs: 15000, retries: 0 },
-  "static.tvmaze.com": { concurrency: 8, queue: 1024, queueWaitMs: 15000, retries: 0 },
-  "upload.wikimedia.org": { concurrency: 6, queue: 512, queueWaitMs: 15000, retries: 0 },
+  // picture hosts (/img/ext): a cold Home is 40-50 posters at once per
+  // device, the same ones for a whole household — a CDN takes them in
+  // parallel, so the cap is wide (it only stops a runaway from holding
+  // thousands of sockets) and a picture that cannot get a slot within 2 s
+  // fails at once (the card shows its placeholder) rather than queueing
+  "image.tmdb.org": PICTURES,
+  "images.metahub.space": PICTURES,
+  "episodes.metahub.space": PICTURES,
+  "live.metahub.space": PICTURES,
+  "static.tvmaze.com": PICTURES,
+  "upload.wikimedia.org": { ...PICTURES, concurrency: 16 },
   "v3-cinemeta.strem.io": { concurrency: 6 },
   "api.tvmaze.com": { concurrency: 4 }, // 20 calls / 10 s per address
   "openrouter.ai": { concurrency: 2, timeoutMs: 60000, retries: 0 },
@@ -594,10 +598,14 @@ const failureCount = () => {
 let forgottenFailures = 0;
 const openBreakers = () => [...hosts.values()].filter((h) => h.breaker !== "closed").map((h) => h.host);
 
+// A call a caller stopped waiting for by its own clock (the picture route
+// races its fetch against a few seconds): one strike, as a page deadline is.
+const tooSlow = (url, promise, startedAt) => strike(stateOf(hostOf(url)), promise, startedAt);
+
 const _reset = () => { hosts.clear(); cache.clear(); cacheBytes = 0; inflight.clear(); };
 
 module.exports = {
-  fetch: upFetch, json, status, openBreakers, failureCount, UpstreamError, hostOf,
+  fetch: upFetch, json, status, openBreakers, failureCount, tooSlow, UpstreamError, hostOf,
   DEFAULTS, HOSTS,
   _internals: { clock, hosts, cache, inflight, settingsFor, stateOf, _reset },
 };
