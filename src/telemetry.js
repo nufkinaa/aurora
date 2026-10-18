@@ -145,6 +145,10 @@ const pruneHourly = () => {
   }
 };
 
+let lastHour = null;
+const HOUR_GRACE_MS = 5 * 1000;
+const msToNextHour = (now = Date.now()) => 3600 * 1000 - (now % (3600 * 1000));
+
 const start = (getGauges) => {
   if (sampleTimer) return;
   const sample = () => {
@@ -176,7 +180,13 @@ const start = (getGauges) => {
     h.sumWatching += point.watching;
     h.downKB += Math.round((point.downKBs * SAMPLE_MS) / 1000);
     pruneHourly();
-    hourly.save();
+    // Written when an hour closes (the first sample of the next one) and at
+    // a graceful shutdown — not every 30 s: that kept the data disk awake
+    // (27.5 MB an hour on an idle server). The open hour lives in memory,
+    // where the admin page reads it; a hard kill loses at most that hour.
+    if (lastHour !== null && k !== lastHour) hourly.save();
+    else hourly.save({ within: msToNextHour() + HOUR_GRACE_MS });
+    lastHour = k;
   };
   sample();
   sampleTimer = setInterval(sample, SAMPLE_MS);
@@ -408,5 +418,5 @@ module.exports = {
   wrappedFor,
   SAMPLE_MS,
   LIVE_WRITE_MS,
-  _internals: { isSeek },
+  _internals: { isSeek, msToNextHour },
 };

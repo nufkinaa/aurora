@@ -161,3 +161,34 @@ test("isSeek: steady playback, a pause and small drifts are not seeks", () => {
     delete require.cache[telemetryPath];
   }
 });
+
+test("telemetry-hours.json: written when an hour closes (and at shutdown) — not every 30 s sample", (t) => {
+  const { tel, calls } = loadTelemetry();
+  try {
+    const h = calls["telemetry-hours.json"];
+    const HOUR = 3600 * 1000;
+    const start = Date.UTC(2026, 9, 18, 10, 59, 0); // one minute before an hour closes
+    try {
+      t.mock.timers.enable({ apis: ["Date", "setInterval"], now: start });
+    } catch {
+      t.skip("this Node has no Date in its mock timers");
+      return;
+    }
+    tel.start(() => ({ clients: 2, watching: 1 }));
+    assert.equal(h.length, 1);
+    assert.match(h[0], /^within \d+$/, "the first sample waits");
+    assert.ok(Number(h[0].split(" ")[1]) <= 60 * 1000 + 5000, "at most until the hour closes (+ a grace)");
+    t.mock.timers.tick(tel.SAMPLE_MS); // 10:59:30
+    assert.match(h[1], /^within/, "a sample inside the same hour waits too");
+    t.mock.timers.tick(tel.SAMPLE_MS); // 11:00:00 — a new hour
+    assert.equal(h[2], "now", "the closed hour is written");
+    for (let i = 0; i < 10; i++) t.mock.timers.tick(tel.SAMPLE_MS);
+    assert.ok(h.slice(3).every((c) => c.startsWith("within")), "and the open one waits again");
+    const key = new Date(start + HOUR).toISOString().slice(0, 13);
+    assert.ok(tel.hourly.data[key].samples >= 10, "memory has every sample (the admin page reads memory)");
+    assert.equal(tel._internals.msToNextHour(Date.UTC(2026, 0, 1, 5, 45, 0)), 15 * 60 * 1000);
+  } finally {
+    t.mock.timers.reset();
+    delete require.cache[telemetryPath];
+  }
+});
