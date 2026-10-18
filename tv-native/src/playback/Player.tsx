@@ -112,6 +112,7 @@ import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAU
 import {PERSON_KEYS, PersonKey} from '../personPrefs';
 import {resumePoint, SKIP_STEPS} from '../episodeRules';
 import {
+  backAction,
   nextAutoRun,
   NextEp,
   nextAnswerChanged,
@@ -2319,6 +2320,10 @@ export default function Player({
   // ---------------------------------------------------------------- input
   const onTV = useCallback(
     (evt: {eventType: string}) => {
+      // A player under another screen (a second player pushed over it — the TV's
+      // home-screen row while a film is open, X-Ray → a title → Play) hears every
+      // key too: it must not wake its chrome (below: BACK, Mi TV 2026-10-18).
+      if (!navigation.isFocused()) return;
       if (!acceptTvEvent(evt)) return; // one press, one event (focus.ts)
       // Someone is there: the run of episodes that started by themselves is
       // over (the site's noteInput — "Still watching?" counts hands-off ones).
@@ -2370,7 +2375,7 @@ export default function Player({
       }
       showControls(); // any activity keeps the chrome alive
     },
-    [controls, menuOpen, upNext, slowStart, stallCard, skip, togglePlay, showControls],
+    [controls, menuOpen, upNext, slowStart, stallCard, skip, togglePlay, showControls, navigation],
   );
   useTVEventHandler(onTV);
 
@@ -2378,11 +2383,22 @@ export default function Player({
   // Next, hide the chrome, then leave.
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (menuOpen) {
+      // Not the screen on top: not this player's Back. A player left under a
+      // second one kept its chrome alive (every key woke it, onTV above) and so
+      // ate every Back — the top player could never be left (Mi TV, 2026-10-18).
+      const act = backAction({
+        onTop: navigation.isFocused(),
+        menuOpen,
+        upNext: !!upNext,
+        chrome: controls,
+        playing: !!uri && !error,
+      });
+      if (act === 'pass') return false;
+      if (act === 'closeMenu') {
         closeMenu();
         return true;
       }
-      if (upNext) {
+      if (act === 'dismissUpNext') {
         dismissUpNext();
         return true;
       }
@@ -2396,7 +2412,7 @@ export default function Player({
       // screen: `controls` is true from mount, so on the torrent loading screen
       // the first Back was eaten with no visible change and abandoning a slow
       // torrent took two presses.
-      if (controls && uri && !error) {
+      if (act === 'hideChrome') {
         if (hideTimer.current) clearTimeout(hideTimer.current);
         setControls(false);
         return true;
@@ -2414,7 +2430,7 @@ export default function Player({
       return false; // picture is clean — let navigation pop
     });
     return () => sub.remove();
-  }, [menuOpen, upNext, controls, uri, error, closeMenu, dismissUpNext, toast]);
+  }, [menuOpen, upNext, controls, uri, error, closeMenu, dismissUpNext, toast, navigation]);
   const hostBackAt = useRef(0);
 
   // ------------------------------------------------------- progress + keepalive

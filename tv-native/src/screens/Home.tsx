@@ -391,7 +391,12 @@ export default function Home({
   }, []);
   useEffect(() => {
     if (!live) return;
-    if (data && Date.now() - lastFetch.current < 15000) return;
+    const fresh = !!data && Date.now() - lastFetch.current < 15000;
+    // Home shown again (BACK from a title page): the shelf that held focus,
+    // and whether the rows are read again (shelfPin.ts then holds the focused
+    // title where it was).
+    if (data) console.log(`[home] live shelf=${curRow.current} reread=${fresh ? 'no' : 'yes'}`);
+    if (fresh) return;
     let on = true;
     lastFetch.current = Date.now();
     api

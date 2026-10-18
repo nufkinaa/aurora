@@ -55,4 +55,20 @@ class RingPoolTest {
     p.release("home", Ring(99))
     assertEquals(1, p.freeCount("home"))
   }
+
+  @Test fun aRingStillHeldByALeavingScreenIsNeverHandedOutAgain() {
+    // Mi TV 2026-10-18: a ring released while its old parent was in an exit transition kept
+    // that parent; handed out again, addView threw. Such a ring is discarded, not pooled.
+    val p = RingPool<String, Ring>()
+    var n = 0
+    val a = p.acquire("home") { Ring(++n) }
+    p.discard(a)
+    assertEquals(0, p.inUse)
+    assertEquals(0, p.freeCount("home"))
+    val b = p.acquire("home") { Ring(++n) }
+    assertEquals(2, b.n) // a new one, not `a`
+    p.release("home", a) // a late release of the discarded one is ignored
+    assertEquals(0, p.freeCount("home"))
+    assertEquals(1, p.inUse)
+  }
 }

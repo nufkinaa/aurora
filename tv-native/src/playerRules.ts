@@ -186,3 +186,18 @@ export const nextAnswerChanged = (was: NextEp | null, now: NextEp | null): boole
   if (was.kind !== now.kind || was.season !== now.season || was.episode !== now.episode) return true;
   return was.kind === 'library' && now.kind === 'library' ? was.id !== now.id : false;
 };
+
+/** PURE: what Back does in the player (the web's ui-back order): close a menu,
+ *  dismiss Up next, hide the chrome (only once something plays — on a loading or
+ *  error screen the first Back must leave), else leave ('leave' = the party check,
+ *  then navigation pops). 'pass' when this player is not the screen on top: a player
+ *  left under a second one ate every Back with its own chrome, so the top one could
+ *  never be left (Mi TV, 2026-10-18). */
+export type BackAction = 'pass' | 'closeMenu' | 'dismissUpNext' | 'hideChrome' | 'leave';
+export const backAction = (s: {onTop: boolean; menuOpen: boolean; upNext: boolean; chrome: boolean; playing: boolean}): BackAction => {
+  if (!s.onTop) return 'pass';
+  if (s.menuOpen) return 'closeMenu';
+  if (s.upNext) return 'dismissUpNext';
+  if (s.chrome && s.playing) return 'hideChrome';
+  return 'leave';
+};

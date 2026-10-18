@@ -31,6 +31,12 @@ export const KEEP = 4;
 export const verdictForKey = (eventType: string): Verdict | null =>
   eventType === 'right' ? 'love' : eventType === 'left' ? 'nope' : eventType === 'down' ? 'skip' : null;
 
+/** The card drawn flying away once flight `n` has ended — finished or cut
+ *  short (a round's end unmounts the band mid-flight and the native driver
+ *  reports finished=false): that flight's card is gone; a newer one stays. */
+export const leavingAfter = <L extends {n: number}>(cur: L | null, n: number): L | null =>
+  cur && cur.n === n ? null : cur;
+
 export class TasteSession {
   queue: TasteCard[] = [];
   history: Entry[] = [];

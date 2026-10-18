@@ -1,5 +1,5 @@
 // What one press, and holding, does on a row of My downloads (downloadsLogic.ts).
-import {downloadActions, heldLine, isHeld, isReady, startedBy} from '../../src/downloadsLogic';
+import {downloadActions, heldLine, isHeld, isReady, rowStatus, startedBy} from '../../src/downloadsLogic';
 
 const job = (o: Record<string, unknown>) => ({status: 'downloading', mine: true, imdbId: 'tt1', infoHash: 'abc', ...o} as never);
 
@@ -57,4 +57,12 @@ test("someone else's download says who started it, by name - the website's words
   expect(startedBy(job({mine: false}), false)).toBeNull();
   expect(startedBy(job({mine: false, by: null}), false)).toBeNull();
   expect(startedBy(job({mine: false, by: '  '}), false)).toBeNull();
+});
+
+test('the row line: whose first, so a long status cannot cut it off', () => {
+  expect(rowStatus({who: 'Started by Dor', kind: null, status: 'Waiting for approval — Low disk space: 63.1 GB free on C:/Users/x', size: null})).toBe(
+    'Started by Dor · Waiting for approval — Low disk space: 63.1 GB free on C:/Users/x',
+  );
+  expect(rowStatus({who: null, kind: 'From My List', status: 'Downloading 40%', size: '1.2 GB'})).toBe('From My List · Downloading 40% · 1.2 GB');
+  expect(rowStatus({who: null, kind: null, status: 'Ready', size: null})).toBe('Ready');
 });

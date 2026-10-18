@@ -181,6 +181,8 @@ export const noteFocusLost = (node: FocusNode) => {
     for (let i = fallbacks.length - 1; i >= 0; i--) {
       const node2 = fallbacks[i].current;
       if (node2?.requestTVFocus) {
+        // (device evidence: a focused element unmounted and nobody took focus)
+        console.log('[focus] lost: fallback');
         node2.requestTVFocus();
         return;
       }

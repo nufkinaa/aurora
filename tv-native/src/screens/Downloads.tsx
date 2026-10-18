@@ -19,7 +19,7 @@ import Focusable from '../components/Focusable';
 import NavRail from '../components/NavRail';
 import {Empty} from '../components/States';
 import {api, ApiError, artSrc, HeroItem, ImgSource, MyDownload} from '../api';
-import {downloadActions, DownloadAction, heldLine, isHeld, isReady, startedBy} from '../downloadsLogic';
+import {downloadActions, DownloadAction, heldLine, isHeld, isReady, startedBy, rowStatus} from '../downloadsLogic';
 import {openActions} from '../overlay';
 import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
@@ -301,7 +301,9 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
             {j.quality ? <Text style={styles.quality}>{j.quality}</Text> : null}
           </View>
           <Text style={styles.status} numberOfLines={1}>
-            {`${j.auto === 'mylist' ? 'From My List · ' : j.smart ? 'Next episode, queued for you · ' : ''}${statusLine(j)}${j.sizeBytes ? ` · ${fmtBytes(j.sizeBytes)}` : ''}${who ? ` · ${who}` : ''}`}
+            {/* whose comes FIRST: at the end of this one line a long status (a disk
+                warning, an error) cut it off (Mi TV, 2026-10-18) */}
+            {rowStatus({who, kind: j.auto === 'mylist' ? 'From My List' : j.smart ? 'Next episode, queued for you' : null, status: statusLine(j), size: j.sizeBytes ? fmtBytes(j.sizeBytes) : null})}
           </Text>
           {pct != null ? (
             <View style={styles.bar}>

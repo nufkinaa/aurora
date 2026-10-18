@@ -74,3 +74,9 @@ export const startedBy = (j: Job, own: boolean): string | null => {
   const name = typeof j.by === 'string' ? j.by.trim() : '';
   return name ? `Started by ${name}` : null;
 };
+
+/** A row's one status line. Whose download it is comes FIRST: the line is cut to one
+ *  line, and at its end "Started by …" vanished behind a long status (a disk warning,
+ *  an error — Mi TV, 2026-10-18). */
+export const rowStatus = (p: {who: string | null; kind: string | null; status: string; size: string | null}): string =>
+  [p.who, p.kind, p.status, p.size].filter(Boolean).join(' · ');
