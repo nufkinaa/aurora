@@ -53,7 +53,7 @@ const hook = () => {
   for (const sig of ["SIGINT", "SIGTERM", "SIGHUP", "SIGBREAK"]) process.on(sig, () => { all(); process.exit(130); });
 };
 
-const start = async (opts = {}) => {
+const startOnce = async (opts = {}) => {
   hook();
   ui.sweepStale();
   const ds = opts.ds || dataset.build();
@@ -169,6 +169,13 @@ const start = async (opts = {}) => {
       await sleep(25);
     }
     const probeGet = async (p) => (await fetch(probeUrl + p)).json();
+    // The probe's port is chosen before the server starts, and on a busy machine
+    // something in the server (or another instance) can take it first: then
+    // every measurement call reaches the wrong listener (ECONNRESET). Checked
+    // once here; the caller starts the instance again.
+    if (opts.probe !== "off") {
+      try { await (await fetch(probeUrl + "/snap", { signal: AbortSignal.timeout(15000) })).json(); } catch (e) { throw Object.assign(new Error(`the probe did not answer (${e.message}): its port was taken`), { retry: true }); }
+    }
     const session = (i = 0) => ({ "X-Session": ds.sessions[i % ds.sessions.length].sid });
     return {
       url, port, root, pid: child.pid, adminPassword, ds, pinned, weak: !!opts.weak, mode,
@@ -184,8 +191,16 @@ const start = async (opts = {}) => {
       // "warm": the library scanned and probed, the recommender and the search index built
       waitWarm: async (ms = 240000) => {
         const end = Date.now() + ms;
+        let resets = 0;
         for (;;) {
-          const w = await (await fetch(`${probeUrl}/exec`, { method: "POST", body: JSON.stringify({ file: path.join(__dirname, "inproc", "warm-state.js") }) })).json();
+          let w;
+          try {
+            w = await (await fetch(`${probeUrl}/exec`, { method: "POST", body: JSON.stringify({ file: path.join(__dirname, "inproc", "warm-state.js") }) })).json();
+          } catch (e) {
+            if (/ECONNRESET|socket/i.test(String((e.cause && e.cause.code) || e.message)) && child.exitCode === null && ++resets <= 5) { await sleep(500); continue; }
+            // say what the instance said last: a crash, a probe that lost its port
+            throw new Error(`waitWarm: ${e.message} (child exit ${child.exitCode}, signal ${child.signalCode})\n${log.slice(-25).join("\n")}`);
+          }
           if (w.result && w.result.warm) return w.result;
           if (Date.now() > end) throw new Error(`not warm after ${ms} ms: ${JSON.stringify(w.result || w)}`);
           await sleep(500);
@@ -211,6 +226,16 @@ const start = async (opts = {}) => {
   } catch (err) {
     inst.stopSync();
     throw err;
+  }
+};
+
+const start = async (opts = {}) => {
+  for (let i = 0; ; i++) {
+    try { return await startOnce(opts); } catch (e) {
+      if (!e.retry || i >= 3) throw e;
+      process.stderr.write(`[eff] ${e.message} — starting the instance again
+`);
+    }
   }
 };
 

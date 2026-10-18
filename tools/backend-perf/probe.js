@@ -378,5 +378,10 @@ const control = http.createServer(async (req, res) => {
     send(404, { error: "unknown" });
   } catch (e) { send(500, { error: String((e && e.stack) || e) }); }
 });
+// (idle connections kept longer than the measuring side keeps them: with
+// Node's 5 s the server closed a socket the client was just reusing, and a
+// measurement call failed with ECONNRESET now and then on a busy machine)
+control.keepAliveTimeout = 65000;
+control.headersTimeout = 70000;
 control.listen(Number(process.env.EFF_PROBE_PORT) || 0, "127.0.0.1");
 control.unref();
