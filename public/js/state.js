@@ -188,9 +188,15 @@ export const setPersonPref = (key, value) => {
 export const refreshPersonPrefs = async () => {
   if (!state.profile) return;
   const id = state.profile.id;
+  // (a switch flipped HERE while this read was on its way makes a new prefs
+  // object: the answer is older than that choice and is not laid over it —
+  // it turned the switch back. That flip's own save sends profile_updated
+  // again, and the read after it has both. Found by the settings UI test.)
+  const mine = state.profile.prefs;
   try {
     const me = (await api.profiles()).find((p) => p.id === id);
     if (!me || !state.profile || state.profile.id !== id) return;
+    if (state.profile.prefs !== mine) return;
     state.profile.prefs = me.prefs || {};
     applyPersonPrefs(state.profile);
   } catch {}
