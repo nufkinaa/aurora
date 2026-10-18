@@ -275,6 +275,10 @@ router.get("/img/ext", async (req, res) => {
     if (!validImageFile(file)) {
       const failedAt = extImgFails.get(url) || 0;
       if (Date.now() - failedAt < EXT_FAIL_TTL) throw new Error("recently failed");
+      // a picture that has to be FETCHED counts against the client's
+      // allowance (lib/ratelimit.js); one already kept never does
+      const rl = require("../lib/ratelimit").take("img-fetch", req);
+      if (!rl.ok) return require("../lib/ratelimit").refuse(res, "img-fetch", rl.retryAfterSec);
       await fetchExtImage(url, file);
     }
     await sendArt(res, file, req.query.w, req.query.blur, req.query.fmt);

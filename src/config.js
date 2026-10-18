@@ -220,6 +220,19 @@ module.exports = {
   // The TV's rendering switches (native components, render fixes), per TV
   // model if wanted (lib/tvtuning.js — checked there). Nothing set: all off.
   TV_RENDER: userConfig.tvRender || null,
+  // ---- staying healthy (srv-resilience) ----
+  // Per-client rate limits on the public endpoints that cost something
+  // (lib/ratelimit.js): "log" (default: count what would be refused, refuse
+  // nothing), "enforce", "off", or { "mode", "groups": { name: { rate, burst, mode } } }.
+  RATE_LIMITS: userConfig.rateLimits,
+  // Outside providers (lib/upstream.js): per-host overrides,
+  // { "hosts": { "api.themoviedb.org": { "concurrency": 4, "timeoutMs": 8000 } } }.
+  UPSTREAM: userConfig.upstream && typeof userConfig.upstream === "object" ? userConfig.upstream : {},
+  // The HTTP server's own limits (lib/httplimits.js):
+  // { "headersTimeoutSec": 20, "requestTimeoutSec": 120, "keepAliveTimeoutSec": 75 }.
+  HTTP: userConfig.http && typeof userConfig.http === "object" ? userConfig.http : {},
+  // WebSocket limits (realtime.js): { "maxPerAddress": 32, "maxMessageKb": 64 }.
+  WS: userConfig.ws && typeof userConfig.ws === "object" ? userConfig.ws : {},
   FFMPEG,
   FFPROBE,
   TESSERACT,
