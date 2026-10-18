@@ -92,7 +92,23 @@ const loadLibrary = async (ctx, srv) => {
   }
   ctx.lib.words = [...words];
   const home = await d.getJson("setup", `/api/home?profile=${srv.sessions[0].profileId}`);
-  if (home.json) ctx.learn(require("./devices").cardsOf(home.json));
+  const { cardsOf, artUrl } = require("./devices");
+  if (home.json) ctx.learn(cardsOf(home.json));
+  // The pictures a settled server already has: every library cover and backdrop and the Home
+  // cards, at the widths the devices ask for. Without this the first windows measure the
+  // picture-variant queue of a server seeing its library for the first time.
+  if (!ctx.noPrewarm) {
+    const t0 = Date.now();
+    const urls = new Set();
+    for (const m of [...ctx.lib.movies, ...ctx.lib.shows]) {
+      for (const w of [360, 256]) { const u = artUrl(m.cover, w); if (u) urls.add(u); }
+      for (const w of [1920, 1280]) { const u = artUrl(m.backdrop, w); if (u) urls.add(u); }
+    }
+    for (const c of home.json ? cardsOf(home.json).slice(0, 120) : []) for (const w of [360, 256]) { const u = artUrl(c.poster || c.cover || c.backdrop, w); if (u) urls.add(u); }
+    const list = [...urls];
+    for (let k = 0; k < list.length; k += 4) await Promise.all(list.slice(k, k + 4).map((u) => d.hit("setup", "GET", u, { compressed: false, timeoutMs: 120000 })));
+    say(`pictures warmed: ${list.length} in ${Math.round((Date.now() - t0) / 1000)} s`);
+  }
   d.stop();
   ctx.stats = new Stats();
   const pools = { "web-direct": [], "web-jit": [], "web-transcode": [], "tv-direct": [], "tv-offset": [] };
@@ -281,6 +297,7 @@ const boot = async (a, ref, profiles) => {
   const root = srv.libraries && srv.libraries.movies && srv.libraries.movies[0];
   tree.disk = diskSampler(root && /^[A-Za-z]:/.test(root) ? root : null);
   const ctx = makeCtx(srv);
+  ctx.noPrewarm = !!a["no-prewarm"];
   const lib = await loadLibrary(ctx, srv);
   say(`library: ${lib.movies} films, ${lib.shows} shows; pools ${JSON.stringify(lib.pools)}`);
   // the boot's own background work (enrich, indexes, recommender, intro pass…) first: a
