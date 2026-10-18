@@ -28,17 +28,26 @@ test("a slow provider: the title page waits ~2.5 s, and the late answer is there
     return jsonRes(meta(id));
   };
   const t0 = Date.now();
-  await assert.rejects(upstream.asPage(() => discover.meta("movie", id)), (e) => e.code === "deadline");
+  await assert.rejects(discover.meta("movie", id, { waiting: true }), (e) => e.code === "deadline");
   const waited = Date.now() - t0;
   assert.ok(waited >= 2400 && waited < 3000, `the page waited ${waited} ms`);
   await new Promise((r) => setTimeout(r, 1000)); // the late answer lands
   const t1 = Date.now();
-  const data = await upstream.asPage(() => discover.meta("movie", id));
+  const data = await discover.meta("movie", id, { waiting: true });
   assert.ok(Date.now() - t1 < 100, "answered from what came late");
   assert.equal(data.title, `Title ${id}`);
   assert.equal(calls, 1, "the provider was asked once");
   const h = upstream.status().hosts.find((x) => x.host === "v3-cinemeta.strem.io");
   assert.equal(h.lateFills, 1);
+});
+
+test("background work (no person waiting) waits for the provider's full answer — it never mistakes slow for nothing", async () => {
+  const id = `tt8${Date.now() % 1000000}2`;
+  global.fetch = async () => { await new Promise((r) => setTimeout(r, 2800)); return jsonRes(meta(id)); };
+  const t0 = Date.now();
+  const data = await discover.meta("movie", id); // the follows check, the library warm-up…
+  assert.ok(Date.now() - t0 >= 2700, "waited for the answer");
+  assert.equal(data.title, `Title ${id}`);
 });
 
 test("a provider that is down: after a few failures the page fails in milliseconds, without asking it", async () => {

@@ -240,10 +240,6 @@ app.use(require("./src/lib/airtoken").middleware);
 // in src/lib/resetgate.js. After the wall above, ahead of every router.
 app.use(require("./src/lib/resetgate").middleware);
 
-// A person is waiting for every API answer: a provider call made while one
-// is composed waits its page deadline at most (lib/upstream.js); the same
-// call made by background work waits its full timeout.
-app.use("/api", require("./src/lib/upstream").pageMiddleware);
 // Per-client rate limits on the public endpoints that ask an outside
 // provider or burn CPU (lib/ratelimit.js; "log" mode unless config says
 // "enforce"). After the wall and the reset gate: a signed-in device is

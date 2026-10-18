@@ -544,7 +544,7 @@ let src = {
     return out;
   },
   liveCached: (q) => discover.searchCached(q),
-  live: (q) => discover.search(q),
+  live: (q) => discover.search(q, { waiting: true }), // (a person typing: the page waits ~2.5 s at most)
   similarCached: (type, imdbId) => similarLib().similarCached(type === "show" ? "series" : "movie", imdbId),
   collectionCached: (imdbId) => similarLib().collectionCached(imdbId),
   canFetchSimilar: () => !!config.TMDB_KEY,

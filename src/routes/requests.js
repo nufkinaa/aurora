@@ -33,7 +33,7 @@ router.get("/api/discover/search", async (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.json({ movies: [], shows: [] });
   try {
-    res.json(await discover.search(q));
+    res.json(await discover.search(q, { waiting: true }));
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
@@ -46,6 +46,7 @@ router.get("/api/discover/search", async (req, res) => {
 router.get("/api/catalog", async (req, res) => {
   try {
     const out = await discover.catalog({
+      waiting: true,
       type: req.query.type === "show" || req.query.type === "series" ? "show" : "movie",
       category: String(req.query.category || "trending"),
       genre: req.query.genre ? String(req.query.genre) : null,
@@ -61,7 +62,7 @@ router.get("/api/catalog", async (req, res) => {
 // comes back empty.
 router.get("/api/catalog/genres", async (req, res) => {
   try {
-    res.json({ genres: await discover.genres(req.query.type === "show" ? "show" : "movie") });
+    res.json({ genres: await discover.genres(req.query.type === "show" ? "show" : "movie", { waiting: true }) });
   } catch {
     res.json({ genres: [] });
   }
@@ -85,7 +86,7 @@ router.get("/api/imdb-for", async (req, res) => {
 // Full metadata (backdrop, cast, episodes) for the Discover detail page
 router.get("/api/discover/meta/:type/:id", async (req, res) => {
   try {
-    res.json(await discover.meta(req.params.type, req.params.id));
+    res.json(await discover.meta(req.params.type, req.params.id, { waiting: true }));
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

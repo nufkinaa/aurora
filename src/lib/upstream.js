@@ -10,9 +10,9 @@
 //   one byte a second is cut off like one that never answers), and a cap on
 //   the body's size.
 //
-//   A DEADLINE for the caller (`deadlineMs`, page-facing calls only, and only
-//   while an API request is being answered — see pageCtx): how long a
-//   waiting page waits. When it passes the caller gets its answer
+//   A DEADLINE for the caller (`deadlineMs`, given only by calls a person is
+//   waiting for — a route says so; background work never passes one): how
+//   long a waiting page waits. When it passes the caller gets its answer
 //   from the cache, or a quick failure, and the call carries on in the
 //   background up to its timeout. What it brings back is kept, so the next
 //   ask is answered at once ("late fill", counted as `lateFills`).
@@ -53,17 +53,6 @@
 // per host, calls, failures, timeouts, breaker state, in flight, queued,
 // cache hits and latency.
 "use strict";
-
-const { AsyncLocalStorage } = require("async_hooks");
-// "A person is waiting": set for the whole of an API request (pageMiddleware,
-// mounted on /api in server.js) and for whatever that request awaits. A
-// `deadlineMs` applies only then — the same call made by background work
-// (the follows check, IMDb id matching, the library warm-up) waits for the
-// full timeout, as it always did, so it never mistakes "slow" for "nothing".
-const pageCtx = new AsyncLocalStorage();
-const asPage = (fn) => pageCtx.run(true, fn);
-const pageMiddleware = (req, res, next) => pageCtx.run(true, next);
-const inPage = () => pageCtx.getStore() === true;
 
 let config = null;
 const cfgUser = () => {
@@ -433,7 +422,7 @@ const run = async (url, opts = {}) => {
 //              word of an outage is never dropped by a breaker)
 const upFetch = (url, opts = {}) => {
   const p = run(url, opts);
-  if (!opts.deadlineMs || !inPage()) return p;
+  if (!opts.deadlineMs) return p;
   return withDeadline(p, opts.deadlineMs, hostOf(url));
 };
 
@@ -556,7 +545,7 @@ const json = (url, opts = {}) => {
     }
     throw e;
   });
-  if (!opts.deadlineMs || !inPage()) return covered;
+  if (!opts.deadlineMs) return covered;
   p.catch(() => {}); // a late failure is nobody's to hear
   covered.catch(() => {});
   return withDeadline(covered, opts.deadlineMs, host, () => {
@@ -608,7 +597,7 @@ const openBreakers = () => [...hosts.values()].filter((h) => h.breaker !== "clos
 const _reset = () => { hosts.clear(); cache.clear(); cacheBytes = 0; inflight.clear(); };
 
 module.exports = {
-  fetch: upFetch, json, status, openBreakers, failureCount, UpstreamError, hostOf, asPage, pageMiddleware, inPage,
+  fetch: upFetch, json, status, openBreakers, failureCount, UpstreamError, hostOf,
   DEFAULTS, HOSTS,
   _internals: { clock, hosts, cache, inflight, settingsFor, stateOf, _reset },
 };

@@ -196,11 +196,11 @@ test("json: a 404 is remembered (negative cache)", async () => {
 
 test("json: past the deadline the caller is told at once, the call finishes and is kept (late fill)", async () => {
   const t0 = Date.now();
-  await assert.rejects(upstream.asPage(() => upstream.json(`${base}/slow?ms=200`, { ttlMs: 60000, deadlineMs: 50 })), (e) => e.code === "deadline");
+  await assert.rejects(upstream.json(`${base}/slow?ms=200`, { ttlMs: 60000, deadlineMs: 50 }), (e) => e.code === "deadline");
   assert.ok(Date.now() - t0 < 150, "the caller did not wait for the host");
   await new Promise((r) => setTimeout(r, 250));
   const t1 = performance.now();
-  const v = await upstream.asPage(() => upstream.json(`${base}/slow?ms=200`, { ttlMs: 60000, deadlineMs: 50 }));
+  const v = await upstream.json(`${base}/slow?ms=200`, { ttlMs: 60000, deadlineMs: 50 });
   assert.ok(performance.now() - t1 < 20, "the next ask is answered from memory");
   assert.deepEqual(v, { v: 1 });
   assert.equal(hits["/slow"], 1);
@@ -210,30 +210,20 @@ test("json: past the deadline the caller is told at once, the call finishes and 
 
 test("fetch with a deadline: the caller waits no longer than it", async () => {
   const t0 = Date.now();
-  await assert.rejects(upstream.asPage(() => upstream.fetch(`${base}/hang`, { deadlineMs: 60 })), (e) => e.code === "deadline");
+  await assert.rejects(upstream.fetch(`${base}/hang`, { deadlineMs: 60 }), (e) => e.code === "deadline");
   assert.ok(Date.now() - t0 < 200);
-});
-
-test("the deadline is a PAGE's: background work (no request being answered) waits for the full answer", async () => {
-  const v = await upstream.json(`${base}/slow?ms=150`, { deadlineMs: 50 });
-  assert.deepEqual(v, { v: 1 });
-  assert.equal(state().deadlines, 0);
-  // …and inside a request (the middleware), the same call is held to it
-  await new Promise((resolve, reject) => upstream.pageMiddleware({}, {}, () => {
-    upstream.json(`${base}/slow?ms=150&x=2`, { deadlineMs: 50 }).then(() => reject(new Error("waited")), (e) => (e.code === "deadline" ? resolve() : reject(e)));
-  }));
 });
 
 test("a host that does not answer at all: enough calls past the page deadline at once open the breaker, long before the timeout", async () => {
   HOSTS[host] = { ...HOSTS[host], timeoutMs: 3000, concurrency: 8, queue: 16 };
   const t0 = Date.now();
   const calls = [];
-  for (let i = 0; i < 3; i++) calls.push(upstream.asPage(() => upstream.json(`${base}/hang?i=${i}`, { deadlineMs: 60, ttlMs: 1000 })).catch((e) => e.code));
+  for (let i = 0; i < 3; i++) calls.push(upstream.json(`${base}/hang?i=${i}`, { deadlineMs: 60, ttlMs: 1000 }).catch((e) => e.code));
   assert.deepEqual(await Promise.all(calls), ["deadline", "deadline", "deadline"]);
   assert.equal(state().breaker, "open", "opened by three calls past the deadline (failThreshold 3), not by timeouts");
   assert.ok(Date.now() - t0 < 1000);
   const f0 = performance.now();
-  await assert.rejects(upstream.asPage(() => upstream.json(`${base}/hang?i=9`, { deadlineMs: 60 })), (e) => e.code === "open");
+  await assert.rejects(upstream.json(`${base}/hang?i=9`, { deadlineMs: 60 }), (e) => e.code === "open");
   assert.ok(performance.now() - f0 < 20, "the next page fails fast");
 });
 
@@ -242,10 +232,10 @@ test("a host that is only slow, and answers other calls meanwhile, is not opened
   await upstream.fetch(`${base}/ok`); // it answers
   // (an answer AFTER the slow calls began also counts: here one lands first)
   const slow = [];
-  for (let i = 0; i < 2; i++) slow.push(upstream.asPage(() => upstream.json(`${base}/slow?ms=300&i=${i}`, { deadlineMs: 50, ttlMs: 1000 })).catch((e) => e.code));
+  for (let i = 0; i < 2; i++) slow.push(upstream.json(`${base}/slow?ms=300&i=${i}`, { deadlineMs: 50, ttlMs: 1000 }).catch((e) => e.code));
   await new Promise((r) => setTimeout(r, 10));
   await upstream.fetch(`${base}/ok?again=1`);
-  slow.push(upstream.asPage(() => upstream.json(`${base}/slow?ms=300&i=3`, { deadlineMs: 50, ttlMs: 1000 })).catch((e) => e.code));
+  slow.push(upstream.json(`${base}/slow?ms=300&i=3`, { deadlineMs: 50, ttlMs: 1000 }).catch((e) => e.code));
   await Promise.all(slow);
   assert.equal(state().breaker, "closed");
   await new Promise((r) => setTimeout(r, 400));
