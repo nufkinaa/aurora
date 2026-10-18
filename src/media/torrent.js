@@ -207,10 +207,10 @@ const getClient = () => {
       // saturated uplink also delays the ACKs of everything coming in, the
       // torrent's own download included. So uploads are capped (config
       // "torrentUploadKBps", KB/s; -1 or 0 = no cap). The DEFAULT is -1, no
-      // cap, exactly as before — the owner decides (server round 2026-10-18,
-      // pending); 512 KB/s (4 Mbit/s) is the suggested value: enough to be a
-      // fair peer, little enough for a 20 Mbit/s uplink to keep carrying a
-      // stream.
+      // cap, exactly as before — the owner's decision (2026-10-18: "No cap on
+      // downloads at all"): nothing here limits a torrent's speed or its
+      // connections unless the admin sets this. (512 KB/s, 4 Mbit/s, would
+      // keep a 20 Mbit/s uplink free for a remote viewer's stream.)
       clientInstance = new W({
         maxConns: 40,
         seedOutgoingConnections: false,

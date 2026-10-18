@@ -104,7 +104,7 @@ const SCHEMA = {
   diskTypes: [(v) => (isObj(v) ? null : 'must be { "<folder>": "hdd" | "ssd" | "network" | "unknown" }'), "what the OS says each disk is"],
   hwEncode: [(v) => (typeof v === "boolean" || (typeof v === "string" && ["auto", "on", "off", "true", "false", "force"].includes(v.toLowerCase())) ? null : 'must be "auto", "on" or "off"'), '"auto" (the graphics card only where it was measured as good as the CPU)'],
   hwEncodeSessions: [T.int(1, 32), "what the card's probe found"],
-  torrentUploadKBps: [T.num(-1, 1000000), "-1: no upload cap (the owner decides; 512 is the suggested value)"],
+  torrentUploadKBps: [T.num(-1, 1000000), "-1: no upload cap (the owner: no cap on downloads unless the admin sets one)"],
   jitCacheGB: [T.num(0.1, 100000), "20"],
   ws: [(v) => (isObj(v) && (v.mode == null || ["log", "enforce", "off"].includes(v.mode)) ? null : 'must be { "maxPerAddress", "maxMessageKb", "mode" }'), "64 kB messages, 64 sockets per address (LAN 4x), the rate-limit mode"],
 };

@@ -245,7 +245,7 @@ module.exports = {
   // segments also go while the disk has under 5 GB free (media/jit.js).
   // Torrent streaming's upload cap, KB/s (media/torrent.js: the uplink is
   // what remote viewers' streams go out on). Unset: 512. -1: no cap.
-  TORRENT_UPLOAD_KBPS: userConfig.torrentUploadKBps != null && Number.isFinite(Number(userConfig.torrentUploadKBps)) ? Number(userConfig.torrentUploadKBps) : -1, // (default OFF = no cap, as before 1.7.3: the owner decides; 512 is the suggested value)
+  TORRENT_UPLOAD_KBPS: userConfig.torrentUploadKBps != null && Number.isFinite(Number(userConfig.torrentUploadKBps)) ? Number(userConfig.torrentUploadKBps) : -1, // (default OFF = no cap, as before; owner 2026-10-18: "No cap on downloads at all" — a cap applies only when the admin sets one here)
   JIT_CACHE_GB: Number(userConfig.jitCacheGB) > 0 ? Number(userConfig.jitCacheGB) : 0,
   // The TV player's start-up tuning, handed to the app as it is asked for
   // (lib/tvtuning.js — checked there). Nothing set: the app's own values.
