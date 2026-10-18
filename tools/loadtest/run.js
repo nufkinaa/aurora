@@ -383,8 +383,12 @@ const runSoak = async (a) => {
 
 // A against B, interleaved: A B B A A B … (each a fresh instance, same scenario, same size)
 const runAb = async (a) => {
-  const refs = { A: a.a || "master", B: a.b };
-  if (!refs.B) throw new Error("--b <ref> is needed");
+  if (!a.b) throw new Error("--b <ref> is needed");
+  // pinned to commits now: a branch that moves during the hour of an A/B must not change sides' code half-way
+  const { resolveRef } = require("./instance");
+  const pin = (r) => { const x = resolveRef(r); return x.kind === "sha" ? x.sha : r; };
+  const refs = { A: pin(a.a || "master"), B: pin(a.b) };
+  say(`A = ${a.a || "master"} ${refs.A.slice(0, 8)}, B = ${a.b} ${refs.B.slice(0, 8)}`);
   const rounds = Number(a.rounds) || 3;
   const order = [];
   for (let r = 0; r < rounds; r++) order.push(...(r % 2 ? ["B", "A"] : ["A", "B"]));
@@ -394,7 +398,7 @@ const runAb = async (a) => {
     const res = await runOnce(a, { ref: refs[side], minutes: Number(a.minutes) || 4, warm: Number(a.warm) || 45 });
     runs.push({ side, ref: refs[side], meta: res.meta, window: res.windows[0] });
   }
-  return { meta: { at: new Date().toISOString(), refs, rounds, order, scenario: a.scenario || "evening", n: Number(a.n) || 8, args: a, host: { cpus: os.cpus().length, cpu: os.cpus()[0].model } }, runs };
+  return { meta: { at: new Date().toISOString(), refs, names: { A: a.a || "master", B: a.b }, rounds, order, scenario: a.scenario || "evening", n: Number(a.n) || 8, args: a, host: { cpus: os.cpus().length, cpu: os.cpus()[0].model } }, runs };
 };
 
 const stamp = () => new Date().toISOString().replace(/[:T]/g, "-").slice(0, 16);

@@ -43,7 +43,9 @@ const key = (w) => {
     ttffP50: p50of(v.map((x) => x.ttffMs)), ttffMax: maxOf(v.map((x) => x.ttffMs)),
     seekP50: p50of(v.flatMap((x) => x.seekMs || [])), seekMax: maxOf(v.flatMap((x) => x.seekMs || [])),
     refused: sum(v, (x) => x.refused),
-    err5xx: w.client.all.s5xx, errNet: w.client.all.net, err429: w.client.all.s429, err503: w.client.all.s503,
+    // errors a person would see while browsing (the rig's offline misses — catalogue pictures, people, X-Ray — are their own groups and not counted)
+    err5xx: w.client.browse.s5xx, errNet: w.client.browse.net, err429: w.client.browse.s429, err503: w.client.browse.s503,
+    streamErrors: ["segment", "playlist", "direct", "first-segment"].reduce((a, k) => a + (g[k] ? g[k].err : 0), 0),
     machineCpu: w.machine ? w.machine.cpuPctMean : null, machineFreeMb: w.machine ? w.machine.freeMbMin : null,
     starved: w.machine ? w.machine.cpuPctMean > 85 || w.machine.freeMbMin < 1024 : false, driverCores: w.driverCores,
     diskBusy: w.disk ? w.disk.busyPctMean : null, diskReadMBs: w.disk ? w.disk.readMBsMean : null,
@@ -78,7 +80,7 @@ const writesTable = (w) => table((w.server.writes || []).slice(0, 10), [["data/ 
 
 const renderAb = (res) => {
   const out = [];
-  const { refs } = res.meta;
+  const refs = res.meta.names ? { A: `${res.meta.names.A} ${String(res.meta.refs.A).slice(0, 8)}`, B: `${res.meta.names.B} ${String(res.meta.refs.B).slice(0, 8)}` } : res.meta.refs;
   out.push(`# A/B: ${refs.A} (A) vs ${refs.B} (B) — ${res.meta.scenario} n=${res.meta.n}, ${res.runs.length} runs interleaved ${res.meta.order.join(" ")}`);
   out.push("");
   const metrics = [
@@ -86,7 +88,7 @@ const renderAb = (res) => {
     ["segment p95 ms", "segP95", -1], ["first segment p50 ms", "firstSegP50", -1], ["TTFF p50 ms", "ttffP50", -1], ["stalls", "stalls", -1],
     ["loop stalls > 50 ms", "stall50", -1], ["loop stalls > 100 ms", "stall100", -1], ["loop stall ms/min", "stallMsPerMin", -1], ["longest stall ms", "stallMax", -1], ["healthz p99 ms", "lagP99", -1], ["ELU", "elu", -1],
     ["server CPU s/min", "serverCpuSecPerMin", -1], ["ffmpeg cores", "kidsCores", -1], ["RSS MB", "rssMb", -1], ["heap MB", "heapMb", -1], ["handles", "handles", -1],
-    ["fs calls/s", "fsCallsPerSec", -1], ["written KB/min", "writtenKbPerMin", -1], ["5xx", "err5xx", -1], ["429", "err429", -1], ["503", "err503", -1], ["PC CPU % (noise)", "machineCpu", 0],
+    ["fs calls/s", "fsCallsPerSec", -1], ["written KB/min (server, data/)", "writtenKbPerMin", -1], ["browse 5xx", "err5xx", -1], ["stream request errors", "streamErrors", -1], ["429", "err429", -1], ["503", "err503", -1], ["PC CPU % (noise)", "machineCpu", 0],
   ];
   const A = res.runs.filter((r) => r.side === "A").map((r) => key(r.window));
   const B = res.runs.filter((r) => r.side === "B").map((r) => key(r.window));
