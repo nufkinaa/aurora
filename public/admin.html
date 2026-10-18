@@ -3266,6 +3266,13 @@
           const full = cs.filter((c) => c.full).map((c) => c.name);
           return [[total.toLocaleString(), "kept in memory", `${cs.length} caches · ${top.join(" · ")}${full.length ? ` · at their bound: ${full.join(", ")}` : ""}`]];
         })(),
+        ...(() => {
+          // what the server chose from this machine, and why (server.js / lib/power.js)
+          const t = (h.load && h.load.tuning) || [];
+          const p = t.find((x) => x.name === "power profile");
+          if (!p) return [];
+          return [[String(p.value), "power profile", `${p.why} · ` + t.filter((x) => x !== p).map((x) => `${x.name}: ${x.value}${x.why ? ` (${x.why})` : ""}`).join(" · ")]];
+        })(),
       ].map(([v, k, note]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div>${note ? `<div class="note">${esc(note)}</div>` : ""}</div>`).join("");
       const ev = h.events || [];
       $("#sv-health-events").innerHTML = ev.length

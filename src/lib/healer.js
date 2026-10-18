@@ -668,7 +668,10 @@ const status = () => {
 const start = () => {
   if (state.timer) return;
   repairs._setDeps({ note }); // an automatic repair is written into the event list like every other action
-  state.timer = setInterval(() => { run().catch((e) => console.error("[healer] round failed:", e && e.message)); }, CHECK_MS);
+  // (every 3 minutes on a low-power machine — lib/power.js)
+  let every = CHECK_MS;
+  try { every = require("./power").pick(CHECK_MS, 3 * CHECK_MS); } catch {}
+  state.timer = setInterval(() => { run().catch((e) => console.error("[healer] round failed:", e && e.message)); }, every);
   state.timer.unref?.();
   // first round once boot has settled and the queue has resumed
   setTimeout(() => { run().catch(() => {}); }, 15000).unref?.();

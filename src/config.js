@@ -108,7 +108,12 @@ module.exports = {
     movies: (userConfig.libraries && userConfig.libraries.movies) || [],
     shows: (userConfig.libraries && userConfig.libraries.shows) || [],
   },
-  SCAN_INTERVAL_MS: (userConfig.scanIntervalMinutes || 10) * 60 * 1000,
+  // (20 minutes by default on a low-power machine — lib/power.js; a value
+  // set here is always kept)
+  SCAN_INTERVAL_MS: (userConfig.scanIntervalMinutes || (require("./lib/power").decide(userConfig.powerProfile).profile === "low" ? 20 : 10)) * 60 * 1000,
+  // "auto" (default) | "low" | "normal": what lib/power.js may trim on a small machine
+  POWER_PROFILE: userConfig.powerProfile || "auto",
+  SCAN_INTERVAL_WHY: userConfig.scanIntervalMinutes ? "set in config.json" : require("./lib/power").decide(userConfig.powerProfile).profile === "low" ? "the low-power profile" : "the default",
   AUTO_OCR: userConfig.autoOcrSubtitles !== false,
   ONLINE_METADATA: userConfig.onlineMetadata !== false,
   // Intro / recap / credits timestamps from the public databases (SkipDB,

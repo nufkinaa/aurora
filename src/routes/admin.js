@@ -384,6 +384,17 @@ router.post("/api/admin/mylist/keep", (req, res) => {
 });
 
 // ---------- health (watchdog) ----------
+// The values the server chose from what it detected, each with its reason.
+const tuning = () => {
+  const out = [];
+  const add = (name, value, why) => out.push({ name, value, why });
+  try { const p = require("../lib/power").status(); add("power profile", p.profile, p.why); } catch {}
+  try { const c = require("../media/cpuwork"); add("background decodes at once", c.budget(), c.budgetWhy()); add("background threads", c.background.threads(), "half the CPU threads"); } catch {}
+  try { add("library rescan", `every ${Math.round(config.SCAN_INTERVAL_MS / 60000)} min`, config.SCAN_INTERVAL_WHY || ""); } catch {}
+  try { add("library walk", "in a worker thread", "unchanged folders keep their files' dates; every file re-dated each 6th walk"); } catch {}
+  try { const h = require("../lib/power").pick(60, 180); add("healer round", `every ${h} s`, require("../lib/power").low() ? "the low-power profile" : "the default"); } catch {}
+  return out;
+};
 // Sizes of what is kept in memory: every bounded cache (lib/caches.js) plus a
 // few stores that are bounded elsewhere, and the profile states left behind
 // for ids that are no profile (an old version created those; they are
@@ -422,6 +433,8 @@ router.get("/api/admin/health", (req, res) => {
   try { load.caches = memorySizes(); } catch {}
   try { load.scan = scanner.scanStats(); } catch {}
   try { load.power = require("../lib/power").status(); } catch {}
+  // what was chosen from this machine, and why (the owner: "show why this value")
+  try { load.tuning = tuning(); } catch {}
   res.json({ ...require("../lib/watchdog").status(), load });
 });
 router.post("/api/admin/heal", (req, res) => {

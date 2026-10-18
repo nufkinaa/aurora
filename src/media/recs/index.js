@@ -66,6 +66,21 @@ const state = {
 };
 const ready = () => state.gen > 0;
 
+// What the recommender scores. Every title it knows — or, on a low-power
+// machine (lib/power.js), the LOW_POWER_TITLES most-voted plus every title
+// the household itself has (the keep set: watched, listed, in the library):
+// each scored title holds a feature vector in memory.
+const LOW_POWER_TITLES = 2000;
+const scored = (all) => {
+  let low = false;
+  try { low = require("../../lib/power").low(); } catch {}
+  if (!low || all.length <= LOW_POWER_TITLES) return all;
+  const keep = titleindex.keepSet ? titleindex.keepSet() : new Set();
+  const own = all.filter((r) => keep.has(r.id));
+  const rest = all.filter((r) => !keep.has(r.id)).sort((a, b) => (b.vc || 0) - (a.vc || 0)).slice(0, Math.max(0, LOW_POWER_TITLES - own.length));
+  return [...own, ...rest];
+};
+
 const yieldLoop = () => new Promise((r) => setImmediate(r));
 
 const prepare = async ({ force = false } = {}) => {
@@ -74,7 +89,7 @@ const prepare = async ({ force = false } = {}) => {
   if (!force && stamp === state.stamp && state.gen > 0) return state;
   state.building = (async () => {
     try {
-      const all = titleindex.all();
+      const all = scored(titleindex.all());
       // document frequencies drift slowly: recount when the index grew 5%
       if (!state.stats || force || Math.abs(all.length - state.statsN) > state.statsN * 0.05) {
         state.stats = features.buildStats(all);
