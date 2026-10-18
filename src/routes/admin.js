@@ -383,6 +383,18 @@ router.post("/api/admin/mylist/keep", (req, res) => {
   res.json(r);
 });
 
+// ---------- metrics (lib/metrics.js) ----------
+// Why is it slow: requests per route group with time-to-first-byte
+// histograms, event-loop delay, memory, work in flight, the outside
+// providers' breakers, rate-limit and WebSocket counters, boot checks.
+// JSON; ?fmt=prom for Prometheus text.
+router.get("/api/admin/metrics", (req, res) => {
+  const metrics = require("../lib/metrics");
+  res.setHeader("Cache-Control", "no-store");
+  if (req.query.fmt === "prom") return res.type("text/plain; version=0.0.4").send(metrics.prom());
+  res.json(metrics.snapshot());
+});
+
 // ---------- health (watchdog) ----------
 router.get("/api/admin/health", (req, res) => {
   // …plus the counters of the three things that keep a rush from becoming a

@@ -120,6 +120,10 @@ server.on("error", (err) => {
 // connection, so a keep-alive client's next request reaches the new process.
 app.use(require("./src/lib/shutdown").middleware);
 
+// Requests per route group, time to first byte, the slow-request line
+// (lib/metrics.js — read at /api/admin/metrics and on Server → Health).
+app.use(require("./src/lib/metrics").middleware);
+
 // How long the server itself took over each data and stream answer, as the
 // standard Server-Timing header (lib/servertiming.js) — so a slow start can
 // be put down to the server, the line or the player.

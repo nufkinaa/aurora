@@ -16,7 +16,7 @@ const { monitorEventLoopDelay } = require("perf_hooks");
 const WINDOW_MS = 10 * 1000;
 let h = null;
 let timer = null;
-let last = { maxMs: 0, p99Ms: 0, meanMs: 0, windowMs: 0, at: 0 };
+let last = { maxMs: 0, p99Ms: 0, p50Ms: 0, meanMs: 0, windowMs: 0, at: 0 };
 
 const ms = (ns) => Math.max(0, Math.round((ns / 1e6) * 10) / 10);
 const above = (ns, floorNs) => ms(Math.max(0, ns - floorNs));
@@ -24,7 +24,7 @@ const above = (ns, floorNs) => ms(Math.max(0, ns - floorNs));
 const roll = () => {
   if (!h) return;
   const floor = h.min > 0 && h.min < 1e15 ? h.min : 0;
-  last = { maxMs: above(h.max, floor), p99Ms: above(h.percentile(99), floor), meanMs: above(h.mean || 0, floor), windowMs: WINDOW_MS, at: Date.now() };
+  last = { maxMs: above(h.max, floor), p99Ms: above(h.percentile(99), floor), p50Ms: above(h.percentile(50), floor), meanMs: above(h.mean || 0, floor), windowMs: WINDOW_MS, at: Date.now() };
   h.reset();
 };
 
@@ -53,7 +53,7 @@ const stop = () => {
 const read = () => {
   let now = 0;
   try { if (h && h.max > 0) now = above(h.max, h.min > 0 && h.min < 1e15 ? h.min : 0); } catch {}
-  return { maxMs: Math.max(last.maxMs, now), p99Ms: last.p99Ms, meanMs: last.meanMs, windowMs: WINDOW_MS };
+  return { maxMs: Math.max(last.maxMs, now), p99Ms: last.p99Ms, p50Ms: last.p50Ms, meanMs: last.meanMs, windowMs: WINDOW_MS };
 };
 
 module.exports = { start, stop, read, _roll: roll };
