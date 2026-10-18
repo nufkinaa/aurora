@@ -201,12 +201,27 @@ const getClient = () => {
       // numwant:200 — webtorrent's default asks a tracker for only 50
       // addresses, once per ~30min; ask for more up front (trackers clamp
       // as they see fit).
+      // uploadLimit: webtorrent does no choking — every connected peer that
+      // asks is sent pieces as fast as the line takes them. On a home line
+      // the UPLINK is what a remote viewer's stream goes out on, and a
+      // saturated uplink also delays the ACKs of everything coming in, the
+      // torrent's own download included. So uploads are capped (config
+      // "torrentUploadKBps", KB/s; -1 = no cap, as before). Default 512 KB/s
+      // (4 Mbit/s): enough to be a fair peer, little enough for a 20 Mbit/s
+      // uplink to keep carrying a stream.
       clientInstance = new W({
         maxConns: 40,
         seedOutgoingConnections: false,
         utp: false,
         tracker: { getAnnounceOpts: () => ({ numwant: 200 }) },
+        ...(config.TORRENT_UPLOAD_KBPS > 0 ? { uploadLimit: config.TORRENT_UPLOAD_KBPS * 1024 } : {}),
       });
+      // Pieces of several MB pass through Buffers at tens of MB a second
+      // while the JavaScript heap stays small, so V8 may not collect for a
+      // long time and the process grows past a GB of garbage (measured:
+      // lib/memnudge.js). While the client exists, a look every 2 s.
+      const nudge = setInterval(() => { try { require("../lib/memnudge").check(); } catch {} }, 2000);
+      nudge.unref?.();
       // A client-level error with no listener throws out of the event loop;
       // the process guard catches it but the client can be left wedged. Log it.
       clientInstance.on("error", (err) =>

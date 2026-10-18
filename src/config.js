@@ -217,6 +217,9 @@ module.exports = {
   // How much the jit cache (segments idle streams made, kept for a pause, a
   // second viewer, a restart) may hold on disk, in GB. Unset: 20. Kept
   // segments also go while the disk has under 5 GB free (media/jit.js).
+  // Torrent streaming's upload cap, KB/s (media/torrent.js: the uplink is
+  // what remote viewers' streams go out on). Unset: 512. -1: no cap.
+  TORRENT_UPLOAD_KBPS: userConfig.torrentUploadKBps != null && Number.isFinite(Number(userConfig.torrentUploadKBps)) ? Number(userConfig.torrentUploadKBps) : 512,
   JIT_CACHE_GB: Number(userConfig.jitCacheGB) > 0 ? Number(userConfig.jitCacheGB) : 0,
   // The TV player's start-up tuning, handed to the app as it is asked for
   // (lib/tvtuning.js — checked there). Nothing set: the app's own values.
