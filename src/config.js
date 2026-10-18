@@ -240,6 +240,9 @@ module.exports = {
   // The HTTP server's own limits (lib/httplimits.js):
   // { "headersTimeoutSec": 20, "requestTimeoutSec": 120, "keepAliveTimeoutSec": 75 }.
   HTTP: userConfig.http && typeof userConfig.http === "object" ? userConfig.http : {},
+  // The reverse proxies whose X-Forwarded-For is believed (lib/ratelimit.js),
+  // beyond this machine itself: ["172.17.0.1", "10.0.0.0/8"].
+  TRUST_PROXY: Array.isArray(userConfig.trustProxy) ? userConfig.trustProxy : [],
   // WebSocket limits (realtime.js): { "maxPerAddress": 32, "maxMessageKb": 64 }.
   WS: userConfig.ws && typeof userConfig.ws === "object" ? userConfig.ws : {},
   FFMPEG,

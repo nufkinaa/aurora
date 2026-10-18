@@ -1,6 +1,6 @@
 // What this machine gives the server, checked at boot and on every metrics
-// read (cheaply): the Node version, the open-file limit (Linux), free disk
-// where the data lives, and what config.json's check found
+// read (cheaply): the Node version, cores and memory, the open-file limit
+// (Linux), free disk where the data lives, and what config.json's check found
 // (lib/configcheck.js). For the admin's Health card and /api/admin/metrics;
 // each problem is also said once in the log at boot.
 //
@@ -14,7 +14,22 @@
 "use strict";
 const fs = require("fs");
 
+const os = require("os");
+
 const MIN_NODE = 20;
+const MEM_WARN_BYTES = 512 * 1024 * 1024;
+const gb = (b) => (b == null ? "?" : (b / 1073741824).toFixed(1));
+// Memory that can be had now: MemAvailable on Linux, os.freemem() elsewhere
+// (Windows and macOS already count reclaimable memory as free).
+const memAvailable = (read = (p) => fs.readFileSync(p, "utf8")) => {
+  if (process.platform === "linux") {
+    try {
+      const m = /^MemAvailable:\s+(\d+)\s+kB/m.exec(read("/proc/meminfo"));
+      if (m) return Number(m[1]) * 1024;
+    } catch {}
+  }
+  try { return os.freemem(); } catch { return null; }
+};
 const FD_WARN = 4096; // a soft limit below this is worth raising
 const FD_RESERVE = 256; // handles kept back for files, pipes, the log
 const DISK_WARN_GB = 5;
@@ -53,6 +68,22 @@ const status = () => {
   const checks = [];
   const major = Number(process.versions.node.split(".")[0]);
   checks.push({ id: "node", level: major >= MIN_NODE ? "ok" : "warn", text: `Node ${process.version}${major >= MIN_NODE ? "" : ` — Aurora needs ${MIN_NODE} or newer`}` });
+  // the machine: cores and memory (every OS; on Linux "available" is
+  // /proc/meminfo's MemAvailable — free + reclaimable cache — the number
+  // that says whether a new encoder fits; os.freemem() there leaves the
+  // cache out and reads alarmingly low on any box that has been up a while)
+  const cores = typeof os.availableParallelism === "function" ? os.availableParallelism() : (os.cpus() || []).length;
+  const total = os.totalmem();
+  const avail = memAvailable();
+  const heapLimit = (() => { try { return require("v8").getHeapStatistics().heap_size_limit; } catch { return null; } })();
+  const lowMem = avail != null && (avail < MEM_WARN_BYTES || avail / total < 0.1);
+  checks.push({
+    id: "memory", level: lowMem ? "warn" : "ok",
+    text: `${cores} core${cores === 1 ? "" : "s"} · memory ${gb(avail)} GB available of ${gb(total)} GB` +
+      (heapLimit ? ` · this process may use up to ${Math.round(heapLimit / 1048576)} MB of heap` : "") +
+      (lowMem ? " — little memory left: encoders and picture work will be refused or slow" : ""),
+    cores, total, available: avail, heapLimit,
+  });
   const lim = fdLimit();
   if (lim) {
     const open = fdOpen();
@@ -91,4 +122,4 @@ const announce = () => {
   for (const c of status().checks) if (c.level === "warn" || c.level === "critical") { try { console.warn(`[resources] ${c.text}`); } catch {} }
 };
 
-module.exports = { status, announce, applyToServer, fdLimit, maxConnectionsFor, _internals: { fdOpen, reset: () => { cached = null; } } };
+module.exports = { status, announce, applyToServer, fdLimit, maxConnectionsFor, memAvailable, _internals: { fdOpen, reset: () => { cached = null; } } };

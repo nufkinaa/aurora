@@ -84,13 +84,41 @@ const readSettings = () => {
 
 const isLoopback = (a) => a === "127.0.0.1" || a === "::1" || a === "localhost";
 const isPrivate = (a) => isLoopback(a) || a.startsWith("10.") || a.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(a) || /^f[cd]/i.test(a) || /^fe80:/i.test(a);
-// The client's address, trusting X-Forwarded-For only from the proxy on this machine.
+// The client's address. X-Forwarded-For is believed only from a TRUSTED
+// proxy — this machine itself by default (nginx / Caddy on the same box, the
+// nufurora.com layout); a proxy elsewhere (a Docker bridge, another host) is
+// named in config.json: "trustProxy": ["172.17.0.1"] (exact addresses, or
+// "10.0.0.0/8"-style IPv4 ranges). The header is read from the right: hops
+// added by trusted proxies are skipped, the first one that is not is the
+// client — so a client cannot pick its own address by sending the header.
+const ipv4 = (a) => { const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(a); return m ? ((+m[1] << 24) >>> 0) + (+m[2] << 16) + (+m[3] << 8) + +m[4] : null; };
+let trustCache = { raw: undefined, list: null };
+const trusted = () => {
+  let raw;
+  try { raw = require("../config").TRUST_PROXY; } catch { raw = undefined; }
+  if (trustCache.raw === raw && trustCache.list) return trustCache.list;
+  const list = [];
+  for (const t of Array.isArray(raw) ? raw : []) {
+    const m = /^(\d+\.\d+\.\d+\.\d+)\/(\d{1,2})$/.exec(String(t).trim());
+    if (m && ipv4(m[1]) != null) { const bits = Number(m[2]); const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0; list.push({ net: (ipv4(m[1]) & mask) >>> 0, mask }); }
+    else list.push({ exact: String(t).trim().replace("::ffff:", "") });
+  }
+  trustCache = { raw, list };
+  return list;
+};
+const isTrustedProxy = (a) => {
+  if (isLoopback(a)) return true;
+  const n = ipv4(a);
+  for (const t of trusted()) {
+    if (t.exact != null ? t.exact === a : n != null && ((n & t.mask) >>> 0) === t.net) return true;
+  }
+  return false;
+};
 const addressOf = (req) => {
   const sock = String((req.socket && req.socket.remoteAddress) || "").replace("::ffff:", "");
-  if (isLoopback(sock)) {
-    const xff = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim().replace("::ffff:", "");
-    if (xff) return xff;
-  }
+  if (!isTrustedProxy(sock)) return sock || "?";
+  const hops = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim().replace("::ffff:", "")).filter(Boolean);
+  for (let i = hops.length - 1; i >= 0; i--) if (!isTrustedProxy(hops[i]) || i === 0) return hops[i];
   return sock || "?";
 };
 let authzLib = null;
@@ -192,5 +220,5 @@ const _reset = () => { buckets.clear(); for (const k of Object.keys(counts)) del
 
 module.exports = {
   middleware, take, refuse, groupOf, status, GROUPS,
-  _internals: { buckets, addressOf, clientOf, sweep, readSettings, _reset, setClock: (fn) => { clock = fn || (() => Date.now()); } },
+  _internals: { buckets, addressOf, isTrustedProxy, clientOf, sweep, readSettings, _reset, setClock: (fn) => { clock = fn || (() => Date.now()); } },
 };

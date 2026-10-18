@@ -177,7 +177,10 @@ const createLane = (opts = {}) => {
       const sid = req.headers["x-session"] || (req.headers.cookie && /(?:^|;\s*)aurora_session=([^;]+)/.exec(req.headers.cookie) || [])[1]; // lib/authz.js COOKIE
       if (sid) return `s:${String(sid).slice(0, 24)}`;
     } catch {}
-    const ip = String((req.headers["x-forwarded-for"] || "").split(",")[0] || (req.socket && req.socket.remoteAddress) || "?").replace("::ffff:", "").trim();
+    // the address as lib/ratelimit.js reads it: X-Forwarded-For only from a
+    // trusted proxy, so a client cannot make itself many clients with a header
+    let ip;
+    try { ip = require("./ratelimit")._internals.addressOf(req); } catch { ip = String((req.socket && req.socket.remoteAddress) || "?").replace("::ffff:", ""); }
     return `a:${ip}`;
   };
 

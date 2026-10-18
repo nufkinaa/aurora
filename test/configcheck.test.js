@@ -50,10 +50,22 @@ test("resources: the open-file limit is read from /proc/self/limits and sets max
   assert.equal(resources.maxConnectionsFor(null), null);
 });
 
+test("resources: memory available is MemAvailable on Linux (not the cache-blind freemem)", () => {
+  const realPlatform = process.platform;
+  Object.defineProperty(process, "platform", { value: "linux" });
+  try {
+    assert.equal(resources.memAvailable(() => "MemTotal:       16000000 kB\nMemFree:          200000 kB\nMemAvailable:    9000000 kB\n"), 9000000 * 1024);
+  } finally {
+    Object.defineProperty(process, "platform", { value: realPlatform });
+  }
+  assert.ok(resources.memAvailable() > 0, "this machine's own reading");
+});
+
 test("resources: the checks list Node, disk and config", () => {
   resources._internals.reset();
   const s = resources.status();
   const ids = s.checks.map((c) => c.id);
-  assert.ok(ids.includes("node") && ids.includes("config"));
+  assert.ok(ids.includes("node") && ids.includes("config") && ids.includes("memory"));
+  if (process.platform === "linux") assert.ok(ids.includes("files"), "the open-file limit is read on Linux");
   assert.ok(["ok", "warn", "critical"].includes(s.worst));
 });

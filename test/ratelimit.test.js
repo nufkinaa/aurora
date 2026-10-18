@@ -83,8 +83,28 @@ test("a LAN address gets more; X-Forwarded-For is believed only from the proxy o
   // a LAN device cannot pretend to be someone else
   assert.equal(_internals.addressOf(req("/a", { ip: "192.168.1.20", xff: "203.0.113.50" })), "192.168.1.20");
   // the reverse proxy on this machine: its header is the client
-  assert.equal(_internals.addressOf(req("/a", { ip: "127.0.0.1", xff: "203.0.113.50, 10.0.0.1" })), "203.0.113.50");
+  // (the right-most hop is the one the proxy itself saw; what is left of it the client wrote)
+  assert.equal(_internals.addressOf(req("/a", { ip: "127.0.0.1", xff: "203.0.113.50, 10.0.0.1" })), "10.0.0.1");
+  assert.equal(_internals.addressOf(req("/a", { ip: "127.0.0.1", xff: "203.0.113.50" })), "203.0.113.50");
   assert.equal(_internals.addressOf(req("/a", { ip: "::ffff:127.0.0.1", xff: "203.0.113.51" })), "203.0.113.51");
+});
+
+test("trustProxy: a proxy elsewhere is named in config; X-Forwarded-For is read from the right", () => {
+  const addr = _internals.addressOf;
+  // the client sent its own header through the local proxy: the proxy's hop wins
+  assert.equal(addr(req("/a", { ip: "127.0.0.1", xff: "9.9.9.9, 203.0.113.60" })), "203.0.113.60");
+  // a Docker bridge in front: not believed until configured
+  assert.equal(addr(req("/a", { ip: "172.17.0.1", xff: "203.0.113.61" })), "172.17.0.1");
+  config.TRUST_PROXY = ["172.17.0.0/16"];
+  try {
+    assert.equal(addr(req("/a", { ip: "172.17.0.1", xff: "203.0.113.61" })), "203.0.113.61");
+    assert.equal(addr(req("/a", { ip: "172.17.0.1", xff: "203.0.113.62, 172.17.0.5" })), "203.0.113.62", "trusted hops are skipped");
+    assert.equal(addr(req("/a", { ip: "172.18.0.1", xff: "203.0.113.63" })), "172.18.0.1", "outside the range: not believed");
+  } finally {
+    config.TRUST_PROXY = [];
+  }
+  // the admission lane keys clients the same way
+  assert.equal(require("../src/lib/admission").heavy.clientKey(req("/a", { ip: "192.168.1.9", xff: "203.0.113.64" })), "a:192.168.1.9");
 });
 
 test("a made-up session header is an address, not a fresh allowance", () => {
