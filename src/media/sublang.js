@@ -128,7 +128,8 @@ const save = (p, entry) => {
 
 const runFile = async (job) => {
   try {
-    const text = require("./subtitles").decodeSubtitle(fs.readFileSync(job.path));
+    // (read without blocking the event loop: this is background work)
+    const text = require("./subtitles").decodeSubtitle(await fs.promises.readFile(job.path));
     save(job.path, { track: readTrack(text) });
   } catch {
     save(job.path, { failed: true });
@@ -168,7 +169,7 @@ const runSync = async (job) => {
     let result = { apply: false, why: "no reference track" };
     if (ref && ref.length) {
       try {
-        const cues = subsync.parse(subtitles.decodeSubtitle(fs.readFileSync(sub)));
+        const cues = subsync.parse(subtitles.decodeSubtitle(await fs.promises.readFile(sub)));
         result = subsync.align(cues, ref);
       } catch (e) {
         result = { apply: false, why: e.message };

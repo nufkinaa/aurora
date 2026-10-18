@@ -472,10 +472,61 @@ const detect = async (file, duration, opts = {}) => {
   const { samples, wallMs, complete } = await sample(file, win.from, win.length, opts);
   if (!complete) return { incomplete: true, samples: samples.length };
   if (samples.length < 8) return null;
-  const feats = features(samples);
-  const est = estimate(feats, duration);
-  if (opts.debug) opts.debug({ feats, est, wallMs });
+  if (opts.debug) {
+    const feats = features(samples);
+    const est = estimate(feats, duration);
+    opts.debug({ feats, est, wallMs });
+    return est ? { ...est, window: Math.round(win.length) } : null;
+  }
+  // the analysis itself off the event loop (media/creditscv-worker.js); the
+  // same functions here if a worker cannot be had
+  const est = await estimateOffLoop(samples, duration);
   return est ? { ...est, window: Math.round(win.length) } : null;
 };
 
-module.exports = { detect, estimate, features, rowStats, tailWindow, sample, _internals: { W, H, FPS, score, isBlack, isEmptyLight, bestSegment, boxedPicture, pillarBars, bestShift, activeRows, coarseDiff } };
+// Samples as a few big typed arrays, handed to the worker without a copy
+// (3,000 samples are 23 MB of small arrays: cloned one by one they held the
+// loop for 100 ms on their own). unpack() gives back the same samples.
+const FIELDS16 = ["dark", "edges", "flat", "bright", "left", "right"];
+const pack = (samples) => {
+  const n = samples.length;
+  const rows = n ? samples[0].dark.length : 0;
+  const cells = n ? samples[0].coarse.length : 0;
+  const out = { n, rows, cells, t: new Float64Array(n), coarse: new Uint8Array(n * cells) };
+  for (const f of FIELDS16) out[f] = new Uint16Array(n * rows);
+  samples.forEach((s, i) => {
+    out.t[i] = s.t;
+    for (const f of FIELDS16) out[f].set(s[f], i * rows);
+    out.coarse.set(s.coarse, i * cells);
+  });
+  return out;
+};
+const unpack = (p) => {
+  const samples = new Array(p.n);
+  for (let i = 0; i < p.n; i++) {
+    const s = { t: p.t[i], coarse: p.coarse.subarray(i * p.cells, (i + 1) * p.cells) };
+    for (const f of FIELDS16) s[f] = p[f].subarray(i * p.rows, (i + 1) * p.rows);
+    samples[i] = s;
+  }
+  return samples;
+};
+const estimateOffLoop = (samples, duration) =>
+  new Promise((resolve) => {
+    const inThread = () => resolve(estimate(features(samples), duration));
+    let w;
+    try {
+      const { Worker } = require("worker_threads");
+      const packed = pack(samples);
+      const transfer = [packed.t.buffer, packed.coarse.buffer, ...FIELDS16.map((f) => packed[f].buffer)];
+      w = new Worker(require("path").join(__dirname, "creditscv-worker.js"), { workerData: { packed, duration }, transferList: transfer, execArgv: [] });
+    } catch {
+      return inThread();
+    }
+    let done = false;
+    const finish = (fn) => { if (done) return; done = true; w.terminate().catch(() => {}); fn(); };
+    w.once("message", (m) => finish(() => (m && !m.error ? resolve(m.est) : inThread())));
+    w.once("error", () => finish(inThread));
+    w.once("exit", (code) => { if (!done) finish(inThread); });
+  });
+
+module.exports = { detect, estimate, features, rowStats, tailWindow, sample, _internals: { estimateOffLoop, pack, unpack, W, H, FPS, score, isBlack, isEmptyLight, bestSegment, boxedPicture, pillarBars, bestShift, activeRows, coarseDiff } };

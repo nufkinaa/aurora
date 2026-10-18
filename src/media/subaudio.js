@@ -97,7 +97,7 @@ const timingOf = (sub) => {
 const cuesOf = async (sub, videoPath) => {
   const subtitles = deps.subtitles();
   const subsync = deps.subsync();
-  if (sub.kind === "file") return subsync.parse(subtitles.decodeSubtitle(fs.readFileSync(sub.path)));
+  if (sub.kind === "file") return subsync.parse(subtitles.decodeSubtitle(await fs.promises.readFile(sub.path)));
   const text = await subtitles.vttText({ videoPath, trackIndex: sub.index, original: true });
   return text ? subsync.parse(text) : [];
 };
