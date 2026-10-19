@@ -38,6 +38,7 @@ type RenderNative = Constants & {
   getConstants?: () => Constants;
   save: (resolved: string, server: string, local: string) => void;
   jsRingClaimed: () => void;
+  setCardDecor?: (json: string) => string;
 };
 const native = NativeModules.AuroraRender as RenderNative | undefined;
 
@@ -88,6 +89,17 @@ export const tellRingClaimed = () => {
   try {
     native?.jsRingClaimed();
   } catch {}
+};
+
+/** `cardtext`: hand Card.tsx's decor JSON to native once; what a card then carries as its
+ *  `decor` prop — the short key native answers, or the JSON itself without the method. */
+export const registerCardDecor = (json: string): string => {
+  try {
+    const key = native?.setCardDecor?.(json);
+    return typeof key === 'string' && key.startsWith('@') ? key : json;
+  } catch {
+    return json;
+  }
 };
 
 // ---- what the next launch runs with ------------------------------------------------

@@ -247,6 +247,13 @@ class AuroraRenderModule(private val ctx: ReactApplicationContext) : ReactContex
     AuroraRender.save(ctx, resolved, server, local)
   }
 
+  /** `cardtext`: Card.tsx's decor JSON, handed over ONCE per launch; the cards then carry the
+   *  short key this returns as their `decor` prop instead of the whole JSON (two copies per
+   *  card mount through the props map otherwise). Synchronous, so the key is valid before the
+   *  first card that carries it is committed. */
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun setCardDecor(json: String): String = com.auroratv.ui.card.CardDecor.register(json)
+
   /** The JS ring registry lit a ring: a lit native ring fades (native-rewrite 01 §5.2). */
   @ReactMethod
   fun jsRingClaimed() {
