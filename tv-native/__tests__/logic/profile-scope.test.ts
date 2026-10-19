@@ -24,6 +24,7 @@ const SRC = path.join(__dirname, '../../src');
 const PROFILE: Record<string, string[]> = {
   'api.ts': ['homeKept', 'libraryKept', 'homeFlight', 'memoStore', 'lastState'],
   'artPrefetch.ts': ['wants', 'queue', 'timer'],
+  'homeSnapshot.ts': ['primed'],
   'homeScreen.ts': ['lastNext', 'lastChannel', 'lastConfig', 'lastRows', 'lastProfile', 'lastJobs'],
   'navSection.ts': ['cache', 'cacheAt', 'loading'],
   'party.ts': ['pending'],
@@ -59,6 +60,10 @@ const DEVICE: Record<string, Record<string, string>> = {
     PROXY_ART_HOSTS: 'a fixed list',
     heldMarks: 'play marks held through an outage: the box’s playback diagnostics (the server files them by title and address, never by profile)',
     flushingMarks: 'the same (a send in progress)',
+    audiences: 'whom each profile’s answers are filtered for, keyed by that profile and only ever read for it (Home’s snapshot check)',
+  },
+  'homeSnapshot.ts': {
+    marked: 'which launch marks this run has logged',
   },
   'rowWindow.ts': {
     heldCache: 'fixed margin objects per run length (a held key), the same for everyone',

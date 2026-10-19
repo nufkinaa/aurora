@@ -205,6 +205,9 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
         },
       })
   );
+  // the title this card draws, by identity: a shelf patched in place
+  // (patchShelf) and Home's view of what is on screen read it
+  node._item = item;
   // Hold (or right-click) for the peek sheet — synthesized cards (a party to
   // join, a download that landed) have nothing to peek at.
   if (typeof item._open !== "function") {
@@ -235,12 +238,16 @@ const rowCards = (items, opts) => {
 const HEAD_COUNT = () => Math.max(8, Math.ceil(window.innerWidth / 150) + 4);
 const fillRowLater = (scroller, items, opts) => {
   const head = HEAD_COUNT();
+  // what the shelf shows: patchShelf (below) puts a newer list here, and the
+  // tail is built from whatever it holds when it is built
+  scroller._rowItems = items;
   if (items.length <= head) return rowCards(items, opts);
   let filled = false;
   const fill = () => {
     if (filled) return;
     filled = true;
-    scroller.append(...rowCards(items.slice(head), { ...opts, eagerCards: 0 }));
+    const all = scroller._rowItems || items;
+    scroller.append(...rowCards(all.slice(scroller.children.length), { ...opts, eagerCards: 0 }));
     scroller.removeEventListener("scroll", fill);
     scroller.removeEventListener("focusin", onFocus);
     scroller._fillRow = null;
@@ -295,7 +302,46 @@ export const shelfRow = (title, items, opts = {}) => {
     scroller
   );
   attachRowArrows(section, scroller);
+  section._shelfOpts = opts; // for patchShelf
   return section;
+};
+
+// A shelf on screen takes a newer list IN PLACE (screens/home.js, the merge
+// in homeMerge.js): a card whose title and data are unchanged (the same
+// object) stays the very node it is — its picture, its focus, its place;
+// a slot that holds another card now, or the same title with new data
+// (progress, a NEW tag), gets a new card in the same place, faded in softly
+// (.card-swap); cards past the new end go, new ones are added after the
+// built ones, and an unbuilt tail is built from the new list when it is
+// reached. Never the node that holds focus. -> false when this is not a shelf.
+export const patchShelf = (section, items, { title = null, sub = null } = {}) => {
+  const scroller = section && section.querySelector(".row-scroller");
+  if (!scroller || !section._shelfOpts) return false;
+  const old = scroller._rowItems || [];
+  const { eagerCards, sub: _sub, ...cardOpts } = section._shelfOpts;
+  const nodes = [...scroller.children];
+  const lazy = typeof scroller._fillRow === "function";
+  const upTo = lazy ? Math.min(items.length, nodes.length) : items.length;
+  const active = document.activeElement;
+  for (let i = 0; i < upTo; i++) {
+    const node = nodes[i];
+    if (node && (node._item || old[i]) === items[i]) continue;
+    if (node && active && node.contains(active)) continue;
+    const next = card(items[i], cardOpts);
+    if (node) {
+      next.classList.add("card-swap");
+      node.replaceWith(next);
+    } else scroller.append(next);
+  }
+  for (let i = nodes.length - 1; i >= upTo; i--) {
+    if (!(lazy && i < items.length)) nodes[i].remove();
+  }
+  scroller._rowItems = items;
+  if (title != null) {
+    const h = section.querySelector(".row-title");
+    if (h) h.replaceChildren(title, ...(sub ? [el("span", { class: "row-sub" }, sub)] : []));
+  }
+  return true;
 };
 
 // Continue Watching cards get a remove (✕) affordance
@@ -309,6 +355,8 @@ export const continueRow = (title, items, profileId, api, extra = {}) => {
       const parent = node.parentNode;
       const anchor = node.nextSibling;
       node.remove();
+      // (Home keeps what the shelf shows in step with the page)
+      if (parent) parent.dispatchEvent(new CustomEvent("aurora-shelf-changed", { bubbles: true }));
       try {
         // An "up next" card is synthesized from the PREVIOUS episode's finished
         // progress — its own id has no progress row, so clearProgress on it was
@@ -339,7 +387,7 @@ export const continueRow = (title, items, profileId, api, extra = {}) => {
                         meta = rest;
                       }
                       await api.saveProgress(profileId, item.id, prev.position, prev.duration, meta);
-                      if (parent && parent.isConnected) parent.insertBefore(node, anchor && anchor.isConnected ? anchor : null);
+                      if (parent && parent.isConnected) { parent.insertBefore(node, anchor && anchor.isConnected ? anchor : null); parent.dispatchEvent(new CustomEvent("aurora-shelf-changed", { bubbles: true })); }
                     } catch {
                       toast("Couldn't undo that", "⚠️");
                     }
@@ -350,7 +398,7 @@ export const continueRow = (title, items, profileId, api, extra = {}) => {
         }
       } catch {
         // The clear FAILED — a vanished card would be a lie; put it back.
-        if (parent && parent.isConnected) parent.insertBefore(node, anchor && anchor.isConnected ? anchor : null);
+        if (parent && parent.isConnected) { parent.insertBefore(node, anchor && anchor.isConnected ? anchor : null); parent.dispatchEvent(new CustomEvent("aurora-shelf-changed", { bubbles: true })); }
         toast("Couldn't remove — try again", "⚠️");
       }
     },

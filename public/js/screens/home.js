@@ -4,49 +4,86 @@ import { upgradeArt } from "../artUpgrade.js";
 import { blurOf } from "../blur.js";
 import { api } from "../api.js";
 import { state, progressFor } from "../state.js";
-import { shelfRow, continueRow, openItem, ensureRowFilled } from "../components.js";
+import { shelfRow, continueRow, openItem, ensureRowFilled, patchShelf } from "../components.js";
+import { itemKey, locksFor, mergeHome, visibleMoves } from "../homeMerge.js";
 import { navigate } from "../router.js";
 import { onMessage } from "../ws.js";
 import { createHeroTrailer } from "../heroTrailer.js";
 import { fromHome as prefetchFromHome, warmHero } from "../prefetch.js";
-import { lite } from "../net.js";
 import { homeUsable } from "../telemetry.js"; // [analytics]
 import { toneNavFromImage } from "../glassTone.js";
 
 // Home's last answer, per profile. Coming back to Home paints from it at
 // once and the rows are refreshed underneath when the server answers — no
-// skeleton between a title page and the rows you just left. On a slow line
-// the answer is also kept on the device, so even a cold start shows the
-// shelves straight away instead of a blank page for as long as the request
-// takes (elia: "so they still have a good website feeling").
-// A kids profile keeps its own copy, per age limit: a profile that has just
-// been MADE a kids one (or had its limit lowered) must not be painted from
-// the rows it was shown before (2026-10-08).
+// skeleton between a title page and the rows you just left. It is also kept
+// on the device (localStorage), so a cold start — a reload, a new tab, the
+// phone's home-screen icon — paints the shelves in its first frame instead of
+// a skeleton for as long as the request takes (elia, 2026-10-19: "a faster
+// first screen … without the screen changing under the viewer" — the new
+// answer is merged in by homeMerge.js's rule, below). On every line now; it
+// used to be kept only on a slow one.
+//   - per profile, and per AUDIENCE: a kids profile keeps its own copy, per
+//     age limit, so a profile that has just been MADE a kids one (or had its
+//     limit lowered) is never painted from the rows it was shown before
+//     (2026-10-08); the record names its profile and audience and is checked
+//     against both;
+//   - at most a day old (older: the skeleton, as before);
+//   - at most three profiles' copies on one browser (the oldest goes), each
+//     at most 600 KB (the household's answer is ~160 KB).
 const kidsTag = (pid) =>
   state.profile && state.profile.id === pid && state.profile.kids ? `~k${state.profile.kids.maxAge}` : "";
 const HOME_KEY = (pid) => `aurora-home-${pid}${kidsTag(pid)}`;
+const HOME_INDEX = "aurora-home-kept";
 const HOME_MAX_AGE_MS = 24 * 3600 * 1000;
 const HOME_MAX_CHARS = 600 * 1024;
-const homeMemo = new Map(); // profile id -> data
+const HOME_MAX_KEPT = 3;
+const homeMemo = new Map(); // profile id + audience -> data
 const lastHome = (pid) => {
   if (!pid) return null;
   if (homeMemo.has(pid + kidsTag(pid))) return homeMemo.get(pid + kidsTag(pid));
-  if (!lite()) return null;
   try {
     const kept = JSON.parse(localStorage.getItem(HOME_KEY(pid)) || "null");
-    if (kept && Date.now() - kept.at < HOME_MAX_AGE_MS && kept.data && Array.isArray(kept.data.rows)) return kept.data;
+    const age = kept ? Date.now() - kept.at : -1;
+    if (kept && age >= 0 && age < HOME_MAX_AGE_MS && kept.data && Array.isArray(kept.data.rows) &&
+        // (records from before 2026-10-19 carry neither: the key alone vouched for them)
+        (kept.pid === undefined || kept.pid === pid) && (kept.aud === undefined || kept.aud === kidsTag(pid))) {
+      return kept.data;
+    }
   } catch {}
   return null;
 };
-const rememberHome = (pid, data) => {
+// The device's copy is written when the page is idle — a 160 KB string is a
+// few milliseconds of main thread, not worth spending in the middle of a paint.
+const idle = (fn) => (window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 4000 }) : setTimeout(fn, 1500));
+const keepOnDevice = (pid, data) => {
+  const key = HOME_KEY(pid);
+  const aud = kidsTag(pid);
+  idle(() => {
+    try {
+      const text = JSON.stringify({ at: Date.now(), pid, aud, data });
+      if (text.length > HOME_MAX_CHARS) return;
+      let kept = [];
+      try { kept = JSON.parse(localStorage.getItem(HOME_INDEX) || "[]"); } catch {}
+      if (!Array.isArray(kept)) kept = [];
+      const next = [key, ...kept.filter((k) => k !== key && typeof k === "string")];
+      for (const old of next.slice(HOME_MAX_KEPT)) localStorage.removeItem(old);
+      localStorage.setItem(key, text);
+      localStorage.setItem(HOME_INDEX, JSON.stringify(next.slice(0, HOME_MAX_KEPT)));
+    } catch {}
+  });
+};
+const rememberHome = (pid, data, { device = true } = {}) => {
   if (!pid || !data || !Array.isArray(data.rows)) return;
   homeMemo.set(pid + kidsTag(pid), data);
-  if (!lite()) return;
-  try {
-    const text = JSON.stringify({ at: Date.now(), data });
-    if (text.length <= HOME_MAX_CHARS) localStorage.setItem(HOME_KEY(pid), text);
-  } catch {}
+  if (device) keepOnDevice(pid, data);
 };
+
+// The new answer only partly on screen and nothing touched for this long: the
+// shelves on screen take it in place, slot by slot (homeMerge.js "idle").
+const IDLE_APPLY_MS = 5000;
+// A scroll (or a focus move) has ended: the shelves that left the screen take
+// the new answer ("quiet" again, with the new view).
+const VIEW_SETTLE_MS = 250;
 
 // How long each billboard title holds before the next slides in. The focus-pull
 // animation in screens.css is deliberately SHORTER than this: the art reaches
@@ -103,6 +140,8 @@ export const renderHome = async (root) => {
   const pid = state.profile?.id;
   let data = lastHome(pid);
   const painted = !!data; // from the last answer: refreshed below, once the rows exist
+  // (for the tests and the timing bench: what the shelves were first drawn from)
+  screen.dataset.homeSrc = painted ? "snapshot" : "network";
   if (!data) try {
     data = await api.home(pid);
     rememberHome(pid, data);
@@ -121,6 +160,7 @@ export const renderHome = async (root) => {
 
   // ----- hero -----
   let heroTimer = null;
+  let heroAt = 0; // the slide on show (the merge keeps it)
   if (data.hero.length > 0) {
     let idx = 0;
     // The first billboard picture is the page's largest paint, and as a CSS
@@ -194,6 +234,7 @@ export const renderHome = async (root) => {
     const count = data.hero.length;
     const show = (i, dir = 1) => {
       idx = i;
+      heroAt = i;
       const item = data.hero[i];
       // Three backdrop treatments: library video-frame stills stay sharp,
       // real landscape art (stream titles) gets a whisper of blur, and only
@@ -516,6 +557,7 @@ export const renderHome = async (root) => {
         : shelfRow(r.title, r.items, { showKind: true, eagerCards, sub: r.sub || "" });
     if (node) {
       node.dataset.rowId = r.id;
+      node.dataset.kind = r.id === "continue" ? "continue" : "shelf";
       node.dataset.sig = rowSig(r);
     }
     return node;
@@ -546,59 +588,198 @@ export const renderHome = async (root) => {
     };
     if (rows.length > EAGER_ROWS) setTimeout(pump, 0);
   };
-  // A refresh while you're looking: shelves whose contents are unchanged are
-  // kept — same nodes, same sideways scroll, no posters fading in again — and
-  // only the shelves that differ are rebuilt or moved. Rebuilding everything
-  // (what this did before) snapped every row back to its first card and
-  // re-ran 200 poster fades the moment the server finished a scan.
-  const refreshRows = (rows) => {
-    ++renderToken; // stop a first-render pump that may still be adding rows
-    const have = new Map();
-    for (const node of rowsHost.children) if (node.dataset.rowId) have.set(node.dataset.rowId, node);
-    const next = [];
-    rows.forEach((r, i) => {
-      const old = have.get(r.id);
-      if (old && old.dataset.sig === rowSig(r)) {
-        const scroller = old.querySelector(".row-scroller");
-        old._keepX = scroller ? scroller.scrollLeft : 0;
-        next.push(old);
-      } else {
-        const node = buildRow(r, i);
-        if (node) next.push(node);
-      }
-    });
-    rowsHost.replaceChildren(...next);
-    for (const node of next) {
-      const scroller = node.querySelector(".row-scroller");
-      if (node._keepX) {
-        // moved in the DOM: some engines reset a scroller's offset on re-insert
-        if (scroller && Math.abs(scroller.scrollLeft - node._keepX) > 2) {
-          ensureRowFilled(scroller, node._keepX);
-          scroller.scrollTo({ left: node._keepX, behavior: "instant" });
+  // ----- fresh data, without moving what the viewer is looking at -----
+  // The server's newer answer goes in by homeMerge.js's rule: the shelves
+  // from the top down to the last one on screen keep their places, the cards
+  // on screen keep theirs (their data — progress, a NEW tag — updates in
+  // place), the focused card never moves, the billboard keeps its slide; the
+  // rest takes the new answer at once, and the held parts catch up at the
+  // natural moments: a scroll that ends ("quiet" again, with the new view),
+  // five seconds without a touch ("idle": on-screen shelves update slot by
+  // slot, cross-faded), leaving Home ("away": what comes back is the new
+  // answer, around the place you left).
+  let shown = data; // what the page shows now
+  let fresh = null; // the newest answer
+  let pending = false;
+  const rowNodes = () => {
+    const m = new Map();
+    for (const node of rowsHost.children) if (node.dataset.rowId) m.set(node.dataset.rowId, node);
+    return m;
+  };
+  // What the viewer can see, in the merge's terms.
+  const look = () => {
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const ids = shown.rows.map((r) => r.id);
+    const rows = [];
+    let above = 0;
+    for (const node of rowsHost.children) {
+      const id = node.dataset.rowId;
+      if (!id) continue;
+      const i = ids.indexOf(id);
+      const box = node.getBoundingClientRect();
+      if (box.bottom <= 0) { above = Math.max(above, i + 1); continue; }
+      if (box.top >= vh || box.height === 0) continue;
+      let from = -1;
+      let to = 0;
+      const cards = node.querySelector(".row-scroller");
+      [...(cards ? cards.children : [])].forEach((c, j) => {
+        const b = c.getBoundingClientRect();
+        if (b.width > 0 && b.right > 0 && b.left < vw) {
+          if (from < 0) from = j;
+          to = j + 1;
         }
-        delete node._keepX;
-      } else if (scroller) {
-        restoreRowScroll(node, rowScrollX.get(node.dataset.rowId));
+      });
+      rows.push({ id, from: Math.max(0, from), to });
+    }
+    let focus = null;
+    const a = document.activeElement;
+    const c = a && a.closest ? a.closest("[data-row-id] .row-scroller > .card") : null;
+    if (c && rowsHost.contains(c) && c._item) {
+      const id = c.closest("[data-row-id]").dataset.rowId;
+      const r = shown.rows.find((x) => x.id === id);
+      const index = r ? r.items.findIndex((x) => x === c._item || itemKey(x) === itemKey(c._item)) : -1;
+      if (index >= 0) focus = { rowId: id, key: itemKey(c._item), index };
+    }
+    // (the billboard keeps its list while Home is up: its dots and picks are built once)
+    return { rows, above, focus, heroVisible: true, heroIndex: heroAt };
+  };
+  let lastLook = null;
+  // The page now shows `next` instead of `prev`: only what differs is touched.
+  const patchRows = (prev, next) => {
+    ++renderToken; // a first-render pump still adding shelves stops; they are built here
+    // the billboard: same list (held), each pick's data in place
+    if (next.hero !== prev.hero && next.hero.length === data.hero.length) {
+      for (let j = 0; j < next.hero.length; j++) data.hero[j] = next.hero[j];
+    }
+    const have = rowNodes();
+    const prevById = new Map(prev.rows.map((r) => [r.id, r]));
+    const want = new Set(next.rows.map((r) => r.id));
+    const nodes = [];
+    next.rows.forEach((r, i) => {
+      const node = have.get(r.id);
+      const before = prevById.get(r.id);
+      if (!(r.items || []).length) return; // a shelf with nothing in it draws nothing
+      if (node && before === r) return nodes.push(node);
+      if (node &&
+          patchShelf(node, r.items, before && before.title === r.title && (before.sub || "") === (r.sub || "") ? {} : { title: r.title, sub: r.sub || "" })) {
+        node.dataset.sig = rowSig(r);
+        return nodes.push(node);
       }
+      const built = buildRow(r, i);
+      if (!built) return;
+      if (node) node.replaceWith(built);
+      nodes.push(built);
+    });
+    for (const [id, node] of have) if (!want.has(id) || !nodes.includes(node)) node.remove();
+    // into the new order, moving only what is out of place (a node that is
+    // already where it belongs is never re-inserted: that resets a scroller)
+    let cursor = rowsHost.firstElementChild;
+    for (const node of nodes) {
+      if (node === cursor) { cursor = node.nextElementSibling; continue; }
+      const x = node.querySelector(".row-scroller");
+      const keepX = x ? x.scrollLeft : 0;
+      rowsHost.insertBefore(node, cursor);
+      if (x && Math.abs(x.scrollLeft - keepX) > 2) x.scrollTo({ left: keepX, behavior: "instant" });
     }
   };
+  let idleTimer = 0;
+  let viewTimer = 0;
+  const applyFresh = (mode) => {
+    if (!fresh || !shown || !screen.isConnected) return;
+    const v = look();
+    lastLook = v;
+    const locks = locksFor(mode, v, shown.rows);
+    const r = mergeHome(shown, fresh, locks);
+    pending = r.pending;
+    if (r.home !== shown) {
+      const moved = visibleMoves(shown, r.home, v);
+      patchRows(shown, r.home);
+      shown = r.home;
+      screen.dataset.homeMoved = String((Number(screen.dataset.homeMoved) || 0) + (mode === "quiet" ? moved : 0));
+    }
+    screen.dataset.homeFresh = pending ? "pending" : "merged";
+    // "idle" counts from the viewer's last touch, not from the server's last
+    // answer: a new answer does not put it off (onActivity does)
+    if (!pending) {
+      clearTimeout(idleTimer);
+      idleTimer = 0;
+    } else if (!idleTimer) idleTimer = setTimeout(onIdle, IDLE_APPLY_MS);
+  };
+  const onIdle = () => {
+    idleTimer = 0;
+    applyFresh("idle");
+  };
+  const takeFresh = (next) => {
+    rememberHome(pid, next);
+    fresh = next;
+    if (screen.isConnected) applyFresh("quiet");
+  };
+  // anything the viewer does puts "idle" off; a scroll or a focus move that
+  // has ended is the moment for shelves that left the screen to catch up
+  const onActivity = (e) => {
+    if (!pending) return;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(onIdle, IDLE_APPLY_MS);
+    if (e.type === "scroll" || e.type === "focusin") {
+      clearTimeout(viewTimer);
+      viewTimer = setTimeout(() => applyFresh("quiet"), VIEW_SETTLE_MS);
+    }
+    if (e.type === "pointerdown" || e.type === "keydown") lastLook = look();
+  };
+  // A card taken off a shelf by hand (Continue Watching's ✕) — or put back
+  // (Undo, a failed removal): what the page shows is read back from the shelf,
+  // and a removed title leaves the newest answer too, so no merge returns it.
+  rowsHost.addEventListener("aurora-shelf-changed", (e) => {
+    const section = e.target && e.target.closest ? e.target.closest("[data-row-id]") : null;
+    const scroller = section && section.querySelector(".row-scroller");
+    if (!scroller || !shown) return;
+    const id = section.dataset.rowId;
+    const built = [...scroller.children].map((c) => c._item).filter(Boolean);
+    const all = scroller._rowItems || [];
+    const last = Math.max(-1, ...built.map((x) => all.indexOf(x)));
+    const items = scroller._fillRow ? [...built, ...all.slice(last + 1).filter((x) => !built.includes(x))] : built;
+    const before = (shown.rows.find((r) => r.id === id) || { items: [] }).items;
+    const gone = new Set(before.filter((x) => !items.includes(x)).map(itemKey));
+    scroller._rowItems = items;
+    shown = { ...shown, rows: shown.rows.map((r) => (r.id === id ? { ...r, items } : r)) };
+    if (fresh && gone.size) fresh = { ...fresh, rows: fresh.rows.map((r) => (r.id === id ? { ...r, items: r.items.filter((x) => !gone.has(itemKey(x))) } : r)) };
+  });
+  const ACTIVITY = ["scroll", "pointerdown", "keydown", "wheel", "touchstart", "focusin"];
+  for (const t of ACTIVITY) document.addEventListener(t, onActivity, { passive: true, capture: true });
+  cleanups.push(() => {
+    for (const t of ACTIVITY) document.removeEventListener(t, onActivity, { capture: true });
+    clearTimeout(idleTimer);
+    clearTimeout(viewTimer);
+    // leaving Home ("away"): what comes back is the new answer, around the
+    // place the viewer left (the shelves above it and the one they were in)
+    if (fresh && pending && shown) {
+      const v = screen.isConnected ? look() : lastLook || { rows: [], above: 0, focus: null, heroVisible: false, heroIndex: heroAt };
+      const r = mergeHome(shown, fresh, locksFor("away", v, shown.rows));
+      rememberHome(pid, r.home, { device: false });
+    } else if (shown) rememberHome(pid, shown, { device: false });
+  });
+
   renderRows(data.rows);
   requestAnimationFrame(homeUsable); // [analytics] "Home is usable": the first row's cards are on the screen
+  try { performance.mark("aurora-home-rows", { detail: { from: screen.dataset.homeSrc } }); } catch {}
   prefetchFromHome(data); // Continue Watching's next titles, quietly, at idle
   if (painted) {
-    api.home(pid).then((fresh) => {
-      rememberHome(pid, fresh);
-      if (screen.isConnected) refreshRows(fresh.rows);
+    api.home(pid).then((next) => {
+      takeFresh(next);
+      try { performance.mark("aurora-home-fresh"); } catch {}
     }).catch(() => {});
+  } else {
+    fresh = data;
+    screen.dataset.homeFresh = "merged";
   }
 
   // Refresh rows when the library changes (new files, OCR finished...)
   const unsub = onMessage("library_updated", async () => {
     try {
-      const fresh = await api.home(state.profile?.id);
-      rememberHome(state.profile?.id, fresh);
-      if (!screen.isConnected) return;
-      refreshRows(fresh.rows);
+      const next = await api.home(state.profile?.id);
+      if (!screen.isConnected) return rememberHome(state.profile?.id, next);
+      takeFresh(next);
     } catch {}
   });
 
