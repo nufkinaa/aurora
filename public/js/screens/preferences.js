@@ -36,6 +36,10 @@ const ICONS = {
   "Watching": '<path d="M7 4.500v15l12-7.500z"/>',
   "Downloads": '<path d="M12 4v11"/><path d="M7.500 11l4.500 4.500 4.500-4.500"/><path d="M5 20h14"/>',
   "Internet": '<path d="M5 20v-4M10 20v-8M15 20V8M20 20V4"/>',
+  // On the TV (TV round 2026-10-19): a screen on its stand; a film strip's frames; a speaker's waves
+  "On the TV": '<rect x="3" y="4.500" width="18" height="12" rx="1.500"/><path d="M8 20.500h8M12 16.500v4"/>',
+  "Match frame rate": '<rect x="4" y="4" width="16" height="16" rx="1.500"/><path d="M8 4v16M16 4v16M4 9h4M4 15h4M16 9h4M16 15h4"/>',
+  "Surround sound": '<path d="M4 9.500h3l4-3.500v12l-4-3.500H4z"/><path d="M15 9a4 4 0 010 6M17.500 6.500a7.500 7.500 0 010 11"/>',
   "Watch without internet": '<rect x="6" y="2.500" width="12" height="19" rx="2.500"/><path d="M12 8v6M9.500 12l2.500 2.500 2.500-2.500"/>',
   "Subtitles": '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 14h4M14 14h3M7 10.500h2M12 10.500h5"/>',
   "Privacy": '<path d="M12 3l8 3v6c0 4.500-3.200 8-8 9-4.800-1-8-4.500-8-9V6z"/>',
@@ -77,8 +81,10 @@ const iconFor = (name) => (ICONS[name] ? el("span", { class: "pref-icon", html: 
 // A setting: icon, name, one short line, and its control. Two-state settings
 // (On / Off) are a switch; anything with more choices is a button that steps
 // through them.
-const prefRow = (label, note, valueText, onCycle) => {
-  const isSwitch = () => valueText() === "On" || valueText() === "Off";
+// (`steps`: a choice of named values that is never drawn as a switch, even
+// when one of its values is "Off" — "Match frame rate: Auto / Off")
+const prefRow = (label, note, valueText, onCycle, { steps = false } = {}) => {
+  const isSwitch = () => !steps && (valueText() === "On" || valueText() === "Off");
   const value = el("span", {}, valueText());
   const control = el("button", { "data-ui": "settings.toggle",
     class: "btn small focusable pref-item-value",
@@ -105,6 +111,19 @@ const prefRow = (label, note, valueText, onCycle) => {
     ),
     control
   );
+};
+
+// A picture-and-sound setting for the TV app (On the TV): on the profile at
+// once, put back if the server would not take it.
+const tvPref = async (key, value) => {
+  const was = (state.profile.prefs || {})[key];
+  state.profile.prefs = { ...(state.profile.prefs || {}), [key]: value };
+  try {
+    await api.updateProfile(state.profile.id, { prefs: { [key]: value } });
+  } catch (e) {
+    state.profile.prefs = { ...(state.profile.prefs || {}), [key]: was };
+    toast((e && e.message) || "Couldn't save that", "⚠️");
+  }
 };
 
 const cycle = (key, values, fallback) => {
@@ -757,7 +776,7 @@ export const renderPreferences = async (root) => {
       el("span", { class: "pref-icon", html: svg('<circle cx="5" cy="12" r="1.500"/><circle cx="12" cy="12" r="1.500"/><circle cx="19" cy="12" r="1.500"/>') }),
       el("span", { class: "pref-more-text" },
         el("b", {}, "More settings"),
-        el("small", {}, "Home rows, downloads, internet, saving for later, privacy, sign-in, what's new")),
+        el("small", {}, "Home rows, downloads, the TV, internet, saving for later, privacy, sign-in, what's new")),
       chev);
     const wrap = el("div", { class: "pref-more" + (open ? " open" : "") }, btn, grid);
     btn.onclick = () => {
@@ -909,6 +928,28 @@ export const renderPreferences = async (root) => {
             }
           )
         )),
+      // ---- On the TV (TV round 2026-10-19): picture and sound settings the
+      // TV app applies. They follow the person (the profile's prefs, the same
+      // keys the TV's Settings → Picture and sound writes); a browser can do
+      // neither, and the section says so.
+      section("On the TV", "The Aurora TV app does these. A browser can't switch your screen's refresh rate or send Dolby and DTS sound to a receiver as it is — here you choose what your TVs do.",
+        el("div", { class: "pref-list page-pad" },
+          prefRow(
+            "Match frame rate",
+            "While a film plays, the screen switches to the film's own frame rate (24, 25, 50, 60…), so slow pans don't judder. The screen goes dark for a second when it switches.",
+            () => ((state.profile.prefs || {}).matchFrameRate === "off" ? "Off" : "Auto"),
+            () => tvPref("matchFrameRate", (state.profile.prefs || {}).matchFrameRate === "off" ? "auto" : "off"),
+            { steps: true }
+          ),
+          prefRow(
+            "Surround sound",
+            "Auto: Dolby and DTS sound goes to the TV or soundbar as it is, when they take it — 5.1 and Atmos included. Stereo only: every film plays in plain stereo.",
+            () => ((state.profile.prefs || {}).surround === "stereo" ? "Stereo only" : "Auto"),
+            () => tvPref("surround", (state.profile.prefs || {}).surround === "stereo" ? "auto" : "stereo"),
+            { steps: true }
+          )
+        )),
+      // ---- end On the TV
       section("Internet",
         (() => {
           const n = netInfo();

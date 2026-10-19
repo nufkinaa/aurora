@@ -339,6 +339,24 @@ export default function Settings({
           />
         </View>
 
+        {/* ---- picture and sound (TV round 2026-10-19): both follow the person (personPrefs.ts) ---- */}
+        <Text style={styles.h2}>Picture and sound</Text>
+        <View style={styles.list}>
+          <Row uiId="settings.av.fps"
+            label="Match frame rate"
+            note="While a film plays, the screen switches to the film's own frame rate (24, 25, 50, 60…), so slow pans don't judder. The screen goes dark for a second when it switches."
+            value={prefs.matchFrameRate === 'off' ? 'Off' : 'Auto'}
+            onPress={() => set('matchFrameRate', prefs.matchFrameRate === 'off' ? 'auto' : 'off')}
+          />
+          <Row uiId="settings.av.surround"
+            label="Surround sound"
+            note="Auto: Dolby and DTS sound goes to the TV or soundbar as it is, when they take it — 5.1 and Atmos included. Stereo only: every film plays in plain stereo."
+            value={prefs.surround === 'stereo' ? 'Stereo only' : 'Auto'}
+            onPress={() => set('surround', prefs.surround === 'stereo' ? 'auto' : 'stereo')}
+          />
+        </View>
+        {/* ---- end picture and sound ---- */}
+
         <Text style={styles.h2}>Subtitles</Text>
         <View style={styles.list}>
           <Row uiId="settings.subs.auto"

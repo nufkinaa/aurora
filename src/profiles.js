@@ -880,6 +880,16 @@ const update = (id, fields) => {
     // The language voice search listens in (the site's and the TV's mic):
     // "auto" follows the device's own language. A closed set too.
     if (["auto", "he", "en"].includes(fields.prefs.voiceLang)) p.prefs.voiceLang = fields.prefs.voiceLang;
+    // ---- picture and sound on the TV (TV round 2026-10-19; closed sets) ----
+    //   matchFrameRate  the TV switches its screen to the film's frame rate
+    //                   while it plays: "auto" (default) | "off"
+    //   surround        the TV passes Dolby / DTS sound to the TV or soundbar
+    //                   as it is when they take it: "auto" (default) |
+    //                   "stereo" (always decoded / made stereo) — the server's
+    //                   play decision reads it too (routes/avcaps.js)
+    // Browsers can do neither; the website shows both under "On the TV".
+    if (["auto", "off"].includes(fields.prefs.matchFrameRate)) p.prefs.matchFrameRate = fields.prefs.matchFrameRate;
+    if (["auto", "stereo"].includes(fields.prefs.surround)) p.prefs.surround = fields.prefs.surround;
     // What the viewer last picked in the player, so it follows the profile to
     // every title and device (2026-10-07): an audio language tag ("he", "en",
     // "ru", or another dub's tag as the file carries it — "fre"). A short

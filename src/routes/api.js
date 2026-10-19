@@ -722,6 +722,13 @@ router.get("/api/item/:id", (req, res) => {
         playprep.warm(id);
       }
     } catch {}
+    // ?caps=<id>: the device that asks said what it can play (POST /api/caps)
+    // — how THIS file plays on it: direct / remux / transcode (routes/avcaps.js,
+    // media/playpath.js). Without ?caps= the answer is what it always was.
+    if (req.query.caps) {
+      const play = require("./avcaps").decisionFor(req, require("../media/playpath").factsOfItem(out), { label: out.title, key: id });
+      if (play) out = { ...out, play };
+    }
   }
   res.json(out);
 });

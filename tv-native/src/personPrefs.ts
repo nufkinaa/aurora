@@ -19,6 +19,10 @@
 //                     batch from a profile that said no)       default on
 //     smartDownloads  get the next episode ready               default on
 //     smartCleanup    tidy up after watching                   default on
+//     matchFrameRate  the screen follows the film's frame rate auto | off   default auto
+//     surround        Dolby / DTS sound to the TV or soundbar  auto | stereo  default auto
+//                     as it is (TV round 2026-10-19 — the
+//                     website shows both under "On the TV")
 //   (the liked genres, the last subtitle pick and the last dub were already
 //   on the profile, through their own calls)
 //   PLAYER OPTIONS (2026-10-19, the website has the same ones):
@@ -40,6 +44,12 @@ import {readStyle, styleFromDevice, SubStyle, SUB_STYLE_DEFAULTS, SUB_STYLE_KEYS
 
 export type SubLang = 'any' | 'he' | 'en' | 'ru';
 export type VoiceLangPref = 'auto' | 'he' | 'en';
+// ---- picture and sound (TV round 2026-10-19: refresh-rate matching, passthrough) ----
+export type MatchFrameRate = 'auto' | 'off';
+export type Surround = 'auto' | 'stereo';
+export const MATCH_FRAME_RATES: MatchFrameRate[] = ['auto', 'off'];
+export const SURROUNDS: Surround[] = ['auto', 'stereo'];
+// ---- end picture and sound ----
 export type PersonPrefs = {
   autoplayNext: boolean;
   subsDefault: boolean;
@@ -51,6 +61,9 @@ export type PersonPrefs = {
   // [player-options]
   nightMode: boolean;
   dialogueBoost: boolean;
+  // picture and sound (TV round 2026-10-19)
+  matchFrameRate: MatchFrameRate;
+  surround: Surround;
 } & SubStyle;
 export type PersonKey = keyof PersonPrefs;
 
@@ -65,6 +78,8 @@ export const PERSON_DEFAULTS: PersonPrefs = {
   nightMode: false,
   dialogueBoost: false,
   ...SUB_STYLE_DEFAULTS,
+  matchFrameRate: 'auto',
+  surround: 'auto',
 };
 export const PERSON_KEYS = Object.keys(PERSON_DEFAULTS) as PersonKey[];
 export const DEVICE_KEYS = ['cueSize', 'cueBackground', 'heroTrailers', 'downloadNotices'] as const;
@@ -72,14 +87,20 @@ export const DEVICE_KEYS = ['cueSize', 'cueBackground', 'heroTrailers', 'downloa
 export const SUB_LANGS: SubLang[] = ['any', 'he', 'en', 'ru'];
 export const VOICE_LANGS: VoiceLangPref[] = ['auto', 'he', 'en'];
 
-const valid = (key: PersonKey, value: unknown): boolean =>
-  key === 'subLang'
-    ? SUB_LANGS.includes(value as SubLang)
-    : key === 'voiceLang'
-      ? VOICE_LANGS.includes(value as VoiceLangPref)
-      : (SUB_STYLE_KEYS as string[]).includes(key)
-        ? validStyle(key as SubStyleKey, value)
-        : typeof value === 'boolean';
+// the keys whose value is one of a closed set of words; the subtitle look's
+// keys are checked by subStyle.ts; every other key is on/off
+const CLOSED: Partial<Record<PersonKey, readonly string[]>> = {
+  subLang: SUB_LANGS,
+  voiceLang: VOICE_LANGS,
+  matchFrameRate: MATCH_FRAME_RATES, // (picture and sound, TV round 2026-10-19)
+  surround: SURROUNDS,
+};
+const valid = (key: PersonKey, value: unknown): boolean => {
+  const set = CLOSED[key];
+  if (set) return set.includes(value as string);
+  if ((SUB_STYLE_KEYS as string[]).includes(key)) return validStyle(key as SubStyleKey, value);
+  return typeof value === 'boolean';
+};
 /** The subtitle look out of a person's settings. */
 export const styleOf = (p: Partial<PersonPrefs>) => readStyle(p);
 

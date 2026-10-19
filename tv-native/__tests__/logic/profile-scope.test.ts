@@ -163,6 +163,13 @@ const DEVICE: Record<string, Record<string, string>> = {
     updateDismissed: 'which update this TV said "Later" to',
   },
   'toast.ts': {list: 'toasts on screen', nextId: 'an id counter', subs: 'listeners'},
+  // what this box can play (TV round 2026-10-19): the box's, never a person's
+  'av.ts': {
+    capsId: 'the id of this box’s capability report',
+    reportedFor: 'the server the report went to this run',
+    reporting: 'the report on its way',
+    lastPost: 'how to send the report again (after a lie)',
+  },
   'trailers.ts': {failedAt: 'what failed on this network', appleFailed: 'what failed on this network'},
   'voice.ts': {
     REFUSED: 'a constant table (Android error codes)',

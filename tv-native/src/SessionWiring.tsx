@@ -5,6 +5,8 @@ import {useEffect} from 'react';
 import {AppState} from 'react-native';
 import {useApp} from './AppContext';
 import {MyDownload} from './api';
+import {api, getBaseUrl} from './api';
+import {reportCaps} from './av'; // what this box can play (TV round 2026-10-19)
 import {askNotificationPermission, onDownloadLanded, setDownloadNotices} from './homeScreen';
 import {patchMe, useMe} from './navSection';
 import {enterPerson, leavePerson, onPersonPrefs, refreshPerson, setProfileReadSink} from './personSync';
@@ -66,6 +68,15 @@ export default function SessionWiring() {
       setRootIdentity(null, null);
     };
   }, [profileId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // WHAT THIS BOX CAN PLAY (TV round 2026-10-19, av.ts): said to the server
+  // once per launch (per server), so every title read after it comes back
+  // with how it plays HERE — the file as it is when this box decodes it and
+  // the TV / soundbar takes its sound. Signed in by now (the report is behind
+  // the same wall as the library).
+  useEffect(() => {
+    reportCaps(api.postCaps, getBaseUrl());
+  }, [profileId]);
 
   useEffect(() => {
     if (!me) return;

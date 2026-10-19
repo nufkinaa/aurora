@@ -191,6 +191,15 @@ const MIME = {
     avi: "video/x-msvideo",
   },
 };
+// THE SERVER'S DECISION for this browser (TV round 2026-10-19, parity with
+// the TV app): the page said what it plays (avcaps.js — the same canPlayType
+// questions as below, plus the HEVC profile and HDR it decodes), and a
+// library item read after that carries `play` (src/media/playpath.js). Where
+// it is there, the two rules below take their answer from it — the rest of
+// the page's start (the ladder, HEVC in MKV through the copy, native HLS) is
+// unchanged. Without it (a torrent, an older server, the first read before
+// the report was answered) the rules ask the browser, as they always did.
+const serverPlay = (item) => (item && item.play && /^(direct|remux|transcode)$/.test(item.play.mode) ? item.play : null);
 // iPhone: HLS through Safari's NATIVE pipeline, never MSE (see startHls).
 export const nativeHlsFor = (video) =>
   /iPhone|iPod/.test(navigator.userAgent) && !!video.canPlayType("application/vnd.apple.mpegurl");
@@ -198,6 +207,8 @@ export const nativeHlsFor = (video) =>
 export const audioRemuxFor = (item, video) => {
   const codec = item.audio && item.audio.codec;
   if (!codec || item.audio.compatible) return false;
+  const sp = serverPlay(item);
+  if (sp && sp.audio) return sp.audio === "convert"; // (the server's decision — see serverPlay)
   const mime = MIME.audio[codec] || codec;
   return !(
     video.canPlayType(`audio/mp4; codecs="${mime}"`) ||
@@ -210,6 +221,10 @@ export const audioRemuxFor = (item, video) => {
 export const videoTranscodeFor = (item, video) => {
   const v = item.video;
   if (!v || !v.codec || !item.transcodeBase) return false;
+  // (the server's decision — see serverPlay: the picture plays as it is when
+  // this browser decodes its codec AND profile, in the file's container)
+  const sp = serverPlay(item);
+  if (sp && typeof sp.decodes === "boolean" && typeof sp.container === "boolean") return !(sp.decodes && sp.container);
   // 10-bit H.264 (Hi10P) has no hardware decoding anywhere and canPlayType
   // can't see bit depth — always transcode it.
   if (v.codec === "h264" && (v.bitDepth || 8) > 8) return true;

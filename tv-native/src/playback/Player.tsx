@@ -137,6 +137,12 @@ import {onPersonPrefs, setPersonPref} from '../personSync';
 import {CueText, SubStylePreview, useAudioFx} from '../playerOptions';
 import {CUE_PX, cueBottomFor, cueLook, CueLook, nextChoice, readStyle, styleLabel, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SubStyleKey} from '../subStyle';
 import {AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES} from '../audioFx';
+// ---- picture and sound (TV round 2026-10-19): the server's play decision,
+// refresh-rate matching, passthrough — avCaps.ts (rules), av.ts (native) ----
+import {armPlan, lieFrom, Play, profileFor, readPlay, silentLie, wantsFrameRate} from '../avCaps';
+import {matchFrameRate, noteLie, restoreFrameRate, setPassthrough} from '../av';
+import {personNow} from '../personSync';
+// ---- end picture and sound ----
 import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
@@ -569,6 +575,51 @@ export default function Player({
   const slowSnooze = useRef(0);
   const slowMarked = useRef(false);
   const [meta, setMeta] = useState<{item: Item} | null>(null);
+
+  // ---------------------------------------------- picture and sound (TV round 2026-10-19)
+  // THE SOUND: ExoPlayer passes Dolby / DTS to the TV or soundbar as it is
+  // when they take it, unless this person said "Surround sound: Stereo only"
+  // (then everything is decoded to stereo here). Read by ExoPlayer when it
+  // builds its audio sink, which happens once the first source is handed
+  // over — after this. THE SCREEN: back to its own mode a moment after the
+  // player goes (av.ts restoreFrameRate — a next episode at the same rate
+  // asks for the same mode meanwhile, and the screen does not blink twice).
+  useEffect(() => {
+    setPassthrough(personNow()?.surround !== 'stereo');
+    return () => restoreFrameRate(1500);
+  }, []);
+  // REFRESH-RATE MATCHING: a library film whose frame rate the server knows
+  // (`play.fps`, else the probe's) starts only once the screen has switched
+  // to that rate and settled — the HDMI blink happens on the loading screen,
+  // never over the picture. `rateReady` gates the arming further down. Off
+  // when the person said "Match frame rate: Off"; a stream (no probe) and a
+  // screen with no better mode start at once.
+  const [rateReady, setRateReady] = useState(false);
+  const rateAsked = useRef(false);
+  // the decision a DIRECT start was made on, and the file's facts — for the
+  // fallback below (onError): a capability that did not hold is a lie (av.ts noteLie)
+  const playDecision = useRef<Play | null>(null);
+  const playFacts = useRef<{videoCodec?: string | null; videoProfile?: string | null; audioCodec?: string | null}>({});
+  useEffect(() => {
+    if (!meta || rateAsked.current) return;
+    rateAsked.current = true;
+    const it = meta.item;
+    const fps = readPlay(it.play)?.fps || it.video?.fps || 0;
+    if (stream || !wantsFrameRate(personNow()?.matchFrameRate, fps)) {
+      setRateReady(true);
+      return;
+    }
+    const t0 = Date.now();
+    matchFrameRate(fps).then(r => {
+      console.log(
+        `[av] frame rate ${fps}: ${r.switched ? `${r.fromHz} → ${r.toHz} Hz, settled in ${r.ms} ms${r.timedOut ? ' (timed out)' : ''}` : `not switched (${r.reason || '-'})`}`,
+      );
+      mark('fps', {fps, switched: !!r.switched, from: r.fromHz ?? null, to: r.toHz ?? null, ms: r.ms ?? Date.now() - t0});
+      if (!exited.current) setRateReady(true);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta]);
+  // ---------------------------------------------- end picture and sound
   // Every subtitle track known so far. Because the cues are rendered in JS
   // (rule 2) this list is NOT part of the video source, so it can grow whenever
   // a provider answers — the web's addTracks, with none of the reload hazard.
@@ -1457,7 +1508,8 @@ export default function Player({
   // ladder (lines 397-433).
   const armRef = useRef(false);
   useEffect(() => {
-    if (armRef.current || !meta || !gateOpen) return;
+    // (rateReady: the screen has the film's frame rate, or will not be asked — see "picture and sound")
+    if (armRef.current || !meta || !gateOpen || !rateReady) return;
     armRef.current = true;
     const it = meta.item;
     const base = it.transcodeBase;
@@ -1491,6 +1543,7 @@ export default function Player({
         setAudioIdx(pick.index);
       }
     }
+    let plan: ReturnType<typeof armPlan> = null; // (the server's play decision — see below)
     if (stream) {
       // A source the server tagged DTS / TrueHD / Atmos / DD+ / H.265 will not
       // play as-is on this hardware, so hand ExoPlayer the remux rather than
@@ -1511,7 +1564,18 @@ export default function Player({
         // first (see prefetchRegion).
         setUri(assetUrl(stream.videoUrl) as string);
       }
-    } else if (base && ((it.audio && it.audio.compatible === false) || !it.videoUrl || audioIdxRef.current > 0)) {
+      // ---- the server's play decision (TV round 2026-10-19) ----
+      // This box told the server what it decodes and passes through (av.ts
+      // reportCaps); the item came back with `play` — the file as it is, the
+      // copy, or the encode (avCaps.ts armPlan). Where it says the file plays
+      // as it is, an AC-3 / E-AC-3 / DTS track no longer goes through the
+      // server's AAC-stereo copy: it is passed to the TV / soundbar untouched
+      // (or decoded here). Without a decision (an older server, a report not
+      // made yet) the rule below stands as it was.
+    } else if ((plan = armPlan(readPlay(it.play), {audioIdx: audioIdxRef.current, hasVideoUrl: !!it.videoUrl, hasBase: !!base})) && plan !== 'direct') {
+      mark('decision', {mode: plan, audio: readPlay(it.play)?.audio || null});
+      startTranscode(base as string, r, plan);
+    } else if (!plan && base && ((it.audio && it.audio.compatible === false) || !it.videoUrl || audioIdxRef.current > 0)) {
       // The scanner already knows whether this file's audio is playable, and the
       // browser client acts on that same flag. Walking into it instead meant
       // ExoPlayer tried to PASSTHROUGH 6-channel E-AC3 to the HDMI sink, the
@@ -1533,6 +1597,19 @@ export default function Player({
       startTranscode(base, r, it.videoUrl ? 'copy' : 'h264');
     } else {
       const direct = assetUrl(it.videoUrl) as string;
+      // (the server's decision said "as it is here": what the fallback reads
+      // if this start fails before its first frame — onError, noteLie)
+      if (plan === 'direct') {
+        const pl = readPlay(it.play);
+        playDecision.current = pl;
+        const vc = it.video?.codec || null;
+        playFacts.current = {
+          videoCodec: vc,
+          videoProfile: profileFor(vc, it.video?.bitDepth),
+          audioCodec: pl?.form || it.audio?.codec || null,
+        };
+        mark('decision', {mode: 'direct', audio: pl?.audio || null, form: pl?.form || null});
+      }
       // The file itself, opened AT the resume point when the server's tuning
       // asks for it (tuning.ts resumeAtSource): the source carries the
       // position, so ExoPlayer's first read is where the film continues —
@@ -1562,7 +1639,7 @@ export default function Player({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta, gateOpen]);
+  }, [meta, gateOpen, rateReady]);
 
   // ---------------------------------------------------------------- skip intro
   // The hand-marked range per show (/api/intro) and the server's detection per
@@ -3199,6 +3276,27 @@ export default function Player({
   };
 
   const onLoad = (d: OnLoadData) => {
+    // ---- picture and sound (TV round 2026-10-19): a direct start the server
+    // decided on this box's word, whose sound no renderer took (ExoPlayer
+    // plays such a film SILENT rather than failing): the word did not hold.
+    // Kept (av.ts noteLie), and the film goes to the server's copy — its sound
+    // made AAC — at the point it was starting from.
+    {
+      const lie = silentLie(d.audioTracks as {selected?: boolean}[] | undefined, playDecision.current, playFacts.current.audioCodec);
+      const base = itemRef.current?.transcodeBase;
+      if (lie && base && !usingTranscodeRef.current) {
+        console.log('[av] the sound did not play here:', JSON.stringify(lie));
+        noteLie(lie);
+        playDecision.current = null;
+        const at = resumeAt.current > 0 ? resumeAt.current : startAt.current ? startAt.current.ms / 1000 : curRef.current;
+        resumeAt.current = 0;
+        switchedToTranscode.current = true;
+        mark('decision', {mode: 'copy', why: 'silent'});
+        startTranscode(base, at, 'copy');
+        return;
+      }
+    }
+    // ---- end picture and sound
     // A still-transcoding HLS playlist reports only what has been written so far
     // and it keeps growing, so the metadata runtime is the honest total. This
     // mirrors the web's totalDuration().
@@ -3486,6 +3584,14 @@ export default function Player({
     // Both rungs reload at streamOffset, so a fallback after a seek keeps the
     // position the viewer asked for.
     if (!usingTranscodeRef.current) {
+      // (TV round 2026-10-19) A start the server decided on this box's own
+      // word ("plays as it is here") that failed before its first frame: the
+      // word did not hold. Kept on the box, and the report goes to the server
+      // again without it (av.ts noteLie) — the next title already plays by it.
+      if (playDecision.current) {
+        noteLie(lieFrom({detail, code: (e?.error as {errorCode?: string} | undefined)?.errorCode}, playDecision.current, playFacts.current));
+        playDecision.current = null;
+      }
       switchedToTranscode.current = true;
       startTranscode(base, streamOffset.current, 'copy');
     } else if (!triedH264.current) {

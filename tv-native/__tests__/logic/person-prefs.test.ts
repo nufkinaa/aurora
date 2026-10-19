@@ -35,8 +35,8 @@ import {clearProfileCaches} from '../../src/profileScope';
 describe('which settings are whose', () => {
   test('the person-level keys and the device-level keys do not overlap, and every one is a real setting', () => {
     expect(PERSON_KEYS.sort()).toEqual([
-      'autoplayNext', 'dialogueBoost', 'nightMode', 'smartCleanup', 'smartDownloads',
-      'subBg', 'subColor', 'subLang', 'subOpacity', 'subPos', 'subSize', 'subWeight', 'subsDefault', 'usageStats', 'voiceLang',
+      'autoplayNext', 'dialogueBoost', 'matchFrameRate', 'nightMode', 'smartCleanup', 'smartDownloads',
+      'subBg', 'subColor', 'subLang', 'subOpacity', 'subPos', 'subSize', 'subWeight', 'subsDefault', 'surround', 'usageStats', 'voiceLang',
     ]);
     for (const k of DEVICE_KEYS) expect(PERSON_KEYS as string[]).not.toContain(k);
     for (const k of [...PERSON_KEYS, ...DEVICE_KEYS]) expect(PREFS_DEFAULTS).toHaveProperty(k);
@@ -46,6 +46,8 @@ describe('which settings are whose', () => {
       // [player-options] 2026-10-19
       nightMode: false, dialogueBoost: false,
       subSize: 'M', subColor: 'white', subBg: 'box', subOpacity: 75, subWeight: 'bold', subPos: 'lower',
+      // picture and sound (TV round 2026-10-19)
+      matchFrameRate: 'auto', surround: 'auto',
     });
   });
 

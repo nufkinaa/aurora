@@ -194,6 +194,8 @@ module.exports = {
   "settings.audio.dialogue": "t",
   "settings.audio.night": "t",
   "settings.autoplay": "t",
+  "settings.av.fps": "t", // Match frame rate (TV round 2026-10-19; the site shows it under "On the TV" with settings.toggle)
+  "settings.av.surround": "t", // Surround sound
   "settings.done": "w",
   "settings.downloads": "t",
   "settings.genre": "t",

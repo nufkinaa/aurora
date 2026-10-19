@@ -6,6 +6,23 @@ import { takeBlur } from "./blur.js";
 let authToken = null;
 export const setAuthToken = (t) => { authToken = t || null; };
 
+// What this browser can play (avcaps.js, TV round 2026-10-19): the id of its
+// report, put on the reads that ask how a title plays (?caps=). The last
+// load's id at once — the same browser says the same thing — until this
+// load's report is answered.
+const CAPS_KEY = "aurora-caps-id";
+let capsIdNow = null;
+try {
+  const v = localStorage.getItem(CAPS_KEY);
+  if (v && /^[0-9a-f]{16}$/.test(v)) capsIdNow = v;
+} catch {}
+export const capsId = () => capsIdNow;
+export const setCapsId = (id) => {
+  if (typeof id !== "string" || !/^[0-9a-f]{16}$/.test(id)) return;
+  capsIdNow = id;
+  try { localStorage.setItem(CAPS_KEY, id); } catch {}
+};
+
 const withToken = (headers = {}) =>
   authToken ? { ...headers, "X-Profile-Token": authToken } : headers;
 // GETs say they can take blur-up placeholders beside the answer (lib/blurup.js)
@@ -281,8 +298,12 @@ export const api = {
   item: (id, { low = false } = {}) => {
     let profile = "";
     try { profile = localStorage.getItem("aurora-profile") || ""; } catch {}
-    return warmed(`/api/item/${encodeURIComponent(id)}${profile ? `?profile=${encodeURIComponent(profile)}` : ""}`, 60 * 1000, { low });
+    // ?caps=: how the file plays in THIS browser comes back with it (`play`)
+    const caps = capsIdNow ? `${profile ? "&" : "?"}caps=${capsIdNow}` : "";
+    return warmed(`/api/item/${encodeURIComponent(id)}${profile ? `?profile=${encodeURIComponent(profile)}` : ""}${caps}`, 60 * 1000, { low });
   },
+  // what this browser can play (avcaps.js) → { id }
+  reportCaps: (report) => post("/api/caps", report),
   search: (q) => json(`/api/search?q=${encodeURIComponent(q)}`),
   // The one ranked search (library + catalogue + a related tail). `wait`:
   // also wait for the live catalogue; `pin`: the card that is first now.

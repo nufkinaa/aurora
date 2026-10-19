@@ -88,7 +88,21 @@ router.get("/api/torrents/sources", async (req, res) => {
     console.log(
       `[perf] sources "${title.trim().slice(0, 40)}" ${Date.now() - t0}ms (${(result.streams || []).length} streams)`,
     );
-    res.json(result);
+    // ?caps=<id>: how each source would play on the device asking, read off
+    // its release name (a guess until the swarm is joined — the player's own
+    // fallback ladder still stands behind it): `play` per source, by the same
+    // table the library uses (media/playpath.js). Without ?caps=: as before.
+    if (req.query.caps && Array.isArray(result.streams)) {
+      const avr = require("./avcaps");
+      const pp = require("../media/playpath");
+      const streams = result.streams.map((s) => {
+        const play = avr.decisionFor(req, pp.factsOfRelease(`${s.filename || ""} ${s.release || ""}`, s.quality));
+        return play ? { ...s, play } : s;
+      });
+      res.json({ ...result, streams });
+    } else {
+      res.json(result);
+    }
     // The viewer is choosing right now — pre-warm the recommended pick's
     // swarm so Play starts warm. Fire-and-forget, self-bounded (see
     // warmTorrent: one slot, one piece, 5-min TTL).

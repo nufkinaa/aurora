@@ -229,6 +229,16 @@ android {
     }
 }
 
+// The media3 version react-native-video plays with (its RNVideo_media3Version, or a root
+// project's media3Version override, as react-native-video itself reads it). Aurora's own
+// native code compiles against exactly that one, so the APK never carries two.
+def rnvMedia3 = new Properties()
+def rnvProps = file("../../node_modules/react-native-video/android/gradle.properties")
+if (rnvProps.exists()) rnvProps.withInputStream { rnvMedia3.load(it) }
+def media3Version = rootProject.ext.has("media3Version") ? rootProject.ext.get("media3Version")
+        : rootProject.ext.has("RNVideo_media3Version") ? rootProject.ext.get("RNVideo_media3Version")
+        : (rnvMedia3.getProperty("RNVideo_media3Version") ?: "1.8.0")
+
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
@@ -238,17 +248,18 @@ dependencies {
     implementation("androidx.tvprovider:tvprovider:1.0.0")
     // JankStats: the frame monitor behind perfTier.ts (DeviceModule.kt).
     implementation("androidx.metrics:metrics-performance:1.0.0")
+    // ONE media3 for Aurora's own native code, at the version react-native-video plays with
+    // (media3Version above, read from its gradle.properties) — one copy in the APK, not two:
+    //   AvModule.kt (picture and sound): media3's own AudioCapabilities — what the TV /
+    //     soundbar takes as it is, asked exactly as ExoPlayer asks it;
+    //   audio/AudioFx.kt ([player-options]): ExoPlayer's types for react-native-video's plugin.
+    implementation("androidx.media3:media3-exoplayer:${media3Version}")
     // YouTube trailers resolved on the TV (TrailersModule.kt). When YouTube changes its player
     // and trailers stop resolving (the server's healer says so), bump this to the latest
     // release at github.com/TeamNewPipe/NewPipeExtractor/releases — nothing else changes.
     // Licence: GPL-3.0-or-later (the APK that carries it is a combined work under the GPL).
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
-    // [player-options] ExoPlayer's types for the react-native-video plugin (audio/AudioFx.kt):
-    // compile-time only — the runtime copy is react-native-video's own (RNVideo_media3Version
-    // in node_modules/react-native-video/android/gradle.properties; keep the two equal).
-    compileOnly("androidx.media3:media3-exoplayer:1.8.0")
-    compileOnly("androidx.media3:media3-common:1.8.0")
     // JVM tests of the native rendering layer's arithmetic (ui/anim, ui/row, ui/home, ui/rail,
     // ui/pool, ui/card, AuroraRender) against fixtures generated from React Native's own JS:
     // `./gradlew.bat :app:testReleaseUnitTest`.
