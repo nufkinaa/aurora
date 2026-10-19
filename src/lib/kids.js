@@ -306,6 +306,12 @@ const createGate = (deps) => {
     if (!kid) return next();
     req.kids = kid;
     const max = kid.maxAge;
+    // Said on the answer, too: whom it was filtered for. A device that keeps
+    // Home's last answer to paint the next launch from (the TV's
+    // homeSnapshot.ts) must never paint a grown-up's shelves for a profile
+    // that has become a kids one since — it reads this on the profile's first
+    // answers and on Home's own. No header = not filtered.
+    try { res.setHeader("X-Aurora-Kids", String(max)); } catch {}
     const method = String(req.method || "GET").toUpperCase();
 
     const deny = (error, extra = {}) => res.status(403).json({ error, kids: true, ...extra });

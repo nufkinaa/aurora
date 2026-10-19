@@ -16,14 +16,17 @@
 // card: the site puts labels on the cards that have them (wide, episode, up-next)
 // and nothing at all on a poster, and Card now does the same.
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {View, Text, Image, StyleSheet, ActivityIndicator, Animated, Easing, PixelRatio} from 'react-native';
+import {View, Text, Image, StyleSheet, ActivityIndicator, Animated, AppState, Easing, PixelRatio} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Btn from '../components/Btn';
 import Row, {shelfGeom, ShelfMemory} from '../components/Row';
 import NavRail from '../components/NavRail';
 import {ErrorState} from '../components/States';
 import TrailerFrame, {HERO_TRAILER_COVER, TrailerHandle, TrailerState} from '../components/Trailer';
-import {api, artPath, ART_LADDER, imgSrc, ImgSource, sameParties, serverCanBlur, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
+import {api, artPath, ART_LADDER, audienceOf, getBaseUrl, imgSrc, ImgSource, keptHomeText, sameParties, serverCanBlur, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
+import {itemKey, Look, locksFor, mergeHome, Mode, visibleMoves} from '../homeMerge';
+import {lookOf} from '../homeLook';
+import {expectedAudience, markLaunch, Primed, primedSnapshot, saveSnapshot, snapshotHome, usable, whenSnapshot} from '../homeSnapshot';
 import {checkForUpdate, holdPromptFor, onUpdateReady, updateReady, UpdateInfo} from '../update';
 import {currentRouteName} from '../rootNav';
 import {syncHomeScreen, useHomeScreenLinks} from '../homeScreen';
@@ -334,12 +337,44 @@ let columnLinks = 0;
 // The column and the art: the JS views, or the native ones (NATIVE_HERO).
 const Column = (NATIVE_HERO ? NativeColumn : Animated.View) as React.ComponentType<Record<string, unknown>>;
 
+// ---- the first frame, from the last answer ---------------------------------
+// Home's last answer for this profile, kept on the box (homeSnapshot.ts), when
+// it may be painted now: this profile's, this server's, at most a day old,
+// filtered for the audience the profile has now. null: wait for the server.
+function snapshotFor(profileId: string, got: Primed | undefined): {home: HomeData; audience: string; at: number} | null {
+  if (!got || !got.rec) return null;
+  const audience = expectedAudience(profileId, audienceOf(profileId), got.lock);
+  if (!usable(got.rec, {server: getBaseUrl(), profileId, audience, now: Date.now()})) return null;
+  const home = snapshotHome<HomeData>(got.rec);
+  return home ? {home, audience: got.rec.audience, at: got.rec.at} : null;
+}
+// No press for this long with the new answer only partly on screen: the
+// shelves on screen take it, slot by slot (homeMerge.ts "idle").
+const IDLE_APPLY_MS = 5000;
+// After focus lands somewhere new: the shelves that have left the screen take
+// the new answer ("quiet" again, with the new view) once the slide has ended.
+const VIEW_SETTLE_MS = 700;
+
 export default function Home({
   navigation,
 }: NativeStackScreenProps<RootStackParamList, 'Home'>) {
   const {profileId, switchProfile} = useApp();
   const {width, height, heroH, heroPadBottom, heroTitle, safeBottom} = useTvMetrics();
-  const [data, setData] = useState<HomeData | null>(null);
+  // FIRST FRAME: the box's copy of the last answer, when it may be painted
+  // (read ahead during boot — App.tsx primeSnapshot); else the loading state,
+  // as before, until the server answers.
+  const first = useRef<ReturnType<typeof snapshotFor> | undefined>(undefined);
+  if (first.current === undefined) first.current = snapshotFor(profileId, primedSnapshot(profileId));
+  const [data, setData] = useState<HomeData | null>(first.current ? first.current.home : null);
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  // The newest answer from the server, and whether part of it still waits for
+  // a natural moment (homeMerge.ts). `shownAud`: whom what is on screen was
+  // filtered for — an answer filtered for someone else is taken whole.
+  const freshRef = useRef<HomeData | null>(null);
+  const pendingRef = useRef(false);
+  const shownAud = useRef<string | null>(first.current ? first.current.audience : null);
+  const takeFreshRef = useRef<(h: HomeData) => void>(() => {});
   // usage stats: this screen's content is on (routeTiming.ts)
   useRouteShown(data !== null);
   const [error, setError] = useState('');
@@ -403,7 +438,8 @@ export default function Home({
       .home(profileId)
       .then(h => {
         if (!on) return;
-        setData(h);
+        // merged in under the "don't move what the viewer is looking at" rule
+        takeFreshRef.current(h);
         // the TV's own home screen follows: Continue watching + recommendations
         syncHomeScreen(h.rows, profileId);
       })
@@ -419,6 +455,7 @@ export default function Home({
   // "Later" buys ten minutes, not the whole run (elia: it has to be
   // noticeable, so people actually upgrade).
   const lastOffer = useRef(0);
+  const firstOffer = useRef(true);
   useEffect(() => {
     if (!live) return;
     let on = true;
@@ -435,7 +472,10 @@ export default function Home({
       lastOffer.current = Date.now();
       openUpdate(u);
     };
-    const t = setTimeout(offer, data ? 1500 : 4000);
+    // (the launch's first run waits 4 s, as it always did — Home may now have
+    // its shelves in the first frame, from the box's copy)
+    const t = setTimeout(offer, data && !firstOffer.current ? 1500 : 4000);
+    firstOffer.current = false;
     const iv = setInterval(offer, 30 * 60000);
     // A quietly-fetched build says it is ready: once per version, and never
     // over the player or another sheet — it waits for a quiet moment.
@@ -1004,11 +1044,13 @@ export default function Home({
     }).start();
   }, [heroIdx, swap]);
 
+  const viewMovedRef = useRef<() => void>(() => {});
   const toHero = useCallback(() => {
     curRow.current = -1;
     setTop(true);
     slideTo(0);
     if (HOME_WINDOW) pump();
+    viewMovedRef.current();
   }, [setTop, slideTo, pump]);
 
   // THE HERO'S OWN KEYS (elia, 2026-10-06): RIGHT on the last button and LEFT
@@ -1177,6 +1219,14 @@ export default function Home({
     (item: HeroItem) => {
       if (!item.id) return;
       let at = -1; // where it stood, for putting it back
+      // ...and from the newest answer, or the next merge would bring it back
+      const fr = freshRef.current;
+      if (fr) {
+        freshRef.current = {
+          ...fr,
+          rows: fr.rows.map(r => (r.id !== 'continue' ? r : {...r, items: r.items.filter(i => i.id !== item.id)})),
+        };
+      }
       setData(d =>
         d
           ? {
@@ -1260,9 +1310,157 @@ export default function Home({
     },
     [],
   );
+  // ---- fresh data, merged in (homeMerge.ts) ---------------------------------
+  // Where focus was last on each shelf (by row id) and on which title: what
+  // the viewer can see is derived from these and from the column's offset.
+  const lastCard = useRef(new Map<string, number>()).current;
+  const focusKey = useRef<string | null>(null);
+  const lookNow = useCallback(
+    (): Look =>
+      lookOf({
+        rows: dataRef.current?.rows || [],
+        layout: layoutNow(),
+        rest: Math.max(0, -tyTarget.current),
+        lastCard,
+        focusRow: curRow.current,
+        focusKey: focusKey.current,
+        geomOf: id => shelfGeom(id === 'continue', width),
+        heroH,
+        heroCount: dataRef.current?.hero?.length || 0,
+        heroIdx: heroIdxRef.current,
+      }),
+    [layoutNow, width, heroH, lastCard],
+  );
+  const idleOff = useRef<(() => void) | null>(null);
+  const viewOff = useRef<(() => void) | null>(null);
+  useEffect(
+    () => () => {
+      idleOff.current?.();
+      viewOff.current?.();
+    },
+    [],
+  );
+  const applyFresh = useCallback(
+    (mode: Mode) => {
+      const h = freshRef.current;
+      const prev = dataRef.current;
+      if (!h || !prev) return;
+      const look = lookNow();
+      const r = mergeHome(prev, h, locksFor(mode, look, prev.rows));
+      pendingRef.current = r.pending;
+      const next = r.home || h;
+      if (next !== prev) {
+        // (adb logcat -s ReactNativeJS | grep "\[home\] fresh") moved = cards on screen that
+        // changed place or title: 0 in "quiet", always
+        console.log(`[home] fresh ${mode}: moved=${visibleMoves(prev, next, look)} pending=${r.pending ? 'yes' : 'no'} held=${r.held}`);
+        dataRef.current = next;
+        setData(next);
+        if (next.hero !== prev.hero && next.hero.length && r.heroIndex !== heroIdxRef.current % Math.max(1, prev.hero.length)) {
+          heroIdxRef.current = r.heroIndex;
+          setHeroIdx(r.heroIndex);
+        }
+      }
+      // "idle" counts from the last press (settle.ts), not from the server's
+      // last answer: a new answer does not put it off
+      if (!r.pending) {
+        idleOff.current?.();
+        idleOff.current = null;
+      } else if (liveRef.current && !idleOff.current) {
+        idleOff.current = whenSettled(() => {
+          idleOff.current = null;
+          if (liveRef.current && pendingRef.current) applyFresh('idle');
+        }, IDLE_APPLY_MS);
+      }
+    },
+    [lookNow],
+  );
+  // The view settled somewhere new: shelves that left the screen catch up.
+  viewMovedRef.current = () => {
+    if (!pendingRef.current || viewOff.current) return;
+    viewOff.current = whenSettled(() => {
+      viewOff.current = null;
+      if (liveRef.current && pendingRef.current) applyFresh('quiet');
+    }, VIEW_SETTLE_MS);
+  };
+  // The keeper of the box's copy: the newest answer's text, a few seconds
+  // after it came (never in the launch's busiest moment).
+  const savedText = useRef<string | null>(null);
+  takeFreshRef.current = (h: HomeData) => {
+    freshRef.current = h;
+    const aud = audienceOf(profileId) || null;
+    const prev = dataRef.current;
+    const firstFresh = !savedText.current;
+    if (!prev || (shownAud.current && aud && aud !== shownAud.current)) {
+      // nothing on screen yet — or what is on screen was filtered for someone
+      // else (a profile made a kids one, or its age changed, since the box
+      // kept its copy): the answer as it is, at once
+      if (prev) console.log(`[home] shown for ${shownAud.current}, answered for ${aud}: taken whole`);
+      pendingRef.current = false;
+      dataRef.current = h;
+      setData(h);
+    } else {
+      applyFresh('quiet');
+    }
+    shownAud.current = aud;
+    if (firstFresh) markLaunch('fresh', `merged=${prev ? 'yes' : 'no'} pending=${pendingRef.current ? 'yes' : 'no'}`);
+    const text = keptHomeText(profileId, h);
+    const server = getBaseUrl();
+    if (text && server && text !== savedText.current) {
+      savedText.current = text;
+      const rec = {v: 1 as const, at: Date.now(), server, profileId, audience: aud || 'all', chars: text.length, text};
+      setTimeout(() => saveSnapshot(rec), 4000);
+    }
+  };
+  // Not looked at (another screen over Home, the app in the background):
+  // the new answer goes in, but for the shelves above the viewport and the
+  // focused one ("away").
+  useEffect(() => {
+    if (!live && pendingRef.current) applyFresh('away');
+  }, [live, applyFresh]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', st => {
+      if (st !== 'active' && pendingRef.current) applyFresh('away');
+    });
+    return () => sub.remove();
+  }, [applyFresh]);
+  // The box's copy had not been read yet when Home mounted: drawn when it
+  // arrives, unless the server was faster.
+  useEffect(() => {
+    if (dataRef.current) return;
+    let on = true;
+    whenSnapshot(profileId).then(got => {
+      if (!on || dataRef.current) return;
+      const snap = snapshotFor(profileId, got);
+      if (!snap) return;
+      first.current = snap;
+      shownAud.current = snap.audience;
+      dataRef.current = snap.home;
+      setData(snap.home);
+    });
+    return () => {
+      on = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // The launch's marks: the first frame with shelves, and from what.
+  useEffect(() => {
+    if (!data) return;
+    const snap = first.current;
+    markLaunch('paint', snap && data === snap.home ? `src=snapshot age=${Math.round((Date.now() - snap.at) / 60000)}min` : 'src=network');
+  }, [data]);
+
   const onRowItemFocus = useCallback(
     (it: HeroItem, rowIndex: number) => {
+      {
+        // where focus is, for the merge's view (lookNow)
+        const r = rowsRef.current[rowIndex];
+        const key = itemKey(it);
+        const at = r ? r.items.findIndex(x => itemKey(x) === key) : -1;
+        if (r && at >= 0) lastCard.set(r.id, at);
+        focusKey.current = key;
+      }
       toRow(rowIndex);
+      viewMovedRef.current();
       warmItem(it);
       artIdle('shelves', () => {
         const out = [];
@@ -1323,7 +1521,10 @@ export default function Home({
           collapsable={NATIVE_HERO ? false : undefined}
           onLayout={e => {
             rowY.current[i] = e.nativeEvent.layout.y;
-            if (i === 0) homeUsable(); // [analytics] "Home is usable": the first row is laid out
+            if (i === 0) {
+              homeUsable(); // [analytics] "Home is usable": the first row is laid out
+              markLaunch('usable');
+            }
             if (!spacer) rowH.set(r.id, e.nativeEvent.layout.height);
             if (NATIVE_HERO) syncTargets();
           }}>

@@ -38,6 +38,7 @@ import SignIn from './src/screens/SignIn';
 import {ErrorState} from './src/components/States';
 import NewPassword from './src/screens/NewPassword';
 import {clearProfileCaches} from './src/profileScope';
+import {markLaunch, primeSnapshot} from './src/homeSnapshot';
 import {disconnect, onMessage} from './src/realtime';
 import {showToast} from './src/toast';
 import AppNavigator from './src/navigation';
@@ -111,9 +112,15 @@ export default function App() {
     let alive = true;
     setStage('loading');
     (async () => {
+      markLaunch('boot');
       const s = await loadSession();
+      // Home's last answer for the profile this box was in, read from storage
+      // NOW, while the server is found and the profile checked — so Home can
+      // draw it in its first frame (homeSnapshot.ts says when it may).
+      primeSnapshot(s.profileId);
       // No saved URL is not a special case any more: the addresses are in code.
       const live = await resolveServer(s.serverUrl);
+      markLaunch('server', live ? 'found' : 'none');
       if (!alive) return;
       if (!live) {
         setLocal(s);
@@ -147,6 +154,7 @@ export default function App() {
           setStage('reset');
         } else {
           if (owed) saveMustReset(null);
+          markLaunch('profile');
           setStage('home');
         }
       };

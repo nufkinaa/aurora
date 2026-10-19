@@ -1494,3 +1494,12 @@
 .reset-wall-forgot {
   margin-top: 16px;
 }
+
+/* A card that took a newer answer's place on a shelf that is on screen
+   (components.js patchShelf, via homeMerge.js): the same slot, the new card
+   faded in softly — no movement, no layout change. */
+.card.card-swap { animation: card-swap 420ms ease-out both; }
+@keyframes card-swap { from { opacity: 0.35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .card.card-swap { animation: none; }
+}

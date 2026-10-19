@@ -62,6 +62,27 @@ export const setActiveProfile = (id: string | null) => {
   activeProfile = id || null;
 };
 export const getActiveProfile = () => activeProfile;
+// WHOM EACH PROFILE'S ANSWERS ARE FILTERED FOR, as the server said this run:
+// "kids:<age>" when it filtered them (its kids gate sends X-Aurora-Kids on
+// every answer it filters — src/lib/kids.js), "all" when it did not. Read
+// off any answer the gate covers (everything under /api/ but the admin,
+// sign-in and kids routes), for the profile the request named (in its path,
+// else X-Profile). Home's snapshot (homeSnapshot.ts) is only painted for the
+// audience the profile has now. Keyed by profile: never read for another.
+const audiences = new Map<string, string>();
+const PROFILE_PATH = /^\/api\/profiles\/([^/?]+)/;
+function noteAudience(path: string, res: Response) {
+  try {
+    if (!path.startsWith('/api/') || /^\/api\/(admin|auth|kids)(\/|$|\?)/.test(path)) return;
+    const m = PROFILE_PATH.exec(path);
+    const who = m ? decodeURIComponent(m[1]) : activeProfile;
+    if (!who) return;
+    const kids = res.headers && typeof res.headers.get === 'function' ? res.headers.get('x-aurora-kids') : null;
+    audiences.set(who, kids ? `kids:${kids}` : 'all');
+  } catch {}
+}
+/** What the server last said about whom `profileId`'s answers are filtered for (undefined: nothing yet). */
+export const audienceOf = (profileId: string | null): string | undefined => (profileId ? audiences.get(profileId) : undefined);
 // The profile's unlock token, for the one caller outside this file that must
 // send it itself: the home-screen row's native refresh (homeScreen.ts).
 export const getToken = () => token;
@@ -839,6 +860,7 @@ async function send(path: string, options: RequestInit = {}, allow304 = false): 
   }
   // the server answers again: the play marks held while it did not go now
   if (res.ok && heldMarks.length) setTimeout(flushHeldMarks, 0);
+  if (res.ok) noteAudience(path, res);
   if (!res.ok && !(allow304 && res.status === 304)) {
     httpFailed(options.method, path, res.status); // [analytics] "GET /api/item/:id → 404", counted
     // The server writes its error bodies for viewers ("too many attempts —
@@ -919,6 +941,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 // as the profile that read it.
 type Kept<T> = {path: string; who: string | null; etag: string | null; text: string; value: T};
 let homeKept: Kept<Home> | null = null;
+/** The text of the last Home answer read as `profileId` (homeSnapshot.ts keeps
+ *  it for the next launch), when `value` is that answer. */
+export const keptHomeText = (profileId: string, value: Home): string | null =>
+  homeKept && homeKept.who === profileId && homeKept.value === value ? homeKept.text : null;
 let libraryKept: Kept<Library> | null = null;
 // NEVER MORE THAN ONE /api/home IN FLIGHT (docs/operations.md): a second ask
 // while the first is on its way — a return to Home during a library refresh —
