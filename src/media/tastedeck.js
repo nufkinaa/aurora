@@ -23,6 +23,7 @@
 // Pure: the pool, the answers and the exclusions are handed in; the route
 // (routes/profiles.js) gathers them. Deterministic for a given seed.
 const tax = require("./recs/taxonomy");
+const { plainText } = require("../lib/htmltext");
 
 const DEPTH = { movie: 1500, show: 1000 }; // how far down the catalogue's list "well-known" reaches
 const EARLY = 6; // the first cards: only the very famous
@@ -47,7 +48,8 @@ const firstSentence = (text, max = 140) => {
   }
   return s;
 };
-const lineOf = (r, describe) => {
+const lineOf = (r, describe) => plainText(rawLineOf(r, describe));
+const rawLineOf = (r, describe) => {
   const told = describe ? firstSentence(describe(r.imdbId)) : "";
   if (told) return told;
   if (r.synopsis) return firstSentence(r.synopsis);

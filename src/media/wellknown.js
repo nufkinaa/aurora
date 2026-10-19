@@ -16,6 +16,7 @@
 const path = require("path");
 const config = require("../config");
 const { JsonStore } = require("../lib/jsonstore");
+const { plainText } = require("../lib/htmltext");
 
 const V = 1;
 const DEPTH = { movie: 3000, series: 2000 };
@@ -33,11 +34,12 @@ const open = () =>
 const fromMeta = (m, type, k) => {
   const imdbId = /^tt\d+$/.test(m.id || "") ? m.id : null;
   if (!imdbId || !m.name || !m.poster) return null;
-  const list = (v) => (Array.isArray(v) ? v : v ? String(v).split(/,\s*/) : []).map((s) => String(s).trim()).filter(Boolean);
+  // (Cinemeta's names are HTML-escaped — "O&apos;Connor": src/lib/htmltext.js)
+  const list = (v) => (Array.isArray(v) ? v : v ? String(v).split(/,\s*/) : []).map((s) => plainText(String(s).trim())).filter(Boolean);
   return {
     imdbId,
     type: type === "series" ? "show" : "movie",
-    title: m.name,
+    title: plainText(m.name),
     year: m.releaseInfo ? parseInt(String(m.releaseInfo).slice(0, 4), 10) || null : null,
     poster: m.poster,
     rating: m.imdbRating ? parseFloat(m.imdbRating) || null : null,
@@ -100,9 +102,25 @@ const refresh = ({ pause = PAUSE_MS, depth = DEPTH, fetchPage: page = fetchPage 
 let version = 0;
 // Sync, no network: the records as they are on disk, and a stamp that
 // changes when they do (search.js rebuilds its index on it).
+// A file written before the names were decoded is decoded once as it is read.
+let plainOf = null;
+let plainList = [];
+const plainRec = (r) => {
+  if (!r || typeof r !== "object") return r;
+  const t = plainText(r.title);
+  const cast = Array.isArray(r.cast) ? r.cast.map(plainText) : r.cast;
+  const director = Array.isArray(r.director) ? r.director.map(plainText) : r.director;
+  const same = t === r.title && (!Array.isArray(r.cast) || cast.every((c, i) => c === r.cast[i])) && (!Array.isArray(r.director) || director.every((c, i) => c === r.director[i]));
+  return same ? r : { ...r, title: t, cast, director };
+};
 const all = () => {
   const d = open().data;
-  return d.v === V && Array.isArray(d.titles) ? d.titles : [];
+  const list = d.v === V && Array.isArray(d.titles) ? d.titles : [];
+  if (list !== plainOf) {
+    plainOf = list;
+    plainList = list.map(plainRec);
+  }
+  return plainList;
 };
 const stamp = () => `${open().data.at || 0}:${version}`;
 
