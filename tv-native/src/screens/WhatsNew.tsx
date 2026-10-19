@@ -17,8 +17,80 @@ import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing, radius} = theme;
 
-type Feature = {glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
-const FEATURES: Feature[] = [
+// THIS ROUND: the TV app version the TV round (2026-10-19/20) ships in. A
+// placeholder until the release sets it — the one place to change: its cards
+// say `since: ROUND`, and NEW_FROM = ROUND puts the New ribbon on them alone.
+// (The website has the same cards: public/js/screens/whatsnew.js, ROUND there.)
+export const ROUND = '5.4.0';
+const NEW_FROM = ROUND;
+const cmpVersion = (a: string, b: string) => {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+  return 0;
+};
+export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.since, NEW_FROM) >= 0;
+
+type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
+export const FEATURES: Feature[] = [
+  // ---- the TV round (2026-10-19/20): the same cards, the same words, on the website ----
+  {
+    since: ROUND,
+    glyph: '🎞️',
+    title: 'The screen follows the film',
+    what: 'A film made at 24 frames a second plays at 24 on the TV, so slow pans glide instead of stuttering. The TV switches its refresh rate while the film plays and back when you leave.',
+    how: 'Nothing to do. To turn it off for you: Settings → Picture and sound → Match frame rate.',
+    go: {label: 'Picture and sound', act: 'settings'},
+  },
+  {
+    since: ROUND,
+    glyph: '🔊',
+    title: 'Dolby sound, as it is',
+    what: 'Films with Dolby or DTS sound go to your TV or soundbar as they are, in full surround, and most films now play straight from the file — the server makes fewer copies, so they start sooner.',
+    how: 'Nothing to do. For plain stereo: Settings → Picture and sound → Surround sound.',
+    go: {label: 'Picture and sound', act: 'settings'},
+  },
+  {
+    since: ROUND,
+    glyph: '🌙',
+    title: 'Night mode and dialogue boost',
+    what: 'Night mode brings loud bursts down and quiet voices up, for late evenings; dialogue boost makes voices clearer over music and effects. Your choice follows you to every screen.',
+    how: 'In the player: ⚙ → Audio, or Settings → Sound. Greyed while the sound goes to your TV or receiver as it is (Dolby or DTS passthrough).',
+    go: {label: 'Sound settings', act: 'settings'},
+  },
+  {
+    since: ROUND,
+    glyph: '💬',
+    title: 'Subtitles your way',
+    what: 'Choose the size, colour, background and position of subtitles once — the TV and every browser show them the same way.',
+    how: 'In the player: Subtitles → Subtitle style, with a live sample. Or Settings → Subtitles.',
+    go: {label: 'Subtitle settings', act: 'settings'},
+  },
+  {
+    since: ROUND,
+    glyph: '📱',
+    title: 'Your phone is the remote',
+    what: 'Steer the TV from your phone — swipe to move, tap for OK, pause, scrub, subtitles and sound — and send any film to the TV with Play on TV, at the second you were at.',
+    how: "Open Aurora on your phone, signed in to this profile: this TV shows up under Remote. Settings → This TV's name sets what your phone calls it.",
+    go: {label: "This TV's name", act: 'settings'},
+  },
+  {
+    since: ROUND,
+    glyph: '🎙️',
+    title: 'Search by voice',
+    what: 'Say a title instead of typing it, in Hebrew or English — "Breaking Bad season two" goes straight to the show.',
+    how: 'On Search press Voice, or the microphone button on the remote. On the website: the microphone in the search field.',
+    go: {label: 'Open Search', act: 'search'},
+  },
+  {
+    since: ROUND,
+    glyph: '⚡',
+    title: 'Home opens at once',
+    what: 'Home appears straight away with what you saw last time, and fresh news slips in without moving the row you are looking at.',
+    how: 'Nothing to do.',
+    go: {label: 'Go home', act: 'home'},
+  },
+  // ---- end of the TV round ----
   {
     glyph: '🎬',
     title: 'Trailers on the billboard',
@@ -110,7 +182,7 @@ export default function WhatsNew({navigation}: NativeStackScreenProps<RootStackP
     if (a === 'join') return openJoinParty();
     if (a === 'report') return openReport();
     if (a === 'downloads') return navigation.push('Downloads');
-    if (a === 'home' || a === 'movies' || a === 'shows' || a === 'settings') goSection(navigation, 'new', a);
+    if (a === 'home' || a === 'movies' || a === 'shows' || a === 'settings' || a === 'search') goSection(navigation, 'new', a);
   };
 
   return (
@@ -135,7 +207,10 @@ export default function WhatsNew({navigation}: NativeStackScreenProps<RootStackP
                 <Text style={styles.glyph}>{f.glyph}</Text>
               </View>
               <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>{f.title}</Text>
+                <View style={styles.cardHead}>
+                  <Text style={styles.cardTitle}>{f.title}</Text>
+                  {isNewCard(f) ? <Text style={styles.ribbon}>NEW</Text> : null}
+                </View>
                 <Text style={styles.what}>{f.what}</Text>
                 <Text style={styles.how}>
                   <Text style={styles.howLabel}>How </Text>
@@ -201,7 +276,10 @@ const styles = StyleSheet.create({
   },
   glyph: {fontSize: 26},
   cardBody: {flex: 1, minWidth: 0},
-  cardTitle: {color: colors.text, fontSize: fontSize.body, fontWeight: '800'},
+  cardHead: {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8},
+  cardTitle: {color: colors.text, fontSize: fontSize.body, fontWeight: '800', flexShrink: 1},
+  // the website's ribbon (.wn-ribbon): small caps, mint
+  ribbon: {color: '#86efac', fontSize: 11, fontWeight: '900', letterSpacing: 1.2},
   what: {color: colors.textDim, fontSize: 14, lineHeight: 20, marginTop: 4},
   how: {color: colors.textFaint, fontSize: 14, lineHeight: 20, marginTop: 6},
   howLabel: {color: colors.textDim, fontWeight: '800'},

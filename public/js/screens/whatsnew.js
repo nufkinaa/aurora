@@ -15,8 +15,64 @@ import { showReportSheet } from "../report.js";
 // stays on what is actually recent). `cue`: which small animation the glyph
 // tile plays. Cards are retired when the thing stops being news: the two
 // looks, the keyboard shortcuts and resume-with-the-frame went 2026-10-05.
-const NEW_FROM = "1.6.9";
+// THIS ROUND: the server version the TV round (2026-10-19/20) ships in. A
+// placeholder until the release sets it — the one place to change: its cards
+// say `since: ROUND`, and NEW_FROM = ROUND puts the ribbon on them alone.
+// (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.)
+export const ROUND = "1.9.0";
+const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- the TV round (2026-10-19/20): the same cards, the same words, on the TV ----
+  {
+    since: ROUND, cue: "smart", glyph: "🎞️",
+    title: "The screen follows the film",
+    what: "A film made at 24 frames a second plays at 24 on the TV, so slow pans glide instead of stuttering. The TV switches its refresh rate while the film plays and back when you leave.",
+    how: "It happens in the Aurora TV app — a browser can't change your screen's refresh rate. To turn it off for you: Settings → More settings → On the TV → Match frame rate.",
+    go: { label: "On the TV", to: "#/preferences" },
+  },
+  {
+    since: ROUND, cue: "trailer", glyph: "🔊",
+    title: "Dolby sound, as it is",
+    what: "Films with Dolby or DTS sound go to your TV or soundbar as they are, in full surround, and most films now play straight from the file — the server makes fewer copies, so they start sooner.",
+    how: "In the Aurora TV app, nothing to do; in a browser the sound stays stereo. For plain stereo on the TV too: Settings → More settings → On the TV → Surround sound.",
+    go: { label: "On the TV", to: "#/preferences" },
+  },
+  {
+    since: ROUND, cue: "look", glyph: "🌙",
+    title: "Night mode and dialogue boost",
+    what: "Night mode brings loud bursts down and quiet voices up, for late evenings; dialogue boost makes voices clearer over music and effects. Your choice follows you to every screen.",
+    how: "In the player: ⚙ → Audio, or Settings → Sound. Not on iPhone, iPad or Safari — the switches are greyed there and the film plays its normal sound.",
+    go: { label: "Sound settings", to: "#/preferences" },
+  },
+  {
+    since: ROUND, cue: "subs", glyph: "💬",
+    title: "Subtitles your way",
+    what: "Choose the size, colour, background and position of subtitles once — the TV and every browser show them the same way.",
+    how: "In the player: Subtitles → Subtitle style, with a live sample. Or Settings → Subtitles.",
+    go: { label: "Subtitle settings", to: "#/preferences" },
+  },
+  {
+    since: ROUND, cue: "tap", glyph: "📱",
+    title: "Your phone is the remote",
+    what: "Steer the TV from your phone — swipe to move, tap for OK, pause, scrub, subtitles and sound — and send any film to the TV with Play on TV, at the second you were at.",
+    how: "Sign the TV in to your profile. On your phone: Remote in the menu, or Play on TV on a title. To name this device: Settings → More settings → Phone as a remote.",
+    go: { label: "Open the remote", to: "#/remote" },
+  },
+  {
+    since: ROUND, cue: "hold", glyph: "🎙️",
+    title: "Search by voice",
+    what: "Say a title instead of typing it, in Hebrew or English — \"Breaking Bad season two\" goes straight to the show.",
+    how: "Press the microphone in the search field (Chrome, Edge and Safari). On the TV: Voice on Search, or the microphone button on the remote.",
+    go: { label: "Open Search", to: "#/search" },
+  },
+  {
+    since: ROUND, cue: "skip", glyph: "⚡",
+    title: "Home opens at once",
+    what: "Home appears straight away with what you saw last time, and fresh news slips in without moving the row you are looking at.",
+    how: "Nothing to do.",
+    go: { label: "Go home", to: "#/" },
+  },
+  // ---- end of the TV round ----
   {
     since: "1.6.12", cue: "look", glyph: "🔍",
     title: "X-Ray",
