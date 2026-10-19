@@ -739,6 +739,13 @@ router.get("/api/item/:id", (req, res) => {
 //       &pin=<key of the first card>   for the live catalogue and the related
 //                                      row; the pinned card stays first unless
 //                                      something matches better
+//       &voice=1                       q is what a microphone heard (the site's
+//                                      and the TV's voice search): tidied by
+//                                      media/spoken.js — the command, the kind,
+//                                      "season two episode three", numbers —
+//                                      and the best of its spellings searched;
+//                                      `q` is then the query used, `spoken`
+//                                      { heard, q, season, episode, via }
 //       &commit=1                      the person pressed Search: ask the
 //                                      catalogue whatever the length, and the
 //                                      exact name is strictly first (while
@@ -752,6 +759,7 @@ router.get("/api/item/:id", (req, res) => {
 // "more like" a title the profile cannot see; the gate filters the lists
 // once more on the way out.
 const searchEngine = require("../media/search");
+const spokenLib = lazy(require, "../media/spoken");
 router.get("/api/search/suggest", (req, res) => {
   const q = String(req.query.q || "").slice(0, 80);
   if (!q.trim()) return res.json({ suggestions: [] });
@@ -772,6 +780,20 @@ router.get("/api/search/suggest", (req, res) => {
 router.get("/api/search", heavy.middleware(), async (req, res) => {
   const q = String(req.query.q || "").trim().slice(0, 80);
   const v2 = String(req.query.v || "") === "2";
+  if (v2 && req.query.voice === "1") {
+    try {
+      return res.json(await spokenLib().search(String(req.query.q || "").slice(0, 200), {
+        wait: req.query.wait === "1",
+        commit: true, // a spoken query is always a committed one
+        pin: req.query.pin ? String(req.query.pin).slice(0, 60) : null,
+        type: req.query.type === "movie" || req.query.type === "show" ? req.query.type : null,
+        limit: req.query.limit,
+        allow: req.kidsAllows || null,
+      }));
+    } catch {
+      return res.status(500).json({ error: "search failed" });
+    }
+  }
   if (!q) return res.json(v2 ? { q: "", results: [], related: [], relatedLabel: null, relatedKind: null, anchor: null, pending: false, catalogFailed: false } : { results: [] });
   try {
     if (!v2) return res.json(searchEngine.legacy(q, { allow: req.kidsAllows || null }));
