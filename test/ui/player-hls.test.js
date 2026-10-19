@@ -94,9 +94,10 @@ ui.test("the Audio menu switches track, the film carries on from the same place,
   const audio = () => page.evaluate(() => {
     const out = [];
     let on = false;
+    // (the sound switches under the dub list, 2026-10-19, are not dubs)
     for (const n of document.querySelector(".player .menu").children) {
       if (n.classList.contains("menu-title")) on = n.textContent.trim() === "Audio";
-      else if (on && n.classList.contains("menu-item")) out.push({ name: n.querySelector("span").textContent, tag: (n.querySelector(".tag") || {}).textContent, active: n.classList.contains("active") });
+      else if (on && n.classList.contains("menu-item") && !n.hasAttribute("data-fx")) out.push({ name: n.querySelector("span").textContent, tag: (n.querySelector(".tag") || {}).textContent, active: n.classList.contains("active") });
     }
     return out;
   });

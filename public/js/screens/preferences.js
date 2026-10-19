@@ -6,7 +6,10 @@ import { loadLibrary, loadProfiles, state, applyAppearance, setPersonPref } from
 import { api, setAuthToken } from "../api.js";
 import { navigate } from "../router.js";
 import { profileModal, kidsLabel } from "./profiles.js";
-import { playerPrefs, applyCueStyle } from "./player.js";
+import { playerPrefs, applyCueStyle, cuePreview, paintCuePreview } from "./player.js";
+// [player-options] sound + the look of subtitles, the person's (2026-10-19)
+import { readStyle, nextChoice, styleLabel, SUB_STYLE_KEYS, SUB_STYLE_SETTINGS } from "../subStyle.js";
+import { AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES, fxBlocked } from "../audiofx.js";
 import { showClaimModal } from "../claim.js";
 import { showLoginScreen } from "./login.js";
 import * as offlineStore from "../offline.js";
@@ -49,6 +52,15 @@ const ICONS = {
   "Subtitle language": '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.500 3 14.500 0 18M12 3c-3 3.500-3 14.500 0 18"/>',
   "Subtitle size": '<path d="M3 18l4.500-11L12 18M4.500 14.500h6"/><path d="M14 18l3-7 3 7M15 16h4"/>',
   "Dark box behind subtitles": '<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h10"/>',
+  // [player-options]
+  "Sound": '<path d="M4 9.500h3.500L12 5.500v13L7.500 14.500H4z"/><path d="M15.500 9a4 4 0 010 6M18 6.500a7.500 7.500 0 010 11"/>',
+  "Night mode": '<path d="M19 14.500A7.500 7.500 0 019.500 5a7.500 7.500 0 109.500 9.500z"/>',
+  "Dialogue boost": '<path d="M4 6.500A2.500 2.500 0 016.500 4h11A2.500 2.500 0 0120 6.500v7a2.500 2.500 0 01-2.500 2.500H10l-4 4v-4h0a2.500 2.500 0 01-2-2.500z"/><path d="M8.500 10h7M12 7v6"/>',
+  "Text colour": '<path d="M5 19l5.500-14h3L19 19"/><path d="M7.500 13h9"/>',
+  "Background": '<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h10"/>',
+  "Box opacity": '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 20L20 4M9 20l11-11M14 20l6-6"/>',
+  "Text weight": '<path d="M7 4h6a4 4 0 010 8H7zM7 12h7a4 4 0 010 8H7z"/>',
+  "Position": '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 12h10M10 9l2-2 2 2"/>',
   // the profile card's rows
   "Edit profile & password": '<path d="M4 20h4l10.500-10.500a2.100 2.100 0 00-3-3L5 17z"/><path d="M13.500 6.500l3 3"/>',
   "Edit profile": '<path d="M4 20h4l10.500-10.500a2.100 2.100 0 00-3-3L5 17z"/><path d="M13.500 6.500l3 3"/>',
@@ -98,6 +110,74 @@ const cycle = (key, values, fallback) => {
   const cur = playerPrefs.get(key, fallback);
   const i = values.indexOf(cur);
   playerPrefs.set(key, values[(i + 1) % values.length]);
+};
+
+// ---------- [player-options] the look of subtitles and the sound ----------
+// Both follow the PERSON (state.js setPersonPref): written here, they are on
+// the TV and in every browser the next time it reads the profile.
+const optionNow = (k, fallback) => playerPrefs.get(k, fallback);
+const setOption = (k, v) => {
+  playerPrefs.set(k, v);
+  setPersonPref(k, v);
+  applyCueStyle();
+  window.dispatchEvent(new CustomEvent("aurora:player-options"));
+};
+const styleNowHere = () => {
+  const o = {};
+  for (const k of SUB_STYLE_KEYS) o[k] = optionNow(k, undefined);
+  return readStyle(o);
+};
+const STYLE_ROW = SUB_STYLE_SETTINGS; // the TV's Settings say the same
+// The sample on top (the cue drawn as the player will), then one row per
+// choice. Every press repaints the sample at once.
+const subtitleLookRows = () => {
+  const sample = cuePreview("sub-preview big");
+  const items = [];
+  const paint = () => {
+    const st = styleNowHere();
+    paintCuePreview(sample.cue, st, { S: 16, M: 21, L: 27, XL: 34 }[st.subSize]);
+    for (const it of items) it.hidden = it.dataset.style === "subOpacity" && st.subBg !== "box";
+  };
+  const rows = SUB_STYLE_KEYS.map((k) => {
+    const row = prefRow(STYLE_ROW[k][0], STYLE_ROW[k][1],
+      () => styleLabel(k, styleNowHere()),
+      () => { setOption(k, nextChoice(k, styleNowHere()[k])); paint(); });
+    row.dataset.style = k;
+    items.push(row);
+    return row;
+  });
+  paint();
+  // another device changed them while this page is up (state.js): the sample
+  // and every row's value; the listener goes once this page has gone
+  let mounted = false;
+  const onChange = () => {
+    if (sample.box.isConnected) mounted = true;
+    else if (mounted) return window.removeEventListener("aurora:player-options", onChange);
+    paint();
+    const st = styleNowHere();
+    for (const it of items) {
+      const v = it.querySelector(".pref-item-value > span");
+      if (v) v.textContent = styleLabel(it.dataset.style, st);
+    }
+  };
+  window.addEventListener("aurora:player-options", onChange);
+  // (not a .pref-item: it has no label, and a list of settings is a list of those)
+  const wrap = el("div", { class: "sub-preview-row" }, sample.box);
+  return [wrap, ...rows];
+};
+const soundRows = () => {
+  const why = fxBlocked({ ua: navigator.userAgent, hasCtx: !!(window.AudioContext || window.webkitAudioContext) });
+  return AUDIO_FX_KEYS.map((k) => {
+    const row = prefRow(AUDIO_FX_NAMES[k], why || AUDIO_FX_NOTES[k],
+      () => (why ? "Not here" : optionNow(k, false) === true ? "On" : "Off"),
+      () => {
+        if (why) return toast(why, "🔈");
+        setOption(k, !(optionNow(k, false) === true));
+      });
+    row.dataset.fx = k;
+    if (why) row.classList.add("disabled");
+    return row;
+  });
 };
 
 // ---------- appearance: 3 curated themes + accent swatches ----------
@@ -743,19 +823,12 @@ export const renderPreferences = async (root) => {
               api.updateProfile(state.profile.id, { prefs: { subLang } }).catch(() => {});
             }
           ),
-          prefRow(
-            "Subtitle size",
-            null,
-            () => ({ S: "Small", M: "Medium", L: "Large" }[playerPrefs.get("cueSize", "M")] || "Medium"),
-            () => { cycle("cueSize", ["S", "M", "L"], "M"); applyCueStyle(); }
-          ),
-          prefRow(
-            "Dark box behind subtitles",
-            "Easier to read on bright scenes.",
-            () => (playerPrefs.get("cueBackground", true) ? "On" : "Off"),
-            () => { playerPrefs.set("cueBackground", !playerPrefs.get("cueBackground", true)); applyCueStyle(); }
-          )
+          // [player-options] the look, the person's — the same six on the TV
+          ...subtitleLookRows()
         )),
+      // [player-options] the sound, the person's — the same two on the TV
+      section("Sound", "Follows you to the TV and every browser.",
+        el("div", { class: "pref-list page-pad" }, ...soundRows())),
       section("Genres you like", "Pick what you like — Home shows more of it.",
         genres.length
           ? chips

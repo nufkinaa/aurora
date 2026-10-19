@@ -2,6 +2,8 @@ package com.auroratv
 
 import android.app.Application
 import android.content.ComponentCallbacks2
+import com.auroratv.audio.AudioFx
+import com.auroratv.audio.AudioFxPackage
 import com.auroratv.ui.AuroraRender
 import com.auroratv.ui.AuroraUiPackage
 import com.auroratv.ui.qa.AuroraQa
@@ -82,6 +84,8 @@ class MainApplication : Application(), ReactApplication {
           add(UpdaterPackage())
           add(DevicePackage())
           add(TrailersPackage())
+          // [player-options] night mode and dialogue boost (audio/AudioFx.kt)
+          add(AudioFxPackage())
           // The native rendering layer (docs/qa/native-lab/): Fabric components and render
           // fixes behind the AuroraRender switches — all off unless switched on — plus the QA
           // module of the device harness (inert outside a -PqaReceiver build).
@@ -97,6 +101,9 @@ class MainApplication : Application(), ReactApplication {
     // the harness's freeze / trace flags.
     AuroraRender.ensureLoaded(this)
     AuroraQa.load(this)
+    // [player-options] react-native-video hands every ExoPlayer to this plugin (night mode,
+    // dialogue boost on the player's own audio session)
+    AudioFx.install()
     loadReactNative(this)
   }
 

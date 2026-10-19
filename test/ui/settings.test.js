@@ -79,7 +79,9 @@ ui.test("every switch flips, and stays flipped across navigation and a reload", 
   // Aurora" does not persist — a reported bug: each has its own test below)
   const labels = (await page.evaluate(() => [...document.querySelectorAll('#app button[role="switch"]')].map((b) => b.getAttribute("aria-label"))))
     .filter((l) => l !== "Tell me when it's ready" && l !== "Help improve Aurora");
-  for (const want of ["Trailers on the home page", "Play the next episode", "Subtitles on by themselves", "Dark box behind subtitles", "Get the next episode ready", "Tidy up after watching"]) {
+  // ("Dark box behind subtitles" became the subtitle look's Background choice,
+  // 2026-10-19; night mode and dialogue boost are switches — player-options.test.js)
+  for (const want of ["Trailers on the home page", "Play the next episode", "Subtitles on by themselves", "Night mode", "Dialogue boost", "Get the next episode ready", "Tidy up after watching"]) {
     assert.ok(labels.includes(want), `no "${want}" switch; found ${JSON.stringify(labels)}`);
   }
 

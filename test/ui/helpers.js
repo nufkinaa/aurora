@@ -514,15 +514,19 @@ const player = {
     await page.click(CTRL(label));
   },
   // Open one of the three menus (Subtitles / Speed / Settings); -> its items' text
-  menu: async (page, label) => {
+  // (the subtitle-look rows and the two sound switches, which every Subtitles /
+  // Settings menu has since 2026-10-19, are left out unless `all`: the tests
+  // that read a menu's tracks and qualities read just those —
+  // player-options.test.js reads the others)
+  menu: async (page, label, { all = false } = {}) => {
     if (await page.locator(".player .menu").count()) { await page.keyboard.press("Escape"); await page.waitForSelector(".player .menu", { state: "detached" }); }
     await player.press(page, label);
     await page.waitForSelector(".player .menu .menu-item");
-    return page.evaluate(() => [...document.querySelectorAll(".player .menu .menu-item")].map((b) => ({
+    return page.evaluate((all) => [...document.querySelectorAll(".player .menu .menu-item")].filter((b) => all || !(b.hasAttribute("data-style") || b.hasAttribute("data-fx"))).map((b) => ({
       text: (b.childNodes[0].textContent || "").trim() || b.textContent.trim(),
       tag: (b.querySelector(".tag") || {}).textContent || "",
       active: b.classList.contains("active"),
-    })));
+    })), all);
   },
   pick: async (page, label, itemText) => {
     await player.menu(page, label);

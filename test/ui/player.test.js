@@ -167,12 +167,14 @@ ui.test("the Settings menu opens with its sections, each with an icon", async ({
   await player.press(page, "Settings");
   await page.waitForSelector(".player .menu .menu-title");
   const sections = await page.evaluate(() => [...document.querySelectorAll(".player .menu .menu-title")].map((t) => ({ name: t.textContent.trim(), icon: !!t.querySelector("svg") })));
-  for (const want of ["Quality", "Playback", "Subtitle style"]) {
+  // (Audio is always there since 2026-10-19: night mode and dialogue boost;
+  // Subtitle style moved to the Subtitles menu — player-options.test.js)
+  for (const want of ["Audio", "Quality", "Playback"]) {
     assert.ok(sections.some((s) => s.name === want), `no "${want}" section in ${JSON.stringify(sections)}`);
   }
   assert.deepEqual(sections.filter((s) => !s.icon), [], "sections without an icon");
-  // one audio track: no Audio section to choose from
-  assert.ok(!sections.some((s) => s.name === "Audio"));
+  // one audio track: no dub to choose from
+  assert.equal(await page.locator('.player .menu [data-ui="player.audio.pick"]').count(), 0);
   // "Autoplay next episode" flips in place
   const autoplay = page.locator(".player .menu .menu-item", { hasText: "Autoplay next episode" });
   assert.match(await autoplay.textContent(), /On$/);

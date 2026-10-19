@@ -808,6 +808,22 @@ const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const THEMES = ["aurora", "oled", "warm"];
 // The on/off choices a profile carries (see `update` for what each one is).
 const PREF_SWITCHES = ["smartDownloads", "smartCleanup", "usageStats", "autoplayNext", "subsDefault"];
+// Player options that follow the person (2026-10-19), each a closed set:
+//   nightMode, dialogueBoost   the sound (default off)
+//   subSize … subPos           how subtitles look (defaults: M, white, box,
+//                              75 % box, bold, lower)
+// (The subtitle DELAY is not here: it belongs to one title's one track, on
+// the device — the delay that fixes one file is wrong for the next.)
+const PLAYER_OPTIONS = {
+  nightMode: [true, false],
+  dialogueBoost: [true, false],
+  subSize: ["S", "M", "L", "XL"],
+  subColor: ["white", "yellow", "cyan", "green"],
+  subBg: ["none", "shadow", "outline", "box"],
+  subOpacity: [25, 50, 75, 100],
+  subWeight: ["normal", "bold"],
+  subPos: ["lower", "raised"],
+};
 
 const update = (id, fields) => {
   const p = store.data.profiles.find((x) => x.id === id);
@@ -839,9 +855,12 @@ const update = (id, fields) => {
   //   subsDefault     subtitles on by themselves            default on
   //   subLang         subtitle language (any|he|en|ru)      default any
   //   audioLang, subPick   what was last picked in the player
+  //   nightMode, dialogueBoost, subSize, subColor, subBg, subOpacity,
+  //   subWeight, subPos    the player options (PLAYER_OPTIONS above)
   // A key that is absent means "the default". What belongs to the SCREEN
-  // stays on the device and is never stored here: subtitle size and
-  // background, trailers on the home billboard, a TV's download notices.
+  // stays on the device and is never stored here: trailers on the home
+  // billboard, a TV's download notices (and the old device-only subtitle
+  // keys, cueSize / cueBackground, which the clients move to subSize / subBg).
   if (fields.prefs && typeof fields.prefs === "object") {
     p.prefs = p.prefs || {};
     for (const k of PREF_SWITCHES) {
@@ -849,6 +868,14 @@ const update = (id, fields) => {
     }
     // The subtitle language is a closed set, so it can ride along too.
     if (["any", "he", "en", "ru"].includes(fields.prefs.subLang)) p.prefs.subLang = fields.prefs.subLang;
+    // ---- player options (2026-10-19): sound and the look of subtitles ----
+    // Closed sets too, by name (PLAYER_OPTIONS above; the same table is
+    // public/js/subStyle.js + audiofx.js on the site and tv-native/src/
+    // subStyle.ts + audioFx.ts on the TV — test/player-options.test.js holds
+    // the three together). A value outside its set changes nothing.
+    for (const [k, allowed] of Object.entries(PLAYER_OPTIONS)) {
+      if (Object.hasOwn(fields.prefs, k) && allowed.includes(fields.prefs[k])) p.prefs[k] = fields.prefs[k];
+    }
     // What the viewer last picked in the player, so it follows the profile to
     // every title and device (2026-10-07): an audio language tag ("he", "en",
     // "ru", or another dub's tag as the file carries it — "fre"). A short
@@ -1705,6 +1732,7 @@ const dismissUpNext = (profileId, showId, episodeId) => {
 module.exports = {
   bootMaintenance,
   PREF_SWITCHES,
+  PLAYER_OPTIONS,
   shapeStamp,
   followsOf,
   setFollow,

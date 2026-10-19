@@ -4,6 +4,7 @@
 // profile gate re-appears — never a hard error.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {PERSON_KEYS, PersonPrefs, PersonRecord, readRecord, SubLang} from './personPrefs';
+import {SubStyle, SUB_STYLE_DEFAULTS} from './subStyle';
 
 const KEYS = {
   serverUrl: 'aurora.serverUrl',
@@ -129,11 +130,22 @@ export type Prefs = {
   // — profile switches the TV could not reach before.
   smartDownloads: boolean;
   smartCleanup: boolean;
+  // NO LONGER USED (2026-10-19): this box's subtitle size and plate, before
+  // the subtitle look followed the person (subSize … subPos below). Kept only
+  // so the one-time move (personPrefs.ts seedFromBox / upgradeRecord) can
+  // read what this box had chosen.
   cueSize: 'S' | 'M' | 'L';
-  // The site's `cueBackground` — the dark plate behind a cue. It only became
-  // meaningful here once the player started drawing its own cues (Player.tsx
-  // rule 2); ExoPlayer's subtitleStyle has no equivalent property.
   cueBackground: boolean;
+  // [player-options] the PERSON's (personPrefs.ts): the sound and the look of
+  // subtitles — laid over this object while their profile is active.
+  nightMode: boolean;
+  dialogueBoost: boolean;
+  subSize: SubStyle['subSize'];
+  subColor: SubStyle['subColor'];
+  subBg: SubStyle['subBg'];
+  subOpacity: SubStyle['subOpacity'];
+  subWeight: SubStyle['subWeight'];
+  subPos: SubStyle['subPos'];
   // The subtitle track the viewer last picked BY HAND, remembered so the next
   // episode comes up the same way. Not a setting anyone edits — it is written by
   // the player's subtitle menu and read by its auto-pick.
@@ -177,6 +189,9 @@ export const PREFS_DEFAULTS: Prefs = {
   smartCleanup: true,
   cueSize: 'M',
   cueBackground: true,
+  nightMode: false,
+  dialogueBoost: false,
+  ...SUB_STYLE_DEFAULTS,
   lastSubLang: null,
   lastSubLabel: null,
   lastSubSet: false,
