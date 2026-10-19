@@ -13,6 +13,27 @@ const { execFileSync } = require("child_process");
 const config = require("../src/config");
 const iv = require("../src/lib/imgvariant");
 
+// An ask that must come back with the variant waits for the encode however
+// long a loaded machine takes (ffmpeg's own 20 s timeout bounds it): with the
+// default MAX_WAIT_MS (2.5 s) a slow encode hands back the original or the
+// nearest size instead -- the last test's subject, not these.
+const MADE = 60000;
+// The encoder probe (webp or jpeg) answers asynchronously at load, within its
+// own 8 s timeout: wait for the answer instead of a fixed 1.5 s.
+let probed = null;
+const probeLanded = () =>
+  probed ||
+  (probed = (async () => {
+    const t0 = Date.now();
+    while (!iv.hasWebp() && Date.now() - t0 < 10000) await new Promise((r) => setTimeout(r, 50));
+  })());
+// An encode still running (an ask that did not wait for it) holds the source
+// open: on Windows the temp folder cannot go until it is done.
+const cleanUp = async (dir) => {
+  await Promise.allSettled([...iv._internals.inflight.values()]);
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+};
+
 test("the ladder snaps up, never down, and knows the TV card widths", () => {
   assert.deepEqual(iv.LADDER, [240, 256, 352, 360, 448, 480, 640, 800, 960, 1280, 1600, 1920]);
   assert.equal(iv.snap(248), 256); // poster, 124 dp × 2
@@ -130,11 +151,11 @@ test("blur=N matches Android's blurRadius postprocessor and is cached under its 
   const made = [];
   // the encoder probe (webp or jpeg) answers asynchronously at load; let it
   // land so both asks below name the same file
-  await new Promise((r) => setTimeout(r, 1500));
+  await probeLanded();
   try {
     const orig = rgbOf(src, W, H);
     for (const r of [1, 2]) {
-      const out = await iv.variant(src, undefined, { blur: String(r) });
+      const out = await iv.variant(src, undefined, { blur: String(r), maxWaitMs: MADE });
       assert.ok(out, "a blurred variant was made");
       made.push(out);
       assert.match(path.basename(out), new RegExp(`-wfull-b${r}\\.jpg$`));
@@ -154,11 +175,11 @@ test("blur=N matches Android's blurRadius postprocessor and is cached under its 
       assert.equal(await iv.variant(src, undefined, { blur: r }), out);
     }
     // width + blur: its own file, the width honoured
-    const both = await iv.variant(src, 100, { blur: 1 });
+    const both = await iv.variant(src, 100, { blur: 1, maxWaitMs: MADE });
     made.push(both);
     assert.match(path.basename(both), /-w240-b1\.jpg$/); // 100 → 240, never wider than the source
     // the unblurred variant keeps the name it always had
-    const plain = await iv.variant(src, 100);
+    const plain = await iv.variant(src, 100, { maxWaitMs: MADE });
     made.push(plain);
     const st = fs.statSync(src);
     const key = crypto.createHash("md5").update(`${src}|${st.mtimeMs}|${st.size}|240`).digest("hex");
@@ -169,7 +190,7 @@ test("blur=N matches Android's blurRadius postprocessor and is cached under its 
         fs.unlinkSync(f);
       } catch {}
     }
-    fs.rmSync(tmp, { recursive: true, force: true });
+    await cleanUp(tmp);
   }
 });
 
@@ -182,7 +203,7 @@ const probe = (file) => {
 
 test("blur + fmt=webp: a WebP of its own beside the untouched JPEG; a bad fmt is the JPEG", { skip: !config.FFMPEG }, async (t) => {
   // the encoder probe answers asynchronously at load
-  await new Promise((r) => setTimeout(r, 1500));
+  await probeLanded();
   if (!iv.hasWebp()) return t.skip("this ffmpeg has no libwebp");
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "imgvariant-fmt-"));
   const src = path.join(tmp, "src.png");
@@ -191,7 +212,7 @@ test("blur + fmt=webp: a WebP of its own beside the untouched JPEG; a bad fmt is
   });
   const made = new Set();
   const ask = async (w, opts) => {
-    const out = await iv.variant(src, w, opts);
+    const out = await iv.variant(src, w, { maxWaitMs: MADE, ...opts });
     if (out) made.add(out);
     return out;
   };
@@ -246,7 +267,7 @@ test("blur + fmt=webp: a WebP of its own beside the untouched JPEG; a bad fmt is
         fs.unlinkSync(f);
       } catch {}
     }
-    fs.rmSync(tmp, { recursive: true, force: true });
+    await cleanUp(tmp);
   }
 });
 
@@ -258,7 +279,7 @@ test("a variant found once is answered without a filesystem call for the trust w
   try {
     const src = path.join(dir, "poster.jpg");
     execFileSync(config.FFMPEG, ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=600x900:rate=1:duration=1", "-frames:v", "1", src]);
-    const first = await iv.variant(src, 256);
+    const first = await iv.variant(src, 256, { maxWaitMs: MADE });
     assert.ok(first && fs.existsSync(first));
     const real = fs.statSync;
     let stats = 0;
@@ -268,7 +289,7 @@ test("a variant found once is answered without a filesystem call for the trust w
     assert.equal(again, first);
     assert.equal(stats, 0, "no stat inside the window");
     // another width is its own entry
-    const other = await iv.variant(src, 480);
+    const other = await iv.variant(src, 480, { maxWaitMs: MADE });
     assert.notEqual(other, first);
     // after the window: looked at again (the same file, found on disk)
     for (const e of iv._internals.fast.values()) e.at -= iv.TRUST_MS + 1;
@@ -279,7 +300,7 @@ test("a variant found once is answered without a filesystem call for the trust w
     iv.forget();
     assert.equal(iv._internals.fast.size, 0);
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    await cleanUp(dir);
   }
 });
 
@@ -302,13 +323,13 @@ test("a variant not made in time: the original (or the nearest size) at once, sh
     assert.ok(Date.now() - t0 < 1000, "at once");
     // the encode went on, once: the next ask (with time) finds it made
     assert.ok(iv._internals.inflight.size <= 1);
-    const made = await iv.variant(src, 256);
+    const made = await iv.variant(src, 256, { maxWaitMs: MADE });
     assert.ok(made && fs.existsSync(made) && /-w256\./.test(made));
     // another width, no time to wait: the nearest size already made
     const o3 = { maxWaitMs: 0 };
     assert.equal(await iv.variant(src, 480, o3), made, "the 256 stands in for the 480 meanwhile");
     assert.equal(o3.shed, true);
-    const made480 = await iv.variant(src, 480);
+    const made480 = await iv.variant(src, 480, { maxWaitMs: MADE });
     assert.ok(/-w480\./.test(made480));
     // and a smaller one prefers the size that still covers its box
     assert.equal(iv._internals.nearest(src, 352, 0, ""), made480);
@@ -316,6 +337,6 @@ test("a variant not made in time: the original (or the nearest size) at once, sh
     assert.ok(iv._internals.waitStats.waited >= 3);
   } finally {
     iv.forget();
-    fs.rmSync(dir, { recursive: true, force: true });
+    await cleanUp(dir);
   }
 });

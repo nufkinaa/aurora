@@ -196,7 +196,11 @@ const sendShell = (publicDir) => (res, name) => {
   let hit = finished.get(abs);
   if (!hit || now - hit.at > SHELL_RECHECK_MS) {
     try {
-      hit = { at: now, html: renderShell(publicDir, name) };
+      // (the window starts when the shell is written, not when it was asked
+      // for: a cold first render on a busy box takes seconds, and stamping
+      // the ask made it stale before it was even kept — rendered twice)
+      const html = renderShell(publicDir, name);
+      hit = { at: Date.now(), html };
     } catch {
       finished.delete(abs);
       return res.status(404).type("text/plain").send("Not found");

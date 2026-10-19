@@ -107,6 +107,7 @@ const get = (cssDir) => {
   const css = parts.join("\n");
   const hash = crypto.createHash("md5").update(css).digest("hex").slice(0, 10);
   cache = { stamp, css, hash };
+  lookedAt = Date.now(); // (the window starts once it is built: a slow build must not eat it)
   return cache;
 };
 
