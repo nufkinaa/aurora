@@ -550,3 +550,43 @@
     display: none;
   }
 }
+
+/* ---------- The player on a phone, classic look (2026-10-20) ----------
+   One row of ten 42px buttons does not fit 390px: the dock ran off the right
+   edge (Picture in picture half cut, Fullscreen out of reach), and the
+   CC / speed / settings menu, anchored 36px from the right with no width of
+   its own, grew to its 371px content and stood 17px off the left edge.
+   Like the glass dock: the transport on one row, the tools centred on the
+   next (wrapping again rather than running off when a phone has more of
+   them), and the menu spanning the screen with a margin, above the dock's
+   real height (--dock-h, set by player.js). Glass has its own rules. */
+@media (max-width: 720px) {
+  html:not([data-look="glass"]) .player-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 4px;
+  }
+  html:not([data-look="glass"]) .player-controls .pc-transport {
+    flex: 1 0 100%;
+    justify-content: center;
+  }
+  html:not([data-look="glass"]) .player-controls .player-spacer {
+    display: none;
+  }
+  html:not([data-look="glass"]) .player-controls .pc-tools {
+    flex: 1 0 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  html:not([data-look="glass"]) .player .menu {
+    left: 10px;
+    right: 10px;
+    bottom: calc(var(--dock-h, 160px) + 12px);
+    min-width: 0;
+    max-height: min(46vh, calc(100vh - var(--dock-h, 160px) - 130px));
+  }
+  html:not([data-look="glass"]) .player .sub-sync {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
