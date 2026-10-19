@@ -28,11 +28,16 @@ internal object SharedRing {
   class Unit(val ring: ReactViewGroup, val shadow: ShadowLayer?) {
     /** The style it was last given (AuroraFocusableView.styleSharedRing). */
     var signature = ""
+    /** Who holds it now (set on attach, cleared on detach) — for the cap (RingPool.evictable). */
+    var owner: java.lang.ref.WeakReference<AuroraFocusableView>? = null
   }
 
   val pool = RingPool<Context, Unit>(keep = 4)
 
   fun acquire(context: Context, make: () -> Unit): Unit = pool.acquire(context, make)
+
+  /** At the cap, the screen's oldest ring that is already fading out (its owner hands it back). */
+  fun evictable(context: Context): Unit? = pool.evictable(context) { u -> u.owner?.get()?.ringFadingOut() == true }
 
   fun release(context: Context, u: Unit) = pool.release(context, u)
 

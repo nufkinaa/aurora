@@ -482,6 +482,9 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
   private fun attachSharedRing() {
     if (!RING_SHARE || light || ringKind == "none" || ringUnit != null) return
     val make = { SharedRing.Unit(newDecoration(), if (SHADOW_CACHE) ShadowLayer(context) else null) }
+    // At the cap (RingPool.cap, 4) the oldest ring still fading out goes back first — it is a
+    // few per cent from invisible by then — so a long hold never has more than four out.
+    SharedRing.evictable(context)?.owner?.get()?.takeIf { it !== this }?.detachSharedRing()
     var u = SharedRing.acquire(context, make)
     // A unit whose views another parent still holds is never re-parented (addView would throw
     // "The specified child already has a parent" — the Mi TV crashed so, 2026-10-18): it is
@@ -491,6 +494,7 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
       u = SharedRing.acquire(context, make)
     }
     ringUnit = u
+    u.owner = java.lang.ref.WeakReference(this)
     u.shadow?.let { super.addView(it) }
     super.addView(u.ring)
     ring = u.ring
@@ -501,9 +505,10 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
   }
 
   /** Give it back (faded out, dropped, recycled, or the props no longer want a plain ring). */
-  private fun detachSharedRing() {
+  internal fun detachSharedRing() {
     val u = ringUnit ?: return
     ringUnit = null
+    u.owner = null
     val free = letGo(u)
     ring = null
     ringShadow = null
@@ -550,6 +555,9 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
     startSpring(0.0)
     syncLayer()
   }
+
+  /** `ringshare`'s cap: this one's ring is on its way out (not heading to lit). */
+  internal fun ringFadingOut(): Boolean = !headingLit
 
   /** Another ring was claimed: fade out (Focusable.tsx:240-254). Fades, never snaps. */
   fun ringLostToClaim() = toDark()
