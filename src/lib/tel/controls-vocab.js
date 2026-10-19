@@ -159,6 +159,8 @@ module.exports = {
   "search.recent.pick": "wt",
   "search.retry": "w",
   "search.suggestion.pick": "wt",
+  "search.voice": "wt",
+  "search.voice.lang": "wt",
   // settings
   "settings.accent": "w",
   "settings.audio.dialogue": "t",

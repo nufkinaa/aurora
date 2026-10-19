@@ -854,6 +854,7 @@ const update = (id, fields) => {
   //   autoplayNext    play the next episode by itself       default on
   //   subsDefault     subtitles on by themselves            default on
   //   subLang         subtitle language (any|he|en|ru)      default any
+  //   voiceLang       voice search listens in (auto|he|en)  default auto
   //   audioLang, subPick   what was last picked in the player
   //   nightMode, dialogueBoost, subSize, subColor, subBg, subOpacity,
   //   subWeight, subPos    the player options (PLAYER_OPTIONS above)
@@ -876,6 +877,9 @@ const update = (id, fields) => {
     for (const [k, allowed] of Object.entries(PLAYER_OPTIONS)) {
       if (Object.hasOwn(fields.prefs, k) && allowed.includes(fields.prefs[k])) p.prefs[k] = fields.prefs[k];
     }
+    // The language voice search listens in (the site's and the TV's mic):
+    // "auto" follows the device's own language. A closed set too.
+    if (["auto", "he", "en"].includes(fields.prefs.voiceLang)) p.prefs.voiceLang = fields.prefs.voiceLang;
     // What the viewer last picked in the player, so it follows the profile to
     // every title and device (2026-10-07): an audio language tag ("he", "en",
     // "ru", or another dub's tag as the file carries it — "fre"). A short

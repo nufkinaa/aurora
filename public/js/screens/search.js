@@ -17,6 +17,7 @@ import { navigate, untilLeave } from "../router.js";
 import { onMessage } from "../ws.js";
 import { card } from "../components.js";
 import { attachSuggest, suggestHref } from "../suggest.js";
+import { attachVoice } from "../voice.js";
 
 // Session-lived: coming BACK to Search restores the query, its results and
 // the scroll offset — it used to start blank every time.
@@ -277,8 +278,11 @@ export const renderSearch = async (root) => {
   };
   // `committed`: the person pressed Search (Enter, the keyboard's action key,
   // a recent, a person or genre suggestion) — the catalogue is asked whatever
-  // the length.
-  const search = async (q, { committed = false } = {}) => {
+  // the length. `voice`: `heard` is what the microphone heard (voice.js); the
+  // server tidies it (media/spoken.js) and says what it searched for, which
+  // then stands in the field ("search for the movie inception" → inception).
+  const search = async (heard, { committed = false, voice = false } = {}) => {
+    let q = heard;
     const my = ++seq;
     const live = () => my === seq && screen.isConnected;
     if (ctrl) ctrl.abort();
@@ -300,11 +304,16 @@ export const renderSearch = async (root) => {
     let r = null;
     let failed = false;
     try {
-      r = await api.searchAll(q, { commit: committed, profileId, signal });
+      r = await api.searchAll(heard, { commit: committed, voice, profileId, signal });
     } catch {
       failed = true;
     }
     if (!live()) return;
+    if (voice && r && typeof r.q === "string" && r.q) {
+      q = r.q;
+      input.value = q;
+      paintClear();
+    }
     if (r) {
       popularHost.classList.add("hidden");
       paint(r);
@@ -316,8 +325,13 @@ export const renderSearch = async (root) => {
       setBusy(any() ? "Searching the catalogue…" : "Searching…");
       try {
         const pin = r.results && r.results[0] ? r.results[0].key : null;
-        r = await api.searchAll(q, { wait: true, commit: committed, pin, profileId, signal });
+        r = await api.searchAll(heard, { wait: true, commit: committed, voice, pin, profileId, signal });
         if (!live()) return;
+        if (voice && typeof r.q === "string" && r.q && r.q !== q && input.value.trim() === q) {
+          q = r.q;
+          input.value = q;
+          paintClear();
+        }
         paint(r);
         tmLap("search_results", "search", "catalogue"); // [analytics]
       } catch {
@@ -333,7 +347,7 @@ export const renderSearch = async (root) => {
       noResults(q, {
         committed,
         catalogFailed: failed,
-        retry: () => search(q, { committed: true }),
+        retry: () => search(heard, { committed: true, voice }),
       });
       // not a dead end: what the house is watching sits under the message
       // (unless a related row — a person's or a genre's titles — is there)
@@ -345,7 +359,7 @@ export const renderSearch = async (root) => {
       if (failed) {
         status.innerHTML = "";
         status.append(el("div", { class: "search-hint" }, "The catalogue didn't answer — these are from the library. ",
-          el("button", { "data-ui": "search.retry", class: "btn small focusable", onclick: () => search(q, { committed: true }) }, "Try again")));
+          el("button", { "data-ui": "search.retry", class: "btn small focusable", onclick: () => search(heard, { committed: true, voice }) }, "Try again")));
         status.classList.remove("hidden");
       }
       // remember searches that found something — at once when you pressed
@@ -395,7 +409,27 @@ export const renderSearch = async (root) => {
     status,
     popularHost
   );
-  screen.querySelector(".search-box").append(input, clearBtn);
+  const searchBox = screen.querySelector(".search-box");
+  searchBox.append(input, clearBtn);
+  // The microphone (voice.js): the words show in the field as they are said;
+  // the last ones search, as Enter would. Not drawn where it cannot work.
+  const voiceCtl = attachVoice(searchBox, input, {
+    onInterim: () => {
+      run.cancel();
+      paintClear();
+    },
+    onHeard: (text) => {
+      run.cancel();
+      paintClear();
+      search(text, { committed: true, voice: true });
+      if (touch()) input.blur();
+    },
+    onCancel: () => paintClear(),
+  });
+  if (voiceCtl) {
+    searchBox.append(voiceCtl.mic);
+    searchBox.after(voiceCtl.panel);
+  }
   root.append(screen);
 
   paintRecents();
@@ -431,6 +465,7 @@ export const renderSearch = async (root) => {
     clearTimeout(busyTimer);
     clearTimeout(saveTimer);
     if (ctrl) ctrl.abort();
+    if (voiceCtl) voiceCtl.stop();
     stopRestore();
   };
 };

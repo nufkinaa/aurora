@@ -46,6 +46,15 @@ test("prefs: what belongs to the screen, and anything not a boolean, never lands
   });
 });
 
+test("prefs: the voice search language (auto|he|en) follows the person; anything else is refused", () => {
+  withProfiles([{ id: "p1", name: "T" }], () => {
+    assert.strictEqual(profiles.update("p1", { prefs: { voiceLang: "he" } }).prefs.voiceLang, "he");
+    assert.strictEqual(profiles.update("p1", { prefs: { voiceLang: "ru" } }).prefs.voiceLang, "he");
+    assert.strictEqual(profiles.update("p1", { prefs: { voiceLang: "auto" } }).prefs.voiceLang, "auto");
+    assert.strictEqual(profiles.update("p1", { prefs: { voiceLang: "en" } }).prefs.voiceLang, "en");
+  });
+});
+
 test("prefs: a write of one key leaves the others as they were", () => {
   withProfiles([{ id: "p1", name: "T", prefs: { subLang: "he", autoplayNext: false, subPick: "en" } }], () => {
     const out = profiles.update("p1", { prefs: { subsDefault: false } });

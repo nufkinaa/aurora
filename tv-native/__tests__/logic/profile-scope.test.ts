@@ -152,6 +152,12 @@ const DEVICE: Record<string, Record<string, string>> = {
   },
   'toast.ts': {list: 'toasts on screen', nextId: 'an id counter', subs: 'listeners'},
   'trailers.ts': {failedAt: 'what failed on this network', appleFailed: 'what failed on this network'},
+  'voice.ts': {
+    REFUSED: 'a constant table (Android error codes)',
+    emitter: "the native module's event emitter",
+    onSearchKey: 'which screen hears the remote key: Search sets and clears it',
+    availCache: "what this TV can hear with (the box's recognisers)",
+  },
   'update.ts': {
     quietPath: 'the app update',
     quietFor: 'the app update',

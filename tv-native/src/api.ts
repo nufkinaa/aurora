@@ -638,6 +638,10 @@ export type SearchAnswer = {
   relatedLabel: string | null;
   pending: boolean;
   catalogFailed?: boolean;
+  // what was searched for — with `voice`, the tidied words (media/spoken.js:
+  // "search for the movie inception" → "inception"), which then stand in the field
+  q?: string;
+  spoken?: {heard: string; q: string; season: number | null; episode: number | null; via: string | null};
 };
 // /api/search/suggest?v=2: a title, a person or a genre.
 export type SearchSuggestion = {
@@ -1398,9 +1402,10 @@ export const api = {
   // server answers from memory at once (`pending`: the catalogue has more);
   // with it, after the live catalogue and the related row. `pin`: the card
   // that is first on screen stays first unless something matches better.
-  searchAll: (q: string, o: {wait?: boolean; commit?: boolean; pin?: string | null; profileId?: string} = {}) =>
+  // `voice`: q is what the microphone heard (the server tidies it, media/spoken.js).
+  searchAll: (q: string, o: {wait?: boolean; commit?: boolean; voice?: boolean; pin?: string | null; profileId?: string} = {}) =>
     request<SearchAnswer>(
-      `/api/search?v=2&q=${encodeURIComponent(q)}${o.wait ? '&wait=1' : ''}${o.commit ? '&commit=1' : ''}` +
+      `/api/search?v=2&q=${encodeURIComponent(q)}${o.wait ? '&wait=1' : ''}${o.commit ? '&commit=1' : ''}${o.voice ? '&voice=1' : ''}` +
         `${o.pin ? `&pin=${encodeURIComponent(o.pin)}` : ''}${o.profileId ? `&profile=${encodeURIComponent(o.profileId)}` : ''}`,
     ),
   searchSuggest: (q: string, profileId?: string) =>

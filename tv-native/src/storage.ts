@@ -3,7 +3,7 @@
 // was last used. Tokens live in server RAM only, so a stale one just means the
 // profile gate re-appears — never a hard error.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {PERSON_KEYS, PersonPrefs, PersonRecord, readRecord, SubLang} from './personPrefs';
+import {PERSON_KEYS, PersonPrefs, PersonRecord, readRecord, SubLang, VoiceLangPref} from './personPrefs';
 import {SubStyle, SUB_STYLE_DEFAULTS} from './subStyle';
 
 const KEYS = {
@@ -126,6 +126,8 @@ export type Prefs = {
   autoplayNext: boolean;
   subsDefault: boolean;
   subLang: SubLang;
+  // The language voice search listens in (person-level: voiceLogic.ts).
+  voiceLang: VoiceLangPref;
   // Smart downloads and their tidy-up (server: media/smartdl.js, smartclean.js)
   // — profile switches the TV could not reach before.
   smartDownloads: boolean;
@@ -185,6 +187,7 @@ export const PREFS_DEFAULTS: Prefs = {
   autoplayNext: true,
   subsDefault: true,
   subLang: 'any',
+  voiceLang: 'auto',
   smartDownloads: true,
   smartCleanup: true,
   cueSize: 'M',

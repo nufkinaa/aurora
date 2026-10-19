@@ -286,9 +286,10 @@ export const api = {
   search: (q) => json(`/api/search?q=${encodeURIComponent(q)}`),
   // The one ranked search (library + catalogue + a related tail). `wait`:
   // also wait for the live catalogue; `pin`: the card that is first now.
-  searchAll: (q, { wait = false, commit = false, pin = null, profileId = "", signal } = {}) =>
+  // `voice`: q is what the microphone heard (the server tidies it, media/spoken.js).
+  searchAll: (q, { wait = false, commit = false, voice = false, pin = null, profileId = "", signal } = {}) =>
     json(
-      `/api/search?v=2&q=${encodeURIComponent(q)}${wait ? "&wait=1" : ""}${commit ? "&commit=1" : ""}` +
+      `/api/search?v=2&q=${encodeURIComponent(q)}${wait ? "&wait=1" : ""}${commit ? "&commit=1" : ""}${voice ? "&voice=1" : ""}` +
         `${pin ? `&pin=${encodeURIComponent(pin)}` : ""}${profileId ? `&profile=${encodeURIComponent(profileId)}` : ""}`,
       { signal },
     ),

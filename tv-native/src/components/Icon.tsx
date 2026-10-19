@@ -26,6 +26,7 @@ export type IconName =
   | 'speed'
   | 'download'
   | 'search'
+  | 'mic'
   | 'close'
   | 'info'
   | 'gear'
@@ -167,6 +168,9 @@ function glyph(name: IconName, color: string) {
       return (
         <Path d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5-5-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z" />
       );
+    // voice search (the website's mic in voice.js is the same path)
+    case 'mic':
+      return <Path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z" />;
     case 'close':
       return <Path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z" />;
     case 'info':

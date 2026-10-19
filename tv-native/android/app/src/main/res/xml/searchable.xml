@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Aurora in the TV's own search (SearchProvider.kt): Android TV's system search asks the
+     provider for titles as the viewer types or speaks there, and a pick opens the title in
+     Aurora (aurora://open, the home-screen rows' link). A plain search sent to the app
+     (ACTION_SEARCH) opens Aurora's Search on those words (MainActivity). -->
+<searchable xmlns:android="http://schemas.android.com/apk/res/android"
+    android:label="@string/app_name"
+    android:hint="@string/search_hint"
+    android:searchSuggestAuthority="com.auroratv.search"
+    android:searchSuggestIntentAction="android.intent.action.VIEW"
+    android:searchSuggestSelection=" ?"
+    android:searchSuggestThreshold="2"
+    android:includeInGlobalSearch="true"
+    android:voiceSearchMode="showVoiceSearchButton|launchRecognizer" />

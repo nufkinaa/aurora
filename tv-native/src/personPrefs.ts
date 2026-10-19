@@ -13,6 +13,8 @@
 //     autoplayNext    play the next episode by itself          default on
 //     subsDefault     subtitles on by themselves               default on
 //     subLang         subtitle language: any | he | en | ru    default any
+//     voiceLang       voice search listens in: auto | he | en  default auto
+//                     (auto: the TV's own language — voiceLogic.ts)
 //     usageStats      usage stats (the server also refuses a
 //                     batch from a profile that said no)       default on
 //     smartDownloads  get the next episode ready               default on
@@ -37,10 +39,12 @@
 import {readStyle, styleFromDevice, SubStyle, SUB_STYLE_DEFAULTS, SUB_STYLE_KEYS, SubStyleKey, validStyle} from './subStyle';
 
 export type SubLang = 'any' | 'he' | 'en' | 'ru';
+export type VoiceLangPref = 'auto' | 'he' | 'en';
 export type PersonPrefs = {
   autoplayNext: boolean;
   subsDefault: boolean;
   subLang: SubLang;
+  voiceLang: VoiceLangPref;
   usageStats: boolean;
   smartDownloads: boolean;
   smartCleanup: boolean;
@@ -54,6 +58,7 @@ export const PERSON_DEFAULTS: PersonPrefs = {
   autoplayNext: true,
   subsDefault: true,
   subLang: 'any',
+  voiceLang: 'auto',
   usageStats: true,
   smartDownloads: true,
   smartCleanup: true,
@@ -65,13 +70,16 @@ export const PERSON_KEYS = Object.keys(PERSON_DEFAULTS) as PersonKey[];
 export const DEVICE_KEYS = ['cueSize', 'cueBackground', 'heroTrailers', 'downloadNotices'] as const;
 // (cueSize / cueBackground: kept on the box only as what the one-time move reads)
 export const SUB_LANGS: SubLang[] = ['any', 'he', 'en', 'ru'];
+export const VOICE_LANGS: VoiceLangPref[] = ['auto', 'he', 'en'];
 
 const valid = (key: PersonKey, value: unknown): boolean =>
   key === 'subLang'
     ? SUB_LANGS.includes(value as SubLang)
-    : (SUB_STYLE_KEYS as string[]).includes(key)
-      ? validStyle(key as SubStyleKey, value)
-      : typeof value === 'boolean';
+    : key === 'voiceLang'
+      ? VOICE_LANGS.includes(value as VoiceLangPref)
+      : (SUB_STYLE_KEYS as string[]).includes(key)
+        ? validStyle(key as SubStyleKey, value)
+        : typeof value === 'boolean';
 /** The subtitle look out of a person's settings. */
 export const styleOf = (p: Partial<PersonPrefs>) => readStyle(p);
 
