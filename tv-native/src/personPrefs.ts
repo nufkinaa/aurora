@@ -17,6 +17,10 @@
 //                     batch from a profile that said no)       default on
 //     smartDownloads  get the next episode ready               default on
 //     smartCleanup    tidy up after watching                   default on
+//     matchFrameRate  the screen follows the film's frame rate auto | off   default auto
+//     surround        Dolby / DTS sound to the TV or soundbar  auto | stereo  default auto
+//                     as it is (TV round 2026-10-19 — the
+//                     website shows both under "On the TV")
 //   (the liked genres, the last subtitle pick and the last dub were already
 //   on the profile, through their own calls)
 //
@@ -29,6 +33,12 @@
 // A key the profile does not carry means "the default".
 
 export type SubLang = 'any' | 'he' | 'en' | 'ru';
+// ---- picture and sound (TV round 2026-10-19: refresh-rate matching, passthrough) ----
+export type MatchFrameRate = 'auto' | 'off';
+export type Surround = 'auto' | 'stereo';
+export const MATCH_FRAME_RATES: MatchFrameRate[] = ['auto', 'off'];
+export const SURROUNDS: Surround[] = ['auto', 'stereo'];
+// ---- end picture and sound ----
 export type PersonPrefs = {
   autoplayNext: boolean;
   subsDefault: boolean;
@@ -36,6 +46,9 @@ export type PersonPrefs = {
   usageStats: boolean;
   smartDownloads: boolean;
   smartCleanup: boolean;
+  // picture and sound (TV round 2026-10-19)
+  matchFrameRate: MatchFrameRate;
+  surround: Surround;
 };
 export type PersonKey = keyof PersonPrefs;
 
@@ -46,13 +59,23 @@ export const PERSON_DEFAULTS: PersonPrefs = {
   usageStats: true,
   smartDownloads: true,
   smartCleanup: true,
+  matchFrameRate: 'auto',
+  surround: 'auto',
 };
 export const PERSON_KEYS = Object.keys(PERSON_DEFAULTS) as PersonKey[];
 export const DEVICE_KEYS = ['cueSize', 'cueBackground', 'heroTrailers', 'downloadNotices'] as const;
 export const SUB_LANGS: SubLang[] = ['any', 'he', 'en', 'ru'];
 
-const valid = (key: PersonKey, value: unknown): boolean =>
-  key === 'subLang' ? SUB_LANGS.includes(value as SubLang) : typeof value === 'boolean';
+// the keys whose value is one of a closed set of words; every other key is on/off
+const CLOSED: Partial<Record<PersonKey, readonly string[]>> = {
+  subLang: SUB_LANGS,
+  matchFrameRate: MATCH_FRAME_RATES, // (picture and sound, TV round 2026-10-19)
+  surround: SURROUNDS,
+};
+const valid = (key: PersonKey, value: unknown): boolean => {
+  const set = CLOSED[key];
+  return set ? set.includes(value as string) : typeof value === 'boolean';
+};
 
 /** The person-level keys out of anything (the server's `prefs`, a stored
  *  blob), keeping only values of the right kind. */

@@ -10,6 +10,9 @@ import {tooManyWait, TOO_MANY_RETRIES} from './serverManners';
 import {pickServer} from './serverPick';
 import type {TasteCard, Verdict} from './tasteSession';
 import type {ResyncAnswer, ResyncBody, SubTiming} from './playback/resync';
+// what this box can play, and the server's decision from it (TV round 2026-10-19)
+import type {Play} from './avCaps';
+import {currentCapsId} from './av';
 
 let baseUrl = '';
 let token: string | null = null;
@@ -280,7 +283,7 @@ export type AudioTrack = {
   channels?: number;
   original?: boolean;
 };
-export type VideoInfo = { codec?: string; bitDepth?: number };
+export type VideoInfo = { codec?: string; bitDepth?: number; hdr?: string | null; fps?: number | null; profile?: string };
 
 export type Item = HeroItem & {
   videoUrl?: string;
@@ -304,6 +307,10 @@ export type Item = HeroItem & {
   showTitle?: string;
   season?: number;
   episode?: number;
+  // how this file plays on THIS box, by the server's table (sent when the read
+  // carried ?caps= — avCaps.ts armPlan): direct / remux / transcode, the frame
+  // rate (refresh-rate matching), every reason
+  play?: Play;
 };
 
 // What an add to My List started fetching, as the server reports it with the
@@ -355,6 +362,9 @@ export type Stream = {
   sizeBytes: number;
   languages: string[];
   recommended?: boolean;
+  // how this source plays on THIS box, by the server's table (sent when the
+  // read carried ?caps= — avCaps.ts streamPlan)
+  play?: Play;
 };
 
 // A ready-to-play torrent item handed to the Player via nav params (avoids the
@@ -1433,9 +1443,13 @@ export const api = {
     post<unknown>('/api/trailer/report', body),
   // `fresh` bypasses the memo — Detail asks for that after a download lands.
   item: (id: string, profileId?: string, fresh = false) => {
+    // ?caps=: this box's capability report (av.ts) — the answer then says how
+    // the file plays HERE (`play`). Unknown yet: asked without, as before.
+    const caps = currentCapsId();
     const path =
       `/api/item/${encodeURIComponent(id)}` +
-      (profileId ? `?profile=${encodeURIComponent(profileId)}` : '');
+      (profileId ? `?profile=${encodeURIComponent(profileId)}` : '') +
+      (caps ? `${profileId ? '&' : '?'}caps=${caps}` : '');
     return memo(path, 45000, () => request<Item>(path), fresh);
   },
   state: (profileId: string) =>
@@ -1514,6 +1528,8 @@ export const api = {
     if (params.year) q.set('year', String(params.year));
     if (params.season) q.set('season', String(params.season));
     if (params.episode) q.set('episode', String(params.episode));
+    const caps = currentCapsId(); // each source's `play` on this box (av.ts)
+    if (caps) q.set('caps', caps);
     // Kept a minute and a half: a press on an episode asks for its sources to
     // pick the best one, and the sources list opened a moment later (a hold,
     // the Sources pill) is the same question — it opens filled instead of
@@ -1521,6 +1537,8 @@ export const api = {
     const path = `/api/torrents/sources?${q.toString()}`;
     return memo(path, 90000, () => request<{ imdbId: string; streams: Stream[] }>(path));
   },
+  // What this box can play (av.ts reportCaps, once per launch) → its id.
+  postCaps: (report: unknown) => post<{id?: string}>('/api/caps', report),
   torrentStatus: (infoHash: string) =>
     request<TorrentStatus>(`/api/torrents/status/${infoHash}`),
   torrentSubtitles: (

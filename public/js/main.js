@@ -804,6 +804,10 @@ const boot = async () => {
     paintProfileChip();
     startRouter(document.getElementById("app"));
     appRunning(); // from here on, losing the sign-in is session.js's business
+    // What this browser can play, said to the server once per load (TV round
+    // 2026-10-19, parity with the TV app): the title reads after it come back
+    // with how each file plays HERE (avcaps.js, src/media/playpath.js).
+    import("./avcaps.js").then((m) => m.reportCaps()).catch(() => {});
     // Booted from the worker's cached answers with no network: Home would be
     // a wall of titles that can't play. Saved is where the playable ones are.
     if (!navigator.onLine) {

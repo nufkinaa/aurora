@@ -10,7 +10,7 @@ const ui = suite();
 const UP_FRONT = ["Your profile", "Appearance", "Watching", "Subtitles"];
 // (A "Sign-in" section joins these once sign-in mode is transition/closed;
 // the private instance runs in mode "open", where it is not rendered.)
-const BEHIND_MORE = ["Your home page", "Downloads", "Internet", "Watch without internet", "Privacy", "What's new"];
+const BEHIND_MORE = ["Your home page", "Downloads", "On the TV", "Internet", "Watch without internet", "Privacy", "What's new"];
 
 const headings = (page, onlyVisible = false) =>
   page.evaluate((onlyVisible) => [...document.querySelectorAll("#app .pref-section")]

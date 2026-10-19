@@ -238,6 +238,10 @@ dependencies {
     implementation("androidx.tvprovider:tvprovider:1.0.0")
     // JankStats: the frame monitor behind perfTier.ts (DeviceModule.kt).
     implementation("androidx.metrics:metrics-performance:1.0.0")
+    // media3's own AudioCapabilities (AvModule.kt): what the TV / soundbar takes as it is,
+    // asked exactly as ExoPlayer asks it. The SAME version react-native-video plays with
+    // (gradle.properties RNVideo_media3Version) — one copy in the APK, not two.
+    implementation("androidx.media3:media3-exoplayer:${project.findProperty('RNVideo_media3Version') ?: '1.8.0'}")
     // YouTube trailers resolved on the TV (TrailersModule.kt). When YouTube changes its player
     // and trailers stop resolving (the server's healer says so), bump this to the latest
     // release at github.com/TeamNewPipe/NewPipeExtractor/releases — nothing else changes.

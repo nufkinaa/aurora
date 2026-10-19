@@ -29,7 +29,7 @@ const PROBE_VERSION = 6;
 const probeArgs = (videoPath) => [
   "-v", "quiet",
   "-show_entries",
-  "format=duration,start_time:stream=index,codec_type,codec_name,profile,channels,channel_layout,width,height,pix_fmt,color_transfer,color_primaries,r_frame_rate,avg_frame_rate:stream_tags=language,title,handler_name:stream_disposition=default,forced,hearing_impaired,visual_impaired,comment:stream_side_data=side_data_type",
+  "format=duration,start_time:stream=index,codec_type,codec_name,profile,level,channels,channel_layout,width,height,pix_fmt,color_transfer,color_primaries,r_frame_rate,avg_frame_rate:stream_tags=language,title,handler_name:stream_disposition=default,forced,hearing_impaired,visual_impaired,comment:stream_side_data=side_data_type,dv_profile,dv_bl_signal_compatibility_id",
   "-of", "json",
   videoPath,
 ];
@@ -96,6 +96,20 @@ const fillFromProbe = (result, out) => {
         // drifts, and providers say which rate theirs was timed for
         fps: frameRate(s.avg_frame_rate) || frameRate(s.r_frame_rate) || null,
       };
+      // What a device's decoder has to be able to do (media/playpath.js —
+      // direct play by the device's own report, TV round 2026-10-19): the
+      // profile ("Main 10", "High"), the level, and a Dolby Vision file's
+      // profile and fallback layer (1 = HDR10, 4 = HLG, 2 = SDR, 0 = none).
+      // Asked of files probed from now on, WITHOUT a new PROBE_VERSION (that
+      // would re-probe the whole library at once): an older record simply
+      // has none of them, and the decision reads the bit depth instead.
+      if (s.profile) result.video.profile = String(s.profile);
+      if (Number.isFinite(s.level) && s.level > 0) result.video.level = s.level;
+      const dvRec = (s.side_data_list || []).find((d) => d && d.dv_profile != null);
+      if (dvRec) {
+        result.video.dvProfile = Number(dvRec.dv_profile);
+        if (dvRec.dv_bl_signal_compatibility_id != null) result.video.dvCompat = Number(dvRec.dv_bl_signal_compatibility_id);
+      }
     } else if (s.codec_type === "audio") {
       // ffprobe names Atmos in the PROFILE ("Dolby TrueHD + Dolby Atmos",
       // "Dolby Digital Plus + Dolby Atmos") and DTS:X the same way.

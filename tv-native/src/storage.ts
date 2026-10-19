@@ -3,7 +3,7 @@
 // was last used. Tokens live in server RAM only, so a stale one just means the
 // profile gate re-appears — never a hard error.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {PERSON_KEYS, PersonPrefs, PersonRecord, readRecord, SubLang} from './personPrefs';
+import {MatchFrameRate, PERSON_KEYS, PersonPrefs, PersonRecord, readRecord, SubLang, Surround} from './personPrefs';
 
 const KEYS = {
   serverUrl: 'aurora.serverUrl',
@@ -167,6 +167,11 @@ export type Prefs = {
   // shared with the site) is tried first. null = written by a build before
   // this field existed: treated as anyone's, which is what it always was.
   lastSubProfile: string | null;
+  // ---- picture and sound (TV round 2026-10-19), both person-level ----
+  // The screen switches to the film's frame rate while it plays (av.ts).
+  matchFrameRate: MatchFrameRate;
+  // Dolby / DTS sound to the TV or soundbar as it is, or always stereo.
+  surround: Surround;
 };
 
 export const PREFS_DEFAULTS: Prefs = {
@@ -184,6 +189,8 @@ export const PREFS_DEFAULTS: Prefs = {
   heroTrailers: true,
   usageStats: true,
   downloadNotices: true,
+  matchFrameRate: 'auto',
+  surround: 'auto',
 };
 
 const PREFS_KEY = 'aurora.prefs';

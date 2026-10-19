@@ -34,11 +34,11 @@ import {clearProfileCaches} from '../../src/profileScope';
 // ------------------------------------------------------------------ the rules
 describe('which settings are whose', () => {
   test('the person-level keys and the device-level keys do not overlap, and every one is a real setting', () => {
-    expect(PERSON_KEYS.sort()).toEqual(['autoplayNext', 'smartCleanup', 'smartDownloads', 'subLang', 'subsDefault', 'usageStats']);
+    expect(PERSON_KEYS.sort()).toEqual(['autoplayNext', 'matchFrameRate', 'smartCleanup', 'smartDownloads', 'subLang', 'subsDefault', 'surround', 'usageStats']);
     for (const k of DEVICE_KEYS) expect(PERSON_KEYS as string[]).not.toContain(k);
     for (const k of [...PERSON_KEYS, ...DEVICE_KEYS]) expect(PREFS_DEFAULTS).toHaveProperty(k);
     // the defaults the two clients share
-    expect(PERSON_DEFAULTS).toEqual({autoplayNext: true, subsDefault: true, subLang: 'any', usageStats: true, smartDownloads: true, smartCleanup: true});
+    expect(PERSON_DEFAULTS).toEqual({autoplayNext: true, subsDefault: true, subLang: 'any', usageStats: true, smartDownloads: true, smartCleanup: true, matchFrameRate: 'auto', surround: 'auto'});
   });
 
   test('only values of the right kind are read off a profile', () => {

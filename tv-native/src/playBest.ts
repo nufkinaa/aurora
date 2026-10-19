@@ -19,6 +19,7 @@
 // don't hold downloads its best source and opens its sources in place,
 // without moving focus. Only the Play button plays as well.
 import type {Stream, TorrentPlayItem} from './api';
+import {readPlay, streamPlan} from './avCaps';
 
 /** What a job needs to say for Play to play it (api.ts DownloadJob / MyDownload). */
 export type JobLike = {
@@ -73,12 +74,17 @@ export type PlayCtx = {
 /** A source as the player takes it (the Sources screen's Stream button builds
  *  the same thing). */
 export const streamPlayItem = (
-  s: Pick<Stream, 'infoHash' | 'fileIdx' | 'quality'> & {tags?: string[] | null; filename?: string | null; release?: string | null},
+  s: Pick<Stream, 'infoHash' | 'fileIdx' | 'quality'> & {tags?: string[] | null; filename?: string | null; release?: string | null; play?: unknown},
   c: PlayCtx,
 ): TorrentPlayItem => {
   const tags = s.tags || [];
   const needsVideo = tags.some(t => VIDEO_TRANSCODE_TAGS.includes(t));
   const needsAudio = tags.some(t => AUDIO_TRANSCODE_TAGS.includes(t));
+  // The server's decision for THIS box, when the source list carried one
+  // (TV round 2026-10-19: the box said what it decodes and passes through —
+  // an HEVC source plays as it is on a TV that decodes HEVC, a DD+ one goes to
+  // the soundbar untouched). The tag rule above is what stands without one.
+  const plan = streamPlan(readPlay(s.play));
   return {
     id: `torrent|${s.infoHash}|${s.fileIdx}`,
     title: c.title,
@@ -94,8 +100,8 @@ export const streamPlayItem = (
     // the release's own name: the server ranks subtitle files against it
     // (websubs.rank, api.torrentSubtitles `release`)
     release: s.filename || s.release || undefined,
-    needsTranscode: needsVideo || needsAudio,
-    transcodeV: needsVideo ? 'h264' : 'copy',
+    needsTranscode: plan ? plan.needsTranscode : needsVideo || needsAudio,
+    transcodeV: plan ? plan.transcodeV : needsVideo ? 'h264' : 'copy',
     duration: runtimeToSeconds(c.runtime),
     year: c.year ?? null,
     cover: c.poster ?? null,

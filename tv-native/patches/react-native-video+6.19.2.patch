@@ -25,7 +25,7 @@ index bb945fe..41fc4a2 100644
          // Disable/enable scrubbing based on seekable
          val timeBar = playerView.findViewById<DefaultTimeBar?>(androidx.media3.ui.R.id.exo_progress)
 diff --git a/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ReactExoplayerView.java b/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ReactExoplayerView.java
-index e16ac96..31ec755 100644
+index e16ac96..1ff5af1 100644
 --- a/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ReactExoplayerView.java
 +++ b/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ReactExoplayerView.java
 @@ -564,6 +564,7 @@ public class ReactExoplayerView extends FrameLayout implements
@@ -79,3 +79,33 @@ index e16ac96..31ec755 100644
                      // We don't have enough memory in reserve so we stop buffering to allow other components to use it instead
                      return false;
                  }
+@@ -730,8 +743,28 @@ public class ReactExoplayerView extends FrameLayout implements
+             this.bandwidthMeter = config.getBandwidthMeter();
+         }
+ 
++        // Aurora: "Surround sound: Stereo only" (TV round 2026-10-19). By default
++        // media3's audio sink asks the TV / soundbar what it takes as it is and
++        // passes AC-3 / E-AC-3 (Atmos) / DTS / TrueHD through untouched. When the
++        // person chose stereo, the app's AvModule sets aurora.audio.passthrough=0
++        // before the player is built, and the sink gets the plain-stereo
++        // capabilities instead: every track is decoded here (or the server makes
++        // it AAC), nothing reaches the receiver as a bitstream.
+         DefaultRenderersFactory renderersFactory =
+-                new DefaultRenderersFactory(getContext())
++                new DefaultRenderersFactory(getContext()) {
++                    @Override
++                    protected androidx.media3.exoplayer.audio.AudioSink buildAudioSink(
++                            Context context, boolean enableFloatOutput, boolean enableAudioTrackPlaybackParams) {
++                        if (!"0".equals(System.getProperty("aurora.audio.passthrough", "1"))) {
++                            return super.buildAudioSink(context, enableFloatOutput, enableAudioTrackPlaybackParams);
++                        }
++                        return new androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
++                                .setAudioCapabilities(androidx.media3.exoplayer.audio.AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
++                                .setEnableFloatOutput(enableFloatOutput)
++                                .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
++                                .build();
++                    }
++                }
+                         .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+                         .setEnableDecoderFallback(true)
+                         .forceEnableMediaCodecAsynchronousQueueing();

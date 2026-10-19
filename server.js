@@ -267,6 +267,7 @@ app.use(require("./src/routes/subtitles"));
 app.use(require("./src/routes/reports"));
 app.use(require("./src/routes/usage"));
 app.use(require("./src/routes/nextep"));
+app.use(require("./src/routes/avcaps")); // what a device can play, and how a title plays on it (TV round 2026-10-19)
 app.use(require("./src/routes/proxy"));
 
 // Processed profile avatars (re-encoded 256px JPEGs — see routes/profiles.js).
