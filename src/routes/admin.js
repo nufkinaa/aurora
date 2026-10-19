@@ -1217,6 +1217,25 @@ router.post("/api/admin/encoding", (req, res) => {
   console.log(`[encode] limit set from the admin page: ${budget.explain().sentence}`);
   res.json({ ok: true, ...encodingView() });
 });
+// ---------- [phone-remote] "Your TVs" (lib/devices.js) ----------
+// household: may a grown-up's phone also control the TVs signed in to the
+// household's OTHER profiles? Off by default — a phone controls the devices
+// of its own profile; a kids profile only ever its own.
+router.get("/api/admin/remote", (req, res) => {
+  const settings = require("../lib/settings");
+  res.json({ household: settings.data.remoteHousehold === true, ...require("../lib/devices").status() });
+});
+router.post("/api/admin/remote", (req, res) => {
+  const settings = require("../lib/settings");
+  const v = (req.body || {}).household;
+  if (typeof v !== "boolean") return res.status(400).json({ error: "household must be true or false" });
+  settings.data.remoteHousehold = v;
+  settings.save();
+  require("../lib/devices").recheck();
+  console.log(`[remote] household control ${v ? "on" : "off"} (admin page)`);
+  res.json({ ok: true, household: v, ...require("../lib/devices").status() });
+});
+// ---------- [/phone-remote] ----------
 // Measure this machine's encode speed again, now (a few seconds of CPU at
 // the lowest priority). Refused while somebody's stream is being encoded:
 // it would read low, and take their cores.

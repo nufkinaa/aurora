@@ -49,6 +49,12 @@ const ROUTES = (lib) => ({
   "/pair/:code": { hash: "#/pair/ABCD12", text: "That code expired" },
   // {host}/link with no code: the field to type the TV's code into
   "/pair": { hash: "#/pair", selector: ".screen .pair-code-input", text: "Sign in a TV" },
+  // the phone as a remote [phone-remote]. (The walks run side by side as the
+  // same profile, so the other walk's desktop page can be a device in the
+  // list — the remote then picks it and names it in the address: no fixed
+  // landing and no fixed words.)
+  "/remote": { hash: "#/remote", lands: null, selector: ".remote-screen .rm-picker" },
+  "/remote/:id": { hash: "#/remote/tv-gone-000000", lands: null, selector: ".remote-screen .rm-picker" },
 });
 // The browser's own "Failed to load resource" line for the answers above
 // that are SUPPOSED to be a 404.

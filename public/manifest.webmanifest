@@ -24,6 +24,13 @@
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
+      "name": "Remote",
+      "short_name": "Remote",
+      "description": "Your phone as the TV's remote",
+      "url": "/#/remote",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
       "name": "Search",
       "short_name": "Search",
       "url": "/#/search",

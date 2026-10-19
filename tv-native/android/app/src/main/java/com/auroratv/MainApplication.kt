@@ -86,6 +86,9 @@ class MainApplication : Application(), ReactApplication {
           add(TrailersPackage())
           // [player-options] night mode and dialogue boost (audio/AudioFx.kt)
           add(AudioFxPackage())
+          // [phone-remote] the phone as a remote: real key presses, the TV's volume, its name
+          add(RemotePackage())
+          // [/phone-remote]
           // The native rendering layer (docs/qa/native-lab/): Fabric components and render
           // fixes behind the AuroraRender switches — all off unless switched on — plus the QA
           // module of the device harness (inert outside a -PqaReceiver build).

@@ -23,12 +23,14 @@ module.exports = {
   "detail.download.device": "w",
   "detail.episode.download": "w",
   "detail.episode.play": "wt",
+  "detail.episode.playontv": "w", // [phone-remote]
   "detail.episode.watched": "w",
   "detail.follow": "wt",
   "detail.mylist": "wt",
   "detail.offline": "w",
   "detail.offline.season": "w",
   "detail.play": "wt",
+  "detail.playontv": "w", // [phone-remote]
   "detail.restart": "wt",
   "detail.rollagain": "w",
   "detail.save": "w",
@@ -76,6 +78,7 @@ module.exports = {
   "nav.mylist": "wt",
   "nav.new": "w",
   "nav.profile": "wt",
+  "nav.remote": "w", // [phone-remote]
   "nav.saved": "w",
   "nav.search": "wt",
   "nav.settings": "wt",
@@ -90,6 +93,7 @@ module.exports = {
   "peek.details": "wt",
   "peek.mylist": "wt",
   "peek.play": "wt",
+  "peek.playontv": "w", // [phone-remote]
   "peek.remove": "w",
   // pick
   "pick.example": "wt",
@@ -114,6 +118,7 @@ module.exports = {
   "player.party.start": "wt",
   "player.pip": "w",
   "player.playpause": "wt",
+  "player.playontv": "w", // [phone-remote]
   "player.quality.pick": "w",
   "player.retry": "wt",
   "player.scrub": "wt",
@@ -147,6 +152,29 @@ module.exports = {
   "profile.unlock": "wt",
   // rating
   "rating.star": "w",
+  // remote (the phone as a remote, #/remote) [phone-remote]
+  "remote.audio": "w",
+  "remote.back": "w",
+  "remote.close": "w",
+  "remote.device.open": "w",
+  "remote.device.pick": "w",
+  "remote.dpad": "w",
+  "remote.home": "w",
+  "remote.more": "w",
+  "remote.mute": "w",
+  "remote.next": "w",
+  "remote.padmode": "w",
+  "remote.play": "w",
+  "remote.playpause": "w",
+  "remote.rename": "w",
+  "remote.seek": "w",
+  "remote.sheet.pick": "w",
+  "remote.skip": "w",
+  "remote.stop": "w",
+  "remote.subdelay": "w",
+  "remote.subtitles": "w",
+  "remote.view": "w",
+  "remote.volume": "w",
   // report
   "report.send": "wt",
   // row
@@ -188,6 +216,8 @@ module.exports = {
   "settings.theme": "w",
   "settings.toggle": "w",
   "settings.trailers": "t",
+  "settings.tvname": "t", // [phone-remote]
+  "settings.tvname.pick": "t", // [phone-remote]
   "settings.update": "t",
   "settings.usagestats": "t",
   "settings.whatsnew": "t",

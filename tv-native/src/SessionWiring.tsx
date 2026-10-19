@@ -14,6 +14,7 @@ import {setRootIdentity} from './rootNav';
 import {loadPrefs} from './storage';
 import {showToast} from './toast';
 import {setUsageEnabled, setUsageProfile, track} from './usage';
+import {startTarget, stopTarget} from './remote/target'; // [phone-remote]
 
 export default function SessionWiring() {
   const {profileId} = useApp();
@@ -48,7 +49,13 @@ export default function SessionWiring() {
       if (notices) askNotificationPermission(false);
     });
     connect();
+    // [phone-remote] this TV can be played on / steered from the profile's phones
+    // (remote/target.ts: announced on every socket open, so the order with
+    // connect() does not matter)
+    startTarget(profileId);
+    // [/phone-remote]
     return () => {
+      stopTarget(); // [phone-remote] device_leave, while the socket is still open
       offPerson();
       leavePerson();
       offActive.remove();

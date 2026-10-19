@@ -30,6 +30,8 @@ const PROFILE: Record<string, string[]> = {
   'personSync.ts': ['active', 'asking', 'entering'],
   'prefetch.ts': ['profileId', 'idleTimer', 'idleRest', 'warmedSections', 'dwell'],
   'realtime.ts': ['identity', 'lastActivity', 'lastLibraryMsg'],
+  // [phone-remote] this TV as the profile's target (device_leave when the profile is left)
+  'remote/target.ts': ['session'],
   'screens/Detail.tsx': ['seasonPicks'],
   'screens/Pick.tsx': ['last'],
   // (telemetry's unsent books — errors, timings, control counts — are objects
@@ -143,7 +145,17 @@ const DEVICE: Record<string, Record<string, string>> = {
     homeOnScreen: 'which screen is looked at: Home sets and clears it',
     holds: 'what holds a library refresh back (a mounted player, the app in the background)',
     newsNow: 'listeners (a mounted player’s next-episode ask)',
+    openFns: 'listeners (the phone remote’s target, which re-announces on every open)', // [phone-remote]
   },
+  // [phone-remote]
+  'remote/handler.ts': {TRANSPORT: 'a fixed list'},
+  'remote/identity.ts': {
+    device: 'this TV’s id and name for the phone remote — the box’s, whoever watches',
+    loading: 'the same, being read',
+    nameFns: 'listeners',
+  },
+  'remote/player.ts': {players: 'the mounted players (they unmount with the profile’s navigator)', changeFns: 'listeners'},
+  // [/phone-remote]
   'settle.ts': {waiting: 'the at-rest clock', moveFns: 'the at-rest clock', lastMove: 'the at-rest clock', timer: 'the at-rest clock', timerDue: 'the at-rest clock'},
   'storage.ts': {
     person: 'the active person’s settings: personSync.ts owns it and clears it (its own registration)',

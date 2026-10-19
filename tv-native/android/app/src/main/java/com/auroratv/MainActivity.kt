@@ -8,10 +8,13 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import android.view.Choreographer
+import android.view.InputDevice
+import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.SoundEffectConstants
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import com.auroratv.ui.AuroraRender
 import com.auroratv.ui.input.KeyRepeatGate
 import com.auroratv.ui.qa.AuroraQa
@@ -212,7 +215,16 @@ class MainActivity : ReactActivity() {
   private fun moveLikeTheSystem(ev: KeyEvent) {
     if (AuroraQa.trace) Log.d(AuroraQa.TAG_ANIM, "[key] ${ev.eventTime} ${KeyEvent.keyCodeToString(ev.keyCode)}")
     if (super.dispatchKeyEvent(ev)) return
-    val direction = when (ev.keyCode) {
+    focusLikeTheSystem(ev.keyCode)
+  }
+
+  /**
+   * The focus half of [moveLikeTheSystem] (ViewRootImpl's performFocusNavigation for a key-down
+   * nobody consumed): the gate's moves and the phone remote's presses ([injectRemoteKey]) both
+   * end here. [phone-remote]: extracted from moveLikeTheSystem, unchanged.
+   */
+  private fun focusLikeTheSystem(keyCode: Int) {
+    val direction = when (keyCode) {
       KeyEvent.KEYCODE_DPAD_LEFT -> View.FOCUS_LEFT
       KeyEvent.KEYCODE_DPAD_RIGHT -> View.FOCUS_RIGHT
       KeyEvent.KEYCODE_DPAD_UP -> View.FOCUS_UP
@@ -250,6 +262,65 @@ class MainActivity : ReactActivity() {
     return super.onSearchRequested()
   }
 
+  // =====================================================================================
+  // [phone-remote] the phone as a remote (RemoteModule.kt "AuroraRemote" → pressKey)
+  // =====================================================================================
+
+  /**
+   * One press of a remote key from the phone, as a REAL key: a key-down and its key-up with the
+   * same uptime, through this activity's own [dispatchKeyEvent] — the double-press filter, the
+   * `keyrate` gate, and React Native's key events to JS (ReactRootView → the TV event handlers)
+   * see it exactly as a press of the remote in the hand. What ViewRootImpl does after the view
+   * tree for a hardware key-down nobody consumed — move focus in that direction, with the sound
+   * — is done here too ([focusLikeTheSystem]), because an injected event never reaches the input
+   * pipeline. So focus.ts (pressMovedFocus: the focus move and the key-up of ONE press) reads a
+   * phone press the way it reads a real one.
+   *
+   * OK is DPAD_CENTER (the focused view clicks on its key-up, as for the remote). BACK goes the
+   * same way: Activity.onKeyDown starts tracking it, onKeyUp → onBackPressed → React Native's
+   * BackHandler; if that path did not take it, the back dispatcher is asked directly.
+   *
+   * Main thread only. Returns false for a key it does not know, or while another window has
+   * the keys.
+   */
+  fun injectRemoteKey(code: Int): Boolean {
+    val source = when (code) {
+      KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT,
+      KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER -> InputDevice.SOURCE_DPAD
+      KeyEvent.KEYCODE_BACK -> InputDevice.SOURCE_KEYBOARD
+      else -> return false
+    }
+    // A system window has the keys (a permission dialog, the installer): a real press would go
+    // to it, not to this activity — so this one goes nowhere, and the phone is told it failed.
+    if (!hasWindowFocus()) return false
+    keepAwakeWhileSteered()
+    val now = SystemClock.uptimeMillis()
+    val down = KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0, source)
+    val consumed = dispatchKeyEvent(down)
+    if (!consumed && isDpad(code)) focusLikeTheSystem(code)
+    val up = KeyEvent.changeAction(down, KeyEvent.ACTION_UP)
+    val upConsumed = dispatchKeyEvent(up)
+    if (code == KeyEvent.KEYCODE_BACK && !upConsumed) onBackPressedDispatcher.onBackPressed()
+    return true
+  }
+
+  /**
+   * Presses from the phone are not the system's user activity (only the input pipeline's are),
+   * so the TV's screensaver would start while someone browses from the sofa with the phone.
+   * The window stays on for a while after each press instead; the flag goes when they stop.
+   */
+  private val awakeRelease = Runnable { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+  private fun keepAwakeWhileSteered() {
+    val w = window ?: return
+    w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    val decor = w.decorView
+    decor.removeCallbacks(awakeRelease)
+    decor.postDelayed(awakeRelease, REMOTE_AWAKE_MS)
+  }
+  // =====================================================================================
+  // [/phone-remote]
+  // =====================================================================================
+
   override fun onWindowFocusChanged(hasFocus: Boolean) {
     super.onWindowFocusChanged(hasFocus)
     // a dialog / another window took the keys: its key-up will never reach us
@@ -267,5 +338,7 @@ class MainActivity : ReactActivity() {
 
   companion object {
     const val DOUBLE_PRESS_MS = 110L
+    /** [phone-remote] how long the screen is kept on after the phone's last press. */
+    const val REMOTE_AWAKE_MS = 5 * 60 * 1000L
   }
 }

@@ -32,6 +32,7 @@ import {
   haptic,
 } from "../ui.js";
 import { api } from "../api.js";
+import { playOnButton } from "../remote.js"; // [phone-remote]
 import { track } from "../usage.js";
 import { dropdown } from "./browse.js";
 import {
@@ -1347,6 +1348,21 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       }, { timeout: 3000 });
     }
   }
+  // [phone-remote] "Play on <TV>": there while a TV (or another computer) of
+  // this profile is on — the same title, from where this page would resume
+  {
+    const target = !isShow && lib ? lib : isShow && nextUp ? { ...nextUp.local, showId: lib && lib.id, showTitle: view.title, season: nextUp.season, episode: nextUp.episode, cover: nextUp.local.cover || (lib && lib.cover) } : null;
+    if (target && target.id) {
+      actions.push(playOnButton({
+        getItem: () => target,
+        opts: () => {
+          const pr = progressFor(target.id);
+          return { position: pr && !pr.finished && pr.position > 10 ? Math.max(0, pr.position - 4) : null };
+        },
+      }));
+    }
+  }
+  // [/phone-remote]
   // A film we don't own: "Save & watch" is THE button — one press saves the
   // ★ BEST source to the library (the sources list below decides which) and
   // says what happens next; the page follows the download and turns into
@@ -2460,6 +2476,19 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
           }),
         );
       }
+      // [phone-remote] an episode on disk plays on the TV from here too
+      if (local && local.id) {
+        const epItem = { ...local, showId: lib && lib.id, showTitle: view.title, season: row.season, episode: row.episode, title: row.title || local.title, cover: local.cover || (lib && lib.cover) };
+        extras.push(playOnButton({
+          bare: true,
+          className: "ep-action",
+          ui: "detail.episode.playontv", // data-ui
+          labelOf: (where) => `${where} — episode ${row.episode}`,
+          getItem: () => epItem,
+          opts: () => { const pr = progressFor(local.id); return { position: pr && !pr.finished && pr.position > 10 ? Math.max(0, pr.position - 4) : null }; },
+        }));
+      }
+      // [/phone-remote]
       // Every episode that exists can be ticked off, downloaded or not (see
       // setWatched) — but nothing that hasn't aired, which nobody can have seen.
       if (state.profile && !unaired && (local || imdbId)) {

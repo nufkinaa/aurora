@@ -103,6 +103,7 @@ const SEGMENTS = new Set((
   "js screens vendor ws " +
   "deck answer " + // the taste picker (/api/profiles/:id/taste/deck, /taste/answer)
   "metrics " + // /api/admin/metrics (lib/metrics.js)
+  "remote " + // /api/admin/remote (lib/devices.js: phone as a remote, Play on TV)
   "resync undo " + // the subtitle Resync button (/api/subtitles/resync, …/status, …/undo — media/subaudio.js)
   ".m3u8 .ts .m4s .mp4 .mkv .webm .vtt .srt .jpg .jpeg .png .webp .avif .svg .gif .ico .js .css .json .html .txt .apk .woff2 .webmanifest " +
   "?a ?blur ?category ?code ?days ?duration ?episode ?error ?fmt ?force ?genre ?head ?hevc ?imdbid ?intent ?itemid ?k ?kb ?keys ?limit ?page ?profile ?pw " +

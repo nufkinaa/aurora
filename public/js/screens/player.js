@@ -18,6 +18,7 @@ import { followVideo } from "../glassTone.js";
 import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "../lang.js";
 import { savedDelay, saveDelay } from "../subdelay.js";
 import { createAirplay } from "../airplay.js";
+import { registerPlayerTarget, takeRemoteStart, playerChanged, onDevices, getDevices, chooseDevice, playOn, ICONS as REMOTE_ICONS } from "../remote.js"; // [phone-remote]
 import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM } from "../playstart.js";
 // [player-options] night mode, dialogue boost, the look of subtitles (2026-10-19)
 import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_VW, CUE_MIN_PX, RAISED_PCT, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SUB_COLORS } from "../subStyle.js";
@@ -1648,6 +1649,14 @@ export const renderPlayer = async (root, { id }) => {
   // Compared as a LANGUAGE (lang.js), not as a string: "he" remembered on
   // one file is the "heb" track of the next. (startAudioIdx, module scope.)
   audioIdx = startAudioIdx(item);
+  // [phone-remote] opened by a remote ("Play on this computer"): its position
+  // and its subtitle / audio choice (js/remote.js takeRemoteStart)
+  const remoteStart = item && !item._local && !item._offline ? takeRemoteStart(item.id) : null;
+  if (remoteStart && remoteStart.audioLang) {
+    const t = (item.audioTracks || []).find((x) => sameAudio(x.language, remoteStart.audioLang));
+    if (t) audioIdx = t.index != null ? t.index : (item.audioTracks || []).indexOf(t);
+  }
+  // [/phone-remote]
   // A height the stream is capped at — 720 or 480, 0 for the file as it is.
   // A slow line (net.js) starts a library title on a capped h264 encode: a
   // 1–2 Mbit/s stream that plays, where the untouched file (6–15 Mbit/s)
@@ -2146,7 +2155,7 @@ export const renderPlayer = async (root, { id }) => {
   // as a native seek for direct/library playback).
   // This exact file/torrent first, else the title's shared history (the same
   // episode watched from another source resumes where it stopped).
-  const resumeAt = resumePoint(item, restart);
+  const resumeAt = remoteStart && remoteStart.position > 0 ? Math.floor(remoteStart.position) : resumePoint(item, restart); // [phone-remote] a remote's position wins
 
   // Probe data replaces the tag guess THROUGH the same fields library items
   // carry, so the one set of capability functions decides for both. For
@@ -3545,6 +3554,13 @@ export const renderPlayer = async (root, { id }) => {
     // where a pick has nothing to say. Values older builds stored ("Hebrew 2",
     // "eng", "English - SDH") are read as their language by normPick; anything
     // it cannot place counts as nothing remembered.
+    // [phone-remote] the remote that opened this said which language (or off)
+    if (remoteStart && remoteStart.subLang) {
+      if (remoteStart.subLang === "off") return -1;
+      const i = bestTrackIndex(item.subtitles || [], remoteStart.subLang);
+      if (i >= 0) return i;
+    }
+    // [/phone-remote]
     const last = normPick(profilePick("subPick"));
     // A file from this device whose subtitles were picked WITH it: they were
     // asked for just now, so one goes on — the remembered or the Settings
@@ -6533,6 +6549,93 @@ export const renderPlayer = async (root, { id }) => {
     setTimeout(() => firstFrame(at), 2000);
   });
 
+  // ---------- [phone-remote] this player as a device a phone controls ----------
+  // (js/remote.js: the phone's commands land here; what is playing is reported
+  // back.) And a "Play on TV" button among the tools: hands this title, at
+  // this second, with these subtitles and this audio, to a TV.
+  const remoteSubs = () => (item.subtitles || []).map((t, i) => ({ id: String(i), label: t.label || `Track ${i + 1}`, lang: langOf(t) || t.lang || null }));
+  const remoteAudios = () => (item.audioTracks || []).map((t, i) => ({ id: String(t.index != null ? t.index : i), label: audioTrackName(t, i), lang: t.language || null }));
+  const unRemote = item._local ? () => {} : registerPlayerTarget({
+    getState: () => ({
+      id: item.id,
+      title: item.title || "",
+      showTitle: isEpisode ? item.showTitle || null : null,
+      epTitle: isEpisode ? item.title || null : null,
+      season: isEpisode ? item.season : null,
+      episode: isEpisode ? item.episode : null,
+      poster: item.cover || null,
+      backdrop: item.backdrop || null,
+      duration: totalDuration() || 0,
+      position: pendingSeek != null ? pendingSeek : effTime(),
+      paused: video.paused,
+      buffering: !video.paused && (video.seeking || video.readyState < 3),
+      canSeek: true,
+      hasNext: !!nextKnown,
+      nextLabel: nextKnown ? `S${nextKnown.season} E${nextKnown.episode}` : null,
+      subs: remoteSubs(),
+      sub: activeTrack >= 0 ? String(activeTrack) : null,
+      audios: remoteAudios(),
+      audio: String(audioIdx),
+      subDelay: activeTrack >= 0 ? offsetFor(activeTrack) : 0,
+    }),
+    getVolume: () => ({ level: video.volume, muted: video.muted }),
+    toggle: () => togglePlay(),
+    play: () => { if (video.paused) togglePlay(); },
+    pause: () => { if (!video.paused) togglePlay(); },
+    seek: (to) => seekTo(to),
+    skip: (by) => seekTo((pendingSeek != null ? pendingSeek : effTime()) + by),
+    next: () => { if (!nextKnown) return false; goNext(nextKnown); return true; },
+    sub: (id) => {
+      const idx = id == null ? -1 : Number(id);
+      if (!(idx >= -1 && idx < (item.subtitles || []).length)) return;
+      autoSubsApplied = true;
+      subsPickedByHand = true;
+      selectTrack(idx);
+      const t = idx >= 0 ? (item.subtitles || [])[idx] : null;
+      const pick = idx < 0 ? "off" : pickOf(t);
+      if (pick) rememberPick("subPick", pick);
+    },
+    audio: (id) => { const n = Number(id); if (Number.isFinite(n)) switchAudio(n); },
+    subDelay: ({ value, by }) => {
+      if (activeTrack < 0) return false;
+      if (by != null) return nudgeSubs(by);
+      const v = Math.round(Number(value) * 10) / 10 || 0;
+      delayAnnounced.add(activeTrack);
+      setOffset(activeTrack, v);
+      applyOffsetToTrack(video.textTracks[activeTrack]);
+      toast(`Subtitle delay ${v >= 0 ? "+" : ""}${v.toFixed(1)}s`, "💬");
+    },
+    volume: ({ level, step }) => {
+      video.muted = false;
+      video.volume = Math.max(0, Math.min(1, level != null ? level : video.volume + step * 0.1));
+      prefs.set("volume", video.volume);
+      prefs.set("muted", false);
+      paintVolume();
+    },
+    mute: (on) => { if (!!on !== video.muted) toggleMute(); },
+    stop: () => exit(),
+  });
+  for (const ev of ["play", "pause", "seeked", "waiting", "playing", "volumechange"]) video.addEventListener(ev, () => playerChanged());
+  const tvBtn = el("button", { class: "pbtn focusable tv-btn hidden", "data-ui": "player.playontv", "aria-label": "Play on TV", title: "Play on TV", html: REMOTE_ICONS.cast,
+    onclick: async () => {
+      const d = await chooseDevice("Play on…");
+      if (!d || exited) return;
+      const t = activeTrack >= 0 ? (item.subtitles || [])[activeTrack] : null;
+      const a = (item.audioTracks || []).find((x, i) => (x.index != null ? x.index : i) === audioIdx);
+      const at = pendingSeek != null ? pendingSeek : effTime();
+      const r = await playOn(d, item, { position: at, subLang: activeTrack < 0 ? "off" : (langOf(t) || null), audioLang: (a && audioPick(a.language)) || null, open: false });
+      if (r.ok && !exited) {
+        try { video.pause(); } catch {}
+        navigate(`#/remote/${encodeURIComponent(d.deviceId)}`);
+      }
+    } });
+  if (!item._local && !isTorrent) {
+    overlay.querySelector(".pc-tools")?.insertBefore(tvBtn, pipBtn);
+  }
+  const offTvBtn = onDevices((list) => tvBtn.classList.toggle("hidden", !list.length));
+  tvBtn.classList.toggle("hidden", !getDevices().length);
+  // ---------- [/phone-remote] ----------
+
   applyCueStyle();
   paintVolume();
   showControls();
@@ -6604,6 +6707,7 @@ export const renderPlayer = async (root, { id }) => {
     fx.dispose();
     unsubOcr();
     unsubSync();
+    unRemote(); offTvBtn(); // [phone-remote]
     popScope(overlay);
   };
 };
