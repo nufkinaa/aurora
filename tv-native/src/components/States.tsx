@@ -22,12 +22,19 @@ const {colors, spacing} = theme;
 export function Empty({
   glyph,
   message,
+  detail,
   actionLabel,
   onAction,
   edgeLeft = true,
+  claimFocus = true,
 }: {
   glyph: string;
   message: string;
+  // a second, quieter line under it (the message then reads as its heading — the site's h2 + p)
+  detail?: string;
+  // false: the button does not take focus as it appears (a panel that owns focus is
+  // open beside it — Browse's filters); it is still where focus goes if it is lost
+  claimFocus?: boolean;
   actionLabel: string;
   onAction: () => void;
   // Default true because every screen that has a rail wants LEFT to reach it.
@@ -40,8 +47,9 @@ export function Empty({
   return (
     <View style={styles.wrap}>
       <Text style={styles.glyph}>{glyph}</Text>
-      <Text style={styles.message}>{message}</Text>
-      <Btn uiId="state.action" ref={action} label={actionLabel} hasTVPreferredFocus edgeLeft={edgeLeft} onPress={onAction} />
+      <Text style={detail ? styles.heading : styles.message}>{message}</Text>
+      {detail ? <Text style={styles.message}>{detail}</Text> : null}
+      <Btn uiId="state.action" ref={action} label={actionLabel} hasTVPreferredFocus={claimFocus} edgeLeft={edgeLeft} onPress={onAction} />
     </View>
   );
 }
@@ -88,6 +96,7 @@ const styles = StyleSheet.create({
   // artwork, not reading-tier type.
   glyph: {fontSize: 35, marginBottom: -2},
   message: {color: colors.textDim, fontSize: 16, textAlign: 'center'},
+  heading: {color: colors.text, fontSize: 18, fontWeight: '700', textAlign: 'center'},
   // `.pw-error`'s #ff7a7a at weight 700, raised to the 16dp reading tier.
   error: {color: '#ff7a7a', fontSize: 16, fontWeight: '700', textAlign: 'center'},
 });

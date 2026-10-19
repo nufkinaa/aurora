@@ -21,7 +21,7 @@ import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Btn from '../components/Btn';
 import Row, {shelfGeom, ShelfMemory} from '../components/Row';
 import NavRail from '../components/NavRail';
-import {ErrorState} from '../components/States';
+import {Empty, ErrorState} from '../components/States';
 import TrailerFrame, {HERO_TRAILER_COVER, TrailerHandle, TrailerState} from '../components/Trailer';
 import {api, artPath, ART_LADDER, imgSrc, ImgSource, sameParties, serverCanBlur, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
 import {checkForUpdate, holdPromptFor, onUpdateReady, updateReady, UpdateInfo} from '../update';
@@ -80,6 +80,8 @@ import {useRouteShown} from '../useRouteShown';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 import {homeUsable} from '../telemetry'; // [analytics]
+import {emptyHomeLine} from '../browseCopy';
+import {useMe} from '../navSection';
 
 const {colors, fontSize, spacing, radius, motion} = theme;
 
@@ -338,6 +340,8 @@ export default function Home({
   navigation,
 }: NativeStackScreenProps<RootStackParamList, 'Home'>) {
   const {profileId, switchProfile} = useApp();
+  // a kids profile's empty Home says why (browseCopy.ts emptyHomeLine)
+  const emptyLine = emptyHomeLine(useMe(profileId)?.kids?.maxAge ?? null);
   const {width, height, heroH, heroPadBottom, heroTitle, safeBottom} = useTvMetrics();
   const [data, setData] = useState<HomeData | null>(null);
   // usage stats: this screen's content is on (routeTiming.ts)
@@ -1384,9 +1388,10 @@ export default function Home({
   if (data && heroes.length === 0 && (data.rows?.length ?? 0) === 0) {
     return (
       <View style={styles.center}>
-        <ErrorState
-          message="Nothing to show yet."
-          detail="The server answered but had no titles for this profile — it may still be warming up after a restart."
+        <EmptyHome
+          glyph={emptyLine.kids ? '🎬' : undefined}
+          message={emptyLine.message}
+          detail={emptyLine.detail}
           actionLabel="Try again"
           onAction={() => {
             setData(null);
@@ -1639,15 +1644,37 @@ export default function Home({
   );
 }
 
+// The empty Home: on a kids profile a calm "nothing for this age" (the site's 🎬 page,
+// screens/home.js), otherwise the warning it always was.
+const EmptyHome = ({glyph, message, detail, actionLabel, onAction}: {glyph?: string; message: string; detail: string; actionLabel: string; onAction: () => void}) =>
+  glyph ? (
+    <Empty glyph={glyph} message={message} detail={detail} actionLabel={actionLabel} onAction={onAction} />
+  ) : (
+    <ErrorState message={message} detail={detail} actionLabel={actionLabel} onAction={onAction} />
+  );
+
 // render switch `herotext` (docs/qa/native-deep/DEVICE-PLAN.md §herotext): the billboard's
 // words in ONE native container that holds a hardware layer while it is drawn whole
 // (AuroraTextLayerView.kt), so their blurred text shadows are rendered once instead of on
 // every frame. A plain column: the four Texts keep their own margins and stretch as they
 // did inside `info`, so Yoga places every one of them where it placed them before. Off —
 // the default — there is no wrapper at all.
+// HERO_SHADOW_ROOM: room around the words for their shadows (the title's: radius 16,
+// offset 2) — as padding with an equal negative margin, so every Text stays exactly where
+// Yoga put it, while the native container (and its layer) reaches as far as the shadows do.
+// Each word style is overflow 'visible' (RN's Text defaults to 'hidden', a clip at its box),
+// and AuroraTextLayerView.kt widens each TextView's own clip by the same amount (SHADOW_ROOM_DP);
+// without both, the shadow was cut at the edges of the text box — a faint rectangle behind
+// the title, plain on a scaled canvas (Mi TV, 2026-10-18).
+const HERO_SHADOW_ROOM = 20;
 const HeroWords: React.FC<{children?: React.ReactNode}> = fixOn.herotext
-  ? ({children}) => <AuroraTextLayer collapsable={false}>{children}</AuroraTextLayer>
+  ? ({children}) => (
+      <AuroraTextLayer collapsable={false} style={heroWordsRoom}>
+        {children}
+      </AuroraTextLayer>
+    )
   : ({children}) => <>{children}</>;
+const heroWordsRoom = {padding: HERO_SHADOW_ROOM, margin: -HERO_SHADOW_ROOM};
 
 const styles = StyleSheet.create({
   // No backgroundColor: android:windowBackground already paints it, and painting
@@ -1691,6 +1718,7 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.9)',
     textShadowOffset: {width: 0, height: 1},
     textShadowRadius: 8,
+    overflow: 'visible', // RN's Text clips to its box by default: the shadow was cut (HERO_SHADOW_ROOM)
   },
   // `.hero-kind` — the smallest element in the lockup, and it answers "what am I
   // looking at" before you have read a word of the name.
@@ -1702,6 +1730,7 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.9)',
     textShadowOffset: {width: 0, height: 1},
     textShadowRadius: 6,
+    overflow: 'visible', // RN's Text clips to its box by default: the shadow was cut (HERO_SHADOW_ROOM)
   },
   title: {
     color: colors.text,
@@ -1710,6 +1739,7 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.8)',
     textShadowOffset: {width: 0, height: 2},
     textShadowRadius: 16,
+    overflow: 'visible', // RN's Text clips to its box by default: the shadow was cut (HERO_SHADOW_ROOM)
   },
   facts: {
     color: colors.textDim,
@@ -1719,6 +1749,7 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.9)',
     textShadowOffset: {width: 0, height: 1},
     textShadowRadius: 8,
+    overflow: 'visible', // RN's Text clips to its box by default: the shadow was cut (HERO_SHADOW_ROOM)
   },
   // the title page's gold star; the number beside it in a light silver
   star: {color: colors.star},

@@ -27,3 +27,21 @@ export function emptyGridLine(f: GridFilters): {message: string; actionLabel: st
     ? {message: `No ${what}${ages} here yet.`, actionLabel: 'Try another category'}
     : {message: `No ${what} here yet.`, actionLabel: 'Try another category'};
 }
+
+// What an EMPTY Home says (the server answered, with no titles at all). On a
+// kids profile it said the server "may still be warming up after a restart"
+// (Mi TV, 2026-10-18) — nothing was warming up: nothing in the library is
+// rated for that age. The website's Home says the same (screens/home.js).
+export function emptyHomeLine(kidsAge: number | null): {message: string; detail: string; kids: boolean} {
+  if (kidsAge != null)
+    return {
+      kids: true,
+      message: 'Nothing for this age here yet.',
+      detail: `This profile shows titles rated ${kidsAge > 0 ? `for ages up to ${kidsAge}` : 'for all ages'} — none are in the library yet.`,
+    };
+  return {
+    kids: false,
+    message: 'Nothing to show yet.',
+    detail: 'The server answered but had no titles for this profile — it may still be warming up after a restart.',
+  };
+}
