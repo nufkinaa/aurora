@@ -383,7 +383,11 @@ const waitForScreen = async (page, { selector = "#app .screen, #app .player", ti
 const goto = async (page, srv, hash = "#/", { wait = true, selector } = {}) => {
   if (!hash.startsWith("#")) hash = "#" + hash;
   if (!page.url().startsWith(srv.url)) {
-    await page.goto(`${srv.url}/${hash}`, { waitUntil: "domcontentloaded" });
+    // (the first load fetches the whole module graph: seconds on a loaded
+    // machine, and how long it takes is not what any of these tests check)
+    await page.goto(`${srv.url}/${hash}`, { waitUntil: "domcontentloaded", timeout: 45000 });
+    if (wait) await waitForScreen(page, { ...(selector ? { selector } : {}), timeout: 30000 });
+    return;
   } else {
     await page.evaluate((h) => { if (location.hash === h) window.dispatchEvent(new HashChangeEvent("hashchange")); else location.hash = h; }, hash);
   }

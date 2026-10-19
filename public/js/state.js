@@ -238,7 +238,7 @@ export const refreshPersonPrefs = async () => {
 // Is the active profile a kids one ({ maxAge } on its public view)?
 export const isKids = () => !!(state.profile && state.profile.kids);
 
-export const setProfile = async (profile, token = null) => {
+const enterProfile = async (profile, token = null) => {
   const changed = !state.profile || state.profile.id !== profile.id;
   // Kids mode switched on, off or to another limit on the profile that is
   // already active: as far as every list goes, that is a different person.
@@ -301,6 +301,14 @@ export const setProfile = async (profile, token = null) => {
   // `relist`: the lists this person may see differ from the last one's —
   // screens drop what they remembered (browse.js, search.js).
   window.dispatchEvent(new CustomEvent("aurora-profile", { detail: { profile, relist } }));
+};
+// While a profile is being entered, the server's kids lock still names the
+// last one until api.kidsEnter (above) has moved it: a background read for
+// the new one in that window is refused (403, an App health warning). The
+// prefetcher waits for the switch (prefetch.js `allowed`).
+export const setProfile = async (profile, token = null) => {
+  state.switching = true;
+  try { return await enterProfile(profile, token); } finally { state.switching = false; }
 };
 
 // A previously-unlocked token for this profile in this browser session, if any.

@@ -216,7 +216,11 @@ export const openPerson = (who, { inPlayer = false } = {}) => {
     track2.addEventListener("scroll", () => {
       clearTimeout(settle);
       settle = setTimeout(() => {
-        const i = Math.round(track2.scrollLeft / Math.max(1, track2.clientWidth));
+        const w = Math.max(1, track2.clientWidth);
+        const i = Math.round(track2.scrollLeft / w);
+        // still on its way (a smooth scroll stalled on a busy device), not at
+        // rest on a photo: adopting the halfway slide undid an arrow / Next press
+        if (Math.abs(track2.scrollLeft - i * w) > 2) return;
         if (i !== at2) show(i, false);
       }, 90);
     }, { passive: true });

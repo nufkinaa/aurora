@@ -235,6 +235,8 @@ for (const [name, viewport, look] of [["desktop", DESKTOP, "glass"], ["desktop-l
     assert.match(await card(page, EP2).locator(".card-label").innerText(), /The Office US\s*S1 E2/);
     assert.match(await card(page, EP2).locator(".lf-meta").innerText(), /^0:14 · /);
     // a thumbnail drawn from each video, poster-shaped; the card did not move when it came
+    // (each card's state is settled; its thumbnail <img> may still be decoding)
+    await page.waitForFunction(() => [...document.querySelectorAll(".lf-card")].every((c) => { const i = c.querySelector("img.lf-img"); return i && i.complete && i.naturalWidth > 0; }), null, { timeout: 30000 });
     for (const t of await thumbsDrawn(page)) assert.ok(t.w === 240 && t.h === 360, `thumbnail of ${t.key}: ${t.w}x${t.h}`);
     const box = await card(page, FILM).locator(".lf-play").boundingBox();
     assert.ok(Math.abs(box.height / box.width - 1.5) < 0.02, `a 2:3 card: ${box.width}x${box.height}`);

@@ -158,7 +158,7 @@ const resync = async (page, label) => {
   await page.waitForFunction(() => {
     const p = document.querySelector(".player .sub-resync");
     return p && p.classList.contains("done");
-  }, null, { timeout: 90000 });
+  }, null, { timeout: 180000 }); // (the urgent decode runs below normal priority: a loaded box starves it)
   return { seen: await page.evaluate(() => window.__pill), words: (await page.textContent(".player .sub-resync")).trim() };
 };
 
@@ -177,7 +177,7 @@ for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
     await page.waitForFunction((label) => {
       const t = [...document.querySelector(".player video").textTracks].find((x) => x.label === label);
       return t && t.cues && t.cues.length > 20 && Math.abs(t.cues[0].startTime - 4) < 0.25;
-    }, "Hebrew", { timeout: 10000 });
+    }, "Hebrew", { timeout: 30000 });
     const got = await cueStarts(page, "Hebrew");
     const err = got.map((s, i) => Math.abs(s - LINES[i].start)).sort((a, b) => a - b);
     assert.ok(err[Math.floor(err.length * 0.9)] <= 0.25, `p90 cue error after Resync ${err[Math.floor(err.length * 0.9)]} s`);

@@ -26,6 +26,7 @@ import { artUrl, heroArtWidth } from "./ui.js";
 import { lite, fastNet, netTier } from "./net.js";
 
 const allowed = () => {
+  if (state.switching) return false; // a profile switch in flight (state.js setProfile)
   if (document.hidden || !navigator.onLine) return false;
   // a slow line (measured, hinted, or chosen under Preferences → Data use)
   // keeps every byte for what the viewer actually asked for
@@ -81,11 +82,15 @@ export const warmTitle = (item, { art = false } = {}) => {
   if (!item || !allowed() || busy()) return;
   const id = String(item.id || "");
   if (id.startsWith("torrent|")) return;
+  const isEpisode = !!item.showId && item.type !== "show";
+  const libId = isEpisode ? item.showId : item.source !== "stream" && id ? id : null;
+  // a card still on screen from before a profile switch (the last person's
+  // Home until the new one paints, the billboard's timer): not this
+  // profile's to ask for — a kids profile is refused it
+  if (libId && state.library && ![...(state.library.movies || []), ...(state.library.shows || [])].some((x) => x.id === libId)) return;
   const key = `${item.imdbId || ""}|${item.showId || id}`;
   if (warmedTitles.has(key)) return;
   warmedTitles.add(key);
-  const isEpisode = !!item.showId && item.type !== "show";
-  const libId = isEpisode ? item.showId : item.source !== "stream" && id ? id : null;
   if (libId) quiet(api.item(libId, { low: true }));
   if (item.imdbId) quiet(api.discoverMeta(item.type === "show" ? "show" : "movie", item.imdbId, { low: true }));
   if (art && fast()) {
@@ -173,6 +178,7 @@ export const initPrefetch = () => {
   window.addEventListener("aurora-profile", () => {
     idleArmed = false; // a profile switch warms the new profile's list
     warmedTitles.clear();
+    heroCurrent = null; // (the last profile's billboard title is not warmed for this one)
     setTimeout(idleWarm, 2500);
   });
 };

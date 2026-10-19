@@ -132,9 +132,13 @@ ui.test("suggestions: titles with the typed letters marked, then a person and a 
   await page.goBack();
   await page.waitForFunction(() => location.hash === "#/search");
   await waitForScreen(page);
+  // one Search screen (router.js: an overlapping render no longer leaves two)
+  await page.waitForFunction((sel) => document.querySelectorAll(sel).length === 1, BOX);
   await page.locator(BOX).fill("");
   await page.locator(BOX).pressSequentially("tessa");
   await suggestionsShow(page, "Tessa Example");
+  // the list for all of "tessa", not one still showing from "tes"
+  await page.waitForFunction(() => [...document.querySelectorAll("#app .suggest-list:not(.hidden) .suggest-person .suggest-title mark")].some((m) => m.textContent === "Tessa"));
   await page.click("#app .suggest-list .suggest-person");
   await resultsAre(page, ["Test Film Two", "Test Film One"]);
   assert.equal(await page.inputValue(BOX), "Tessa Example");

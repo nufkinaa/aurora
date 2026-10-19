@@ -57,6 +57,7 @@ export const attachSuggest = (input, host, opts = {}) => {
     host.innerHTML = "";
   };
   const pick = (s) => {
+    run.cancel(); token++; cancel(); // a keystroke's ask still pending must not reopen the list
     hide();
     if (s.kind === "person" || s.kind === "genre") {
       if (opts.onQuery) opts.onQuery(s.name, s);

@@ -15,7 +15,7 @@ const PHONE_LANDSCAPE = { width: 844, height: 390 };
 const DESKTOP = { width: 1280, height: 720 };
 const SHOTS = path.join(__dirname, "..", "..", "docs", "qa", "phone-remote");
 const shot = async (page, name) => {
-  if (process.env.REMOTE_SHOTS === "0") return;
+  if (process.env.REMOTE_SHOTS !== "1") return; // opt-in: a test run must not rewrite tracked files
   fs.mkdirSync(SHOTS, { recursive: true });
   await page.waitForTimeout(650); // (sheets and the art fade in)
   await page.screenshot({ path: path.join(SHOTS, `${name}.png`) }).catch(() => {});

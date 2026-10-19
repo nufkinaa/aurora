@@ -3780,6 +3780,12 @@
         watchedBadge(e.watched) + myListBadge(e.mylist) + copyPill(e.id) +
         `<span class="num muted">${fmtBytes(e.sizeBytes)}</span>` +
         `<button class="mini danger" data-file-id="${esc(e.id)}" data-file-name="${esc(e.fileName)}" data-file-size="${e.sizeBytes}">Delete</button>`, 26);
+      // A library change redraws the tree (library_updated): the folds that
+      // were open and the episodes ticked stay so — an admin's selection used
+      // to vanish under a background rescan, and the batch bar with it.
+      const tree = $("#lib-tree");
+      const wasOpen = new Set([...tree.querySelectorAll("details[open][data-key]")].map((d) => d.dataset.key));
+      const wasChecked = new Set([...tree.querySelectorAll(".lib-ep-check:checked")].map((c) => c.dataset.id));
       $("#lib-tree").innerHTML = items.length ? items.map((it) => {
         if (it.kind === "movie") {
           return libRow(
@@ -3799,7 +3805,7 @@
           if (libFilter === "watched") eps = eps.filter((e) => e.watched);
           if (!eps.length) return "";
           const w = se.episodes.filter((e) => e.watched).length;
-          return `<details class="lib-season"${open} style="margin-left:14px">
+          return `<details class="lib-season" data-key="${esc(it.id)}|${se.season}"${open} style="margin-left:14px">
             <summary style="list-style:none;cursor:pointer">${libRow(
               `<input type="checkbox" class="lib-season-check" title="select this season" style="margin:0" />` +
               `<span class="grow" style="flex:1">Season ${se.season} <span class="muted">${se.episodes.length} ep${w ? ` · ${w}/${se.episodes.length} watched` : ""}</span></span>` +
@@ -3807,7 +3813,7 @@
             ${eps.map(epRow).join("")}
           </details>`;
         }).join("");
-        return `<details class="lib-show"${open}>
+        return `<details class="lib-show" data-key="${esc(it.id)}"${open}>
           <summary style="list-style:none;cursor:pointer">${libRow(
             libThumb(it.cover, "📺") +
             `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)} <span class="muted">${it.epCount} ep${it.epWatched ? ` · ${it.epWatched} watched` : ""}</span></span>` +
@@ -3816,6 +3822,8 @@
           ${seasons}
         </details>`;
       }).join("") : `<div class="empty-note">${q || libFilter !== "all" ? "Nothing matches." : "Library is empty."}</div>`;
+      for (const d of tree.querySelectorAll("details[data-key]")) if (wasOpen.has(d.dataset.key)) d.open = true;
+      for (const c of tree.querySelectorAll(".lib-ep-check")) if (wasChecked.has(c.dataset.id)) c.checked = true;
       updateBatchBar();
     }
     $("#lib-search").addEventListener("input", renderLibTree);

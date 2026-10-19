@@ -150,7 +150,7 @@ const insideARoot = (dir, roots) =>
 // the deletion are removed too (never a library root), then a rescan.
 // Registered BEFORE the generic /:type/:id delete so "file" can't parse
 // as a type.
-router.delete("/api/admin/library/file/:id", (req, res) => {
+router.delete("/api/admin/library/file/:id", async (req, res) => {
   const entry = scanner.resolve(req.params.id);
   if (!entry || entry.kind !== "video" || !fs.existsSync(entry.path)) {
     return res.status(404).json({ error: "File not found" });
@@ -163,11 +163,21 @@ router.delete("/api/admin/library/file/:id", (req, res) => {
   }
   const roots = [...config.LIBRARIES.movies, ...config.LIBRARIES.shows];
   let result;
-  try {
-    result = libfiles.deleteVideoFile(entry.path, roots, config.SUBTITLE_EXTENSIONS);
-  } catch (err) {
-    const refusal = /outside the library/.test(err.message);
-    return res.status(refusal ? 400 : 500).json({ error: refusal ? err.message : `Delete failed: ${err.message}` });
+  // Windows: a file another process has open can't be unlinked — usually the
+  // server's own idle-priority readers (intro detection right after a
+  // download, credits, subtitle timing), which let go within seconds.
+  for (let tries = 0; ; tries++) {
+    try {
+      result = libfiles.deleteVideoFile(entry.path, roots, config.SUBTITLE_EXTENSIONS);
+      break;
+    } catch (err) {
+      const busy = err && /^(EBUSY|EPERM|EACCES)$/.test(err.code || "") && fs.existsSync(entry.path);
+      if (busy && tries < 40) { await new Promise((r) => setTimeout(r, 250)); continue; }
+      // (503, not 409: the page reads every 409 as "someone is playing it")
+      if (busy) return res.status(503).json({ error: "The server is still reading this file — try again in a minute.", code: "busy" });
+      const refusal = /outside the library/.test(err.message);
+      return res.status(refusal ? 400 : 500).json({ error: refusal ? err.message : `Delete failed: ${err.message}` });
+    }
   }
   scanner.scan();
   realtime.libraryUpdated();

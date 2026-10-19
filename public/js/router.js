@@ -37,6 +37,14 @@ const markNav = (hash) => {
 };
 
 let current = { cleanup: null };
+// Renders that overlap (a hashchange while a screen is still loading — a
+// fast Back, a re-render in place): each one clears #app and then awaits
+// its screen, so the older one, finishing later, used to append a second
+// screen next to the newer (two Search boxes, both live). The newest render
+// owns #app; an older one that finishes is undone and #app drawn once more.
+let renderSeq = 0;
+let inFlight = 0;
+let dirty = false;
 
 // What a screen hung on something that OUTLIVES it — a listener on window or
 // document, a subscription to the live socket — is let go when the screen is
@@ -92,8 +100,19 @@ const render = async () => {
     window.scrollTo(0, 0);
     const t0 = performance.now();
     window.dispatchEvent(new CustomEvent("aurora-route-start", { detail: { pattern: r.pattern } })); // [analytics] which screen is being opened (the pattern, never an id)
-    const cleanup = await r.render(appRoot, params);
+    const my = ++renderSeq;
+    inFlight++;
+    let cleanup;
+    try { cleanup = await r.render(appRoot, params); } finally { inFlight--; }
+    if (my !== renderSeq) {
+      // a newer render cleared #app while this one loaded: this screen is surplus
+      if (typeof cleanup === "function") { try { cleanup(); } catch {} }
+      dirty = true;
+      if (inFlight === 0) { dirty = false; return render(); }
+      return;
+    }
     if (typeof cleanup === "function") current.cleanup = cleanup;
+    if (dirty && inFlight === 0) { dirty = false; return render(); }
     // Which screen painted and how long it took (the pattern, never an id) —
     // the usage stats listen for this. Measured to the next frame, so the
     // paint is in.
