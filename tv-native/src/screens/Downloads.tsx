@@ -31,6 +31,8 @@ import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing, radius} = theme;
 const ACTIVE = ['approved', 'downloading'];
+// A failed read is asked again after these waits (the last one repeats).
+const RETRY_MS = [3000, 8000, 20000, 30000];
 
 const fmtBytes = (b?: number) => {
   if (!b) return '';
@@ -93,14 +95,42 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
   useRouteShown(jobs !== null);
   const [error, setError] = useState('');
 
+  // A read that fails (the server restarting) is asked again by itself — 3 s,
+  // 8 s, 20 s, then every 30 s while the page is open — and a read that works
+  // takes the message away. It used to say "Could not load your downloads"
+  // for good: the next read (the socket's welcome after the restart, the slow
+  // poll) filled the list in behind a message nothing ever cleared (Mi TV,
+  // 2026-10-18). A list already on screen stays when a later read fails.
+  const readRetry = React.useRef<{n: number; timer: ReturnType<typeof setTimeout> | null}>({n: 0, timer: null});
   const load = useCallback(() => {
+    const r = readRetry.current;
+    if (r.timer) clearTimeout(r.timer);
+    r.timer = null;
     api
       .myDownloads(profileId)
-      .then(list => setJobs(new Map(list.map(j => [j.id, j]))))
-      .catch(() => setError('Could not load your downloads.'));
+      .then(list => {
+        readRetry.current.n = 0;
+        setError('');
+        setJobs(new Map(list.map(j => [j.id, j])));
+      })
+      .catch(() => {
+        setJobs(prev => {
+          if (!prev) setError("Couldn't load your downloads. The server didn't answer — trying again…");
+          return prev;
+        });
+        const wait = RETRY_MS[Math.min(readRetry.current.n++, RETRY_MS.length - 1)];
+        readRetry.current.timer = setTimeout(() => {
+          readRetry.current.timer = null;
+          load();
+        }, wait);
+      });
   }, [profileId]);
   useEffect(() => {
     if (live) load();
+    return () => {
+      if (readRetry.current.timer) clearTimeout(readRetry.current.timer);
+      readRetry.current.timer = null;
+    };
   }, [live, load]);
   // Live: the socket says what moved; a slow poll covers a dropped socket.
   useEffect(() => {
