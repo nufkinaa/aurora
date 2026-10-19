@@ -1,6 +1,7 @@
 // App-wide state: active profile, cached library, playback progress.
 import { api, setAuthToken, forgetWarm } from "./api.js";
 import { personPrefsFor, boxFrom } from "./personprefs.js";
+import { playerOptionsFor } from "./playerOptions.js"; // [player-options]
 
 export const state = {
   profile: null,        // active profile object
@@ -150,8 +151,40 @@ const readJson = (key, fallback) => {
     return fallback;
   }
 };
+// [player-options] Night mode, dialogue boost and the subtitle look
+// (playerOptions.js has the rule): laid over this browser's player settings
+// the same way, with their own one-time move — this browser's old subtitle
+// size / background, offered to each person once (MOVED_OPTIONS_KEY).
+const MOVED_OPTIONS_KEY = "aurora-options-moved";
+const applyPlayerOptions = (profile) => {
+  try {
+    const local = readJson("aurora-player", {});
+    const movedList = readJson(MOVED_OPTIONS_KEY, []);
+    const moved = Array.isArray(movedList) && movedList.includes(profile.id);
+    const r = playerOptionsFor({ prefs: profile.prefs, local, moved });
+    if (r.changed) localStorage.setItem("aurora-player", JSON.stringify(r.local));
+    const done = () => {
+      try {
+        const list = readJson(MOVED_OPTIONS_KEY, []);
+        if (Array.isArray(list) && !list.includes(profile.id)) {
+          localStorage.setItem(MOVED_OPTIONS_KEY, JSON.stringify([...list, profile.id].slice(-60)));
+        }
+      } catch {}
+    };
+    if (!moved) {
+      if (!Object.keys(r.owed).length) done();
+      else {
+        profile.prefs = { ...(profile.prefs || {}), ...r.owed };
+        api.updateProfile(profile.id, { prefs: r.owed }).then(done).catch(() => {});
+      }
+    }
+    // an open player (and Settings' preview) repaints with them
+    if (r.changed) window.dispatchEvent(new CustomEvent("aurora:player-options"));
+  } catch {}
+};
 export const applyPersonPrefs = (profile) => {
   if (!profile || !profile.id) return;
+  applyPlayerOptions(profile);
   try {
     const local = readJson("aurora-player", {});
     let box = readJson(BOX_KEY, null);

@@ -21,6 +21,8 @@ import {api} from './api';
 import {
   afterPush,
   changePerson,
+  MOVE_GEN,
+  upgradeRecord,
   PersonKey,
   PersonPrefs,
   PersonRecord,
@@ -124,6 +126,9 @@ export const enterPerson = (id: string) => {
     // never seen on this box: its old per-TV choices become this person's
     // (where their profile has none — resolvePerson, rule 3)
     if (!rec) rec = seedFromBox(await loadBoxPrefs());
+    // [player-options] seen before 2026-10-19: the box's old subtitle look
+    // joins them once (personPrefs.ts upgradeRecord)
+    else if ((rec.gen || 1) < MOVE_GEN) rec = upgradeRecord(rec, await loadBoxPrefs());
     if (stale) return;
     const r = resolvePerson(null, rec);
     active = {id, rec: r.rec, effective: r.effective};

@@ -1,6 +1,6 @@
 // SETTINGS THAT FOLLOW THE PERSON — the rules, and nothing else.
-// PURE: no imports, so the logic tests run it as it is (personSync.ts does
-// the reading, writing and remembering around it).
+// PURE: the only import is subStyle.ts, itself pure, so the logic tests run it
+// as it is (personSync.ts does the reading, writing and remembering around it).
 //
 // Until 2026-10-10 every choice under Settings was kept on the BOX
 // (`aurora.prefs` in AsyncStorage): whoever watched on this TV got whatever
@@ -19,14 +19,22 @@
 //     smartCleanup    tidy up after watching                   default on
 //   (the liked genres, the last subtitle pick and the last dub were already
 //   on the profile, through their own calls)
+//   PLAYER OPTIONS (2026-10-19, the website has the same ones):
+//     nightMode, dialogueBoost the sound (audioFx.ts)             default off
+//     subSize, subColor, subBg, subOpacity, subWeight, subPos
+//                              how subtitles look (subStyle.ts)   M, white, box, 75, bold, lower
 //
 //   DEVICE — stays in `aurora.prefs` on this box, because it is about this
 //   screen and not about the person:
-//     cueSize, cueBackground   how subtitles are drawn at this distance
 //     heroTrailers             trailers on Home's billboard (a weak box)
 //     downloadNotices          this TV's notifications
+//     cueSize, cueBackground   NO LONGER USED: this box's subtitle look until
+//                              2026-10-19, read once per person by the
+//                              one-time move into subSize / subBg (MOVE_GEN)
 //
 // A key the profile does not carry means "the default".
+
+import {readStyle, styleFromDevice, SubStyle, SUB_STYLE_DEFAULTS, SUB_STYLE_KEYS, SubStyleKey, validStyle} from './subStyle';
 
 export type SubLang = 'any' | 'he' | 'en' | 'ru';
 export type PersonPrefs = {
@@ -36,7 +44,10 @@ export type PersonPrefs = {
   usageStats: boolean;
   smartDownloads: boolean;
   smartCleanup: boolean;
-};
+  // [player-options]
+  nightMode: boolean;
+  dialogueBoost: boolean;
+} & SubStyle;
 export type PersonKey = keyof PersonPrefs;
 
 export const PERSON_DEFAULTS: PersonPrefs = {
@@ -46,13 +57,23 @@ export const PERSON_DEFAULTS: PersonPrefs = {
   usageStats: true,
   smartDownloads: true,
   smartCleanup: true,
+  nightMode: false,
+  dialogueBoost: false,
+  ...SUB_STYLE_DEFAULTS,
 };
 export const PERSON_KEYS = Object.keys(PERSON_DEFAULTS) as PersonKey[];
 export const DEVICE_KEYS = ['cueSize', 'cueBackground', 'heroTrailers', 'downloadNotices'] as const;
+// (cueSize / cueBackground: kept on the box only as what the one-time move reads)
 export const SUB_LANGS: SubLang[] = ['any', 'he', 'en', 'ru'];
 
 const valid = (key: PersonKey, value: unknown): boolean =>
-  key === 'subLang' ? SUB_LANGS.includes(value as SubLang) : typeof value === 'boolean';
+  key === 'subLang'
+    ? SUB_LANGS.includes(value as SubLang)
+    : (SUB_STYLE_KEYS as string[]).includes(key)
+      ? validStyle(key as SubStyleKey, value)
+      : typeof value === 'boolean';
+/** The subtitle look out of a person's settings. */
+export const styleOf = (p: Partial<PersonPrefs>) => readStyle(p);
 
 /** The person-level keys out of anything (the server's `prefs`, a stored
  *  blob), keeping only values of the right kind. */
@@ -68,14 +89,17 @@ export const readPerson = (from: unknown): Partial<PersonPrefs> => {
 
 // What this box remembers of one person: the values it knows, and which of
 // them were changed HERE and have not reached the server yet.
-export type PersonRecord = {v: Partial<PersonPrefs>; dirty: PersonKey[]};
-export const emptyRecord = (): PersonRecord => ({v: {}, dirty: []});
+//   gen   which one-time moves this record has had (absent: only the first,
+//         2026-10-10's; MOVE_GEN: the subtitle look's too, 2026-10-19)
+export type PersonRecord = {v: Partial<PersonPrefs>; dirty: PersonKey[]; gen?: number};
+export const MOVE_GEN = 2;
+export const emptyRecord = (): PersonRecord => ({v: {}, dirty: [], gen: MOVE_GEN});
 export const readRecord = (raw: unknown): PersonRecord | null => {
   if (!raw || typeof raw !== 'object') return null;
-  const r = raw as {v?: unknown; dirty?: unknown};
+  const r = raw as {v?: unknown; dirty?: unknown; gen?: unknown};
   const v = readPerson(r.v);
   const dirty = Array.isArray(r.dirty) ? PERSON_KEYS.filter(k => (r.dirty as unknown[]).includes(k) && k in v) : [];
-  return {v, dirty};
+  return {v, dirty, gen: typeof r.gen === 'number' ? r.gen : 1};
 };
 
 /** THE ONE-TIME MOVE. The first time a person is seen on a box that used to
@@ -88,7 +112,20 @@ export const seedFromBox = (box: unknown): PersonRecord => {
   for (const k of PERSON_KEYS) {
     if (k in had && had[k] !== PERSON_DEFAULTS[k]) (v as Record<string, unknown>)[k] = had[k];
   }
-  return {v, dirty: []};
+  // the box's old subtitle look (cueSize / cueBackground), as the person's
+  Object.assign(v, styleFromDevice(box, 'tv'));
+  return {v, dirty: [], gen: MOVE_GEN};
+};
+
+/** THE SECOND ONE-TIME MOVE (2026-10-19), for a person this box already
+ *  knew: the box's old subtitle look joins what it remembers of them, where
+ *  it has nothing of its own for that key — and, by resolvePerson, only if
+ *  their profile says nothing either. */
+export const upgradeRecord = (rec: PersonRecord, box: unknown): PersonRecord => {
+  if ((rec.gen || 1) >= MOVE_GEN) return rec;
+  const v = {...rec.v} as Record<string, unknown>;
+  for (const [k, val] of Object.entries(styleFromDevice(box, 'tv'))) if (!(k in v)) v[k] = val;
+  return {v: v as Partial<PersonPrefs>, dirty: rec.dirty, gen: MOVE_GEN};
 };
 
 export type Resolved = {
@@ -131,7 +168,7 @@ export const resolvePerson = (server: Partial<PersonPrefs> | null, rec: PersonRe
   return {
     effective: effective as PersonPrefs,
     push: push as Partial<PersonPrefs>,
-    rec: {v: v as Partial<PersonPrefs>, dirty: rec.dirty.filter(k => k in v)},
+    rec: {v: v as Partial<PersonPrefs>, dirty: rec.dirty.filter(k => k in v), gen: rec.gen},
   };
 };
 
@@ -139,6 +176,7 @@ export const resolvePerson = (server: Partial<PersonPrefs> | null, rec: PersonRe
 export const changePerson = <K extends PersonKey>(rec: PersonRecord, key: K, value: PersonPrefs[K]): PersonRecord => ({
   v: {...rec.v, [key]: value},
   dirty: rec.dirty.includes(key) ? rec.dirty : [...rec.dirty, key],
+  gen: rec.gen,
 });
 
 /** The profile answered a write of `sent` with `answer` (its person-level
@@ -154,7 +192,7 @@ export const afterPush = (rec: PersonRecord, sent: Partial<PersonPrefs>, answer:
     settled.push(k);
     if (Object.prototype.hasOwnProperty.call(answer, k)) v[k] = answer[k];
   }
-  return {v: v as Partial<PersonPrefs>, dirty: rec.dirty.filter(k => !settled.includes(k))};
+  return {v: v as Partial<PersonPrefs>, dirty: rec.dirty.filter(k => !settled.includes(k)), gen: rec.gen};
 };
 
 // ---- the subtitle language, in words ----

@@ -133,6 +133,10 @@ import {
 } from '../playerRules';
 import {openReport, overlayOpen} from '../overlay';
 import {onPersonPrefs, setPersonPref} from '../personSync';
+// [player-options] night mode, dialogue boost, the look of subtitles (2026-10-19)
+import {CueText, SubStylePreview, useAudioFx} from '../playerOptions';
+import {CUE_PX, cueBottomFor, cueLook, CueLook, nextChoice, readStyle, styleLabel, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SubStyleKey} from '../subStyle';
+import {AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES} from '../audioFx';
 import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
@@ -187,8 +191,8 @@ const SEEK_DEBOUNCE_MS = 450;
 // leaving the viewer on a dead screen forever.
 const MAX_RECOVERIES = 4;
 const RECOVERY_WINDOW_MS = 30000;
-// The site's S/M/L ::cue sizes, scaled up for a 10-foot view.
-const CUE_PX: Record<Prefs['cueSize'], number> = {S: 18, M: 24, L: 32};
+// (The cue sizes — the site's S/M/L/XL, scaled up for a 10-foot view — are
+// subStyle.ts CUE_PX, with the rest of the person's subtitle look.)
 
 // Hoisted to module scope, and that matters: react-native-video folds
 // bufferConfig into the video SOURCE, and the source is what
@@ -354,14 +358,14 @@ const Subtitles = React.memo(function CueLayer({
   timeRef,
   offset,
   sizePx,
-  background,
+  look,
   bottom,
 }: {
   cues: Cue[] | null;
   timeRef: React.MutableRefObject<() => number>;
   offset: number;
   sizePx: number;
-  background: boolean;
+  look: CueLook; // [player-options] colour, weight, none / shadow / outline / box
   bottom: number;
 }) {
   const [text, setText] = useState('');
@@ -385,14 +389,7 @@ const Subtitles = React.memo(function CueLayer({
   if (!text) return null;
   return (
     <View pointerEvents="none" style={[styles.cueWrap, {bottom}]}>
-      <Text
-        style={[
-          styles.cueText,
-          {fontSize: sizePx, lineHeight: Math.round(sizePx * 1.4)},
-          background ? styles.cueBg : styles.cueShadow,
-        ]}>
-        {text}
-      </Text>
+      <CueText text={text} sizePx={sizePx} look={look} />
     </View>
   );
 });
@@ -426,14 +423,15 @@ const MenuItem = React.forwardRef<
     star?: boolean;
     sub?: string;
     icon?: IconName; // a glyph before the label, for the rows that are actions rather than choices
+    dim?: boolean; // [player-options] shown, greyed: it cannot apply here (the `sub` line says why)
     hasTVPreferredFocus?: boolean;
     onPress: () => void;
     onFocusChange?: (f: boolean) => void;
     uiId?: string; // [analytics] which control this is (Focusable.uiId)
   }
->(function PlayerMenuItem({label, tag, on, star, sub, icon, hasTVPreferredFocus, onPress, onFocusChange, uiId}, ref) {
+>(function PlayerMenuItem({label, tag, on, star, sub, icon, dim, hasTVPreferredFocus, onPress, onFocusChange, uiId}, ref) {
   const name = (
-    <Text style={[styles.menuItemText, on && styles.menuItemTextOn]} numberOfLines={1}>
+    <Text style={[styles.menuItemText, on && styles.menuItemTextOn, dim && styles.menuItemDim]} numberOfLines={1}>
       {label}
       {star ? <Text style={styles.menuStar}>{'  ★'}</Text> : null}
     </Text>
@@ -455,7 +453,7 @@ const MenuItem = React.forwardRef<
       {sub ? (
         <View style={styles.menuItemCol}>
           {name}
-          <Text style={styles.menuSub} numberOfLines={1}>
+          <Text style={styles.menuSub} numberOfLines={dim ? 2 : 1}>
             {sub}
           </Text>
         </View>
@@ -3342,6 +3340,20 @@ export default function Player({
     [showControls],
   );
 
+  // ==================== [player-options] 2026-10-19 ====================
+  // The person's subtitle look and sound (personPrefs.ts: on their profile,
+  // the same on the website). The cue layer reads the look; the native side
+  // gets the sound switches (audioFx.ts → AudioFx.kt) and answers why they
+  // cannot apply right now — then they are greyed with that one line.
+  const subStyle = useMemo(
+    () => readStyle(prefs),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [prefs.subSize, prefs.subColor, prefs.subBg, prefs.subOpacity, prefs.subWeight, prefs.subPos],
+  );
+  const cueStyleLook = useMemo(() => cueLook(subStyle), [subStyle]);
+  const fxWhy = useAudioFx(prefs.nightMode === true, prefs.dialogueBoost === true);
+  // ================== [/player-options] ==================
+
   // ---------------------------------------------------------------- derived
   // Seconds of video actually ready to play — what the viewer cares about, not
   // the scattered whole-torrent download percentage.
@@ -3543,8 +3555,8 @@ export default function Player({
         cues={cues}
         timeRef={timeRef}
         offset={subOffset}
-        sizePx={CUE_PX[prefs.cueSize]}
-        background={prefs.cueBackground}
+        sizePx={CUE_PX[subStyle.subSize]}
+        look={cueStyleLook}
         // Chrome up: just above the real top of the bottom bar (its scrubber
         // row is the bar's first line), measured by onLayout — so a cue can
         // never be drawn under the scrubber whatever the bar's height on this
@@ -3552,7 +3564,9 @@ export default function Player({
         // "take the subs down a bit when the timeline is open"). Until the bar
         // has been measured, the 150 that used to be the only answer. Chrome
         // hidden: 48, as always. (cues.ts cueBottom)
-        bottom={cueBottom(controls, chromeLift, chromeH.current || undefined)}
+        // [player-options] "raised": at least a fifth of the screen up, the
+        // lift above the bar still winning when it is higher (subStyle.ts)
+        bottom={cueBottomFor(subStyle.subPos, cueBottom(controls, chromeLift, chromeH.current || undefined), chromeH.current || winH)}
       />
 
       {/* Mid-playback stall. The site only darkens the picture and explains
@@ -4004,6 +4018,22 @@ export default function Player({
                 </View>
               </>
             ) : null}
+            {/* [player-options] SUBTITLE STYLE — the person's look, with the
+                live sample; the cues on screen change at once too. */}
+            <MenuTitle icon="cc" label="SUBTITLE STYLE" gap />
+            <View style={styles.stylePreview}>
+              <SubStylePreview style={subStyle} sizePx={{S: 14, M: 17, L: 20, XL: 24}[subStyle.subSize]} compact />
+            </View>
+            {SUB_STYLE_KEYS.filter(k => k !== 'subOpacity' || subStyle.subBg === 'box').map((k: SubStyleKey) => (
+              <MenuItem
+                key={k}
+                uiId="player.subtitles.style"
+                label={SUB_STYLE_NAMES[k]}
+                tag={styleLabel(k, subStyle)}
+                onFocusChange={markZone('menu')}
+                onPress={() => setPref(k, nextChoice(k, subStyle[k]) as never)}
+              />
+            ))}
           </ScrollView>
         </TVFocusGuideView>
       ) : null}
@@ -4041,9 +4071,11 @@ export default function Player({
           {/* Its own scroller (it had none: a film with several dubs and an
               intro to mark ran past the top of the screen). */}
           <ScrollView ref={gearScroll} style={styles.menuScroll} showsVerticalScrollIndicator={false}>
+          {/* [player-options] AUDIO is always here now: the dub list (with
+              more than one track) and the two sound switches under it. */}
+          <MenuTitle icon="volume" label="AUDIO" />
           {audioTracks.length > 1 ? (
             <>
-              <MenuTitle icon="volume" label="AUDIO" />
               {audioTracks.map(t => (
                 // the ticked dub claims focus, so the list must SHOW it (the
                 // subtitle menu's rule: Android does not scroll to a child
@@ -4072,13 +4104,27 @@ export default function Player({
               ))}
             </>
           ) : null}
+          {AUDIO_FX_KEYS.map((k, i) => (
+            <MenuItem
+              key={k}
+              uiId={k === 'nightMode' ? 'player.audio.night' : 'player.audio.dialogue'}
+              label={AUDIO_FX_NAMES[k]}
+              sub={fxWhy || AUDIO_FX_NOTES[k]}
+              tag={fxWhy ? 'Not here' : prefs[k] ? 'On' : 'Off'}
+              on={!fxWhy && prefs[k] === true}
+              dim={!!fxWhy}
+              // a film with one dub: the first switch is the menu's first row
+              hasTVPreferredFocus={i === 0 && audioTracks.length <= 1}
+              onFocusChange={markZone('menu')}
+              onPress={() => (fxWhy ? toast(fxWhy) : setPref(k, !prefs[k]))}
+            />
+          ))}
           {epSeason && epEpisode ? (
             <>
-              <MenuTitle icon="play" label="PLAYBACK" gap={audioTracks.length > 1} />
+              <MenuTitle icon="play" label="PLAYBACK" gap />
               <MenuItem uiId="player.autoplay"
                 label="Autoplay next episode"
                 tag={prefs.autoplayNext ? 'On' : 'Off'}
-                hasTVPreferredFocus={audioTracks.length <= 1}
                 onFocusChange={markZone('menu')}
                 onPress={() => setPref('autoplayNext', !prefs.autoplayNext)}
               />
@@ -4146,26 +4192,9 @@ export default function Player({
               )}
             </>
           ) : null}
-          <MenuTitle icon="cc" label="SUBTITLE STYLE" gap />
-          <MenuItem
-            label="Size"
-            tag={{S: 'Small', M: 'Medium', L: 'Large'}[prefs.cueSize]}
-            // A film with one audio track has no section above this one, and
-            // with nothing asking for focus the panel opened dead - focus
-            // stayed on the gear behind it (found on the Mi TV, 2026-10-08).
-            hasTVPreferredFocus={audioTracks.length <= 1 && !(epSeason && epEpisode)}
-            onFocusChange={markZone('menu')}
-            onPress={() => {
-              const order: Prefs['cueSize'][] = ['S', 'M', 'L'];
-              setPref('cueSize', order[(order.indexOf(prefs.cueSize) + 1) % 3]);
-            }}
-          />
-          <MenuItem
-            label="Background"
-            tag={prefs.cueBackground ? 'On' : 'Off'}
-            onFocusChange={markZone('menu')}
-            onPress={() => setPref('cueBackground', !prefs.cueBackground)}
-          />
+          {/* (SUBTITLE STYLE moved to the subtitle menu, 2026-10-19 — the
+              site's too: it is where you look when a cue is hard to read.
+              The panel's first focus is the first AUDIO row: always there.) */}
           {/* Report a problem, from where the problems are (the site's player
               has the same entry). The film waits while the sheet is up; what
               was playing, the position and the last errors go with the report
@@ -4796,21 +4825,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: '10%',
   },
-  cueText: {
-    color: colors.white,
-    fontWeight: '700',
-    textAlign: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 2,
-    overflow: 'hidden',
-    borderRadius: 4,
-  },
-  // `::cue { background: rgba(0,0,0,.75) }` — the site's default.
-  cueBg: {backgroundColor: 'rgba(0,0,0,0.75)'},
-  // With the plate off, the text still has to survive a bright frame.
-  cueShadow: {
-    textShadowColor: 'rgba(0,0,0,0.95)',
-    textShadowOffset: {width: 0, height: 2},
-    textShadowRadius: 8,
-  },
+  // (the cue's text, its plate, shadow and outline: playerOptions.tsx CueText)
+  // [player-options]
+  stylePreview: {marginHorizontal: 8, marginTop: 4, marginBottom: 6},
+  menuItemDim: {opacity: 0.5},
 });

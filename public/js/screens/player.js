@@ -19,6 +19,9 @@ import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "
 import { savedDelay, saveDelay } from "../subdelay.js";
 import { createAirplay } from "../airplay.js";
 import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM } from "../playstart.js";
+// [player-options] night mode, dialogue boost, the look of subtitles (2026-10-19)
+import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_VW, CUE_MIN_PX, RAISED_PCT, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SUB_COLORS } from "../subStyle.js";
+import { audioFxFor, AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES } from "../audiofx.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -91,14 +94,43 @@ const prefs = {
 // open while something is already playing).
 export const playerPrefs = prefs;
 
-const CUE_SIZES = { S: "1.4vw", M: "2.2vw", L: "3.2vw" };
-// …and never smaller than this: on a phone held upright 2.2vw is 8.6 px —
-// unreadable (seen 2026-10-17 while fixing the cue position there)
-const CUE_MIN_PX = { S: 12, M: 15, L: 19 };
+// ---- [player-options] the look of subtitles: the PERSON's (subStyle.js) ----
+// state.js lays the profile's choices into this browser's player settings
+// (subSize … subPos); these read them back as one style.
+const styleNow = () => {
+  const o = {};
+  for (const k of SUB_STYLE_KEYS) o[k] = prefs.get(k, undefined);
+  return readStyle(o);
+};
+// A share of the window's width per size (CUE_VW), and never smaller than
+// CUE_MIN_PX: on a phone held upright 2.2vw is 8.6 px — unreadable (seen
+// 2026-10-17 while fixing the cue position there).
 const cueFontPx = () => {
-  const k = prefs.get("cueSize", "M");
-  const vw = parseFloat(CUE_SIZES[k] || CUE_SIZES.M);
-  return Math.max((vw * window.innerWidth) / 100, CUE_MIN_PX[k] || CUE_MIN_PX.M);
+  const k = styleNow().subSize;
+  return Math.max((CUE_VW[k] * window.innerWidth) / 100, CUE_MIN_PX[k]);
+};
+// The style on a sample line (the subtitle menu's and Settings' live preview):
+// the same colour, background, shadow and weight as the real cues; `px` the
+// size to draw it at (null: the real size).
+export const paintCuePreview = (node, style = styleNow(), px = null) => {
+  const s = readStyle(style);
+  const k = s.subSize;
+  node.style.fontSize = px != null ? `${px}px` : `max(${CUE_VW[k]}vw, ${CUE_MIN_PX[k]}px)`;
+  node.style.color = SUB_COLORS[s.subColor];
+  node.style.background = cueBackdrop(s);
+  node.style.textShadow = cueShadow(s);
+  node.style.fontWeight = s.subWeight === "bold" ? "700" : "400";
+  node.dataset.bg = s.subBg;
+  node.dataset.pos = s.subPos;
+};
+// The preview's sample: an English line and a Hebrew one (each its own
+// direction — the Hebrew must read right to left, as on a real cue).
+export const cuePreview = (cls = "sub-preview") => {
+  const cue = el("span", { class: "sub-preview-cue" },
+    el("span", { dir: "auto" }, "This is how subtitles look"),
+    el("br"),
+    el("span", { dir: "auto", lang: "he" }, "כך נראות הכתוביות"));
+  return { box: el("div", { class: cls, "aria-hidden": "true" }, cue), cue };
 };
 
 // ---- "Still watching?" (2026-10-08) ----
@@ -532,14 +564,10 @@ export const applyCueStyle = () => {
     styleEl.id = "cue-style";
     document.head.append(styleEl);
   }
-  const key = prefs.get("cueSize", "M");
-  const size = `max(${CUE_SIZES[key] || CUE_SIZES.M}, ${CUE_MIN_PX[key] || CUE_MIN_PX.M}px)`;
-  const bg = prefs.get("cueBackground", true)
-    ? "rgba(0, 0, 0, 0.75)"
-    : "transparent";
-  styleEl.textContent =
-    `video::cue { font-size: ${size}; background: ${bg}; ` +
-    `font-family: inherit; line-height: 1.4; }`;
+  // [player-options] the person's style (subStyle.js cueCss): size, colour,
+  // background (none / shadow / outline / a box at its opacity), weight
+  const s = styleNow();
+  styleEl.textContent = cueCss(s, `max(${CUE_VW[s.subSize]}vw, ${CUE_MIN_PX[s.subSize]}px)`);
 };
 
 // A start the server answers "busy, ask again" (503 + Retry-After): how many
@@ -3164,8 +3192,23 @@ export const renderPlayer = async (root, { id }) => {
       try { tt.removeCue(cue); tt.addCue(cue); } catch {}
     }
   };
+  // [player-options] Position "raised": with the chrome hidden, default-placed
+  // cues sit with their bottom at RAISED_PCT of the picture instead of the
+  // browser's own foot-of-the-frame place; with it up, whichever of that and
+  // "just above the dock" is HIGHER (the lift above stays intact).
+  const restLine = () => {
+    if (styleNow().subPos !== "raised") return null;
+    const v = video.getBoundingClientRect();
+    return v.height ? { pct: RAISED_PCT, w: v.width, h: v.height } : null;
+  };
+  const aimNow = () => {
+    if (!cuesLifted) return restLine();
+    const l = liftLine();
+    if (l && styleNow().subPos === "raised") l.pct = Math.min(l.pct, RAISED_PCT);
+    return l;
+  };
   const placeAllCues = () => {
-    const line = cuesLifted ? liftLine() : null;
+    const line = aimNow();
     for (const tt of video.textTracks) {
       if (tt.mode !== "showing" || !tt.cues) continue;
       const moved = Array.from(tt.cues).filter((cue) => placeCue(cue, line));
@@ -3183,8 +3226,8 @@ export const renderPlayer = async (root, { id }) => {
   // become active — cheap: only the active cues are touched.
   const onCueChange = (e) => {
     const tt = e.target;
-    if (!cuesLifted || tt.mode !== "showing" || !tt.activeCues) return;
-    const line = liftLine();
+    if ((!cuesLifted && styleNow().subPos !== "raised") || tt.mode !== "showing" || !tt.activeCues) return;
+    const line = aimNow();
     redrawActive(tt, Array.from(tt.activeCues).filter((cue) => placeCue(cue, line)));
   };
   for (const tt of video.textTracks) tt.addEventListener("cuechange", onCueChange);
@@ -3194,8 +3237,98 @@ export const renderPlayer = async (root, { id }) => {
   // float mid-picture there, so everything goes back to its own placement.
   video.addEventListener("webkitbeginfullscreen", () => liftCues(false));
   // a resize / fullscreen flip moves the dock — re-aim while lifted
-  const onLiftResize = () => cuesLifted && placeAllCues();
+  const onLiftResize = () => (cuesLifted || styleNow().subPos === "raised") && placeAllCues();
   window.addEventListener("resize", onLiftResize);
+
+  // ==================== [player-options] 2026-10-19 ====================
+  // Night mode, dialogue boost and the look of subtitles. All of it is the
+  // PERSON's (state.js setPersonPref: their profile, synced to the TV and
+  // every browser); this block applies it to this player and draws the menu
+  // rows. audiofx.js has the sound, subStyle.js the look.
+  const fx = audioFxFor(video);
+  video.auroraFx = fx; // (for the browser tests: the graph and its live values)
+  const fxNow = () => ({ nightMode: prefs.get("nightMode", false) === true, dialogueBoost: prefs.get("dialogueBoost", false) === true });
+  fx.apply(fxNow());
+  const setOption = (key, value) => {
+    prefs.set(key, value);
+    setPersonPref(key, value); // the profile carries it to every device
+    applyPlayerOptions();
+  };
+  // a change from here, from Settings, or from another device (state.js
+  // sends "aurora:player-options" after laying a profile's choices down)
+  const applyPlayerOptions = () => {
+    fx.apply(fxNow());
+    applyCueStyle();
+    placeAllCues();
+  };
+  window.addEventListener("aurora:player-options", applyPlayerOptions);
+  // The two sound switches, at the foot of the gear menu's Audio section.
+  // Where they cannot work (iPhone, iPad, Safari — audiofx.js fxBlocked) they
+  // are shown greyed with the one-line reason, and nothing is changed.
+  const appendFxRows = (menu, rebuild) => {
+    const why = fx.blocked();
+    for (const k of AUDIO_FX_KEYS) {
+      const on = prefs.get(k, false) === true;
+      menu.append(
+        el(
+          "button",
+          {
+            "data-ui": k === "nightMode" ? "player.audio.night" : "player.audio.dialogue",
+            class: `menu-item focusable fx-row${why ? " disabled" : ""}`,
+            "aria-disabled": why ? "true" : null,
+            role: "switch",
+            "aria-checked": on ? "true" : "false",
+            "data-fx": k,
+            onclick: () => {
+              if (why) return toast(why, "🔈", null, { quiet: true });
+              setOption(k, !on);
+              rebuild();
+            },
+          },
+          el("span", {}, AUDIO_FX_NAMES[k]),
+          el("span", { class: "sub-note" }, why || AUDIO_FX_NOTES[k]),
+          el("span", { class: "tag" }, why ? "Not here" : on ? "On" : "Off"),
+        ),
+      );
+    }
+  };
+  // Subtitle style rows (in the Subtitles menu), with the live sample.
+  const appendStyleRows = (menu) => {
+    menu.append(menuTitle("cc", "Subtitle style", true));
+    const sample = cuePreview("sub-preview in-menu");
+    menu.append(sample.box);
+    const rows = [];
+    const paint = () => {
+      const st = styleNow();
+      paintCuePreview(sample.cue, st, { S: 13, M: 16, L: 20, XL: 24 }[st.subSize]);
+      for (const r of rows) {
+        r.tag.textContent = styleLabel(r.key, st);
+        // the box's opacity only means something with the box
+        if (r.key === "subOpacity") r.btn.hidden = st.subBg !== "box";
+      }
+    };
+    for (const key of SUB_STYLE_KEYS) {
+      const tag = el("span", { class: "tag" });
+      const btn = el(
+        "button",
+        {
+          "data-ui": "player.subtitles.style",
+          class: "menu-item focusable",
+          "data-style": key,
+          onclick: () => {
+            setOption(key, nextChoice(key, styleNow()[key]));
+            paint();
+          },
+        },
+        el("span", {}, SUB_STYLE_NAMES[key]),
+        tag,
+      );
+      rows.push({ key, btn, tag });
+      menu.append(btn);
+    }
+    paint();
+  };
+  // ================== [/player-options] ==================
 
   // While a far seek is landing, conflicting inputs are LOCKED: pressing
   // play resumed the deliberately-held old picture mid-swap, and stacking
@@ -3939,6 +4072,9 @@ export const renderPlayer = async (root, { id }) => {
           ),
         ),
       );
+      // [player-options] Subtitle style — the person's (follows them to every
+      // device), with a live sample line; the cues on screen change too.
+      appendStyleRows(menu);
     } else if (kind === "speed") {
       menu.append(menuTitle("speed", "Speed"));
       for (const s of SPEEDS) {
@@ -3972,8 +4108,10 @@ export const renderPlayer = async (root, { id }) => {
         // commentary). Picking one restarts the stream at the current
         // position with that track mapped in.
         const tracks = item.audioTracks || [];
+        // [player-options] the Audio section is always there now: the dub
+        // list (only with more than one track) and the two sound switches
+        menu.append(menuTitle("volume", "Audio"));
         if (tracks.length > 1) {
-          menu.append(menuTitle("volume", "Audio"));
           tracks.forEach((t, i) => {
             const idx = t.index != null ? t.index : i;
             menu.append(
@@ -3989,6 +4127,7 @@ export const renderPlayer = async (root, { id }) => {
             );
           });
         }
+        appendFxRows(menu, rebuild);
         // Quality — a library title can be played as a lighter stream when
         // the connection can't carry the file itself.
         if (canCap) {
@@ -4036,28 +4175,8 @@ export const renderPlayer = async (root, { id }) => {
             },
           ),
         );
-        menu.append(menuTitle("cc", "Subtitle style"));
-        menu.append(
-          entry("Size", prefs.get("cueSize", "M"), () => {
-            const order = ["S", "M", "L"];
-            const next =
-              order[(order.indexOf(prefs.get("cueSize", "M")) + 1) % 3];
-            prefs.set("cueSize", next);
-            applyCueStyle();
-            rebuild();
-          }),
-        );
-        menu.append(
-          entry(
-            "Background",
-            prefs.get("cueBackground", true) ? "On" : "Off",
-            () => {
-              prefs.set("cueBackground", !prefs.get("cueBackground", true));
-              applyCueStyle();
-              rebuild();
-            },
-          ),
-        );
+        // (Subtitle style moved to the Subtitles menu, 2026-10-19 — the
+        // TV's too: it is where you are looking when a cue is hard to read.)
         // (The Skip intro section that used to sit here — ignore the detected
         // intro, mark its start and end by hand, clear the marks — is gone
         // from the menu (elia). Detection and the public timestamp databases
@@ -6481,6 +6600,8 @@ export const renderPlayer = async (root, { id }) => {
     if (dockRO) dockRO.disconnect();
     else window.removeEventListener("resize", paintDockH);
     window.removeEventListener("resize", onLiftResize);
+    window.removeEventListener("aurora:player-options", applyPlayerOptions); // [player-options]
+    fx.dispose();
     unsubOcr();
     unsubSync();
     popScope(overlay);

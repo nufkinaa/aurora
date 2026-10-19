@@ -3,10 +3,10 @@
 // The site's groups: the liked genres that feed Home's recommendations,
 // Playback, Subtitles, Downloads, Privacy. WHAT FOLLOWS THE PERSON (autoplay,
 // subtitles on / language, the two download switches, usage stats — and the
-// genres) is read from and written to their PROFILE, so it is the same on the
-// website and on every TV; subtitle size and background, the billboard's
-// trailers and this TV's notifications stay on the box (personPrefs.ts has
-// the table, personSync.ts keeps it in step). Profile editing is left off
+// genres, and since 2026-10-19 the subtitle look and the sound) is read from
+// and written to their PROFILE, so it is the same on the website and on every
+// TV; the billboard's trailers and this TV's notifications stay on the box
+// (personPrefs.ts has the table, personSync.ts keeps it in step). Profile editing is left off
 // deliberately: on the site it opens a modal with a password field, and typing a
 // password on a remote is worse than doing it on the phone or laptop.
 //
@@ -33,6 +33,10 @@ import theme, {useTvMetrics} from '../theme';
 import {isLite} from '../perfTier';
 import {askNotificationPermission, setDownloadNotices} from '../homeScreen';
 import RenderDevPanel from '../components/RenderDevPanel';
+// [player-options] the sound and the look of subtitles, the person's (2026-10-19)
+import {SubStylePreview, useAudioFx} from '../playerOptions';
+import {nextChoice, readStyle, styleLabel, SUB_STYLE_KEYS, SUB_STYLE_SETTINGS, SubStyleKey} from '../subStyle';
+import {AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES} from '../audioFx';
 
 const {colors, fontSize, spacing, radius} = theme;
 
@@ -221,10 +225,15 @@ export default function Settings({
   };
 
   const subLangLabel = SUB_LANG_LABEL[prefs.subLang] || SUB_LANG_LABEL.any;
-  const cueLabel = useMemo(
-    () => ({S: 'Small', M: 'Medium', L: 'Large'}[prefs.cueSize] || 'Medium'),
-    [prefs.cueSize],
+  // [player-options] the look (with its live sample) and the sound
+  const subStyle = useMemo(
+    () => readStyle(prefs),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [prefs.subSize, prefs.subColor, prefs.subBg, prefs.subOpacity, prefs.subWeight, prefs.subPos],
   );
+  // (what this TV can do — not what the last film's sound was: a passthrough
+  // track greys the switches in the player, not here)
+  const fxWhy = useAudioFx(prefs.nightMode === true, prefs.dialogueBoost === true, {perFilm: false});
 
   return (
     <View style={styles.root}>
@@ -338,17 +347,37 @@ export default function Settings({
             value={subLangLabel}
             onPress={() => cycle('subLang', SUB_LANGS)}
           />
-          <Row uiId="settings.subs.size"
-            label="Subtitle size"
-            value={cueLabel}
-            onPress={() => cycle('cueSize', ['S', 'M', 'L'])}
-          />
-          <Row uiId="settings.subs.bg"
-            label="Subtitle background"
-            note="A dark plate behind the text. Off is cleaner; on is readable over anything."
-            value={prefs.cueBackground ? 'On' : 'Off'}
-            onPress={() => set('cueBackground', !prefs.cueBackground)}
-          />
+          {/* [player-options] how they look — the person's, the website's
+              same six — with the sample drawn exactly as the player draws a cue */}
+          <View style={styles.preview}>
+            <SubStylePreview style={subStyle} sizePx={{S: 18, M: 24, L: 30, XL: 36}[subStyle.subSize]} />
+          </View>
+          {SUB_STYLE_KEYS.filter(k => k !== 'subOpacity' || subStyle.subBg === 'box').map((k: SubStyleKey) => (
+            <Row
+              key={k}
+              uiId={STYLE_UI[k]}
+              label={SUB_STYLE_SETTINGS[k][0]}
+              note={SUB_STYLE_SETTINGS[k][1] || undefined}
+              value={styleLabel(k, subStyle)}
+              onPress={() => set(k, nextChoice(k, subStyle[k]) as never)}
+            />
+          ))}
+        </View>
+
+        {/* [player-options] the sound — the person's, the website's same two */}
+        <Text style={styles.h2}>Sound</Text>
+        <View style={styles.list}>
+          {AUDIO_FX_KEYS.map(k => (
+            <Row
+              key={k}
+              uiId={k === 'nightMode' ? 'settings.audio.night' : 'settings.audio.dialogue'}
+              label={AUDIO_FX_NAMES[k]}
+              note={fxWhy || AUDIO_FX_NOTES[k]}
+              value={fxWhy ? 'Not here' : prefs[k] ? 'On' : 'Off'}
+              // where it cannot apply the row says why, and a press says it again
+              onPress={() => (fxWhy ? showToast(fxWhy, '🔈') : set(k, !prefs[k]))}
+            />
+          ))}
         </View>
         {/* A kids profile's settings leave out what a child shouldn't change —
             what Aurora downloads by itself, and the sign-in (below) — as on
@@ -452,7 +481,13 @@ export default function Settings({
   );
 }
 
+// [analytics] each subtitle-look row's uiId (one line: test/tel-contract reads tags line by line)
+// prettier-ignore
+const STYLE_UI: Record<SubStyleKey, string> = {subSize: 'settings.subs.size', subColor: 'settings.subs.color', subBg: 'settings.subs.bg', subOpacity: 'settings.subs.opacity', subWeight: 'settings.subs.weight', subPos: 'settings.subs.pos'}; // uiId
+
 const styles = StyleSheet.create({
+  // [player-options] the subtitle sample, as wide as a row
+  preview: {marginVertical: spacing.sm, maxWidth: 900},
   signOut: {
     backgroundColor: colors.surface,
     borderRadius: radius.m,

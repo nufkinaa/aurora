@@ -34,11 +34,19 @@ import {clearProfileCaches} from '../../src/profileScope';
 // ------------------------------------------------------------------ the rules
 describe('which settings are whose', () => {
   test('the person-level keys and the device-level keys do not overlap, and every one is a real setting', () => {
-    expect(PERSON_KEYS.sort()).toEqual(['autoplayNext', 'smartCleanup', 'smartDownloads', 'subLang', 'subsDefault', 'usageStats']);
+    expect(PERSON_KEYS.sort()).toEqual([
+      'autoplayNext', 'dialogueBoost', 'nightMode', 'smartCleanup', 'smartDownloads',
+      'subBg', 'subColor', 'subLang', 'subOpacity', 'subPos', 'subSize', 'subWeight', 'subsDefault', 'usageStats',
+    ]);
     for (const k of DEVICE_KEYS) expect(PERSON_KEYS as string[]).not.toContain(k);
     for (const k of [...PERSON_KEYS, ...DEVICE_KEYS]) expect(PREFS_DEFAULTS).toHaveProperty(k);
     // the defaults the two clients share
-    expect(PERSON_DEFAULTS).toEqual({autoplayNext: true, subsDefault: true, subLang: 'any', usageStats: true, smartDownloads: true, smartCleanup: true});
+    expect(PERSON_DEFAULTS).toEqual({
+      autoplayNext: true, subsDefault: true, subLang: 'any', usageStats: true, smartDownloads: true, smartCleanup: true,
+      // [player-options] 2026-10-19
+      nightMode: false, dialogueBoost: false,
+      subSize: 'M', subColor: 'white', subBg: 'box', subOpacity: 75, subWeight: 'bold', subPos: 'lower',
+    });
   });
 
   test('only values of the right kind are read off a profile', () => {
@@ -54,7 +62,8 @@ describe('which settings are whose', () => {
 describe('the one-time move from the box', () => {
   test("the box's real choices become the person's; a value that is only the default is not a choice", () => {
     const box = {...PREFS_DEFAULTS, autoplayNext: false, subLang: 'he', usageStats: false, subsDefault: true, cueSize: 'L'};
-    expect(seedFromBox(box)).toEqual({v: {autoplayNext: false, subLang: 'he', usageStats: false}, dirty: []});
+    // (the box's old subtitle size moves too, as the person's subSize — 2026-10-19)
+    expect(seedFromBox(box)).toEqual({v: {autoplayNext: false, subLang: 'he', usageStats: false, subSize: 'L'}, dirty: [], gen: 2});
   });
 
   test('…only where the profile has none: what the profile already says wins', () => {
@@ -104,19 +113,19 @@ describe('what wins', () => {
 describe('a write and its answer', () => {
   test('delivered: no longer owed', () => {
     const rec = changePerson(emptyRecord(), 'autoplayNext', false);
-    expect(afterPush(rec, {autoplayNext: false}, {autoplayNext: false})).toEqual({v: {autoplayNext: false}, dirty: []});
+    expect(afterPush(rec, {autoplayNext: false}, {autoplayNext: false})).toEqual({v: {autoplayNext: false}, dirty: [], gen: 2});
   });
 
   test('changed again while the write was on its way: still owed', () => {
     let rec = changePerson(emptyRecord(), 'subLang', 'he');
     rec = changePerson(rec, 'subLang', 'ru'); // pressed again before the first answer
-    expect(afterPush(rec, {subLang: 'he'}, {subLang: 'he'})).toEqual({v: {subLang: 'ru'}, dirty: ['subLang']});
+    expect(afterPush(rec, {subLang: 'he'}, {subLang: 'he'})).toEqual({v: {subLang: 'ru'}, dirty: ['subLang'], gen: 2});
   });
 
   test('a server too old to store the key: the box keeps its value, and stops re-sending it as a change', () => {
     const rec = changePerson(emptyRecord(), 'autoplayNext', false);
     const after = afterPush(rec, {autoplayNext: false}, {}); // the answer does not carry it
-    expect(after).toEqual({v: {autoplayNext: false}, dirty: []});
+    expect(after).toEqual({v: {autoplayNext: false}, dirty: [], gen: 2});
     // …and it still applies on this TV
     expect(resolvePerson({}, after).effective.autoplayNext).toBe(false);
   });
@@ -125,6 +134,7 @@ describe('a write and its answer', () => {
     expect(readRecord({v: {subLang: 'xx', autoplayNext: false}, dirty: ['subLang', 'autoplayNext', 'nope']})).toEqual({
       v: {autoplayNext: false},
       dirty: ['autoplayNext'],
+      gen: 1, // written before 2026-10-19: the subtitle look's move is still to come
     });
     expect(readRecord('junk')).toBeNull();
   });
@@ -145,7 +155,10 @@ describe('personSync', () => {
     store.clear();
     _personInternals.reset();
     server = {};
-    storesKeys = ['autoplayNext', 'subsDefault', 'subLang', 'usageStats', 'smartDownloads', 'smartCleanup'];
+    storesKeys = [
+      'autoplayNext', 'subsDefault', 'subLang', 'usageStats', 'smartDownloads', 'smartCleanup',
+      'nightMode', 'dialogueBoost', 'subSize', 'subColor', 'subBg', 'subOpacity', 'subWeight', 'subPos',
+    ];
     profiles = jest.spyOn(api, 'profiles').mockImplementation(async () => [profile({...server})]);
     update = jest.spyOn(api, 'updateProfile').mockImplementation(async (_id: string, fields: {prefs: Record<string, unknown>}) => {
       for (const [k, v] of Object.entries(fields.prefs)) if (storesKeys.includes(k)) server[k] = v;
@@ -159,8 +172,9 @@ describe('personSync', () => {
     enterPerson('p1');
     await flush();
     expect(update).toHaveBeenCalledTimes(1);
-    expect(update.mock.calls[0][1]).toEqual({prefs: {autoplayNext: false, usageStats: false}});
-    expect(server).toEqual({autoplayNext: false, usageStats: false});
+    // (the box's old subtitle size goes along, as the person's subSize)
+    expect(update.mock.calls[0][1]).toEqual({prefs: {autoplayNext: false, usageStats: false, subSize: 'L'}});
+    expect(server).toEqual({autoplayNext: false, usageStats: false, subSize: 'L'});
     expect(personNow()).toMatchObject({autoplayNext: false, usageStats: false});
     // and never again: the profile has them now
     await refreshPerson();
@@ -236,7 +250,7 @@ describe('personSync', () => {
     await refreshPerson();
     await flush();
     expect(server).toEqual({subsDefault: false});
-    expect(_personInternals.record()).toEqual({v: {subsDefault: false}, dirty: []});
+    expect(_personInternals.record()).toEqual({v: {subsDefault: false}, dirty: [], gen: 2});
   });
 
   test('an older server (stores the old keys only): the setting still works here and is not re-sent on every refresh', async () => {
@@ -281,5 +295,138 @@ describe('personSync', () => {
     clearProfileCaches();
     expect(personNow()).toBeNull();
     expect((await loadPrefs()).autoplayNext).toBe(true); // the box's own again
+  });
+});
+
+// ------------------------------------------------- player options (2026-10-19)
+import {upgradeRecord, MOVE_GEN, styleOf} from '../../src/personPrefs';
+import {
+  cueBottomFor,
+  cueLook,
+  nextChoice,
+  readStyle,
+  styleFromDevice,
+  styleLabel,
+  SUB_STYLE_CHOICES,
+  SUB_STYLE_DEFAULTS,
+  SUB_STYLE_KEYS,
+  CUE_PX,
+  OUTLINE_OFFSETS,
+} from '../../src/subStyle';
+import {fxReason, AUDIO_FX_NAMES, AUDIO_FX_DEFAULTS} from '../../src/audioFx';
+
+describe('player options: the person carries them', () => {
+  test('night mode, dialogue boost and the six subtitle choices are read off a profile — only real values', () => {
+    expect(
+      readPerson({nightMode: true, dialogueBoost: 'yes', subSize: 'XL', subColor: 'pink', subBg: 'outline', subOpacity: 50, subWeight: 'normal', subPos: 'raised'}),
+    ).toEqual({nightMode: true, subSize: 'XL', subBg: 'outline', subOpacity: 50, subWeight: 'normal', subPos: 'raised'});
+    expect(readPerson({subOpacity: '50', subSize: 'xl'})).toEqual({});
+    expect(styleOf({subColor: 'yellow'})).toEqual({...SUB_STYLE_DEFAULTS, subColor: 'yellow'});
+  });
+
+  test('THE MOVE, for a person this box already knew (a record from before): the old size and plate join them once', () => {
+    const old = readRecord({v: {autoplayNext: false}, dirty: []})!; // gen 1
+    const box = {...PREFS_DEFAULTS, cueSize: 'S', cueBackground: false};
+    const up = upgradeRecord(old, box);
+    expect(up).toEqual({v: {autoplayNext: false, subSize: 'S', subBg: 'shadow'}, dirty: [], gen: MOVE_GEN});
+    // …once: an upgraded record is left alone, even if the box changes
+    expect(upgradeRecord(up, {...box, cueSize: 'L'})).toBe(up);
+    // what the person already has wins over the box
+    const mine = readRecord({v: {subSize: 'XL'}, dirty: []})!;
+    expect(upgradeRecord(mine, box).v).toEqual({subSize: 'XL', subBg: 'shadow'});
+    // a box that never changed them offers nothing
+    expect(upgradeRecord(old, {...PREFS_DEFAULTS}).v).toEqual({autoplayNext: false});
+  });
+
+  test('…and a profile that already has a look keeps it: the moved values are not sent over it', () => {
+    const rec = upgradeRecord(readRecord({v: {}, dirty: []})!, {...PREFS_DEFAULTS, cueSize: 'L', cueBackground: false});
+    const r = resolvePerson({subSize: 'M', subColor: 'yellow'}, rec);
+    expect(r.effective).toMatchObject({subSize: 'M', subColor: 'yellow', subBg: 'shadow'});
+    expect(r.push).toEqual({subBg: 'shadow'}); // the one thing the profile lacked
+  });
+
+  test('a look chosen on this TV is the person\'s: remembered, owed, and sent', () => {
+    let rec = changePerson(emptyRecord(), 'subColor', 'cyan');
+    rec = changePerson(rec, 'nightMode', true);
+    const r = resolvePerson({subColor: 'white'}, rec);
+    expect(r.effective).toMatchObject({subColor: 'cyan', nightMode: true});
+    expect(r.push).toEqual({subColor: 'cyan', nightMode: true});
+  });
+
+  test('personSync: a record from before the update gets the box\'s old look, and offers it to the profile', async () => {
+    store.clear();
+    _personInternals.reset();
+    const server: Record<string, unknown> = {};
+    jest.spyOn(api, 'profiles').mockImplementation(async () => [profile({...server})]);
+    const update = jest.spyOn(api, 'updateProfile').mockImplementation(async (_id: string, fields: {prefs: Record<string, unknown>}) => {
+      Object.assign(server, fields.prefs);
+      return profile({...server});
+    });
+    store.set('aurora.prefs', JSON.stringify({...PREFS_DEFAULTS, cueSize: 'L', cueBackground: false}));
+    store.set('aurora.person.p1', JSON.stringify({v: {autoplayNext: false}, dirty: []})); // written by 5.3.0
+    enterPerson('p1');
+    await flush();
+    expect(personNow()).toMatchObject({subSize: 'L', subBg: 'shadow', autoplayNext: false});
+    expect(update).toHaveBeenCalled();
+    expect(server).toMatchObject({subSize: 'L', subBg: 'shadow'});
+    expect(JSON.parse(store.get('aurora.person.p1') as string).gen).toBe(MOVE_GEN);
+    jest.restoreAllMocks();
+  });
+});
+
+describe('the subtitle look (subStyle.ts)', () => {
+  test('the table: four sizes, four colours, four backgrounds, four opacities, two weights, two positions', () => {
+    expect(SUB_STYLE_KEYS).toEqual(['subSize', 'subColor', 'subBg', 'subOpacity', 'subWeight', 'subPos']);
+    expect(SUB_STYLE_CHOICES.subSize).toEqual(['S', 'M', 'L', 'XL']);
+    expect(SUB_STYLE_CHOICES.subBg).toEqual(['none', 'shadow', 'outline', 'box']);
+    expect(Object.keys(CUE_PX)).toEqual(['S', 'M', 'L', 'XL']);
+    expect(CUE_PX.XL).toBeGreaterThan(CUE_PX.L);
+  });
+
+  test('a press steps through the choices and wraps', () => {
+    expect(nextChoice('subSize', 'XL')).toBe('S');
+    expect(nextChoice('subBg', 'box')).toBe('none');
+    expect(nextChoice('subOpacity', 75)).toBe(100);
+    expect(styleLabel('subOpacity', {subOpacity: 25})).toBe('25%');
+    expect(styleLabel('subColor', {})).toBe('White');
+  });
+
+  test('what each background draws', () => {
+    expect(cueLook({subBg: 'box', subOpacity: 50})).toMatchObject({backgroundColor: 'rgba(0,0,0,0.5)', shadow: false, outline: false});
+    expect(cueLook({subBg: 'shadow'})).toMatchObject({backgroundColor: undefined, shadow: true, outline: false});
+    expect(cueLook({subBg: 'outline'})).toMatchObject({backgroundColor: undefined, shadow: false, outline: true});
+    expect(cueLook({subBg: 'none'})).toMatchObject({backgroundColor: undefined, shadow: false, outline: false});
+    expect(cueLook({subColor: 'yellow', subWeight: 'normal'})).toMatchObject({color: '#ffe14d', fontWeight: '400'});
+    expect(OUTLINE_OFFSETS).toHaveLength(8);
+  });
+
+  test("the box's old choices: the TV's old 'off' was a shadow, the site's bare text", () => {
+    expect(styleFromDevice({cueSize: 'M', cueBackground: true})).toEqual({});
+    expect(styleFromDevice({cueSize: 'S', cueBackground: false}, 'tv')).toEqual({subSize: 'S', subBg: 'shadow'});
+    expect(styleFromDevice({cueBackground: false}, 'web')).toEqual({subBg: 'none'});
+    expect(readStyle({subSize: 'huge'})).toEqual(SUB_STYLE_DEFAULTS);
+  });
+
+  test('raised: at least a fifth of the screen up — and the lift above the bar still wins when it is higher', () => {
+    expect(cueBottomFor('lower', 48, 540)).toBe(48);
+    expect(cueBottomFor('raised', 48, 540)).toBe(108);
+    expect(cueBottomFor('raised', 150, 540)).toBe(150); // the bar is up: above it, as before
+  });
+});
+
+describe('night mode and dialogue boost (audioFx.ts)', () => {
+  test('the names and the defaults are the site\'s', () => {
+    expect(AUDIO_FX_NAMES).toEqual({nightMode: 'Night mode', dialogueBoost: 'Dialogue boost'});
+    expect(AUDIO_FX_DEFAULTS).toEqual({nightMode: false, dialogueBoost: false});
+  });
+
+  test('when they cannot apply, one line says why', () => {
+    const ok = {supported: true, sdk: 30, passthrough: false, offload: false, channels: 2, active: true, error: null};
+    expect(fxReason(ok)).toBeNull();
+    expect(fxReason({...ok, passthrough: true})).toMatch(/passthrough/);
+    expect(fxReason({...ok, offload: true})).toMatch(/audio path/);
+    expect(fxReason({...ok, sdk: 26, supported: false})).toBe('Needs Android 9 or later.');
+    expect(fxReason({...ok, supported: false, error: 'RuntimeException'})).toMatch(/doesn't allow/);
+    expect(fxReason(null)).toMatch(/can't change the sound/);
   });
 });
