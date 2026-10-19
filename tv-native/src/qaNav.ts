@@ -49,6 +49,12 @@ export const qaNavigate = (target: string): string => {
     case 'settings':
       dispatch('Settings');
       return 'Settings';
+    case 'downloads':
+      dispatch('Downloads');
+      return 'Downloads';
+    case 'taste':
+      dispatch('Taste');
+      return 'Taste';
     default:
       return 'err unsupported';
   }

@@ -5,6 +5,7 @@
 #     and again:
 #       L1  Home, the 4th shelf (24 cards): RIGHT held to the end, LEFT held back, twice   (~92 card moves)
 #       G1  Movies grid: DOWN held, UP held back, twice
+#       G2  Shows grid: the same (2026-10-19: the cardtext / keyrate gates are "not worse anywhere")
 #     Each hold is its own uinput run and `dumpsys gfxinfo framestats` is read in the pause after it (the app is
 #     at rest then), so EVERY frame of the scenario is kept, not only the last 120;
 #   - per run, from those frames (tools/tv-bench/pool-parse.py): the longest frame, how many frames took > 32 / > 64 ms,
@@ -38,6 +39,7 @@ pre() { # the keys that bring a scenario to its starting point (not measured)
   case $1 in
     L1) keys DPAD_DOWN 4 500; sleep 1;;
     G1) keys DPAD_LEFT 1 600; keys DPAD_DOWN 1 400; keys DPAD_CENTER 1 3500;;
+    G2) keys DPAD_LEFT 1 600; keys DPAD_DOWN 2 400; keys DPAD_CENTER 1 3500;;
   esac
 }
 drive() {
@@ -48,7 +50,7 @@ drive() {
     S3) keys DPAD_LEFT 1 600; keys DPAD_DOWN 1 400; keys DPAD_CENTER 1 2500; keys DPAD_DOWN 12 300; keys DPAD_RIGHT 5 50; sleep 0.5; keys BACK 1 800;;
     S4) for ((j=0;j<5;j++)); do keys DPAD_LEFT 1 600; keys DPAD_RIGHT 1 600; done;;
     L1) hold RIGHT $h; hold LEFT $h; hold RIGHT $h; hold LEFT $h;;
-    G1) hold DOWN $g; hold UP $g; hold DOWN $g; hold UP $g;;
+    G1|G2) hold DOWN $g; hold UP $g; hold DOWN $g; hold UP $g;;
   esac
 }
 rtcpu() { A shell "for t in /proc/$1/task/*; do read -r l < \$t/stat; echo \$l; done" 2>/dev/null | tr -d '\r' | awk '/\(RenderThread\)/ {print ($14+$15)*10}'; }
