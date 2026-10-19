@@ -10,7 +10,7 @@
 // season in their own FlatList (focused rows scroll into view). From anywhere
 // in the episode list one LEFT press reaches the rail — no climbing back up
 // through every episode.
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import {
   View,
   Text,
@@ -228,6 +228,14 @@ const Badge = ({text}: {text: string}) => (
 //
 // `bottomInset` reserves the rail's height on a show page so the lockup lands
 // above it instead of behind it.
+// BACK UP TO THE TOP. The page is a ScrollView: a focused shelf / episode card
+// scrolls it down (scrollToEnd) and Android only scrolls a focused view far
+// enough to be on screen — so UP from the cards to Play / Resume or to the
+// round buttons left the page scrolled, the title and the facts above the
+// screen's top (Mi TV, 2026-10-18). Any control of the lockup that takes focus
+// scrolls the page back to the top (a no-op when it is there already).
+const ToTop = createContext<(() => void) | null>(null);
+
 function DetailHero({
   kicker,
   title,
@@ -391,28 +399,32 @@ const PrimaryBtn = ({
   busy?: boolean;
   onPress: () => void;
   onLongPress?: () => void;
-}) => (
-  <Focusable
-    round
-    light
-    ring="violet"
-    hasTVPreferredFocus={hasTVPreferredFocus}
-    edgeLeft={edgeLeft}
-    holdLeft={edgeLeft}
-    uiId={uiId}
-    onPress={onPress}
-    onLongPress={onLongPress}
-    style={styles.playBtn}>
-    {busy ? (
-      <View style={styles.playRow}>
-        <ActivityIndicator size="small" color={colors.bg} style={styles.playSpin} />
+}) => {
+  const toTop = useContext(ToTop);
+  return (
+    <Focusable
+      round
+      light
+      ring="violet"
+      hasTVPreferredFocus={hasTVPreferredFocus}
+      edgeLeft={edgeLeft}
+      holdLeft={edgeLeft}
+      uiId={uiId}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      onFocusChange={toTop ? f => f && toTop() : undefined}
+      style={styles.playBtn}>
+      {busy ? (
+        <View style={styles.playRow}>
+          <ActivityIndicator size="small" color={colors.bg} style={styles.playSpin} />
+          <Text style={styles.playText}>{label}</Text>
+        </View>
+      ) : (
         <Text style={styles.playText}>{label}</Text>
-      </View>
-    ) : (
-      <Text style={styles.playText}>{label}</Text>
-    )}
-  </Focusable>
-);
+      )}
+    </Focusable>
+  );
+};
 // A round 40dp icon with a tiny label under it — Max's My List / Trailer row.
 const IconBtn = ({
   uiId,
@@ -439,6 +451,7 @@ const IconBtn = ({
   // wider than the disc that cut straight through the label (elia, 2026-10-07:
   // "the circle on the trailer … looks really bad").
   const [focused, setFocused] = useState(false);
+  const toTop = useContext(ToTop);
   const lit = focused || !!on;
   return (
     <View style={styles.iconBtn}>
@@ -450,7 +463,10 @@ const IconBtn = ({
         edgeLeft={edgeLeft}
         holdLeft={edgeLeft}
         onPress={onPress}
-        onFocusChange={setFocused}
+        onFocusChange={f => {
+          setFocused(f);
+          if (f) toTop?.();
+        }}
         style={[styles.iconBtnDisc, on && styles.iconBtnDiscOn]}
         uiId={uiId}
         accessibilityLabel={label}>
@@ -460,7 +476,9 @@ const IconBtn = ({
           <Text style={[styles.iconBtnGlyph, lit && {color: colors.bg}]}>{glyph}</Text>
         )}
       </Focusable>
-      <Text style={[styles.iconBtnLabel, focused && styles.iconBtnLabelOn]} numberOfLines={1}>
+      {/* (66 dp columns, five or six of them: at the TV's largest font size the labels met —
+          "My List Start over Trailer" — so they grow with the font size up to 15 % only) */}
+      <Text style={[styles.iconBtnLabel, focused && styles.iconBtnLabelOn]} numberOfLines={1} maxFontSizeMultiplier={1.15}>
         {label}
       </Text>
     </View>
@@ -2464,6 +2482,7 @@ export default function Detail({
   // is. The film page's shelf does the same.
   const scrollRef = useRef<ScrollView>(null);
   const scrollToEnd = useCallback(() => scrollRef.current?.scrollToEnd({animated: true}), []);
+  const scrollToTop = useCallback(() => scrollRef.current?.scrollTo({y: 0, animated: true}), []);
   const renderEpisode = useCallback(
     ({item: ep, index}: {item: UiEp; index: number}) => (
       <EpisodeCard
@@ -2661,6 +2680,7 @@ export default function Detail({
           style={styles.scroll}
           contentContainerStyle={{paddingTop: artTop, paddingBottom: safeBottom}}
           showsVerticalScrollIndicator={false}>
+        <ToTop.Provider value={scrollToTop}>
         <DetailHero
           kicker="SERIES"
           title={item.title}
@@ -2719,6 +2739,7 @@ export default function Detail({
           />
           {heroStatusLine}
         </DetailHero>
+        </ToTop.Provider>
 
         {/* Season pills + the episode rail, in flow under the lockup. */}
         <Text style={styles.dockTitle}>Episodes</Text>
@@ -2809,6 +2830,7 @@ export default function Detail({
         style={styles.scroll}
         contentContainerStyle={{paddingTop: artTop, paddingBottom: safeBottom}}
         showsVerticalScrollIndicator={false}>
+      <ToTop.Provider value={scrollToTop}>
       <DetailHero
         kicker="FILM"
         title={item.title}
@@ -2885,6 +2907,7 @@ export default function Detail({
         />
         {heroStatusLine}
       </DetailHero>
+      </ToTop.Provider>
       {/* The shelf: titles like this one, below the fold like Max's Extras. */}
       <View>
         <Text style={styles.dockTitle}>More like this</Text>

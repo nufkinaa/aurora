@@ -113,7 +113,7 @@ const TitleCard = React.memo(function TitleCard({
       ) : null}
       {flag ? (
         <View style={styles.flag} pointerEvents="none">
-          <Text style={styles.flagText} numberOfLines={1}>
+          <Text style={styles.flagText} numberOfLines={1} maxFontSizeMultiplier={1.15}>
             {flag}
           </Text>
         </View>
