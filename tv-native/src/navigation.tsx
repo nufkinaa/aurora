@@ -15,6 +15,7 @@ import {routeStarted} from './routeTiming';
 import {frameScreen} from './perfTier';
 import {focusJustMoved} from './focus';
 import {useQaNav} from './qaNav';
+import {wireVoiceKey} from './voiceKey';
 
 // EVERY SCREEN BUT HOME IS LOADED WHEN IT IS FIRST WANTED.
 //
@@ -78,7 +79,9 @@ export type RootStackParamList = {
   Browse: {kind: 'movie' | 'show'};
   MyList: undefined;
   Settings: undefined;
-  Search: undefined;
+  // `voice`: opened by the remote's search / voice key — listening at once;
+  // `q`: opened by the TV's own search with these words (voiceKey.ts)
+  Search: {voice?: boolean; q?: string} | undefined;
   WhatsNew: undefined;
   Pick: undefined;
   Downloads: undefined;
@@ -124,6 +127,8 @@ const navTheme = {
 
 export default function AppNavigator() {
   useEffect(() => warmScreens(), []);
+  // the remote's search / voice key opens Search, listening (voiceKey.ts)
+  useEffect(() => wireVoiceKey(), []);
   useQaNav(); // the QA harness's `nav` (a QA variant only — qaNav.ts)
   return (
     <View style={styles.root}>

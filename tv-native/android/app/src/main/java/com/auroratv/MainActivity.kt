@@ -1,6 +1,9 @@
 package com.auroratv
 
+import android.app.SearchManager
+import android.content.Intent
 import android.graphics.Rect
+import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
@@ -51,8 +54,25 @@ class MainActivity : ReactActivity() {
    * screens documents for exactly this crash.
    */
   override fun onCreate(savedInstanceState: Bundle?) {
+    searchToLink(intent)
     super.onCreate(null)
     gate = makeGate()
+  }
+
+  /**
+   * The TV's own search sent a search to Aurora (ACTION_SEARCH, res/xml/searchable.xml): it
+   * reaches JS as a link, `aurora://search?q=<words>` (voiceKey.ts opens Search on them).
+   */
+  override fun onNewIntent(intent: Intent) {
+    searchToLink(intent)
+    super.onNewIntent(intent)
+  }
+
+  private fun searchToLink(i: Intent?) {
+    if (i == null || i.action != Intent.ACTION_SEARCH) return
+    val q = i.getStringExtra(SearchManager.QUERY)?.trim().orEmpty()
+    i.action = Intent.ACTION_VIEW
+    i.data = Uri.parse("aurora://search?q=" + Uri.encode(q.take(80)))
   }
 
   /**
@@ -74,6 +94,12 @@ class MainActivity : ReactActivity() {
 
   override fun dispatchKeyEvent(event: KeyEvent): Boolean {
     val code = event.keyCode
+    // The remote's search / voice key, while the app wants it (VoiceModule.captureKeys): voice
+    // search, in the app, instead of the system's. The press and its release are both ours.
+    if ((code == KeyEvent.KEYCODE_SEARCH || code == KeyEvent.KEYCODE_VOICE_ASSIST) && VoiceModule.wantsKeys()) {
+      if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) VoiceModule.onVoiceKey(code)
+      return true
+    }
     // `keyrate`: a held key's hardware repeats are the gate's, not the focus engine's (below)
     val g = gate
     if (g != null && isDpad(code) && !(event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 && isDoublePress(event))) {
@@ -216,6 +242,12 @@ class MainActivity : ReactActivity() {
       // a view left the tree between the search and the hand-over (ViewRootImpl would throw too)
       Log.w("AuroraRender", "[keyrate] move dropped: ${t.message}")
     }
+  }
+
+  /** The system's "search requested" (a search key that reached the activity another way). */
+  override fun onSearchRequested(): Boolean {
+    if (VoiceModule.onVoiceKey(KeyEvent.KEYCODE_SEARCH)) return true
+    return super.onSearchRequested()
   }
 
   override fun onWindowFocusChanged(hasFocus: Boolean) {

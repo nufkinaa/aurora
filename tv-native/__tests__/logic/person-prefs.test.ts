@@ -34,11 +34,18 @@ import {clearProfileCaches} from '../../src/profileScope';
 // ------------------------------------------------------------------ the rules
 describe('which settings are whose', () => {
   test('the person-level keys and the device-level keys do not overlap, and every one is a real setting', () => {
-    expect(PERSON_KEYS.sort()).toEqual(['autoplayNext', 'smartCleanup', 'smartDownloads', 'subLang', 'subsDefault', 'usageStats']);
+    expect(PERSON_KEYS.sort()).toEqual(['autoplayNext', 'smartCleanup', 'smartDownloads', 'subLang', 'subsDefault', 'usageStats', 'voiceLang']);
     for (const k of DEVICE_KEYS) expect(PERSON_KEYS as string[]).not.toContain(k);
     for (const k of [...PERSON_KEYS, ...DEVICE_KEYS]) expect(PREFS_DEFAULTS).toHaveProperty(k);
     // the defaults the two clients share
-    expect(PERSON_DEFAULTS).toEqual({autoplayNext: true, subsDefault: true, subLang: 'any', usageStats: true, smartDownloads: true, smartCleanup: true});
+    expect(PERSON_DEFAULTS).toEqual({autoplayNext: true, subsDefault: true, subLang: 'any', voiceLang: 'auto', usageStats: true, smartDownloads: true, smartCleanup: true});
+  });
+
+  test('the voice search language is a closed set too (auto | he | en)', () => {
+    expect(readPerson({voiceLang: 'he'})).toEqual({voiceLang: 'he'});
+    expect(readPerson({voiceLang: 'auto'})).toEqual({voiceLang: 'auto'});
+    expect(readPerson({voiceLang: 'ru'})).toEqual({});
+    expect(readPerson({voiceLang: true})).toEqual({});
   });
 
   test('only values of the right kind are read off a profile', () => {

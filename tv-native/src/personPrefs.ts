@@ -13,6 +13,8 @@
 //     autoplayNext    play the next episode by itself          default on
 //     subsDefault     subtitles on by themselves               default on
 //     subLang         subtitle language: any | he | en | ru    default any
+//     voiceLang       voice search listens in: auto | he | en  default auto
+//                     (auto: the TV's own language — voiceLogic.ts)
 //     usageStats      usage stats (the server also refuses a
 //                     batch from a profile that said no)       default on
 //     smartDownloads  get the next episode ready               default on
@@ -29,10 +31,12 @@
 // A key the profile does not carry means "the default".
 
 export type SubLang = 'any' | 'he' | 'en' | 'ru';
+export type VoiceLangPref = 'auto' | 'he' | 'en';
 export type PersonPrefs = {
   autoplayNext: boolean;
   subsDefault: boolean;
   subLang: SubLang;
+  voiceLang: VoiceLangPref;
   usageStats: boolean;
   smartDownloads: boolean;
   smartCleanup: boolean;
@@ -43,6 +47,7 @@ export const PERSON_DEFAULTS: PersonPrefs = {
   autoplayNext: true,
   subsDefault: true,
   subLang: 'any',
+  voiceLang: 'auto',
   usageStats: true,
   smartDownloads: true,
   smartCleanup: true,
@@ -50,9 +55,14 @@ export const PERSON_DEFAULTS: PersonPrefs = {
 export const PERSON_KEYS = Object.keys(PERSON_DEFAULTS) as PersonKey[];
 export const DEVICE_KEYS = ['cueSize', 'cueBackground', 'heroTrailers', 'downloadNotices'] as const;
 export const SUB_LANGS: SubLang[] = ['any', 'he', 'en', 'ru'];
+export const VOICE_LANGS: VoiceLangPref[] = ['auto', 'he', 'en'];
 
 const valid = (key: PersonKey, value: unknown): boolean =>
-  key === 'subLang' ? SUB_LANGS.includes(value as SubLang) : typeof value === 'boolean';
+  key === 'subLang'
+    ? SUB_LANGS.includes(value as SubLang)
+    : key === 'voiceLang'
+      ? VOICE_LANGS.includes(value as VoiceLangPref)
+      : typeof value === 'boolean';
 
 /** The person-level keys out of anything (the server's `prefs`, a stored
  *  blob), keeping only values of the right kind. */

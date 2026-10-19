@@ -20,6 +20,11 @@
          a "Restart now" update (Android refuses a background start without it). -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- Voice search with the remote's microphone (VoiceModule.kt). Asked of the viewer the
+         first time the mic is pressed; a TV without a microphone still installs the app. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
     <!-- Android TV: shows in the leanback launcher, no touchscreen required -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -35,6 +40,14 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" android:host="www.youtube.com" />
+        </intent>
+        <!-- Android 11+ package visibility: the speech recognition service and the system's
+             voice overlay (VoiceModule.kt). Without these isRecognitionAvailable says false. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
         </intent>
         <package android:name="com.google.android.youtube.tv" />
         <package android:name="com.google.android.youtube" />
@@ -79,6 +92,12 @@
             <category android:name="android.intent.category.LAUNCHER" />
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
         </intent-filter>
+        <!-- The TV's own search (SearchProvider.kt, res/xml/searchable.xml): a search sent to
+             Aurora opens its Search on those words. -->
+        <intent-filter>
+            <action android:name="android.intent.action.SEARCH" />
+        </intent-filter>
+        <meta-data android:name="android.app.searchable" android:resource="@xml/searchable" />
       </activity>
       <!-- Serves the downloaded update (cache/updates/) to the package installer
            as a content:// URI — a file:// path is refused since Android 7. -->
@@ -112,6 +131,13 @@
         android:name=".HomeScreenJob"
         android:permission="android.permission.BIND_JOB_SERVICE"
         android:exported="true" />
+      <!-- Aurora's titles in the TV's own search (SearchProvider.kt). Only the system's search
+           may read it: GLOBAL_SEARCH is held by the search app alone. -->
+      <provider
+        android:name=".SearchProvider"
+        android:authorities="com.auroratv.search"
+        android:exported="true"
+        android:readPermission="android.permission.GLOBAL_SEARCH" />
       <!-- Read-only pictures for the TV's home-screen row (ArtProvider.kt). -->
       <provider
         android:name=".ArtProvider"

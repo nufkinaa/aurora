@@ -10,11 +10,19 @@
 //   while typing     suggestions — a title opens it, a person or a genre
 //                    searches for it
 // Selecting a result routes to Detail.
+//
+// VOICE SEARCH (voice.ts, the rules in voiceLogic.ts — the website's mic does
+// the same): the Voice button beside the field, or the remote's own search /
+// voice key from anywhere (voiceKey.ts). The words stand in the field as they
+// are said; the last ones search, as OK on the keyboard would, through the
+// server's tidying (/api/search?voice=1: "search for the movie inception" ->
+// inception, which then stands in the field). Back while listening stops it.
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {View, Text, TextInput, FlatList, StyleSheet} from 'react-native';
+import {View, Text, TextInput, FlatList, StyleSheet, BackHandler} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Card, {CARD_W} from '../components/Card';
 import Chip from '../components/Chip';
+import Btn from '../components/Btn';
 import NavRail from '../components/NavRail';
 import {api, HeroItem, SearchAnswer, SearchSuggestion} from '../api';
 import {track} from '../usage';
@@ -26,6 +34,9 @@ import {useRouteShown} from '../useRouteShown';
 import {useApp} from '../AppContext';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
+import {createVoice, nativeVoiceDeps, setSearchVoiceKey, voiceAvailability, VoiceController} from '../voice';
+import {LANG_NAME, LANG_SELF, otherLang, voiceActive, voiceLangFor, VoiceLang, voiceMessage, VoiceState, VOICE_IDLE} from '../voiceLogic';
+import {personNow, setPersonPref} from '../personSync';
 
 const {colors, radius, fontSize, spacing, CLEARANCE} = theme;
 const EMPTY: SearchAnswer = {results: [], related: [], relatedLabel: null, pending: false};
@@ -40,6 +51,7 @@ const chipLabel = (s: SearchSuggestion) =>
 
 export default function Search({
   navigation,
+  route,
 }: NativeStackScreenProps<RootStackParamList, 'Search'>) {
   const {width, safeBottom} = useTvMetrics();
   const {profileId} = useApp();
@@ -161,8 +173,10 @@ export default function Search({
 
   // `now`: OK on the keyboard, a recent, a person or a genre — no typing pause
   // to wait out, and the catalogue is asked whatever the length.
+  // `voice`: `text` is what the microphone heard; the server says what it
+  // searched for, and that stands in the field.
   const run = useCallback(
-    (text: string, now = false) => {
+    (text: string, now = false, voice = false) => {
       setQ(text);
       if (debounce.current) clearTimeout(debounce.current);
       const query = text.trim();
@@ -186,21 +200,30 @@ export default function Search({
           try {
             // what the server has in memory, at once…
             tmStart('search'); // [analytics] query sent → results shown (the time only; never the text)
-            let r = await api.searchAll(query, {commit: now, profileId});
+            let r = await api.searchAll(query, {commit: now, voice, profileId});
             if (!current()) return;
+            let shown = query;
+            if (voice && r.q) {
+              shown = r.q;
+              setQ(r.q);
+            }
             setAnswer(r);
             tmLap('search_results', 'search', 'library'); // [analytics]
             track('feat', {f: 'search', hits: r.results.filter(i => i.source !== 'stream').length}); // how often, never what (as the site)
             // …then the live catalogue and the related row; the first card
             // stays where it is unless something matches better
             if (r.pending) {
-              r = await api.searchAll(query, {wait: true, commit: now, pin: r.results[0]?.key, profileId});
+              r = await api.searchAll(query, {wait: true, commit: now, voice, pin: r.results[0]?.key, profileId});
               if (!current()) return;
+              if (voice && r.q && r.q !== shown) {
+                shown = r.q;
+                setQ(r.q);
+              }
               setAnswer(r);
               tmLap('search_results', 'search', 'catalogue'); // [analytics]
             }
             setPhase('done');
-            if (now && r.results.length) remember(query);
+            if (now && r.results.length) remember(shown);
           } catch {
             if (current()) setPhase('failed');
           }
@@ -213,6 +236,94 @@ export default function Search({
 
   const qRef = useRef('');
   qRef.current = q;
+
+  // ---- voice ----
+  const [voice, setVoice] = useState<VoiceState>(VOICE_IDLE);
+  const [level, setLevel] = useState(0);
+  const voiceCtl = useRef<VoiceController | null>(null);
+  const beforeVoice = useRef('');
+  const runRef = useRef(run);
+  runRef.current = run;
+  useEffect(() => {
+    const c = createVoice(nativeVoiceDeps(), (s, l) => {
+      setVoice(s);
+      setLevel(l);
+      if (s.phase === 'listening' && s.interim) setQ(s.interim);
+      if (s.phase === 'heard') {
+        c.done();
+        runRef.current(s.text, true, true);
+      }
+    });
+    voiceCtl.current = c;
+    return () => {
+      c.dispose();
+      voiceCtl.current = null;
+    };
+  }, []);
+  // the person's language (on their profile, the same on the website), else the TV's
+  const startVoice = useCallback(async (lang?: VoiceLang) => {
+    const c = voiceCtl.current;
+    if (!c) return;
+    if (!voiceActive(c.state())) beforeVoice.current = qRef.current;
+    const avail = await voiceAvailability();
+    c.start(lang || voiceLangFor(personNow()?.voiceLang, avail?.locale));
+  }, []);
+  const pressMic = useCallback(() => {
+    const c = voiceCtl.current;
+    if (c && voiceActive(c.state())) c.stop();
+    else startVoice();
+  }, [startVoice]);
+  const switchLang = useCallback(() => {
+    const next = otherLang(voice.lang);
+    setPersonPref('voiceLang', next);
+    startVoice(next);
+  }, [voice.lang, startVoice]);
+  const listening = voiceActive(voice);
+  // Back while listening stops listening (the screen stays)
+  useEffect(() => {
+    if (!listening) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      voiceCtl.current?.cancel();
+      setQ(beforeVoice.current);
+      return true;
+    });
+    return () => sub.remove();
+  }, [listening]);
+  // the remote's key starts listening here while this screen is on show
+  useEffect(() => {
+    const on = () => setSearchVoiceKey(() => startVoice());
+    const off = () => setSearchVoiceKey(null);
+    on();
+    const a = navigation.addListener('focus', on);
+    const b = navigation.addListener('blur', () => {
+      off();
+      voiceCtl.current?.cancel();
+    });
+    return () => {
+      off();
+      a();
+      b();
+    };
+  }, [navigation, startVoice]);
+  // opened by that key from another screen: listening at once
+  const openedByVoice = !!route.params?.voice;
+  useEffect(() => {
+    if (!openedByVoice) return;
+    navigation.setParams({voice: undefined});
+    const t = setTimeout(() => startVoice(), 250);
+    return () => clearTimeout(t);
+  }, [openedByVoice, navigation, startVoice]);
+  // while words are coming they are the message; the line still says which language
+  // opened by the TV's own search with words: searched at once
+  const openedWith = route.params?.q;
+  useEffect(() => {
+    if (openedWith == null) return;
+    navigation.setParams({q: undefined});
+    if (openedWith) runRef.current(openedWith, true);
+  }, [openedWith, navigation]);
+  const voiceText = voiceMessage(voice, 'tv') || (voiceActive(voice) ? `Listening in ${LANG_NAME[voice.lang]}` : '');
+  const showVoice = listening || voice.phase === 'error';
+  const showLang = listening || voice.error === 'language' || voice.error === 'no-match' || voice.error === 'no-speech';
   const openDetail = useCallback(
     (item: HeroItem) => {
       if (!canNavigate(navigation)) return;
@@ -293,20 +404,27 @@ export default function Search({
   const chips = query ? suggestions.slice(0, 6) : [];
   const recents = query ? [] : recent.slice(0, 6);
   hasChips.current = chips.length > 0 || recents.length > 0;
-  const nothing = query && phase === 'done' && !answer.results.length && !related.length;
+  // (not while the words are still being said: they are not a search yet)
+  const nothing = query && !listening && phase === 'done' && !answer.results.length && !related.length;
 
   return (
     <View style={styles.root}>
       <NavRail active="search" />
       <View style={styles.body}>
+      <View style={styles.fieldRow}>
       <TextInput
         ref={inputRef}
-        style={styles.input}
+        style={[styles.input, listening && styles.inputInterim]}
         value={q}
-        onChangeText={t => run(t)}
+        onChangeText={t => {
+          // typing takes over from the microphone
+          if (voiceActive(voiceCtl.current?.state())) voiceCtl.current?.cancel();
+          run(t);
+        }}
         onSubmitEditing={() => run(qRef.current, true)}
         returnKeyType="search"
-        autoFocus
+        // (opened by the remote's voice key: the microphone, not the keyboard)
+        autoFocus={!openedByVoice}
         // The input is not a Focusable, so it never wrote to focus.ts — the rail
         // was still reading whatever the LAST screen's element reported, and
         // when that said "left edge", pressing LEFT to move the text caret
@@ -320,6 +438,40 @@ export default function Search({
         placeholder="Search movies & shows…"
         placeholderTextColor={colors.textFaint}
       />
+      <Btn
+        uiId="search.voice"
+        icon="mic"
+        label={listening ? 'Stop' : 'Voice'}
+        hasTVPreferredFocus={openedByVoice}
+        onFocusChange={f => {
+          if (f) {
+            inGrid.current = false;
+            inChips.current = false;
+          }
+        }}
+        onPress={pressMic}
+      />
+      </View>
+      {showVoice ? (
+        <View style={styles.voice}>
+          <View
+            style={[
+              styles.voiceDot,
+              voice.phase === 'error' ? styles.voiceDotError : {opacity: 0.45 + 0.55 * level, transform: [{scale: 1 + 0.5 * level}]},
+            ]}
+          />
+          {voiceText ? <Text style={[styles.voiceText, voice.phase === 'error' && styles.voiceTextError]}>{voiceText}</Text> : null}
+          {showLang ? (
+            <Chip
+              uiId="search.voice.lang"
+              small
+              label={LANG_SELF[otherLang(voice.lang)]}
+              onFocusChange={onChipFocus}
+              onPress={switchLang}
+            />
+          ) : null}
+        </View>
+      ) : null}
       {chips.length > 0 ? (
         <View style={styles.chips}>
           {chips.map((s, at) => (
@@ -393,7 +545,10 @@ const styles = StyleSheet.create({
     paddingRight: spacing.pageX,
     paddingTop: 27,
   },
+  // the field and the Voice button beside it
+  fieldRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg},
   input: {
+    flex: 1,
     backgroundColor: colors.surface,
     borderColor: colors.line,
     borderWidth: 1,
@@ -402,8 +557,16 @@ const styles = StyleSheet.create({
     fontSize: fontSize.row,
     paddingVertical: 16,
     paddingHorizontal: 22,
-    marginBottom: spacing.lg,
   },
+  // the words heard so far, while the microphone is still listening
+  inputInterim: {color: colors.textDim, borderColor: colors.accent},
+  // voice search: a dot that moves with the voice, what is happening, the other language
+  voice: {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: -spacing.sm, marginBottom: spacing.md},
+  voiceDot: {width: 12, height: 12, borderRadius: 6, backgroundColor: colors.accent},
+  voiceDotError: {backgroundColor: '#ff7a7a'},
+  voiceText: {color: colors.textDim, fontSize: fontSize.body, fontWeight: '600', flexShrink: 1},
+  voiceTextError: {color: colors.text},
+
   // suggestions / recent searches: one wrapped band of small pills
   chips: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: spacing.md, zIndex: 10},
   bandLabel: {color: colors.textFaint, fontSize: fontSize.small, fontWeight: '700', marginRight: 4},
