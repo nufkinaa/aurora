@@ -109,6 +109,7 @@ const reloadHeld = async (page, st, lib) => {
   const g = gate();
   st.body = answerB(lib);
   st.hold = g.p;
+  st.servedAtReload = st.served; // (the first visit may have asked twice: a library change at the server's start)
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForSelector('#app [data-row-id="recs"] .card', { timeout: 15000 });
   // the viewer scrolls the first shelves into view (on a desktop the
@@ -133,7 +134,7 @@ for (const [vp, label] of [[DESKTOP, "desktop"], [PHONE, "phone"]]) {
       const g = await reloadHeld(page, st, lib);
       // painted from the copy while the server's answer is still held back
       assert.equal(await homeData(page, "homeSrc"), "snapshot");
-      assert.ok(st.waiting >= 1 && st.served === 1, `the answer is still on its way (waiting ${st.waiting}, served ${st.served})`);
+      assert.ok(st.waiting >= 1 && st.served === st.servedAtReload, `the answer is still on its way (waiting ${st.waiting}, served ${st.served - st.servedAtReload} since the reload)`);
       assert.deepEqual((await rowOrder(page)).slice(0, 3), ["recs", "because", "new-movies"]);
       assert.equal(await page.evaluate(() => document.documentElement.dataset.look || "legacy"), look);
       // desktop: a card has focus (the keyboard / a TV-style remote)
