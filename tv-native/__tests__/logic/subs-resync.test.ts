@@ -271,6 +271,19 @@ describe('subtitle_sync', () => {
     expect(reloadAfterSync('/stream/subtitle/gone', fresh)).toBe(false);
     expect(reloadAfterSync(null, fresh)).toBe(false);
   });
+  test('…but only when ITS timing moved: another track lined up says nothing to the one on screen', () => {
+    // after a restart the background check lines up a title's tracks one by one, one
+    // subtitle_sync each — the track on screen was reloaded 2–3 times (Mi TV, 2026-10-18)
+    const prev = [S('Hebrew', {timing: {verdict: 'shifted', by: 'audio', words: 'Moved 2 s later'}}), S('Hebrew 2'), S('English')];
+    const otherMoved = [prev[0], S('Hebrew 2', {timing: {verdict: 'shifted', by: 'audio', words: 'Moved 1 s earlier'}}), prev[2]];
+    expect(reloadAfterSync(prev[0].url, otherMoved, prev)).toBe(false);
+    expect(reloadAfterSync(prev[1].url, otherMoved, prev)).toBe(true);
+    const mineMoved = [S('Hebrew', {timing: {verdict: 'shifted', by: 'audio', words: 'Moved 16 s later'}}), prev[1], prev[2]];
+    expect(reloadAfterSync(`${prev[0].url}?retry=1`, mineMoved, prev)).toBe(true);
+    // a track the player had never listed: reload, as before
+    expect(reloadAfterSync(prev[0].url, otherMoved, [])).toBe(true);
+    expect(reloadAfterSync('/stream/subtitle/gone', otherMoved, prev)).toBe(false);
+  });
   test('one reload for the Resync’s end and the message it causes', () => {
     expect(reloadDue(null, '/a', 1000)).toBe(true);
     expect(reloadDue({url: '/a', at: 1000}, '/a', 2500)).toBe(false);
