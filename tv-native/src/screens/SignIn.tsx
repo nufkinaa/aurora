@@ -25,6 +25,7 @@ import QRCode from 'react-native-qrcode-svg';
 import Focusable from '../components/Focusable';
 import {api, ApiError, getBaseUrl, SigninResult} from '../api';
 import {useFocusFallback} from '../focus';
+import {clearKidsLock, loadKidsLock, saveKidsLock} from '../storage';
 import theme from '../theme';
 
 const {colors, radius, fontSize, spacing} = theme;
@@ -56,6 +57,22 @@ export default function SignIn({
       if (done.current) return;
       if (!r.profile?.id || !r.profileToken || !r.session) return;
       done.current = true;
+      // The kids lock follows WHO signed this TV in. A pairing / sign-in as a
+      // grown-up's profile is a grown-up letting the TV in: a lock left from an
+      // earlier kids session no longer stands (the wall kept showing it after a
+      // closed-mode re-pair — Mi TV, 2026-10-18). Signed in AS a kids profile,
+      // the TV is locked to it, as entering it from the wall does.
+      const kids = r.profile.kids;
+      if (kids && typeof kids.maxAge === 'number') {
+        console.log('[kids] signed in as kids profile', r.profile.id, '- TV locked to it');
+        saveKidsLock({id: r.profile.id, maxAge: kids.maxAge});
+      } else {
+        loadKidsLock().then(l => {
+          if (!l) return;
+          console.log('[kids] signed in as', r.profile!.id, '- the lock on', l.id, 'is lifted');
+          clearKidsLock();
+        });
+      }
       onSignedIn(r.profile.id, r.profileToken, r.session, r.mustReset ? {mustReset: true, typed} : undefined);
     },
     [onSignedIn],

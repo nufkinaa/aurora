@@ -828,11 +828,20 @@ export default function Browse({
             ))}
           </View>
         ) : items.length === 0 ? (
-          <Empty
-            glyph="🍿"
-            {...emptyGridLine({kind, category, genre, unwatched, kidsAge})}
-            onAction={openPanel}
-          />
+          // With the filter panel open the message sits in the room LEFT of it
+          // (centred on the whole page, the panel covered half of it), and its
+          // button does not take focus from the panel: a pick that empties the
+          // grid left the panel open with focus outside it, on "Change filters"
+          // (a kids profile picking a genre with nothing for its age, Mi TV
+          // 2026-10-18). Focus stays on the pick; BACK / LEFT closes the panel.
+          <View style={[styles.emptyArea, panel && styles.emptyBesidePanel]}>
+            <Empty
+              glyph="🍿"
+              {...emptyGridLine({kind, category, genre, unwatched, kidsAge})}
+              onAction={openPanel}
+              claimFocus={!panel}
+            />
+          </View>
         ) : (
           <FlatList
             ref={listRef}
@@ -945,6 +954,8 @@ const styles = StyleSheet.create({
   // be guessed at while the panel is shut.
   active: {color: colors.textDim, fontSize: 16, lineHeight: 24, fontWeight: '700', flexShrink: 1},
   listFill: {flex: 1},
+  emptyArea: {flex: 1},
+  emptyBesidePanel: {paddingRight: PANEL_W - STRIP_W},
   // A vertical FlatList spends the clearance as padding and takes NO cancelling
   // margins: a recycled cell cannot be relied on to carry them (§F.4 / G.1).
   grid: {paddingTop: CLEARANCE.above, ...frame},
