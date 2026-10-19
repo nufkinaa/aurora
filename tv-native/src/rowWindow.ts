@@ -40,9 +40,16 @@ export type Margins = {lead: number; trail: number};
 // BEHIND one: the slide is a spring and trails a held key by 1–2 cards, so the
 // card that has just left the resting viewport is still partly on screen.
 export const MARGINS: Margins = {lead: 2, trail: 1};
-// A box short of memory holds less: one ahead, none behind (9 posters, the
-// count the old rule kept, but placed where the viewport is).
-export const MARGINS_LOW: Margins = {lead: 1, trail: 0};
+// A box short of memory holds less: one ahead, ONE behind (10 posters).
+// It was none behind, and that is what printed `[row] behind` on the Mi TV
+// (2 GB — every 2 GB box is "low memory" here): at a TURN the side behind
+// becomes the side ahead, and with no card kept there the card that slides in
+// at once was not mounted until the (deferred) commit for the press landed —
+// always seen at a shelf's end, where a hold RIGHT turns into a hold LEFT
+// (`row=3 idx=22 visible=20..23 mounted=21..23`, 2026-10-18). One card behind
+// covers the first press of a turn by itself; Row.tsx commits at once when a
+// press finds a visible card missing anyway.
+export const MARGINS_LOW: Margins = {lead: 1, trail: 1};
 
 // A HELD KEY LEADS FURTHER. Under a held key the deferred commits can fall
 // more than the margin behind: on the Mi TV (5.2.0 device pass, 2026-10-11) a

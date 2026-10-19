@@ -312,10 +312,11 @@ function Row({
       const list = itemsRef.current || [];
       const count = list.length;
 
-      // Should never print: a card of this focus's resting viewport is not
-      // mounted yet — the margin was used up (commits running 2+ presses late).
+      // A card of this focus's resting viewport is not mounted yet: the
+      // margin was used up (commits running 2+ presses late, or a turn).
       const v = visibleRange(index, count, geom);
-      if (v.last >= shown.current.to || v.first < shown.current.from) {
+      const behind = v.last >= shown.current.to || v.first < shown.current.from;
+      if (behind) {
         console.log(`[row] behind row=${rowIndex ?? 0} idx=${index} visible=${v.first}..${v.last} mounted=${shown.current.from}..${shown.current.to - 1}`);
       }
 
@@ -324,14 +325,19 @@ function Row({
       // While focus keeps moving nothing mounted is let go (the slide trails a
       // held key by several cards); SETTLE_MS after the last move the window
       // is cut back to what rests on screen.
+      // EXCEPT when a card that is on screen is missing: then the window is
+      // committed NOW (an urgent update, the next frame), not in a transition
+      // that a held key's stream of urgent work can keep postponing — the card
+      // used to arrive a press or more late (Mi TV, 2026-10-18).
       const first = shown.current;
-      defer(() =>
+      const follow = () =>
         setAt(p => {
           if (p.f === index && p.dir === dir && p.m === m) return p;
           const next = rowWindow(index, dir, count, geom, m);
           return {f: index, dir, m, keep: heldWindow(p.keep || first, next, dir)};
-        }),
-      );
+        });
+      if (behind) follow();
+      else defer(follow);
       if (settle.current) clearTimeout(settle.current);
       settle.current = setTimeout(() => {
         settle.current = null;
