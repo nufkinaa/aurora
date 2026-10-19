@@ -202,6 +202,23 @@ export const lieFrom = (
   return null;
 };
 
+/** A direct start whose sound NO renderer took: ExoPlayer does not fail on a
+ *  track it cannot play — it plays the picture without it (the track is left
+ *  unselected). When the server's decision said this box passes the track
+ *  through or decodes it, that was a lie: what it was, or null when the sound
+ *  is fine (some track selected, no tracks at all, or no decision). */
+export const silentLie = (
+  tracks: {selected?: boolean}[] | null | undefined,
+  play: Play | null,
+  audioCodec: string | null | undefined,
+): Lies | null => {
+  if (!play || play.mode !== 'direct' || !Array.isArray(tracks) || !tracks.length) return null;
+  if (tracks.some(t => t && t.selected)) return null;
+  if (play.audio === 'passthrough' && play.form) return {passthrough: [play.form]};
+  if (play.audio === 'decode' && audioCodec) return {decode: [audioCodec]};
+  return null;
+};
+
 /** Two lie lists as one (each entry once). */
 export const mergeLies = (a: Lies | null | undefined, b: Lies | null | undefined): Lies => {
   const out: Lies = {};

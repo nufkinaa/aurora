@@ -135,7 +135,7 @@ import {openReport, overlayOpen} from '../overlay';
 import {onPersonPrefs, setPersonPref} from '../personSync';
 // ---- picture and sound (TV round 2026-10-19): the server's play decision,
 // refresh-rate matching, passthrough — avCaps.ts (rules), av.ts (native) ----
-import {armPlan, lieFrom, Play, profileFor, readPlay, wantsFrameRate} from '../avCaps';
+import {armPlan, lieFrom, Play, profileFor, readPlay, silentLie, wantsFrameRate} from '../avCaps';
 import {matchFrameRate, noteLie, restoreFrameRate, setPassthrough} from '../av';
 import {personNow} from '../personSync';
 // ---- end picture and sound ----
@@ -3104,6 +3104,27 @@ export default function Player({
   };
 
   const onLoad = (d: OnLoadData) => {
+    // ---- picture and sound (TV round 2026-10-19): a direct start the server
+    // decided on this box's word, whose sound no renderer took (ExoPlayer
+    // plays such a film SILENT rather than failing): the word did not hold.
+    // Kept (av.ts noteLie), and the film goes to the server's copy — its sound
+    // made AAC — at the point it was starting from.
+    {
+      const lie = silentLie(d.audioTracks as {selected?: boolean}[] | undefined, playDecision.current, playFacts.current.audioCodec);
+      const base = itemRef.current?.transcodeBase;
+      if (lie && base && !usingTranscodeRef.current) {
+        console.log('[av] the sound did not play here:', JSON.stringify(lie));
+        noteLie(lie);
+        playDecision.current = null;
+        const at = resumeAt.current > 0 ? resumeAt.current : startAt.current ? startAt.current.ms / 1000 : curRef.current;
+        resumeAt.current = 0;
+        switchedToTranscode.current = true;
+        mark('decision', {mode: 'copy', why: 'silent'});
+        startTranscode(base, at, 'copy');
+        return;
+      }
+    }
+    // ---- end picture and sound
     // A still-transcoding HLS playlist reports only what has been written so far
     // and it keeps growing, so the metadata runtime is the honest total. This
     // mirrors the web's totalDuration().

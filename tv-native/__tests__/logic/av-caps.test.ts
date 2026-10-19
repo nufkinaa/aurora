@@ -3,7 +3,7 @@
 // caught lying about), how the player reads the server's decision, which
 // failures count as a lie, and when the screen is asked for the film's
 // frame rate. Plus the two person-level settings it brings.
-import {armPlan, buildReport, lieFrom, mergeLies, NativeAv, profileFor, readPlay, streamPlan, wantsFrameRate} from '../../src/avCaps';
+import {armPlan, buildReport, lieFrom, mergeLies, NativeAv, profileFor, readPlay, silentLie, streamPlan, wantsFrameRate} from '../../src/avCaps';
 import {streamPlayItem} from '../../src/playBest';
 import {PERSON_DEFAULTS, readPerson} from '../../src/personPrefs';
 
@@ -117,6 +117,16 @@ describe('the lies', () => {
     expect(lieFrom({code: '25001'}, {mode: 'remux', audio: 'passthrough', form: 'eac3'}, facts)).toBeNull();
     // a decoder failure that names neither side cannot be pinned down
     expect(lieFrom({detail: 'ERROR_CODE_DECODER_INIT_FAILED', code: '24001'}, pass, facts)).toBeNull();
+  });
+  test('a direct start whose sound no renderer took (ExoPlayer plays it silent, it does not fail): a lie', () => {
+    expect(silentLie([{selected: false}], pass, 'eac3')).toEqual({passthrough: ['eac3']});
+    expect(silentLie([{selected: false}, {selected: false}], {mode: 'direct', audio: 'decode'}, 'dts')).toEqual({decode: ['dts']});
+    // the sound plays, the file has none, or the start was not the server's "as it is"
+    expect(silentLie([{selected: true}], pass, 'eac3')).toBeNull();
+    expect(silentLie([], pass, 'eac3')).toBeNull();
+    expect(silentLie(undefined, pass, 'eac3')).toBeNull();
+    expect(silentLie([{selected: false}], null, 'eac3')).toBeNull();
+    expect(silentLie([{selected: false}], {mode: 'remux', audio: 'convert'}, 'eac3')).toBeNull();
   });
   test('kept lists merge, each entry once', () => {
     expect(mergeLies({passthrough: ['eac3']}, {passthrough: ['eac3', 'dts'], video: ['vp9']})).toEqual({passthrough: ['eac3', 'dts'], video: ['vp9']});
