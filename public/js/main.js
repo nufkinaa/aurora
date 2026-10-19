@@ -329,17 +329,44 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
   // "mine" is decided server-side per profile, so the list is (re)fetched
   // for whoever is signed in — at boot, and again when the profile changes.
   let fetchedFor = undefined; // never "the null profile" — boot must fetch too
+  // A read that failed (the server restarting as the page opened) is asked
+  // again by itself — 3 s, 8 s, 20 s, then every 30 s — and on the socket's
+  // first welcome, instead of leaving My downloads saying "Nothing downloading
+  // yet" until a reload (the TV said "Could not load your downloads" for good).
+  const RETRY_MS = [3000, 8000, 20000, 30000];
+  let failedFor = undefined; // the profile whose read failed (undefined: none did)
+  let retryN = 0;
+  let retryTimer = null;
   const load = () => {
     const pid = state.profile ? state.profile.id : null;
     if (pid === fetchedFor) return;
     fetchedFor = pid;
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
     api.downloads(pid)
       .then((res) => {
         // the route answers a bare array
-        for (const j of Array.isArray(res) ? res : res.downloads || []) downloads.set(j.id, j);
+        const list = Array.isArray(res) ? res : res.downloads || [];
+        const late = failedFor !== undefined;
+        failedFor = undefined;
+        retryN = 0;
+        if (state.downloadsFailed) { state.downloadsFailed = false; emit({ type: "downloads_read", ok: true }); }
+        if (late) {
+          // a screen already open (My downloads, a title's page) hears it as it hears a reconnect
+          for (const job of list) emit({ type: "download_update", job, caughtUp: true });
+          return;
+        }
+        for (const j of list) downloads.set(j.id, j);
         paint();
       })
-      .catch(() => { fetchedFor = null; });
+      .catch(() => {
+        // (undefined: nothing fetched for anyone, so the next load() asks whoever is in by then)
+        fetchedFor = undefined;
+        failedFor = pid;
+        // My downloads says so instead of "Nothing downloading yet" (screens/downloads.js)
+        if (!state.downloadsFailed) { state.downloadsFailed = true; emit({ type: "downloads_read", ok: false }); }
+        const wait = RETRY_MS[Math.min(retryN++, RETRY_MS.length - 1)];
+        retryTimer = setTimeout(() => { retryTimer = null; if (fetchedFor === undefined) load(); }, wait);
+      });
   };
   load();
   // The socket came back (every welcome after the first). Whatever happened
@@ -351,13 +378,16 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
   // "done" is announced exactly as if its message had arrived.
   let welcomes = 0;
   onMessage("welcome", () => {
-    if (++welcomes === 1) return; // boot's own list is `load()` above
+    if (++welcomes === 1 && failedFor === undefined) return; // boot's own list is `load()` above (unless it failed)
     const pid = state.profile ? state.profile.id : null;
     api.downloads(pid)
       .then((res) => {
         if ((state.profile ? state.profile.id : null) !== pid) return;
         const list = Array.isArray(res) ? res : res.downloads || [];
         fetchedFor = pid;
+        failedFor = undefined;
+        retryN = 0;
+        if (state.downloadsFailed) { state.downloadsFailed = false; emit({ type: "downloads_read", ok: true }); }
         const ids = new Set(list.map((j) => j.id));
         for (const id of [...downloads.keys()]) if (!ids.has(id)) emit({ type: "download_removed", id });
         for (const job of list) emit({ type: "download_update", job, caughtUp: true });

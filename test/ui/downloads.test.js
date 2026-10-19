@@ -126,4 +126,30 @@ ui.test("a My List download on hold says so, keeps its progress bar, and sits un
   assert.match(await page.locator('.dl-row[data-id="111111111111"] .dl-auto').innerText(), /MY LIST/);
 });
 
+// A first read that fails (the server restarting as the page opened) is asked
+// again by itself: the page used to say "Nothing downloading yet" until a
+// reload — the TV app said "Could not load your downloads" for good.
+ui.test("the list is read again by itself after a failed read, and fills My downloads in", { allow: [/status of 503 .*\/api\/downloads/] }, async ({ page, goto, signIn, freshProfile }) => {
+  const jobs = [job({ id: "999999999999", title: "Back Again Film", label: "Back Again Film" })];
+  const p = await freshProfile();
+  let failed = 0;
+  let served = 0;
+  await page.route((url) => url.pathname === "/api/downloads", (route) => {
+    if (failed < 2) { failed++; return route.fulfill({ status: 503, json: { error: "restarting" } }); }
+    served++;
+    return route.fulfill({ json: jobs });
+  });
+  await signIn(p);
+  await goto("#/downloads");
+  // while it fails the page says so — not "Nothing downloading yet"
+  await page.waitForSelector(".dl-retrying");
+  assert.match(await page.locator(".dl-retrying").innerText(), /Couldn't load your downloads[\s\S]*trying again/);
+  await page.waitForSelector('.dl-row[data-id="999999999999"]', { timeout: 20000 });
+  assert.equal(await page.locator(".dl-retrying").count(), 0, "the message goes once the list is in");
+  assert.equal(failed, 2, "two reads failed first");
+  assert.ok(served >= 1);
+  assert.match(await page.locator('.dl-row[data-id="999999999999"] .dl-status').innerText(), /Downloading · 12%/);
+  assert.equal(await page.locator(".dl-empty").count(), 0, "not the empty page");
+});
+
 ui.run({ concurrency: 1 });
