@@ -12,6 +12,7 @@ import { showLoginScreen } from "./login.js";
 import * as offlineStore from "../offline.js";
 import { dataMode, setDataMode, netInfo } from "../net.js";
 import * as push from "../push.js";
+import * as remote from "../remote.js"; // [phone-remote]
 
 // One settings row: label + explanation on the left, a button cycling the value
 // on the right. Every row here drives behaviour that already exists in the
@@ -879,6 +880,29 @@ export const renderPreferences = async (root) => {
             () => { if (window.isSecureContext && "serviceWorker" in navigator) navigate("#/saved"); }
           )
         )),
+      // [phone-remote] this device and the phone as a remote (js/remote.js)
+      section("Phone as a remote", remote.targetAllowed()
+        ? "Your phone can control your TVs — and this device, under this name."
+        : "This phone can control your TVs: open Remote while Aurora is on one.",
+        el("div", { class: "pref-list page-pad" },
+          remote.targetAllowed() && prefRow(
+            "This device's name",
+            "What your phone calls this device in its list.",
+            () => remote.deviceName(),
+            async () => {
+              const v = await promptSheet({ title: "This device's name", text: "Your phone lists this device under this name.", value: remote.deviceName(), placeholder: remote.defaultDeviceName(), ok: "Save" });
+              if (v) remote.setDeviceName(v);
+            }
+          ),
+          remote.targetAllowed() && prefRow(
+            "Let my other devices play here",
+            "Your phone can start titles on this device and control them.",
+            () => (remote.targetEnabled() ? "On" : "Off"),
+            () => remote.setTargetEnabled(!remote.targetEnabled())
+          ),
+          linkRow("Remote", "Control a TV that has Aurora open", () => navigate("#/remote"))
+        )),
+      // [/phone-remote]
       section("Privacy", "Nothing leaves this server.",
         el("div", { class: "pref-list page-pad" },
           prefRow(

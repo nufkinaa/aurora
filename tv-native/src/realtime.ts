@@ -58,6 +58,18 @@ export const onMessage = (type: string, fn: Handler) => {
 
 export const isOpen = () => !!ws && ws.readyState === WebSocket.OPEN;
 
+// ---------- [phone-remote] who wants to hear that the socket (re)opened ----------
+// The phone remote's target (remote/target.ts) announces this TV again on
+// every open, right after the hello. Returns the unsubscribe.
+const openFns = new Set<() => void>();
+export const onSocketOpen = (fn: () => void) => {
+  openFns.add(fn);
+  return () => {
+    openFns.delete(fn);
+  };
+};
+// ---------- [/phone-remote] ----------
+
 // THE LIBRARY CHANGED (`library_updated`). The reads it decides are forgotten
 // at once (that asks for nothing); the SCREENS are told later, once, after a
 // random wait — a blink when Home is the screen being looked at, half a
@@ -168,6 +180,13 @@ const open = () => {
         if (ws === sock && sock.readyState === WebSocket.OPEN) delay = RECONNECT_FIRST_MS;
       }, 5000);
       hello();
+      // [phone-remote] the TV says what it is to the phone remote again
+      for (const fn of [...openFns]) {
+        try {
+          fn();
+        } catch {}
+      }
+      // [/phone-remote]
     };
     sock.onmessage = e => {
       let data: (Record<string, unknown> & {type: string}) | null = null;

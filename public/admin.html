@@ -884,6 +884,17 @@
         </table></div>
         <div class="empty-note hidden" id="live-empty">Nothing is connected right now.</div>
       </section>
+      <!-- [phone-remote] who may control which TV (src/lib/devices.js) -->
+      <details class="acard" data-key="p-remote" id="rm-card">
+        <summary><span class="chev">▶</span><h2>Phone as a remote <span class="note">a phone controls the TVs and computers signed in to its own profile; kids profiles only ever their own</span></h2></summary>
+        <div class="acard-body">
+          <div class="bar-row" style="align-items:center;margin-top:10px;flex-wrap:wrap;gap:10px 16px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)"><input type="checkbox" id="rm-household" /> Grown-ups may also control the household's other TVs</label>
+            <span class="muted" style="font-size:0.8rem" id="rm-status"></span>
+          </div>
+        </div>
+      </details>
+      <!-- [/phone-remote] -->
       <details class="acard" data-key="p-bans">
         <summary><span class="chev">▶</span><h2>Banned addresses <span class="pill" id="bans-count">0</span> <span class="note">an address here can't reach the server at all</span></h2></summary>
         <div class="acard-body">
@@ -4183,13 +4194,32 @@
       });
     });
 
+    // ---------- [phone-remote] Phone as a remote ----------
+    async function loadRemote() {
+      try {
+        const r = await adminFetch("/api/admin/remote");
+        if (!r.ok) return;
+        const m = await r.json();
+        $("#rm-household").checked = !!m.household;
+        $("#rm-status").textContent = `${m.targets || 0} device${m.targets === 1 ? "" : "s"} on · ${m.controllers || 0} open remote${m.controllers === 1 ? "" : "s"}`;
+      } catch {}
+    }
+    $("#rm-household").addEventListener("change", async () => {
+      const on = $("#rm-household").checked;
+      let r = null;
+      try { r = await post("/api/admin/remote", { household: on }); } catch {}
+      toast(r && r.ok ? (on ? "Grown-ups can control every TV in the house now" : "Each phone controls only its own profile's TVs now") : (r && r.error) || "Couldn't save that");
+      loadRemote();
+    });
+    // ---------- [/phone-remote] ----------
+
     // ---------- tabs ----------
     const tabLoaders = {
       overview: () => { loadOverview(); loadClients(); loadTimeseries(); loadOverviewTop(); },
       analytics: () => { loadAnalytics(); loadUsage(); },
       telemetry: () => loadTelemetry(),
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
-      profiles: () => loadPeople(),
+      profiles: () => { loadPeople(); loadRemote(); },
       server: () => { loadServer(); loadMetrics(); loadHealth(); loadEncoding(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
       downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadCopies(); loadLimits(); loadMyList(); },
       moderation: () => { loadReports(); loadRequests(); loadIntros(); },

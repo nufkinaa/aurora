@@ -1,0 +1,1189 @@
+/* ==========================================================================
+   The remote (screens/remote.js) and the "Play on TV" pieces (js/remote.js).
+   Loaded on demand — the first time a device is on, or the remote is opened —
+   so nothing of it is on any other screen's path.
+
+   The look: the film's own artwork, blurred and lit from below, behind a
+   phone-sized deck. A big round play button that carries the position as a
+   ring, a thick scrub bar, a touchpad that glows where the thumb moves.
+   Glass (the default): frosted slabs over the art. Classic (no data-look):
+   the same layout on solid raised surfaces. Every theme is dark, so the
+   white-alpha surfaces hold on all of them.
+   ========================================================================== */
+
+html.remote-open,
+html.remote-open body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+html.remote-open .nav,
+html.remote-open #offline-banner {
+  visibility: hidden;
+}
+
+.remote-screen {
+  --rm-gap: 14px;
+  --rm-pad-x: 16px;
+  --rm-radius: 22px;
+  --rm-slab: rgba(255, 255, 255, 0.07);
+  --rm-slab-strong: rgba(255, 255, 255, 0.11);
+  --rm-edge: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --rm-accent: var(--accent, #8b7bff);
+  position: fixed;
+  inset: 0;
+  z-index: 250; /* over the nav and a player (200); under sheets (300+) and toasts (400) */
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+html[data-look="glass"] .remote-screen {
+  --rm-radius: 26px;
+  --rm-slab: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035) 55%, rgba(255, 255, 255, 0.07));
+  --rm-slab-strong: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+  --rm-edge: inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+/* classic: solid, square-ish */
+html:not([data-look="glass"]) .remote-screen {
+  --rm-radius: 14px;
+  --rm-slab: var(--bg-raised, #131523);
+  --rm-slab-strong: #1d2033;
+  --rm-edge: inset 0 0 0 1px var(--line, rgba(255, 255, 255, 0.09));
+}
+
+/* ---------- the art behind everything ---------- */
+.rm-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.rm-backdrop img {
+  position: absolute;
+  inset: -12%;
+  width: 124%;
+  height: 124%;
+  object-fit: cover;
+  filter: blur(42px) saturate(1.5) brightness(0.62);
+  opacity: 0;
+  transform: scale(1.04);
+  transition: opacity 900ms var(--ease), transform 1400ms var(--ease);
+}
+.rm-backdrop.on img {
+  opacity: 1;
+  transform: scale(1);
+}
+/* the aurora ribbon: always there, the light under the deck */
+.rm-backdrop::before {
+  content: "";
+  position: absolute;
+  left: -30%;
+  right: -30%;
+  bottom: -18%;
+  height: 62%;
+  background:
+    radial-gradient(60% 55% at 30% 60%, rgba(var(--accent-rgb, 139, 123, 255), 0.42), transparent 70%),
+    radial-gradient(50% 50% at 72% 70%, rgba(64, 196, 186, 0.26), transparent 70%);
+  filter: blur(18px);
+  animation: rm-drift 22s ease-in-out infinite alternate;
+}
+.rm-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(var(--bg-rgb, 11, 12, 20), 0.55) 0%, rgba(var(--bg-rgb, 11, 12, 20), 0.18) 38%, rgba(var(--bg-rgb, 11, 12, 20), 0.72) 100%);
+}
+html:not([data-look="glass"]) .rm-backdrop::before {
+  opacity: 0.55;
+}
+@keyframes rm-drift {
+  from { transform: translate3d(-6%, 0, 0) rotate(-2deg); }
+  to { transform: translate3d(6%, -4%, 0) rotate(2deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rm-backdrop::before { animation: none; }
+}
+
+.remote-screen > *:not(.rm-backdrop):not(.rm-sheet-wrap) {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- top: close · the device · more ---------- */
+.rm-top {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 4px;
+  min-height: 60px;
+}
+.rm-icon-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  background: var(--rm-slab);
+  box-shadow: var(--rm-edge);
+}
+.rm-picker {
+  justify-self: center;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 14px 0 12px;
+  border-radius: 999px;
+  background: var(--rm-slab-strong);
+  box-shadow: var(--rm-edge);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.98rem;
+  min-width: 0;
+}
+html[data-look="glass"] .rm-picker,
+html[data-look="glass"] .rm-dock {
+  -webkit-backdrop-filter: var(--g-blur, blur(7px));
+  backdrop-filter: var(--g-blur, blur(7px));
+}
+.rm-pick-ico {
+  display: grid;
+  color: var(--rm-accent);
+}
+.rm-pick-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.rm-pick-caret {
+  display: grid;
+  opacity: 0.7;
+  margin-left: -2px;
+}
+.rm-pick-caret svg {
+  width: 16px;
+  height: 16px;
+}
+.rm-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f0b44a;
+  flex: none;
+}
+.rm-dot.live {
+  background: #3ddc97;
+  box-shadow: 0 0 0 0 rgba(61, 220, 151, 0.6);
+  animation: rm-live 2.4s ease-out infinite;
+}
+.rm-dot.off {
+  background: #ff5d5d;
+}
+@keyframes rm-live {
+  0% { box-shadow: 0 0 0 0 rgba(61, 220, 151, 0.55); }
+  70% { box-shadow: 0 0 0 7px rgba(61, 220, 151, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(61, 220, 151, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rm-dot.live { animation: none; }
+}
+.rm-banner {
+  margin: 4px var(--rm-pad-x) 0;
+  padding: 9px 14px;
+  border-radius: 14px;
+  background: rgba(240, 180, 74, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(240, 180, 74, 0.35);
+  color: #ffe2ad;
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-align: center;
+}
+.rm-banner[hidden] {
+  display: none;
+}
+
+/* ---------- the body: one view at a time on an upright phone ---------- */
+.rm-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--rm-pad-x);
+}
+.rm-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--rm-gap);
+  padding: 8px 0 12px;
+}
+.remote-screen[data-view="now"] .rm-view-pad,
+.remote-screen[data-view="pad"] .rm-view-now {
+  display: none;
+}
+
+/* sections of the "now" view by state */
+.rm-playing,
+.rm-idle,
+.rm-empty {
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--rm-gap);
+}
+.remote-screen[data-state="playing"] .rm-playing,
+.remote-screen[data-state="idle"] .rm-idle,
+.remote-screen[data-state="empty"] .rm-empty {
+  display: flex;
+}
+.remote-screen[data-state="empty"] .rm-dock,
+.remote-screen[data-state="empty"] .rm-view-pad {
+  visibility: hidden;
+}
+
+/* ---------- now playing ---------- */
+.rm-art {
+  align-self: center;
+  position: relative;
+  height: min(34vh, 300px);
+  aspect-ratio: 2 / 3;
+  border-radius: 18px;
+  overflow: hidden;
+  background: linear-gradient(160deg, rgba(var(--accent-rgb, 139, 123, 255), 0.5), rgba(64, 196, 186, 0.25));
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  transition: transform 420ms var(--ease), filter 420ms var(--ease);
+}
+.rm-art.wide {
+  aspect-ratio: 16 / 9;
+  height: auto;
+  width: min(100%, 420px);
+}
+.rm-art:not(.has-art)::after {
+  content: attr(data-letter);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 4rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.85);
+}
+.rm-art-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.remote-screen.is-paused .rm-art {
+  transform: scale(0.94);
+  filter: saturate(0.8);
+}
+.rm-meta {
+  text-align: center;
+  min-width: 0;
+}
+.rm-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+  margin-bottom: 4px;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+}
+.rm-eyebrow::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3ddc97;
+  box-shadow: 0 0 10px rgba(61, 220, 151, 0.8);
+}
+.remote-screen.is-paused .rm-eyebrow::before {
+  background: #f0b44a;
+  box-shadow: none;
+}
+.rm-title {
+  margin: 0;
+  font-size: clamp(1.35rem, 5.6vw, 2rem);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.5);
+}
+.rm-subtitle {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* the scrub bar: a thick bar, a fat invisible slider over it */
+.rm-scrub {
+  padding: 2px 4px 0;
+}
+.rm-scrub-hit {
+  position: relative;
+  height: 34px;
+  display: flex;
+  align-items: center;
+}
+.rm-scrub-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: visible;
+  transition: height 160ms var(--ease);
+}
+.rm-scrub-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--rm-accent), #a6c8ff);
+  box-shadow: 0 0 14px rgba(var(--accent-rgb, 139, 123, 255), 0.55);
+}
+html:not([data-look="glass"]) .rm-scrub-fill {
+  background: var(--rm-accent);
+  box-shadow: none;
+}
+.rm-scrub-thumb {
+  position: absolute;
+  top: 50%;
+  left: var(--p, 0%);
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  transition: transform 160ms var(--ease);
+}
+.remote-screen.is-scrubbing .rm-scrub-track {
+  height: 12px;
+}
+.remote-screen.is-scrubbing .rm-scrub-thumb {
+  transform: scale(1.35);
+}
+.remote-screen.is-buffering .rm-scrub-fill {
+  background-size: 200% 100%;
+  background-image: linear-gradient(90deg, var(--rm-accent), #a6c8ff, var(--rm-accent));
+  animation: rm-shimmer 1.4s linear infinite;
+}
+@keyframes rm-shimmer {
+  to { background-position: -200% 0; }
+}
+.rm-scrub-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  touch-action: none;
+}
+.rm-scrub-input:disabled {
+  cursor: default;
+}
+.rm-scrub-input:focus-visible + * ,
+.rm-scrub-hit:focus-within .rm-scrub-track {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8);
+}
+.rm-times {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* transport: ±30 ±10 around a big round play */
+.rm-transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 3vw, 18px);
+}
+.rm-t {
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  border-radius: 50%;
+  transition: transform 140ms var(--ease), background 140ms;
+}
+.rm-t:active {
+  transform: scale(0.9);
+}
+.rm-skip {
+  width: 54px;
+  height: 54px;
+  background: var(--rm-slab);
+  box-shadow: var(--rm-edge);
+}
+.rm-play {
+  width: 84px;
+  height: 84px;
+  background: #fff;
+  color: #0b0c14;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45), 0 0 0 6px rgba(255, 255, 255, 0.08);
+}
+.rm-play svg {
+  width: 38px;
+  height: 38px;
+}
+html:not([data-look="glass"]) .rm-play {
+  background: var(--rm-accent);
+  color: #fff;
+}
+.remote-screen.is-buffering .rm-play {
+  animation: rm-breathe 1.6s ease-in-out infinite;
+}
+@keyframes rm-breathe {
+  50% { box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45), 0 0 0 12px rgba(255, 255, 255, 0.05); }
+}
+
+/* the chips under it */
+.rm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.rm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 42px;
+  padding: 0 15px;
+  border-radius: 999px;
+  background: var(--rm-slab);
+  box-shadow: var(--rm-edge);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.rm-chip-ico {
+  display: grid;
+}
+.rm-chip.on {
+  background: rgba(var(--accent-rgb, 139, 123, 255), 0.28);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb, 139, 123, 255), 0.6);
+}
+.rm-chip:disabled {
+  opacity: 0.4;
+}
+.rm-chip[hidden] {
+  display: none;
+}
+
+/* ---------- nothing playing / no device ---------- */
+.rm-idle,
+.rm-empty {
+  text-align: center;
+  align-items: center;
+}
+.rm-idle-glyph {
+  width: 92px;
+  height: 92px;
+  border-radius: 28px;
+  display: grid;
+  place-items: center;
+  color: var(--rm-accent);
+  background: var(--rm-slab);
+  box-shadow: var(--rm-edge), 0 20px 50px rgba(0, 0, 0, 0.35);
+  margin: 0 auto 4px;
+}
+.rm-idle-glyph svg {
+  width: 46px;
+  height: 46px;
+}
+.rm-empty .rm-subtitle {
+  white-space: normal;
+  max-width: 34ch;
+  margin: 0 auto;
+  line-height: 1.45;
+}
+.rm-cw-head {
+  display: none;
+  align-self: stretch;
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-top: 10px;
+}
+.rm-idle.has-cw .rm-cw-head {
+  display: block;
+}
+.rm-cw {
+  align-self: stretch;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 168px;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 2px 2px 10px;
+  margin: 0 calc(-1 * var(--rm-pad-x));
+  padding-left: var(--rm-pad-x);
+  padding-right: var(--rm-pad-x);
+  scrollbar-width: none;
+}
+.rm-cw::-webkit-scrollbar {
+  display: none;
+}
+.rm-cw-card {
+  position: relative;
+  scroll-snap-align: start;
+  aspect-ratio: 16 / 10;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--rm-slab-strong);
+  box-shadow: var(--rm-edge);
+  color: #fff;
+  text-align: left;
+}
+.rm-cw-card img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.rm-cw-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 40%, rgba(0, 0, 0, 0.82));
+}
+.rm-cw-letter {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  font-weight: 800;
+}
+.rm-cw-label {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 12px;
+  z-index: 1;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.rm-cw-bar {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 6px;
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.25);
+  z-index: 1;
+}
+.rm-cw-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--rm-accent);
+}
+.rm-cw-card.busy {
+  opacity: 0.6;
+}
+
+/* ---------- the pad ---------- */
+.rm-view-pad {
+  justify-content: flex-start;
+}
+.rm-seg {
+  display: inline-flex;
+  align-self: center;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: var(--rm-edge);
+}
+.rm-seg-btn {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-weight: 700;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+.rm-seg-btn.on {
+  background: var(--rm-slab-strong);
+  color: var(--text);
+  box-shadow: var(--rm-edge);
+}
+html:not([data-look="glass"]) .rm-seg-btn.on {
+  background: var(--rm-accent);
+  color: #fff;
+}
+.rm-pad-area {
+  flex: 1;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+}
+.rm-touch {
+  position: relative;
+  flex: 1;
+  border-radius: calc(var(--rm-radius) + 6px);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.06), transparent 70%),
+    radial-gradient(rgba(255, 255, 255, 0.13) 1px, transparent 1.4px) 0 0 / 22px 22px,
+    var(--rm-slab);
+  box-shadow: var(--rm-edge), 0 24px 60px rgba(0, 0, 0, 0.32);
+  overflow: hidden;
+  touch-action: none;
+  cursor: pointer;
+  outline: none;
+}
+html:not([data-look="glass"]) .rm-touch {
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1.4px) 0 0 / 22px 22px,
+    var(--rm-slab);
+}
+.rm-touch:focus-visible {
+  box-shadow: var(--rm-edge), 0 0 0 3px rgba(255, 255, 255, 0.85);
+}
+.rm-touch.held {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+.rm-touch-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb, 139, 123, 255), 0);
+  transition: box-shadow 260ms;
+}
+.rm-touch.held .rm-touch-glow {
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb, 139, 123, 255), 0.55), inset 0 0 40px rgba(var(--accent-rgb, 139, 123, 255), 0.18);
+}
+.rm-pad-hint {
+  position: absolute;
+  inset: auto 0 18px;
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-faint, #8c93a8);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+.rm-ripple {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(var(--accent-rgb, 139, 123, 255), 0.55), transparent 65%);
+  opacity: 0;
+  transform: scale(0.3);
+}
+.rm-ripple[data-kind="ok"] {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.6), transparent 62%);
+}
+.rm-ripple.go {
+  animation: rm-ripple 520ms var(--ease) forwards;
+}
+@keyframes rm-ripple {
+  0% { opacity: 0.95; transform: scale(0.3); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+
+/* the D-pad buttons, for those who want buttons */
+.rm-dpad {
+  display: none;
+  align-self: center;
+  width: min(78vw, 300px, 40vh);
+  aspect-ratio: 1;
+  grid-template: "a up b" 1fr "left ok right" 1fr "c down d" 1fr / 1fr 1fr 1fr;
+  border-radius: 50%;
+  background: var(--rm-slab);
+  box-shadow: var(--rm-edge), 0 24px 60px rgba(0, 0, 0, 0.32);
+  margin: auto;
+}
+.remote-screen[data-pad="buttons"] .rm-touch {
+  display: none;
+}
+.remote-screen[data-pad="buttons"] .rm-dpad {
+  display: grid;
+}
+.rm-dkey {
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  border-radius: 50%;
+}
+.rm-dkey:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+.rm-up { grid-area: up; }
+.rm-down { grid-area: down; }
+.rm-left { grid-area: left; }
+.rm-right { grid-area: right; }
+.rm-ok {
+  grid-area: ok;
+  margin: 8%;
+  background: var(--rm-slab-strong);
+  box-shadow: var(--rm-edge), 0 8px 20px rgba(0, 0, 0, 0.35);
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+.rm-view-pad.no-nav .rm-touch,
+.rm-view-pad.no-nav .rm-dpad {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.rm-keys {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.rm-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 64px;
+  border-radius: 18px;
+  background: var(--rm-slab);
+  box-shadow: var(--rm-edge);
+  color: var(--text);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+.rm-key span:first-child {
+  display: grid;
+}
+.rm-key:active,
+.rm-chip:active,
+.rm-vol-btn:active {
+  transform: scale(0.95);
+}
+
+/* ---------- the dock ---------- */
+.rm-dock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 var(--rm-pad-x) calc(10px + env(safe-area-inset-bottom, 0px));
+  padding: 8px;
+  border-radius: 999px;
+  background: var(--rm-slab);
+  box-shadow: var(--rm-edge), 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+.rm-dock .rm-seg {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+.rm-dock .rm-seg-btn {
+  height: 42px;
+  padding: 0 14px;
+}
+.rm-vol {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.rm-vol[hidden] {
+  display: none;
+}
+.rm-vol-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.rm-vol-btn.on {
+  background: rgba(255, 93, 93, 0.22);
+  color: #ffb0b0;
+}
+.rm-vol-level {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -5px;
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+.rm-vol-level[hidden] {
+  display: none;
+}
+.rm-vol-level i {
+  display: block;
+  height: 100%;
+  background: var(--rm-accent);
+}
+.remote-screen.no-volume .rm-dock {
+  justify-content: center;
+}
+
+/* ---------- focus ---------- */
+.remote-screen .focusable:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.rm-play:focus-visible {
+  box-shadow: var(--focus-ring-light);
+}
+
+/* ---------- wider: both halves at once ---------- */
+@media (min-width: 720px), (orientation: landscape) and (min-width: 560px) {
+  .rm-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: clamp(16px, 3vw, 48px);
+    align-items: stretch;
+    padding: 0 clamp(16px, 4vw, 56px);
+  }
+  .remote-screen[data-view] .rm-view-now,
+  .remote-screen[data-view] .rm-view-pad {
+    display: flex;
+  }
+  .rm-tabs {
+    display: none;
+  }
+  .rm-dock {
+    align-self: center;
+    justify-content: center;
+    min-width: 220px;
+  }
+  .rm-view-pad {
+    justify-content: center;
+    max-width: 460px;
+    width: 100%;
+    justify-self: center;
+  }
+  .rm-pad-area {
+    flex: 0 1 auto;
+    aspect-ratio: 1.15;
+    max-height: 52vh;
+  }
+  .rm-touch {
+    min-height: 220px;
+  }
+}
+/* a phone on its side: short — the art steps aside */
+@media (orientation: landscape) and (max-height: 520px) {
+  .rm-dpad { width: min(52vh, 230px); margin: 0 auto; }
+  .rm-view-pad { justify-content: space-between; }
+  .rm-top { min-height: 50px; padding-top: 4px; }
+  .rm-art { display: none; }
+  .rm-view { gap: 10px; padding: 4px 0 8px; }
+  .rm-title { font-size: 1.25rem; -webkit-line-clamp: 1; }
+  .rm-play { width: 68px; height: 68px; }
+  .rm-skip { width: 46px; height: 46px; }
+  .rm-keys .rm-key { height: 50px; }
+  .rm-pad-area { aspect-ratio: auto; max-height: none; min-height: 120px; }
+  .rm-touch { min-height: 120px; }
+  .rm-padmode { display: none; }
+  .rm-dock { margin-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); padding: 5px; }
+  .rm-vol-btn { width: 38px; height: 38px; }
+  .rm-cw { grid-auto-columns: 140px; }
+  .rm-idle-glyph { width: 60px; height: 60px; border-radius: 18px; }
+}
+/* desktop: a bit more air */
+@media (min-width: 1100px) {
+  .rm-art { height: min(40vh, 380px); }
+}
+
+/* ---------- sheets (the device picker, subtitles, audio, rename) ---------- */
+.rm-sheet-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 360;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0);
+  transition: background 220ms var(--ease);
+}
+.rm-sheet-wrap.on {
+  background: rgba(0, 0, 0, 0.5);
+}
+.rm-sheet {
+  width: min(520px, 100%);
+  max-height: min(78vh, 640px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 12px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-radius: 26px 26px 0 0;
+  background: rgba(22, 24, 38, 0.97);
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  transform: translateY(100%);
+  transition: transform 260ms var(--ease);
+}
+html[data-look="glass"] .rm-sheet {
+  background: rgba(18, 20, 34, 0.78);
+  -webkit-backdrop-filter: blur(22px) saturate(1.6);
+  backdrop-filter: blur(22px) saturate(1.6);
+}
+.rm-sheet-wrap.on .rm-sheet {
+  transform: none;
+}
+@media (min-width: 720px) {
+  .rm-sheet-wrap {
+    align-items: center;
+  }
+  .rm-sheet {
+    border-radius: 26px;
+    transform: translateY(24px) scale(0.98);
+    opacity: 0;
+    transition: transform 220ms var(--ease), opacity 220ms;
+  }
+  .rm-sheet-wrap.on .rm-sheet {
+    opacity: 1;
+  }
+}
+.rm-sheet-grip {
+  width: 40px;
+  height: 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.25);
+  margin: 4px auto 10px;
+}
+.rm-sheet-title {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 0 10px 8px;
+}
+.rm-sheet-row {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 16px;
+  color: var(--text);
+  text-align: left;
+  font-size: 1rem;
+  font-weight: 650;
+}
+.rm-sheet-row:hover,
+.rm-sheet-row:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+}
+.rm-sheet-row.on {
+  background: rgba(var(--accent-rgb, 139, 123, 255), 0.18);
+}
+.rm-sheet-ico {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--rm-accent, var(--accent));
+}
+.rm-sheet-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rm-sheet-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rm-sheet-sub {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rm-sheet-check {
+  display: grid;
+  color: var(--rm-accent, var(--accent));
+}
+.rm-sheet-cancel {
+  justify-content: center;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+.rm-delay {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.rm-delay-label {
+  flex: 1;
+  font-weight: 700;
+  color: var(--text-dim);
+  font-size: 0.86rem;
+}
+.rm-delay-btn {
+  height: 38px;
+  min-width: 52px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.rm-delay-val {
+  min-width: 58px;
+  text-align: center;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.rm-rename {
+  display: flex;
+  gap: 10px;
+  padding: 6px 4px 4px;
+}
+.rm-input {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* ---------- "Play on TV" and the nav's Remote button (other screens) ---------- */
+.rm-playon[hidden] {
+  display: none !important;
+}
+.rm-playon svg {
+  flex: none;
+}
+.rm-playon-compact {
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  justify-content: center;
+  border-radius: 50%;
+}
+.nav-remote {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--text);
+  flex: none;
+}
+.nav-remote[hidden] {
+  display: none;
+}
+.nav-remote.live {
+  color: var(--accent);
+}
+.nav-remote.live::after {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3ddc97;
+  transform: translate(11px, -11px);
+}
+.nav-remote {
+  position: relative;
+}
+
+/* toasts sit above the dock while the remote is up */
+html.remote-open #toasts {
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  left: 16px;
+  right: 16px;
+  align-items: center;
+  z-index: 400;
+}
+/* the nav's Remote button in the glass look: the gear's round glass */
+html[data-look="glass"] .nav-remote {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: var(--g-fill), rgba(10, 12, 22, var(--g-under, 0));
+  box-shadow: var(--g-edge), var(--g-shadow);
+  -webkit-backdrop-filter: var(--g-blur);
+  backdrop-filter: var(--g-blur);
+  color: rgba(243, 244, 248, 0.85);
+}
+html[data-look="glass"][data-fx="lite"] .nav-remote {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+html:not([data-look="glass"]) .nav-remote:hover,
+html:not([data-look="glass"]) .nav-remote:focus-visible {
+  background: var(--surface-hover);
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  html.remote-open #toasts {
+    top: calc(58px + env(safe-area-inset-top, 0px));
+    bottom: auto;
+  }
+}

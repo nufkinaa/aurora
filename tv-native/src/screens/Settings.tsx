@@ -33,6 +33,7 @@ import theme, {useTvMetrics} from '../theme';
 import {isLite} from '../perfTier';
 import {askNotificationPermission, setDownloadNotices} from '../homeScreen';
 import RenderDevPanel from '../components/RenderDevPanel';
+import TvNamePicker, {useTvName} from '../remote/TvNamePicker'; // [phone-remote]
 
 const {colors, fontSize, spacing, radius} = theme;
 
@@ -103,6 +104,11 @@ export default function Settings({
   // The developer's rendering switches (RenderDevPanel.tsx): hidden until OK is HELD
   // on the version row, for this visit of the screen only.
   const [devRender, setDevRender] = useState(false);
+  // [phone-remote] what the phone remote calls this TV, and its picker
+  const tvName = useTvName();
+  const [tvNamePicker, setTvNamePicker] = useState(false);
+  const closeTvNamePicker = useCallback(() => setTvNamePicker(false), []);
+  // [/phone-remote]
 
   const [genres, setGenres] = useState<string[] | null>(null);
   // FIRST FOCUS (5.2.0 device pass: Settings opened with nothing visibly
@@ -407,6 +413,15 @@ export default function Settings({
 
         <Text style={styles.h2}>This TV</Text>
         <View style={styles.list}>
+          {/* [phone-remote] the name phones show for this TV ("Play on Living room TV"); the website's row is "This device's name" */}
+          <Row uiId="settings.tvname"
+            label="This TV's name"
+            note="What your phone calls this TV when it plays something here or works as its remote."
+            value={tvName || '…'}
+            onPress={() => setTvNamePicker(o => !o)}
+          />
+          {tvNamePicker ? <TvNamePicker current={tvName} onClose={closeTvNamePicker} /> : null}
+          {/* [/phone-remote] */}
           <Row uiId="settings.update"
             label={`Aurora TV ${APP_VERSION}`}
             note={

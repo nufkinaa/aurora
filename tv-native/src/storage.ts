@@ -283,3 +283,21 @@ let updateDismissed: string | null = null;
 export const dismissUpdate = (v: string) => {
   updateDismissed = v;
 };
+
+// ---------- [phone-remote] this TV as a device the phone can control (remote/identity.ts) ----------
+// The id is made once and kept for as long as the app is installed (the
+// server knows the TV by it: [A-Za-z0-9_-]{8,48}); the name is the one the
+// household gave it ("Living room TV") — the box's, never a profile's.
+const REMOTE_ID_KEY = 'aurora.remote.deviceId';
+const REMOTE_NAME_KEY = 'aurora.remote.name';
+export async function loadRemoteDevice(): Promise<{id: string | null; name: string | null}> {
+  try {
+    const [id, name] = await Promise.all([AsyncStorage.getItem(REMOTE_ID_KEY), AsyncStorage.getItem(REMOTE_NAME_KEY)]);
+    return {id: id || null, name: name || null};
+  } catch {
+    return {id: null, name: null};
+  }
+}
+export const saveRemoteDeviceId = (id: string) => AsyncStorage.setItem(REMOTE_ID_KEY, id).catch(() => {});
+export const saveRemoteName = (name: string) => AsyncStorage.setItem(REMOTE_NAME_KEY, name).catch(() => {});
+// ---------- [/phone-remote] ----------

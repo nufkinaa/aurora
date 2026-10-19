@@ -145,6 +145,21 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
   openNode = wrap;
   pushScope(wrap);
   track("feat", { f: "peek" });
+  // [phone-remote] "Play on <TV>" beside Play, for a title this server holds
+  // (js/remote.js is fetched at idle after boot; asked for, never waited on)
+  if (playable && item.id && !String(item.id).startsWith("torrent|") && item.source !== "stream") {
+    import("./remote.js").then((m) => {
+      if (openNode !== wrap) return;
+      const pr = progressFor(item.id);
+      const b = m.playOnButton({ getItem: () => item, opts: () => ({ position: pr && !pr.finished && pr.position > 10 ? Math.max(0, pr.position - 4) : null }), ui: "peek.playontv" }); // data-ui
+      b.addEventListener("click", () => setTimeout(closePeek, 0));
+      const actions = sheet.querySelector(".peek-actions");
+      const first = actions && actions.querySelector(".btn-primary");
+      if (first) first.after(b);
+      else if (actions) actions.prepend(b);
+    }).catch(() => {});
+  }
+  // [/phone-remote]
   // the primary action, not the ✕, is where a remote should land
   (sheet.querySelector(".peek-actions .btn-primary") || sheet.querySelector(".peek-actions .btn"))?.focus({ preventScroll: true });
 };

@@ -209,6 +209,44 @@ const sendTo = (clientId, data) => {
 };
 const party = require("./lib/party");
 
+// ---------- [phone-remote] "Your TVs": the devices channel (lib/devices.js) ----------
+// Which profile a socket may act as, PROVEN: its sign-in session; else (a
+// server that is not "closed") the profile it names, if that profile has no
+// password, or with that profile's unlock token. Never a locked profile, never
+// a socket of a profile that owes a new password.
+const devices = require("./lib/devices");
+const proveProfile = (client, claimed, token) => {
+  const ws = client && client.ws;
+  if (!ws || ws.restricted) return null;
+  const id = claimed || ws.profileId || null;
+  if (!id) return null;
+  let p = null;
+  try { p = profilesLib().list().find((x) => x.id === id) || null; } catch {}
+  if (!p || p.locked) return null;
+  try { if (profilesLib().resetDue(id)) return null; } catch {}
+  if (ws.profileId === id) return id;
+  if (authmodeLib().get() === "closed") return null;
+  try {
+    if (!profilesLib().isProtected(id)) return id;
+    if (token && profilesLib().tokenValid(id, token)) return id;
+  } catch {}
+  return null;
+};
+devices.configure({
+  send: (clientId, data) => sendTo(clientId, data),
+  prove: proveProfile,
+  profile: (id) => {
+    try {
+      const p = profilesLib().list().find((x) => x.id === id);
+      if (!p) return null;
+      return { id: p.id, name: p.name, avatar: p.avatar || null, avatarImage: p.avatarImage || null, kids: !!profilesLib().kidsOf(p.id) };
+    } catch { return null; }
+  },
+  household: () => { try { return require("./lib/settings").data.remoteHousehold === true; } catch { return false; } },
+  mode: () => wsMode(),
+});
+// ---------- [/phone-remote] ----------
+
 const broadcastAdmins = (data) => {
   if (!wss) return;
   const msg = JSON.stringify(data);
@@ -416,6 +454,32 @@ const handleMessage = (client, data, ws) => {
       client.avatarImage = typeof data.avatarImage === "string" && data.avatarImage.startsWith("/avatars/") ? data.avatarImage.slice(0, 200) : null;
       break;
 
+    // ---------- [phone-remote] the devices channel (lib/devices.js has the protocol) ----------
+    case "device_announce": {
+      const r = devices.announce(client, data);
+      send(ws, JSON.stringify(r.error ? { type: "device_error", error: r.error } : { type: "device_ok", ...r.device }));
+      break;
+    }
+    case "device_state":
+      devices.stateFrom(client, data.state);
+      break;
+    case "device_leave":
+      devices.leaveTarget(client.id);
+      break;
+    case "remote_subscribe":
+      devices.subscribe(client, data);
+      break;
+    case "remote_unsubscribe":
+      devices.unsubscribe(client.id);
+      break;
+    case "remote_command":
+      devices.command(client, data);
+      break;
+    case "remote_ack":
+      devices.ack(client, data);
+      break;
+    // ---------- [/phone-remote] ----------
+
     case "admin_subscribe":
       // The password rides in the subscribe message (page memory only, never a
       // cookie) — browsers can't set WS headers, so this is how the live
@@ -550,6 +614,7 @@ const attach = (server) => {
       telemetry.onStopWatching(client.id);
       // a dropped socket leaves its party (the host's drop ends it)
       if (party.leave(client, sendTo)) broadcastAll({ type: "party_list", parties: party.list() });
+      devices.dropClient(client.id); // [phone-remote] a TV / a remote that went away
       clients.delete(client.id);
       logEvent({ event: "disconnected", ...publicClient(client) });
       broadcastAdmins({ type: "client_disconnected", clientId: client.id });
@@ -611,7 +676,8 @@ module.exports = {
   broadcastAdmins,
   clients,
   clientsOfProfile,
-  _internals: { stampSocket, handleMessage, soon, clock, coalesced, QUIET_MS, MAX_MS, send, hygiene, heartbeat },
+  devices, // [phone-remote]
+  _internals: { proveProfile, stampSocket, handleMessage, soon, clock, coalesced, QUIET_MS, MAX_MS, send, hygiene, heartbeat },
   connectionLog,
   stats,
   bans,

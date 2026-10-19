@@ -157,6 +157,11 @@ import {
 } from './resync';
 import {afterClaim, claimFirst, SERVER_BUSY, whenRoom} from '../serverManners';
 import {playerError, seekResumed, seekStarted, seeking} from '../telemetry'; // [analytics]
+// [phone-remote] the phone as a remote: this player registers itself while it is up
+import {notifyRemote, registerRemotePlayer} from '../remote/player';
+import {audioForLang, subForLang} from '../remote/playItem';
+import type {NowState} from '../remote/protocol';
+// [/phone-remote]
 
 const {colors, radius, fontSize, spacing} = theme;
 
@@ -527,6 +532,7 @@ export default function Player({
   navigation,
 }: NativeStackScreenProps<RootStackParamList, 'Player'>) {
   const {id, title, epTitle, stream, restart, party: partyCode, autoRun: autoRunParam} = route.params;
+  const remoteStart = route.params.remote; // [phone-remote] opened by "Play on TV" (navigation.tsx)
   const isTorrent = !!stream;
   // Decided once per player: the buffer config is part of the video source,
   // and changing it mid-film would reload the source.
@@ -1315,6 +1321,7 @@ export default function Player({
           // past ten seconds, not in the last twenty, four seconds early).
           const at = restart ? null : resumePoint(st.progress?.[id], it.duration);
           if (at != null) resumeAt.current = at;
+          if (remoteStart?.position && !restart) resumeAt.current = remoteStart.position; // [phone-remote] where the phone was
           durRef.current = it.duration || 0;
           setDuration(it.duration || 0);
           setMeta({item: it});
@@ -1347,6 +1354,7 @@ export default function Player({
           // `restart` (Detail's "Start over") means ignore the saved position.
           const at = restart ? null : resumePoint(st.progress?.[id], it.duration);
           if (at != null) resumeAt.current = at;
+          if (remoteStart?.position && !restart) resumeAt.current = remoteStart.position; // [phone-remote] where the phone was
           durRef.current = it.duration || 0;
           setDuration(it.duration || 0);
           startMs.current.meta = Date.now() - mountedAt.current;
@@ -1456,6 +1464,17 @@ export default function Player({
     const it = meta.item;
     const base = it.transcodeBase;
     const r = resumeAt.current;
+    // [phone-remote] the remote's audio language, when this file has it: picked
+    // before the stream starts (switchAudio's track choice, without its restart)
+    if (remoteStart?.audioLang && !audioChosen.current) {
+      const dub = audioForLang(it.audioTracks || [], remoteStart.audioLang);
+      if (dub) {
+        audioChosen.current = true;
+        audioIdxRef.current = dub.index;
+        setAudioIdx(dub.index);
+      }
+    }
+    // [/phone-remote]
     // The original language first: a multi-dub file starts on the track the
     // server marked `original`, not on whichever the release listed first.
     // …unless this viewer chose a dub last time: the language they picked in
@@ -1853,6 +1872,32 @@ export default function Player({
       toast(name ? `${name} subtitles found — switched on` : 'Subtitles found — switched on');
     }
   }, [tracks, prefsLoaded, prefs.subsDefault, prefs.subLang, prefs.lastSubSet, prefs.lastSubLang, profileId, badTick, toast]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---------- [phone-remote] the remote's subtitle language ("Play on TV") ----------
+  // 'off': nothing switches on by itself. A language: the first track of it,
+  // as soon as one is known (tracks keep arriving after the start — until
+  // then the auto pick above does what it always does). Taken as the
+  // viewer's pick for this title (the auto pick stops), but not remembered:
+  // it was the phone's choice, made before anything played here.
+  const remoteSubDone = useRef(false);
+  useEffect(() => {
+    const want = remoteStart?.subLang;
+    if (!want || remoteSubDone.current) return;
+    if (want === 'off') {
+      remoteSubDone.current = true;
+      subHand.current = true;
+      subKeyRef.current = null;
+      setSubKey(null);
+      return;
+    }
+    const t = subForLang(tracks, want);
+    if (!t) return;
+    remoteSubDone.current = true;
+    subHand.current = true;
+    subKeyRef.current = t.key;
+    setSubKey(t.key);
+  }, [tracks, remoteStart]);
+  // ---------- [/phone-remote] ----------
 
   // Remember a HAND-PICKED track (or "off") so the next episode comes up the
   // same way — see autoPick. Only called from the subtitle menu: an automatic
@@ -2989,6 +3034,135 @@ export default function Player({
   useEffect(() => {
     if (upNext && upNext.countdown != null && upNext.countdown <= 0) goNext(upNext.next, true);
   }, [upNext, goNext]);
+
+  // ---------- [phone-remote] this player, as the phone remote sees it ----------
+  // (remote/player.ts; remote/handler.ts decides what each command does). The
+  // remote reads and acts through `remoteLive`, refreshed on every render, so
+  // the controller registered once never holds a stale value or callback.
+  const remoteLive = useRef<{
+    now: () => NowState | null;
+    act: {
+      toggle: () => void;
+      seekTo: (sec: number) => void;
+      next: () => boolean;
+      setSub: (id: string | null) => boolean;
+      setAudio: (id: string) => boolean;
+      subDelay: () => number;
+      setSubDelay: (v: number) => boolean;
+      stop: () => void;
+    };
+  } | null>(null);
+  remoteLive.current = {
+    now: () => {
+      const it = itemRef.current || meta?.item || null;
+      if (!it) return null; // mounted, still loading the title
+      const dur = durRef.current || duration || 0;
+      const auds = it.audioTracks || [];
+      const n = nextEpRef.current;
+      // An episode: the show on top, the episode's own name as the title
+      // (the website's wire shape — public/js/remote.js wireItem).
+      const showTitle = it.showTitle || null;
+      const season = it.season ?? stream?.season ?? null;
+      const episode = it.episode ?? stream?.episode ?? null;
+      const name = epTitle || (showTitle && it.title && it.title !== showTitle ? it.title : null);
+      return {
+        id: it.id || id,
+        title: showTitle ? name || (episode != null ? `Episode ${episode}` : showTitle) : it.title || title,
+        showTitle,
+        epTitle: name || null,
+        season: season ?? null,
+        episode: episode ?? null,
+        poster: it.cover || it.poster || stream?.cover || null,
+        backdrop: it.backdrop || stream?.backdrop || null,
+        duration: dur,
+        position: pendingSeek.current != null ? pendingSeek.current : seekPreviewRef.current != null ? seekPreviewRef.current : curRef.current || 0,
+        paused: pausedRef.current,
+        buffering: bufferingRef.current,
+        canSeek: !!uri && dur > 0,
+        hasNext: !!n,
+        nextLabel: n ? n.label : null,
+        subs: tracks.map(t => ({id: t.key, label: t.label, lang: t.lang || langOf(t) || null})),
+        sub: subKey,
+        audios: auds.map(t => ({id: String(t.index), label: audioName(t), lang: t.language || null})),
+        audio: auds.length ? String(audioIdx) : null,
+        subDelay: subOffset,
+      };
+    },
+    act: {
+      toggle: togglePlay,
+      seekTo: (sec: number) => {
+        // as a skip does it: the chrome first (it refreshes the scrubber from
+        // the live refs), the target after, so the target wins
+        showControls();
+        seekTo(sec);
+      },
+      next: () => {
+        const n = nextEpRef.current;
+        if (!n) return false;
+        goNext(n, false);
+        return true;
+      },
+      setSub: (key: string | null) => {
+        // what the subtitle menu does: the pick, and remembered as the viewer's
+        if (key == null) {
+          setSubKey(null);
+          rememberSub(null);
+          return true;
+        }
+        const t = tracks.find(x => x.key === key);
+        if (!t) return false;
+        setSubKey(t.key);
+        rememberSub(t);
+        return true;
+      },
+      setAudio: (key: string) => {
+        const t = (itemRef.current?.audioTracks || []).find(x => String(x.index) === key);
+        if (!t) return false;
+        switchAudio(t.index, audioName(t));
+        return true;
+      },
+      subDelay: () => subOffset,
+      setSubDelay: (v: number) => {
+        if (!subUrl) return false;
+        setSubDelay(subUrl, v);
+        const r = roundDelay(v);
+        toast(`Subtitle delay ${r >= 0 ? '+' : '−'}${Math.abs(r).toFixed(1)}s`);
+        return true;
+      },
+      stop: () => {
+        saveProgress();
+        navigation.goBack();
+      },
+    },
+  };
+  useEffect(
+    () =>
+      registerRemotePlayer({
+        now: () => remoteLive.current?.now() ?? null,
+        play: () => {
+          if (pausedRef.current) remoteLive.current?.act.toggle();
+        },
+        pause: () => {
+          if (!pausedRef.current) remoteLive.current?.act.toggle();
+        },
+        toggle: () => remoteLive.current?.act.toggle(),
+        stop: () => remoteLive.current?.act.stop(),
+        position: () =>
+          pendingSeek.current != null ? pendingSeek.current : seekPreviewRef.current != null ? seekPreviewRef.current : curRef.current || 0,
+        seekTo: sec => remoteLive.current?.act.seekTo(sec),
+        next: () => !!remoteLive.current?.act.next(),
+        setSub: key => !!remoteLive.current?.act.setSub(key),
+        setAudio: key => !!remoteLive.current?.act.setAudio(key),
+        subDelay: () => remoteLive.current?.act.subDelay() ?? 0,
+        setSubDelay: v => !!remoteLive.current?.act.setSubDelay(v),
+      }),
+    [],
+  );
+  // what the remote shows changed: it hears at once (not at its next tick)
+  useEffect(() => {
+    notifyRemote();
+  }, [paused, buffering, subKey, audioIdx, nextEp, tracks, meta, subOffset, duration, uri]);
+  // ---------- [/phone-remote] ----------
 
   // ---------------------------------------------------------------- video events
   // The first picture, once — from whichever of the two reports it first: the

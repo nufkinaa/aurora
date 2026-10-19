@@ -151,6 +151,10 @@ route("/new", lazy("./screens/whatsnew.js", "renderWhatsNew"));
 route("/pair/:code", (root, p) => import("./screens/pair.js").then((m) => m.renderPair(root, p)));
 // no code in the address ({host}/link, typed by hand off the TV): the code field
 route("/pair", (root) => import("./screens/pair.js").then((m) => m.renderPair(root, {})));
+// [phone-remote] the remote (screens/remote.js): this phone driving a TV
+route("/remote", (root, p) => import("./screens/remote.js").then((m) => m.renderRemote(root, p)));
+route("/remote/:id", (root, p) => import("./screens/remote.js").then((m) => m.renderRemote(root, p)));
+// [/phone-remote]
 
 // "?" anywhere opens the keyboard shortcuts overlay
 document.addEventListener("keydown", (e) => {
@@ -656,8 +660,16 @@ const openGate = () => {
   }, { dismissable: true });
 };
 
+// [phone-remote] "Your TVs" (js/remote.js): loaded once the app is up, at idle —
+// it learns whether a TV is on, and this computer becomes one the phone can
+// play on. Nothing of it is on the boot path.
+let remoteMod = null;
+const startRemote = () => import("./remote.js").then((m) => { remoteMod = m; m.initRemote(); }).catch(() => {});
+// [/phone-remote]
+
 const showProfileMenu = () => {
   document.querySelector(".nav-menu-wrap")?.remove(); // toggle: second click closes
+  const remoteOn = !!(remoteMod && remoteMod.getDevices().length); // [phone-remote]
   const item = (label, onclick, cls = "") =>
     el("button", { class: `nav-menu-item focusable ${cls}`, onclick }, label);
   const menu = el("div", { class: "nav-menu" },
@@ -673,6 +685,9 @@ const showProfileMenu = () => {
     item("What's new", () => { close(); navigate("#/new"); }),
     item("Report a problem", () => { close(); showReportSheet(); }),
     item("Join a watch party", () => { close(); showJoinParty(); }),
+    // [phone-remote] there while a TV (or another computer) of this profile is on
+    remoteOn && item("Remote", () => { close(); navigate("#/remote"); }),
+    // [/phone-remote]
     state.user &&
       item("Sign out", () => {
         close();
@@ -909,6 +924,8 @@ boot();
 // screen whose code is still on its way loads it then, exactly as a tap
 // during the old warm-up did.
 firstScreen.then(async () => {
+  await whenIdle();
+  startRemote(); // [phone-remote]
   for (const f of [
     "./screens/browse.js", "./screens/search.js", "./screens/discover-detail.js",
     "./screens/player.js", "./screens/preferences.js",

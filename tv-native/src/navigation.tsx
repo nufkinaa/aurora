@@ -110,7 +110,10 @@ export type RootStackParamList = {
   // `autoRun`: how many episodes in a row have started BY THEMSELVES (Up
   // next's countdown ran out) up to and including this one — what "Still
   // watching?" counts (playerRules.ts). Absent = a person opened it.
-  Player: {id: string; title: string; epTitle?: string; stream?: TorrentPlayItem; restart?: boolean; party?: string; autoRun?: number};
+  // [phone-remote] `remote`: opened by "Play on TV" — where to start (`position`, s) and the
+  // remote's subtitle / audio language ('off' | a code; absent = the TV's own default);
+  // remote/playItem.ts makes it, Player.tsx applies it. [/phone-remote]
+  Player: {id: string; title: string; epTitle?: string; stream?: TorrentPlayItem; restart?: boolean; party?: string; autoRun?: number; remote?: {position?: number; subLang?: string | null; audioLang?: string | null}};
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
