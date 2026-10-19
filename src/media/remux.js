@@ -64,7 +64,7 @@ const retire = (d, j, why = "superseded") => {
   old.once("close", () => {
     setTimeout(() => removeDir(d), 150);
   });
-  try { old.kill("SIGKILL"); } catch {}
+  require("../lib/children").killNow(old);
   console.log(`[remux] ${why} ${path.basename(d)}`);
 };
 
@@ -327,7 +327,7 @@ setInterval(() => {
   const now = Date.now();
   for (const [dir, job] of jobs) {
     if (job.proc && now - (job.lastAccess || 0) > IDLE_MS) {
-      try { job.proc.kill("SIGKILL"); } catch {}
+      require("../lib/children").killNow(job.proc);
       jobs.delete(dir);
       // (after the process has let go of its files)
       const p = job.proc;
@@ -653,7 +653,7 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   // stay permanently unplayable via a cached rejected promise.
   job.ready.catch(() => {
     if (jobs.get(dir) === job) jobs.delete(dir);
-    try { proc.kill("SIGKILL"); } catch {}
+    require("../lib/children").killNow(proc);
   });
 
   // Retire the job(s) this one replaced, but only now that this playlist exists

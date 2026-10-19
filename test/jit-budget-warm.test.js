@@ -211,7 +211,20 @@ const until = async (fn, ms = 20000) => {
   return false;
 };
 
-test("real ffmpeg, budget fixed at 2: two viewers and one warm-up — both viewers start, the warm-up is stopped for the first and refused beside them; a third viewer is told 'busy'; a goodbye frees the budget", { timeout: 180000 }, async (t) => {
+// A killed ffmpeg keeps its files open until it has really exited, and on a
+// busy Windows box a below-normal one can take tens of seconds to. Removal
+// polls (never blocking the event loop) for a bounded while.
+const rmWhenFree = async (d, ms = 120000) => {
+  const t0 = Date.now();
+  for (;;) {
+    try { return fs.rmSync(d, { recursive: true, force: true }); } catch (e) {
+      if (!["EBUSY", "EPERM", "ENOTEMPTY", "EACCES"].includes(e.code) || Date.now() - t0 > ms) throw e;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+};
+
+test("real ffmpeg, budget fixed at 2: two viewers and one warm-up — both viewers start, the warm-up is stopped for the first and refused beside them; a third viewer is told 'busy'; a goodbye frees the budget", { timeout: 420000 }, async (t) => {
   if (!haveX264()) return t.skip("no ffmpeg with libx264 on this machine");
   forget();
   cpuwork._internals._reset();
@@ -311,14 +324,14 @@ test("real ffmpeg, budget fixed at 2: two viewers and one warm-up — both viewe
       }
       else if (ajob.producers.length) jit.release(A.key, "s:alice");
       assert.equal(jit.encodeRoom(C.key, true), true, "room for a viewer again");
-      assert.ok(await until(() => cpuwork.viewer.list().every((v) => v.pid !== (arun.viewer && arun.viewer.pid))), "A's encoder left the registry");
+      assert.ok(await until(() => cpuwork.viewer.list().every((v) => v.pid !== (arun.viewer && arun.viewer.pid)), 120000), "A's encoder left the registry");
       const pc2 = jit.ensureSegment(cjob.dir, cjob, C.top, 0);
       assert.equal(cjob.producers.length, 1, "C's encoder starts now");
       assert.ok(await pc2, "and C plays");
     } finally {
       for (const d of mine) J.dropJob(d);
-      await new Promise((r) => setTimeout(r, 400));
-      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      await until(() => cpuwork.viewer.count() === 0 && cpuwork.speculative.count() === 0, 120000);
+      await rmWhenFree(dir);
       J.setDeclinedFile(path.join(os.tmpdir(), "aurora-jit-declined-test.json"));
       J.setOutsideEncodes(() => 0);
       forget();

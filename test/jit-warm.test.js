@@ -310,6 +310,19 @@ const until = async (fn, ms = 20000) => {
   }
   return false;
 };
+
+// A killed ffmpeg keeps its files open until it has really exited, and on a
+// busy Windows box a below-normal one can take tens of seconds to. Removal
+// polls (never blocking the event loop) for a bounded while.
+const rmWhenFree = async (d, ms = 120000) => {
+  const t0 = Date.now();
+  for (;;) {
+    try { return fs.rmSync(d, { recursive: true, force: true }); } catch (e) {
+      if (!["EBUSY", "EPERM", "ENOTEMPTY", "EACCES"].includes(e.code) || Date.now() - t0 > ms) throw e;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+};
 const segs = (d) => fs.readdirSync(d).filter((f) => /^seg\d{5}\.ts$/.test(f)).sort();
 
 test("real ffmpeg: a warm-up makes the start and stops by itself; the viewer's request is then a file read", async (t) => {
@@ -332,7 +345,9 @@ test("real ffmpeg: a warm-up makes the start and stops by itself; the viewer's r
     assert.equal(job.producers.length, 1);
     // it makes segment 5 and the two after it, then stops — it does not run on to the end of the film
     assert.ok(await until(() => job.producers.length === 0), "the warm-up producer stopped by itself");
-    await new Promise((r) => setTimeout(r, 300)); // (what it had decided reaches the disk)
+    // (what it had decided reaches the disk: a run leaves job.runs once its
+    // process has closed and its publish queue is drained)
+    assert.ok(await until(() => job.runs.size === 0, 60000), "the warm-up's publishing finished");
     const have = segs(d);
     assert.ok(have.includes("seg00005.ts"), `segment 5 was made (${have.join(",")})`);
     assert.ok(have.length >= 1 + J.WARM_AHEAD && have.length <= 2 + J.WARM_AHEAD, `a bounded number of segments, not the film: ${have.join(",")}`);
@@ -348,8 +363,7 @@ test("real ffmpeg: a warm-up makes the start and stops by itself; the viewer's r
     assert.equal(job.gen, 1, "no second producer was needed for it");
   } finally {
     J.dropJob(d);
-    await new Promise((r) => setTimeout(r, 200));
-    fs.rmSync(dir, { recursive: true, force: true });
+    await rmWhenFree(dir);
     forget();
   }
 });
@@ -373,13 +387,12 @@ test("real ffmpeg: a viewer who arrives while the warm-up is running keeps its p
     // …and, a viewer's now, it is not stopped at the warm-up's bound
     const beyond = J.WARM_AHEAD + 3;
     assert.ok(await jit.ensureSegment(d, job, input, 1));
-    assert.ok(await until(() => fs.existsSync(jit.segPath(d, beyond, null))), `segment ${beyond} was made by the same producer`);
+    assert.ok(await until(() => fs.existsSync(jit.segPath(d, beyond, null)), 60000), `segment ${beyond} was made by the same producer`);
     assert.equal(job.gen, 1);
     assert.equal(job.broken, null);
   } finally {
     J.dropJob(d);
-    await new Promise((r) => setTimeout(r, 200));
-    fs.rmSync(dir, { recursive: true, force: true });
+    await rmWhenFree(dir);
     forget();
   }
 });
@@ -422,8 +435,7 @@ test("real ffmpeg: an encoder runs at normal priority until the segment it was s
     // a warm-up: nobody is waiting, it yields at once
     J.dropJob(d);
     // (a warm-up starts only once no viewer's encoder is running anywhere: the one above has to be gone)
-    await until(() => require("../src/media/cpuwork").viewer.count() === 0, 5000);
-    await new Promise((r) => setTimeout(r, 200));
+    assert.ok(await until(() => require("../src/media/cpuwork").viewer.count() === 0, 120000), "the stopped encoder has exited");
     const dw = path.join(dir, "warm");
     dirs.push(dw);
     const wjob = jit.jobFor(dw, entry, { enc: true });
@@ -433,8 +445,9 @@ test("real ffmpeg: an encoder runs at normal priority until the segment it was s
     assert.equal(os.getPriority(wrun.proc.pid), BELOW);
   } finally {
     for (const d of dirs) J.dropJob(d);
-    await new Promise((r) => setTimeout(r, 300));
-    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    const cw = require("../src/media/cpuwork");
+    await until(() => cw.viewer.count() === 0 && cw.speculative.count() === 0, 120000);
+    await rmWhenFree(dir);
     J.setDeclinedFile(path.join(os.tmpdir(), "aurora-jit-declined-test.json"));
     forget();
   }

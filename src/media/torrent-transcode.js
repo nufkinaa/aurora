@@ -93,7 +93,7 @@ const retire = (d, j, why = "superseded") => {
   old.once("close", () => {
     setTimeout(() => removeDir(d), 150);
   });
-  try { old.kill("SIGKILL"); } catch {}
+  require("../lib/children").killNow(old);
   console.log(`[torrent-transcode] ${why} ${path.basename(d)}`);
 };
 
@@ -515,7 +515,7 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
       // straight from disk and self-heals the rest. file._torrent = owner.
       rs = require("./torrent").recoveringStream(file, { torrent: file._torrent });
     } catch (err) {
-      try { proc.kill("SIGKILL"); } catch {}
+      require("../lib/children").killNow(proc);
       return Promise.reject(err);
     }
     rs.on("data", (c) => { inputBytes += c.length; });
@@ -617,7 +617,7 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
   job.ready.catch(() => {
     if (jobs.get(dir) === job) jobs.delete(dir);
     try { rs && rs.destroy(); } catch {}
-    try { proc.kill("SIGKILL"); } catch {}
+    require("../lib/children").killNow(proc);
     if (proc.exitCode === null) proc.once("close", () => removeDir(dir)); else removeDir(dir);
   });
 
@@ -675,7 +675,7 @@ setInterval(() => {
   for (const [dir, job] of jobs) {
     if (job.proc && now - job.lastAccess > IDLE_MS) {
       const p = job.proc;
-      try { p.kill("SIGKILL"); } catch {}
+      require("../lib/children").killNow(p);
       jobs.delete(dir);
       if (p.exitCode === null) p.once("close", () => removeDir(dir)); else removeDir(dir);
       console.log(`[torrent-transcode] idle-killed ${path.basename(dir)}`);

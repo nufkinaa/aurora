@@ -469,7 +469,7 @@ const stopRun = (job, run) => {
   if (i >= 0) job.producers.splice(i, 1);
   const proc = run.proc;
   run.proc = null;
-  if (proc) { try { proc.kill("SIGKILL"); } catch {} }
+  if (proc) require("../lib/children").killNow(proc); // (a yielded one dies at once — lib/children.js)
 };
 const stopProducers = (job) => { for (const run of [...job.producers]) stopRun(job, run); };
 
