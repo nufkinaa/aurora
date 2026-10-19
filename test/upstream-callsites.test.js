@@ -78,6 +78,48 @@ test("IMDb id matching does not file \"no match\" for a search made while Cineme
   assert.ok(calls > before, "asked again: nothing was filed as \"no match\"");
 });
 
+// Voice search (media/spoken.js): a Hebrew title the catalogues do not know
+// is looked up on the Hebrew Wikipedia. That call is the page's too (the
+// microphone's search waits for it), so it has the same guards as the others.
+test("voice search's Hebrew Wikipedia lookup: through upstream — the search waits ~2.5 s at most, the late answer is kept", async () => {
+  const spoken = require("../src/media/spoken");
+  spoken._internals._reset();
+  const asked = [];
+  global.fetch = async (url) => {
+    asked.push(String(url));
+    await new Promise((r) => setTimeout(r, 3200)); // slower than the search waits
+    return jsonRes({ query: { pages: [{ index: 1, title: "פאודה", langlinks: [{ lang: "en", title: "Fauda" }] }] } });
+  };
+  const t0 = Date.now();
+  assert.equal(await spoken._internals.englishTitle("פאודה"), null, "past the budget: nothing yet, not an error");
+  const waited = Date.now() - t0;
+  assert.ok(waited >= 2400 && waited < 3000, `the voice search waited ${waited} ms`);
+  assert.equal(asked.length, 1);
+  assert.match(asked[0], /^https:\/\/he\.wikipedia\.org\/w\/api\.php\?/);
+  await new Promise((r) => setTimeout(r, 1000)); // the late answer lands
+  const t1 = Date.now();
+  assert.equal(await spoken._internals.englishTitle("פאודה"), "Fauda");
+  assert.ok(Date.now() - t1 < 100, "answered from what came late");
+  assert.equal(asked.length, 1, "Wikipedia was asked once");
+  const h = upstream.status().hosts.find((x) => x.host === "he.wikipedia.org");
+  assert.ok(h, "he.wikipedia.org is one of upstream's hosts (admin Health shows it)");
+  assert.equal(h.lateFills, 1);
+});
+
+test("voice search's Hebrew Wikipedia lookup: Wikipedia down opens its breaker, and voice search stops asking it", async () => {
+  const spoken = require("../src/media/spoken");
+  spoken._internals._reset();
+  let calls = 0;
+  global.fetch = async () => { calls++; throw new TypeError("fetch failed", { cause: { code: "ECONNREFUSED" } }); };
+  for (let i = 0; i < 5; i++) assert.equal(await spoken._internals.englishTitle(`שם ${i}`), null);
+  assert.equal(upstream.status().hosts.find((x) => x.host === "he.wikipedia.org").breaker, "open");
+  const asked = calls;
+  const t0 = performance.now();
+  assert.equal(await spoken._internals.englishTitle("שם אחר"), null);
+  assert.ok(performance.now() - t0 < 20, "failed fast");
+  assert.equal(calls, asked, "the dead host was not asked");
+});
+
 test("no module talks to the outside world with a bare fetch()", () => {
   // the only fetch() calls left: this server talking to itself (blur-up),
   // the local download engine (aria2 RPC on 127.0.0.1), and the healer's own
