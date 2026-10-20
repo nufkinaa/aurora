@@ -72,6 +72,13 @@ const FEATURES = [
     how: "Nothing to do.",
     go: { label: "Go home", to: "#/" },
   },
+  {
+    since: ROUND, cue: "smart", glyph: "🧈",
+    title: "Smoother on the TV",
+    what: "Holding a direction on the remote glides through shelves and grids at an even pace, the words on the cards are drawn sooner, and no card turns up late at the end of a row.",
+    how: "In the Aurora TV app, nothing to do.",
+    go: { label: "Go home", to: "#/" },
+  },
   // ---- end of the TV round ----
   {
     since: "1.6.12", cue: "look", glyph: "🔍",

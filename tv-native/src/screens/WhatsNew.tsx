@@ -90,6 +90,14 @@ export const FEATURES: Feature[] = [
     how: 'Nothing to do.',
     go: {label: 'Go home', act: 'home'},
   },
+  {
+    since: ROUND,
+    glyph: '🧈',
+    title: 'Smoother on the TV',
+    what: 'Holding a direction on the remote glides through shelves and grids at an even pace, the words on the cards are drawn sooner, and no card turns up late at the end of a row.',
+    how: 'Nothing to do. A held key now moves 15 steps a second, evenly, and stops where you let go.',
+    go: {label: 'Go home', act: 'home'},
+  },
   // ---- end of the TV round ----
   {
     glyph: '🎬',
