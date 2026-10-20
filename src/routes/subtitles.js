@@ -123,19 +123,61 @@ router.post("/api/subtitles/fetch", async (req, res) => {
 // /api/subtitles/resync/status with the same body until it is done, and
 // reloads the track: the corrected timing is served from then on, to every
 // device. /undo puts the file's own timing back, for everyone.
+// The track as the title lists it: "/stream/subtitle/<id>" or
+// "/stream/embedded/<video id>/<n>". A player may hold it as the address it
+// LOADED — absolute ("http://host:4000/stream/subtitle/…"), with a query
+// (a token, a cache-buster), a trailing slash — so the path is taken out of
+// whatever came. (2026-10-20: a Resync during playback was refused for every
+// track of a title — "that subtitle is not one of this title's" — and worked
+// once playback stopped; not reproduced on a private instance with direct,
+// jit, episode and concurrent-rescan playback, so the route now accepts every
+// spelling of the same track, checks a sidecar against the title's FILES as
+// well as its listing, and says in the log exactly what it refused.)
+const trackPathOf = (track) => {
+  let s = String(track || "").trim();
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) {
+    try { s = new URL(s).pathname; } catch {}
+  }
+  s = s.replace(/[?#].*$/, "").replace(/\/+$/, "");
+  try { s = decodeURIComponent(s); } catch {}
+  return s;
+};
+let refusedSaid = 0;
+const refused = (id, track, item, why) => {
+  const now = Date.now();
+  if (now - refusedSaid > 10000) {
+    refusedSaid = now;
+    const listed = ((item && item.subtitles) || []).map((t) => t.url).slice(0, 8);
+    console.warn(`[subs] resync refused (${why}): id=${String(id).slice(0, 40)} track=${String(track).slice(0, 120)} listed=${JSON.stringify(listed)}`);
+  }
+  return { error: "that subtitle is not one of this title's", status: 404 };
+};
 const subOf = (id, track) => {
   const item = scanner.findById(id);
   const entry = scanner.resolve(id);
   if (!item || !entry || !entry.path) return { error: "not in the library", status: 404 };
-  const want = String(track || "").replace(/[?#].*$/, "");
-  const listed = (item.subtitles || []).find((t) => t.url === want);
-  if (!listed) return { error: "that subtitle is not one of this title's", status: 404 };
-  const emb = /^\/stream\/embedded\/[^/]+\/(\d+)$/.exec(want);
-  if (emb) return { videoPath: entry.path, sub: { kind: "emb", video: entry.path, index: Number(emb[1]) }, item, track: listed };
+  const want = trackPathOf(track);
+  const listed = (item.subtitles || []).find((t) => trackPathOf(t.url) === want);
+  const emb = /^\/stream\/embedded\/([^/]+)\/(\d+)$/.exec(want);
+  if (emb) {
+    // the video's own text track: by its stream index, of THIS file
+    if (emb[1] !== id && scanner.resolve(emb[1]) !== entry) return refused(id, track, item, "another video's track");
+    if (!listed) return refused(id, track, item, "not listed");
+    return { videoPath: entry.path, sub: { kind: "emb", video: entry.path, index: Number(emb[2]) }, item, track: listed };
+  }
   const ext = /^\/stream\/subtitle\/([^/]+)$/.exec(want);
   const file = ext && scanner.resolve(ext[1]);
-  if (!file || file.kind !== "subtitle" || !file.path) return { error: "that subtitle is not one of this title's", status: 404 };
-  return { videoPath: entry.path, sub: { kind: "file", path: file.path }, item, track: listed };
+  if (!file || file.kind !== "subtitle" || !file.path) return refused(id, track, item, "no such subtitle file");
+  // listed for this title — or, when the listing in hand is not (yet) the one
+  // the files say, a sidecar of this very video (same folder, named after it)
+  const path = require("path");
+  const sidecarOf = (sub, video) => {
+    if (path.dirname(sub).toLowerCase() !== path.dirname(video).toLowerCase()) return false;
+    const base = path.basename(video, path.extname(video)).toLowerCase();
+    return path.basename(sub).toLowerCase().startsWith(base);
+  };
+  if (!listed && !sidecarOf(file.path, entry.path)) return refused(id, track, item, "not this title's");
+  return { videoPath: entry.path, sub: { kind: "file", path: file.path }, item, track: listed || { url: want } };
 };
 const audioOf = (item, audio) => {
   const n = Number(audio);

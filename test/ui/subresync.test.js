@@ -154,7 +154,13 @@ const resync = async (page, label) => {
   await page.waitForFunction((label) => { const t = [...document.querySelector(".player video").textTracks].find((x) => x.label === label); return t && t.cues && t.cues.length > 20; }, label);
   await watchPill(page);
   await player.menu(page, "Subtitles");
+  // pressed WHILE the film plays (2026-10-20: the server once refused every
+  // track of a playing title — "that subtitle is not one of this title's")
+  assert.equal(await page.evaluate(() => { const v = document.querySelector(".player video"); return !v.paused && !v.ended && v.currentTime > 0; }), true, "the film is playing at the press");
+  const answer = page.waitForResponse((r) => /\/api\/subtitles\/resync$/.test(new URL(r.url()).pathname) && r.request().method() === "POST");
   await page.click('.player .menu [data-ui="player.subtitles.resync"]');
+  const started = await answer;
+  assert.equal(started.status(), 202, `Resync during playback was answered ${started.status()}: ${await started.text().catch(() => "")}`);
   await page.waitForFunction(() => {
     const p = document.querySelector(".player .sub-resync");
     return p && p.classList.contains("done");

@@ -183,6 +183,35 @@ test("Resync refuses what is not this title's subtitle", async () => {
   assert.equal((await call("POST", "/api/subtitles/resync/status", { id: "nope", track: "x" })).status, 404);
 });
 
+// The same track however a player holds it (2026-10-20: a Resync during
+// playback was refused for every track of a title): absolute, with a query,
+// a trailing slash; a sidecar of this video even when the listing in hand
+// lags behind the files; never another title's track.
+test("Resync knows the title's track in every spelling a player may send, and still refuses another title's", async () => {
+  const id = item().id;
+  const t = trackOf(files.heRight);
+  const ok = async (track) => (await call("POST", "/api/subtitles/resync/status", { id, track })).status;
+  assert.equal(await ok(t.url), 200);
+  assert.equal(await ok(`${base}${t.url}`), 200, "absolute, as the player loaded it");
+  assert.equal(await ok(`${t.url}?profile=abc&v=3#x`), 200, "with a query");
+  assert.equal(await ok(`${t.url}/`), 200, "a trailing slash");
+  // the listing in hand lags behind the files (a rescan in between): a
+  // sidecar of this very video is still this title's
+  const it = item();
+  const was = it.subtitles;
+  it.subtitles = was.filter((x) => x.url !== t.url);
+  try {
+    assert.equal(await ok(t.url), 200);
+  } finally {
+    it.subtitles = was;
+  }
+  // another video's text track, a file that is no subtitle: refused
+  const other = await call("POST", "/api/subtitles/resync/status", { id, track: "/stream/embedded/someoneelse/0" });
+  assert.equal(other.status, 404);
+  assert.match(other.body.error, /not one of this title's/);
+  assert.equal((await call("POST", "/api/subtitles/resync/status", { id, track: `/stream/subtitle/${id}` })).status, 404, "the video itself is not a subtitle");
+});
+
 test("Resync: answers at once, says how far it is, then moves the lines to what is said — served for everyone, the file untouched", async () => {
   const before = fs.readFileSync(files.heLate);
   const t = trackOf(files.heLate);
