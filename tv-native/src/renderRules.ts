@@ -35,9 +35,14 @@
 // The "deeper" switches (docs/qa/native-deep/DEVICE-PLAN.md) were built offline after the
 // lab. The Mi TV pass (2026-10-17, docs/qa/release-next/PASS-REPORT.md) put `ringshare`
 // (0 px against the preset; RT and long frames down everywhere) and `herotext` (max 2/255,
-// the layer's offset; RT down on S2/S3/S4) in the preset; `cardtext` (Movies grid G1 janky
-// +0.6 pt, p90 +1.5 ms in two benches) and `keyrate` (G1 p90 +2..2.5 ms, more frames over
-// 32 ms) stay off — each can still be turned on by the server or the developer setting.
+// the layer's offset; RT down on S2/S3/S4) in the preset. `cardtext` and `keyrate` had made
+// the Movies grid slightly worse; the 2026-10-19/20 pass (docs/qa/tv-smooth/REPORT.md) found
+// why and fixed both — cardtext sent every grid poster the decor JSON twice and a dozen
+// props it never drew, and its shared decor nodes came back empty after a shelf left the
+// page; keyrate made its moves INSIDE the frame — and put both in the preset: 0 px in every
+// deterministic state, and together within the A/A spread or better in every scenario
+// (Home L1 frames > 32 ms 5–7 → 0, p99 31 → 25; Movies grid p90 22 → 19, frames > 32 ms
+// 63–68 → 39; Shows grid p99 65–85 → 44; under load L1 23 → 3, G1 70 → 50).
 //
 // THE PRESET IS THE RELEASE DEFAULT (releaseDefault below): a box the server says nothing to
 // runs it; the server's `tvRender` is the emergency lever to turn it, or one switch, off.
@@ -58,8 +63,9 @@ export type RenderKey = RenderComponent | RenderFix;
 export const KEYS: readonly RenderKey[] = [...COMPONENTS, ...FIXES];
 
 /** What the Mi TV measured best: all five components, cardlayer + cull + shadowcache +
- *  unstuff ("ccsu", lab 6-followup), the shelf pool (lab 7-card-recycling), and — from the
- *  2026-10-17 device pass — ringshare and herotext.
+ *  unstuff ("ccsu", lab 6-followup), the shelf pool (lab 7-card-recycling), ringshare and
+ *  herotext (the 2026-10-17 device pass), keyrate and cardtext (the 2026-10-19/20 pass,
+ *  docs/qa/tv-smooth/REPORT.md).
  *  In step with AuroraRender.kt RECOMMENDED (render-rules.test.ts reads that file). */
 export const RECOMMENDED: readonly RenderKey[] = [
   'focusable',
@@ -72,6 +78,8 @@ export const RECOMMENDED: readonly RenderKey[] = [
   'shadowcache',
   'unstuff',
   'pool',
+  'keyrate',
+  'cardtext',
   'ringshare',
   'herotext',
 ];

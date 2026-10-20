@@ -35,13 +35,13 @@ test('this launch: what the constants say, and nothing more', () => {
   expect(mod.renderSource).toBe('saved');
 });
 
-const PRESET = 'focusable,card,row,hero,rail,cardlayer,cull,shadowcache,unstuff,pool,ringshare,herotext';
+const PRESET = 'focusable,card,row,hero,rail,cardlayer,cull,shadowcache,unstuff,pool,keyrate,cardtext,ringshare,herotext';
 test('the server’s say is stored for the next launch, once; the same answer writes nothing', () => {
   const {mod, saved} = load({on: {}, server: '', local: ''});
   // at startup: the release default, stored for the next launch (nothing said = the preset)
   expect(saved).toEqual([[PRESET, '{}', '{}']]);
   mod.applyServerRender({recommended: true, pool: false, nonsense: 1});
-  expect(saved[1]).toEqual(['focusable,card,row,hero,rail,cardlayer,cull,shadowcache,unstuff,ringshare,herotext', '{"recommended":true,"pool":false}', '{}']);
+  expect(saved[1]).toEqual(['focusable,card,row,hero,rail,cardlayer,cull,shadowcache,unstuff,keyrate,cardtext,ringshare,herotext', '{"recommended":true,"pool":false}', '{}']);
   mod.applyServerRender({pool: false, recommended: true});
   expect(saved.length).toBe(2);
   // an answer without the section: nothing said, the release default again

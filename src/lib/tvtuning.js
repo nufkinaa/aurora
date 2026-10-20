@@ -45,7 +45,8 @@
 // cardlayer, cull, shadowcache, unstuff, unstuffq, pool (render fixes);
 // keyrate, cardtext, ringshare, herotext (the deeper options, docs/qa/native-deep/DEVICE-PLAN.md).
 // "recommended" = the five components + cardlayer, cull, shadowcache, unstuff,
-// pool, ringshare, herotext (the 2026-10-17 Mi TV pass). Unknown keys and
+// pool, ringshare, herotext (the 2026-10-17 Mi TV pass), keyrate, cardtext (the
+// 2026-10-19/20 pass, docs/qa/tv-smooth/REPORT.md). Unknown keys and
 // non-boolean values are dropped; no "tvRender", or one that names nothing, adds
 // nothing to the answer — and a TV told nothing runs "recommended" (its release
 // default, tv-native/src/renderRules.ts releaseDefault). So this section is the

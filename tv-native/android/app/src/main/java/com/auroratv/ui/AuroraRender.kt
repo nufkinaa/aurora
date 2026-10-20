@@ -50,14 +50,15 @@ object AuroraRender {
   /**
    * The set the Mi TV measured best (docs/qa/native-lab/6-…md "ccsu" + 7-…md pool, and the
    * 2026-10-17 device pass, docs/qa/release-next/PASS-REPORT.md): all five components, cardlayer +
-   * cull + shadowcache + unstuff, the shelf pool, ringshare and herotext. JS resolves it as the
+   * cull + shadowcache + unstuff, the shelf pool, ringshare and herotext; keyrate and cardtext
+   * since the 2026-10-19/20 pass (docs/qa/tv-smooth/REPORT.md). JS resolves it as the
    * release default when the server says nothing (renderRules.ts releaseDefault) and stores it for
    * the next launch.
    * `unstuffq` is NOT in it (a trade of one repeated frame for latency — a call for an eye on
    * the TV). Kept in step with src/renderRules.ts RECOMMENDED (AuroraRenderTest checks it).
    */
   val RECOMMENDED: Set<String> =
-    linkedSetOf("focusable", "card", "row", "hero", "rail", "cardlayer", "cull", "shadowcache", "unstuff", "pool", "ringshare", "herotext")
+    linkedSetOf("focusable", "card", "row", "hero", "rail", "cardlayer", "cull", "shadowcache", "unstuff", "pool", "keyrate", "cardtext", "ringshare", "herotext")
 
   @Volatile private var on: Set<String> = emptySet()
   @Volatile private var source = "build"
