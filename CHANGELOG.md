@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.9.2 — 2026-10-20
+
+- On a phone with no TV on, the episode's Download to this device button no longer sits on top of a Play on TV button that should have been hidden.
+
 ## 1.9.1 — 2026-10-20
 
 - On a phone, an episode you have on disk shows its three buttons side by side again: Download to this device, Play on TV and Watched. With a TV on, the Download button had slipped under the Watched tick and couldn't be pressed.

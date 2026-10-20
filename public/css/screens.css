@@ -1473,6 +1473,11 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
   min-width: 0;
 }
 /* Square buttons riding alongside an episode row (download, mark watched) */
+/* a hidden action (Play on TV while no TV is on) takes no room — remote.css,
+   which also says this, only loads once a TV appears */
+.ep-action[hidden] {
+  display: none !important;
+}
 .ep-action {
   width: 48px;
   border-radius: var(--radius);
