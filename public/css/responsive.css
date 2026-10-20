@@ -590,3 +590,70 @@
     justify-content: center;
   }
 }
+
+/* ---------- The nav on a phone, classic look (2026-10-20) ----------
+   The swipe strip needed ~500 px for the logo, Search, Home, Movies, Shows,
+   My List, Settings and the profile: on a 390 px phone "My List" was cut in
+   half at the edge and Settings and the profile were out of sight, behind a
+   swipe nothing hinted at (no fade either — the strip measured clean on
+   Search). As in the glass look, the sections move to a tab bar at the
+   bottom, in thumb reach, and the top keeps the logo, Settings and the
+   profile. Flat, like the rest of the classic look. Glass has its own. */
+@media (max-width: 600px) {
+  html:not([data-look="glass"]) .nav {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  /* Settings and the profile at the right, where the glass look has them */
+  html:not([data-look="glass"]) .nav-gear {
+    margin-left: auto;
+  }
+  html:not([data-look="glass"]) .nav-items {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    justify-content: space-around;
+    gap: 0;
+    padding: 4px 4px env(safe-area-inset-bottom, 0px);
+    background: rgba(12, 13, 22, 0.97);
+    border-top: 1px solid var(--line);
+  }
+  html:not([data-look="glass"]) .nav-items .nav-item {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    padding: 12px 4px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  html:not([data-look="glass"]) .nav-items .nav-item.hidden {
+    display: none;
+  }
+  /* Search last in the bar, as in the glass look */
+  html:not([data-look="glass"]) .nav-items > .nav-item[data-route="#/search"] {
+    order: 9;
+  }
+  html:not([data-look="glass"]) #app {
+    padding-bottom: 64px; /* room under the last row for the tab bar */
+  }
+  html:not([data-look="glass"]) #toasts {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+  html:not([data-look="glass"]) #offline-banner {
+    bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+  }
+  /* the player owns the screen */
+  html:not([data-look="glass"]) body:has(.player) .nav-items {
+    display: none;
+  }
+  html:not([data-look="glass"]) body:has(.player) #toasts {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  html:not([data-look="glass"]) body:has(.player) #offline-banner {
+    bottom: 0;
+  }
+}
