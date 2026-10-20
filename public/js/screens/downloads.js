@@ -363,7 +363,11 @@ export const renderDownloads = async (root) => {
   paintDevice();
   {
     let n = offline.listJobs().length;
-    untilLeave(offline.onJobs((jobs) => { if (jobs.length < n) paintDevice(); n = jobs.length; }));
+    untilLeave(offline.onJobs((jobs) => {
+      if (jobs.length < n) paintDevice();
+      if (!jobs.length !== !n && body.querySelector(".dl-empty")) paint(); // the empty page's voice
+      n = jobs.length;
+    }));
   }
 
   const byNewest = (a, b) => Date.parse(b.at || 0) - Date.parse(a.at || 0);
@@ -403,12 +407,15 @@ export const renderDownloads = async (root) => {
           el("p", {}, "The server didn't answer — trying again…")),
       );
     } else if (!mine.length) {
+      // a save to THIS device is under way (its section is above): this is
+      // only about the server's downloads, and says so in a smaller voice
+      const saving = offline.listJobs().length > 0;
       body.append(
         el(
           "div",
-          { class: "empty dl-empty" },
+          { class: `empty dl-empty${saving ? " dl-empty-quiet" : ""}` },
           el("div", { class: "glyph" }, "⬇"),
-          el("h2", {}, "Nothing downloading yet"),
+          el("h2", {}, saving ? "Nothing downloading to the server" : "Nothing downloading yet"),
           el("p", {}, "Open any title, pick a source and press SAVE — it downloads to the server and lands here, and in the library, when it's done."),
           el("div", { class: "dl-empty-actions" },
             el("button", { class: "btn small focusable", onclick: () => navigate("#/movies") }, "Browse Movies"),

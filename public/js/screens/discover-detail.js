@@ -788,8 +788,8 @@ const ownedRow = ({ id, label, onDownload, item }) =>
         el("div", { class: "src-meta" }, el("span", { class: "src-own" }, "Plays instantly")),
       ),
     ),
-    // onto this device as a file…
-    onDownload &&
+    // onto this device as a file (a computer: savesInsideApp)…
+    onDownload && !(item && savesInsideApp()) &&
       el("button", { "data-ui": "detail.source.download",
         class: "src-act src-icon focusable",
         html: `<span class="src-ic">${icons.downloadDevice}</span><span class="src-lbl">Download</span>`,
@@ -1684,10 +1684,10 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       const flat = seasons.flatMap((s) => s.episodes).filter((e) => e.local);
       const from = Math.max(0, flat.findIndex((e) => e.local.id === nextUp.local.id));
       return flat.slice(from).filter((e) => { const p = progressFor(e.local.id); return !(p && p.finished); });
-    }, view.title);
+    }, view.title, lib && lib.id);
     if (sb) actions.push(sb);
   }
-  if (!isShow && lib && lib.downloadUrl) {
+  if (!isShow && lib && lib.downloadUrl && !savesInsideApp()) {
     actions.push(
       el("button", { "data-ui": "detail.download.device",
         class: "btn btn-icon focusable",
@@ -2087,7 +2087,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         owned: row.local
           ? {
               id: row.local.id,
-              item: { ...row.local, showTitle: view.title, showId: lib && lib.id, cover: view.cover },
+              item: { ...row.local, showTitle: view.title, showId: lib && lib.id, season: row.season, episode: row.episode, title: row.title || row.local.title, cover: row.local.cover || view.cover },
               label: `${view.title} · S${row.season} E${row.episode} — in your library`,
               onDownload: row.local.downloadUrl
                 ? () =>
@@ -2292,7 +2292,8 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     if (downloadSeasonPill) {
       const owned = ownedIn(season);
       downloadSeasonPill.hidden = owned.length === 0;
-      downloadSeasonPill.textContent = `Download season to device (${owned.length})`;
+      if (downloadSeasonPill._relabel) downloadSeasonPill._relabel(owned.length);
+      else downloadSeasonPill.textContent = `Download season to device (${owned.length})`;
     }
     if (markSeasonPill && season) {
       // Say what the tap will actually DO — the old static label silently
@@ -2463,8 +2464,15 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       };
 
       const extras = [];
-      // Only an episode we hold on disk can be handed to the viewer's machine.
-      if (local && local.downloadUrl) {
+      // Only an episode we hold on disk can be taken along: on a phone, saved
+      // offline inside Aurora (savesInsideApp); on a computer, as the file.
+      const epOffline = local && local.id && savesInsideApp()
+        ? offlineButton(
+          { ...local, showId: lib && lib.id, showTitle: view.title, season: row.season, episode: row.episode, title: row.title || local.title, cover: local.cover || (lib && lib.cover) || view.cover },
+          { ep: { label: `episode ${row.episode}` } })
+        : null;
+      if (epOffline) extras.push(epOffline);
+      else if (local && local.downloadUrl) {
         extras.push(
           el("button", { "data-ui": "detail.episode.download",
             class: "ep-action focusable",
@@ -2608,7 +2616,14 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   // Trailing actions sit apart from the season pills; whichever comes first
   // pushes the pair to the far end of the bar.
   const trailing = [];
-  if (lib) {
+  if (lib && savesInsideApp()) {
+    // a phone: the season saved offline inside Aurora (see savesInsideApp)
+    downloadSeasonPill = seasonOfflineButton(() => {
+      const season = seasons.find((s) => s.number === activeSeason) || seasons[0];
+      return ownedIn(season);
+    }, view.title, lib.id, { pill: true });
+    trailing.push(downloadSeasonPill);
+  } else if (lib) {
     downloadSeasonPill = el(
       "button",
       {
@@ -2848,24 +2863,53 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
 };
 
 // ---------- save offline ----------
+// WHICH "download" a device is offered (elia, 2026-10-20: "phone is the
+// second most popular platform"). Two different things wore the same icon:
+//   Download to this device (downloadPicker.js) — the library's raw file
+//     (often an MKV with sound a phone can't play) handed to the browser: on
+//     an iPhone that lands in Files, outside Aurora, with no progress here.
+//   Save offline (offline.js) — a copy this device plays, kept INSIDE Aurora
+//     (Saved), with a size to pick, progress on the Downloads and On this
+//     device screens, and playable with no server in reach.
+// A phone or tablet (touch first) is offered Save offline wherever it was
+// offered the raw file: the episode card's button, the title page, the
+// "Yours" row of a sources sheet. A computer keeps both — a file for its own
+// player is a real use there. Where saving offline is not possible (plain
+// http), the raw file stays the phone's only way.
+const savesInsideApp = () =>
+  offline.available() && typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+
 // One button per library file: Save offline → (preparing 43% → saving 71%)
 // → Saved ✓ (press again to remove). Hidden on plain http, where the
 // browser has no offline storage to offer (see offline.js).
 // `compact`: a round icon button (the title page's action row). `rail`: the
 // 66px action column at the end of a source card, with a caption like the
 // SAVE and DEVICE rails beside it.
-const offlineButton = (item, { compact = false, rail = false } = {}) => {
+// `ep`: { label } — the small round button on a phone's episode card (where
+// the raw-file download used to be: savesInsideApp below), icon only.
+const offlineButton = (item, { compact = false, rail = false, ep = null } = {}) => {
   if (!offline.available() || !item || !item.id) return null;
-  const btn = el("button", { "data-ui": "detail.offline",
-    class: rail ? "src-act src-icon focusable btn-offline" : `btn ${compact ? "btn-icon" : ""} focusable btn-offline`,
+  const btn = el("button", { "data-ui": ep ? "detail.episode.offline" : "detail.offline",
+    class: ep ? "ep-action ep-offline focusable btn-offline" : rail ? "src-act src-icon focusable btn-offline" : `btn ${compact ? "btn-icon" : ""} focusable btn-offline`,
     title: "Save offline — keep it inside Aurora on this device, playable with no server in reach",
-    "aria-label": "Save offline on this device",
+    "aria-label": ep ? `Save ${ep.label} offline on this device` : "Save offline on this device",
   });
   let saved = false;
   let busy = false;
   let aborter = null;
   const face = (text, icon = "📱") => {
     btn.innerHTML = "";
+    if (ep) {
+      // the icon, a percentage while it saves, a tick once it is here
+      const pct = /(\d+)%/.exec(text);
+      if (/Saved/.test(text)) btn.append(el("span", { class: "ep-offline-ic", html: icons.downloadDevice }), el("span", { class: "ep-offline-tick", "aria-hidden": "true" }, "✓"));
+      else if (/Waiting|Queued/.test(text)) btn.append(el("span", { class: "ep-offline-wait", "aria-hidden": "true" }, "…"));
+      else if (pct) btn.append(el("span", { class: "ep-offline-pct" }, `${pct[1]}%`));
+      else btn.append(el("span", { class: "ep-offline-ic", html: icons.downloadDevice }));
+      btn.title = /Save offline/.test(text) ? btn.title : text;
+      btn.setAttribute("aria-label", /Save offline/.test(text) ? `Save ${ep.label} offline on this device` : `${ep.label}: ${text}`);
+      return;
+    }
     if (rail) {
       const pct = /(\d+)%/.exec(text);
       btn.append(
@@ -2889,12 +2933,13 @@ const offlineButton = (item, { compact = false, rail = false } = {}) => {
     if (j && !busy) {
       btn.classList.add("busy");
       const p = Math.round((j.pct || 0) * 100);
-      face(j.state === "queued" ? "Queued" : j.state === "preparing" ? `Preparing ${p}%` : `Saving ${p}%`, "⏳");
+      face(j.state === "queued" ? "Queued" : j.state === "preparing" ? (j.waiting ? "Waiting…" : `Preparing ${p}%`) : `Saving ${p}%`, "⏳");
       return;
     }
     if (!busy) btn.classList.remove("busy");
     saved = await offline.isSaved(item.id).catch(() => false);
     btn.classList.toggle("saved", saved);
+    if (ep) btn.classList.toggle("on", saved);
     face(saved ? "Saved ✓" : "Save offline", saved ? "✅" : "📱");
   };
   untilLeave(offline.onJobs(() => { if (!busy) paint(); }));
@@ -2905,6 +2950,13 @@ const offlineButton = (item, { compact = false, rail = false } = {}) => {
     }
     if (running()) return void offline.cancelJob(item.id);
     if (saved) {
+      // the small episode button: one tap must not throw a saved copy away
+      if (ep) {
+        return void toast(`Saved on this device — it plays under Saved, with no connection`, "📱", {
+          label: "Remove",
+          onClick: async () => { await offline.removeSaved(item.id).catch(() => {}); toast("Removed from this device", "🗑"); paint(); },
+        });
+      }
       await offline.removeSaved(item.id);
       toast("Removed from this device", "🗑");
       return paint();
@@ -2915,9 +2967,9 @@ const offlineButton = (item, { compact = false, rail = false } = {}) => {
     try {
       const saved = await offline.saveItem(
         item,
-        ({ phase, pct, note }) => {
+        ({ phase, pct, note, waiting }) => {
           const p = Math.round((pct || 0) * 100);
-          face(phase === "preparing" ? `Preparing ${p}%` : phase === "saving" ? `Saving ${p}%` : phase === "cancelled" ? "Save offline" : "Saved ✓", phase === "cancelled" ? "📱" : "⏳");
+          face(phase === "preparing" ? (waiting ? "Waiting…" : `Preparing ${p}%`) : phase === "saving" ? `Saving ${p}%` : phase === "cancelled" ? "Save offline" : "Saved ✓", phase === "cancelled" ? "📱" : "⏳");
           btn.title = phase === "preparing" || phase === "saving" ? `${note || ""} — press again to cancel`.replace(/^ — /, "") : btn.title;
         },
         // Which size, with what each one costs this device — the server
@@ -2926,7 +2978,7 @@ const offlineButton = (item, { compact = false, rail = false } = {}) => {
         aborter.signal,
       );
       if (saved && saved.controlled === false) toast(`Saved — reload Aurora once before going offline so it can play here`, "📱");
-      else if (saved) toast(`“${item.title}” is saved on this device — find it under Saved`, "📱", { label: "Open Saved", onClick: () => navigate("#/saved") });
+      else if (saved) toast(`“${item.showTitle && item.season != null ? `${item.showTitle} S${item.season} E${item.episode}` : item.title}” is saved on this device — find it under Saved`, "📱", { label: "Open Saved", onClick: () => navigate("#/saved") });
     } catch (e) {
       if (e && e.name === "AbortError") toast("Save cancelled", "📱");
       else toast(`Couldn't save: ${e.message}`, "⚠️");
@@ -2944,19 +2996,28 @@ const offlineButton = (item, { compact = false, rail = false } = {}) => {
 // episodes in a row at one chosen size. `nextEpisodes()` → the rows still to
 // watch, in order (each with .local, the library item).
 const SEASON_SAVE = 3;
-const seasonOfflineButton = (nextEpisodes, showTitle) => {
-  const btn = el("button", { "data-ui": "detail.offline.season",
-    class: "btn btn-icon focusable btn-offline",
-    title: `Save the next ${SEASON_SAVE} episodes on this device — to watch with no internet`,
-    "aria-label": `Save the next ${SEASON_SAVE} episodes`,
+// `pill`: the season bar's "Save season offline (N)" on a phone (in place of
+// "Download season to device", which handed a phone N raw files): every
+// episode of the season on disk, not the next three — btn._relabel(n) keeps
+// its count with the season shown.
+const seasonOfflineButton = (nextEpisodes, showTitle, showId = null, { pill = false } = {}) => {
+  const limit = pill ? Infinity : SEASON_SAVE;
+  const btn = el("button", { "data-ui": pill ? "detail.offline.seasonall" : "detail.offline.season",
+    class: pill ? "season-pill focusable btn-offline" : "btn btn-icon focusable btn-offline",
+    title: pill ? "Save this season's episodes on this device — to watch with no internet" : `Save the next ${SEASON_SAVE} episodes on this device — to watch with no internet`,
+    "aria-label": pill ? "Save this season offline" : `Save the next ${SEASON_SAVE} episodes`,
   });
   let busy = false;
   let aborter = null;
+  let count = 0;
+  const idle = () => (pill ? `Save season offline (${count})` : `Save ${SEASON_SAVE} offline`);
   const face = (text, icon = "📲") => {
+    if (pill) { btn.textContent = text; return; }
     btn.innerHTML = "";
     btn.append(el("span", {}, icon), el("span", { class: "btn-label" }, text));
   };
-  face(`Save ${SEASON_SAVE} offline`);
+  btn._relabel = (n) => { count = n; if (!busy) face(idle()); };
+  face(idle());
   btn.onclick = async () => {
     if (busy) {
       if (aborter) aborter.abort(); // a press while saving cancels the rest
@@ -2964,17 +3025,18 @@ const seasonOfflineButton = (nextEpisodes, showTitle) => {
     }
     const rows = [];
     for (const e of nextEpisodes()) {
-      if (rows.length >= SEASON_SAVE) break;
+      if (rows.length >= limit) break;
       if (!(await offline.isSaved(e.local.id).catch(() => false))) rows.push(e);
     }
-    if (!rows.length) return toast("The next episodes are already saved on this device", "📱");
+    if (!rows.length) return toast(pill ? "This season's episodes are already saved on this device" : "The next episodes are already saved on this device", "📱");
     busy = true;
     aborter = new AbortController();
     btn.classList.add("busy");
     let quality = null; // asked once, on the first episode, then reused
     let done = 0;
     // the ones after the first wait their turn — and say so on "On this device"
-    const asItem = (e) => ({ ...e.local, title: `${showTitle} S${e.season}E${e.episode}` });
+    // (the episode's own name, under its show: devicejobs.js and Saved say "Show · S1 E2 · Name")
+    const asItem = (e) => ({ ...e.local, showTitle, showId: showId || e.local.showId || null, season: e.season, episode: e.episode, title: e.title || e.local.title });
     for (const e of rows.slice(1)) offline.queueJob(asItem(e));
     try {
       for (const [i, e] of rows.entries()) {
@@ -2982,15 +3044,15 @@ const seasonOfflineButton = (nextEpisodes, showTitle) => {
         if (i > 0 && !offline.jobFor(e.local.id)) continue;
         const tag = `${i + 1} of ${rows.length}`;
         const saved = await offline.saveItem(
-          { ...e.local, title: `${showTitle} S${e.season}E${e.episode}` },
-          ({ phase, pct }) => {
-            if (phase === "preparing" || phase === "saving") face(`${tag} · ${Math.round((pct || 0) * 100)}%`, "⏳");
+          asItem(e),
+          ({ phase, pct, waiting }) => {
+            if (phase === "preparing" || phase === "saving") face(waiting ? `${tag} · waiting` : `${tag} · ${Math.round((pct || 0) * 100)}%`, "⏳");
           },
           async (options) => {
             if (quality && options.some((o) => o.quality === quality)) return quality;
             // a later episode that can't be made at the chosen size: the nearest smaller one it offers
             if (quality) return (options.find((o) => !o.instant) || options[0]).quality;
-            quality = await pickOfflineQuality(options, { title: `${showTitle} — the next ${rows.length} episode${rows.length > 1 ? "s" : ""}` });
+            quality = await pickOfflineQuality(options, { title: pill ? `${showTitle} — ${rows.length} episode${rows.length > 1 ? "s" : ""} of this season` : `${showTitle} — the next ${rows.length} episode${rows.length > 1 ? "s" : ""}` });
             return quality;
           },
           aborter.signal,
@@ -3008,7 +3070,7 @@ const seasonOfflineButton = (nextEpisodes, showTitle) => {
     aborter = null;
     busy = false;
     btn.classList.remove("busy");
-    face(`Save ${SEASON_SAVE} offline`);
+    face(idle());
   };
   return btn;
 };

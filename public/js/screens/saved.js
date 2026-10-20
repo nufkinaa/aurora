@@ -12,8 +12,9 @@ import * as offline from "../offline.js";
 import { yourFilesSection } from "../localview.js";
 import { deviceJobsSection } from "../devicejobs.js";
 
+// (an episode whose only name is its file's — "Show S01E02" — is not named twice)
 const label = (it) =>
-  it.showTitle ? `${it.showTitle} · S${it.season} E${it.episode}${it.title ? ` · ${it.title}` : ""}` : it.title;
+  it.showTitle ? `${it.showTitle} · S${it.season} E${it.episode}${it.title && it.title !== it.showTitle && !/^.+ S\d+E\d+$/i.test(it.title) ? ` · ${it.title}` : ""}` : it.title;
 
 export const renderSaved = async (root) => {
   const screen = el("div", { class: "screen saved-screen" });
@@ -40,8 +41,11 @@ export const renderSaved = async (root) => {
       el("h1", {}, "On this device"),
       el("span", { class: "count" }, "Plays right here — even with no connection")),
     down,
-    yourFilesSection(),
+    // what is on its way first: on a phone, Your files' big picker used to
+    // push a save in progress below the fold (2026-10-20). (Once titles are
+    // saved that picker folds to a strip — .has-saved — so the list is near.)
     offline.available() ? el("div", { class: "page-pad saving-host" }, deviceJobsSection({ title: "Saving now" })) : null,
+    yourFilesSection(),
     savedSection,
   ].filter(Boolean));
 

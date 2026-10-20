@@ -256,7 +256,9 @@ ui.test("phone (glass): an episode on disk keeps Download, Play on TV and Watche
       const factsRight = facts ? Math.max(...[...facts.children].filter((c) => !c.classList.contains("ep-overview")).map((c) => c.getBoundingClientRect().right)) : 0;
       return { boxes, hits, factsRight };
     });
-    assert.ok(r.boxes.some((b) => /download/.test(b.ui)), `${when}: the Download button is there`);
+    // (on a phone that button saves the episode offline inside Aurora — offline.test.js)
+    assert.ok(r.boxes.some((b) => /download|offline/.test(b.ui)), `${when}: the Download / Save offline button is there`);
+    for (const b of r.boxes) assert.ok(b.r - b.l >= 40 && b.b - b.t >= 40, `${when}: ${b.ui} is at least 40 px to the finger (${Math.round(b.r - b.l)}×${Math.round(b.b - b.t)})`);
     assert.equal(r.boxes.some((b) => /playontv/.test(b.ui)), playOn, `${when}: Play on TV ${playOn ? "shown" : "hidden"}`);
     for (let i = 0; i < r.boxes.length; i++) {
       assert.ok(r.hits[i], `${when}: ${r.boxes[i].ui} is covered by something else`);

@@ -3511,7 +3511,7 @@ html[data-look="glass"]:root .card.wide .card-progress {
     align-content: space-between;
     gap: 8px 8px;
     margin-top: 5px;
-    padding: 0 68px 0 19px;
+    padding: 0 84px 0 19px;
     font-size: 0.76rem;
     color: rgba(243, 244, 248, 0.7);
   }
@@ -3520,8 +3520,8 @@ html[data-look="glass"]:root .card.wide .card-progress {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
-    flex: 0 0 calc(100% + 87px);
-    margin: 0 -68px 0 -19px;
+    flex: 0 0 calc(100% + 103px);
+    margin: 0 -84px 0 -19px;
     overflow: hidden;
     white-space: normal;
     font-size: 0.8rem;
@@ -3554,30 +3554,32 @@ html[data-look="glass"]:root .card.wide .card-progress {
     height: 12px;
     display: block;
   }
+  /* 40 px to the finger (2026-10-20: they were 30), the icon as it was —
+     there is no fill, so the larger box only shows as the focus ring */
   html[data-look="glass"]:root .episode-wrap .ep-action {
     position: absolute;
-    bottom: 5px;
-    right: 6px;
-    width: 30px;
-    height: 30px;
+    bottom: 0;
+    right: 1px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     background: none;
     box-shadow: none;
   }
   html[data-look="glass"]:root .episode-wrap .ep-action:nth-last-child(2) {
-    right: 38px;
+    right: 41px;
   }
   /* Three buttons once an episode is on disk: Download to this device, Play on
      TV, Watched. The download button takes the third slot; while no TV is on
      (Play on TV hidden) it moves into the hidden one's place. */
   html[data-look="glass"]:root .episode-wrap .ep-action:nth-last-child(3) {
-    right: 70px;
+    right: 81px;
   }
   html[data-look="glass"]:root .episode-wrap .ep-action:nth-last-child(3):has(+ .rm-playon[hidden]) {
-    right: 38px;
+    right: 41px;
   }
   html[data-look="glass"]:root .episode-wrap:has(> .ep-action:nth-last-child(3) + .rm-playon:not([hidden])) .episode-sub {
-    padding-right: 100px;
+    padding-right: 124px;
   }
   html[data-look="glass"]:root .episode-wrap .ep-action svg {
     width: 17px;
@@ -4106,7 +4108,8 @@ html[data-look="glass"] .nav-dl.ready {
   .src-card.owned .src-act.src-icon {
     display: none;
   }
-  .src-card.owned .btn-offline {
+  /* (as specific as the rule above, or it lost: Save offline was hidden here too) */
+  .src-card.owned .src-act.src-icon.btn-offline {
     display: inline-flex;
   }
   /* the cast line sits inside the title block, under the synopsis */

@@ -22,6 +22,7 @@ module.exports = {
   // detail
   "detail.download.device": "w",
   "detail.episode.download": "w",
+  "detail.episode.offline": "w",
   "detail.episode.play": "wt",
   "detail.episode.playontv": "w", // [phone-remote]
   "detail.episode.watched": "w",
@@ -29,6 +30,7 @@ module.exports = {
   "detail.mylist": "wt",
   "detail.offline": "w",
   "detail.offline.season": "w",
+  "detail.offline.seasonall": "w",
   "detail.play": "wt",
   "detail.playontv": "w", // [phone-remote]
   "detail.restart": "wt",

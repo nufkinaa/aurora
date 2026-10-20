@@ -50,7 +50,6 @@ export const removeSaved = async (id) => {
   await tx("items", "readwrite", (s) => s.delete(id));
 };
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // What this browser can take as "original": HEVC in an MP4 plays on Safari
 // and on Chrome with a hardware decoder; elsewhere the server offers the
@@ -172,7 +171,7 @@ export const saveItem = async (item, onProgress = () => {}, choose = null, signa
   };
   const progress = (p) => {
     onProgress(p);
-    if (started && (p.phase === "preparing" || p.phase === "saving")) setJob(item.id, { state: p.phase, pct: p.pct || 0, note: p.note || "", speed: p.speed || 0 });
+    if (started && (p.phase === "preparing" || p.phase === "saving")) setJob(item.id, { state: p.phase, pct: p.pct || 0, note: p.note || "", speed: p.speed || 0, waiting: !!p.waiting });
   };
   try {
     const saved = await saveOne(item, progress, pick, ctl.signal);
@@ -223,13 +222,39 @@ const saveOne = async (item, onProgress, choose, signal) => {
   } catch (e) {
     if (/not enough browser storage/.test(e.message)) throw e;
   }
-  // 1. a playable file at that quality
+  // 1. a playable file at that quality. A copy that has to wait says why
+  // (the server's `wait`: behind another copy, the server busy with
+  // somebody's stream, paused) — it used to say "Preparing" and nothing else
+  // for as long as it took (elia's iPhone, 2026-10-20). A Cancel tells the
+  // server too, so it does not go on making a copy nobody will fetch.
+  const nap = (ms) => new Promise((r) => {
+    const done = () => { clearTimeout(t); if (signal) signal.removeEventListener("abort", done); r(); };
+    const t = setTimeout(done, ms);
+    if (signal) signal.addEventListener("abort", done, { once: true });
+  });
+  const stopServer = () => { api.offlineCancel(item.id, quality).catch(() => {}); };
   let st = await api.offlinePrepare(item.id, quality, hevc);
+  let misses = 0;
   while (st.state === "queued" || st.state === "working") {
-    if (aborted()) bail();
-    onProgress({ phase: "preparing", pct: st.progress || 0, note: st.state === "queued" ? "waiting for the server" : option.instant ? "repackaging — a few seconds" : "converting on the server" });
-    await sleep(option.instant ? 800 : 2000);
-    st = await api.offlineStatus(item.id, quality, hevc);
+    if (aborted()) { stopServer(); bail(); }
+    const wait = st.wait || null;
+    onProgress({
+      phase: "preparing",
+      pct: st.progress || 0,
+      waiting: st.state === "queued" || !!(wait && wait.reason === "paused"),
+      note: (wait && wait.text) || (st.state === "queued" ? "waiting for the server" : option.instant ? "repackaging — a few seconds" : "converting on the server"),
+    });
+    await nap(option.instant && st.state === "working" ? 800 : 2000);
+    if (aborted()) { stopServer(); bail(); }
+    try {
+      st = await api.offlineStatus(item.id, quality, hevc);
+      misses = 0;
+    } catch (e) {
+      // a phone on the move loses the line for a moment: keep asking for a
+      // while before calling it a failure (the copy goes on on the server)
+      if (++misses >= 6) throw new Error(`lost touch with the server while it was preparing the copy (${(e && e.message) || "no answer"}) — try again`);
+      onProgress({ phase: "preparing", pct: st.progress || 0, waiting: true, note: "can't reach the server — still trying" });
+    }
   }
   if (aborted()) bail();
   if (st.state !== "ready") throw new Error(st.error || "the server couldn't prepare it");
