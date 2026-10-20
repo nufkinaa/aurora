@@ -1,0 +1,8 @@
+On the TV -> #/preferences
+On the TV -> #/preferences
+Sound settings -> #/preferences
+Subtitle settings -> #/preferences
+Open the remote -> #/remote
+Open Search -> #/search
+Go home -> #/
+Go home -> #/
