@@ -5,7 +5,7 @@
 //
 // A focus trap while it is open (focus.ts useKeyTrap): the rail does not
 // answer LEFT under it, and closing it hands focus back to the row.
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {BackHandler, StyleSheet, Text, View} from 'react-native';
 import Focusable from '../components/Focusable';
 import {useKeyTrap} from '../focus';
@@ -50,14 +50,27 @@ export default function TvNamePicker({current, onClose}: {current: string | null
   // phone that is none of these stays on the list, ticked
   const names = [...new Set([...(sys ? [sys] : []), ...(current && !TV_NAMES.includes(current) && current !== sys ? [current] : []), ...TV_NAMES])];
   const focusAt = Math.max(0, names.indexOf(current || ''));
+  // The ticked row takes focus by asking for it once it is laid out — NOT with
+  // the preferred-focus prop: the rows mount inside Settings' ScrollView under
+  // the row that opened them, and on the Mi TV (native focusables, 2026-10-20)
+  // that prop's request ran before layout, so the ScrollView scrolled to the
+  // top for a row still at 0,0 and the press left NOTHING focused. Asked once,
+  // a moment after mount — never again, so a person already moving through the
+  // list is not pulled back.
+  const tickedName = names[focusAt];
+  const ticked = useRef<{requestTVFocus?: () => void} | null>(null);
+  useEffect(() => {
+    const t = setTimeout(() => ticked.current?.requestTVFocus?.(), 120);
+    return () => clearTimeout(t);
+  }, []);
   return (
     <View style={styles.list}>
       {names.map((n, i) => (
         <Focusable uiId="settings.tvname.pick"
           key={n}
+          ref={n === tickedName ? (ticked as unknown as React.Ref<View>) : undefined}
           scaleTo={1.01}
           edgeLeft
-          hasTVPreferredFocus={i === focusAt}
           highlightColor={colors.surfaceHover}
           onPress={() => {
             setTvName(n);

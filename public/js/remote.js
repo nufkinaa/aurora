@@ -126,6 +126,10 @@ const subscribe = () => {
     token: state.token || undefined,
     watch: watchId,
     ownDeviceId: announced ? deviceId() : null,
+    // this browser's own id, also on a phone that is only a remote: the TV
+    // says "Controlled from …" once per remote, and two iPhones of one
+    // person carry the same words (Mi TV pass 2026-10-20)
+    remoteId: deviceId(),
     label: deviceWord(),
   });
 };

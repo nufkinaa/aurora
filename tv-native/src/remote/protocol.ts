@@ -84,7 +84,9 @@ export type PlayItemArgs = {
   audioLang: string | null;
 };
 
-export type From = {label?: string | null; profileName?: string | null};
+// `id`: the remote's own id (its browser's device id), the same across its
+// reconnects — what "once per remote" is counted by; the words are the fallback.
+export type From = {label?: string | null; profileName?: string | null; id?: string | null};
 export type CommandMsg = {
   type: 'remote_command';
   ref: string;

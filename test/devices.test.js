@@ -116,6 +116,12 @@ test("a command goes to the TV and its answer back to the remote that sent it", 
   assert.equal(r.last("t1", "remote_command").first, false, "…and only the first time");
   devices.ack(t, { ref: r.last("t1", "remote_command").ref, ok: false, error: "nothing-playing", message: "Nothing is playing on the TV" });
   assert.deepEqual([r.last("c1", "remote_ack").ok, r.last("c1", "remote_ack").error, r.last("c1", "remote_ack").message], [false, "nothing-playing", "Nothing is playing on the TV"]);
+  // the remote's own id rides along when it gave one (the TV counts its toast by it)
+  const c2 = client("c2", ["pa"], { profile: "Elia" });
+  devices.subscribe(c2, { profileId: "pa", label: "iPhone", remoteId: "phone-12345678" });
+  devices.command(c2, { id: "x3", deviceId: t.deviceId, cmd: "pause" });
+  assert.deepEqual(r.last("t1", "remote_command").from, { label: "iPhone", profileName: "Elia", id: "phone-12345678" });
+  devices.ack(t, { ref: r.last("t1", "remote_command").ref, ok: true });
 });
 
 test("an unanswered command is answered by the server after ACK_MS: the TV didn't answer", () => {

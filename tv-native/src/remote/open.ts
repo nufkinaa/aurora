@@ -14,9 +14,16 @@ import {nativeRemote} from './native';
 // before the phone is told it did not (inside the handler's ANSWER_MS).
 const FRONT_WAIT_MS = 3000;
 
+// The wait is measured by the clock, not only by the timer: React Native
+// pauses JS timers while the app is in the background, so a timer started
+// there fires only once Aurora is opened again — minutes later, perhaps.
+// Mi TV 2026-10-20: the phone heard "didn't answer" (the 3 s timer never ran)
+// and the TV then started that film by itself the next time someone opened
+// Aurora. Coming to the front after the window counts as NOT coming forward.
 const waitActive = (ms: number) =>
   new Promise<boolean>(resolve => {
     if (AppState.currentState === 'active') return resolve(true);
+    const started = Date.now();
     let done = false;
     const end = (v: boolean) => {
       if (done) return;
@@ -25,8 +32,8 @@ const waitActive = (ms: number) =>
       sub.remove();
       resolve(v);
     };
-    const sub = AppState.addEventListener('change', s => s === 'active' && end(true));
-    const t = setTimeout(() => end(AppState.currentState === 'active'), ms);
+    const sub = AppState.addEventListener('change', s => s === 'active' && end(Date.now() - started <= ms));
+    const t = setTimeout(() => end(AppState.currentState === 'active' && Date.now() - started <= ms), ms);
   });
 
 const dispatchPlayer = (a: PlayItemArgs) => {
@@ -46,6 +53,8 @@ export const playItemOnTv = async (a: PlayItemArgs): Promise<Outcome> => {
     // narrow cases (the "display over other apps" permission this app may
     // have been given for its updater is one): the start is asked for, and
     // the answer is whether Aurora really came to the front.
+    // (bringToFront answers false at once when Android will refuse the start,
+    // so the phone hears "open it there" now, not "didn't answer".)
     const asked = await nativeRemote.bringToFront();
     const front = asked && (await waitActive(FRONT_WAIT_MS));
     if (!front) return {ok: false, error: 'background', message: MSG.background};
