@@ -83,7 +83,7 @@ build using `AuroraQa` still works, but new code must use `AuroraQA`.
 | `focuslog` | `on` \| `off` | `[focus]` lines on every focus change (both implementations) and `[ring]` lines on ring claim/release | `focuslog=1\|0` |
 | `framestats` | (none) | logs `[frames] {…json…}` (DeviceModule's JankStats snapshot) and resets it | `frames=<n>` |
 | `layout` | `<nativeId>` | locates the view with that `nativeId` (Fabric: `nativeID` prop → `ReactViewGroup.getTag(R.id.view_tag_native_id)`; AuroraFocusable/Card/Row/Hero/Rail expose the same ids natively) and logs its on-screen **px** rect (`getLocationOnScreen` + `width/height`) | `x=<px> y=<px> w=<px> h=<px>`; `err notfound` when no such view is mounted |
-| `nav` | `home` \| `browse:movie` \| `browse:show` \| `detail:<id>` \| `mylist` \| `search` \| `ai` \| `settings` \| `qa:text` | navigates via the `aurora://open` deep link / `rootNav`, popping to the root first, so every run starts from a known route. `detail:<id>` takes the server's item id (the fixture's made-up IMDb id). | `route=<route>` |
+| `nav` | `home` \| `browse:movie` \| `browse:show` \| `detail:<id>` \| `mylist` \| `search` \| `ai` \| `settings` \| `downloads` \| `taste` \| `qa:text` | navigates via the `aurora://open` deep link / `rootNav`, popping to the root first, so every run starts from a known route. `detail:<id>` takes the server's item id (the fixture's made-up IMDb id). | `route=<route>` |
 | `ping` | (none) | nothing — used by the harness to check the receiver and token before a run | `v=<versionCode> impl=<letters of native components, "-" if none> exp=<experiments on, "-" if none>` |
 
 Commands are independent; the harness sends one per broadcast.

@@ -89,17 +89,28 @@ class CardDecor private constructor(o: JSONObject) {
 
   companion object {
     private val cache = HashMap<String, CardDecor?>()
+    /** Decors handed over by key (AuroraRenderModule.setCardDecor): key → JSON. Written from
+     *  the JS thread, read on the UI thread. */
+    private val registered = java.util.concurrent.ConcurrentHashMap<String, String>()
 
-    /** The parsed decor of a `decor` prop (null when it is empty or unreadable). Once per string. */
-    fun of(json: String): CardDecor? {
-      if (json.isEmpty()) return null
-      return cache.getOrPut(json) {
-        try {
-          CardDecor(JSONObject(json))
-        } catch (_: Throwable) {
-          null
-        }
-      }
+    /** Keep [json] under a short key ("@…") that cards can carry instead of the JSON. */
+    fun register(json: String): String {
+      val key = "@" + Integer.toString(json.hashCode() and 0x7fffffff, 36) + "." + json.length
+      registered[key] = json
+      return key
+    }
+
+    /** The parsed decor of a `decor` prop — the JSON itself or a key [register] gave out
+     *  (null when it is empty, unknown or unreadable). Parsed once per prop value. */
+    fun of(prop: String): CardDecor? {
+      if (prop.isEmpty()) return null
+      cache[prop]?.let { return it }
+      val json = if (prop.startsWith("@")) registered[prop] ?: return null else prop
+      return try {
+        CardDecor(JSONObject(json))
+      } catch (_: Throwable) {
+        null
+      }.also { cache[prop] = it }
     }
 
     private fun JSONObject?.d(k: String): Double? =

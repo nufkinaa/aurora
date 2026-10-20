@@ -399,7 +399,13 @@ class AuroraCardView(context: Context) : View(context) {
     val rtl = layoutDirection == LAYOUT_DIRECTION_RTL
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && canvas.isHardwareAccelerated) {
       val key = DecorNodes.key(d, content, w, h, rtl, tileOnly)
-      val node = DecorNodes.get(key) ?: DecorNodes.record(key, w, h) { c -> paintDecor(c, d, w, h, rtl, tileOnly) }
+      // A cached node can come back EMPTY: HWUI frees the display list of a RenderNode no
+      // parent draws any more (RenderNode::onRemovedFromTree), and a shelf that went off the
+      // page, or a pool slot that showed another title meanwhile, was its only parent — the
+      // card then drew no words, pills or bar (Mi TV pixel diff 2026-10-20: Continue
+      // Watching after coming back to it). Such a node is recorded again.
+      val node = DecorNodes.get(key)?.takeIf { it.hasDisplayList() }
+        ?: DecorNodes.record(key, w, h) { c -> paintDecor(c, d, w, h, rtl, tileOnly) }
       canvas.drawRenderNode(node)
     } else {
       paintDecor(canvas, d, w, h, rtl, tileOnly)

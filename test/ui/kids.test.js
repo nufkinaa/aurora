@@ -312,4 +312,18 @@ kidsTest("a kids profile's Settings leave out what is not a child's to change", 
   assert.ok(!heads.includes("Downloads"), `a kids profile is offered the Downloads settings: ${JSON.stringify(heads)}`);
 });
 
+// An empty Home on a kids profile says why — nothing rated for its age — and
+// not the admin's "Point config.json at your Movies and Shows folders" (the
+// TV's Home said "the server may still be warming up"; both say this now).
+kidsTest("a kids profile with nothing for its age: Home says so, in the TV's words", async ({ page, goto, signIn, profiles }) => {
+  await page.route((url) => url.pathname === "/api/home", (route) => route.fulfill({ json: { hero: [], rows: [] } }));
+  await signIn(profiles.tiny);
+  await goto("#/");
+  const empty = page.locator("#app .screen .empty");
+  await empty.waitFor();
+  assert.match(await empty.innerText(), /Nothing for this age here yet\./);
+  assert.match(await empty.innerText(), /rated for all ages — none are in the library yet/);
+  assert.doesNotMatch(await empty.innerText(), /config\.json/);
+});
+
 ui.run({ concurrency: 3 });

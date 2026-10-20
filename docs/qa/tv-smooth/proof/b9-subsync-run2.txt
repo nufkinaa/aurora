@@ -1,0 +1,2 @@
+10-20 00:22:21.969 22168 23160 I ReactNativeJS: [player] subtitle_sync (auto): reading the title again
+10-20 00:22:22.000 22168 23160 I ReactNativeJS: [player] subtitle_sync: the track on screen did not move (/stream/subtitle/3f02449e1a80)

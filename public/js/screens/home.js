@@ -453,11 +453,16 @@ export const renderHome = async (root) => {
       window.removeEventListener("resize", measureHero);
     });
   } else {
+    // A kids profile with nothing rated for its age is not a server to set up
+    // (the TV's Home says the same — tv-native/src/browseCopy.ts emptyHomeLine).
+    const kidsAge = state.profile?.kids ? state.profile.kids.maxAge : null;
     screen.append(
       el("div", { class: "empty", style: { paddingTop: "180px" } },
         el("div", { class: "glyph" }, "🎬"),
-        el("h2", {}, "Nothing here yet"),
-        el("p", { style: { marginTop: "8px" } }, "Point config.json at your Movies and Shows folders.")
+        el("h2", {}, kidsAge != null ? "Nothing for this age here yet." : "Nothing here yet"),
+        el("p", { style: { marginTop: "8px" } }, kidsAge != null
+          ? `This profile shows titles rated ${kidsAge > 0 ? `for ages up to ${kidsAge}` : "for all ages"} — none are in the library yet.`
+          : "Point config.json at your Movies and Shows folders.")
       )
     );
   }

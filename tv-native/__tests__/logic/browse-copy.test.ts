@@ -1,5 +1,5 @@
 // What an empty Movies / Shows grid says (src/browseCopy.ts).
-import {emptyGridLine, isFiltered} from '../../src/browseCopy';
+import {emptyGridLine, emptyHomeLine, isFiltered} from '../../src/browseCopy';
 
 const base = {kind: 'movie' as const, category: 'all', genre: '', unwatched: false, kidsAge: null};
 
@@ -22,4 +22,14 @@ test('filters the viewer set are still named as the reason', () => {
 test('a grown-up with nothing filtered', () => {
   expect(emptyGridLine(base)).toEqual({message: 'No films here yet.', actionLabel: 'Try another category'});
   expect(isFiltered(base)).toBe(false);
+});
+
+test('an empty Home on a kids profile says why, not that the server is warming up', () => {
+  // Mi TV 2026-10-18: a kids profile with nothing rated for its age read "it may still be warming up after a restart"
+  const k = emptyHomeLine(7);
+  expect(k.message).toBe('Nothing for this age here yet.');
+  expect(k.detail).toBe('This profile shows titles rated for ages up to 7 — none are in the library yet.');
+  expect(k.detail).not.toMatch(/warming|restart/);
+  expect(emptyHomeLine(0).detail).toBe('This profile shows titles rated for all ages — none are in the library yet.');
+  expect(emptyHomeLine(null).detail).toMatch(/warming up after a restart/);
 });

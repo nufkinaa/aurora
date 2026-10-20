@@ -17,7 +17,7 @@ for lab in labels:
     p = os.path.join(d, lab + ".jsonl")
     if os.path.exists(p):
         rows += [json.loads(l) for l in open(p, encoding="utf-8") if l.strip().startswith("{")]
-scen = [s for s in ("S1", "L1", "S3", "G1", "S2", "S4") if any(r["scenario"] == s for r in rows)]
+scen = [s for s in ("S1", "L1", "S3", "G1", "G2", "S2", "S4") if any(r["scenario"] == s for r in rows)]
 
 
 def vals(rs, k):

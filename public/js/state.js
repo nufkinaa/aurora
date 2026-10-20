@@ -7,6 +7,7 @@ export const state = {
   profile: null,        // active profile object
   token: null,          // unlock token for a protected active profile (memory only)
   profiles: [],
+  downloadsFailed: false, // the downloads list's last read failed (main.js asks again by itself)
   library: null,        // {movies, shows}
   progress: {},         // itemId -> {position, duration, finished}
   historyOf: null,      // the profile id whose watch history the maps below were last READ for (null: never read)

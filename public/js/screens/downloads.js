@@ -394,7 +394,15 @@ export const renderDownloads = async (root) => {
     summary.textContent = mine.length ? bits.join(" · ") : "";
     summary.classList.toggle("hidden", !mine.length);
 
-    if (!mine.length) {
+    if (!mine.length && state.downloadsFailed) {
+      // the read failed (the server restarting): it is asked again by itself (main.js)
+      body.append(
+        el("div", { class: "empty dl-empty dl-retrying" },
+          el("div", { class: "glyph" }, "📡"),
+          el("h2", {}, "Couldn't load your downloads"),
+          el("p", {}, "The server didn't answer — trying again…")),
+      );
+    } else if (!mine.length) {
       body.append(
         el(
           "div",
@@ -427,6 +435,11 @@ export const renderDownloads = async (root) => {
 
   // Live: progress ticks, a finish, an approval — repaint. Ticks arrive
   // every second or two per active job; a repaint is a few rows, cheap.
+  // the list's read failed / came back (main.js): the empty page says which
+  const unsubRead = onMessage("downloads_read", () => {
+    if (!screen.isConnected) return unsubRead();
+    paint();
+  });
   const unsubRemoved = onMessage("download_removed", ({ id }) => {
     if (!screen.isConnected) return unsubRemoved();
     rowCache.delete(id);
@@ -461,6 +474,7 @@ export const renderDownloads = async (root) => {
   });
   return () => {
     unsub();
+    unsubRead();
     unsubRemoved();
     rowCache.clear();
   };

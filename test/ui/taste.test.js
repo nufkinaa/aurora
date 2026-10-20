@@ -19,7 +19,8 @@ const KNOWN = Array.from({ length: 80 }, (_, i) => {
   return {
     imdbId: `tt8${String(100000 + i).padStart(6, "0")}`, type: type === "series" ? "show" : "movie", title,
     year: 1975 + ((i * 7) % 50), poster: posterOf(i, title), rating: 6.5 + (i % 25) / 10,
-    genres: [GENRES[i % GENRES.length], GENRES[(i * 3 + 1) % GENRES.length]], cast: ["Ann Actor", "Bo Actor"], director: ["Cy Director"],
+    genres: [GENRES[i % GENRES.length], GENRES[(i * 3 + 1) % GENRES.length]], // (HTML-escaped, as Cinemeta sends names: the line must read plain — src/lib/htmltext.js)
+    cast: ["Ann O&apos;Actor", "Bo Actor"], director: ["Cy Director"],
     k: i,
   };
 });
@@ -113,7 +114,7 @@ ui.test("one card at a time: poster, title, year, genres and a line; nothing aro
   }, TOP);
   assert.match(card.title, /^Known (Film|Show) \d+$/);
   assert.match(card.meta, /^\d{4} · (Film|Series) · /);
-  assert.equal(card.line, "Cy Director, with Ann Actor and Bo Actor");
+  assert.equal(card.line, "Cy Director, with Ann O'Actor and Bo Actor", "the catalogue's &apos; is an apostrophe on the card");
   assert.ok(card.img);
   assert.equal(await countText(page), "0 / 24");
   assert.equal(await page.locator("#app .ts-card.behind").count(), 1, "the next card waits behind");

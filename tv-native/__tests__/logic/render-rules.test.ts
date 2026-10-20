@@ -47,7 +47,7 @@ describe('how the two sources combine', () => {
     const on = resolveRender({recommended: true}, {});
     expect(on).toEqual(new Set(RECOMMENDED));
     expect(on.has('unstuffq')).toBe(false);
-    expect([...on].sort()).toEqual(['card', 'cardlayer', 'cull', 'focusable', 'hero', 'herotext', 'pool', 'rail', 'ringshare', 'row', 'shadowcache', 'unstuff']);
+    expect([...on].sort()).toEqual(['card', 'cardlayer', 'cardtext', 'cull', 'focusable', 'hero', 'herotext', 'keyrate', 'pool', 'rail', 'ringshare', 'row', 'shadowcache', 'unstuff']);
   });
   test('an explicit switch wins over the preset at the same level', () => {
     expect(resolveRender({recommended: true, pool: false}, {}).has('pool')).toBe(false);
@@ -65,7 +65,7 @@ describe('how the two sources combine', () => {
   test('stored as a word list in KEYS order, and back', () => {
     const on = resolveRender({recommended: true}, {pool: false});
     const s = encodeRender(on);
-    expect(s).toBe('focusable,card,row,hero,rail,cardlayer,cull,shadowcache,unstuff,ringshare,herotext');
+    expect(s).toBe('focusable,card,row,hero,rail,cardlayer,cull,shadowcache,unstuff,keyrate,cardtext,ringshare,herotext');
     expect(decodeRender(s)).toEqual(on);
     expect(encodeRender(set())).toBe('');
     expect(decodeRender('card,retired,,cull')).toEqual(set('card', 'cull'));
@@ -109,13 +109,8 @@ describe('the developer setting’s three positions', () => {
     expect(inertBecause(set('herotext'), 'herotext')).toBeNull();
   });
 
-  test('the Mi TV pass: ringshare and herotext joined the preset, keyrate and cardtext did not', () => {
-    for (const k of ['keyrate', 'cardtext'] as const) {
-      expect(RECOMMENDED).not.toContain(k);
-      expect(resolveRender({}, {recommended: true}).has(k)).toBe(false);
-      expect(resolveRender({[k]: true}, {}).has(k)).toBe(true);
-    }
-    for (const k of ['ringshare', 'herotext'] as const) {
+  test('the Mi TV passes: ringshare and herotext joined the preset (2026-10-17), keyrate and cardtext too (2026-10-20)', () => {
+    for (const k of ['ringshare', 'herotext', 'keyrate', 'cardtext'] as const) {
       expect(RECOMMENDED).toContain(k);
       expect(resolveRender({}, {recommended: true}).has(k)).toBe(true);
       expect(resolveRender({recommended: true, [k]: false}, {}).has(k)).toBe(false);

@@ -5,6 +5,9 @@ import android.content.Intent
 import android.graphics.Rect
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.Message
 import android.os.SystemClock
 import android.util.Log
 import android.view.Choreographer
@@ -19,6 +22,8 @@ import com.auroratv.ui.AuroraRender
 import com.auroratv.ui.input.KeyRepeatGate
 import com.auroratv.ui.qa.AuroraQa
 import com.facebook.react.ReactActivity
+import com.facebook.react.ReactApplication
+import com.facebook.react.uimanager.DisplayMetricsHolder
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
@@ -58,8 +63,26 @@ class MainActivity : ReactActivity() {
    */
   override fun onCreate(savedInstanceState: Bundle?) {
     searchToLink(intent)
+    val was = shownWith
+    val now = DisplayFacts(resources.displayMetrics.densityDpi, resources.configuration.fontScale)
+    shownWith = now
     super.onCreate(null)
     gate = makeGate()
+    // THE DISPLAY CHANGED UNDER A RUNNING APP (the TV's display size / resolution or its font
+    // size changed in Android's settings). Android recreates this activity, but the React
+    // instance — JS, and Fabric's measured text — lives on with the old density: every label
+    // measured before came out wrong for the new one ("My Li…", "Trail…", a "1h" for 1h 56m,
+    // Play with no word — Mi TV, wm density 320 → 240 while running, 2026-10-19). A
+    // relaunched app was right. So the React instance is started again, at the new metrics.
+    if (was != null && was != now) {
+      Log.i("AuroraTV", "[display] density ${was.densityDpi} → ${now.densityDpi}, font scale ${was.fontScale} → ${now.fontScale}: starting the app again")
+      try {
+        DisplayMetricsHolder.initDisplayMetrics(applicationContext)
+        (application as? ReactApplication)?.reactHost?.reload("display changed")
+      } catch (t: Throwable) {
+        Log.w("AuroraTV", "[display] reload failed: ${t.message}")
+      }
+    }
   }
 
   /**
@@ -196,14 +219,29 @@ class MainActivity : ReactActivity() {
     if (!g.wantsFrames) return
     val template = heldRepeat
     if (template != null && g.onFrame(frameTimeNanos / 1_000_000L, SystemClock.uptimeMillis())) {
+      // DECIDED on the frame, MADE after it. The first cut moved focus right here, inside
+      // Choreographer's animation callbacks: the move's whole cost (the focus search, the
+      // focus hand-over, React Native's focus events, the shelf's / grid's scroll starting)
+      // then ran inside THIS frame, before its layout and drawing. On the Mi TV's Movies
+      // grid (G1, 2026-10-19) frames whose animation stage took > 4 ms went from 4.8 % to
+      // 14.7 % of all frames and p90 rose by 2–2.5 ms. A hardware repeat is handled between
+      // frames (key events are not batched to the vsync), so the move now goes there too: an
+      // ASYNCHRONOUS message at the front of the queue runs as soon as this frame has been
+      // handed to the RenderThread (async, so a traversal barrier posted meanwhile cannot hold
+      // it back a frame), and the move's work has the rest of the refresh to itself.
       val ev = KeyEvent.changeTimeRepeat(template, SystemClock.uptimeMillis(), g.syntheticRepeatCount())
-      moveLikeTheSystem(ev)
+      val msg = Message.obtain(gateMoveHandler) { if (gate?.heldCode == ev.keyCode) moveLikeTheSystem(ev) }
+      msg.isAsynchronous = true
+      gateMoveHandler.sendMessageAtFrontOfQueue(msg)
     }
     if (g.wantsFrames) {
       gateFramePosted = true
       Choreographer.getInstance().postFrameCallback(gateFrame)
     }
   }
+
+  /** Where the gate's moves run: right after the frame that decided them (see onGateFrame). */
+  private val gateMoveHandler = Handler(Looper.getMainLooper())
 
   /**
    * What ViewRootImpl does with a key-down nobody consumed (ViewPostImeInputStage.processKeyEvent
@@ -336,9 +374,13 @@ class MainActivity : ReactActivity() {
     heldRepeat = null
   }
 
+  /** The density and font scale this process last showed the app with (see onCreate). */
+  private data class DisplayFacts(val densityDpi: Int, val fontScale: Float)
+
   companion object {
     const val DOUBLE_PRESS_MS = 110L
     /** [phone-remote] how long the screen is kept on after the phone's last press. */
     const val REMOTE_AWAKE_MS = 5 * 60 * 1000L
+    private var shownWith: DisplayFacts? = null
   }
 }

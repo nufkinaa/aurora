@@ -275,9 +275,22 @@ export const syncPlan = (o: {msgId: unknown; playingId: string | null | undefine
 });
 
 /** After the refetch: reload the track on screen when the title still lists
- *  it (its served timing may have changed). */
-export const reloadAfterSync = (curUrl: string | null | undefined, fresh: Sub[] | null | undefined): boolean =>
-  !!curUrl && (fresh || []).some(t => t && t.url === trackPath(curUrl));
+ *  it AND its served timing changed. `prev` = the tracks as the player knew
+ *  them before this message: the server sends `subtitle_sync` once per
+ *  rescan for every track of the title it lined up, so after a restart (the
+ *  background check going through a title's Hebrew tracks one by one) the
+ *  player heard it two or three times and reloaded the track on screen each
+ *  time though only another track had moved (Mi TV, 2026-10-18). Without
+ *  `prev` (or a track it never knew), the old rule: reload. */
+export const reloadAfterSync = (curUrl: string | null | undefined, fresh: Sub[] | null | undefined, prev?: Sub[] | null): boolean => {
+  if (!curUrl) return false;
+  const path = trackPath(curUrl);
+  const now = (fresh || []).find(t => t && t.url === path);
+  if (!now) return false;
+  const was = prev ? prev.find(t => t && t.url === path) : undefined;
+  if (!was) return true;
+  return JSON.stringify(was.timing ?? null) !== JSON.stringify(now.timing ?? null);
+};
 
 // The Resync's own end and the `subtitle_sync` it causes arrive about a
 // second apart, in either order; by the first of them the server already

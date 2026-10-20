@@ -7,8 +7,8 @@ const POSTER: RowGeom = {step: 138, cardW: 124, contentLeft: 84, viewportW: 960,
 const FRAME: RowGeom = {step: 238, cardW: 224, contentLeft: 84, viewportW: 960, lead: 1};
 const SHAPES: [string, RowGeom, number, number][] = [
   // name, geometry, most cards mounted (full margins), most (low memory)
-  ['poster', POSTER, 11, 9],
-  ['frame', FRAME, 8, 6],
+  ['poster', POSTER, 11, 10],
+  ['frame', FRAME, 8, 7],
 ];
 const LENGTHS = [1, 2, 5, 7, 8, 12, 24, 40];
 const DIRS: Dir[] = [1, -1];
@@ -87,6 +87,20 @@ describe.each(SHAPES)('%s shelf', (_name, g, maxFull, maxLow) => {
                 if (leading) expect(i >= w.from && i < w.to).toBe(true);
               }
             }
+  });
+
+  test('a TURN: the first press back the other way finds every card on screen mounted, before its own commit', () => {
+    // The Mi TV (2 GB, low-memory margins) printed `[row] behind` at every turn —
+    // e.g. held RIGHT to a shelf's end, then LEFT: `idx=22 visible=20..23 mounted=21..23`
+    for (const m of [MARGINS, MARGINS_LOW])
+      for (const n of LENGTHS)
+        for (const dir of DIRS)
+          for (let f = 0; f < n; f++) {
+            const w = rowWindow(f, dir, n, g, m); // where the run in `dir` rests
+            const back = f - dir; // the first press the other way
+            if (back < 0 || back >= n) continue;
+            for (const i of onScreen(back, n, g)) expect(i >= w.from && i < w.to).toBe(true);
+          }
   });
 
   test('a steady run mounts at most ONE card per press, in both directions', () => {
@@ -186,7 +200,7 @@ describe('a held key leads further, both ways', () => {
     expect(runMargins(MARGINS, 2)).toEqual({lead: 3, trail: 1});
     expect(runMargins(MARGINS, 3)).toEqual({lead: 2 + HELD_EXTRA, trail: 1});
     expect(runMargins(MARGINS, 50)).toBe(runMargins(MARGINS, 3)); // same object: compared by identity
-    expect(runMargins(MARGINS_LOW, 9)).toEqual({lead: 2, trail: 0});
+    expect(runMargins(MARGINS_LOW, 9)).toEqual({lead: 2, trail: 1});
   });
 
   test.each(SHAPES)('%s shelf: a commit running up to lead+HELD_EXTRA presses late under a held key shows no hole, LEFT as well as RIGHT', (_n, g) => {

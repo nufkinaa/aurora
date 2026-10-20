@@ -1,8 +1,10 @@
 package com.auroratv.ui.view
 
 import android.content.Context
+import android.graphics.Color
 import android.view.View
 import android.view.ViewTreeObserver
+import android.widget.TextView
 import com.facebook.react.views.view.ReactViewGroup
 
 /**
@@ -64,11 +66,34 @@ class AuroraTextLayerView(context: Context) : ReactViewGroup(context) {
     return true
   }
 
+  /**
+   * THE FAINT BOX BEHIND THE TITLE. A TextView clips its own drawing to its text box
+   * (TextView.onDraw → clipRect, the horizontal padding excluded), widened only by the
+   * TextView's OWN shadow layer; React Native draws `textShadow*` through a span
+   * (ShadowStyleSpan), which TextView does not know about — so the title's 16 dp shadow
+   * was cut off at the edges of the text box, a faintly darker rectangle behind the words,
+   * plain on a scaled canvas (Mi TV at density 160, 2026-10-18) and there, fainter, at 1:1.
+   * Each Text in here is given a TRANSPARENT shadow layer of [SHADOW_ROOM_DP]: it draws
+   * nothing (Skia skips a fully transparent paint) and widens the clip to hold the span's
+   * shadow (the Texts are also overflow 'visible' — RN's Text clips to its box by default).
+   * The JS side gives this view the same room around the words (Home.tsx HeroWords,
+   * padding with an equal negative margin), so the hardware layer does not cut it either.
+   */
+  override fun onViewAdded(child: View) {
+    super.onViewAdded(child)
+    if (child is TextView) {
+      val r = SHADOW_ROOM_DP * resources.displayMetrics.density
+      child.setShadowLayer(r, 0f, 0f, Color.TRANSPARENT)
+    }
+  }
+
   fun resetForRecycle() {
     if (layerType != LAYER_TYPE_NONE) setLayerType(LAYER_TYPE_NONE, null)
   }
 
   companion object {
+    /** In step with Home.tsx HERO_SHADOW_ROOM (the title's shadow: radius 16, offset 2). */
+    const val SHADOW_ROOM_DP = 20f
     private val ON = com.auroratv.ui.AuroraRender.on("herotext")
   }
 }

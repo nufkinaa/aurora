@@ -25,7 +25,7 @@ import {blurOf, markDrawn, wasDrawn} from '../blur';
 import {openPeek} from '../overlay';
 import theme from '../theme';
 import {firstPoster} from '../telemetry'; // [analytics]
-import {fixOn, nativeOn} from '../render';
+import {fixOn, nativeOn, registerCardDecor} from '../render';
 import {buildDecor, CardStyles} from '../cardDecor';
 import AuroraCard, {Commands as CardCommands, ImageFailedEvent, ImageLoadedEvent, ImageRetryEvent} from '../specs/AuroraCardNativeComponent';
 
@@ -696,13 +696,16 @@ const decorJson = (): string => {
     const boxShadow = require('react-native/Libraries/StyleSheet/processBoxShadow').default;
     const backgroundImage = require('react-native/Libraries/StyleSheet/processBackgroundImage').default;
     /* eslint-enable @typescript-eslint/no-var-requires */
-    DECOR = buildDecor(
+    const json = buildDecor(
       styles as unknown as CardStyles,
       s => StyleSheet.flatten(s as never) as Record<string, unknown>,
       {color: c => processColor(c) as number | null | undefined, boxShadow, backgroundImage},
       // Icon.tsx: `<Icon name="film|series" size={11} color={colors.kindFilm|kindSeries} />`
       {size: 11, film: colors.kindFilm, series: colors.kindSeries},
     );
+    // handed to native once; the cards carry its short key (the JSON was two copies of
+    // ~2 KB through the props map on every card mount)
+    DECOR = registerCardDecor(json);
   } catch {
     DECOR = '';
   }
@@ -768,30 +771,50 @@ function DeepCard({
   const t2 = showLabel && isEpisode ? epLine : '';
   const t3 = showLabel && frame && left ? `▶  ${left}` : '';
 
-  // ---- what JS still owns of the picture's life (NativeCard's, minus the tile Text)
+  // ---- what JS still owns of the picture's life (NativeCard's) ------------
   const art = React.useRef<React.ElementRef<typeof AuroraCard> | null>(null);
+  // When the tile shows (no picture, or native gave up on it): NativeCard mounts the
+  // tile's RN title then; this card hands the title (and the decor) over then.
+  const [tileUri, setTileUri] = React.useState<string | null>(null);
   const [parked, setParked] = React.useState<string | null>(null);
+  const tileShown = !src || tileUri === src.uri;
   React.useEffect(() => {
     if (!parked) return;
     return onMessage('welcome', () => {
       if (art.current) CardCommands.unpark(art.current);
       setParked(null);
+      setTileUri(t => (t === parked ? null : t));
     });
   }, [parked]);
   const onImageLoaded = React.useCallback((e: {nativeEvent: ImageLoadedEvent}) => {
+    const {uri} = e.nativeEvent;
     firstPoster(); // [analytics] as JsCard's onImgLoad
-    markDrawn(e.nativeEvent.uri);
+    markDrawn(uri);
+    setTileUri(t => (t === uri ? null : t));
   }, []);
   const onImageFailed = React.useCallback((e: {nativeEvent: ImageFailedEvent}) => {
-    const {uri, error, tries, parked: p} = e.nativeEvent;
+    const {uri, error, tries, tile, parked: p} = e.nativeEvent;
     if (tries === 1) trackError(`image ${shapeOf(uri)}: ${String(error || '').slice(0, 90)}`);
+    if (tile) setTileUri(uri);
     if (p) setParked(uri);
+  }, []);
+  const onImageRetry = React.useCallback((e: {nativeEvent: ImageRetryEvent}) => {
+    const {uri} = e.nativeEvent;
+    setTileUri(t => (t === uri ? null : t));
   }, []);
 
   const headersJson = src?.headers ? JSON.stringify(src.headers) : '';
   const backupHeadersJson = backup?.headers ? JSON.stringify(backup.headers) : '';
   const blurUri = blur && src && !wasDrawn(src.uri) ? blur : undefined;
-  const decor = decorJson();
+  // ONLY A CARD THAT HAS WORDS, A PILL, A BAR OR A TILE TITLE TO DRAW CARRIES THE DECOR
+  // (and the props that say what to draw). A plain poster — every card of the Movies and
+  // Shows grids — hands the native view exactly NativeCard's props: the first cut sent
+  // every card the decor JSON (twice: art and focus view) and twelve more props, and on the
+  // Mi TV's Movies grid, where no card draws any of it, that was pure extra mount work (G1
+  // janky +0.6 pt, p90 +1.5 ms against the two-layer card, 2026-10-17).
+  const tagKind = kind ? (item.type === 'show' ? 'series' : 'film') : '';
+  const draws = !!textMode || isNew || !!tagKind || pct != null || tileShown;
+  const decor = draws ? decorJson() : undefined;
 
   return (
     <Focusable uiId="card.open"
@@ -810,7 +833,11 @@ function DeepCard({
       onFocusChange={onFocus ? f => f && onFocus(item, index ?? 0) : undefined}
       focusOverlay={
         // brighten, the poster shade of a label-less card, the ✕ — JsCard's overlay, one view
-        <AuroraCard style={styles.layer} brighten shade={showLabel ? 'none' : 'poster'} decor={decor} xGlyph={!!removable} />
+        removable ? (
+          <AuroraCard style={styles.layer} brighten shade={showLabel ? 'none' : 'poster'} decor={decorJson()} xGlyph />
+        ) : (
+          <AuroraCard style={styles.layer} brighten shade={showLabel ? 'none' : 'poster'} />
+        )
       }
       style={frame ? styles.cardFrame : landscape ? styles.cardWide : compact ? styles.cardCompact : styles.card}>
       <AuroraCard
@@ -826,18 +853,19 @@ function DeepCard({
         tile={!src}
         shade={showLabel ? (frame ? 'frame' : 'poster') : 'none'}
         decor={decor}
-        textMode={textMode}
-        t1={t1}
-        t2={t2}
-        t3={t3}
-        raised={pct != null}
-        tagNew={isNew}
-        tagKind={kind ? (item.type === 'show' ? 'series' : 'film') : ''}
-        pct={pct ?? -1}
-        frameBar={!!frame}
-        tileTitle={String(item.title ?? '')}
+        textMode={textMode || undefined}
+        t1={t1 || undefined}
+        t2={t2 || undefined}
+        t3={t3 || undefined}
+        raised={pct != null || undefined}
+        tagNew={isNew || undefined}
+        tagKind={tagKind || undefined}
+        pct={pct ?? undefined}
+        frameBar={(pct != null && !!frame) || undefined}
+        tileTitle={tileShown ? String(item.title ?? '') : undefined}
         onImageLoaded={onImageLoaded}
         onImageFailed={onImageFailed}
+        onImageRetry={onImageRetry}
       />
     </Focusable>
   );

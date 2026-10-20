@@ -624,6 +624,8 @@ export default function Player({
   // (rule 2) this list is NOT part of the video source, so it can grow whenever
   // a provider answers — the web's addTracks, with none of the reload hazard.
   const [subs, setSubs] = useState<SubtitleTrack[]>([]);
+  const subsRef = useRef(subs);
+  subsRef.current = subs;
   const [uri, setUri] = useState<string | null>(null);
   const [usingTranscode, setUsingTranscode] = useState(false);
 
@@ -2226,9 +2228,11 @@ export default function Player({
         .then(it => {
           if (exited.current || !it) return;
           const fresh = it.subtitles || [];
+          const known = subsRef.current;
           setSubs(prev => mergeSubInfo(prev, fresh));
           const cur = subUrlRef.current;
-          if (cur && reloadAfterSync(cur, fresh) && reloadCues(cur)) console.log(`[player] subtitle_sync: reloading ${cur}`);
+          if (cur && reloadAfterSync(cur, fresh, known) && reloadCues(cur)) console.log(`[player] subtitle_sync: reloading ${cur}`);
+          else if (cur) console.log(`[player] subtitle_sync: the track on screen did not move (${cur})`);
         })
         .catch(e => console.log('[player] subtitle_sync: the title could not be read again:', (e as Error).message));
     });

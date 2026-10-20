@@ -74,6 +74,9 @@ const ITEMS: Record<string, {item: HeroItem; props: Record<string, unknown>}> = 
   upNext: {item: {id: 'e4', title: 'Half Loop', type: 'episode', showId: 'sev', showTitle: 'Severance', season: 1, episode: 2, upNext: true} as unknown as HeroItem, props: {}},
 };
 
+// every card has its picture (a card with none is the tile: tested on its own below)
+for (const k of Object.keys(ITEMS)) (ITEMS[k].item as {poster?: string}).poster = `https://art.example/${k}.jpg`;
+
 /** Card.tsx loaded with the given switches (render.ts mocked), in a fresh module registry —
  *  with that registry's own React and renderer, so the hooks see one React. */
 type Loaded = {Card: React.ComponentType<Record<string, unknown>>; R: typeof React; T: typeof TestRenderer};
@@ -86,6 +89,7 @@ function loadCard(card: boolean, cardtext: boolean, before?: () => void): Loaded
       fixOn: {cardlayer: false, cull: false, shadowcache: false, unstuff: false, unstuffq: false, pool: false, keyrate: false, cardtext, ringshare: false, herotext: false},
       renderOn: () => false,
       tellRingClaimed: () => {},
+      registerCardDecor: (j: string) => j,
     }));
     out = {Card: require('../../src/components/Card').default, R: require('react'), T: require('react-test-renderer')};
   });
@@ -122,10 +126,10 @@ function jsSays(r: TestRenderer.ReactTestRenderer) {
 /** What DeepCard hands the native views. */
 function nativeSays(r: TestRenderer.ReactTestRenderer) {
   const views = r.root.findAll(n => (n.type as unknown) === 'AuroraNative');
-  const art = views.find(v => v.props.textMode !== undefined)!;
+  const art = views.find(v => !v.props.brighten)!;
   const focus = views.find(v => v.props.brighten)!;
-  const lines = [art.props.t1, art.props.t2, art.props.t3];
-  const mode = art.props.textMode as string;
+  const lines = [art.props.t1 ?? '', art.props.t2 ?? '', art.props.t3 ?? ''];
+  const mode = (art.props.textMode ?? '') as string;
   const shown =
     mode === 'label' ? [lines[0]] : mode === 'labelEp' ? [lines[0], lines[1]] : mode === 'frame' ? [lines[0], lines[2]] : mode === 'frameEp' ? [lines[0], lines[1], lines[2]] : [];
   return {
@@ -133,8 +137,9 @@ function nativeSays(r: TestRenderer.ReactTestRenderer) {
     hasNew: !!art.props.tagNew,
     hasX: !!focus.props.xGlyph,
     kind: art.props.tagKind || null,
-    width: art.props.pct >= 0 ? `${art.props.pct}%` : null,
+    width: art.props.pct != null && art.props.pct >= 0 ? `${art.props.pct}%` : null,
     art,
+    focus,
     views,
     hostTexts: r.root.findAll(n => (n.type as unknown) === 'Text').length,
   };
@@ -156,12 +161,55 @@ describe('DeepCard says what JsCard draws', () => {
       // nothing of the card is an RN Text any more, and exactly two native views draw it
       expect(nat.hostTexts).toBe(0);
       expect(nat.views.length).toBe(2);
-      // and both carry the decor (Card.tsx's styles as JSON)
+      // every one of these cards draws something, so the art carries the decor (Card.tsx's
+      // styles as JSON); the focus view carries it only for the ✕
       expect(JSON.parse(nat.art.props.decor).labelText.size).toBe(14);
-      // the tile's title is the item's title, ready for when the picture fails
-      expect(nat.art.props.tileTitle).toBe(String(ITEMS[k].item.title));
+      expect(nat.focus.props.decor !== undefined).toBe(js.hasX);
+      // the tile's title only once the tile shows (these all have a picture)
+      expect(nat.art.props.tileTitle).toBeUndefined();
     });
   }
+  test('a plain poster (the Movies / Shows grid) hands native exactly what NativeCard does', () => {
+    // G1 on the Mi TV (2026-10-17): every card carried the decor JSON twice and a dozen more
+    // props although a grid poster draws none of it — pure extra mount work
+    const NativeCard = loadCard(true, false);
+    const item = {id: 'm9', title: 'Heat', type: 'movie', poster: 'https://art.example/heat.jpg'} as HeroItem;
+    const mk = (L: Loaded) => {
+      let r!: TestRenderer.ReactTestRenderer;
+      L.T.act(() => {
+        r = L.T.create(L.R.createElement(L.Card, {item, index: 0, onPress: () => {}}));
+      });
+      return r.root.findAll(n => (n.type as unknown) === 'AuroraNative').map(n => {
+        const {onImageLoaded, onImageFailed, onImageRetry, ...rest} = n.props as Record<string, unknown>;
+        return Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
+      });
+    };
+    expect(mk(DeepCard)).toEqual(mk(NativeCard));
+  });
+  test('a card with no picture: the tile title (and the decor) at once', () => {
+    const r = (() => {
+      let x!: TestRenderer.ReactTestRenderer;
+      DeepCard.T.act(() => {
+        x = DeepCard.T.create(DeepCard.R.createElement(DeepCard.Card, {item: {id: 'q', title: 'No Art', type: 'movie'} as HeroItem, index: 0, onPress: () => {}}));
+      });
+      return x;
+    })();
+    const art = r.root.findAll(n => (n.type as unknown) === 'AuroraNative').find(v => !v.props.brighten)!;
+    expect(art.props.tile).toBe(true);
+    expect(art.props.tileTitle).toBe('No Art');
+    expect(typeof art.props.decor).toBe('string');
+  });
+  test('the tile title arrives when native says the tile shows, and goes when a round asks again', () => {
+    const r = render(DeepCard, 'poster');
+    const art = () => r.root.findAll(n => (n.type as unknown) === 'AuroraNative').find(v => !v.props.brighten)!;
+    const uri = art().props.uri as string;
+    expect(art().props.tileTitle).toBeUndefined();
+    DeepCard.T.act(() => art().props.onImageFailed({nativeEvent: {uri, error: 'x', tries: 3, tile: true, parked: false}}));
+    expect(art().props.tileTitle).toBe('Arrival');
+    expect(typeof art().props.decor).toBe('string');
+    DeepCard.T.act(() => art().props.onImageRetry({nativeEvent: {uri}}));
+    expect(art().props.tileTitle).toBeUndefined();
+  });
   test('no decor (a processor failed): the two-layer native card, never a card without words', () => {
     const L = loadCard(true, true, () => {
       jest.doMock('../../src/cardDecor', () => ({
@@ -177,7 +225,7 @@ describe('DeepCard says what JsCard draws', () => {
     );
   });
   test('the label paths are all exercised', () => {
-    const modes = Object.keys(ITEMS).map(k => nativeSays(render(DeepCard, k)).art.props.textMode);
+    const modes = Object.keys(ITEMS).map(k => nativeSays(render(DeepCard, k)).art.props.textMode ?? '');
     expect(new Set(modes)).toEqual(new Set(['', 'label', 'labelEp', 'frame', 'frameEp']));
     expect(nativeSays(render(DeepCard, 'episodeNoShow')).lines).toEqual(['', 'S2 E3 · Pilot']);
   });

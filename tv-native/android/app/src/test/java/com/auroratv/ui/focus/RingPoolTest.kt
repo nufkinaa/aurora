@@ -71,4 +71,41 @@ class RingPoolTest {
     assertEquals(0, p.freeCount("home"))
     assertEquals(1, p.inUse)
   }
+
+  @Test fun theCapHandsBackTheOldestFadingRingFirst() {
+    // the system's own repeat (20 a second, 50 ms) on a slow frame: fades last longer than the
+    // gap times four — without the cap the fifth and sixth were made (Mi TV, 2026-10-18)
+    val p = RingPool<String, Ring>(cap = 4)
+    var n = 0
+    val lit = HashSet<Ring>()
+    val live = ArrayDeque<Pair<Ring, Double>>()
+    var t = 0.0
+    repeat(40) {
+      while (live.isNotEmpty() && live.first().second <= t) p.release("home", live.removeFirst().first)
+      // at the cap: the oldest one that is fading (not the lit one) goes back first
+      p.evictable("home") { it !in lit }?.let { old ->
+        live.removeIf { it.first === old }
+        p.release("home", old)
+      }
+      lit.clear()
+      val r = p.acquire("home") { Ring(++n) }
+      lit.add(r)
+      live.addLast(r to t + 50.0 + 300.0) // lit until the next move, then a long (slow-frame) fade
+      t += 50.0
+    }
+    assertEquals(4, p.peak)
+    assertEquals(4, p.made)
+  }
+
+  @Test fun underTheCapNothingIsEvicted() {
+    val p = RingPool<String, Ring>(cap = 4)
+    var n = 0
+    repeat(3) { p.acquire("home") { Ring(++n) } }
+    assertEquals(null, p.evictable("home") { true })
+    p.acquire("detail") { Ring(++n) } // another screen's ring does not count
+    assertEquals(null, p.evictable("home") { true })
+    p.acquire("home") { Ring(++n) }
+    assertEquals(1, p.evictable("home") { true }!!.n)
+    assertEquals(2, p.evictable("home") { it.n != 1 }!!.n)
+  }
 }
