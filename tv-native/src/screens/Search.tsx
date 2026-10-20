@@ -305,21 +305,40 @@ export default function Search({
       b();
     };
   }, [navigation, startVoice]);
-  // opened by that key from another screen: listening at once
+  // opened by that key from another screen: listening at once. The wait is
+  // cleared only when the screen goes, NOT when the param is: dropping the
+  // param re-runs this effect, and its cleanup used to cancel the start —
+  // the remote's search key opened Search with the keyboard and never
+  // listened (Mi TV pass 2026-10-20).
   const openedByVoice = !!route.params?.voice;
+  const voiceOpenWait = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!openedByVoice) return;
     navigation.setParams({voice: undefined});
-    const t = setTimeout(() => startVoice(), 250);
-    return () => clearTimeout(t);
+    if (voiceOpenWait.current) clearTimeout(voiceOpenWait.current);
+    voiceOpenWait.current = setTimeout(() => {
+      voiceOpenWait.current = null;
+      startVoice();
+    }, 250);
   }, [openedByVoice, navigation, startVoice]);
+  useEffect(
+    () => () => {
+      if (voiceOpenWait.current) clearTimeout(voiceOpenWait.current);
+    },
+    [],
+  );
   // while words are coming they are the message; the line still says which language
-  // opened by the TV's own search with words: searched at once
+  // opened by the TV's own search with words: searched at once, tidied the way
+  // the microphone's words are — on a TV those words are mostly SPOKEN (the
+  // Assistant / Google TV search hands them over), so a Hebrew name the index
+  // does not know goes through the same Hebrew Wikipedia lookup. Mi TV pass
+  // 2026-10-20: "הסנדק" from the TV's search found nothing, from the mic it
+  // finds The Godfather.
   const openedWith = route.params?.q;
   useEffect(() => {
     if (openedWith == null) return;
     navigation.setParams({q: undefined});
-    if (openedWith) runRef.current(openedWith, true);
+    if (openedWith) runRef.current(openedWith, true, true);
   }, [openedWith, navigation]);
   const voiceText = voiceMessage(voice, 'tv') || (voiceActive(voice) ? `Listening in ${LANG_NAME[voice.lang]}` : '');
   const showVoice = listening || voice.phase === 'error';
