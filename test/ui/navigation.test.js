@@ -172,4 +172,30 @@ ui.test("the phone shell keeps the nav reachable and the page inside the screen"
   }
 });
 
+// Two renders at once (router.js): Back to Search while the title page is
+// still waiting for its data used to leave BOTH screens in #app — two
+// Search boxes, the late title page drawn under it. The title's own answer
+// is held here so the overlap happens every time.
+ui.test("Back while a title page is still loading leaves one screen: the one Back went to", async ({ page, goto, signIn, profiles, lib }) => {
+  await signIn(profiles.open);
+  await goto("#/search");
+  let release;
+  const held = new Promise((r) => { release = r; });
+  await page.route(`**/api/item/${lib.film1.id}*`, async (route) => { await held; await route.continue(); });
+  await page.evaluate((id) => { location.hash = `#/movie/${id}`; }, lib.film1.id);
+  await page.waitForFunction(() => /^#\/movie\//.test(location.hash));
+  await page.goBack();
+  await page.waitForFunction(() => location.hash === "#/search");
+  await waitForScreen(page, { selector: '.screen input[type="search"]' });
+  release(); // the title page's answer arrives after Search is up
+  await page.waitForTimeout(1500);
+  await page.unroute(`**/api/item/${lib.film1.id}*`);
+  assert.equal(await page.locator('.screen input[type="search"]').count(), 1, "one Search box");
+  assert.equal(await page.locator("#app .screen").count(), 1, "one screen in #app");
+  assert.equal(await page.locator("#app .detail-hero, #app .detail-head").count(), 0, "the late title page is not drawn");
+  // and the Search that stayed works
+  await page.locator('.screen input[type="search"]').fill("test film");
+  await page.waitForSelector("#app .screen > .grid .card");
+});
+
 ui.run({ concurrency: 2 });

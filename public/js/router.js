@@ -37,14 +37,16 @@ const markNav = (hash) => {
 };
 
 let current = { cleanup: null };
-// Renders that overlap (a hashchange while a screen is still loading — a
-// fast Back, a re-render in place): each one clears #app and then awaits
-// its screen, so the older one, finishing later, used to append a second
-// screen next to the newer (two Search boxes, both live). The newest render
-// owns #app; an older one that finishes is undone and #app drawn once more.
+// Renders that overlap (a hashchange while a screen is still loading — Back
+// from a title page that is still asking for its data, a re-render in
+// place): each one cleared #app and then awaited its screen, so the older
+// one, finishing later, appended a second live screen next to the newer
+// (seen: two Search boxes after Back). Now each render draws into a host of
+// its own (display: contents — no box of its own, so layout and the
+// "#app .screen" selectors are unchanged); a newer render takes the old host
+// out of #app, so whatever the older one still draws lands in a detached
+// host, and when it finishes it is let go (its cleanup), never shown.
 let renderSeq = 0;
-let inFlight = 0;
-let dirty = false;
 
 // What a screen hung on something that OUTLIVES it — a listener on window or
 // document, a subscription to the live socket — is let go when the screen is
@@ -101,18 +103,18 @@ const render = async () => {
     const t0 = performance.now();
     window.dispatchEvent(new CustomEvent("aurora-route-start", { detail: { pattern: r.pattern } })); // [analytics] which screen is being opened (the pattern, never an id)
     const my = ++renderSeq;
-    inFlight++;
-    let cleanup;
-    try { cleanup = await r.render(appRoot, params); } finally { inFlight--; }
+    const host = document.createElement("div");
+    host.className = "route-host";
+    host.style.display = "contents";
+    appRoot.append(host);
+    const cleanup = await r.render(host, params);
     if (my !== renderSeq) {
-      // a newer render cleared #app while this one loaded: this screen is surplus
+      // a newer render took #app while this one loaded: this screen is surplus
+      host.remove();
       if (typeof cleanup === "function") { try { cleanup(); } catch {} }
-      dirty = true;
-      if (inFlight === 0) { dirty = false; return render(); }
       return;
     }
     if (typeof cleanup === "function") current.cleanup = cleanup;
-    if (dirty && inFlight === 0) { dirty = false; return render(); }
     // Which screen painted and how long it took (the pattern, never an id) —
     // the usage stats listen for this. Measured to the next frame, so the
     // paint is in.
