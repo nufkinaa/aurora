@@ -104,6 +104,22 @@ const firstVisit = async (page, goto, st, lib, profile) => {
   await page.waitForSelector('#app [data-row-id="recs"] .card');
   await page.waitForFunction((pid) => !!localStorage.getItem(`aurora-home-${pid}`), profile.id, { timeout: 10000 });
 };
+// The page at rest: the first shelf's place unchanged for half a second.
+// After a reload Home keeps settling for a while (measured: the whole screen
+// still sliding up 24 px over ~2 s, the last pixel late on a loaded box),
+// and a "before" taken during that is not the place the merge must keep.
+const atRest = (page) =>
+  page.waitForFunction(() => {
+    const r = document.querySelector('#app [data-row-id="recs"]');
+    if (!r) return false;
+    const top = r.getBoundingClientRect().top;
+    const w = window.__rest || (window.__rest = { top, since: performance.now() });
+    if (Math.abs(w.top - top) > 0.01) { w.top = top; w.since = performance.now(); return false; }
+    if (performance.now() - w.since < 500) return false;
+    window.__rest = null;
+    return true;
+  }, null, { polling: "raf", timeout: 15000 });
+
 // Reload with answer B held back: Home must paint from the copy first.
 const reloadHeld = async (page, st, lib) => {
   const g = gate();
@@ -119,6 +135,7 @@ const reloadHeld = async (page, st, lib) => {
     window.scrollTo({ top: Math.max(0, r.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.25), behavior: "instant" });
   });
   await page.waitForTimeout(250);
+  await atRest(page);
   return g;
 };
 
