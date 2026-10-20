@@ -276,6 +276,49 @@ kidsTest("hopping between kids profiles: a stricter or equal one needs no PIN, a
   assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), profiles.tinyPw.id);
 });
 
+// The 403 that hop tests kept meeting under load (2026-10-20): setProfile
+// had already made the new profile the page's while the server's kids lock
+// still named the last one (api.kidsEnter on its way), and the prefetcher —
+// a nav link the pointer crossed, the idle warm-up, the billboard's timer —
+// asked for the new profile in that window and was refused. Here the lock's
+// move is held for 2 s and the pointer crosses My List meanwhile: nothing is
+// asked for the new profile until the lock has moved, and nothing is refused.
+kidsTest("a profile switch in flight asks nothing for the new profile before the kids lock has moved", async ({ page, goto, signIn, profiles }) => {
+  const refused = [];
+  page.on("response", (r) => { if (r.status() === 403 && /\/api\//.test(r.url())) refused.push(`${r.request().method()} ${new URL(r.url()).pathname}`); });
+  let lockMoved = false;
+  const early = [];
+  page.on("request", (r) => {
+    const u = new URL(r.url()).pathname;
+    if (!lockMoved && u.includes(profiles.tiny.id) && !/\/unlock$/.test(u)) early.push(u);
+  });
+  await signIn(profiles.kid);
+  await goto("#/movies");
+  let entered;
+  const entering = new Promise((r) => { entered = r; });
+  await page.route("**/api/kids/enter", async (route) => {
+    entered();
+    await new Promise((r) => setTimeout(r, 2000));
+    await route.continue();
+    lockMoved = true;
+  });
+  await page.click("#nav-profile");
+  await page.click('.nav-menu button:has-text("Switch profile")');
+  await page.click(tile("Tiny"));
+  await entering;
+  // the pointer crosses My List (the intent prefetch of the new profile's list)
+  await page.evaluate(() => {
+    const a = document.querySelector('.nav-item[data-route="#/list"]');
+    if (a) { a.dispatchEvent(new PointerEvent("pointerenter")); a.dispatchEvent(new FocusEvent("focus")); }
+  });
+  await page.waitForSelector(".profiles-gate", { state: "detached" });
+  await page.waitForFunction((n) => document.getElementById("nav-profile-name").textContent === n, profiles.tiny.name);
+  await page.waitForTimeout(3500); // the idle warm-up and the billboard's timer have had their turn
+  await page.unroute("**/api/kids/enter");
+  assert.deepEqual(early, [], "nothing was asked for the new profile before the lock moved");
+  assert.deepEqual(refused, [], "nothing was refused");
+});
+
 kidsTest("closing the PIN sheet stays in the kids profile", async ({ page, goto, signIn, profiles }) => {
   await signIn(profiles.kid);
   await goto("#/movies");
