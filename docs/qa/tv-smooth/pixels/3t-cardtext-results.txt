@@ -1,0 +1,86 @@
+card     grid-lit                     run1 pass=True diff=0 maxd=0 
+card     grid-lit                     run2 pass=True diff=0 maxd=0 
+card     grid-rest                    run1 pass=True diff=0 maxd=0 
+card     grid-rest                    run2 pass=True diff=0 maxd=0 
+card     kind-tag                     run1 pass=True diff=0 maxd=0 
+card     kind-tag                     run2 pass=True diff=0 maxd=0 
+card     new-tag-rest                 run1 pass=True diff=0 maxd=0 
+card     new-tag-rest                 run2 pass=True diff=0 maxd=0 
+card     new-tag                      run1 pass=True diff=0 maxd=0 
+card     new-tag                      run2 pass=True diff=0 maxd=0 
+card     progress-bar                 run1 pass=True diff=0 maxd=0 
+card     progress-bar                 run2 pass=True diff=0 maxd=0 
+card     rest-home                    run1 pass=True diff=0 maxd=0 
+card     rest-home                    run2 pass=True diff=0 maxd=0 
+card     size-frame-episode           run1 pass=True diff=0 maxd=1 
+card     size-frame-episode           run2 pass=True diff=0 maxd=0 
+card     size-frame                   run1 pass=True diff=0 maxd=0 
+card     size-frame                   run2 pass=True diff=0 maxd=0 
+card     size-poster-row2             run1 pass=True diff=0 maxd=0 
+card     size-poster-row2             run2 pass=True diff=0 maxd=0 
+card     size-poster                  run1 pass=True diff=0 maxd=0 
+card     size-poster                  run2 pass=True diff=0 maxd=0 
+render   hero-details                 run1 pass=True diff=0 maxd=0 
+render   hero-details                 run2 pass=True diff=0 maxd=0 
+render   hero-rest                    run1 pass=True diff=0 maxd=0 
+render   hero-rest                    run2 pass=True diff=0 maxd=0 
+render   row0-back                    run1 pass=False diff=26740 maxd=250 5425 differing px off the edge mask (bbox [184, 145, 1920, 401]); on-edge diff fraction 0.
+render   row0-back                    run2 pass=False diff=26740 maxd=250 5425 differing px off the edge mask (bbox [184, 145, 1920, 401]); on-edge diff fraction 0.
+render   row0-card0                   run1 pass=True diff=0 maxd=0 
+render   row0-card0                   run2 pass=True diff=0 maxd=0 
+render   row0-card2                   run1 pass=True diff=0 maxd=1 
+render   row0-card2                   run2 pass=True diff=0 maxd=0 
+render   row1-card0                   run1 pass=True diff=0 maxd=0 
+render   row1-card0                   run2 pass=True diff=0 maxd=0 
+render   row1-card3                   run1 pass=True diff=0 maxd=0 
+render   row1-card3                   run2 pass=True diff=0 maxd=0 
+render   row2-card0                   run1 pass=True diff=0 maxd=0 
+render   row2-card0                   run2 pass=True diff=0 maxd=0 
+render   row2-hold-12                 run1 pass=True diff=0 maxd=0 
+render   row2-hold-12                 run2 pass=True diff=0 maxd=0 
+render   row3-and-back                run1 pass=False diff=8986 maxd=251 2917 differing px off the edge mask (bbox [195, 14, 1920, 16]); on-edge diff fraction 0.00
+render   row3-and-back                run2 pass=False diff=8986 maxd=251 2917 differing px off the edge mask (bbox [195, 14, 1920, 16]); on-edge diff fraction 0.00
+row      back-left                    run1 pass=True diff=0 maxd=1 
+row      back-left                    run2 pass=True diff=0 maxd=1 
+row      continue-rest                run1 pass=True diff=0 maxd=0 
+row      continue-rest                run2 pass=True diff=0 maxd=0 
+row      continue-step-2              run1 pass=True diff=0 maxd=0 
+row      continue-step-2              run2 pass=True diff=0 maxd=0 
+row      continue-step                run1 pass=True diff=0 maxd=0 
+row      continue-step                run2 pass=True diff=0 maxd=1 
+row      hold-right-12                run1 pass=True diff=0 maxd=0 
+row      hold-right-12                run2 pass=True diff=0 maxd=0 
+row      hold-right-end               run1 pass=True diff=0 maxd=0 
+row      hold-right-end               run2 pass=True diff=0 maxd=0 
+row      hold-right-left              run1 pass=True diff=0 maxd=1 
+row      hold-right-left              run2 pass=True diff=0 maxd=1 
+row      lead                         run1 pass=True diff=0 maxd=1 
+row      lead                         run2 pass=True diff=0 maxd=1 
+row      left-at-0-return             run1 pass=True diff=0 maxd=0 
+row      left-at-0-return             run2 pass=True diff=0 maxd=0 
+row      left-at-0                    run1 pass=True diff=0 maxd=0 
+row      left-at-0                    run2 pass=True diff=0 maxd=0 
+row      offset-0                     run1 pass=True diff=0 maxd=0 
+row      offset-0                     run2 pass=True diff=0 maxd=0 
+row      offset-10                    run1 pass=True diff=0 maxd=0 
+row      offset-10                    run2 pass=True diff=0 maxd=0 
+row      offset-1                     run1 pass=True diff=0 maxd=0 
+row      offset-1                     run2 pass=True diff=0 maxd=0 
+row      offset-5                     run1 pass=True diff=0 maxd=0 
+row      offset-5                     run2 pass=True diff=0 maxd=0 
+row      offset-9                     run1 pass=True diff=0 maxd=0 
+row      offset-9                     run2 pass=True diff=0 maxd=0 
+row      pool-continue-far-back       run1 pass=False diff=5422 maxd=250 1082 differing px off the edge mask (bbox [522, 315, 1066, 403]); on-edge diff fraction 0.
+row      pool-continue-far-back       run2 pass=False diff=5422 maxd=250 1082 differing px off the edge mask (bbox [522, 315, 1066, 403]); on-edge diff fraction 0.
+row      pool-continue-far            run1 pass=True diff=0 maxd=0 
+row      pool-continue-far            run2 pass=True diff=0 maxd=0 
+row      pool-hold-right-left-end     run1 pass=True diff=0 maxd=0 
+row      pool-hold-right-left-end     run2 pass=True diff=0 maxd=0 
+row      pool-wrap-shadow             run1 pass=True diff=0 maxd=1 
+row      pool-wrap-shadow             run2 pass=True diff=0 maxd=1 
+row      poster-row1-step             run1 pass=True diff=0 maxd=0 
+row      poster-row1-step             run2 pass=True diff=0 maxd=0 
+row      reentry-down                 run1 pass=True diff=0 maxd=0 
+row      reentry-down                 run2 pass=True diff=0 maxd=0 
+row      reentry-up                   run1 pass=False diff=8986 maxd=251 2917 differing px off the edge mask (bbox [195, 14, 1920, 16]); on-edge diff fraction 0.00
+row      reentry-up                   run2 pass=False diff=8986 maxd=251 2917 differing px off the edge mask (bbox [195, 14, 1920, 16]); on-edge diff fraction 0.00

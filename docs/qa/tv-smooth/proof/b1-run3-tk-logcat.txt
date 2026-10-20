@@ -1,0 +1,4 @@
+--------- beginning of main
+10-20 00:54:46.860 26341 27468 I ReactNativeJS: [art] prefetch n=2 hit=0 ok=2 fail=0 ms=24
+10-20 00:55:22.918 26341 27468 I ReactNativeJS: [art] prefetch n=2 hit=0 ok=2 fail=0 ms=22
+10-20 00:55:58.882 26341 27468 I ReactNativeJS: [art] prefetch n=2 hit=0 ok=2 fail=0 ms=21
