@@ -151,6 +151,17 @@ class RemoteModule(private val ctx: ReactApplicationContext) : ReactContextBaseJ
    */
   @ReactMethod
   fun bringToFront(promise: Promise) {
+    // Android 10+ refuses an activity start from an app with no visible window
+    // unless it may draw over other apps (SYSTEM_ALERT_WINDOW, which the updater
+    // asks for). The start would be dropped without a word (Mi TV, Android 14:
+    // "Background activity launch blocked ... BAL_BLOCK"), so say no at once and
+    // let the phone tell its user to open Aurora on the TV.
+    val act = ctx.currentActivity
+    val visible = act != null && act.hasWindowFocus()
+    if (!visible && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !Settings.canDrawOverlays(ctx)) {
+      promise.resolve(false)
+      return
+    }
     try {
       val intent = Intent(ctx, MainActivity::class.java)
       intent.action = Intent.ACTION_MAIN
