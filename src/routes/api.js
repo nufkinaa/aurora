@@ -551,6 +551,10 @@ router.post("/api/offline/prepare/:id", (req, res) => {
 router.get("/api/offline/status/:id", (req, res) => {
   res.json(require("../media/offline").status(req.params.id, req.query.q, offlineCaps(req)));
 });
+// The phone's Cancel: the copy stops when nobody else is waiting for it.
+router.post("/api/offline/cancel/:id", (req, res) => {
+  res.json(require("../media/offline").cancel(req.params.id, req.query.q));
+});
 
 // Watch parties: what's on right now (the Home strip), and one party by
 // code (the join route needs the item before it can open the player).

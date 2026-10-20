@@ -248,7 +248,10 @@ test("the play-ready copy (offline.js) obeys all of it: waits for viewers, cappe
       await w.advance(cpuwork.QUIET_MS + 100);
       assert.equal(spawned.length, 1, "one at a time");
       const first = spawned[0];
-      assert.ok(first.args.includes(files.aaaaaaaaaaa1), "the one that was already waiting for its place");
+      // (2026-10-20: a person's copy goes ahead of one made in advance, even
+      // one that was already waiting for its place — it used to be the other
+      // way round, and a phone said "Preparing" behind an hour of encode)
+      assert.ok(first.args.includes(files.aaaaaaaaaaa2), "the copy a person asked for, not the one made ahead that waited longer");
       // capped: decoder, filters and encoder
       const threadsAt = first.args.map((a, i) => (a === "-threads" ? first.args[i + 1] : null)).filter(Boolean);
       assert.deepEqual(threadsAt, ["6", "6"], "half of twelve, for the decoder and for x264");
@@ -258,19 +261,20 @@ test("the play-ready copy (offline.js) obeys all of it: waits for viewers, cappe
       const v2 = fakeChild();
       cpuwork.viewer.track(v2, {});
       assert.deepEqual(first.signals, ["SIGSTOP"]);
-      assert.match(cpuwork.background.shedNewest("test"), /play-ready copy of film1\.mkv/);
+      assert.equal(offline.status("aaaaaaaaaaa2", "720").wait.reason, "paused", "and it says so");
+      assert.match(cpuwork.background.shedNewest("test"), /^copy of film2\.mkv/);
       await new Promise((r) => setImmediate(r));
       await new Promise((r) => setImmediate(r));
-      assert.equal(offline.status("aaaaaaaaaaa1", "1080").state, "queued", "shed is not failed");
+      assert.equal(offline.status("aaaaaaaaaaa2", "720").state, "queued", "shed is not failed");
       assert.equal(spawned.length, 1, "and nothing starts while the viewer encode runs");
       v2.end();
       await w.advance(cpuwork.QUIET_MS + 100);
       assert.equal(spawned.length, 2);
-      assert.ok(spawned[1].args.includes(files.aaaaaaaaaaa2), "the copy a person asked for goes ahead of the one made in advance");
+      assert.ok(spawned[1].args.includes(files.aaaaaaaaaaa2), "the shed one again, from the start — still ahead of the one made in advance");
       spawned[1].emit("exit", 1, null); spawned[1].emit("close", 1); // (it fails: no real ffmpeg wrote a file)
       await w.advance(cpuwork.QUIET_MS + 100);
       assert.equal(spawned.length, 3);
-      assert.ok(spawned[2].args.includes(files.aaaaaaaaaaa1), "then the shed one, from the start");
+      assert.ok(spawned[2].args.includes(files.aaaaaaaaaaa1), "then the play-ready copy made ahead of time");
       spawned[2].emit("exit", 1, null); spawned[2].emit("close", 1);
     });
     // a repackaging (video copied) is the disk's speed: not held back, no thread cap — but still lowest priority
@@ -292,8 +296,7 @@ test("the play-ready copy (offline.js) obeys all of it: waits for viewers, cappe
     O.spawner.spawn = saved.spawn;
     config.ffmpegAvailable = saved.ffmpegAvailable;
     config.FFMPEG = saved.FFMPEG;
-    O.jobs.clear();
-    O.queue.length = 0;
+    O._reset();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });

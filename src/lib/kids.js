@@ -533,7 +533,7 @@ const createGate = (deps) => {
       /^\/stream\/(?:video|download|hls|transcode|embedded|airplay)\/([^/]+)/.exec(p) ||
       /^\/offline\/file\/([^/]+)/.exec(p) ||
       /^\/img\/(?:still|frame)\/([^/]+)/.exec(p) ||
-      /^\/api\/offline\/(?:options|prepare|status)\/([^/]+)/.exec(p);
+      /^\/api\/offline\/(?:options|prepare|status|cancel)\/([^/]+)/.exec(p);
     if (fileM) {
       let id = fileM[1];
       try { id = decodeURIComponent(id); } catch {}

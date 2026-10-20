@@ -23,8 +23,27 @@
 // seconds. `options()` lays the choices out with honest sizes so the client
 // can ask (elia: "we should ask the user what resolution he prefers").
 //
-// One ffmpeg at a time (a phone can wait; the streaming server can't be
-// starved), progress parsed from ffmpeg's own -progress stream.
+// TWO LANES, one ffmpeg in each (a phone can wait; the streaming server can't
+// be starved), progress parsed from ffmpeg's own -progress stream:
+//   copy     the repackagings ("original" with the video copied): the disk's
+//            speed, seconds — never held back by anything heavy;
+//   encode   the real re-encodes, which wait for their place (cpuwork.js).
+// Before (2026-10-20, elia on his iPhone: "choosing Original just says
+// 'Preparing on the server' and does not start"), there was ONE slot for
+// both: a play-ready copy made ahead of time (preconvert.js, after every
+// download) took it — and kept it while it waited for viewers to stop, or sat
+// paused under one — and a person's ten-second repackaging queued behind an
+// hour of somebody else's encode, saying nothing. Now:
+//   - a repackaging never waits for an encode (its own lane);
+//   - a person's own request goes ahead of every copy made ahead of time —
+//     one waiting for its place is passed, one already running is SET ASIDE
+//     (stopped, and queued again behind the person's);
+//   - a job that waits says why (status().wait: behind another copy, the
+//     server busy with somebody's stream, paused), and the log says so too;
+//   - a person can cancel (cancel()), a failed copy can be asked for again,
+//     a copy the sweep removed is made again, and a conversion that stops
+//     producing anything for STALL_MS is stopped as failed instead of
+//     "working" for ever.
 //
 // These are BACKGROUND jobs (cpuwork.js): they run at the lowest priority on
 // half the machine's threads; an ENCODE is not started while somebody's
@@ -59,9 +78,15 @@ const MAX_BYTES = Math.max(1, Number(config.offlineCacheGb) || 8) * 1024 ** 3;
 const IN_USE_MS = 30 * 60 * 1000;
 const HEADROOM_BYTES = 5 * 1024 ** 3; // free space that must remain after a copy is made
 
-const jobs = new Map(); // "<id>|<quality>" -> {state, progress, error, startedAt}
-const queue = [];
-let running = null;
+// "<id>|<quality>" -> { state, progress, error, caps, keepMs, ahead, wanted,
+//   lane, child, place, startedAt, queuedAt, lastOutputAt, shed, cancelled, stalled }
+//   ahead   made ahead of time (preconvert.js): nobody is waiting for it
+//   wanted  how many people's requests are waiting for it (cancel() counts down)
+const jobs = new Map();
+const queue = []; // { id, q, ahead, lane } — in the order asked; a person's go first (takeNext)
+const lanes = { copy: null, encode: null }; // the job key running in each lane
+let encodeAsk = null; // a place at cpuwork's gate is being asked for (which job gets it is chosen when it comes)
+const STALL_MS = 10 * 60 * 1000; // no word from ffmpeg for this long (not paused): it is stuck
 
 const normQuality = (q) => (QUALITIES.includes(String(q)) ? String(q) : "720");
 const jobKey = (id, q) => `${id}|${q}`;
@@ -156,8 +181,9 @@ const toRemove = (copies, { now = Date.now(), keepMs = KEEP_MS, maxBytes = MAX_B
 
 const sweep = () => {
   const writing = new Set();
-  if (running) {
-    const [id, q] = running.split("|");
+  for (const key of [lanes.copy, lanes.encode]) {
+    if (!key) continue;
+    const [id, q] = key.split("|");
     const e = entryFor(id);
     if (e) { const out = outFileFor(id, e.path, q); writing.add(out); writing.add(out + ".part"); }
   }
@@ -232,6 +258,34 @@ const options = (id, caps = {}) => {
   return { options: out, duration, ffmpeg: !!config.ffmpegAvailable };
 };
 
+// Why a job that is not running yet (or is paused) is not making progress —
+// for the person looking at "Preparing…" (status().wait) and the log.
+//   → { reason: "behind" | "viewers" | "busy" | "paused", text, before } or null
+const waitOf = (key, job) => {
+  if (!job) return null;
+  if (job.state === "working") {
+    return job.place && typeof job.place.paused === "function" && job.place.paused()
+      ? { reason: "paused", text: "paused while somebody's stream is being converted — it carries on by itself", before: 0 }
+      : null;
+  }
+  if (job.state !== "queued") return null;
+  const lane = job.lane || "encode";
+  // the people's requests in this lane that go before this one
+  const mine = queue.findIndex((x) => jobKey(x.id, x.q) === key);
+  const before = mine < 0 ? 0 : queue.slice(0, mine).filter((x) => x.lane === lane && (job.ahead || !x.ahead)).length;
+  const more = before > 0 ? ` (${before} more before yours)` : "";
+  const runningKey = lanes[lane];
+  const runningJob = runningKey ? jobs.get(runningKey) : null;
+  if (runningKey && runningKey !== key && !(runningJob && runningJob.ahead && !job.ahead)) {
+    return { reason: "behind", text: `waiting for the server — another copy is being made${more}`, before: before + 1 };
+  }
+  if (lane === "encode" && !lanes.encode) {
+    if (!cpuwork.viewer.quiet()) return { reason: "viewers", text: `waiting for the server — it is converting somebody's stream right now; yours starts when that is done${more}`, before };
+    if (!cpuwork.background.mayStart("encode")) return { reason: "busy", text: `waiting for the server — it is finishing other background work${more}`, before };
+  }
+  return before > 0 ? { reason: "behind", text: `waiting for the server — another copy is being made${more}`, before } : null;
+};
+
 // Where the device should fetch from, and whether it exists yet.
 const status = (id, quality, caps = {}) => {
   const q = normQuality(quality);
@@ -245,21 +299,53 @@ const status = (id, quality, caps = {}) => {
     if (!mode) return { state: "error", error: "this device can't play the original's video — pick 1080p or lower" };
   }
   const file = outFileFor(id, e.path, q);
-  const job = jobs.get(jobKey(id, q));
+  const key = jobKey(id, q);
+  let job = jobs.get(key);
+  // made once, then cleared by the sweep (or by hand): it is made again —
+  // "ready" with no file behind it used to send a device to a 404 for good
+  if (job && job.state === "ready" && !fs.existsSync(file)) { jobs.delete(key); job = null; }
   if (fs.existsSync(file) && (!job || job.state !== "working")) {
     return { state: "ready", quality: q, direct: false, url: `/offline/file/${id}?q=${q}`, sizeBytes: fs.statSync(file).size };
   }
-  if (job) return { state: job.state, quality: q, progress: job.progress || 0, error: job.error || null };
+  if (job) {
+    const wait = waitOf(key, job);
+    return { state: job.state, quality: q, progress: job.progress || 0, error: job.error || null, lane: job.lane || null, ...(wait ? { wait } : {}) };
+  }
   if (!config.ffmpegAvailable) return { state: "unavailable", error: "the server has no ffmpeg, so this file can't be converted for this device" };
   return { state: "idle", quality: q };
 };
 
 // `keepMs`: keep the finished copy at least this long (preconvert.js) —
 // stamped as a date in the future, which the sweep reads as "used then".
+// A request WITHOUT keepMs is a person's: it goes ahead of every copy made
+// ahead of time, and one of those running in its lane is set aside for it.
 const prepare = (id, quality, caps = {}, { keepMs = 0 } = {}) => {
   const q = normQuality(quality);
+  const key = jobKey(id, q);
+  const person = !(keepMs > 0);
+  // a copy that failed before is tried again when somebody asks again (it
+  // used to answer the old error until the server restarted)
+  const old = jobs.get(key);
+  if (old && old.state === "error") jobs.delete(key);
   const st = status(id, q, caps);
-  if (st.state === "ready" || st.state === "working" || st.state === "queued") return st;
+  if (st.state === "ready") return st;
+  if (st.state === "working" || st.state === "queued") {
+    const job = jobs.get(key);
+    if (job && person) {
+      job.wanted = (job.wanted || 0) + 1;
+      if (job.ahead) {
+        // the copy being made ahead of time is the one this person wants: it
+        // is theirs now, with their place in the line
+        job.ahead = false;
+        for (const x of queue) if (jobKey(x.id, x.q) === key) x.ahead = false;
+        console.log(`[offline] ${id} at ${q}: the copy being made ahead of time is now asked for by somebody — it goes first`);
+      }
+      makeRoomFor(key);
+      pump();
+      return status(id, q, caps);
+    }
+    return st;
+  }
   if (st.state === "unavailable" || st.state === "error") return st;
   // Room first: clear what is no longer needed, then refuse rather than fill
   // the disk the library and the downloads live on.
@@ -268,13 +354,59 @@ const prepare = (id, quality, caps = {}, { keepMs = 0 } = {}) => {
   const opt = (options(id, caps).options || []).find((o) => o.quality === q);
   const need = (opt && opt.sizeBytes) || (e ? fs.statSync(e.path).size : 0);
   if (roomFor(need) === false) {
+    console.warn(`[offline] ${id} at ${q}: not made — the server is short on disk space`);
     return { state: "error", quality: q, error: "the server is short on disk space — try a smaller size, or again later" };
   }
-  jobs.set(jobKey(id, q), { state: "queued", progress: 0, caps, keepMs });
-  // (keepMs marks a play-ready copy made ahead of time: nobody is waiting)
-  queue.push({ id, q, ahead: keepMs > 0 });
+  const lane = isEncode(e.path, q, caps) ? "encode" : "copy";
+  jobs.set(key, { state: "queued", progress: 0, caps, keepMs, ahead: !person, wanted: person ? 1 : 0, lane, queuedAt: Date.now() });
+  queue.push({ id, q, ahead: !person, lane });
+  if (person) makeRoomFor(key);
   pump();
-  return status(id, q, caps);
+  const out = status(id, q, caps);
+  if (out.state === "queued") {
+    console.log(`[offline] ${id} at ${q} queued (${person ? "asked for by somebody" : "made ahead of time"}, ${lane === "copy" ? "a repackaging" : "an encode"})${out.wait ? ` — waits: ${out.wait.reason}` : ""}`);
+  }
+  return out;
+};
+
+// A person's job is waiting in its lane: a copy made ahead of time that holds
+// the lane is set aside (stopped; it is queued again and starts over later).
+const makeRoomFor = (key) => {
+  const job = jobs.get(key);
+  if (!job || job.ahead || job.state !== "queued") return;
+  const holder = lanes[job.lane] ? jobs.get(lanes[job.lane]) : null;
+  if (!holder || !holder.ahead || holder.state !== "working" || !holder.child || holder.shed) return;
+  holder.shed = true;
+  console.log(`[offline] setting aside the copy made ahead of time (${lanes[job.lane]}) — ${key} was asked for by somebody`);
+  try { holder.child.kill("SIGKILL"); } catch {}
+};
+
+// A person no longer wants the copy (the phone's Cancel). It stops when
+// nobody else is waiting for it; a copy that is also being made ahead of
+// time goes back to being that.
+const cancel = (id, quality) => {
+  const q = normQuality(quality);
+  const key = jobKey(id, q);
+  const job = jobs.get(key);
+  if (!job || (job.state !== "queued" && job.state !== "working")) return { state: "idle", quality: q, cancelled: false };
+  if (job.wanted > 0) job.wanted--;
+  if (job.wanted > 0) return { ...status(id, q, job.caps || {}), cancelled: false };
+  if (job.keepMs > 0) {
+    job.ahead = true;
+    for (const x of queue) if (jobKey(x.id, x.q) === key) x.ahead = true;
+    return { ...status(id, q, job.caps || {}), cancelled: false };
+  }
+  if (job.state === "queued") {
+    for (let i = queue.length - 1; i >= 0; i--) if (jobKey(queue[i].id, queue[i].q) === key) queue.splice(i, 1);
+    jobs.delete(key);
+    console.log(`[offline] ${id} at ${q}: cancelled before it started`);
+  } else {
+    job.cancelled = true;
+    console.log(`[offline] ${id} at ${q}: cancelled — stopping it`);
+    try { if (job.child) job.child.kill("SIGKILL"); } catch {}
+  }
+  pump();
+  return { state: "idle", quality: q, cancelled: true };
 };
 
 // The ffmpeg arguments for one job. Exported for tests: this is where
@@ -316,31 +448,105 @@ const isEncode = (srcPath, q, caps) => !(q === "original" && originalMode(srcPat
 const cpuwork = require("./cpuwork");
 const spawner = { spawn }; // (replaceable: the tests start no ffmpeg)
 
+// The next job for a lane: a person's first, then the copies made ahead of
+// time, each in the order asked. `take`: off the queue.
+const nextIndex = (lane) => {
+  let at = queue.findIndex((x) => x.lane === lane && !x.ahead);
+  if (at < 0) at = queue.findIndex((x) => x.lane === lane);
+  return at;
+};
+const takeNext = (lane) => {
+  for (;;) {
+    const at = nextIndex(lane);
+    if (at < 0) return null;
+    const ent = queue.splice(at, 1)[0];
+    const key = jobKey(ent.id, ent.q);
+    const job = jobs.get(key);
+    const e = entryFor(ent.id);
+    if (!job || job.state !== "queued") continue; // cancelled, or taken already
+    if (!e) { job.state = "error"; job.error = "the file is no longer in the library"; continue; }
+    return { ...ent, ahead: !!job.ahead, key, job, e };
+  }
+};
+
+const failStart = (job, key, err) => {
+  job.state = "error";
+  job.error = (err && err.message) || String(err);
+  job.child = null;
+  console.warn(`[offline] failed ${key.split("|")[0]} at ${key.split("|")[1]}: could not start — ${job.error}`);
+};
+
 const pump = () => {
-  if (running || queue.length === 0) return;
-  // somebody's own request first; the copies made ahead of time after
-  const at = Math.max(0, queue.findIndex((x) => !x.ahead));
-  const { id, q, ahead } = queue.splice(at, 1)[0];
-  const e = entryFor(id);
-  const job = jobs.get(jobKey(id, q));
-  if (!e || !job) return pump();
-  running = jobKey(id, q);
-  const encode = isEncode(e.path, q, job.caps || {});
-  if (!encode) return start({ id, q, ahead, e, job, place: null });
-  // an encode waits for its place: no viewer encode running, none for a
-  // while, nothing else heavy in the background (cpuwork.js)
-  if (!cpuwork.background.mayStart("encode")) console.log(`[offline] ${id} at ${q} is waiting — somebody's stream is being encoded`);
-  cpuwork.background
-    .gate("encode", {
-      label: `${ahead ? "play-ready copy" : "copy"} of ${path.basename(e.path)}`,
-      pausable: true,
-      // shed: stop, and back to the front of this queue
-      onShed: () => { job.shed = true; try { if (job.child) job.child.kill("SIGKILL"); } catch {} },
-    })
-    .then((place) => {
-      if (jobs.get(jobKey(id, q)) !== job || !entryFor(id)) { place.release(); running = null; return pump(); }
-      start({ id, q, ahead, e, job, place });
-    });
+  pumpCopy();
+  pumpEncode();
+};
+
+// Repackagings: one at a time, at once, whatever else is happening.
+const pumpCopy = () => {
+  while (!lanes.copy) {
+    const n = takeNext("copy");
+    if (!n) return;
+    lanes.copy = n.key;
+    try {
+      start({ ...n, place: null });
+      return;
+    } catch (err) {
+      lanes.copy = null;
+      failStart(n.job, n.key, err);
+    }
+  }
+};
+
+// Encodes: one at a time, each when cpuwork gives it a place. WHICH job
+// gets the place is chosen when the place comes — so a person who asks while
+// a copy made ahead of time waits for viewers to stop is not behind it.
+const pumpEncode = () => {
+  if (lanes.encode || encodeAsk || nextIndex("encode") < 0) return;
+  const peek = () => { const at = nextIndex("encode"); return at < 0 ? null : queue[at]; };
+  if (!cpuwork.background.mayStart("encode")) {
+    const p = peek();
+    console.log(`[offline] ${p.id} at ${p.q} is waiting — ${cpuwork.viewer.quiet() ? "the server is finishing other background work" : "somebody's stream is being encoded"}`);
+  }
+  const meta = {
+    // (read when the place is granted: the job that is about to get it)
+    get label() {
+      const p = lanes.encode ? null : peek();
+      const key = lanes.encode || (p && jobKey(p.id, p.q));
+      const job = key ? jobs.get(key) : null;
+      const e = key ? entryFor(key.split("|")[0]) : null;
+      return `${job && job.ahead ? "play-ready copy" : "copy"} of ${e ? path.basename(e.path) : "a film"}`;
+    },
+    pausable: true,
+    // shed (the viewers' encoders fell behind): stop, and back to the front of this queue
+    onShed: () => {
+      const job = lanes.encode ? jobs.get(lanes.encode) : null;
+      if (!job) return;
+      job.shed = true;
+      try { if (job.child) job.child.kill("SIGKILL"); } catch {}
+    },
+  };
+  let ask;
+  try { ask = cpuwork.background.gate("encode", meta); } catch (err) { console.warn(`[offline] could not ask for a place to encode: ${err.message}`); return; }
+  encodeAsk = ask;
+  ask.then((place) => {
+    encodeAsk = null;
+    for (;;) {
+      const n = takeNext("encode");
+      if (!n) { place.release(); return; }
+      lanes.encode = n.key;
+      try {
+        start({ ...n, place });
+        return;
+      } catch (err) {
+        lanes.encode = null;
+        failStart(n.job, n.key, err);
+      }
+    }
+  }).catch((err) => {
+    encodeAsk = null;
+    console.warn(`[offline] the wait for a place to encode failed: ${(err && err.message) || err}`);
+    setTimeout(pump, 5000).unref();
+  });
 };
 
 const start = ({ id, q, ahead, e, job, place }) => {
@@ -349,11 +555,16 @@ const start = ({ id, q, ahead, e, job, place }) => {
   const tmp = out + ".part";
   const meta = metadata.getCached(e.path);
   const duration = meta && meta.duration ? meta.duration : 0;
+  const lane = job.lane || (place ? "encode" : "copy");
   job.state = "working";
   job.progress = 0;
   job.shed = false;
+  job.cancelled = false;
+  job.stalled = false;
   job.startedAt = Date.now();
-  console.log(`[offline] preparing ${id} at ${q} (${path.basename(e.path)})`);
+  job.lastOutputAt = job.startedAt;
+  job.place = place || null;
+  console.log(`[offline] preparing ${id} at ${q} (${path.basename(e.path)})${ahead ? " — made ahead of time" : ""}`);
   const child = require("../lib/children").track(
     spawner.spawn(config.FFMPEG, argsFor(e.path, tmp, q, job.caps || {}, { threads: place ? cpuwork.background.threads() : 0 }), { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }),
     "offline",
@@ -363,6 +574,7 @@ const start = ({ id, q, ahead, e, job, place }) => {
   else cpuwork.background.lower(child); // a repackaging: quick, but still nobody's stream
   let buf = "";
   child.stdout.on("data", (d) => {
+    job.lastOutputAt = Date.now();
     buf += d.toString();
     let i;
     while ((i = buf.indexOf("\n")) >= 0) {
@@ -373,44 +585,74 @@ const start = ({ id, q, ahead, e, job, place }) => {
     }
   });
   let err = "";
-  child.stderr.on("data", (d) => { err += d.toString().slice(-500); });
-  child.on("close", (code) => {
-    running = null;
+  child.stderr.on("data", (d) => { job.lastOutputAt = Date.now(); err += d.toString().slice(-500); });
+  let ended = false;
+  const finish = (code, failure) => {
+    if (ended) return;
+    ended = true;
+    if (lanes[lane] === jobKey(id, q)) lanes[lane] = null;
     job.child = null;
+    job.place = null;
+    const mine = jobs.get(jobKey(id, q)) === job;
+    if (job.cancelled || !mine) {
+      try { fs.unlinkSync(tmp); } catch {}
+      if (mine) jobs.delete(jobKey(id, q));
+      console.log(`[offline] ${id} at ${q}: stopped (cancelled)`);
+      return pump();
+    }
     if (job.shed) {
-      // stopped to make room for viewers: nothing failed, it is queued again
+      // stopped to make room (viewers, or somebody's own request): nothing
+      // failed, it is queued again
       try { fs.unlinkSync(tmp); } catch {}
       job.shed = false;
       job.state = "queued";
       job.progress = 0;
-      queue.unshift({ id, q, ahead });
-      console.log(`[offline] ${id} at ${q} was set aside for viewers — queued again`);
+      job.queuedAt = Date.now();
+      queue.unshift({ id, q, ahead: !!job.ahead, lane });
+      console.log(`[offline] ${id} at ${q} was set aside — queued again`);
       return pump();
     }
-    if (code === 0 && fs.existsSync(tmp)) {
+    if (!failure && code === 0 && fs.existsSync(tmp)) {
       try { fs.renameSync(tmp, out); } catch {}
       if (job.keepMs > 0) {
         try { const until = new Date(Date.now() + job.keepMs - KEEP_MS); fs.utimesSync(out, until, until); } catch {}
       }
       job.state = "ready";
       job.progress = 1;
-      console.log(`[offline] ready ${id} at ${q} (${(fs.statSync(out).size / 1e6).toFixed(0)} MB in ${((Date.now() - job.startedAt) / 1000).toFixed(0)}s)`);
+      let mb = 0;
+      try { mb = fs.statSync(out).size / 1e6; } catch {}
+      console.log(`[offline] ready ${id} at ${q} (${mb.toFixed(0)} MB in ${((Date.now() - job.startedAt) / 1000).toFixed(0)}s)`);
     } else {
       try { fs.unlinkSync(tmp); } catch {}
       job.state = "error";
-      job.error = err.trim().split("\n").pop() || `ffmpeg exited ${code}`;
+      job.error = job.stalled
+        ? "the conversion stopped making progress — try again, or pick a smaller size"
+        : failure || err.trim().split("\n").pop() || `ffmpeg exited ${code}`;
       console.warn(`[offline] failed ${id} at ${q}: ${job.error}`);
     }
     pump();
-  });
-  child.on("error", (e2) => {
-    running = null;
-    job.child = null;
-    job.state = "error";
-    job.error = e2.message;
-    pump();
-  });
+  };
+  child.on("close", (code) => finish(code, null));
+  child.on("error", (e2) => finish(null, e2.message));
 };
+
+// Nothing from ffmpeg for STALL_MS, and not paused on purpose: stopped, as a
+// failure the phone can show (it used to say "Preparing" for ever).
+const checkStalls = (now = Date.now()) => {
+  const stopped = [];
+  for (const key of [lanes.copy, lanes.encode]) {
+    const job = key ? jobs.get(key) : null;
+    if (!job || job.state !== "working" || !job.child || job.stalled) continue;
+    if (job.place && typeof job.place.paused === "function" && job.place.paused()) { job.lastOutputAt = now; continue; }
+    if (now - (job.lastOutputAt || job.startedAt || now) < STALL_MS) continue;
+    job.stalled = true;
+    console.warn(`[offline] ${key.replace("|", " at ")} made no progress for ${Math.round(STALL_MS / 60000)} minutes — stopping it`);
+    try { job.child.kill("SIGKILL"); } catch {}
+    stopped.push(key);
+  }
+  return stopped;
+};
+setInterval(() => { try { checkStalls(); } catch {} }, 60 * 1000).unref();
 
 // The prepared file for /offline/file/:id, or null.
 const fileFor = (id, quality) => {
@@ -427,9 +669,17 @@ setTimeout(sweep, 60 * 1000).unref();
 setInterval(sweep, 3600 * 1000).unref();
 
 // For the healer: the conversion in progress (if any) and what is queued.
+// (the encode first: that is the one that can run long; `waiting`: the oldest
+// request still in the queue, so a job that never starts is seen too)
 const load = () => {
+  const running = lanes.encode || lanes.copy;
   const j = running ? jobs.get(running) : null;
-  return { running: running || null, since: j ? j.startedAt : null, progress: j ? j.progress || 0 : 0, queued: queue.length };
+  let oldest = null;
+  for (const x of queue) {
+    const jj = jobs.get(jobKey(x.id, x.q));
+    if (jj && !jj.ahead && jj.queuedAt && (!oldest || jj.queuedAt < oldest)) oldest = jj.queuedAt;
+  }
+  return { running: running || null, since: j ? j.startedAt : null, progress: j ? j.progress || 0 : 0, queued: queue.length, waitingSince: oldest };
 };
 
-module.exports = { status, prepare, fileFor, options, sweep, load, DIR, MAX_BYTES, QUALITIES, _internals: { toRemove, KEEP_MS, isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS, isEncode, spawner, jobs, queue, pump } };
+module.exports = { status, prepare, cancel, fileFor, options, sweep, load, DIR, MAX_BYTES, QUALITIES, STALL_MS, _internals: { toRemove, KEEP_MS, isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS, isEncode, spawner, jobs, queue, lanes, pump, checkStalls, waitOf, _reset: () => { jobs.clear(); queue.length = 0; lanes.copy = null; lanes.encode = null; encodeAsk = null; } } };

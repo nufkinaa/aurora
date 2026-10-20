@@ -67,6 +67,7 @@ const TIGHT_FREE_BYTES = 10 * 1024 ** 3; // below this, temporary files are clea
 const DATA_FILE_WARN_BYTES = 25 * 1024 ** 2; // a JSON store this big makes every save slow
 const ENCODE_SATURATED_ROUNDS = 10; // both encode slots busy this many rounds running
 const OFFLINE_JOB_STUCK_MS = 3 * 3600 * 1000;
+const OFFLINE_WAIT_WARN_MS = 30 * 60 * 1000;
 const DISK_TREND_MIN_MS = 3 * 3600 * 1000; // history needed before forecasting
 const DISK_FORECAST_MS = 48 * 3600 * 1000; // warn when "full" is this close
 
@@ -295,6 +296,11 @@ const checkEncoding = async () => {
   if (o.running && o.since && Date.now() - o.since > OFFLINE_JOB_STUCK_MS && o.progress < 0.99) {
     status = "warn";
     notes.push(`a phone copy has been converting for ${fmtAge(Date.now() - o.since)}`);
+  }
+  // a copy somebody asked for that has not even started (media/offline.js)
+  if (o.waitingSince && Date.now() - o.waitingSince > OFFLINE_WAIT_WARN_MS) {
+    status = "warn";
+    notes.push(`a phone copy somebody asked for has been waiting to start for ${fmtAge(Date.now() - o.waitingSince)}`);
   }
   return { status, summary: bits.join(" · "), detail: notes.join("; ") || null };
 };
