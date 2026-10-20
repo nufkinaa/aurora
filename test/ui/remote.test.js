@@ -249,7 +249,7 @@ ui.test("phone (glass): an episode on disk keeps Download, Play on TV and Watche
     await page.waitForTimeout(400);
     const r = await page.evaluate(() => {
       const wrap = document.querySelector(".episode-wrap");
-      const btns = [...wrap.querySelectorAll(":scope > .ep-action")].filter((b) => !b.hidden && getComputedStyle(b).display !== "none");
+      const btns = [...wrap.querySelectorAll(":scope > .ep-action")].filter((b) => getComputedStyle(b).display !== "none" && b.getBoundingClientRect().width > 0); // what is drawn, hidden or not
       const boxes = btns.map((b) => { const r = b.getBoundingClientRect(); return { ui: b.dataset.ui || b.className, l: r.left, r: r.right, t: r.top, b: r.bottom }; });
       const hits = btns.map((b) => { const r = b.getBoundingClientRect(); const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!at && (at === b || b.contains(at)); });
       const facts = wrap.querySelector(".episode-sub");
@@ -277,6 +277,11 @@ ui.test("phone (glass): an episode on disk keeps Download, Play on TV and Watche
     await tv.stop();
     await page.waitForSelector(".episode-wrap .rm-playon[hidden]", { state: "attached", timeout: 10000 });
     await check("with no TV", false);
+    // and a page that never saw a TV (the remote's stylesheet never loaded)
+    await page.reload();
+    await page.waitForSelector(".episode-wrap", { timeout: 30000 });
+    await page.waitForTimeout(1200);
+    await check("no TV since the page opened", false);
   } finally {
     await tv.stop().catch(() => {});
   }
