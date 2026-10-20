@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.9.3 — 2026-10-20
+
+- **Save offline on a phone, everywhere.** On phones and tablets, the episode card, the title page, the season bar ("Save season offline") and the sources sheet now save a copy inside Aurora — with the size picker, progress, and playback with no connection — instead of handing the raw file to the browser (on an iPhone that landed in Files, often as a file the phone can't play). Computers keep both.
+- **Saving no longer sticks on "Preparing on the server".** Your own save never waits behind a copy the server makes ahead of time: repackaging (Original) starts at once, and your request goes before any made-ahead copy. A save that does have to wait says why, with a moving bar and Cancel.
+- Saves in progress show first on My downloads and On this device, with a live bar; the episode card shows the percentage, then a tick. Episode buttons on a phone are bigger to the finger.
+- Server: a failed offline copy can be asked for again without a restart, and a copy the clean-up removed is made again instead of failing.
+
 ## 1.9.2 — 2026-10-20
 
 - On a phone with no TV on, the episode's Download to this device button no longer sits on top of a Play on TV button that should have been hidden.
