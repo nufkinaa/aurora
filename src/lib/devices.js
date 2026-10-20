@@ -41,7 +41,7 @@
 //   {type:"remote_watch", on}           a remote screen opened / closed on it.
 //
 // CONTROLLER → server
-//   {type:"remote_subscribe", profileId, token?, watch?: deviceId|null, label?}
+//   {type:"remote_subscribe", profileId, token?, watch?: deviceId|null, label?, remoteId?}
 //       Answered (and whenever the list changes) with
 //       {type:"remote_devices", devices:[publicDevice], household}.
 //   {type:"remote_unsubscribe"}
@@ -425,6 +425,8 @@ const subscribe = (client, msg) => {
   }
   c.profileId = profileId;
   c.ownDeviceId = ID_RE.test(String(m.ownDeviceId || "")) ? m.ownDeviceId : null;
+  // the remote's own id, kept across its reconnects (the browser's device id)
+  c.remoteId = ID_RE.test(String(m.remoteId || "")) ? m.remoteId : c.ownDeviceId;
   c.watch = typeof m.watch === "string" && ID_RE.test(m.watch) ? m.watch : null;
   const prof = deps.profile(profileId);
   c.label = controllerLabel({ ...client, profile: prof ? prof.name : client.profile }, m.label);
@@ -495,7 +497,7 @@ const command = (client, msg) => {
     ref,
     cmd: m.cmd,
     args: clean,
-    from: { label: c.label.word, profileName: c.label.profileName || null },
+    from: { label: c.label.word, profileName: c.label.profileName || null, ...(c.remoteId ? { id: c.remoteId } : {}) },
     first,
   });
   if (!sent) finish(ref, { ok: false, error: "gone", message: `${t.name} went away` });

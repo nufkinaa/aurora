@@ -74,8 +74,12 @@ export const whoFrom = (from: From | null | undefined): string => {
 export const noteFirst = (msg: CommandMsg, ctx: Pick<HandlerCtx, 'seen' | 'toast'>): boolean => {
   if (!msg.first) return false;
   const who = whoFrom(msg.from);
-  if (ctx.seen.has(who)) return false;
-  ctx.seen.add(who);
+  // once per REMOTE: by its id when the server says it — two iPhones of one
+  // person read "Elia's iPhone" alike, and the second got no toast (Mi TV
+  // pass 2026-10-20); by the words when an older server sends no id
+  const id = msg.from && typeof msg.from.id === 'string' && msg.from.id ? `#${msg.from.id}` : who;
+  if (ctx.seen.has(id)) return false;
+  ctx.seen.add(id);
   ctx.toast(`Controlled from ${who}`, '📱');
   return true;
 };

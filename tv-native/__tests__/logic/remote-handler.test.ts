@@ -342,6 +342,14 @@ describe('"Controlled from Elia’s iPhone"', () => {
     expect(ctx.toasts).toEqual(["📱 Controlled from Elia's iPhone", "📱 Controlled from Dor's iPad"]);
   });
 
+  test('two phones with the same words are two remotes when the server gives their ids; a reconnect of one is not', async () => {
+    const ctx = ctxWith();
+    await answer(cmd('toggle', {}, {first: true, from: {label: 'iPhone', profileName: 'Elia', id: 'phone-aaaaaaaa'}}), ctx, () => {});
+    await answer(cmd('toggle', {}, {first: true, from: {label: 'iPhone', profileName: 'Elia', id: 'phone-bbbbbbbb'}}), ctx, () => {});
+    await answer(cmd('toggle', {}, {first: true, from: {label: 'iPhone', profileName: 'Elia', id: 'phone-aaaaaaaa'}}), ctx, () => {}); // a reconnect
+    expect(ctx.toasts).toEqual(["📱 Controlled from Elia's iPhone", "📱 Controlled from Elia's iPhone"]);
+  });
+
   test('shown even when the first command itself fails', async () => {
     const ctx = ctxWith();
     await answer(cmd('pause', {}, {first: true, from: {label: 'iPhone'}}), ctx, () => {});
