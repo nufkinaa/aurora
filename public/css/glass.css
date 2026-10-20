@@ -3567,6 +3567,18 @@ html[data-look="glass"]:root .card.wide .card-progress {
   html[data-look="glass"]:root .episode-wrap .ep-action:nth-last-child(2) {
     right: 38px;
   }
+  /* Three buttons once an episode is on disk: Download to this device, Play on
+     TV, Watched. The download button takes the third slot; while no TV is on
+     (Play on TV hidden) it moves into the hidden one's place. */
+  html[data-look="glass"]:root .episode-wrap .ep-action:nth-last-child(3) {
+    right: 70px;
+  }
+  html[data-look="glass"]:root .episode-wrap .ep-action:nth-last-child(3):has(+ .rm-playon[hidden]) {
+    right: 38px;
+  }
+  html[data-look="glass"]:root .episode-wrap:has(> .ep-action:nth-last-child(3) + .rm-playon:not([hidden])) .episode-sub {
+    padding-right: 100px;
+  }
   html[data-look="glass"]:root .episode-wrap .ep-action svg {
     width: 17px;
     height: 17px;

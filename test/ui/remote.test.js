@@ -237,6 +237,51 @@ ui.test("phone: an episode plays on the TV from the show's page, Next episode mo
   }
 });
 
+// An episode on disk has three buttons on the phone's glass card — Download to
+// this device, Play on TV, Watched. Each must be its own target: they once sat
+// on two slots, so the download hid under the Watched tick (elia, 2026-10-20).
+ui.test("phone (glass): an episode on disk keeps Download, Play on TV and Watched apart and each one tappable — with a TV on and with none", { viewport: PHONE }, async ({ page, srv, lib, signIn, freshProfile }) => {
+  const profile = await freshProfile();
+  const tv = new SimTV({ url: srv.url, profile, name: "Bedroom TV" });
+  await tv.start();
+  const check = async (when, playOn) => {
+    await page.evaluate(() => document.querySelector(".episode-wrap").scrollIntoView({ block: "center", inline: "nearest" }));
+    await page.waitForTimeout(400);
+    const r = await page.evaluate(() => {
+      const wrap = document.querySelector(".episode-wrap");
+      const btns = [...wrap.querySelectorAll(":scope > .ep-action")].filter((b) => !b.hidden && getComputedStyle(b).display !== "none");
+      const boxes = btns.map((b) => { const r = b.getBoundingClientRect(); return { ui: b.dataset.ui || b.className, l: r.left, r: r.right, t: r.top, b: r.bottom }; });
+      const hits = btns.map((b) => { const r = b.getBoundingClientRect(); const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!at && (at === b || b.contains(at)); });
+      const facts = wrap.querySelector(".episode-sub");
+      const factsRight = facts ? Math.max(...[...facts.children].filter((c) => !c.classList.contains("ep-overview")).map((c) => c.getBoundingClientRect().right)) : 0;
+      return { boxes, hits, factsRight };
+    });
+    assert.ok(r.boxes.some((b) => /download/.test(b.ui)), `${when}: the Download button is there`);
+    assert.equal(r.boxes.some((b) => /playontv/.test(b.ui)), playOn, `${when}: Play on TV ${playOn ? "shown" : "hidden"}`);
+    for (let i = 0; i < r.boxes.length; i++) {
+      assert.ok(r.hits[i], `${when}: ${r.boxes[i].ui} is covered by something else`);
+      for (let j = i + 1; j < r.boxes.length; j++) {
+        const a = r.boxes[i], b = r.boxes[j];
+        const overlap = Math.min(a.r, b.r) - Math.max(a.l, b.l) > 1 && Math.min(a.b, b.b) - Math.max(a.t, b.t) > 1;
+        assert.ok(!overlap, `${when}: ${a.ui} and ${b.ui} overlap`);
+      }
+    }
+    const leftmost = Math.min(...r.boxes.map((b) => b.l));
+    assert.ok(r.factsRight <= leftmost + 1, `${when}: the episode's facts end before the buttons (${r.factsRight} > ${leftmost})`);
+  };
+  try {
+    await signIn(profile);
+    await goto(page, srv, `#/show/${lib.show.id}`, ".episode-wrap .rm-playon:not([hidden])");
+    await check("with a TV on", true);
+    await shot(page, "phone-glass-episode-buttons");
+    await tv.stop();
+    await page.waitForSelector(".episode-wrap .rm-playon[hidden]", { state: "attached", timeout: 10000 });
+    await check("with no TV", false);
+  } finally {
+    await tv.stop().catch(() => {});
+  }
+});
+
 ui.test("scoping: another profile's TV is not offered (no button, no Remote); with no TV the remote says how to get one; a TV that does not answer is said so", { viewport: PHONE, allow: [] }, async ({ page, srv, lib, signIn, freshProfile }) => {
   const mine = await freshProfile();
   const other = await freshProfile();
