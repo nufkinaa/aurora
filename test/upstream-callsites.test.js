@@ -81,7 +81,9 @@ test("IMDb id matching does not file \"no match\" for a search made while Cineme
 // Voice search (media/spoken.js): a Hebrew title the catalogues do not know
 // is looked up on the Hebrew Wikipedia. That call is the page's too (the
 // microphone's search waits for it), so it has the same guards as the others.
-test("voice search's Hebrew Wikipedia lookup: through upstream — the search waits ~2.5 s at most, the late answer is kept", async () => {
+test("voice search's Hebrew Wikipedia lookup: through upstream — the search waits ~2.5 s at most, the late answer is kept", async (t) => {
+  const keep = setInterval(() => {}, 1000); // (upstream's timers are unref'd)
+  t.after(() => clearInterval(keep));
   const spoken = require("../src/media/spoken");
   spoken._internals._reset();
   const asked = [];
@@ -106,7 +108,11 @@ test("voice search's Hebrew Wikipedia lookup: through upstream — the search wa
   assert.equal(h.lateFills, 1);
 });
 
-test("voice search's Hebrew Wikipedia lookup: Wikipedia down opens its breaker, and voice search stops asking it", async () => {
+test("voice search's Hebrew Wikipedia lookup: Wikipedia down opens its breaker, and voice search stops asking it", async (t) => {
+  // (upstream's own timers — the retry's wait — are unref'd, as a server's
+  // should be: with nothing else here the loop could end mid-retry)
+  const keep = setInterval(() => {}, 1000);
+  t.after(() => clearInterval(keep));
   const spoken = require("../src/media/spoken");
   spoken._internals._reset();
   let calls = 0;
