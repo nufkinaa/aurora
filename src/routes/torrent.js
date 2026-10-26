@@ -284,7 +284,8 @@ const jitTorrentInput = (t, file, infoHash, fileIdx) => {
     ? { url: path.join(t.path, file.path), extra: [], http: false }
     : {
         url: `http://127.0.0.1:${config.PORT}/stream/torrent/${infoHash}/${fileIdx}`,
-        extra: ["-seekable", "1", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"],
+        // (the pass through the sign-in wall: lib/internalpass.js)
+        extra: ["-seekable", "1", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5", ...require("../lib/internalpass").ffArgs()],
         http: true,
       };
 };

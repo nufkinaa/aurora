@@ -415,7 +415,8 @@ const probeJson = (input, { http = false, timeoutMs = null } = {}) => {
       config.FFPROBE,
       // Over our own blocking torrent route: the same bounds streamprobe.js
       // uses, so a slow swarm cannot hold a stream's start for long.
-      [...PROBE_ARGS, ...(http ? ["-probesize", "16M", "-analyzeduration", "10M"] : []), input],
+      // (over our own route: the pass through the sign-in wall, lib/internalpass.js)
+      [...PROBE_ARGS, ...(http ? ["-probesize", "16M", "-analyzeduration", "10M", ...require("../lib/internalpass").ffArgs()] : []), input],
       { windowsHide: true, timeout: timeoutMs || (http ? 8000 : 5000), maxBuffer: 1024 * 1024 },
       (err, out) => {
         if (err) return resolve(null);

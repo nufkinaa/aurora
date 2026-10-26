@@ -456,6 +456,8 @@ const ensureJob = (hdrFacts, file, absPath, infoHash, fileIdx, vcodec = "h264", 
          // re-open the connection instead. http-protocol options only, so they
          // stay inside this branch.
          "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5",
+         // (the pass through the sign-in wall: lib/internalpass.js)
+         ...require("../lib/internalpass").ffArgs(),
          "-i", `http://127.0.0.1:${config.PORT}/stream/torrent/${infoHash}/${fileIdx}`]
     : ["-fflags", "+genpts", "-i", "pipe:0"];
 

@@ -88,6 +88,8 @@ const probe = (infoHash, fileIdx) => {
         "-analyzeduration", "10M", // microseconds: 10s of content max
         "-print_format", "json",
         "-show_streams", "-show_format",
+        // (the pass through the sign-in wall: lib/internalpass.js)
+        ...require("../lib/internalpass").ffArgs(),
         url,
       ],
       { stdio: ["ignore", "pipe", "pipe"], windowsHide: true },

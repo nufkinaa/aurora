@@ -11,4 +11,12 @@ const ok = (req) => {
   if (typeof got !== "string" || got.length !== value.length) return false;
   return crypto.timingSafeEqual(Buffer.from(got), Buffer.from(value));
 };
-module.exports = { HEADER, value, ok };
+// The same pass for ffmpeg / ffprobe reading this server's own torrent route
+// (http://127.0.0.1:<port>/stream/torrent/…): on a server that requires
+// sign-in, those reads carry no session, and without the pass the wall
+// answered them 401 — the torrent probe failed and a torrent that was not yet
+// whole on disk could not be repackaged or encoded (measured 2026-10-26,
+// docs/qa/capacity-2026-10/REPORT.md). Input options, placed before the URL.
+const CRLF = String.fromCharCode(13, 10);
+const ffArgs = () => ["-headers", `${HEADER}: ${value}${CRLF}`];
+module.exports = { HEADER, value, ok, ffArgs };
