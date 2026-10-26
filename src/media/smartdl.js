@@ -61,11 +61,12 @@ const nextEpisode = (meta, season, episode) => {
 // The source to fetch: same quality as what's playing when there is one,
 // the ranked list's order otherwise (it is sorted by value already, ★ BEST
 // first among them). Never a pre-release copy (CAM, TS, TC, screener, HC)
-// and never a dub (media/releasekind.js pickable); one with burned-in
-// subtitles only when there is no clean copy at all. Null when nothing may
-// be picked — then nothing starts by itself.
+// and never a dub (media/releasekind.js pickable), never a release somebody
+// here reported bad ("Get another version": media/badreleases.js); one with
+// burned-in subtitles only when there is no clean copy at all. Null when
+// nothing may be picked — then nothing starts by itself.
 const pickSource = (streams, quality) => {
-  const ok = (streams || []).filter((s) => s && s.infoHash && require("./releasekind").pickable(s));
+  const ok = (streams || []).filter((s) => s && s.infoHash && !s.badHere && require("./releasekind").pickable(s));
   if (!ok.length) return null;
   const clean = ok.filter((s) => !s.hardsub);
   const pool = clean.length ? clean : ok;

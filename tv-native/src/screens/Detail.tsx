@@ -41,7 +41,8 @@ import {autoPlayStep, jobSource, pickBest, runningJobFor, streamPlayItem} from '
 import {heroRelease, ReleaseStatus} from '../releaseWords';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
-import {openTrailer, openActions, openXray} from '../overlay';
+import {openTrailer, openActions, openReplace, openXray} from '../overlay';
+import {replaceOffered, WORDS as REPLACE_WORDS} from '../replaceLogic';
 import {prepareTrailer} from '../trailers';
 import {showToast} from '../toast';
 import {focusJustMoved, useFocusFallback, useKeyTrap} from '../focus';
@@ -50,7 +51,7 @@ import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
 import {pickUp, startSeason} from '../episodeRules';
 import {registerProfileCache} from '../profileScope';
-import {loadMe, patchMe, peekMe} from '../navSection';
+import {loadMe, patchMe, peekMe, useMe} from '../navSection';
 import type {NavSection} from '../navSection';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
@@ -434,6 +435,7 @@ const IconBtn = ({
   label,
   on,
   edgeLeft,
+  wide,
   onPress,
   ref,
 }: {
@@ -442,6 +444,9 @@ const IconBtn = ({
   glyph?: string;
   label: string;
   on?: boolean; // a filled disc: in the list, marked watched
+  // a label too long for a 66 dp column ("Problem with this copy?"): a wider
+  // column and the label on two lines
+  wide?: boolean;
   // the row's first disc: LEFT opens the nav rail (and is held — see PrimaryBtn)
   edgeLeft?: boolean;
   onPress: () => void;
@@ -455,7 +460,7 @@ const IconBtn = ({
   const toTop = useContext(ToTop);
   const lit = focused || !!on;
   return (
-    <View style={styles.iconBtn}>
+    <View style={[styles.iconBtn, wide && styles.iconBtnWide]}>
       <Focusable
         round
         ring="none"
@@ -479,7 +484,7 @@ const IconBtn = ({
       </Focusable>
       {/* (66 dp columns, five or six of them: at the TV's largest font size the labels met —
           "My List Start over Trailer" — so they grow with the font size up to 15 % only) */}
-      <Text style={[styles.iconBtnLabel, focused && styles.iconBtnLabelOn]} numberOfLines={1} maxFontSizeMultiplier={1.15}>
+      <Text style={[styles.iconBtnLabel, wide && styles.iconBtnLabelWide, focused && styles.iconBtnLabelOn]} numberOfLines={wide ? 2 : 1} maxFontSizeMultiplier={1.15}>
         {label}
       </Text>
     </View>
@@ -912,6 +917,9 @@ export default function Detail({
   // followed. The site hides those buttons; here they say so instead of
   // sending a request that can only be refused (audit E43).
   const [torrentsOff, setTorrentsOff] = useState(false);
+  // (a kids profile is not offered "Problem with this copy?" — the site's rule)
+  const me = useMe(profileId);
+  const replaceGate = {kids: me?.kids, torrentsOff};
   const [torrentsKnown, setTorrentsKnown] = useState(false); // (the auto-press waits for it)
   useEffect(() => {
     let live = true;
@@ -924,6 +932,8 @@ export default function Detail({
       live = false;
     };
   }, []);
+  const replaceGateRef = useRef(replaceGate);
+  replaceGateRef.current = replaceGate;
   const torrentsOffRef = useRef(false);
   torrentsOffRef.current = torrentsOff;
   const sayTorrentsOff = useCallback(() => {
@@ -2300,6 +2310,23 @@ export default function Detail({
             },
           },
           ...(ep.owned ? [{label: 'Play', tag: 'your copy', onPress: ep.onPlay}, {label: 'Sources', tag: 'other versions', onPress: () => openEpisodeSources(ep.season, ep.episode)}] : []),
+          // "Problem with this copy? → Get another version" for the episode on
+          // disk (the actions sheet closes first, then this one opens)
+          ...(ep.owned && replaceOffered({libraryId: ep.epId, ...replaceGateRef.current})
+            ? [
+                {
+                  label: REPLACE_WORDS.entry,
+                  tag: REPLACE_WORDS.entrySub,
+                  uiId: 'detail.episode.replace',
+                  onPress: () =>
+                    openReplace({
+                      libraryId: ep.epId!,
+                      title: `${item.title} · S${ep.season} E${ep.episode}`,
+                      context: {title: `${item.title} · S${ep.season} E${ep.episode}`, itemId: ep.epId},
+                    }),
+                },
+              ]
+            : []),
         ],
       });
     },
@@ -2909,6 +2936,17 @@ export default function Detail({
               <IconBtn uiId="detail.trailer" icon="film" label="Trailer" onPress={() => openTrailer(streamMeta.trailers!, item.title, {imdbId: streamMeta.imdbId, type: streamMeta.type || item.type, year: streamMeta.year})} />
             ) : null}
             {ownedMovieId ? <IconBtn uiId="detail.sources" glyph="≡" label="Versions" onPress={openSources} /> : null}
+            {/* "Problem with this copy? → Get another version" (the site's
+                button beside Versions): the copy on disk only — the server
+                says who may (ReplaceSheet.tsx) */}
+            {replaceOffered({libraryId: ownedMovieId, ...replaceGate}) ? (
+              <IconBtn uiId="detail.replace"
+                wide
+                icon="refresh"
+                label={REPLACE_WORDS.entry}
+                onPress={() => openReplace({libraryId: ownedMovieId!, title: item.title, context: {title: item.title, itemId: ownedMovieId}})}
+              />
+            ) : null}
             <IconBtn uiId="detail.xray"
               icon="xray"
               label="X-Ray"
@@ -3116,6 +3154,8 @@ const styles = StyleSheet.create({
   iconBtnGlyph: {color: colors.text, fontSize: 18, fontWeight: '800', lineHeight: 22},
   iconBtnLabel: {color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 6},
   iconBtnLabelOn: {color: colors.text},
+  iconBtnWide: {width: 92},
+  iconBtnLabelWide: {textAlign: 'center', lineHeight: 14},
   // 64%: four actions on a film need the width, and the ramp is still
   // transparent well before the artwork's subject on the right.
   // Full width now that no poster shares the row: six 40dp buttons sit on one

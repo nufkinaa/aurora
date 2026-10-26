@@ -761,6 +761,7 @@ const kickProfile = (p, reason, extra = {}) => {
 };
 
 router.get("/api/admin/people", (req, res) => {
+  const replacedBy = require("../media/replace").forProfile;
   const sessions = require("../lib/sessions");
   const downloads = require("../media/downloads");
   const bans = realtime.bans.data || {};
@@ -807,6 +808,8 @@ router.get("/api/admin/people", (req, res) => {
       })),
       downloads: mine.slice(0, 5).map((j) => downloads.publicJob(j)),
       downloadsTotal: mine.length,
+      // the copies this person replaced ("Get another version", media/replace.js): what, why, how it ended
+      replaced: (() => { try { return replacedBy(p.id).slice(0, 5); } catch { return []; } })(),
       started: entries.length,
       finished: entries.filter(([, v]) => v.finished).length,
       watchlistCount: (profiles.watchlistItems(p.id) || []).length,

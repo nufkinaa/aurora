@@ -263,6 +263,7 @@ app.use(require("./src/routes/admin"));
 app.use(require("./src/routes/requests"));
 app.use(require("./src/routes/torrent"));
 app.use(require("./src/routes/downloads"));
+app.use(require("./src/routes/replace")); // "Problem with this copy? → Get another version" (media/replace.js)
 app.use(require("./src/routes/subtitles"));
 app.use(require("./src/routes/reports"));
 app.use(require("./src/routes/usage"));

@@ -1,10 +1,11 @@
 // The app-wide layer above the navigator: toasts, and the one sheet that may
 // be up (overlay.ts says which) — peek, report a problem, join a party, the
-// update offer, a trailer. Screens never draw these themselves.
+// update offer, a trailer, get another version (ReplaceSheet.tsx). Screens never draw these themselves.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Animated, AppState, BackHandler, Easing, FlatList, Image, Linking, Platform, ScrollView, StyleSheet, TVFocusGuideView, Text, TextInput, View} from 'react-native';
 import Focusable from './Focusable';
 import PersonSheet from './PersonSheet';
+import ReplaceSheet from './ReplaceSheet';
 import Sheet, {glass} from './Sheet';
 import TrailerFrame, {TrailerState} from './Trailer';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
@@ -762,7 +763,7 @@ function ActionsSheet({title, sub, items}: {title: string; sub?: string; items: 
     <Sheet kicker={sub} title={title} width={520} onClose={closeOverlay}>
       <View style={styles.actionList}>
         {items.map((it, i) => (
-          <Focusable uiId="actions.pick"
+          <Focusable uiId={it.uiId || 'actions.pick'}
             key={it.label}
             hasTVPreferredFocus={i === 0}
             onPress={() => {
@@ -890,6 +891,7 @@ export default function Overlays() {
       {o?.kind === 'trailer' ? <TrailerModal ids={o.ids} title={o.title} imdbId={o.imdbId} type={o.type} year={o.year} /> : null}
       {o?.kind === 'actions' ? <ActionsSheet title={o.title} sub={o.sub} items={o.items} /> : null}
       {o?.kind === 'xray' ? <XraySheet query={o.query} title={o.title} onClose={o.onClose} /> : null}
+      {o?.kind === 'replace' ? <ReplaceSheet libraryId={o.libraryId} title={o.title} context={o.context} onClose={o.onClose} /> : null}
       <Toasts />
     </>
   );

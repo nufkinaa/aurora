@@ -181,6 +181,11 @@ const publicJob = (j) => ({
     }
     : null,
   raceNote: j.raceNote || null,
+  // "Get another version" (media/replace.js): this download REPLACES the copy
+  // in the library under `libraryId` once it is complete; `replaceWait`: it
+  // is complete, and waits for nobody to be playing the old copy.
+  replaces: j.replaces ? { id: j.replaces.id, libraryId: j.replaces.libraryId, reason: j.replaces.reason, reasonLabel: j.replaces.reasonLabel || null } : null,
+  replaceWait: !!j.replaceWait,
 });
 
 // The requester opened the finished file: the "ready to play" nudge for it
@@ -355,6 +360,14 @@ const tellMyList = (job) => {
   }
 };
 
+// A replacement (media/replace.js) keeps its own record of how it went.
+const tellReplace = (job) => {
+  if (!job || !job.replaces) return;
+  try { require("./replace").onJob(job); } catch (e) {
+    console.warn("[replace] record not updated:", e && e.message ? e.message : e);
+  }
+};
+
 const activeCount = () => active.size;
 
 const list = () => store.data.map(publicJob);
@@ -391,6 +404,10 @@ const create = (fields) => {
     infoHash, fileIdx, type, imdbId, title, label, year, poster,
     quality, sizeBytes, season, episode, provider, seeders, profile, smart, release,
   } = fields || {};
+  // "Get another version": the copy in the library it replaces. Only
+  // media/replace.js sets it, with everything already checked — the routes
+  // never pass a client's body through as this.
+  const replaces = fields && fields.replaces && typeof fields.replaces === "object" && fields.replaces.libraryId ? fields.replaces : null;
 
   // "torrents": false — nothing new is accepted (the route answers 403 before
   // this; smart downloads and follows come straight here).
@@ -411,10 +428,17 @@ const create = (fields) => {
   );
   // For movies a library hit means "already have it"; for shows a hit doesn't
   // mean this specific episode exists, so we still allow episode downloads.
-  if (libHit && wanted === "movie") return { alreadyAvailable: libHit };
+  // (A replacement is FOR a title in the library: that is the point of it.)
+  if (libHit && wanted === "movie" && !replaces) return { alreadyAvailable: libHit };
+  // A replacement never piggybacks on another job: the same source already
+  // on its way for somebody else is refused (finished ones are history).
+  if (replaces) {
+    const busy = store.data.find((j) => sameHash(j.infoHash, infoHash) && j.fileIdx === (fileIdx || 0) && LIVE_STATUSES.includes(j.status));
+    if (busy) return { error: "That version is already being downloaded — pick another one, or wait for it to finish." };
+  }
 
   // Dedup on the exact torrent+file, unless the prior attempt failed/declined.
-  const dupe = store.data.find(
+  const dupe = !replaces && store.data.find(
     (j) => j.infoHash === infoHash && j.fileIdx === (fileIdx || 0) &&
       !["error", "declined", "canceled"].includes(j.status)
   );
@@ -437,7 +461,7 @@ const create = (fields) => {
     return { job: publicJob(dupe), duplicate: true };
   }
   // …or the exact file some job is already fetching as its SECOND source.
-  const racing = store.data.find(
+  const racing = !replaces && store.data.find(
     (j) => j.status === "downloading" && j.attempts && j.attempts[1] &&
       j.attempts[1].infoHash === infoHash && (j.attempts[1].fileIdx || 0) === (fileIdx || 0)
   );
@@ -472,6 +496,7 @@ const create = (fields) => {
     // The person, for the admin's notification (profile is an id).
     profileName: fields.profileName ? String(fields.profileName).slice(0, 40) : null,
     smart: !!smart, // queued by smart downloads (the next episode), not by hand
+    ...(replaces ? { replaces: { ...replaces } } : {}),
     status: gate.ok ? "approved" : "pending",
     // Set when the queue started this itself, so pump() knows it may still send
     // the job back to "pending" if the disk fills before its turn comes up.
@@ -498,9 +523,11 @@ const create = (fields) => {
   realtime.broadcastAdmins({ type: "download_new", job: publicJob(job) });
 
   const size = job.sizeBytes ? ` · ${gb(job.sizeBytes)} GB` : "";
-  const what =
-    `${job.profileName || job.profile || "Someone"} requested "${job.label || job.title}"` +
-    `${job.quality ? ` (${job.quality}${size})` : size}`;
+  const what = job.replaces
+    ? `${job.profileName || job.profile || "Someone"} asked for another version of "${job.label || job.title}" (${job.replaces.reasonLabel || job.replaces.reason})` +
+      `${job.quality ? ` — ${job.quality}${size}` : size}`
+    : `${job.profileName || job.profile || "Someone"} requested "${job.label || job.title}"` +
+      `${job.quality ? ` (${job.quality}${size})` : size}`;
   if (gate.ok) {
     // Nothing to do — tell the admin it's happening, don't ask.
     notify.send("Aurora: download started", `${what} — downloading now.`);
@@ -546,6 +573,7 @@ const decline = (id) => {
   store.save();
   broadcast(job);
   tellMyList(job);
+  tellReplace(job);
   purgeIfUnused(job.infoHash, job.id);
   return { job: publicJob(job) };
 };
@@ -555,10 +583,12 @@ const cancel = (id) => {
   if (!job) return { error: "not found" };
   stopActive(id, "canceled");
   job.status = "canceled";
+  delete job.replaceWait;
   job.resolvedAt = now();
   store.save();
   broadcast(job);
   tellMyList(job);
+  tellReplace(job);
   // Order matters: pump() may start a queued sibling on this same pack, so decide
   // about the staging bytes FIRST (purgeIfUnused sees that sibling and keeps them).
   purgeIfUnused(job.infoHash, job.id);
@@ -590,8 +620,11 @@ const remove = (id) => {
   const i = store.data.findIndex((j) => j.id === id);
   if (i === -1) return { error: "not found" };
   const { infoHash } = store.data[i];
+  const gone = store.data[i];
   stopActive(id, "removed");
   store.data.splice(i, 1);
+  // a replacement taken off the queue before it landed: cancelled
+  if (gone.replaces && LIVE_STATUSES.includes(gone.status)) tellReplace({ ...gone, status: "canceled" });
   store.save();
   // Every open "My downloads" page drops the row now, not on its next reload.
   realtime.broadcastAll({ type: "download_removed", id });
@@ -687,10 +720,12 @@ const fail = (job, message) => {
   job.phase = null;
   job.copyProgress = null;
   job.resolvedAt = now();
+  delete job.replaceWait;
   store.save();
   broadcast(job);
-  notify.send("Aurora: download failed", `"${job.label || job.title}" — ${job.error}`);
+  notify.send("Aurora: download failed", `"${job.label || job.title}" — ${job.error}${job.replaces ? " The copy in the library stays as it was." : ""}`);
   tellMyList(job);
+  tellReplace(job);
   purgeIfUnused(job.infoHash, job.id); // before pump(), same reason as cancel()
   pump();
 };
@@ -736,6 +771,11 @@ const foldersIn = (root) => {
 // Where this job's file belongs in the library, minus the extension (which comes
 // from the real file once aria2 has the torrent's details).
 const destinationFor = (job) => {
+  // A replacement lands where the copy it replaces is, under that file's name.
+  if (job.replaces && job.replaces.path) {
+    const p = job.replaces.path;
+    return { dir: path.dirname(p), base: path.basename(p, path.extname(p)) };
+  }
   const root = destRoot(job.type);
   if (!root) throw new Error("no library folder configured");
   const folder = chooseFolder(foldersIn(root), job.title, job.year);
@@ -1329,6 +1369,29 @@ const completeJob = async (job, rec, file, engineStatus) => {
     const secs = (Date.now() - startedAt) / 1000;
     console.log(`[download] ${job.id.slice(0, 6)} copied ${(copied / 1e6).toFixed(0)} MB in ${secs.toFixed(0)}s`);
 
+    if (job.replaces) {
+      // THE SWAP (media/replace.js): the old copy goes, this one takes its
+      // name and its library id — or, while someone plays the old copy, this
+      // waits finished and hidden, its download slot handed back.
+      destPath = await require("./replace").land(job, {
+        tmp, ext, dir: rec.dir, base: rec.base,
+        stillWanted: () => findJob(job.id) === job && job.status === "downloading",
+        waiting: (on) => {
+          if (on) job.replaceWait = true;
+          else delete job.replaceWait;
+          store.save();
+          broadcast(job);
+          tellReplace(job);
+        },
+        releaseSlot: () => {
+          if (active.get(job.id) !== rec) return;
+          stopActive(job.id, "complete — the slot is free while it waits to replace the old copy");
+          Promise.resolve().then(pump);
+        },
+      });
+      if (!destPath) throw Object.assign(new Error("cancelled before it replaced the old copy"), { quiet: true });
+    } else
+
     // The name is chosen now, with the complete file in hand, and the file
     // put there in the same synchronous step. The loop is for a name that
     // something outside this process created between the two.
@@ -1557,7 +1620,8 @@ const beginRace = async (job, rec, why) => {
     if (!dlrace.shouldRace(candidateView(job, rec), raceEnv(t), cfg, t).race) return;
 
     const pick = dlrace.chooseChallenger({
-      job, streams: found && found.streams, history: sourceMemory.forTitle(dlrace.titleKey(job)),
+      // (a release somebody reported bad here is never the second source)
+      job, streams: ((found && found.streams) || []).filter((x) => !x.badHere), history: sourceMemory.forTitle(dlrace.titleKey(job)),
       live: otherSources(job.id), cfg, now: t,
     });
     if (!pick.source) {
@@ -1686,6 +1750,7 @@ const finish = async (job, destPath) => {
   job.phase = null;
   job.copyProgress = null;
   job.destPath = destPath;
+  delete job.replaceWait;
   job.doneAt = now();
   require("../lib/tel/timings").downloadDone(job); // [analytics] started → in the library
   job.raceNote = null;
@@ -1721,7 +1786,9 @@ const finish = async (job, destPath) => {
   }
   console.log(`[download] ${job.id.slice(0, 6)} done "${job.title}"`);
   tellMyList(job);
-  notify.send("Aurora: download ready", `"${job.label || job.title}" is downloaded and in the library.`);
+  tellReplace(job);
+  if (job.replaces) notify.send("Aurora: copy replaced", `"${job.label || job.title}" — ${job.replaces.byName || "someone"} replaced the copy (${job.replaces.reasonLabel || job.replaces.reason}).`);
+  else notify.send("Aurora: download ready", `"${job.label || job.title}" is downloaded and in the library.`);
   // …and the person who asked for it (or whose follow / smart download
   // fetched it) hears on the devices where they switched notifications on.
   if (job.profile) {
@@ -1729,7 +1796,7 @@ const finish = async (job, destPath) => {
       const libId = scanner.idForPath(destPath);
       require("../lib/push").send(job.profile, {
         title: job.type === "show" && job.season ? `${job.title} · S${job.season} E${job.episode}` : job.title,
-        body: "Downloaded and ready to watch.",
+        body: job.replaces ? "The new version is in — ready to watch." : "Downloaded and ready to watch.",
         url: libId ? `/#/play/${libId}` : "/#/downloads",
         tag: `dl-${job.id}`,
       });
@@ -1862,6 +1929,9 @@ const resume = () => {
       delete job.held;
       delete job.stalledRestarts;
       delete job.stalledBytes;
+      // (a replacement that was waiting for the old copy to be free fetches
+      // and copies again — its hidden file is swept — and waits again)
+      delete job.replaceWait;
       job.progress = 0;
       job.downloadSpeed = 0;
       job.peers = 0;
@@ -1890,7 +1960,7 @@ module.exports = {
   // engine (never in a running server).
   _internals: {
     safeName, folderKey, chooseFolder, diskGate, destinationFor, store,
-    landingName, placeNoClobber, tempNameFor,
+    landingName, placeNoClobber, tempNameFor, nameTakenAny: nameTaken,
     active, seams, line, resume: () => resume(), poll: () => poll(), raceTick: () => raceTick(seams.clock(), raceCfg()),
     setEngine: (engine) => { aria2 = engine; },
   },

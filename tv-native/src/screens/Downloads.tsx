@@ -20,6 +20,7 @@ import NavRail from '../components/NavRail';
 import {Empty} from '../components/States';
 import {api, ApiError, artSrc, HeroItem, ImgSource, MyDownload} from '../api';
 import {downloadActions, DownloadAction, isReady, startedBy, rowStatus} from '../downloadsLogic';
+import {replaceJobLine} from '../replaceLogic';
 import {openActions} from '../overlay';
 import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
@@ -56,6 +57,9 @@ const eta = (j: MyDownload) => {
   return `${(s / 3600).toFixed(1)} h left`;
 };
 const statusLine = (j: MyDownload) => {
+  // "Get another version": finished, held back while somebody plays the old copy
+  const waiting = replaceJobLine(j);
+  if (waiting) return waiting;
   switch (j.status) {
     case 'done':
       return j.libraryId ? `Ready · ${when(j.doneAt)}` : 'Finished — indexing…';

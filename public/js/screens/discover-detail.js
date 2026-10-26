@@ -22,7 +22,6 @@ import {
   LIST_ADDED,
   LIST_REMOVED,
   listFailedLine,
-  confirmSheet,
   artUrl,
   formatBadges,
   restoreScrollY,
@@ -54,6 +53,8 @@ import { pickOfflineQuality } from "../offlinePicker.js";
 import { onMessage } from "../ws.js";
 import { attachHold } from "../peek.js";
 import * as narrator from "../narrator.js";
+import { copyProblemButton, canOfferReplace } from "../replaceCopy.js";
+import { EARLY_CONFIRM, earlyOk } from "../releaseWords.js";
 
 // "My List" toggle for a streamable (Discover) title — stores a stream ref.
 import * as surprise from "../surprise.js";
@@ -338,21 +339,11 @@ const whyNotBest = (s, best) => {
 
 // A copy made before the film is out at home (the server reads it off the
 // release name — src/media/releasekind.js — and sends `warning`, e.g. "CAM —
-// filmed in a cinema"). The words are the TV app's (tv-native/src/
+// filmed in a cinema"). The confirm's words live in js/releaseWords.js,
+// shared with "Get another version" and the TV app's (tv-native/src/
 // releaseWords.ts), to the letter.
 const earlyWhy = (s) => (s.warning && s.warning.split(" — ")[1]) || "a cinema recording";
-export const EARLY_CONFIRM = {
-  title: "This is not the real release",
-  text: (s) => `${s.warning || "A cinema recording"}. Picture and sound are usually poor — a good copy normally follows once the film is out to stream or buy.`,
-  download: "Download it anyway",
-  play: "Play it anyway",
-};
-// Asked before a pre-release copy is downloaded or played; anything else goes
-// straight through. → true when it may go ahead.
-const earlyOk = async (s, what) => {
-  if (!s || !s.cam) return true;
-  return confirmSheet({ title: EARLY_CONFIRM.title, text: EARLY_CONFIRM.text(s), ok: EARLY_CONFIRM[what], icon: "⚠️" });
-};
+export { EARLY_CONFIRM };
 
 // A source card (reused for movies and episodes). Pressing the card SAVES the
 // source to the library — that is the flow Aurora wants (elia: "make the flow
@@ -834,6 +825,17 @@ const ownedRow = ({ id, label, onDownload, item }) =>
     }),
   );
 
+// The copy you own, and — for an episode (`owned.replace`) — the way to swap
+// a bad one for another version ("Problem with this copy?", js/replaceCopy.js).
+const ownedRows = (owned) => {
+  if (!owned) return [];
+  const rows = [ownedRow(owned)];
+  if (owned.replace && canOfferReplace()) {
+    rows.push(el("div", { class: "copy-problem-line" }, copyProblemButton({ libraryId: owned.id, title: owned.replace.title, ui: "detail.episode.replace", className: "in-sources" })));
+  }
+  return rows;
+};
+
 // Render a sources list into a host element (with loading + empty states)
 // `owned` (optional) is the library copy of exactly this title/episode —
 // `{ id, label }` — which gets its own row above every torrent.
@@ -864,7 +866,7 @@ const loadSources = async (
     // The copy on disk is offered whatever the swarm says: a provider that is
     // down or a title nobody seeds must never hide the file we already have.
     const bailEmpty = (what) => {
-      if (owned) host.append(ownedRow(owned));
+      host.append(...ownedRows(owned));
       if (release && release.line) host.append(releaseNote(release));
       host.append(
         el(
@@ -916,9 +918,10 @@ const loadSources = async (
     const listHost = el("div", { class: "src-list" });
     // The pick (the TV's playBest.ts pickBest, the same rule): the server's
     // ★ Best among the live ones, else the first clean copy, else the first
-    // with burned-in subtitles — never a pre-release copy, never a dub. None:
+    // with burned-in subtitles — never a pre-release copy, never a dub, never
+    // a release somebody here reported bad ("Get another version"). None:
     // nothing is saved by itself ("Save & watch" says why).
-    const pickableRow = (x) => !x.cam && !x.prerelease && !x.dubbed;
+    const pickableRow = (x) => !x.cam && !x.prerelease && !x.dubbed && !x.badHere;
     const best = streams.find((x) => x.recommended && pickableRow(x)) || streams.find((x) => pickableRow(x) && !x.hardsub) || streams.find(pickableRow) || null;
     // Rows by source key, so a live download_update repaints just that button.
     const rows = new Map();
@@ -1000,7 +1003,7 @@ const loadSources = async (
     // No paragraph of advice and no "save it, then watch it" panel any more:
     // the copy you own (when there is one), the quality filter, the list.
     host.append(
-      ...(owned ? [ownedRow(owned)] : []),
+      ...ownedRows(owned),
       ...(release && release.line ? [releaseNote(release)] : []),
       buildFilterBar(streams, renderList),
       listHost,
@@ -1010,7 +1013,7 @@ const loadSources = async (
   } catch {
     host.innerHTML = "";
     // the copy you own stays playable when the provider is down
-    if (owned) host.append(ownedRow(owned));
+    host.append(...ownedRows(owned));
     host.append(
       el(
         "div",
@@ -1841,6 +1844,12 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       serverInfo: serverInfoFor(),
     }),
   );
+  // A film you own with a bad copy (burned-in subtitles, a wrong dub…):
+  // "Problem with this copy? → Get another version" — no admin needed
+  // (js/replaceCopy.js; the server's rules are src/media/replace.js).
+  if (!isShow && lib && imdbId && canSource && canOfferReplace()) {
+    screen.append(el("div", { class: "copy-problem-line page-pad" }, copyProblemButton({ libraryId: lib.id, title: view.title })));
+  }
   if (keepY) restoreScrollY(keepY);
 
   // Who is in it and who made it, each name a press away from that person's
@@ -2148,6 +2157,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
               id: row.local.id,
               item: { ...row.local, showTitle: view.title, showId: lib && lib.id, season: row.season, episode: row.episode, title: row.title || row.local.title, cover: row.local.cover || view.cover },
               label: `${view.title} · S${row.season} E${row.episode} — in your library`,
+              replace: { title: `${view.title} · S${row.season} E${row.episode}` },
               onDownload: row.local.downloadUrl
                 ? () =>
                     openDownload(

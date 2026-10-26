@@ -844,6 +844,12 @@ const rankList = (rows, ttType) => {
   return streams;
 };
 
+// …and what people here REPORTED about them ("Get another version":
+// media/badreleases.js) — those go below the rest, marked, never ★.
+const markBad = (streamId, streams) => {
+  try { return require("./badreleases").apply(String(streamId).toLowerCase(), streams); } catch { return streams; }
+};
+
 // Fetch stream sources for a title. For series pass season+episode.
 const getSources = async (type, title, year, season, episode) => {
   // Sources exist to feed the two engines; with torrents off nothing is asked
@@ -864,7 +870,7 @@ const getSources = async (type, title, year, season, episode) => {
   const cached = STORE.data.streams[cacheKey];
   // Fresh AND in the current shape (older cached entries lack `tags`)
   if (liveStreams(cached, Date.now()) && cached.streams.length) {
-    return { imdbId, streams: withHistory(streamId, cached.streams, ttType) };
+    return { imdbId, streams: markBad(streamId, withHistory(streamId, cached.streams, ttType)) };
   }
 
   const data = await fetchJson(
@@ -879,7 +885,7 @@ const getSources = async (type, title, year, season, episode) => {
   STORE.data.streams[cacheKey] = { at: Date.now(), streams, v: STREAMS_V };
   pruneStreams();
   STORE.save();
-  return { imdbId, streams: withHistory(streamId, streams, ttType) };
+  return { imdbId, streams: markBad(streamId, withHistory(streamId, streams, ttType)) };
 };
 
 // ---------- external subtitles ----------

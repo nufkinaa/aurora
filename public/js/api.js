@@ -563,4 +563,10 @@ export const api = {
   downloadCancel: (id, profile) => post(`/api/downloads/${encodeURIComponent(id)}/cancel`, { profile }),
   // Clear a failed / declined / canceled request of yours off the page.
   downloadDismiss: (id, profile) => post(`/api/downloads/${encodeURIComponent(id)}/dismiss`, { profile }),
+
+  // "Problem with this copy? → Get another version" (src/routes/replace.js)
+  replaceInfo: (libId, profile) => json(`/api/replace/${encodeURIComponent(libId)}${profile ? `?profile=${encodeURIComponent(profile)}` : ""}`),
+  replaceSources: (libId, profile) => json(`/api/replace/${encodeURIComponent(libId)}/sources${profile ? `?profile=${encodeURIComponent(profile)}` : ""}`),
+  replaceCopy: (libId, fields) => post(`/api/replace/${encodeURIComponent(libId)}`, fields),
+  replaceCancel: (libId, profile) => post(`/api/replace/${encodeURIComponent(libId)}/cancel`, { profile }),
 };
