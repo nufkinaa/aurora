@@ -98,11 +98,11 @@ for (const m of mixes) {
   measured[m] = ws.length ? round(ws.reduce((x, w) => x + w.egressMbit, 0) / ws.reduce((x, w) => x + w.viewers, 0), 2) : null;
 }
 out.push(`Per viewer: the files' own bitrate averaged over each mix (${mixes.map((m) => `${m} ${fileMbit[m]} Mbit/s`).join(", ")}); measured over the windows, read-ahead included: ${mixes.map((m) => `${m} ${measured[m]}`).join(", ")}. Streams that fit, at ${Math.round(headroom * 100)} % of the upload:\n`);
-const cols = [...mixes.map((m) => `${m} (${fileMbit[m]} Mbit/s)`), "house p90 file (4.2)", "Blu-ray-class (8)", "4K remux (25)"];
+const cols = [...mixes.map((m) => `${m} (${fileMbit[m]} Mbit/s)`), "house library mean (2.7)", "house p90 file (4.2)", "Blu-ray-class (8)", "4K remux (25)"];
 out.push(`| upload Mbit/s | ${cols.join(" | ")} |`);
 out.push(`| --- | ${cols.map(() => "---").join(" | ")} |`);
 for (const u of uploads) {
-  const vals = [...mixes.map((m) => (fileMbit[m] ? Math.floor((u * headroom) / fileMbit[m]) : "")), ...[4.2, 8, 25].map((x) => Math.floor((u * headroom) / x))];
+  const vals = [...mixes.map((m) => (fileMbit[m] ? Math.floor((u * headroom) / fileMbit[m]) : "")), ...[2.7, 4.2, 8, 25].map((x) => Math.floor((u * headroom) / x))];
   out.push(`| ${u} | ${vals.join(" | ")} |`);
 }
 process.stdout.write(out.join("\n") + "\n");
