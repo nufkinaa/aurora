@@ -2,9 +2,10 @@
 // (src/releaseWords.ts): the words are the website's to the letter
 // (public/js/screens/discover-detail.js EARLY_CONFIRM), and what may be
 // picked for someone is the server's rule (src/media/releasekind.js pickable).
-import * as fs from 'fs';
-import * as path from 'path';
 import {EARLY_CONFIRM, heroRelease, isEarly, pickable, sourceBadge} from '../../src/releaseWords';
+
+const fs = require('fs');
+const path = require('path');
 
 const WEB = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'public', 'js', 'screens', 'discover-detail.js'), 'utf8');
 

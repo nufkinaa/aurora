@@ -2232,6 +2232,12 @@ export default function Detail({
           setDlNote({key, kind: 'failed', text: `${said.line}  ·  hold Play for the list`});
           return;
         }
+        if ((streams || []).length) {
+          // copies, but none that may be picked for you (dubs only, say)
+          showToast('No copy to pick for you yet — hold Play for the list', '⚠');
+          setDlNote({key, kind: 'failed', text: 'No copy to pick for you yet  ·  hold Play for the list'});
+          return;
+        }
         showToast('No sources for this title yet', '⚠');
         setDlNote({key, kind: 'failed', text: 'No sources for this title yet  ·  try again later'});
         return;
