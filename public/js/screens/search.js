@@ -18,6 +18,7 @@ import { onMessage } from "../ws.js";
 import { card } from "../components.js";
 import { attachSuggest, suggestHref } from "../suggest.js";
 import { attachVoice } from "../voice.js";
+import { runSearch, SEARCH_TEXT, noResultsText, shortText } from "../searchflow.js";
 
 // Session-lived: coming BACK to Search restores the query, its results and
 // the scroll offset — it used to start blank every time.
@@ -115,7 +116,7 @@ export const renderSearch = async (root) => {
   // on screen, so the local hits never wait for the slow lookup.
   const busy = el("div", { class: "search-busy hidden", role: "status", "aria-live": "polite" },
     el("span", { class: "mini-spinner" }),
-    el("span", { class: "search-busy-text" }, "Searching…"));
+    el("span", { class: "search-busy-text" }, SEARCH_TEXT.searching));
   const recentHost = el("div", { class: "filter-bar", style: { paddingTop: 0 } });
   const suggestHost = el("div", { class: "suggest-list hidden" });
 
@@ -214,32 +215,36 @@ export const renderSearch = async (root) => {
   let busyTimer = null;
   const setBusy = (text) => {
     busy.querySelector(".search-busy-text").textContent = text;
-    if (!busy.classList.contains("hidden")) return;
-    clearTimeout(busyTimer);
-    busyTimer = setTimeout(() => busy.classList.remove("hidden"), 220);
+    if (!busy.classList.contains("hidden") || busyTimer) return; // (already showing, or about to)
+    busyTimer = setTimeout(() => { busyTimer = null; busy.classList.remove("hidden"); }, 220);
   };
   const clearBusy = () => {
     clearTimeout(busyTimer);
+    busyTimer = null;
     busy.classList.add("hidden");
   };
 
-  const noResults = (q, { committed, catalogFailed, retry }) => {
+  // What a settled search says (searchflow.js settleNote — the TV says the
+  // same). A failure is said as one, with a button, never as "No results".
+  const retryBtn = (retry) =>
+    el("button", { "data-ui": "search.retry", class: "btn small focusable", onclick: retry }, SEARCH_TEXT.retry);
+  const noResults = (q, { note, retry }) => {
     status.innerHTML = "";
-    if (catalogFailed) {
+    // ("partial" here: a related row but no match of its own — still a failure)
+    if (note === "unreachable" || note === "offline" || note === "partial") {
       status.append(
         el("div", { class: "glyph" }, "📡"),
-        `Couldn't reach the catalogue for “${q}”.`,
-        el("div", { style: { marginTop: "14px" } },
-          el("button", { "data-ui": "search.retry", class: "btn small focusable", onclick: retry }, "Try again")));
-    } else if (!committed && q.length < CATALOG_MIN) {
+        el("div", { class: "search-fail" }, note === "offline" ? SEARCH_TEXT.offline : SEARCH_TEXT.unreachable),
+        el("div", { style: { marginTop: "14px" } }, retryBtn(retry)));
+    } else if (note === "short") {
       status.append(
         el("div", { class: "glyph" }, "🔍"),
-        `Nothing in the library for “${q}”.`,
+        shortText(q),
         el("div", { class: "search-hint" }, "Keep typing, or press Search to look through the catalogue too."));
     } else {
       status.append(
         el("div", { class: "glyph" }, "🔍"),
-        `No results for “${q}”`,
+        noResultsText(q),
         el("div", { style: { marginTop: "14px" } },
           // Movies opens on its "All" shelf — what's trending, with the
           // library up front (the old Requests page is no longer in the nav)
@@ -298,57 +303,47 @@ export const renderSearch = async (root) => {
       return;
     }
     status.classList.add("hidden");
-    setBusy("Searching…");
     tmStart("search"); // [analytics] query sent → results shown (the time only; never the text)
     const profileId = pid();
-    let r = null;
-    let failed = false;
-    try {
-      r = await api.searchAll(heard, { commit: committed, voice, profileId, signal });
-    } catch {
-      failed = true;
-    }
-    if (!live()) return;
-    if (voice && r && typeof r.q === "string" && r.q) {
-      q = r.q;
-      input.value = q;
-      paintClear();
-    }
-    if (r) {
-      popularHost.classList.add("hidden");
-      paint(r);
-      tmLap("search_results", "search", "library"); // [analytics]
-      track("feat", { f: "search", hits: (r.results || []).filter((x) => x.source !== "stream").length }); // how often, never what
-    }
-    const any = () => results.childElementCount > 0 || relatedGrid.childElementCount > 0;
-    if (r && r.pending) {
-      setBusy(any() ? "Searching the catalogue…" : "Searching…");
-      try {
-        const pin = r.results && r.results[0] ? r.results[0].key : null;
-        r = await api.searchAll(heard, { wait: true, commit: committed, voice, pin, profileId, signal });
-        if (!live()) return;
-        if (voice && typeof r.q === "string" && r.q && r.q !== q && input.value.trim() === q) {
+    let remembered = false;
+    // The steps (searchflow.js, the same on the TV): the local answer at
+    // once, the waiting one for the catalogue, ONE retry when the catalogue
+    // could not answer — the local cards stay up meanwhile, under "Still
+    // searching…".
+    const done = await runSearch({
+      ask: ({ wait, pin }) => api.searchAll(heard, { wait, commit: committed, voice, pin, profileId, signal }),
+      paint: (r, step) => {
+        if (voice && typeof r.q === "string" && r.q && (step === "local" || (r.q !== q && input.value.trim() === q))) {
           q = r.q;
           input.value = q;
           paintClear();
         }
+        popularHost.classList.add("hidden");
         paint(r);
-        tmLap("search_results", "search", "catalogue"); // [analytics]
-      } catch {
-        if (!live()) return;
-        failed = true;
-      }
-    }
-    clearBusy();
-    failed = failed || !!(r && r.catalogFailed);
+        // pressed Search and it found something: remembered now, not once the
+        // catalogue has had its say (a retry can take a few seconds, and the
+        // person may have moved on by then)
+        if (committed && !remembered && (r.results || []).length) {
+          remembered = true;
+          recents.add(q);
+        }
+        if (step === "local") {
+          tmLap("search_results", "search", "library"); // [analytics]
+          track("feat", { f: "search", hits: (r.results || []).filter((x) => x.source !== "stream").length }); // how often, never what
+        } else tmLap("search_results", "search", "catalogue"); // [analytics]
+      },
+      busy: (text) => (text ? setBusy(text) : clearBusy()),
+      live,
+      committed,
+      q: heard,
+      minLen: CATALOG_MIN,
+    });
+    if (!done || !live()) return;
+    const again = () => search(heard, { committed: true, voice });
 
     if (results.childElementCount === 0) {
-      if (!r) clearGrid();
-      noResults(q, {
-        committed,
-        catalogFailed: failed,
-        retry: () => search(heard, { committed: true, voice }),
-      });
+      if (!done.answer) clearGrid();
+      noResults(q, { note: done.note || "none", retry: again });
       // not a dead end: what the house is watching sits under the message
       // (unless a related row — a person's or a genre's titles — is there)
       if (relatedGrid.childElementCount === 0) paintPopular(() => input.value.trim() === q && results.childElementCount === 0);
@@ -356,16 +351,15 @@ export const renderSearch = async (root) => {
       popularHost.classList.add("hidden");
       // The catalogue didn't answer but the library did: say so quietly
       // rather than letting the shorter list pass for the whole answer.
-      if (failed) {
+      if (done.failed) {
         status.innerHTML = "";
-        status.append(el("div", { class: "search-hint" }, "The catalogue didn't answer — these are from the library. ",
-          el("button", { "data-ui": "search.retry", class: "btn small focusable", onclick: () => search(heard, { committed: true, voice }) }, "Try again")));
+        status.append(el("div", { class: "search-hint" }, `${SEARCH_TEXT.partial} `, retryBtn(again)));
         status.classList.remove("hidden");
       }
       // remember searches that found something — at once when you pressed
       // Search, after a settle delay while you're still typing
       clearTimeout(saveTimer);
-      if (committed) recents.add(q);
+      if (committed) { if (!remembered) recents.add(q); }
       else saveTimer = setTimeout(() => {
         if (input.value.trim() === q) recents.add(q);
       }, 1200);

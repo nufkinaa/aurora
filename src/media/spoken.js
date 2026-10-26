@@ -388,7 +388,10 @@ const search = async (text, opts = {}) => {
   }
   spoken.q = best.c.q;
   spoken.via = best.c.via;
-  return { ...best.r, q: best.c.q, pending: opts.wait ? !!best.r.pending : pending, spoken };
+  // nothing found while one of the spellings could not ask the catalogue: a
+  // failure, not "no results" (the screen offers to try again)
+  const catalogFailed = !!best.r.catalogFailed || (!(best.r.results || []).length && tries.some((t) => t.r.catalogFailed));
+  return { ...best.r, q: best.c.q, pending: opts.wait ? !!best.r.pending : pending, catalogFailed, spoken };
 };
 
 module.exports = {

@@ -126,8 +126,10 @@ app.use(require("./src/lib/metrics").middleware);
 
 // How long the server itself took over each data and stream answer, as the
 // standard Server-Timing header (lib/servertiming.js) — so a slow start can
-// be put down to the server, the line or the player.
-app.use(["/api", "/stream"], require("./src/lib/servertiming").middleware);
+// be put down to the server, the line or the player. (Pictures too: the
+// website's line measure, public/js/net.js, leaves the server's own time —
+// a poster fetched from far away — out of the round trip.)
+app.use(["/api", "/stream", "/img"], require("./src/lib/servertiming").middleware);
 
 // JSON bodies: 100 kB everywhere (the biggest real one, a usage batch, is a
 // few kB), 16 kB for sign-in (a name, a password, a code). A body too big

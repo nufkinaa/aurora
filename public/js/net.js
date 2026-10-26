@@ -18,6 +18,26 @@
 //             offline service worker hides the sizes Resource Timing needs,
 //             and on those devices the probe is the only real measurement.
 //
+// WHAT A MEASUREMENT IS (2026-10-26: "the site almost always says I have a
+// slow connection when I get in"). Timed one response at a time, a page that
+// is loading measured itself: thirty posters and modules arriving at once
+// each get a thirtieth of the line, and each one read as a slow line — a
+// 10 Mbit/s line 150 ms away measured ~1.6 Mbit/s, "slow", in the first
+// seconds of every visit (real Chrome on emulated lines,
+// test/ui/net-entry.test.js). So now:
+//   - responses that arrive together are ONE reading: their bytes over the
+//     time the line was busy with them (bursts), and a burst of less than
+//     ~96 kB says more about the round trip than about the line — none;
+//   - the round trip leaves out the server's own time (its Server-Timing);
+//   - the probe waits until the page has stopped loading, and a slow first
+//     reading is looked at again with a bigger download;
+//   - a MEASURED slow line has to stay slow: at least 20 s and three fresh
+//     readings before Aurora goes lighter by itself (Data Saver, 2G and the
+//     person's own choice still count at once);
+//   - and the viewer is told only when it changes what they watch — a film
+//     started on a lighter stream — once a session, and not again for a day
+//     after "OK" (slowNoteDue / slowNoteShown / slowNoteDismissed, below).
+//
 // Out of those comes one of three tiers — "slow", "ok", "fast" — stamped on
 // <html data-net> and read by the parts of the app that can be lighter:
 // poster and backdrop sizes (ui.js), prefetching (prefetch.js), hero
@@ -38,10 +58,16 @@ export const FAST_KBPS = 6000;
 export const RECOVER_KBPS = 2800; // leaving "slow" takes more than entering it
 export const SLOW_RTT_MS = 900;
 const MIN_BYTES = 10 * 1024; // smaller transfers measure latency, not the line
+export const BURST_MIN_BYTES = 96 * 1024; // a burst smaller than this: the round trip, not the line
+const BURST_IDLE_MS = 1200; // a burst is over once nothing has arrived for this long
+const BURST_MAX_WAIT_MS = 8000; // …or this long after it began, whatever still arrives
 const MIN_SAMPLES = 4;
 const KEEP = 14;
+export const SUSTAIN_MS = 20000; // a measured slow line stays slow this long…
+export const SUSTAIN_READINGS = 3; // …over this many fresh readings, before Aurora acts on it
 
-const PROBE_KB = 48;
+const PROBE_KB = 64;
+const CONFIRM_KB = 192; // a second look, big enough that a new connection's slow start does not decide it
 const PROBE_EVERY_MS = 5 * 60 * 1000;
 let probed = null; // the last probe's kbit/s — a deliberate measurement, trusted alone
 const kbpsSamples = []; // newest last
@@ -119,9 +145,42 @@ export const classify = (h, m, mode = "auto", current = "ok") => {
   return { tier: current, source: "default", strong: false };
 };
 
+// A measured slow line has to last: (state, the classification, the tier we
+// are on, now, what is new: "kbps" a throughput reading, "rtt" round trips,
+// or nothing) → { apply, st }. PURE. A reading counts toward the verdict it
+// is evidence for: a throughput one for "measured", round trips for "latency".
+// Anything else — leaving slow, a preference, Data Saver, 2G — applies at once.
+export const sustain = (st, next, current, now, fresh = "kbps") => {
+  const measuredSlow = next.tier === "slow" && current !== "slow" && (next.source === "measured" || next.source === "latency");
+  if (!measuredSlow) return { apply: true, st: { since: 0, seen: 0 } };
+  const since = st && st.since ? st.since : now;
+  const counts = fresh === "kbps" || (fresh === "rtt" && next.source === "latency");
+  const seen = ((st && st.seen) || 0) + (counts ? 1 : 0);
+  // (and the reading that settles it is a fresh one: readings from the first
+  // seconds and then a quiet wait are not 20 s of a slow line)
+  return { apply: counts && now - since >= SUSTAIN_MS && seen >= SUSTAIN_READINGS, st: { since, seen } };
+};
+
 let strong = false;
-const decide = () => {
-  const next = classify(hints(), measured(), dataMode(), tier);
+let held = { since: 0, seen: 0 }; // a slow reading waiting to be sustained
+let heldCheck = null;
+const decide = (fresh = null) => {
+  let next = classify(hints(), measured(), dataMode(), tier);
+  const gate = sustain(held, next, tier, Date.now(), fresh);
+  held = gate.st;
+  if (!gate.apply) {
+    // not yet: another look (a probe is a fresh reading) half way, and once
+    // the time is up — a line that really is slow is acted on ~20 s after it
+    // first read slow, not whenever the page next happens to load something
+    if (!heldCheck && typeof setTimeout === "function") {
+      const at = held.since + (held.seen < SUSTAIN_READINGS - 1 ? SUSTAIN_MS / 2 : SUSTAIN_MS) + 500;
+      heldCheck = setTimeout(() => {
+        heldCheck = null;
+        whenQuiet(() => { if (!behindFilm()) probe({ kb: CONFIRM_KB }); });
+      }, Math.max(1000, at - Date.now()));
+    }
+    return;
+  }
   source = next.source;
   strong = next.strong;
   if (next.tier === tier) return;
@@ -149,25 +208,101 @@ export const sampleFrom = (e) => {
     // without it a wrong "3g" hint from the browser was never overruled.
     const ms = Math.max(1, e.responseEnd - e.responseStart);
     out.kbps = (e.transferSize * 8) / ms;
+    // (this response alone; take() reads it together with the others that came with it)
+    out.body = { start: e.responseStart, end: e.responseEnd, bytes: e.transferSize };
   }
   if (e.transferSize > 0 && e.requestStart > 0 && e.responseStart > e.requestStart) {
-    out.rtt = e.responseStart - e.requestStart;
+    // the server's own time (its Server-Timing "app", lib/servertiming.js) is
+    // not the line: a poster fetched from far away, an answer worked out
+    const app = (e.serverTiming || []).find((t) => t && t.name === "app");
+    const think = app && app.duration > 0 ? app.duration : 0;
+    out.rtt = Math.max(1, e.responseStart - e.requestStart - think);
   }
   return out.kbps || out.rtt ? out : null;
 };
 
+// Responses that arrived together are one reading: their bytes over the time
+// the line was busy with them. PURE. [{ start, end, bytes }] → [{ kbps, bytes, ms, n }]
+// — only the bursts big enough to say something about the line.
+export const bursts = (bodies, minBytes = BURST_MIN_BYTES) => {
+  const list = bodies.filter((b) => b && b.end > b.start && b.bytes > 0).sort((a, b) => a.start - b.start);
+  const out = [];
+  let cur = null;
+  const close = () => {
+    if (!cur || cur.bytes < minBytes) return;
+    const ms = Math.max(1, cur.end - cur.start);
+    out.push({ kbps: (cur.bytes * 8) / ms, bytes: cur.bytes, ms, n: cur.n });
+  };
+  for (const b of list) {
+    if (cur && b.start <= cur.end) {
+      cur.end = Math.max(cur.end, b.end);
+      cur.bytes += b.bytes;
+      cur.n++;
+    } else {
+      close();
+      cur = { start: b.start, end: b.end, bytes: b.bytes, n: 1 };
+    }
+  }
+  close();
+  return out;
+};
+
+const pushKbps = (k) => {
+  kbpsSamples.push(k);
+  if (kbpsSamples.length > KEEP) kbpsSamples.shift();
+};
+let lastArrival = 0; // when the page last received anything (the probe waits for quiet)
+let bodies = [];
+let burstTimer = null;
+let burstFirst = 0;
+const flushBursts = () => {
+  burstTimer = null;
+  const list = bodies;
+  bodies = [];
+  let changed = false;
+  for (const b of bursts(list)) {
+    pushKbps(b.kbps);
+    changed = true;
+  }
+  if (changed) decide("kbps");
+};
 const take = (entries) => {
   let changed = false;
   for (const e of entries) {
     let sameOrigin = false;
     try { sameOrigin = new URL(e.name).origin === location.origin; } catch {}
     if (!sameOrigin) continue;
+    lastArrival = performance.now();
+    if (e.name.includes("/api/netprobe")) continue; // the probe times itself
     const s = sampleFrom(e);
     if (!s) continue;
-    if (s.kbps) { kbpsSamples.push(s.kbps); if (kbpsSamples.length > KEEP) kbpsSamples.shift(); changed = true; }
+    if (s.body) {
+      if (!bodies.length) burstFirst = performance.now();
+      bodies.push(s.body);
+    }
     if (s.rtt) { rttSamples.push(s.rtt); if (rttSamples.length > KEEP * 2) rttSamples.shift(); changed = true; }
   }
-  if (changed) decide();
+  if (bodies.length) {
+    clearTimeout(burstTimer);
+    burstTimer = setTimeout(flushBursts, performance.now() - burstFirst > BURST_MAX_WAIT_MS ? 0 : BURST_IDLE_MS);
+  }
+  if (changed) decide("rtt");
+};
+
+// A film on screen owns the line: a probe then measures the leftovers.
+const behindFilm = () => typeof document !== "undefined" && !!document.querySelector(".player");
+
+// fn once the page has stopped loading: nothing arrived for a second (and
+// never sooner than 2.5 s into the page), or at the latest after 15 s.
+const whenQuiet = (fn, { quietMs = 1000, maxMs = 15000 } = {}) => {
+  const t0 = performance.now();
+  const check = () => {
+    const now = performance.now();
+    const loaded = typeof document === "undefined" || document.readyState === "complete";
+    if ((loaded && now >= 2500 && now - lastArrival >= quietMs) || now - t0 >= maxMs) return fn();
+    setTimeout(check, 250);
+  };
+  check();
 };
 
 // Time one small download. The first chunk is left out of the sum: it was
@@ -188,12 +323,12 @@ export const timeProbe = ({ t0, tHeaders, chunks }) => {
   const kbps = rest > 0 && ms >= 1 ? (rest * 8) / ms : (total * 8) / Math.max(1, last.t - tHeaders || 1);
   return { kbps, rtt: Math.max(1, tHeaders - t0) };
 };
-export const probe = async () => {
+export const probe = async ({ kb = PROBE_KB } = {}) => {
   if (probing || typeof fetch === "undefined" || !navigator.onLine || dataMode() === "full") return null;
   probing = true;
   try {
     const t0 = performance.now();
-    const res = await fetch(`/api/netprobe?kb=${PROBE_KB}&t=${Date.now()}`, { cache: "no-store", priority: "low" });
+    const res = await fetch(`/api/netprobe?kb=${kb}&t=${Date.now()}`, { cache: "no-store", priority: "low" });
     if (!res.ok || !res.body) return null;
     const tHeaders = performance.now();
     const reader = res.body.getReader();
@@ -212,17 +347,20 @@ export const probe = async () => {
     // not already known to be slow is only a reason to look again in a few
     // seconds; it counts when the second look agrees. (The caller still gets
     // the reading: the player asks during a real stall and judges for itself.)
+    // (the second look waits for a quiet page, and downloads more)
     if (m.kbps < SLOW_KBPS && tier !== "slow" && !confirming) {
       confirming = true;
-      setTimeout(() => { probe().finally(() => { confirming = false; }); }, 4000);
+      setTimeout(() => whenQuiet(() => {
+        if (behindFilm()) { confirming = false; return; }
+        probe({ kb: CONFIRM_KB }).finally(() => { confirming = false; });
+      }), 4000);
       return m;
     }
     probed = m.kbps;
-    kbpsSamples.push(m.kbps);
-    if (kbpsSamples.length > KEEP) kbpsSamples.shift();
+    pushKbps(m.kbps);
     rttSamples.push(m.rtt);
     if (rttSamples.length > KEEP * 2) rttSamples.shift();
-    decide();
+    decide("kbps");
     return m;
   } catch {
     return null;
@@ -271,6 +409,23 @@ export const netInfo = () => {
   return { tier, source, mode: dataMode(), kbps: m.kbps, rtt: m.rtt, type: h.type, saveData: h.saveData };
 };
 
+// ---------- telling the viewer ----------
+// Only when it changes what they watch (the player starting a film on a
+// lighter stream because of the line), at most once a session, and not again
+// for a day after they pressed OK on it.
+const TOLD_KEY = "aurora-net-told"; // sessionStorage: said in this session
+const QUIET_KEY = "aurora-net-quiet-until"; // localStorage: OK pressed, quiet until then
+export const SLOW_NOTE_QUIET_MS = 24 * 3600 * 1000;
+// PURE: (said this session?, quiet until, now) → may it be said?
+export const slowNoteAllowed = (toldThisSession, quietUntil, now) => !toldThisSession && !(quietUntil > now);
+const session = {
+  get: (k) => { try { return sessionStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { sessionStorage.setItem(k, v); } catch {} },
+};
+export const slowNoteDue = () => slowNoteAllowed(session.get(TOLD_KEY) === "1", Number(read(QUIET_KEY)) || 0, Date.now());
+export const slowNoteShown = () => session.set(TOLD_KEY, "1");
+export const slowNoteDismissed = () => write(QUIET_KEY, String(Date.now() + SLOW_NOTE_QUIET_MS));
+
 // ---------- boot ----------
 if (typeof window !== "undefined" && typeof document !== "undefined") {
   // start on the last known tier, so the first screenful of posters is
@@ -290,9 +445,11 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
   // the first probe once the first screen has had the line to itself, then
   // every few minutes while the tab is looked at (240 kB an hour)
   // (a line already known to be slow keeps its first seconds for the page)
-  setTimeout(probe, tier === "slow" ? 2500 : 1200);
+  // (once the page has stopped loading: a probe that shares the line with
+  // the first screenful of posters measures them, not the line)
+  whenQuiet(() => probe());
   // Never behind a film: the video owns the line then, so a probe would
   // measure the leftovers and call a good connection slow. The player asks
   // for its own measurement when playback actually stalls.
-  setInterval(() => { if (!document.hidden && !document.querySelector(".player")) probe(); }, PROBE_EVERY_MS);
+  setInterval(() => { if (!document.hidden && !behindFilm()) probe(); }, PROBE_EVERY_MS);
 }

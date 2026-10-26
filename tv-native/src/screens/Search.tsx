@@ -37,6 +37,7 @@ import theme, {useTvMetrics} from '../theme';
 import {createVoice, nativeVoiceDeps, setSearchVoiceKey, voiceAvailability, VoiceController} from '../voice';
 import {LANG_NAME, LANG_SELF, otherLang, voiceActive, voiceLangFor, VoiceLang, voiceMessage, VoiceState, VOICE_IDLE} from '../voiceLogic';
 import {personNow, setPersonPref} from '../personSync';
+import {noResultsText, runSearch, SEARCH_TEXT, SettleNote, shortText} from '../searchFlow';
 
 const {colors, radius, fontSize, spacing, CLEARANCE} = theme;
 const EMPTY: SearchAnswer = {results: [], related: [], relatedLabel: null, pending: false};
@@ -67,8 +68,12 @@ export default function Search({
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
   const [popular, setPopular] = useState<HeroItem[]>([]);
-  // searching / failed / done, told apart on screen (they used to share one line)
-  const [phase, setPhase] = useState<'idle' | 'searching' | 'failed' | 'done'>('idle');
+  // searching / done, told apart on screen; once done, what to say about it
+  // (searchFlow.ts — the website says the same): a catalogue that could not
+  // be reached is said as that, with Try again, never as "No results"
+  const [phase, setPhase] = useState<'idle' | 'searching' | 'done'>('idle');
+  const [note, setNote] = useState<SettleNote>(null);
+  const [busyText, setBusyText] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reqId = useRef(0);
   // The input, adapted to the shape useFocusFallback wants: TextInput is not a
@@ -144,6 +149,8 @@ export default function Search({
     setSuggestions([]);
     setQ('');
     setPhase('idle');
+    setNote(null);
+    setBusyText(null);
     if (profileId) {
       api.recentSearches(profileId).then(r => live && setRecent(r.items || [])).catch(() => {});
       api
@@ -187,9 +194,13 @@ export default function Search({
         setAnswer(EMPTY);
         setSuggestions([]);
         setPhase('idle');
+        setNote(null);
+        setBusyText(null);
         return;
       }
       setPhase('searching');
+      setNote(null);
+      setBusyText(SEARCH_TEXT.searching);
       debounce.current = setTimeout(
         async () => {
           const current = () => mine === reqId.current;
@@ -197,36 +208,41 @@ export default function Search({
             .searchSuggest(query, profileId)
             .then(s => current() && setSuggestions(now ? [] : s.suggestions || []))
             .catch(() => {});
-          try {
-            // what the server has in memory, at once…
-            tmStart('search'); // [analytics] query sent → results shown (the time only; never the text)
-            let r = await api.searchAll(query, {commit: now, voice, profileId});
-            if (!current()) return;
-            let shown = query;
-            if (voice && r.q) {
-              shown = r.q;
-              setQ(r.q);
-            }
-            setAnswer(r);
-            tmLap('search_results', 'search', 'library'); // [analytics]
-            track('feat', {f: 'search', hits: r.results.filter(i => i.source !== 'stream').length}); // how often, never what (as the site)
-            // …then the live catalogue and the related row; the first card
-            // stays where it is unless something matches better
-            if (r.pending) {
-              r = await api.searchAll(query, {wait: true, commit: now, voice, pin: r.results[0]?.key, profileId});
-              if (!current()) return;
+          tmStart('search'); // [analytics] query sent → results shown (the time only; never the text)
+          let shown = query;
+          let remembered = false;
+          // what the server has in memory at once, then the live catalogue and
+          // the related row (the first card stays where it is unless something
+          // matches better), and ONE retry when the catalogue could not answer
+          // — the local cards stay up meanwhile, under "Still searching…"
+          const done = await runSearch<SearchAnswer>({
+            ask: ({wait, pin}) => api.searchAll(query, {wait, commit: now, voice, pin: pin || undefined, profileId}),
+            paint: (r, step) => {
               if (voice && r.q && r.q !== shown) {
                 shown = r.q;
                 setQ(r.q);
               }
               setAnswer(r);
-              tmLap('search_results', 'search', 'catalogue'); // [analytics]
-            }
-            setPhase('done');
-            if (now && r.results.length) remember(shown);
-          } catch {
-            if (current()) setPhase('failed');
-          }
+              // OK pressed and it found something: remembered now, not once
+              // the catalogue has had its say (the website does the same)
+              if (now && !remembered && r.results.length) {
+                remembered = true;
+                remember(shown);
+              }
+              if (step === 'local') {
+                tmLap('search_results', 'search', 'library'); // [analytics]
+                track('feat', {f: 'search', hits: r.results.filter(i => i.source !== 'stream').length}); // how often, never what (as the site)
+              } else tmLap('search_results', 'search', 'catalogue'); // [analytics]
+            },
+            busy: setBusyText,
+            live: current,
+            committed: now,
+            q: query,
+          });
+          if (!done || !current()) return;
+          if (!done.answer) setAnswer(EMPTY);
+          setNote(done.note);
+          setPhase('done');
         },
         now ? 0 : 250,
       );
@@ -424,7 +440,14 @@ export default function Search({
   const recents = query ? [] : recent.slice(0, 6);
   hasChips.current = chips.length > 0 || recents.length > 0;
   // (not while the words are still being said: they are not a search yet)
-  const nothing = query && !listening && phase === 'done' && !answer.results.length && !related.length;
+  const settled = !!query && !listening && phase === 'done';
+  const nothing = settled && !answer.results.length && !related.length && (note === 'none' || note === 'short');
+  const failNote = settled && (note === 'offline' || note === 'unreachable' || note === 'partial') ? note : null;
+  // the busy line: always while nothing is on screen yet; over cards only
+  // once the catalogue takes long ("Still searching…") — a line that came and
+  // went on every keystroke would push the grid up and down under the focus
+  const busyLine = query && phase === 'searching' && busyText && (!answer.results.length || busyText === SEARCH_TEXT.still) ? busyText : null;
+  const retry = () => run(qRef.current, true);
 
   return (
     <View style={styles.root}>
@@ -525,13 +548,16 @@ export default function Search({
           <Chip small bare label="Clear" onFocusChange={onChipFocus} onPress={clearRecent} />
         </View>
       ) : null}
-      {query && phase === 'searching' && !answer.results.length ? (
-        <Text style={styles.empty}>Searching…</Text>
+      {busyLine ? <Text style={styles.empty}>{busyLine}</Text> : null}
+      {failNote ? (
+        <View style={styles.failRow}>
+          <Text style={[styles.empty, styles.failText]}>
+            {failNote === 'offline' ? SEARCH_TEXT.offline : failNote === 'partial' && answer.results.length ? SEARCH_TEXT.partial : SEARCH_TEXT.unreachable}
+          </Text>
+          <Btn uiId="search.retry" small icon="refresh" label={SEARCH_TEXT.retry} onPress={retry} />
+        </View>
       ) : null}
-      {query && phase === 'failed' ? (
-        <Text style={styles.empty}>Couldn't reach the server — check the connection and type again.</Text>
-      ) : null}
-      {nothing ? <Text style={styles.empty}>No results for “{query}”.</Text> : null}
+      {nothing ? <Text style={styles.empty}>{note === 'short' ? shortText(query) : noResultsText(query)}</Text> : null}
       {!query && popular.length > 0 ? <Text style={styles.heading}>Popular in this house</Text> : null}
       <FlatList
         data={data}
@@ -592,6 +618,9 @@ const styles = StyleSheet.create({
   // a row heading, as the site's `.row-title` over the related tail and the popular shelf
   heading: {color: colors.text, fontSize: fontSize.row, fontWeight: '800', marginTop: spacing.sm, marginBottom: spacing.md},
   empty: {color: colors.textDim, fontSize: fontSize.body, marginBottom: spacing.md},
+  // a failure and its Try again, on one line
+  failRow: {flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md},
+  failText: {marginBottom: 0, marginRight: spacing.md, flexShrink: 1},
   // Vertical FlatLists need flex here: on TV the list is wrapped in a focus
   // guide that mirrors this style (see the virtualized-lists patch); without
   // it the list sizes to its content and overflows the screen instead of

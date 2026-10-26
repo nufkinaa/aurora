@@ -1107,7 +1107,13 @@ const search = async (q, opts = {}) => {
       : lives;
     waited += Date.now() - t0;
     const ok = (got || []).filter(Boolean);
-    if (ok.length < lives.length) catalogFailed = true;
+    // An answer made while the catalogue failed or was too slow for the page
+    // (media/discover.js marks it `degraded`) is NOT "the catalogue has
+    // nothing": it is a failure, said as one, so the screen offers to try
+    // again instead of "No results" — the late answer is kept upstream and
+    // the next ask finds it (2026-10-26, "La Cocina": not found, then found
+    // after leaving Search and coming back).
+    if (ok.length < lives.length || ok.some((x) => x.degraded)) catalogFailed = true;
     if (ok.length) live = { movies: mergeRanked(ok.map((x) => x.movies || [])), shows: mergeRanked(ok.map((x) => x.shows || [])) };
   }
   if (live) {

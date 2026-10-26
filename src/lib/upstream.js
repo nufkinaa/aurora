@@ -490,6 +490,11 @@ const statusError = (host, status, url) => {
 //   negativeMs  remember a 404 this long (default 10 min; 0 = never)
 //   deadlineMs  how long the caller waits (late fill: the call finishes and
 //               is kept)
+//   strike      false: a call past that deadline is NOT a sign the host is
+//               down (a catalogue SEARCH is often slower than a page waits
+//               while the host is fine; typing "la c", "la coc", "la cocin"
+//               made five of them in a second and shut Cinemeta off for
+//               30 s — title pages included). Real failures still count.
 //   + every fetch() option
 const json = (url, opts = {}) => {
   const host = hostOf(url);
@@ -517,7 +522,7 @@ const json = (url, opts = {}) => {
     rec = { late: false, q: null, at: clock.now() };
     const r = rec;
     r.q = (async () => {
-      const { ttlMs: _a, staleMs: _b, negativeMs: _c, cacheKey: _k, deadlineMs: _d, ...fo } = opts;
+      const { ttlMs: _a, staleMs: _b, negativeMs: _c, cacheKey: _k, deadlineMs: _d, strike: _s, ...fo } = opts;
       const res = await run(url, { ...fo, method: "GET" });
       if (res.status === 404 || res.status === 410) {
         if (negMs) cachePut(key, { at: clock.now(), ttl: negMs, stale: 0, neg: true, status: res.status, text: null, bytes: 64 });
@@ -560,7 +565,7 @@ const json = (url, opts = {}) => {
   covered.catch(() => {});
   return withDeadline(covered, opts.deadlineMs, host, () => {
     // (one strike per CALL, however many callers were waiting on it)
-    if (!rec.late) strike(h, p, rec.at);
+    if (!rec.late && opts.strike !== false) strike(h, p, rec.at);
     rec.late = true;
   });
 };
