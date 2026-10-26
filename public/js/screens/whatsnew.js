@@ -15,65 +15,90 @@ import { showReportSheet } from "../report.js";
 // stays on what is actually recent). `cue`: which small animation the glyph
 // tile plays. Cards are retired when the thing stops being news: the two
 // looks, the keyboard shortcuts and resume-with-the-frame went 2026-10-05.
-// THIS ROUND: the server version the TV round (2026-10-19/20) ships in. A
+// THIS ROUND: the server version the reports round (2026-10-26) ships in. A
 // placeholder until the release sets it — the one place to change: its cards
 // say `since: ROUND`, and NEW_FROM = ROUND puts the ribbon on them alone.
-// (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.)
-export const ROUND = "1.9.0";
+// (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
+// A card about something only a browser has says `webOnly: true` first —
+// test/whatsnew-parity.test.js leaves it out of the comparison.)
+export const ROUND = "1.10.0";
 const NEW_FROM = ROUND;
 const FEATURES = [
-  // ---- the TV round (2026-10-19/20): the same cards, the same words, on the TV ----
+  // ---- the reports round (2026-10-26): the same cards, the same words, on the TV ----
   {
     since: ROUND, cue: "smart", glyph: "🎞️",
+    title: "Get another version",
+    what: "A copy with burned-in subtitles, a bad picture, bad sound or the wrong language? Say what is wrong and pick another version: it downloads and takes the old copy's place, and your place, My List and ratings stay. The copy you have plays until the new one is in.",
+    how: "On a film you own: Problem with this copy? under its buttons. For an episode, hold it and open its sources; in the player: ⚙ → Problem with this copy?",
+    go: { label: "Open Movies", to: "#/movies" },
+  },
+  {
+    since: ROUND, cue: "look", glyph: "🎬",
+    title: "Cinema copies are never picked for you",
+    what: "A film that is only out as a cinema recording says \"Not out in good quality yet\" instead of downloading it. Those copies are marked CAM or TS and asked about first, and nothing Aurora picks for you is ever one of them. Adding a film to My List no longer downloads it.",
+    how: "Open a film that is still in cinemas: the line sits where Save & watch was, and its sources below carry the yellow mark.",
+    go: { label: "Open Movies", to: "#/movies" },
+  },
+  {
+    webOnly: true, since: ROUND, cue: "tap", glyph: "📺",
+    title: "AirPlay from an iPhone, fixed",
+    what: "Sending a film from an iPhone to an Apple TV brings the picture along, not only the sound, and on a slow line the iPhone recovers where it is instead of dropping to a blurry copy or starting over.",
+    how: "In the player press AirPlay and pick your Apple TV. Still only sound? Press No picture there? on the message the phone shows.",
+    go: { label: "Go home", to: "#/" },
+  },
+  // ---- end of the reports round ----
+  // ---- the TV round (2026-10-19/20): the same cards, the same words, on the TV ----
+  {
+    since: "1.9.0", cue: "smart", glyph: "🎞️",
     title: "The screen follows the film",
     what: "A film made at 24 frames a second plays at 24 on the TV, so slow pans glide instead of stuttering. The TV switches its refresh rate while the film plays and back when you leave.",
     how: "It happens in the Aurora TV app — a browser can't change your screen's refresh rate. To turn it off for you: Settings → More settings → On the TV → Match frame rate.",
     go: { label: "On the TV", to: "#/preferences" },
   },
   {
-    since: ROUND, cue: "trailer", glyph: "🔊",
+    since: "1.9.0", cue: "trailer", glyph: "🔊",
     title: "Dolby sound, as it is",
     what: "Films with Dolby or DTS sound go to your TV or soundbar as they are, in full surround, and most films now play straight from the file — the server makes fewer copies, so they start sooner.",
     how: "In the Aurora TV app, nothing to do; in a browser the sound stays stereo. For plain stereo on the TV too: Settings → More settings → On the TV → Surround sound.",
     go: { label: "On the TV", to: "#/preferences" },
   },
   {
-    since: ROUND, cue: "look", glyph: "🌙",
+    since: "1.9.0", cue: "look", glyph: "🌙",
     title: "Night mode and dialogue boost",
     what: "Night mode brings loud bursts down and quiet voices up, for late evenings; dialogue boost makes voices clearer over music and effects. Your choice follows you to every screen.",
     how: "In the player: ⚙ → Audio, or Settings → Sound. Not on iPhone, iPad or Safari — the switches are greyed there and the film plays its normal sound.",
     go: { label: "Sound settings", to: "#/preferences" },
   },
   {
-    since: ROUND, cue: "subs", glyph: "💬",
+    since: "1.9.0", cue: "subs", glyph: "💬",
     title: "Subtitles your way",
     what: "Choose the size, colour, background and position of subtitles once — the TV and every browser show them the same way.",
     how: "In the player: Subtitles → Subtitle style, with a live sample. Or Settings → Subtitles.",
     go: { label: "Subtitle settings", to: "#/preferences" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "📱",
+    since: "1.9.0", cue: "tap", glyph: "📱",
     title: "Your phone is the remote",
     what: "Steer the TV from your phone — swipe to move, tap for OK, pause, scrub, subtitles and sound — and send any film to the TV with Play on TV, at the second you were at.",
     how: "Sign the TV in to your profile. On your phone: Remote in the menu, or Play on TV on a title. To name this device: Settings → More settings → Phone as a remote.",
     go: { label: "Open the remote", to: "#/remote" },
   },
   {
-    since: ROUND, cue: "hold", glyph: "🎙️",
+    since: "1.9.0", cue: "hold", glyph: "🎙️",
     title: "Search by voice",
     what: "Say a title instead of typing it, in Hebrew or English — \"Breaking Bad season two\" goes straight to the show.",
     how: "Press the microphone in the search field (Chrome, Edge and Safari). On the TV: Voice on Search, or the microphone button on the remote.",
     go: { label: "Open Search", to: "#/search" },
   },
   {
-    since: ROUND, cue: "skip", glyph: "⚡",
+    since: "1.9.0", cue: "skip", glyph: "⚡",
     title: "Home opens at once",
     what: "Home appears straight away with what you saw last time, and fresh news slips in without moving the row you are looking at.",
     how: "Nothing to do.",
     go: { label: "Go home", to: "#/" },
   },
   {
-    since: ROUND, cue: "smart", glyph: "🧈",
+    since: "1.9.0", cue: "smart", glyph: "🧈",
     title: "Smoother on the TV",
     what: "Holding a direction on the remote glides through shelves and grids at an even pace, the words on the cards are drawn sooner, and no card turns up late at the end of a row.",
     how: "In the Aurora TV app, nothing to do.",

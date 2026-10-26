@@ -17,11 +17,12 @@ import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing, radius} = theme;
 
-// THIS ROUND: the TV app version the TV round (2026-10-19/20) ships in. A
+// THIS ROUND: the TV app version the reports round (2026-10-26) ships in. A
 // placeholder until the release sets it — the one place to change: its cards
 // say `since: ROUND`, and NEW_FROM = ROUND puts the New ribbon on them alone.
-// (The website has the same cards: public/js/screens/whatsnew.js, ROUND there.)
-export const ROUND = '5.4.0';
+// (The website has the same cards: public/js/screens/whatsnew.js, ROUND there;
+// its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
+export const ROUND = '5.5.0';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -33,9 +34,27 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
-  // ---- the TV round (2026-10-19/20): the same cards, the same words, on the website ----
+  // ---- the reports round (2026-10-26): the same cards, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '🎞️',
+    title: 'Get another version',
+    what: "A copy with burned-in subtitles, a bad picture, bad sound or the wrong language? Say what is wrong and pick another version: it downloads and takes the old copy's place, and your place, My List and ratings stay. The copy you have plays until the new one is in.",
+    how: 'On a film you own: Problem with this copy?, to the right of Versions. For an episode, hold OK on it; in the player: Help → Problem with this copy?',
+    go: {label: 'Open Movies', act: 'movies'},
+  },
+  {
+    since: ROUND,
+    glyph: '🎬',
+    title: 'Cinema copies are never picked for you',
+    what: 'A film that is only out as a cinema recording says "Not out in good quality yet" instead of downloading it. Those copies are marked CAM or TS and asked about first, and nothing Aurora picks for you is ever one of them. Adding a film to My List no longer downloads it.',
+    how: 'Open a film that is still in cinemas: the line sits under its button, which reads ≡ Sources, and the sources there carry the mark.',
+    go: {label: 'Open Movies', act: 'movies'},
+  },
+  // ---- end of the reports round ----
+  // ---- the TV round (2026-10-19/20): the same cards, the same words, on the website ----
+  {
+    since: '5.4.0',
     glyph: '🎞️',
     title: 'The screen follows the film',
     what: 'A film made at 24 frames a second plays at 24 on the TV, so slow pans glide instead of stuttering. The TV switches its refresh rate while the film plays and back when you leave.',
@@ -43,7 +62,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Picture and sound', act: 'settings'},
   },
   {
-    since: ROUND,
+    since: '5.4.0',
     glyph: '🔊',
     title: 'Dolby sound, as it is',
     what: 'Films with Dolby or DTS sound go to your TV or soundbar as they are, in full surround, and most films now play straight from the file — the server makes fewer copies, so they start sooner.',
@@ -51,7 +70,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Picture and sound', act: 'settings'},
   },
   {
-    since: ROUND,
+    since: '5.4.0',
     glyph: '🌙',
     title: 'Night mode and dialogue boost',
     what: 'Night mode brings loud bursts down and quiet voices up, for late evenings; dialogue boost makes voices clearer over music and effects. Your choice follows you to every screen.',
@@ -59,7 +78,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Sound settings', act: 'settings'},
   },
   {
-    since: ROUND,
+    since: '5.4.0',
     glyph: '💬',
     title: 'Subtitles your way',
     what: 'Choose the size, colour, background and position of subtitles once — the TV and every browser show them the same way.',
@@ -67,7 +86,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Subtitle settings', act: 'settings'},
   },
   {
-    since: ROUND,
+    since: '5.4.0',
     glyph: '📱',
     title: 'Your phone is the remote',
     what: 'Steer the TV from your phone — swipe to move, tap for OK, pause, scrub, subtitles and sound — and send any film to the TV with Play on TV, at the second you were at.',
@@ -75,7 +94,7 @@ export const FEATURES: Feature[] = [
     go: {label: "This TV's name", act: 'settings'},
   },
   {
-    since: ROUND,
+    since: '5.4.0',
     glyph: '🎙️',
     title: 'Search by voice',
     what: 'Say a title instead of typing it, in Hebrew or English — "Breaking Bad season two" goes straight to the show.',
@@ -83,7 +102,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Open Search', act: 'search'},
   },
   {
-    since: ROUND,
+    since: '5.4.0',
     glyph: '⚡',
     title: 'Home opens at once',
     what: 'Home appears straight away with what you saw last time, and fresh news slips in without moving the row you are looking at.',
@@ -91,7 +110,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Go home', act: 'home'},
   },
   {
-    since: ROUND,
+    since: '5.4.0',
     glyph: '🧈',
     title: 'Smoother on the TV',
     what: 'Holding a direction on the remote glides through shelves and grids at an even pace, the words on the cards are drawn sooner, and no card turns up late at the end of a row.',

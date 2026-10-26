@@ -2,7 +2,10 @@
 // current round (since: ROUND) are the same on both — the same titles and
 // the same "what" sentence, in the same order — and each carries a "how" and
 // a "go" that leads somewhere real on its platform. The "how" may differ:
-// it names each platform's own Settings path.
+// it names each platform's own Settings path. A website card about something
+// only a browser has (AirPlay from an iPhone, 2026-10-26) says
+// `webOnly: true` before its `since` and is left out of the comparison — it
+// still needs a "how" and a "go", and the TV may not have one.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
@@ -12,28 +15,34 @@ const ROOT = path.join(__dirname, "..");
 const web = fs.readFileSync(path.join(ROOT, "public", "js", "screens", "whatsnew.js"), "utf8");
 const tv = fs.readFileSync(path.join(ROOT, "tv-native", "src", "screens", "WhatsNew.tsx"), "utf8");
 
-// The round's cards: every object literal that says `since: ROUND`.
+// The round's cards: every object literal that says `since: ROUND` (or
+// `webOnly: true, since: ROUND`).
 const unq = (s) => s.slice(1, -1).replace(/\\(["'\\])/g, "$1");
 const STR = String.raw`("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')`;
 const roundCards = (src) => {
   const out = [];
-  const re = /\{\s*since: ROUND,([\s\S]*?)\n\s*\},?\r?\n/g;
+  const re = /\{\s*(webOnly: true, )?since: ROUND,([\s\S]*?)\n\s*\},?\r?\n/g;
   for (const m of src.matchAll(re)) {
-    const body = m[1];
+    const body = m[2];
     const field = (name) => { const f = new RegExp(`${name}: ${STR}`).exec(body); return f ? unq(f[1]) : null; };
     const go = /go: \{\s*label: ("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'),\s*(?:to|act): ("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/.exec(body);
-    out.push({ title: field("title"), what: field("what"), how: field("how"), go: go ? { label: unq(go[1]), to: unq(go[2]) } : null });
+    out.push({ webOnly: !!m[1], title: field("title"), what: field("what"), how: field("how"), go: go ? { label: unq(go[1]), to: unq(go[2]) } : null });
   }
   return out;
 };
 
 test("the round's New cards are the same on the website and the TV", () => {
-  const w = roundCards(web);
+  const all = roundCards(web);
+  const w = all.filter((c) => !c.webOnly);
   const t = roundCards(tv);
-  assert.ok(w.length >= 7, `website round cards: ${w.length}`);
+  assert.ok(w.length >= 2, `website round cards: ${w.length}`);
+  assert.ok(t.every((c) => !c.webOnly), "a TV card is never web-only");
+  // every `since: ROUND` on either side is a card this test read
+  assert.equal(all.length, (web.match(/since: ROUND,/g) || []).length, "every website round card is read");
+  assert.equal(t.length, (tv.match(/since: ROUND,/g) || []).length, "every TV round card is read");
   assert.deepEqual(t.map((c) => c.title), w.map((c) => c.title), "same titles, same order");
   assert.deepEqual(t.map((c) => c.what), w.map((c) => c.what), "same sentence under each title");
-  for (const c of [...w, ...t]) {
+  for (const c of [...all, ...t]) {
     assert.ok(c.how && c.how.length > 5, `${c.title}: a "how"`);
     assert.ok(c.go && c.go.label && c.go.to, `${c.title}: a "go"`);
   }
