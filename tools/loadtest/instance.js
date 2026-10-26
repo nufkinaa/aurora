@@ -235,6 +235,10 @@ const genMedia = ({ films = 300, log = () => {} } = {}) => {
 // the OS page cache is shared, so disk reads are flattered: see the report),
 // two subtitle sidecars per title, plus small films and shows for browsing.
 const CAP_SECS = 1800;
+// v2: the H.264 masters in High profile, level 4.1, as every H.264 file of the house
+// library is (v1's were Main 4.0, which the card's decoder refuses with the ladder's
+// -extra_hw_frames 4 — CUDA_ERROR_INVALID_VALUE — so their encodes fell back to the CPU)
+const CAP_VERSION = 2;
 const CAP_COPIES = 8;
 const CAP_MASTERS = [
   // direct play everywhere
@@ -259,7 +263,7 @@ const srtText = (secs, lang) => {
   return out.join(NL);
 };
 const genMediaCap = ({ films = 300, log = () => {} } = {}) => {
-  const dir = path.join(WORK, `media-cap-v1-${films}`);
+  const dir = path.join(WORK, `media-cap-v${CAP_VERSION}-${films}`);
   const movies = path.join(dir, "movies"), shows = path.join(dir, "shows");
   if (fs.existsSync(path.join(dir, ".ready"))) return { movies, shows, dir };
   removeDir(dir);
@@ -277,11 +281,15 @@ const genMediaCap = ({ films = 300, log = () => {} } = {}) => {
     // (noise keeps the picture from compressing below the target rate)
     const hw = m.codec === "hevc"
       ? ["-vf", `noise=alls=12:allf=t,format=${m.tenBit ? "p010le" : "yuv420p"}`, "-c:v", "hevc_nvenc", ...(m.tenBit ? ["-profile:v", "main10"] : []), "-rc", "cbr", ...rate, "-g", String(gop)]
-      : ["-vf", "noise=alls=12:allf=t,format=yuv420p", "-c:v", "h264_nvenc", "-rc", "cbr", ...rate, "-g", String(gop)];
+      : ["-vf", "noise=alls=12:allf=t,format=yuv420p", "-c:v", "h264_nvenc", "-profile:v", "high", "-level", "4.1", "-rc", "cbr", ...rate, "-g", String(gop)];
     const sw = m.codec === "hevc"
       ? ["-vf", `noise=alls=12:allf=t,format=${m.tenBit ? "yuv420p10le" : "yuv420p"}`, "-c:v", "libx265", "-preset", "ultrafast", ...rate, "-x265-params", `keyint=${gop}:min-keyint=${gop}:log-level=error`]
-      : ["-vf", "noise=alls=12:allf=t,format=yuv420p", "-c:v", "libx264", "-preset", "ultrafast", ...rate, "-g", String(gop)];
-    const err = ff([...src, ...hw, ...tail]);
+      : ["-vf", "noise=alls=12:allf=t,format=yuv420p", "-c:v", "libx264", "-preset", "ultrafast", "-profile:v", "high", "-level", "4.1", ...rate, "-g", String(gop)];
+    // an unchanged master of an earlier version is reused (hard link), not made again
+    const prev = path.join(WORK, `media-cap-v${CAP_VERSION - 1}-${films}`, "masters", `${m.key}.${m.ext}`);
+    let err = null;
+    if (m.codec !== "h264" && fs.existsSync(prev)) { try { fs.linkSync(prev, out); } catch { fs.copyFileSync(prev, out); } }
+    else err = ff([...src, ...hw, ...tail]);
     if (err) { log(`[lt] (no graphics-card encoder for ${m.key}: software instead)`); const e2 = ff([...src, ...sw, ...tail]); if (e2) throw new Error(`ffmpeg: ${e2}`); }
     fs.writeFileSync(path.join(masters, `${m.key}.en.srt`), srtText(CAP_SECS, "en"));
     fs.writeFileSync(path.join(masters, `${m.key}.he.srt`), srtText(CAP_SECS, "he"));
@@ -452,7 +460,7 @@ const start = async (opts = {}) => {
 
     const data = path.join(root, "data");
     fs.mkdirSync(path.join(data, "cache"), { recursive: true });
-    const genSeed = media === "gen" ? path.join(WORK, "seed-gen-v1") : media === "cap" ? path.join(WORK, "seed-cap-v1") : path.join(WORK, `seed-dir-${crypto.createHash("md5").update(String(media)).digest("hex").slice(0, 8)}`);
+    const genSeed = media === "gen" ? path.join(WORK, "seed-gen-v1") : media === "cap" ? path.join(WORK, `seed-cap-v${CAP_VERSION}`) : path.join(WORK, `seed-dir-${crypto.createHash("md5").update(String(media)).digest("hex").slice(0, 8)}`);
     if (media !== "real" && !fs.existsSync(path.join(genSeed, ".ready"))) inst.harvest = genSeed;
     if (media === "real" || (media !== "real" && !inst.harvest)) {
       const seed = media === "real" ? realSeed({ refresh: opts.refreshSeed, log }) : genSeed;
