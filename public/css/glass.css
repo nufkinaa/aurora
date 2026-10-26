@@ -3912,6 +3912,58 @@ html[data-look="glass"] .nav-dl.ready {
   background: rgba(251, 191, 36, 0.18);
   color: #fcd34d;
 }
+/* a copy made before the film is out at home (CAM, TS, screener, HC —
+   src/media/releasekind.js): said in words on the row, and the row is dimmed
+   a little so the real copies above it read first */
+.src-info > .src-warn {
+  margin-top: 3px;
+  color: #fcd34d;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.src-card.early {
+  opacity: 0.86;
+}
+.src-card.early:hover,
+.src-card.early:focus-within {
+  opacity: 1;
+}
+/* "Has it really come out?" — the server's sentence (src/media/releasestatus.js) */
+.release-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--text, #fff);
+  line-height: 1.35;
+}
+.release-note .release-ic {
+  flex: none;
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+.release-note .release-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.release-note b {
+  font-weight: 700;
+}
+.release-note .release-sub {
+  font-size: 0.86rem;
+  color: var(--text-dim);
+}
+.release-note.hero-release {
+  margin: 0;
+  max-width: 520px;
+}
 .src-meta {
   display: flex;
   align-items: center;

@@ -260,7 +260,7 @@ router.get("/api/admin/library/tree", (req, res) => {
       } else if ((pr.position || 0) > 60) midway.set(itemId, (midway.get(itemId) || 0) + 1);
     }
   }
-  // mylist: a copy My List downloads fetched that nobody has watched yet —
+  // mylist: a copy the removed My List downloads fetched that nobody has watched yet —
   // { state: "fresh" | "stale", why, by, addedAt, staleAt, deleteAt }. A stale
   // one is a free pick for "free up space" (media/mylistdl.js).
   const inuse = require("../lib/inuse");
@@ -374,9 +374,9 @@ router.post("/api/admin/library/copies/delete", (req, res) => {
   res.json({ ok: true, ...result, jobsRemoved, wasLast: hit.grp.files <= 1 });
 });
 
-// ---------- My List downloads (media/mylistdl.js) ----------
-// The settings, and every copy the feature asked for with where it stands
-// (waiting, downloading, fresh, stale, deleted, watched…).
+// ---------- left over from My List downloads (media/mylistdl.js) ----------
+// The tidy-up settings, and every copy that removed feature fetched with
+// where it stands (downloading, fresh, stale, deleted, watched…).
 router.get("/api/admin/mylist", (req, res) => {
   res.json(require("../media/mylistdl").status());
 });

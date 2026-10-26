@@ -146,7 +146,10 @@ if (!STORE.data.ids) STORE.data.ids = {};
 const TORRENTIO_BASE = "https://torrentio.strem.fun";
 const CINEMETA_BASE = "https://v3-cinemeta.strem.io";
 const STREAMS_TTL = 6 * 3600 * 1000;
-const STREAMS_V = 5; // parser/ranking version (5: packs no longer penalised) — older cached lists must recompute
+// parser/ranking version — older cached lists must recompute.
+// 5: packs no longer penalised. 6: pre-release copies (CAM, TS, TC, screener,
+// HC) and burned-in subtitles read by media/releasekind.js, marked, ranked last.
+const STREAMS_V = 6;
 // A cached source list is only ever answered from while it is under six hours
 // old and of today's shape (getSources below); after that it is dead weight —
 // and nothing removed it. Every title ever opened stayed in the file, the
@@ -647,7 +650,8 @@ const parseTags = (name, title) => {
   else if (/web-?dl/i.test(s)) tags.push("WEB-DL");
   else if (/webrip/i.test(s)) tags.push("WEBRip");
   else if (/hdrip|hdtv/i.test(s)) tags.push("HDRip");
-  else if (/\bCAM\b|\bTS\b|telesync/i.test(s)) tags.push("CAM");
+  // (a cinema copy is not a tag: media/releasekind.js reads it, and the row
+  // wears its own badge and sentence — `badge`, `warning`)
   if (/atmos/i.test(s)) tags.push("Atmos");
   else if (/truehd/i.test(s)) tags.push("TrueHD");
   else if (/dts-?hd/i.test(s)) tags.push("DTS-HD");
@@ -659,9 +663,9 @@ const parseTags = (name, title) => {
   return tags;
 };
 
-// A CAM/telesync source is low quality regardless of resolution - flag it.
-const isCam = (name, title) =>
-  /\bCAM\b|\bTS\b|telesync|hdcam/i.test(`${name} ${title}`);
+// A copy made before the film is out at home (CAM, TS, TC, screener, HC) or
+// with subtitles burned in — media/releasekind.js has the rules.
+const releasekind = require("./releasekind");
 
 // A dubbed release (re-voiced audio, or foreign-audio-only with no English
 // track) should never be the recommended pick — if it's not the source
@@ -690,7 +694,7 @@ const isPack = (s, ttType) =>
 // outscored a 500 MB encode of the same episode.
 const GB = 1024 ** 3;
 const valueScore = (s, sizeCapGb = 4.5) => {
-  if (s.cam) return -1e6;
+  if (s.cam || s.prerelease) return -1e6;
   const qBase =
     { "1080p": 100, "720p": 70, "2160p": 62, "480p": 40, SD: 20 }[s.quality] ??
     20;
@@ -700,7 +704,23 @@ const valueScore = (s, sizeCapGb = 4.5) => {
   // Packs are ranked like any other source (elia 2026-10-18: "we are
   // penalizing good pack sources when we shouldn't"): a well-seeded pack wins
   // on quality, seeders and size like everyone else. `pack` stays a label.
-  return qBase + seedBonus - sizePenalty;
+  // Burned-in subtitles cannot be turned off: below every clean copy.
+  return qBase + seedBonus - sizePenalty - (s.hardsub ? HARDSUB_PENALTY : 0);
+};
+const HARDSUB_PENALTY = 200;
+
+// The order every list is served in: clean copies, then burned-in subtitles,
+// then pre-release copies (releasekind.tierOf); by value inside each.
+const rankCompare = (sizeCap, extra = () => 0) => (a, b) =>
+  releasekind.tierOf(a) - releasekind.tierOf(b) || valueScore(b, sizeCap) + extra(b) - (valueScore(a, sizeCap) + extra(a));
+// The ★ Best: the first copy that may be picked for someone — never a
+// pre-release copy, never a dub; a clean one before one with burned-in
+// subtitles. None at all (every copy is a cinema recording): no ★, and
+// nothing anywhere starts by itself.
+const markBest = (streams) => {
+  const best = streams.find((s) => releasekind.pickable(s) && !s.hardsub) || streams.find((s) => releasekind.pickable(s));
+  if (best) best.recommended = true;
+  return best || null;
 };
 
 const LANG_FLAGS = {
@@ -746,15 +766,82 @@ const withHistory = (streamId, streams, ttType) => {
   if (![...adj.values()].some((v) => v !== 0)) return streams;
   const sizeCap = ttType === "series" ? 1.4 : 4.5;
   const order = new Map(streams.map((s, i) => [s, i]));
-  const sorted = streams.slice().sort((a, b) => {
-    if (a.cam !== b.cam) return a.cam ? 1 : -1;
-    return valueScore(b, sizeCap) + adj.get(b) - (valueScore(a, sizeCap) + adj.get(a)) || order.get(a) - order.get(b);
-  });
+  const cmp = rankCompare(sizeCap, (s) => adj.get(s));
+  const sorted = streams.slice().sort((a, b) => cmp(a, b) || order.get(a) - order.get(b));
   const out = sorted.map((s) => ({ ...s, recommended: undefined }));
   for (const s of out) delete s.recommended;
-  const best = out.find((s) => !s.cam && !s.dubbed);
-  if (best) best.recommended = true;
+  markBest(out);
   return out;
+};
+
+// One Torrentio row → one source, as every client is sent it.
+const toStream = (s, ttType) => {
+  const title = (s.title || "").toString();
+  const name = (s.name || "").toString();
+  const languages = parseLanguages(title);
+  const filename = s.behaviorHints?.filename || releaseName(title) || "video";
+  const kind = releasekind.classify(name, `${title}\n${s.behaviorHints?.filename || ""}`);
+  const stream = {
+    infoHash: s.infoHash,
+    fileIdx: s.fileIdx || 0,
+    filename,
+    release: releaseName(title),
+    provider: providerName(name),
+    quality: parseQuality(name),
+    qualityLabel: qualityLabel(name),
+    tags: parseTags(name, title),
+    // any pre-release copy (the field every client already knows), its
+    // kind, burned-in subtitles, and the words a row shows for them
+    cam: kind.cam,
+    prerelease: kind.prerelease,
+    hardsub: kind.hardsub,
+    badge: kind.badge,
+    warning: kind.warning,
+    dubbed: isDubbed(title, languages),
+    seeders: parseSeeders(title),
+    sizeString: parseSizeString(title),
+    sizeBytes: parseSizeBytes(title),
+    languages,
+  };
+  stream.pack = isPack(stream, ttType);
+  return stream;
+};
+
+// Torrentio's rows → the list as it is cached and served: one row per
+// torrent, ranked, capped, the ★ Best marked.
+const rankList = (rows, ttType) => {
+  const seen = new Set();
+  let streams = (rows || [])
+    .map((s) => toStream(s, ttType))
+    .filter((s) => {
+      if (!s.infoHash || seen.has(s.infoHash)) return false;
+      seen.add(s.infoHash);
+      return true;
+    })
+    // Best-value first: favour 1080p (the sweet spot), reward seeders, and
+    // penalise oversized files (episodes use a much lower size cap than
+    // movies). Burned-in subtitles below every clean copy, cinema copies at
+    // the very end. Quality-specific browsing still works via the quality
+    // filter pills.
+    .sort(rankCompare(ttType === "series" ? 1.4 : 4.5));
+
+  // Cap the list, but reserve slots per quality tier: a flat top-40 by value
+  // let 1080p crowd out nearly every 4K option (large remuxes carry a big
+  // size penalty), leaving the 4K filter pill almost empty. Guarantee the
+  // best few of each tier survive the cap, in value order.
+  const kept = new Set(streams.slice(0, 40));
+  for (const q of ["2160p", "1080p", "720p", "480p", "SD"]) {
+    for (const s of streams
+      .filter((x) => x.quality === q && !x.cam)
+      .slice(0, 8))
+      kept.add(s);
+  }
+  streams = streams.filter((s) => kept.has(s));
+
+  // Flag the top pick so the UI can recommend it (a pack competes like any
+  // other source; never a cinema copy, never a dub).
+  markBest(streams);
+  return streams;
 };
 
 // Fetch stream sources for a title. For series pass season+episode.
@@ -784,66 +871,10 @@ const getSources = async (type, title, year, season, episode) => {
     `${TORRENTIO_BASE}/stream/${ttType}/${streamId}.json`,
     SOURCES_TIMEOUT,
   );
-  const seen = new Set();
-  let streams = (data.streams || [])
-    .map((s) => {
-      const title = (s.title || "").toString();
-      const name = (s.name || "").toString();
-      if (s.infoHash) {
-        sourcesByHash.set(s.infoHash, trackersFromSources(s.sources));
-      }
-      const languages = parseLanguages(title);
-      const stream = {
-        infoHash: s.infoHash,
-        fileIdx: s.fileIdx || 0,
-        filename: s.behaviorHints?.filename || releaseName(title) || "video",
-        release: releaseName(title),
-        provider: providerName(name),
-        quality: parseQuality(name),
-        qualityLabel: qualityLabel(name),
-        tags: parseTags(name, title),
-        cam: isCam(name, title),
-        dubbed: isDubbed(title, languages),
-        seeders: parseSeeders(title),
-        sizeString: parseSizeString(title),
-        sizeBytes: parseSizeBytes(title),
-        languages,
-      };
-      stream.pack = isPack(stream, ttType);
-      return stream;
-    })
-    .filter((s) => {
-      if (!s.infoHash || seen.has(s.infoHash)) return false;
-      seen.add(s.infoHash);
-      return true;
-    })
-    .sort((a, b) => {
-      // Best-value first: favour 1080p (the sweet spot), reward seeders, and
-      // penalise oversized files (episodes use a much lower size cap than
-      // movies). CAM rips always sink. Quality-specific browsing still works
-      // via the quality filter pills.
-      if (a.cam !== b.cam) return a.cam ? 1 : -1;
-      const sizeCap = ttType === "series" ? 1.4 : 4.5;
-      return valueScore(b, sizeCap) - valueScore(a, sizeCap);
-    });
-
-  // Cap the list, but reserve slots per quality tier: a flat top-40 by value
-  // let 1080p crowd out nearly every 4K option (large remuxes carry a big
-  // size penalty), leaving the 4K filter pill almost empty. Guarantee the
-  // best few of each tier survive the cap, in value order.
-  const kept = new Set(streams.slice(0, 40));
-  for (const q of ["2160p", "1080p", "720p", "480p", "SD"]) {
-    for (const s of streams
-      .filter((x) => x.quality === q && !x.cam)
-      .slice(0, 8))
-      kept.add(s);
+  for (const s of data.streams || []) {
+    if (s && s.infoHash) sourcesByHash.set(s.infoHash, trackersFromSources(s.sources));
   }
-  streams = streams.filter((s) => kept.has(s));
-
-  // Flag the top non-CAM, non-dubbed pick so the UI can recommend it (a pack
-  // competes like any other source).
-  const best = streams.find((s) => !s.cam && !s.dubbed);
-  if (best) best.recommended = true;
+  const streams = rankList(data.streams || [], ttType);
 
   STORE.data.streams[cacheKey] = { at: Date.now(), streams, v: STREAMS_V };
   pruneStreams();
@@ -1517,5 +1548,7 @@ module.exports = {
     STREAMS_TTL,
     STREAMS_V,
     valueScore,
+    rankList,
+    toStream,
   },
 };

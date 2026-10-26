@@ -32,6 +32,26 @@ describe('the pick (the same rule the title page always used)', () => {
     expect(pickBest([])).toBeNull();
     expect(pickBest(null)).toBeNull();
   });
+  // "You immediately run to download it even if it's a CAM" (elia, 2026-10-26)
+  test('never a copy made before the film is out at home — CAM, TS, TC, screener, HC — however well seeded', () => {
+    for (const prerelease of ['cam', 'telesync', 'telecine', 'screener', 'hc']) {
+      expect(pickBest([st({infoHash: 'c', cam: true, prerelease, seeders: 900})])).toBeNull();
+    }
+    // an older server: `cam` alone says it
+    expect(pickBest([st({infoHash: 'c', cam: true, seeders: 900})])).toBeNull();
+    // with nobody seeding the clean one, still not the cinema recording
+    const cam = st({infoHash: 'c', cam: true, prerelease: 'cam', seeders: 900});
+    const clean = st({infoHash: 'k', seeders: 0});
+    expect(pickBest([cam, clean])).toBe(clean);
+    expect(pickBest([cam, st({infoHash: 'g', seeders: 4})])?.infoHash).toBe('g');
+  });
+  test('never a dub; burned-in subtitles only when there is no clean copy', () => {
+    expect(pickBest([st({infoHash: 'd', dubbed: true})])).toBeNull();
+    const hard = st({infoHash: 'h', hardsub: true, seeders: 500});
+    const clean = st({infoHash: 'k', seeders: 5});
+    expect(pickBest([hard, clean])).toBe(clean);
+    expect(pickBest([hard])).toBe(hard);
+  });
 });
 
 describe('what the player is handed', () => {

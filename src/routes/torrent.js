@@ -92,6 +92,24 @@ router.get("/api/torrents/sources", async (req, res) => {
     // its release name (a guess until the swarm is joined — the player's own
     // fallback ladder still stands behind it): `play` per source, by the same
     // table the library uses (media/playpath.js). Without ?caps=: as before.
+    // A film: has it really come out, and is there a good copy? One plain
+    // sentence both apps print as it is (media/releasestatus.js) — e.g. "Not
+    // out in good quality yet — only cinema recordings so far". Absent when
+    // there is nothing to say.
+    let release = null;
+    if (type === "movie" && /^tt\d+$/.test(String(result.imdbId || ""))) {
+      try {
+        const availability = require("../media/availability");
+        release = require("../media/releasestatus").statusOf({
+          type: "movie", streams: result.streams, avail: availability.cached(result.imdbId),
+        });
+        // (no dates on file for a recent film: ask TMDB in the background, for next time)
+        if (!availability.cached(result.imdbId)) {
+          availability.warm([{ imdbId: result.imdbId, type: "movie", year: year ? parseInt(year, 10) : null }]).catch(() => {});
+        }
+      } catch {}
+    }
+    const body = release ? { ...result, release } : result;
     if (req.query.caps && Array.isArray(result.streams)) {
       const avr = require("./avcaps");
       const pp = require("../media/playpath");
@@ -99,9 +117,9 @@ router.get("/api/torrents/sources", async (req, res) => {
         const play = avr.decisionFor(req, pp.factsOfRelease(`${s.filename || ""} ${s.release || ""}`, s.quality));
         return play ? { ...s, play } : s;
       });
-      res.json({ ...result, streams });
+      res.json({ ...body, streams });
     } else {
-      res.json(result);
+      res.json(body);
     }
     // The viewer is choosing right now — pre-warm the recommended pick's
     // swarm so Play starts warm. Fire-and-forget, self-bounded (see

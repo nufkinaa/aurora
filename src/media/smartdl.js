@@ -59,12 +59,17 @@ const nextEpisode = (meta, season, episode) => {
 };
 
 // The source to fetch: same quality as what's playing when there is one,
-// never CAM/dubbed, the ranked list's order otherwise (it is sorted by
-// value already, ★ BEST first among them).
+// the ranked list's order otherwise (it is sorted by value already, ★ BEST
+// first among them). Never a pre-release copy (CAM, TS, TC, screener, HC)
+// and never a dub (media/releasekind.js pickable); one with burned-in
+// subtitles only when there is no clean copy at all. Null when nothing may
+// be picked — then nothing starts by itself.
 const pickSource = (streams, quality) => {
-  const ok = (streams || []).filter((s) => !s.cam && !s.dubbed && s.infoHash);
+  const ok = (streams || []).filter((s) => s && s.infoHash && require("./releasekind").pickable(s));
   if (!ok.length) return null;
-  return (quality && ok.find((s) => s.quality === quality)) || ok.find((s) => s.recommended) || ok[0];
+  const clean = ok.filter((s) => !s.hardsub);
+  const pool = clean.length ? clean : ok;
+  return (quality && pool.find((s) => s.quality === quality)) || pool.find((s) => s.recommended) || pool[0];
 };
 
 const onProgress = async (profileId, itemId, position, duration, meta) => {

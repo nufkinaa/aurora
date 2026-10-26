@@ -12,6 +12,7 @@ import type {TasteCard, Verdict} from './tasteSession';
 import type {ResyncAnswer, ResyncBody, SubTiming} from './playback/resync';
 // what this box can play, and the server's decision from it (TV round 2026-10-19)
 import type {Play} from './avCaps';
+import type {ReleaseStatus} from './releaseWords';
 import {currentCapsId} from './av';
 
 let baseUrl = '';
@@ -334,24 +335,10 @@ export type Item = HeroItem & {
   play?: Play;
 };
 
-// What an add to My List started fetching, as the server reports it with the
-// answer (My List downloads — src/media/mylistdl.js): the film, or the first
-// episode of a show this profile has not started. A server from before the
-// feature sends nothing.
-export type ListDownload = {
-  queued: boolean;
-  what?: 'film' | 'episode';
-  season?: number;
-  episode?: number;
-  reason?: string;
-};
-// The toast for an add — the site's savedLine (public/js/ui.js).
-export const listAddedLine = (res?: {download?: ListDownload | null} | null): string => {
-  const d = res?.download;
-  if (!d || !d.queued) return 'Added to My List';
-  if (d.what === 'film') return 'Added to My List — downloading the film';
-  return 'Added to My List — downloading the first episode';
-};
+// The toast for an add — the site's LIST_ADDED (public/js/ui.js), to the
+// letter. An add only adds to the list: it never starts a download (elia
+// 2026-10-26; the old My List downloads are gone).
+export const LIST_ADDED = 'Added to My List';
 
 // Stream ref for watchlist toggles on non-library (Discover) titles. Genres
 // and rating ride along because this ref is all My List ever knows about the
@@ -376,7 +363,15 @@ export type Stream = {
   quality: string; // "2160p" | "1080p" | "720p" | "480p" | "SD"
   qualityLabel: string;
   tags: string[];
+  // any copy made before the film is out at home (CAM, TS, TC, screener, HC);
+  // which kind; subtitles burned into the picture; and the words the row
+  // shows for them ("CAM", "CAM — filmed in a cinema") — src/media/releasekind.js.
+  // (An older server sends `cam` only.)
   cam: boolean;
+  prerelease?: string | null;
+  hardsub?: boolean;
+  badge?: string | null;
+  warning?: string | null;
   dubbed: boolean;
   seeders: number;
   sizeString: string | null;
@@ -577,18 +572,12 @@ export type MyDownload = DownloadJob & {
   // null when the server cannot say, absent on an older server.
   by?: string | null;
   smart?: boolean;
-  // "mylist": fetched because the title was added to My List (always `smart` too).
-  auto?: string | null;
   libraryId?: string | null;
   sizeBytes?: number;
   seenAt?: string | null;
   doneAt?: string | null;
   at?: string;
   holdReason?: string | null;
-  // A My List download that was running and gave way (publicJob): still
-  // `approved`, with the progress it keeps.
-  held?: boolean;
-  heldReason?: string | null;
   poster?: string | null;
   quality?: string;
   imdbId?: string | null;
@@ -1566,7 +1555,9 @@ export const api = {
     // the Sources pill) is the same question — it opens filled instead of
     // searching again. Seeder counts do not move in that time.
     const path = `/api/torrents/sources?${q.toString()}`;
-    return memo(path, 90000, () => request<{ imdbId: string; streams: Stream[] }>(path));
+    // `release` (a film): has it really come out, and is there a good copy —
+    // one sentence to print as it is (src/media/releasestatus.js).
+    return memo(path, 90000, () => request<{ imdbId: string; streams: Stream[]; release?: ReleaseStatus | null }>(path));
   },
   // What this box can play (av.ts reportCaps, once per launch) → its id.
   postCaps: (report: unknown) => post<{id?: string}>('/api/caps', report),
@@ -1797,7 +1788,7 @@ export const api = {
     itemOrRef: string | StreamRef,
     add: boolean,
   ) =>
-    post<{ watchlist: unknown; download?: ListDownload | null }>(
+    post<{ watchlist: unknown }>(
       `/api/profiles/${profileId}/watchlist`,
       typeof itemOrRef === 'string'
         ? { itemId: itemOrRef, add }

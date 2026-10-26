@@ -143,6 +143,5 @@ test("no module talks to the outside world with a bare fetch()", () => {
       if (/(^|[^.\w])fetch\(/.test(line.replace(/\/\/.*$/, ""))) offenders.push(`${rel}:${i + 1}`);
     });
   }
-  // (mylistdl's own `fetch(key)` is a local function of that name)
-  assert.deepEqual(offenders.filter((o) => !o.startsWith("src/media/mylistdl.js")), []);
+  assert.deepEqual(offenders, []);
 });

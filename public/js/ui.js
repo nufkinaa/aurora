@@ -481,18 +481,10 @@ export const formatRow = (item, opts) => {
 };
 
 // What the My List button says — the TV app's words, to the letter
-// (tv-native/src/api.ts listAddedLine, Overlays.tsx): one wording on every
-// screen of both clients.
-// After an add the server answers with what it started fetching because of it
-// (`download`, My List downloads — src/media/mylistdl.js): the film, or the
-// first episode of a show this profile has not started. An older server sends
-// no such field, and then the add is the plain line.
-export const listAddedLine = (res) => {
-  const d = res && res.download;
-  if (!d || !d.queued) return "Added to My List";
-  if (d.what === "film") return "Added to My List — downloading the film";
-  return "Added to My List — downloading the first episode";
-};
+// (tv-native/src/api.ts LIST_ADDED, Overlays.tsx): one wording on every
+// screen of both clients. An add only adds to the list — it never starts a
+// download (elia 2026-10-26; the old My List downloads are gone).
+export const LIST_ADDED = "Added to My List";
 export const LIST_REMOVED = "Removed from My List";
 // The add or the removal did not reach the server: the button has gone back
 // to what is true, and this says so.

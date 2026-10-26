@@ -20,6 +20,7 @@
 // without moving focus. Only the Play button plays as well.
 import type {Stream, TorrentPlayItem} from './api';
 import {readPlay, streamPlan} from './avCaps';
+import {pickable} from './releaseWords';
 
 /** What a job needs to say for Play to play it (api.ts DownloadJob / MyDownload). */
 export type JobLike = {
@@ -51,12 +52,18 @@ export const runtimeToSeconds = (runtime?: string | number | null): number => {
 };
 
 /** THE pick (one copy of the rule the title page always used): the server's
- *  recommended source among those with peers, else the best-seeded (the
- *  server lists them best first), else whatever there is. */
+ *  recommended source among those with peers, else the best listed (the
+ *  server lists them best first) — but NEVER a copy made before the film is
+ *  out at home (CAM, TS, TC, screener, HC) and never a dub (releaseWords.ts
+ *  pickable), and one with burned-in subtitles only when there is no clean
+ *  copy. Nothing pickable: null — nothing starts by itself, the page says why
+ *  and the list (marked, asking first) is one press away. */
 export const pickBest = (streams: Stream[] | null | undefined): Stream | null => {
-  const all = streams || [];
+  const all = (streams || []).filter(pickable);
   const alive = all.filter(x => x.seeders > 0);
-  return alive.find(x => x.recommended) || alive[0] || all[0] || null;
+  const pool = alive.length ? alive : all;
+  const clean = pool.filter(x => !x.hardsub);
+  return pool.find(x => x.recommended) || clean[0] || pool[0] || null;
 };
 
 /** What the title is, for the play item. */

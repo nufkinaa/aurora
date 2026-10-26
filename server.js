@@ -551,9 +551,9 @@ require("./src/media/introdetect");
   // …and once a week the newest snapshot is proved restorable: unpacked into
   // a temporary folder, read as the server would read it, counted, removed.
   daily.register("backup-drill", () => require("./src/lib/backup").drillIfDue());
-  // My List downloads: copies fetched because a title was added to a list go
-  // stale, then leave, when nobody watches them; failed ones get their one
-  // more try (media/mylistdl.js has the rules).
+  // The copies My List downloads fetched (that feature is gone since
+  // 2026-10-26) go stale, then leave, when nobody watches them
+  // (media/mylistdl.js has the rules). Nothing new is ever fetched here.
   daily.register("my-list-downloads", () => require("./src/media/mylistdl").daily());
   // The recommender's knowledge of titles (media/recs): what people watched,
   // the catalogue they browse, and a bounded step along what each person

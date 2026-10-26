@@ -19,7 +19,7 @@ import Focusable from '../components/Focusable';
 import NavRail from '../components/NavRail';
 import {Empty} from '../components/States';
 import {api, ApiError, artSrc, HeroItem, ImgSource, MyDownload} from '../api';
-import {downloadActions, DownloadAction, heldLine, isHeld, isReady, startedBy, rowStatus} from '../downloadsLogic';
+import {downloadActions, DownloadAction, isReady, startedBy, rowStatus} from '../downloadsLogic';
 import {openActions} from '../overlay';
 import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
@@ -68,10 +68,7 @@ const statusLine = (j: MyDownload) => {
             .filter(Boolean)
             .join(' · ');
     case 'approved':
-      // a My List download that gave way to a person's own (downloadsLogic.ts)
-      if (isHeld(j)) return heldLine(j);
       if (j.accountLimit) return `Queued — starts when one of ${j.mine ? 'your' : 'their'} ${j.accountLimit} running downloads finishes`;
-      if (j.auto === 'mylist') return 'Queued — starts after the other downloads';
       return 'Queued — starts when a slot frees up';
     case 'pending':
       return j.holdReason ? `Waiting for approval — ${j.holdReason}` : 'Waiting for approval';
@@ -334,7 +331,7 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
           <Text style={styles.status} numberOfLines={1}>
             {/* whose comes FIRST: at the end of this one line a long status (a disk
                 warning, an error) cut it off (Mi TV, 2026-10-18) */}
-            {rowStatus({who, kind: j.auto === 'mylist' ? 'From My List' : j.smart ? 'Next episode, queued for you' : null, status: statusLine(j), size: j.sizeBytes ? fmtBytes(j.sizeBytes) : null})}
+            {rowStatus({who, kind: j.smart ? 'Next episode, queued for you' : null, status: statusLine(j), size: j.sizeBytes ? fmtBytes(j.sizeBytes) : null})}
           </Text>
           {pct != null ? (
             <View style={styles.bar}>

@@ -3,9 +3,8 @@
 // of what they made (the server's /api/person: src/media/person.js). X-Ray
 // stays where it is underneath and the film is not touched.
 //
-//   OK on a title    puts it on My List (the toast says so — and says when
-//                    that started a download); the card wears a ✓
-//   OK again         takes it off (and the server lets go of the download)
+//   OK on a title    puts it on My List (the toast says so); the card wears a ✓
+//   OK again         takes it off
 //   BACK             closes this sheet; focus returns to the person pressed
 //
 // Rendered BY XraySheet (Overlays.tsx), not through overlay.ts — that store
@@ -27,7 +26,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, Animated, BackHandler, Easing, FlatList, Image, ScrollView, StyleSheet, TVFocusGuideView, Text, View} from 'react-native';
 import Card, {COMPACT_H, COMPACT_W} from './Card';
 import Focusable from './Focusable';
-import {api, artSrc, HeroItem, listAddedLine, PersonCredit, PersonData, StreamRef, XrayPerson} from '../api';
+import {api, artSrc, HeroItem, LIST_ADDED, PersonCredit, PersonData, StreamRef, XrayPerson} from '../api';
 import {useKeyTrap} from '../focus';
 import {rootNav} from '../rootNav';
 import {showToast} from '../toast';
@@ -83,18 +82,16 @@ function Portrait({uri, w, h, round}: {uri: string; w: number; h: number; round?
 }
 
 // One title: the app's own poster card, what it is under it, and its state on
-// top (✓ on the list; IN LIBRARY / WATCHED / DOWNLOADING). Memoized — a
+// top (✓ on the list; IN LIBRARY / WATCHED). Memoized — a
 // press repaints the one card it was made on.
 const TitleCard = React.memo(function TitleCard({
   credit,
   listed,
-  downloading,
   focus,
   onPress,
 }: {
   credit: PersonCredit;
   listed: boolean;
-  downloading: boolean;
   focus: boolean;
   onPress: (item: HeroItem) => void;
 }) {
@@ -102,7 +99,7 @@ const TitleCard = React.memo(function TitleCard({
     () => ({id: credit.key, imdbId: credit.imdbId, type: credit.type, title: credit.title, year: credit.year ?? undefined, poster: credit.poster}),
     [credit],
   );
-  const flag = downloading ? 'DOWNLOADING' : credit.watched ? 'WATCHED' : credit.inLibrary ? 'IN LIBRARY' : null;
+  const flag = credit.watched ? 'WATCHED' : credit.inLibrary ? 'IN LIBRARY' : null;
   return (
     <View style={styles.title} accessibilityLabel={`${credit.title}${listed ? ', on My List' : ''}`}>
       <Card item={item} compact hideLabel noPeek onPress={onPress} hasTVPreferredFocus={focus} />
@@ -144,10 +141,8 @@ export default function PersonSheet({
   const {height: winH} = useTvMetrics();
   const [data, setData] = useState<PersonData | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
-  // key -> on the list / a download was started for it. Seeded from the
-  // server's marks, then owned here.
+  // key -> on the list. Seeded from the server's marks, then owned here.
   const [listed, setListed] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState<Record<string, boolean>>({});
   const listedRef = useRef(listed);
   listedRef.current = listed;
   const creditsRef = useRef<Record<string, PersonCredit>>({});
@@ -213,13 +208,10 @@ export default function PersonSheet({
       busy.current.add(c.key);
       const next = !listedRef.current[c.key];
       setListed(prev => ({...prev, [c.key]: next}));
-      if (!next) setLoading(prev => ({...prev, [c.key]: false}));
       try {
         const ref: StreamRef = {imdbId: c.imdbId, type: c.type, title: c.title, poster: c.poster, year: c.year, genres: c.genres, rating: c.rating ?? undefined};
-        const res = await api.toggleWatchlist(profileId, ref, next);
-        if (next && res?.download?.queued) setLoading(prev => ({...prev, [c.key]: true}));
-        // (an add says what it started downloading, when it started anything)
-        showToast(next ? `${c.title}: ${listAddedLine(res)}` : `${c.title}: removed from My List`, next ? '✓' : '−');
+        await api.toggleWatchlist(profileId, ref, next);
+        showToast(next ? `${c.title}: ${LIST_ADDED}` : `${c.title}: removed from My List`, next ? '✓' : '−');
         track('feat', {f: next ? 'person_add_tv' : 'person_remove_tv'});
       } catch {
         setListed(prev => ({...prev, [c.key]: !next}));
@@ -323,7 +315,7 @@ export default function PersonSheet({
                     windowSize={5}
                     getItemLayout={(_, index) => ({length: COMPACT_W + GAP, offset: (COMPACT_W + GAP) * index, index})}
                     renderItem={({item: c, index}) => (
-                      <TitleCard credit={c} listed={!!listed[c.key]} downloading={!!loading[c.key]} focus={si === 0 && index === 0} onPress={toggle} />
+                      <TitleCard credit={c} listed={!!listed[c.key]} focus={si === 0 && index === 0} onPress={toggle} />
                     )}
                   />
                 </View>

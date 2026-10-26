@@ -25,8 +25,6 @@ type Job = {
   imdbId?: string | null;
   infoHash?: string | null;
   progress?: number;
-  held?: boolean;
-  heldReason?: string | null;
   by?: string | null;
 };
 
@@ -34,14 +32,6 @@ export const DEAD = ['error', 'declined', 'canceled'];
 const LIVE = ['pending', 'approved', 'downloading'];
 /** Cancelling past this throws real work away: ask first (the site's 5%). */
 export const CONFIRM_CANCEL_FROM = 0.05;
-
-/** A My List download that was running and gave way to a person's own
- *  (server: src/media/downloads.js `held` — a queued job that keeps what it
- *  has and carries on from there). */
-export const isHeld = (j: Job) => j.status === 'approved' && !!j.held;
-/** Its status line, instead of the generic "Queued". */
-export const heldLine = (j: Job) =>
-  `On hold — ${j.heldReason === 'watching' ? 'waiting while someone is watching' : 'waiting for other downloads'} · ${Math.round((j.progress || 0) * 100)} %`;
 
 export const isReady = (j: Job) => j.status === 'done' && !!j.libraryId;
 
@@ -54,7 +44,7 @@ export const downloadActions = (
   if (isReady(j)) return {press: 'play', all: ['play', ...title], label: '▶  Play'};
   if (LIVE.includes(j.status)) {
     const cancel: DownloadAction =
-      (j.status === 'downloading' || isHeld(j)) && (j.progress || 0) > CONFIRM_CANCEL_FROM ? 'confirmCancel' : 'cancel';
+      j.status === 'downloading' && (j.progress || 0) > CONFIRM_CANCEL_FROM ? 'confirmCancel' : 'cancel';
     return {press: cancel, all: [...title, cancel], label: 'Cancel'};
   }
   if (DEAD.includes(j.status)) {

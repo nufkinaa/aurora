@@ -61,7 +61,7 @@ const startInstance = async ({ repo = path.join(HERE, "..", ".."), verbose = fal
     preload: [path.join(HERE, "fixture-preload.js")],
     env: { MP_ART_DIR: ensureArt(), MP_CATALOGUE: path.join(HERE, "catalogue.js"), MP_UPSTREAM_MS: String(upstreamMs) },
     // (My List downloads off: adding to a list must not try to fetch anything)
-    seed: { "cache/discover.json": cat.discoverSeed(), "profiles.json": profilesSeed(), "settings.json": { myListDownloads: false } },
+    seed: { "cache/discover.json": cat.discoverSeed(), "profiles.json": profilesSeed(), "settings.json": {} },
     config,
   });
 
