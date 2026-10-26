@@ -102,8 +102,8 @@ process.stdin.on("end",()=>process.exit(0));process.stdin.resume();`;
 };
 
 // ---------- the local swarm ----------
-const swarm = async (files) => {
-  const child = spawn(process.execPath, [path.join(__dirname, "swarm.js"), ...files], { cwd: REPO, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+const swarm = async (files, mbs = 10) => {
+  const child = spawn(process.execPath, [path.join(__dirname, "swarm.js"), "--upload-mbs", String(mbs), ...files], { cwd: REPO, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
   const torrents = [];
   let buf = "";
   const done = new Promise((resolve, reject) => {
@@ -351,7 +351,7 @@ const main = async () => {
       files.push(f);
     }
     say(`seeding ${files.length} torrents on 127.0.0.1 (hashing first)`);
-    sw = await swarm(files);
+    sw = await swarm(files, a["swarm-mbs"] != null ? Number(a["swarm-mbs"]) : 10);
     say(`swarm ready: ${sw.torrents.length} torrents, tracker ${sw.tracker}`);
   }
   // profiles: each gives one web and one TV session; viewers + browsers + idle at the largest step

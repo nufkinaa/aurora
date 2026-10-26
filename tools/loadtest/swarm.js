@@ -8,18 +8,26 @@
 // announce list names this tracker. Nothing here talks to the internet: no
 // DHT, no local-peer discovery, no uTP, an HTTP tracker bound to 127.0.0.1.
 //
-//   node tools/loadtest/swarm.js <file> [<file> …]
+//   node tools/loadtest/swarm.js [--upload-mbs 10] <file> [<file> …]
 //   stdout: one JSON line per torrent { infoHash, name, length, torrent (base64) }, then {"ready":true,"tracker":…}
 //   it runs until stdin closes (its parent went away) or it is killed.
 //
-// A swarm on loopback is as fast as the disk: the server fetches a whole film
-// in seconds. That is a well-seeded torrent; a real swarm is slower and its
-// time to first frame is mostly the swarm's (see the capacity report).
+// The seeder's upload is capped (--upload-mbs, MB/s for all its torrents
+// together, default 10 = 80 Mbit/s: a good swarm into a home line). Uncapped,
+// a swarm on loopback is as fast as the disk: the server wrote a whole film in
+// seconds, the disk queue filled and every synchronous file call on the
+// server's event loop waited behind it (6–19 s stalls, capacity-2026-10) —
+// no real swarm delivers that. A real swarm's time to first frame is mostly
+// the swarm's own (peers, pieces), which this rig does not model.
 "use strict";
 const path = require("path");
 
 const main = async () => {
-  const files = process.argv.slice(2);
+  const argv = process.argv.slice(2);
+  let mbs = 10;
+  const at = argv.indexOf("--upload-mbs");
+  if (at >= 0) { mbs = Number(argv[at + 1]); argv.splice(at, 2); }
+  const files = argv;
   if (!files.length) throw new Error("no files");
   const { Server } = await import("bittorrent-tracker");
   const WebTorrent = (await import("webtorrent")).default;
@@ -27,7 +35,7 @@ const main = async () => {
   await new Promise((resolve, reject) => { tracker.once("error", reject); tracker.listen(0, "127.0.0.1", resolve); });
   const port = tracker.http.address().port;
   const announce = [`http://127.0.0.1:${port}/announce`];
-  const client = new WebTorrent({ dht: false, lsd: false, utp: false, natUpnp: false, natPmp: false, webSeeds: false, maxConns: 200 });
+  const client = new WebTorrent({ dht: false, lsd: false, utp: false, natUpnp: false, natPmp: false, webSeeds: false, maxConns: 200, ...(mbs > 0 ? { uploadLimit: Math.round(mbs * 1048576) } : {}) });
   client.on("error", (e) => process.stderr.write(`[swarm] client error ${e && e.message}\n`));
   for (const f of files) {
     const t = await new Promise((resolve, reject) => {

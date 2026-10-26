@@ -79,6 +79,7 @@ node tools/loadtest/capacity-report.js docs/qa/capacity-2026-10/results/*.json  
 | `--link tv=80,phone=50,desktop=200` | each device's own network in Mbit/s (`http.js` `linkMbit`); `off` = loopback speed, which no real device has |
 | `--downloads k` | background downloads: k writers at 4 MB/s on the media disk (default 2) |
 | `--spread s` | the burst's spread: everyone presses Play within s seconds (default 10) |
+| `--swarm-mbs m` | the local swarm's upload, MB/s for all torrents (default 10; 0 = uncapped, which fills the disk queue — not a real swarm) |
 | `--stop-after k` | stop after k steps that are not supported (default 2) |
 
 - Library: media `cap` (`instance.js` `genMediaCap`), shaped like the house's: five 30-minute 1080p masters at 2–7 Mbit/s (H.264 MP4 AAC / AC-3, HEVC 10-bit MKV E-AC-3, HEVC MKV AAC), each under 8 names, two subtitle sidecars each.
