@@ -27,7 +27,7 @@ import {ActivityIndicator, Animated, BackHandler, Easing, FlatList, Image, Scrol
 import Card, {COMPACT_H, COMPACT_W} from './Card';
 import Focusable from './Focusable';
 import {api, artSrc, HeroItem, LIST_ADDED, PersonCredit, PersonData, StreamRef, XrayPerson} from '../api';
-import {useKeyTrap} from '../focus';
+import {useFocusFallback, useKeyTrap} from '../focus';
 import {rootNav} from '../rootNav';
 import {showToast} from '../toast';
 import {track} from '../usage';
@@ -88,11 +88,13 @@ const TitleCard = React.memo(function TitleCard({
   credit,
   listed,
   focus,
+  cardRef,
   onPress,
 }: {
   credit: PersonCredit;
   listed: boolean;
   focus: boolean;
+  cardRef?: React.Ref<View>;
   onPress: (item: HeroItem) => void;
 }) {
   const item = useMemo<HeroItem>(
@@ -102,7 +104,7 @@ const TitleCard = React.memo(function TitleCard({
   const flag = credit.watched ? 'WATCHED' : credit.inLibrary ? 'IN LIBRARY' : null;
   return (
     <View style={styles.title} accessibilityLabel={`${credit.title}${listed ? ', on My List' : ''}`}>
-      <Card item={item} compact hideLabel noPeek onPress={onPress} hasTVPreferredFocus={focus} />
+      <Card ref={cardRef} item={item} compact hideLabel noPeek onPress={onPress} hasTVPreferredFocus={focus} />
       {listed ? (
         <View style={styles.check} pointerEvents="none">
           <Text style={styles.checkGlyph}>✓</Text>
@@ -244,6 +246,21 @@ export default function PersonSheet({
   const facePhoto = data?.photos?.[0]?.url || who.photo || null;
   const nothing = !!data && !shelves.length;
 
+  // The first title takes focus when the titles arrive. Its hasTVPreferredFocus
+  // alone lost on the Mi TV (2026-10-26): the Close it replaces unmounts while
+  // focused, Android hands focus to the first focusable of the WINDOW — the
+  // title page's My List under X-Ray — and the remote then moved the page
+  // under both sheets. So it is asked for by hand once the card is laid out,
+  // and the card is this sheet's focus fallback.
+  const firstCard = useRef<{requestTVFocus?: () => void} | null>(null);
+  useFocusFallback(firstCard);
+  const hasShelves = shelves.length > 0;
+  useEffect(() => {
+    if (!hasShelves) return;
+    const t = setTimeout(() => firstCard.current?.requestTVFocus?.(), 80);
+    return () => clearTimeout(t);
+  }, [hasShelves]);
+
   const panelStyle = {
     opacity: rise.interpolate({inputRange: [0, 0.4, 1], outputRange: [0, 1, 1]}),
     transform: [
@@ -315,7 +332,7 @@ export default function PersonSheet({
                     windowSize={5}
                     getItemLayout={(_, index) => ({length: COMPACT_W + GAP, offset: (COMPACT_W + GAP) * index, index})}
                     renderItem={({item: c, index}) => (
-                      <TitleCard credit={c} listed={!!listed[c.key]} focus={si === 0 && index === 0} onPress={toggle} />
+                      <TitleCard credit={c} listed={!!listed[c.key]} focus={si === 0 && index === 0} cardRef={si === 0 && index === 0 ? (firstCard as unknown as React.Ref<View>) : undefined} onPress={toggle} />
                     )}
                   />
                 </View>
