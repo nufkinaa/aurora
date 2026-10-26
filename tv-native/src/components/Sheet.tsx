@@ -15,6 +15,7 @@ export default function Sheet({
   width = 560,
   accent,
   onClose,
+  scrollRef,
   children,
 }: {
   title?: string;
@@ -24,6 +25,9 @@ export default function Sheet({
   // the one sheet that must not be missed (the update offer).
   accent?: boolean;
   onClose: () => void;
+  // The body's ScrollView, for a sheet that has to bring a row into view
+  // itself (ReplaceSheet: the row focus returns to when its list remounts).
+  scrollRef?: React.Ref<ScrollView>;
   children: React.ReactNode;
 }) {
   useKeyTrap(true);
@@ -50,7 +54,7 @@ export default function Sheet({
         style={[styles.card, {width, maxHeight: sheetMaxHeight(height, spacing.pageX)}, accent && styles.cardAccent]}>
         {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
         {title ? <Text style={styles.title}>{title}</Text> : null}
-        <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} style={styles.body} showsVerticalScrollIndicator={false}>
           {children}
         </ScrollView>
       </TVFocusGuideView>
