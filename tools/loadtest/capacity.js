@@ -244,6 +244,7 @@ const readBurst = async (ctx, list, maxS) => {
     ttffP50: q(ttff, 50), ttffP95: q(ttff, 95), ttffMax: q(ttff, 100),
     byClass: Object.fromEntries(Object.entries(byClass).map(([k, xs]) => [k, { n: xs.length, p50: q(xs, 50), p95: q(xs, 95), max: q(xs, 100), never: xs.filter((x) => x == null).length }])),
     byKind: Object.fromEntries(Object.entries(byKind).map(([k, xs]) => [k, { n: xs.length, p50: q(xs, 50), p95: q(xs, 95), max: q(xs, 100), never: xs.filter((x) => x == null).length }])),
+    each: list.map((v, i) => ({ kind: v.kind, ttff: ttff[i] })),
     neverStarted: ttff.filter((x) => x == null).length,
     refused: firsts.reduce((a, p) => a + (p ? p.refused : 0), 0),
     apiP50: api.p50, apiP95: api.p95, apiP99: api.p99, apiN: api.n, s429: api.s429, s5xx: api.s5xx + api.s503 + api.net,
