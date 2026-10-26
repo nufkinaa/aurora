@@ -36,7 +36,7 @@ const UPNEXT_GLOW = require('../assets/upnext-glow.png');
 const OWNED_UPNEXT_GLOW = require('../assets/owned-upnext-glow.png');
 import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
-import {api, ApiError, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, LIST_ADDED, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry, Stream} from '../api';
+import {api, ApiError, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, LIST_ADDED, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry, MyDownload, Stream} from '../api';
 import {autoPlayStep, jobSource, pickBest, runningJobFor, streamPlayItem} from '../playBest';
 import {heroRelease, ReleaseStatus} from '../releaseWords';
 import {isOpen, onMessage} from '../realtime';
@@ -605,6 +605,9 @@ const dlName = (key: string, title: string) => {
 };
 const fmtRate = (bps?: number) =>
   !bps || bps < 30000 ? '' : bps >= 1e6 ? `${(bps / 1e6).toFixed(1)} MB/s` : `${Math.round(bps / 1024)} KB/s`;
+// A "Get another version" download (MyDownload.replaces): the title's copy is
+// owned and stays playable, so it is never the Play button's job.
+const isReplacement = (j: DownloadJob) => !!(j as MyDownload).replaces;
 // How a job that ended badly reads on the status line.
 const endedText = (name: string, status: string) =>
   status === 'declined'
@@ -1163,7 +1166,11 @@ export default function Detail({
       // the newest ENDED job per key: how a job that just vanished ended
       const endedJobs = new Map<string, {status: string; at: number}>();
       for (const j of jobs) {
-        if (j.imdbId !== imdb) continue;
+        // (a "Get another version" job is not this title's download: the copy
+        // is owned and plays; the replace sheet carries that job. Counted
+        // here, its Cancel read on the Mi TV as "<title>'s download was
+        // removed · press Play to try again" under an owned film's Play.)
+        if (j.imdbId !== imdb || isReplacement(j)) continue;
         const jk = j.season && j.episode ? `${j.season}x${j.episode}` : 'film';
         if (!ACTIVE_JOB.includes(j.status)) {
           const prev = endedJobs.get(jk);
@@ -1710,7 +1717,7 @@ export default function Detail({
     const offUpdate = onMessage('download_update', d => {
       const j = d.job as DownloadJob | undefined;
       const imdb = jobImdbRef.current;
-      if (!j || !imdb || j.imdbId !== imdb) return;
+      if (!j || !imdb || j.imdbId !== imdb || isReplacement(j)) return; // (see loadEpJobs)
       if (!ACTIVE_JOB.includes(j.status)) {
         // done / error / declined / canceled / dismissed: the card lets go of
         // it NOW (not after the read below — a read that fails or is slow
@@ -2318,12 +2325,20 @@ export default function Detail({
                   label: REPLACE_WORDS.entry,
                   tag: REPLACE_WORDS.entrySub,
                   uiId: 'detail.episode.replace',
+                  // A beat after the actions sheet closes: its focus restore
+                  // has to land on the episode card first, or the new sheet's
+                  // trap takes the dying action row as its opener and BACK
+                  // dropped focus on My List at the top of the page (Mi TV).
                   onPress: () =>
-                    openReplace({
-                      libraryId: ep.epId!,
-                      title: `${item.title} · S${ep.season} E${ep.episode}`,
-                      context: {title: `${item.title} · S${ep.season} E${ep.episode}`, itemId: ep.epId},
-                    }),
+                    setTimeout(
+                      () =>
+                        openReplace({
+                          libraryId: ep.epId!,
+                          title: `${item.title} · S${ep.season} E${ep.episode}`,
+                          context: {title: `${item.title} · S${ep.season} E${ep.episode}`, itemId: ep.epId},
+                        }),
+                      150,
+                    ),
                 },
               ]
             : []),

@@ -750,7 +750,10 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
 // ---------------------------------------------------------------- actions
 // A short list of things to do with one thing (an episode, from its card's
 // long-press): Mark watched, Sources, Play. A press closes the sheet first.
-function ActionsSheet({title, sub, items}: {title: string; sub?: string; items: ActionItem[]}) {
+// (`sub` is the small kicker over the title; `body` a sentence under it: the
+// "This is not the real release" question's reason read as a kicker line, in
+// capitals and letter-spaced, on the Mi TV)
+function ActionsSheet({title, sub, body, items}: {title: string; sub?: string; body?: string; items: ActionItem[]}) {
   useKeyTrap(true);
   useEffect(() => {
     const s = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -760,7 +763,8 @@ function ActionsSheet({title, sub, items}: {title: string; sub?: string; items: 
     return () => s.remove();
   }, []);
   return (
-    <Sheet kicker={sub} title={title} width={520} onClose={closeOverlay}>
+    <Sheet kicker={sub} title={title} width={body ? 640 : 520} onClose={closeOverlay}>
+      {body ? <Text style={styles.body}>{body}</Text> : null}
       <View style={styles.actionList}>
         {items.map((it, i) => (
           <Focusable uiId={it.uiId || 'actions.pick'}
@@ -889,7 +893,7 @@ export default function Overlays() {
       {o?.kind === 'update' ? <UpdateSheet info={o.info} /> : null}
       {o?.kind === 'updateReady' ? <UpdateReadySheet info={o.info} /> : null}
       {o?.kind === 'trailer' ? <TrailerModal ids={o.ids} title={o.title} imdbId={o.imdbId} type={o.type} year={o.year} /> : null}
-      {o?.kind === 'actions' ? <ActionsSheet title={o.title} sub={o.sub} items={o.items} /> : null}
+      {o?.kind === 'actions' ? <ActionsSheet title={o.title} sub={o.sub} body={o.body} items={o.items} /> : null}
       {o?.kind === 'xray' ? <XraySheet query={o.query} title={o.title} onClose={o.onClose} /> : null}
       {o?.kind === 'replace' ? <ReplaceSheet libraryId={o.libraryId} title={o.title} context={o.context} onClose={o.onClose} /> : null}
       <Toasts />

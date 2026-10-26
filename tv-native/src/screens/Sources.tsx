@@ -382,7 +382,7 @@ export function SourcesPanel({
     if (!isEarly(s)) return go();
     openActions({
       title: EARLY_CONFIRM.title,
-      sub: EARLY_CONFIRM.text(s),
+      body: EARLY_CONFIRM.text(s),
       items: [
         {label: EARLY_CONFIRM.cancel, onPress: () => {}},
         {label: EARLY_CONFIRM[what], onPress: go},

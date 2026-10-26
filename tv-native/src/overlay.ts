@@ -12,7 +12,7 @@ export type Overlay =
   | {kind: 'update'; info: UpdateInfo}
   | {kind: 'updateReady'; info: UpdateInfo}
   | {kind: 'trailer'; ids: string[]; title: string; imdbId?: string | null; type: 'movie' | 'show'; year?: number | null}
-  | {kind: 'actions'; title: string; sub?: string; items: ActionItem[]}
+  | {kind: 'actions'; title: string; sub?: string; body?: string; items: ActionItem[]}
   | {kind: 'xray'; query: XrayQuery; title: string; onClose?: () => void}
   | {kind: 'replace'; libraryId: string; title: string; context?: Record<string, unknown>; onClose?: () => void}
   | null;
@@ -51,7 +51,7 @@ export const openTrailer = (
 };
 export const openUpdate = (info: UpdateInfo) => openOverlay({kind: 'update', info});
 export const openUpdateReady = (info: UpdateInfo) => openOverlay({kind: 'updateReady', info});
-export const openActions = (o: {title: string; sub?: string; items: ActionItem[]}) => openOverlay({kind: 'actions', ...o});
+export const openActions = (o: {title: string; sub?: string; body?: string; items: ActionItem[]}) => openOverlay({kind: 'actions', ...o});
 export const openXray = (o: {query: XrayQuery; title: string; onClose?: () => void}) => openOverlay({kind: 'xray', ...o});
 // "Problem with this copy? → Get another version" for one library copy (a
 // film, or one episode) — components/ReplaceSheet.tsx.

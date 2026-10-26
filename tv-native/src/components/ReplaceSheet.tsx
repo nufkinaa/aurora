@@ -19,7 +19,7 @@
 // falls out of the sheet between the steps. BACK: step 2 → step 1, else closes.
 // The Sheet traps focus on all four sides while it is up.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, StyleSheet, Text, View} from 'react-native';
+import {ActivityIndicator, LayoutChangeEvent, ScrollView, StyleSheet, Text, View} from 'react-native';
 import Focusable from './Focusable';
 import Sheet from './Sheet';
 import {api, ReplaceStream, ReplaceView} from '../api';
@@ -90,6 +90,19 @@ export default function ReplaceSheet({
   const [asked, setAsked] = useState<ReplaceStream | null>(null);
   // the row focus goes back to when that question is answered "Cancel"
   const [focusKey, setFocusKey] = useState<string | null>(null);
+  // Back from "This is not the real release" remounts the list at the top,
+  // and the row focus goes back to (hasTVPreferredFocus at mount) is not
+  // scrolled into view by Android — on the Mi TV the CAM row sat below the
+  // sheet's edge with only its ring showing. Its layout brings it into view.
+  const listScroll = useRef<ScrollView>(null);
+  const listY = useRef(0);
+  const onListLayout = useCallback((e: LayoutChangeEvent) => {
+    listY.current = e.nativeEvent.layout.y;
+  }, []);
+  const onFocusRowLayout = useCallback((e: LayoutChangeEvent) => {
+    const y = e.nativeEvent.layout.y;
+    setTimeout(() => listScroll.current?.scrollTo({y: Math.max(0, listY.current + y - spacing.md), animated: false}), 0);
+  }, []);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelErr, setCancelErr] = useState<string | null>(null);
   const live = useRef(true);
@@ -263,7 +276,7 @@ export default function ReplaceSheet({
   if (step2) {
     const streams = step2.streams;
     return (
-      <Sheet kicker={kicker} title={WORDS.step2} width={720} onClose={back}>
+      <Sheet kicker={kicker} title={WORDS.step2} width={720} onClose={back} scrollRef={listScroll}>
         <Text style={styles.body}>{WORDS.step2Body}</Text>
         {pickErr ? <Text style={styles.error}>{pickErr}</Text> : null}
         {step2.error || !streams || !streams.length ? (
@@ -274,14 +287,14 @@ export default function ReplaceSheet({
             </View>
           </>
         ) : (
-          <View style={styles.list}>
+          <View style={styles.list} onLayout={onListLayout}>
             {streams.map((s, i) => {
               const t = replaceRowText(s, step2.reason);
               const key = `${s.infoHash}:${s.fileIdx || 0}`;
               const q = QUALITY_COLOR[t.quality] || QUALITY_COLOR.SD;
               return (
+                <View key={key} onLayout={focusKey === key ? onFocusRowLayout : undefined}>
                 <Focusable
-                  key={key}
                   uiId="replace.pick"
                   scaleTo={1.01}
                   hasTVPreferredFocus={focusKey && streams.some(x => `${x.infoHash}:${x.fileIdx || 0}` === focusKey) ? key === focusKey : i === 0}
@@ -319,6 +332,7 @@ export default function ReplaceSheet({
                   </View>
                   {picking === key ? <ActivityIndicator color={colors.text} /> : null}
                 </Focusable>
+                </View>
               );
             })}
           </View>
