@@ -375,7 +375,7 @@ const start = async (opts = {}) => {
     const hh = household(opts.profiles || 8);
     fs.writeFileSync(path.join(data, "profiles.json"), JSON.stringify(hh.profiles));
     fs.writeFileSync(path.join(data, "sessions.json"), JSON.stringify(hh.sessions));
-    fs.writeFileSync(path.join(data, "settings.json"), JSON.stringify({ authMode: "closed", myListAutoDelete: false, myListDownloads: false }));
+    fs.writeFileSync(path.join(data, "settings.json"), JSON.stringify({ authMode: "closed", myListAutoDelete: false }));
     // the daily round (skip databases, metadata, backup, My List…) is network
     // work or library work: never due during a run
     const never = 4102444800000;

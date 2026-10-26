@@ -19,7 +19,7 @@ import {
   fmtAirDate,
   resolveAirStates,
   toast,
-  listAddedLine,
+  LIST_ADDED,
   LIST_REMOVED,
   listFailedLine,
   confirmSheet,
@@ -89,7 +89,7 @@ const streamWatchlistButton = (meta) => {
     haptic(8);
     paint();
     try {
-      const res = await api.toggleWatchlist(
+      await api.toggleWatchlist(
         state.profile.id,
         {
           imdbId: meta.imdbId,
@@ -105,7 +105,7 @@ const streamWatchlistButton = (meta) => {
         inList,
       );
       toast(
-        inList ? listAddedLine(res) : LIST_REMOVED,
+        inList ? LIST_ADDED : LIST_REMOVED,
         inList ? "➕" : "➖",
       );
     } catch {
@@ -319,7 +319,8 @@ const QUALITY_RANK = { "2160p": 4, "1080p": 3, "720p": 2, "480p": 1, SD: 0 };
 const whyNotBest = (s, best) => {
   if (!best || s === best) return null;
   const r = [];
-  if (s.cam) r.push("a camera recording");
+  if (s.cam) r.push(earlyWhy(s));
+  else if (s.hardsub) r.push("subtitles burned into the picture");
   if (s.dubbed) r.push("dubbed audio");
   if ((QUALITY_RANK[s.quality] ?? 0) < (QUALITY_RANK[best.quality] ?? 0))
     r.push(`lower resolution than ${best.quality}`);
@@ -333,6 +334,24 @@ const whyNotBest = (s, best) => {
   if (conv && !needsConvert(best)) r.push(`${conv} must be converted for this device`);
   if (!r.length) r.push("a close second — ★ BEST just scores a little higher");
   return r;
+};
+
+// A copy made before the film is out at home (the server reads it off the
+// release name — src/media/releasekind.js — and sends `warning`, e.g. "CAM —
+// filmed in a cinema"). The words are the TV app's (tv-native/src/
+// releaseWords.ts), to the letter.
+const earlyWhy = (s) => (s.warning && s.warning.split(" — ")[1]) || "a cinema recording";
+export const EARLY_CONFIRM = {
+  title: "This is not the real release",
+  text: (s) => `${s.warning || "A cinema recording"}. Picture and sound are usually poor — a good copy normally follows once the film is out to stream or buy.`,
+  download: "Download it anyway",
+  play: "Play it anyway",
+};
+// Asked before a pre-release copy is downloaded or played; anything else goes
+// straight through. → true when it may go ahead.
+const earlyOk = async (s, what) => {
+  if (!s || !s.cam) return true;
+  return confirmSheet({ title: EARLY_CONFIRM.title, text: EARLY_CONFIRM.text(s), ok: EARLY_CONFIRM[what], icon: "⚠️" });
 };
 
 // A source card (reused for movies and episodes). Pressing the card SAVES the
@@ -361,12 +380,18 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
   const name = stream.release || stream.filename || "";
 
   let dlBtn = null;
-  const save = () => {
+  const save = async () => {
     if (dlBtn && dlBtn.disabled) return;
     haptic(10);
+    // a cinema recording (or any pre-release copy): asked first
+    if (!(await earlyOk(stream, "download"))) return;
     // Optimistic feedback until the first live update lands (a second or two).
     if (dlBtn) paintDl(dlBtn, { status: "approved", progress: 0 });
     onDownload(stream);
+  };
+  const play = async () => {
+    if (!owned && !(await earlyOk(stream, "play"))) return;
+    onPlay(stream);
   };
   const advice = owned
     ? "Play your copy"
@@ -380,7 +405,7 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
     {
       class: "src-main focusable" + (owned ? " owned" : ""),
       title: `${name}${name ? " — " : ""}${advice}`,
-      onclick: () => (owned ? onPlay(stream) : save()),
+      onclick: () => (owned ? play() : save()),
     },
     el(
       "span",
@@ -399,7 +424,7 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
         el("span", { class: "src-name" }, tags.length ? tags.join(" · ") : name),
         stream.recommended && el("span", { class: "src-badge best" }, "Best"),
         stream.lastChosen && el("span", { class: "src-badge" }, "Last played"),
-        stream.cam && el("span", { class: "src-badge warn" }, "Cam"),
+        (stream.cam || stream.hardsub) && el("span", { class: "src-badge warn", title: stream.warning || "" }, stream.badge || "Cam"),
         stream.pack && el("span", { class: "src-badge", title: "Part of a pack (several titles in one download)" }, "Pack"),
       ),
       el(
@@ -423,6 +448,9 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
           ),
         tags.length > 0 && name && el("span", { class: "src-file" }, name),
       ),
+      // what kind of copy it is, in plain words ("CAM — filmed in a cinema"),
+      // on a line of its own so a phone never cuts it short
+      stream.warning && el("div", { class: "src-warn" }, stream.warning),
     ),
   );
 
@@ -445,13 +473,13 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
           class: "src-act src-stream focusable",
           "aria-label": "Stream this source now, without saving",
           title: "Stream it now, without saving",
-          onclick: () => onPlay(stream),
+          onclick: play,
         },
         el("span", { class: "src-ic", html: icons.play }),
         el("span", { class: "src-lbl" }, "Stream"),
       );
 
-  const wrap = el("div", { class: "src-card" + (stream.recommended ? " best" : "") + (owned ? " owned" : "") }, main, streamBtn, dlBtn);
+  const wrap = el("div", { class: "src-card" + (stream.recommended ? " best" : "") + (owned ? " owned" : "") + (stream.cam ? " early" : ""), "data-early": stream.cam ? stream.prerelease || "cam" : null }, main, streamBtn, dlBtn);
   // Let the live WebSocket updates repaint this row's button in place.
   wrap._paintDl = (j) => paintDl(dlBtn, j);
   return wrap;
@@ -827,7 +855,7 @@ const loadSources = async (
     ),
   );
   try {
-    const [{ streams: rawStreams }, dlStates] = await Promise.all([
+    const [{ streams: rawStreams, release = null }, dlStates] = await Promise.all([
       api.torrentSources({ type, title: imdbId, year, season, episode }),
       fetchDownloadStates(),
     ]);
@@ -837,6 +865,7 @@ const loadSources = async (
     // down or a title nobody seeds must never hide the file we already have.
     const bailEmpty = (what) => {
       if (owned) host.append(ownedRow(owned));
+      if (release && release.line) host.append(releaseNote(release));
       host.append(
         el(
           "div",
@@ -844,7 +873,7 @@ const loadSources = async (
           `No ${owned ? "other " : ""}sources${what}.`,
         ),
       );
-      return { streams: [], best: null, jobs: dlStates };
+      return { streams: [], best: null, jobs: dlStates, release };
     };
     if (!streams || streams.length === 0) return bailEmpty(" found");
 
@@ -885,7 +914,12 @@ const loadSources = async (
       .map((x) => x.s);
 
     const listHost = el("div", { class: "src-list" });
-    const best = streams.find((x) => x.recommended) || null;
+    // The pick (the TV's playBest.ts pickBest, the same rule): the server's
+    // ★ Best among the live ones, else the first clean copy, else the first
+    // with burned-in subtitles — never a pre-release copy, never a dub. None:
+    // nothing is saved by itself ("Save & watch" says why).
+    const pickableRow = (x) => !x.cam && !x.prerelease && !x.dubbed;
+    const best = streams.find((x) => x.recommended && pickableRow(x)) || streams.find((x) => pickableRow(x) && !x.hardsub) || streams.find(pickableRow) || null;
     // Rows by source key, so a live download_update repaints just that button.
     const rows = new Map();
     // On a phone the box doesn't scroll inside the page (a list scrolling
@@ -967,11 +1001,12 @@ const loadSources = async (
     // the copy you own (when there is one), the quality filter, the list.
     host.append(
       ...(owned ? [ownedRow(owned)] : []),
+      ...(release && release.line ? [releaseNote(release)] : []),
       buildFilterBar(streams, renderList),
       listHost,
     );
     renderList(streams);
-    return { streams, best, jobs: dlStates };
+    return { streams, best, jobs: dlStates, release };
   } catch {
     host.innerHTML = "";
     // the copy you own stays playable when the provider is down
@@ -992,6 +1027,15 @@ const loadSources = async (
     return { streams: [], best: null, jobs: new Map(), failed: true };
   }
 };
+
+// "Has it really come out?" — the server's sentence (src/media/releasestatus.js),
+// printed as it is: the TV app shows the very same words.
+const releaseNote = (release, cls = "release-note") =>
+  el("div", { class: cls, role: "status", "data-release": release.state },
+    el("span", { class: "release-ic", "aria-hidden": "true" }, "🎬"),
+    el("div", { class: "release-text" },
+      el("b", {}, release.line),
+      release.note && el("span", { class: "release-sub" }, release.note)));
 
 // Resolve a library title to its IMDb id so a locally-owned title can still
 // offer stream sources. Answers are cached on the server for good; this map just
@@ -1392,10 +1436,16 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       onclick: async () => {
         saveBtn.disabled = true;
         const r = sourcesP ? await sourcesP.catch(() => null) : null;
-        const best = r && (r.best || (r.streams || [])[0]);
+        // the ★ Best only — never "the first row", which can be a cinema recording
+        const best = r && r.best;
         if (!best) {
           saveBtn.disabled = false;
-          toast(r && r.failed ? "The source provider didn't answer — try again below" : "No source found yet — pick one below", "🔍");
+          toast(
+            r && r.failed ? "The source provider didn't answer — try again below"
+            : r && r.release && r.release.line ? r.release.line
+            : "No source found yet — pick one below",
+            "🔍",
+          );
           return scrollToSources();
         }
         const res = await requestDownload(best, meta || { ...view, imdbId }, view.title, null, null, { onStream: scrollToSources });
@@ -2006,7 +2056,16 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       const live = [...(r.jobs || new Map()).values()].find(
         (j) => j.imdbId === imdbId && DL_ACTIVE.includes(j.status),
       );
-      if (live) saveState(live);
+      if (live) return saveState(live);
+      // Not out in good quality yet (only cinema recordings, or not out at
+      // home at all): the page says so plainly where the big Save & watch
+      // button was — the copies there are still listed below, marked, asked
+      // about before anything downloads.
+      if (r.release && r.release.line && r.release.state !== "good" && !r.best) {
+        const note = releaseNote(r.release, "release-note hero-release");
+        saveBtn.replaceWith(note);
+        saveBtn = null;
+      }
     }).catch(() => {});
 
     // Finished while you were watching the page? Show it, don't make them reload.
@@ -2171,8 +2230,8 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     savingEps.add(key);
     try {
       const r = await listed.catch(() => null);
-      const best = r && (r.best || (r.streams || [])[0]);
-      if (!best) return;
+      const best = r && r.best; // never a fallback to the first row (a cinema recording, a dub)
+      if (!best) return toast("No good copy of this episode yet — pick one below", "🔍");
       const res = await requestDownload(best, base(), `${view.title} · S${row.season} E${row.episode}`, row.season, row.episode, { quiet: true });
       if (!res || res.error || res.alreadyAvailable) return;
       if (!epJobs.has(key)) {

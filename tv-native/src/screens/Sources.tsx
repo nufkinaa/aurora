@@ -12,6 +12,8 @@ import Svg, {Circle} from 'react-native-svg';
 import {api, imgSrc, DownloadJob, Stream, TorrentPlayItem} from '../api';
 import {canNavigate} from '../navLock';
 import {streamPlayItem} from '../playBest';
+import {openActions} from '../overlay';
+import {EARLY_CONFIRM, heroRelease, isEarly, ReleaseStatus, sourceBadge} from '../releaseWords';
 import {useApp} from '../AppContext';
 import {RootStackParamList} from '../navigation';
 import theme from '../theme';
@@ -193,6 +195,8 @@ export function SourcesPanel({
 }: SourcesPanelProps) {
   const {profileId} = useApp();
   const [streams, setStreams] = useState<Stream[] | null>(null);
+  // A film not out in good quality yet: the server's sentence, printed as it is.
+  const [release, setRelease] = useState<ReleaseStatus | null>(null);
   // infoHash:fileIdx -> newest job for that exact source.
   const [jobs, setJobs] = useState<Map<string, DownloadJob>>(new Map());
   // Last poll's jobs, for spotting status TRANSITIONS (see the poll below).
@@ -230,6 +234,7 @@ export function SourcesPanel({
         if (s.some(x => x.seeders > 0)) s = s.filter(x => x.seeders > 0);
         streamsRef.current = s;
         setStreams(s);
+        setRelease(heroRelease(r.release));
       })
       .catch(() => live && setError('Could not reach the source provider.'));
     return () => {
@@ -371,6 +376,20 @@ export function SourcesPanel({
     onPlay(item);
   };
 
+  // A copy made before the film is out at home (CAM, TS, TC, screener, HC) is
+  // asked about first — the site's words (releaseWords.ts EARLY_CONFIRM).
+  const askFirst = (s: Stream, what: 'download' | 'play', go: () => void) => {
+    if (!isEarly(s)) return go();
+    openActions({
+      title: EARLY_CONFIRM.title,
+      sub: EARLY_CONFIRM.text(s),
+      items: [
+        {label: EARLY_CONFIRM.cancel, onPress: () => {}},
+        {label: EARLY_CONFIRM[what], onPress: go},
+      ],
+    });
+  };
+
   const flashToast = (msg: string) => {
     if (!mounted.current) return;
     setToast(msg);
@@ -471,7 +490,7 @@ export function SourcesPanel({
               claimOwned.current !== true &&
               dlKey(s.infoHash, s.fileIdx) === firstClaimKey.current
             }
-            onPress={() => (playsCopy ? play(s) : !isDone && requestDownload(s))}
+            onPress={() => (playsCopy ? play(s) : !isDone && askFirst(s, 'download', () => requestDownload(s)))}
             style={[styles.row, isDone && styles.rowOwned]}
             highlightColor={colors.surfaceHover}>
             {/* .source-quality.owned-chip — the quality pill turns green once the
@@ -498,7 +517,7 @@ export function SourcesPanel({
                   </Text>
                 ) : null}
                 {s.recommended ? <Text style={styles.best}>Best</Text> : null}
-                {s.cam ? <Text style={styles.cam}>Cam</Text> : null}
+                {sourceBadge(s) ? <Text style={styles.cam}>{sourceBadge(s)}</Text> : null}
                 {s.dubbed ? <Text style={styles.dub}>Dub</Text> : null}
               </View>
               <View style={styles.metaLine}>
@@ -516,6 +535,12 @@ export function SourcesPanel({
                   <Text style={[styles.seeds, {color: seedColor}]}>{`${s.seeders} seeders`}</Text>
                 )}
                 {s.sizeString ? <Text style={styles.meta}>{s.sizeString}</Text> : null}
+                {/* what kind of copy it is, in plain words ("CAM — filmed in a cinema") */}
+                {s.warning && !jobLine && !playsCopy ? (
+                  <Text style={styles.warnLine} numberOfLines={1}>
+                    {s.warning}
+                  </Text>
+                ) : null}
                 {jobLine || playsCopy ? null : s.languages?.length ? (
                   // Four languages at most, then "+N": a twelve-language dub
                   // pack wrapped its row to two lines.
@@ -531,7 +556,7 @@ export function SourcesPanel({
           {playsCopy ? null : (
             <Focusable uiId="detail.source.play"
               scaleTo={1.03}
-              onPress={() => play(s)}
+              onPress={() => askFirst(s, 'play', () => play(s))}
               style={styles.streamBtn}
               accessibilityLabel="Stream this source now, without saving"
               highlightColor={colors.surfaceHover}>
@@ -634,6 +659,12 @@ export function SourcesPanel({
           </Focusable>
         </View>
         {toast ? <Text style={styles.toast}>{toast}</Text> : null}
+        {release ? (
+          <View style={styles.releaseNote}>
+            <Text style={styles.releaseLine}>{release.line}</Text>
+            {release.note ? <Text style={styles.releaseSub}>{release.note}</Text> : null}
+          </View>
+        ) : null}
 
       {/* The copy already on disk — pinned ABOVE every torrent and OUTSIDE the
           scrolling list, so it can never be sorted away or scrolled past
@@ -785,6 +816,20 @@ const styles = StyleSheet.create({
   cam: {color: '#ff8080', fontSize: 12, fontWeight: '900', borderWidth: 1, borderColor: 'rgba(255,128,128,0.45)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden', flexShrink: 0},
   dub: {color: '#fbbf24', fontSize: 12, fontWeight: '900', borderWidth: 1, borderColor: 'rgba(251,191,36,0.45)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden', flexShrink: 0},
   metaLine: {flexDirection: 'row', gap: spacing.md, marginTop: 4, flexWrap: 'wrap'},
+  // a copy made before the film is out at home, said in words (the site's .src-warn)
+  warnLine: {color: '#fcd34d', fontSize: fontSize.small, fontWeight: '700', flexShrink: 1},
+  // "Not out in good quality yet — …" (the site's .release-note)
+  releaseNote: {
+    marginBottom: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.m,
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.35)',
+    backgroundColor: 'rgba(251,191,36,0.1)',
+  },
+  releaseLine: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
+  releaseSub: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '600', marginTop: 2},
   seeds: {fontSize: fontSize.small, fontWeight: '800'},
   meta: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '600'},
   // .source-row.owned — a green edge and a wash, so a downloaded source is

@@ -36,8 +36,9 @@ const UPNEXT_GLOW = require('../assets/upnext-glow.png');
 const OWNED_UPNEXT_GLOW = require('../assets/owned-upnext-glow.png');
 import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
-import {api, ApiError, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, listAddedLine, ListDownload, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry, Stream} from '../api';
+import {api, ApiError, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, LIST_ADDED, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry, Stream} from '../api';
 import {autoPlayStep, jobSource, pickBest, runningJobFor, streamPlayItem} from '../playBest';
+import {heroRelease, ReleaseStatus} from '../releaseWords';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
 import {openTrailer, openActions, openXray} from '../overlay';
@@ -1301,7 +1302,6 @@ export default function Detail({
     const next = !inList;
     setInList(next); // optimistic
     try {
-      let res: {download?: ListDownload | null} | null = null;
       if (stream) {
         const ref: StreamRef = {
           imdbId: item.imdbId || libImdb || item.id,
@@ -1316,14 +1316,13 @@ export default function Detail({
           genres: genreSource.length ? genreSource : undefined,
           rating: item.rating ?? streamMeta?.rating ?? undefined,
         };
-        res = await api.toggleWatchlist(profileId, ref, next);
+        await api.toggleWatchlist(profileId, ref, next);
       } else {
-        res = await api.toggleWatchlist(profileId, item.id, next);
+        await api.toggleWatchlist(profileId, item.id, next);
       }
       // Said every time, in the peek sheet's words (owner, 2026-10-10: one
-      // wording on both products) — and an add says what it started
-      // downloading, when it started anything.
-      showToast(next ? listAddedLine(res) : 'Removed from My List', next && res?.download?.queued ? '⬇' : '✓');
+      // wording on both products). An add only adds — it never downloads.
+      showToast(next ? LIST_ADDED : 'Removed from My List', '✓');
     } catch {
       setInList(!next); // revert on failure
     }
@@ -1376,6 +1375,30 @@ export default function Detail({
   // matched — the resolved copy's id. Null means there is nothing on disk and
   // the page is a genuine stream page.
   const ownedMovieId = !stream ? item.id : full?.videoUrl ? full.id : null;
+
+  // A film not on disk: has it really come out, and is there a good copy?
+  // (elia, 2026-10-26: "You immediately run to download it even if it's a
+  // CAM.") When every copy is a cinema recording — or there is none and it is
+  // not out at home yet — the page says so in the server's own words
+  // (releaseWords.ts; the website prints the very same sentence) and Play
+  // opens the marked list instead of saving one. The read is the one Play
+  // makes anyway (api.ts memo, 90 s), so the press after it costs nothing.
+  const [heroRel, setHeroRel] = useState<ReleaseStatus | null>(null);
+  const filmImdb = item.type === 'show' ? null : item.imdbId || libImdb || null;
+  useEffect(() => {
+    setHeroRel(null);
+    if (!filmImdb || ownedMovieId || torrentsOff) return;
+    let live = true;
+    api
+      .torrentSources({type: 'movie', title: filmImdb, year: item.year ?? undefined})
+      .then(r => {
+        if (live) setHeroRel(pickBest(r.streams) ? null : heroRelease(r.release));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [filmImdb, ownedMovieId, torrentsOff, item.year]);
 
   // MARK WATCHED IS NOT WATCHING (Mi TV QA, 2026-10-09: "Mark season watched"
   // on Silo S3 queued real downloads of S3E5 and S3E9, and "Mark season
@@ -2098,6 +2121,12 @@ export default function Detail({
         const alive = (streams || []).filter(x => x.seeders > 0);
         const pick = pickBest(streams);
         if (!pick) {
+          // (a list of nothing but early copies is not a pick either)
+          if ((streams || []).length) {
+            showToast('No good copy of this episode yet — pick one from its sources', '⚠');
+            setDlNote({key, kind: 'failed', text: `No good copy of ${name} yet  ·  hold for its sources`});
+            return;
+          }
           showToast('No sources for this episode yet', '⚠');
           setDlNote({key, kind: 'failed', text: `No sources for ${name} yet  ·  try again later`});
           return;
@@ -2191,9 +2220,18 @@ export default function Detail({
         return;
       }
       showToast(`Finding the best source for ${item.title}…`, '⬇');
-      const {streams} = await api.torrentSources({type: 'movie', title: imdb, year: item.year ?? undefined});
+      const {streams, release} = await api.torrentSources({type: 'movie', title: imdb, year: item.year ?? undefined});
       const pick = pickBest(streams);
       if (!pick) {
+        // Only cinema recordings (or nothing, and not out at home yet): never
+        // one of those by itself — the page says why, the list is a press away.
+        const said = heroRelease(release);
+        if (said) {
+          setHeroRel(said);
+          showToast(said.line || '', '🎬');
+          setDlNote({key, kind: 'failed', text: `${said.line}  ·  hold Play for the list`});
+          return;
+        }
         showToast('No sources for this title yet', '⚠');
         setDlNote({key, kind: 'failed', text: 'No sources for this title yet  ·  try again later'});
         return;
@@ -2898,14 +2936,24 @@ export default function Detail({
                 ? `⬇  ${dlText(movieJob).toLowerCase().replace(/^\w/, c => c.toUpperCase())}`
                 : heroDl.busy
                   ? 'Getting it…'
-                  : '▶  Play'
+                  : heroRel
+                    ? '≡  Sources'
+                    : '▶  Play'
           }
           // one press: a copy on disk plays; anything else saves the best
-          // source AND plays it while it downloads (playBest.ts)
-          onPress={ownedMovieId ? playMovie : () => downloadBestMovie(true)}
+          // source AND plays it while it downloads (playBest.ts) — unless
+          // there is no good copy yet: then it opens the marked list
+          onPress={ownedMovieId ? playMovie : heroRel && !movieJob ? openSources : () => downloadBestMovie(true)}
           onLongPress={ownedMovieId ? undefined : openSources}
         />
-        {heroStatusLine}
+        {heroRel && !ownedMovieId && !movieJob ? (
+          <View style={styles.releaseNote}>
+            <Text style={styles.releaseLine}>{heroRel.line}</Text>
+            {heroRel.note ? <Text style={styles.releaseSub}>{heroRel.note}</Text> : null}
+          </View>
+        ) : (
+          heroStatusLine
+        )}
       </DetailHero>
       </ToTop.Provider>
       {/* The shelf: titles like this one, below the fold like Max's Extras. */}
@@ -2937,6 +2985,20 @@ export default function Detail({
 }
 
 const styles = StyleSheet.create({
+  // "Not out in good quality yet — …" under Play (the site's .release-note)
+  releaseNote: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    maxWidth: 620,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.35)',
+    backgroundColor: 'rgba(251,191,36,0.12)',
+  },
+  releaseLine: {color: '#fff', fontSize: 17, fontWeight: '700'},
+  releaseSub: {color: 'rgba(255,255,255,0.72)', fontSize: 14, fontWeight: '600', marginTop: 2},
   // No backgroundColor: android:windowBackground is already this colour, and
   // painting it again cost a second full-screen fill on every frame.
   root: {flex: 1},

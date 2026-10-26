@@ -356,89 +356,63 @@ ui.test("In flight: a job trying a second source gets one line under it; holding
   assert.match(await page.textContent("#lim-status"), /3 queued — they start when viewing stops/);
 });
 
-// ---------- Downloads tab: a My List download on hold (src/media/dlslots.js) ----------
-ui.test("In flight: a My List download on hold says so with what it has; 'Start now' moves it to the front; Cancel is still there", async ({ page, srv }) => {
-  const base = {
-    infoHash: "a".repeat(40), fileIdx: 0, type: "movie", quality: "1080p", sizeBytes: 4e9, peers: 0, downloadSpeed: 0, phase: null,
-    at: new Date().toISOString(), race: null, raceNote: null, holdReason: null,
-  };
-  const jobs = [
-    { ...base, id: "aaaaaaaaaaaa", title: "Held Film", label: "Held Film", status: "approved", progress: 0.42, smart: true, auto: "mylist", held: true, heldReason: "downloads" },
-    { ...base, id: "bbbbbbbbbbbb", title: "Waiting Film", label: "Waiting Film", status: "approved", progress: 0, smart: true, auto: "mylist", held: false },
-    { ...base, id: "cccccccccccc", title: "Asked Film", label: "Asked Film", status: "downloading", phase: "downloading", progress: 0.2, downloadSpeed: 3e6, smart: false, auto: null, held: false },
-    { ...base, id: "dddddddddddd", title: "Queued Film", label: "Queued Film", status: "approved", progress: 0, smart: false, auto: null, held: false },
-  ];
-  await page.route("**/api/downloads", (route) => route.fulfill({ json: jobs }));
-  const started = [];
-  await page.route("**/api/admin/downloads/*/start", (route) => {
-    started.push(new URL(route.request().url()).pathname);
-    jobs[0] = { ...jobs[0], status: "downloading", phase: "finding", held: false, heldReason: null };
-    route.fulfill({ json: { job: jobs[0] } });
-  });
-  await enter(page, srv);
-  await downloadsTab(page);
-  await page.waitForSelector('#dl-jobs tr[data-dl-id="aaaaaaaaaaaa"]');
-  const row = (id) => page.locator(`#dl-jobs tr[data-dl-id="${id}"]`);
-  assert.equal(await row("aaaaaaaaaaaa").locator(".pill").last().innerText(), "on hold");
-  assert.match(await row("aaaaaaaaaaaa").innerText(), /42%/, "its progress so far stays on the row");
-  assert.equal(await row("aaaaaaaaaaaa").getAttribute("data-dl-held"), "1");
-  const notes = await page.locator("#dl-jobs tr.hold-row").allInnerTexts();
-  assert.equal(notes.length, 2, "the held one and the My List one that has not started — not the others");
-  assert.match(notes[0], /On hold — waiting for other downloads\. It carries on from 42%\./);
-  assert.match(notes[1], /From My List — it starts after the other downloads\./);
-  assert.equal(await row("bbbbbbbbbbbb").locator(".pill").last().innerText(), "approved", "a queued job reads as it always did");
-  // the buttons: Start now only on My List jobs that wait; Cancel on every row
-  assert.equal(await page.locator("#dl-jobs [data-dl-start]").count(), 2);
-  assert.equal(await row("cccccccccccc").locator("[data-dl-start]").count(), 0);
-  assert.equal(await row("dddddddddddd").locator("[data-dl-start]").count(), 0);
-  assert.equal(await page.locator("#dl-jobs button.danger").count(), 4);
-
-  await row("aaaaaaaaaaaa").locator("[data-dl-start]").click();
-  await page.waitForFunction(() => !document.querySelector('#dl-jobs tr[data-dl-id="aaaaaaaaaaaa"][data-dl-held]'));
-  assert.deepEqual(started, ["/api/admin/downloads/aaaaaaaaaaaa/start"]);
-  assert.equal(await page.locator("#dl-jobs tr.hold-row").count(), 1);
+// ---------- Downloads tab: what My List downloads left behind (src/media/mylistdl.js) ----------
+// (The feature itself — an add to My List starting a download — is gone; the
+// card only shows while copies it fetched are still looked after.)
+const someLeft = async (page) => page.route("**/api/admin/mylist", async (route) => {
+  const res = await route.fetch();
+  const body = await res.json();
+  const now = Date.now();
+  body.records = [{ key: "tt5", label: "Left Film", by: "Ann", addedAt: now - 3 * 86400e3, state: "fresh", why: "added to My List on 2026-10-20", staleAt: now + 11 * 86400e3, deleteAt: now + 18 * 86400e3 }];
+  await route.fulfill({ json: body });
 });
-
-// ---------- Downloads tab: My List downloads (src/media/mylistdl.js) ----------
 const myListCard = async (page) => {
   await page.waitForSelector("#ml-card:not(.hidden)", { state: "attached" });
   if (!(await page.evaluate(() => document.querySelector("#ml-card").open))) await page.click("#ml-card > summary");
   await page.waitForFunction(() => document.querySelector("#ml-stale").value !== "");
 };
 
-ui.test("My List downloads: the owner's defaults, a change sticks across a reload, a refused value changes nothing", { allow: [/Failed to load resource.*400.*mylist\/settings/] }, async ({ page, srv, api }) => {
+ui.test("Left from My List downloads: no card when nothing is left; with copies left, only the tidy-up settings", async ({ page, srv }) => {
+  await enter(page, srv);
+  const answered = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/admin/mylist");
+  await downloadsTab(page);
+  await answered;
+  await page.waitForTimeout(150);
+  assert.equal(await page.locator("#ml-card").evaluate((n) => n.classList.contains("hidden")), true, "nothing left: no card");
+  await someLeft(page);
   await enter(page, srv);
   await downloadsTab(page);
   await myListCard(page);
-  assert.equal(await page.isChecked("#ml-on"), true, "on, as asked");
-  assert.equal(await page.isChecked("#ml-shows"), true);
+  // the removed feature's switches are gone from the page
+  for (const gone of ["#ml-on", "#ml-shows", "#ml-cap", "#ml-retries", "#ml-yield"]) assert.equal(await page.locator(gone).count(), 0, gone);
+  const card = await page.locator("#ml-card").innerText();
+  assert.match(card, /Left from My List downloads/);
+  assert.match(card, /Adding a title to My List no longer downloads anything/);
+  assert.doesNotMatch(card, /Download when a title is added|first episode|last in the queue|on hold/i);
+});
+
+ui.test("Left from My List downloads: the defaults, a change sticks across a reload, a refused value changes nothing", { allow: [/Failed to load resource.*400.*mylist\/settings/] }, async ({ page, srv, api }) => {
+  await someLeft(page);
+  await enter(page, srv);
+  await downloadsTab(page);
+  await myListCard(page);
   assert.equal(await page.isChecked("#ml-autodelete"), true);
   assert.equal(await page.inputValue("#ml-stale"), "14");
   assert.equal(await page.inputValue("#ml-delete"), "21");
-  assert.equal(await page.inputValue("#ml-cap"), "5");
-  assert.equal(await page.inputValue("#ml-retries"), "1");
-  assert.equal(await page.inputValue("#ml-yield"), "always", "on hold while any other download is waiting or running");
-  assert.match(await page.textContent("#ml-empty"), /Nothing has been fetched from a list yet/);
 
-  await page.fill("#ml-stale", "10");
+  await page.fill("#ml-stale", "10");  await page.fill("#ml-stale", "10");
   await page.fill("#ml-delete", "30");
-  await page.uncheck("#ml-shows");
-  await page.selectOption("#ml-yield", "slots");
+  await page.uncheck("#ml-autodelete");
   await page.click("#ml-apply");
-  await toastSays(page, /My List downloads: saved/);
+  await toastSays(page, /Saved/);
   const saved = (await api.adminGet("/api/admin/mylist")).settings;
-  assert.equal(saved.myListYield, "slots");
-  assert.equal(saved.myListStaleDays, 10);
-  assert.equal(saved.myListDeleteDays, 30);
-  assert.equal(saved.myListShows, false);
-  assert.equal(saved.myListDownloads, true, "what was not touched stays");
+  assert.deepEqual(saved, { myListAutoDelete: false, myListStaleDays: 10, myListDeleteDays: 30 });
 
   await enter(page, srv);
   await downloadsTab(page);
   await myListCard(page);
   assert.equal(await page.inputValue("#ml-stale"), "10", "it stuck");
-  assert.equal(await page.inputValue("#ml-yield"), "slots");
-  assert.equal(await page.isChecked("#ml-shows"), false);
+  assert.equal(await page.isChecked("#ml-autodelete"), false);
 
   // deleting before it was ever stale makes no sense, and neither does day 0
   await page.fill("#ml-delete", "5");
@@ -451,13 +425,13 @@ ui.test("My List downloads: the owner's defaults, a change sticks across a reloa
   const after = (await api.adminGet("/api/admin/mylist")).settings;
   assert.equal(after.myListStaleDays, 10);
   assert.equal(after.myListDeleteDays, 30);
-  await api.adminPost("/api/admin/mylist/settings", { myListStaleDays: 14, myListDeleteDays: 21, myListShows: true });
+  await api.adminPost("/api/admin/mylist/settings", { myListStaleDays: 14, myListDeleteDays: 21, myListAutoDelete: true });
 });
 
 // A stale copy cannot be staged in the private instance (it has no network to
 // download with, and no clock to wind): the server's answers are made up here,
 // in the shapes the routes really send (test/mylistdl-queue.test.js pins those).
-ui.test("My List downloads: a job is tagged, a stale copy is marked on disk and is the first delete suggestion, with why", async ({ page, srv }) => {
+ui.test("Left from My List downloads: a leftover job is an ordinary one in the queue, a stale copy is marked on disk and is the first delete suggestion, with why", async ({ page, srv }) => {
   const DAY = 86400e3;
   const now = Date.now();
   const mark = { state: "stale", why: "added to My List on 2026-09-20, never watched", by: "Ann", addedAt: now - 16 * DAY, staleAt: now - 2 * DAY, deleteAt: now + 5 * DAY };
@@ -465,9 +439,9 @@ ui.test("My List downloads: a job is tagged, a stale copy is marked on disk and 
   const job = {
     id: "dddddddddddd", infoHash: "d".repeat(40), fileIdx: 0, imdbId: "tt9000009", title: "Listed Film", label: "Listed Film", type: "movie",
     quality: "1080p", sizeBytes: 3e9, status: "downloading", phase: "downloading", progress: 0.4, downloadSpeed: 2e6, peers: 9, at: new Date().toISOString(),
-    smart: true, auto: "mylist", race: null, raceNote: null,
+    smart: true, race: null, raceNote: null,
   };
-  await page.route("**/api/downloads", (route) => route.fulfill({ json: [job, { ...job, id: "eeeeeeeeeeee", title: "Asked Film", label: "Asked Film", smart: false, auto: null }] }));
+  await page.route("**/api/downloads", (route) => route.fulfill({ json: [job, { ...job, id: "eeeeeeeeeeee", title: "Asked Film", label: "Asked Film", smart: false, status: "approved", progress: 0 }] }));
   await page.route("**/api/admin/library/tree", async (route) => {
     const res = await route.fetch();
     const body = await res.json();
@@ -496,10 +470,12 @@ ui.test("My List downloads: a job is tagged, a stale copy is marked on disk and 
 
   await enter(page, srv);
   await downloadsTab(page);
-  // the queue: the list's job says so, somebody's own does not
+  // the queue: no My List tag, no "on hold", no "Start now" — every row is an ordinary one with its Cancel
   await page.waitForSelector("#dl-jobs tr");
-  assert.match(await page.locator("#dl-jobs tr", { hasText: "Listed Film" }).innerText(), /My List/);
-  assert.doesNotMatch(await page.locator("#dl-jobs tr", { hasText: "Asked Film" }).innerText(), /My List/);
+  assert.doesNotMatch(await page.locator("#dl-jobs").innerText(), /My List|on hold|starts after the other downloads/i);
+  assert.equal(await page.locator("#dl-jobs [data-dl-start]").count(), 0);
+  assert.equal(await page.locator("#dl-jobs tr.hold-row").count(), 0);
+  assert.equal(await page.locator("#dl-jobs button.danger").count(), 2);
 
   // the card: one row per copy, with its state and its clock
   await myListCard(page);

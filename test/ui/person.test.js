@@ -119,12 +119,12 @@ ui.test("X-Ray → press a person → their sheet, titles by department; press a
   await page.waitForFunction((b) => location.hash !== b, hashBefore);
 });
 
-ui.test("the toast says when the add started a download, the card says Downloading, and Undo takes the title off the list again", async (h) => {
+ui.test("an add only adds (no 'downloading', even if an older server says so), and Undo takes the title off the list again", async (h) => {
   const { page, signIn, freshProfile, api } = h;
   const me = await freshProfile();
   await signIn(me);
-  // (the instance cannot download: the server's answer to the add is made up
-  // here, as in library.test.js — what is tested is what the sheet does with it)
+  // (an older server answered an add with what it started fetching; the
+  // sheet no longer says anything about downloads — My List downloads are gone)
   await page.route("**/api/profiles/*/watchlist", async (route) => {
     if (route.request().method() !== "POST") return route.continue();
     const res = await route.fetch();
@@ -136,14 +136,15 @@ ui.test("the toast says when the add started a download, the card says Downloadi
   await pressPerson(page, "Nora Chris", "Director");
   const stars = titleCard(page, "Stars Between");
   await stars.locator(".pt-card").click();
-  await toastSays(page, /Stars Between: Added to My List — downloading the film/);
-  await page.waitForFunction(() => document.querySelector(".person-wrap .pt.listed .pt-flag")?.textContent === "Downloading");
-  assert.match(await stars.locator(".pt-card").getAttribute("aria-label"), /downloading\. On My List: press to take it off/);
+  await toastSays(page, /Stars Between: Added to My List(?! —)/);
+  await page.waitForSelector(".person-wrap .pt.listed");
+  assert.notEqual(await stars.locator(".pt-flag").innerText().catch(() => ""), "Downloading");
+  assert.doesNotMatch(await stars.locator(".pt-card").getAttribute("aria-label"), /downloading/);
+  assert.match(await stars.locator(".pt-card").getAttribute("aria-label"), /On My List: press to take it off/);
   assert.deepEqual(await listed(api, me), [STARS]);
 
   await page.locator('#toasts .toast-act:text-is("Undo")').click();
   await page.waitForFunction(() => !document.querySelector(".person-wrap .pt.listed") && !document.querySelector(".person-wrap .pt.busy"));
-  assert.equal(await stars.locator(".pt-flag").isVisible(), false, "the Downloading mark stayed after the undo");
   assert.deepEqual(await listed(api, me), []);
 });
 

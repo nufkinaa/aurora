@@ -1,5 +1,5 @@
 // What one press, and holding, does on a row of My downloads (downloadsLogic.ts).
-import {downloadActions, heldLine, isHeld, isReady, rowStatus, startedBy} from '../../src/downloadsLogic';
+import {downloadActions, isReady, rowStatus, startedBy} from '../../src/downloadsLogic';
 
 const job = (o: Record<string, unknown>) => ({status: 'downloading', mine: true, imdbId: 'tt1', infoHash: 'abc', ...o} as never);
 
@@ -38,16 +38,10 @@ test("someone else's download has no action", () => {
   expect(downloadActions(job({status: 'downloading', mine: false}), false)).toEqual({press: null, all: [], label: ''});
 });
 
-test('a My List download on hold says so, with what it has - and cancels like any queued one (asking first past 5%)', () => {
-  const j = job({status: 'approved', held: true, heldReason: 'downloads', progress: 0.42});
-  expect(isHeld(j)).toBe(true);
-  expect(heldLine(j)).toBe('On hold — waiting for other downloads · 42 %');
-  expect(heldLine(job({status: 'approved', held: true, heldReason: 'watching', progress: 0}))).toBe('On hold — waiting while someone is watching · 0 %');
-  expect(downloadActions(j, true)).toEqual({press: 'confirmCancel', all: ['title', 'confirmCancel'], label: 'Cancel'});
-  expect(downloadActions(job({status: 'approved', held: true, progress: 0.01}), true).press).toBe('cancel');
-  // `held` on anything but a queued job means nothing (the server only sets it there)
-  expect(isHeld(job({status: 'downloading', held: true}))).toBe(false);
-  expect(isHeld(job({status: 'approved'}))).toBe(false);
+test('a queued download cancels without asking; a running one past 5% asks first', () => {
+  expect(downloadActions(job({status: 'approved', progress: 0.42}), true).press).toBe('cancel');
+  expect(downloadActions(job({status: 'downloading', progress: 0.42}), true).press).toBe('confirmCancel');
+  expect(downloadActions(job({status: 'downloading', progress: 0.01}), true).press).toBe('cancel');
 });
 
 test("someone else's download says who started it, by name - the website's words; your own rows say nothing", () => {
@@ -63,6 +57,6 @@ test('the row line: whose first, so a long status cannot cut it off', () => {
   expect(rowStatus({who: 'Started by Dor', kind: null, status: 'Waiting for approval — Low disk space: 63.1 GB free on C:/Users/x', size: null})).toBe(
     'Started by Dor · Waiting for approval — Low disk space: 63.1 GB free on C:/Users/x',
   );
-  expect(rowStatus({who: null, kind: 'From My List', status: 'Downloading 40%', size: '1.2 GB'})).toBe('From My List · Downloading 40% · 1.2 GB');
+  expect(rowStatus({who: null, kind: 'Next episode, queued for you', status: 'Downloading 40%', size: '1.2 GB'})).toBe('Next episode, queued for you · Downloading 40% · 1.2 GB');
   expect(rowStatus({who: null, kind: null, status: 'Ready', size: null})).toBe('Ready');
 });

@@ -19,7 +19,7 @@
 // X-Ray left it, and closing the sheet returns focus to the person pressed.
 // Back / Escape / the phone's back gesture close the top layer only — the
 // enlarged photo, then this sheet, then X-Ray.
-import { el, artUrl, icons, toast, listAddedLine, posterImg, backupPosterUrl, haptic } from "./ui.js";
+import { el, artUrl, icons, toast, LIST_ADDED, posterImg, backupPosterUrl, haptic } from "./ui.js";
 import { api } from "./api.js";
 import { state } from "./state.js";
 import { navigate } from "./router.js";
@@ -100,7 +100,7 @@ export const openPerson = (who, { inPlayer = false } = {}) => {
   const cardNodes = new Map(); // credit.key -> { credit, node, btn, paint }
   const describe = (c) => {
     const bits = [c.title, c.year, c.role].filter(Boolean).join(", ");
-    const where = [c.inLibrary && "in the library", c.watched && "watched", c._downloading && "downloading"].filter(Boolean).join(", ");
+    const where = [c.inLibrary && "in the library", c.watched && "watched"].filter(Boolean).join(", ");
     return `${bits}${where ? ` — ${where}` : ""}. ${c.inList ? "On My List: press to take it off." : "Press to add it to My List."}`;
   };
   const details = (c) => {
@@ -120,20 +120,18 @@ export const openPerson = (who, { inPlayer = false } = {}) => {
     c._busy = true;
     const next = !c.inList;
     c.inList = next;
-    if (!next) c._downloading = false;
     haptic(8);
     if (hit) hit.paint();
     try {
-      const res = await api.toggleWatchlist(state.profile.id, {
+      await api.toggleWatchlist(state.profile.id, {
         imdbId: c.imdbId, type: c.type === "show" ? "show" : "movie", title: c.title,
         poster: c.poster || null, year: c.year || null, genres: c.genres || [], rating: c.rating || null,
       }, next);
-      c._downloading = !!(next && res && res.download && res.download.queued);
       track("feat", { f: next ? "person_add" : "person_remove" });
       // the page under the sheet may be this very title: its own button follows
       window.dispatchEvent(new CustomEvent("aurora-watchlist", { detail: { imdbId: c.imdbId, libraryId: c.inLibrary || null, inList: next } }));
       // the TV sheet's words (PersonSheet.tsx): the title, then the My List line every screen uses
-      say(next ? `${c.title}: ${listAddedLine(res)}` : `${c.title}: removed from My List`, next ? "➕" : "➖",
+      say(next ? `${c.title}: ${LIST_ADDED}` : `${c.title}: removed from My List`, next ? "➕" : "➖",
         next ? { label: "Undo", onClick: () => { if (c.inList) toggle(c); } } : null);
     } catch {
       c.inList = !next;
@@ -167,7 +165,7 @@ export const openPerson = (who, { inPlayer = false } = {}) => {
       btn.setAttribute("aria-pressed", String(!!c.inList));
       btn.setAttribute("aria-label", describe(c));
       mark.innerHTML = c.inList ? icons.check : icons.plus;
-      const text = c._downloading ? "Downloading" : c.watched ? "Watched" : c.inLibrary ? "In library" : "";
+      const text = c.watched ? "Watched" : c.inLibrary ? "In library" : "";
       flag.textContent = text;
       flag.classList.toggle("hidden", !text);
     };

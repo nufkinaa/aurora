@@ -143,44 +143,41 @@ ui.test("My List: add from a title page, see it in the list, survive a reload, r
   assert.deepEqual((await api.get(`/api/profiles/${me.id}/watchlist`, headers)).items, []);
 });
 
-// My List downloads (src/media/mylistdl.js): the add's answer says what the
-// server started fetching, and the toast says it. The private instance has no
-// network and its whole library is already on disk, so the server's answer is
-// made up here — what is tested is the page's wording for each answer.
-ui.test("My List: the toast says what the add started downloading — and nothing more when it started nothing", async ({ page, goto, signIn, freshProfile, lib }) => {
+// An add to My List only adds it (elia 2026-10-26: the auto-download is gone).
+// The toast is the one plain line — even if an older server still answered
+// with what it started fetching — and no download is ever asked for.
+ui.test("My List: an add only adds — the toast is the plain line, and nothing is downloaded", async ({ page, goto, signIn, freshProfile, lib }) => {
   await signIn(await freshProfile());
   let download = null;
   await page.route("**/api/profiles/*/watchlist", async (route) => {
     if (route.request().method() !== "POST") return route.continue();
     const res = await route.fetch();
     const body = await res.json();
+    assert.deepEqual(Object.keys(body), ["watchlist"], "this server says nothing about downloads");
     if (JSON.parse(route.request().postData() || "{}").add && download) body.download = download;
     await route.fulfill({ json: body });
   });
+  const downloadPosts = [];
+  page.on("request", (r) => { if (r.method() === "POST" && /\/api\/downloads(\/|$|\?)/.test(new URL(r.url()).pathname)) downloadPosts.push(r.url()); });
   const add = page.locator('.detail-actions button:has(span:text-is("My List"))');
   const added = page.locator('.detail-actions button:has(span:text-is("In My List"))');
-  // each line word for word: the newest toast is exactly it
-  const cycle = async (id, expected) => {
+  const cycle = async (id) => {
     await goto(id);
     await add.click();
     await added.waitFor();
-    await lastToastIs(page, expected);
+    await lastToastIs(page, "Added to My List");
     await added.click();
     await add.waitFor();
     await lastToastIs(page, "Removed from My List");
   };
-
-  // the real answer here: the film is in the library, nothing is fetched (an older server: no field at all)
-  await cycle(`#/movie/${lib.film1.id}`, "Added to My List");
-
-  // the same three lines the TV app prints
+  await cycle(`#/movie/${lib.film1.id}`);
+  await cycle(`#/show/${lib.show.id}`);
+  // an older server's "I started the film" is not repeated: nothing downloads now
   download = { queued: true, what: "film" };
-  await cycle(`#/movie/${lib.film1.id}`, "Added to My List — downloading the film");
-  download = { queued: true, what: "episode", season: 1, episode: 1 };
-  await cycle(`#/show/${lib.show.id}`, "Added to My List — downloading the first episode");
-  // asked for nothing (already started, already queued, switched off…): the plain line
-  download = { queued: false, reason: "started" };
-  await cycle(`#/movie/${lib.film2.id}`, "Added to My List");
+  await cycle(`#/movie/${lib.film2.id}`);
+  await page.waitForTimeout(300);
+  assert.deepEqual(downloadPosts, [], "no POST to the downloads API");
+  assert.doesNotMatch(await page.locator("#toasts").innerText(), /downloading/i);
 });
 
 ui.test("My List: an add or a removal that fails puts the button back and says so", {

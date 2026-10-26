@@ -10,7 +10,7 @@
 //   * smart cleanup (media/smartclean.js) postpones: not cleaned while it is
 //     being read, cleaned on a later check once nobody is;
 //   * the library tree marks it, so "Suggest what to delete" leaves it out.
-// My List's auto-delete has the same rule, pinned in test/mylistdl.test.js.
+// The tidy-up of what My List downloads left behind has the same rule, pinned in test/mylistdl.test.js.
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
