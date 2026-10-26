@@ -67,7 +67,8 @@ class Device {
       : this.form === "phone" ? "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1"
       : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
     const extra = kind === "tv" ? { "X-Session": sid, "X-Profile": profileId } : { Cookie: `aurora_session=${sid}` };
-    this.c = new Client(ctx.url, { maxSockets: 6, ua, extra });
+    // (capacity.js: ctx.link = { tv, phone, desktop } Mbit/s — each device's own network)
+    this.c = new Client(ctx.url, { maxSockets: 6, ua, extra, linkMbit: ctx.link ? ctx.link[this.form] || 0 : 0 });
     this.viewerId = `${kind}${crypto.randomBytes(4).toString("hex")}${Date.now().toString(36)}`;
     this.stopped = false;
     this.seen = new Set(); // picture cache
@@ -466,9 +467,10 @@ class Device {
           if (p.seekTo != null) return false;
           if (buf.ahead() >= high && !res.isPaused()) {
             res.pause();
+            res._ltHeld = true; // (the player's own pause: the link throttle must not undo it)
             const wake = setInterval(() => {
               if (this.stopped || ac.stop || p.seekTo != null || Date.now() >= until) { clearInterval(wake); res.destroy(); return; }
-              if (buf.ahead() < low) { clearInterval(wake); res.resume(); }
+              if (buf.ahead() < low) { clearInterval(wake); res._ltHeld = false; if (!res._ltThrottled) res.resume(); }
             }, 250);
           }
           return true;

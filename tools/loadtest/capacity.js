@@ -363,8 +363,12 @@ const main = async () => {
   tree.disk = diskSampler(media.dir);
   const dl = downloads(path.join(WORK, "downloads-sim"), nDl);
   const ctx = makeCtx(srv);
+  // each device's own network (http.js linkMbit): a TV on the house Wi-Fi/Ethernet, a phone, a desktop
+  const link = String(a.link || "tv=80,phone=50,desktop=200");
+  ctx.link = link === "off" ? null : Object.fromEntries(link.split(",").map((x) => x.split("=")).map(([k, v]) => [k, Number(v)]));
   const crowd = new Crowd(ctx, srv, { seekMin });
   const result = { meta: { at: new Date().toISOString(), mix, note: MIX_NOTE[mix], cycle: MIXES[mix], steps, stepMin, warm, downloads: { k: nDl, mbsEach: 4 }, seekMin, rule: RULE,
+    link: link,
     host: { cpus: os.cpus().length, cpu: os.cpus()[0].model, memGb: Math.round(os.totalmem() / 1073741824), platform: process.platform, node: process.version },
     ref: srv.ref, head: srv.head, dirty: srv.dirty, args: a }, steps: [] };
   try {
@@ -409,11 +413,25 @@ const main = async () => {
       if (left) { say(`  ${left} viewers left; a breath`); await sleep(15000); }
       // the 9 pm burst
       ctx.stats = new Stats();
+      await srv.snap(true);
       const tb = Date.now();
+      const cpu0 = process.cpuUsage();
+      // the event loop as anyone meets it, during the burst too
+      const lag = []; let lagOn = true;
+      (async () => { const { Client } = require("./http"); const lc = new Client(srv.url, { maxSockets: 1 }); while (lagOn) { const r = await lc.request("GET", "/healthz", { compressed: false, timeoutMs: 20000 }); lag.push(r.status === 200 ? r.ms : 20000); await sleep(200); } lc.close(); })();
       const list = await crowd.burst(n, mix, Number(a.spread) || 10);
       const burst = await readBurst(ctx, list, 90);
-      burst.gpu = gpu.summary(tb, Date.now());
-      say(`  burst: TTFF p50/p95/max ${burst.ttffP50}/${burst.ttffP95}/${burst.ttffMax} ms, never ${burst.neverStarted}, refused ${burst.refused}, API p95/p99 ${burst.apiP95}/${burst.apiP99}`);
+      lagOn = false;
+      const tbe = Date.now();
+      burst.gpu = gpu.summary(tb, tbe);
+      const sb = await srv.snap(true);
+      burst.server = { loop: sb.loop && { p50: sb.loop.p50, p99: sb.loop.p99, max: sb.loop.max }, stalls: sb.stalls && { n100: sb.stalls.n100, n1000: sb.stalls.n1000, totalMs: sb.stalls.totalMs, max: sb.stalls.max, waitMs: sb.stalls.waitMs, busyMs: sb.stalls.busyMs }, elu: sb.elu, slowSync: (sb.slowSync || []).slice(0, 10), http: sb.http };
+      burst.lag = { n: lag.length, p50: q(lag, 50), p99: q(lag, 99), max: q(lag, 100) };
+      burst.tree = tree.between(tb, tbe);
+      burst.machine = machine.summary(tb);
+      burst.driverCores = round((((c) => c.user + c.system)(process.cpuUsage(cpu0)) / 1e6) / ((tbe - tb) / 1000), 3);
+      burst.egressMbit = round((list.reduce((x, v) => x + (v.current ? v.current.bytes : 0), 0) * 8) / 1e6 / ((tbe - tb) / 1000), 1);
+      say(`  burst: TTFF p50/p95/max ${burst.ttffP50}/${burst.ttffP95}/${burst.ttffMax} ms, never ${burst.neverStarted}, refused ${burst.refused}, API p95/p99 ${burst.apiP95}/${burst.apiP99}, lag p99/max ${burst.lag.p99}/${burst.lag.max}, loop stalls>1s ${burst.server.stalls ? burst.server.stalls.n1000 : "?"}, server ${burst.tree ? burst.tree.serverCores : "?"} + ffmpeg ${burst.tree ? burst.tree.kidsCores : "?"} cores, driver ${burst.driverCores}, PC ${burst.machine.cpuPctMean} %, ${burst.egressMbit} Mbit/s`);
       await sleep(warm * 1000);
       // the window
       const before = new Map();

@@ -57,6 +57,36 @@ Environment: `LT_WORK` (scratch, default `%TEMP%/aurora-agents/srv-loadtest`),
 `config.json` `libraries`/`scanIntervalMinutes` and the safe caches in `data/`
 are read).
 
+## Capacity: how many people (capacity.js)
+
+`capacity.js` answers "how many people at once" for one machine: a household
+evening stepped up (`--steps`), every step a cold **9 pm burst** (each viewer
+opens the app, Home, the title page, the subtitle, then Play — the viewers of
+the step before leave first), n/2 people browsing and n/2 devices idle beside
+them, background downloads writing to the media disk, then a measured window.
+Results and the method: `docs/qa/capacity-2026-10/REPORT.md`.
+
+```
+node tools/loadtest/capacity.js --ref <ref> --mix typical --steps 5,10,15,20,30,40 --step-min 4 --out typical-r1
+node tools/loadtest/capacity.js --ref <ref> --mix direct  --steps 5,10,20,30,40,60,80,100,120
+node tools/loadtest/capacity.js --ref <ref> --mix worst   --steps 5,10,15,20,30
+node tools/loadtest/capacity-report.js docs/qa/capacity-2026-10/results/*.json   # knees + streams per upload
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--mix typical\|direct\|worst` | the viewers' paths, a cycle in `MIXES` (typical = what the house recorded; worst = 40 % encoded, 30 % torrents) |
+| `--link tv=80,phone=50,desktop=200` | each device's own network in Mbit/s (`http.js` `linkMbit`); `off` = loopback speed, which no real device has |
+| `--downloads k` | background downloads: k writers at 4 MB/s on the media disk (default 2) |
+| `--spread s` | the burst's spread: everyone presses Play within s seconds (default 10) |
+| `--stop-after k` | stop after k steps that are not supported (default 2) |
+
+- Library: media `cap` (`instance.js` `genMediaCap`), shaped like the house's: five 30-minute 1080p masters at 2–7 Mbit/s (H.264 MP4 AAC / AC-3, HEVC 10-bit MKV E-AC-3, HEVC MKV AAC), each under 8 names, two subtitle sidecars each.
+- Torrent viewers play from `swarm.js`: a tracker and a seeder on 127.0.0.1; the instance keeps its network fence and finds the swarm through the `.torrent` dropped into its metadata cache.
+- Phones: the website with an iPhone user agent, Apple's fMP4 HLS (`seg=fmp4`), the 480p rung when encoded.
+- "Supported" (`RULE` in `capacity.js`): burst and in-window TTFF p95 ≤ 4 s, late segments ≤ 1 %, stalled ≤ 0.5 % of watch time, API p99 ≤ 300 ms, nothing refused.
+- Measured besides: segments late (slower than real time) / starved (after the buffer ran dry), event-loop lag during the burst and the window, server and ffmpeg cores, the graphics card (`lib.js` `gpuSampler`: nvidia-smi), the server's own encoder count (`/api/admin/encoding`, the instance's own admin password), disk, RAM, the PC.
+
 ## Linux (WSL)
 
 ```
@@ -127,5 +157,8 @@ Server side, from inside (`probe.js`, preloaded; changes nothing): event-loop de
 | `probe.js` | preloaded into the instance: loop, CPU, memory, fs, writes, server-side times |
 | `lib.js` | stats, samplers (process tree, PC, library disk), tables |
 | `report.js` | the markdown tables; `--vs` |
+| `capacity.js` | people at once: mixes, the 9 pm burst, the "supported" rule |
+| `capacity-report.js` | knees per run, streams per upload speed |
+| `swarm.js` | a torrent swarm on 127.0.0.1 for torrent viewers |
 
 Tests of the harness's own arithmetic: `node --test test/loadtest-harness.test.js` (part of `npm test`, milliseconds).
