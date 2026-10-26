@@ -1113,6 +1113,43 @@
         #cp-groups .cp-meta { font-size: 0.8rem; color: var(--text-dim); overflow-wrap: anywhere; margin-top: 2px; }
         #cp-groups .cp-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
         @media (max-width: 640px) { #cp-groups .cp-acts { width: 100%; } #cp-groups .cp-acts .mini { flex: 1; } }
+        /* "Suggest what to delete": the list to choose from */
+        .fp { border: 1px solid var(--line); border-radius: 12px; margin: 4px 0 12px; padding: 10px 12px 12px; background: rgba(255,255,255,0.02); }
+        .fp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+        .fp-head h3 { font-size: 1rem; margin: 0; flex: 1 1 auto; }
+        .fp-head h3:focus { outline: none; }
+        .fp-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+        .fp-note { color: var(--text-dim); font-size: 0.85rem; line-height: 1.45; margin: 6px 0 4px; }
+        .fp-result { font-size: 0.86rem; line-height: 1.5; margin: 6px 0; padding: 8px 10px; border-radius: 10px; background: rgba(74, 222, 128, 0.08); }
+        .fp-result.fp-some { background: rgba(240, 177, 50, 0.10); }
+        .fp-result ul { margin: 4px 0 0 18px; padding: 0; color: var(--text-dim); }
+        .fp-list { max-height: 52vh; overflow: auto; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 6px; }
+        .fp-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .fp-lab { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; cursor: pointer; }
+        .fp-row.fp-busy .fp-lab { cursor: default; opacity: 0.75; }
+        .fp-row input[type="checkbox"] { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--accent-strong); }
+        .fp-row input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .fp-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .fp-text b { font-weight: 700; overflow-wrap: anywhere; }
+        .fp-text .fp-sub { color: var(--text-dim); font-size: 0.8rem; overflow-wrap: anywhere; }
+        .fp-why { color: var(--text-faint); font-size: 0.78rem; overflow-wrap: anywhere; }
+        .fp-size { flex: none; color: var(--text-dim); font-variant-numeric: tabular-nums; font-size: 0.86rem; }
+        .fp-eps { margin-left: 30px; }
+        .fp-eps .fp-row { padding-left: 2px; }
+        .fp-fold { flex: none; }
+        .fp-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-top: 10px; }
+        .fp-total { font-weight: 700; font-size: 0.92rem; }
+        .fp-del { background: #b91c1c; border-color: #b91c1c; color: #fff; justify-content: center; text-align: center; }
+        .fp-del:hover:not(:disabled) { background: #991b1b; color: #fff; }
+        .fp-del:disabled { opacity: 0.45; cursor: not-allowed; }
+        @media (max-width: 640px) {
+          .fp { padding: 10px 8px 12px; }
+          .fp-tools { width: 100%; }
+          .fp-tools .mini { flex: 1; }
+          .fp-row input[type="checkbox"] { width: 22px; height: 22px; }
+          .fp-eps { margin-left: 14px; }
+          .fp-foot .fp-del { width: 100%; min-height: 44px; }
+        }
       </style>
       <details class="acard hidden" data-key="d-copies" id="cp-card" open>
         <summary><span class="chev">▶</span><h2>More than one copy <span class="pill warn" id="cp-count">0</span>
@@ -1145,8 +1182,26 @@
             <span class="muted" style="font-size:0.86rem">Running low?</span>
             <label style="display:flex;align-items:center;gap:6px;font-size:0.86rem;color:var(--text-dim)">Free
               <input type="text" id="free-gb" value="20" inputmode="numeric" style="max-width:70px;flex:none;min-width:0;text-align:center" /> GB</label>
-            <button class="mini" id="free-suggest" title="Picks things everyone who started has finished, the longest-ago watched first — and shows you the list before anything is deleted">Suggest what to delete</button>
+            <button class="mini" id="free-suggest" title="Picks things everyone who started has finished, the longest-ago watched first — and shows you the list to choose from before anything is deleted">Suggest what to delete</button>
           </div>
+          <!-- The suggestions as a list to tick and untick: only what stays ticked is deleted (media/freeup.js). -->
+          <section id="free-pick" class="fp hidden" aria-labelledby="fp-title">
+            <div class="fp-head">
+              <h3 id="fp-title" tabindex="-1">Suggested to delete</h3>
+              <div class="fp-tools">
+                <button type="button" class="mini" id="fp-all">Select all</button>
+                <button type="button" class="mini" id="fp-none">Select none</button>
+                <button type="button" class="mini" id="fp-close" aria-label="Close the suggestions">Close</button>
+              </div>
+            </div>
+            <div id="fp-note" class="fp-note"></div>
+            <div id="fp-result" class="fp-result hidden" role="status"></div>
+            <div id="fp-list" class="fp-list"></div>
+            <div class="fp-foot">
+              <span id="fp-total" class="fp-total" aria-live="polite"></span>
+              <button type="button" class="btn small btn-primary fp-del" id="fp-delete">Delete selected</button>
+            </div>
+          </section>
           <div id="lib-toolbar" class="empty-note" style="font-size:0.9rem;padding:2px 4px"></div>
           <div id="lib-batchbar" class="bar-row hidden" style="align-items:center;margin:6px 0">
             <button class="btn small btn-primary" id="lib-batch-delete" style="background:#b91c1c;border-color:#b91c1c">Delete selected</button>
@@ -4044,76 +4099,173 @@
       toast(`Deleted "${delTitle}"`);
       libRefresh();
     });
-    // ---------- free up space ----------
-    // What is safe to delete: finished by at least one profile, with nobody
-    // part-way through it. Longest-ago watched first (bigger first on a tie),
-    // just enough of them to reach the target. Nothing is touched until the
-    // list has been shown and confirmed.
-    // Ahead of those: STALE My List downloads — fetched because a title was
-    // added to a list, and not watched by anyone in the weeks since. Nobody
-    // asked for the file itself, so they go first (oldest add first).
-    const freeCandidates = (tree) => {
-      const out = [];
-      // (never a file someone is playing right now — the server refuses those anyway)
-      const stale = (x) => x.mylist && x.mylist.state === "stale" && !x.midway && !x.watched && !x.streaming && x.sizeBytes > 0;
-      for (const m of tree.movies || []) {
-        if (stale(m)) out.push({ kind: "movie", id: m.id, name: m.title + (m.year ? ` (${m.year})` : ""), sizeBytes: m.sizeBytes, lastWatched: 0, mylist: m.mylist });
-      }
-      for (const s of tree.shows || []) for (const se of s.seasons || []) for (const e of se.episodes || []) {
-        if (stale(e)) out.push({ kind: "file", id: e.id, name: `${s.title} S${e.season}E${e.episode}`, sizeBytes: e.sizeBytes, lastWatched: 0, mylist: e.mylist });
-      }
-      out.sort((a, b) => (a.mylist.addedAt || 0) - (b.mylist.addedAt || 0));
-      const first = out.length;
-      for (const m of tree.movies || []) {
-        if (m.watched > 0 && !m.midway && !m.streaming && m.sizeBytes > 0) out.push({ kind: "movie", id: m.id, name: m.title + (m.year ? ` (${m.year})` : ""), sizeBytes: m.sizeBytes, lastWatched: m.lastWatched || 0 });
-      }
-      for (const s of tree.shows || []) for (const se of s.seasons || []) for (const e of se.episodes || []) {
-        if (e.watched > 0 && !e.midway && !e.streaming && e.sizeBytes > 0) out.push({ kind: "file", id: e.id, name: `${s.title} S${e.season}E${e.episode}`, sizeBytes: e.sizeBytes, lastWatched: e.lastWatched || 0 });
-      }
-      const watched = out.splice(first).sort((a, b) => a.lastWatched - b.lastWatched || b.sizeBytes - a.sizeBytes);
-      return [...out, ...watched];
+    // ---------- free up space: "Suggest what to delete" ----------
+    // The server picks (media/freeup.js): first the My List downloads nobody
+    // watched in the weeks since, then what somebody finished with nobody
+    // part-way through it, the longest-ago watched first — just enough to
+    // reach the target. The page shows them as a list to tick and untick
+    // (all ticked at first); only what stays ticked is deleted, and the
+    // server checks each one again (still a suggestion, nobody playing it).
+    // One being played right now is listed, greyed, never deleted.
+    let fpData = null;   // the last answer of GET /api/admin/library/suggest
+    let fpGb = 0;        // the target it was asked for
+    const fpPad = (n) => String(n || 0).padStart(2, "0");
+    const fpBusyPill = `<span class="pill live">▶ being watched</span>`;
+    const fpChecks = () => [...document.querySelectorAll("#fp-list .fp-check")];
+    const fpChosen = () => fpChecks().filter((c) => c.checked && !c.disabled);
+    const fpItemRow = (it, inShow) => {
+      const label = inShow
+        ? `<b>S${fpPad(it.season)}E${fpPad(it.episode)}${it.title ? ` · ${esc(it.title)}` : ""}</b>`
+        : `<b>${esc(it.name)}</b>`;
+      return `<div class="fp-row${it.inUse ? " fp-busy" : ""}" data-fp-id="${esc(it.id)}">
+        <label class="fp-lab">
+          <input type="checkbox" class="fp-check" data-id="${esc(it.id)}" data-size="${it.sizeBytes}" data-name="${esc(it.name)}"${it.show ? ` data-show="${esc(it.show.id)}"` : ""}${it.inUse ? " disabled" : " checked"} />
+          ${inShow ? "" : libThumb(it.cover, it.kind === "movie" ? "🎬" : "📺")}
+          <span class="fp-text">${label}<span class="fp-why">${it.inUse ? `${fpBusyPill} right now — it is kept, and not counted` : esc(it.why)}</span></span>
+          <span class="fp-size">${fmtBytes(it.sizeBytes)}</span>
+        </label>
+      </div>`;
     };
-    const pickToFree = (tree, targetBytes) => {
-      const picked = [];
-      let total = 0;
-      for (const c of freeCandidates(tree)) {
-        if (total >= targetBytes) break;
-        picked.push(c);
-        total += c.sizeBytes;
+    function renderFreePick() {
+      const d = fpData;
+      if (!d) return;
+      // Films alone; episodes under their show, where the show first comes up
+      // in the order (episodes in season order inside it).
+      const groups = [];
+      const shows = new Map();
+      for (const it of d.items) {
+        if (it.kind !== "episode" || !it.show) { groups.push({ item: it }); continue; }
+        let g = shows.get(it.show.id);
+        if (!g) { g = { show: it.show, eps: [] }; shows.set(it.show.id, g); groups.push(g); }
+        g.eps.push(it);
       }
-      return { picked, total };
-    };
-    $("#free-suggest").addEventListener("click", async () => {
-      if (!libTreeData) return;
+      const nOk = d.items.filter((i) => !i.inUse).length;
+      const nBusy = d.items.length - nOk;
+      const want = fmtBytes(d.targetBytes);
+      $("#fp-note").innerHTML = !d.items.length
+        ? "Nothing is safe to delete yet — nothing has been watched to the end with nobody part-way through, and no My List download has gone stale."
+        : `${d.short ? `That is everything that is safe to delete — less than the ${esc(want)} asked for. ` : `Enough to free about ${esc(want)}. `}` +
+          `Untick what you want to keep; only what is ticked is deleted. Files are removed for good; watch progress is kept.` +
+          (nBusy ? ` ${nBusy === 1 ? "One is" : `${nBusy} are`} being watched right now and cannot be chosen.` : "");
+      $("#fp-list").innerHTML = groups.map((g) => {
+        if (g.item) return fpItemRow(g.item, false);
+        g.eps.sort((a, b) => (a.season - b.season) || (a.episode - b.episode));
+        const size = g.eps.reduce((n, e) => n + (e.inUse ? 0 : e.sizeBytes), 0);
+        const allBusy = g.eps.every((e) => e.inUse);
+        const fold = `fp-eps-${esc(g.show.id)}`;
+        return `<div class="fp-show" data-fp-show="${esc(g.show.id)}">
+          <div class="fp-row fp-show-row">
+            <label class="fp-lab">
+              <input type="checkbox" class="fp-show-check" data-show="${esc(g.show.id)}"${allBusy ? " disabled" : " checked"} aria-label="All suggested episodes of ${esc(g.show.title)}" />
+              ${libThumb(g.show.cover, "📺")}
+              <span class="fp-text"><b>${esc(g.show.title)}</b><span class="fp-sub">${g.eps.length} episode${g.eps.length > 1 ? "s" : ""} suggested</span></span>
+              <span class="fp-size">${fmtBytes(size)}</span>
+            </label>
+            <button type="button" class="mini fp-fold" aria-expanded="true" aria-controls="${fold}" aria-label="Hide the episodes of ${esc(g.show.title)}">Hide</button>
+          </div>
+          <div class="fp-eps" id="${fold}" role="group" aria-label="Episodes of ${esc(g.show.title)}">${g.eps.map((e) => fpItemRow(e, true)).join("")}</div>
+        </div>`;
+      }).join("");
+      $("#fp-all").disabled = $("#fp-none").disabled = nOk === 0;
+      fpUpdate();
+    }
+    // The show tick follows its episodes: all ticked, none, or some (mixed).
+    function fpSyncShows() {
+      for (const box of document.querySelectorAll("#fp-list .fp-show-check")) {
+        const eps = fpChecks().filter((c) => c.dataset.show === box.dataset.show && !c.disabled);
+        const on = eps.filter((c) => c.checked).length;
+        box.checked = eps.length > 0 && on === eps.length;
+        box.indeterminate = on > 0 && on < eps.length;
+      }
+    }
+    function fpUpdate() {
+      fpSyncShows();
+      const chosen = fpChosen();
+      const bytes = chosen.reduce((n, c) => n + (+c.dataset.size || 0), 0);
+      $("#fp-total").textContent = chosen.length
+        ? `${chosen.length} item${chosen.length > 1 ? "s" : ""} · ${fmtBytes(bytes)} will be freed`
+        : "Nothing selected";
+      $("#fp-delete").disabled = chosen.length === 0;
+    }
+    async function loadFreePick(gb, { focus = false } = {}) {
+      let r, data = {};
+      try {
+        r = await adminFetch(`/api/admin/library/suggest?gb=${encodeURIComponent(gb)}`);
+        data = await r.json().catch(() => ({}));
+      } catch { r = null; }
+      if (!r || !r.ok || data.error || !Array.isArray(data.items)) { toast(data.error || "Could not get the suggestions"); return false; }
+      fpData = data;
+      fpGb = gb;
+      $("#free-pick").classList.remove("hidden");
+      renderFreePick();
+      if (focus) $("#fp-title").focus();
+      return true;
+    }
+    const freeSuggest = async () => {
       const gb = parseFloat($("#free-gb").value);
       if (!(gb > 0)) return toast("How many GB should be freed?");
-      const { picked, total } = pickToFree(libTreeData, gb * 1024 ** 3);
-      if (!picked.length) return toast("Nothing is safe to delete yet — nothing has been watched to the end, and no My List download has gone stale");
-      const short = total < gb * 1024 ** 3;
-      const nStale = picked.filter((c) => c.mylist).length;
-      const names = picked.slice(0, 12).map((c) => `${c.name} — ${fmtBytes(c.sizeBytes)}${c.mylist ? ` (${c.mylist.why})` : ""}`).join("\n");
-      if (!await ask(`Delete ${picked.length} item${picked.length > 1 ? "s" : ""} to free ${fmtBytes(total)}?\n\n` +
-        (short ? `That is everything that is safe to delete — less than the ${gb} GB asked for.\n\n` : "") +
-        `${names}${picked.length > 12 ? `\n…and ${picked.length - 12} more` : ""}\n\n` +
-        (nStale ? `${nStale === picked.length ? "Each" : `${nStale} of them`} was fetched because it was added to My List and has not been watched since (it stays on the list, to stream). ` : "") +
-        (nStale < picked.length ? `${nStale ? "The rest were" : "Each was"} finished by someone and nobody is part-way through ${nStale ? "them" : "it"}. ` : "") +
-        "Files are removed for good; watch progress is kept.")) return;
+      $("#fp-result").classList.add("hidden");
       const btn = $("#free-suggest");
       btn.disabled = true;
-      let done = 0, freed = 0, playing = 0;
-      for (const c of picked) {
-        btn.textContent = `Deleting ${done + 1} of ${picked.length}…`;
-        try {
-          const r = await adminFetch(c.kind === "movie" ? `/api/admin/library/movie/${c.id}` : `/api/admin/library/file/${c.id}`, { method: "DELETE" });
-          if (r.ok) { done++; freed += c.sizeBytes; }
-          else if (r.status === 409) playing++; // someone is playing it: kept
-        } catch {}
+      try { await loadFreePick(gb, { focus: true }); } finally { btn.disabled = false; }
+    };
+    $("#free-suggest").addEventListener("click", freeSuggest);
+    $("#free-gb").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); freeSuggest(); } });
+    $("#fp-list").addEventListener("change", (e) => {
+      const box = e.target.closest(".fp-show-check");
+      if (box) fpChecks().forEach((c) => { if (c.dataset.show === box.dataset.show && !c.disabled) c.checked = box.checked; });
+      fpUpdate();
+    });
+    $("#fp-list").addEventListener("click", (e) => {
+      const fold = e.target.closest(".fp-fold");
+      if (!fold) return;
+      const open = fold.getAttribute("aria-expanded") !== "true";
+      fold.setAttribute("aria-expanded", String(open));
+      fold.textContent = open ? "Hide" : "Show";
+      fold.setAttribute("aria-label", fold.getAttribute("aria-label").replace(/^(Hide|Show)/, open ? "Hide" : "Show"));
+      document.getElementById(fold.getAttribute("aria-controls")).hidden = !open;
+    });
+    $("#fp-all").addEventListener("click", () => { fpChecks().forEach((c) => { if (!c.disabled) c.checked = true; }); fpUpdate(); });
+    $("#fp-none").addEventListener("click", () => { fpChecks().forEach((c) => { c.checked = false; }); fpUpdate(); });
+    $("#fp-close").addEventListener("click", () => {
+      $("#free-pick").classList.add("hidden");
+      fpData = null;
+      $("#free-suggest").focus();
+    });
+    $("#fp-delete").addEventListener("click", async () => {
+      const chosen = fpChosen();
+      if (!chosen.length) return;
+      const bytes = chosen.reduce((n, c) => n + (+c.dataset.size || 0), 0);
+      const n = chosen.length;
+      const names = chosen.slice(0, 8).map((c) => `• ${c.dataset.name} — ${fmtBytes(+c.dataset.size)}`).join("\n");
+      if (!await ask(`Delete ${n} item${n > 1 ? "s" : ""} — ${fmtBytes(bytes)}?\n\n${names}${n > 8 ? `\n…and ${n - 8} more` : ""}\n\nThe files are removed for good and this cannot be undone. Watch progress is kept.`)) return;
+      const btn = $("#fp-delete");
+      btn.disabled = true;
+      btn.textContent = `Deleting ${n}…`;
+      let res = null;
+      try {
+        const r = await adminFetch("/api/admin/library/suggest/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: chosen.map((c) => c.dataset.id) }) });
+        res = await r.json().catch(() => ({}));
+        if (!r.ok || res.error) throw new Error(res.error || "Delete failed");
+      } catch (err) {
+        btn.textContent = "Delete selected";
+        fpUpdate();
+        return toast(err.message);
       }
-      btn.disabled = false;
-      btn.textContent = "Suggest what to delete";
-      toast(done === picked.length ? `Freed ${fmtBytes(freed)}` : `Deleted ${done} of ${picked.length} — ${fmtBytes(freed)} freed; ` +
-        (playing ? `${playing === picked.length - done ? "the rest are" : `${playing} ${playing === 1 ? "is" : "are"}`} being played right now and ${playing === 1 ? "was" : "were"} kept — try again when they have stopped` : "the rest could not be removed"));
-      loadLibraryTree(); loadDisk();
+      btn.textContent = "Delete selected";
+      const done = res.deleted.length;
+      const skipped = res.skipped || [];
+      const head = done ? `Deleted ${done} of ${n} — ${fmtBytes(res.freedBytes)} freed.` : "Nothing was deleted.";
+      const out = $("#fp-result");
+      out.classList.remove("hidden");
+      out.classList.toggle("fp-some", skipped.length > 0);
+      out.innerHTML = `<b>${esc(head)}</b>` + (skipped.length
+        ? ` ${skipped.length} kept:<ul>${skipped.map((x) => `<li>${esc(x.name || x.id)} — ${esc(x.why)}</li>`).join("")}</ul>`
+        : "");
+      toast(skipped.length ? `${head} ${skipped.length} kept` : head);
+      // The list refreshes: what is left to suggest for the same target.
+      await loadFreePick(fpGb);
+      libRefresh();
     });
 
     $("#lib-batch-delete").addEventListener("click", async () => {

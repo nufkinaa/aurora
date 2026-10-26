@@ -465,9 +465,6 @@ ui.test("Left from My List downloads: a leftover job is an ordinary one in the q
     ];
     await route.fulfill({ json: body });
   });
-  let deletes = 0;
-  await page.route("**/api/admin/library/movie/*", (route) => { deletes++; return route.fulfill({ status: 500, json: { error: "not in this test" } }); });
-
   await enter(page, srv);
   await downloadsTab(page);
   // the queue: no My List tag, no "on hold", no "Start now" — every row is an ordinary one with its Cancel
@@ -495,29 +492,8 @@ ui.test("Left from My List downloads: a leftover job is an ordinary one in the q
   assert.doesNotMatch(await lib("Watched Film"), /My List/);
   assert.doesNotMatch(await lib("Plain Film"), /My List/);
 
-  // "Suggest what to delete": the stale copy first, with why; then the watched film; never the fresh or the plain one
-  await page.fill("#free-gb", "5");
-  await page.click("#free-suggest");
-  await page.waitForSelector("dialog.ask");
-  const text = await page.locator("dialog.ask").innerText();
-  assert.match(text, /Delete 2 items to free 6\.0 GB\?/);
-  assert.ok(text.indexOf("Stale Film (2020)") >= 0 && text.indexOf("Stale Film (2020)") < text.indexOf("Watched Film (2019)"), "the stale one is offered first");
-  assert.match(text, /Stale Film \(2020\) — 4\.0 GB \(added to My List on 2026-09-20, never watched\)/);
-  assert.match(text, /1 of them was fetched because it was added to My List and has not been watched since/);
-  assert.doesNotMatch(text, /Fresh Film|Plain Film/);
-  await page.click("dialog.ask .ask-no");
-  await page.waitForSelector("dialog.ask", { state: "detached" });
-  assert.equal(deletes, 0, "nothing is deleted without a yes");
-
-  // a small target is met by the stale copy alone
-  await page.fill("#free-gb", "3");
-  await page.click("#free-suggest");
-  await page.waitForSelector("dialog.ask");
-  const one = await page.locator("dialog.ask").innerText();
-  assert.match(one, /Delete 1 item to free 4\.0 GB\?/);
-  assert.match(one, /Each was fetched because it was added to My List/);
-  assert.doesNotMatch(one, /Watched Film/);
-  await page.click("dialog.ask .ask-no");
+  // ("Suggest what to delete" offers the stale copy first, with why: the order is
+  // pinned in test/admin-free-pick.test.js, the list in test/ui/admin-delete-pick.test.js)
 });
 
 // ---------- Server → Status: the Healer card (src/lib/healer.js) ----------

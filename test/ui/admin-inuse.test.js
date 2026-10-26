@@ -42,32 +42,8 @@ const treeHas = async (api, id) => {
   return t.movies.some((m) => m.id === id) || t.shows.some((s) => s.seasons.some((se) => se.episodes.some((e) => e.id === id)));
 };
 
-ui.test("Suggest what to delete leaves out what somebody is playing right now", async ({ page, srv }) => {
-  const now = Date.now();
-  await page.route("**/api/admin/library/tree", async (route) => {
-    const res = await route.fetch();
-    const body = await res.json();
-    body.movies = [
-      { id: "m-busy", title: "Busy Watched Film", year: 2019, cover: null, addedAt: now - 9e9, mylist: null, watched: 2, midway: 0, streaming: true, lastWatched: now - 9e9, sizeBytes: 6 * 1024 ** 3 },
-      { id: "m-free", title: "Idle Watched Film", year: 2018, cover: null, addedAt: now - 8e9, mylist: null, watched: 1, midway: 0, streaming: false, lastWatched: now - 8e9, sizeBytes: 4 * 1024 ** 3 },
-    ];
-    body.shows = [];
-    await route.fulfill({ json: body });
-  });
-  let deletes = 0;
-  await page.route("**/api/admin/library/movie/*", (route) => { deletes++; return route.fulfill({ status: 500, json: { error: "not in this test" } }); });
-  await enter(page, srv);
-  await onDisk(page);
-  await page.fill("#free-gb", "50");
-  await page.click("#free-suggest");
-  await page.waitForSelector("dialog.ask");
-  const text = await page.locator("dialog.ask").innerText();
-  assert.match(text, /Delete 1 item to free 4\.0 GB\?/);
-  assert.match(text, /Idle Watched Film/);
-  assert.doesNotMatch(text, /Busy Watched Film/, "the one being played is not offered");
-  await page.click("dialog.ask .ask-no");
-  assert.equal(deletes, 0);
-});
+// ("Suggest what to delete" greys out what somebody is playing right now, and its
+// delete skips it: test/ui/admin-delete-pick.test.js, test/admin-free-pick.test.js)
 
 ui.test("deleting an episode somebody is playing: refused with a sentence, and the episode stays (desktop)", { allow: [/Failed to load resource.*409/] }, async ({ page, srv, api, lib }) => {
   const ep = lib.e1;
